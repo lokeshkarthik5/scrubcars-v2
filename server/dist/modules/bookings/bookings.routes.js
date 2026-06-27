@@ -1,0 +1,15 @@
+import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
+import { authMiddleware, requireCustomer, requireVendor, } from "../../middleware/auth.middleware.js";
+import * as bookingsController from "./bookings.controller.js";
+import { bookingIdParamSchema, createBookingSchema, listMyBookingsQuerySchema, listVendorBookingsQuerySchema, } from "./bookings.validation.js";
+export const bookingsRoutes = new Hono();
+bookingsRoutes.get("/me", authMiddleware, requireCustomer, zValidator("query", listMyBookingsQuerySchema), (c) => bookingsController.listMyBookings(c, c.req.valid("query")));
+bookingsRoutes.get("/vendor", authMiddleware, requireVendor, zValidator("query", listVendorBookingsQuerySchema), (c) => bookingsController.listVendorBookings(c, c.req.valid("query")));
+bookingsRoutes.post("/", authMiddleware, requireCustomer, zValidator("json", createBookingSchema), (c) => bookingsController.createBooking(c, c.req.valid("json")));
+bookingsRoutes.patch("/:id/cancel", authMiddleware, requireCustomer, zValidator("param", bookingIdParamSchema), (c) => bookingsController.cancelBooking(c, c.req.valid("param").id));
+bookingsRoutes.patch("/:id/accept", authMiddleware, requireVendor, zValidator("param", bookingIdParamSchema), (c) => bookingsController.acceptBooking(c, c.req.valid("param").id));
+bookingsRoutes.patch("/:id/reject", authMiddleware, requireVendor, zValidator("param", bookingIdParamSchema), (c) => bookingsController.rejectBooking(c, c.req.valid("param").id));
+bookingsRoutes.patch("/:id/progress", authMiddleware, requireVendor, zValidator("param", bookingIdParamSchema), (c) => bookingsController.markInProgress(c, c.req.valid("param").id));
+bookingsRoutes.patch("/:id/complete", authMiddleware, requireVendor, zValidator("param", bookingIdParamSchema), (c) => bookingsController.markCompleted(c, c.req.valid("param").id));
+bookingsRoutes.get("/:id", authMiddleware, zValidator("param", bookingIdParamSchema), (c) => bookingsController.getBookingDetail(c, c.req.valid("param").id));
