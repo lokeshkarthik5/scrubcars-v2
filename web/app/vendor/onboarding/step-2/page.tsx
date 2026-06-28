@@ -1,0 +1,73 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { IconCheck, IconCurrentLocation, IconMapPin } from '@tabler/icons-react'
+import { AppShell } from '@/components/sc/app-shell'
+import { ScButton } from '@/components/sc/button'
+import { ScTextarea } from '@/components/sc/input'
+import { ProgressBar } from '@/components/sc/progress-bar'
+import { TopBar } from '@/components/sc/top-bar'
+import { submitVendorOnboarding } from '@/lib/api/vendors'
+
+export default function VendorOnboardingStep2() {
+  const router = useRouter()
+  const [address, setAddress] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const handleContinue = async () => {
+    setLoading(true)
+    try {
+      await submitVendorOnboarding(2, { address })
+      router.push('/vendor/onboarding/step-3')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AppShell className="gap-5 py-4">
+      <TopBar showBack backHref="/vendor/onboarding/step-1" />
+      <ProgressBar progress={50} />
+      <p className="text-[11px] text-text-secondary">Step 2 of 4 — Your garage location</p>
+
+      <ScTextarea
+        label="Full address"
+        rows={3}
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+      />
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => { setConfirmed(true); setAddress('14, Gandhi Nagar, Adyar, Chennai – 600020') }}
+          className="flex items-center justify-center gap-2 rounded-[10px] border border-border bg-surface py-3 text-[12px] font-medium text-text-primary"
+        >
+          <IconMapPin size={16} />
+          Pin on map
+        </button>
+        <button
+          type="button"
+          onClick={() => { setConfirmed(true); setAddress('14, Gandhi Nagar, Adyar, Chennai – 600020') }}
+          className="flex items-center justify-center gap-2 rounded-[10px] border border-border bg-surface py-3 text-[12px] font-medium text-brand-red"
+        >
+          <IconCurrentLocation size={16} />
+          Detect GPS
+        </button>
+      </div>
+
+      {confirmed && (
+        <div className="flex items-center justify-between rounded-[10px] border border-brand-red bg-surface px-3 py-2.5">
+          <span className="text-[13px] text-brand-red">{address}</span>
+          <IconCheck size={18} className="text-brand-red" />
+        </div>
+      )}
+
+      <ScButton className="mt-auto mb-4" disabled={!confirmed || loading} onClick={handleContinue}>
+        Continue
+      </ScButton>
+    </AppShell>
+  )
+}
