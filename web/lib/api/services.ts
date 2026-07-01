@@ -1,19 +1,30 @@
 import { apiClient } from './client'
-import { MOCK_SERVICES } from '@/lib/mock/data'
+import { mapService } from './mappers'
+import type { ApiService } from './types'
 import type { Service } from '@/lib/types'
 
 /** GET /vendors/:vendorId/services */
 export async function getVendorServices(vendorId: string): Promise<Service[]> {
-  // TODO: return apiClient<Service[]>(`/vendors/${vendorId}/services`)
-  return MOCK_SERVICES.filter((s) => s.vendorId === vendorId)
+  const services = await apiClient<ApiService[]>(`/vendors/${vendorId}/services`, {
+    auth: false,
+  })
+  return services.map((s) => mapService(s, vendorId))
 }
 
 /** POST /vendors/me/services */
 export async function createService(
   data: Omit<Service, 'id' | 'vendorId'>
 ): Promise<Service> {
-  // TODO: return apiClient<Service>('/vendors/me/services', { method: 'POST', body: JSON.stringify(data) })
-  return { ...data, id: `svc-${Date.now()}`, vendorId: 'vendor-1' }
+  const service = await apiClient<ApiService>('/vendors/me/services', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: data.name,
+      category: data.category,
+      price: data.price,
+      durationMins: data.durationMins,
+    }),
+  })
+  return mapService(service, '')
 }
 
 /** PATCH /vendors/me/services/:id */
@@ -21,7 +32,14 @@ export async function updateService(
   id: string,
   data: Partial<Service>
 ): Promise<Service> {
-  // TODO: return apiClient<Service>(`/vendors/me/services/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
-  const existing = MOCK_SERVICES.find((s) => s.id === id)
-  return { ...existing!, ...data }
+  const service = await apiClient<ApiService>(`/vendors/me/services/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      name: data.name,
+      category: data.category,
+      price: data.price,
+      durationMins: data.durationMins,
+    }),
+  })
+  return mapService(service, '')
 }

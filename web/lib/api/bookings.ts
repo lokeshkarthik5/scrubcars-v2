@@ -1,9 +1,6 @@
 import { apiClient } from './client'
-import {
-  MOCK_BOOKINGS,
-  MOCK_SLOTS,
-  MOCK_VENDOR_BOOKINGS,
-} from '@/lib/mock/data'
+import { mapBooking, mapSlots } from './mappers'
+import type { ApiBooking, ApiSlotsResponse } from './types'
 import type { Booking, BookingType, PaymentMethod } from '@/lib/types'
 
 export interface CreateBookingPayload {
@@ -22,46 +19,91 @@ export interface SlotParams {
   date: string
 }
 
+function todayDateString(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 /** GET /vendors/:vendorId/slots */
 export async function getAvailableSlots(params: SlotParams) {
-  // TODO: return apiClient('/vendors/${params.vendorId}/slots', { params })
-  void params
-  return MOCK_SLOTS
+  const date = params.date === 'today' ? todayDateString() : params.date
+  const data = await apiClient<ApiSlotsResponse>(`/vendors/${params.vendorId}/slots`, {
+    auth: false,
+    params: {
+      date,
+      service_id: params.serviceId,
+    },
+  })
+  return mapSlots(data.slots)
 }
 
 /** POST /bookings */
 export async function createBooking(
   payload: CreateBookingPayload
 ): Promise<Booking> {
-  // TODO: return apiClient<Booking>('/bookings', { method: 'POST', body: JSON.stringify(payload) })
-  void payload
-  return MOCK_BOOKINGS[0]
+  const booking = await apiClient<ApiBooking>('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      vendorId: payload.vendorId,
+      serviceId: payload.serviceId,
+      vehicleId: payload.vehicleId,
+      bookingType: payload.bookingType,
+      scheduledAt: payload.scheduledAt,
+      paymentMethod: payload.paymentMethod,
+      addressId: payload.addressId,
+    }),
+  })
+  return mapBooking(booking)
 }
 
-/** GET /bookings */
+/** GET /bookings/me */
 export async function getCustomerBookings(): Promise<Booking[]> {
-  // TODO: return apiClient<Booking[]>('/bookings')
-  return MOCK_BOOKINGS
+  const bookings = await apiClient<ApiBooking[]>('/bookings/me')
+  return bookings.map(mapBooking)
 }
 
 /** GET /bookings/:id */
 export async function getBooking(id: string): Promise<Booking | undefined> {
-  // TODO: return apiClient<Booking>(`/bookings/${id}`)
-  return MOCK_BOOKINGS.find((b) => b.id === id)
+  try {
+    const booking = await apiClient<ApiBooking>(`/bookings/${id}`)
+    return mapBooking(booking)
+  } catch {
+    return undefined
+  }
 }
 
-/** GET /vendor/bookings */
+/** GET /bookings/vendor */
 export async function getVendorBookings(): Promise<Booking[]> {
-  // TODO: return apiClient<Booking[]>('/vendor/bookings')
-  return MOCK_VENDOR_BOOKINGS
+  const bookings = await apiClient<ApiBooking[]>('/bookings/vendor')
+  return bookings.map(mapBooking)
 }
 
-/** PATCH /vendor/bookings/:id/status */
+const STATUS_ENDPOINTS: Partial<Record<Booking['status'], string>> = {
+  confirmed: 'accept',
+  cancelled: 'reject',
+  in_progress: 'progress',
+  completed: 'complete',
+}
+
+/** PATCH /bookings/:id/:action */
 export async function updateBookingStatus(
   id: string,
   status: Booking['status']
 ): Promise<Booking> {
-  // TODO: return apiClient<Booking>(`/vendor/bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
-  const booking = MOCK_VENDOR_BOOKINGS.find((b) => b.id === id)
-  return { ...booking!, status }
+  const action = STATUS_ENDPOINTS[status]
+  if (!action) {
+    throw new Error(`Unsupported status transition: ${status}`)
+  }
+
+  const booking = await apiClient<ApiBooking>(`/bookings/${id}/${action}`, {
+    method: 'PATCH',
+  })
+  return mapBooking(booking)
+}
+
+/** PATCH /bookings/:id/cancel */
+export async function cancelBooking(id: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/bookings/${id}/cancel`, {
+    method: 'PATCH',
+  })
+  return mapBooking(booking)
 }

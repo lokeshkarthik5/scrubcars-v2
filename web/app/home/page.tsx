@@ -17,8 +17,9 @@ import { ScToggle } from '@/components/sc/toggle'
 import { Toast } from '@/components/sc/toast'
 import { VendorCard } from '@/components/features/vendor-card'
 import { getVendors } from '@/lib/api/vendors'
-import { getCurrentUser } from '@/lib/api/users'
-import type { BookingType, User, Vendor } from '@/lib/types'
+import { useAuthStore } from '@/lib/stores/auth-store'
+import { useUserStore } from '@/lib/stores/user-store'
+import type { BookingType, Vendor } from '@/lib/types'
 
 const CATEGORIES = [
   { key: 'car_wash', label: 'Car wash', icon: IconDroplet },
@@ -29,15 +30,19 @@ const CATEGORIES = [
 
 function HomeContent() {
   const searchParams = useSearchParams()
+  const authUser = useAuthStore((s) => s.user)
+  const profile = useUserStore((s) => s.profile)
+  const fetchProfile = useUserStore((s) => s.fetchProfile)
   const [bookingType, setBookingType] = useState<BookingType>('doorstep')
   const [vendors, setVendors] = useState<Vendor[]>([])
-  const [user, setUser] = useState<User | null>(null)
   const [showToast, setShowToast] = useState(false)
+
+  const user = profile ?? authUser
 
   useEffect(() => {
     getVendors({ bookingType }).then(setVendors)
-    getCurrentUser().then(setUser)
-  }, [bookingType])
+    void fetchProfile().catch(() => undefined)
+  }, [bookingType, fetchProfile])
 
   useEffect(() => {
     if (searchParams.get('welcome') === '1') {
@@ -57,7 +62,7 @@ function HomeContent() {
         <button className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5">
           <IconMapPin size={16} className="text-brand-red" />
           <span className="text-[13px] font-medium text-text-primary">
-            {user?.area ?? 'Adyar'}
+            {user?.area ?? 'Set location'}
           </span>
         </button>
         <button className="text-text-secondary">
@@ -91,9 +96,11 @@ function HomeContent() {
       <section>
         <h2 className="mb-3 text-sm font-semibold text-text-primary">Featured garages</h2>
         <div className="flex flex-col gap-2">
-          {vendors.map((vendor) => (
-            <VendorCard key={vendor.id} vendor={vendor} />
-          ))}
+          {vendors.length === 0 ? (
+            <p className="text-[13px] text-text-secondary">No garages found nearby.</p>
+          ) : (
+            vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
+          )}
         </div>
       </section>
     </AppShell>

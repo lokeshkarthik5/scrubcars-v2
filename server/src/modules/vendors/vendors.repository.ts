@@ -47,6 +47,25 @@ export const vendorsRepository = {
     })
   },
 
+  listPublicVendors() {
+    return db.query.vendors.findMany({
+      where: and(
+        eq(vendors.status, 'active'),
+        eq(vendors.isVerified, true)
+      ),
+      with: {
+        photos: {
+          orderBy: [asc(vendorPhotos.sortOrder)],
+        },
+        services: {
+          where: eq(services.isActive, true),
+        },
+        serviceAreas: true,
+      },
+      orderBy: [asc(vendors.businessName)],
+    })
+  },
+
   createVendor(data: {
     ownerId: string
     businessName: string

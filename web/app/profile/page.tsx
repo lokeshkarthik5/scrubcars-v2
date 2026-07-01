@@ -1,25 +1,31 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { IconLogout } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { TopBar } from '@/components/sc/top-bar'
-import { logout } from '@/lib/api/auth'
-import { getCurrentUser } from '@/lib/api/users'
-import type { User } from '@/lib/types'
+import { useAuthStore } from '@/lib/stores/auth-store'
+import { useUserStore } from '@/lib/stores/user-store'
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null)
+  const authUser = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
+  const profile = useUserStore((s) => s.profile)
+  const fetchProfile = useUserStore((s) => s.fetchProfile)
+  const resetUser = useUserStore((s) => s.reset)
+
+  const user = profile ?? authUser
 
   useEffect(() => {
-    getCurrentUser().then(setUser)
-  }, [])
+    void fetchProfile().catch(() => undefined)
+  }, [fetchProfile])
 
   const handleLogout = async () => {
     await logout()
+    resetUser()
     window.location.href = '/login'
   }
 

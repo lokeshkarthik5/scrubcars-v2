@@ -7,10 +7,12 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScInput } from '@/components/sc/input'
 import { ProgressBar } from '@/components/sc/progress-bar'
-import { detectLocation, resolvePincode, updateProfile } from '@/lib/api/users'
+import { detectLocation, resolvePincode } from '@/lib/api/users'
+import { useUserStore } from '@/lib/stores/user-store'
 
 export default function ProfileSetupPage() {
   const router = useRouter()
+  const updateProfile = useUserStore((s) => s.updateProfile)
   const [name, setName] = useState('')
   const [area, setArea] = useState('')
   const [pincode, setPincode] = useState('')
@@ -19,10 +21,13 @@ export default function ProfileSetupPage() {
   const [searchPincode, setSearchPincode] = useState('')
 
   const handleGps = async () => {
-    // TODO: use navigator.geolocation when permissions are wired
-    const result = await detectLocation(13.0067, 80.2574)
-    setArea(result.area)
-    setPincode(result.pincode)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const result = await detectLocation(pos.coords.latitude, pos.coords.longitude)
+        setArea(result.area)
+        setPincode(result.pincode)
+      })
+    }
   }
 
   const handleSearch = async () => {

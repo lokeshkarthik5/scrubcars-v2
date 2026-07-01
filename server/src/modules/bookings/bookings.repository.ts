@@ -58,10 +58,16 @@ export const bookingsRepository = {
 
   listBookingsForVendor(
     vendorId: string,
-    status: 'pending' | 'confirmed' | 'completed'
+    status?: 'pending' | 'confirmed' | 'in_progress' | 'completed'
   ) {
+    const conditions = [eq(bookings.vendorId, vendorId)]
+
+    if (status) {
+      conditions.push(eq(bookings.status, status))
+    }
+
     return db.query.bookings.findMany({
-      where: and(eq(bookings.vendorId, vendorId), eq(bookings.status, status)),
+      where: and(...conditions),
       with: {
         user: true,
         service: true,

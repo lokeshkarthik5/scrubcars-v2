@@ -18,7 +18,9 @@ export const listMyBookingsQuerySchema = z.object({
 })
 
 export const listVendorBookingsQuerySchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'completed']),
+  status: z
+    .enum(['pending', 'confirmed', 'in_progress', 'completed'])
+    .optional(),
 })
 
 export const bookingIdParamSchema = z.object({

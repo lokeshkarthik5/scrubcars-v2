@@ -7,7 +7,7 @@ import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
-import { getVendorBookings, updateBookingStatus } from '@/lib/api/bookings'
+import { useBookingsStore } from '@/lib/stores/bookings-store'
 import type { Booking } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -15,23 +15,25 @@ type Tab = 'incoming' | 'upcoming' | 'completed'
 
 export default function VendorBookingsPage() {
   const [tab, setTab] = useState<Tab>('incoming')
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const vendorBookings = useBookingsStore((s) => s.vendorBookings)
+  const fetchVendorBookings = useBookingsStore((s) => s.fetchVendorBookings)
+  const updateStatus = useBookingsStore((s) => s.updateStatus)
 
   useEffect(() => {
-    getVendorBookings().then(setBookings)
-  }, [])
+    void fetchVendorBookings()
+  }, [fetchVendorBookings])
 
-  const filtered = bookings.filter((b) => {
+  const filtered = vendorBookings.filter((b) => {
     if (tab === 'incoming') return b.status === 'pending'
     if (tab === 'upcoming') return b.status === 'confirmed' || b.status === 'in_progress'
     return b.status === 'completed'
   })
 
-  const pendingCount = bookings.filter((b) => b.status === 'pending').length
+  const pendingCount = vendorBookings.filter((b) => b.status === 'pending').length
 
   const handleStatus = async (id: string, status: Booking['status']) => {
-    await updateBookingStatus(id, status)
-    getVendorBookings().then(setBookings)
+    await updateStatus(id, status)
+    await fetchVendorBookings()
   }
 
   const tabs: { key: Tab; label: string }[] = [

@@ -9,9 +9,12 @@ import { ScTextarea } from '@/components/sc/input'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { submitVendorOnboarding } from '@/lib/api/vendors'
+import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 
 export default function VendorOnboardingStep2() {
   const router = useRouter()
+  const onboarding = useVendorOnboardingStore()
+  const update = useVendorOnboardingStore((s) => s.update)
   const [address, setAddress] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -19,7 +22,15 @@ export default function VendorOnboardingStep2() {
   const handleContinue = async () => {
     setLoading(true)
     try {
-      await submitVendorOnboarding(2, { address })
+      update({ address })
+      await submitVendorOnboarding(2, {
+        businessName: onboarding.businessName,
+        phone: onboarding.phone,
+        address,
+        city: onboarding.city,
+        lat: onboarding.lat,
+        lng: onboarding.lng,
+      })
       router.push('/vendor/onboarding/step-3')
     } finally {
       setLoading(false)

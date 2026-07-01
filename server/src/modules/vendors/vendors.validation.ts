@@ -102,6 +102,13 @@ export const serviceCategorySchema = z.enum([
   'scratch_removal',
 ])
 
+export const listPublicVendorsQuerySchema = z.object({
+  booking_type: z.enum(['doorstep', 'dropin']).optional(),
+  category: serviceCategorySchema.optional(),
+  q: z.string().trim().min(1).optional(),
+  pincode: z.string().trim().min(6).max(10).optional(),
+})
+
 export const createServiceSchema = z.object({
   name: z.string().trim().min(1).max(255),
   description: z.string().trim().max(5000).optional(),
@@ -138,3 +145,4 @@ export type CreateServiceInput = z.infer<typeof createServiceSchema>
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>
 export type ToggleServiceActiveInput = z.infer<typeof toggleServiceActiveSchema>
 export type SlotsQueryInput = z.infer<typeof slotsQuerySchema>
+export type ListPublicVendorsQuery = z.infer<typeof listPublicVendorsQuerySchema>

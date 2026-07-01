@@ -6,22 +6,28 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScInput } from '@/components/sc/input'
 import { ProgressBar } from '@/components/sc/progress-bar'
-import { submitVendorOnboarding } from '@/lib/api/vendors'
+import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 
 export default function VendorOnboardingStep1() {
   const router = useRouter()
+  const update = useVendorOnboardingStore((s) => s.update)
   const [form, setForm] = useState({
     businessName: '',
     ownerName: '',
     city: '',
   })
   const [loading, setLoading] = useState(false)
-  const phone = typeof window !== 'undefined' ? sessionStorage.getItem('auth_phone') ?? '9876543210' : ''
+  const phone = typeof window !== 'undefined' ? sessionStorage.getItem('auth_phone') ?? '' : ''
 
   const handleContinue = async () => {
     setLoading(true)
     try {
-      await submitVendorOnboarding(1, form)
+      update({
+        businessName: form.businessName,
+        ownerName: form.ownerName,
+        city: form.city,
+        phone,
+      })
       router.push('/vendor/onboarding/step-2')
     } finally {
       setLoading(false)

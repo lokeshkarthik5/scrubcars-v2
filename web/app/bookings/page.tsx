@@ -1,27 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { AppShell } from '@/components/sc/app-shell'
 import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
 import { ScCard } from '@/components/sc/card'
 import { EmptyState } from '@/components/sc/empty-state'
 import { TopBar } from '@/components/sc/top-bar'
-import { getCustomerBookings } from '@/lib/api/bookings'
-import type { Booking } from '@/lib/types'
+import { useBookingsStore } from '@/lib/stores/bookings-store'
 
 export default function BookingsListPage() {
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const customerBookings = useBookingsStore((s) => s.customerBookings)
+  const fetchCustomerBookings = useBookingsStore((s) => s.fetchCustomerBookings)
 
   useEffect(() => {
-    getCustomerBookings().then(setBookings)
-  }, [])
+    void fetchCustomerBookings()
+  }, [fetchCustomerBookings])
 
   return (
     <AppShell showNav className="gap-4 py-4">
       <TopBar title="Bookings" />
 
-      {bookings.length === 0 ? (
+      {customerBookings.length === 0 ? (
         <EmptyState
           title="No bookings yet"
           subtitle="Book your first car wash"
@@ -30,7 +30,7 @@ export default function BookingsListPage() {
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {bookings.map((booking) => {
+          {customerBookings.map((booking) => {
             const badge = bookingStatusBadge(booking.status)
             return (
               <Link key={booking.id} href={`/bookings/${booking.id}`}>

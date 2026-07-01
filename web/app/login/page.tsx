@@ -5,23 +5,29 @@ import { useRouter } from 'next/navigation'
 import { IconDroplet } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
-import { ScInput } from '@/components/sc/input'
 import { sendOtp } from '@/lib/api/auth'
+import { ApiError } from '@/lib/api/client'
 
 export default function LoginPage() {
   const router = useRouter()
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const isValid = /^\d{10}$/.test(phone)
 
   const handleSubmit = async () => {
     if (!isValid) return
     setLoading(true)
+    setError('')
     try {
-      await sendOtp({ phone })
+      const purpose = await sendOtp({ phone, audience: 'customer' })
       sessionStorage.setItem('auth_phone', phone)
+      sessionStorage.setItem('auth_audience', 'customer')
+      sessionStorage.setItem('auth_purpose', purpose)
       router.push('/verify-otp')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to send OTP')
     } finally {
       setLoading(false)
     }
@@ -54,6 +60,8 @@ export default function LoginPage() {
               />
             </div>
           </div>
+
+          {error && <p className="text-[12px] text-brand-red">{error}</p>}
 
           <ScButton disabled={!isValid || loading} onClick={handleSubmit}>
             {loading ? 'Sending...' : 'Send OTP'}

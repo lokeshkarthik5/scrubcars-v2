@@ -5,6 +5,7 @@ import type {
   CreateServiceAreaInput,
   CreateServiceInput,
   CreateVendorInput,
+  ListPublicVendorsQuery,
   ReorderPhotosInput,
   SetWorkingHoursInput,
   SlotsQueryInput,
@@ -20,6 +21,18 @@ type VendorsContext = Context<{ Variables: AuthVariables }>
 
 function getOwnerId(c: VendorsContext): string {
   return c.get('auth').sub
+}
+
+export async function listPublicVendors(
+  c: VendorsContext,
+  query: ListPublicVendorsQuery
+) {
+  const vendors = await vendorsService.listPublicVendors(query)
+
+  return c.json({
+    success: true,
+    data: vendors,
+  })
 }
 
 export async function getPublicVendor(c: VendorsContext, vendorId: string) {

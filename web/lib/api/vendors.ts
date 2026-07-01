@@ -1,43 +1,153 @@
 import { apiClient } from './client'
-import { MOCK_VENDORS } from '@/lib/mock/data'
+import {
+  mapPublicVendor,
+  mapVendorListItem,
+} from './mappers'
+import type { ApiPublicVendor, ApiVendorListItem } from './types'
 import type { BookingType, Vendor } from '@/lib/types'
 
 export interface VendorListParams {
   q?: string
   bookingType?: BookingType
   category?: string
-  sort?: 'distance' | 'rating' | 'price'
+  pincode?: string
 }
 
 /** GET /vendors */
 export async function getVendors(params?: VendorListParams): Promise<Vendor[]> {
-  // TODO: return apiClient<Vendor[]>('/vendors', { params })
-  void params
-  return MOCK_VENDORS
+  const vendors = await apiClient<ApiVendorListItem[]>('/vendors', {
+    auth: false,
+    params: {
+      q: params?.q,
+      booking_type: params?.bookingType,
+      category: params?.category,
+      pincode: params?.pincode,
+    },
+  })
+  return vendors.map(mapVendorListItem)
 }
 
 /** GET /vendors/:id */
 export async function getVendor(id: string): Promise<Vendor | undefined> {
-  // TODO: return apiClient<Vendor>(`/vendors/${id}`)
-  return MOCK_VENDORS.find((v) => v.id === id)
+  try {
+    const vendor = await apiClient<ApiPublicVendor>(`/vendors/${id}`, {
+      auth: false,
+    })
+    return mapPublicVendor(vendor)
+  } catch {
+    return undefined
+  }
 }
 
-/** POST /vendors/onboarding — step submissions */
+/** GET /vendors/:id (raw with services) */
+export async function getPublicVendor(id: string): Promise<ApiPublicVendor> {
+  return apiClient<ApiPublicVendor>(`/vendors/${id}`, { auth: false })
+}
+
+/** POST /vendors */
+export async function createVendor(data: {
+  businessName: string
+  phone: string
+  address: string
+  city: string
+  lat: number
+  lng: number
+}): Promise<void> {
+  await apiClient('/vendors', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+/** PATCH /vendors/me/job-types */
+export async function updateVendorJobTypes(data: {
+  doorstepEnabled: boolean
+  dropinEnabled: boolean
+}): Promise<void> {
+  await apiClient('/vendors/me/job-types', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+/** PATCH /vendors/me/slot-interval */
+export async function updateSlotInterval(slotIntervalMins: 30 | 45 | 60): Promise<void> {
+  await apiClient('/vendors/me/slot-interval', {
+    method: 'PATCH',
+    body: JSON.stringify({ slotIntervalMins }),
+  })
+}
+
+/** PUT /vendors/me/working-hours */
+export async function setWorkingHours(
+  openTime: string,
+  closeTime: string
+): Promise<void> {
+  const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+    dayOfWeek,
+    openTime: openTime.length === 5 ? `${openTime}:00` : openTime,
+    closeTime: closeTime.length === 5 ? `${closeTime}:00` : closeTime,
+    isClosed: false,
+  }))
+
+  await apiClient('/vendors/me/working-hours', {
+    method: 'PUT',
+    body: JSON.stringify({ days }),
+  })
+}
+
+/** POST /vendors/me/service-areas */
+export async function createServiceArea(data: {
+  areaName: string
+  pincode: string
+}): Promise<void> {
+  await apiClient('/vendors/me/service-areas', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+/** Vendor onboarding step handler */
 export async function submitVendorOnboarding(
   step: number,
   data: Record<string, unknown>
 ): Promise<void> {
-  // TODO: await apiClient(`/vendors/onboarding/step-${step}`, { method: 'POST', body: JSON.stringify(data) })
-  void step
-  void data
-  return Promise.resolve()
+  if (step === 2) {
+    await createVendor({
+      businessName: data.businessName as string,
+      phone: data.phone as string,
+      address: data.address as string,
+      city: data.city as string,
+      lat: data.lat as number,
+      lng: data.lng as number,
+    })
+    return
+  }
+
+  if (step === 3) {
+    await updateVendorJobTypes({
+      doorstepEnabled: data.doorstep as boolean,
+      dropinEnabled: data.dropin as boolean,
+    })
+    await updateSlotInterval(data.slotInterval as 30 | 45 | 60)
+    await setWorkingHours(data.openTime as string, data.closeTime as string)
+
+    const areas = data.areas as Array<{ pincode: string; name: string }>
+    for (const area of areas) {
+      await createServiceArea({
+        areaName: area.name,
+        pincode: area.pincode,
+      })
+    }
+  }
 }
 
 /** PATCH /vendors/me */
 export async function updateVendorSettings(
   data: Record<string, unknown>
 ): Promise<void> {
-  // TODO: await apiClient('/vendors/me', { method: 'PATCH', body: JSON.stringify(data) })
-  void data
-  return Promise.resolve()
+  await apiClient('/vendors/me', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 }

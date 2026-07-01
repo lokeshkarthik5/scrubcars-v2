@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { AppProvider } from '@/components/providers/app-provider'
 import './globals.css'
 
 const inter = Inter({
@@ -25,7 +26,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
-      <body className="min-h-full font-sans">{children}</body>
+      <body className="min-h-full font-sans">
+        <AppProvider>{children}</AppProvider>
+      </body>
     </html>
   )
 }

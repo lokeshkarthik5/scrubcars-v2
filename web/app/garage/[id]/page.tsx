@@ -70,12 +70,23 @@ export default function GaragePage({
       </div>
 
       <div className="flex gap-2 overflow-x-auto px-4 pb-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="h-20 w-28 shrink-0 rounded-[10px] bg-surface"
-          />
-        ))}
+        {vendor.photos.length > 0 ? (
+          vendor.photos.map((url, i) => (
+            <img
+              key={url}
+              src={url}
+              alt={`${vendor.name} ${i + 1}`}
+              className="h-20 w-28 shrink-0 rounded-[10px] object-cover"
+            />
+          ))
+        ) : (
+          [1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="h-20 w-28 shrink-0 rounded-[10px] bg-surface"
+            />
+          ))
+        )}
       </div>
 
       <div className="flex border-b border-border px-4">

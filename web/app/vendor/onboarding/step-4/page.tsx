@@ -9,7 +9,7 @@ import { Chip } from '@/components/sc/chip'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { createService } from '@/lib/api/services'
-import { submitVendorOnboarding } from '@/lib/api/vendors'
+import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 import type { ServiceCategory } from '@/lib/types'
 
 const CATEGORIES: { value: ServiceCategory; label: string }[] = [
@@ -23,6 +23,7 @@ const DURATIONS = [30, 45, 60, 90, 120, 180]
 
 export default function VendorOnboardingStep4() {
   const router = useRouter()
+  const resetOnboarding = useVendorOnboardingStore((s) => s.reset)
   const [name, setName] = useState('')
   const [category, setCategory] = useState<ServiceCategory>('car_wash')
   const [price, setPrice] = useState('')
@@ -50,7 +51,7 @@ export default function VendorOnboardingStep4() {
   }
 
   const handleFinish = async () => {
-    await submitVendorOnboarding(4, {})
+    resetOnboarding()
     router.push('/vendor/home')
   }
 

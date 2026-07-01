@@ -10,22 +10,21 @@ import { Chip } from '@/components/sc/chip'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { submitVendorOnboarding } from '@/lib/api/vendors'
+import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 import { cn } from '@/lib/utils'
 
-const SLOT_INTERVALS = [30, 45, 60]
+const SLOT_INTERVALS = [30, 45, 60] as const
 
 export default function VendorOnboardingStep3() {
   const router = useRouter()
+  const update = useVendorOnboardingStore((s) => s.update)
   const [doorstep, setDoorstep] = useState(true)
   const [dropin, setDropin] = useState(true)
-  const [slotInterval, setSlotInterval] = useState(30)
+  const [slotInterval, setSlotInterval] = useState<30 | 45 | 60>(30)
   const [openTime, setOpenTime] = useState('09:00')
   const [closeTime, setCloseTime] = useState('18:00')
   const [pincodeInput, setPincodeInput] = useState('')
-  const [areas, setAreas] = useState<{ pincode: string; name: string }[]>([
-    { pincode: '600020', name: 'Adyar' },
-    { pincode: '600042', name: 'Velachery' },
-  ])
+  const [areas, setAreas] = useState<{ pincode: string; name: string }[]>([])
   const [loading, setLoading] = useState(false)
 
   const addArea = () => {
@@ -37,6 +36,7 @@ export default function VendorOnboardingStep3() {
   const handleContinue = async () => {
     setLoading(true)
     try {
+      update({ doorstep, dropin, slotInterval, openTime, closeTime, areas })
       await submitVendorOnboarding(3, { doorstep, dropin, slotInterval, openTime, closeTime, areas })
       router.push('/vendor/onboarding/step-4')
     } finally {
@@ -90,7 +90,6 @@ export default function VendorOnboardingStep3() {
           <ScInput label="Open time" type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
           <ScInput label="Close time" type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
         </div>
-        <button className="mt-2 text-[13px] font-medium text-brand-red">Set different hours per day</button>
       </section>
 
       <section>

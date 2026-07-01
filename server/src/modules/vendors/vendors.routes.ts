@@ -10,6 +10,7 @@ import {
   createServiceAreaSchema,
   createServiceSchema,
   createVendorSchema,
+  listPublicVendorsQuerySchema,
   reorderPhotosSchema,
   resourceIdParamSchema,
   setWorkingHoursSchema,

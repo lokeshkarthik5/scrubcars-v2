@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { IconBell } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
@@ -8,25 +8,32 @@ import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
-import { getVendorBookings } from '@/lib/api/bookings'
-import { MOCK_VENDOR_STATS } from '@/lib/mock/data'
-import type { Booking } from '@/lib/types'
+import { useAuthStore } from '@/lib/stores/auth-store'
+import { useBookingsStore } from '@/lib/stores/bookings-store'
 
 export default function VendorHomePage() {
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const stats = MOCK_VENDOR_STATS
-  const isVerified = false
+  const user = useAuthStore((s) => s.user)
+  const vendor = useAuthStore((s) => s.vendor)
+  const vendorBookings = useBookingsStore((s) => s.vendorBookings)
+  const fetchVendorBookings = useBookingsStore((s) => s.fetchVendorBookings)
+  const updateStatus = useBookingsStore((s) => s.updateStatus)
+
+  const isVerified = vendor?.isVerified ?? false
+  const pending = vendorBookings.filter((b) => b.status === 'pending')
+  const todaysJobs = vendorBookings.filter((b) =>
+    ['confirmed', 'in_progress'].includes(b.status)
+  ).length
 
   useEffect(() => {
-    getVendorBookings().then((all) =>
-      setBookings(all.filter((b) => b.status === 'pending').slice(0, 3))
-    )
-  }, [])
+    void fetchVendorBookings()
+  }, [fetchVendorBookings])
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-text-primary">Good morning, Raj</h1>
+        <h1 className="text-lg font-semibold text-text-primary">
+          Good morning, {user?.name?.split(' ')[0] ?? 'there'}
+        </h1>
         <button className="text-text-secondary"><IconBell size={22} /></button>
       </div>
 
@@ -38,15 +45,15 @@ export default function VendorHomePage() {
 
       <div className="grid grid-cols-2 gap-2">
         {[
-          { label: "Today's jobs", value: stats.todaysJobs },
-          { label: 'Pending requests', value: stats.pendingRequests },
-          { label: 'This week (₹)', value: stats.weekEarnings.toLocaleString('en-IN') },
-          { label: 'Avg rating', value: stats.avgRating, stars: true },
+          { label: "Today's jobs", value: todaysJobs },
+          { label: 'Pending requests', value: pending.length },
+          { label: 'This week (₹)', value: '—' },
+          { label: 'Avg rating', value: 4.5, stars: true },
         ].map((stat) => (
           <ScCard key={stat.label}>
             <p className="text-[11px] text-text-secondary">{stat.label}</p>
             {stat.stars ? (
-              <StarRating rating={stats.avgRating} />
+              <StarRating rating={4.5} />
             ) : (
               <p className="text-lg font-semibold text-text-primary">{stat.value}</p>
             )}
@@ -60,7 +67,7 @@ export default function VendorHomePage() {
           <Link href="/vendor/bookings" className="text-[12px] font-medium text-brand-red">See all</Link>
         </div>
         <div className="flex flex-col gap-2">
-          {bookings.map((b) => {
+          {pending.slice(0, 3).map((b) => {
             const badge = bookingStatusBadge(b.status)
             return (
               <ScCard key={b.id} className="flex flex-col gap-2">
@@ -73,8 +80,8 @@ export default function VendorHomePage() {
                 </div>
                 <ScBadge variant="muted">{b.bookingType === 'doorstep' ? 'Doorstep' : 'Drop-in'}</ScBadge>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <ScButton variant="secondary">Reject</ScButton>
-                  <ScButton>Accept</ScButton>
+                  <ScButton variant="secondary" onClick={() => updateStatus(b.id, 'cancelled')}>Reject</ScButton>
+                  <ScButton onClick={() => updateStatus(b.id, 'confirmed')}>Accept</ScButton>
                 </div>
               </ScCard>
             )
