@@ -72,8 +72,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else if (routeAccess === 'customer' && isVendorSession) {
       redirectPath = signedInLanding
     } else if (
-      routeAccess !== 'customer' &&
-      routeAccess !== 'public' &&
+      (routeAccess === 'vendor' || routeAccess === 'vendor-onboarding') &&
       !isVendorSession
     ) {
       redirectPath = '/vendor/login'

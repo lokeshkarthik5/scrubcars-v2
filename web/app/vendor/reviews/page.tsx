@@ -6,14 +6,17 @@ import { ScCard } from '@/components/sc/card'
 import { Stars } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
 import { getVendorReviews } from '@/lib/api/reviews'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import type { Review } from '@/lib/types'
 
 export default function VendorReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([])
+  const vendor = useAuthStore((s) => s.vendor)
 
   useEffect(() => {
-    getVendorReviews('vendor-1').then(setReviews)
-  }, [])
+    if (!vendor?.id) return
+    getVendorReviews(vendor.id).then(setReviews)
+  }, [vendor?.id])
 
   const avgRating =
     reviews.length > 0

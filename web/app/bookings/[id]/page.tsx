@@ -11,7 +11,7 @@ import { Stars } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
 import { getBooking } from '@/lib/api/bookings'
 import { submitReview } from '@/lib/api/reviews'
-import type { Booking } from '@/lib/types'
+import type { Booking, Review } from '@/lib/types'
 
 export default function BookingDetailPage({
   params,
@@ -23,6 +23,8 @@ export default function BookingDetailPage({
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
 
   useEffect(() => {
     getBooking(id).then((b) => setBooking(b ?? null))
@@ -31,8 +33,12 @@ export default function BookingDetailPage({
   const handleSubmitReview = async () => {
     if (!rating) return
     setSubmitting(true)
+    setReviewError(null)
     try {
-      await submitReview({ bookingId: id, rating, comment })
+      const review = await submitReview({ bookingId: id, rating, comment })
+      setSubmittedReview(review)
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : 'Failed to submit review')
     } finally {
       setSubmitting(false)
     }
@@ -80,21 +86,38 @@ export default function BookingDetailPage({
       {booking.status === 'completed' && (
         <ScCard>
           <h2 className="mb-3 text-sm font-semibold text-text-primary">Rate your experience</h2>
-          <Stars rating={rating} interactive value={rating} onChange={setRating} size={24} />
-          <div className="mt-3">
-            <ScInput
-              placeholder="Tell us about your experience"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-          </div>
-          <ScButton
-            className="mt-3"
-            disabled={!rating || submitting}
-            onClick={handleSubmitReview}
-          >
-            {submitting ? 'Submitting...' : 'Submit review'}
-          </ScButton>
+          {submittedReview ? (
+            <div className="flex flex-col gap-2">
+              <Stars rating={submittedReview.rating} size={18} />
+              <p className="text-[13px] text-text-secondary">
+                Thanks for your review.
+              </p>
+              {submittedReview.comment && (
+                <p className="text-[13px] text-text-primary">{submittedReview.comment}</p>
+              )}
+            </div>
+          ) : (
+            <>
+              <Stars rating={rating} interactive value={rating} onChange={setRating} size={24} />
+              <div className="mt-3">
+                <ScInput
+                  placeholder="Tell us about your experience"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+              </div>
+              {reviewError && (
+                <p className="mt-2 text-[12px] text-brand-red">{reviewError}</p>
+              )}
+              <ScButton
+                className="mt-3"
+                disabled={!rating || submitting}
+                onClick={handleSubmitReview}
+              >
+                {submitting ? 'Submitting...' : 'Submit review'}
+              </ScButton>
+            </>
+          )}
         </ScCard>
       )}
     </AppShell>

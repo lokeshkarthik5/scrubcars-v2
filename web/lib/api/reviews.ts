@@ -1,30 +1,39 @@
 import { apiClient } from './client'
-import { MOCK_REVIEWS } from '@/lib/mock/data'
+import { mapReview } from './mappers'
+import type { ApiReview } from './types'
 import type { Review } from '@/lib/types'
 
 export interface SubmitReviewPayload {
   bookingId: string
   rating: number
-  comment: string
+  comment?: string
 }
 
-/** GET /vendors/:vendorId/reviews */
+/** GET /reviews/vendors/:vendorId */
 export async function getVendorReviews(vendorId: string): Promise<Review[]> {
-  // TODO: return apiClient<Review[]>(`/vendors/${vendorId}/reviews`)
-  void vendorId
-  return MOCK_REVIEWS
+  const reviews = await apiClient<ApiReview[]>(`/reviews/vendors/${vendorId}`, {
+    auth: false,
+  })
+  return reviews.map(mapReview)
 }
 
-/** POST /bookings/:bookingId/review */
+/** GET /reviews/me */
+export async function getMyReviews(): Promise<Review[]> {
+  const reviews = await apiClient<ApiReview[]>('/reviews/me')
+  return reviews.map(mapReview)
+}
+
+/** POST /reviews */
 export async function submitReview(
   payload: SubmitReviewPayload
 ): Promise<Review> {
-  // TODO: return apiClient<Review>(`/bookings/${payload.bookingId}/review`, { method: 'POST', body: JSON.stringify(payload) })
-  return {
-    id: `rev-${Date.now()}`,
-    userName: 'You',
-    rating: payload.rating,
-    comment: payload.comment,
-    date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-  }
+  const review = await apiClient<ApiReview>('/reviews', {
+    method: 'POST',
+    body: JSON.stringify({
+      bookingId: payload.bookingId,
+      rating: payload.rating,
+      comment: payload.comment,
+    }),
+  })
+  return mapReview(review)
 }

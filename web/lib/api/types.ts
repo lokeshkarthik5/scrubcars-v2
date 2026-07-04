@@ -160,3 +160,30 @@ export interface ApiBooking {
     gateway: string | null
   } | null
 }
+
+export interface ApiReview {
+  id: string
+  bookingId: string
+  userId: string
+  vendorId: string
+  rating: number
+  comment: string | null
+  createdAt: string
+  user: {
+    id: string
+    name: string
+    phone: string
+  } | null
+  vendor: {
+    id: string
+    businessName: string
+  } | null
+  booking: {
+    id: string
+    scheduledAt: string
+    service: {
+      id: string
+      name: string
+    } | null
+  } | null
+}

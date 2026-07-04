@@ -3,6 +3,7 @@ import type {
   ApiAuthUser,
   ApiBooking,
   ApiPublicVendor,
+  ApiReview,
   ApiService,
   ApiUserProfile,
   ApiVehicle,
@@ -11,6 +12,7 @@ import type {
 import type {
   Address,
   Booking,
+  Review,
   Service,
   User,
   Vehicle,
@@ -48,6 +50,14 @@ function formatScheduledAt(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+  })
+}
+
+function formatReviewDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   })
 }
 
@@ -170,6 +180,17 @@ export function mapBooking(booking: ApiBooking): Booking {
       : undefined,
     paymentMethod: booking.paymentMethod as Booking['paymentMethod'],
     paymentStatus: (booking.payment?.status ?? 'pending') as Booking['paymentStatus'],
+  }
+}
+
+export function mapReview(review: ApiReview): Review {
+  return {
+    id: review.id,
+    userName: review.user?.name ?? 'Customer',
+    rating: review.rating,
+    comment: review.comment ?? '',
+    date: formatReviewDate(review.createdAt),
+    bookingContext: review.booking?.service?.name,
   }
 }
 
