@@ -273,14 +273,6 @@ export const bookingsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    if (input.bookingType === 'doorstep' && !vendor.doorstepEnabled) {
-      throw new AppError(
-        400,
-        'Vendor does not accept doorstep bookings',
-        'DOORSTEP_NOT_ENABLED'
-      )
-    }
-
     if (input.bookingType === 'dropin' && !vendor.dropinEnabled) {
       throw new AppError(
         400,
@@ -311,21 +303,6 @@ export const bookingsService = {
     let lng: number | null = null
     let address: string | null = null
 
-    if (input.bookingType === 'doorstep') {
-      const savedAddress = await bookingsRepository.findAddressForUser(
-        userId,
-        input.addressId!
-      )
-
-      if (!savedAddress) {
-        throw new AppError(404, 'Address not found', 'ADDRESS_NOT_FOUND')
-      }
-
-      lat = savedAddress.lat
-      lng = savedAddress.lng
-      address = `${savedAddress.address}, ${savedAddress.city}`
-    }
-
     await validateSlotAvailability(
       vendor.id,
       service.id,
@@ -333,7 +310,8 @@ export const bookingsService = {
       service.durationMins
     )
 
-    const { booking, payment } =
+    const bookingDate = getDateKeyFromScheduledAt(scheduledAt)
+    const result =
       await bookingsRepository.createBookingWithPayment({
         userId,
         vendorId: vendor.id,
@@ -341,12 +319,24 @@ export const bookingsService = {
         vehicleId: vehicle.id,
         bookingType: input.bookingType,
         scheduledAt,
+        lockDate: bookingDate,
+        serviceDurationMins: service.durationMins,
         amount: service.price,
         paymentMethod: input.paymentMethod,
         lat,
         lng,
         address,
       })
+
+    if (result.conflict) {
+      throw new AppError(
+        409,
+        'Selected slot was just booked. Please choose another slot.',
+        'SLOT_ALREADY_BOOKED'
+      )
+    }
+
+    const { booking, payment } = result
 
     const fullBooking = await bookingsRepository.findBookingById(booking.id)
 

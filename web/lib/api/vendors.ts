@@ -72,7 +72,6 @@ export async function getMyVendor(): Promise<ApiVendorProfile> {
 
 /** PATCH /vendors/me/job-types */
 export async function updateVendorJobTypes(data: {
-  doorstepEnabled: boolean
   dropinEnabled: boolean
 }): Promise<ApiVendorProfile> {
   return apiClient<ApiVendorProfile>('/vendors/me/job-types', {
@@ -167,7 +166,6 @@ export async function submitVendorOnboarding(
 
   if (step === 3) {
     await updateVendorJobTypes({
-      doorstepEnabled: data.doorstep as boolean,
       dropinEnabled: data.dropin as boolean,
     })
     await updateSlotInterval(data.slotInterval as 30 | 45 | 60)

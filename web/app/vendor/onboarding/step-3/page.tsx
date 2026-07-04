@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconX } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScInput } from '@/components/sc/input'
@@ -11,33 +10,29 @@ import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { submitVendorOnboarding } from '@/lib/api/vendors'
 import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
-import { cn } from '@/lib/utils'
 
 const SLOT_INTERVALS = [30, 45, 60] as const
 
 export default function VendorOnboardingStep3() {
   const router = useRouter()
   const update = useVendorOnboardingStore((s) => s.update)
-  const [doorstep, setDoorstep] = useState(true)
   const [dropin, setDropin] = useState(true)
   const [slotInterval, setSlotInterval] = useState<30 | 45 | 60>(30)
   const [openTime, setOpenTime] = useState('09:00')
   const [closeTime, setCloseTime] = useState('18:00')
-  const [pincodeInput, setPincodeInput] = useState('')
-  const [areas, setAreas] = useState<{ pincode: string; name: string }[]>([])
   const [loading, setLoading] = useState(false)
-
-  const addArea = () => {
-    if (pincodeInput.length !== 6) return
-    setAreas([...areas, { pincode: pincodeInput, name: 'Area' }])
-    setPincodeInput('')
-  }
 
   const handleContinue = async () => {
     setLoading(true)
     try {
-      update({ doorstep, dropin, slotInterval, openTime, closeTime, areas })
-      await submitVendorOnboarding(3, { doorstep, dropin, slotInterval, openTime, closeTime, areas })
+      update({ dropin, slotInterval, openTime, closeTime, areas: [] })
+      await submitVendorOnboarding(3, {
+        dropin,
+        slotInterval,
+        openTime,
+        closeTime,
+        areas: [],
+      })
       router.push('/vendor/onboarding/step-4')
     } finally {
       setLoading(false)
@@ -52,21 +47,16 @@ export default function VendorOnboardingStep3() {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Job types</h2>
-        {[
-          { label: 'Accept doorstep jobs', value: doorstep, set: setDoorstep },
-          { label: 'Accept drop-in jobs', value: dropin, set: setDropin },
-        ].map(({ label, value, set }) => (
-          <div key={label} className="mb-2 flex items-center justify-between rounded-[10px] border border-border bg-surface px-3 py-3">
-            <span className="text-[13px]">{label}</span>
-            <button
-              type="button"
-              onClick={() => set(!value)}
-              className={cn('h-6 w-11 rounded-full transition-colors', value ? 'bg-brand-red' : 'bg-border')}
-            >
-              <div className={cn('h-5 w-5 rounded-full bg-white transition-transform', value ? 'translate-x-5' : 'translate-x-0.5')} />
-            </button>
-          </div>
-        ))}
+        <div className="mb-2 flex items-center justify-between rounded-[10px] border border-border bg-surface px-3 py-3">
+          <span className="text-[13px]">Accept drop-in jobs</span>
+          <button
+            type="button"
+            onClick={() => setDropin(!dropin)}
+            className={dropin ? 'h-6 w-11 rounded-full bg-brand-red' : 'h-6 w-11 rounded-full bg-border'}
+          >
+            <div className={dropin ? 'h-5 w-5 translate-x-5 rounded-full bg-white transition-transform' : 'h-5 w-5 translate-x-0.5 rounded-full bg-white transition-transform'} />
+          </button>
+        </div>
       </section>
 
       <section>
@@ -92,30 +82,7 @@ export default function VendorOnboardingStep3() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Service areas</h2>
-        <div className="flex gap-2">
-          <ScInput
-            placeholder="Pincode"
-            value={pincodeInput}
-            onChange={(e) => setPincodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            className="flex-1"
-          />
-          <ScButton fullWidth={false} className="px-4" onClick={addArea}>Add</ScButton>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {areas.map((a) => (
-            <span key={a.pincode} className="flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-[11px]">
-              {a.pincode} — {a.name}
-              <button type="button" onClick={() => setAreas(areas.filter((x) => x.pincode !== a.pincode))}>
-                <IconX size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <ScButton className="mb-4" disabled={loading} onClick={handleContinue}>Continue</ScButton>
+      <ScButton className="mb-4" disabled={loading || !dropin} onClick={handleContinue}>Continue</ScButton>
     </AppShell>
   )
 }

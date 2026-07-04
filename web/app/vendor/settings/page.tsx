@@ -16,10 +16,7 @@ import {
   updateService,
 } from '@/lib/api/services'
 import {
-  createServiceArea,
-  deleteServiceArea,
   getMyVendor,
-  getServiceAreas,
   getWorkingHours,
   setVendorWorkingHours,
   updateSlotInterval,
@@ -27,7 +24,6 @@ import {
   updateVendorSettings,
 } from '@/lib/api/vendors'
 import type {
-  ApiServiceArea,
   ApiVendorProfile,
   ApiWorkingHours,
 } from '@/lib/api/types'
@@ -109,12 +105,6 @@ export default function VendorSettingsPage() {
   const [workingHours, setWorkingHours] = useState<WorkingHoursForm[]>(
     defaultWorkingHours()
   )
-  const [areas, setAreas] = useState<ApiServiceArea[]>([])
-  const [areaForm, setAreaForm] = useState({
-    areaName: '',
-    pincode: '',
-    radiusKm: '',
-  })
   const [services, setServices] = useState<Service[]>([])
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm)
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
@@ -128,11 +118,10 @@ export default function VendorSettingsPage() {
       setLoading(true)
       setError(null)
       try {
-        const [vendorData, hoursData, areasData, servicesData] =
+        const [vendorData, hoursData, servicesData] =
           await Promise.all([
             getMyVendor(),
             getWorkingHours(),
-            getServiceAreas(),
             getMyServices(),
           ])
 
@@ -146,7 +135,6 @@ export default function VendorSettingsPage() {
           lng: String(vendorData.lng),
         })
         setWorkingHours(mapWorkingHours(hoursData))
-        setAreas(areasData)
         setServices(servicesData)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load settings')
@@ -218,7 +206,6 @@ export default function VendorSettingsPage() {
     vendor &&
     runAction('job-types', async () => {
       const updated = await updateVendorJobTypes({
-        doorstepEnabled: vendor.doorstepEnabled,
         dropinEnabled: vendor.dropinEnabled,
       })
       setVendor(updated)
@@ -240,23 +227,6 @@ export default function VendorSettingsPage() {
         }))
       )
       setWorkingHours(mapWorkingHours(updated))
-    })
-
-  const addServiceArea = () =>
-    runAction('area', async () => {
-      const area = await createServiceArea({
-        areaName: areaForm.areaName,
-        pincode: areaForm.pincode,
-        ...(areaForm.radiusKm ? { radiusKm: Number(areaForm.radiusKm) } : {}),
-      })
-      setAreas((current) => [...current, area])
-      setAreaForm({ areaName: '', pincode: '', radiusKm: '' })
-    })
-
-  const removeServiceArea = (id: string) =>
-    runAction(`area-${id}`, async () => {
-      await deleteServiceArea(id)
-      setAreas((current) => current.filter((area) => area.id !== id))
     })
 
   const resetServiceForm = () => {
@@ -415,42 +385,29 @@ export default function VendorSettingsPage() {
         <section>
           <h2 className="mb-2 text-sm font-semibold">Job types & slots</h2>
           <ScCard className="flex flex-col gap-3">
-            {[
-              {
-                label: 'Doorstep jobs',
-                key: 'doorstepEnabled' as const,
-                value: vendor.doorstepEnabled,
-              },
-              {
-                label: 'Drop-in jobs',
-                key: 'dropinEnabled' as const,
-                value: vendor.dropinEnabled,
-              },
-            ].map((item) => (
-              <div key={item.key} className="flex items-center justify-between">
-                <span className="text-[13px]">{item.label}</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setVendor({
-                      ...vendor,
-                      [item.key]: !item.value,
-                    })
-                  }
+            <div className="flex items-center justify-between">
+              <span className="text-[13px]">Drop-in jobs</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setVendor({
+                    ...vendor,
+                    dropinEnabled: !vendor.dropinEnabled,
+                  })
+                }
+                className={cn(
+                  'h-6 w-11 rounded-full transition-colors',
+                  vendor.dropinEnabled ? 'bg-brand-red' : 'bg-border'
+                )}
+              >
+                <div
                   className={cn(
-                    'h-6 w-11 rounded-full transition-colors',
-                    item.value ? 'bg-brand-red' : 'bg-border'
+                    'h-5 w-5 rounded-full bg-white transition-transform',
+                    vendor.dropinEnabled ? 'translate-x-5' : 'translate-x-0.5'
                   )}
-                >
-                  <div
-                    className={cn(
-                      'h-5 w-5 rounded-full bg-white transition-transform',
-                      item.value ? 'translate-x-5' : 'translate-x-0.5'
-                    )}
-                  />
-                </button>
-              </div>
-            ))}
+                />
+              </button>
+            </div>
             <ScButton
               variant="secondary"
               disabled={saving === 'job-types'}
@@ -543,51 +500,6 @@ export default function VendorSettingsPage() {
           >
             {saving === 'working-hours' ? 'Saving...' : 'Save working hours'}
           </ScButton>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Service areas</h2>
-        <div className="grid gap-2">
-          <ScInput
-            label="Area name"
-            value={areaForm.areaName}
-            onChange={(e) =>
-              setAreaForm({ ...areaForm, areaName: e.target.value })
-            }
-          />
-          <div className="grid grid-cols-[1fr_auto] gap-2">
-            <ScInput
-              placeholder="Pincode"
-              value={areaForm.pincode}
-              onChange={(e) =>
-                setAreaForm({
-                  ...areaForm,
-                  pincode: e.target.value.replace(/\D/g, '').slice(0, 6),
-                })
-              }
-            />
-            <ScButton
-              fullWidth={false}
-              className="px-4"
-              disabled={!areaForm.areaName || areaForm.pincode.length !== 6 || saving === 'area'}
-              onClick={addServiceArea}
-            >
-            Add
-            </ScButton>
-          </div>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {areas.map((area) => (
-            <button
-              key={area.id}
-              type="button"
-              onClick={() => removeServiceArea(area.id)}
-              className="rounded-md border border-border bg-surface px-2 py-1 text-[11px]"
-            >
-              {area.pincode} — {area.areaName} ×
-            </button>
-          ))}
         </div>
       </section>
 

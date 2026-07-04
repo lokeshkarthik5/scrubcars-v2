@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import {
+  cancelBooking as apiCancelBooking,
   createBooking as apiCreateBooking,
   getCustomerBookings,
   getVendorBookings,
@@ -9,6 +10,20 @@ import {
   type CreateBookingPayload,
 } from '@/lib/api/bookings'
 import type { Booking } from '@/lib/types'
+
+const bookingRequests = new Map<string, Promise<Booking>>()
+
+function bookingRequestKey(payload: CreateBookingPayload) {
+  return [
+    payload.vendorId,
+    payload.serviceId,
+    payload.scheduledAt,
+    payload.bookingType,
+    payload.vehicleId,
+    payload.addressId ?? '',
+    payload.paymentMethod,
+  ].join('|')
+}
 
 interface BookingsState {
   customerBookings: Booking[]
@@ -18,6 +33,7 @@ interface BookingsState {
   fetchCustomerBookings: () => Promise<Booking[]>
   fetchVendorBookings: () => Promise<Booking[]>
   createBooking: (payload: CreateBookingPayload) => Promise<Booking>
+  cancelBooking: (id: string) => Promise<Booking>
   updateStatus: (id: string, status: Booking['status']) => Promise<Booking>
   reset: () => void
 }
@@ -50,9 +66,36 @@ export const useBookingsStore = create<BookingsState>((set) => ({
   },
 
   async createBooking(payload) {
-    const booking = await apiCreateBooking(payload)
+    const key = bookingRequestKey(payload)
+    const existingRequest = bookingRequests.get(key)
+
+    if (existingRequest) {
+      return existingRequest
+    }
+
+    const request = apiCreateBooking(payload)
+      .then((booking) => {
+        set((state) => ({
+          customerBookings: state.customerBookings.some((b) => b.id === booking.id)
+            ? state.customerBookings
+            : [booking, ...state.customerBookings],
+        }))
+        return booking
+      })
+      .finally(() => {
+        bookingRequests.delete(key)
+      })
+
+    bookingRequests.set(key, request)
+    return request
+  },
+
+  async cancelBooking(id) {
+    const booking = await apiCancelBooking(id)
     set((state) => ({
-      customerBookings: [booking, ...state.customerBookings],
+      customerBookings: state.customerBookings.map((b) =>
+        b.id === id ? booking : b
+      ),
     }))
     return booking
   },

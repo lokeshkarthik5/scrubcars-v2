@@ -78,7 +78,6 @@ export default function VendorHomePage() {
                   </div>
                   <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
                 </div>
-                <ScBadge variant="muted">{b.bookingType === 'doorstep' ? 'Doorstep' : 'Drop-in'}</ScBadge>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <ScButton variant="secondary" onClick={() => updateStatus(b.id, 'cancelled')}>Reject</ScButton>
                   <ScButton onClick={() => updateStatus(b.id, 'confirmed')}>Accept</ScButton>

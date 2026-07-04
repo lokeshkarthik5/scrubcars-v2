@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, ne } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, ne, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { bookings, payments, services, userAddresses, userVehicles, vendors, } from '../../db/schema.js';
 export const bookingsRepository = {
@@ -51,6 +51,18 @@ export const bookingsRepository = {
     },
     createBookingWithPayment(data) {
         return db.transaction(async (tx) => {
+            const requestedEnd = new Date(data.scheduledAt.getTime() + data.serviceDurationMins * 60 * 1000);
+            const lockKey = `booking:${data.vendorId}:${data.lockDate}`;
+            await tx.execute(sql `select pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`);
+            const conflictingBookings = await tx
+                .select({ id: bookings.id })
+                .from(bookings)
+                .innerJoin(services, eq(bookings.serviceId, services.id))
+                .where(and(eq(bookings.vendorId, data.vendorId), ne(bookings.status, 'cancelled'), sql `${bookings.scheduledAt} < ${requestedEnd}`, sql `${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${data.scheduledAt}`))
+                .limit(1);
+            if (conflictingBookings.length > 0) {
+                return { booking: null, payment: null, conflict: true };
+            }
             const [booking] = await tx
                 .insert(bookings)
                 .values({
@@ -76,7 +88,7 @@ export const bookingsRepository = {
                 status: 'pending',
             })
                 .returning();
-            return { booking, payment };
+            return { booking, payment, conflict: false };
         });
     },
     updateBookingStatus(bookingId, status) {

@@ -9,6 +9,7 @@ import { authRoutes } from './modules/auth/auth.routes.js'
 import { usersRoutes } from './modules/users/users.routes.js'
 import { bookingsRoutes } from './modules/bookings/bookings.routes.js'
 import { reviewsRoutes } from './modules/reviews/reviews.routes.js'
+import { paymentsRoutes } from './modules/payments/payments.routes.js'
 import { vendorsRoutes } from './modules/vendors/vendors.routes.js'
 
 const app = new Hono()
@@ -53,6 +54,7 @@ app.route('/api/v1/auth', authRoutes)
 app.route('/api/v1/users', usersRoutes)
 app.route('/api/v1/vendors', vendorsRoutes)
 app.route('/api/v1/bookings', bookingsRoutes)
+app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
 
 serve(

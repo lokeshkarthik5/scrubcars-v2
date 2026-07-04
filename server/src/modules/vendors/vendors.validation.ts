@@ -43,14 +43,11 @@ export const updateVendorSchema = z
 
 export const updateJobTypesSchema = z
   .object({
-    doorstepEnabled: z.boolean().optional(),
     dropinEnabled: z.boolean().optional(),
   })
-  .refine(
-    (data) =>
-      data.doorstepEnabled !== undefined || data.dropinEnabled !== undefined,
-    { message: 'At least one job type must be provided' }
-  )
+  .refine((data) => data.dropinEnabled !== undefined, {
+    message: 'dropinEnabled must be provided',
+  })
 
 export const updateSlotIntervalSchema = z.object({
   slotIntervalMins: z.union([z.literal(30), z.literal(45), z.literal(60)]),

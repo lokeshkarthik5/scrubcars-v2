@@ -39,7 +39,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center gap-2">
           <IconDroplet size={40} className="text-brand-red" />
           <h1 className="text-[22px] font-semibold text-text-primary">Scrub Cars</h1>
-          <p className="text-[13px] text-text-secondary">Car care at your doorstep</p>
+          <p className="text-[13px] text-text-secondary">Book car wash &amp; detailing</p>
         </div>
 
         <div className="w-full space-y-4">

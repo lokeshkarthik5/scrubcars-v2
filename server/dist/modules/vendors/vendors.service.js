@@ -74,9 +74,11 @@ export const vendorsService = {
         };
         return vendors
             .filter((vendor) => {
-            if (query.booking_type === 'doorstep' && !vendor.doorstepEnabled) {
+            if (!vendor.dropinEnabled) {
                 return false;
             }
+            if (query.booking_type === 'doorstep')
+                return false;
             if (query.booking_type === 'dropin' && !vendor.dropinEnabled) {
                 return false;
             }
@@ -110,7 +112,7 @@ export const vendorsService = {
                 city: vendor.city,
                 isVerified: vendor.isVerified,
                 status: vendor.status,
-                doorstepEnabled: vendor.doorstepEnabled,
+                doorstepEnabled: false,
                 dropinEnabled: vendor.dropinEnabled,
                 startingPrice: prices.length > 0 ? Math.min(...prices) : null,
                 serviceTags: categories.map((category) => categoryLabels[category] ?? category),
@@ -157,7 +159,10 @@ export const vendorsService = {
     },
     async updateJobTypes(ownerId, input) {
         const vendor = await getOwnedVendor(ownerId);
-        const [updated] = await vendorsRepository.updateVendor(vendor.id, input);
+        const [updated] = await vendorsRepository.updateVendor(vendor.id, {
+            doorstepEnabled: false,
+            dropinEnabled: input.dropinEnabled,
+        });
         return toVendorResponse(updated);
     },
     async updateSlotInterval(ownerId, input) {

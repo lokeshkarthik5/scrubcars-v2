@@ -78,9 +78,6 @@ export default function VendorBookingsPage() {
                 <div>
                   <p className="text-[13px] font-semibold">{b.customerName}</p>
                   <p className="text-[11px] text-text-secondary">{b.serviceName} · {b.scheduledAt}</p>
-                  <ScBadge variant="muted" className="mt-1">
-                    {b.bookingType === 'doorstep' ? 'Doorstep' : 'Drop-in'}
-                  </ScBadge>
                 </div>
                 <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
               </div>

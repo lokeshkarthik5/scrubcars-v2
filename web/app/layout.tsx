@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'Scrub Cars',
-  description: 'Car care at your doorstep',
+  description: 'Book car wash & detailing',
 }
 
 export const viewport: Viewport = {

@@ -9,7 +9,7 @@ export default function HomePage() {
       <div className="flex flex-col items-center gap-2 text-center">
         <IconDroplet size={48} className="text-brand-red" />
         <h1 className="text-[22px] font-semibold text-text-primary">Scrub Cars</h1>
-        <p className="text-[13px] text-text-secondary">Car care at your doorstep</p>
+        <p className="text-[13px] text-text-secondary">Book car wash &amp; detailing</p>
       </div>
 
       <div className="flex w-full flex-col gap-3">

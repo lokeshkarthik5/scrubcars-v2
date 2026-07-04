@@ -9,6 +9,7 @@ export const bookingStatusSchema = z.enum([
 ])
 
 export const bookingTypeSchema = z.enum(['doorstep', 'dropin'])
+export const createBookingTypeSchema = z.literal('dropin')
 
 export const paymentMethodSchema = z.enum(['online', 'cash'])
 
@@ -32,19 +33,10 @@ export const createBookingSchema = z
     vendorId: z.string().uuid(),
     serviceId: z.string().uuid(),
     vehicleId: z.string().uuid(),
-    bookingType: bookingTypeSchema,
+    bookingType: createBookingTypeSchema,
     scheduledAt: z.string().datetime(),
     paymentMethod: paymentMethodSchema,
     addressId: z.string().uuid().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.bookingType === 'doorstep' && !data.addressId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'addressId is required for doorstep bookings',
-        path: ['addressId'],
-      })
-    }
   })
 
 export type ListMyBookingsQuery = z.infer<typeof listMyBookingsQuerySchema>

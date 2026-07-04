@@ -13,13 +13,12 @@ import {
 } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScCard } from '@/components/sc/card'
-import { ScToggle } from '@/components/sc/toggle'
 import { Toast } from '@/components/sc/toast'
 import { VendorCard } from '@/components/features/vendor-card'
 import { getVendors } from '@/lib/api/vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
-import type { BookingType, Vendor } from '@/lib/types'
+import type { Vendor } from '@/lib/types'
 
 const CATEGORIES = [
   { key: 'car_wash', label: 'Car wash', icon: IconDroplet },
@@ -33,16 +32,15 @@ function HomeContent() {
   const authUser = useAuthStore((s) => s.user)
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
-  const [bookingType, setBookingType] = useState<BookingType>('doorstep')
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [showToast, setShowToast] = useState(false)
 
   const user = profile ?? authUser
 
   useEffect(() => {
-    getVendors({ bookingType }).then(setVendors)
+    getVendors({ bookingType: 'dropin' }).then(setVendors)
     void fetchProfile().catch(() => undefined)
-  }, [bookingType, fetchProfile])
+  }, [fetchProfile])
 
   useEffect(() => {
     if (searchParams.get('welcome') === '1') {
@@ -69,15 +67,6 @@ function HomeContent() {
           <IconBell size={22} stroke={1.5} />
         </button>
       </div>
-
-      <ScToggle
-        options={[
-          { value: 'doorstep', label: 'Doorstep' },
-          { value: 'dropin', label: 'Drop-in' },
-        ]}
-        value={bookingType}
-        onChange={setBookingType}
-      />
 
       <section>
         <h2 className="mb-3 text-sm font-semibold text-text-primary">Categories</h2>

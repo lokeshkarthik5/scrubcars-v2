@@ -11,7 +11,6 @@ interface OnboardingData {
   address: string
   lat: number
   lng: number
-  doorstep: boolean
   dropin: boolean
   slotInterval: number
   openTime: string
@@ -32,7 +31,6 @@ const initialState: OnboardingData = {
   address: '',
   lat: 13.0067,
   lng: 80.2574,
-  doorstep: true,
   dropin: true,
   slotInterval: 30,
   openTime: '09:00',

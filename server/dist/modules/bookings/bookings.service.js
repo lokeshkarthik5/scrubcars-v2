@@ -157,9 +157,6 @@ export const bookingsService = {
         if (!vendor) {
             throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND');
         }
-        if (input.bookingType === 'doorstep' && !vendor.doorstepEnabled) {
-            throw new AppError(400, 'Vendor does not accept doorstep bookings', 'DOORSTEP_NOT_ENABLED');
-        }
         if (input.bookingType === 'dropin' && !vendor.dropinEnabled) {
             throw new AppError(400, 'Vendor does not accept drop-in bookings', 'DROPIN_NOT_ENABLED');
         }
@@ -174,29 +171,27 @@ export const bookingsService = {
         let lat = null;
         let lng = null;
         let address = null;
-        if (input.bookingType === 'doorstep') {
-            const savedAddress = await bookingsRepository.findAddressForUser(userId, input.addressId);
-            if (!savedAddress) {
-                throw new AppError(404, 'Address not found', 'ADDRESS_NOT_FOUND');
-            }
-            lat = savedAddress.lat;
-            lng = savedAddress.lng;
-            address = `${savedAddress.address}, ${savedAddress.city}`;
-        }
         await validateSlotAvailability(vendor.id, service.id, scheduledAt, service.durationMins);
-        const { booking, payment } = await bookingsRepository.createBookingWithPayment({
+        const bookingDate = getDateKeyFromScheduledAt(scheduledAt);
+        const result = await bookingsRepository.createBookingWithPayment({
             userId,
             vendorId: vendor.id,
             serviceId: service.id,
             vehicleId: vehicle.id,
             bookingType: input.bookingType,
             scheduledAt,
+            lockDate: bookingDate,
+            serviceDurationMins: service.durationMins,
             amount: service.price,
             paymentMethod: input.paymentMethod,
             lat,
             lng,
             address,
         });
+        if (result.conflict) {
+            throw new AppError(409, 'Selected slot was just booked. Please choose another slot.', 'SLOT_ALREADY_BOOKED');
+        }
+        const { booking, payment } = result;
         const fullBooking = await bookingsRepository.findBookingById(booking.id);
         if (!fullBooking) {
             throw new AppError(500, 'Failed to load created booking', 'BOOKING_CREATE_FAILED');

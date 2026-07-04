@@ -1,20 +1,21 @@
 'use client'
 
-import { use, useEffect, useState, Suspense } from 'react'
+import { use, useEffect, useRef, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { IconCash, IconCreditCard } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { Chip } from '@/components/sc/chip'
-import { ScToggle } from '@/components/sc/toggle'
 import { TopBar } from '@/components/sc/top-bar'
 import { getAvailableSlots } from '@/lib/api/bookings'
+import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
 import { getVendorServices } from '@/lib/api/services'
 import { getVendor } from '@/lib/api/vendors'
+import { openRazorpayCheckout } from '@/lib/razorpay'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
-import type { BookingType, PaymentMethod, Service, Vendor } from '@/lib/types'
+import type { PaymentMethod, Service, Vendor } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 function BookContent({ vendorId }: { vendorId: string }) {
@@ -23,20 +24,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const serviceId = searchParams.get('service')
   const createBooking = useBookingsStore((s) => s.createBooking)
   const vehicles = useUserStore((s) => s.vehicles)
-  const addresses = useUserStore((s) => s.addresses)
+  const profile = useUserStore((s) => s.profile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
-  const fetchAddresses = useUserStore((s) => s.fetchAddresses)
+  const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [services, setServices] = useState<Service[]>([])
   const [selectedService, setSelectedService] = useState<Service | null>(null)
-  const [bookingType, setBookingType] = useState<BookingType>('doorstep')
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [slots, setSlots] = useState<Array<{ time: string; label: string; available: boolean }>>([])
   const [loading, setLoading] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+  const bookingLockRef = useRef(false)
 
   useEffect(() => {
     getVendor(vendorId).then((v) => setVendor(v ?? null))
@@ -48,8 +49,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       setSelectedService(preselected ?? null)
     })
     void fetchVehicles()
-    void fetchAddresses()
-  }, [vendorId, serviceId, fetchVehicles, fetchAddresses])
+    void fetchProfile()
+  }, [vendorId, serviceId, fetchVehicles, fetchProfile])
 
   useEffect(() => {
     if (!selectedService) return
@@ -67,29 +68,63 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }, [vehicles, selectedVehicle])
 
-  useEffect(() => {
-    if (addresses.length > 0 && !selectedAddress) {
-      const defaultAddress = addresses.find((a) => a.isDefault) ?? addresses[0]
-      setSelectedAddress(defaultAddress.id)
-    }
-  }, [addresses, selectedAddress])
-
   const handleConfirm = async () => {
+    if (bookingLockRef.current || loading) return
     if (!selectedService || !selectedSlot || !selectedVehicle) return
-    if (bookingType === 'doorstep' && !selectedAddress) return
+    bookingLockRef.current = true
     setLoading(true)
+    setPaymentError(null)
     try {
       const booking = await createBooking({
         vendorId,
         serviceId: selectedService.id,
         scheduledAt: selectedSlot,
-        bookingType,
+        bookingType: 'dropin',
         vehicleId: selectedVehicle,
-        addressId: bookingType === 'doorstep' ? selectedAddress! : undefined,
         paymentMethod,
       })
-      router.push(`/bookings/${booking.id}`)
+
+      if (paymentMethod === 'cash') {
+        router.push(`/bookings/${booking.id}`)
+        return
+      }
+
+      const order = await createPaymentOrder(booking.id)
+
+      await openRazorpayCheckout({
+        order,
+        description: `${selectedService.name} at ${vendor?.name ?? 'vendor'}`,
+        customer: {
+          name: profile?.name,
+          phone: profile?.phone,
+        },
+        onSuccess: async (response) => {
+          await verifyPayment({
+            bookingId: booking.id,
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature,
+          })
+          router.push(`/bookings/${booking.id}`)
+        },
+        onDismiss: () => {
+          setPaymentError(
+            'Payment cancelled. Your booking is saved — you can pay from booking details.'
+          )
+        },
+        onFailure: (message) => {
+          setPaymentError(message)
+        },
+      })
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message !== 'Payment cancelled'
+      ) {
+        setPaymentError(error.message)
+      }
     } finally {
+      bookingLockRef.current = false
       setLoading(false)
     }
   }
@@ -110,18 +145,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </div>
         </ScCard>
       )}
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">Booking type</h2>
-        <ScToggle
-          options={[
-            { value: 'doorstep', label: 'Doorstep' },
-            { value: 'dropin', label: 'Drop-in' },
-          ]}
-          value={bookingType}
-          onChange={setBookingType}
-        />
-      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Pick a slot</h2>
@@ -161,26 +184,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
         )}
       </section>
 
-      {bookingType === 'doorstep' && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold text-text-primary">Doorstep address</h2>
-          {addresses.length === 0 ? (
-            <p className="text-[12px] text-text-secondary">Add an address from your profile first.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {addresses.map((a) => (
-                <button key={a.id} type="button" onClick={() => setSelectedAddress(a.id)}>
-                  <ScCard className={cn(selectedAddress === a.id && 'border-brand-red')}>
-                    <p className="text-[13px] font-medium">{a.label}</p>
-                    <p className="text-[11px] text-text-secondary">{a.address}</p>
-                  </ScCard>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
       <section>
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Payment method</h2>
         <div className="flex flex-col gap-2">
@@ -199,6 +202,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </button>
           ))}
         </div>
+        {paymentError && (
+          <p className="mt-2 text-[12px] text-brand-red">{paymentError}</p>
+        )}
       </section>
 
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
@@ -206,7 +212,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
           disabled={!selectedService || !selectedSlot || !selectedVehicle || loading}
           onClick={handleConfirm}
         >
-          {loading ? 'Confirming...' : `Confirm · ₹${selectedService?.price ?? 0}`}
+          {loading
+            ? paymentMethod === 'online'
+              ? 'Processing payment...'
+              : 'Confirming...'
+            : paymentMethod === 'online'
+              ? `Pay · ₹${selectedService?.price ?? 0}`
+              : `Confirm · ₹${selectedService?.price ?? 0}`}
         </ScButton>
       </div>
     </AppShell>

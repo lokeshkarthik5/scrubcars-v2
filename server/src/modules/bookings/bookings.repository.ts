@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, ne } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookings,
@@ -85,6 +85,8 @@ export const bookingsRepository = {
     vehicleId: string
     bookingType: BookingType
     scheduledAt: Date
+    lockDate: string
+    serviceDurationMins: number
     amount: string
     paymentMethod: 'online' | 'cash'
     lat?: number | null
@@ -92,6 +94,33 @@ export const bookingsRepository = {
     address?: string | null
   }) {
     return db.transaction(async (tx) => {
+      const requestedEnd = new Date(
+        data.scheduledAt.getTime() + data.serviceDurationMins * 60 * 1000
+      )
+      const lockKey = `booking:${data.vendorId}:${data.lockDate}`
+
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`
+      )
+
+      const conflictingBookings = await tx
+        .select({ id: bookings.id })
+        .from(bookings)
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .where(
+          and(
+            eq(bookings.vendorId, data.vendorId),
+            ne(bookings.status, 'cancelled'),
+            sql`${bookings.scheduledAt} < ${requestedEnd}`,
+            sql`${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${data.scheduledAt}`
+          )
+        )
+        .limit(1)
+
+      if (conflictingBookings.length > 0) {
+        return { booking: null, payment: null, conflict: true as const }
+      }
+
       const [booking] = await tx
         .insert(bookings)
         .values({
@@ -119,7 +148,7 @@ export const bookingsRepository = {
         })
         .returning()
 
-      return { booking, payment }
+      return { booking, payment, conflict: false as const }
     })
   },
 
