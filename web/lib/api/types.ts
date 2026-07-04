@@ -105,6 +105,38 @@ export interface ApiPublicVendor {
   services: ApiService[]
 }
 
+export interface ApiVendorProfile {
+  id: string
+  ownerId: string
+  businessName: string
+  phone: string
+  address: string
+  city: string
+  lat: number
+  lng: number
+  isVerified: boolean
+  doorstepEnabled: boolean
+  dropinEnabled: boolean
+  slotIntervalMins: number
+  status: string
+  createdAt: string
+}
+
+export interface ApiWorkingHours {
+  id: string
+  dayOfWeek: number
+  openTime: string
+  closeTime: string
+  isClosed: boolean
+}
+
+export interface ApiServiceArea {
+  id: string
+  areaName: string
+  pincode: string
+  radiusKm: number | null
+}
+
 export interface ApiService {
   id: string
   name: string

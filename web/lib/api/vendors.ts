@@ -3,7 +3,13 @@ import {
   mapPublicVendor,
   mapVendorListItem,
 } from './mappers'
-import type { ApiPublicVendor, ApiVendorListItem } from './types'
+import type {
+  ApiPublicVendor,
+  ApiServiceArea,
+  ApiVendorListItem,
+  ApiVendorProfile,
+  ApiWorkingHours,
+} from './types'
 import type { BookingType, Vendor } from '@/lib/types'
 
 export interface VendorListParams {
@@ -59,22 +65,47 @@ export async function createVendor(data: {
   })
 }
 
+/** GET /vendors/me */
+export async function getMyVendor(): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me')
+}
+
 /** PATCH /vendors/me/job-types */
 export async function updateVendorJobTypes(data: {
   doorstepEnabled: boolean
   dropinEnabled: boolean
-}): Promise<void> {
-  await apiClient('/vendors/me/job-types', {
+}): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me/job-types', {
     method: 'PATCH',
     body: JSON.stringify(data),
   })
 }
 
 /** PATCH /vendors/me/slot-interval */
-export async function updateSlotInterval(slotIntervalMins: 30 | 45 | 60): Promise<void> {
-  await apiClient('/vendors/me/slot-interval', {
+export async function updateSlotInterval(slotIntervalMins: 30 | 45 | 60): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me/slot-interval', {
     method: 'PATCH',
     body: JSON.stringify({ slotIntervalMins }),
+  })
+}
+
+/** GET /vendors/me/working-hours */
+export async function getWorkingHours(): Promise<ApiWorkingHours[]> {
+  return apiClient<ApiWorkingHours[]>('/vendors/me/working-hours')
+}
+
+/** PUT /vendors/me/working-hours */
+export async function setVendorWorkingHours(
+  days: Array<{
+    dayOfWeek: number
+    openTime: string
+    closeTime: string
+    isClosed: boolean
+  }>
+): Promise<ApiWorkingHours[]> {
+  return apiClient<ApiWorkingHours[]>('/vendors/me/working-hours', {
+    method: 'PUT',
+    body: JSON.stringify({ days }),
   })
 }
 
@@ -90,20 +121,30 @@ export async function setWorkingHours(
     isClosed: false,
   }))
 
-  await apiClient('/vendors/me/working-hours', {
-    method: 'PUT',
-    body: JSON.stringify({ days }),
-  })
+  await setVendorWorkingHours(days)
+}
+
+/** GET /vendors/me/service-areas */
+export async function getServiceAreas(): Promise<ApiServiceArea[]> {
+  return apiClient<ApiServiceArea[]>('/vendors/me/service-areas')
 }
 
 /** POST /vendors/me/service-areas */
 export async function createServiceArea(data: {
   areaName: string
   pincode: string
-}): Promise<void> {
-  await apiClient('/vendors/me/service-areas', {
+  radiusKm?: number
+}): Promise<ApiServiceArea> {
+  return apiClient<ApiServiceArea>('/vendors/me/service-areas', {
     method: 'POST',
     body: JSON.stringify(data),
+  })
+}
+
+/** DELETE /vendors/me/service-areas/:id */
+export async function deleteServiceArea(id: string): Promise<ApiServiceArea> {
+  return apiClient<ApiServiceArea>(`/vendors/me/service-areas/${id}`, {
+    method: 'DELETE',
   })
 }
 
@@ -144,9 +185,16 @@ export async function submitVendorOnboarding(
 
 /** PATCH /vendors/me */
 export async function updateVendorSettings(
-  data: Record<string, unknown>
-): Promise<void> {
-  await apiClient('/vendors/me', {
+  data: Partial<{
+    businessName: string
+    phone: string
+    address: string
+    city: string
+    lat: number
+    lng: number
+  }>
+): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me', {
     method: 'PATCH',
     body: JSON.stringify(data),
   })

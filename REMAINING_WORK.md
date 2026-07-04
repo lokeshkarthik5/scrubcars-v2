@@ -16,10 +16,6 @@
 
 ## Frontend
 
-- Build full vendor profile management UI.
-- Build vendor services/catalog management UI.
-- Build vendor photos upload, reorder, and delete UI.
-- Build working hours and service areas UI.
 - Add payment UI during booking.
 - Add customer “my reviews” page.
 
@@ -30,7 +26,3 @@
 - Prevent duplicate concurrent bookings for the same slot more strictly.
 - Show an existing review on completed booking detail.
 
-## Storage
-
-- Delete the GCS object when a vendor photo is deleted.
-- Add upload completion confirmation before making a photo public.
