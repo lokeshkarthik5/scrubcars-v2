@@ -1,6 +1,6 @@
-import { bookingsService } from "./bookings.service.js";
+import { bookingsService } from './bookings.service.js';
 function getAuth(c) {
-    return c.get("auth");
+    return c.get('auth');
 }
 export async function listMyBookings(c, query) {
     const bookings = await bookingsService.listMyBookings(getAuth(c).sub, query);

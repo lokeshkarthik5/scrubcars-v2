@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { Storage } from "@google-cloud/storage";
-import { env } from "./env.js";
-import { AppError } from "./errors.js";
+import { randomUUID } from 'node:crypto';
+import { Storage } from '@google-cloud/storage';
+import { env } from './env.js';
+import { AppError } from './errors.js';
 let storageClient = null;
 function getStorageClient() {
     if (!storageClient) {
@@ -16,9 +16,9 @@ function getStorageClient() {
     return storageClient;
 }
 export async function createVendorPhotoUploadUrl(input) {
-    const extension = input.filename.includes(".")
-        ? input.filename.slice(input.filename.lastIndexOf("."))
-        : "";
+    const extension = input.filename.includes('.')
+        ? input.filename.slice(input.filename.lastIndexOf('.'))
+        : '';
     const objectPath = `vendors/${input.vendorId}/${randomUUID()}${extension}`;
     const publicUrl = `https://storage.googleapis.com/${env.gcsBucket}/${objectPath}`;
     if (!env.gcsConfigured) {
@@ -29,14 +29,14 @@ export async function createVendorPhotoUploadUrl(input) {
                 uploadUrl: `https://storage.googleapis.com/${env.gcsBucket}/${objectPath}?dev-signed=true`,
             };
         }
-        throw new AppError(500, "GCS is not configured", "GCS_NOT_CONFIGURED");
+        throw new AppError(500, 'GCS is not configured', 'GCS_NOT_CONFIGURED');
     }
     const [uploadUrl] = await getStorageClient()
         .bucket(env.gcsBucket)
         .file(objectPath)
         .getSignedUrl({
-        version: "v4",
-        action: "write",
+        version: 'v4',
+        action: 'write',
         expires: Date.now() + 15 * 60 * 1000,
         contentType: input.contentType,
     });

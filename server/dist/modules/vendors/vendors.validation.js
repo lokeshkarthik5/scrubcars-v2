@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { z } from 'zod';
 const phoneSchema = z
     .string()
-    .regex(/^[6-9]\d{9}$/, "Phone must be a valid 10-digit Indian mobile number");
+    .regex(/^[6-9]\d{9}$/, 'Phone must be a valid 10-digit Indian mobile number');
 const timeSchema = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/);
 export const vendorIdParamSchema = z.object({
     id: z.string().uuid(),
@@ -10,7 +10,7 @@ export const resourceIdParamSchema = z.object({
     id: z.string().uuid(),
 });
 export const slotsQuerySchema = z.object({
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
     service_id: z.string().uuid(),
 });
 export const createVendorSchema = z.object({
@@ -31,14 +31,14 @@ export const updateVendorSchema = z
     lng: z.number().finite().optional(),
 })
     .refine((data) => Object.keys(data).length > 0, {
-    message: "At least one field must be provided",
+    message: 'At least one field must be provided',
 });
 export const updateJobTypesSchema = z
     .object({
     doorstepEnabled: z.boolean().optional(),
     dropinEnabled: z.boolean().optional(),
 })
-    .refine((data) => data.doorstepEnabled !== undefined || data.dropinEnabled !== undefined, { message: "At least one job type must be provided" });
+    .refine((data) => data.doorstepEnabled !== undefined || data.dropinEnabled !== undefined, { message: 'At least one job type must be provided' });
 export const updateSlotIntervalSchema = z.object({
     slotIntervalMins: z.union([z.literal(30), z.literal(45), z.literal(60)]),
 });
@@ -52,7 +52,7 @@ export const setWorkingHoursSchema = z.object({
     days: z
         .array(workingHoursDaySchema)
         .length(7)
-        .refine((days) => new Set(days.map((day) => day.dayOfWeek)).size === 7, "days must include each dayOfWeek from 0 to 6 exactly once"),
+        .refine((days) => new Set(days.map((day) => day.dayOfWeek)).size === 7, 'days must include each dayOfWeek from 0 to 6 exactly once'),
 });
 export const createServiceAreaSchema = z.object({
     areaName: z.string().trim().min(1).max(255),
@@ -72,11 +72,17 @@ export const reorderPhotosSchema = z.object({
         .min(1),
 });
 export const serviceCategorySchema = z.enum([
-    "car_wash",
-    "detailing",
-    "coating",
-    "scratch_removal",
+    'car_wash',
+    'detailing',
+    'coating',
+    'scratch_removal',
 ]);
+export const listPublicVendorsQuerySchema = z.object({
+    booking_type: z.enum(['doorstep', 'dropin']).optional(),
+    category: serviceCategorySchema.optional(),
+    q: z.string().trim().min(1).optional(),
+    pincode: z.string().trim().min(6).max(10).optional(),
+});
 export const createServiceSchema = z.object({
     name: z.string().trim().min(1).max(255),
     description: z.string().trim().max(5000).optional(),
@@ -93,7 +99,7 @@ export const updateServiceSchema = z
     durationMins: z.number().int().positive().optional(),
 })
     .refine((data) => Object.keys(data).length > 0, {
-    message: "At least one field must be provided",
+    message: 'At least one field must be provided',
 });
 export const toggleServiceActiveSchema = z.object({
     isActive: z.boolean(),

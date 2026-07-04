@@ -1,6 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
-import { db } from "../../db/index.js";
-import { userAddresses, users, userVehicles } from "../../db/schema.js";
+import { and, asc, eq } from 'drizzle-orm';
+import { db } from '../../db/index.js';
+import { userAddresses, users, userVehicles } from '../../db/schema.js';
 export const usersRepository = {
     findUserById(id) {
         return db.query.users.findFirst({

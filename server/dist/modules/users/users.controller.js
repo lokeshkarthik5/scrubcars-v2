@@ -1,6 +1,6 @@
-import { usersService } from "./users.service.js";
+import { usersService } from './users.service.js';
 function getUserId(c) {
-    return c.get("auth").sub;
+    return c.get('auth').sub;
 }
 export async function getProfile(c) {
     const profile = await usersService.getProfile(getUserId(c));
@@ -20,7 +20,7 @@ export async function deleteAccount(c) {
     await usersService.deleteAccount(getUserId(c));
     return c.json({
         success: true,
-        message: "Account deleted successfully",
+        message: 'Account deleted successfully',
     });
 }
 export async function listAddresses(c) {

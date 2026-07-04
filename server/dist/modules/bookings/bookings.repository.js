@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, lt, ne } from "drizzle-orm";
-import { db } from "../../db/index.js";
-import { bookings, payments, services, userAddresses, userVehicles, vendors, } from "../../db/schema.js";
+import { and, desc, eq, gte, lt, ne } from 'drizzle-orm';
+import { db } from '../../db/index.js';
+import { bookings, payments, services, userAddresses, userVehicles, vendors, } from '../../db/schema.js';
 export const bookingsRepository = {
     findBookingById(id) {
         return db.query.bookings.findFirst({
@@ -34,8 +34,12 @@ export const bookingsRepository = {
         });
     },
     listBookingsForVendor(vendorId, status) {
+        const conditions = [eq(bookings.vendorId, vendorId)];
+        if (status) {
+            conditions.push(eq(bookings.status, status));
+        }
         return db.query.bookings.findMany({
-            where: and(eq(bookings.vendorId, vendorId), eq(bookings.status, status)),
+            where: and(...conditions),
             with: {
                 user: true,
                 service: true,
@@ -67,9 +71,9 @@ export const bookingsRepository = {
                 .insert(payments)
                 .values({
                 bookingId: booking.id,
-                gateway: "razorpay",
+                gateway: 'razorpay',
                 amount: data.amount,
-                status: "pending",
+                status: 'pending',
             })
                 .returning();
             return { booking, payment };
@@ -109,7 +113,7 @@ export const bookingsRepository = {
     },
     findPublicVendorById(id) {
         return db.query.vendors.findFirst({
-            where: and(eq(vendors.id, id), eq(vendors.status, "active"), eq(vendors.isVerified, true)),
+            where: and(eq(vendors.id, id), eq(vendors.status, 'active'), eq(vendors.isVerified, true)),
         });
     },
     findServiceForVendor(vendorId, serviceId) {
@@ -121,7 +125,7 @@ export const bookingsRepository = {
         const dayStart = new Date(`${date}T00:00:00.000Z`);
         const dayEnd = new Date(`${date}T23:59:59.999Z`);
         return db.query.bookings.findMany({
-            where: and(eq(bookings.vendorId, vendorId), gte(bookings.scheduledAt, dayStart), lt(bookings.scheduledAt, dayEnd), ne(bookings.status, "cancelled")),
+            where: and(eq(bookings.vendorId, vendorId), gte(bookings.scheduledAt, dayStart), lt(bookings.scheduledAt, dayEnd), ne(bookings.status, 'cancelled')),
             with: {
                 service: true,
             },

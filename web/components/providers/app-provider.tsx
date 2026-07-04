@@ -4,16 +4,13 @@ import { useEffect } from 'react'
 import { useAuthStore } from '@/lib/stores/auth-store'
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const restoreSession = useAuthStore((s) => s.restoreSession)
   const isHydrated = useAuthStore((s) => s.isHydrated)
-  const setHydrated = useAuthStore((s) => s.setHydrated)
+  const restoreSession = useAuthStore((s) => s.restoreSession)
 
   useEffect(() => {
-    if (!isHydrated) {
-      setHydrated()
-    }
+    if (!isHydrated) return
     void restoreSession()
-  }, [isHydrated, restoreSession, setHydrated])
+  }, [isHydrated, restoreSession])
 
   return <>{children}</>
 }

@@ -1,9 +1,9 @@
-import { AppError } from "../../lib/errors.js";
-import { generateOtpCode, getOtpExpiryDate, getOtpVerifyWindowStart, MAX_OTP_VERIFY_ATTEMPTS, OTP_EXPIRY_SECONDS, OTP_VERIFY_WINDOW_MINUTES, } from "../../lib/otp.js";
-import { sendOtpSms } from "../../lib/sms.js";
-import { generateRefreshToken, getRefreshTokenExpiryDate, hashRefreshToken, } from "../../lib/tokens.js";
-import { signAccessToken, } from "../../lib/jwt.js";
-import { authRepository } from "./auth.repository.js";
+import { AppError } from '../../lib/errors.js';
+import { generateOtpCode, getOtpExpiryDate, getOtpVerifyWindowStart, MAX_OTP_VERIFY_ATTEMPTS, OTP_EXPIRY_SECONDS, OTP_VERIFY_WINDOW_MINUTES, } from '../../lib/otp.js';
+import { sendOtpSms } from '../../lib/sms.js';
+import { generateRefreshToken, getRefreshTokenExpiryDate, hashRefreshToken, } from '../../lib/tokens.js';
+import { signAccessToken, } from '../../lib/jwt.js';
+import { authRepository } from './auth.repository.js';
 function toUserResponse(user) {
     return {
         id: user.id,
@@ -27,38 +27,38 @@ function toVendorResponse(vendor) {
     };
 }
 function assertActiveUser(user) {
-    if (user.status === "suspended") {
-        throw new AppError(403, "Account is suspended", "ACCOUNT_SUSPENDED");
+    if (user.status === 'suspended') {
+        throw new AppError(403, 'Account is suspended', 'ACCOUNT_SUSPENDED');
     }
 }
 async function validateSendOtpRules(input) {
     const existingUser = await authRepository.findUserByPhone(input.phone);
-    if (input.audience === "customer" && input.purpose === "register") {
+    if (input.audience === 'customer' && input.purpose === 'register') {
         if (existingUser) {
-            throw new AppError(409, "Phone number is already registered. Please log in instead.", "PHONE_ALREADY_REGISTERED");
+            throw new AppError(409, 'Phone number is already registered. Please log in instead.', 'PHONE_ALREADY_REGISTERED');
         }
         return;
     }
-    if (input.purpose === "login") {
+    if (input.purpose === 'login') {
         if (!existingUser) {
-            throw new AppError(404, "No account found for this phone number", "USER_NOT_FOUND");
+            throw new AppError(404, 'No account found for this phone number', 'USER_NOT_FOUND');
         }
         assertActiveUser(existingUser);
-        if (input.audience === "vendor" && !existingUser.isVendorOwner) {
-            throw new AppError(403, "This phone number is not registered as a vendor", "NOT_A_VENDOR");
+        if (input.audience === 'vendor' && !existingUser.isVendorOwner) {
+            throw new AppError(403, 'This phone number is not registered as a vendor', 'NOT_A_VENDOR');
         }
     }
-    if (input.purpose === "vendor_onboard") {
+    if (input.purpose === 'vendor_onboard') {
         if (existingUser?.isVendorOwner) {
-            throw new AppError(409, "This phone number is already registered as a vendor. Please log in instead.", "VENDOR_ALREADY_REGISTERED");
+            throw new AppError(409, 'This phone number is already registered as a vendor. Please log in instead.', 'VENDOR_ALREADY_REGISTERED');
         }
     }
 }
 async function resolveUserAfterVerification(input) {
     const existingUser = await authRepository.findUserByPhone(input.phone);
-    if (input.purpose === "register") {
+    if (input.purpose === 'register') {
         if (existingUser) {
-            throw new AppError(409, "Phone number is already registered", "PHONE_ALREADY_REGISTERED");
+            throw new AppError(409, 'Phone number is already registered', 'PHONE_ALREADY_REGISTERED');
         }
         const [created] = await authRepository.createUser({
             name: input.name,
@@ -69,7 +69,7 @@ async function resolveUserAfterVerification(input) {
         });
         return created;
     }
-    if (input.purpose === "vendor_onboard") {
+    if (input.purpose === 'vendor_onboard') {
         if (existingUser) {
             const [updated] = await authRepository.updateUser(existingUser.id, {
                 name: input.name ?? existingUser.name,
@@ -88,11 +88,11 @@ async function resolveUserAfterVerification(input) {
         return created;
     }
     if (!existingUser) {
-        throw new AppError(404, "No account found for this phone number", "USER_NOT_FOUND");
+        throw new AppError(404, 'No account found for this phone number', 'USER_NOT_FOUND');
     }
     assertActiveUser(existingUser);
-    if (input.audience === "vendor" && !existingUser.isVendorOwner) {
-        throw new AppError(403, "This phone number is not registered as a vendor", "NOT_A_VENDOR");
+    if (input.audience === 'vendor' && !existingUser.isVendorOwner) {
+        throw new AppError(403, 'This phone number is not registered as a vendor', 'NOT_A_VENDOR');
     }
     const [updated] = await authRepository.updateUser(existingUser.id, {
         phoneVerified: true,
@@ -115,7 +115,7 @@ async function createSession(user, audience) {
         tokenHash,
         expiresAt: getRefreshTokenExpiryDate(),
     });
-    const vendor = audience === "vendor" && user.isVendorOwner
+    const vendor = audience === 'vendor' && user.isVendorOwner
         ? await authRepository.findVendorByOwnerId(user.id)
         : null;
     return {
@@ -148,15 +148,15 @@ export const authService = {
         const windowStart = getOtpVerifyWindowStart();
         const [{ value: recentAttempts }] = await authRepository.sumRecentOtpAttempts(input.phone, input.purpose, windowStart);
         if (Number(recentAttempts) >= MAX_OTP_VERIFY_ATTEMPTS) {
-            throw new AppError(429, `Too many OTP attempts. Try again in ${OTP_VERIFY_WINDOW_MINUTES} minutes.`, "OTP_ATTEMPTS_EXCEEDED");
+            throw new AppError(429, `Too many OTP attempts. Try again in ${OTP_VERIFY_WINDOW_MINUTES} minutes.`, 'OTP_ATTEMPTS_EXCEEDED');
         }
         const otpRecord = await authRepository.findLatestValidOtp(input.phone, input.purpose);
         if (!otpRecord) {
-            throw new AppError(400, "Invalid or expired OTP", "INVALID_OTP");
+            throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP');
         }
         if (otpRecord.otpCode !== input.otp) {
             await authRepository.incrementOtpAttempts(otpRecord.id);
-            throw new AppError(400, "Invalid or expired OTP", "INVALID_OTP");
+            throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP');
         }
         await authRepository.markOtpVerified(otpRecord.id);
         const user = await resolveUserAfterVerification(input);
@@ -166,15 +166,15 @@ export const authService = {
         const tokenHash = hashRefreshToken(refreshToken);
         const storedToken = await authRepository.findActiveRefreshToken(tokenHash);
         if (!storedToken) {
-            throw new AppError(401, "Invalid or expired refresh token", "INVALID_REFRESH_TOKEN");
+            throw new AppError(401, 'Invalid or expired refresh token', 'INVALID_REFRESH_TOKEN');
         }
         const user = await authRepository.findUserById(storedToken.userId);
         if (!user) {
-            throw new AppError(401, "User not found", "USER_NOT_FOUND");
+            throw new AppError(401, 'User not found', 'USER_NOT_FOUND');
         }
         assertActiveUser(user);
         await authRepository.revokeRefreshToken(storedToken.id);
-        const audience = user.isVendorOwner ? "vendor" : "customer";
+        const audience = user.isVendorOwner ? 'vendor' : 'customer';
         return createSession(user, audience);
     },
     async logout(refreshToken) {
@@ -187,10 +187,10 @@ export const authService = {
     async getMe(userId, audience) {
         const user = await authRepository.findUserById(userId);
         if (!user) {
-            throw new AppError(404, "User not found", "USER_NOT_FOUND");
+            throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
         }
         assertActiveUser(user);
-        const vendor = audience === "vendor" && user.isVendorOwner
+        const vendor = audience === 'vendor' && user.isVendorOwner
             ? await authRepository.findVendorByOwnerId(user.id)
             : null;
         return {

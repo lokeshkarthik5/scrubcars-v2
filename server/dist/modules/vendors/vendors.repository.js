@@ -1,6 +1,6 @@
-import { and, asc, eq, gte, lt, ne, sql } from "drizzle-orm";
-import { db } from "../../db/index.js";
-import { bookings, services, users, vendorPhotos, vendors, vendorServiceAreas, vendorWorkingHours, } from "../../db/schema.js";
+import { and, asc, eq, gte, lt, ne, sql } from 'drizzle-orm';
+import { db } from '../../db/index.js';
+import { bookings, services, users, vendorPhotos, vendors, vendorServiceAreas, vendorWorkingHours, } from '../../db/schema.js';
 function normalizeTime(time) {
     return time.length === 5 ? `${time}:00` : time;
 }
@@ -17,7 +17,22 @@ export const vendorsRepository = {
     },
     findPublicVendorById(id) {
         return db.query.vendors.findFirst({
-            where: and(eq(vendors.id, id), eq(vendors.status, "active"), eq(vendors.isVerified, true)),
+            where: and(eq(vendors.id, id), eq(vendors.status, 'active'), eq(vendors.isVerified, true)),
+        });
+    },
+    listPublicVendors() {
+        return db.query.vendors.findMany({
+            where: and(eq(vendors.status, 'active'), eq(vendors.isVerified, true)),
+            with: {
+                photos: {
+                    orderBy: [asc(vendorPhotos.sortOrder)],
+                },
+                services: {
+                    where: eq(services.isActive, true),
+                },
+                serviceAreas: true,
+            },
+            orderBy: [asc(vendors.businessName)],
         });
     },
     createVendor(data) {
@@ -73,10 +88,7 @@ export const vendorsRepository = {
                     isClosed: day.isClosed,
                 })
                     .onConflictDoUpdate({
-                    target: [
-                        vendorWorkingHours.vendorId,
-                        vendorWorkingHours.dayOfWeek,
-                    ],
+                    target: [vendorWorkingHours.vendorId, vendorWorkingHours.dayOfWeek],
                     set: {
                         openTime: normalizeTime(day.openTime),
                         closeTime: normalizeTime(day.closeTime),
@@ -216,7 +228,7 @@ export const vendorsRepository = {
         const dayStart = new Date(`${date}T00:00:00.000Z`);
         const dayEnd = new Date(`${date}T23:59:59.999Z`);
         return db.query.bookings.findMany({
-            where: and(eq(bookings.vendorId, vendorId), gte(bookings.scheduledAt, dayStart), lt(bookings.scheduledAt, dayEnd), ne(bookings.status, "cancelled")),
+            where: and(eq(bookings.vendorId, vendorId), gte(bookings.scheduledAt, dayStart), lt(bookings.scheduledAt, dayEnd), ne(bookings.status, 'cancelled')),
             with: {
                 service: true,
             },

@@ -1,5 +1,5 @@
-import { AppError } from "../../lib/errors.js";
-import { usersRepository } from "./users.repository.js";
+import { AppError } from '../../lib/errors.js';
+import { usersRepository } from './users.repository.js';
 function toProfileResponse(user) {
     return {
         id: user.id,
@@ -40,24 +40,24 @@ function toVehicleResponse(vehicle) {
 async function getActiveUser(userId) {
     const user = await usersRepository.findUserById(userId);
     if (!user) {
-        throw new AppError(404, "User not found", "USER_NOT_FOUND");
+        throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
     }
-    if (user.status === "suspended") {
-        throw new AppError(403, "Account is suspended", "ACCOUNT_SUSPENDED");
+    if (user.status === 'suspended') {
+        throw new AppError(403, 'Account is suspended', 'ACCOUNT_SUSPENDED');
     }
     return user;
 }
 async function getOwnedAddress(userId, addressId) {
     const address = await usersRepository.findAddressById(userId, addressId);
     if (!address) {
-        throw new AppError(404, "Address not found", "ADDRESS_NOT_FOUND");
+        throw new AppError(404, 'Address not found', 'ADDRESS_NOT_FOUND');
     }
     return address;
 }
 async function getOwnedVehicle(userId, vehicleId) {
     const vehicle = await usersRepository.findVehicleById(userId, vehicleId);
     if (!vehicle) {
-        throw new AppError(404, "Vehicle not found", "VEHICLE_NOT_FOUND");
+        throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND');
     }
     return vehicle;
 }
@@ -134,7 +134,7 @@ export const usersService = {
         await getOwnedAddress(userId, addressId);
         const [updated] = await usersRepository.setDefaultAddress(userId, addressId);
         if (!updated) {
-            throw new AppError(404, "Address not found", "ADDRESS_NOT_FOUND");
+            throw new AppError(404, 'Address not found', 'ADDRESS_NOT_FOUND');
         }
         return toAddressResponse(updated);
     },
@@ -198,7 +198,7 @@ export const usersService = {
         await getOwnedVehicle(userId, vehicleId);
         const [updated] = await usersRepository.setDefaultVehicle(userId, vehicleId);
         if (!updated) {
-            throw new AppError(404, "Vehicle not found", "VEHICLE_NOT_FOUND");
+            throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND');
         }
         return toVehicleResponse(updated);
     },

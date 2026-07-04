@@ -1,6 +1,6 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
-import { db } from "../../db/index.js";
-import { otpVerifications, refreshTokens, users, vendors, } from "../../db/schema.js";
+import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { db } from '../../db/index.js';
+import { otpVerifications, refreshTokens, users, vendors, } from '../../db/schema.js';
 export const authRepository = {
     findUserByPhone(phone) {
         return db.query.users.findFirst({

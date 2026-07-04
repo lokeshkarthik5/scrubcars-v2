@@ -4,7 +4,13 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "migrate": "bash scripts/migrate.sh migrate",
+    "migrate:status": "bash scripts/migrate.sh status",
+    "migrate:check": "bash scripts/migrate.sh check",
+    "seed": "bash scripts/seed.sh",
+    "seed:users": "bash scripts/seed.sh --users",
+    "seed:vendors": "bash scripts/seed.sh --vendors"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.21.0",

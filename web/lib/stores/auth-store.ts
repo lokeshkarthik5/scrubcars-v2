@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
+  getAuthMe,
   logout as apiLogout,
   refreshSession,
   verifyOtp as apiVerifyOtp,
@@ -10,6 +11,7 @@ import {
   type VerifyOtpOptions,
 } from '@/lib/api/auth'
 import { setAccessToken } from '@/lib/api/client'
+import { deriveAudience } from '@/lib/auth/jwt'
 import { mapAuthUser } from '@/lib/api/mappers'
 import type { ApiAuthVendor, ApiAuthUser } from '@/lib/api/types'
 import type { User } from '@/lib/types'
@@ -17,55 +19,90 @@ import type { User } from '@/lib/types'
 export type AuthAudience = 'customer' | 'vendor'
 
 interface AuthState {
+  accessToken: string | null
   user: User | null
   vendor: ApiAuthVendor | null
   audience: AuthAudience | null
-  accessToken: string | null
   isHydrated: boolean
+  isSessionReady: boolean
   isLoading: boolean
 
-  setSession: (
+  applySession: (
+    accessToken: string,
     user: ApiAuthUser,
     vendor: ApiAuthVendor | null,
-    accessToken: string,
-    audience: AuthAudience
+    audience?: AuthAudience
   ) => void
+  fetchSession: () => Promise<void>
   verifyOtp: (options: VerifyOtpOptions) => Promise<{ isNewUser: boolean }>
   restoreSession: () => Promise<boolean>
   logout: () => Promise<void>
   setHydrated: () => void
+  clearSession: () => void
+}
+
+function applySessionToClient(
+  accessToken: string,
+  user: ApiAuthUser,
+  vendor: ApiAuthVendor | null,
+  audience?: AuthAudience
+) {
+  setAccessToken(accessToken)
+  return {
+    accessToken,
+    user: mapAuthUser(user),
+    vendor,
+    audience: audience ?? deriveAudience(accessToken, vendor),
+  }
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
+      accessToken: null,
       user: null,
       vendor: null,
       audience: null,
-      accessToken: null,
       isHydrated: false,
+      isSessionReady: false,
       isLoading: false,
 
-      setSession(user, vendor, accessToken, audience) {
-        setAccessToken(accessToken)
+      applySession(accessToken, user, vendor, audience) {
+        set(applySessionToClient(accessToken, user, vendor, audience))
+      },
+
+      clearSession() {
+        setAccessToken(null)
         set({
-          user: mapAuthUser(user),
-          vendor,
-          accessToken,
-          audience,
+          accessToken: null,
+          user: null,
+          vendor: null,
+          audience: null,
         })
+      },
+
+      async fetchSession() {
+        const me = await getAuthMe()
+        const token = get().accessToken
+        if (!token) {
+          throw new Error('No access token available')
+        }
+        set(applySessionToClient(token, me.user, me.vendor))
       },
 
       async verifyOtp(options) {
         set({ isLoading: true })
         try {
           const result = await apiVerifyOtp(options)
-          get().setSession(
-            result.user,
-            result.vendor,
-            result.accessToken,
-            options.audience
-          )
+          set({
+            ...applySessionToClient(
+              result.accessToken,
+              result.user,
+              result.vendor,
+              options.audience
+            ),
+            isSessionReady: true,
+          })
           return { isNewUser: result.isNewUser }
         } finally {
           set({ isLoading: false })
@@ -73,38 +110,46 @@ export const useAuthStore = create<AuthState>()(
       },
 
       async restoreSession() {
+        set({ isSessionReady: false })
         const { accessToken } = get()
+
         if (accessToken) {
           setAccessToken(accessToken)
+          try {
+            await get().fetchSession()
+            set({ isSessionReady: true })
+            return true
+          } catch {
+            get().clearSession()
+          }
         }
 
         try {
           const session = await refreshSession()
-          get().setSession(
-            session.user,
-            session.vendor,
-            session.accessToken,
-            session.audience
-          )
+          set({
+            ...applySessionToClient(
+              session.accessToken,
+              session.user,
+              session.vendor,
+              session.audience
+            ),
+            isSessionReady: true,
+          })
           return true
         } catch {
-          set({ user: null, vendor: null, accessToken: null, audience: null })
-          setAccessToken(null)
+          get().clearSession()
+          set({ isSessionReady: true })
           return false
         }
       },
 
       async logout() {
+        set({ isLoading: true })
         try {
           await apiLogout()
         } finally {
-          setAccessToken(null)
-          set({
-            user: null,
-            vendor: null,
-            accessToken: null,
-            audience: null,
-          })
+          get().clearSession()
+          set({ isLoading: false, isSessionReady: true })
         }
       },
 
@@ -116,9 +161,6 @@ export const useAuthStore = create<AuthState>()(
       name: 'scrub-cars-auth',
       partialize: (state) => ({
         accessToken: state.accessToken,
-        audience: state.audience,
-        user: state.user,
-        vendor: state.vendor,
       }),
       onRehydrateStorage: () => (state) => {
         if (state?.accessToken) {

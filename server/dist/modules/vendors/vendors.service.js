@@ -1,7 +1,7 @@
-import { AppError } from "../../lib/errors.js";
-import { createVendorPhotoUploadUrl } from "../../lib/gcs.js";
-import { computeAvailableSlots, getDayOfWeekFromDate, } from "../../lib/slots.js";
-import { vendorsRepository } from "./vendors.repository.js";
+import { AppError } from '../../lib/errors.js';
+import { createVendorPhotoUploadUrl } from '../../lib/gcs.js';
+import { computeAvailableSlots, getDayOfWeekFromDate, } from '../../lib/slots.js';
+import { vendorsRepository } from './vendors.repository.js';
 function toVendorResponse(vendor) {
     return {
         id: vendor.id,
@@ -59,15 +59,69 @@ function toServiceResponse(service) {
 async function getOwnedVendor(ownerId) {
     const vendor = await vendorsRepository.findVendorByOwnerId(ownerId);
     if (!vendor) {
-        throw new AppError(404, "Vendor profile not found", "VENDOR_NOT_FOUND");
+        throw new AppError(404, 'Vendor profile not found', 'VENDOR_NOT_FOUND');
     }
     return vendor;
 }
 export const vendorsService = {
+    async listPublicVendors(query) {
+        const vendors = await vendorsRepository.listPublicVendors();
+        const categoryLabels = {
+            car_wash: 'Car wash',
+            detailing: 'Detailing',
+            coating: 'Coating',
+            scratch_removal: 'Scratch removal',
+        };
+        return vendors
+            .filter((vendor) => {
+            if (query.booking_type === 'doorstep' && !vendor.doorstepEnabled) {
+                return false;
+            }
+            if (query.booking_type === 'dropin' && !vendor.dropinEnabled) {
+                return false;
+            }
+            if (query.q) {
+                const term = query.q.toLowerCase();
+                const matchesName = vendor.businessName.toLowerCase().includes(term);
+                const matchesCity = vendor.city.toLowerCase().includes(term);
+                if (!matchesName && !matchesCity)
+                    return false;
+            }
+            if (query.pincode) {
+                const hasArea = vendor.serviceAreas.some((area) => area.pincode === query.pincode);
+                if (!hasArea)
+                    return false;
+            }
+            if (query.category) {
+                const hasCategory = vendor.services.some((service) => service.category === query.category);
+                if (!hasCategory)
+                    return false;
+            }
+            return true;
+        })
+            .map((vendor) => {
+            const prices = vendor.services.map((service) => Number(service.price));
+            const categories = [
+                ...new Set(vendor.services.map((service) => service.category)),
+            ];
+            return {
+                id: vendor.id,
+                businessName: vendor.businessName,
+                city: vendor.city,
+                isVerified: vendor.isVerified,
+                status: vendor.status,
+                doorstepEnabled: vendor.doorstepEnabled,
+                dropinEnabled: vendor.dropinEnabled,
+                startingPrice: prices.length > 0 ? Math.min(...prices) : null,
+                serviceTags: categories.map((category) => categoryLabels[category] ?? category),
+                photos: vendor.photos.map((photo) => photo.url),
+            };
+        });
+    },
     async getPublicVendor(vendorId) {
         const vendor = await vendorsRepository.findPublicVendorById(vendorId);
         if (!vendor) {
-            throw new AppError(404, "Vendor not found", "VENDOR_NOT_FOUND");
+            throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND');
         }
         const [photos, services] = await Promise.all([
             vendorsRepository.listPhotos(vendor.id),
@@ -87,7 +141,7 @@ export const vendorsService = {
     async createVendor(ownerId, input) {
         const existing = await vendorsRepository.findVendorByOwnerId(ownerId);
         if (existing) {
-            throw new AppError(409, "Vendor profile already exists for this user", "VENDOR_ALREADY_EXISTS");
+            throw new AppError(409, 'Vendor profile already exists for this user', 'VENDOR_ALREADY_EXISTS');
         }
         const [vendor] = await vendorsRepository.createVendor({
             ownerId,
@@ -122,7 +176,7 @@ export const vendorsService = {
         const vendor = await getOwnedVendor(ownerId);
         for (const day of input.days) {
             if (!day.isClosed && day.openTime >= day.closeTime) {
-                throw new AppError(400, `openTime must be before closeTime for day ${day.dayOfWeek}`, "INVALID_WORKING_HOURS");
+                throw new AppError(400, `openTime must be before closeTime for day ${day.dayOfWeek}`, 'INVALID_WORKING_HOURS');
             }
         }
         const hours = await vendorsRepository.upsertWorkingHours(vendor.id, input.days);
@@ -142,7 +196,7 @@ export const vendorsService = {
         const vendor = await getOwnedVendor(ownerId);
         const area = await vendorsRepository.findServiceAreaById(vendor.id, areaId);
         if (!area) {
-            throw new AppError(404, "Service area not found", "SERVICE_AREA_NOT_FOUND");
+            throw new AppError(404, 'Service area not found', 'SERVICE_AREA_NOT_FOUND');
         }
         const [deleted] = await vendorsRepository.deleteServiceArea(vendor.id, areaId);
         return toServiceAreaResponse(deleted);
@@ -176,7 +230,7 @@ export const vendorsService = {
         const existingIds = new Set(existing.map((photo) => photo.id));
         for (const photo of input.photos) {
             if (!existingIds.has(photo.id)) {
-                throw new AppError(404, "Photo not found", "PHOTO_NOT_FOUND");
+                throw new AppError(404, 'Photo not found', 'PHOTO_NOT_FOUND');
             }
         }
         const photos = await vendorsRepository.updatePhotoSortOrders(vendor.id, input.photos);
@@ -186,7 +240,7 @@ export const vendorsService = {
         const vendor = await getOwnedVendor(ownerId);
         const photo = await vendorsRepository.findPhotoById(vendor.id, photoId);
         if (!photo) {
-            throw new AppError(404, "Photo not found", "PHOTO_NOT_FOUND");
+            throw new AppError(404, 'Photo not found', 'PHOTO_NOT_FOUND');
         }
         const [deleted] = await vendorsRepository.deletePhoto(vendor.id, photoId);
         return toPhotoResponse(deleted);
@@ -194,7 +248,7 @@ export const vendorsService = {
     async listPublicServices(vendorId) {
         const vendor = await vendorsRepository.findPublicVendorById(vendorId);
         if (!vendor) {
-            throw new AppError(404, "Vendor not found", "VENDOR_NOT_FOUND");
+            throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND');
         }
         const services = await vendorsRepository.listServices(vendor.id, true);
         return services.map(toServiceResponse);
@@ -219,7 +273,7 @@ export const vendorsService = {
         const vendor = await getOwnedVendor(ownerId);
         const existing = await vendorsRepository.findServiceById(vendor.id, serviceId);
         if (!existing) {
-            throw new AppError(404, "Service not found", "SERVICE_NOT_FOUND");
+            throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND');
         }
         const [updated] = await vendorsRepository.updateService(vendor.id, serviceId, {
             ...(input.name !== undefined ? { name: input.name } : {}),
@@ -227,9 +281,7 @@ export const vendorsService = {
                 ? { description: input.description }
                 : {}),
             ...(input.category !== undefined ? { category: input.category } : {}),
-            ...(input.price !== undefined
-                ? { price: input.price.toFixed(2) }
-                : {}),
+            ...(input.price !== undefined ? { price: input.price.toFixed(2) } : {}),
             ...(input.durationMins !== undefined
                 ? { durationMins: input.durationMins }
                 : {}),
@@ -240,7 +292,7 @@ export const vendorsService = {
         const vendor = await getOwnedVendor(ownerId);
         const existing = await vendorsRepository.findServiceById(vendor.id, serviceId);
         if (!existing) {
-            throw new AppError(404, "Service not found", "SERVICE_NOT_FOUND");
+            throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND');
         }
         const [updated] = await vendorsRepository.updateService(vendor.id, serviceId, { isActive: input.isActive });
         return toServiceResponse(updated);
@@ -249,7 +301,7 @@ export const vendorsService = {
         const vendor = await getOwnedVendor(ownerId);
         const existing = await vendorsRepository.findServiceById(vendor.id, serviceId);
         if (!existing) {
-            throw new AppError(404, "Service not found", "SERVICE_NOT_FOUND");
+            throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND');
         }
         const [deleted] = await vendorsRepository.deleteService(vendor.id, serviceId);
         return toServiceResponse(deleted);
@@ -257,11 +309,11 @@ export const vendorsService = {
     async getAvailableSlots(vendorId, query) {
         const vendor = await vendorsRepository.findPublicVendorById(vendorId);
         if (!vendor) {
-            throw new AppError(404, "Vendor not found", "VENDOR_NOT_FOUND");
+            throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND');
         }
         const service = await vendorsRepository.findPublicService(vendor.id, query.service_id);
         if (!service) {
-            throw new AppError(404, "Service not found", "SERVICE_NOT_FOUND");
+            throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND');
         }
         const dayOfWeek = getDayOfWeekFromDate(query.date);
         const hours = await vendorsRepository.findWorkingHoursForDay(vendor.id, dayOfWeek);

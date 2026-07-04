@@ -5,7 +5,8 @@
     "dev:api": "npm run dev --prefix server",
     "dev:web": "npm run dev --prefix web",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "seed": "npm run seed --prefix server"
   },
   "devDependencies": {
     "concurrently": "^8.0.0",

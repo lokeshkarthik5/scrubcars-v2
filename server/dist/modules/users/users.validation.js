@@ -1,11 +1,11 @@
-import { z } from "zod";
+import { z } from 'zod';
 export const updateProfileSchema = z
     .object({
     name: z.string().trim().min(1).max(255).optional(),
     email: z.string().email().max(255).nullable().optional(),
 })
     .refine((data) => data.name !== undefined || data.email !== undefined, {
-    message: "At least one field must be provided",
+    message: 'At least one field must be provided',
 });
 export const createAddressSchema = z.object({
     label: z.string().trim().min(1).max(100),
@@ -25,9 +25,9 @@ export const updateAddressSchema = z
     isDefault: z.boolean().optional(),
 })
     .refine((data) => Object.keys(data).length > 0, {
-    message: "At least one field must be provided",
+    message: 'At least one field must be provided',
 });
-export const vehicleTypeSchema = z.enum(["sedan", "suv", "hatchback"]);
+export const vehicleTypeSchema = z.enum(['sedan', 'suv', 'hatchback']);
 export const createVehicleSchema = z.object({
     make: z.string().trim().min(1).max(100),
     model: z.string().trim().min(1).max(100),
@@ -46,7 +46,7 @@ export const updateVehicleSchema = z
     isDefault: z.boolean().optional(),
 })
     .refine((data) => Object.keys(data).length > 0, {
-    message: "At least one field must be provided",
+    message: 'At least one field must be provided',
 });
 export const resourceIdParamSchema = z.object({
     id: z.string().uuid(),

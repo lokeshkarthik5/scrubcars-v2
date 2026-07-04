@@ -1,6 +1,13 @@
-import { vendorsService } from "./vendors.service.js";
+import { vendorsService } from './vendors.service.js';
 function getOwnerId(c) {
-    return c.get("auth").sub;
+    return c.get('auth').sub;
+}
+export async function listPublicVendors(c, query) {
+    const vendors = await vendorsService.listPublicVendors(query);
+    return c.json({
+        success: true,
+        data: vendors,
+    });
 }
 export async function getPublicVendor(c, vendorId) {
     const vendor = await vendorsService.getPublicVendor(vendorId);
