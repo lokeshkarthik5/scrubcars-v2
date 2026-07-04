@@ -24,7 +24,7 @@ export async function getVendors(params?: VendorListParams): Promise<Vendor[]> {
   const vendors = await apiClient<ApiVendorListItem[]>('/vendors', {
     auth: false,
     params: {
-      q: params?.q,
+      q: params?.q || undefined,
       booking_type: params?.bookingType,
       category: params?.category,
       pincode: params?.pincode,

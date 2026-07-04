@@ -19,7 +19,10 @@ interface OnboardingData {
 }
 
 interface VendorOnboardingState extends OnboardingData {
+  isComplete: boolean
   update: (data: Partial<OnboardingData>) => void
+  markComplete: () => void
+  resetForm: () => void
   reset: () => void
 }
 
@@ -42,8 +45,11 @@ export const useVendorOnboardingStore = create<VendorOnboardingState>()(
   persist(
     (set) => ({
       ...initialState,
+      isComplete: false,
       update: (data) => set((state) => ({ ...state, ...data })),
-      reset: () => set(initialState),
+      markComplete: () => set({ isComplete: true }),
+      resetForm: () => set((state) => ({ ...state, ...initialState })),
+      reset: () => set({ ...initialState, isComplete: false }),
     }),
     { name: 'scrub-cars-vendor-onboarding' }
   )

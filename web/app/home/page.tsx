@@ -38,7 +38,7 @@ function HomeContent() {
   const user = profile ?? authUser
 
   useEffect(() => {
-    getVendors({ bookingType: 'dropin' }).then(setVendors)
+    getVendors({ bookingType: 'dropin' }).then(setVendors).catch(console.error)
     void fetchProfile().catch(() => undefined)
   }, [fetchProfile])
 

@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils'
 
 const STEPS = [
   { key: 'confirmed', label: 'Confirmed' },
-  { key: 'on_way', label: 'Technician on the way' },
   { key: 'in_progress', label: 'In progress' },
   { key: 'completed', label: 'Completed' },
 ] as const
@@ -21,7 +20,6 @@ const statusToStep: Record<string, StepKey> = {
 
 function getStepIndex(status: string): number {
   const key = statusToStep[status] ?? 'confirmed'
-  if (status === 'confirmed') return 1
   return STEPS.findIndex((s) => s.key === key)
 }
 

@@ -168,6 +168,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     status: booking.status as Booking['status'],
     bookingType: booking.bookingType as Booking['bookingType'],
     scheduledAt: formatScheduledAt(booking.scheduledAt),
+    scheduledAtIso: booking.scheduledAt,
     customerName: booking.user?.name,
     vehicle: booking.vehicle
       ? {

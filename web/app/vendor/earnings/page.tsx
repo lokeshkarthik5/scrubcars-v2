@@ -6,21 +6,43 @@ import { ScBadge } from '@/components/sc/badge'
 import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
-import { getEarningsSummary, getRecentEarningsJobs } from '@/lib/api/earnings'
+import {
+  EMPTY_EARNINGS_SUMMARY,
+  getEarningsSummary,
+  getRecentEarningsJobs,
+} from '@/lib/api/earnings'
 import type { EarningsJob, EarningsSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export default function VendorEarningsPage() {
   const [period, setPeriod] = useState<'week' | 'month'>('week')
-  const [summary, setSummary] = useState<EarningsSummary | null>(null)
+  const [summary, setSummary] = useState<EarningsSummary>(EMPTY_EARNINGS_SUMMARY)
   const [jobs, setJobs] = useState<EarningsJob[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getEarningsSummary(period).then(setSummary)
-    getRecentEarningsJobs().then(setJobs)
-  }, [period])
+    let active = true
+    setLoading(true)
 
-  if (!summary) return null
+    Promise.all([getEarningsSummary(period), getRecentEarningsJobs()])
+      .then(([nextSummary, nextJobs]) => {
+        if (!active) return
+        setSummary(nextSummary)
+        setJobs(nextJobs)
+      })
+      .catch(() => {
+        if (!active) return
+        setSummary(EMPTY_EARNINGS_SUMMARY)
+        setJobs([])
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [period])
 
   const metrics = [
     { label: 'Total earned', value: `₹${summary.totalEarned.toLocaleString('en-IN')}`, color: 'text-success' },
@@ -52,12 +74,16 @@ export default function VendorEarningsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className={cn('grid grid-cols-2 gap-2', loading && 'opacity-60')}>
         {metrics.map((m) => (
           <ScCard key={m.label}>
             <p className="text-[11px] text-text-secondary">{m.label}</p>
-            {m.stars ? (
-              <StarRating rating={m.stars} />
+            {m.stars !== null && m.stars !== undefined ? (
+              m.stars > 0 ? (
+                <StarRating rating={m.stars} />
+              ) : (
+                <p className="text-lg font-semibold text-text-primary">0</p>
+              )
             ) : (
               <p className={cn('text-lg font-semibold', m.color)}>{m.value}</p>
             )}
@@ -67,21 +93,28 @@ export default function VendorEarningsPage() {
 
       <div className="border-t border-border pt-4">
         <h2 className="mb-3 text-sm font-semibold text-text-primary">Recent jobs</h2>
-        <div className="flex flex-col gap-2">
-          {jobs.map((job) => (
-            <ScCard key={job.id} className="flex items-center justify-between">
-              <div>
-                <p className="text-[13px] font-medium">{job.serviceName}</p>
-                <p className="text-[11px] text-text-secondary">{job.customerName} · {job.date} · {job.type}</p>
-              </div>
-              <div className="text-right">
-                <p className={cn('text-[13px] font-semibold', job.settled ? 'text-success' : 'text-warning')}>
-                  ₹{job.amount}
-                </p>
-                {!job.settled && <ScBadge variant="pending">Pending</ScBadge>}
-              </div>
+        <div className={cn('flex flex-col gap-2', loading && 'opacity-60')}>
+          {jobs.length === 0 ? (
+            <ScCard>
+              <p className="text-[11px] text-text-secondary">Recent jobs</p>
+              <p className="text-lg font-semibold text-text-primary">0</p>
             </ScCard>
-          ))}
+          ) : (
+            jobs.map((job) => (
+              <ScCard key={job.id} className="flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-medium">{job.serviceName}</p>
+                  <p className="text-[11px] text-text-secondary">{job.customerName} · {job.date} · {job.type}</p>
+                </div>
+                <div className="text-right">
+                  <p className={cn('text-[13px] font-semibold', job.settled ? 'text-success' : 'text-warning')}>
+                    ₹{job.amount}
+                  </p>
+                  {!job.settled && <ScBadge variant="pending">Pending</ScBadge>}
+                </div>
+              </ScCard>
+            ))
+          )}
         </div>
       </div>
     </AppShell>

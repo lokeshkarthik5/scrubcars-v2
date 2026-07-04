@@ -2,7 +2,11 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { setUnauthorizedHandler } from '@/lib/api/client'
 import { useAuthStore } from '@/lib/stores/auth-store'
+import { useBookingsStore } from '@/lib/stores/bookings-store'
+import { useUserStore } from '@/lib/stores/user-store'
+import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 
 type RouteAccess = 'public' | 'guest' | 'customer' | 'vendor' | 'vendor-onboarding'
 
@@ -46,6 +50,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const vendor = useAuthStore((s) => s.vendor)
   const audience = useAuthStore((s) => s.audience)
   const restoreSession = useAuthStore((s) => s.restoreSession)
+  const isOnboardingComplete = useVendorOnboardingStore((s) => s.isComplete)
+
+  useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      const { audience, logout, clearSession } = useAuthStore.getState()
+      const loginPath = audience === 'vendor' ? '/vendor/login' : '/login'
+
+      try {
+        await logout()
+      } catch {
+        clearSession()
+        useAuthStore.setState({ isSessionReady: true })
+      }
+
+      useUserStore.getState().reset()
+      useBookingsStore.getState().reset()
+
+      if (typeof window !== 'undefined' && window.location.pathname !== loginPath) {
+        window.location.href = loginPath
+      }
+    })
+
+    return () => setUnauthorizedHandler(null)
+  }, [])
 
   useEffect(() => {
     if (!isHydrated) return
@@ -76,7 +104,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       !isVendorSession
     ) {
       redirectPath = '/vendor/login'
-    } else if (routeAccess === 'vendor-onboarding' && vendor) {
+    } else if (routeAccess === 'vendor-onboarding' && vendor && isOnboardingComplete) {
       redirectPath = '/vendor/home'
     } else if (routeAccess === 'vendor' && !vendor) {
       redirectPath = '/vendor/onboarding/step-1'

@@ -28,6 +28,12 @@ export const vendorsRoutes = new Hono<{ Variables: AuthVariables }>()
 
 const ownerMiddleware = [authMiddleware, requireVendor] as const
 
+vendorsRoutes.get(
+  '/',
+  zValidator('query', listPublicVendorsQuerySchema),
+  (c) => vendorsController.listPublicVendors(c, c.req.valid('query'))
+)
+
 vendorsRoutes.post(
   '/',
   authMiddleware,

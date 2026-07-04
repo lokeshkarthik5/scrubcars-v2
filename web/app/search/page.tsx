@@ -7,20 +7,22 @@ import { AppShell } from '@/components/sc/app-shell'
 import { FilterChip } from '@/components/sc/chip'
 import { VendorCard } from '@/components/features/vendor-card'
 import { getVendors } from '@/lib/api/vendors'
+import { useUserStore } from '@/lib/stores/user-store'
 import type { Vendor } from '@/lib/types'
 
 const FILTERS = ['Distance', 'Rating', 'Price', 'Filter']
 
 function SearchContent() {
   const searchParams = useSearchParams()
+  const pincode = useUserStore((s) => s.profile?.pincode)
   const [query, setQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [vendors, setVendors] = useState<Vendor[]>([])
 
   useEffect(() => {
     const category = searchParams.get('category') ?? undefined
-    getVendors({ q: query, category }).then(setVendors)
-  }, [query, searchParams])
+    getVendors({ q: query, category, pincode }).then(setVendors)
+  }, [query, searchParams, pincode])
 
   return (
     <AppShell showNav className="gap-4 py-4">

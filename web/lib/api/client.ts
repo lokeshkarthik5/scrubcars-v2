@@ -5,6 +5,24 @@ const API_BASE_URL =
 
 let accessToken: string | null = null
 let refreshPromise: Promise<string | null> | null = null
+let unauthorizedHandler: (() => void | Promise<void>) | null = null
+let handlingUnauthorized = false
+
+export function setUnauthorizedHandler(
+  handler: (() => void | Promise<void>) | null
+) {
+  unauthorizedHandler = handler
+}
+
+async function triggerUnauthorizedLogout() {
+  if (handlingUnauthorized || !unauthorizedHandler) return
+  handlingUnauthorized = true
+  try {
+    await unauthorizedHandler()
+  } finally {
+    handlingUnauthorized = false
+  }
+}
 
 export function setAccessToken(token: string | null) {
   accessToken = token
@@ -98,7 +116,7 @@ export async function apiClient<T>(
     credentials: 'include',
   })
 
-  if (response.status === 401 && auth && accessToken) {
+  if (response.status === 401 && auth) {
     const newToken = await refreshAccessToken()
     if (newToken) {
       requestHeaders.Authorization = `Bearer ${newToken}`
@@ -111,7 +129,11 @@ export async function apiClient<T>(
   }
 
   if (!response.ok) {
-    throw await parseError(response)
+    const error = await parseError(response)
+    if (auth && error.status === 401) {
+      await triggerUnauthorizedLogout()
+    }
+    throw error
   }
 
   if (response.status === 204) return undefined as T

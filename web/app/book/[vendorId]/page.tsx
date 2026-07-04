@@ -18,6 +18,24 @@ import { useUserStore } from '@/lib/stores/user-store'
 import type { PaymentMethod, Service, Vendor } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function buildDateOptions(count = 7) {
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() + i)
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return {
+      value: `${yyyy}-${mm}-${dd}`,
+      dayName: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : DAY_NAMES[d.getDay()],
+      date: `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`,
+    }
+  })
+}
+
 function BookContent({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -28,9 +46,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
+  const dateOptions = buildDateOptions()
+
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [services, setServices] = useState<Service[]>([])
   const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [selectedDate, setSelectedDate] = useState(dateOptions[0].value)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
@@ -54,12 +75,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   useEffect(() => {
     if (!selectedService) return
+    setSelectedSlot(null)
     getAvailableSlots({
       vendorId,
       serviceId: selectedService.id,
-      date: 'today',
+      date: selectedDate,
     }).then(setSlots)
-  }, [vendorId, selectedService])
+  }, [vendorId, selectedService, selectedDate])
 
   useEffect(() => {
     if (vehicles.length > 0 && !selectedVehicle) {
@@ -148,10 +170,29 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Pick a slot</h2>
-        <p className="mb-2 text-[12px] text-text-secondary">Today</p>
+
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+          {dateOptions.map((d) => (
+            <button
+              key={d.value}
+              type="button"
+              onClick={() => setSelectedDate(d.value)}
+              className={cn(
+                'flex shrink-0 flex-col items-center rounded-[10px] border px-3 py-2 transition-colors',
+                selectedDate === d.value
+                  ? 'border-brand-red bg-accent-muted text-brand-red'
+                  : 'border-border bg-surface text-text-primary'
+              )}
+            >
+              <span className="text-[11px] font-medium">{d.dayName}</span>
+              <span className="text-[13px] font-semibold">{d.date}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-2 overflow-x-auto pb-1">
           {slots.length === 0 ? (
-            <p className="text-[12px] text-text-secondary">No slots available today.</p>
+            <p className="text-[12px] text-text-secondary">No slots available on this date.</p>
           ) : (
             slots.map((slot) => (
               <Chip

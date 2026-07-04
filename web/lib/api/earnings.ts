@@ -1,18 +1,50 @@
-import { apiClient } from './client'
-import { MOCK_EARNINGS, MOCK_EARNINGS_JOBS } from '@/lib/mock/data'
+import { getVendorBookings } from './bookings'
+import { getVendorReviews } from './reviews'
+import { getMyVendor } from './vendors'
+import {
+  computeEarningsSummary,
+  computeRecentEarningsJobs,
+} from '@/lib/vendor-stats'
 import type { EarningsJob, EarningsSummary } from '@/lib/types'
 
-/** GET /vendor/earnings */
+export const EMPTY_EARNINGS_SUMMARY: EarningsSummary = {
+  totalEarned: 0,
+  jobsDone: 0,
+  pending: 0,
+  avgRating: 0,
+}
+
+async function getVendorReviewData() {
+  try {
+    const vendor = await getMyVendor()
+    return getVendorReviews(vendor.id)
+  } catch {
+    return []
+  }
+}
+
+/** Derived from vendor bookings + reviews until a dedicated earnings API exists. */
 export async function getEarningsSummary(
   period: 'week' | 'month' = 'week'
 ): Promise<EarningsSummary> {
-  // TODO: return apiClient<EarningsSummary>('/vendor/earnings', { params: { period } })
-  void period
-  return MOCK_EARNINGS
+  try {
+    const [bookings, reviews] = await Promise.all([
+      getVendorBookings(),
+      getVendorReviewData(),
+    ])
+
+    return computeEarningsSummary(bookings, reviews, period)
+  } catch {
+    return EMPTY_EARNINGS_SUMMARY
+  }
 }
 
-/** GET /vendor/earnings/jobs */
+/** Derived from completed vendor bookings. */
 export async function getRecentEarningsJobs(): Promise<EarningsJob[]> {
-  // TODO: return apiClient<EarningsJob[]>('/vendor/earnings/jobs')
-  return MOCK_EARNINGS_JOBS
+  try {
+    const bookings = await getVendorBookings()
+    return computeRecentEarningsJobs(bookings)
+  } catch {
+    return []
+  }
 }

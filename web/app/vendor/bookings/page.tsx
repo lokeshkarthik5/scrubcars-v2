@@ -36,10 +36,16 @@ export default function VendorBookingsPage() {
     await fetchVendorBookings()
   }
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'incoming', label: 'Incoming' },
-    { key: 'upcoming', label: 'Upcoming' },
-    { key: 'completed', label: 'Completed' },
+  const incomingCount = vendorBookings.filter((b) => b.status === 'pending').length
+  const upcomingCount = vendorBookings.filter((b) =>
+    ['confirmed', 'in_progress'].includes(b.status)
+  ).length
+  const completedCount = vendorBookings.filter((b) => b.status === 'completed').length
+
+  const tabs: { key: Tab; label: string; count: number }[] = [
+    { key: 'incoming', label: 'Incoming', count: incomingCount },
+    { key: 'upcoming', label: 'Upcoming', count: upcomingCount },
+    { key: 'completed', label: 'Completed', count: completedCount },
   ]
 
   return (
@@ -64,13 +70,19 @@ export default function VendorBookingsPage() {
               tab === t.key ? 'bg-brand-red text-brand-white' : 'text-text-secondary'
             )}
           >
-            {t.label}
+            {t.label} ({t.count})
           </button>
         ))}
       </div>
 
       <div className="flex flex-col gap-2">
-        {filtered.map((b) => {
+        {filtered.length === 0 ? (
+          <ScCard>
+            <p className="text-[11px] capitalize text-text-secondary">{tab} bookings</p>
+            <p className="text-lg font-semibold text-text-primary">0</p>
+          </ScCard>
+        ) : (
+          filtered.map((b) => {
           const badge = bookingStatusBadge(b.status)
           return (
             <ScCard key={b.id} className="flex flex-col gap-2">
@@ -111,7 +123,8 @@ export default function VendorBookingsPage() {
               )}
             </ScCard>
           )
-        })}
+        })
+        )}
       </div>
     </AppShell>
   )

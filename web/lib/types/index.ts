@@ -87,6 +87,7 @@ export interface Booking {
   status: BookingStatus
   bookingType: BookingType
   scheduledAt: string
+  scheduledAtIso: string
   customerName?: string
   vehicle?: Vehicle
   paymentMethod: PaymentMethod
