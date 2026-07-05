@@ -15,10 +15,12 @@ export const env = {
             : 'dev-jwt-secret-change-me'),
     jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshTokenExpiresDays: Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? '30'),
-    corsOrigin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
-        .split(',')
-        .map((o) => o.trim())
-        .filter(Boolean),
+    corsOrigin: process.env.CORS_ORIGIN
+        ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+        : [
+            'http://localhost:3000',
+            'https://scrubcars-v2-6p26.vercel.app',
+        ],
     smsApiKey: process.env.SMS,
     isDev: (process.env.NODE_ENV ?? 'development') !== 'production',
     razorpayKeyId: process.env.RAZORPAY_KEY_ID,
