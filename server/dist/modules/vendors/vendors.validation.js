@@ -60,10 +60,6 @@ export const createServiceAreaSchema = z.object({
     pincode: z.string().trim().min(6).max(10),
     radiusKm: z.number().positive().optional(),
 });
-export const uploadPhotoSchema = z.object({
-    filename: z.string().trim().min(1).max(255),
-    contentType: z.string().trim().min(1).max(100),
-});
 export const reorderPhotosSchema = z.object({
     photos: z
         .array(z.object({

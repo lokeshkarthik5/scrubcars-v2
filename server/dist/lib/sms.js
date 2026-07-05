@@ -11,7 +11,7 @@ export async function sendOtpSms(phone, otp) {
         throw new AppError(500, 'SMS provider is not configured', 'SMS_NOT_CONFIGURED');
     }
     const url = `${TWO_FACTOR_BASE_URL}/${env.smsApiKey}/SMS/${phone}/${otp}/${OTP_TEMPLATE}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) {
         throw new AppError(502, 'Failed to send OTP SMS', 'SMS_SEND_FAILED');
     }

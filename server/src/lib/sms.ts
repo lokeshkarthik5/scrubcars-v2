@@ -25,7 +25,7 @@ export async function sendOtpSms(phone: string, otp: string): Promise<void> {
 
   const url = `${TWO_FACTOR_BASE_URL}/${env.smsApiKey}/SMS/${phone}/${otp}/${OTP_TEMPLATE}`
 
-  const response = await fetch(url)
+  const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
 
   if (!response.ok) {
     throw new AppError(502, 'Failed to send OTP SMS', 'SMS_SEND_FAILED')

@@ -93,13 +93,6 @@ export async function listPhotos(c) {
         data: photos,
     });
 }
-export async function uploadPhoto(c, input) {
-    const result = await vendorsService.uploadPhoto(getOwnerId(c), input);
-    return c.json({
-        success: true,
-        data: result,
-    }, 201);
-}
 export async function reorderPhotos(c, input) {
     const photos = await vendorsService.reorderPhotos(getOwnerId(c), input);
     return c.json({

@@ -1,5 +1,4 @@
 import { AppError } from '../../lib/errors.js';
-import { createVendorPhotoUploadUrl } from '../../lib/gcs.js';
 import { computeAvailableSlots, getDayOfWeekFromDate, } from '../../lib/slots.js';
 import { vendorsRepository } from './vendors.repository.js';
 function toVendorResponse(vendor) {
@@ -90,7 +89,13 @@ export const vendorsService = {
                     return false;
             }
             if (query.pincode) {
-                const hasArea = vendor.serviceAreas.some((area) => area.pincode === query.pincode);
+                const userPincode = parseInt(query.pincode, 10);
+                const hasArea = vendor.serviceAreas.some((area) => {
+                    const areaPincode = parseInt(area.pincode, 10);
+                    return (!isNaN(areaPincode) &&
+                        !isNaN(userPincode) &&
+                        Math.abs(areaPincode - userPincode) <= 5);
+                });
                 if (!hasArea)
                     return false;
             }
@@ -210,24 +215,6 @@ export const vendorsService = {
         const vendor = await getOwnedVendor(ownerId);
         const photos = await vendorsRepository.listPhotos(vendor.id);
         return photos.map(toPhotoResponse);
-    },
-    async uploadPhoto(ownerId, input) {
-        const vendor = await getOwnedVendor(ownerId);
-        const [{ maxOrder }] = await vendorsRepository.getNextPhotoSortOrder(vendor.id);
-        const upload = await createVendorPhotoUploadUrl({
-            vendorId: vendor.id,
-            filename: input.filename,
-            contentType: input.contentType,
-        });
-        const [photo] = await vendorsRepository.createPhoto(vendor.id, {
-            url: upload.publicUrl,
-            sortOrder: Number(maxOrder) + 1,
-        });
-        return {
-            photo: toPhotoResponse(photo),
-            uploadUrl: upload.uploadUrl,
-            publicUrl: upload.publicUrl,
-        };
     },
     async reorderPhotos(ownerId, input) {
         const vendor = await getOwnedVendor(ownerId);
