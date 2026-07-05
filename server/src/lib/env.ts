@@ -20,7 +20,10 @@ export const env = {
   refreshTokenExpiresDays: Number(
     process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? '30'
   ),
-  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  corsOrigin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
   smsApiKey: process.env.SMS,
   isDev: (process.env.NODE_ENV ?? 'development') !== 'production',
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
