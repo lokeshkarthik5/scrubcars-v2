@@ -6,6 +6,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { env } from './lib/env.js'
 import { AppError } from './lib/errors.js'
+import { logger } from './lib/logger.js'
 import { globalRateLimiter } from './middleware/rate-limit.middleware.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { usersRoutes } from './modules/users/users.routes.js'
@@ -15,6 +16,20 @@ import { paymentsRoutes } from './modules/payments/payments.routes.js'
 import { vendorsRoutes } from './modules/vendors/vendors.routes.js'
 
 const app = new Hono()
+
+// Tracks whether the current Vercel function instance is handling its first request.
+// A cold start means the DB connection hasn't been warmed up yet.
+let coldStart = true
+
+app.use('/api/*', async (c, next) => {
+  const isCold = coldStart
+  coldStart = false
+  const t = performance.now()
+  await next()
+  const ms = (performance.now() - t).toFixed(1)
+  const cold = isCold ? ' [cold-start]' : ''
+  console.log(`[REQ]${cold} ${c.req.method} ${c.req.path} → ${c.res.status} (${ms}ms)`)
+})
 
 app.use(
   '/api/*',
@@ -38,7 +53,7 @@ app.onError((err, c) => {
     return err.getResponse()
   }
 
-  console.error(err)
+  logger.error(`Unhandled error on ${c.req.method} ${c.req.path}`, err)
   return c.json({ success: false, message: 'Internal server error' }, 500)
 })
 
