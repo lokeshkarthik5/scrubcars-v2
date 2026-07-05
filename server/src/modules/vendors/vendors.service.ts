@@ -196,9 +196,15 @@ export const vendorsService = {
           if (!matchesName && !matchesCity) return false
         }
         if (query.pincode) {
-          const hasArea = vendor.serviceAreas.some(
-            (area) => area.pincode === query.pincode
-          )
+          const userPincode = parseInt(query.pincode, 10)
+          const hasArea = vendor.serviceAreas.some((area) => {
+            const areaPincode = parseInt(area.pincode, 10)
+            return (
+              !isNaN(areaPincode) &&
+              !isNaN(userPincode) &&
+              Math.abs(areaPincode - userPincode) <= 5
+            )
+          })
           if (!hasArea) return false
         }
         if (query.category) {

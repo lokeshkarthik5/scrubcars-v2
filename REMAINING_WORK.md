@@ -20,3 +20,5 @@
 - Improve cancellation and refund rules.
 - Show an existing review on completed booking detail.
 
+Add plus or minus pincodes
+
