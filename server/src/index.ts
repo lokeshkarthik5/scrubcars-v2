@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { handle } from 'hono/vercel'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -28,11 +29,7 @@ app.use('/api/*', globalRateLimiter)
 app.onError((err, c) => {
   if (err instanceof AppError) {
     return c.json(
-      {
-        success: false,
-        message: err.message,
-        code: err.code,
-      },
+      { success: false, message: err.message, code: err.code },
       err.statusCode as ContentfulStatusCode
     )
   }
@@ -42,13 +39,7 @@ app.onError((err, c) => {
   }
 
   console.error(err)
-  return c.json(
-    {
-      success: false,
-      message: 'Internal server error',
-    },
-    500
-  )
+  return c.json({ success: false, message: 'Internal server error' }, 500)
 })
 
 app.get('/', (c) => c.text('Scrub Cars API'))
@@ -60,12 +51,15 @@ app.route('/api/v1/bookings', bookingsRoutes)
 app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
 
-serve(
-  {
-    fetch: app.fetch,
-    port: Number(process.env.PORT ?? 8080),
-  },
-  (info) => {
-    console.log(`Server is running on http://localhost:${info.port}`)
-  }
-)
+// Local dev: run a real server. On Vercel, this block is skipped
+// and the exported handler below is used instead.
+if (!process.env.VERCEL) {
+  serve(
+    { fetch: app.fetch, port: Number(process.env.PORT ?? 8080) },
+    (info) => {
+      console.log(`Server is running on http://localhost:${info.port}`)
+    }
+  )
+}
+
+export default handle(app)
