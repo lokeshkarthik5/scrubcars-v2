@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { handle } from 'hono/vercel'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -72,3 +73,5 @@ app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
 
 console.log('[BOOT] app.ts ready')
+
+export default handle(app)
