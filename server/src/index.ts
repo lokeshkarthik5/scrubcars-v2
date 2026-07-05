@@ -5,6 +5,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { env } from './lib/env.js'
 import { AppError } from './lib/errors.js'
+import { globalRateLimiter } from './middleware/rate-limit.middleware.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { usersRoutes } from './modules/users/users.routes.js'
 import { bookingsRoutes } from './modules/bookings/bookings.routes.js'
@@ -21,6 +22,8 @@ app.use(
     credentials: true,
   })
 )
+
+app.use('/api/*', globalRateLimiter)
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
