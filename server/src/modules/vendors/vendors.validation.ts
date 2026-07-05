@@ -76,11 +76,6 @@ export const createServiceAreaSchema = z.object({
   radiusKm: z.number().positive().optional(),
 })
 
-export const uploadPhotoSchema = z.object({
-  filename: z.string().trim().min(1).max(255),
-  contentType: z.string().trim().min(1).max(100),
-})
-
 export const reorderPhotosSchema = z.object({
   photos: z
     .array(
@@ -136,7 +131,6 @@ export type UpdateJobTypesInput = z.infer<typeof updateJobTypesSchema>
 export type UpdateSlotIntervalInput = z.infer<typeof updateSlotIntervalSchema>
 export type SetWorkingHoursInput = z.infer<typeof setWorkingHoursSchema>
 export type CreateServiceAreaInput = z.infer<typeof createServiceAreaSchema>
-export type UploadPhotoInput = z.infer<typeof uploadPhotoSchema>
 export type ReorderPhotosInput = z.infer<typeof reorderPhotosSchema>
 export type CreateServiceInput = z.infer<typeof createServiceSchema>
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>

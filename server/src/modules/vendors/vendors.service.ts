@@ -1,5 +1,4 @@
 import { AppError } from '../../lib/errors.js'
-import { createVendorPhotoUploadUrl } from '../../lib/gcs.js'
 import {
   computeAvailableSlots,
   getDayOfWeekFromDate,
@@ -26,7 +25,6 @@ import type {
   UpdateServiceInput,
   UpdateSlotIntervalInput,
   UpdateVendorInput,
-  UploadPhotoInput,
 } from './vendors.validation.js'
 
 export type VendorResponse = {
@@ -372,29 +370,6 @@ export const vendorsService = {
     const vendor = await getOwnedVendor(ownerId)
     const photos = await vendorsRepository.listPhotos(vendor.id)
     return photos.map(toPhotoResponse)
-  },
-
-  async uploadPhoto(ownerId: string, input: UploadPhotoInput) {
-    const vendor = await getOwnedVendor(ownerId)
-    const [{ maxOrder }] = await vendorsRepository.getNextPhotoSortOrder(
-      vendor.id
-    )
-    const upload = await createVendorPhotoUploadUrl({
-      vendorId: vendor.id,
-      filename: input.filename,
-      contentType: input.contentType,
-    })
-
-    const [photo] = await vendorsRepository.createPhoto(vendor.id, {
-      url: upload.publicUrl,
-      sortOrder: Number(maxOrder) + 1,
-    })
-
-    return {
-      photo: toPhotoResponse(photo),
-      uploadUrl: upload.uploadUrl,
-      publicUrl: upload.publicUrl,
-    }
   },
 
   async reorderPhotos(ownerId: string, input: ReorderPhotosInput) {

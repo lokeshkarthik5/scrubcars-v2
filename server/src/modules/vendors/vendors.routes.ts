@@ -20,7 +20,6 @@ import {
   updateServiceSchema,
   updateSlotIntervalSchema,
   updateVendorSchema,
-  uploadPhotoSchema,
   vendorIdParamSchema,
 } from './vendors.validation.js'
 
@@ -95,12 +94,6 @@ vendorsRoutes.get(
   '/me/photos',
   ...ownerMiddleware,
   vendorsController.listPhotos
-)
-vendorsRoutes.post(
-  '/me/photos',
-  ...ownerMiddleware,
-  zValidator('json', uploadPhotoSchema),
-  (c) => vendorsController.uploadPhoto(c, c.req.valid('json'))
 )
 vendorsRoutes.patch(
   '/me/photos/order',

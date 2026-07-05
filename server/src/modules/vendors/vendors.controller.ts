@@ -14,7 +14,6 @@ import type {
   UpdateServiceInput,
   UpdateSlotIntervalInput,
   UpdateVendorInput,
-  UploadPhotoInput,
 } from './vendors.validation.js'
 
 type VendorsContext = Context<{ Variables: AuthVariables }>
@@ -165,18 +164,6 @@ export async function listPhotos(c: VendorsContext) {
     success: true,
     data: photos,
   })
-}
-
-export async function uploadPhoto(c: VendorsContext, input: UploadPhotoInput) {
-  const result = await vendorsService.uploadPhoto(getOwnerId(c), input)
-
-  return c.json(
-    {
-      success: true,
-      data: result,
-    },
-    201
-  )
 }
 
 export async function reorderPhotos(
