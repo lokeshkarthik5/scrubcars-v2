@@ -1,5 +1,5 @@
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Hono } from 'hono'
-import { handle } from 'hono/vercel'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -74,4 +74,41 @@ app.route('/api/v1/reviews', reviewsRoutes)
 
 console.log('[BOOT] app.ts ready')
 
-export default handle(app)
+// Vercel Node.js runtime calls handlers as (req: IncomingMessage, res: ServerResponse).
+// hono/vercel's handle() expects a Web-standard Request and returns a Response, which the
+// Node.js runtime ignores — it waits for res.end() that never arrives → 300 s timeout.
+// This adapter converts Node.js ↔ Web Fetch API so res.end() is always called.
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined) ?? 'https'
+  const host = (req.headers['host'] as string | undefined) ?? 'localhost'
+  const url = `${proto}://${host}${req.url ?? '/'}`
+
+  const headers = new Headers()
+  for (const [key, raw] of Object.entries(req.headers)) {
+    if (!raw) continue
+    if (Array.isArray(raw)) raw.forEach((v) => headers.append(key, v))
+    else headers.set(key, raw)
+  }
+
+  const method = (req.method ?? 'GET').toUpperCase()
+  const webReq = new Request(url, {
+    method,
+    headers,
+    body: method === 'GET' || method === 'HEAD' ? null : (req as unknown as BodyInit),
+    // @ts-ignore – required for Node.js readable stream as body
+    duplex: 'half',
+  })
+
+  console.log(`[REQ] ${method} ${req.url}`)
+
+  const response = await app.fetch(webReq)
+
+  console.log(`[RES] ${response.status} ${method} ${req.url}`)
+
+  const respHeaders: Record<string, string | string[]> = {}
+  response.headers.forEach((value, key) => {
+    respHeaders[key] = value
+  })
+  res.writeHead(response.status, respHeaders)
+  res.end(Buffer.from(await response.arrayBuffer()))
+}
