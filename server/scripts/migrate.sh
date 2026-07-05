@@ -52,8 +52,8 @@ load_env() {
     set +a
   fi
 
-  if [[ -z "${DATABASE_URL:-}" ]]; then
-    die "DATABASE_URL is not set. Export it or add it to server/.env"
+  if [[ -z "${DIRECT_URL:-}" ]]; then
+    die "DIRECT_URL is not set. Add it to server/.env (direct Supabase connection, port 5432)"
   fi
 }
 
@@ -73,12 +73,12 @@ checksum_file() {
 }
 
 psql_exec() {
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --no-psqlrc -qAt "$@"
+  psql "$DIRECT_URL" -v ON_ERROR_STOP=1 --no-psqlrc -qAt "$@"
 }
 
 psql_file() {
   local file="$1"
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --no-psqlrc -q -f "$file"
+  psql "$DIRECT_URL" -v ON_ERROR_STOP=1 --no-psqlrc -q -f "$file"
 }
 
 ensure_migrations_table() {

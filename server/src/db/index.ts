@@ -5,9 +5,10 @@ import * as schema from './schema.js'
 
 const client = postgres(process.env.DATABASE_URL!, {
   prepare: false,
-  max: 1,             // one connection per serverless instance
-  connect_timeout: 10, // fail fast instead of hanging 300s
-  idle_timeout: 20,   // release connection after 20s idle
+  max: 1,
+  connect_timeout: 10,
+  idle_timeout: 20,
+  ssl: 'require',
 })
 
 const queryLogger =
