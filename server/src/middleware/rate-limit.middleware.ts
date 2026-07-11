@@ -35,7 +35,7 @@ function createRateLimiter(limit: number, windowMs: number) {
 }
 
 // 5 requests per minute — for sensitive auth actions
-export const rateLimiter = createRateLimiter(5, 60 * 1000)
+export const rateLimiter = createRateLimiter(10, 60 * 1000)
 
 // 100 requests per minute — global API guard
 export const globalRateLimiter = createRateLimiter(100, 60 * 1000)
