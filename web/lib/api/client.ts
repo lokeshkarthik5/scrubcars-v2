@@ -3,8 +3,6 @@ import type { ApiErrorResponse, ApiSuccessResponse } from './types'
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
 
-let accessToken: string | null = null
-let refreshPromise: Promise<string | null> | null = null
 let unauthorizedHandler: (() => void | Promise<void>) | null = null
 let handlingUnauthorized = false
 
@@ -22,14 +20,6 @@ async function triggerUnauthorizedLogout() {
   } finally {
     handlingUnauthorized = false
   }
-}
-
-export function setAccessToken(token: string | null) {
-  accessToken = token
-}
-
-export function getAccessToken() {
-  return accessToken
 }
 
 export class ApiError extends Error {
@@ -57,32 +47,12 @@ async function parseError(response: Response): Promise<ApiError> {
   )
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+async function tryRefreshCookies(): Promise<boolean> {
   const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
   })
-
-  if (!response.ok) {
-    setAccessToken(null)
-    return null
-  }
-
-  const body = (await response.json()) as ApiSuccessResponse<{
-    accessToken: string
-  }>
-  setAccessToken(body.data.accessToken)
-  return body.data.accessToken
-}
-
-async function getValidToken(): Promise<string | null> {
-  if (accessToken) return accessToken
-  if (!refreshPromise) {
-    refreshPromise = refreshAccessToken().finally(() => {
-      refreshPromise = null
-    })
-  }
-  return refreshPromise
+  return response.ok
 }
 
 export async function apiClient<T>(
@@ -103,13 +73,6 @@ export async function apiClient<T>(
     ...(headers as Record<string, string>),
   }
 
-  if (auth) {
-    const token = await getValidToken()
-    if (token) {
-      requestHeaders.Authorization = `Bearer ${token}`
-    }
-  }
-
   let response = await fetch(url.toString(), {
     ...rest,
     headers: requestHeaders,
@@ -117,9 +80,8 @@ export async function apiClient<T>(
   })
 
   if (response.status === 401 && auth) {
-    const newToken = await refreshAccessToken()
-    if (newToken) {
-      requestHeaders.Authorization = `Bearer ${newToken}`
+    const refreshed = await tryRefreshCookies()
+    if (refreshed) {
       response = await fetch(url.toString(), {
         ...rest,
         headers: requestHeaders,

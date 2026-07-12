@@ -8,6 +8,7 @@ import { ScTextarea } from '@/components/sc/input'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { submitVendorOnboarding } from '@/lib/api/vendors'
+import { toast } from 'react-toastify'
 import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 
 export default function VendorOnboardingStep2() {
@@ -30,6 +31,8 @@ export default function VendorOnboardingStep2() {
         lng: onboarding.lng,
       })
       router.push('/vendor/onboarding/step-3')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save. Please try again.')
     } finally {
       setLoading(false)
     }

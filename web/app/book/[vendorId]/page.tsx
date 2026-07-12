@@ -1,8 +1,10 @@
 'use client'
 
 import { use, useEffect, useRef, useState, Suspense } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { IconCash, IconCreditCard } from '@tabler/icons-react'
+import { toast } from 'react-toastify'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
@@ -11,11 +13,12 @@ import { TopBar } from '@/components/sc/top-bar'
 import { getAvailableSlots } from '@/lib/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
 import { getVendorServices } from '@/lib/api/services'
+import { getAddresses } from '@/lib/api/users'
 import { getVendor } from '@/lib/api/vendors'
 import { openRazorpayCheckout } from '@/lib/razorpay'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
-import type { PaymentMethod, Service, Vendor } from '@/lib/types'
+import type { Address, PaymentMethod, Service, Vendor } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -56,8 +59,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [slots, setSlots] = useState<Array<{ time: string; label: string; available: boolean }>>([])
+  const [addresses, setAddresses] = useState<Address[]>([])
   const [loading, setLoading] = useState(false)
-  const [paymentError, setPaymentError] = useState<string | null>(null)
   const bookingLockRef = useRef(false)
 
   useEffect(() => {
@@ -71,6 +74,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     })
     void fetchVehicles()
     void fetchProfile()
+    getAddresses().then(setAddresses).catch(() => undefined)
   }, [vendorId, serviceId, fetchVehicles, fetchProfile])
 
   useEffect(() => {
@@ -95,7 +99,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
     if (!selectedService || !selectedSlot || !selectedVehicle) return
     bookingLockRef.current = true
     setLoading(true)
-    setPaymentError(null)
     try {
       const booking = await createBooking({
         vendorId,
@@ -130,20 +133,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
           router.push(`/bookings/${booking.id}`)
         },
         onDismiss: () => {
-          setPaymentError(
-            'Payment cancelled. Your booking is saved — you can pay from booking details.'
-          )
+          toast.info('Payment cancelled. Your booking is saved — you can pay from booking details.')
         },
         onFailure: (message) => {
-          setPaymentError(message)
+          toast.error(message)
         },
       })
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message !== 'Payment cancelled'
-      ) {
-        setPaymentError(error.message)
+      if (error instanceof Error && error.message !== 'Payment cancelled') {
+        toast.error(error.message)
       }
     } finally {
       bookingLockRef.current = false
@@ -207,10 +205,27 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </div>
       </section>
 
+      {(vehicles.length === 0 || addresses.length === 0) && (
+        <ScCard className="flex flex-col gap-1 border-warning bg-warning-muted/20">
+          <p className="text-[13px] font-medium text-text-primary">Before you book</p>
+          <p className="text-[12px] text-text-secondary">
+            {[
+              vehicles.length === 0 && 'add a car',
+              addresses.length === 0 && 'add an address',
+            ]
+              .filter(Boolean)
+              .join(' and ')} to continue.
+          </p>
+          <Link href="/profile" className="mt-1 text-[12px] font-medium text-brand-red">
+            Go to profile →
+          </Link>
+        </ScCard>
+      )}
+
       <section>
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Car details</h2>
         {vehicles.length === 0 ? (
-          <p className="text-[12px] text-text-secondary">Add a vehicle from your profile first.</p>
+          <p className="text-[12px] text-text-secondary">No cars added yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {vehicles.map((v) => (
@@ -243,14 +258,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </button>
           ))}
         </div>
-        {paymentError && (
-          <p className="mt-2 text-[12px] text-brand-red">{paymentError}</p>
-        )}
       </section>
 
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
         <ScButton
-          disabled={!selectedService || !selectedSlot || !selectedVehicle || loading}
+          disabled={!selectedService || !selectedSlot || !selectedVehicle || addresses.length === 0 || loading}
           onClick={handleConfirm}
         >
           {loading

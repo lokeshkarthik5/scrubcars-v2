@@ -33,6 +33,7 @@ import type {
   ApiWorkingHours,
 } from '@/lib/api/types'
 import type { Service, ServiceCategory } from '@/lib/types'
+import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
@@ -122,8 +123,6 @@ export default function VendorSettingsPage() {
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const logout = useAuthStore((s) => s.logout)
   const resetUser = useUserStore((s) => s.reset)
   const resetBookings = useBookingsStore((s) => s.reset)
@@ -153,7 +152,7 @@ export default function VendorSettingsPage() {
         setServices(servicesData)
         setServiceAreas(areasData)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load settings')
+        toast.error(err instanceof Error ? err.message : 'Failed to load settings')
       } finally {
         setLoading(false)
       }
@@ -164,13 +163,11 @@ export default function VendorSettingsPage() {
 
   const runAction = async (key: string, action: () => Promise<void>) => {
     setSaving(key)
-    setError(null)
-    setMessage(null)
     try {
       await action()
-      setMessage('Saved successfully')
+      toast.success('Saved successfully')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setSaving(null)
     }
@@ -334,17 +331,6 @@ export default function VendorSettingsPage() {
           </button>
         ))}
       </div>
-
-      {message && (
-        <div className="rounded-[10px] border border-success bg-success-muted px-3 py-2 text-[12px] text-success">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-[10px] border border-brand-red bg-accent-muted px-3 py-2 text-[12px] text-brand-red">
-          {error}
-        </div>
-      )}
 
       {tab === 'profile' && (
         <>

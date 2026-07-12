@@ -9,6 +9,7 @@ import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
 type AuthContext = Context<{ Variables: AuthVariables }>
 
 const REFRESH_COOKIE = 'refresh_token'
+const ACCESS_COOKIE = 'access_token'
 
 function setRefreshCookie(c: AuthContext, token: string) {
   setCookie(c, REFRESH_COOKIE, token, {
@@ -26,19 +27,34 @@ function clearRefreshCookie(c: AuthContext) {
   })
 }
 
+function setAccessCookie(c: AuthContext, token: string) {
+  setCookie(c, ACCESS_COOKIE, token, {
+    httpOnly: true,
+    secure: !env.isDev,
+    sameSite: 'Lax',
+    path: '/api/v1',
+    maxAge: 15 * 60,
+  })
+}
+
+function clearAccessCookie(c: AuthContext) {
+  deleteCookie(c, ACCESS_COOKIE, {
+    path: '/api/v1',
+  })
+}
+
 function sessionResponse(
   c: AuthContext,
   session: Awaited<ReturnType<typeof authService.verifyOtp>>
 ) {
   setRefreshCookie(c, session.refreshToken)
+  setAccessCookie(c, session.accessToken)
 
   return c.json({
     success: true,
     data: {
       user: session.user,
       vendor: session.vendor,
-      accessToken: session.accessToken,
-      tokenType: 'Bearer',
     },
   })
 }
@@ -68,14 +84,13 @@ export async function refresh(c: AuthContext) {
 
   const session = await authService.refreshSession(refreshToken)
   setRefreshCookie(c, session.refreshToken)
+  setAccessCookie(c, session.accessToken)
 
   return c.json({
     success: true,
     data: {
       user: session.user,
       vendor: session.vendor,
-      accessToken: session.accessToken,
-      tokenType: 'Bearer',
     },
   })
 }
@@ -84,6 +99,7 @@ export async function logout(c: AuthContext) {
   const refreshToken = getCookie(c, REFRESH_COOKIE)
   await authService.logout(refreshToken)
   clearRefreshCookie(c)
+  clearAccessCookie(c)
 
   return c.json({
     success: true,

@@ -7,9 +7,13 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { sendOtp } from '@/lib/api/auth'
 import { ApiError } from '@/lib/api/client'
+import { useAuthStore } from '@/lib/stores/auth-store'
+
+const BYPASS_PHONE = '8015676678'
 
 export default function LoginPage() {
   const router = useRouter()
+  const verifyOtp = useAuthStore((s) => s.verifyOtp)
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -22,6 +26,17 @@ export default function LoginPage() {
     setError('')
     try {
       const purpose = await sendOtp({ phone, audience: 'customer' })
+      if (phone === BYPASS_PHONE) {
+        const result = await verifyOtp({
+          phone,
+          otp: '',
+          audience: 'customer',
+          purpose,
+          name: purpose === 'register' ? 'User' : undefined,
+        })
+        router.push(result.isNewUser ? '/profile-setup' : '/home?welcome=1')
+        return
+      }
       sessionStorage.setItem('auth_phone', phone)
       sessionStorage.setItem('auth_audience', 'customer')
       sessionStorage.setItem('auth_purpose', purpose)

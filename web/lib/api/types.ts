@@ -36,8 +36,6 @@ export interface ApiAuthVendor {
 export interface ApiSessionData {
   user: ApiAuthUser
   vendor: ApiAuthVendor | null
-  accessToken: string
-  tokenType: string
 }
 
 export interface ApiUserProfile {

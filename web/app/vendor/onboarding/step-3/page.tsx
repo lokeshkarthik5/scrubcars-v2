@@ -9,6 +9,7 @@ import { Chip } from '@/components/sc/chip'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { submitVendorOnboarding } from '@/lib/api/vendors'
+import { toast } from 'react-toastify'
 import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 
 const SLOT_INTERVALS = [30, 45, 60] as const
@@ -34,6 +35,8 @@ export default function VendorOnboardingStep3() {
         areas: [],
       })
       router.push('/vendor/onboarding/step-4')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save. Please try again.')
     } finally {
       setLoading(false)
     }

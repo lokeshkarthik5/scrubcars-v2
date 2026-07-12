@@ -22,7 +22,6 @@ export interface VerifyOtpOptions {
 export interface AuthResult {
   user: ApiSessionData['user']
   vendor: ApiSessionData['vendor']
-  accessToken: string
   isNewUser: boolean
 }
 
@@ -80,14 +79,10 @@ export async function verifyOtp(options: VerifyOtpOptions): Promise<AuthResult> 
     }),
   })
 
-  const isNewUser =
-    options.purpose === 'register' || options.purpose === 'vendor_onboard'
-
   return {
     user: data.user,
     vendor: data.vendor,
-    accessToken: data.accessToken,
-    isNewUser,
+    isNewUser: options.purpose === 'register' || options.purpose === 'vendor_onboard',
   }
 }
 
@@ -109,14 +104,11 @@ export async function refreshSession(): Promise<
     auth: false,
   })
 
-  const audience: AuthAudience = data.vendor ? 'vendor' : 'customer'
-
   return {
     user: data.user,
     vendor: data.vendor,
-    accessToken: data.accessToken,
     isNewUser: false,
-    audience,
+    audience: data.vendor ? 'vendor' : 'customer',
   }
 }
 

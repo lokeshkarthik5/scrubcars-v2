@@ -11,6 +11,7 @@ import { TopBar } from '@/components/sc/top-bar'
 import { getBooking } from '@/lib/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
 import { submitReview } from '@/lib/api/reviews'
+import { toast } from 'react-toastify'
 import { openRazorpayCheckout } from '@/lib/razorpay'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
@@ -32,10 +33,7 @@ export default function BookingDetailPage({
   const [paying, setPaying] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
-  const [cancelError, setCancelError] = useState<string | null>(null)
-  const [paymentError, setPaymentError] = useState<string | null>(null)
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
-  const [reviewError, setReviewError] = useState<string | null>(null)
 
   useEffect(() => {
     getBooking(id).then((b) => setBooking(b ?? null))
@@ -45,7 +43,6 @@ export default function BookingDetailPage({
   const handlePayNow = async () => {
     if (!booking || paying) return
     setPaying(true)
-    setPaymentError(null)
     try {
       const order = await createPaymentOrder(booking.id)
       await openRazorpayCheckout({
@@ -64,17 +61,18 @@ export default function BookingDetailPage({
           })
           const updated = await getBooking(booking.id)
           setBooking(updated ?? null)
+          toast.success('Payment successful')
         },
         onDismiss: () => {
-          setPaymentError('Payment cancelled.')
+          toast.info('Payment cancelled. You can pay anytime from booking details.')
         },
         onFailure: (message) => {
-          setPaymentError(message)
+          toast.error(message)
         },
       })
     } catch (error) {
       if (error instanceof Error && error.message !== 'Payment cancelled') {
-        setPaymentError(error.message)
+        toast.error(error.message)
       }
     } finally {
       setPaying(false)
@@ -84,15 +82,13 @@ export default function BookingDetailPage({
   const handleCancelBooking = async () => {
     if (!booking || cancelling) return
     setCancelling(true)
-    setCancelError(null)
     try {
       const updated = await cancelBooking(booking.id)
       setBooking(updated)
       setShowCancelConfirm(false)
+      toast.success('Booking cancelled')
     } catch (error) {
-      setCancelError(
-        error instanceof Error ? error.message : 'Failed to cancel booking'
-      )
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel booking')
     } finally {
       setCancelling(false)
     }
@@ -101,12 +97,12 @@ export default function BookingDetailPage({
   const handleSubmitReview = async () => {
     if (!rating) return
     setSubmitting(true)
-    setReviewError(null)
     try {
       const review = await submitReview({ bookingId: id, rating, comment })
       setSubmittedReview(review)
+      toast.success('Review submitted. Thanks!')
     } catch (error) {
-      setReviewError(error instanceof Error ? error.message : 'Failed to submit review')
+      toast.error(error instanceof Error ? error.message : 'Failed to submit review')
     } finally {
       setSubmitting(false)
     }
@@ -153,9 +149,6 @@ export default function BookingDetailPage({
               <ScButton disabled={paying} onClick={handlePayNow}>
                 {paying ? 'Opening payment...' : 'Pay now'}
               </ScButton>
-              {paymentError && (
-                <p className="mt-2 text-[12px] text-brand-red">{paymentError}</p>
-              )}
             </div>
           )}
       </ScCard>
@@ -172,9 +165,6 @@ export default function BookingDetailPage({
                 <p className="text-[12px] text-text-muted">
                   Refunds for paid online bookings are not automatic yet.
                 </p>
-              )}
-              {cancelError && (
-                <p className="text-[12px] text-brand-red">{cancelError}</p>
               )}
               <div className="flex gap-2">
                 <ScButton
@@ -226,9 +216,6 @@ export default function BookingDetailPage({
                   onChange={(e) => setComment(e.target.value)}
                 />
               </div>
-              {reviewError && (
-                <p className="mt-2 text-[12px] text-brand-red">{reviewError}</p>
-              )}
               <ScButton
                 className="mt-3"
                 disabled={!rating || submitting}

@@ -34,7 +34,7 @@ export function generateSlotStartTimes(
 }
 
 function combineDateAndTime(date: string, time: string): Date {
-  return new Date(`${date}T${time}`)
+  return new Date(`${date}T${time}+05:30`)
 }
 
 function rangesOverlap(

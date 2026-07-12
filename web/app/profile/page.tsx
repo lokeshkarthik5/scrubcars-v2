@@ -10,6 +10,7 @@ import { ScInput } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
 import { createAddress, createVehicle } from '@/lib/api/users'
+import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Address, Vehicle } from '@/lib/types'
@@ -52,7 +53,6 @@ export default function ProfilePage() {
   const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm)
   const [addressForm, setAddressForm] = useState(emptyAddressForm)
   const [saving, setSaving] = useState<'vehicle' | 'address' | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   const user = profile ?? authUser
 
@@ -71,7 +71,6 @@ export default function ProfilePage() {
   const submitVehicle = async () => {
     if (!vehicleForm.make || !vehicleForm.model) return
     setSaving('vehicle')
-    setError(null)
     try {
       const created = await createVehicle({
         make: vehicleForm.make,
@@ -83,8 +82,9 @@ export default function ProfilePage() {
       setVehicles((v) => [...v, created])
       setVehicleForm(emptyVehicleForm)
       setShowVehicleForm(false)
+      toast.success('Vehicle added')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add vehicle')
+      toast.error(err instanceof Error ? err.message : 'Failed to add vehicle')
     } finally {
       setSaving(null)
     }
@@ -93,7 +93,6 @@ export default function ProfilePage() {
   const submitAddress = async () => {
     if (!addressForm.label || !addressForm.address || !addressForm.city) return
     setSaving('address')
-    setError(null)
     try {
       const created = await createAddress({
         label: addressForm.label,
@@ -106,8 +105,9 @@ export default function ProfilePage() {
       setAddresses((a) => [...a, created])
       setAddressForm(emptyAddressForm)
       setShowAddressForm(false)
+      toast.success('Address added')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add address')
+      toast.error(err instanceof Error ? err.message : 'Failed to add address')
     } finally {
       setSaving(null)
     }
@@ -130,12 +130,6 @@ export default function ProfilePage() {
         </div>
       </ScCard>
 
-      {error && (
-        <div className="rounded-[10px] border border-brand-red bg-accent-muted px-3 py-2 text-[12px] text-brand-red">
-          {error}
-        </div>
-      )}
-
       <Link href="/bookings">
         <ScCard className="text-[13px] text-text-primary">My bookings</ScCard>
       </Link>
@@ -145,7 +139,7 @@ export default function ProfilePage() {
           <h2 className="text-sm font-semibold text-text-primary">Vehicles</h2>
           <button
             type="button"
-            onClick={() => { setShowVehicleForm((v) => !v); setError(null) }}
+            onClick={() => setShowVehicleForm((v) => !v)}
             className="flex items-center gap-1 text-[12px] text-brand-red"
           >
             <IconPlus size={14} />
@@ -231,7 +225,7 @@ export default function ProfilePage() {
           <h2 className="text-sm font-semibold text-text-primary">Addresses</h2>
           <button
             type="button"
-            onClick={() => { setShowAddressForm((a) => !a); setError(null) }}
+            onClick={() => setShowAddressForm((a) => !a)}
             className="flex items-center gap-1 text-[12px] text-brand-red"
           >
             <IconPlus size={14} />

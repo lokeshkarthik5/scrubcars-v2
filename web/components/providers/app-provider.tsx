@@ -82,11 +82,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const routeAccess = getRouteAccess(pathname)
   const isVendorSession = audience === 'vendor'
+  const isProfileIncomplete = !isVendorSession && user?.name === 'User'
   const signedInLanding = isVendorSession
     ? vendor
       ? '/vendor/home'
       : '/vendor/onboarding/step-1'
-    : '/home'
+    : isProfileIncomplete
+      ? '/profile-setup'
+      : '/home'
 
   let redirectPath: string | null = null
 
@@ -108,6 +111,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       redirectPath = '/vendor/home'
     } else if (routeAccess === 'vendor' && !vendor) {
       redirectPath = '/vendor/onboarding/step-1'
+    } else if (routeAccess === 'customer' && isProfileIncomplete && pathname !== '/profile-setup') {
+      redirectPath = '/profile-setup'
     }
   }
 

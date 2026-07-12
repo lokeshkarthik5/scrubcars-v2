@@ -9,6 +9,7 @@ import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
 import { getVendorReviews } from '@/lib/api/reviews'
+import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { computeVendorDashboardStats } from '@/lib/vendor-stats'
@@ -99,8 +100,8 @@ export default function VendorHomePage() {
                     <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <ScButton variant="secondary" onClick={() => updateStatus(b.id, 'cancelled')}>Reject</ScButton>
-                    <ScButton onClick={() => updateStatus(b.id, 'confirmed')}>Accept</ScButton>
+                    <ScButton variant="secondary" onClick={() => updateStatus(b.id, 'cancelled').then(() => toast.success('Booking rejected')).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to reject'))}>Reject</ScButton>
+                    <ScButton onClick={() => updateStatus(b.id, 'confirmed').then(() => toast.success('Booking accepted')).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to accept'))}>Accept</ScButton>
                   </div>
                 </ScCard>
               )
