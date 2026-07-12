@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
 import {
   createRazorpayOrder,
   verifyPaymentSignature,
@@ -6,6 +7,8 @@ import {
 } from '../../lib/razorpay.js'
 import { paymentsRepository } from './payments.repository.js'
 import type { VerifyPaymentInput } from './payments.validation.js'
+
+const log = logger.child({ module: 'payments' })
 
 type RazorpayWebhookPayload = {
   event: string
@@ -123,6 +126,7 @@ export const paymentsService = {
     })
 
     await paymentsRepository.setGatewayTxnId(booking.id, order.orderId)
+    log.info({ bookingId: booking.id, orderId: order.orderId, amount: order.amount }, 'payment:order_created')
 
     return {
       bookingId: booking.id,
@@ -160,6 +164,7 @@ export const paymentsService = {
     })
 
     if (!isValid) {
+      log.warn({ bookingId: booking.id, orderId: input.razorpayOrderId }, 'payment:invalid_signature')
       await paymentsRepository.markFailed(booking.id)
       throw new AppError(400, 'Invalid payment signature', 'INVALID_SIGNATURE')
     }
@@ -170,6 +175,8 @@ export const paymentsService = {
       input.razorpayOrderId
     )
 
+    log.info({ bookingId: booking.id, paymentId: input.razorpayPaymentId }, 'payment:verified')
+
     return {
       bookingId: booking.id,
       payment: toPaymentResponse(updated),
@@ -178,12 +185,15 @@ export const paymentsService = {
 
   async handleWebhook(rawBody: string, signature: string | undefined) {
     if (!verifyWebhookSignature(rawBody, signature)) {
+      log.warn('webhook:invalid_signature')
       throw new AppError(400, 'Invalid webhook signature', 'INVALID_SIGNATURE')
     }
 
     const payload = JSON.parse(rawBody) as RazorpayWebhookPayload
     const event = payload.event
     const entity = payload.payload?.payment?.entity
+
+    log.info({ event, paymentId: entity?.id }, 'webhook:received')
 
     if (!entity?.id) {
       return { handled: false }
@@ -195,9 +205,7 @@ export const paymentsService = {
       : null
 
     if (!payment && entity.order_id) {
-      payment = await paymentsRepository.findPaymentByGatewayTxnId(
-        entity.order_id
-      )
+      payment = await paymentsRepository.findPaymentByGatewayTxnId(entity.order_id)
     }
 
     if (!payment && entity.id) {
@@ -205,21 +213,20 @@ export const paymentsService = {
     }
 
     if (!payment) {
+      log.warn({ event, paymentId: entity.id, bookingId }, 'webhook:payment_not_found')
       return { handled: false }
     }
 
     if (event === 'payment.captured' || entity.status === 'captured') {
-      await markBookingPaid(
-        payment.bookingId,
-        entity.id,
-        entity.order_id
-      )
+      await markBookingPaid(payment.bookingId, entity.id, entity.order_id)
+      log.info({ event, bookingId: payment.bookingId, paymentId: entity.id }, 'webhook:payment_captured')
       return { handled: true, event }
     }
 
     if (event === 'payment.failed' || entity.status === 'failed') {
       if (payment.status !== 'paid') {
         await paymentsRepository.markFailed(payment.bookingId)
+        log.warn({ event, bookingId: payment.bookingId, paymentId: entity.id }, 'webhook:payment_failed')
       }
       return { handled: true, event }
     }

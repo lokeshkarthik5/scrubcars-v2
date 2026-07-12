@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
 import {
   generateOtpCode,
   getOtpExpiryDate,
@@ -21,6 +22,12 @@ import {
 import { authRepository } from './auth.repository.js'
 import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
 import type { UserRecord, VendorRecord } from './auth.repository.js'
+
+const log = logger.child({ module: 'auth' })
+
+function maskPhone(phone: string) {
+  return phone.length >= 6 ? `${phone.slice(0, 2)}****${phone.slice(-2)}` : '****'
+}
 
 export type AuthUserResponse = {
   id: string
@@ -222,6 +229,8 @@ async function createSession(
       ? await authRepository.findVendorByOwnerId(user.id)
       : null
 
+  log.info({ userId: user.id, audience }, 'session:created')
+
   return {
     accessToken,
     refreshToken,
@@ -237,6 +246,7 @@ export const authService = {
     await validateSendOtpRules(input)
 
     if (input.phone === BYPASS_PHONE) {
+      log.debug({ phone: maskPhone(input.phone), purpose: input.purpose, audience: input.audience }, 'otp:bypass')
       return {
         phone: input.phone,
         purpose: input.purpose,
@@ -256,6 +266,7 @@ export const authService = {
     })
 
     await sendOtpSms(input.phone, otpCode)
+    log.info({ phone: maskPhone(input.phone), purpose: input.purpose, audience: input.audience }, 'otp:sent')
 
     return {
       phone: input.phone,
@@ -268,6 +279,7 @@ export const authService = {
   async verifyOtp(input: VerifyOtpInput): Promise<SessionResult> {
     if (input.phone === BYPASS_PHONE) {
       const user = await resolveUserAfterVerification(input)
+      log.debug({ userId: user.id, audience: input.audience, purpose: input.purpose }, 'otp:bypass_verified')
       return createSession(user, input.audience)
     }
 
@@ -280,6 +292,7 @@ export const authService = {
       )
 
     if (Number(recentAttempts) >= MAX_OTP_VERIFY_ATTEMPTS) {
+      log.warn({ phone: maskPhone(input.phone), purpose: input.purpose, attempts: recentAttempts }, 'otp:rate_limit')
       throw new AppError(
         429,
         `Too many OTP attempts. Try again in ${OTP_VERIFY_WINDOW_MINUTES} minutes.`,
@@ -298,12 +311,14 @@ export const authService = {
 
     if (otpRecord.otpCode !== input.otp) {
       await authRepository.incrementOtpAttempts(otpRecord.id)
+      log.warn({ phone: maskPhone(input.phone), purpose: input.purpose }, 'otp:invalid')
       throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP')
     }
 
     await authRepository.markOtpVerified(otpRecord.id)
 
     const user = await resolveUserAfterVerification(input)
+    log.info({ userId: user.id, phone: maskPhone(input.phone), audience: input.audience, purpose: input.purpose }, 'otp:verified')
     return createSession(user, input.audience)
   },
 
@@ -312,6 +327,7 @@ export const authService = {
     const storedToken = await authRepository.findActiveRefreshToken(tokenHash)
 
     if (!storedToken) {
+      log.warn('session:refresh_invalid')
       throw new AppError(
         401,
         'Invalid or expired refresh token',
@@ -322,6 +338,7 @@ export const authService = {
     const user = await authRepository.findUserById(storedToken.userId)
 
     if (!user) {
+      log.warn({ userId: storedToken.userId }, 'session:refresh_user_not_found')
       throw new AppError(401, 'User not found', 'USER_NOT_FOUND')
     }
 
@@ -330,6 +347,7 @@ export const authService = {
     await authRepository.revokeRefreshToken(storedToken.id)
 
     const audience: TokenAudience = user.isVendorOwner ? 'vendor' : 'customer'
+    log.info({ userId: user.id, audience }, 'session:refreshed')
     return createSession(user, audience)
   },
 

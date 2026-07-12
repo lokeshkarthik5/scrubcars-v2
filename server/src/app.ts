@@ -44,6 +44,12 @@ app.use('/api/*', globalRateLimiter)
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
+    const ctx = { code: err.code, status: err.statusCode, method: c.req.method, path: c.req.path }
+    if (err.statusCode >= 500) {
+      logger.error({ err, ...ctx }, 'app error')
+    } else {
+      logger.warn(ctx, err.message)
+    }
     return c.json(
       { success: false, message: err.message, code: err.code },
       err.statusCode as ContentfulStatusCode
@@ -51,15 +57,16 @@ app.onError((err, c) => {
   }
 
   if (err instanceof HTTPException) {
+    logger.warn({ status: err.status, method: c.req.method, path: c.req.path }, err.message)
     return err.getResponse()
   }
 
   if (err instanceof Error && err.name === 'TimeoutError') {
-    logger.error(`Upstream timeout on ${c.req.method} ${c.req.path}`, err)
+    logger.error({ err, method: c.req.method, path: c.req.path }, 'upstream timeout')
     return c.json({ success: false, message: 'Upstream service timed out', code: 'UPSTREAM_TIMEOUT' }, 504)
   }
 
-  logger.error(`Unhandled error on ${c.req.method} ${c.req.path}`, err)
+  logger.error({ err, method: c.req.method, path: c.req.path }, 'unhandled error')
   return c.json({ success: false, message: 'Internal server error' }, 500)
 })
 

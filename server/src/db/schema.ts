@@ -42,6 +42,7 @@ export const serviceCategoryEnum = pgEnum('service_category', [
   'detailing',
   'coating',
   'scratch_removal',
+  'others',
 ])
 
 export const bookingTypeEnum = pgEnum('booking_type', ['doorstep', 'dropin'])

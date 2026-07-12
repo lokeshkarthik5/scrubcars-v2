@@ -92,6 +92,7 @@ export const serviceCategorySchema = z.enum([
   'detailing',
   'coating',
   'scratch_removal',
+  'others',
 ])
 
 export const listPublicVendorsQuerySchema = z.object({

@@ -25,6 +25,7 @@ const VENDOR_ROUTES = [
   '/vendor/bookings',
   '/vendor/earnings',
   '/vendor/reviews',
+  '/vendor/services',
   '/vendor/settings',
 ]
 const VENDOR_ONBOARDING_ROUTE = '/vendor/onboarding'
@@ -77,6 +78,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isHydrated) return
+    console.log('[app-provider] restoreSession firing, isHydrated:', isHydrated)
     void restoreSession()
   }, [isHydrated, restoreSession])
 

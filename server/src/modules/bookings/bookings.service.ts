@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
 import {
   computeAvailableSlots,
   getDateKeyFromScheduledAt,
@@ -8,6 +9,8 @@ import {
 } from '../../lib/slots.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
+
+const log = logger.child({ module: 'bookings' })
 import type { PaymentRecord } from './bookings.repository.js'
 import type {
   CreateBookingInput,
@@ -329,6 +332,7 @@ export const bookingsService = {
       })
 
     if (result.conflict) {
+      log.warn({ vendorId: vendor.id, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_conflict')
       throw new AppError(
         409,
         'Selected slot was just booked. Please choose another slot.',
@@ -348,6 +352,15 @@ export const bookingsService = {
       )
     }
 
+    log.info({
+      bookingId: booking.id,
+      userId,
+      vendorId: vendor.id,
+      serviceId: service.id,
+      scheduledAt: scheduledAt.toISOString(),
+      paymentMethod: input.paymentMethod,
+    }, 'booking:created')
+
     return toBookingResponse({ ...fullBooking, payment })
   },
 
@@ -363,6 +376,7 @@ export const bookingsService = {
     }
 
     await bookingsRepository.updateBookingStatus(bookingId, 'cancelled')
+    log.info({ bookingId, userId, status: 'cancelled' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)
@@ -390,6 +404,7 @@ export const bookingsService = {
     }
 
     await bookingsRepository.updateBookingStatus(bookingId, 'confirmed')
+    log.info({ bookingId, ownerId, status: 'confirmed' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)
@@ -407,6 +422,7 @@ export const bookingsService = {
     }
 
     await bookingsRepository.updateBookingStatus(bookingId, 'cancelled')
+    log.info({ bookingId, ownerId, status: 'cancelled' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)
@@ -424,6 +440,7 @@ export const bookingsService = {
     }
 
     await bookingsRepository.updateBookingStatus(bookingId, 'in_progress')
+    log.info({ bookingId, ownerId, status: 'in_progress' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)
@@ -443,12 +460,10 @@ export const bookingsService = {
     await bookingsRepository.updateBookingStatus(bookingId, 'completed')
 
     if (booking.paymentMethod === 'cash') {
-      await bookingsRepository.updatePaymentStatus(
-        bookingId,
-        'collected',
-        new Date()
-      )
+      await bookingsRepository.updatePaymentStatus(bookingId, 'collected', new Date())
     }
+
+    log.info({ bookingId, ownerId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)

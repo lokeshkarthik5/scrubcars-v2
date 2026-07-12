@@ -66,9 +66,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   async verifyOtp(options) {
+    console.log('[auth] verifyOtp called', { audience: options.audience, purpose: options.purpose })
     set({ isLoading: true })
     try {
       const result = await apiVerifyOtp(options)
+      console.log('[auth] verifyOtp success — setting session', { userId: result.user.id, isNewUser: result.isNewUser })
       set({
         user: mapAuthUser(result.user),
         vendor: result.vendor,
@@ -82,9 +84,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   async restoreSession() {
+    console.log('[auth] restoreSession called')
     set({ isSessionReady: false })
     try {
       const session = await refreshSession()
+      console.log('[auth] restoreSession success', { userId: session.user.id })
       set({
         user: mapAuthUser(session.user),
         vendor: session.vendor,
@@ -92,7 +96,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         isSessionReady: true,
       })
       return true
-    } catch {
+    } catch (err) {
+      console.log('[auth] restoreSession failed — clearing session', err instanceof Error ? err.message : err)
       get().clearSession()
       set({ isSessionReady: true })
       return false

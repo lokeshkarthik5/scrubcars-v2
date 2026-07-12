@@ -17,7 +17,6 @@ const SLOT_INTERVALS = [30, 45, 60] as const
 export default function VendorOnboardingStep3() {
   const router = useRouter()
   const update = useVendorOnboardingStore((s) => s.update)
-  const [dropin, setDropin] = useState(true)
   const [slotInterval, setSlotInterval] = useState<30 | 45 | 60>(30)
   const [openTime, setOpenTime] = useState('09:00')
   const [closeTime, setCloseTime] = useState('18:00')
@@ -26,9 +25,9 @@ export default function VendorOnboardingStep3() {
   const handleContinue = async () => {
     setLoading(true)
     try {
-      update({ dropin, slotInterval, openTime, closeTime, areas: [] })
+      update({ dropin: true, slotInterval, openTime, closeTime, areas: [] })
       await submitVendorOnboarding(3, {
-        dropin,
+        dropin: true,
         slotInterval,
         openTime,
         closeTime,
@@ -47,20 +46,6 @@ export default function VendorOnboardingStep3() {
       <TopBar showBack backHref="/vendor/onboarding/step-2" />
       <ProgressBar progress={75} />
       <p className="text-[11px] text-text-secondary">Step 3 of 4 — Garage setup</p>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Job types</h2>
-        <div className="mb-2 flex items-center justify-between rounded-[10px] border border-border bg-surface px-3 py-3">
-          <span className="text-[13px]">Accept drop-in jobs</span>
-          <button
-            type="button"
-            onClick={() => setDropin(!dropin)}
-            className={dropin ? 'h-6 w-11 rounded-full bg-brand-red' : 'h-6 w-11 rounded-full bg-border'}
-          >
-            <div className={dropin ? 'h-5 w-5 translate-x-5 rounded-full bg-white transition-transform' : 'h-5 w-5 translate-x-0.5 rounded-full bg-white transition-transform'} />
-          </button>
-        </div>
-      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Slot interval</h2>
@@ -85,7 +70,7 @@ export default function VendorOnboardingStep3() {
         </div>
       </section>
 
-      <ScButton className="mb-4" disabled={loading || !dropin} onClick={handleContinue}>Continue</ScButton>
+      <ScButton className="mb-4" disabled={loading} onClick={handleContinue}>Continue</ScButton>
     </AppShell>
   )
 }

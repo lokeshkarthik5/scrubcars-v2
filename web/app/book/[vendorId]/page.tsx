@@ -13,12 +13,11 @@ import { TopBar } from '@/components/sc/top-bar'
 import { getAvailableSlots } from '@/lib/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
 import { getVendorServices } from '@/lib/api/services'
-import { getAddresses } from '@/lib/api/users'
 import { getVendor } from '@/lib/api/vendors'
 import { openRazorpayCheckout } from '@/lib/razorpay'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
-import type { Address, PaymentMethod, Service, Vendor } from '@/lib/types'
+import type { PaymentMethod, Service, Vendor } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -45,8 +44,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const serviceId = searchParams.get('service')
   const createBooking = useBookingsStore((s) => s.createBooking)
   const vehicles = useUserStore((s) => s.vehicles)
+  const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
+  const fetchAddresses = useUserStore((s) => s.fetchAddresses)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const dateOptions = buildDateOptions()
@@ -59,7 +60,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [slots, setSlots] = useState<Array<{ time: string; label: string; available: boolean }>>([])
-  const [addresses, setAddresses] = useState<Address[]>([])
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
 
@@ -73,9 +73,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
       setSelectedService(preselected ?? null)
     })
     void fetchVehicles()
+    void fetchAddresses()
     void fetchProfile()
-    getAddresses().then(setAddresses).catch(() => undefined)
-  }, [vendorId, serviceId, fetchVehicles, fetchProfile])
+  }, [vendorId, serviceId, fetchVehicles, fetchAddresses, fetchProfile])
 
   useEffect(() => {
     if (!selectedService) return

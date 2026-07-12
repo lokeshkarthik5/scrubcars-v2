@@ -13,7 +13,6 @@ import { createAddress, createVehicle } from '@/lib/api/users'
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
-import type { Address, Vehicle } from '@/lib/types'
 import Link from 'next/link'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
@@ -41,13 +40,12 @@ export default function ProfilePage() {
   const authUser = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const profile = useUserStore((s) => s.profile)
+  const vehicles = useUserStore((s) => s.vehicles)
+  const addresses = useUserStore((s) => s.addresses)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
   const fetchAddresses = useUserStore((s) => s.fetchAddresses)
   const resetUser = useUserStore((s) => s.reset)
-
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [addresses, setAddresses] = useState<Address[]>([])
   const [showVehicleForm, setShowVehicleForm] = useState(false)
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm)
@@ -58,8 +56,8 @@ export default function ProfilePage() {
 
   useEffect(() => {
     void fetchProfile().catch(() => undefined)
-    fetchVehicles().then(setVehicles).catch(() => undefined)
-    fetchAddresses().then(setAddresses).catch(() => undefined)
+    void fetchVehicles().catch(() => undefined)
+    void fetchAddresses().catch(() => undefined)
   }, [fetchProfile, fetchVehicles, fetchAddresses])
 
   const handleLogout = async () => {
@@ -79,7 +77,7 @@ export default function ProfilePage() {
         vehicleType: vehicleForm.vehicleType,
         isDefault: vehicles.length === 0,
       })
-      setVehicles((v) => [...v, created])
+      useUserStore.setState((s) => ({ vehicles: [...s.vehicles, created] }))
       setVehicleForm(emptyVehicleForm)
       setShowVehicleForm(false)
       toast.success('Vehicle added')
@@ -102,7 +100,7 @@ export default function ProfilePage() {
         lng: 80.2574,
         isDefault: addresses.length === 0,
       })
-      setAddresses((a) => [...a, created])
+      useUserStore.setState((s) => ({ addresses: [...s.addresses, created] }))
       setAddressForm(emptyAddressForm)
       setShowAddressForm(false)
       toast.success('Address added')

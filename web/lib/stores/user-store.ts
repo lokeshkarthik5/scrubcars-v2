@@ -36,6 +36,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   isLoading: false,
 
   async fetchProfile() {
+    const existing = get().profile
+    if (existing) return existing
     set({ isLoading: true })
     try {
       const profile = await getProfile()
@@ -82,12 +84,16 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   async fetchVehicles() {
+    const existing = get().vehicles
+    if (existing.length > 0) return existing
     const vehicles = await getVehicles()
     set({ vehicles })
     return vehicles
   },
 
   async fetchAddresses() {
+    const existing = get().addresses
+    if (existing.length > 0) return existing
     const addresses = await getAddresses()
     set({ addresses })
     return addresses

@@ -1,5 +1,8 @@
 import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
 import { reviewsRepository } from './reviews.repository.js'
+
+const log = logger.child({ module: 'reviews' })
 import type { ReviewRecord } from './reviews.repository.js'
 import type { CreateReviewInput } from './reviews.validation.js'
 
@@ -91,6 +94,8 @@ export const reviewsService = {
       rating: input.rating,
       comment: input.comment,
     })
+
+    log.info({ reviewId: review.id, userId, vendorId: booking.vendorId, rating: input.rating }, 'review:created')
 
     return toReviewResponse(review)
   },

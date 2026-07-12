@@ -5,6 +5,7 @@ const API_BASE_URL =
 
 let unauthorizedHandler: (() => void | Promise<void>) | null = null
 let handlingUnauthorized = false
+let refreshPromise: Promise<boolean> | null = null
 
 export function setUnauthorizedHandler(
   handler: (() => void | Promise<void>) | null
@@ -48,11 +49,18 @@ async function parseError(response: Response): Promise<ApiError> {
 }
 
 async function tryRefreshCookies(): Promise<boolean> {
-  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
   })
-  return response.ok
+    .then((r) => r.ok)
+    .finally(() => {
+      refreshPromise = null
+    })
+
+  return refreshPromise
 }
 
 export async function apiClient<T>(
@@ -73,26 +81,34 @@ export async function apiClient<T>(
     ...(headers as Record<string, string>),
   }
 
+  console.log(`[api] ${rest.method ?? 'GET'} ${endpoint}`)
+
   let response = await fetch(url.toString(), {
     ...rest,
     headers: requestHeaders,
     credentials: 'include',
   })
 
+  console.log(`[api] ${rest.method ?? 'GET'} ${endpoint} → ${response.status}`)
+
   if (response.status === 401 && auth) {
+    console.log(`[api] 401 on ${endpoint} — trying refresh`)
     const refreshed = await tryRefreshCookies()
     if (refreshed) {
+      console.log(`[api] retry ${endpoint} after refresh`)
       response = await fetch(url.toString(), {
         ...rest,
         headers: requestHeaders,
         credentials: 'include',
       })
+      console.log(`[api] retry ${endpoint} → ${response.status}`)
     }
   }
 
   if (!response.ok) {
     const error = await parseError(response)
     if (auth && error.status === 401) {
+      console.log(`[api] logout triggered by 401 on ${endpoint}`)
       await triggerUnauthorizedLogout()
     }
     throw error

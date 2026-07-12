@@ -170,10 +170,7 @@ export default function BookingDetailPage({
                 <ScButton
                   variant="secondary"
                   disabled={cancelling}
-                  onClick={() => {
-                    setShowCancelConfirm(false)
-                    setCancelError(null)
-                  }}
+                  onClick={() => setShowCancelConfirm(false)}
                 >
                   Keep booking
                 </ScButton>

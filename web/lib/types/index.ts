@@ -10,6 +10,7 @@ export type ServiceCategory =
   | 'detailing'
   | 'coating'
   | 'scratch_removal'
+  | 'others'
 export type PaymentMethod = 'online' | 'cash'
 export type VendorStatus = 'open' | 'busy' | 'closed'
 

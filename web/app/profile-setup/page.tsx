@@ -7,6 +7,7 @@ import { ScButton } from '@/components/sc/button'
 import { ScInput, ScTextarea } from '@/components/sc/input'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { createAddress, updateProfile } from '@/lib/api/users'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import { toast } from 'react-toastify'
 
 const ADDRESS_LABELS = ['Home', 'Office', 'Other'] as const
@@ -34,8 +35,15 @@ export default function ProfileSetupPage() {
 
   const handleSubmit = async () => {
     if (!canSubmit) return
+    const currentUser = useAuthStore.getState().user
+    console.log('[profile-setup] submit clicked — auth state:', {
+      userId: currentUser?.id,
+      userName: currentUser?.name,
+      isSessionReady: useAuthStore.getState().isSessionReady,
+    })
     setLoading(true)
     try {
+      console.log('[profile-setup] calling updateProfile + createAddress')
       await Promise.all([
         updateProfile({ name: name.trim() }),
         createAddress({
@@ -47,8 +55,13 @@ export default function ProfileSetupPage() {
           isDefault: true,
         }),
       ])
+      console.log('[profile-setup] both calls succeeded')
+      useAuthStore.setState((s) => ({
+        user: s.user ? { ...s.user, name: name.trim() } : s.user,
+      }))
       router.push('/home?welcome=1')
     } catch (err) {
+      console.log('[profile-setup] submit failed:', err)
       toast.error(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setLoading(false)

@@ -1,10 +1,13 @@
 import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
 import {
   computeAvailableSlots,
   getDayOfWeekFromDate,
   type BookedRange,
 } from '../../lib/slots.js'
 import { vendorsRepository } from './vendors.repository.js'
+
+const log = logger.child({ module: 'vendors' })
 import type {
   PhotoRecord,
   ServiceAreaRecord,
@@ -176,6 +179,7 @@ export const vendorsService = {
       detailing: 'Detailing',
       coating: 'Coating',
       scratch_removal: 'Scratch removal',
+      others: 'Others',
     }
 
     return vendors
@@ -269,6 +273,7 @@ export const vendorsService = {
     })
 
     await vendorsRepository.setUserAsVendorOwner(ownerId)
+    log.info({ vendorId: vendor.id, ownerId, businessName: vendor.businessName }, 'vendor:created')
 
     return toVendorResponse(vendor)
   },
@@ -551,6 +556,8 @@ export const vendorsService = {
       serviceDurationMins: service.durationMins,
       bookedRanges,
     })
+
+    log.debug({ vendorId: vendor.id, date: query.date, serviceId: service.id, count: slots.length }, 'slots:computed')
 
     return {
       date: query.date,

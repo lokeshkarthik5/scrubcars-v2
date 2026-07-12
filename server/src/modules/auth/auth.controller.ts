@@ -11,11 +11,13 @@ type AuthContext = Context<{ Variables: AuthVariables }>
 const REFRESH_COOKIE = 'refresh_token'
 const ACCESS_COOKIE = 'access_token'
 
+const COOKIE_SAME_SITE = env.isDev ? 'Lax' : 'None'
+
 function setRefreshCookie(c: AuthContext, token: string) {
   setCookie(c, REFRESH_COOKIE, token, {
     httpOnly: true,
     secure: !env.isDev,
-    sameSite: 'Lax',
+    sameSite: COOKIE_SAME_SITE,
     path: '/api/v1/auth',
     maxAge: env.refreshTokenExpiresDays * 24 * 60 * 60,
   })
@@ -24,6 +26,8 @@ function setRefreshCookie(c: AuthContext, token: string) {
 function clearRefreshCookie(c: AuthContext) {
   deleteCookie(c, REFRESH_COOKIE, {
     path: '/api/v1/auth',
+    secure: !env.isDev,
+    sameSite: COOKIE_SAME_SITE,
   })
 }
 
@@ -31,7 +35,7 @@ function setAccessCookie(c: AuthContext, token: string) {
   setCookie(c, ACCESS_COOKIE, token, {
     httpOnly: true,
     secure: !env.isDev,
-    sameSite: 'Lax',
+    sameSite: COOKIE_SAME_SITE,
     path: '/api/v1',
     maxAge: 15 * 60,
   })
@@ -40,6 +44,8 @@ function setAccessCookie(c: AuthContext, token: string) {
 function clearAccessCookie(c: AuthContext) {
   deleteCookie(c, ACCESS_COOKIE, {
     path: '/api/v1',
+    secure: !env.isDev,
+    sameSite: COOKIE_SAME_SITE,
   })
 }
 

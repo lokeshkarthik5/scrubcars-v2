@@ -8,6 +8,7 @@ import {
   IconHome,
   IconSearch,
   IconSettings,
+  IconTool,
   IconUser,
 } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ const customerItems = [
 const vendorItems = [
   { href: '/vendor/home', label: 'Home', icon: IconHome },
   { href: '/vendor/bookings', label: 'Bookings', icon: IconCalendar },
+  { href: '/vendor/services', label: 'Services', icon: IconTool },
   { href: '/vendor/earnings', label: 'Earnings', icon: IconChartBar },
   { href: '/vendor/settings', label: 'Settings', icon: IconSettings },
 ]
