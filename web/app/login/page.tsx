@@ -29,7 +29,7 @@ export default function LoginPage() {
       if (phone === BYPASS_PHONE) {
         const result = await verifyOtp({
           phone,
-          otp: '',
+          otp: '000000',
           audience: 'customer',
           purpose,
           name: purpose === 'register' ? 'User' : undefined,
