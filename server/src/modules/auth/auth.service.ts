@@ -167,7 +167,7 @@ async function resolveUserAfterVerification(
     }
 
     const [created] = await authRepository.createUser({
-      name: input.name!,
+      name: input.name ?? 'Vendor',
       phone: input.phone,
       isCustomer: false,
       isVendorOwner: true,

@@ -31,7 +31,7 @@ export default function VendorLoginPage() {
           otp: '000000',
           audience: 'vendor',
           purpose,
-          name: purpose === 'vendor_onboard' ? 'Vendor' : undefined,
+          name: undefined,
         })
         router.push(result.isNewUser ? '/vendor/onboarding/step-1' : '/vendor/home')
         return
