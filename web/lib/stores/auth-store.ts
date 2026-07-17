@@ -4,7 +4,6 @@ import { create } from 'zustand'
 import {
   getAuthMe,
   logout as apiLogout,
-  refreshSession,
   verifyOtp as apiVerifyOtp,
   type SendOtpOptions,
   type VerifyOtpOptions,
@@ -87,12 +86,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     console.log('[auth] restoreSession called')
     set({ isSessionReady: false })
     try {
-      const session = await refreshSession()
-      console.log('[auth] restoreSession success', { userId: session.user.id })
+      const me = await getAuthMe()
+      console.log('[auth] restoreSession success', { userId: me.user.id })
       set({
-        user: mapAuthUser(session.user),
-        vendor: session.vendor,
-        audience: session.audience,
+        user: mapAuthUser(me.user),
+        vendor: me.vendor,
+        audience: get().audience ?? (me.vendor ? 'vendor' : 'customer'),
         isSessionReady: true,
       })
       return true

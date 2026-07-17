@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookings, reviews, vendors } from '../../db/schema.js'
 
@@ -16,13 +16,9 @@ export const reviewsRepository = {
     })
   },
 
-  findPublicVendorById(vendorId: string) {
+  findVendorById(vendorId: string) {
     return db.query.vendors.findFirst({
-      where: and(
-        eq(vendors.id, vendorId),
-        eq(vendors.status, 'active'),
-        eq(vendors.isVerified, true)
-      ),
+      where: eq(vendors.id, vendorId),
     })
   },
 

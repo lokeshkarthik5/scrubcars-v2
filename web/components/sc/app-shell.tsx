@@ -19,7 +19,7 @@ export function AppShell({
       <main
         className={cn(
           'flex flex-1 flex-col px-4',
-          showNav && 'pb-20',
+          showNav && 'pb-[calc(5rem+env(safe-area-inset-bottom))]',
           className
         )}
       >

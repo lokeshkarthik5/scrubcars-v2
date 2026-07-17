@@ -313,7 +313,7 @@ export default function VendorSettingsPage() {
         </div>
       </section>
 
-      <ScButton variant="secondary" onClick={handleLogout}>
+      <ScButton variant="secondary" onClick={handleLogout} className="mb-4">
         <span className="flex items-center justify-center gap-2">
           <IconLogout size={18} />
           Log out

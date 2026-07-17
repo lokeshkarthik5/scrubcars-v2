@@ -106,7 +106,7 @@ export const reviewsService = {
   },
 
   async listVendorReviews(vendorId: string) {
-    const vendor = await reviewsRepository.findPublicVendorById(vendorId)
+    const vendor = await reviewsRepository.findVendorById(vendorId)
 
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
