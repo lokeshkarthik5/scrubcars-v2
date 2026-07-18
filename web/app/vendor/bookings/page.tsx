@@ -33,7 +33,6 @@ export default function VendorBookingsPage() {
 
   const handleStatus = async (id: string, status: Booking['status']) => {
     await updateStatus(id, status)
-    await fetchVendorBookings()
   }
 
   const incomingCount = vendorBookings.filter((b) => b.status === 'pending').length

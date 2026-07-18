@@ -37,13 +37,13 @@ export default function BookingDetailPage({
 
   useEffect(() => {
     getBooking(id).then((b) => setBooking(b ?? null))
-    void fetchProfile()
-  }, [id, fetchProfile])
+  }, [id])
 
   const handlePayNow = async () => {
     if (!booking || paying) return
     setPaying(true)
     try {
+      if (!profile) await fetchProfile()
       const order = await createPaymentOrder(booking.id)
       await openRazorpayCheckout({
         order,

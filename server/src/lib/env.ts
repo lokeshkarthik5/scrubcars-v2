@@ -24,7 +24,7 @@ export const env = {
     ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
     : [
         'http://localhost:3000',
-        'https://scrubcars-v2-6p26.vercel.app',
+        'https://www.detlio.com',
       ],
   smsApiKey: process.env.SMS,
   isDev: (process.env.NODE_ENV ?? 'development') !== 'production',

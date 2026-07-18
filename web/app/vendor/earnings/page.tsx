@@ -6,26 +6,25 @@ import { ScBadge } from '@/components/sc/badge'
 import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
-import {
-  EMPTY_EARNINGS_SUMMARY,
-  getEarningsSummary,
-  getRecentEarningsJobs,
-} from '@/lib/api/earnings'
+import { EMPTY_EARNINGS_SUMMARY, getEarningsData } from '@/lib/api/earnings'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import type { EarningsJob, EarningsSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export default function VendorEarningsPage() {
+  const vendor = useAuthStore((s) => s.vendor)
   const [period, setPeriod] = useState<'week' | 'month'>('week')
   const [summary, setSummary] = useState<EarningsSummary>(EMPTY_EARNINGS_SUMMARY)
   const [jobs, setJobs] = useState<EarningsJob[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!vendor?.id) return
     let active = true
     setLoading(true)
 
-    Promise.all([getEarningsSummary(period), getRecentEarningsJobs()])
-      .then(([nextSummary, nextJobs]) => {
+    getEarningsData(vendor.id, period)
+      .then(({ summary: nextSummary, jobs: nextJobs }) => {
         if (!active) return
         setSummary(nextSummary)
         setJobs(nextJobs)
@@ -42,7 +41,7 @@ export default function VendorEarningsPage() {
     return () => {
       active = false
     }
-  }, [period])
+  }, [period, vendor?.id])
 
   const metrics = [
     { label: 'Total earned', value: `₹${summary.totalEarned.toLocaleString('en-IN')}`, color: 'text-success' },

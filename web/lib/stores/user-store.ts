@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import {
   createAddress as apiCreateAddress,
   getAddresses,
-  getProfile,
+  getProfileWithAddresses,
   getVehicles,
   updateProfile as apiUpdateProfile,
 } from '@/lib/api/users'
@@ -40,9 +40,9 @@ export const useUserStore = create<UserState>((set, get) => ({
     if (existing) return existing
     set({ isLoading: true })
     try {
-      const profile = await getProfile()
-      set({ profile })
-      return profile
+      const { user, addresses } = await getProfileWithAddresses()
+      set({ profile: user, addresses })
+      return user
     } finally {
       set({ isLoading: false })
     }

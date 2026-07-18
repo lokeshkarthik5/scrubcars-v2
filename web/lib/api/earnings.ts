@@ -1,6 +1,5 @@
 import { getVendorBookings } from './bookings'
 import { getVendorReviews } from './reviews'
-import { getMyVendor } from './vendors'
 import {
   computeEarningsSummary,
   computeRecentEarningsJobs,
@@ -14,37 +13,21 @@ export const EMPTY_EARNINGS_SUMMARY: EarningsSummary = {
   avgRating: 0,
 }
 
-async function getVendorReviewData() {
-  try {
-    const vendor = await getMyVendor()
-    return getVendorReviews(vendor.id)
-  } catch {
-    return []
-  }
-}
-
-/** Derived from vendor bookings + reviews until a dedicated earnings API exists. */
-export async function getEarningsSummary(
+/** Fetches bookings + reviews in parallel and derives both summary and recent jobs. */
+export async function getEarningsData(
+  vendorId: string,
   period: 'week' | 'month' = 'week'
-): Promise<EarningsSummary> {
+): Promise<{ summary: EarningsSummary; jobs: EarningsJob[] }> {
   try {
     const [bookings, reviews] = await Promise.all([
       getVendorBookings(),
-      getVendorReviewData(),
+      getVendorReviews(vendorId).catch(() => []),
     ])
-
-    return computeEarningsSummary(bookings, reviews, period)
+    return {
+      summary: computeEarningsSummary(bookings, reviews, period),
+      jobs: computeRecentEarningsJobs(bookings),
+    }
   } catch {
-    return EMPTY_EARNINGS_SUMMARY
-  }
-}
-
-/** Derived from completed vendor bookings. */
-export async function getRecentEarningsJobs(): Promise<EarningsJob[]> {
-  try {
-    const bookings = await getVendorBookings()
-    return computeRecentEarningsJobs(bookings)
-  } catch {
-    return []
+    return { summary: EMPTY_EARNINGS_SUMMARY, jobs: [] }
   }
 }

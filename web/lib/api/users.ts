@@ -21,14 +21,26 @@ export interface CreateAddressPayload {
   isDefault?: boolean
 }
 
+/** GET /users/me + GET /users/me/addresses in parallel */
+export async function getProfileWithAddresses(): Promise<{
+  user: User
+  addresses: Address[]
+}> {
+  const [rawProfile, rawAddresses] = await Promise.all([
+    apiClient<ApiUserProfile>('/users/me'),
+    apiClient<ApiAddress[]>('/users/me/addresses').catch(() => [] as ApiAddress[]),
+  ])
+  const defaultAddress = rawAddresses.find((a) => a.isDefault) ?? rawAddresses[0]
+  return {
+    user: mapUserProfile(rawProfile, defaultAddress),
+    addresses: rawAddresses.map(mapAddress),
+  }
+}
+
 /** GET /users/me */
 export async function getProfile(): Promise<User> {
-  const profile = await apiClient<ApiUserProfile>('/users/me')
-  const addresses = await apiClient<ApiAddress[]>('/users/me/addresses').catch(
-    () => []
-  )
-  const defaultAddress = addresses.find((a) => a.isDefault) ?? addresses[0]
-  return mapUserProfile(profile, defaultAddress)
+  const { user } = await getProfileWithAddresses()
+  return user
 }
 
 /** Alias for backwards compatibility */
