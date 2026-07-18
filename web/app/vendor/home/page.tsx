@@ -28,13 +28,12 @@ export default function VendorHomePage() {
   const stats = computeVendorDashboardStats(vendorBookings, reviews)
 
   useEffect(() => {
-    void fetchVendorBookings()
-  }, [fetchVendorBookings])
-
-  useEffect(() => {
     if (!vendor?.id) return
-    getVendorReviews(vendor.id).then(setReviews)
-  }, [vendor?.id])
+    void Promise.all([
+      fetchVendorBookings(),
+      getVendorReviews(vendor.id).then(setReviews),
+    ])
+  }, [vendor?.id, fetchVendorBookings])
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">

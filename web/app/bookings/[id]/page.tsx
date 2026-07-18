@@ -27,6 +27,7 @@ export default function BookingDetailPage({
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const cancelBooking = useBookingsStore((s) => s.cancelBooking)
   const [booking, setBooking] = useState<Booking | null>(null)
+  const [loadError, setLoadError] = useState(false)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -36,7 +37,13 @@ export default function BookingDetailPage({
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
 
   useEffect(() => {
-    getBooking(id).then((b) => setBooking(b ?? null))
+    getBooking(id).then((b) => {
+      if (b) {
+        setBooking(b)
+      } else {
+        setLoadError(true)
+      }
+    })
   }, [id])
 
   const handlePayNow = async () => {
@@ -106,6 +113,17 @@ export default function BookingDetailPage({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (loadError) {
+    return (
+      <AppShell showNav className="py-4">
+        <TopBar showBack title="Booking" />
+        <p className="px-4 pt-4 text-[13px] text-text-secondary">
+          Could not load this booking. It may have been removed or you may not have access.
+        </p>
+      </AppShell>
+    )
   }
 
   if (!booking) {

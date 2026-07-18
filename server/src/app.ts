@@ -114,8 +114,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const respHeaders: Record<string, string | string[]> = {}
   response.headers.forEach((value, key) => {
-    respHeaders[key] = value
+    if (key.toLowerCase() !== 'set-cookie') {
+      respHeaders[key] = value
+    }
   })
+  // getSetCookie() returns each Set-Cookie header as a separate string,
+  // avoiding the overwrite bug when two cookies (refresh + access) are set
+  // on the same response (e.g. after OTP verify or token refresh).
+  const setCookies = response.headers.getSetCookie()
+  if (setCookies.length > 0) {
+    respHeaders['set-cookie'] = setCookies
+  }
   res.writeHead(response.status, respHeaders)
   res.end(Buffer.from(await response.arrayBuffer()))
 }

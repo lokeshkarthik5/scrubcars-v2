@@ -44,10 +44,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const serviceId = searchParams.get('service')
   const createBooking = useBookingsStore((s) => s.createBooking)
   const vehicles = useUserStore((s) => s.vehicles)
-  const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
-  const fetchAddresses = useUserStore((s) => s.fetchAddresses)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const dateOptions = buildDateOptions()
@@ -73,9 +71,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       setSelectedService(preselected ?? null)
     })
     void fetchVehicles()
-    void fetchAddresses()
     void fetchProfile()
-  }, [vendorId, serviceId, fetchVehicles, fetchAddresses, fetchProfile])
+  }, [vendorId, serviceId, fetchVehicles, fetchProfile])
 
   useEffect(() => {
     if (!selectedService) return
@@ -205,16 +202,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </div>
       </section>
 
-      {(vehicles.length === 0 || addresses.length === 0) && (
+      {vehicles.length === 0 && (
         <ScCard className="flex flex-col gap-1 border-warning bg-warning-muted/20">
           <p className="text-[13px] font-medium text-text-primary">Before you book</p>
           <p className="text-[12px] text-text-secondary">
-            {[
-              vehicles.length === 0 && 'add a car',
-              addresses.length === 0 && 'add an address',
-            ]
-              .filter(Boolean)
-              .join(' and ')} to continue.
+            Add a car to continue.
           </p>
           <Link href="/profile" className="mt-1 text-[12px] font-medium text-brand-red">
             Go to profile →
@@ -262,7 +254,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
         <ScButton
-          disabled={!selectedService || !selectedSlot || !selectedVehicle || addresses.length === 0 || loading}
+          disabled={!selectedService || !selectedSlot || !selectedVehicle || loading}
           onClick={handleConfirm}
         >
           {loading

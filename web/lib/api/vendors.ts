@@ -165,11 +165,11 @@ export async function submitVendorOnboarding(
   }
 
   if (step === 3) {
-    await updateVendorJobTypes({
-      dropinEnabled: data.dropin as boolean,
-    })
-    await updateSlotInterval(data.slotInterval as 30 | 45 | 60)
-    await setWorkingHours(data.openTime as string, data.closeTime as string)
+    await Promise.all([
+      updateVendorJobTypes({ dropinEnabled: data.dropin as boolean }),
+      updateSlotInterval(data.slotInterval as 30 | 45 | 60),
+      setWorkingHours(data.openTime as string, data.closeTime as string),
+    ])
 
     const areas = data.areas as Array<{ pincode: string; name: string }>
     for (const area of areas) {
