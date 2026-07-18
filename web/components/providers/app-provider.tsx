@@ -53,6 +53,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const restoreSession = useAuthStore((s) => s.restoreSession)
   const isOnboardingComplete = useVendorOnboardingStore((s) => s.isComplete)
 
+  // On vendors.detlio.com the middleware rewrites clean paths to /vendor/* internally,
+  // so redirect targets should use the clean form (e.g. '/home' not '/vendor/home').
+  const isVendorSubdomain =
+    typeof window !== 'undefined' && window.location.hostname.startsWith('vendors.')
+  const vp = (vendorPath: string) =>
+    isVendorSubdomain ? vendorPath.replace('/vendor', '') || '/' : vendorPath
+
   useEffect(() => {
     setUnauthorizedHandler(async () => {
       const { audience, logout, clearSession } = useAuthStore.getState()
@@ -87,8 +94,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isProfileIncomplete = !isVendorSession && user?.name === 'User'
   const signedInLanding = isVendorSession
     ? vendor
-      ? '/vendor/home'
-      : '/vendor/onboarding/step-1'
+      ? vp('/vendor/home')
+      : vp('/vendor/onboarding/step-1')
     : isProfileIncomplete
       ? '/profile-setup'
       : '/home'
@@ -101,18 +108,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else if (routeAccess === 'public') {
       redirectPath = null
     } else if (!user) {
-      redirectPath = routeAccess === 'customer' ? '/login' : '/vendor/login'
+      redirectPath = routeAccess === 'customer' ? '/login' : vp('/vendor/login')
     } else if (routeAccess === 'customer' && isVendorSession) {
       redirectPath = signedInLanding
     } else if (
       (routeAccess === 'vendor' || routeAccess === 'vendor-onboarding') &&
       !isVendorSession
     ) {
-      redirectPath = '/vendor/login'
+      redirectPath = vp('/vendor/login')
     } else if (routeAccess === 'vendor-onboarding' && vendor && isOnboardingComplete) {
-      redirectPath = '/vendor/home'
+      redirectPath = vp('/vendor/home')
     } else if (routeAccess === 'vendor' && !vendor) {
-      redirectPath = '/vendor/onboarding/step-1'
+      redirectPath = vp('/vendor/onboarding/step-1')
     } else if (routeAccess === 'customer' && isProfileIncomplete && pathname !== '/profile-setup') {
       redirectPath = '/profile-setup'
     }
