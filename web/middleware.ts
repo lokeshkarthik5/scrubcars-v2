@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const VENDOR_HOST = process.env.NEXT_PUBLIC_VENDOR_HOST ?? 'vendors.detlio.com'
+const VENDOR_HOST = process.env.NEXT_PUBLIC_VENDOR_HOST ?? 'vendor.detlio.com'
 
 function isVendorHost(host: string): boolean {
-  return host === VENDOR_HOST || host.startsWith('vendors.')
+  return host === VENDOR_HOST || host.startsWith('vendor.')
 }
 
 // Clean public path on vendors.detlio.com → internal Next.js file path
