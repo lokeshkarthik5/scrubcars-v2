@@ -118,8 +118,9 @@ export async function logout(): Promise<void> {
 }
 
 /** GET /auth/me */
-export async function getAuthMe() {
+export async function getAuthMe({ auth = true }: { auth?: boolean } = {}) {
   return apiClient<{ user: ApiSessionData['user']; vendor: ApiSessionData['vendor'] }>(
-    '/auth/me'
+    '/auth/me',
+    { auth }
   )
 }

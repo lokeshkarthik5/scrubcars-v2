@@ -25,7 +25,7 @@ export const env = {
     : [
         'http://localhost:3000',
         'https://www.detlio.com',
-        'https://vendors.detlio.com',
+        'https://vendor.detlio.com',
       ],
   smsApiKey: process.env.SMS,
   isDev: (process.env.NODE_ENV ?? 'development') !== 'production',

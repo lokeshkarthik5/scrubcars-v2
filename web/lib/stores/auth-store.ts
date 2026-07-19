@@ -86,7 +86,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     console.log('[auth] restoreSession called')
     set({ isSessionReady: false })
     try {
-      const me = await getAuthMe()
+      const me = await getAuthMe({ auth: false })
       console.log('[auth] restoreSession success', { userId: me.user.id })
       set({
         user: mapAuthUser(me.user),
