@@ -72,7 +72,8 @@ export async function getMyVendor(): Promise<ApiVendorProfile> {
 
 /** PATCH /vendors/me/job-types */
 export async function updateVendorJobTypes(data: {
-  dropinEnabled: boolean
+  dropinEnabled?: boolean
+  doorstepEnabled?: boolean
 }): Promise<ApiVendorProfile> {
   return apiClient<ApiVendorProfile>('/vendors/me/job-types', {
     method: 'PATCH',

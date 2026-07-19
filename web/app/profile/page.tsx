@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { IconCar, IconLogout, IconMapPin, IconPlus } from '@tabler/icons-react'
+import { IconCar, IconLogout, IconMapPin, IconPlus, IconTrash } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -9,7 +9,7 @@ import { ScCard } from '@/components/sc/card'
 import { ScInput } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
-import { createAddress, createVehicle } from '@/lib/api/users'
+import { createAddress, createVehicle, deleteAddress, deleteVehicle } from '@/lib/api/users'
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
@@ -51,6 +51,7 @@ export default function ProfilePage() {
   const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm)
   const [addressForm, setAddressForm] = useState(emptyAddressForm)
   const [saving, setSaving] = useState<'vehicle' | 'address' | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const user = profile ?? authUser
 
@@ -108,6 +109,32 @@ export default function ProfilePage() {
       toast.error(err instanceof Error ? err.message : 'Failed to add address')
     } finally {
       setSaving(null)
+    }
+  }
+
+  const removeVehicle = async (id: string) => {
+    setDeleting(id)
+    try {
+      await deleteVehicle(id)
+      useUserStore.setState((s) => ({ vehicles: s.vehicles.filter((v) => v.id !== id) }))
+      toast.success('Vehicle removed')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove vehicle')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const removeAddress = async (id: string) => {
+    setDeleting(id)
+    try {
+      await deleteAddress(id)
+      useUserStore.setState((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) }))
+      toast.success('Address removed')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove address')
+    } finally {
+      setDeleting(null)
     }
   }
 
@@ -212,6 +239,14 @@ export default function ProfilePage() {
                   )}
                 </div>
                 {v.isDefault && <ScBadge variant="success">Default</ScBadge>}
+                <button
+                  type="button"
+                  onClick={() => removeVehicle(v.id)}
+                  disabled={deleting === v.id}
+                  className="shrink-0 text-text-muted transition-colors hover:text-brand-red disabled:opacity-40"
+                >
+                  <IconTrash size={16} />
+                </button>
               </ScCard>
             ))
           )}
@@ -281,6 +316,14 @@ export default function ProfilePage() {
                   <p className="text-[11px] text-text-secondary truncate">{a.address}</p>
                 </div>
                 {a.isDefault && <ScBadge variant="success">Default</ScBadge>}
+                <button
+                  type="button"
+                  onClick={() => removeAddress(a.id)}
+                  disabled={deleting === a.id}
+                  className="shrink-0 text-text-muted transition-colors hover:text-brand-red disabled:opacity-40"
+                >
+                  <IconTrash size={16} />
+                </button>
               </ScCard>
             ))
           )}

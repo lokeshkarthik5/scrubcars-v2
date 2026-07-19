@@ -9,6 +9,7 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { Chip } from '@/components/sc/chip'
+import { ScToggle } from '@/components/sc/toggle'
 import { TopBar } from '@/components/sc/top-bar'
 import { getAvailableSlots } from '@/lib/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
@@ -56,13 +57,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [selectedDate, setSelectedDate] = useState(dateOptions[0].value)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
+  const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [slots, setSlots] = useState<Array<{ time: string; label: string; available: boolean }>>([])
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
 
   useEffect(() => {
-    getVendor(vendorId).then((v) => setVendor(v ?? null))
+    getVendor(vendorId).then((v) => {
+      setVendor(v ?? null)
+      if (v && !v.dropinEnabled && v.doorstepEnabled) {
+        setBookingType('doorstep')
+      }
+    })
     getVendorServices(vendorId).then((svcs) => {
       setServices(svcs)
       const preselected = serviceId
@@ -101,7 +108,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         vendorId,
         serviceId: selectedService.id,
         scheduledAt: selectedSlot,
-        bookingType: 'dropin',
+        bookingType,
         vehicleId: selectedVehicle,
         paymentMethod,
       })
@@ -161,6 +168,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <span className="text-[13px] font-semibold">₹{selectedService.price}</span>
           </div>
         </ScCard>
+      )}
+
+      {vendor && vendor.dropinEnabled && vendor.doorstepEnabled && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-text-primary">Service type</h2>
+          <ScToggle
+            options={[
+              { value: 'dropin' as const, label: 'Drop In' },
+              { value: 'doorstep' as const, label: 'Doorstep' },
+            ]}
+            value={bookingType}
+            onChange={setBookingType}
+          />
+        </section>
       )}
 
       <section>

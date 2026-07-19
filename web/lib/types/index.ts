@@ -33,7 +33,8 @@ export interface Vendor {
   reviewCount: number
   status: VendorStatus
   startingPrice: number
-  bookingType: BookingType
+  dropinEnabled: boolean
+  doorstepEnabled: boolean
   serviceTags: string[]
   isVerified: boolean
   photos: string[]

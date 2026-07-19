@@ -91,6 +91,16 @@ export async function createVehicle(payload: {
   return mapVehicle(vehicle)
 }
 
+/** DELETE /users/me/vehicles/:id */
+export async function deleteVehicle(id: string): Promise<void> {
+  await apiClient(`/users/me/vehicles/${id}`, { method: 'DELETE' })
+}
+
+/** DELETE /users/me/addresses/:id */
+export async function deleteAddress(id: string): Promise<void> {
+  await apiClient(`/users/me/addresses/${id}`, { method: 'DELETE' })
+}
+
 /** GPS location — not implemented on backend; returns placeholder */
 export async function detectLocation(
   lat: number,

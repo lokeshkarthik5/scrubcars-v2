@@ -30,11 +30,22 @@ const VENDOR_ROUTES = [
 ]
 const VENDOR_ONBOARDING_ROUTE = '/vendor/onboarding'
 
+// Clean paths served by the vendor subdomain (middleware strips the /vendor prefix)
+const VENDOR_SUBDOMAIN_GUEST_ROUTES = ['/', '/login', '/verify-otp']
+const VENDOR_SUBDOMAIN_VENDOR_ROUTES = ['/home', '/bookings', '/earnings', '/reviews', '/services', '/settings']
+const VENDOR_SUBDOMAIN_ONBOARDING_ROUTE = '/onboarding'
+
 function matchesRoute(pathname: string, routes: string[]) {
   return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
 
-function getRouteAccess(pathname: string): RouteAccess {
+function getRouteAccess(pathname: string, isVendorSubdomain: boolean): RouteAccess {
+  if (isVendorSubdomain) {
+    if (matchesRoute(pathname, VENDOR_SUBDOMAIN_GUEST_ROUTES)) return 'guest'
+    if (pathname.startsWith(VENDOR_SUBDOMAIN_ONBOARDING_ROUTE)) return 'vendor-onboarding'
+    if (matchesRoute(pathname, VENDOR_SUBDOMAIN_VENDOR_ROUTES)) return 'vendor'
+    return 'public'
+  }
   if (matchesRoute(pathname, GUEST_ROUTES)) return 'guest'
   if (pathname.startsWith(VENDOR_ONBOARDING_ROUTE)) return 'vendor-onboarding'
   if (matchesRoute(pathname, VENDOR_ROUTES)) return 'vendor'
@@ -53,10 +64,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const restoreSession = useAuthStore((s) => s.restoreSession)
   const isOnboardingComplete = useVendorOnboardingStore((s) => s.isComplete)
 
-  // On vendors.detlio.com the middleware rewrites clean paths to /vendor/* internally,
+  // On vendor.detlio.com the middleware rewrites clean paths to /vendor/* internally,
   // so redirect targets should use the clean form (e.g. '/home' not '/vendor/home').
   const isVendorSubdomain =
-    typeof window !== 'undefined' && window.location.hostname.startsWith('vendors.')
+    typeof window !== 'undefined' && window.location.hostname.startsWith('vendor.')
   const vp = (vendorPath: string) =>
     isVendorSubdomain ? vendorPath.replace('/vendor', '') || '/' : vendorPath
 
@@ -89,7 +100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void restoreSession()
   }, [isHydrated, restoreSession])
 
-  const routeAccess = getRouteAccess(pathname)
+  const routeAccess = getRouteAccess(pathname, isVendorSubdomain)
   const isVendorSession = audience === 'vendor'
   const isProfileIncomplete = !isVendorSession && user?.name === 'User'
   const signedInLanding = isVendorSession
@@ -129,7 +140,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (redirectPath && redirectPath !== pathname) router.replace(redirectPath)
   }, [pathname, redirectPath, router])
 
-  if (!isHydrated || !isSessionReady || redirectPath) {
+  if (!isHydrated || !isSessionReady || (redirectPath && redirectPath !== pathname)) {
     return null
   }
 

@@ -14,6 +14,7 @@ import {
   getWorkingHours,
   setVendorWorkingHours,
   updateSlotInterval,
+  updateVendorJobTypes,
   updateVendorSettings,
 } from '@/lib/api/vendors'
 import type {
@@ -146,6 +147,12 @@ export default function VendorSettingsPage() {
       setVendor(updated)
     })
 
+  const saveJobType = (field: 'dropinEnabled' | 'doorstepEnabled', value: boolean) =>
+    runAction(`job-type-${field}`, async () => {
+      const updated = await updateVendorJobTypes({ [field]: value })
+      setVendor(updated)
+    })
+
   const saveWorkingHours = () =>
     runAction('working-hours', async () => {
       const updated = await setVendorWorkingHours(
@@ -241,6 +248,48 @@ export default function VendorSettingsPage() {
                 />
               ))}
             </div>
+          </ScCard>
+        </section>
+      )}
+
+      {vendor && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold">Job types</h2>
+          <ScCard className="flex flex-col gap-3">
+            {(
+              [
+                { field: 'dropinEnabled', label: 'Drop In', description: 'Customers visit your garage' },
+                { field: 'doorstepEnabled', label: 'Doorstep', description: 'You travel to the customer' },
+              ] as const
+            ).map(({ field, label, description }) => {
+              const enabled = vendor[field]
+              const key = `job-type-${field}`
+              return (
+                <div key={field} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[13px] font-medium text-text-primary">{label}</p>
+                    <p className="text-[11px] text-text-secondary">{description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={saving === key}
+                    onClick={() => saveJobType(field, !enabled)}
+                    className={cn(
+                      'relative h-6 w-11 rounded-full transition-colors',
+                      enabled ? 'bg-brand-red' : 'bg-surface border border-border',
+                      saving === key && 'opacity-50'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'absolute top-0.5 h-5 w-5 rounded-full bg-brand-white shadow transition-transform',
+                        enabled ? 'left-[22px]' : 'left-0.5'
+                      )}
+                    />
+                  </button>
+                </div>
+              )
+            })}
           </ScCard>
         </section>
       )}
