@@ -34,6 +34,7 @@ const emptyAddressForm = {
   label: '',
   address: '',
   city: '',
+  pincode: '',
 }
 
 export default function ProfilePage() {
@@ -90,12 +91,16 @@ export default function ProfilePage() {
   }
 
   const submitAddress = async () => {
-    if (!addressForm.label || !addressForm.address || !addressForm.city) return
+    if (!addressForm.label || !addressForm.address || !addressForm.city || !addressForm.pincode) return
+    if (!/^\d{6}$/.test(addressForm.pincode)) {
+      toast.error('Enter a valid 6-digit pincode')
+      return
+    }
     setSaving('address')
     try {
       const created = await createAddress({
         label: addressForm.label,
-        address: addressForm.address,
+        address: `${addressForm.address}, ${addressForm.pincode}`,
         city: addressForm.city,
         lat: 13.0067,
         lng: 80.2574,
@@ -280,15 +285,25 @@ export default function ProfilePage() {
               value={addressForm.address}
               onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })}
             />
-            <ScInput
-              label="City"
-              placeholder="e.g. Chennai"
-              value={addressForm.city}
-              onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <ScInput
+                label="City"
+                placeholder="e.g. Chennai"
+                value={addressForm.city}
+                onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+              />
+              <ScInput
+                label="Pincode"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="600001"
+                value={addressForm.pincode}
+                onChange={(e) => setAddressForm({ ...addressForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              />
+            </div>
             <div className="flex gap-2">
               <ScButton
-                disabled={!addressForm.label || !addressForm.address || !addressForm.city || saving === 'address'}
+                disabled={!addressForm.label || !addressForm.address || !addressForm.city || !addressForm.pincode || saving === 'address'}
                 onClick={submitAddress}
               >
                 {saving === 'address' ? 'Saving...' : 'Save address'}
@@ -314,6 +329,7 @@ export default function ProfilePage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-text-primary">{a.label}</p>
                   <p className="text-[11px] text-text-secondary truncate">{a.address}</p>
+                  {a.pincode && <p className="text-[11px] text-text-muted">{a.pincode}</p>}
                 </div>
                 {a.isDefault && <ScBadge variant="success">Default</ScBadge>}
                 <button
