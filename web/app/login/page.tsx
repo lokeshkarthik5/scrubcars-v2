@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { IconDroplet } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
@@ -11,8 +11,10 @@ import { useAuthStore } from '@/lib/stores/auth-store'
 
 const BYPASS_PHONE = '8015676678'
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? ''
   const verifyOtp = useAuthStore((s) => s.verifyOtp)
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,12 +36,13 @@ export default function LoginPage() {
           purpose,
           name: purpose === 'register' ? 'User' : undefined,
         })
-        router.push(result.isNewUser ? '/profile-setup' : '/home?welcome=1')
+        router.push(result.isNewUser ? '/profile-setup' : (next || '/home?welcome=1'))
         return
       }
       sessionStorage.setItem('auth_phone', phone)
       sessionStorage.setItem('auth_audience', 'customer')
       sessionStorage.setItem('auth_purpose', purpose)
+      if (next) sessionStorage.setItem('auth_next', next)
       router.push('/verify-otp')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to send OTP')
@@ -88,5 +91,13 @@ export default function LoginPage() {
         By continuing you agree to our Terms &amp; Privacy Policy
       </p>
     </AppShell>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   )
 }

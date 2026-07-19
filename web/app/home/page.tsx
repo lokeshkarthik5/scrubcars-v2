@@ -38,9 +38,9 @@ function HomeContent() {
   const user = profile ?? authUser
 
   useEffect(() => {
-    getVendors({ bookingType: 'dropin' }).then(setVendors).catch(console.error)
-    void fetchProfile().catch(() => undefined)
-  }, [fetchProfile])
+    getVendors().then(setVendors).catch(console.error)
+    if (authUser) void fetchProfile().catch(() => undefined)
+  }, [authUser, fetchProfile])
 
   useEffect(() => {
     if (searchParams.get('welcome') === '1') {
@@ -60,7 +60,7 @@ function HomeContent() {
         <button className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5">
           <IconMapPin size={16} className="text-brand-red" />
           <span className="text-[13px] font-medium text-text-primary">
-            {user?.area ?? 'Set location'}
+            {user?.area ?? ''}
           </span>
         </button>
         <button className="text-text-secondary">

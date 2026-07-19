@@ -12,12 +12,7 @@ type RouteAccess = 'public' | 'guest' | 'customer' | 'vendor' | 'vendor-onboardi
 
 const GUEST_ROUTES = ['/', '/login', '/verify-otp', '/vendor/login', '/vendor/verify-otp']
 const CUSTOMER_ROUTES = [
-  '/home',
-  '/search',
-  '/garage',
   '/book',
-  '/bookings',
-  '/profile',
   '/profile-setup',
 ]
 const VENDOR_ROUTES = [

@@ -57,10 +57,24 @@ export default function ProfilePage() {
   const user = profile ?? authUser
 
   useEffect(() => {
+    if (!authUser) return
     void fetchProfile().catch(() => undefined)
     void fetchVehicles().catch(() => undefined)
     void fetchAddresses().catch(() => undefined)
-  }, [fetchProfile, fetchVehicles, fetchAddresses])
+  }, [authUser, fetchProfile, fetchVehicles, fetchAddresses])
+
+  if (!authUser) {
+    return (
+      <AppShell showNav className="gap-4 py-4">
+        <TopBar title="Profile" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+          <p className="text-[15px] font-semibold text-text-primary">Login to view your profile</p>
+          <p className="text-[13px] text-text-secondary">Sign in to manage your vehicles and addresses</p>
+          <ScButton className="mt-2 w-auto px-8" onClick={() => (window.location.href = '/login')}>Login</ScButton>
+        </div>
+      </AppShell>
+    )
+  }
 
   const handleLogout = async () => {
     await logout()

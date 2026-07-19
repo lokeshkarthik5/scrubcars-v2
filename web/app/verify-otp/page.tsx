@@ -28,10 +28,13 @@ export default function VerifyOtpPage() {
   const [error, setError] = useState('')
   const [otp, setOtp] = useState('')
 
+  const [next, setNext] = useState('')
+
   useEffect(() => {
     setPhone(sessionStorage.getItem('auth_phone') ?? '')
     setPurpose((sessionStorage.getItem('auth_purpose') as OtpPurpose) ?? 'login')
     setAudience((sessionStorage.getItem('auth_audience') as AuthAudience) ?? 'customer')
+    setNext(sessionStorage.getItem('auth_next') ?? '')
   }, [])
 
   useEffect(() => {
@@ -55,10 +58,11 @@ export default function VerifyOtpPage() {
         purpose,
         name: purpose === 'register' ? 'User' : undefined,
       })
+      sessionStorage.removeItem('auth_next')
       if (result.isNewUser) {
         router.push('/profile-setup')
       } else {
-        router.push('/home?welcome=1')
+        router.push(next || '/home?welcome=1')
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Verification failed')

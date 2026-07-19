@@ -1,18 +1,19 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { IconHeart } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
-import { StarRating, Stars } from '@/components/sc/stars'
+import { Stars } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
 import { CATEGORY_LABELS } from '@/lib/mock/data'
 import { getVendorReviews } from '@/lib/api/reviews'
 import { getVendorServices } from '@/lib/api/services'
 import { getVendor } from '@/lib/api/vendors'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import type { Review, Service, Vendor } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -24,11 +25,22 @@ export default function GaragePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
+  const router = useRouter()
+  const user = useAuthStore((s) => s.user)
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [services, setServices] = useState<Service[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
   const [selectedService, setSelectedService] = useState<string | null>(null)
+
+  const handleBook = () => {
+    const bookPath = `/book/${id}${selectedService ? `?service=${selectedService}` : ''}`
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(bookPath)}`)
+    } else {
+      router.push(bookPath)
+    }
+  }
 
   useEffect(() => {
     getVendor(id).then((v) => setVendor(v ?? null))
@@ -170,9 +182,7 @@ export default function GaragePage({
       </div>
 
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
-        <Link href={`/book/${id}${selectedService ? `?service=${selectedService}` : ''}`}>
-          <ScButton>Book now</ScButton>
-        </Link>
+        <ScButton onClick={handleBook}>Book now</ScButton>
       </div>
     </AppShell>
   )
