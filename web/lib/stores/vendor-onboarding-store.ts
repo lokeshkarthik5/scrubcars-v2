@@ -9,6 +9,7 @@ interface OnboardingData {
   city: string
   phone: string
   address: string
+  pincode: string
   lat: number
   lng: number
   dropin: boolean
@@ -32,6 +33,7 @@ const initialState: OnboardingData = {
   city: '',
   phone: '',
   address: '',
+  pincode: '',
   lat: 13.0067,
   lng: 80.2574,
   dropin: true,

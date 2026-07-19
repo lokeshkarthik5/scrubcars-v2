@@ -1,0 +1,1 @@
+ALTER TABLE "vendors" ADD COLUMN IF NOT EXISTS "pincode" varchar(10) NOT NULL DEFAULT '';

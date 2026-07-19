@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { IconLogout, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconLogout } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -10,10 +10,7 @@ import { ScInput } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
 import {
-  createServiceArea,
-  deleteServiceArea,
   getMyVendor,
-  getServiceAreas,
   getWorkingHours,
   setVendorWorkingHours,
   updateSlotInterval,
@@ -21,7 +18,6 @@ import {
   updateVendorSettings,
 } from '@/lib/api/vendors'
 import type {
-  ApiServiceArea,
   ApiVendorProfile,
   ApiWorkingHours,
 } from '@/lib/api/types'
@@ -81,12 +77,11 @@ export default function VendorSettingsPage() {
     phone: '',
     address: '',
     city: '',
+    pincode: '',
   })
   const [workingHours, setWorkingHours] = useState<WorkingHoursForm[]>(
     defaultWorkingHours()
   )
-  const [serviceAreas, setServiceAreas] = useState<ApiServiceArea[]>([])
-  const [newPincode, setNewPincode] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const logout = useAuthStore((s) => s.logout)
@@ -98,10 +93,9 @@ export default function VendorSettingsPage() {
     async function loadSettings() {
       setLoading(true)
       try {
-        const [vendorData, hoursData, areasData] = await Promise.all([
+        const [vendorData, hoursData] = await Promise.all([
           getMyVendor(),
           getWorkingHours(),
-          getServiceAreas(),
         ])
 
         setVendor(vendorData)
@@ -110,9 +104,9 @@ export default function VendorSettingsPage() {
           phone: vendorData.phone,
           address: vendorData.address,
           city: vendorData.city,
+          pincode: vendorData.pincode,
         })
         setWorkingHours(mapWorkingHours(hoursData))
-        setServiceAreas(areasData)
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to load settings')
       } finally {
@@ -143,6 +137,7 @@ export default function VendorSettingsPage() {
         phone: profileForm.phone,
         address: profileForm.address,
         city: profileForm.city,
+        pincode: profileForm.pincode,
         lat: vendor.lat,
         lng: vendor.lng,
       })
@@ -159,21 +154,6 @@ export default function VendorSettingsPage() {
     runAction(`job-type-${field}`, async () => {
       const updated = await updateVendorJobTypes({ [field]: value })
       setVendor(updated)
-    })
-
-  const addPincode = () =>
-    runAction('pincode-add', async () => {
-      if (!/^\d{6}$/.test(newPincode)) throw new Error('Enter a valid 6-digit pincode')
-      if (serviceAreas.some((a) => a.pincode === newPincode)) throw new Error('Pincode already added')
-      const created = await createServiceArea({ areaName: vendor?.city ?? 'Service area', pincode: newPincode })
-      setServiceAreas((current) => [...current, created])
-      setNewPincode('')
-    })
-
-  const removePincode = (id: string) =>
-    runAction(`pincode-delete-${id}`, async () => {
-      await deleteServiceArea(id)
-      setServiceAreas((current) => current.filter((a) => a.id !== id))
     })
 
   const saveWorkingHours = () =>
@@ -250,6 +230,16 @@ export default function VendorSettingsPage() {
               setProfileForm({ ...profileForm, city: e.target.value })
             }
           />
+          <ScInput
+            label="Pincode"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="600001"
+            value={profileForm.pincode}
+            onChange={(e) =>
+              setProfileForm({ ...profileForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })
+            }
+          />
           <ScButton disabled={saving === 'profile'} onClick={saveProfile}>
             {saving === 'profile' ? 'Saving...' : 'Save profile'}
           </ScButton>
@@ -316,50 +306,6 @@ export default function VendorSettingsPage() {
           </ScCard>
         </section>
       )}
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Service pincodes</h2>
-        <ScCard className="flex flex-col gap-3">
-          <div className="flex gap-2">
-            <ScInput
-              label="Pincode"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="600001"
-              value={newPincode}
-              onChange={(e) => setNewPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            />
-            <ScButton
-              className="mt-5 h-[42px] shrink-0"
-              variant="secondary"
-              fullWidth={false}
-              disabled={newPincode.length !== 6 || saving === 'pincode-add'}
-              onClick={addPincode}
-            >
-              <IconPlus size={16} />
-            </ScButton>
-          </div>
-          {serviceAreas.length === 0 ? (
-            <p className="text-[12px] text-text-secondary">No pincodes added yet.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {serviceAreas.map((area) => (
-                <div key={area.id} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5">
-                  <span className="text-[12px] font-medium text-text-primary">{area.pincode}</span>
-                  <button
-                    type="button"
-                    onClick={() => removePincode(area.id)}
-                    disabled={saving === `pincode-delete-${area.id}`}
-                    className="text-text-muted transition-colors hover:text-brand-red disabled:opacity-40"
-                  >
-                    <IconTrash size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </ScCard>
-      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Working hours</h2>

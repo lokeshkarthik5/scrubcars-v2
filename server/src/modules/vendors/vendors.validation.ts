@@ -24,6 +24,7 @@ export const createVendorSchema = z.object({
   phone: phoneSchema,
   address: z.string().trim().min(1),
   city: z.string().trim().min(1).max(100),
+  pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number'),
   lat: z.number().finite(),
   lng: z.number().finite(),
 })
@@ -34,6 +35,7 @@ export const updateVendorSchema = z
     phone: phoneSchema.optional(),
     address: z.string().trim().min(1).optional(),
     city: z.string().trim().min(1).max(100).optional(),
+    pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number').optional(),
     lat: z.number().finite().optional(),
     lng: z.number().finite().optional(),
   })
@@ -44,9 +46,10 @@ export const updateVendorSchema = z
 export const updateJobTypesSchema = z
   .object({
     dropinEnabled: z.boolean().optional(),
+    doorstepEnabled: z.boolean().optional(),
   })
-  .refine((data) => data.dropinEnabled !== undefined, {
-    message: 'dropinEnabled must be provided',
+  .refine((data) => data.dropinEnabled !== undefined || data.doorstepEnabled !== undefined, {
+    message: 'At least one of dropinEnabled or doorstepEnabled must be provided',
   })
 
 export const updateSlotIntervalSchema = z.object({
@@ -96,10 +99,8 @@ export const serviceCategorySchema = z.enum([
 ])
 
 export const listPublicVendorsQuerySchema = z.object({
-  booking_type: z.enum(['doorstep', 'dropin']).optional(),
   category: serviceCategorySchema.optional(),
   q: z.string().trim().min(1).optional(),
-  pincode: z.string().trim().min(6).max(10).optional(),
 })
 
 export const createServiceSchema = z.object({

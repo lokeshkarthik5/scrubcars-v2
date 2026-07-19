@@ -91,6 +91,7 @@ export interface ApiPublicVendor {
   phone: string
   address: string
   city: string
+  pincode: string
   lat: number
   lng: number
   isVerified: boolean
@@ -110,6 +111,7 @@ export interface ApiVendorProfile {
   phone: string
   address: string
   city: string
+  pincode: string
   lat: number
   lng: number
   isVerified: boolean

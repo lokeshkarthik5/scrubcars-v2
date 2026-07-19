@@ -17,11 +17,8 @@ export function AppShell({
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black">
       <main
-        className={cn(
-          'flex flex-1 flex-col px-4',
-          showNav && 'pb-[calc(5rem+env(safe-area-inset-bottom))]',
-          className
-        )}
+        className={cn('flex flex-1 flex-col px-4', className)}
+        style={showNav ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' } : undefined}
       >
         {children}
       </main>

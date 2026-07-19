@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
-import { ScTextarea } from '@/components/sc/input'
+import { ScInput, ScTextarea } from '@/components/sc/input'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { submitVendorOnboarding } from '@/lib/api/vendors'
@@ -16,17 +16,23 @@ export default function VendorOnboardingStep2() {
   const onboarding = useVendorOnboardingStore()
   const update = useVendorOnboardingStore((s) => s.update)
   const [address, setAddress] = useState(onboarding.address)
+  const [pincode, setPincode] = useState(onboarding.pincode)
   const [loading, setLoading] = useState(false)
 
   const handleContinue = async () => {
+    if (!/^\d{6}$/.test(pincode)) {
+      toast.error('Enter a valid 6-digit pincode')
+      return
+    }
     setLoading(true)
     try {
-      update({ address })
+      update({ address, pincode })
       await submitVendorOnboarding(2, {
         businessName: onboarding.businessName,
         phone: onboarding.phone,
         address,
         city: onboarding.city,
+        pincode,
         lat: onboarding.lat,
         lng: onboarding.lng,
       })
@@ -51,7 +57,16 @@ export default function VendorOnboardingStep2() {
         onChange={(e) => setAddress(e.target.value)}
       />
 
-      <ScButton className="mt-auto mb-4" disabled={!address.trim() || loading} onClick={handleContinue}>
+      <ScInput
+        label="Pincode"
+        inputMode="numeric"
+        maxLength={6}
+        placeholder="600001"
+        value={pincode}
+        onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+      />
+
+      <ScButton className="mt-auto mb-4" disabled={!address.trim() || pincode.length !== 6 || loading} onClick={handleContinue}>
         Continue
       </ScButton>
     </AppShell>

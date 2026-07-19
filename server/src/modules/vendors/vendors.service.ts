@@ -37,6 +37,7 @@ export type VendorResponse = {
   phone: string
   address: string
   city: string
+  pincode: string
   lat: number
   lng: number
   isVerified: boolean
@@ -105,6 +106,7 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     phone: vendor.phone,
     address: vendor.address,
     city: vendor.city,
+    pincode: vendor.pincode,
     lat: vendor.lat,
     lng: vendor.lng,
     isVerified: vendor.isVerified,
@@ -184,13 +186,6 @@ export const vendorsService = {
 
     return vendors
       .filter((vendor) => {
-        if (!vendor.dropinEnabled) {
-          return false
-        }
-        if (query.booking_type === 'doorstep') return false
-        if (query.booking_type === 'dropin' && !vendor.dropinEnabled) {
-          return false
-        }
         if (query.q) {
           const term = query.q.toLowerCase()
           const matchesName = vendor.businessName.toLowerCase().includes(term)
@@ -218,7 +213,7 @@ export const vendorsService = {
           city: vendor.city,
           isVerified: vendor.isVerified,
           status: vendor.status,
-          doorstepEnabled: false,
+          doorstepEnabled: vendor.doorstepEnabled,
           dropinEnabled: vendor.dropinEnabled,
           startingPrice:
             prices.length > 0 ? Math.min(...prices) : null,
@@ -287,8 +282,8 @@ export const vendorsService = {
   async updateJobTypes(ownerId: string, input: UpdateJobTypesInput) {
     const vendor = await getOwnedVendor(ownerId)
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
-      doorstepEnabled: false,
-      dropinEnabled: input.dropinEnabled,
+      ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
+      ...(input.doorstepEnabled !== undefined && { doorstepEnabled: input.doorstepEnabled }),
     })
     return toVendorResponse(updated)
   },

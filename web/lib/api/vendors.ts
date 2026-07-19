@@ -56,6 +56,7 @@ export async function createVendor(data: {
   phone: string
   address: string
   city: string
+  pincode: string
   lat: number
   lng: number
 }): Promise<void> {
@@ -159,6 +160,7 @@ export async function submitVendorOnboarding(
       phone: data.phone as string,
       address: data.address as string,
       city: data.city as string,
+      pincode: data.pincode as string,
       lat: data.lat as number,
       lng: data.lng as number,
     })
@@ -189,6 +191,7 @@ export async function updateVendorSettings(
     phone: string
     address: string
     city: string
+    pincode: string
     lat: number
     lng: number
   }>

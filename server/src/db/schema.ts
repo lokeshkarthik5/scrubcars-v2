@@ -177,6 +177,7 @@ export const vendors = pgTable(
     phone: varchar('phone', { length: 20 }).notNull(),
     address: text('address').notNull(),
     city: varchar('city', { length: 100 }).notNull(),
+    pincode: varchar('pincode', { length: 10 }).notNull().default(''),
     lat: real('lat').notNull(),
     lng: real('lng').notNull(),
     isVerified: boolean('is_verified').default(false).notNull(),
