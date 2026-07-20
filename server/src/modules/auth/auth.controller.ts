@@ -11,7 +11,7 @@ type AuthContext = Context<{ Variables: AuthVariables }>
 const REFRESH_COOKIE = 'refresh_token'
 const ACCESS_COOKIE = 'access_token'
 
-const COOKIE_SAME_SITE = env.isDev ? 'Lax' : 'None'
+const COOKIE_SAME_SITE = 'Lax'
 
 function setRefreshCookie(c: AuthContext, token: string) {
   setCookie(c, REFRESH_COOKIE, token, {
