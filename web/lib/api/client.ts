@@ -69,7 +69,10 @@ export async function apiClient<T>(
 ): Promise<T> {
   const { params, headers, auth = true, ...rest } = options
 
-  const url = new URL(`${API_BASE_URL}${endpoint}`)
+  const url = new URL(
+    `${API_BASE_URL}${endpoint}`,
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+  )
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) url.searchParams.set(key, String(value))
