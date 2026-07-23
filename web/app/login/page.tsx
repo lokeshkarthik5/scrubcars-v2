@@ -9,7 +9,7 @@ import { sendOtp } from '@/lib/api/auth'
 import { ApiError } from '@/lib/api/client'
 import { useAuthStore } from '@/lib/stores/auth-store'
 
-const BYPASS_PHONE = '8015676678'
+const BYPASS_PHONES = new Set(['7358197924', '9566141671', '8015676678'])
 
 function LoginContent() {
   const router = useRouter()
@@ -28,7 +28,7 @@ function LoginContent() {
     setError('')
     try {
       const purpose = await sendOtp({ phone, audience: 'customer' })
-      if (phone === BYPASS_PHONE) {
+      if (BYPASS_PHONES.has(phone)) {
         const result = await verifyOtp({
           phone,
           otp: '000000',

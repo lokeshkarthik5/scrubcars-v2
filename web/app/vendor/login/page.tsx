@@ -9,7 +9,7 @@ import { sendOtp } from '@/lib/api/auth'
 import { ApiError } from '@/lib/api/client'
 import { useAuthStore } from '@/lib/stores/auth-store'
 
-const BYPASS_PHONE = '8015676678'
+const BYPASS_PHONES = new Set(['7358197924', '9566141671', '8015676678'])
 
 export default function VendorLoginPage() {
   const router = useRouter()
@@ -25,7 +25,7 @@ export default function VendorLoginPage() {
     setError('')
     try {
       const purpose = await sendOtp({ phone, audience: 'vendor' })
-      if (phone === BYPASS_PHONE) {
+      if (BYPASS_PHONES.has(phone)) {
         const result = await verifyOtp({
           phone,
           otp: '000000',
