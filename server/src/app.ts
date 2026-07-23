@@ -26,9 +26,11 @@ app.use('/api/*', async (c, next) => {
   const isCold = coldStart
   coldStart = false
   const t = performance.now()
+  logger.info({ method: c.req.method, path: c.req.path }, 'request:start')
   await next()
   const ms = (performance.now() - t).toFixed(1)
   const cold = isCold ? ' [cold-start]' : ''
+  logger.info({ method: c.req.method, path: c.req.path, status: c.res.status, ms: Number(ms), cold: isCold }, 'request:end')
   console.log(`[REQ]${cold} ${c.req.method} ${c.req.path} → ${c.res.status} (${ms}ms)`)
 })
 

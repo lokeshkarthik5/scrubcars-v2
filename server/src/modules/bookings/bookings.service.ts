@@ -139,12 +139,17 @@ async function validateSlotAvailability(
 ) {
   const date = getDateKeyFromScheduledAt(scheduledAt)
   const dayOfWeek = getDayOfWeekFromDate(date)
+  log.info({ vendorId, serviceId, date, dayOfWeek, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_check_start')
+
   const hours = await vendorsRepository.findWorkingHoursForDay(
     vendorId,
     dayOfWeek
   )
 
+  log.info({ vendorId, date, dayOfWeek, hours: hours ? { openTime: hours.openTime, closeTime: hours.closeTime, isClosed: hours.isClosed } : null }, 'booking:working_hours_fetched')
+
   if (!hours || hours.isClosed) {
+    log.warn({ vendorId, date, dayOfWeek, hoursFound: !!hours, isClosed: hours?.isClosed }, 'booking:slot_unavailable_closed')
     throw new AppError(
       400,
       'Selected slot is not available',
@@ -157,6 +162,8 @@ async function validateSlotAvailability(
     date
   )
 
+  log.info({ vendorId, date, existingBookingsCount: dayBookings.length }, 'booking:day_bookings_fetched')
+
   const bookedRanges: BookedRange[] = dayBookings.map((booking) => {
     const durationMins = booking.service?.durationMins ?? serviceDurationMins
     const start = booking.scheduledAt
@@ -167,6 +174,7 @@ async function validateSlotAvailability(
   const vendor = await bookingsRepository.findVendorById(vendorId)
 
   if (!vendor) {
+    log.error({ vendorId }, 'booking:vendor_missing_in_slot_check')
     throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
   }
 
@@ -180,13 +188,18 @@ async function validateSlotAvailability(
     bookedRanges,
   })
 
+  log.info({ vendorId, date, availableSlotsCount: availableSlots.length, requestedSlot: scheduledAt.toISOString() }, 'booking:available_slots_computed')
+
   if (!isScheduledAtAvailable(scheduledAt, availableSlots)) {
+    log.warn({ vendorId, date, scheduledAt: scheduledAt.toISOString(), availableSlotsCount: availableSlots.length }, 'booking:slot_unavailable_taken')
     throw new AppError(
       400,
       'Selected slot is not available',
       'SLOT_UNAVAILABLE'
     )
   }
+
+  log.info({ vendorId, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_available')
 }
 
 async function getBookingForCustomer(userId: string, bookingId: string) {
@@ -256,112 +269,153 @@ export const bookingsService = {
   },
 
   async createBooking(userId: string, input: CreateBookingInput) {
-    const scheduledAt = new Date(input.scheduledAt)
-
-    if (Number.isNaN(scheduledAt.getTime())) {
-      throw new AppError(400, 'Invalid scheduledAt', 'INVALID_SCHEDULED_AT')
-    }
-
-    if (scheduledAt.getTime() <= Date.now()) {
-      throw new AppError(
-        400,
-        'Cannot book a slot in the past',
-        'INVALID_SCHEDULED_AT'
-      )
-    }
-
-    const vendor = await bookingsRepository.findPublicVendorById(input.vendorId)
-
-    if (!vendor) {
-      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
-    }
-
-    if (input.bookingType === 'dropin' && !vendor.dropinEnabled) {
-      throw new AppError(
-        400,
-        'Vendor does not accept drop-in bookings',
-        'DROPIN_NOT_ENABLED'
-      )
-    }
-
-    const service = await bookingsRepository.findServiceForVendor(
-      vendor.id,
-      input.serviceId
-    )
-
-    if (!service || !service.isActive) {
-      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
-    }
-
-    const vehicle = await bookingsRepository.findVehicleForUser(
+    log.info({
       userId,
-      input.vehicleId
-    )
+      vendorId: input.vendorId,
+      serviceId: input.serviceId,
+      vehicleId: input.vehicleId,
+      scheduledAt: input.scheduledAt,
+      bookingType: input.bookingType,
+      paymentMethod: input.paymentMethod,
+    }, 'booking:create_start')
 
-    if (!vehicle) {
-      throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
-    }
+    try {
+      const scheduledAt = new Date(input.scheduledAt)
 
-    let lat: number | null = null
-    let lng: number | null = null
-    let address: string | null = null
+      if (Number.isNaN(scheduledAt.getTime())) {
+        log.warn({ userId, scheduledAt: input.scheduledAt }, 'booking:invalid_scheduled_at')
+        throw new AppError(400, 'Invalid scheduledAt', 'INVALID_SCHEDULED_AT')
+      }
 
-    await validateSlotAvailability(
-      vendor.id,
-      service.id,
-      scheduledAt,
-      service.durationMins
-    )
+      if (scheduledAt.getTime() <= Date.now()) {
+        log.warn({ userId, scheduledAt: scheduledAt.toISOString() }, 'booking:scheduled_at_in_past')
+        throw new AppError(
+          400,
+          'Cannot book a slot in the past',
+          'INVALID_SCHEDULED_AT'
+        )
+      }
 
-    const bookingDate = getDateKeyFromScheduledAt(scheduledAt)
-    const result =
-      await bookingsRepository.createBookingWithPayment({
+      const vendor = await bookingsRepository.findPublicVendorById(input.vendorId)
+      log.info({ vendorId: input.vendorId, found: !!vendor, isVerified: vendor?.isVerified, status: vendor?.status }, 'booking:vendor_lookup')
+
+      if (!vendor) {
+        log.warn({ userId, vendorId: input.vendorId }, 'booking:vendor_not_found')
+        throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+      }
+
+      if (input.bookingType === 'dropin' && !vendor.dropinEnabled) {
+        log.warn({ userId, vendorId: vendor.id, bookingType: input.bookingType }, 'booking:dropin_not_enabled')
+        throw new AppError(
+          400,
+          'Vendor does not accept drop-in bookings',
+          'DROPIN_NOT_ENABLED'
+        )
+      }
+
+      const service = await bookingsRepository.findServiceForVendor(
+        vendor.id,
+        input.serviceId
+      )
+      log.info({ vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_lookup')
+
+      if (!service || !service.isActive) {
+        log.warn({ userId, vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_not_found')
+        throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+      }
+
+      const vehicle = await bookingsRepository.findVehicleForUser(
+        userId,
+        input.vehicleId
+      )
+      log.info({ userId, vehicleId: input.vehicleId, found: !!vehicle }, 'booking:vehicle_lookup')
+
+      if (!vehicle) {
+        log.warn({ userId, vehicleId: input.vehicleId }, 'booking:vehicle_not_found')
+        throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
+      }
+
+      let lat: number | null = null
+      let lng: number | null = null
+      let address: string | null = null
+
+      log.info({ userId, vendorId: vendor.id, serviceId: service.id, scheduledAt: scheduledAt.toISOString(), durationMins: service.durationMins }, 'booking:slot_validation_start')
+
+      await validateSlotAvailability(
+        vendor.id,
+        service.id,
+        scheduledAt,
+        service.durationMins
+      )
+
+      const bookingDate = getDateKeyFromScheduledAt(scheduledAt)
+      log.info({ userId, vendorId: vendor.id, bookingDate, scheduledAt: scheduledAt.toISOString() }, 'booking:db_insert_start')
+
+      const result =
+        await bookingsRepository.createBookingWithPayment({
+          userId,
+          vendorId: vendor.id,
+          serviceId: service.id,
+          vehicleId: vehicle.id,
+          bookingType: input.bookingType,
+          scheduledAt,
+          lockDate: bookingDate,
+          serviceDurationMins: service.durationMins,
+          amount: service.price,
+          paymentMethod: input.paymentMethod,
+          lat,
+          lng,
+          address,
+        })
+
+      if (result.conflict) {
+        log.warn({ userId, vendorId: vendor.id, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_conflict')
+        throw new AppError(
+          409,
+          'Selected slot was just booked. Please choose another slot.',
+          'SLOT_ALREADY_BOOKED'
+        )
+      }
+
+      const { booking, payment } = result
+      log.info({ bookingId: booking.id, paymentId: payment.id }, 'booking:db_insert_done')
+
+      const fullBooking = await bookingsRepository.findBookingById(booking.id)
+
+      if (!fullBooking) {
+        log.error({ bookingId: booking.id, userId, vendorId: vendor.id }, 'booking:full_fetch_failed')
+        throw new AppError(
+          500,
+          'Failed to load created booking',
+          'BOOKING_CREATE_FAILED'
+        )
+      }
+
+      log.info({
+        bookingId: booking.id,
         userId,
         vendorId: vendor.id,
         serviceId: service.id,
         vehicleId: vehicle.id,
+        scheduledAt: scheduledAt.toISOString(),
         bookingType: input.bookingType,
-        scheduledAt,
-        lockDate: bookingDate,
-        serviceDurationMins: service.durationMins,
-        amount: service.price,
         paymentMethod: input.paymentMethod,
-        lat,
-        lng,
-        address,
-      })
+        amount: service.price,
+      }, 'booking:created')
 
-    if (result.conflict) {
-      log.warn({ vendorId: vendor.id, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_conflict')
-      throw new AppError(
-        409,
-        'Selected slot was just booked. Please choose another slot.',
-        'SLOT_ALREADY_BOOKED'
-      )
+      return toBookingResponse({ ...fullBooking, payment })
+    } catch (err) {
+      if (err instanceof AppError) throw err
+      log.error({
+        err,
+        userId,
+        vendorId: input.vendorId,
+        serviceId: input.serviceId,
+        vehicleId: input.vehicleId,
+        scheduledAt: input.scheduledAt,
+      }, 'booking:create_failed')
+      throw err
     }
-
-    const { booking, payment } = result
-
-    const fullBooking = await bookingsRepository.findBookingById(booking.id)
-
-    if (!fullBooking) {
-      throw new AppError(
-        500,
-        'Failed to load created booking',
-        'BOOKING_CREATE_FAILED'
-      )
-    }
-
-    log.info({
-      bookingId: booking.id,
-      userId,
-      vendorId: vendor.id,
-      serviceId: service.id,
-      scheduledAt: scheduledAt.toISOString(),
-      paymentMethod: input.paymentMethod,
-    }, 'booking:created')
-
-    return toBookingResponse({ ...fullBooking, payment })
   },
 
   async cancelBooking(userId: string, bookingId: string) {

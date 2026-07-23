@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-const API_BASE = 'https://api.detlio.com'
+const API_BASE = process.env.BACKEND_URL ?? 'https://api.detlio.com'
 
 async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname  // e.g. /api/v1/auth/me

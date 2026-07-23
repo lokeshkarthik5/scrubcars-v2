@@ -111,8 +111,8 @@ export const bookingsRepository = {
           and(
             eq(bookings.vendorId, data.vendorId),
             ne(bookings.status, 'cancelled'),
-            sql`${bookings.scheduledAt} < ${requestedEnd}`,
-            sql`${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${data.scheduledAt}`
+            sql`${bookings.scheduledAt} < ${requestedEnd.toISOString()}::timestamptz`,
+            sql`${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${data.scheduledAt.toISOString()}::timestamptz`
           )
         )
         .limit(1)

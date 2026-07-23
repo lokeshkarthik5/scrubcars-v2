@@ -239,13 +239,13 @@ async function createSession(
   }
 }
 
-const BYPASS_PHONE = '8015676678'
+const BYPASS_PHONES = new Set(['7358197924', '9566141671', '8015676678'])
 
 export const authService = {
   async sendOtp(input: SendOtpInput) {
     await validateSendOtpRules(input)
 
-    if (input.phone === BYPASS_PHONE) {
+    if (BYPASS_PHONES.has(input.phone)) {
       log.debug({ phone: maskPhone(input.phone), purpose: input.purpose, audience: input.audience }, 'otp:bypass')
       return {
         phone: input.phone,
@@ -277,7 +277,7 @@ export const authService = {
   },
 
   async verifyOtp(input: VerifyOtpInput): Promise<SessionResult> {
-    if (input.phone === BYPASS_PHONE) {
+    if (BYPASS_PHONES.has(input.phone)) {
       const user = await resolveUserAfterVerification(input)
       log.debug({ userId: user.id, audience: input.audience, purpose: input.purpose }, 'otp:bypass_verified')
       return createSession(user, input.audience)
