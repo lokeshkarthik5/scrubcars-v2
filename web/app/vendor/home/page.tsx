@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { IconBell } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
@@ -24,8 +24,14 @@ export default function VendorHomePage() {
   const [reviews, setReviews] = useState<Review[]>([])
 
   const isVerified = vendor?.isVerified ?? false
-  const pending = vendorBookings.filter((b) => b.status === 'pending')
-  const stats = computeVendorDashboardStats(vendorBookings, reviews)
+  const pending = useMemo(
+    () => vendorBookings.filter((b) => b.status === 'pending'),
+    [vendorBookings]
+  )
+  const stats = useMemo(
+    () => computeVendorDashboardStats(vendorBookings, reviews),
+    [vendorBookings, reviews]
+  )
 
   useEffect(() => {
     if (!vendor?.id) return

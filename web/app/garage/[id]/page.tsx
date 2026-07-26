@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { IconHeart } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
@@ -84,10 +85,12 @@ export default function GaragePage({
       <div className="flex gap-2 overflow-x-auto px-4 pb-4">
         {vendor.photos.length > 0 ? (
           vendor.photos.map((url, i) => (
-            <img
+            <Image
               key={url}
               src={url}
               alt={`${vendor.name} ${i + 1}`}
+              width={112}
+              height={80}
               className="h-20 w-28 shrink-0 rounded-[10px] object-cover"
             />
           ))

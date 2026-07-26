@@ -24,6 +24,16 @@ import { cn } from '@/lib/utils'
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+const BOOKING_TYPE_OPTIONS = [
+  { value: 'dropin' as const, label: 'Drop In' },
+  { value: 'doorstep' as const, label: 'Doorstep' },
+]
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'online' as const, label: 'Online (Razorpay)', icon: IconCreditCard },
+  { value: 'cash' as const, label: 'Cash on service', icon: IconCash },
+]
+
 function buildDateOptions(count = 7) {
   return Array.from({ length: count }, (_, i) => {
     const d = new Date()
@@ -174,10 +184,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <section>
           <h2 className="mb-2 text-sm font-semibold text-text-primary">Service type</h2>
           <ScToggle
-            options={[
-              { value: 'dropin' as const, label: 'Drop In' },
-              { value: 'doorstep' as const, label: 'Doorstep' },
-            ]}
+            options={BOOKING_TYPE_OPTIONS}
             value={bookingType}
             onChange={setBookingType}
           />
@@ -256,10 +263,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       <section>
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Payment method</h2>
         <div className="flex flex-col gap-2">
-          {([
-            { value: 'online' as const, label: 'Online (Razorpay)', icon: IconCreditCard },
-            { value: 'cash' as const, label: 'Cash on service', icon: IconCash },
-          ]).map(({ value, label, icon: Icon }) => (
+          {PAYMENT_METHOD_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button key={value} type="button" onClick={() => setPaymentMethod(value)}>
               <ScCard className={cn('flex items-center gap-3', paymentMethod === value && 'border-brand-red')}>
                 <Icon size={20} className="text-text-secondary" />

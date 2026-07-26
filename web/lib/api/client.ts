@@ -84,34 +84,26 @@ export async function apiClient<T>(
     ...(headers as Record<string, string>),
   }
 
-  console.log(`[api] ${rest.method ?? 'GET'} ${endpoint}`)
-
   let response = await fetch(url.toString(), {
     ...rest,
     headers: requestHeaders,
     credentials: 'include',
   })
 
-  console.log(`[api] ${rest.method ?? 'GET'} ${endpoint} → ${response.status}`)
-
   if (response.status === 401 && auth) {
-    console.log(`[api] 401 on ${endpoint} — trying refresh`)
     const refreshed = await tryRefreshCookies()
     if (refreshed) {
-      console.log(`[api] retry ${endpoint} after refresh`)
       response = await fetch(url.toString(), {
         ...rest,
         headers: requestHeaders,
         credentials: 'include',
       })
-      console.log(`[api] retry ${endpoint} → ${response.status}`)
     }
   }
 
   if (!response.ok) {
     const error = await parseError(response)
     if (auth && error.status === 401) {
-      console.log(`[api] logout triggered by 401 on ${endpoint}`)
       await triggerUnauthorizedLogout()
     }
     throw error

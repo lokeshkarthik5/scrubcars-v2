@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AppShell } from '@/components/sc/app-shell'
 import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -23,23 +23,27 @@ export default function VendorBookingsPage() {
     void fetchVendorBookings()
   }, [fetchVendorBookings])
 
-  const filtered = vendorBookings.filter((b) => {
-    if (tab === 'incoming') return b.status === 'pending'
-    if (tab === 'upcoming') return b.status === 'confirmed' || b.status === 'in_progress'
-    return b.status === 'completed'
-  })
-
-  const pendingCount = vendorBookings.filter((b) => b.status === 'pending').length
+  const { filtered, incomingCount, upcomingCount, completedCount } = useMemo(() => {
+    let incoming = 0, upcoming = 0, completed = 0
+    const result: typeof vendorBookings = []
+    for (const b of vendorBookings) {
+      if (b.status === 'pending') {
+        incoming++
+        if (tab === 'incoming') result.push(b)
+      } else if (b.status === 'confirmed' || b.status === 'in_progress') {
+        upcoming++
+        if (tab === 'upcoming') result.push(b)
+      } else if (b.status === 'completed') {
+        completed++
+        if (tab === 'completed') result.push(b)
+      }
+    }
+    return { filtered: result, incomingCount: incoming, upcomingCount: upcoming, completedCount: completed }
+  }, [vendorBookings, tab])
 
   const handleStatus = async (id: string, status: Booking['status']) => {
     await updateStatus(id, status)
   }
-
-  const incomingCount = vendorBookings.filter((b) => b.status === 'pending').length
-  const upcomingCount = vendorBookings.filter((b) =>
-    ['confirmed', 'in_progress'].includes(b.status)
-  ).length
-  const completedCount = vendorBookings.filter((b) => b.status === 'completed').length
 
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'incoming', label: 'Incoming', count: incomingCount },
@@ -52,8 +56,8 @@ export default function VendorBookingsPage() {
       <TopBar
         title="Bookings"
         right={
-          pendingCount > 0 ? (
-            <ScBadge variant="accent">{pendingCount} new</ScBadge>
+          incomingCount > 0 ? (
+            <ScBadge variant="accent">{incomingCount} new</ScBadge>
           ) : undefined
         }
       />

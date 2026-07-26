@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
 import { setUnauthorizedHandler } from '@/lib/api/client'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
@@ -51,12 +52,16 @@ function getRouteAccess(pathname: string, isVendorSubdomain: boolean): RouteAcce
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const isHydrated = useAuthStore((s) => s.isHydrated)
-  const isSessionReady = useAuthStore((s) => s.isSessionReady)
-  const user = useAuthStore((s) => s.user)
-  const vendor = useAuthStore((s) => s.vendor)
-  const audience = useAuthStore((s) => s.audience)
-  const restoreSession = useAuthStore((s) => s.restoreSession)
+  const { isHydrated, isSessionReady, user, vendor, audience, restoreSession } = useAuthStore(
+    useShallow((s) => ({
+      isHydrated: s.isHydrated,
+      isSessionReady: s.isSessionReady,
+      user: s.user,
+      vendor: s.vendor,
+      audience: s.audience,
+      restoreSession: s.restoreSession,
+    }))
+  )
   const isOnboardingComplete = useVendorOnboardingStore((s) => s.isComplete)
 
   // On vendor.detlio.com the middleware rewrites clean paths to /vendor/* internally,
@@ -91,7 +96,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isHydrated) return
-    console.log('[app-provider] restoreSession firing, isHydrated:', isHydrated)
     void restoreSession()
   }, [isHydrated, restoreSession])
 
