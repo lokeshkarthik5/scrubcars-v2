@@ -136,7 +136,7 @@ export default function BookingDetailPage({
 
   return (
     <AppShell showNav className="gap-5 py-4">
-      <TopBar showBack title={booking.id} />
+      <TopBar showBack title={booking.serviceName} />
 
       <ScCard>
         <p className="text-[13px] font-semibold text-text-primary">{booking.serviceName}</p>
