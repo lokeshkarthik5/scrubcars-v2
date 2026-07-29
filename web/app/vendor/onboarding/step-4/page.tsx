@@ -9,6 +9,7 @@ import { Chip } from '@/components/sc/chip'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { TopBar } from '@/components/sc/top-bar'
 import { createService } from '@/lib/api/services'
+import { updateVendorSettings } from '@/lib/api/vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 import type { ServiceCategory } from '@/lib/types'
@@ -18,6 +19,31 @@ const CATEGORIES: { value: ServiceCategory; label: string }[] = [
   { value: 'detailing', label: 'Detailing' },
   { value: 'coating', label: 'Coating' },
   { value: 'scratch_removal', label: 'Scratch removal' },
+  { value: 'others', label: 'Others' },
+]
+
+// Quick-add presets — each prefills the service name + maps to a category.
+const SERVICE_PRESETS: { name: string; category: ServiceCategory }[] = [
+  { name: 'Exterior / foam wash', category: 'car_wash' },
+  { name: 'Interior cleaning & vacuum', category: 'detailing' },
+  { name: 'Full detailing', category: 'detailing' },
+  { name: 'Ceramic / paint protection', category: 'coating' },
+  { name: 'Polishing & buffing', category: 'detailing' },
+  { name: 'Denting & painting', category: 'scratch_removal' },
+  { name: 'General / periodic service', category: 'others' },
+  { name: 'AC service & repair', category: 'others' },
+  { name: 'Battery service', category: 'others' },
+  { name: 'Windshield & glass', category: 'others' },
+  { name: 'EV servicing', category: 'others' },
+]
+
+const VEHICLE_TYPES = [
+  'Hatchback',
+  'Sedan',
+  'SUV / MUV',
+  'Luxury / Premium',
+  'Electric (EV)',
+  'Commercial / Van',
 ]
 
 const DURATIONS = [30, 45, 60, 90, 120, 180]
@@ -27,6 +53,8 @@ export default function VendorOnboardingStep4() {
   const fetchSession = useAuthStore((s) => s.fetchSession)
   const resetForm = useVendorOnboardingStore((s) => s.resetForm)
   const markComplete = useVendorOnboardingStore((s) => s.markComplete)
+  const vehicleTypes = useVendorOnboardingStore((s) => s.vehicleTypes)
+  const update = useVendorOnboardingStore((s) => s.update)
   const [name, setName] = useState('')
   const [category, setCategory] = useState<ServiceCategory>('car_wash')
   const [price, setPrice] = useState('')
@@ -35,6 +63,18 @@ export default function VendorOnboardingStep4() {
   const [loading, setLoading] = useState(false)
   const [finishing, setFinishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const applyPreset = (preset: { name: string; category: ServiceCategory }) => {
+    setName(preset.name)
+    setCategory(preset.category)
+  }
+
+  const toggleVehicleType = (type: string) =>
+    update({
+      vehicleTypes: vehicleTypes.includes(type)
+        ? vehicleTypes.filter((t) => t !== type)
+        : [...vehicleTypes, type],
+    })
 
   const handleAddService = async () => {
     if (!name || !price) return
@@ -62,6 +102,9 @@ export default function VendorOnboardingStep4() {
     setFinishing(true)
     setError(null)
     try {
+      if (vehicleTypes.length) {
+        await updateVendorSettings({ vehicleTypes })
+      }
       await fetchSession()
       markComplete()
       resetForm()
@@ -77,7 +120,26 @@ export default function VendorOnboardingStep4() {
     <AppShell className="gap-5 py-4">
       <TopBar showBack backHref="/vendor/onboarding/step-3" />
       <ProgressBar progress={100} />
-      <p className="text-[11px] text-text-secondary">Step 4 of 4 — Add a service</p>
+      <p className="text-[11px] text-text-secondary">Step 4 of 4 — Services &amp; vehicles</p>
+
+      <section>
+        <label className="mb-2 block text-[11px] font-medium text-text-secondary">
+          Quick add a common service
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {SERVICE_PRESETS.map((preset) => (
+            <Chip
+              key={preset.name}
+              label={preset.name}
+              selected={name === preset.name}
+              onClick={() => applyPreset(preset)}
+            />
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-text-muted">
+          Tap a preset or type a custom name below, then set price &amp; duration.
+        </p>
+      </section>
 
       <ScInput label="Service name" value={name} onChange={(e) => setName(e.target.value)} />
 
@@ -120,6 +182,22 @@ export default function VendorOnboardingStep4() {
           {addedCount} service{addedCount === 1 ? '' : 's'} added.
         </p>
       )}
+
+      <section>
+        <label className="mb-2 block text-[11px] font-medium text-text-secondary">
+          Vehicle types handled
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {VEHICLE_TYPES.map((type) => (
+            <Chip
+              key={type}
+              label={type}
+              selected={vehicleTypes.includes(type)}
+              onClick={() => toggleVehicleType(type)}
+            />
+          ))}
+        </div>
+      </section>
 
       {error && <p className="text-[12px] text-brand-red">{error}</p>}
 

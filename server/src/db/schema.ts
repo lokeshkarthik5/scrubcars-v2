@@ -37,6 +37,12 @@ export const vendorStatusEnum = pgEnum('vendor_status', [
   'suspended',
 ])
 
+export const vendorPickupEnum = pgEnum('vendor_pickup', [
+  'yes',
+  'nearby',
+  'no',
+])
+
 export const serviceCategoryEnum = pgEnum('service_category', [
   'car_wash',
   'detailing',
@@ -180,6 +186,16 @@ export const vendors = pgTable(
     pincode: varchar('pincode', { length: 10 }).notNull().default(''),
     lat: real('lat').notNull(),
     lng: real('lng').notNull(),
+    whatsapp: varchar('whatsapp', { length: 20 }),
+    email: varchar('email', { length: 255 }),
+    yearsInOperation: varchar('years_in_operation', { length: 20 }),
+    mapsUrl: varchar('maps_url', { length: 2048 }),
+    pickup: vendorPickupEnum('pickup'),
+    pickupRadiusKm: real('pickup_radius_km'),
+    bays: integer('bays'),
+    jobsPerDay: integer('jobs_per_day'),
+    vehicleTypes: text('vehicle_types').array().notNull().default([]),
+    notes: text('notes'),
     isVerified: boolean('is_verified').default(false).notNull(),
     doorstepEnabled: boolean('doorstep_enabled').default(false).notNull(),
     dropinEnabled: boolean('dropin_enabled').default(false).notNull(),

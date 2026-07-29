@@ -50,16 +50,31 @@ export async function getPublicVendor(id: string): Promise<ApiPublicVendor> {
   return apiClient<ApiPublicVendor>(`/vendors/${id}`, { auth: false })
 }
 
+export interface VendorProfileInput {
+  whatsapp?: string
+  email?: string
+  yearsInOperation?: string
+  mapsUrl?: string
+  pickup?: 'yes' | 'nearby' | 'no'
+  pickupRadiusKm?: number
+  bays?: number
+  jobsPerDay?: number
+  vehicleTypes?: string[]
+  notes?: string
+}
+
 /** POST /vendors */
-export async function createVendor(data: {
-  businessName: string
-  phone: string
-  address: string
-  city: string
-  pincode: string
-  lat: number
-  lng: number
-}): Promise<void> {
+export async function createVendor(
+  data: {
+    businessName: string
+    phone: string
+    address: string
+    city: string
+    pincode: string
+    lat: number
+    lng: number
+  } & VendorProfileInput
+): Promise<void> {
   await apiClient('/vendors', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -125,6 +140,23 @@ export async function setWorkingHours(
   await setVendorWorkingHours(days)
 }
 
+/** PUT /vendors/me/working-hours — open on the selected days, closed on the rest */
+export async function setWorkingHoursForDays(
+  openDays: number[],
+  openTime: string,
+  closeTime: string
+): Promise<void> {
+  const open = openDays.length ? new Set(openDays) : new Set([0, 1, 2, 3, 4, 5, 6])
+  const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+    dayOfWeek,
+    openTime: openTime.length === 5 ? `${openTime}:00` : openTime,
+    closeTime: closeTime.length === 5 ? `${closeTime}:00` : closeTime,
+    isClosed: !open.has(dayOfWeek),
+  }))
+
+  await setVendorWorkingHours(days)
+}
+
 /** GET /vendors/me/service-areas */
 export async function getServiceAreas(): Promise<ApiServiceArea[]> {
   return apiClient<ApiServiceArea[]>('/vendors/me/service-areas')
@@ -163,15 +195,41 @@ export async function submitVendorOnboarding(
       pincode: data.pincode as string,
       lat: data.lat as number,
       lng: data.lng as number,
+      whatsapp: (data.whatsapp as string) || undefined,
+      email: (data.email as string) || undefined,
+      yearsInOperation: (data.yearsInOperation as string) || undefined,
+      mapsUrl: (data.mapsUrl as string) || undefined,
     })
     return
   }
 
   if (step === 3) {
+    const pickup = data.pickup as 'yes' | 'nearby' | 'no' | ''
+
     await Promise.all([
-      updateVendorJobTypes({ dropinEnabled: data.dropin as boolean }),
+      updateVendorJobTypes({
+        dropinEnabled: data.dropin as boolean,
+        doorstepEnabled: data.doorstep as boolean,
+      }),
       updateSlotInterval(data.slotInterval as 30 | 45 | 60),
-      setWorkingHours(data.openTime as string, data.closeTime as string),
+      setWorkingHoursForDays(
+        data.workingDays as number[],
+        data.openTime as string,
+        data.closeTime as string
+      ),
+      updateVendorSettings({
+        ...(pickup ? { pickup } : {}),
+        ...(data.pickupRadiusKm != null
+          ? { pickupRadiusKm: data.pickupRadiusKm as number }
+          : {}),
+        ...(data.bays != null ? { bays: data.bays as number } : {}),
+        ...(data.jobsPerDay != null
+          ? { jobsPerDay: data.jobsPerDay as number }
+          : {}),
+        ...((data.vehicleTypes as string[])?.length
+          ? { vehicleTypes: data.vehicleTypes as string[] }
+          : {}),
+      }),
     ])
 
     const areas = data.areas as Array<{ pincode: string; name: string }>
@@ -194,7 +252,8 @@ export async function updateVendorSettings(
     pincode: string
     lat: number
     lng: number
-  }>
+  }> &
+    VendorProfileInput
 ): Promise<ApiVendorProfile> {
   return apiClient<ApiVendorProfile>('/vendors/me', {
     method: 'PATCH',

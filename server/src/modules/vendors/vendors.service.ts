@@ -40,6 +40,16 @@ export type VendorResponse = {
   pincode: string
   lat: number
   lng: number
+  whatsapp: string | null
+  email: string | null
+  yearsInOperation: string | null
+  mapsUrl: string | null
+  pickup: string | null
+  pickupRadiusKm: number | null
+  bays: number | null
+  jobsPerDay: number | null
+  vehicleTypes: string[]
+  notes: string | null
   isVerified: boolean
   doorstepEnabled: boolean
   dropinEnabled: boolean
@@ -109,6 +119,16 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     pincode: vendor.pincode,
     lat: vendor.lat,
     lng: vendor.lng,
+    whatsapp: vendor.whatsapp,
+    email: vendor.email,
+    yearsInOperation: vendor.yearsInOperation,
+    mapsUrl: vendor.mapsUrl,
+    pickup: vendor.pickup,
+    pickupRadiusKm: vendor.pickupRadiusKm,
+    bays: vendor.bays,
+    jobsPerDay: vendor.jobsPerDay,
+    vehicleTypes: vendor.vehicleTypes,
+    notes: vendor.notes,
     isVerified: vendor.isVerified,
     doorstepEnabled: vendor.doorstepEnabled,
     dropinEnabled: vendor.dropinEnabled,

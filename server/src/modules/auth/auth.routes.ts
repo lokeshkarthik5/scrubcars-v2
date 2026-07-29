@@ -25,7 +25,7 @@ authRoutes.post(
   zValidator('json', verifyOtpSchema),
   (c) => authController.verifyOtp(c, c.req.valid('json'))
 )
-
+ 
 authRoutes.post('/refresh', rateLimiter, authController.refresh)
 authRoutes.post('/logout', rateLimiter, authController.logout)
 

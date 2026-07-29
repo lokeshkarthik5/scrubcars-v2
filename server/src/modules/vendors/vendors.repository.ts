@@ -14,6 +14,8 @@ import type { serviceCategoryEnum } from '../../db/schema.js'
 type ServiceCategory = (typeof serviceCategoryEnum.enumValues)[number]
 
 export type VendorRecord = typeof vendors.$inferSelect
+export type VendorInsert = typeof vendors.$inferInsert
+export type VendorUpdate = Partial<Omit<VendorInsert, 'id' | 'ownerId' | 'createdAt'>>
 export type WorkingHoursRecord = typeof vendorWorkingHours.$inferSelect
 export type ServiceAreaRecord = typeof vendorServiceAreas.$inferSelect
 export type PhotoRecord = typeof vendorPhotos.$inferSelect
@@ -66,43 +68,11 @@ export const vendorsRepository = {
     })
   },
 
-  createVendor(data: {
-    ownerId: string
-    businessName: string
-    phone: string
-    address: string
-    city: string
-    lat: number
-    lng: number
-  }) {
-    return db
-      .insert(vendors)
-      .values({
-        ownerId: data.ownerId,
-        businessName: data.businessName,
-        phone: data.phone,
-        address: data.address,
-        city: data.city,
-        lat: data.lat,
-        lng: data.lng,
-      })
-      .returning()
+  createVendor(data: VendorInsert) {
+    return db.insert(vendors).values(data).returning()
   },
 
-  updateVendor(
-    vendorId: string,
-    data: Partial<{
-      businessName: string
-      phone: string
-      address: string
-      city: string
-      lat: number
-      lng: number
-      doorstepEnabled: boolean
-      dropinEnabled: boolean
-      slotIntervalMins: number
-    }>
-  ) {
+  updateVendor(vendorId: string, data: VendorUpdate) {
     return db
       .update(vendors)
       .set(data)

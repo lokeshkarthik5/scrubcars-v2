@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScInput } from '@/components/sc/input'
+import { Chip } from '@/components/sc/chip'
 import { ProgressBar } from '@/components/sc/progress-bar'
 import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
+
+const YEARS = ['Under 1 year', '1–3 years', '3–5 years', '5–10 years', '10+ years']
 
 export default function VendorOnboardingStep1() {
   const router = useRouter()
@@ -15,6 +18,9 @@ export default function VendorOnboardingStep1() {
     businessName: '',
     ownerName: '',
     city: '',
+    whatsapp: '',
+    email: '',
+    yearsInOperation: '',
   })
   const [loading, setLoading] = useState(false)
   const phone = typeof window !== 'undefined' ? sessionStorage.getItem('auth_phone') ?? '' : ''
@@ -26,6 +32,9 @@ export default function VendorOnboardingStep1() {
         businessName: form.businessName,
         ownerName: form.ownerName,
         city: form.city,
+        whatsapp: form.whatsapp,
+        email: form.email,
+        yearsInOperation: form.yearsInOperation,
         phone,
       })
       router.push('/vendor/onboarding/step-2')
@@ -61,6 +70,42 @@ export default function VendorOnboardingStep1() {
           value={form.city}
           onChange={(e) => setForm({ ...form, city: e.target.value })}
         />
+        <ScInput
+          label="WhatsApp number (optional)"
+          inputMode="numeric"
+          maxLength={10}
+          placeholder="10-digit number"
+          value={form.whatsapp}
+          onChange={(e) =>
+            setForm({ ...form, whatsapp: e.target.value.replace(/\D/g, '').slice(0, 10) })
+          }
+        />
+        <ScInput
+          label="Email (optional)"
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+        />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-medium text-text-secondary">
+            Years in operation (optional)
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {YEARS.map((y) => (
+              <Chip
+                key={y}
+                label={y}
+                selected={form.yearsInOperation === y}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    yearsInOperation: form.yearsInOperation === y ? '' : y,
+                  })
+                }
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
       <ScButton

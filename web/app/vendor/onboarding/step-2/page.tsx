@@ -17,6 +17,7 @@ export default function VendorOnboardingStep2() {
   const update = useVendorOnboardingStore((s) => s.update)
   const [address, setAddress] = useState(onboarding.address)
   const [pincode, setPincode] = useState(onboarding.pincode)
+  const [mapsUrl, setMapsUrl] = useState(onboarding.mapsUrl)
   const [loading, setLoading] = useState(false)
 
   const handleContinue = async () => {
@@ -26,7 +27,7 @@ export default function VendorOnboardingStep2() {
     }
     setLoading(true)
     try {
-      update({ address, pincode })
+      update({ address, pincode, mapsUrl })
       await submitVendorOnboarding(2, {
         businessName: onboarding.businessName,
         phone: onboarding.phone,
@@ -35,6 +36,10 @@ export default function VendorOnboardingStep2() {
         pincode,
         lat: onboarding.lat,
         lng: onboarding.lng,
+        whatsapp: onboarding.whatsapp,
+        email: onboarding.email,
+        yearsInOperation: onboarding.yearsInOperation,
+        mapsUrl,
       })
       router.push('/vendor/onboarding/step-3')
     } catch (err) {
@@ -64,6 +69,14 @@ export default function VendorOnboardingStep2() {
         placeholder="600001"
         value={pincode}
         onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+      />
+
+      <ScInput
+        label="Google Maps link (optional)"
+        inputMode="url"
+        placeholder="https://maps.app.goo.gl/…"
+        value={mapsUrl}
+        onChange={(e) => setMapsUrl(e.target.value)}
       />
 
       <ScButton className="mt-auto mb-4" disabled={!address.trim() || pincode.length !== 6 || loading} onClick={handleContinue}>

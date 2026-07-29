@@ -19,6 +19,23 @@ export const slotsQuerySchema = z.object({
   service_id: z.string().uuid(),
 })
 
+const pickupSchema = z.enum(['yes', 'nearby', 'no'])
+
+const vehicleTypesSchema = z.array(z.string().trim().min(1).max(100)).max(20)
+
+const vendorProfileFields = {
+  whatsapp: phoneSchema.optional(),
+  email: z.string().trim().email().max(255).optional(),
+  yearsInOperation: z.string().trim().max(20).optional(),
+  mapsUrl: z.string().trim().url().max(2048).optional(),
+  pickup: pickupSchema.optional(),
+  pickupRadiusKm: z.number().positive().optional(),
+  bays: z.number().int().min(0).optional(),
+  jobsPerDay: z.number().int().min(0).optional(),
+  vehicleTypes: vehicleTypesSchema.optional(),
+  notes: z.string().trim().max(5000).optional(),
+}
+
 export const createVendorSchema = z.object({
   businessName: z.string().trim().min(1).max(255),
   phone: phoneSchema,
@@ -27,6 +44,7 @@ export const createVendorSchema = z.object({
   pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number'),
   lat: z.number().finite(),
   lng: z.number().finite(),
+  ...vendorProfileFields,
 })
 
 export const updateVendorSchema = z
@@ -38,6 +56,7 @@ export const updateVendorSchema = z
     pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number').optional(),
     lat: z.number().finite().optional(),
     lng: z.number().finite().optional(),
+    ...vendorProfileFields,
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided',

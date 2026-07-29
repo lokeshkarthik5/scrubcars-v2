@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScrubCars · Partner Onboarding Panel</title>
+<style>
+  :root{
+    --bg:#0b0b0d; --panel:#151518; --panel-2:#1c1c21; --line:#2a2a30;
+    --ink:#f4f4f6; --muted:#9a9aa6; --faint:#65656f;
+    --orange:#ff5a1f; --orange-soft:rgba(255,90,31,.14); --orange-line:rgba(255,90,31,.45);
+    --green:#2dd4bf; --blue:#3b82f6; --amber:#f5a623; --red:#ff5757;
+    --radius:12px; --radius-sm:9px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
+  body{padding:0}
+  a{color:var(--orange)}
+
+  /* top bar */
+  header.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+    padding:14px 22px;background:rgba(11,11,13,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.02em;font-size:16px}
+  .logo .dot{width:22px;height:22px;border-radius:6px;background:var(--orange);display:grid;place-items:center;color:#000;font-weight:800;font-size:13px}
+  .bar .sub{color:var(--faint);font-size:12.5px;font-weight:500;margin-left:2px}
+  .bar .spacer{flex:1}
+  .btn{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);padding:8px 13px;border-radius:9px;
+    font-size:13px;font-weight:600;cursor:pointer;transition:.15s;font-family:inherit}
+  .btn:hover{border-color:#3a3a42;background:#232329}
+  .btn.primary{background:var(--orange);border-color:var(--orange);color:#0b0b0d}
+  .btn.primary:hover{background:#ff6c38}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:6px 10px;font-size:12px}
+
+  /* layout */
+  .wrap{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:22px;max-width:1320px;margin:22px auto;padding:0 22px}
+  @media(max-width:1040px){.wrap{grid-template-columns:1fr}.side{position:static!important}}
+
+  /* form column */
+  .section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+  .section > h2{margin:0;padding:13px 18px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:var(--panel-2)}
+  .section > h2 .n{width:19px;height:19px;border-radius:5px;background:var(--orange-soft);color:var(--orange);
+    display:grid;place-items:center;font-size:11px;font-weight:800}
+  .section .body{padding:16px 18px}
+
+  .grid{display:grid;gap:13px 14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:560px){.g2,.g3{grid-template-columns:1fr}}
+  .col-2{grid-column:span 2}
+  @media(max-width:560px){.col-2{grid-column:auto}}
+
+  label.f{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--muted);font-weight:600}
+  label.f .req{color:var(--orange)}
+  input[type=text],input[type=tel],input[type=email],input[type=number],input[type=time],select,textarea{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:10px 12px;color:var(--ink);font-size:14px;font-family:inherit;transition:.15s}
+  textarea{resize:vertical;min-height:64px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange-line);background:#202026;box-shadow:0 0 0 3px var(--orange-soft)}
+  input::placeholder,textarea::placeholder{color:var(--faint)}
+  select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239a9aa6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
+  .hint{font-size:11.5px;color:var(--faint);font-weight:500;margin-top:-2px}
+
+  /* chips */
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--line);background:var(--panel-2);color:var(--muted);padding:8px 13px;border-radius:999px;
+    font-size:13px;font-weight:600;cursor:pointer;transition:.13s;user-select:none;display:inline-flex;align-items:center;gap:7px}
+  .chip:hover{border-color:#3a3a42;color:var(--ink)}
+  .chip.on{background:var(--orange-soft);border-color:var(--orange-line);color:#ffd9c6}
+  .chip.on::before{content:"✓";font-size:11px;color:var(--orange);font-weight:900}
+
+  /* segmented (single choice) */
+  .seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+  .seg button{border:none;background:transparent;color:var(--muted);padding:7px 14px;border-radius:6px;font-size:13px;
+    font-weight:600;cursor:pointer;font-family:inherit;transition:.13s}
+  .seg button.on{background:var(--orange);color:#0b0b0d}
+
+  .row-inline{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+  .stack{display:flex;flex-direction:column;gap:7px}
+  .stack > .lab{font-size:12.5px;color:var(--muted);font-weight:600}
+
+  .linkrow{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--faint)}
+  .linkbtn{background:none;border:none;color:var(--orange);cursor:pointer;font-size:12px;font-weight:600;padding:0;font-family:inherit;text-decoration:underline}
+
+  /* SIDE: roster + preview */
+  .side{position:sticky;top:78px;align-self:start;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .card h3{margin:0;padding:12px 16px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .card h3 .cnt{background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:1px 9px;font-size:11px;color:var(--muted);letter-spacing:0}
+
+  /* listing preview */
+  .listing{padding:16px}
+  .lst-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .lst-name{font-size:18px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+  .lst-area{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .status-pill{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:20px;white-space:nowrap}
+  .st-new{background:rgba(59,130,246,.15);color:#7fb0ff}
+  .st-verified{background:rgba(245,166,35,.15);color:#f5c169}
+  .st-live{background:rgba(45,212,191,.16);color:#5eead4}
+  .st-hold{background:rgba(255,87,87,.15);color:#ff9a9a}
+
+  .lst-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .badge{font-size:11px;font-weight:600;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);
+    padding:4px 9px;border-radius:7px;display:inline-flex;align-items:center;gap:5px}
+  .badge.hot{color:#ffd9c6;border-color:var(--orange-line);background:var(--orange-soft)}
+  .lst-block{margin-top:14px}
+  .lst-block .lab{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:7px}
+  .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:11.5px;font-weight:600;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.28);color:#7ee7d8;padding:3px 9px;border-radius:6px}
+  .tag.veh{background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.28);color:#9cc2ff}
+  .lst-foot{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);line-height:1.6}
+  .lst-foot b{color:var(--ink);font-weight:600}
+  .empty{color:var(--faint);font-size:12.5px;padding:6px 0}
+
+  /* roster */
+  .roster{max-height:280px;overflow:auto}
+  .r-item{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:.12s}
+  .r-item:last-child{border-bottom:none}
+  .r-item:hover{background:var(--panel-2)}
+  .r-item.active{background:var(--orange-soft)}
+  .r-dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .r-name{font-size:13.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r-area{font-size:11px;color:var(--faint)}
+  .roster-empty{padding:22px 16px;text-align:center;color:var(--faint);font-size:12.5px}
+
+  .completeness{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .meter{flex:1;height:6px;border-radius:20px;background:var(--panel-2);overflow:hidden}
+  .meter > span{display:block;height:100%;background:var(--orange);width:0;transition:.3s}
+
+  /* toast */
+  #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:11px 18px;border-radius:10px;
+    font-size:13px;font-weight:600;pointer-events:none;transition:.25s;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.err{border-color:var(--red);color:#ffb3b3}
+
+  .foot-actions{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 40px}
+  .req-note{color:var(--faint);font-size:12px;margin-left:auto;align-self:center}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="logo"><span class="dot">S</span>ScrubCars <span class="sub">· Partner Onboarding</span></div>
+  <div class="spacer"></div>
+  <button class="btn ghost sm" id="btnDemo">Load sample</button>
+  <button class="btn ghost sm" id="btnImport">Import</button>
+  <button class="btn ghost sm" id="btnExport">Export all</button>
+  <button class="btn sm" id="btnNew">＋ New</button>
+  <button class="btn primary sm" id="btnSave">Save partner</button>
+  <input type="file" id="fileImport" accept="application/json" hidden>
+</header>
+
+<div class="wrap">
+  <!-- ============ FORM ============ -->
+  <main>
+
+    <!-- 1 BUSINESS -->
+    <section class="section">
+      <h2><span class="n">1</span> Business</h2>
+      <div class="body grid g2">
+        <label class="f col-2">Garage / business name <span class="req">*</span>
+          <input type="text" id="bizName" placeholder="Jai Car Wash Zone" oninput="render()">
+        </label>
+        <label class="f">Owner / primary contact <span class="req">*</span>
+          <input type="text" id="owner" placeholder="Jegan" oninput="render()">
+        </label>
+        <label class="f">Mobile <span class="req">*</span>
+          <input type="tel" id="mobile" placeholder="+91 86430 78950" oninput="render()">
+        </label>
+        <label class="f">WhatsApp
+          <input type="tel" id="whatsapp" placeholder="+91 86430 78950" oninput="render()">
+        </label>
+        <label class="f">Email <span style="color:var(--faint);font-weight:500">(optional)</span>
+          <input type="email" id="email" placeholder="jegan201@gmail.com" oninput="render()">
+        </label>
+        <label class="f">Years in operation
+          <select id="years" onchange="render()">
+            <option value="">—</option>
+            <option>Under 1 year</option><option>1–3 years</option>
+            <option>3–5 years</option><option>5–10 years</option><option>10+ years</option>
+          </select>
+        </label>
+        <label class="f">PAN number <span class="req">*</span>
+          <input type="text" id="pan" placeholder="BNJPJ6806N" style="text-transform:uppercase" oninput="render()">
+        </label>
+        <label class="f">GST number
+          <input type="text" id="gst" placeholder="Optional" style="text-transform:uppercase" oninput="render()">
+        </label>
+      </div>
+    </section>
+
+    <!-- 2 LOCATION -->
+    <section class="section">
+      <h2><span class="n">2</span> Location</h2>
+      <div class="body grid g2">
+        <label class="f col-2">Full workshop address <span class="req">*</span>
+          <textarea id="address" placeholder="90, B Kamaraj Nagar, 4th Street, TP Mills Road, Rajapalayam" oninput="render()"></textarea>
+        </label>
+        <label class="f">Area / locality <span class="req">*</span>
+          <input type="text" id="area" placeholder="Rajapalayam" oninput="render()">
+        </label>
+        <label class="f">City
+          <input type="text" id="city" placeholder="Rajapalayam" oninput="render()">
+        </label>
+        <label class="f">Pincode <span class="req">*</span>
+          <input type="text" id="pincode" placeholder="616117" oninput="render()">
+        </label>
+        <label class="f">Google Maps link
+          <input type="text" id="maps" placeholder="https://maps.app.goo.gl/…" oninput="render()">
+        </label>
+      </div>
+    </section>
+
+    <!-- 3 OPERATIONS -->
+    <section class="section">
+      <h2><span class="n">3</span> Operations</h2>
+      <div class="body">
+        <div class="row-inline" style="margin-bottom:15px">
+          <div class="stack">
+            <span class="lab">Pickup &amp; drop</span>
+            <div class="seg" id="segPickup" data-val="">
+              <button data-v="Yes">Yes</button>
+              <button data-v="Nearby only">Nearby only</button>
+              <button data-v="No">No</button>
+            </div>
+          </div>
+          <label class="f" style="min-width:150px">Pickup radius
+            <select id="radius" onchange="render()">
+              <option value="">—</option>
+              <option>Within 5 km</option><option>Within 10 km</option>
+              <option>Within 15 km</option><option>15 km+</option>
+            </select>
+          </label>
+          <div class="stack">
+            <span class="lab">Doorstep service</span>
+            <div class="seg" id="segDoorstep" data-val="">
+              <button data-v="Yes">Yes</button>
+              <button data-v="No">No</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack" style="margin-bottom:15px">
+          <span class="lab">Working days <button class="linkbtn" onclick="allDays()">select all</button></span>
+          <div class="chips" id="days"></div>
+        </div>
+
+        <div class="grid g3">
+          <label class="f">Opening time
+            <input type="text" id="open" placeholder="9:00 am" oninput="render()">
+          </label>
+          <label class="f">Closing time
+            <input type="text" id="close" placeholder="8:00 pm" oninput="render()">
+          </label>
+          <label class="f">Bays (service at once)
+            <input type="number" id="bays" placeholder="10" min="0" oninput="render()">
+          </label>
+          <label class="f">Jobs per day now
+            <input type="number" id="jobs" placeholder="15" min="0" oninput="render()">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 SERVICES -->
+    <section class="section">
+      <h2><span class="n">4</span> Services offered</h2>
+      <div class="body">
+        <div class="chips" id="services"></div>
+        <label class="f" style="margin-top:13px" id="otherWrap">Other services (specify)
+          <input type="text" id="otherSvc" placeholder="e.g. Paint touch-up" oninput="render()">
+        </label>
+        <div class="stack" style="margin-top:16px">
+          <span class="lab">Vehicle types handled</span>
+          <div class="chips" id="vehicles"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 PAYOUT -->
+    <section class="section">
+      <h2><span class="n">5</span> Payout</h2>
+      <div class="body">
+        <div class="stack" style="margin-bottom:14px">
+          <span class="lab">Preferred method</span>
+          <div class="seg" id="segPayout" data-val="">
+            <button data-v="UPI">UPI</button>
+            <button data-v="Bank transfer">Bank transfer</button>
+          </div>
+        </div>
+        <div class="grid g2">
+          <label class="f">UPI ID
+            <input type="text" id="upi" placeholder="jegan201-2@okaxis" oninput="render()">
+          </label>
+          <label class="f">Account holder name
+            <input type="text" id="acHolder" placeholder="As per bank" oninput="render()">
+          </label>
+          <label class="f">Account number
+            <input type="text" id="acNo" placeholder="Bank transfer only" oninput="render()">
+          </label>
+          <label class="f">IFSC code
+            <input type="text" id="ifsc" placeholder="Bank transfer only" style="text-transform:uppercase" oninput="render()">
+          </label>
+        </div>
+        <p class="hint" style="margin-top:12px">Payout details stay on this device only. Nothing is sent anywhere — this file is fully offline.</p>
+      </div>
+    </section>
+
+    <!-- 6 STATUS + NOTES -->
+    <section class="section">
+      <h2><span class="n">6</span> Onboarding status</h2>
+      <div class="body">
+        <div class="row-inline" style="margin-bottom:14px">
+          <div class="stack">
+            <span class="lab">Stage</span>
+            <div class="seg" id="segStatus" data-val="New">
+              <button data-v="New">New</button>
+              <button data-v="Verified">Verified</button>
+              <button data-v="Live">Live</button>
+              <button data-v="On hold">On hold</button>
+            </div>
+          </div>
+          <label class="f" style="min-width:180px">Onboarded by
+            <input type="text" id="onboardedBy" placeholder="e.g. Senthil" oninput="render()">
+          </label>
+        </div>
+        <label class="f">Notes (anything they'd like you to know)
+          <textarea id="notes" placeholder="Free text…"></textarea>
+        </label>
+      </div>
+    </section>
+
+    <div class="foot-actions">
+      <button class="btn primary" onclick="save()">Save partner</button>
+      <button class="btn" onclick="copyListing()">Copy listing summary</button>
+      <button class="btn ghost" onclick="newPartner()">Clear form</button>
+      <span class="req-note"><span class="req" style="color:var(--orange)">*</span> required for a live listing</span>
+    </div>
+  </main>
+
+  <!-- ============ SIDE ============ -->
+  <aside class="side">
+    <!-- live listing preview -->
+    <div class="card">
+      <h3>Listing preview <button class="btn ghost sm" onclick="copyListing()" style="padding:4px 9px">Copy</button></h3>
+      <div class="listing" id="preview"></div>
+      <div class="completeness">
+        <span>Profile</span>
+        <div class="meter"><span id="meterBar"></span></div>
+        <span id="meterPct" style="min-width:34px;text-align:right">0%</span>
+      </div>
+    </div>
+
+    <!-- roster -->
+    <div class="card">
+      <h3>Onboarded partners <span class="cnt" id="rosterCount">0</span></h3>
+      <div class="roster" id="roster"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ---------- data model ---------- */
+const SERVICES = ["Exterior / foam wash","Interior cleaning & vacuum","Full detailing",
+  "Ceramic / paint protection","Polishing & buffing","Denting & painting","General / periodic service",
+  "AC service & repair","Battery service","Tyres / wheel alignment","Windshield & glass","EV servicing"];
+const VEHICLES = ["Hatchback","Sedan","SUV / MUV","Luxury / Premium","Electric (EV)","Commercial / Van"];
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+const state = { services:new Set(), vehicles:new Set(), days:new Set() };
+const STORE = "scrubcars_partners_v1";
+let editingId = null;
+
+/* ---------- build chip UIs ---------- */
+function buildChips(containerId, items, set){
+  const c=document.getElementById(containerId); c.innerHTML="";
+  items.forEach(it=>{
+    const el=document.createElement("div"); el.className="chip"; el.textContent=it;
+    el.onclick=()=>{ set.has(it)?set.delete(it):set.add(it); el.classList.toggle("on"); render(); };
+    c.appendChild(el);
+  });
+}
+buildChips("services",SERVICES,state.services);
+buildChips("vehicles",VEHICLES,state.vehicles);
+buildChips("days",DAYS,state.days);
+
+/* ---------- segmented controls ---------- */
+document.querySelectorAll(".seg").forEach(seg=>{
+  seg.querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{
+      const v=b.dataset.v;
+      if(seg.dataset.val===v && seg.id!=="segStatus"){ seg.dataset.val=""; b.classList.remove("on"); }
+      else{ seg.dataset.val=v; seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); }
+      render();
+    };
+  });
+});
+function setSeg(id,val){
+  const seg=document.getElementById(id); seg.dataset.val=val||"";
+  seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===val));
+}
+function allDays(){ DAYS.forEach(d=>state.days.add(d)); syncChips("days",state.days); render(); }
+function syncChips(id,set){
+  document.querySelectorAll("#"+id+" .chip").forEach(el=>el.classList.toggle("on",set.has(el.textContent)));
+}
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+const val=id=>$(id).value.trim();
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+function collect(){
+  return {
+    id: editingId || ("g_"+Date.now()),
+    bizName:val("bizName"), owner:val("owner"), mobile:val("mobile"), whatsapp:val("whatsapp"),
+    email:val("email"), years:val("years"), pan:val("pan").toUpperCase(), gst:val("gst").toUpperCase(),
+    address:val("address"), area:val("area"), city:val("city"), pincode:val("pincode"), maps:val("maps"),
+    pickup:$("segPickup").dataset.val, radius:val("radius"), doorstep:$("segDoorstep").dataset.val,
+    days:[...state.days], open:val("open"), close:val("close"), bays:val("bays"), jobs:val("jobs"),
+    services:[...state.services], otherSvc:val("otherSvc"), vehicles:[...state.vehicles],
+    payout:$("segPayout").dataset.val, upi:val("upi"), acHolder:val("acHolder"), acNo:val("acNo"),
+    ifsc:val("ifsc").toUpperCase(), status:$("segStatus").dataset.val||"New",
+    onboardedBy:val("onboardedBy"), notes:val("notes"),
+    saved: editingId ? undefined : new Date().toISOString()
+  };
+}
+
+function allServices(d){ return d.services.concat(d.otherSvc?[d.otherSvc]:[]); }
+
+/* ---------- completeness ---------- */
+function completeness(d){
+  const req=["bizName","owner","mobile","pan","address","area","pincode"];
+  let f=req.filter(k=>d[k]).length, total=req.length+3;
+  if(d.services.length) f++; if(d.vehicles.length) f++;
+  if(d.pickup||d.doorstep||d.days.length) f++;
+  return Math.round(f/total*100);
+}
+
+/* ---------- live preview ---------- */
+function render(){
+  const d=collect();
+  const statusClass={New:"st-new",Verified:"st-verified",Live:"st-live","On hold":"st-hold"}[d.status]||"st-new";
+  const svc=allServices(d);
+  const dayStr = d.days.length===7 ? "Open all week" : (d.days.length? d.days.join(" · ") : "");
+  const hrs = (d.open||d.close) ? `${d.open||"?"} – ${d.close||"?"}` : "";
+
+  let html="";
+  if(!d.bizName && !d.owner){
+    html=`<div class="empty">Start filling the form — the partner's public listing builds here as you type.</div>`;
+  } else {
+    html+=`<div class="lst-top"><div><div class="lst-name">${esc(d.bizName||"Unnamed garage")}</div>
+      <div class="lst-area">${esc([d.area,d.city].filter(Boolean).join(", ")||"Location pending")}${d.pincode?" · "+esc(d.pincode):""}</div></div>
+      <span class="status-pill ${statusClass}">${esc(d.status)}</span></div>`;
+
+    const badges=[];
+    if(d.pickup==="Yes") badges.push(`<span class="badge hot">🚗 Pickup &amp; drop</span>`);
+    else if(d.pickup==="Nearby only") badges.push(`<span class="badge">🚗 Pickup (nearby)</span>`);
+    if(d.doorstep==="Yes") badges.push(`<span class="badge hot">🏠 Doorstep</span>`);
+    if(hrs) badges.push(`<span class="badge">🕘 ${esc(hrs)}</span>`);
+    if(d.bays) badges.push(`<span class="badge">🅿️ ${esc(d.bays)} bays</span>`);
+    if(badges.length) html+=`<div class="lst-meta">${badges.join("")}</div>`;
+
+    if(svc.length){
+      html+=`<div class="lst-block"><div class="lab">Services · ${svc.length}</div><div class="tags">`+
+        svc.map(s=>`<span class="tag">${esc(s)}</span>`).join("")+`</div></div>`;
+    }
+    if(d.vehicles.length){
+      html+=`<div class="lst-block"><div class="lab">Vehicles</div><div class="tags">`+
+        d.vehicles.map(s=>`<span class="tag veh">${esc(s)}</span>`).join("")+`</div></div>`;
+    }
+    const foot=[];
+    if(dayStr) foot.push(`<b>Days:</b> ${esc(dayStr)}`);
+    if(d.owner) foot.push(`<b>Contact:</b> ${esc(d.owner)}${d.mobile?" · "+esc(d.mobile):""}`);
+    if(d.payout) foot.push(`<b>Payout:</b> ${esc(d.payout)}${d.upi?" ("+esc(d.upi)+")":""}`);
+    if(foot.length) html+=`<div class="lst-foot">${foot.join("<br>")}</div>`;
+  }
+  $("preview").innerHTML=html;
+
+  const pct=completeness(d);
+  $("meterBar").style.width=pct+"%"; $("meterPct").textContent=pct+"%";
+  $("meterBar").style.background = pct>=90?"var(--green)":pct>=60?"var(--orange)":"var(--amber)";
+}
+
+/* ---------- listing summary (copy) ---------- */
+function listingText(d){
+  const svc=allServices(d);
+  const L=[];
+  L.push(`🧽 ${d.bizName||"—"}  [${d.status}]`);
+  L.push(`${[d.area,d.city,d.pincode].filter(Boolean).join(", ")}`);
+  if(d.address) L.push(`📍 ${d.address}`);
+  if(d.maps) L.push(`🗺️ ${d.maps}`);
+  L.push("");
+  L.push(`👤 ${d.owner||"—"}  |  📞 ${d.mobile||"—"}${d.whatsapp?"  |  💬 "+d.whatsapp:""}`);
+  if(d.email) L.push(`✉️ ${d.email}`);
+  L.push("");
+  const ops=[];
+  if(d.open||d.close) ops.push(`${d.open||"?"}–${d.close||"?"}`);
+  if(d.days.length) ops.push(d.days.length===7?"all week":d.days.join("/"));
+  if(d.pickup) ops.push(`pickup: ${d.pickup}${d.radius?" ("+d.radius+")":""}`);
+  if(d.doorstep) ops.push(`doorstep: ${d.doorstep}`);
+  if(d.bays) ops.push(`${d.bays} bays`);
+  if(d.jobs) ops.push(`${d.jobs} jobs/day`);
+  if(ops.length) L.push(`⚙️ ${ops.join("  ·  ")}`);
+  L.push("");
+  L.push(`🔧 Services (${svc.length}): ${svc.join(", ")||"—"}`);
+  L.push(`🚙 Vehicles: ${d.vehicles.join(", ")||"—"}`);
+  L.push("");
+  const pay=[`💰 ${d.payout||"—"}`];
+  if(d.upi) pay.push(`UPI ${d.upi}`);
+  if(d.acNo) pay.push(`A/C ${d.acNo}${d.ifsc?" / "+d.ifsc:""}${d.acHolder?" ("+d.acHolder+")":""}`);
+  L.push(pay.join("  ·  "));
+  if(d.gst||d.pan) L.push(`🧾 ${[d.gst&&"GST "+d.gst,d.pan&&"PAN "+d.pan].filter(Boolean).join("  ·  ")}`);
+  if(d.years) L.push(`📅 ${d.years} in operation`);
+  if(d.notes) L.push(`\n📝 ${d.notes}`);
+  if(d.onboardedBy) L.push(`\nOnboarded by ${d.onboardedBy}`);
+  return L.join("\n");
+}
+function copyListing(){
+  navigator.clipboard.writeText(listingText(collect()))
+    .then(()=>toast("Listing summary copied"))
+    .catch(()=>toast("Copy failed — select & copy manually",true));
+}
+
+/* ---------- persistence ---------- */
+function load(){ try{return JSON.parse(localStorage.getItem(STORE))||[]}catch(e){return[]} }
+function persist(arr){ try{localStorage.setItem(STORE,JSON.stringify(arr))}catch(e){toast("Storage blocked — use Export",true)} }
+
+function save(){
+  const d=collect();
+  if(!d.bizName){ toast("Business name is required",true); return; }
+  const arr=load();
+  const i=arr.findIndex(x=>x.id===d.id);
+  if(i>=0){ d.saved=arr[i].saved||new Date().toISOString(); arr[i]=d; }
+  else arr.unshift(d);
+  persist(arr); editingId=d.id; drawRoster();
+  toast(i>=0?"Partner updated":"Partner saved");
+}
+
+function newPartner(){
+  editingId=null;
+  ["bizName","owner","mobile","whatsapp","email","pan","gst","address","area","city","pincode","maps",
+   "radius","open","close","bays","jobs","otherSvc","upi","acHolder","acNo","ifsc","onboardedBy","notes"]
+   .forEach(id=>$(id).value="");
+  $("years").value="";
+  state.services.clear(); state.vehicles.clear(); state.days.clear();
+  syncChips("services",state.services); syncChips("vehicles",state.vehicles); syncChips("days",state.days);
+  setSeg("segPickup",""); setSeg("segDoorstep",""); setSeg("segPayout",""); setSeg("segStatus","New");
+  drawRoster(); render();
+}
+
+function loadPartner(id){
+  const d=load().find(x=>x.id===id); if(!d) return;
+  editingId=id;
+  const put=(k)=>$(k).value=d[k]||"";
+  ["bizName","owner","mobile","whatsapp","email","years","pan","gst","address","area","city","pincode","maps",
+   "radius","open","close","bays","jobs","otherSvc","upi","acHolder","acNo","ifsc","onboardedBy","notes"].forEach(put);
+  state.services=new Set(d.services||[]); state.vehicles=new Set(d.vehicles||[]); state.days=new Set(d.days||[]);
+  syncChips("services",state.services); syncChips("vehicles",state.vehicles); syncChips("days",state.days);
+  setSeg("segPickup",d.pickup); setSeg("segDoorstep",d.doorstep); setSeg("segPayout",d.payout); setSeg("segStatus",d.status||"New");
+  drawRoster(); render(); window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function delPartner(id,e){
+  e.stopPropagation();
+  const arr=load().filter(x=>x.id!==id); persist(arr);
+  if(editingId===id) newPartner(); else drawRoster();
+  toast("Partner removed");
+}
+
+function drawRoster(){
+  const arr=load(); const r=$("roster"); $("rosterCount").textContent=arr.length;
+  if(!arr.length){ r.innerHTML=`<div class="roster-empty">No partners saved yet.<br>Fill the form and hit <b>Save partner</b>.</div>`; return; }
+  const col={New:"#3b82f6",Verified:"#f5a623",Live:"#2dd4bf","On hold":"#ff5757"};
+  r.innerHTML=arr.map(d=>`<div class="r-item ${d.id===editingId?'active':''}" onclick="loadPartner('${d.id}')">
+    <span class="r-dot" style="background:${col[d.status]||'#3b82f6'}"></span>
+    <div style="flex:1;min-width:0"><div class="r-name">${esc(d.bizName)}</div>
+    <div class="r-area">${esc([d.area,d.city].filter(Boolean).join(", ")||"—")} · ${(d.services||[]).length} services</div></div>
+    <button class="btn ghost sm" style="padding:3px 8px" onclick="delPartner('${d.id}',event)">✕</button>
+  </div>`).join("");
+}
+
+/* ---------- export / import ---------- */
+function exportAll(){
+  const arr=load();
+  if(!arr.length){ toast("Nothing to export yet",true); return; }
+  const blob=new Blob([JSON.stringify(arr,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`scrubcars-partners-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  URL.revokeObjectURL(a.href); toast(`Exported ${arr.length} partner${arr.length>1?'s':''}`);
+}
+function importFile(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const inc=JSON.parse(rd.result); if(!Array.isArray(inc)) throw 0;
+      const arr=load(); const ids=new Set(arr.map(x=>x.id));
+      let n=0; inc.forEach(x=>{ if(x.id&&!ids.has(x.id)){arr.push(x);n++;} });
+      persist(arr); drawRoster(); toast(`Imported ${n} new partner${n!==1?'s':''}`);
+    }catch(e){ toast("Invalid JSON file",true); }
+  };
+  rd.readAsText(file);
+}
+
+/* ---------- sample (from the Tally submission) ---------- */
+function loadDemo(){
+  newPartner();
+  $("bizName").value="Jai Car Wash Zone"; $("owner").value="Jegan";
+  $("mobile").value="+91 86430 78950"; $("whatsapp").value="+91 86430 78950";
+  $("email").value="jegan201@gmail.com"; $("years").value="5–10 years"; $("pan").value="BNJPJ6806N";
+  $("address").value="90, B Kamaraj Nagar, 4th Street, TP Mills Road, Rajapalayam";
+  $("area").value="Rajapalayam"; $("city").value="Rajapalayam"; $("pincode").value="616117";
+  $("maps").value="https://maps.app.goo.gl/2Cso33uDcFAQ";
+  setSeg("segPickup","Yes"); $("radius").value="Within 5 km"; setSeg("segDoorstep","No");
+  DAYS.forEach(d=>state.days.add(d)); syncChips("days",state.days);
+  $("open").value="9:00 am"; $("close").value="8:00 pm"; $("bays").value="10"; $("jobs").value="15";
+  ["Exterior / foam wash","Interior cleaning & vacuum","Full detailing","Ceramic / paint protection",
+   "Polishing & buffing","Denting & painting","General / periodic service","AC service & repair",
+   "Battery service","Windshield & glass"].forEach(s=>state.services.add(s));
+  syncChips("services",state.services);
+  $("otherSvc").value="Paint touch-up";
+  ["Hatchback","Sedan","SUV / MUV","Luxury / Premium","Electric (EV)"].forEach(v=>state.vehicles.add(v));
+  syncChips("vehicles",state.vehicles);
+  setSeg("segPayout","UPI"); $("upi").value="jegan201-2@okaxis";
+  setSeg("segStatus","New");
+  render(); toast("Sample loaded from Tally submission");
+}
+
+/* ---------- toast ---------- */
+let tT;
+function toast(msg,err){
+  const t=$("toast"); t.textContent=msg; t.className="show"+(err?" err":"");
+  clearTimeout(tT); tT=setTimeout(()=>t.className=t.className.replace("show",""),2200);
+}
+
+/* ---------- wire up ---------- */
+$("btnSave").onclick=save;
+$("btnNew").onclick=newPartner;
+$("btnExport").onclick=exportAll;
+$("btnDemo").onclick=loadDemo;
+$("btnImport").onclick=()=>$("fileImport").click();
+$("fileImport").onchange=e=>{ if(e.target.files[0]) importFile(e.target.files[0]); e.target.value=""; };
+["notes","onboardedBy"].forEach(id=>$(id).addEventListener("input",()=>{}));
+
+drawRoster(); render();
+</script>
+</body>
+</html>

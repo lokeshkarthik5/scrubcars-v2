@@ -104,7 +104,20 @@ export interface ApiPublicVendor {
   services: ApiService[]
 }
 
-export interface ApiVendorProfile {
+export interface VendorProfileExtras {
+  whatsapp: string | null
+  email: string | null
+  yearsInOperation: string | null
+  mapsUrl: string | null
+  pickup: 'yes' | 'nearby' | 'no' | null
+  pickupRadiusKm: number | null
+  bays: number | null
+  jobsPerDay: number | null
+  vehicleTypes: string[]
+  notes: string | null
+}
+
+export interface ApiVendorProfile extends VendorProfileExtras {
   id: string
   ownerId: string
   businessName: string
