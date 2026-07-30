@@ -1,5 +1,6 @@
 {
   "name": "detlio",
+  "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix web\"",
     "dev:api": "npm run dev --prefix server",
