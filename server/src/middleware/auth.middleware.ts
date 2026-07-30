@@ -52,3 +52,15 @@ export const requireCustomer = createMiddleware<{ Variables: AuthVariables }>(
     await next()
   }
 )
+
+export const requireAdmin = createMiddleware<{ Variables: AuthVariables }>(
+  async (c, next) => {
+    const auth = c.get('auth')
+
+    if (!auth.isAdmin) {
+      throw new AppError(403, 'Admin access required', 'ADMIN_REQUIRED')
+    }
+
+    await next()
+  }
+)

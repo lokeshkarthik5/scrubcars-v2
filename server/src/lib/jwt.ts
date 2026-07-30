@@ -55,6 +55,26 @@ export async function signAccessToken(
   )
 }
 
+// Env-based admin auth has no `users` row / refresh-token session, so we mint a
+// standalone longer-lived access token instead of relying on the refresh flow.
+export async function signAdminToken(): Promise<string> {
+  const exp = Math.floor(
+    Date.now() / 1000 + parseExpiryToSeconds(env.adminTokenExpiresIn)
+  )
+
+  return sign(
+    {
+      sub: 'admin',
+      aud: 'customer',
+      isCustomer: false,
+      isVendorOwner: false,
+      isAdmin: true,
+      exp,
+    },
+    env.jwtSecret
+  )
+}
+
 export async function verifyAccessToken(
   token: string
 ): Promise<AccessTokenPayload> {

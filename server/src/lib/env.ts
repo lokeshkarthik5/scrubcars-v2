@@ -26,8 +26,16 @@ export const env = {
         'http://localhost:3000',
         'https://www.detlio.com',
         'https://vendor.detlio.com',
+        'https://admin.detlio.com',
       ],
   smsApiKey: process.env.SMS,
+  adminUsername: process.env.ADMIN_USERNAME ?? 'admin',
+  adminPassword:
+    process.env.ADMIN_PASSWORD ??
+    (process.env.NODE_ENV === 'production'
+      ? requireEnv('ADMIN_PASSWORD')
+      : 'admin'),
+  adminTokenExpiresIn: process.env.ADMIN_TOKEN_EXPIRES_IN ?? '12h',
   isDev: (process.env.NODE_ENV ?? 'development') !== 'production',
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,

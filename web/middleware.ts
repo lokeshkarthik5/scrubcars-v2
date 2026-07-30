@@ -2,9 +2,23 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 const VENDOR_HOST = process.env.NEXT_PUBLIC_VENDOR_HOST ?? 'vendor.detlio.com'
+const ADMIN_HOST = process.env.NEXT_PUBLIC_ADMIN_HOST ?? 'admin.detlio.com'
 
 function isVendorHost(host: string): boolean {
   return host === VENDOR_HOST || host.startsWith('vendor.')
+}
+
+function isAdminHost(host: string): boolean {
+  return host === ADMIN_HOST || host.startsWith('admin.')
+}
+
+// Clean public path on admin.detlio.com → internal Next.js file path
+const ADMIN_CLEAN_TO_INTERNAL: Record<string, string> = {
+  '/':            '/admin/login',
+  '/login':       '/admin/login',
+  '/vendors':     '/admin/vendors',
+  '/vendors/new': '/admin/vendors/new',
+  '/bookings':    '/admin/bookings',
 }
 
 // Clean public path on vendors.detlio.com → internal Next.js file path
@@ -27,6 +41,30 @@ const CLEAN_TO_INTERNAL: Record<string, string> = {
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') ?? ''
   const { pathname } = request.nextUrl
+
+  // Admin subdomain: mirror the vendor-host rewrite/redirect scheme.
+  if (isAdminHost(host)) {
+    if (pathname.startsWith('/_next/') || pathname.startsWith('/api/')) {
+      return NextResponse.next()
+    }
+
+    // Keep the URL bar on the clean path (admin.detlio.com/vendors, not /admin/vendors).
+    if (pathname.startsWith('/admin/')) {
+      const clean = pathname.slice('/admin'.length) || '/'
+      const url = request.nextUrl.clone()
+      url.pathname = clean
+      return NextResponse.redirect(url, 307)
+    }
+
+    const internal = ADMIN_CLEAN_TO_INTERNAL[pathname]
+    if (internal) {
+      const url = request.nextUrl.clone()
+      url.pathname = internal
+      return NextResponse.rewrite(url)
+    }
+
+    return NextResponse.next()
+  }
 
   if (!isVendorHost(host)) {
     return NextResponse.next()
