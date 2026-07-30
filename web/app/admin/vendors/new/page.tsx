@@ -41,8 +41,6 @@ export default function NewVendorPage() {
     address: '',
     city: '',
     pincode: '',
-    lat: '',
-    lng: '',
     email: '',
     whatsapp: '',
   })
@@ -59,9 +57,7 @@ export default function NewVendorPage() {
     /^\d{10}$/.test(form.phone) &&
     form.address &&
     form.city &&
-    /^\d{6}$/.test(form.pincode) &&
-    form.lat !== '' &&
-    form.lng !== ''
+    /^\d{6}$/.test(form.pincode)
 
   const handleSubmit = async () => {
     if (!isValid) return
@@ -76,8 +72,6 @@ export default function NewVendorPage() {
         address: form.address.trim(),
         city: form.city.trim(),
         pincode: form.pincode.trim(),
-        lat: Number(form.lat),
-        lng: Number(form.lng),
         email: form.email.trim() || undefined,
         whatsapp: form.whatsapp.trim() || undefined,
       })
@@ -118,10 +112,6 @@ export default function NewVendorPage() {
         <div className="grid grid-cols-2 gap-3">
           <Field label="City" value={form.city} onChange={set('city')} />
           <Field label="Pincode" value={form.pincode} onChange={set('pincode')} placeholder="6 digits" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Latitude" value={form.lat} onChange={set('lat')} type="number" />
-          <Field label="Longitude" value={form.lng} onChange={set('lng')} type="number" />
         </div>
         <Field label="Email (optional)" value={form.email} onChange={set('email')} type="email" />
 

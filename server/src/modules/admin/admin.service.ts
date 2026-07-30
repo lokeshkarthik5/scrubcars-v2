@@ -79,8 +79,6 @@ export const adminService = {
       address: input.address,
       city: input.city,
       pincode: input.pincode,
-      lat: input.lat,
-      lng: input.lng,
       email: input.email ?? null,
       whatsapp: input.whatsapp ?? null,
     })

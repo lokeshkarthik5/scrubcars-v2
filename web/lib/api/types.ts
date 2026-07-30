@@ -92,8 +92,8 @@ export interface ApiPublicVendor {
   address: string
   city: string
   pincode: string
-  lat: number
-  lng: number
+  lat: number | null
+  lng: number | null
   isVerified: boolean
   doorstepEnabled: boolean
   dropinEnabled: boolean
@@ -125,8 +125,8 @@ export interface ApiVendorProfile extends VendorProfileExtras {
   address: string
   city: string
   pincode: string
-  lat: number
-  lng: number
+  lat: number | null
+  lng: number | null
   isVerified: boolean
   doorstepEnabled: boolean
   dropinEnabled: boolean

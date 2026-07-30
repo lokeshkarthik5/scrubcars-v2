@@ -38,8 +38,8 @@ export type VendorResponse = {
   address: string
   city: string
   pincode: string
-  lat: number
-  lng: number
+  lat: number | null
+  lng: number | null
   whatsapp: string | null
   email: string | null
   yearsInOperation: string | null

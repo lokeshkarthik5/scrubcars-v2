@@ -21,8 +21,6 @@ export const createVendorSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{6}$/, 'Pincode must be a 6-digit number'),
-  lat: z.number().finite(),
-  lng: z.number().finite(),
   email: z.string().trim().email().optional(),
   whatsapp: phoneSchema.optional(),
 })

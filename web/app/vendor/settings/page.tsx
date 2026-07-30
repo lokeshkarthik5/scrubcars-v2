@@ -138,8 +138,8 @@ export default function VendorSettingsPage() {
         address: profileForm.address,
         city: profileForm.city,
         pincode: profileForm.pincode,
-        lat: vendor.lat,
-        lng: vendor.lng,
+        lat: vendor.lat ?? undefined,
+        lng: vendor.lng ?? undefined,
       })
       setVendor(updated)
     })

@@ -42,8 +42,6 @@ export interface CreateVendorInput {
   address: string
   city: string
   pincode: string
-  lat: number
-  lng: number
   email?: string
   whatsapp?: string
 }
