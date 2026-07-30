@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScrubCars · Partner Onboarding Panel</title>
+<title>Detlio · Partner Onboarding Panel</title>
 <style>
   :root{
     --bg:#0b0b0d; --panel:#151518; --panel-2:#1c1c21; --line:#2a2a30;
@@ -145,7 +145,7 @@
 <body>
 
 <header class="bar">
-  <div class="logo"><span class="dot">S</span>ScrubCars <span class="sub">· Partner Onboarding</span></div>
+  <div class="logo"><span class="dot">S</span>Detlio <span class="sub">· Partner Onboarding</span></div>
   <div class="spacer"></div>
   <button class="btn ghost sm" id="btnDemo">Load sample</button>
   <button class="btn ghost sm" id="btnImport">Import</button>
@@ -592,7 +592,7 @@ function exportAll(){
   if(!arr.length){ toast("Nothing to export yet",true); return; }
   const blob=new Blob([JSON.stringify(arr,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-  a.download=`scrubcars-partners-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  a.download=`detlio-partners-${new Date().toISOString().slice(0,10)}.json`; a.click();
   URL.revokeObjectURL(a.href); toast(`Exported ${arr.length} partner${arr.length>1?'s':''}`);
 }
 function importFile(file){

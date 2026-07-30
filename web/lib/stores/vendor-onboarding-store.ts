@@ -77,6 +77,6 @@ export const useVendorOnboardingStore = create<VendorOnboardingState>()(
       resetForm: () => set((state) => ({ ...state, ...initialState })),
       reset: () => set({ ...initialState, isComplete: false }),
     }),
-    { name: 'scrub-cars-vendor-onboarding' }
+    { name: 'detlio-vendor-onboarding' }
   )
 )

@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-[360px] space-y-8">
         <div className="flex flex-col items-center gap-2">
           <IconDroplet size={40} className="text-brand-red" />
-          <h1 className="text-[22px] font-semibold text-text-primary">Scrub Cars</h1>
+          <h1 className="text-[22px] font-semibold text-text-primary">Detlio</h1>
           <p className="text-[13px] text-text-secondary">Admin panel</p>
         </div>
 

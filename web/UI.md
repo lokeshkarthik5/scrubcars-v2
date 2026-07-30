@@ -1,4 +1,4 @@
-# Scrub Cars — UI specification
+# Detlio — UI specification
 
 ## Brand palette
 
@@ -139,7 +139,7 @@ inactive tab: bg transparent, text #9A9A9A
 **Elements**:
 ```
 Logo:        ti-droplet icon, 40px, color #E33402
-App name:    "Scrub Cars", 22px/600, #FAFAFA
+App name:    "Detlio", 22px/600, #FAFAFA
 Tagline:     "Car care at your doorstep", 13px/400, #9A9A9A
 
 Label:       "Mobile number", 11px/500, #9A9A9A

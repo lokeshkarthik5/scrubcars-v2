@@ -7,7 +7,7 @@ import { env } from './env.js'
 export const logger = pino(
   {
     level: env.isDev ? 'debug' : 'info',
-    base: { service: 'scrub-cars' },
+    base: { service: 'detlio' },
     timestamp: pino.stdTimeFunctions.isoTime,
     serializers: { err: pino.stdSerializers.err },
   },

@@ -73,7 +73,7 @@ app.onError((err, c) => {
   return c.json({ success: false, message: 'Internal server error' }, 500)
 })
 
-app.get('/', (c) => c.text('Scrub Cars API'))
+app.get('/', (c) => c.text('Detlio API'))
 
 app.route('/api/v1/auth', authRoutes)
 app.route('/api/v1/users', usersRoutes)

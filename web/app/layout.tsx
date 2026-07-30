@@ -11,7 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Scrub Cars',
+  title: 'Detlio',
   description: 'Book car wash & detailing',
 }
 

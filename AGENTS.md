@@ -1,6 +1,6 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# Project: Scrub Cars — agent instructions
+# Project: Detlio — agent instructions
 
 ## Stack
 

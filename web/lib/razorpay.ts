@@ -96,7 +96,7 @@ export async function openRazorpayCheckout(
       key,
       amount: input.order.amount,
       currency: input.order.currency,
-      name: 'Scrub Cars',
+      name: 'Detlio',
       description: input.description,
       order_id: input.order.orderId,
       prefill: {

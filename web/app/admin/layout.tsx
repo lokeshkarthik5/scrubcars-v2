@@ -34,7 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
             <IconDroplet size={22} className="text-brand-red" />
-            <span className="text-[15px] font-semibold">Scrub Cars Admin</span>
+            <span className="text-[15px] font-semibold">Detlio Admin</span>
           </div>
           <nav className="flex items-center gap-1">
             {NAV.map((item) => {
