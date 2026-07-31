@@ -94,6 +94,8 @@ export interface Booking {
   vehicle?: Vehicle
   paymentMethod: PaymentMethod
   paymentStatus: 'pending' | 'paid' | 'collected' | 'failed' | 'refunded'
+  cancelledBy?: 'user' | 'vendor'
+  cancellationReason?: string
   review?: Review
 }
 

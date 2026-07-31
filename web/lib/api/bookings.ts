@@ -87,7 +87,8 @@ const STATUS_ENDPOINTS: Partial<Record<Booking['status'], string>> = {
 /** PATCH /bookings/:id/:action */
 export async function updateBookingStatus(
   id: string,
-  status: Booking['status']
+  status: Booking['status'],
+  reason?: string
 ): Promise<Booking> {
   const action = STATUS_ENDPOINTS[status]
   if (!action) {
@@ -96,14 +97,16 @@ export async function updateBookingStatus(
 
   const booking = await apiClient<ApiBooking>(`/bookings/${id}/${action}`, {
     method: 'PATCH',
+    ...(reason ? { body: JSON.stringify({ reason }) } : {}),
   })
   return mapBooking(booking)
 }
 
 /** PATCH /bookings/:id/cancel */
-export async function cancelBooking(id: string): Promise<Booking> {
+export async function cancelBooking(id: string, reason?: string): Promise<Booking> {
   const booking = await apiClient<ApiBooking>(`/bookings/${id}/cancel`, {
     method: 'PATCH',
+    ...(reason ? { body: JSON.stringify({ reason }) } : {}),
   })
   return mapBooking(booking)
 }

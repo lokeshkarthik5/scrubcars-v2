@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  IconBell,
   IconDroplet,
   IconMapPin,
   IconShield,
@@ -63,9 +62,10 @@ function HomeContent() {
             {user?.area ?? ''}
           </span>
         </button>
-        <button className="text-text-secondary">
+        {/* Notifications not wired up yet — hidden until the backend is ready. */}
+        {/* <button className="text-text-secondary">
           <IconBell size={22} stroke={1.5} />
-        </button>
+        </button> */}
       </div>
 
       <section>

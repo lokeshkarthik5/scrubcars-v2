@@ -61,6 +61,10 @@ export const bookingStatusEnum = pgEnum('booking_status', [
   'cancelled',
 ])
 
+// Who cancelled a booking. 'vendor' means the vendor rejected/cancelled it,
+// 'user' means the customer cancelled it.
+export const cancelledByEnum = pgEnum('cancelled_by', ['user', 'vendor'])
+
 export const paymentMethodEnum = pgEnum('payment_method', ['online', 'cash'])
 
 export const paymentGatewayEnum = pgEnum('payment_gateway', ['razorpay'])
@@ -306,6 +310,9 @@ export const bookings = pgTable(
     lat: real('lat'),
     lng: real('lng'),
     address: text('address'),
+    cancelledBy: cancelledByEnum('cancelled_by'),
+    cancellationReason: text('cancellation_reason'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),

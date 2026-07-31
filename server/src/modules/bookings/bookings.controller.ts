@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { bookingsService } from './bookings.service.js'
 import type {
+  CancelBookingInput,
   CreateBookingInput,
   ListMyBookingsQuery,
   ListVendorBookingsQuery,
@@ -54,8 +55,16 @@ export async function createBooking(
   )
 }
 
-export async function cancelBooking(c: BookingsContext, bookingId: string) {
-  const booking = await bookingsService.cancelBooking(getAuth(c).sub, bookingId)
+export async function cancelBooking(
+  c: BookingsContext,
+  bookingId: string,
+  input?: CancelBookingInput
+) {
+  const booking = await bookingsService.cancelBooking(
+    getAuth(c).sub,
+    bookingId,
+    input?.reason
+  )
 
   return c.json({
     success: true,
@@ -87,8 +96,16 @@ export async function acceptBooking(c: BookingsContext, bookingId: string) {
   })
 }
 
-export async function rejectBooking(c: BookingsContext, bookingId: string) {
-  const booking = await bookingsService.rejectBooking(getAuth(c).sub, bookingId)
+export async function rejectBooking(
+  c: BookingsContext,
+  bookingId: string,
+  input?: CancelBookingInput
+) {
+  const booking = await bookingsService.rejectBooking(
+    getAuth(c).sub,
+    bookingId,
+    input?.reason
+  )
 
   return c.json({
     success: true,

@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import {
   getAuthMe,
   logout as apiLogout,
+  refreshSession as apiRefreshSession,
   verifyOtp as apiVerifyOtp,
   type SendOtpOptions,
   type VerifyOtpOptions,
@@ -85,18 +86,36 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   async restoreSession() {
     console.log('[auth] restoreSession called')
     set({ isSessionReady: false })
-    try {
-      const me = await getAuthMe({ auth: false })
-      console.log('[auth] restoreSession success', { userId: me.user.id })
+
+    const applyMe = (me: { user: ApiAuthUser; vendor: ApiAuthVendor | null }) => {
       set({
         user: mapAuthUser(me.user),
         vendor: me.vendor,
         audience: get().audience ?? (me.vendor ? 'vendor' : 'customer'),
         isSessionReady: true,
       })
+    }
+
+    try {
+      const me = await getAuthMe({ auth: false })
+      console.log('[auth] restoreSession success', { userId: me.user.id })
+      applyMe(me)
       return true
     } catch (err) {
-      console.log('[auth] restoreSession failed — clearing session', err instanceof Error ? err.message : err)
+      // The short-lived access token has likely expired while the tab was
+      // closed. Exchange the long-lived refresh cookie for a new access token
+      // and retry before giving up, so the session survives a window reopen.
+      console.log('[auth] restoreSession first attempt failed — trying refresh', err instanceof Error ? err.message : err)
+      try {
+        const session = await apiRefreshSession()
+        console.log('[auth] restoreSession success after refresh', { userId: session.user.id })
+        applyMe({ user: session.user, vendor: session.vendor })
+        return true
+      } catch (refreshErr) {
+        console.log('[auth] restoreSession refresh failed', refreshErr instanceof Error ? refreshErr.message : refreshErr)
+      }
+
+      console.log('[auth] restoreSession failed — clearing session')
       get().clearSession()
       set({ isSessionReady: true })
       return false

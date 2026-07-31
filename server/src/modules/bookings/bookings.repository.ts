@@ -26,6 +26,7 @@ export const bookingsRepository = {
         service: true,
         vehicle: true,
         payment: true,
+        review: true,
       },
     })
   },
@@ -58,7 +59,7 @@ export const bookingsRepository = {
 
   listBookingsForVendor(
     vendorId: string,
-    status?: 'pending' | 'confirmed' | 'in_progress' | 'completed'
+    status?: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
   ) {
     const conditions = [eq(bookings.vendorId, vendorId)]
 
@@ -73,6 +74,7 @@ export const bookingsRepository = {
         service: true,
         vehicle: true,
         payment: true,
+        review: true,
       },
       orderBy: [desc(bookings.scheduledAt)],
     })
@@ -156,6 +158,23 @@ export const bookingsRepository = {
     return db
       .update(bookings)
       .set({ status })
+      .where(eq(bookings.id, bookingId))
+      .returning()
+  },
+
+  cancelBooking(
+    bookingId: string,
+    cancelledBy: 'user' | 'vendor',
+    reason?: string | null
+  ) {
+    return db
+      .update(bookings)
+      .set({
+        status: 'cancelled',
+        cancelledBy,
+        cancellationReason: reason ?? null,
+        cancelledAt: new Date(),
+      })
       .where(eq(bookings.id, bookingId))
       .returning()
   },

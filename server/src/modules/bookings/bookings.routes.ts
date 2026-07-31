@@ -9,12 +9,22 @@ import {
 import * as bookingsController from './bookings.controller.js'
 import {
   bookingIdParamSchema,
+  cancelBookingSchema,
   createBookingSchema,
   listMyBookingsQuerySchema,
   listVendorBookingsQuerySchema,
 } from './bookings.validation.js'
+import type { Context } from 'hono'
 
 export const bookingsRoutes = new Hono<{ Variables: AuthVariables }>()
+
+// Cancel/reject can carry an optional { reason } JSON body. The body is
+// optional, so parse leniently and fall back to no reason when absent.
+async function parseCancelInput(c: Context) {
+  const body = await c.req.json().catch(() => ({}))
+  const parsed = cancelBookingSchema.safeParse(body ?? {})
+  return parsed.success ? parsed.data : {}
+}
 
 bookingsRoutes.get(
   '/me',
@@ -45,7 +55,12 @@ bookingsRoutes.patch(
   authMiddleware,
   requireCustomer,
   zValidator('param', bookingIdParamSchema),
-  (c) => bookingsController.cancelBooking(c, c.req.valid('param').id)
+  async (c) =>
+    bookingsController.cancelBooking(
+      c,
+      c.req.valid('param').id,
+      await parseCancelInput(c)
+    )
 )
 
 bookingsRoutes.patch(
@@ -61,7 +76,12 @@ bookingsRoutes.patch(
   authMiddleware,
   requireVendor,
   zValidator('param', bookingIdParamSchema),
-  (c) => bookingsController.rejectBooking(c, c.req.valid('param').id)
+  async (c) =>
+    bookingsController.rejectBooking(
+      c,
+      c.req.valid('param').id,
+      await parseCancelInput(c)
+    )
 )
 
 bookingsRoutes.patch(

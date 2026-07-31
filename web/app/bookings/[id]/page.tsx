@@ -34,6 +34,7 @@ export default function BookingDetailPage({
   const [paying, setPaying] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
 
   useEffect(() => {
@@ -45,6 +46,21 @@ export default function BookingDetailPage({
       }
     })
   }, [id])
+
+  // Poll for live status updates (e.g. vendor accepts/rejects) every 5s.
+  // Stop once the booking reaches a terminal state.
+  const bookingStatus = booking?.status
+  useEffect(() => {
+    if (!bookingStatus) return
+    if (bookingStatus === 'completed' || bookingStatus === 'cancelled') return
+
+    const interval = setInterval(async () => {
+      const fresh = await getBooking(id)
+      if (fresh) setBooking(fresh)
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [id, bookingStatus])
 
   const handlePayNow = async () => {
     if (!booking || paying) return
@@ -90,9 +106,10 @@ export default function BookingDetailPage({
     if (!booking || cancelling) return
     setCancelling(true)
     try {
-      const updated = await cancelBooking(booking.id)
+      const updated = await cancelBooking(booking.id, cancelReason.trim() || undefined)
       setBooking(updated)
       setShowCancelConfirm(false)
+      setCancelReason('')
       toast.success('Booking cancelled')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to cancel booking')
@@ -151,6 +168,25 @@ export default function BookingDetailPage({
         <StatusStepper status={booking.status} />
       </section>
 
+      {booking.status === 'cancelled' && (
+        <ScCard>
+          <h2 className="mb-1 text-sm font-semibold text-text-primary">
+            {booking.cancelledBy === 'vendor'
+              ? 'Rejected by vendor'
+              : booking.cancelledBy === 'user'
+                ? 'Cancelled by you'
+                : 'Booking cancelled'}
+          </h2>
+          <p className="text-[13px] text-text-secondary">
+            {booking.cancellationReason
+              ? booking.cancellationReason
+              : booking.cancelledBy === 'vendor'
+                ? 'The vendor could not take this booking.'
+                : 'This booking was cancelled.'}
+          </p>
+        </ScCard>
+      )}
+
       <ScCard>
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Payment</h2>
         <div className="flex justify-between text-[13px]">
@@ -179,6 +215,11 @@ export default function BookingDetailPage({
               <p className="text-[13px] text-text-secondary">
                 Cancel this booking? This cannot be undone.
               </p>
+              <ScInput
+                placeholder="Reason (optional)"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
               {booking.paymentMethod === 'online' && booking.paymentStatus === 'paid' && (
                 <p className="text-[12px] text-text-muted">
                   Refunds for paid online bookings are not automatic yet.

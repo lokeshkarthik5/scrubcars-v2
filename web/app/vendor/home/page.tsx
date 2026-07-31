@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { IconBell } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -47,7 +46,8 @@ export default function VendorHomePage() {
         <h1 className="text-lg font-semibold text-text-primary">
           Good morning, {user?.name?.split(' ')[0] ?? 'there'}
         </h1>
-        <button className="text-text-secondary"><IconBell size={22} /></button>
+        {/* Notifications not wired up yet — hidden until the backend is ready. */}
+        {/* <button className="text-text-secondary"><IconBell size={22} /></button> */}
       </div>
 
       {!isVerified && (

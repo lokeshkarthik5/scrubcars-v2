@@ -183,6 +183,17 @@ export function mapBooking(booking: ApiBooking): Booking {
       : undefined,
     paymentMethod: booking.paymentMethod as Booking['paymentMethod'],
     paymentStatus: (booking.payment?.status ?? 'pending') as Booking['paymentStatus'],
+    cancelledBy: booking.cancelledBy ?? undefined,
+    cancellationReason: booking.cancellationReason ?? undefined,
+    review: booking.review
+      ? {
+          id: booking.review.id,
+          userName: booking.user?.name ?? 'Customer',
+          rating: booking.review.rating,
+          comment: booking.review.comment ?? '',
+          date: formatReviewDate(booking.review.createdAt),
+        }
+      : undefined,
   }
 }
 
@@ -198,9 +209,14 @@ export function mapReview(review: ApiReview): Review {
 }
 
 export function mapSlots(slots: string[]) {
-  return slots.map((iso) => ({
-    time: iso,
-    label: formatSlotTime(iso),
-    available: true,
-  }))
+  const now = Date.now()
+  return slots
+    // Hide slots that are already in the past (e.g. earlier times today).
+    // The server also validates this, but filtering here keeps the UI clean.
+    .filter((iso) => new Date(iso).getTime() > now)
+    .map((iso) => ({
+      time: iso,
+      label: formatSlotTime(iso),
+      available: true,
+    }))
 }

@@ -177,7 +177,16 @@ export interface ApiBooking {
   lat: number | null
   lng: number | null
   address: string | null
+  cancelledBy: 'user' | 'vendor' | null
+  cancellationReason: string | null
+  cancelledAt: string | null
   createdAt: string
+  review: {
+    id: string
+    rating: number
+    comment: string | null
+    createdAt: string
+  } | null
   user: { id: string; name: string; phone: string } | null
   vendor: {
     id: string

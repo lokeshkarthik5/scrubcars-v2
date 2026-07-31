@@ -20,12 +20,16 @@ export const listMyBookingsQuerySchema = z.object({
 
 export const listVendorBookingsQuerySchema = z.object({
   status: z
-    .enum(['pending', 'confirmed', 'in_progress', 'completed'])
+    .enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
     .optional(),
 })
 
 export const bookingIdParamSchema = z.object({
   id: z.string().uuid(),
+})
+
+export const cancelBookingSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
 })
 
 export const createBookingSchema = z
@@ -44,3 +48,4 @@ export type ListVendorBookingsQuery = z.infer<
   typeof listVendorBookingsQuerySchema
 >
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
+export type CancelBookingInput = z.infer<typeof cancelBookingSchema>

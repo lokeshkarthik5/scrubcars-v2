@@ -28,7 +28,16 @@ type BookingWithRelations = {
   lat: number | null
   lng: number | null
   address: string | null
+  cancelledBy?: string | null
+  cancellationReason?: string | null
+  cancelledAt?: Date | null
   createdAt: Date
+  review?: {
+    id: string
+    rating: number
+    comment: string | null
+    createdAt: Date
+  } | null
   user?: {
     id: string
     name: string
@@ -84,7 +93,18 @@ function toBookingResponse(booking: BookingWithRelations) {
     lat: booking.lat,
     lng: booking.lng,
     address: booking.address,
+    cancelledBy: booking.cancelledBy ?? null,
+    cancellationReason: booking.cancellationReason ?? null,
+    cancelledAt: booking.cancelledAt?.toISOString() ?? null,
     createdAt: booking.createdAt.toISOString(),
+    review: booking.review
+      ? {
+          id: booking.review.id,
+          rating: booking.review.rating,
+          comment: booking.review.comment,
+          createdAt: booking.review.createdAt.toISOString(),
+        }
+      : null,
     user: booking.user
       ? {
           id: booking.user.id,
@@ -418,7 +438,7 @@ export const bookingsService = {
     }
   },
 
-  async cancelBooking(userId: string, bookingId: string) {
+  async cancelBooking(userId: string, bookingId: string, reason?: string) {
     const booking = await getBookingForCustomer(userId, bookingId)
 
     if (!['pending', 'confirmed'].includes(booking.status)) {
@@ -429,8 +449,8 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.updateBookingStatus(bookingId, 'cancelled')
-    log.info({ bookingId, userId, status: 'cancelled' }, 'booking:status_updated')
+    await bookingsRepository.cancelBooking(bookingId, 'user', reason)
+    log.info({ bookingId, userId, status: 'cancelled', cancelledBy: 'user' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)
@@ -464,7 +484,7 @@ export const bookingsService = {
     return toBookingResponse(updated!)
   },
 
-  async rejectBooking(ownerId: string, bookingId: string) {
+  async rejectBooking(ownerId: string, bookingId: string, reason?: string) {
     const { booking } = await getBookingForVendor(ownerId, bookingId)
 
     if (booking.status !== 'pending') {
@@ -475,8 +495,8 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.updateBookingStatus(bookingId, 'cancelled')
-    log.info({ bookingId, ownerId, status: 'cancelled' }, 'booking:status_updated')
+    await bookingsRepository.cancelBooking(bookingId, 'vendor', reason)
+    log.info({ bookingId, ownerId, status: 'cancelled', cancelledBy: 'vendor' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)

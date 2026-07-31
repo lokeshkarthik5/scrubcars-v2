@@ -33,8 +33,8 @@ interface BookingsState {
   fetchCustomerBookings: () => Promise<Booking[]>
   fetchVendorBookings: () => Promise<Booking[]>
   createBooking: (payload: CreateBookingPayload) => Promise<Booking>
-  cancelBooking: (id: string) => Promise<Booking>
-  updateStatus: (id: string, status: Booking['status']) => Promise<Booking>
+  cancelBooking: (id: string, reason?: string) => Promise<Booking>
+  updateStatus: (id: string, status: Booking['status'], reason?: string) => Promise<Booking>
   reset: () => void
 }
 
@@ -90,8 +90,8 @@ export const useBookingsStore = create<BookingsState>((set) => ({
     return request
   },
 
-  async cancelBooking(id) {
-    const booking = await apiCancelBooking(id)
+  async cancelBooking(id, reason) {
+    const booking = await apiCancelBooking(id, reason)
     set((state) => ({
       customerBookings: state.customerBookings.map((b) =>
         b.id === id ? booking : b
@@ -100,8 +100,8 @@ export const useBookingsStore = create<BookingsState>((set) => ({
     return booking
   },
 
-  async updateStatus(id, status) {
-    const booking = await updateBookingStatus(id, status)
+  async updateStatus(id, status, reason) {
+    const booking = await updateBookingStatus(id, status, reason)
     set((state) => ({
       vendorBookings: state.vendorBookings.map((b) =>
         b.id === id ? booking : b
