@@ -2,11 +2,15 @@ import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { vendorsService } from './vendors.service.js'
 import type {
+  CreatePhotoInput,
   CreateServiceAreaInput,
   CreateServiceInput,
   CreateVendorInput,
   ListPublicVendorsQuery,
+  LogoUploadUrlInput,
+  PhotoUploadUrlInput,
   ReorderPhotosInput,
+  SetLogoInput,
   SetWorkingHoursInput,
   SlotsQueryInput,
   ToggleServiceActiveInput,
@@ -164,6 +168,60 @@ export async function listPhotos(c: VendorsContext) {
     success: true,
     data: photos,
   })
+}
+
+export async function createLogoUploadUrl(
+  c: VendorsContext,
+  input: LogoUploadUrlInput
+) {
+  const data = await vendorsService.createLogoUploadUrl(getOwnerId(c), input)
+
+  return c.json({
+    success: true,
+    data,
+  })
+}
+
+export async function setLogo(c: VendorsContext, input: SetLogoInput) {
+  const vendor = await vendorsService.setLogo(getOwnerId(c), input)
+
+  return c.json({
+    success: true,
+    data: vendor,
+  })
+}
+
+export async function deleteLogo(c: VendorsContext) {
+  const vendor = await vendorsService.deleteLogo(getOwnerId(c))
+
+  return c.json({
+    success: true,
+    data: vendor,
+  })
+}
+
+export async function createPhotoUploadUrl(
+  c: VendorsContext,
+  input: PhotoUploadUrlInput
+) {
+  const data = await vendorsService.createPhotoUploadUrl(getOwnerId(c), input)
+
+  return c.json({
+    success: true,
+    data,
+  })
+}
+
+export async function addPhoto(c: VendorsContext, input: CreatePhotoInput) {
+  const photo = await vendorsService.addPhoto(getOwnerId(c), input)
+
+  return c.json(
+    {
+      success: true,
+      data: photo,
+    },
+    201
+  )
 }
 
 export async function reorderPhotos(

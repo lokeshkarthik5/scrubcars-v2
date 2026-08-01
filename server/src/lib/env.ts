@@ -40,4 +40,13 @@ export const env = {
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
+  // Cloudflare R2 (S3-compatible) for vendor photos
+  r2AccountId: process.env.R2_ACCOUNT_ID,
+  r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
+  r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  r2Bucket: process.env.R2_BUCKET,
+  // Public base URL the bucket is served from (e.g. https://cdn.detlio.com)
+  r2PublicBaseUrl: process.env.R2_PUBLIC_BASE_URL?.replace(/\/+$/, ''),
+  r2MaxPhotosPerVendor: Number(process.env.R2_MAX_PHOTOS_PER_VENDOR ?? '10'),
+  r2UploadUrlTtlSeconds: Number(process.env.R2_UPLOAD_URL_TTL_SECONDS ?? '120'),
 } as const

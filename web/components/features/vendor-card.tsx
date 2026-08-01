@@ -4,6 +4,7 @@ import { ScBadge, vendorStatusBadge } from '@/components/sc/badge'
 import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
 import { IconBuildingStore } from '@tabler/icons-react'
+import Image from 'next/image'
 import Link from 'next/link'
 import type { Vendor } from '@/lib/types'
 
@@ -14,8 +15,18 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
     <Link href={`/garage/${vendor.id}`}>
       <ScCard className="flex flex-col gap-2 transition-colors hover:border-brand-red/30">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-accent-muted">
-            <IconBuildingStore size={20} className="text-brand-red" />
+          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-accent-muted">
+            {vendor.logoUrl ? (
+              <Image
+                src={vendor.logoUrl}
+                alt={vendor.name}
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
+            ) : (
+              <IconBuildingStore size={20} className="text-brand-red" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">

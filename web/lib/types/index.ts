@@ -27,6 +27,7 @@ export interface User {
 export interface Vendor {
   id: string
   name: string
+  logoUrl: string | null
   area: string
   distance: string
   rating: number

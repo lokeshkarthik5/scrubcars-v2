@@ -202,15 +202,26 @@ export const vendorsRepository = {
       .where(eq(vendorPhotos.vendorId, vendorId))
   },
 
-  createPhoto(vendorId: string, data: { url: string; sortOrder: number }) {
+  createPhoto(
+    vendorId: string,
+    data: { url: string; sortOrder: number; storageKey?: string | null }
+  ) {
     return db
       .insert(vendorPhotos)
       .values({
         vendorId,
         url: data.url,
+        storageKey: data.storageKey ?? null,
         sortOrder: data.sortOrder,
       })
       .returning()
+  },
+
+  countPhotos(vendorId: string) {
+    return db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(vendorPhotos)
+      .where(eq(vendorPhotos.vendorId, vendorId))
   },
 
   findPhotoById(vendorId: string, photoId: string) {

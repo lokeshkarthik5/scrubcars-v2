@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { IconLogout } from '@tabler/icons-react'
+import Link from 'next/link'
+import { IconLogout, IconPhoto, IconChevronRight } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -9,6 +10,7 @@ import { ScCard } from '@/components/sc/card'
 import { ScInput } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
+import { SupportCard } from '@/components/features/support-card'
 import {
   getMyVendor,
   getWorkingHours,
@@ -188,6 +190,19 @@ export default function VendorSettingsPage() {
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
       <TopBar title="Settings" />
+
+      <Link href="/vendor/photos">
+        <ScCard className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
+            <IconPhoto size={18} className="text-brand-red" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[13px] font-semibold text-text-primary">Garage photos</p>
+            <p className="text-[11px] text-text-secondary">Add photos customers see on your listing</p>
+          </div>
+          <IconChevronRight size={18} className="text-text-muted" />
+        </ScCard>
+      </Link>
 
       <section>
         <div className="mb-2 flex items-center justify-between">
@@ -373,6 +388,11 @@ export default function VendorSettingsPage() {
             {saving === 'working-hours' ? 'Saving...' : 'Save working hours'}
           </ScButton>
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Support</h2>
+        <SupportCard />
       </section>
 
       <ScButton variant="secondary" onClick={handleLogout} className="mb-4">

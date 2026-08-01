@@ -109,6 +109,22 @@ export const reorderPhotosSchema = z.object({
     .min(1),
 })
 
+export const photoUploadUrlSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+})
+
+export const createPhotoSchema = z.object({
+  url: z.string().url().max(2048),
+})
+
+export const logoUploadUrlSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+})
+
+export const setLogoSchema = z.object({
+  url: z.string().url().max(2048),
+})
+
 export const serviceCategorySchema = z.enum([
   'car_wash',
   'detailing',
@@ -153,6 +169,10 @@ export type UpdateSlotIntervalInput = z.infer<typeof updateSlotIntervalSchema>
 export type SetWorkingHoursInput = z.infer<typeof setWorkingHoursSchema>
 export type CreateServiceAreaInput = z.infer<typeof createServiceAreaSchema>
 export type ReorderPhotosInput = z.infer<typeof reorderPhotosSchema>
+export type PhotoUploadUrlInput = z.infer<typeof photoUploadUrlSchema>
+export type CreatePhotoInput = z.infer<typeof createPhotoSchema>
+export type LogoUploadUrlInput = z.infer<typeof logoUploadUrlSchema>
+export type SetLogoInput = z.infer<typeof setLogoSchema>
 export type CreateServiceInput = z.infer<typeof createServiceSchema>
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>
 export type ToggleServiceActiveInput = z.infer<typeof toggleServiceActiveSchema>

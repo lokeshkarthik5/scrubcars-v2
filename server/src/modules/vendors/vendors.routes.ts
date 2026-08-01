@@ -7,11 +7,15 @@ import {
 } from '../../middleware/auth.middleware.js'
 import * as vendorsController from './vendors.controller.js'
 import {
+  createPhotoSchema,
   createServiceAreaSchema,
   createServiceSchema,
   createVendorSchema,
   listPublicVendorsQuerySchema,
+  logoUploadUrlSchema,
+  photoUploadUrlSchema,
   reorderPhotosSchema,
+  setLogoSchema,
   resourceIdParamSchema,
   setWorkingHoursSchema,
   slotsQuerySchema,
@@ -90,10 +94,36 @@ vendorsRoutes.delete(
   (c) => vendorsController.deleteServiceArea(c, c.req.valid('param').id)
 )
 
+vendorsRoutes.post(
+  '/me/logo/upload-url',
+  ...ownerMiddleware,
+  zValidator('json', logoUploadUrlSchema),
+  (c) => vendorsController.createLogoUploadUrl(c, c.req.valid('json'))
+)
+vendorsRoutes.put(
+  '/me/logo',
+  ...ownerMiddleware,
+  zValidator('json', setLogoSchema),
+  (c) => vendorsController.setLogo(c, c.req.valid('json'))
+)
+vendorsRoutes.delete('/me/logo', ...ownerMiddleware, vendorsController.deleteLogo)
+
 vendorsRoutes.get(
   '/me/photos',
   ...ownerMiddleware,
   vendorsController.listPhotos
+)
+vendorsRoutes.post(
+  '/me/photos/upload-url',
+  ...ownerMiddleware,
+  zValidator('json', photoUploadUrlSchema),
+  (c) => vendorsController.createPhotoUploadUrl(c, c.req.valid('json'))
+)
+vendorsRoutes.post(
+  '/me/photos',
+  ...ownerMiddleware,
+  zValidator('json', createPhotoSchema),
+  (c) => vendorsController.addPhoto(c, c.req.valid('json'))
 )
 vendorsRoutes.patch(
   '/me/photos/order',

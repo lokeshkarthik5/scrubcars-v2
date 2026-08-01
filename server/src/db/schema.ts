@@ -185,6 +185,8 @@ export const vendors = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     businessName: varchar('business_name', { length: 255 }).notNull(),
+    logoUrl: varchar('logo_url', { length: 2048 }),
+    logoStorageKey: varchar('logo_storage_key', { length: 1024 }),
     phone: varchar('phone', { length: 20 }).notNull(),
     address: text('address').notNull(),
     city: varchar('city', { length: 100 }).notNull(),
@@ -259,6 +261,7 @@ export const vendorPhotos = pgTable(
       .notNull()
       .references(() => vendors.id, { onDelete: 'cascade' }),
     url: varchar('url', { length: 2048 }).notNull(),
+    storageKey: varchar('storage_key', { length: 1024 }),
     sortOrder: integer('sort_order').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()

@@ -188,6 +188,105 @@ export async function deleteServiceArea(id: string): Promise<ApiServiceArea> {
   })
 }
 
+export interface ApiVendorPhoto {
+  id: string
+  url: string
+  sortOrder: number
+  createdAt: string
+}
+
+type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
+
+/** POST /vendors/me/logo/upload-url — presigned R2 PUT URL for the logo */
+export async function getLogoUploadUrl(
+  contentType: UploadContentType
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  return apiClient<{ uploadUrl: string; publicUrl: string }>(
+    '/vendors/me/logo/upload-url',
+    { method: 'POST', body: JSON.stringify({ contentType }) }
+  )
+}
+
+/** PUT /vendors/me/logo — set the vendor logo URL */
+export async function setVendorLogo(url: string): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me/logo', {
+    method: 'PUT',
+    body: JSON.stringify({ url }),
+  })
+}
+
+/** DELETE /vendors/me/logo */
+export async function deleteVendorLogo(): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me/logo', { method: 'DELETE' })
+}
+
+/** Full logo upload flow: presign → PUT to R2 → save URL on the vendor. */
+export async function uploadVendorLogo(file: File): Promise<ApiVendorProfile> {
+  const contentType = file.type as UploadContentType
+  const { uploadUrl, publicUrl } = await getLogoUploadUrl(contentType)
+
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': contentType },
+  })
+  if (!put.ok) {
+    throw new Error('Upload failed. Please try again.')
+  }
+
+  return setVendorLogo(publicUrl)
+}
+
+/** GET /vendors/me/photos */
+export async function getMyPhotos(): Promise<ApiVendorPhoto[]> {
+  return apiClient<ApiVendorPhoto[]>('/vendors/me/photos')
+}
+
+/** POST /vendors/me/photos/upload-url — presigned R2 PUT URL */
+export async function getPhotoUploadUrl(
+  contentType: UploadContentType
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  return apiClient<{ uploadUrl: string; publicUrl: string }>(
+    '/vendors/me/photos/upload-url',
+    { method: 'POST', body: JSON.stringify({ contentType }) }
+  )
+}
+
+/** POST /vendors/me/photos — register an uploaded photo */
+export async function addVendorPhoto(url: string): Promise<ApiVendorPhoto> {
+  return apiClient<ApiVendorPhoto>('/vendors/me/photos', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  })
+}
+
+/** DELETE /vendors/me/photos/:id */
+export async function deleteVendorPhoto(id: string): Promise<ApiVendorPhoto> {
+  return apiClient<ApiVendorPhoto>(`/vendors/me/photos/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * Full upload flow: get a presigned URL, PUT the file straight to R2, then
+ * register the resulting public URL. Returns the created photo record.
+ */
+export async function uploadVendorPhoto(file: File): Promise<ApiVendorPhoto> {
+  const contentType = file.type as UploadContentType
+  const { uploadUrl, publicUrl } = await getPhotoUploadUrl(contentType)
+
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': contentType },
+  })
+  if (!put.ok) {
+    throw new Error('Upload failed. Please try again.')
+  }
+
+  return addVendorPhoto(publicUrl)
+}
+
 /** Vendor onboarding step handler */
 export async function submitVendorOnboarding(
   step: number,

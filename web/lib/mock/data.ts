@@ -25,6 +25,7 @@ export const MOCK_VENDORS: Vendor[] = [
   {
     id: 'vendor-1',
     name: 'Sparkle Auto Care',
+    logoUrl: null,
     area: 'Adyar',
     distance: '1.2 km',
     rating: 4.8,
@@ -40,6 +41,7 @@ export const MOCK_VENDORS: Vendor[] = [
   {
     id: 'vendor-2',
     name: 'Elite Detailing Studio',
+    logoUrl: null,
     area: 'Velachery',
     distance: '3.5 km',
     rating: 4.6,
@@ -55,6 +57,7 @@ export const MOCK_VENDORS: Vendor[] = [
   {
     id: 'vendor-3',
     name: 'Quick Wash Hub',
+    logoUrl: null,
     area: 'T Nagar',
     distance: '5.1 km',
     rating: 4.3,

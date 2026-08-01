@@ -75,6 +75,7 @@ export interface ApiVehicle {
 export interface ApiVendorListItem {
   id: string
   businessName: string
+  logoUrl: string | null
   city: string
   isVerified: boolean
   status: string
@@ -88,6 +89,7 @@ export interface ApiVendorListItem {
 export interface ApiPublicVendor {
   id: string
   businessName: string
+  logoUrl: string | null
   phone: string
   address: string
   city: string
@@ -121,6 +123,7 @@ export interface ApiVendorProfile extends VendorProfileExtras {
   id: string
   ownerId: string
   businessName: string
+  logoUrl: string | null
   phone: string
   address: string
   city: string

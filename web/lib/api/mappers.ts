@@ -96,6 +96,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
   return {
     id: item.id,
     name: item.businessName,
+    logoUrl: item.logoUrl,
     area: item.city,
     distance: '—',
     rating: 4.5,
@@ -118,6 +119,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
   return {
     id: vendor.id,
     name: vendor.businessName,
+    logoUrl: vendor.logoUrl,
     area: vendor.city,
     distance: '—',
     rating: 4.5,

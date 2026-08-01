@@ -57,6 +57,20 @@
       "when": 1785330630053,
       "tag": "0007_add_vendor_archived_status",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785330630054,
+      "tag": "0008_add_vendor_photo_storage_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785330630055,
+      "tag": "0009_add_vendor_logo",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import { ScCard } from '@/components/sc/card'
 import { ScInput } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
+import { SupportCard } from '@/components/features/support-card'
 import { createAddress, createVehicle, deleteAddress, deleteVehicle } from '@/lib/api/users'
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
@@ -358,6 +359,11 @@ export default function ProfilePage() {
             ))
           )}
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Support</h2>
+        <SupportCard />
       </section>
 
       <ScButton variant="secondary" onClick={handleLogout}>

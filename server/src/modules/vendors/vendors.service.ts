@@ -1,10 +1,16 @@
 import { AppError } from '../../lib/errors.js'
+import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import {
   computeAvailableSlots,
   getDayOfWeekFromDate,
   type BookedRange,
 } from '../../lib/slots.js'
+import {
+  createPresignedUpload,
+  deleteObject,
+  keyFromPublicUrl,
+} from '../../lib/storage.js'
 import { vendorsRepository } from './vendors.repository.js'
 
 const log = logger.child({ module: 'vendors' })
@@ -16,11 +22,15 @@ import type {
   WorkingHoursRecord,
 } from './vendors.repository.js'
 import type {
+  CreatePhotoInput,
   CreateServiceAreaInput,
   CreateServiceInput,
   CreateVendorInput,
   ListPublicVendorsQuery,
+  LogoUploadUrlInput,
+  PhotoUploadUrlInput,
   ReorderPhotosInput,
+  SetLogoInput,
   SetWorkingHoursInput,
   SlotsQueryInput,
   ToggleServiceActiveInput,
@@ -34,6 +44,7 @@ export type VendorResponse = {
   id: string
   ownerId: string
   businessName: string
+  logoUrl: string | null
   phone: string
   address: string
   city: string
@@ -66,6 +77,7 @@ export type PublicVendorResponse = Omit<VendorResponse, 'ownerId'> & {
 export type VendorListItemResponse = {
   id: string
   businessName: string
+  logoUrl: string | null
   city: string
   isVerified: boolean
   status: string
@@ -113,6 +125,7 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     id: vendor.id,
     ownerId: vendor.ownerId,
     businessName: vendor.businessName,
+    logoUrl: vendor.logoUrl,
     phone: vendor.phone,
     address: vendor.address,
     city: vendor.city,
@@ -230,6 +243,7 @@ export const vendorsService = {
         return {
           id: vendor.id,
           businessName: vendor.businessName,
+          logoUrl: vendor.logoUrl,
           city: vendor.city,
           isVerified: vendor.isVerified,
           status: vendor.status,
@@ -375,10 +389,111 @@ export const vendorsService = {
     return toServiceAreaResponse(deleted)
   },
 
+  async createLogoUploadUrl(ownerId: string, input: LogoUploadUrlInput) {
+    const vendor = await getOwnedVendor(ownerId)
+    const { uploadUrl, publicUrl } = await createPresignedUpload(
+      vendor.id,
+      input.contentType,
+      'logo'
+    )
+    return { uploadUrl, publicUrl }
+  },
+
+  async setLogo(ownerId: string, input: SetLogoInput) {
+    const vendor = await getOwnedVendor(ownerId)
+
+    const storageKey = keyFromPublicUrl(input.url)
+    if (!storageKey) {
+      throw new AppError(400, 'Invalid logo URL', 'INVALID_LOGO_URL')
+    }
+
+    const previousKey = vendor.logoStorageKey
+
+    const [updated] = await vendorsRepository.updateVendor(vendor.id, {
+      logoUrl: input.url,
+      logoStorageKey: storageKey,
+    })
+
+    // Remove the old logo object once the new one is saved.
+    if (previousKey && previousKey !== storageKey) {
+      await deleteObject(previousKey)
+    }
+
+    log.info({ vendorId: vendor.id }, 'vendor:logo-updated')
+    return toVendorResponse(updated)
+  },
+
+  async deleteLogo(ownerId: string) {
+    const vendor = await getOwnedVendor(ownerId)
+
+    const [updated] = await vendorsRepository.updateVendor(vendor.id, {
+      logoUrl: null,
+      logoStorageKey: null,
+    })
+
+    const key = vendor.logoStorageKey ?? keyFromPublicUrl(vendor.logoUrl ?? '')
+    if (key) {
+      await deleteObject(key)
+    }
+
+    log.info({ vendorId: vendor.id }, 'vendor:logo-removed')
+    return toVendorResponse(updated)
+  },
+
   async listPhotos(ownerId: string) {
     const vendor = await getOwnedVendor(ownerId)
     const photos = await vendorsRepository.listPhotos(vendor.id)
     return photos.map(toPhotoResponse)
+  },
+
+  async createPhotoUploadUrl(ownerId: string, input: PhotoUploadUrlInput) {
+    const vendor = await getOwnedVendor(ownerId)
+
+    const [{ count }] = await vendorsRepository.countPhotos(vendor.id)
+    if (count >= env.r2MaxPhotosPerVendor) {
+      throw new AppError(
+        409,
+        `You can upload at most ${env.r2MaxPhotosPerVendor} photos`,
+        'PHOTO_LIMIT_REACHED'
+      )
+    }
+
+    const { uploadUrl, publicUrl } = await createPresignedUpload(
+      vendor.id,
+      input.contentType
+    )
+    return { uploadUrl, publicUrl }
+  },
+
+  async addPhoto(ownerId: string, input: CreatePhotoInput) {
+    const vendor = await getOwnedVendor(ownerId)
+
+    // Only accept URLs that actually point at our bucket.
+    const storageKey = keyFromPublicUrl(input.url)
+    if (!storageKey) {
+      throw new AppError(400, 'Invalid photo URL', 'INVALID_PHOTO_URL')
+    }
+
+    const [{ count }] = await vendorsRepository.countPhotos(vendor.id)
+    if (count >= env.r2MaxPhotosPerVendor) {
+      throw new AppError(
+        409,
+        `You can upload at most ${env.r2MaxPhotosPerVendor} photos`,
+        'PHOTO_LIMIT_REACHED'
+      )
+    }
+
+    const [{ maxOrder }] = await vendorsRepository.getNextPhotoSortOrder(
+      vendor.id
+    )
+    const [created] = await vendorsRepository.createPhoto(vendor.id, {
+      url: input.url,
+      storageKey,
+      sortOrder: maxOrder + 1,
+    })
+
+    log.info({ vendorId: vendor.id, photoId: created.id }, 'vendor:photo-added')
+    return toPhotoResponse(created)
   },
 
   async reorderPhotos(ownerId: string, input: ReorderPhotosInput) {
@@ -409,6 +524,13 @@ export const vendorsService = {
     }
 
     const [deleted] = await vendorsRepository.deletePhoto(vendor.id, photoId)
+
+    // Best-effort remove the underlying object so storage doesn't leak.
+    const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
+    if (key) {
+      await deleteObject(key)
+    }
+
     return toPhotoResponse(deleted)
   },
 

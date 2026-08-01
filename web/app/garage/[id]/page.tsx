@@ -150,9 +150,21 @@ export default function GaragePage({
 
         {tab === 'photos' && (
           <div className="grid grid-cols-2 gap-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="aspect-square rounded-[10px] bg-surface" />
-            ))}
+            {vendor.photos.length > 0
+              ? vendor.photos.map((url, i) => (
+                  <div key={url} className="relative aspect-square overflow-hidden rounded-[10px] bg-surface">
+                    <Image
+                      src={url}
+                      alt={`${vendor.name} ${i + 1}`}
+                      fill
+                      sizes="(max-width: 428px) 50vw, 200px"
+                      className="object-cover"
+                    />
+                  </div>
+                ))
+              : [1, 2, 3, 4].map((i) => (
+                  <div key={i} className="aspect-square rounded-[10px] bg-surface" />
+                ))}
           </div>
         )}
 
