@@ -110,6 +110,13 @@ export async function getWorkingHours(): Promise<ApiWorkingHours[]> {
   return apiClient<ApiWorkingHours[]>('/vendors/me/working-hours')
 }
 
+/** GET /vendors/:id/working-hours (public) */
+export async function getVendorWorkingHours(id: string): Promise<ApiWorkingHours[]> {
+  return apiClient<ApiWorkingHours[]>(`/vendors/${id}/working-hours`, {
+    auth: false,
+  })
+}
+
 /** PUT /vendors/me/working-hours */
 export async function setVendorWorkingHours(
   days: Array<{

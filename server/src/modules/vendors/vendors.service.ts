@@ -541,11 +541,12 @@ export const vendorsService = {
       dayOfWeek
     )
 
-    if (!hours) {
+    if (!hours || hours.isClosed) {
       return {
         date: query.date,
         serviceId: service.id,
         slotIntervalMins: vendor.slotIntervalMins,
+        isClosed: true,
         slots: [] as string[],
       }
     }
@@ -578,7 +579,19 @@ export const vendorsService = {
       date: query.date,
       serviceId: service.id,
       slotIntervalMins: vendor.slotIntervalMins,
+      isClosed: false,
       slots,
     }
+  },
+
+  async getPublicWorkingHours(vendorId: string) {
+    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+
+    if (!vendor) {
+      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+
+    const hours = await vendorsRepository.listWorkingHours(vendor.id)
+    return hours.map(toWorkingHoursResponse)
   },
 }

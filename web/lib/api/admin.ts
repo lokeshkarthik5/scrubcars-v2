@@ -44,6 +44,29 @@ export interface CreateVendorInput {
   pincode: string
   email?: string
   whatsapp?: string
+  yearsInOperation?: string
+  mapsUrl?: string
+  pickup?: 'yes' | 'nearby' | 'no'
+  pickupRadiusKm?: number
+  dropinEnabled?: boolean
+  doorstepEnabled?: boolean
+  slotIntervalMins?: 30 | 45 | 60
+  bays?: number
+  jobsPerDay?: number
+  vehicleTypes?: string[]
+  workingDays?: number[]
+  openTime?: string
+  closeTime?: string
+  status?: 'pending' | 'active' | 'suspended' | 'archived'
+  isVerified?: boolean
+  notes?: string
+  services?: Array<{
+    name: string
+    description?: string
+    category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+    price: number
+    durationMins: number
+  }>
 }
 
 /** POST /admin/login */
@@ -82,6 +105,27 @@ export async function createAdminVendor(input: CreateVendorInput) {
 export async function verifyAdminVendor(id: string) {
   return apiClient<AdminVendor>(`/admin/vendors/${id}/verify`, {
     method: 'PATCH',
+  })
+}
+
+/** PATCH /admin/vendors/:id/archive — hide from customers, keep data */
+export async function archiveAdminVendor(id: string) {
+  return apiClient<AdminVendor>(`/admin/vendors/${id}/archive`, {
+    method: 'PATCH',
+  })
+}
+
+/** PATCH /admin/vendors/:id/unarchive — restore visibility */
+export async function unarchiveAdminVendor(id: string) {
+  return apiClient<AdminVendor>(`/admin/vendors/${id}/unarchive`, {
+    method: 'PATCH',
+  })
+}
+
+/** DELETE /admin/vendors/:id — permanent hard delete */
+export async function deleteAdminVendor(id: string) {
+  return apiClient<void>(`/admin/vendors/${id}`, {
+    method: 'DELETE',
   })
 }
 

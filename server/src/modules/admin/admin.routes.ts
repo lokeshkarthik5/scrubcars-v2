@@ -39,6 +39,24 @@ adminRoutes.patch(
   zValidator('param', vendorIdParamSchema),
   (c) => adminController.verifyVendor(c, c.req.valid('param').id)
 )
+adminRoutes.patch(
+  '/vendors/:id/archive',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.archiveVendor(c, c.req.valid('param').id)
+)
+adminRoutes.patch(
+  '/vendors/:id/unarchive',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.unarchiveVendor(c, c.req.valid('param').id)
+)
+adminRoutes.delete(
+  '/vendors/:id',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.deleteVendor(c, c.req.valid('param').id)
+)
 
 adminRoutes.get(
   '/bookings',

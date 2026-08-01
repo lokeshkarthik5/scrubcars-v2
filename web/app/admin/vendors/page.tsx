@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { IconPlus, IconCheck } from '@tabler/icons-react'
+import { IconPlus, IconCheck, IconArchive, IconArchiveOff, IconTrash } from '@tabler/icons-react'
 import { ScButton } from '@/components/sc/button'
 import { ApiError } from '@/lib/api/client'
 import {
   listAdminVendors,
   verifyAdminVendor,
+  archiveAdminVendor,
+  unarchiveAdminVendor,
+  deleteAdminVendor,
   type AdminVendor,
 } from '@/lib/api/admin'
 
@@ -18,6 +21,7 @@ export default function AdminVendorsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -48,6 +52,42 @@ export default function AdminVendorsPage() {
       setError('Failed to verify vendor')
     } finally {
       setVerifyingId(null)
+    }
+  }
+
+  const handleArchiveToggle = async (v: AdminVendor) => {
+    const archiving = v.status !== 'archived'
+    setBusyId(v.id)
+    setError('')
+    try {
+      const updated = archiving
+        ? await archiveAdminVendor(v.id)
+        : await unarchiveAdminVendor(v.id)
+      setVendors((prev) => prev.map((x) => (x.id === v.id ? { ...x, ...updated } : x)))
+    } catch {
+      setError(`Failed to ${archiving ? 'archive' : 'restore'} vendor`)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleDelete = async (v: AdminVendor) => {
+    if (
+      !window.confirm(
+        `Permanently delete "${v.businessName}"?\n\nThis removes the vendor and all its bookings, reviews and services. This cannot be undone. Use Archive instead if you want to keep the data.`
+      )
+    ) {
+      return
+    }
+    setBusyId(v.id)
+    setError('')
+    try {
+      await deleteAdminVendor(v.id)
+      setVendors((prev) => prev.filter((x) => x.id !== v.id))
+    } catch {
+      setError('Failed to delete vendor')
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -114,22 +154,50 @@ export default function AdminVendorsPage() {
                       <span className="text-[12px] text-warning">Pending</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {v.isVerified ? (
-                      <span className="inline-flex items-center gap-1 text-[12px] text-text-muted">
-                        <IconCheck size={14} /> Done
-                      </span>
-                    ) : (
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {v.isVerified ? (
+                        <span className="inline-flex items-center gap-1 text-[12px] text-text-muted">
+                          <IconCheck size={14} /> Done
+                        </span>
+                      ) : (
+                        <ScButton
+                          fullWidth={false}
+                          variant="secondary"
+                          disabled={verifyingId === v.id}
+                          onClick={() => handleVerify(v.id)}
+                          className="px-3 py-1.5 text-[12px]"
+                        >
+                          {verifyingId === v.id ? 'Verifying…' : 'Verify'}
+                        </ScButton>
+                      )}
                       <ScButton
                         fullWidth={false}
                         variant="secondary"
-                        disabled={verifyingId === v.id}
-                        onClick={() => handleVerify(v.id)}
-                        className="px-3 py-1.5 text-[12px]"
+                        disabled={busyId === v.id}
+                        onClick={() => handleArchiveToggle(v)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
                       >
-                        {verifyingId === v.id ? 'Verifying…' : 'Verify'}
+                        {v.status === 'archived' ? (
+                          <>
+                            <IconArchiveOff size={14} /> Restore
+                          </>
+                        ) : (
+                          <>
+                            <IconArchive size={14} /> Archive
+                          </>
+                        )}
                       </ScButton>
-                    )}
+                      <button
+                        type="button"
+                        disabled={busyId === v.id}
+                        onClick={() => handleDelete(v)}
+                        title="Delete permanently"
+                        className="inline-flex items-center rounded-[8px] p-1.5 text-brand-red hover:bg-brand-red/10 disabled:opacity-50"
+                      >
+                        <IconTrash size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -166,6 +166,11 @@ vendorsRoutes.get(
   zValidator('param', vendorIdParamSchema),
   (c) => vendorsController.listPublicServices(c, c.req.valid('param').id)
 )
+vendorsRoutes.get(
+  '/:id/working-hours',
+  zValidator('param', vendorIdParamSchema),
+  (c) => vendorsController.getPublicWorkingHours(c, c.req.valid('param').id)
+)
 vendorsRoutes.get('/:id', zValidator('param', vendorIdParamSchema), (c) =>
   vendorsController.getPublicVendor(c, c.req.valid('param').id)
 )

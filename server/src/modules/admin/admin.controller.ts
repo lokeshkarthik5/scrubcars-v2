@@ -58,6 +58,21 @@ export async function verifyVendor(c: AdminContext, id: string) {
   return c.json({ success: true, data: vendor })
 }
 
+export async function archiveVendor(c: AdminContext, id: string) {
+  const vendor = await adminService.archiveVendor(id)
+  return c.json({ success: true, data: vendor })
+}
+
+export async function unarchiveVendor(c: AdminContext, id: string) {
+  const vendor = await adminService.unarchiveVendor(id)
+  return c.json({ success: true, data: vendor })
+}
+
+export async function deleteVendor(c: AdminContext, id: string) {
+  await adminService.deleteVendor(id)
+  return c.json({ success: true })
+}
+
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {
   const vendor = await adminService.createVendor(input)
   return c.json({ success: true, data: vendor }, 201)

@@ -275,3 +275,15 @@ export async function getAvailableSlots(
     data: slots,
   })
 }
+
+export async function getPublicWorkingHours(
+  c: VendorsContext,
+  vendorId: string
+) {
+  const hours = await vendorsService.getPublicWorkingHours(vendorId)
+
+  return c.json({
+    success: true,
+    data: hours,
+  })
+}

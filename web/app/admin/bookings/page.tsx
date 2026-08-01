@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ApiError } from '@/lib/api/client'
 import { listAdminBookings, type AdminBooking } from '@/lib/api/admin'
-import { cn } from '@/lib/utils'
+import { APP_TIMEZONE, cn } from '@/lib/utils'
 
 const STATUSES = ['all', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'] as const
 
@@ -14,6 +14,7 @@ function formatDate(iso: string) {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: APP_TIMEZONE,
   })
 }
 

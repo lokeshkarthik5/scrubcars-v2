@@ -19,12 +19,17 @@ export interface SlotParams {
   date: string
 }
 
+export interface AvailableSlots {
+  isClosed: boolean
+  slots: ReturnType<typeof mapSlots>
+}
+
 function todayDateString(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
 /** GET /vendors/:vendorId/slots */
-export async function getAvailableSlots(params: SlotParams) {
+export async function getAvailableSlots(params: SlotParams): Promise<AvailableSlots> {
   const date = params.date === 'today' ? todayDateString() : params.date
   const data = await apiClient<ApiSlotsResponse>(`/vendors/${params.vendorId}/slots`, {
     auth: false,
@@ -33,7 +38,7 @@ export async function getAvailableSlots(params: SlotParams) {
       service_id: params.serviceId,
     },
   })
-  return mapSlots(data.slots)
+  return { isClosed: data.isClosed, slots: mapSlots(data.slots) }
 }
 
 /** POST /bookings */

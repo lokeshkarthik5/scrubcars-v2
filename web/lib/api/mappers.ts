@@ -19,6 +19,7 @@ import type {
   Vendor,
   VendorStatus,
 } from '@/lib/types'
+import { APP_TIMEZONE } from '@/lib/utils'
 
 const CATEGORY_LABELS: Record<string, string> = {
   car_wash: 'Car wash',
@@ -39,6 +40,7 @@ function formatSlotTime(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: APP_TIMEZONE,
   })
 }
 
@@ -50,6 +52,7 @@ function formatScheduledAt(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: APP_TIMEZONE,
   })
 }
 
@@ -58,6 +61,7 @@ function formatReviewDate(iso: string): string {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    timeZone: APP_TIMEZONE,
   })
 }
 

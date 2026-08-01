@@ -14,12 +14,12 @@ import { TopBar } from '@/components/sc/top-bar'
 import { getAvailableSlots } from '@/lib/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
 import { getVendorServices } from '@/lib/api/services'
-import { getVendor } from '@/lib/api/vendors'
+import { getVendor, getVendorWorkingHours } from '@/lib/api/vendors'
 import { openRazorpayCheckout } from '@/lib/razorpay'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { PaymentMethod, Service, Vendor } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { APP_TIMEZONE, cn } from '@/lib/utils'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -35,16 +35,21 @@ const PAYMENT_METHOD_OPTIONS = [
 ]
 
 function buildDateOptions(count = 7) {
+  // Anchor "today" to IST so the calendar days match the server's slot dates,
+  // regardless of the customer's device timezone. Date-only arithmetic in UTC
+  // is safe (no DST) and getUTC* keeps the day-of-week aligned with the server.
+  const istToday = new Date().toLocaleDateString('en-CA', { timeZone: APP_TIMEZONE })
+  const [y, m, d0] = istToday.split('-').map(Number)
   return Array.from({ length: count }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() + i)
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
+    const d = new Date(Date.UTC(y, m - 1, d0 + i))
+    const yyyy = d.getUTCFullYear()
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+    const dd = String(d.getUTCDate()).padStart(2, '0')
     return {
       value: `${yyyy}-${mm}-${dd}`,
-      dayName: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : DAY_NAMES[d.getDay()],
-      date: `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`,
+      dayOfWeek: d.getUTCDay(),
+      dayName: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : DAY_NAMES[d.getUTCDay()],
+      date: `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}`,
     }
   })
 }
@@ -70,6 +75,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [slots, setSlots] = useState<Array<{ time: string; label: string; available: boolean }>>([])
+  const [isClosedDay, setIsClosedDay] = useState(false)
+  const [closedDays, setClosedDays] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
 
@@ -87,6 +94,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
         : svcs[0]
       setSelectedService(preselected ?? null)
     })
+    getVendorWorkingHours(vendorId)
+      .then((hours) =>
+        setClosedDays(
+          new Set(hours.filter((h) => h.isClosed).map((h) => h.dayOfWeek))
+        )
+      )
+      .catch(() => setClosedDays(new Set()))
     void fetchVehicles()
     void fetchProfile()
   }, [vendorId, serviceId, fetchVehicles, fetchProfile])
@@ -98,7 +112,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
       vendorId,
       serviceId: selectedService.id,
       date: selectedDate,
-    }).then(setSlots)
+    }).then(({ isClosed, slots }) => {
+      setSlots(slots)
+      setIsClosedDay(isClosed)
+    })
   }, [vendorId, selectedService, selectedDate])
 
   useEffect(() => {
@@ -195,27 +212,38 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Pick a slot</h2>
 
         <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-          {dateOptions.map((d) => (
-            <button
-              key={d.value}
-              type="button"
-              onClick={() => setSelectedDate(d.value)}
-              className={cn(
-                'flex shrink-0 flex-col items-center rounded-[10px] border px-3 py-2 transition-colors',
-                selectedDate === d.value
-                  ? 'border-brand-red bg-accent-muted text-brand-red'
-                  : 'border-border bg-surface text-text-primary'
-              )}
-            >
-              <span className="text-[11px] font-medium">{d.dayName}</span>
-              <span className="text-[13px] font-semibold">{d.date}</span>
-            </button>
-          ))}
+          {dateOptions.map((d) => {
+            const closed = closedDays.has(d.dayOfWeek)
+            return (
+              <button
+                key={d.value}
+                type="button"
+                disabled={closed}
+                onClick={() => setSelectedDate(d.value)}
+                className={cn(
+                  'flex shrink-0 flex-col items-center rounded-[10px] border px-3 py-2 transition-colors',
+                  closed
+                    ? 'cursor-not-allowed border-border bg-surface text-text-secondary opacity-40'
+                    : selectedDate === d.value
+                      ? 'border-brand-red bg-accent-muted text-brand-red'
+                      : 'border-border bg-surface text-text-primary'
+                )}
+              >
+                <span className="text-[11px] font-medium">{d.dayName}</span>
+                <span className="text-[13px] font-semibold">{d.date}</span>
+                {closed && <span className="text-[9px] font-medium">Closed</span>}
+              </button>
+            )
+          })}
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
           {slots.length === 0 ? (
-            <p className="text-[12px] text-text-secondary">No slots available on this date.</p>
+            <p className="text-[12px] text-text-secondary">
+              {isClosedDay
+                ? 'Vendor is closed on this day.'
+                : 'No slots available on this date.'}
+            </p>
           ) : (
             slots.map((slot) => (
               <Chip

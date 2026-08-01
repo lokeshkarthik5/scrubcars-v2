@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
+  IconDotsCircleHorizontal,
   IconDroplet,
   IconMapPin,
   IconShield,
@@ -24,6 +25,7 @@ const CATEGORIES = [
   { key: 'detailing', label: 'Detailing', icon: IconSparkles },
   { key: 'coating', label: 'Coating', icon: IconShield },
   { key: 'scratch_removal', label: 'Scratch removal', icon: IconTool },
+  { key: 'others', label: 'Others', icon: IconDotsCircleHorizontal },
 ]
 
 function HomeContent() {

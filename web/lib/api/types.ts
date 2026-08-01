@@ -164,6 +164,7 @@ export interface ApiSlotsResponse {
   date: string
   serviceId: string
   slotIntervalMins: number
+  isClosed: boolean
   slots: string[]
 }
 

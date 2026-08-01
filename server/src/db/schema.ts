@@ -35,6 +35,7 @@ export const vendorStatusEnum = pgEnum('vendor_status', [
   'pending',
   'active',
   'suspended',
+  'archived',
 ])
 
 export const vendorPickupEnum = pgEnum('vendor_pickup', [

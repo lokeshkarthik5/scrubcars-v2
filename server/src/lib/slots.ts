@@ -65,7 +65,6 @@ export function computeAvailableSlots(input: {
     input.intervalMins
   )
   const closeAt = combineDateAndTime(input.date, input.closeTime)
-  const slotsNeeded = Math.ceil(input.serviceDurationMins / input.intervalMins)
   const available: string[] = []
 
   for (const startTime of slotStarts) {
@@ -98,8 +97,15 @@ export function isScheduledAtAvailable(
   return availableSlots.some((slot) => new Date(slot).getTime() === target)
 }
 
+// The timezone all slots are anchored to. Must match the offset used in
+// combineDateAndTime (+05:30) so a slot's date key matches the day the
+// customer selected in the slots endpoint.
+const APP_TIMEZONE = 'Asia/Kolkata'
+
 export function getDateKeyFromScheduledAt(scheduledAt: Date): string {
-  return scheduledAt.toISOString().slice(0, 10)
+  // en-CA renders as YYYY-MM-DD; timeZone pins it to IST rather than UTC so
+  // early-morning IST slots don't roll back to the previous calendar day.
+  return scheduledAt.toLocaleDateString('en-CA', { timeZone: APP_TIMEZONE })
 }
 
 export function getDayOfWeekFromDate(date: string): number {
