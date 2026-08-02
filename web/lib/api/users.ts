@@ -55,6 +55,52 @@ export async function updateProfile(payload: UpdateProfilePayload): Promise<User
   return mapUserProfile(profile)
 }
 
+type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
+
+/** POST /users/me/avatar/upload-url — presigned R2 PUT URL for the avatar */
+export async function getAvatarUploadUrl(
+  contentType: UploadContentType
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  return apiClient<{ uploadUrl: string; publicUrl: string }>(
+    '/users/me/avatar/upload-url',
+    { method: 'POST', body: JSON.stringify({ contentType }) }
+  )
+}
+
+/** PUT /users/me/avatar — save the avatar URL on the profile */
+export async function setAvatar(url: string): Promise<User> {
+  const profile = await apiClient<ApiUserProfile>('/users/me/avatar', {
+    method: 'PUT',
+    body: JSON.stringify({ url }),
+  })
+  return mapUserProfile(profile)
+}
+
+/** DELETE /users/me/avatar */
+export async function deleteAvatar(): Promise<User> {
+  const profile = await apiClient<ApiUserProfile>('/users/me/avatar', {
+    method: 'DELETE',
+  })
+  return mapUserProfile(profile)
+}
+
+/** Full avatar upload flow: presign → PUT to R2 → save URL on the profile. */
+export async function uploadAvatar(file: File): Promise<User> {
+  const contentType = file.type as UploadContentType
+  const { uploadUrl, publicUrl } = await getAvatarUploadUrl(contentType)
+
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': contentType },
+  })
+  if (!put.ok) {
+    throw new Error('Upload failed. Please try again.')
+  }
+
+  return setAvatar(publicUrl)
+}
+
 /** GET /users/me/vehicles */
 export async function getVehicles(): Promise<Vehicle[]> {
   const vehicles = await apiClient<ApiVehicle[]>('/users/me/vehicles')

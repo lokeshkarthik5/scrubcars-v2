@@ -81,12 +81,14 @@ export default function VendorOnboardingStep4() {
     setLoading(true)
     setError(null)
     try {
+      // Quick-add uses flat pricing; the vendor can switch a service to
+      // per-vehicle / from / on-inspection later in the Services page.
       await createService({
         name,
         category,
+        pricingType: 'flat',
         price: Number(price),
         durationMins: duration,
-        isActive: true,
       })
       setAddedCount((count) => count + 1)
       setName('')

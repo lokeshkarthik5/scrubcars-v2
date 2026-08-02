@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { IconCar, IconLogout, IconMapPin, IconPlus, IconTrash } from '@tabler/icons-react'
+import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
+import { IconCamera, IconCar, IconLogout, IconMapPin, IconPlus, IconTrash } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -47,7 +48,11 @@ export default function ProfilePage() {
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
   const fetchAddresses = useUserStore((s) => s.fetchAddresses)
+  const uploadAvatar = useUserStore((s) => s.uploadAvatar)
+  const removeAvatar = useUserStore((s) => s.removeAvatar)
   const resetUser = useUserStore((s) => s.reset)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [avatarBusy, setAvatarBusy] = useState(false)
   const [showVehicleForm, setShowVehicleForm] = useState(false)
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm)
@@ -81,6 +86,37 @@ export default function ProfilePage() {
     await logout()
     resetUser()
     window.location.href = '/login'
+  }
+
+  const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Use a JPEG, PNG or WebP image')
+      return
+    }
+    setAvatarBusy(true)
+    try {
+      await uploadAvatar(file)
+      toast.success('Photo updated')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
+
+  const handleAvatarRemove = async () => {
+    setAvatarBusy(true)
+    try {
+      await removeAvatar()
+      toast.success('Photo removed')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove photo')
+    } finally {
+      setAvatarBusy(false)
+    }
   }
 
   const submitVehicle = async () => {
@@ -163,14 +199,52 @@ export default function ProfilePage() {
       <TopBar title="Profile" />
 
       <ScCard className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-muted text-lg font-semibold text-brand-red">
-          {user?.name?.slice(0, 1) ?? '?'}
-        </div>
-        <div>
+        <input
+          ref={avatarInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          onChange={handleAvatarPick}
+        />
+        <button
+          type="button"
+          onClick={() => avatarInputRef.current?.click()}
+          disabled={avatarBusy}
+          aria-label="Change profile photo"
+          className="relative h-12 w-12 shrink-0 disabled:opacity-60"
+        >
+          {user?.avatarUrl ? (
+            <Image
+              src={user.avatarUrl}
+              alt="Profile photo"
+              width={48}
+              height={48}
+              className="h-12 w-12 rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-muted text-lg font-semibold text-brand-red">
+              {user?.name?.slice(0, 1) ?? '?'}
+            </span>
+          )}
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-surface bg-brand-red text-white">
+            <IconCamera size={11} />
+          </span>
+        </button>
+        <div className="flex-1 min-w-0">
           <p className="text-[15px] font-semibold text-text-primary">{user?.name}</p>
           <p className="text-[12px] text-text-secondary">+91 {user?.phone}</p>
           {user?.area && (
             <p className="text-[11px] text-text-muted">{user.area} – {user.pincode}</p>
+          )}
+          {user?.avatarUrl && (
+            <button
+              type="button"
+              onClick={handleAvatarRemove}
+              disabled={avatarBusy}
+              className="mt-1 text-[11px] text-text-muted transition-colors hover:text-brand-red disabled:opacity-40"
+            >
+              Remove photo
+            </button>
           )}
         </div>
       </ScCard>

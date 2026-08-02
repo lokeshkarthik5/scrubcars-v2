@@ -3,10 +3,12 @@
 import { create } from 'zustand'
 import {
   createAddress as apiCreateAddress,
+  deleteAvatar as apiDeleteAvatar,
   getAddresses,
   getProfileWithAddresses,
   getVehicles,
   updateProfile as apiUpdateProfile,
+  uploadAvatar as apiUploadAvatar,
 } from '@/lib/api/users'
 import type { Address, User, Vehicle } from '@/lib/types'
 
@@ -26,6 +28,8 @@ interface UserState {
   }) => Promise<User>
   fetchVehicles: () => Promise<Vehicle[]>
   fetchAddresses: () => Promise<Address[]>
+  uploadAvatar: (file: File) => Promise<User>
+  removeAvatar: () => Promise<User>
   reset: () => void
 }
 
@@ -97,6 +101,25 @@ export const useUserStore = create<UserState>((set, get) => ({
     const addresses = await getAddresses()
     set({ addresses })
     return addresses
+  },
+
+  async uploadAvatar(file) {
+    const profile = await apiUploadAvatar(file)
+    // Only the avatar changed — keep the cached area/pincode and other fields.
+    set((s) => ({
+      profile: s.profile
+        ? { ...s.profile, avatarUrl: profile.avatarUrl }
+        : profile,
+    }))
+    return profile
+  },
+
+  async removeAvatar() {
+    const profile = await apiDeleteAvatar()
+    set((s) => ({
+      profile: s.profile ? { ...s.profile, avatarUrl: null } : profile,
+    }))
+    return profile
   },
 
   reset() {

@@ -91,19 +91,44 @@ const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
   { value: 'others', label: 'Others' },
 ]
 
+type PricingType = 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [
+  { value: 'flat', label: 'Flat' },
+  { value: 'per_vehicle', label: 'Per vehicle' },
+  { value: 'from', label: 'From' },
+  { value: 'on_inspection', label: 'On inspection' },
+]
+
 interface ServiceRow {
   name: string
   category: ServiceCategory
+  pricingType: PricingType
   price: string
+  priceHatchback: string
+  priceSedan: string
+  priceSuv: string
   durationMins: string
 }
 
 const emptyService = (): ServiceRow => ({
   name: '',
   category: 'car_wash',
+  pricingType: 'flat',
   price: '',
+  priceHatchback: '',
+  priceSedan: '',
+  priceSuv: '',
   durationMins: '',
 })
+
+// A row's pricing is complete when the right price(s) exist for its type.
+function rowPricingValid(s: ServiceRow): boolean {
+  if (s.pricingType === 'on_inspection') return true
+  if (s.pricingType === 'per_vehicle') {
+    return [s.priceHatchback, s.priceSedan, s.priceSuv].some((p) => Number(p) > 0)
+  }
+  return Number(s.price) > 0
+}
 
 export default function NewVendorPage() {
   const router = useRouter()
@@ -148,7 +173,7 @@ export default function NewVendorPage() {
 
   // A service row counts only when fully filled; partially-filled rows are ignored.
   const validServices = services.filter(
-    (s) => s.name.trim() && Number(s.price) > 0 && Number(s.durationMins) > 0
+    (s) => s.name.trim() && rowPricingValid(s) && Number(s.durationMins) > 0
   )
 
   const toggle = <T,>(list: T[], item: T): T[] =>
@@ -197,12 +222,24 @@ export default function NewVendorPage() {
         isVerified,
         notes: form.notes.trim() || undefined,
         services: validServices.length
-          ? validServices.map((s) => ({
-              name: s.name.trim(),
-              category: s.category,
-              price: Number(s.price),
-              durationMins: Number(s.durationMins),
-            }))
+          ? validServices.map((s) => {
+              const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
+              return {
+                name: s.name.trim(),
+                category: s.category,
+                pricingType: s.pricingType,
+                durationMins: Number(s.durationMins),
+                ...(s.pricingType === 'per_vehicle'
+                  ? {
+                      priceHatchback: pos(s.priceHatchback),
+                      priceSedan: pos(s.priceSedan),
+                      priceSuv: pos(s.priceSuv),
+                    }
+                  : s.pricingType === 'on_inspection'
+                    ? {}
+                    : { price: pos(s.price) }),
+              }
+            })
           : undefined,
       })
       router.replace('/admin/vendors')
@@ -352,7 +389,7 @@ export default function NewVendorPage() {
                       Remove
                     </button>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <select
                       value={s.category}
                       onChange={(e) => updateService(i, { category: e.target.value as ServiceCategory })}
@@ -364,14 +401,34 @@ export default function NewVendorPage() {
                         </option>
                       ))}
                     </select>
-                    <input
-                      value={s.price}
-                      type="number"
-                      min={0}
-                      placeholder="Price ₹"
-                      onChange={(e) => updateService(i, { price: e.target.value })}
-                      className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
-                    />
+                    <select
+                      value={s.pricingType}
+                      onChange={(e) => updateService(i, { pricingType: e.target.value as PricingType })}
+                      className="rounded-[10px] border border-border bg-surface px-2 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                    >
+                      {PRICING_TYPES.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(s.pricingType === 'flat' || s.pricingType === 'from') && (
+                      <input
+                        value={s.price}
+                        type="number"
+                        min={0}
+                        placeholder={s.pricingType === 'from' ? 'Starting ₹' : 'Price ₹'}
+                        onChange={(e) => updateService(i, { price: e.target.value })}
+                        className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      />
+                    )}
+                    {s.pricingType === 'on_inspection' && (
+                      <p className="self-center text-[12px] text-text-muted">
+                        Quoted after inspection · pay later
+                      </p>
+                    )}
                     <input
                       value={s.durationMins}
                       type="number"
@@ -381,6 +438,34 @@ export default function NewVendorPage() {
                       className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
                     />
                   </div>
+                  {s.pricingType === 'per_vehicle' && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        value={s.priceHatchback}
+                        type="number"
+                        min={0}
+                        placeholder="Hatch ₹"
+                        onChange={(e) => updateService(i, { priceHatchback: e.target.value })}
+                        className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      />
+                      <input
+                        value={s.priceSedan}
+                        type="number"
+                        min={0}
+                        placeholder="Sedan ₹"
+                        onChange={(e) => updateService(i, { priceSedan: e.target.value })}
+                        className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      />
+                      <input
+                        value={s.priceSuv}
+                        type="number"
+                        min={0}
+                        placeholder="SUV ₹"
+                        onChange={(e) => updateService(i, { priceSuv: e.target.value })}
+                        className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

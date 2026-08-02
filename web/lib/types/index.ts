@@ -13,11 +13,14 @@ export type ServiceCategory =
   | 'others'
 export type PaymentMethod = 'online' | 'cash'
 export type VendorStatus = 'open' | 'busy' | 'closed'
+export type PricingType = 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+export type VehicleType = 'hatchback' | 'sedan' | 'suv'
 
 export interface User {
   id: string
   name: string
   phone: string
+  avatarUrl?: string | null
   area?: string
   pincode?: string
   isCustomer: boolean
@@ -46,7 +49,13 @@ export interface Service {
   vendorId: string
   name: string
   category: ServiceCategory
+  pricingType: PricingType
+  // Base/display price. For 'flat'/'from' the price, for 'per_vehicle' the
+  // cheapest tier, and 0 for 'on_inspection'.
   price: number
+  priceHatchback: number | null
+  priceSedan: number | null
+  priceSuv: number | null
   durationMins: number
   isActive: boolean
 }
@@ -65,6 +74,7 @@ export interface Vehicle {
   make: string
   model: string
   plate: string
+  vehicleType?: VehicleType
   isDefault: boolean
 }
 
@@ -87,6 +97,7 @@ export interface Booking {
   vendorName: string
   serviceName: string
   servicePrice: number
+  servicePricingType?: PricingType
   status: BookingStatus
   bookingType: BookingType
   scheduledAt: string

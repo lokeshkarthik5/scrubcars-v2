@@ -9,19 +9,48 @@ const timeSchema = z
   .string()
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Time must be HH:MM')
 
-const serviceInputSchema = z.object({
-  name: z.string().trim().min(1).max(255),
-  description: z.string().trim().max(5000).optional(),
-  category: z.enum([
-    'car_wash',
-    'detailing',
-    'coating',
-    'scratch_removal',
-    'others',
-  ]),
-  price: z.number().positive(),
-  durationMins: z.number().int().positive(),
-})
+const serviceInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    description: z.string().trim().max(5000).optional(),
+    category: z.enum([
+      'car_wash',
+      'detailing',
+      'coating',
+      'scratch_removal',
+      'others',
+    ]),
+    pricingType: z
+      .enum(['flat', 'per_vehicle', 'from', 'on_inspection'])
+      .default('flat'),
+    price: z.number().positive().optional(),
+    priceHatchback: z.number().positive().optional(),
+    priceSedan: z.number().positive().optional(),
+    priceSuv: z.number().positive().optional(),
+    durationMins: z.number().int().positive(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.pricingType === 'flat' || data.pricingType === 'from') {
+      if (data.price === undefined || data.price <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['price'],
+          message: `A positive price is required for '${data.pricingType}' pricing`,
+        })
+      }
+    }
+    if (data.pricingType === 'per_vehicle') {
+      const tiers = [data.priceHatchback, data.priceSedan, data.priceSuv]
+      if (!tiers.some((t) => typeof t === 'number' && t > 0)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['priceHatchback'],
+          message:
+            'At least one vehicle tier price is required for per-vehicle pricing',
+        })
+      }
+    }
+  })
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1),

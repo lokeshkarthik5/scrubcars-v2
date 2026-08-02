@@ -3,6 +3,7 @@ import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import { signAdminToken } from '../../lib/jwt.js'
 import { logger } from '../../lib/logger.js'
+import { resolveServicePricing } from '../../lib/pricing.js'
 import { adminRepository } from './admin.repository.js'
 import type {
   CreateVendorInput,
@@ -152,8 +153,8 @@ export const adminService = {
           name: s.name,
           description: s.description ?? null,
           category: s.category,
-          // price is a numeric/decimal column → stored as string
-          price: String(s.price),
+          // Resolve pricing type + tiers into the columns to persist.
+          ...resolveServicePricing(s),
           durationMins: s.durationMins,
         }))
       )

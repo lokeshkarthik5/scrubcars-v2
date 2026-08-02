@@ -7,6 +7,10 @@ import {
   isScheduledAtAvailable,
   type BookedRange,
 } from '../../lib/slots.js'
+import {
+  computeServiceAmount,
+  supportsOnlinePayment,
+} from '../../lib/pricing.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
 
@@ -53,6 +57,7 @@ type BookingWithRelations = {
     id: string
     name: string
     category: string
+    pricingType: string
     durationMins: number
   } | null
   vehicle?: {
@@ -125,6 +130,7 @@ function toBookingResponse(booking: BookingWithRelations) {
           id: booking.service.id,
           name: booking.service.name,
           category: booking.service.category,
+          pricingType: booking.service.pricingType,
           durationMins: booking.service.durationMins,
         }
       : null,
@@ -355,6 +361,23 @@ export const bookingsService = {
         throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
       }
 
+      // 'from' and 'on_inspection' services have no firm upfront amount, so
+      // they are pay-later (cash) only — reject any online prepay attempt.
+      if (
+        input.paymentMethod === 'online' &&
+        !supportsOnlinePayment(service.pricingType)
+      ) {
+        log.warn({ userId, serviceId: service.id, pricingType: service.pricingType }, 'booking:online_not_supported')
+        throw new AppError(
+          400,
+          'This service is pay-later only; online payment is not available.',
+          'ONLINE_PAYMENT_NOT_SUPPORTED'
+        )
+      }
+
+      // Resolve the charge from the pricing type and the customer's vehicle.
+      const amount = computeServiceAmount(service, vehicle.vehicleType)
+
       let lat: number | null = null
       let lng: number | null = null
       let address: string | null = null
@@ -381,7 +404,7 @@ export const bookingsService = {
           scheduledAt,
           lockDate: bookingDate,
           serviceDurationMins: service.durationMins,
-          amount: service.price,
+          amount,
           paymentMethod: input.paymentMethod,
           lat,
           lng,
@@ -420,7 +443,7 @@ export const bookingsService = {
         scheduledAt: scheduledAt.toISOString(),
         bookingType: input.bookingType,
         paymentMethod: input.paymentMethod,
-        amount: service.price,
+        amount,
       }, 'booking:created')
 
       return toBookingResponse({ ...fullBooking, payment })

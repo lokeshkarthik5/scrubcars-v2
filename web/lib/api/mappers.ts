@@ -85,6 +85,7 @@ export function mapUserProfile(
     id: profile.id,
     name: profile.name,
     phone: profile.phone,
+    avatarUrl: profile.avatarUrl,
     area: defaultAddress?.city,
     pincode: defaultAddress?.address.match(/\d{6}/)?.[0],
     isCustomer: profile.isCustomer,
@@ -113,7 +114,11 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
 
 export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
   const activeServices = vendor.services.filter((s) => s.isActive)
-  const prices = activeServices.map((s) => Number(s.price))
+  // 'on_inspection' services have no upfront price — exclude from "from ₹X".
+  const prices = activeServices
+    .filter((s) => s.pricingType !== 'on_inspection')
+    .map((s) => Number(s.price))
+    .filter((n) => Number.isFinite(n) && n > 0)
   const categories = [...new Set(activeServices.map((s) => s.category))]
 
   return {
@@ -135,12 +140,17 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
 }
 
 export function mapService(service: ApiService, vendorId: string): Service {
+  const tier = (v: string | null): number | null => (v === null ? null : Number(v))
   return {
     id: service.id,
     vendorId,
     name: service.name,
     category: service.category as Service['category'],
+    pricingType: service.pricingType,
     price: Number(service.price),
+    priceHatchback: tier(service.priceHatchback),
+    priceSedan: tier(service.priceSedan),
+    priceSuv: tier(service.priceSuv),
     durationMins: service.durationMins,
     isActive: service.isActive,
   }
@@ -152,6 +162,7 @@ export function mapVehicle(vehicle: ApiVehicle): Vehicle {
     make: vehicle.make,
     model: vehicle.model,
     plate: vehicle.licensePlate ?? '',
+    vehicleType: vehicle.vehicleType as Vehicle['vehicleType'],
     isDefault: vehicle.isDefault,
   }
 }
@@ -173,6 +184,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     vendorName: booking.vendor?.businessName ?? '',
     serviceName: booking.service?.name ?? '',
     servicePrice: Number(booking.amount),
+    servicePricingType: booking.service?.pricingType,
     status: booking.status as Booking['status'],
     bookingType: booking.bookingType as Booking['bookingType'],
     scheduledAt: formatScheduledAt(booking.scheduledAt),

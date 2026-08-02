@@ -52,6 +52,18 @@ export const serviceCategoryEnum = pgEnum('service_category', [
   'others',
 ])
 
+// How a service is priced. 'flat' = one price; 'per_vehicle' = a price per
+// vehicle tier (hatchback/sedan/suv); 'from' = a starting price; 'on_inspection'
+// = no upfront price, quoted after the vehicle is seen. Only 'flat' and
+// 'per_vehicle' support online (Razorpay) prepay; 'from' and 'on_inspection'
+// are pay-later only.
+export const servicePricingTypeEnum = pgEnum('service_pricing_type', [
+  'flat',
+  'per_vehicle',
+  'from',
+  'on_inspection',
+])
+
 export const bookingTypeEnum = pgEnum('booking_type', ['doorstep', 'dropin'])
 
 export const bookingStatusEnum = pgEnum('booking_status', [
@@ -87,6 +99,9 @@ export const users = pgTable(
     name: varchar('name', { length: 255 }).notNull(),
     phone: varchar('phone', { length: 20 }).notNull().unique(),
     email: varchar('email', { length: 255 }),
+    // Optional profile picture, stored in R2 like vendor logos.
+    avatarUrl: varchar('avatar_url', { length: 2048 }),
+    avatarStorageKey: varchar('avatar_storage_key', { length: 1024 }),
     phoneVerified: boolean('phone_verified').default(false).notNull(),
     isCustomer: boolean('is_customer').default(true).notNull(),
     isVendorOwner: boolean('is_vendor_owner').default(false).notNull(),
@@ -280,7 +295,17 @@ export const services = pgTable(
     name: varchar('name', { length: 255 }).notNull(),
     description: text('description'),
     category: serviceCategoryEnum('category').notNull(),
+    pricingType: servicePricingTypeEnum('pricing_type')
+      .default('flat')
+      .notNull(),
+    // Base/display price. For 'flat' it is the fixed price, for 'from' the
+    // starting price, for 'per_vehicle' the cheapest tier (denormalized so the
+    // "from ₹X" listing math keeps working), and 0 for 'on_inspection'.
     price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+    // Per-vehicle tier prices, used only when pricingType = 'per_vehicle'.
+    priceHatchback: decimal('price_hatchback', { precision: 10, scale: 2 }),
+    priceSedan: decimal('price_sedan', { precision: 10, scale: 2 }),
+    priceSuv: decimal('price_suv', { precision: 10, scale: 2 }),
     durationMins: integer('duration_mins').notNull(),
     isActive: boolean('is_active').default(true).notNull(),
   },

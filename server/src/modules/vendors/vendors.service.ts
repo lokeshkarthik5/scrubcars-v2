@@ -11,6 +11,10 @@ import {
   deleteObject,
   keyFromPublicUrl,
 } from '../../lib/storage.js'
+import {
+  computeStartingPrice,
+  resolveServicePricing,
+} from '../../lib/pricing.js'
 import { vendorsRepository } from './vendors.repository.js'
 
 const log = logger.child({ module: 'vendors' })
@@ -115,7 +119,11 @@ export type ServiceResponse = {
   name: string
   description: string | null
   category: string
+  pricingType: string
   price: string
+  priceHatchback: string | null
+  priceSedan: string | null
+  priceSuv: string | null
   durationMins: number
   isActive: boolean
 }
@@ -187,7 +195,11 @@ function toServiceResponse(service: ServiceRecord): ServiceResponse {
     name: service.name,
     description: service.description,
     category: service.category,
+    pricingType: service.pricingType,
     price: service.price,
+    priceHatchback: service.priceHatchback,
+    priceSedan: service.priceSedan,
+    priceSuv: service.priceSuv,
     durationMins: service.durationMins,
     isActive: service.isActive,
   }
@@ -235,7 +247,6 @@ export const vendorsService = {
         return true
       })
       .map((vendor) => {
-        const prices = vendor.services.map((service) => Number(service.price))
         const categories = [
           ...new Set(vendor.services.map((service) => service.category)),
         ]
@@ -249,8 +260,7 @@ export const vendorsService = {
           status: vendor.status,
           doorstepEnabled: vendor.doorstepEnabled,
           dropinEnabled: vendor.dropinEnabled,
-          startingPrice:
-            prices.length > 0 ? Math.min(...prices) : null,
+          startingPrice: computeStartingPrice(vendor.services),
           serviceTags: categories.map(
             (category) => categoryLabels[category] ?? category
           ),
@@ -553,11 +563,12 @@ export const vendorsService = {
 
   async createService(ownerId: string, input: CreateServiceInput) {
     const vendor = await getOwnedVendor(ownerId)
+    const pricing = resolveServicePricing(input)
     const [service] = await vendorsRepository.createService(vendor.id, {
       name: input.name,
       description: input.description ?? null,
       category: input.category,
-      price: input.price.toFixed(2),
+      ...pricing,
       durationMins: input.durationMins,
     })
 
@@ -579,6 +590,22 @@ export const vendorsService = {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
 
+    // When the pricing type is provided we rewrite the whole pricing block
+    // (type + base price + all tiers) so stale tier values can't linger after
+    // switching, say, from per-vehicle to flat. Otherwise leave pricing as-is.
+    const pricing =
+      input.pricingType !== undefined
+        ? resolveServicePricing({
+            pricingType: input.pricingType,
+            price: input.price,
+            priceHatchback: input.priceHatchback,
+            priceSedan: input.priceSedan,
+            priceSuv: input.priceSuv,
+          })
+        : input.price !== undefined
+          ? { price: input.price.toFixed(2) }
+          : {}
+
     const [updated] = await vendorsRepository.updateService(
       vendor.id,
       serviceId,
@@ -588,7 +615,7 @@ export const vendorsService = {
           ? { description: input.description }
           : {}),
         ...(input.category !== undefined ? { category: input.category } : {}),
-        ...(input.price !== undefined ? { price: input.price.toFixed(2) } : {}),
+        ...pricing,
         ...(input.durationMins !== undefined
           ? { durationMins: input.durationMins }
           : {}),

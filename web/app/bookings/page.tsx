@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/sc/empty-state'
 import { TopBar } from '@/components/sc/top-bar'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
+import { formatBookingAmount } from '@/lib/pricing'
 
 export default function BookingsListPage() {
   const router = useRouter()
@@ -62,7 +63,7 @@ export default function BookingsListPage() {
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-text-secondary">
                     <span>{booking.scheduledAt}</span>
-                    <span className="font-semibold text-text-primary">₹{booking.servicePrice}</span>
+                    <span className="font-semibold text-text-primary">{formatBookingAmount(booking.servicePrice, booking.servicePricingType)}</span>
                   </div>
                 </ScCard>
               </Link>

@@ -104,6 +104,44 @@ export async function createPresignedUpload(
   }
 }
 
+/**
+ * Create a short-lived presigned PUT URL scoped to a single user's prefix,
+ * used for the optional customer profile picture (avatar).
+ */
+export async function createUserUpload(
+  userId: string,
+  contentType: string,
+  folder = 'avatar'
+): Promise<PresignedUpload> {
+  const ext = CONTENT_TYPE_EXT[contentType]
+  if (!ext) {
+    throw new AppError(
+      400,
+      'Unsupported image type. Use JPEG, PNG or WebP.',
+      'UNSUPPORTED_IMAGE_TYPE'
+    )
+  }
+
+  const client = getClient()
+  const key = `users/${userId}/${folder}/${randomUUID()}.${ext}`
+
+  const uploadUrl = await getSignedUrl(
+    client,
+    new PutObjectCommand({
+      Bucket: env.r2Bucket,
+      Key: key,
+      ContentType: contentType,
+    }),
+    { expiresIn: env.r2UploadUrlTtlSeconds }
+  )
+
+  return {
+    uploadUrl,
+    key,
+    publicUrl: `${env.r2PublicBaseUrl}/${key}`,
+  }
+}
+
 /** Best-effort delete of an object; logs but does not throw on failure. */
 export async function deleteObject(key: string): Promise<void> {
   try {

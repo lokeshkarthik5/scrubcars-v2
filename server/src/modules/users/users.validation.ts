@@ -59,6 +59,16 @@ export const resourceIdParamSchema = z.object({
   id: z.string().uuid(),
 })
 
+export const avatarUploadUrlSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+})
+
+export const setAvatarSchema = z.object({
+  url: z.string().url().max(2048),
+})
+
+export type AvatarUploadUrlInput = z.infer<typeof avatarUploadUrlSchema>
+export type SetAvatarInput = z.infer<typeof setAvatarSchema>
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
 export type CreateAddressInput = z.infer<typeof createAddressSchema>
 export type UpdateAddressInput = z.infer<typeof updateAddressSchema>

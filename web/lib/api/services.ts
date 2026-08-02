@@ -1,7 +1,39 @@
 import { apiClient } from './client'
 import { mapService } from './mappers'
 import type { ApiService } from './types'
-import type { Service } from '@/lib/types'
+import type { PricingType, Service, ServiceCategory } from '@/lib/types'
+
+export interface ServiceMutationInput {
+  name: string
+  category: ServiceCategory
+  pricingType: PricingType
+  price?: number
+  priceHatchback?: number | null
+  priceSedan?: number | null
+  priceSuv?: number | null
+  durationMins: number
+}
+
+// Build a payload carrying only the price fields that match the pricing type,
+// so we never send price:0 (the server requires positive) or stray tiers.
+function pricingPayload(data: ServiceMutationInput) {
+  const positive = (v: number | null | undefined) =>
+    typeof v === 'number' && v > 0 ? v : undefined
+
+  if (data.pricingType === 'per_vehicle') {
+    return {
+      pricingType: data.pricingType,
+      priceHatchback: positive(data.priceHatchback),
+      priceSedan: positive(data.priceSedan),
+      priceSuv: positive(data.priceSuv),
+    }
+  }
+  if (data.pricingType === 'on_inspection') {
+    return { pricingType: data.pricingType }
+  }
+  // flat | from
+  return { pricingType: data.pricingType, price: positive(data.price) }
+}
 
 /** GET /vendors/:vendorId/services */
 export async function getVendorServices(vendorId: string): Promise<Service[]> {
@@ -19,15 +51,15 @@ export async function getMyServices(): Promise<Service[]> {
 
 /** POST /vendors/me/services */
 export async function createService(
-  data: Omit<Service, 'id' | 'vendorId'>
+  data: ServiceMutationInput
 ): Promise<Service> {
   const service = await apiClient<ApiService>('/vendors/me/services', {
     method: 'POST',
     body: JSON.stringify({
       name: data.name,
       category: data.category,
-      price: data.price,
       durationMins: data.durationMins,
+      ...pricingPayload(data),
     }),
   })
   return mapService(service, '')
@@ -36,15 +68,15 @@ export async function createService(
 /** PATCH /vendors/me/services/:id */
 export async function updateService(
   id: string,
-  data: Partial<Service>
+  data: ServiceMutationInput
 ): Promise<Service> {
   const service = await apiClient<ApiService>(`/vendors/me/services/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({
       name: data.name,
       category: data.category,
-      price: data.price,
       durationMins: data.durationMins,
+      ...pricingPayload(data),
     }),
   })
   return mapService(service, '')

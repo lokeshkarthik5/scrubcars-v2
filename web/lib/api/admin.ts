@@ -29,7 +29,11 @@ export interface AdminBooking {
   createdAt: string
   vendor: { id: string; businessName: string; phone: string } | null
   user: { id: string; name: string; phone: string } | null
-  service: { id: string; name: string } | null
+  service: {
+    id: string
+    name: string
+    pricingType?: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+  } | null
   vehicle: { id: string; make: string; model: string } | null
   payment: { status: string } | null
 }
@@ -64,7 +68,11 @@ export interface CreateVendorInput {
     name: string
     description?: string
     category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
-    price: number
+    pricingType: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+    price?: number
+    priceHatchback?: number
+    priceSedan?: number
+    priceSuv?: number
     durationMins: number
   }>
 }

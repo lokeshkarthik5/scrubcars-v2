@@ -2,8 +2,10 @@ import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { usersService } from './users.service.js'
 import type {
+  AvatarUploadUrlInput,
   CreateAddressInput,
   CreateVehicleInput,
+  SetAvatarInput,
   UpdateAddressInput,
   UpdateProfileInput,
   UpdateVehicleInput,
@@ -29,6 +31,36 @@ export async function updateProfile(
   input: UpdateProfileInput
 ) {
   const profile = await usersService.updateProfile(getUserId(c), input)
+
+  return c.json({
+    success: true,
+    data: profile,
+  })
+}
+
+export async function createAvatarUploadUrl(
+  c: UsersContext,
+  input: AvatarUploadUrlInput
+) {
+  const data = await usersService.createAvatarUploadUrl(getUserId(c), input)
+
+  return c.json({
+    success: true,
+    data,
+  })
+}
+
+export async function setAvatar(c: UsersContext, input: SetAvatarInput) {
+  const profile = await usersService.setAvatar(getUserId(c), input)
+
+  return c.json({
+    success: true,
+    data: profile,
+  })
+}
+
+export async function deleteAvatar(c: UsersContext) {
+  const profile = await usersService.deleteAvatar(getUserId(c))
 
   return c.json({
     success: true,

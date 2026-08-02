@@ -7,9 +7,11 @@ import {
 } from '../../middleware/auth.middleware.js'
 import * as usersController from './users.controller.js'
 import {
+  avatarUploadUrlSchema,
   createAddressSchema,
   createVehicleSchema,
   resourceIdParamSchema,
+  setAvatarSchema,
   updateAddressSchema,
   updateProfileSchema,
   updateVehicleSchema,
@@ -23,6 +25,16 @@ usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>
   usersController.updateProfile(c, c.req.valid('json'))
 )
+usersRoutes.post(
+  '/me/avatar/upload-url',
+  zValidator('json', avatarUploadUrlSchema),
+  (c) => usersController.createAvatarUploadUrl(c, c.req.valid('json'))
+)
+usersRoutes.put('/me/avatar', zValidator('json', setAvatarSchema), (c) =>
+  usersController.setAvatar(c, c.req.valid('json'))
+)
+usersRoutes.delete('/me/avatar', usersController.deleteAvatar)
+
 usersRoutes.delete('/me', usersController.deleteAccount)
 
 usersRoutes.get('/me/addresses', usersController.listAddresses)

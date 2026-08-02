@@ -13,6 +13,7 @@ import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
 import { submitReview } from '@/lib/api/reviews'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout } from '@/lib/razorpay'
+import { formatBookingAmount } from '@/lib/pricing'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Booking, Review } from '@/lib/types'
@@ -193,7 +194,7 @@ export default function BookingDetailPage({
           <span className="text-text-secondary">
             {booking.paymentMethod === 'online' ? 'Online' : 'Cash'}
           </span>
-          <span className="font-semibold">₹{booking.servicePrice}</span>
+          <span className="font-semibold">{formatBookingAmount(booking.servicePrice, booking.servicePricingType)}</span>
         </div>
         <p className="mt-1 text-[11px] capitalize text-text-muted">{booking.paymentStatus}</p>
         {booking.paymentMethod === 'online' &&

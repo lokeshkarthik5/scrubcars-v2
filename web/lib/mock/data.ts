@@ -80,6 +80,10 @@ export const MOCK_SERVICES: Service[] = [
     category: 'car_wash',
     price: 299,
     durationMins: 30,
+    pricingType: 'flat',
+    priceHatchback: null,
+    priceSedan: null,
+    priceSuv: null,
     isActive: true,
   },
   {
@@ -89,6 +93,10 @@ export const MOCK_SERVICES: Service[] = [
     category: 'detailing',
     price: 1499,
     durationMins: 120,
+    pricingType: 'flat',
+    priceHatchback: null,
+    priceSedan: null,
+    priceSuv: null,
     isActive: true,
   },
   {
@@ -98,6 +106,10 @@ export const MOCK_SERVICES: Service[] = [
     category: 'coating',
     price: 4999,
     durationMins: 180,
+    pricingType: 'flat',
+    priceHatchback: null,
+    priceSedan: null,
+    priceSuv: null,
     isActive: true,
   },
 ]

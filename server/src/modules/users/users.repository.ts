@@ -21,6 +21,8 @@ export const usersRepository = {
     data: Partial<{
       name: string
       email: string | null
+      avatarUrl: string | null
+      avatarStorageKey: string | null
     }>
   ) {
     return db.update(users).set(data).where(eq(users.id, id)).returning()

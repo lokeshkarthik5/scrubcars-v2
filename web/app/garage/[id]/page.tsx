@@ -16,6 +16,7 @@ import { getVendorServices } from '@/lib/api/services'
 import { getVendor } from '@/lib/api/vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import type { Review, Service, Vendor } from '@/lib/types'
+import { formatServicePrice } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 
 type Tab = 'services' | 'photos' | 'reviews'
@@ -138,7 +139,7 @@ export default function GaragePage({
               >
                 <div className="flex items-start justify-between">
                   <p className="text-[13px] font-semibold text-text-primary">{svc.name}</p>
-                  <span className="text-[13px] font-semibold text-text-primary">₹{svc.price}</span>
+                  <span className="text-[13px] font-semibold text-text-primary">{formatServicePrice(svc)}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-2">
                   <ScBadge variant="muted">{CATEGORY_LABELS[svc.category]}</ScBadge>

@@ -9,9 +9,13 @@ import {
   vendorServiceAreas,
   vendorWorkingHours,
 } from '../../db/schema.js'
-import type { serviceCategoryEnum } from '../../db/schema.js'
+import type {
+  serviceCategoryEnum,
+  servicePricingTypeEnum,
+} from '../../db/schema.js'
 
 type ServiceCategory = (typeof serviceCategoryEnum.enumValues)[number]
+type ServicePricingType = (typeof servicePricingTypeEnum.enumValues)[number]
 
 export type VendorRecord = typeof vendors.$inferSelect
 export type VendorInsert = typeof vendors.$inferInsert
@@ -301,7 +305,11 @@ export const vendorsRepository = {
       name: string
       description?: string | null
       category: ServiceCategory
+      pricingType: ServicePricingType
       price: string
+      priceHatchback?: string | null
+      priceSedan?: string | null
+      priceSuv?: string | null
       durationMins: number
     }
   ) {
@@ -312,7 +320,11 @@ export const vendorsRepository = {
         name: data.name,
         description: data.description ?? null,
         category: data.category,
+        pricingType: data.pricingType,
         price: data.price,
+        priceHatchback: data.priceHatchback ?? null,
+        priceSedan: data.priceSedan ?? null,
+        priceSuv: data.priceSuv ?? null,
         durationMins: data.durationMins,
       })
       .returning()
@@ -325,7 +337,11 @@ export const vendorsRepository = {
       name: string
       description: string | null
       category: ServiceCategory
+      pricingType: ServicePricingType
       price: string
+      priceHatchback: string | null
+      priceSedan: string | null
+      priceSuv: string | null
       durationMins: number
       isActive: boolean
     }>

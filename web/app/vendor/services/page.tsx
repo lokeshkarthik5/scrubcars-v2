@@ -16,7 +16,8 @@ import {
   updateService,
 } from '@/lib/api/services'
 import { toast } from 'react-toastify'
-import type { Service, ServiceCategory } from '@/lib/types'
+import type { PricingType, Service, ServiceCategory } from '@/lib/types'
+import { PRICING_TYPES, formatServicePrice, supportsOnlinePayment } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 
 const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
@@ -30,15 +31,35 @@ const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
 type ServiceForm = {
   name: string
   category: ServiceCategory
+  pricingType: PricingType
   price: string
+  priceHatchback: string
+  priceSedan: string
+  priceSuv: string
   durationMins: string
 }
 
 const emptyServiceForm: ServiceForm = {
   name: '',
   category: 'car_wash',
+  pricingType: 'flat',
   price: '',
+  priceHatchback: '',
+  priceSedan: '',
+  priceSuv: '',
   durationMins: '30',
+}
+
+// A form's pricing block is valid to submit when the right price(s) are present
+// for the chosen pricing type ('on_inspection' needs none).
+function hasValidPricing(form: ServiceForm): boolean {
+  if (form.pricingType === 'on_inspection') return true
+  if (form.pricingType === 'per_vehicle') {
+    return [form.priceHatchback, form.priceSedan, form.priceSuv].some(
+      (p) => Number(p) > 0
+    )
+  }
+  return Number(form.price) > 0
 }
 
 export default function VendorServicesPage() {
@@ -74,12 +95,16 @@ export default function VendorServicesPage() {
 
   const submitService = () =>
     runAction('service', async () => {
+      const num = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
       const payload = {
         name: serviceForm.name,
         category: serviceForm.category,
-        price: Number(serviceForm.price),
+        pricingType: serviceForm.pricingType,
+        price: num(serviceForm.price),
+        priceHatchback: num(serviceForm.priceHatchback),
+        priceSedan: num(serviceForm.priceSedan),
+        priceSuv: num(serviceForm.priceSuv),
         durationMins: Number(serviceForm.durationMins),
-        isActive: true,
       }
 
       if (editingServiceId) {
@@ -100,7 +125,14 @@ export default function VendorServicesPage() {
     setServiceForm({
       name: svc.name,
       category: svc.category,
-      price: String(svc.price),
+      pricingType: svc.pricingType,
+      price:
+        svc.pricingType === 'flat' || svc.pricingType === 'from'
+          ? String(svc.price)
+          : '',
+      priceHatchback: svc.priceHatchback != null ? String(svc.priceHatchback) : '',
+      priceSedan: svc.priceSedan != null ? String(svc.priceSedan) : '',
+      priceSuv: svc.priceSuv != null ? String(svc.priceSuv) : '',
       durationMins: String(svc.durationMins),
     })
   }
@@ -162,22 +194,64 @@ export default function VendorServicesPage() {
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div>
+          <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
+          <div className="flex flex-wrap gap-2">
+            {PRICING_TYPES.map((pt) => (
+              <Chip
+                key={pt.value}
+                label={pt.label}
+                selected={serviceForm.pricingType === pt.value}
+                onClick={() => setServiceForm({ ...serviceForm, pricingType: pt.value })}
+              />
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-text-muted">
+            {PRICING_TYPES.find((pt) => pt.value === serviceForm.pricingType)?.hint}
+            {!supportsOnlinePayment(serviceForm.pricingType) && ' · pay-later only'}
+          </p>
+        </div>
+
+        {(serviceForm.pricingType === 'flat' || serviceForm.pricingType === 'from') && (
           <ScInput
-            label="Price (₹)"
+            label={serviceForm.pricingType === 'from' ? 'Starting price (₹)' : 'Price (₹)'}
             type="number"
             value={serviceForm.price}
             onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}
           />
-          <ScInput
-            label="Duration (mins)"
-            type="number"
-            value={serviceForm.durationMins}
-            onChange={(e) => setServiceForm({ ...serviceForm, durationMins: e.target.value })}
-          />
-        </div>
+        )}
+
+        {serviceForm.pricingType === 'per_vehicle' && (
+          <div className="grid grid-cols-3 gap-2">
+            <ScInput
+              label="Hatchback (₹)"
+              type="number"
+              value={serviceForm.priceHatchback}
+              onChange={(e) => setServiceForm({ ...serviceForm, priceHatchback: e.target.value })}
+            />
+            <ScInput
+              label="Sedan (₹)"
+              type="number"
+              value={serviceForm.priceSedan}
+              onChange={(e) => setServiceForm({ ...serviceForm, priceSedan: e.target.value })}
+            />
+            <ScInput
+              label="SUV (₹)"
+              type="number"
+              value={serviceForm.priceSuv}
+              onChange={(e) => setServiceForm({ ...serviceForm, priceSuv: e.target.value })}
+            />
+          </div>
+        )}
+
+        <ScInput
+          label="Duration (mins)"
+          type="number"
+          value={serviceForm.durationMins}
+          onChange={(e) => setServiceForm({ ...serviceForm, durationMins: e.target.value })}
+        />
         <ScButton
-          disabled={!serviceForm.name || !serviceForm.price || saving === 'service'}
+          disabled={!serviceForm.name || !hasValidPricing(serviceForm) || saving === 'service'}
           onClick={submitService}
         >
           {saving === 'service'
@@ -199,7 +273,7 @@ export default function VendorServicesPage() {
               <div>
                 <p className="text-[13px] font-medium">{svc.name}</p>
                 <p className="text-[11px] text-text-secondary">
-                  ₹{svc.price} · {svc.durationMins} min
+                  {formatServicePrice(svc)} · {svc.durationMins} min
                 </p>
               </div>
               <div className="flex items-center gap-2">

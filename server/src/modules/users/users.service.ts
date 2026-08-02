@@ -1,4 +1,10 @@
 import { AppError } from '../../lib/errors.js'
+import {
+  createUserUpload,
+  deleteObject,
+  keyFromPublicUrl,
+} from '../../lib/storage.js'
+import { logger } from '../../lib/logger.js'
 import { usersRepository } from './users.repository.js'
 import type {
   AddressRecord,
@@ -6,18 +12,23 @@ import type {
   VehicleRecord,
 } from './users.repository.js'
 import type {
+  AvatarUploadUrlInput,
   CreateAddressInput,
   CreateVehicleInput,
+  SetAvatarInput,
   UpdateAddressInput,
   UpdateProfileInput,
   UpdateVehicleInput,
 } from './users.validation.js'
+
+const log = logger.child({ module: 'users' })
 
 export type UserProfileResponse = {
   id: string
   name: string
   phone: string
   email: string | null
+  avatarUrl: string | null
   phoneVerified: boolean
   isCustomer: boolean
   isVendorOwner: boolean
@@ -53,6 +64,7 @@ function toProfileResponse(user: UserRecord): UserProfileResponse {
     name: user.name,
     phone: user.phone,
     email: user.email,
+    avatarUrl: user.avatarUrl,
     phoneVerified: user.phoneVerified,
     isCustomer: user.isCustomer,
     isVendorOwner: user.isVendorOwner,
@@ -135,6 +147,57 @@ export const usersService = {
       ...(input.email !== undefined ? { email: input.email } : {}),
     })
 
+    return toProfileResponse(updated)
+  },
+
+  async createAvatarUploadUrl(userId: string, input: AvatarUploadUrlInput) {
+    await getActiveUser(userId)
+    const { uploadUrl, publicUrl } = await createUserUpload(
+      userId,
+      input.contentType
+    )
+    return { uploadUrl, publicUrl }
+  },
+
+  async setAvatar(userId: string, input: SetAvatarInput) {
+    const user = await getActiveUser(userId)
+
+    // Only accept URLs that actually point at our bucket.
+    const storageKey = keyFromPublicUrl(input.url)
+    if (!storageKey) {
+      throw new AppError(400, 'Invalid avatar URL', 'INVALID_AVATAR_URL')
+    }
+
+    const previousKey = user.avatarStorageKey
+
+    const [updated] = await usersRepository.updateUser(userId, {
+      avatarUrl: input.url,
+      avatarStorageKey: storageKey,
+    })
+
+    // Remove the old avatar object once the new one is saved.
+    if (previousKey && previousKey !== storageKey) {
+      await deleteObject(previousKey)
+    }
+
+    log.info({ userId }, 'user:avatar-updated')
+    return toProfileResponse(updated)
+  },
+
+  async deleteAvatar(userId: string) {
+    const user = await getActiveUser(userId)
+
+    const [updated] = await usersRepository.updateUser(userId, {
+      avatarUrl: null,
+      avatarStorageKey: null,
+    })
+
+    const key = user.avatarStorageKey ?? keyFromPublicUrl(user.avatarUrl ?? '')
+    if (key) {
+      await deleteObject(key)
+    }
+
+    log.info({ userId }, 'user:avatar-removed')
     return toProfileResponse(updated)
   },
 

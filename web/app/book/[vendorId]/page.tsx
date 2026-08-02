@@ -19,6 +19,7 @@ import { openRazorpayCheckout } from '@/lib/razorpay'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { PaymentMethod, Service, Vendor } from '@/lib/types'
+import { formatServicePrice, resolveServiceAmount, supportsOnlinePayment } from '@/lib/pricing'
 import { APP_TIMEZONE, cn } from '@/lib/utils'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -125,6 +126,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }, [vehicles, selectedVehicle])
 
+  const selectedVehicleType = vehicles.find((v) => v.id === selectedVehicle)?.vehicleType
+  // 'from'/'on_inspection' services are pay-later only.
+  const onlineAllowed = selectedService
+    ? supportsOnlinePayment(selectedService.pricingType)
+    : true
+  // The concrete amount (null for 'on_inspection' — quoted on site).
+  const resolvedAmount = selectedService
+    ? resolveServiceAmount(selectedService, selectedVehicleType)
+    : null
+  // The effective method: pay-later services can never be 'online', even if a
+  // previous selection left it there. Derived so we avoid a resetting effect.
+  const effectivePaymentMethod: PaymentMethod = onlineAllowed ? paymentMethod : 'cash'
+
   const handleConfirm = async () => {
     if (bookingLockRef.current || loading) return
     if (!selectedService || !selectedSlot || !selectedVehicle) return
@@ -137,10 +151,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
         scheduledAt: selectedSlot,
         bookingType,
         vehicleId: selectedVehicle,
-        paymentMethod,
+        paymentMethod: effectivePaymentMethod,
       })
 
-      if (paymentMethod === 'cash') {
+      if (effectivePaymentMethod === 'cash') {
         router.push(`/bookings/${booking.id}`)
         return
       }
@@ -192,7 +206,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <p className="text-[11px] text-text-secondary">{vendor.name}</p>
               <p className="text-[11px] text-text-secondary">{selectedService.durationMins} min</p>
             </div>
-            <span className="text-[13px] font-semibold">₹{selectedService.price}</span>
+            <span className="text-[13px] font-semibold">
+              {formatServicePrice(selectedService, selectedVehicleType)}
+            </span>
           </div>
         </ScCard>
       )}
@@ -290,13 +306,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-text-primary">Payment method</h2>
+        {!onlineAllowed && (
+          <p className="mb-2 text-[12px] text-text-secondary">
+            This service is pay-later — settle in cash on service.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
-          {PAYMENT_METHOD_OPTIONS.map(({ value, label, icon: Icon }) => (
+          {PAYMENT_METHOD_OPTIONS.filter(
+            ({ value }) => value !== 'online' || onlineAllowed
+          ).map(({ value, label, icon: Icon }) => (
             <button key={value} type="button" onClick={() => setPaymentMethod(value)}>
-              <ScCard className={cn('flex items-center gap-3', paymentMethod === value && 'border-brand-red')}>
+              <ScCard className={cn('flex items-center gap-3', effectivePaymentMethod === value && 'border-brand-red')}>
                 <Icon size={20} className="text-text-secondary" />
                 <span className="flex-1 text-left text-[13px]">{label}</span>
-                {paymentMethod === value && (
+                {effectivePaymentMethod === value && (
                   <div className="h-4 w-4 rounded-full border-[5px] border-brand-red" />
                 )}
               </ScCard>
@@ -311,12 +334,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
           onClick={handleConfirm}
         >
           {loading
-            ? paymentMethod === 'online'
+            ? effectivePaymentMethod === 'online'
               ? 'Processing payment...'
               : 'Confirming...'
-            : paymentMethod === 'online'
-              ? `Pay · ₹${selectedService?.price ?? 0}`
-              : `Confirm · ₹${selectedService?.price ?? 0}`}
+            : resolvedAmount == null
+              ? 'Confirm booking'
+              : effectivePaymentMethod === 'online'
+                ? `Pay · ₹${resolvedAmount}`
+                : `Confirm · ₹${resolvedAmount}`}
         </ScButton>
       </div>
     </AppShell>

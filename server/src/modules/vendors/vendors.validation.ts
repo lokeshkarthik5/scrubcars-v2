@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ServicePricingType } from '../../lib/pricing.js'
 
 const phoneSchema = z
   .string()
@@ -138,24 +139,86 @@ export const listPublicVendorsQuerySchema = z.object({
   q: z.string().trim().min(1).optional(),
 })
 
-export const createServiceSchema = z.object({
-  name: z.string().trim().min(1).max(255),
-  description: z.string().trim().max(5000).optional(),
-  category: serviceCategorySchema,
-  price: z.number().positive(),
-  durationMins: z.number().int().positive(),
-})
+export const servicePricingTypeSchema = z.enum([
+  'flat',
+  'per_vehicle',
+  'from',
+  'on_inspection',
+])
+
+// Shared cohesion check for a service's pricing fields. 'flat'/'from' need a
+// single `price`; 'per_vehicle' needs at least one tier price; 'on_inspection'
+// needs none. Applied via superRefine so we can report the offending field.
+function refinePricing(
+  data: {
+    pricingType?: ServicePricingType
+    price?: number
+    priceHatchback?: number
+    priceSedan?: number
+    priceSuv?: number
+  },
+  ctx: z.RefinementCtx
+) {
+  const type = data.pricingType
+  if (type === undefined) return
+
+  if (type === 'flat' || type === 'from') {
+    if (data.price === undefined || data.price <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['price'],
+        message: `A positive price is required for '${type}' pricing`,
+      })
+    }
+  }
+
+  if (type === 'per_vehicle') {
+    const tiers = [data.priceHatchback, data.priceSedan, data.priceSuv]
+    if (!tiers.some((t) => typeof t === 'number' && t > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['priceHatchback'],
+        message: 'At least one vehicle tier price is required for per-vehicle pricing',
+      })
+    }
+  }
+}
+
+export const createServiceSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    description: z.string().trim().max(5000).optional(),
+    category: serviceCategorySchema,
+    pricingType: servicePricingTypeSchema.default('flat'),
+    price: z.number().positive().optional(),
+    priceHatchback: z.number().positive().optional(),
+    priceSedan: z.number().positive().optional(),
+    priceSuv: z.number().positive().optional(),
+    durationMins: z.number().int().positive(),
+  })
+  .superRefine(refinePricing)
 
 export const updateServiceSchema = z
   .object({
     name: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(5000).nullable().optional(),
     category: serviceCategorySchema.optional(),
+    pricingType: servicePricingTypeSchema.optional(),
     price: z.number().positive().optional(),
+    priceHatchback: z.number().positive().optional(),
+    priceSedan: z.number().positive().optional(),
+    priceSuv: z.number().positive().optional(),
     durationMins: z.number().int().positive().optional(),
   })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one field must be provided',
+  .superRefine((data, ctx) => {
+    if (Object.keys(data).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one field must be provided',
+      })
+      return
+    }
+    refinePricing(data, ctx)
   })
 
 export const toggleServiceActiveSchema = z.object({

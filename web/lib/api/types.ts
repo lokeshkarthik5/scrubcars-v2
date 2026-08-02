@@ -43,6 +43,7 @@ export interface ApiUserProfile {
   name: string
   phone: string
   email: string | null
+  avatarUrl: string | null
   phoneVerified: boolean
   isCustomer: boolean
   isVendorOwner: boolean
@@ -158,7 +159,11 @@ export interface ApiService {
   name: string
   description: string | null
   category: string
+  pricingType: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
   price: string
+  priceHatchback: string | null
+  priceSedan: string | null
+  priceSuv: string | null
   durationMins: number
   isActive: boolean
 }
@@ -202,6 +207,7 @@ export interface ApiBooking {
     id: string
     name: string
     category: string
+    pricingType: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
     durationMins: number
   } | null
   vehicle: {
