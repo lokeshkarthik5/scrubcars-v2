@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { IconPlus, IconCheck, IconArchive, IconArchiveOff, IconTrash } from '@tabler/icons-react'
+import { IconPlus, IconCheck, IconArchive, IconArchiveOff, IconTrash, IconPencil } from '@tabler/icons-react'
 import { ScButton } from '@/components/sc/button'
 import { ApiError } from '@/lib/api/client'
 import {
@@ -171,6 +171,15 @@ export default function AdminVendorsPage() {
                           {verifyingId === v.id ? 'Verifying…' : 'Verify'}
                         </ScButton>
                       )}
+                      <Link href={`/admin/vendors/${v.id}/edit`}>
+                        <ScButton
+                          fullWidth={false}
+                          variant="secondary"
+                          className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
+                        >
+                          <IconPencil size={14} /> Edit
+                        </ScButton>
+                      </Link>
                       <ScButton
                         fullWidth={false}
                         variant="secondary"

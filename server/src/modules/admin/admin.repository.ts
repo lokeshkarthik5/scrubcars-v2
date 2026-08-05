@@ -31,6 +31,21 @@ export const adminRepository = {
     })
   },
 
+  // Full detail for the admin edit screen: owner + weekly working hours.
+  findVendorDetailById(id: string) {
+    return db.query.vendors.findFirst({
+      where: eq(vendors.id, id),
+      with: {
+        owner: true,
+        workingHours: true,
+      },
+    })
+  },
+
+  updateVendor(id: string, data: Partial<VendorInsert>) {
+    return db.update(vendors).set(data).where(eq(vendors.id, id)).returning()
+  },
+
   verifyVendor(id: string) {
     return db
       .update(vendors)
@@ -83,6 +98,10 @@ export const adminRepository = {
       .returning()
   },
 
+  updateUser(id: string, data: { name?: string; phone?: string }) {
+    return db.update(users).set(data).where(eq(users.id, id)).returning()
+  },
+
   setUserAsVendorOwner(userId: string) {
     return db
       .update(users)
@@ -104,6 +123,12 @@ export const adminRepository = {
   insertWorkingHours(rows: WorkingHoursInsert[]) {
     if (rows.length === 0) return Promise.resolve([])
     return db.insert(vendorWorkingHours).values(rows).returning()
+  },
+
+  deleteWorkingHours(vendorId: string) {
+    return db
+      .delete(vendorWorkingHours)
+      .where(eq(vendorWorkingHours.vendorId, vendorId))
   },
 
   insertServices(rows: ServiceInsert[]) {

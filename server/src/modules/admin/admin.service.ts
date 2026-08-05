@@ -9,6 +9,7 @@ import type {
   CreateVendorInput,
   ListBookingsQuery,
   LoginInput,
+  UpdateVendorInput,
 } from './admin.validation.js'
 
 const log = logger.child({ module: 'admin' })
@@ -37,6 +38,99 @@ export const adminService = {
 
   async listVendors() {
     return adminRepository.listVendors()
+  },
+
+  async getVendor(id: string) {
+    const vendor = await adminRepository.findVendorDetailById(id)
+    if (!vendor) {
+      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+    return vendor
+  },
+
+  async updateVendor(id: string, input: UpdateVendorInput) {
+    const vendor = await adminRepository.findVendorById(id)
+    if (!vendor) {
+      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+
+    // Owner name/phone live on the linked user row. Guard against moving the
+    // owner phone onto a number that already belongs to another account.
+    if (input.ownerPhone !== undefined || input.ownerName !== undefined) {
+      if (input.ownerPhone !== undefined) {
+        const existing = await adminRepository.findUserByPhone(input.ownerPhone)
+        if (existing && existing.id !== vendor.ownerId) {
+          throw new AppError(
+            409,
+            'Another account already uses this owner phone',
+            'PHONE_IN_USE'
+          )
+        }
+      }
+      await adminRepository.updateUser(vendor.ownerId, {
+        ...(input.ownerName !== undefined && { name: input.ownerName }),
+        ...(input.ownerPhone !== undefined && { phone: input.ownerPhone }),
+      })
+    }
+
+    // Only forward vendor-table columns that were actually provided. `null`
+    // clears a nullable column; `undefined` leaves it untouched.
+    const patch: Parameters<typeof adminRepository.updateVendor>[1] = {
+      ...(input.businessName !== undefined && { businessName: input.businessName }),
+      ...(input.phone !== undefined && { phone: input.phone }),
+      ...(input.address !== undefined && { address: input.address }),
+      ...(input.city !== undefined && { city: input.city }),
+      ...(input.pincode !== undefined && { pincode: input.pincode }),
+      ...(input.email !== undefined && { email: input.email }),
+      ...(input.whatsapp !== undefined && { whatsapp: input.whatsapp }),
+      ...(input.yearsInOperation !== undefined && {
+        yearsInOperation: input.yearsInOperation,
+      }),
+      ...(input.mapsUrl !== undefined && { mapsUrl: input.mapsUrl }),
+      ...(input.pickup !== undefined && { pickup: input.pickup }),
+      ...(input.pickupRadiusKm !== undefined && {
+        pickupRadiusKm: input.pickupRadiusKm,
+      }),
+      ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
+      ...(input.doorstepEnabled !== undefined && {
+        doorstepEnabled: input.doorstepEnabled,
+      }),
+      ...(input.slotIntervalMins !== undefined && {
+        slotIntervalMins: input.slotIntervalMins,
+      }),
+      ...(input.bays !== undefined && { bays: input.bays }),
+      ...(input.jobsPerDay !== undefined && { jobsPerDay: input.jobsPerDay }),
+      ...(input.vehicleTypes !== undefined && { vehicleTypes: input.vehicleTypes }),
+      ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.status !== undefined && { status: input.status }),
+      ...(input.isVerified !== undefined && { isVerified: input.isVerified }),
+    }
+
+    const [updated] = Object.keys(patch).length
+      ? await adminRepository.updateVendor(id, patch)
+      : [vendor]
+
+    // Rewrite the weekly schedule when the admin submitted working days.
+    if (input.workingDays !== undefined) {
+      await adminRepository.deleteWorkingHours(id)
+      if (input.workingDays.length > 0) {
+        const open = new Set(input.workingDays)
+        const openTime = input.openTime ?? '09:00'
+        const closeTime = input.closeTime ?? '18:00'
+        await adminRepository.insertWorkingHours(
+          Array.from({ length: 7 }, (_, dayOfWeek) => ({
+            vendorId: id,
+            dayOfWeek,
+            openTime,
+            closeTime,
+            isClosed: !open.has(dayOfWeek),
+          }))
+        )
+      }
+    }
+
+    log.info({ vendorId: id }, 'admin:vendor-updated')
+    return updated
   },
 
   async verifyVendor(id: string) {

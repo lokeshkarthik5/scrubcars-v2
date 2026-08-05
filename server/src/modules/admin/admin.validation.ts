@@ -96,6 +96,44 @@ export const createVendorSchema = z.object({
   services: z.array(serviceInputSchema).max(50).optional(),
 })
 
+// Partial update of an existing vendor. Every field is optional; only the keys
+// present in the payload are changed. Nullable fields accept `null` to clear
+// them. Owner name/phone update the linked user row. Passing `workingDays`
+// rewrites the whole weekly schedule (open on those days, closed on the rest).
+export const updateVendorSchema = z.object({
+  ownerName: z.string().trim().min(1).max(255).optional(),
+  ownerPhone: phoneSchema.optional(),
+  businessName: z.string().trim().min(1).max(255).optional(),
+  phone: phoneSchema.optional(),
+  address: z.string().trim().min(1).optional(),
+  city: z.string().trim().min(1).max(100).optional(),
+  pincode: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Pincode must be a 6-digit number')
+    .optional(),
+  email: z.string().trim().email().nullable().optional(),
+  whatsapp: phoneSchema.nullable().optional(),
+  yearsInOperation: z.string().trim().max(20).nullable().optional(),
+  mapsUrl: z.string().trim().url().max(2048).nullable().optional(),
+  pickup: z.enum(['yes', 'nearby', 'no']).nullable().optional(),
+  pickupRadiusKm: z.number().positive().nullable().optional(),
+  dropinEnabled: z.boolean().optional(),
+  doorstepEnabled: z.boolean().optional(),
+  slotIntervalMins: z
+    .union([z.literal(30), z.literal(45), z.literal(60)])
+    .optional(),
+  bays: z.number().int().min(0).nullable().optional(),
+  jobsPerDay: z.number().int().min(0).nullable().optional(),
+  vehicleTypes: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  workingDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  openTime: timeSchema.optional(),
+  closeTime: timeSchema.optional(),
+  status: z.enum(['pending', 'active', 'suspended', 'archived']).optional(),
+  isVerified: z.boolean().optional(),
+  notes: z.string().trim().max(5000).nullable().optional(),
+})
+
 export const listBookingsQuerySchema = z.object({
   status: z
     .enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
@@ -104,4 +142,5 @@ export const listBookingsQuerySchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>
 export type CreateVendorInput = z.infer<typeof createVendorSchema>
+export type UpdateVendorInput = z.infer<typeof updateVendorSchema>
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>

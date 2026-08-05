@@ -19,6 +19,70 @@ export interface AdminVendor {
   } | null
 }
 
+export interface AdminVendorDetail {
+  id: string
+  businessName: string
+  phone: string
+  address: string
+  city: string
+  pincode: string
+  email: string | null
+  whatsapp: string | null
+  yearsInOperation: string | null
+  mapsUrl: string | null
+  pickup: 'yes' | 'nearby' | 'no' | null
+  pickupRadiusKm: number | null
+  dropinEnabled: boolean
+  doorstepEnabled: boolean
+  slotIntervalMins: number
+  bays: number | null
+  jobsPerDay: number | null
+  vehicleTypes: string[]
+  notes: string | null
+  isVerified: boolean
+  status: string
+  createdAt: string
+  owner: {
+    id: string
+    name: string
+    phone: string
+  } | null
+  workingHours: Array<{
+    dayOfWeek: number
+    openTime: string
+    closeTime: string
+    isClosed: boolean
+  }>
+}
+
+export interface UpdateVendorInput {
+  ownerName?: string
+  ownerPhone?: string
+  businessName?: string
+  phone?: string
+  address?: string
+  city?: string
+  pincode?: string
+  email?: string | null
+  whatsapp?: string | null
+  yearsInOperation?: string | null
+  mapsUrl?: string | null
+  pickup?: 'yes' | 'nearby' | 'no' | null
+  pickupRadiusKm?: number | null
+  dropinEnabled?: boolean
+  doorstepEnabled?: boolean
+  slotIntervalMins?: 30 | 45 | 60
+  bays?: number | null
+  jobsPerDay?: number | null
+  vehicleTypes?: string[]
+  workingDays?: number[]
+  openTime?: string
+  closeTime?: string
+  status?: 'pending' | 'active' | 'suspended' | 'archived'
+  isVerified?: boolean
+  notes?: string | null
+}
+
 export interface AdminBooking {
   id: string
   bookingType: string
@@ -105,6 +169,19 @@ export async function listAdminVendors() {
 export async function createAdminVendor(input: CreateVendorInput) {
   return apiClient<AdminVendor>('/admin/vendors', {
     method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** GET /admin/vendors/:id — full detail for editing */
+export async function getAdminVendor(id: string) {
+  return apiClient<AdminVendorDetail>(`/admin/vendors/${id}`)
+}
+
+/** PATCH /admin/vendors/:id — update vendor details */
+export async function updateAdminVendor(id: string, input: UpdateVendorInput) {
+  return apiClient<AdminVendor>(`/admin/vendors/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(input),
   })
 }

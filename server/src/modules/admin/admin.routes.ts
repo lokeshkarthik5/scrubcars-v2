@@ -12,6 +12,7 @@ import {
   createVendorSchema,
   listBookingsQuerySchema,
   loginSchema,
+  updateVendorSchema,
 } from './admin.validation.js'
 
 export const adminRoutes = new Hono<{ Variables: AuthVariables }>()
@@ -32,6 +33,19 @@ adminRoutes.post(
   ...adminMiddleware,
   zValidator('json', createVendorSchema),
   (c) => adminController.createVendor(c, c.req.valid('json'))
+)
+adminRoutes.get(
+  '/vendors/:id',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.getVendor(c, c.req.valid('param').id)
+)
+adminRoutes.patch(
+  '/vendors/:id',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  zValidator('json', updateVendorSchema),
+  (c) => adminController.updateVendor(c, c.req.valid('param').id, c.req.valid('json'))
 )
 adminRoutes.patch(
   '/vendors/:id/verify',

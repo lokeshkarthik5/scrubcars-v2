@@ -7,6 +7,7 @@ import type {
   CreateVendorInput,
   ListBookingsQuery,
   LoginInput,
+  UpdateVendorInput,
 } from './admin.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
@@ -51,6 +52,20 @@ export async function getMe(c: AdminContext) {
 export async function listVendors(c: AdminContext) {
   const vendors = await adminService.listVendors()
   return c.json({ success: true, data: vendors })
+}
+
+export async function getVendor(c: AdminContext, id: string) {
+  const vendor = await adminService.getVendor(id)
+  return c.json({ success: true, data: vendor })
+}
+
+export async function updateVendor(
+  c: AdminContext,
+  id: string,
+  input: UpdateVendorInput
+) {
+  const vendor = await adminService.updateVendor(id, input)
+  return c.json({ success: true, data: vendor })
 }
 
 export async function verifyVendor(c: AdminContext, id: string) {
