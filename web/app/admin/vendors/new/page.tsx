@@ -91,11 +91,10 @@ const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
   { value: 'others', label: 'Others' },
 ]
 
-type PricingType = 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [
   { value: 'flat', label: 'Flat' },
   { value: 'per_vehicle', label: 'Per vehicle' },
-  { value: 'from', label: 'From' },
   { value: 'on_inspection', label: 'On inspection' },
 ]
 
@@ -123,7 +122,6 @@ const emptyService = (): ServiceRow => ({
 
 // A row's pricing is complete when the right price(s) exist for its type.
 function rowPricingValid(s: ServiceRow): boolean {
-  if (s.pricingType === 'on_inspection') return true
   if (s.pricingType === 'per_vehicle') {
     return [s.priceHatchback, s.priceSedan, s.priceSuv].some((p) => Number(p) > 0)
   }
@@ -235,9 +233,7 @@ export default function NewVendorPage() {
                       priceSedan: pos(s.priceSedan),
                       priceSuv: pos(s.priceSuv),
                     }
-                  : s.pricingType === 'on_inspection'
-                    ? {}
-                    : { price: pos(s.price) }),
+                  : { price: pos(s.price) }),
               }
             })
           : undefined,
@@ -414,20 +410,20 @@ export default function NewVendorPage() {
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {(s.pricingType === 'flat' || s.pricingType === 'from') && (
+                    {(s.pricingType === 'flat' ||
+                      s.pricingType === 'on_inspection') && (
                       <input
                         value={s.price}
                         type="number"
                         min={0}
-                        placeholder={s.pricingType === 'from' ? 'Starting ₹' : 'Price ₹'}
+                        placeholder={
+                          s.pricingType === 'on_inspection'
+                            ? 'Inspection fee ₹'
+                            : 'Price ₹'
+                        }
                         onChange={(e) => updateService(i, { price: e.target.value })}
                         className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
                       />
-                    )}
-                    {s.pricingType === 'on_inspection' && (
-                      <p className="self-center text-[12px] text-text-muted">
-                        Quoted after inspection · pay later
-                      </p>
                     )}
                     <input
                       value={s.durationMins}

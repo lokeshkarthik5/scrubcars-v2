@@ -159,7 +159,7 @@ export interface ApiService {
   name: string
   description: string | null
   category: string
-  pricingType: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+  pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
   price: string
   priceHatchback: string | null
   priceSedan: string | null
@@ -207,7 +207,7 @@ export interface ApiBooking {
     id: string
     name: string
     category: string
-    pricingType: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+    pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
     durationMins: number
   } | null
   vehicle: {

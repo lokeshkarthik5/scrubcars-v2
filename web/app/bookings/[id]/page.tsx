@@ -194,7 +194,7 @@ export default function BookingDetailPage({
           <span className="text-text-secondary">
             {booking.paymentMethod === 'online' ? 'Online' : 'Cash'}
           </span>
-          <span className="font-semibold">{formatBookingAmount(booking.servicePrice, booking.servicePricingType)}</span>
+          <span className="font-semibold">{formatBookingAmount(booking.servicePrice)}</span>
         </div>
         <p className="mt-1 text-[11px] capitalize text-text-muted">{booking.paymentStatus}</p>
         {booking.paymentMethod === 'online' &&

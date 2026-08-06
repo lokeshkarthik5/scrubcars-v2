@@ -11,9 +11,10 @@ export type ServiceCategory =
   | 'coating'
   | 'scratch_removal'
   | 'others'
+// New bookings always prepay online; 'cash' remains only for historical rows.
 export type PaymentMethod = 'online' | 'cash'
 export type VendorStatus = 'open' | 'busy' | 'closed'
-export type PricingType = 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+export type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 export type VehicleType = 'hatchback' | 'sedan' | 'suv'
 
 export interface User {
@@ -50,8 +51,8 @@ export interface Service {
   name: string
   category: ServiceCategory
   pricingType: PricingType
-  // Base/display price. For 'flat'/'from' the price, for 'per_vehicle' the
-  // cheapest tier, and 0 for 'on_inspection'.
+  // Base/display price. For 'flat'/'on_inspection' the price, for 'per_vehicle'
+  // the cheapest tier.
   price: number
   priceHatchback: number | null
   priceSedan: number | null

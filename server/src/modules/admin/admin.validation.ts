@@ -21,7 +21,7 @@ const serviceInputSchema = z
       'others',
     ]),
     pricingType: z
-      .enum(['flat', 'per_vehicle', 'from', 'on_inspection'])
+      .enum(['flat', 'per_vehicle', 'on_inspection'])
       .default('flat'),
     price: z.number().positive().optional(),
     priceHatchback: z.number().positive().optional(),
@@ -30,7 +30,7 @@ const serviceInputSchema = z
     durationMins: z.number().int().positive(),
   })
   .superRefine((data, ctx) => {
-    if (data.pricingType === 'flat' || data.pricingType === 'from') {
+    if (data.pricingType === 'flat' || data.pricingType === 'on_inspection') {
       if (data.price === undefined || data.price <= 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

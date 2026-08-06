@@ -39,7 +39,8 @@ export const createBookingSchema = z
     vehicleId: z.string().uuid(),
     bookingType: createBookingTypeSchema,
     scheduledAt: z.string().datetime(),
-    paymentMethod: paymentMethodSchema,
+    // All bookings prepay online via Razorpay; cash is no longer accepted.
+    paymentMethod: z.literal('online').default('online'),
     addressId: z.string().uuid().optional(),
   })
 

@@ -112,7 +112,7 @@ export default function AdminBookingsPage() {
                     {b.bookingType.replace('_', ' ')}
                   </td>
                   <td className="px-4 py-3 text-text-secondary">
-                    {formatBookingAmount(Number(b.amount), b.service?.pricingType)}
+                    {formatBookingAmount(Number(b.amount))}
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] capitalize text-text-secondary">

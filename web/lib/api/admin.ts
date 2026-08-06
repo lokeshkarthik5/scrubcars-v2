@@ -96,7 +96,7 @@ export interface AdminBooking {
   service: {
     id: string
     name: string
-    pricingType?: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+    pricingType?: 'flat' | 'per_vehicle' | 'on_inspection'
   } | null
   vehicle: { id: string; make: string; model: string } | null
   payment: { status: string } | null
@@ -132,7 +132,7 @@ export interface CreateVendorInput {
     name: string
     description?: string
     category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
-    pricingType: 'flat' | 'per_vehicle' | 'from' | 'on_inspection'
+    pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
     price?: number
     priceHatchback?: number
     priceSedan?: number

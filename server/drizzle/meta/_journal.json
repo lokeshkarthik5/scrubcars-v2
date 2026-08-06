@@ -85,6 +85,13 @@
       "when": 1785330630057,
       "tag": "0011_add_user_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785330630058,
+      "tag": "0012_remove_from_pricing_type",
+      "breakpoints": true
     }
   ]
 }

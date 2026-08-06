@@ -28,10 +28,7 @@ function pricingPayload(data: ServiceMutationInput) {
       priceSuv: positive(data.priceSuv),
     }
   }
-  if (data.pricingType === 'on_inspection') {
-    return { pricingType: data.pricingType }
-  }
-  // flat | from
+  // flat | on_inspection both carry a single positive price.
   return { pricingType: data.pricingType, price: positive(data.price) }
 }
 

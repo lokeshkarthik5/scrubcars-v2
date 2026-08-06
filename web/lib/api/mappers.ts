@@ -114,9 +114,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
 
 export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
   const activeServices = vendor.services.filter((s) => s.isActive)
-  // 'on_inspection' services have no upfront price — exclude from "from ₹X".
+  // Every pricing type carries a concrete price now (incl. the inspection fee).
   const prices = activeServices
-    .filter((s) => s.pricingType !== 'on_inspection')
     .map((s) => Number(s.price))
     .filter((n) => Number.isFinite(n) && n > 0)
   const categories = [...new Set(activeServices.map((s) => s.category))]

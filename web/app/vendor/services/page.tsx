@@ -17,7 +17,7 @@ import {
 } from '@/lib/api/services'
 import { toast } from 'react-toastify'
 import type { PricingType, Service, ServiceCategory } from '@/lib/types'
-import { PRICING_TYPES, formatServicePrice, supportsOnlinePayment } from '@/lib/pricing'
+import { PRICING_TYPES, formatServicePrice } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 
 const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
@@ -51,9 +51,8 @@ const emptyServiceForm: ServiceForm = {
 }
 
 // A form's pricing block is valid to submit when the right price(s) are present
-// for the chosen pricing type ('on_inspection' needs none).
+// for the chosen pricing type.
 function hasValidPricing(form: ServiceForm): boolean {
-  if (form.pricingType === 'on_inspection') return true
   if (form.pricingType === 'per_vehicle') {
     return [form.priceHatchback, form.priceSedan, form.priceSuv].some(
       (p) => Number(p) > 0
@@ -127,7 +126,7 @@ export default function VendorServicesPage() {
       category: svc.category,
       pricingType: svc.pricingType,
       price:
-        svc.pricingType === 'flat' || svc.pricingType === 'from'
+        svc.pricingType === 'flat' || svc.pricingType === 'on_inspection'
           ? String(svc.price)
           : '',
       priceHatchback: svc.priceHatchback != null ? String(svc.priceHatchback) : '',
@@ -208,13 +207,17 @@ export default function VendorServicesPage() {
           </div>
           <p className="mt-1.5 text-[11px] text-text-muted">
             {PRICING_TYPES.find((pt) => pt.value === serviceForm.pricingType)?.hint}
-            {!supportsOnlinePayment(serviceForm.pricingType) && ' · pay-later only'}
           </p>
         </div>
 
-        {(serviceForm.pricingType === 'flat' || serviceForm.pricingType === 'from') && (
+        {(serviceForm.pricingType === 'flat' ||
+          serviceForm.pricingType === 'on_inspection') && (
           <ScInput
-            label={serviceForm.pricingType === 'from' ? 'Starting price (₹)' : 'Price (₹)'}
+            label={
+              serviceForm.pricingType === 'on_inspection'
+                ? 'Inspection fee (₹)'
+                : 'Price (₹)'
+            }
             type="number"
             value={serviceForm.price}
             onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}

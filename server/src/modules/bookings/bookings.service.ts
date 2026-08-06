@@ -7,10 +7,7 @@ import {
   isScheduledAtAvailable,
   type BookedRange,
 } from '../../lib/slots.js'
-import {
-  computeServiceAmount,
-  supportsOnlinePayment,
-} from '../../lib/pricing.js'
+import { computeServiceAmount } from '../../lib/pricing.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
 
@@ -359,20 +356,6 @@ export const bookingsService = {
       if (!vehicle) {
         log.warn({ userId, vehicleId: input.vehicleId }, 'booking:vehicle_not_found')
         throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
-      }
-
-      // 'from' and 'on_inspection' services have no firm upfront amount, so
-      // they are pay-later (cash) only — reject any online prepay attempt.
-      if (
-        input.paymentMethod === 'online' &&
-        !supportsOnlinePayment(service.pricingType)
-      ) {
-        log.warn({ userId, serviceId: service.id, pricingType: service.pricingType }, 'booking:online_not_supported')
-        throw new AppError(
-          400,
-          'This service is pay-later only; online payment is not available.',
-          'ONLINE_PAYMENT_NOT_SUPPORTED'
-        )
       }
 
       // Resolve the charge from the pricing type and the customer's vehicle.

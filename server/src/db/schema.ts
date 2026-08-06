@@ -53,14 +53,12 @@ export const serviceCategoryEnum = pgEnum('service_category', [
 ])
 
 // How a service is priced. 'flat' = one price; 'per_vehicle' = a price per
-// vehicle tier (hatchback/sedan/suv); 'from' = a starting price; 'on_inspection'
-// = no upfront price, quoted after the vehicle is seen. Only 'flat' and
-// 'per_vehicle' support online (Razorpay) prepay; 'from' and 'on_inspection'
-// are pay-later only.
+// vehicle tier (hatchback/sedan/suv); 'on_inspection' = a firm vendor-set
+// inspection fee, with the final work quoted after the vehicle is seen. All
+// types carry a firm price and are prepaid online (Razorpay).
 export const servicePricingTypeEnum = pgEnum('service_pricing_type', [
   'flat',
   'per_vehicle',
-  'from',
   'on_inspection',
 ])
 
@@ -78,6 +76,8 @@ export const bookingStatusEnum = pgEnum('booking_status', [
 // 'user' means the customer cancelled it.
 export const cancelledByEnum = pgEnum('cancelled_by', ['user', 'vendor'])
 
+// New bookings always prepay online via Razorpay. 'cash' is retained only so
+// historical (pre-online-only) bookings still read correctly.
 export const paymentMethodEnum = pgEnum('payment_method', ['online', 'cash'])
 
 export const paymentGatewayEnum = pgEnum('payment_gateway', ['razorpay'])
@@ -298,9 +298,9 @@ export const services = pgTable(
     pricingType: servicePricingTypeEnum('pricing_type')
       .default('flat')
       .notNull(),
-    // Base/display price. For 'flat' it is the fixed price, for 'from' the
-    // starting price, for 'per_vehicle' the cheapest tier (denormalized so the
-    // "from ₹X" listing math keeps working), and 0 for 'on_inspection'.
+    // Base/display price. For 'flat'/'on_inspection' the fixed price, for
+    // 'per_vehicle' the cheapest tier (denormalized so the "from ₹X" listing
+    // math keeps working).
     price: decimal('price', { precision: 10, scale: 2 }).notNull(),
     // Per-vehicle tier prices, used only when pricingType = 'per_vehicle'.
     priceHatchback: decimal('price_hatchback', { precision: 10, scale: 2 }),

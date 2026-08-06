@@ -142,13 +142,12 @@ export const listPublicVendorsQuerySchema = z.object({
 export const servicePricingTypeSchema = z.enum([
   'flat',
   'per_vehicle',
-  'from',
   'on_inspection',
 ])
 
-// Shared cohesion check for a service's pricing fields. 'flat'/'from' need a
-// single `price`; 'per_vehicle' needs at least one tier price; 'on_inspection'
-// needs none. Applied via superRefine so we can report the offending field.
+// Shared cohesion check for a service's pricing fields. 'flat'/'on_inspection'
+// need a single `price`; 'per_vehicle' needs at least one tier price. Applied
+// via superRefine so we can report the offending field.
 function refinePricing(
   data: {
     pricingType?: ServicePricingType
@@ -162,7 +161,7 @@ function refinePricing(
   const type = data.pricingType
   if (type === undefined) return
 
-  if (type === 'flat' || type === 'from') {
+  if (type === 'flat' || type === 'on_inspection') {
     if (data.price === undefined || data.price <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

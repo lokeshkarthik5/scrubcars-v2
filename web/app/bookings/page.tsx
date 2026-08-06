@@ -63,7 +63,7 @@ export default function BookingsListPage() {
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-text-secondary">
                     <span>{booking.scheduledAt}</span>
-                    <span className="font-semibold text-text-primary">{formatBookingAmount(booking.servicePrice, booking.servicePricingType)}</span>
+                    <span className="font-semibold text-text-primary">{formatBookingAmount(booking.servicePrice)}</span>
                   </div>
                 </ScCard>
               </Link>
