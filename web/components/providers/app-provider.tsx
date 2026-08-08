@@ -100,7 +100,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [isHydrated, restoreSession])
 
   const routeAccess = getRouteAccess(pathname, isVendorSubdomain)
-  const isVendorSession = audience === 'vendor'
+  // vendor.detlio.com only hosts vendor + guest routes — any signed-in user
+  // there is a vendor. Treat the session as vendor even if `audience` hasn't
+  // been resolved to 'vendor' yet (e.g. after a reload, before /auth/me), so a
+  // signed-in user never falls through to the customer '/home' landing, which
+  // on this subdomain is a vendor-only route and would ping-pong /login⇄/home.
+  const isVendorSession = audience === 'vendor' || isVendorSubdomain
   const isProfileIncomplete = !isVendorSession && user?.name === 'User'
   const signedInLanding = isVendorSession
     ? vendor
