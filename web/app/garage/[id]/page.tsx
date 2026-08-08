@@ -198,7 +198,14 @@ export default function GaragePage({
       </div>
 
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
-        <ScButton onClick={handleBook}>Book now</ScButton>
+        {services.length > 0 && !selectedService && (
+          <p className="mb-2 text-center text-[11px] text-text-secondary">
+            Select a service to continue
+          </p>
+        )}
+        <ScButton onClick={handleBook} disabled={!selectedService}>
+          {services.length === 0 ? 'No services available' : 'Book now'}
+        </ScButton>
       </div>
     </AppShell>
   )
