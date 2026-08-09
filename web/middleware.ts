@@ -64,6 +64,14 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(url)
     }
 
+    // Dynamic admin routes (e.g. /vendors/:id/edit) aren't in the static map.
+    // Rewrite the clean path onto the internal /admin/* tree.
+    if (/^\/vendors\/[^/]+\/edit\/?$/.test(pathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = `/admin${pathname}`
+      return NextResponse.rewrite(url)
+    }
+
     return NextResponse.next()
   }
 
