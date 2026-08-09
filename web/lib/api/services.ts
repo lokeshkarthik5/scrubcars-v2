@@ -5,6 +5,7 @@ import type { PricingType, Service, ServiceCategory } from '@/lib/types'
 
 export interface ServiceMutationInput {
   name: string
+  description?: string
   category: ServiceCategory
   pricingType: PricingType
   price?: number
@@ -54,6 +55,7 @@ export async function createService(
     method: 'POST',
     body: JSON.stringify({
       name: data.name,
+      ...(data.description?.trim() && { description: data.description.trim() }),
       category: data.category,
       durationMins: data.durationMins,
       ...pricingPayload(data),
@@ -71,6 +73,8 @@ export async function updateService(
     method: 'PATCH',
     body: JSON.stringify({
       name: data.name,
+      // Always sent so clearing the field persists (null wipes the description).
+      description: data.description?.trim() ? data.description.trim() : null,
       category: data.category,
       durationMins: data.durationMins,
       ...pricingPayload(data),

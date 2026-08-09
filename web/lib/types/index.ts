@@ -49,6 +49,7 @@ export interface Service {
   id: string
   vendorId: string
   name: string
+  description: string | null
   category: ServiceCategory
   pricingType: PricingType
   // Base/display price. For 'flat'/'on_inspection' the price, for 'per_vehicle'

@@ -5,7 +5,7 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
-import { ScInput } from '@/components/sc/input'
+import { ScInput, ScTextarea } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
 import {
@@ -30,6 +30,7 @@ const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
 
 type ServiceForm = {
   name: string
+  description: string
   category: ServiceCategory
   pricingType: PricingType
   price: string
@@ -41,6 +42,7 @@ type ServiceForm = {
 
 const emptyServiceForm: ServiceForm = {
   name: '',
+  description: '',
   category: 'car_wash',
   pricingType: 'flat',
   price: '',
@@ -97,6 +99,7 @@ export default function VendorServicesPage() {
       const num = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
       const payload = {
         name: serviceForm.name,
+        description: serviceForm.description,
         category: serviceForm.category,
         pricingType: serviceForm.pricingType,
         price: num(serviceForm.price),
@@ -123,6 +126,7 @@ export default function VendorServicesPage() {
     setEditingServiceId(svc.id)
     setServiceForm({
       name: svc.name,
+      description: svc.description ?? '',
       category: svc.category,
       pricingType: svc.pricingType,
       price:
@@ -179,6 +183,12 @@ export default function VendorServicesPage() {
           label="Service name"
           value={serviceForm.name}
           onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
+        />
+        <ScTextarea
+          label="Description (optional)"
+          rows={2}
+          value={serviceForm.description}
+          onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
         />
         <div>
           <p className="mb-2 text-[11px] font-medium text-text-secondary">Category</p>
@@ -273,8 +283,11 @@ export default function VendorServicesPage() {
         ) : (
           services.map((svc) => (
             <ScCard key={svc.id} className="flex items-center justify-between">
-              <div>
+              <div className="min-w-0 pr-2">
                 <p className="text-[13px] font-medium">{svc.name}</p>
+                {svc.description && (
+                  <p className="text-[11px] text-text-muted line-clamp-2">{svc.description}</p>
+                )}
                 <p className="text-[11px] text-text-secondary">
                   {formatServicePrice(svc)} · {svc.durationMins} min
                 </p>

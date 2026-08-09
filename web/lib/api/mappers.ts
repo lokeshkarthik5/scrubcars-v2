@@ -144,6 +144,7 @@ export function mapService(service: ApiService, vendorId: string): Service {
     id: service.id,
     vendorId,
     name: service.name,
+    description: service.description,
     category: service.category as Service['category'],
     pricingType: service.pricingType,
     price: Number(service.price),
