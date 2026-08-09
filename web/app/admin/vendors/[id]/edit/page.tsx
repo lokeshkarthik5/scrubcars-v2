@@ -125,6 +125,7 @@ function minsToDuration(mins: number): { durationValue: string; durationUnit: Du
 interface ServiceRow {
   id?: string
   name: string
+  description: string
   category: ServiceCategory
   pricingType: PricingType
   price: string
@@ -137,6 +138,7 @@ interface ServiceRow {
 
 const emptyService = (): ServiceRow => ({
   name: '',
+  description: '',
   category: 'car_wash',
   pricingType: 'flat',
   price: '',
@@ -247,6 +249,7 @@ export default function EditVendorPage({
         v.services.map((s) => ({
           id: s.id,
           name: s.name,
+          description: s.description ?? '',
           category: s.category,
           pricingType: s.pricingType,
           price: s.pricingType === 'per_vehicle' ? '' : decToInput(s.price),
@@ -339,6 +342,7 @@ export default function EditVendorPage({
           return {
             ...(s.id && { id: s.id }),
             name: s.name.trim(),
+            ...(s.description.trim() && { description: s.description.trim() }),
             category: s.category,
             pricingType: s.pricingType,
             ...(durationMins != null && { durationMins }),
@@ -533,6 +537,13 @@ export default function EditVendorPage({
                         Remove
                       </button>
                     </div>
+                    <textarea
+                      value={s.description}
+                      placeholder="Description (optional)"
+                      rows={2}
+                      onChange={(e) => updateService(i, { description: e.target.value })}
+                      className="w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                    />
                     <div className="grid grid-cols-2 gap-2">
                       <select
                         value={s.category}

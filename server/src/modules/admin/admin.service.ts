@@ -150,6 +150,7 @@ export const adminService = {
       for (const s of input.services) {
         const columns = {
           name: s.name,
+          description: s.description ?? null,
           category: s.category,
           ...resolveServicePricing(s),
           durationMins: s.durationMins ?? defaultDuration,
@@ -163,7 +164,6 @@ export const adminService = {
         } else {
           toInsert.push({
             vendorId: id,
-            description: s.description ?? null,
             ...columns,
           })
         }

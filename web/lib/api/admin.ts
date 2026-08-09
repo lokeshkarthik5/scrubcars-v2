@@ -57,6 +57,7 @@ export interface AdminVendorDetail {
   services: Array<{
     id: string
     name: string
+    description: string | null
     category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
     pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
     price: string
@@ -71,6 +72,7 @@ export interface AdminVendorDetail {
 export interface UpdateVendorServiceInput {
   id?: string
   name: string
+  description?: string
   category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
   pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
   price?: number
