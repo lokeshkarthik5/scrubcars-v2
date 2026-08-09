@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -8,7 +9,7 @@ import {
   IconLogout,
   IconPhone,
 } from '@tabler/icons-react'
-import { adminLogout } from '@/lib/api/admin'
+import { adminLogout, getAdminMe } from '@/lib/api/admin'
 import {
   SUPPORT_PHONE_DISPLAY,
   SUPPORT_TEL_HREF,
@@ -25,9 +26,37 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const router = useRouter()
 
-  // Login page renders standalone, without the chrome.
-  if (pathname.endsWith('/login') || pathname.endsWith('/admin')) {
+  // Login page renders standalone, without the chrome (and without a guard).
+  const isLogin = pathname.endsWith('/login') || pathname.endsWith('/admin')
+
+  // Guard every non-login admin page: bounce to /login when the session is
+  // missing or invalid. Hold the UI back until the session check resolves so
+  // the chrome/content never flashes for signed-out visitors.
+  const [authed, setAuthed] = useState(false)
+
+  useEffect(() => {
+    if (isLogin) return
+    let active = true
+    getAdminMe()
+      .then((me) => {
+        if (!active) return
+        if (me.isAdmin) setAuthed(true)
+        else router.replace('/admin/login')
+      })
+      .catch(() => {
+        if (active) router.replace('/admin/login')
+      })
+    return () => {
+      active = false
+    }
+  }, [isLogin, pathname, router])
+
+  if (isLogin) {
     return <>{children}</>
+  }
+
+  if (!authed) {
+    return <div className="min-h-dvh bg-brand-black" />
   }
 
   const handleLogout = async () => {
