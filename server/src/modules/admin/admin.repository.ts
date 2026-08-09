@@ -20,6 +20,11 @@ export const adminRepository = {
     return db.query.vendors.findMany({
       with: {
         owner: true,
+        // Only ids of active services — the service layer derives a count.
+        services: {
+          columns: { id: true },
+          where: eq(services.isActive, true),
+        },
       },
       orderBy: [desc(vendors.createdAt)],
     })

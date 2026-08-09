@@ -12,6 +12,7 @@ export interface AdminVendor {
   isVerified: boolean
   status: string
   createdAt: string
+  serviceCount: number
   owner: {
     id: string
     name: string

@@ -37,7 +37,12 @@ export const adminService = {
   },
 
   async listVendors() {
-    return adminRepository.listVendors()
+    const vendors = await adminRepository.listVendors()
+    // Flatten the active-services relation into a plain count for the list table.
+    return vendors.map(({ services, ...vendor }) => ({
+      ...vendor,
+      serviceCount: services.length,
+    }))
   },
 
   async getVendor(id: string) {

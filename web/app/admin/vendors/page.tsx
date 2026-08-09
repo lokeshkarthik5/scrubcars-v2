@@ -119,6 +119,7 @@ export default function AdminVendorsPage() {
                 <th className="px-4 py-2.5 font-medium">Business</th>
                 <th className="px-4 py-2.5 font-medium">Owner</th>
                 <th className="px-4 py-2.5 font-medium">City</th>
+                <th className="px-4 py-2.5 font-medium">Services</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
                 <th className="px-4 py-2.5 font-medium">Verified</th>
                 <th className="px-4 py-2.5 font-medium text-right">Action</th>
@@ -142,6 +143,13 @@ export default function AdminVendorsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-text-secondary">{v.city}</td>
+                  <td className="px-4 py-3 text-text-secondary">
+                    {v.serviceCount > 0 ? (
+                      `${v.serviceCount} service${v.serviceCount === 1 ? '' : 's'}`
+                    ) : (
+                      <span className="text-warning">None</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] capitalize text-text-secondary">
                       {v.status}
