@@ -77,7 +77,7 @@ export interface UpdateVendorServiceInput {
   priceHatchback?: number
   priceSedan?: number
   priceSuv?: number
-  durationMins: number
+  durationMins?: number
 }
 
 export interface UpdateVendorInput {
@@ -163,7 +163,7 @@ export interface CreateVendorInput {
     priceHatchback?: number
     priceSedan?: number
     priceSuv?: number
-    durationMins: number
+    durationMins?: number
   }>
 }
 

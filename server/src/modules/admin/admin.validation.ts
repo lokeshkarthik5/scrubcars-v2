@@ -24,7 +24,10 @@ const serviceBaseSchema = z.object({
   priceHatchback: z.number().positive().optional(),
   priceSedan: z.number().positive().optional(),
   priceSuv: z.number().positive().optional(),
-  durationMins: z.number().int().positive(),
+  // Optional: when omitted the service inherits the vendor's slot interval so
+  // it still blocks exactly one slot. Stored in minutes (the UI offers
+  // minute/hour/day units and converts before sending).
+  durationMins: z.number().int().positive().optional(),
 })
 
 type ServiceBase = z.infer<typeof serviceBaseSchema>

@@ -144,13 +144,15 @@ export const adminService = {
       )
       const keptIds = new Set<string>()
       const toInsert: Parameters<typeof adminRepository.insertServices>[0] = []
+      // Default duration for services left blank: one slot on this vendor.
+      const defaultDuration = input.slotIntervalMins ?? vendor.slotIntervalMins
 
       for (const s of input.services) {
         const columns = {
           name: s.name,
           category: s.category,
           ...resolveServicePricing(s),
-          durationMins: s.durationMins,
+          durationMins: s.durationMins ?? defaultDuration,
         }
         if (s.id && existingIds.has(s.id)) {
           keptIds.add(s.id)
@@ -297,7 +299,8 @@ export const adminService = {
           category: s.category,
           // Resolve pricing type + tiers into the columns to persist.
           ...resolveServicePricing(s),
-          durationMins: s.durationMins,
+          // Fall back to one slot when no explicit duration was given.
+          durationMins: s.durationMins ?? vendor.slotIntervalMins,
         }))
       )
     }

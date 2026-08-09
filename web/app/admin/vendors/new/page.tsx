@@ -98,6 +98,20 @@ const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [
   { value: 'on_inspection', label: 'On inspection' },
 ]
 
+type DurationUnit = 'min' | 'hour' | 'day'
+const DURATION_UNITS: Array<{ value: DurationUnit; label: string }> = [
+  { value: 'min', label: 'Minutes' },
+  { value: 'hour', label: 'Hours' },
+  { value: 'day', label: 'Days' },
+]
+const DURATION_FACTOR: Record<DurationUnit, number> = { min: 1, hour: 60, day: 1440 }
+
+// Convert a value + unit into minutes to send; blank/zero → undefined (omit).
+function durationToMins(value: string, unit: DurationUnit): number | undefined {
+  const n = Number(value)
+  return n > 0 ? n * DURATION_FACTOR[unit] : undefined
+}
+
 interface ServiceRow {
   name: string
   category: ServiceCategory
@@ -106,7 +120,8 @@ interface ServiceRow {
   priceHatchback: string
   priceSedan: string
   priceSuv: string
-  durationMins: string
+  durationValue: string
+  durationUnit: DurationUnit
 }
 
 const emptyService = (): ServiceRow => ({
@@ -117,7 +132,8 @@ const emptyService = (): ServiceRow => ({
   priceHatchback: '',
   priceSedan: '',
   priceSuv: '',
-  durationMins: '',
+  durationValue: '',
+  durationUnit: 'min',
 })
 
 // A row's pricing is complete when the right price(s) exist for its type.
@@ -169,9 +185,10 @@ export default function NewVendorPage() {
   const removeService = (i: number) =>
     setServices((prev) => prev.filter((_, idx) => idx !== i))
 
-  // A service row counts only when fully filled; partially-filled rows are ignored.
+  // A service row counts once it has a name and valid pricing. Duration is
+  // optional — the server defaults it to one slot when left blank.
   const validServices = services.filter(
-    (s) => s.name.trim() && rowPricingValid(s) && Number(s.durationMins) > 0
+    (s) => s.name.trim() && rowPricingValid(s)
   )
 
   const toggle = <T,>(list: T[], item: T): T[] =>
@@ -222,11 +239,12 @@ export default function NewVendorPage() {
         services: validServices.length
           ? validServices.map((s) => {
               const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
+              const durationMins = durationToMins(s.durationValue, s.durationUnit)
               return {
                 name: s.name.trim(),
                 category: s.category,
                 pricingType: s.pricingType,
-                durationMins: Number(s.durationMins),
+                ...(durationMins != null && { durationMins }),
                 ...(s.pricingType === 'per_vehicle'
                   ? {
                       priceHatchback: pos(s.priceHatchback),
@@ -409,30 +427,41 @@ export default function NewVendorPage() {
                       ))}
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(s.pricingType === 'flat' ||
-                      s.pricingType === 'on_inspection') && (
-                      <input
-                        value={s.price}
-                        type="number"
-                        min={0}
-                        placeholder={
-                          s.pricingType === 'on_inspection'
-                            ? 'Inspection fee ₹'
-                            : 'Price ₹'
-                        }
-                        onChange={(e) => updateService(i, { price: e.target.value })}
-                        className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
-                      />
-                    )}
+                  {(s.pricingType === 'flat' ||
+                    s.pricingType === 'on_inspection') && (
                     <input
-                      value={s.durationMins}
+                      value={s.price}
                       type="number"
                       min={0}
-                      placeholder="Mins"
-                      onChange={(e) => updateService(i, { durationMins: e.target.value })}
+                      placeholder={
+                        s.pricingType === 'on_inspection'
+                          ? 'Inspection fee ₹'
+                          : 'Price ₹'
+                      }
+                      onChange={(e) => updateService(i, { price: e.target.value })}
+                      className="w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                    />
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={s.durationValue}
+                      type="number"
+                      min={0}
+                      placeholder="Duration (optional)"
+                      onChange={(e) => updateService(i, { durationValue: e.target.value })}
                       className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
                     />
+                    <select
+                      value={s.durationUnit}
+                      onChange={(e) => updateService(i, { durationUnit: e.target.value as DurationUnit })}
+                      className="rounded-[10px] border border-border bg-surface px-2 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                    >
+                      {DURATION_UNITS.map((u) => (
+                        <option key={u.value} value={u.value}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   {s.pricingType === 'per_vehicle' && (
                     <div className="grid grid-cols-3 gap-2">
@@ -474,7 +503,8 @@ export default function NewVendorPage() {
             + Add service
           </button>
           <p className="text-[11px] text-text-muted">
-            Each service needs a name, price and duration to be saved. Duration drives the bookable time slots.
+            Each service needs a name and price to be saved. Duration is optional —
+            leave it blank to use one booking slot; it drives the bookable time slots.
           </p>
         </Section>
 
