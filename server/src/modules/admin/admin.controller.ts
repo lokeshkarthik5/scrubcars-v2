@@ -15,20 +15,25 @@ type AdminContext = Context<{ Variables: AuthVariables }>
 const ACCESS_COOKIE = 'access_token'
 const COOKIE_SAME_SITE = 'Lax'
 const ADMIN_TOKEN_MAX_AGE = 12 * 60 * 60 // keep in sync with env.adminTokenExpiresIn
+// Scope the admin token to /api/v1/admin only. A broader path (e.g. /api/v1)
+// leaks the admin cookie into /api/v1/auth/me, where the customer/vendor
+// AuthProvider on the admin subdomain then hits authService.getMe('admin', …)
+// → findUserById('admin') → invalid UUID → 500.
+const ADMIN_COOKIE_PATH = '/api/v1/admin'
 
 function setAccessCookie(c: AdminContext, token: string) {
   setCookie(c, ACCESS_COOKIE, token, {
     httpOnly: true,
     secure: !env.isDev,
     sameSite: COOKIE_SAME_SITE,
-    path: '/api/v1',
+    path: ADMIN_COOKIE_PATH,
     maxAge: ADMIN_TOKEN_MAX_AGE,
   })
 }
 
 function clearAccessCookie(c: AdminContext) {
   deleteCookie(c, ACCESS_COOKIE, {
-    path: '/api/v1',
+    path: ADMIN_COOKIE_PATH,
     secure: !env.isDev,
     sameSite: COOKIE_SAME_SITE,
   })

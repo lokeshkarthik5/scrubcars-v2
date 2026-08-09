@@ -25,6 +25,9 @@ import type { UserRecord, VendorRecord } from './auth.repository.js'
 
 const log = logger.child({ module: 'auth' })
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function maskPhone(phone: string) {
   return phone.length >= 6 ? `${phone.slice(0, 2)}****${phone.slice(-2)}` : '****'
 }
@@ -361,6 +364,12 @@ export const authService = {
   },
 
   async getMe(userId: string, audience: TokenAudience) {
+    // Guard against non-UUID subjects (e.g. a leaked admin token, sub='admin')
+    // reaching the users table — a raw UUID column query would throw a 500.
+    if (!UUID_RE.test(userId)) {
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND')
+    }
+
     const user = await authRepository.findUserById(userId)
 
     if (!user) {
