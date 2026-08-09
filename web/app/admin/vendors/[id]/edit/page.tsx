@@ -83,6 +83,57 @@ const STATUS_OPTIONS = [
   { value: 'archived' as const, label: 'Archived' },
 ]
 
+type ServiceCategory = 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
+  { value: 'car_wash', label: 'Car wash' },
+  { value: 'detailing', label: 'Detailing' },
+  { value: 'coating', label: 'Coating' },
+  { value: 'scratch_removal', label: 'Scratch removal' },
+  { value: 'others', label: 'Others' },
+]
+
+type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
+const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [
+  { value: 'flat', label: 'Flat' },
+  { value: 'per_vehicle', label: 'Per vehicle' },
+  { value: 'on_inspection', label: 'On inspection' },
+]
+
+interface ServiceRow {
+  id?: string
+  name: string
+  category: ServiceCategory
+  pricingType: PricingType
+  price: string
+  priceHatchback: string
+  priceSedan: string
+  priceSuv: string
+  durationMins: string
+}
+
+const emptyService = (): ServiceRow => ({
+  name: '',
+  category: 'car_wash',
+  pricingType: 'flat',
+  price: '',
+  priceHatchback: '',
+  priceSedan: '',
+  priceSuv: '',
+  durationMins: '',
+})
+
+// Decimal columns arrive as strings; drop the trailing ".00" for display.
+const decToInput = (v: string | null): string =>
+  v == null ? '' : String(Number(v))
+
+// A row's pricing is complete when the right price(s) exist for its type.
+function rowPricingValid(s: ServiceRow): boolean {
+  if (s.pricingType === 'per_vehicle') {
+    return [s.priceHatchback, s.priceSedan, s.priceSuv].some((p) => Number(p) > 0)
+  }
+  return Number(s.price) > 0
+}
+
 export default function EditVendorPage({
   params,
 }: {
@@ -117,12 +168,23 @@ export default function EditVendorPage({
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([])
   const [status, setStatus] = useState<'pending' | 'active' | 'suspended' | 'archived'>('pending')
   const [isVerified, setIsVerified] = useState(false)
+  const [services, setServices] = useState<ServiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const set = (key: keyof typeof form) => (v: string) =>
     setForm((prev) => ({ ...prev, [key]: v }))
+
+  const updateService = (i: number, patch: Partial<ServiceRow>) =>
+    setServices((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
+  const removeService = (i: number) =>
+    setServices((prev) => prev.filter((_, idx) => idx !== i))
+
+  // A service row counts only when fully filled; partially-filled rows are ignored.
+  const validServices = services.filter(
+    (s) => s.name.trim() && rowPricingValid(s) && Number(s.durationMins) > 0
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -155,6 +217,19 @@ export default function EditVendorPage({
       setVehicleTypes(v.vehicleTypes ?? [])
       setStatus(v.status as 'pending' | 'active' | 'suspended' | 'archived')
       setIsVerified(v.isVerified)
+      setServices(
+        v.services.map((s) => ({
+          id: s.id,
+          name: s.name,
+          category: s.category,
+          pricingType: s.pricingType,
+          price: s.pricingType === 'per_vehicle' ? '' : decToInput(s.price),
+          priceHatchback: decToInput(s.priceHatchback),
+          priceSedan: decToInput(s.priceSedan),
+          priceSuv: decToInput(s.priceSuv),
+          durationMins: String(s.durationMins),
+        }))
+      )
 
       // Derive the weekly schedule from stored working hours: open days and the
       // shared open/close time (falls back to defaults when none are stored).
@@ -230,6 +305,25 @@ export default function EditVendorPage({
         status,
         isVerified,
         notes: form.notes.trim() || null,
+        // Full desired set: keeps/edits rows with an id, adds new ones, and
+        // the server soft-deletes any existing service dropped from this list.
+        services: validServices.map((s) => {
+          const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
+          return {
+            ...(s.id && { id: s.id }),
+            name: s.name.trim(),
+            category: s.category,
+            pricingType: s.pricingType,
+            durationMins: Number(s.durationMins),
+            ...(s.pricingType === 'per_vehicle'
+              ? {
+                  priceHatchback: pos(s.priceHatchback),
+                  priceSedan: pos(s.priceSedan),
+                  priceSuv: pos(s.priceSuv),
+                }
+              : { price: pos(s.price) }),
+          }
+        }),
       })
       router.replace('/admin/vendors')
     } catch (err) {
@@ -390,9 +484,121 @@ export default function EditVendorPage({
             </div>
           </Section>
 
-          <p className="text-[11px] text-text-muted">
-            Services offered are managed separately and are not edited here.
-          </p>
+          <Section title="Services offered">
+            {services.length === 0 ? (
+              <p className="text-[12px] text-text-muted">No services added yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {services.map((s, i) => (
+                  <div key={s.id ?? `new-${i}`} className="space-y-2 rounded-[10px] border border-border p-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={s.name}
+                        placeholder="Service name (e.g. Foam wash)"
+                        onChange={(e) => updateService(i, { name: e.target.value })}
+                        className="flex-1 rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeService(i)}
+                        className="rounded-[8px] px-2 py-1 text-[12px] text-brand-red hover:bg-brand-red/10"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={s.category}
+                        onChange={(e) => updateService(i, { category: e.target.value as ServiceCategory })}
+                        className="rounded-[10px] border border-border bg-surface px-2 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      >
+                        {SERVICE_CATEGORIES.map((c) => (
+                          <option key={c.value} value={c.value}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={s.pricingType}
+                        onChange={(e) => updateService(i, { pricingType: e.target.value as PricingType })}
+                        className="rounded-[10px] border border-border bg-surface px-2 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      >
+                        {PRICING_TYPES.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(s.pricingType === 'flat' ||
+                        s.pricingType === 'on_inspection') && (
+                        <input
+                          value={s.price}
+                          type="number"
+                          min={0}
+                          placeholder={
+                            s.pricingType === 'on_inspection'
+                              ? 'Inspection fee ₹'
+                              : 'Price ₹'
+                          }
+                          onChange={(e) => updateService(i, { price: e.target.value })}
+                          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                        />
+                      )}
+                      <input
+                        value={s.durationMins}
+                        type="number"
+                        min={0}
+                        placeholder="Mins"
+                        onChange={(e) => updateService(i, { durationMins: e.target.value })}
+                        className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    {s.pricingType === 'per_vehicle' && (
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          value={s.priceHatchback}
+                          type="number"
+                          min={0}
+                          placeholder="Hatch ₹"
+                          onChange={(e) => updateService(i, { priceHatchback: e.target.value })}
+                          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                        />
+                        <input
+                          value={s.priceSedan}
+                          type="number"
+                          min={0}
+                          placeholder="Sedan ₹"
+                          onChange={(e) => updateService(i, { priceSedan: e.target.value })}
+                          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                        />
+                        <input
+                          value={s.priceSuv}
+                          type="number"
+                          min={0}
+                          placeholder="SUV ₹"
+                          onChange={(e) => updateService(i, { priceSuv: e.target.value })}
+                          className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px] text-text-primary outline-none focus:border-brand-red"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setServices((prev) => [...prev, emptyService()])}
+              className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-medium text-text-primary hover:border-brand-red"
+            >
+              + Add service
+            </button>
+            <p className="text-[11px] text-text-muted">
+              Each service needs a name, price and duration to be saved. Removing a
+              service hides it from customers; past bookings are preserved.
+            </p>
+          </Section>
 
           {error && <p className="text-[13px] text-brand-red">{error}</p>}
 

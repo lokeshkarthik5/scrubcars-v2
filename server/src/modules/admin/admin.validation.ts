@@ -9,48 +9,57 @@ const timeSchema = z
   .string()
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Time must be HH:MM')
 
-const serviceInputSchema = z
-  .object({
-    name: z.string().trim().min(1).max(255),
-    description: z.string().trim().max(5000).optional(),
-    category: z.enum([
-      'car_wash',
-      'detailing',
-      'coating',
-      'scratch_removal',
-      'others',
-    ]),
-    pricingType: z
-      .enum(['flat', 'per_vehicle', 'on_inspection'])
-      .default('flat'),
-    price: z.number().positive().optional(),
-    priceHatchback: z.number().positive().optional(),
-    priceSedan: z.number().positive().optional(),
-    priceSuv: z.number().positive().optional(),
-    durationMins: z.number().int().positive(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.pricingType === 'flat' || data.pricingType === 'on_inspection') {
-      if (data.price === undefined || data.price <= 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['price'],
-          message: `A positive price is required for '${data.pricingType}' pricing`,
-        })
-      }
+const serviceBaseSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  description: z.string().trim().max(5000).optional(),
+  category: z.enum([
+    'car_wash',
+    'detailing',
+    'coating',
+    'scratch_removal',
+    'others',
+  ]),
+  pricingType: z.enum(['flat', 'per_vehicle', 'on_inspection']).default('flat'),
+  price: z.number().positive().optional(),
+  priceHatchback: z.number().positive().optional(),
+  priceSedan: z.number().positive().optional(),
+  priceSuv: z.number().positive().optional(),
+  durationMins: z.number().int().positive(),
+})
+
+type ServiceBase = z.infer<typeof serviceBaseSchema>
+
+const refineServicePricing = (data: ServiceBase, ctx: z.RefinementCtx) => {
+  if (data.pricingType === 'flat' || data.pricingType === 'on_inspection') {
+    if (data.price === undefined || data.price <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['price'],
+        message: `A positive price is required for '${data.pricingType}' pricing`,
+      })
     }
-    if (data.pricingType === 'per_vehicle') {
-      const tiers = [data.priceHatchback, data.priceSedan, data.priceSuv]
-      if (!tiers.some((t) => typeof t === 'number' && t > 0)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['priceHatchback'],
-          message:
-            'At least one vehicle tier price is required for per-vehicle pricing',
-        })
-      }
+  }
+  if (data.pricingType === 'per_vehicle') {
+    const tiers = [data.priceHatchback, data.priceSedan, data.priceSuv]
+    if (!tiers.some((t) => typeof t === 'number' && t > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['priceHatchback'],
+        message:
+          'At least one vehicle tier price is required for per-vehicle pricing',
+      })
     }
-  })
+  }
+}
+
+const serviceInputSchema = serviceBaseSchema.superRefine(refineServicePricing)
+
+// Update variant: an optional `id` marks an existing row to edit in place;
+// rows without an `id` are inserted. Existing services omitted from the array
+// are deactivated (soft-deleted) — see adminService.updateVendor.
+const serviceUpdateSchema = serviceBaseSchema
+  .extend({ id: z.string().uuid().optional() })
+  .superRefine(refineServicePricing)
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1),
@@ -132,6 +141,10 @@ export const updateVendorSchema = z.object({
   status: z.enum(['pending', 'active', 'suspended', 'archived']).optional(),
   isVerified: z.boolean().optional(),
   notes: z.string().trim().max(5000).nullable().optional(),
+  // Full desired set of services. Rows with an `id` are updated, rows without
+  // are inserted, and existing services missing from the array are deactivated.
+  // Omit the key entirely to leave services untouched.
+  services: z.array(serviceUpdateSchema).max(50).optional(),
 })
 
 export const listBookingsQuerySchema = z.object({

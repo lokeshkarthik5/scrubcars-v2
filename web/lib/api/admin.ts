@@ -53,6 +53,30 @@ export interface AdminVendorDetail {
     closeTime: string
     isClosed: boolean
   }>
+  services: Array<{
+    id: string
+    name: string
+    category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+    pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
+    price: string
+    priceHatchback: string | null
+    priceSedan: string | null
+    priceSuv: string | null
+    durationMins: number
+  }>
+}
+
+/** A service in an admin vendor update: `id` present = edit, absent = create. */
+export interface UpdateVendorServiceInput {
+  id?: string
+  name: string
+  category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+  pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
+  price?: number
+  priceHatchback?: number
+  priceSedan?: number
+  priceSuv?: number
+  durationMins: number
 }
 
 export interface UpdateVendorInput {
@@ -81,6 +105,7 @@ export interface UpdateVendorInput {
   status?: 'pending' | 'active' | 'suspended' | 'archived'
   isVerified?: boolean
   notes?: string | null
+  services?: UpdateVendorServiceInput[]
 }
 
 export interface AdminBooking {

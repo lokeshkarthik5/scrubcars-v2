@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookings,
@@ -31,13 +31,18 @@ export const adminRepository = {
     })
   },
 
-  // Full detail for the admin edit screen: owner + weekly working hours.
+  // Full detail for the admin edit screen: owner + weekly working hours +
+  // active services (soft-deleted ones are hidden from the editor).
   findVendorDetailById(id: string) {
     return db.query.vendors.findFirst({
       where: eq(vendors.id, id),
       with: {
         owner: true,
         workingHours: true,
+        services: {
+          where: eq(services.isActive, true),
+          orderBy: [asc(services.name)],
+        },
       },
     })
   },
@@ -134,6 +139,30 @@ export const adminRepository = {
   insertServices(rows: ServiceInsert[]) {
     if (rows.length === 0) return Promise.resolve([])
     return db.insert(services).values(rows).returning()
+  },
+
+  // Active service ids for a vendor, used to reconcile the admin edit payload.
+  async listActiveServiceIds(vendorId: string): Promise<string[]> {
+    const rows = await db.query.services.findMany({
+      columns: { id: true },
+      where: and(eq(services.vendorId, vendorId), eq(services.isActive, true)),
+    })
+    return rows.map((r) => r.id)
+  },
+
+  updateService(id: string, data: Partial<ServiceInsert>) {
+    return db.update(services).set(data).where(eq(services.id, id)).returning()
+  },
+
+  // Soft-delete: hide from customers and block new bookings, but keep the row
+  // so existing bookings' restrict FK stays intact.
+  deactivateServices(ids: string[]) {
+    if (ids.length === 0) return Promise.resolve([])
+    return db
+      .update(services)
+      .set({ isActive: false })
+      .where(inArray(services.id, ids))
+      .returning()
   },
 
   listBookings(status?: BookingStatus) {

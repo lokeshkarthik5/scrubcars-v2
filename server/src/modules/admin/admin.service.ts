@@ -129,6 +129,49 @@ export const adminService = {
       }
     }
 
+    // Reconcile the services list when provided. Rows with an `id` (that belong
+    // to this vendor) are updated in place; rows without an `id` are inserted;
+    // existing active services missing from the payload are soft-deleted. We
+    // never hard-delete because bookings reference services with a restrict FK.
+    if (input.services !== undefined) {
+      const existingIds = new Set(
+        await adminRepository.listActiveServiceIds(id)
+      )
+      const keptIds = new Set<string>()
+      const toInsert: Parameters<typeof adminRepository.insertServices>[0] = []
+
+      for (const s of input.services) {
+        const columns = {
+          name: s.name,
+          category: s.category,
+          ...resolveServicePricing(s),
+          durationMins: s.durationMins,
+        }
+        if (s.id && existingIds.has(s.id)) {
+          keptIds.add(s.id)
+          await adminRepository.updateService(s.id, {
+            ...columns,
+            isActive: true,
+          })
+        } else {
+          toInsert.push({
+            vendorId: id,
+            description: s.description ?? null,
+            ...columns,
+          })
+        }
+      }
+
+      if (toInsert.length > 0) {
+        await adminRepository.insertServices(toInsert)
+      }
+
+      const removedIds = [...existingIds].filter((sid) => !keptIds.has(sid))
+      if (removedIds.length > 0) {
+        await adminRepository.deactivateServices(removedIds)
+      }
+    }
+
     log.info({ vendorId: id }, 'admin:vendor-updated')
     return updated
   },
