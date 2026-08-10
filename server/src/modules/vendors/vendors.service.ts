@@ -244,6 +244,11 @@ export const vendorsService = {
           )
           if (!hasCategory) return false
         }
+
+        if (query.bookingType === 'dropin' && !vendor.dropinEnabled) return false
+        if (query.bookingType === 'doorstep' && !vendor.doorstepEnabled) {
+          return false
+        }
         return true
       })
       .map((vendor) => {

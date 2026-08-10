@@ -137,6 +137,7 @@ export const serviceCategorySchema = z.enum([
 export const listPublicVendorsQuerySchema = z.object({
   category: serviceCategorySchema.optional(),
   q: z.string().trim().min(1).optional(),
+  bookingType: z.enum(['dropin', 'doorstep']).optional(),
 })
 
 export const servicePricingTypeSchema = z.enum([

@@ -25,7 +25,7 @@ export async function getVendors(params?: VendorListParams): Promise<Vendor[]> {
     auth: false,
     params: {
       q: params?.q || undefined,
-      booking_type: params?.bookingType,
+      bookingType: params?.bookingType,
       category: params?.category,
       pincode: params?.pincode,
     },

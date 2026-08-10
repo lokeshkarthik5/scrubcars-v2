@@ -13,12 +13,21 @@ import {
 } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScCard } from '@/components/sc/card'
+import { ScToggle } from '@/components/sc/toggle'
 import { Toast } from '@/components/sc/toast'
 import { VendorCard } from '@/components/features/vendor-card'
 import { getVendors } from '@/lib/api/vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Vendor } from '@/lib/types'
+
+type ServiceMode = 'all' | 'dropin' | 'doorstep'
+
+const SERVICE_MODES: { value: ServiceMode; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'dropin', label: 'Drop-in' },
+  { value: 'doorstep', label: 'Doorstep' },
+]
 
 const CATEGORIES = [
   { key: 'car_wash', label: 'Car wash', icon: IconDroplet },
@@ -34,12 +43,17 @@ function HomeContent() {
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [serviceMode, setServiceMode] = useState<ServiceMode>('all')
   const [showToast, setShowToast] = useState(false)
 
   const user = profile ?? authUser
 
   useEffect(() => {
-    getVendors().then(setVendors).catch(console.error)
+    const bookingType = serviceMode === 'all' ? undefined : serviceMode
+    getVendors({ bookingType }).then(setVendors).catch(console.error)
+  }, [serviceMode])
+
+  useEffect(() => {
     if (authUser) void fetchProfile().catch(() => undefined)
   }, [authUser, fetchProfile])
 
@@ -85,7 +99,15 @@ function HomeContent() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-text-primary">Featured garages</h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-text-primary">Featured garages</h2>
+        </div>
+        <ScToggle
+          className="mb-3"
+          options={SERVICE_MODES}
+          value={serviceMode}
+          onChange={setServiceMode}
+        />
         <div className="flex flex-col gap-2">
           {vendors.length === 0 ? (
             <p className="text-[13px] text-text-secondary">No garages found nearby.</p>
