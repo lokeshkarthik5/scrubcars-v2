@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { IconCalendar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
@@ -49,6 +50,28 @@ function buildDateOptions(count = 7) {
   })
 }
 
+// Formats a YYYY-MM-DD value into the same chip labels used above, for a date
+// picked from the calendar (which may fall outside the visible week).
+function formatDateChip(value: string) {
+  const [y, m, d] = value.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return {
+    dayOfWeek: dt.getUTCDay(),
+    dayName: DAY_NAMES[dt.getUTCDay()],
+    date: `${dt.getUTCDate()} ${MONTH_NAMES[dt.getUTCMonth()]}`,
+  }
+}
+
+// UTC date-only arithmetic on a YYYY-MM-DD key (no DST edge cases).
+function addDaysToKey(key: string, days: number) {
+  const [y, m, d] = key.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + days))
+  const yyyy = dt.getUTCFullYear()
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getUTCDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 function BookContent({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -60,11 +83,21 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const dateOptions = buildDateOptions()
+  // The calendar lets customers pick dates beyond the visible week.
+  const calendarMin = addDaysToKey(dateOptions[dateOptions.length - 1].value, 1)
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [services, setServices] = useState<Service[]>([])
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [selectedDate, setSelectedDate] = useState(dateOptions[0].value)
+  // A date chosen from the calendar that falls outside the visible week.
+  const [customDate, setCustomDate] = useState<string | null>(null)
+  const [showCalendar, setShowCalendar] = useState(false)
+  // Month currently displayed in the calendar popup (anchored to the 1st).
+  const [calMonth, setCalMonth] = useState(() => {
+    const [y, m] = calendarMin.split('-').map(Number)
+    return { year: y, month: m - 1 }
+  })
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
   const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
@@ -232,6 +265,37 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </button>
             )
           })}
+
+          {customDate && (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(customDate)}
+              className={cn(
+                'flex shrink-0 flex-col items-center rounded-[10px] border px-3 py-2 transition-colors',
+                selectedDate === customDate
+                  ? 'border-brand-red bg-accent-muted text-brand-red'
+                  : 'border-border bg-surface text-text-primary'
+              )}
+            >
+              <span className="text-[11px] font-medium">{formatDateChip(customDate).dayName}</span>
+              <span className="text-[13px] font-semibold">{formatDateChip(customDate).date}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              const anchor = customDate ?? calendarMin
+              const [y, m] = anchor.split('-').map(Number)
+              setCalMonth({ year: y, month: m - 1 })
+              setShowCalendar(true)
+            }}
+            className="flex shrink-0 flex-col items-center justify-center rounded-[10px] border border-border bg-surface px-3 py-2 text-text-secondary transition-colors hover:text-brand-red"
+            title="Pick another date"
+          >
+            <IconCalendar size={20} stroke={1.5} />
+            <span className="text-[9px] font-medium">More</span>
+          </button>
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -308,6 +372,98 @@ function BookContent({ vendorId }: { vendorId: string }) {
               : `Pay · ₹${resolvedAmount}`}
         </ScButton>
       </div>
+
+      {showCalendar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
+          onClick={() => setShowCalendar(false)}
+        >
+          <div
+            className="w-full max-w-[340px] rounded-[20px] border border-border bg-brand-black p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() =>
+                  setCalMonth((c) =>
+                    c.month === 0
+                      ? { year: c.year - 1, month: 11 }
+                      : { year: c.year, month: c.month - 1 }
+                  )
+                }
+                className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
+                aria-label="Previous month"
+              >
+                <IconChevronLeft size={20} />
+              </button>
+              <span className="text-sm font-semibold text-text-primary">
+                {MONTH_NAMES[calMonth.month]} {calMonth.year}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCalMonth((c) =>
+                    c.month === 11
+                      ? { year: c.year + 1, month: 0 }
+                      : { year: c.year, month: c.month + 1 }
+                  )
+                }
+                className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
+                aria-label="Next month"
+              >
+                <IconChevronRight size={20} />
+              </button>
+            </div>
+
+            <div className="mb-1 grid grid-cols-7 text-center">
+              {DAY_NAMES.map((d) => (
+                <span key={d} className="text-[10px] font-medium text-text-muted">
+                  {d[0]}
+                </span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({
+                length: new Date(Date.UTC(calMonth.year, calMonth.month, 1)).getUTCDay(),
+              }).map((_, i) => (
+                <span key={`pad-${i}`} />
+              ))}
+              {Array.from({
+                length: new Date(Date.UTC(calMonth.year, calMonth.month + 1, 0)).getUTCDate(),
+              }).map((_, i) => {
+                const day = i + 1
+                const key = `${calMonth.year}-${String(calMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                const disabled = key < calendarMin
+                const selected = key === customDate
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setCustomDate(key)
+                      setSelectedDate(key)
+                      setShowCalendar(false)
+                    }}
+                    className={cn(
+                      'flex h-9 items-center justify-center rounded-lg text-[13px] transition-colors',
+                      disabled
+                        ? 'cursor-not-allowed text-text-muted opacity-30'
+                        : selected
+                          ? 'bg-brand-red font-semibold text-brand-white'
+                          : 'text-text-primary hover:bg-surface'
+                    )}
+                  >
+                    {day}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }
