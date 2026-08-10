@@ -34,6 +34,7 @@ export default function GaragePage({
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
   const [selectedService, setSelectedService] = useState<string | null>(null)
+  const [modalService, setModalService] = useState<Service | null>(null)
 
   const handleBook = () => {
     const bookPath = `/book/${id}${selectedService ? `?service=${selectedService}` : ''}`
@@ -129,7 +130,10 @@ export default function GaragePage({
             <button
               key={svc.id}
               type="button"
-              onClick={() => setSelectedService(svc.id)}
+              onClick={() => {
+                setSelectedService(svc.id)
+                setModalService(svc)
+              }}
             >
               <ScCard
                 className={cn(
@@ -207,6 +211,35 @@ export default function GaragePage({
           {services.length === 0 ? 'No services available' : 'Book now'}
         </ScButton>
       </div>
+
+      {modalService && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
+          onClick={() => setModalService(null)}
+        >
+          <div
+            className="w-full max-w-[360px] rounded-[20px] border border-border bg-brand-black px-4 pb-5 pt-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-base font-semibold text-text-primary">{modalService.name}</h2>
+              <span className="shrink-0 text-base font-semibold text-text-primary">
+                {formatServicePrice(modalService)}
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <ScBadge variant="muted">{CATEGORY_LABELS[modalService.category]}</ScBadge>
+              <span className="text-[11px] text-text-secondary">{modalService.durationMins} min</span>
+            </div>
+            <p className="mt-3 whitespace-pre-line text-[13px] text-text-secondary">
+              {modalService.description || 'No description available for this service.'}
+            </p>
+            <ScButton className="mt-5" onClick={handleBook}>
+              Book now
+            </ScButton>
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }
