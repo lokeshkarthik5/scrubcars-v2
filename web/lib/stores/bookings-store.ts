@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import {
   cancelBooking as apiCancelBooking,
   createBooking as apiCreateBooking,
+  rescheduleBooking as apiRescheduleBooking,
   getCustomerBookings,
   getVendorBookings,
   updateBookingStatus,
@@ -34,6 +35,7 @@ interface BookingsState {
   fetchVendorBookings: () => Promise<Booking[]>
   createBooking: (payload: CreateBookingPayload) => Promise<Booking>
   cancelBooking: (id: string, reason?: string) => Promise<Booking>
+  rescheduleBooking: (id: string, scheduledAt: string, reason?: string) => Promise<Booking>
   updateStatus: (id: string, status: Booking['status'], reason?: string) => Promise<Booking>
   reset: () => void
 }
@@ -96,6 +98,18 @@ export const useBookingsStore = create<BookingsState>((set) => ({
       customerBookings: state.customerBookings.map((b) =>
         b.id === id ? booking : b
       ),
+    }))
+    return booking
+  },
+
+  async rescheduleBooking(id, scheduledAt, reason) {
+    // The API returns a NEW booking; the old one is retired server-side.
+    const booking = await apiRescheduleBooking(id, scheduledAt, reason)
+    set((state) => ({
+      customerBookings: [
+        booking,
+        ...state.customerBookings.filter((b) => b.id !== id),
+      ],
     }))
     return booking
   },

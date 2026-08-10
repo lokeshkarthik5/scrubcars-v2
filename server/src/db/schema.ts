@@ -70,6 +70,9 @@ export const bookingStatusEnum = pgEnum('booking_status', [
   'in_progress',
   'completed',
   'cancelled',
+  // Set on a booking that was moved to a new slot via reschedule. The new
+  // booking is a separate row; this one is retired and frees its slot.
+  'rescheduled',
 ])
 
 // Who cancelled a booking. 'vendor' means the vendor rejected/cancelled it,
@@ -342,6 +345,14 @@ export const bookings = pgTable(
     cancelledBy: cancelledByEnum('cancelled_by'),
     cancellationReason: text('cancellation_reason'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    // Reschedule chain. `originalBookingId` points to the first booking in the
+    // chain (null on the original itself); every reschedule shares the same
+    // root. `rescheduleCount` is that booking's position in the chain (0 for
+    // the original, 1 for the first reschedule, ...), mirroring the count of
+    // booking_reschedules rows for the chain.
+    originalBookingId: uuid('original_booking_id'),
+    rescheduledFromId: uuid('rescheduled_from_id'),
+    rescheduleCount: integer('reschedule_count').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -354,6 +365,36 @@ export const bookings = pgTable(
       table.scheduledAt
     ),
     index('bookings_status_idx').on(table.status),
+    index('bookings_original_booking_id_idx').on(table.originalBookingId),
+  ]
+)
+
+// One row per successful reschedule. This is the source of truth for the
+// "max 2 reschedules" cap: the count for a chain equals the number of rows
+// whose originalBookingId matches the chain root.
+export const bookingReschedules = pgTable(
+  'booking_reschedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    originalBookingId: uuid('original_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    fromBookingId: uuid('from_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    toBookingId: uuid('to_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('booking_reschedules_original_idx').on(table.originalBookingId),
   ]
 )
 

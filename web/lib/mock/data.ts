@@ -182,7 +182,7 @@ export const MOCK_SLOTS = [
   { time: '3:00 PM', available: true },
 ]
 
-export const MOCK_BOOKINGS: Booking[] = [
+const RAW_MOCK_BOOKINGS = [
   {
     id: 'BK-2847',
     vendorId: 'vendor-1',
@@ -216,7 +216,7 @@ export const MOCK_BOOKINGS: Booking[] = [
   },
 ]
 
-export const MOCK_VENDOR_BOOKINGS: Booking[] = [
+const RAW_MOCK_VENDOR_BOOKINGS = [
   {
     id: 'BK-2901',
     vendorId: 'vendor-1',
@@ -279,6 +279,23 @@ export const MOCK_VENDOR_BOOKINGS: Booking[] = [
     review: MOCK_REVIEWS[1],
   },
 ]
+
+// Mock bookings predate the reschedule fields; fill sensible defaults so they
+// satisfy the Booking type without hand-editing every fixture.
+function withRescheduleDefaults<T extends object>(bookings: T[]): Booking[] {
+  return bookings.map((b) => ({
+    serviceId: '',
+    rescheduleCount: 0,
+    remainingReschedules: 2,
+    ...b,
+  })) as unknown as Booking[]
+}
+
+export const MOCK_BOOKINGS: Booking[] = withRescheduleDefaults(RAW_MOCK_BOOKINGS)
+
+export const MOCK_VENDOR_BOOKINGS: Booking[] = withRescheduleDefaults(
+  RAW_MOCK_VENDOR_BOOKINGS
+)
 
 export const MOCK_VENDOR_STATS: VendorStats = {
   todaysJobs: 4,

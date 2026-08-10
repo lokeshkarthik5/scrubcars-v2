@@ -13,6 +13,7 @@ import {
   createBookingSchema,
   listMyBookingsQuerySchema,
   listVendorBookingsQuerySchema,
+  rescheduleBookingSchema,
 } from './bookings.validation.js'
 import type { Context } from 'hono'
 
@@ -60,6 +61,20 @@ bookingsRoutes.patch(
       c,
       c.req.valid('param').id,
       await parseCancelInput(c)
+    )
+)
+
+bookingsRoutes.patch(
+  '/:id/reschedule',
+  authMiddleware,
+  requireCustomer,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', rescheduleBookingSchema),
+  (c) =>
+    bookingsController.rescheduleBooking(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
     )
 )
 

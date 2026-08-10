@@ -12,6 +12,11 @@ import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
+
+// Customers must cancel or reschedule at least this far ahead of the time.
+const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
+// A booking may be rescheduled at most this many times across its chain.
+const MAX_RESCHEDULES = 2
 import type { PaymentRecord } from './bookings.repository.js'
 import type {
   CreateBookingInput,
@@ -32,6 +37,9 @@ type BookingWithRelations = {
   cancelledBy?: string | null
   cancellationReason?: string | null
   cancelledAt?: Date | null
+  originalBookingId?: string | null
+  rescheduledFromId?: string | null
+  rescheduleCount?: number | null
   createdAt: Date
   review?: {
     id: string
@@ -98,6 +106,11 @@ function toBookingResponse(booking: BookingWithRelations) {
     cancelledBy: booking.cancelledBy ?? null,
     cancellationReason: booking.cancellationReason ?? null,
     cancelledAt: booking.cancelledAt?.toISOString() ?? null,
+    originalBookingId: booking.originalBookingId ?? null,
+    rescheduledFromId: booking.rescheduledFromId ?? null,
+    rescheduleCount: booking.rescheduleCount ?? 0,
+    remainingReschedules: Math.max(0, MAX_RESCHEDULES - (booking.rescheduleCount ?? 0)),
+    maxReschedules: MAX_RESCHEDULES,
     createdAt: booking.createdAt.toISOString(),
     review: booking.review
       ? {
@@ -455,11 +468,143 @@ export const bookingsService = {
       )
     }
 
+    const msUntilBooking = booking.scheduledAt.getTime() - Date.now()
+    if (msUntilBooking < CANCELLATION_CUTOFF_MS) {
+      throw new AppError(
+        400,
+        'Bookings can only be cancelled at least 2 hours before the scheduled time',
+        'CANCELLATION_WINDOW_PASSED'
+      )
+    }
+
     await bookingsRepository.cancelBooking(bookingId, 'user', reason)
     log.info({ bookingId, userId, status: 'cancelled', cancelledBy: 'user' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toBookingResponse(updated!)
+  },
+
+  async rescheduleBooking(
+    userId: string,
+    bookingId: string,
+    newScheduledAtInput: string,
+    reason?: string
+  ) {
+    const booking = await getBookingForCustomer(userId, bookingId)
+
+    if (!['pending', 'confirmed'].includes(booking.status)) {
+      throw new AppError(
+        400,
+        'Only pending or confirmed bookings can be rescheduled',
+        'INVALID_BOOKING_STATUS'
+      )
+    }
+
+    if ((booking.rescheduleCount ?? 0) >= MAX_RESCHEDULES) {
+      throw new AppError(
+        400,
+        `A booking can be rescheduled at most ${MAX_RESCHEDULES} times`,
+        'RESCHEDULE_LIMIT_REACHED'
+      )
+    }
+
+    const msUntilBooking = booking.scheduledAt.getTime() - Date.now()
+    if (msUntilBooking < CANCELLATION_CUTOFF_MS) {
+      throw new AppError(
+        400,
+        'Bookings can only be rescheduled at least 2 hours before the scheduled time',
+        'RESCHEDULE_WINDOW_PASSED'
+      )
+    }
+
+    const newScheduledAt = new Date(newScheduledAtInput)
+    if (Number.isNaN(newScheduledAt.getTime())) {
+      throw new AppError(400, 'Invalid scheduledAt', 'INVALID_SCHEDULED_AT')
+    }
+    if (newScheduledAt.getTime() <= Date.now()) {
+      throw new AppError(
+        400,
+        'Cannot reschedule to a slot in the past',
+        'INVALID_SCHEDULED_AT'
+      )
+    }
+
+    const service = booking.service
+    if (!service) {
+      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+    }
+
+    await validateSlotAvailability(
+      booking.vendorId,
+      service.id,
+      newScheduledAt,
+      service.durationMins
+    )
+
+    const rootBookingId = booking.originalBookingId ?? booking.id
+
+    const result = await bookingsRepository.rescheduleBookingWithPayment({
+      sourceBookingId: booking.id,
+      rootBookingId,
+      userId,
+      vendorId: booking.vendorId,
+      serviceId: service.id,
+      vehicleId: booking.vehicleId,
+      bookingType: booking.bookingType,
+      newScheduledAt,
+      lockDate: getDateKeyFromScheduledAt(newScheduledAt),
+      serviceDurationMins: service.durationMins,
+      status: booking.status,
+      amount: booking.amount,
+      paymentMethod: booking.paymentMethod,
+      lat: booking.lat,
+      lng: booking.lng,
+      address: booking.address,
+      sourcePayment: booking.payment
+        ? {
+            gateway: booking.payment.gateway,
+            gatewayTxnId: booking.payment.gatewayTxnId,
+            amount: booking.payment.amount,
+            currency: booking.payment.currency,
+            status: booking.payment.status,
+            paidAt: booking.payment.paidAt,
+          }
+        : null,
+      reason: reason ?? null,
+      maxReschedules: MAX_RESCHEDULES,
+    })
+
+    if (result.capReached) {
+      throw new AppError(
+        400,
+        `A booking can be rescheduled at most ${MAX_RESCHEDULES} times`,
+        'RESCHEDULE_LIMIT_REACHED'
+      )
+    }
+
+    if (result.conflict) {
+      throw new AppError(
+        409,
+        'Selected slot was just booked. Please choose another slot.',
+        'SLOT_ALREADY_BOOKED'
+      )
+    }
+
+    log.info(
+      {
+        userId,
+        fromBookingId: booking.id,
+        toBookingId: result.booking.id,
+        rootBookingId,
+        newScheduledAt: newScheduledAt.toISOString(),
+      },
+      'booking:rescheduled'
+    )
+
+    const fullBooking = await bookingsRepository.findBookingById(
+      result.booking.id
+    )
+    return toBookingResponse(fullBooking!)
   },
 
   async listVendorBookings(ownerId: string, query: ListVendorBookingsQuery) {

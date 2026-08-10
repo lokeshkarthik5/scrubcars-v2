@@ -189,6 +189,11 @@ export interface ApiBooking {
   cancelledBy: 'user' | 'vendor' | null
   cancellationReason: string | null
   cancelledAt: string | null
+  originalBookingId: string | null
+  rescheduledFromId: string | null
+  rescheduleCount: number
+  remainingReschedules: number
+  maxReschedules: number
   createdAt: string
   review: {
     id: string

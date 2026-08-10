@@ -46,6 +46,7 @@ export function bookingStatusBadge(status: string) {
     in_progress: { label: 'In progress', variant: 'danger' },
     completed: { label: 'Completed', variant: 'success' },
     cancelled: { label: 'Cancelled', variant: 'muted' },
+    rescheduled: { label: 'Rescheduled', variant: 'muted' },
   }
   return map[status] ?? { label: status, variant: 'muted' as const }
 }

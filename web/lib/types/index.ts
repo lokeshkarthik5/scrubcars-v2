@@ -5,6 +5,7 @@ export type BookingStatus =
   | 'in_progress'
   | 'completed'
   | 'cancelled'
+  | 'rescheduled'
 export type ServiceCategory =
   | 'car_wash'
   | 'detailing'
@@ -97,6 +98,7 @@ export interface Booking {
   id: string
   vendorId: string
   vendorName: string
+  serviceId: string
   serviceName: string
   servicePrice: number
   servicePricingType?: PricingType
@@ -110,6 +112,8 @@ export interface Booking {
   paymentStatus: 'pending' | 'paid' | 'collected' | 'failed' | 'refunded'
   cancelledBy?: 'user' | 'vendor'
   cancellationReason?: string
+  rescheduleCount: number
+  remainingReschedules: number
   review?: Review
 }
 

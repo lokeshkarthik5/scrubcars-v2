@@ -6,6 +6,7 @@ export const bookingStatusSchema = z.enum([
   'in_progress',
   'completed',
   'cancelled',
+  'rescheduled',
 ])
 
 export const bookingTypeSchema = z.enum(['doorstep', 'dropin'])
@@ -32,6 +33,11 @@ export const cancelBookingSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 })
 
+export const rescheduleBookingSchema = z.object({
+  scheduledAt: z.string().datetime(),
+  reason: z.string().trim().max(500).optional(),
+})
+
 export const createBookingSchema = z
   .object({
     vendorId: z.string().uuid(),
@@ -50,3 +56,4 @@ export type ListVendorBookingsQuery = z.infer<
 >
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>
+export type RescheduleBookingInput = z.infer<typeof rescheduleBookingSchema>

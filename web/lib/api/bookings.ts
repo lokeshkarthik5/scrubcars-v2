@@ -115,3 +115,20 @@ export async function cancelBooking(id: string, reason?: string): Promise<Bookin
   })
   return mapBooking(booking)
 }
+
+/**
+ * PATCH /bookings/:id/reschedule
+ * Creates a NEW booking at the given slot and retires the old one. Returns the
+ * new booking (with a fresh id).
+ */
+export async function rescheduleBooking(
+  id: string,
+  scheduledAt: string,
+  reason?: string
+): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/bookings/${id}/reschedule`, {
+    method: 'PATCH',
+    body: JSON.stringify({ scheduledAt, ...(reason ? { reason } : {}) }),
+  })
+  return mapBooking(booking)
+}

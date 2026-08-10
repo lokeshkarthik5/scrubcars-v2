@@ -1,10 +1,12 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { ScInput } from '@/components/sc/input'
+import { SlotPicker } from '@/components/sc/slot-picker'
 import { StatusStepper } from '@/components/sc/status-stepper'
 import { Stars } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
@@ -24,9 +26,11 @@ export default function BookingDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
+  const router = useRouter()
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const cancelBooking = useBookingsStore((s) => s.cancelBooking)
+  const rescheduleBooking = useBookingsStore((s) => s.rescheduleBooking)
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [rating, setRating] = useState(0)
@@ -36,6 +40,9 @@ export default function BookingDetailPage({
   const [cancelling, setCancelling] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [showReschedule, setShowReschedule] = useState(false)
+  const [rescheduleSlot, setRescheduleSlot] = useState<string | null>(null)
+  const [rescheduling, setRescheduling] = useState(false)
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
 
   useEffect(() => {
@@ -53,7 +60,12 @@ export default function BookingDetailPage({
   const bookingStatus = booking?.status
   useEffect(() => {
     if (!bookingStatus) return
-    if (bookingStatus === 'completed' || bookingStatus === 'cancelled') return
+    if (
+      bookingStatus === 'completed' ||
+      bookingStatus === 'cancelled' ||
+      bookingStatus === 'rescheduled'
+    )
+      return
 
     const interval = setInterval(async () => {
       const fresh = await getBooking(id)
@@ -119,6 +131,23 @@ export default function BookingDetailPage({
     }
   }
 
+  const handleReschedule = async () => {
+    if (!booking || rescheduling || !rescheduleSlot) return
+    setRescheduling(true)
+    try {
+      // Reschedule creates a NEW booking; navigate to it.
+      const created = await rescheduleBooking(booking.id, rescheduleSlot)
+      setShowReschedule(false)
+      setRescheduleSlot(null)
+      toast.success('Booking rescheduled')
+      router.push(`/bookings/${created.id}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to reschedule booking')
+    } finally {
+      setRescheduling(false)
+    }
+  }
+
   const handleSubmitReview = async () => {
     if (!rating) return
     setSubmitting(true)
@@ -164,10 +193,21 @@ export default function BookingDetailPage({
         </div>
       </ScCard>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-text-primary">Status</h2>
-        <StatusStepper status={booking.status} />
-      </section>
+      {booking.status !== 'rescheduled' && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-text-primary">Status</h2>
+          <StatusStepper status={booking.status} />
+        </section>
+      )}
+
+      {booking.status === 'rescheduled' && (
+        <ScCard>
+          <h2 className="mb-1 text-sm font-semibold text-text-primary">Rescheduled</h2>
+          <p className="text-[13px] text-text-secondary">
+            This booking was moved to a new time. Check your bookings for the updated slot.
+          </p>
+        </ScCard>
+      )}
 
       {booking.status === 'cancelled' && (
         <ScCard>
@@ -207,6 +247,25 @@ export default function BookingDetailPage({
             </div>
           )}
       </ScCard>
+
+      {['pending', 'confirmed'].includes(booking.status) && (
+        <ScCard>
+          <h2 className="mb-1 text-sm font-semibold text-text-primary">Reschedule booking</h2>
+          <p className="mb-3 text-[12px] text-text-secondary">
+            You can reschedule a booking only twice · {booking.remainingReschedules} of 2 left.
+          </p>
+          <ScButton
+            variant="secondary"
+            disabled={booking.remainingReschedules <= 0}
+            onClick={() => {
+              setRescheduleSlot(null)
+              setShowReschedule(true)
+            }}
+          >
+            {booking.remainingReschedules > 0 ? 'Reschedule' : 'No reschedules left'}
+          </ScButton>
+        </ScCard>
+      )}
 
       {['pending', 'confirmed'].includes(booking.status) && (
         <ScCard>
@@ -283,6 +342,45 @@ export default function BookingDetailPage({
             </>
           )}
         </ScCard>
+      )}
+
+      {showReschedule && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+          onClick={() => !rescheduling && setShowReschedule(false)}
+        >
+          <div
+            className="w-full max-w-[428px] rounded-t-[20px] border-t border-border bg-brand-black px-4 pb-6 pt-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-border" />
+            <h2 className="text-base font-semibold text-text-primary">Reschedule booking</h2>
+            <p className="mb-4 mt-1 text-[12px] text-text-secondary">
+              You can reschedule only twice · {booking.remainingReschedules} of 2 left. Pick a new slot below.
+            </p>
+            <SlotPicker
+              vendorId={booking.vendorId}
+              serviceId={booking.serviceId}
+              value={rescheduleSlot}
+              onChange={setRescheduleSlot}
+            />
+            <div className="mt-5 flex gap-2">
+              <ScButton
+                variant="secondary"
+                disabled={rescheduling}
+                onClick={() => setShowReschedule(false)}
+              >
+                Cancel
+              </ScButton>
+              <ScButton
+                disabled={!rescheduleSlot || rescheduling}
+                onClick={handleReschedule}
+              >
+                {rescheduling ? 'Rescheduling...' : 'Confirm reschedule'}
+              </ScButton>
+            </div>
+          </div>
+        </div>
       )}
     </AppShell>
   )

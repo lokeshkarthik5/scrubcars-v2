@@ -6,6 +6,7 @@ import type {
   CreateBookingInput,
   ListMyBookingsQuery,
   ListVendorBookingsQuery,
+  RescheduleBookingInput,
 } from './bookings.validation.js'
 
 type BookingsContext = Context<{ Variables: AuthVariables }>
@@ -64,6 +65,24 @@ export async function cancelBooking(
     getAuth(c).sub,
     bookingId,
     input?.reason
+  )
+
+  return c.json({
+    success: true,
+    data: booking,
+  })
+}
+
+export async function rescheduleBooking(
+  c: BookingsContext,
+  bookingId: string,
+  input: RescheduleBookingInput
+) {
+  const booking = await bookingsService.rescheduleBooking(
+    getAuth(c).sub,
+    bookingId,
+    input.scheduledAt,
+    input.reason
   )
 
   return c.json({

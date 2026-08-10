@@ -182,6 +182,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     id: booking.id,
     vendorId: booking.vendor?.id ?? '',
     vendorName: booking.vendor?.businessName ?? '',
+    serviceId: booking.service?.id ?? '',
     serviceName: booking.service?.name ?? '',
     servicePrice: Number(booking.amount),
     servicePricingType: booking.service?.pricingType,
@@ -203,6 +204,8 @@ export function mapBooking(booking: ApiBooking): Booking {
     paymentStatus: (booking.payment?.status ?? 'pending') as Booking['paymentStatus'],
     cancelledBy: booking.cancelledBy ?? undefined,
     cancellationReason: booking.cancellationReason ?? undefined,
+    rescheduleCount: booking.rescheduleCount ?? 0,
+    remainingReschedules: booking.remainingReschedules ?? 0,
     review: booking.review
       ? {
           id: booking.review.id,

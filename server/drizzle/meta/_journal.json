@@ -92,6 +92,13 @@
       "when": 1785330630058,
       "tag": "0012_remove_from_pricing_type",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785330630059,
+      "tag": "0013_add_booking_reschedule",
+      "breakpoints": true
     }
   ]
 }
