@@ -3,8 +3,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { IconPlus, IconCheck, IconArchive, IconArchiveOff, IconTrash, IconPencil } from '@tabler/icons-react'
+import {
+  IconArchive,
+  IconArchiveOff,
+  IconBuildingStore,
+  IconCheck,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from '@tabler/icons-react'
+import { ScBadge, vendorAdminStatusBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
+import { ScCard } from '@/components/sc/card'
+import { EmptyState, ErrorState, SkeletonCard } from '@/components/sc/empty-state'
+import { TopBar } from '@/components/sc/top-bar'
 import { ApiError } from '@/lib/api/client'
 import {
   listAdminVendors,
@@ -14,6 +26,17 @@ import {
   deleteAdminVendor,
   type AdminVendor,
 } from '@/lib/api/admin'
+
+function Meta({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
+        {label}
+      </p>
+      <div className="truncate text-[12px] text-text-secondary">{children}</div>
+    </div>
+  )
+}
 
 export default function AdminVendorsPage() {
   const router = useRouter()
@@ -92,136 +115,141 @@ export default function AdminVendorsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-text-primary">Vendors</h1>
-          <p className="text-[13px] text-text-secondary">{vendors.length} total</p>
-        </div>
-        <Link href="/admin/vendors/new">
-          <ScButton fullWidth={false} className="flex items-center gap-1.5 px-4 py-2">
-            <IconPlus size={16} /> Add vendor
-          </ScButton>
-        </Link>
-      </div>
+    <>
+      <TopBar
+        title="Vendors"
+        right={
+          <Link href="/admin/vendors/new">
+            <ScButton fullWidth={false} className="flex items-center gap-1.5 px-4 py-2">
+              <IconPlus size={16} /> Add vendor
+            </ScButton>
+          </Link>
+        }
+      />
 
-      {error && <p className="text-[13px] text-brand-red">{error}</p>}
+      {!loading && !error && vendors.length > 0 && (
+        <p className="-mt-2 text-[11px] text-text-secondary">{vendors.length} total</p>
+      )}
 
       {loading ? (
-        <p className="text-[13px] text-text-secondary">Loading…</p>
+        <div className="flex flex-col gap-2">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      ) : error && vendors.length === 0 ? (
+        <ErrorState message={error} onRetry={load} />
       ) : vendors.length === 0 ? (
-        <p className="text-[13px] text-text-secondary">No vendors yet.</p>
+        <EmptyState
+          icon={<IconBuildingStore size={32} stroke={1.5} />}
+          title="No vendors yet"
+          subtitle="Add your first vendor to start taking bookings."
+          actionLabel="Add vendor"
+          onAction={() => router.push('/admin/vendors/new')}
+        />
       ) : (
-        <div className="overflow-hidden rounded-[14px] border border-border">
-          <table className="w-full text-left text-[13px]">
-            <thead className="bg-surface text-text-secondary">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Business</th>
-                <th className="px-4 py-2.5 font-medium">Owner</th>
-                <th className="px-4 py-2.5 font-medium">City</th>
-                <th className="px-4 py-2.5 font-medium">Services</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 font-medium">Verified</th>
-                <th className="px-4 py-2.5 font-medium text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vendors.map((v) => (
-                <tr key={v.id} className="border-t border-border">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-text-primary">{v.businessName}</div>
-                    <div className="text-text-muted">{v.phone}</div>
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">
+        <div className="flex flex-col gap-2">
+          {/* Errors from a row action surface above the list the row is in. */}
+          {error && <p className="text-[12px] text-brand-red">{error}</p>}
+
+          {vendors.map((v) => {
+            const stage = vendorAdminStatusBadge(v.status)
+            return (
+              <ScCard key={v.id} className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold text-text-primary">
+                      {v.businessName}
+                    </p>
+                    <p className="text-[11px] text-text-secondary">{v.phone}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <ScBadge variant={stage.variant}>{stage.label}</ScBadge>
+                    <ScBadge variant={v.isVerified ? 'success' : 'pending'}>
+                      {v.isVerified ? 'Verified' : 'Unverified'}
+                    </ScBadge>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                  <Meta label="Owner">
                     {v.owner ? (
                       <>
-                        <div>{v.owner.name}</div>
-                        <div className="text-text-muted">{v.owner.phone}</div>
+                        {v.owner.name}
+                        <span className="text-text-muted"> · {v.owner.phone}</span>
                       </>
                     ) : (
                       '—'
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">{v.city}</td>
-                  <td className="px-4 py-3 text-text-secondary">
+                  </Meta>
+                  <Meta label="City">{v.city}</Meta>
+                  <Meta label="Services">
                     {v.serviceCount > 0 ? (
                       `${v.serviceCount} service${v.serviceCount === 1 ? '' : 's'}`
                     ) : (
                       <span className="text-warning">None</span>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] capitalize text-text-secondary">
-                      {v.status}
+                  </Meta>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                  {v.isVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[12px] text-text-muted">
+                      <IconCheck size={14} /> Verified
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {v.isVerified ? (
-                      <span className="text-[12px] text-success">Verified</span>
+                  ) : (
+                    <ScButton
+                      fullWidth={false}
+                      variant="secondary"
+                      disabled={verifyingId === v.id}
+                      onClick={() => handleVerify(v.id)}
+                      className="px-3 py-1.5 text-[12px]"
+                    >
+                      {verifyingId === v.id ? 'Verifying…' : 'Verify'}
+                    </ScButton>
+                  )}
+                  <Link href={`/admin/vendors/${v.id}/edit`}>
+                    <ScButton
+                      fullWidth={false}
+                      variant="secondary"
+                      className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
+                    >
+                      <IconPencil size={14} /> Edit
+                    </ScButton>
+                  </Link>
+                  <ScButton
+                    fullWidth={false}
+                    variant="secondary"
+                    disabled={busyId === v.id}
+                    onClick={() => handleArchiveToggle(v)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
+                  >
+                    {v.status === 'archived' ? (
+                      <>
+                        <IconArchiveOff size={14} /> Restore
+                      </>
                     ) : (
-                      <span className="text-[12px] text-warning">Pending</span>
+                      <>
+                        <IconArchive size={14} /> Archive
+                      </>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      {v.isVerified ? (
-                        <span className="inline-flex items-center gap-1 text-[12px] text-text-muted">
-                          <IconCheck size={14} /> Done
-                        </span>
-                      ) : (
-                        <ScButton
-                          fullWidth={false}
-                          variant="secondary"
-                          disabled={verifyingId === v.id}
-                          onClick={() => handleVerify(v.id)}
-                          className="px-3 py-1.5 text-[12px]"
-                        >
-                          {verifyingId === v.id ? 'Verifying…' : 'Verify'}
-                        </ScButton>
-                      )}
-                      <Link href={`/admin/vendors/${v.id}/edit`}>
-                        <ScButton
-                          fullWidth={false}
-                          variant="secondary"
-                          className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
-                        >
-                          <IconPencil size={14} /> Edit
-                        </ScButton>
-                      </Link>
-                      <ScButton
-                        fullWidth={false}
-                        variant="secondary"
-                        disabled={busyId === v.id}
-                        onClick={() => handleArchiveToggle(v)}
-                        className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
-                      >
-                        {v.status === 'archived' ? (
-                          <>
-                            <IconArchiveOff size={14} /> Restore
-                          </>
-                        ) : (
-                          <>
-                            <IconArchive size={14} /> Archive
-                          </>
-                        )}
-                      </ScButton>
-                      <button
-                        type="button"
-                        disabled={busyId === v.id}
-                        onClick={() => handleDelete(v)}
-                        title="Delete permanently"
-                        className="inline-flex items-center rounded-[8px] p-1.5 text-brand-red hover:bg-brand-red/10 disabled:opacity-50"
-                      >
-                        <IconTrash size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </ScButton>
+                  <button
+                    type="button"
+                    disabled={busyId === v.id}
+                    onClick={() => handleDelete(v)}
+                    title="Delete permanently"
+                    aria-label={`Delete ${v.businessName}`}
+                    className="ml-auto inline-flex items-center rounded-[8px] p-1.5 text-brand-red transition-colors hover:bg-accent-muted disabled:opacity-50"
+                  >
+                    <IconTrash size={16} />
+                  </button>
+                </div>
+              </ScCard>
+            )
+          })}
         </div>
       )}
-    </div>
+    </>
   )
 }

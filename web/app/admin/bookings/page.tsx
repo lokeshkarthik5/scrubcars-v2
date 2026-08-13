@@ -2,10 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { IconCalendar } from '@tabler/icons-react'
+import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
+import { ScCard } from '@/components/sc/card'
+import { FilterChip } from '@/components/sc/chip'
+import { EmptyState, ErrorState, SkeletonCard } from '@/components/sc/empty-state'
+import { TopBar } from '@/components/sc/top-bar'
 import { ApiError } from '@/lib/api/client'
 import { listAdminBookings, type AdminBooking } from '@/lib/api/admin'
 import { formatBookingAmount } from '@/lib/pricing'
-import { APP_TIMEZONE, cn } from '@/lib/utils'
+import { APP_TIMEZONE } from '@/lib/utils'
 
 const STATUSES = ['all', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'] as const
 
@@ -17,6 +23,17 @@ function formatDate(iso: string) {
     minute: '2-digit',
     timeZone: APP_TIMEZONE,
   })
+}
+
+function Meta({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
+        {label}
+      </p>
+      <div className="truncate text-[12px] text-text-secondary">{children}</div>
+    </div>
+  )
 }
 
 export default function AdminBookingsPage() {
@@ -47,84 +64,80 @@ export default function AdminBookingsPage() {
   }, [load])
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-lg font-semibold text-text-primary">Bookings</h1>
-        <p className="text-[13px] text-text-secondary">{bookings.length} shown</p>
-      </div>
+    <>
+      <TopBar
+        title="Bookings"
+        right={
+          !loading && !error ? (
+            <ScBadge variant="muted">{bookings.length} shown</ScBadge>
+          ) : undefined
+        }
+      />
 
       <div className="flex flex-wrap gap-1.5">
         {STATUSES.map((s) => (
-          <button
+          <FilterChip
             key={s}
+            label={s === 'all' ? 'All' : bookingStatusBadge(s).label}
+            active={status === s}
             onClick={() => setStatus(s)}
-            className={cn(
-              'rounded-full px-3 py-1 text-[12px] capitalize transition-colors',
-              status === s
-                ? 'bg-brand-red text-brand-white'
-                : 'bg-surface text-text-secondary hover:text-text-primary'
-            )}
-          >
-            {s.replace('_', ' ')}
-          </button>
+          />
         ))}
       </div>
 
-      {error && <p className="text-[13px] text-brand-red">{error}</p>}
-
       {loading ? (
-        <p className="text-[13px] text-text-secondary">Loading…</p>
+        <div className="flex flex-col gap-2">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : bookings.length === 0 ? (
-        <p className="text-[13px] text-text-secondary">No bookings found.</p>
+        <EmptyState
+          icon={<IconCalendar size={32} stroke={1.5} />}
+          title="No bookings found"
+          subtitle={
+            status === 'all'
+              ? 'Bookings will appear here once customers start booking.'
+              : 'Try a different status filter.'
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-[14px] border border-border">
-          <table className="w-full text-left text-[13px]">
-            <thead className="bg-surface text-text-secondary">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">When</th>
-                <th className="px-4 py-2.5 font-medium">Customer</th>
-                <th className="px-4 py-2.5 font-medium">Vendor</th>
-                <th className="px-4 py-2.5 font-medium">Service</th>
-                <th className="px-4 py-2.5 font-medium">Type</th>
-                <th className="px-4 py-2.5 font-medium">Amount</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((b) => (
-                <tr key={b.id} className="border-t border-border">
-                  <td className="px-4 py-3 text-text-secondary">{formatDate(b.scheduledAt)}</td>
-                  <td className="px-4 py-3">
-                    {b.user ? (
-                      <>
-                        <div className="text-text-primary">{b.user.name}</div>
-                        <div className="text-text-muted">{b.user.phone}</div>
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">
-                    {b.vendor?.businessName ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">{b.service?.name ?? '—'}</td>
-                  <td className="px-4 py-3 capitalize text-text-secondary">
-                    {b.bookingType.replace('_', ' ')}
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">
-                    {formatBookingAmount(Number(b.amount))}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] capitalize text-text-secondary">
-                      {b.status.replace('_', ' ')}
+        <div className="flex flex-col gap-2">
+          {bookings.map((b) => {
+            const badge = bookingStatusBadge(b.status)
+            return (
+              <ScCard key={b.id} className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold text-text-primary">
+                      {b.user?.name ?? '—'}
+                    </p>
+                    <p className="text-[11px] text-text-secondary">
+                      {b.user?.phone ?? '—'} · {formatDate(b.scheduledAt)}
+                    </p>
+                  </div>
+                  <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                  <Meta label="Vendor">{b.vendor?.businessName ?? '—'}</Meta>
+                  <Meta label="Service">{b.service?.name ?? '—'}</Meta>
+                  <Meta label="Type">
+                    <span className="capitalize">{b.bookingType.replace('_', ' ')}</span>
+                  </Meta>
+                  <Meta label="Amount">
+                    <span className="font-medium text-text-primary">
+                      {formatBookingAmount(Number(b.amount))}
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </Meta>
+                </div>
+              </ScCard>
+            )
+          })}
         </div>
       )}
-    </div>
+    </>
   )
 }

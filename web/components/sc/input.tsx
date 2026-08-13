@@ -27,6 +27,19 @@ export const ScInput = forwardRef<HTMLInputElement, ScInputProps>(
 )
 ScInput.displayName = 'ScInput'
 
+interface ScFieldProps extends Omit<ScInputProps, 'onChange' | 'value'> {
+  value: string
+  onChange: (value: string) => void
+}
+
+/**
+ * ScInput with a plain `(value) => void` onChange. Convenience for the long
+ * admin/vendor forms where every field is a controlled string.
+ */
+export function ScField({ value, onChange, ...props }: ScFieldProps) {
+  return <ScInput value={value} onChange={(e) => onChange(e.target.value)} {...props} />
+}
+
 interface ScTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  IconBuildingStore,
   IconCalendar,
   IconChartBar,
   IconHome,
@@ -13,7 +14,7 @@ import {
 } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
 
-type NavType = 'customer' | 'vendor'
+export type NavType = 'customer' | 'vendor' | 'admin'
 
 const customerItems = [
   { href: '/home', label: 'Home', icon: IconHome },
@@ -30,9 +31,20 @@ const vendorItems = [
   { href: '/vendor/settings', label: 'Settings', icon: IconSettings },
 ]
 
+const adminItems = [
+  { href: '/admin/vendors', label: 'Vendors', icon: IconBuildingStore },
+  { href: '/admin/bookings', label: 'Bookings', icon: IconCalendar },
+]
+
+const itemsByType: Record<NavType, typeof customerItems> = {
+  customer: customerItems,
+  vendor: vendorItems,
+  admin: adminItems,
+}
+
 export function BottomNav({ type = 'customer' }: { type?: NavType }) {
   const pathname = usePathname()
-  const items = type === 'vendor' ? vendorItems : customerItems
+  const items = itemsByType[type]
 
   return (
     <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-surface">

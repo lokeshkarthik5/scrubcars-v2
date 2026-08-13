@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost'
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'cta'
 
 interface ScButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
@@ -14,6 +14,9 @@ const variantStyles: Record<ButtonVariant, string> = {
   secondary:
     'bg-transparent border border-border text-brand-white hover:bg-surface',
   ghost: 'bg-transparent text-brand-red hover:opacity-80',
+  // Login/auth call-to-action: sits muted until the form is valid, then fills
+  // with brand red. Opt-in so ordinary primary buttons keep their own look.
+  cta: 'rounded-full py-4 text-[15px] bg-brand-red text-brand-white hover:bg-brand-red-hover disabled:bg-surface-elevated disabled:text-text-secondary disabled:hover:bg-surface-elevated',
 }
 
 export const ScButton = forwardRef<HTMLButtonElement, ScButtonProps>(

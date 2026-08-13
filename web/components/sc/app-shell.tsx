@@ -1,10 +1,10 @@
 import { cn } from '@/lib/utils'
-import { BottomNav } from './bottom-nav'
+import { BottomNav, type NavType } from './bottom-nav'
 
 interface AppShellProps {
   children: React.ReactNode
   showNav?: boolean
-  navType?: 'customer' | 'vendor'
+  navType?: NavType
   className?: string
 }
 

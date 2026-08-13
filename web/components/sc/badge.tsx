@@ -39,6 +39,17 @@ export function vendorStatusBadge(status: 'open' | 'busy' | 'closed') {
   return map[status]
 }
 
+/** Onboarding stage shown in the admin panel (`vendors.status`). */
+export function vendorAdminStatusBadge(status: string) {
+  const map: Record<string, { label: string; variant: BadgeVariant }> = {
+    active: { label: 'Active', variant: 'success' },
+    pending: { label: 'Pending', variant: 'pending' },
+    suspended: { label: 'Suspended', variant: 'danger' },
+    archived: { label: 'Archived', variant: 'muted' },
+  }
+  return map[status] ?? { label: status, variant: 'muted' as const }
+}
+
 export function bookingStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
     // Customer-facing name for `pending` while the vendor hasn't accepted yet.
