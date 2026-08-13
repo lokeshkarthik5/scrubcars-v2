@@ -41,6 +41,8 @@ export function vendorStatusBadge(status: 'open' | 'busy' | 'closed') {
 
 export function bookingStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
+    // Customer-facing name for `pending` while the vendor hasn't accepted yet.
+    waiting: { label: 'Waiting', variant: 'pending' },
     pending: { label: 'New', variant: 'accent' },
     confirmed: { label: 'Confirmed', variant: 'success' },
     in_progress: { label: 'In progress', variant: 'danger' },

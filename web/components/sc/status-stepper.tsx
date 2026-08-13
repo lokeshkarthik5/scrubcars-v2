@@ -3,13 +3,7 @@
 import { IconCheck } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
 
-const STEPS = [
-  { key: 'confirmed', label: 'Confirmed' },
-  { key: 'in_progress', label: 'In progress' },
-  { key: 'completed', label: 'Completed' },
-] as const
-
-type StepKey = (typeof STEPS)[number]['key']
+type StepKey = 'confirmed' | 'in_progress' | 'completed'
 
 const statusToStep: Record<string, StepKey> = {
   pending: 'confirmed',
@@ -18,62 +12,68 @@ const statusToStep: Record<string, StepKey> = {
   completed: 'completed',
 }
 
-function getStepIndex(status: string): number {
-  const key = statusToStep[status] ?? 'confirmed'
-  return STEPS.findIndex((s) => s.key === key)
+const ORDER: StepKey[] = ['confirmed', 'in_progress', 'completed']
+
+// The first step reads differently before and after the vendor accepts.
+function steps(status: string) {
+  const awaitingVendor = status === 'pending'
+  return [
+    {
+      key: 'confirmed' as const,
+      label: awaitingVendor ? 'Waiting' : 'Confirmed',
+      caption: awaitingVendor ? 'Waiting for confirmation' : 'Confirmed successfully',
+    },
+    { key: 'in_progress' as const, label: 'In Progress', caption: 'Pending detailing' },
+    { key: 'completed' as const, label: 'Completed', caption: 'Pending ready state' },
+  ]
 }
 
 export function StatusStepper({ status }: { status: string }) {
-  const currentIndex = getStepIndex(status)
+  const currentIndex = ORDER.indexOf(statusToStep[status] ?? 'confirmed')
+  const awaitingVendor = status === 'pending'
 
   return (
-    <div className="flex flex-col gap-0">
-      {STEPS.map((step, i) => {
-        const done = i < currentIndex
+    <div className="flex flex-col">
+      {steps(status).map((step, i) => {
+        const done = i < currentIndex || (i === currentIndex && !awaitingVendor)
         const current = i === currentIndex
-        const waiting = i > currentIndex
+        const isLast = i === ORDER.length - 1
 
         return (
           <div key={step.key} className="flex gap-3">
             <div className="flex flex-col items-center">
               <div
                 className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded-full',
-                  done && 'bg-success-muted',
-                  current && 'bg-accent-muted pulse-dot',
-                  waiting && 'border border-border bg-surface'
+                  'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border-2',
+                  done
+                    ? 'border-brand-white bg-brand-white'
+                    : current
+                      ? 'border-brand-white'
+                      : 'border-text-muted'
                 )}
               >
-                {done ? (
-                  <IconCheck size={14} className="text-success" />
-                ) : (
-                  <div
-                    className={cn(
-                      'h-2 w-2 rounded-full',
-                      current ? 'bg-brand-red' : 'bg-text-muted'
-                    )}
-                  />
-                )}
+                {done && <IconCheck size={13} stroke={3} className="text-brand-black" />}
               </div>
-              {i < STEPS.length - 1 && (
-                <div
-                  className={cn(
-                    'my-1 w-px flex-1 min-h-[24px]',
-                    done ? 'bg-success/30' : 'bg-border'
-                  )}
-                />
+              {!isLast && (
+                <div className={cn('my-1 min-h-[22px] w-px flex-1', done ? 'bg-brand-white/30' : 'bg-border')} />
               )}
             </div>
-            <div className="pb-5 pt-1">
+            <div className={cn(isLast ? 'pb-0' : 'pb-4', 'pt-0')}>
               <p
                 className={cn(
-                  'text-[13px] font-medium',
-                  done && 'text-success',
-                  current && 'text-brand-red',
-                  waiting && 'text-text-muted'
+                  'text-[14px] font-semibold leading-tight',
+                  done || current ? 'text-text-primary' : 'text-text-muted'
                 )}
               >
                 {step.label}
+              </p>
+              <p
+                className={cn(
+                  'mt-0.5 text-[12px] leading-tight',
+                  done || current ? 'text-text-secondary' : 'text-text-muted'
+                )}
+              >
+                {step.caption}
               </p>
             </div>
           </div>

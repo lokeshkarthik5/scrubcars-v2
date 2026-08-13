@@ -3,8 +3,8 @@
 
 @theme inline {
   --font-sans: var(--font-inter);
-  --color-brand-red: #E33402;
-  --color-brand-red-hover: #C42D02;
+  --color-brand-red: #EF3240;
+  --color-brand-red-hover: #D42433;
   --color-brand-black: #0A0A0A;
   --color-brand-white: #FAFAFA;
   --color-brand-grey: #151515;
@@ -14,9 +14,9 @@
   --color-text-secondary: #9A9A9A;
   --color-text-muted: #555555;
   --color-border: #2A2A2A;
-  --color-accent: #E33402;
-  --color-accent-hover: #C42D02;
-  --color-accent-muted: rgba(227, 52, 2, 0.12);
+  --color-accent: #EF3240;
+  --color-accent-hover: #D42433;
+  --color-accent-muted: rgba(239, 50, 64, 0.12);
   --color-success: #22C55E;
   --color-success-muted: rgba(34, 197, 94, 0.12);
   --color-warning: #EAB308;

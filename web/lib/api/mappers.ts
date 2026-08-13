@@ -36,12 +36,16 @@ function mapVendorStatus(status: string): VendorStatus {
 
 function formatSlotTime(iso: string): string {
   const date = new Date(iso)
-  return date.toLocaleTimeString('en-IN', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: APP_TIMEZONE,
-  })
+  // Zero-padded hour and an uppercase meridiem ("05:00 PM"), so the slot grid
+  // stays a fixed width. en-IN yields a lowercase "pm", hence the toUpperCase.
+  return date
+    .toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: APP_TIMEZONE,
+    })
+    .toUpperCase()
 }
 
 function formatScheduledAt(iso: string): string {

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { IconCalendar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
-import { Chip } from '@/components/sc/chip'
 import { getAvailableSlots } from '@/lib/api/bookings'
 import { getVendorWorkingHours } from '@/lib/api/vendors'
 import { APP_TIMEZONE, cn } from '@/lib/utils'
@@ -104,7 +103,8 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
 
   return (
     <div>
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+      <h2 className="mb-3 text-[15px] font-semibold text-text-primary">Select Date</h2>
+      <div className="-mx-4 mb-6 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {dateOptions.map((d) => {
           const closed = closedDays.has(d.dayOfWeek)
           return (
@@ -114,17 +114,23 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
               disabled={closed}
               onClick={() => selectDate(d.value)}
               className={cn(
-                'flex shrink-0 flex-col items-center rounded-[10px] border px-3 py-2 transition-colors',
+                'flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors',
                 closed
-                  ? 'cursor-not-allowed border-border bg-surface text-text-secondary opacity-40'
+                  ? 'cursor-not-allowed bg-surface text-text-muted opacity-50'
                   : selectedDate === d.value
-                    ? 'border-brand-red bg-accent-muted text-brand-red'
-                    : 'border-border bg-surface text-text-primary'
+                    ? 'bg-brand-white text-brand-black'
+                    : 'bg-surface text-text-primary'
               )}
             >
-              <span className="text-[11px] font-medium">{d.dayName}</span>
-              <span className="text-[13px] font-semibold">{d.date}</span>
-              {closed && <span className="text-[9px] font-medium">Closed</span>}
+              <span
+                className={cn(
+                  'text-[10px] font-medium uppercase',
+                  selectedDate === d.value && !closed ? 'text-brand-black/60' : 'text-text-secondary'
+                )}
+              >
+                {d.dayName}
+              </span>
+              <span className="text-[16px] font-semibold">{d.date.split(' ')[0]}</span>
             </button>
           )
         })}
@@ -134,14 +140,23 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
             type="button"
             onClick={() => selectDate(customDate)}
             className={cn(
-              'flex shrink-0 flex-col items-center rounded-[10px] border px-3 py-2 transition-colors',
+              'flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors',
               selectedDate === customDate
-                ? 'border-brand-red bg-accent-muted text-brand-red'
-                : 'border-border bg-surface text-text-primary'
+                ? 'bg-brand-white text-brand-black'
+                : 'bg-surface text-text-primary'
             )}
           >
-            <span className="text-[11px] font-medium">{formatDateChip(customDate).dayName}</span>
-            <span className="text-[13px] font-semibold">{formatDateChip(customDate).date}</span>
+            <span
+              className={cn(
+                'text-[10px] font-medium uppercase',
+                selectedDate === customDate ? 'text-brand-black/60' : 'text-text-secondary'
+              )}
+            >
+              {formatDateChip(customDate).dayName}
+            </span>
+            <span className="text-[16px] font-semibold">
+              {formatDateChip(customDate).date.split(' ')[0]}
+            </span>
           </button>
         )}
 
@@ -153,31 +168,41 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
             setCalMonth({ year: y, month: m - 1 })
             setShowCalendar(true)
           }}
-          className="flex shrink-0 flex-col items-center justify-center rounded-[10px] border border-border bg-surface px-3 py-2 text-text-secondary transition-colors hover:text-brand-red"
+          className="flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] bg-surface text-text-secondary transition-colors hover:text-brand-red"
           title="Pick another date"
         >
-          <IconCalendar size={20} stroke={1.5} />
+          <IconCalendar size={19} stroke={1.5} />
           <span className="text-[9px] font-medium">More</span>
         </button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {slots.length === 0 ? (
-          <p className="text-[12px] text-text-secondary">
-            {isClosedDay ? 'Vendor is closed on this day.' : 'No slots available on this date.'}
-          </p>
-        ) : (
-          slots.map((slot) => (
-            <Chip
+      <h2 className="mb-3 text-[15px] font-semibold text-text-primary">Select Time</h2>
+      {slots.length === 0 ? (
+        <p className="text-[12px] text-text-secondary">
+          {isClosedDay ? 'Vendor is closed on this day.' : 'No slots available on this date.'}
+        </p>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {slots.map((slot) => (
+            <button
               key={slot.time}
-              label={slot.label}
-              selected={value === slot.time}
+              type="button"
               disabled={!slot.available}
               onClick={() => onChange(slot.time)}
-            />
-          ))
-        )}
-      </div>
+              className={cn(
+                'rounded-[10px] py-3 text-[13px] font-medium transition-colors',
+                !slot.available
+                  ? 'cursor-not-allowed bg-surface text-text-muted opacity-50'
+                  : value === slot.time
+                    ? 'bg-brand-white font-semibold text-brand-black'
+                    : 'bg-surface text-text-primary'
+              )}
+            >
+              {slot.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {showCalendar && (
         <div

@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { IconShoppingCart } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
@@ -127,26 +128,27 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   return (
     <AppShell className="gap-5 pb-24 pt-4">
-      <TopBar showBack title="Book service" />
+      <TopBar showBack center title="Pick a Slot" />
 
+      {/* Cart summary — vendor, what's being booked, and the total to pay. */}
       {selectedService && vendor && (
-        <ScCard>
-          <div className="flex justify-between">
-            <div>
-              <p className="text-[13px] font-semibold text-text-primary">{selectedService.name}</p>
-              <p className="text-[11px] text-text-secondary">{vendor.name}</p>
-              <p className="text-[11px] text-text-secondary">{selectedService.durationMins} min</p>
-            </div>
-            <span className="text-[13px] font-semibold">
+        <ScCard className="py-3.5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[15px] font-semibold text-text-primary">{vendor.name}</p>
+            <span className="shrink-0 text-[15px] font-semibold text-text-primary">
               {formatServicePrice(selectedService, selectedVehicleType)}
             </span>
           </div>
+          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
+            <IconShoppingCart size={13} />
+            {selectedService.name} · {selectedService.durationMins} min
+          </p>
         </ScCard>
       )}
 
       {vendor && vendor.dropinEnabled && vendor.doorstepEnabled && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold text-text-primary">Service type</h2>
+          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Service type</h2>
           <ScToggle
             options={BOOKING_TYPE_OPTIONS}
             value={bookingType}
@@ -156,7 +158,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">Pick a slot</h2>
         <SlotPicker
           vendorId={vendorId}
           serviceId={selectedService?.id ?? null}
@@ -177,8 +178,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </ScCard>
       )}
 
+      {/* Not in the design, but createBookingSchema requires a vehicleId — the
+          booking can't be created without one. */}
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">Car details</h2>
+        <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Car details</h2>
         {vehicles.length === 0 ? (
           <p className="text-[12px] text-text-secondary">No cars added yet.</p>
         ) : (
@@ -195,28 +198,21 @@ function BookContent({ vendorId }: { vendorId: string }) {
         )}
       </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">Payment</h2>
-        <ScCard className="flex items-center gap-3 border-brand-red">
-          <span className="flex-1 text-left text-[13px]">Online (Razorpay)</span>
-          <div className="h-4 w-4 rounded-full border-[5px] border-brand-red" />
-        </ScCard>
-        <p className="mt-2 text-[12px] text-text-secondary">
-          Bookings are confirmed after online payment.
-        </p>
-      </section>
-
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
         <ScButton
           disabled={!selectedService || !selectedSlot || !selectedVehicle || loading}
           onClick={handleConfirm}
+          className="rounded-full py-4 text-[15px]"
         >
           {loading
             ? 'Processing payment...'
             : resolvedAmount == null
               ? 'Confirm booking'
-              : `Pay · ₹${resolvedAmount}`}
+              : `Pay Now (₹${resolvedAmount.toLocaleString('en-IN')})`}
         </ScButton>
+        <p className="mt-2 text-center text-[11px] text-text-muted">
+          Bookings are confirmed after online payment.
+        </p>
       </div>
     </AppShell>
   )

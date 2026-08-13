@@ -2,7 +2,9 @@
 
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { IconCreditCard, IconHome, IconMapPin } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
+import { ScBadge, bookingStatusBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { ScInput } from '@/components/sc/input'
@@ -181,24 +183,74 @@ export default function BookingDetailPage({
     )
   }
 
-  return (
-    <AppShell showNav className="gap-5 py-4">
-      <TopBar showBack title={booking.serviceName} />
+  const statusBadge = bookingStatusBadge(
+    // Before the vendor accepts, the design calls this state "Waiting".
+    booking.status === 'pending' ? 'waiting' : booking.status
+  )
 
-      <ScCard>
-        <p className="text-[13px] font-semibold text-text-primary">{booking.serviceName}</p>
-        <p className="text-[11px] text-text-secondary">{booking.vendorName}</p>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-[11px] text-text-secondary">{booking.scheduledAt}</span>
+  return (
+    <AppShell showNav className="gap-4 py-4">
+      <TopBar showBack center title="Booking Status" />
+
+      <div className="flex items-center justify-between gap-3">
+        {/* Short, human-quotable reference derived from the booking UUID. */}
+        <span className="text-[13px] text-text-secondary">
+          Booking #{booking.id.slice(0, 8).toUpperCase()}
+        </span>
+        <ScBadge variant={statusBadge.variant} className="uppercase tracking-wide">
+          {statusBadge.label}
+        </ScBadge>
+      </div>
+
+      <ScCard className="px-4 py-4">
+        <h2 className="text-[20px] font-bold tracking-tight text-text-primary">
+          {booking.vendorName}
+        </h2>
+        <p className="mt-1 text-[13px] text-text-secondary">{booking.scheduledAt}</p>
+
+        <div className="mt-3 flex items-center gap-2 text-[13px]">
+          {booking.bookingType === 'doorstep' ? (
+            <IconHome size={15} className="text-text-primary" />
+          ) : (
+            <IconMapPin size={15} className="text-text-primary" />
+          )}
+          <span className="font-medium text-text-primary">
+            {booking.bookingType === 'doorstep' ? 'Doorstep Mode' : 'At Garage Mode'}
+          </span>
+        </div>
+
+        {booking.status !== 'rescheduled' && (
+          <>
+            <div className="my-4 h-px bg-border" />
+            <StatusStepper status={booking.status} />
+          </>
+        )}
+
+        <div className="my-4 h-px bg-border" />
+        <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+          Services
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="rounded-lg bg-surface-elevated px-2.5 py-1.5 text-[12px] text-text-primary">
+            {booking.serviceName} ({formatBookingAmount(booking.servicePrice)})
+          </span>
+        </div>
+
+        <div className="my-4 h-px bg-border" />
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+            <IconCreditCard size={14} />
+            {booking.paymentStatus === 'paid'
+              ? 'Paid online'
+              : booking.paymentMethod === 'online'
+                ? `Online · ${booking.paymentStatus}`
+                : `Cash · ${booking.paymentStatus}`}
+          </span>
+          <span className="text-[15px] font-semibold text-text-primary">
+            {formatBookingAmount(booking.servicePrice)}
+          </span>
         </div>
       </ScCard>
-
-      {booking.status !== 'rescheduled' && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold text-text-primary">Status</h2>
-          <StatusStepper status={booking.status} />
-        </section>
-      )}
 
       {booking.status === 'rescheduled' && (
         <ScCard>
@@ -228,25 +280,16 @@ export default function BookingDetailPage({
         </ScCard>
       )}
 
-      <ScCard>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">Payment</h2>
-        <div className="flex justify-between text-[13px]">
-          <span className="text-text-secondary">
-            {booking.paymentMethod === 'online' ? 'Online' : 'Cash'}
-          </span>
-          <span className="font-semibold">{formatBookingAmount(booking.servicePrice)}</span>
-        </div>
-        <p className="mt-1 text-[11px] capitalize text-text-muted">{booking.paymentStatus}</p>
-        {booking.paymentMethod === 'online' &&
-          booking.paymentStatus === 'pending' &&
-          booking.status !== 'cancelled' && (
-            <div className="mt-3">
-              <ScButton disabled={paying} onClick={handlePayNow}>
-                {paying ? 'Opening payment...' : 'Pay now'}
-              </ScButton>
-            </div>
-          )}
-      </ScCard>
+      {/* Totals live on the status card above; this is just the outstanding-payment CTA. */}
+      {booking.paymentMethod === 'online' &&
+        booking.paymentStatus === 'pending' &&
+        booking.status !== 'cancelled' && (
+          <ScButton disabled={paying} onClick={handlePayNow} className="rounded-full py-4 text-[15px]">
+            {paying
+              ? 'Opening payment...'
+              : `Pay Now (${formatBookingAmount(booking.servicePrice)})`}
+          </ScButton>
+        )}
 
       {['pending', 'confirmed'].includes(booking.status) && (
         <ScCard>
@@ -302,9 +345,13 @@ export default function BookingDetailPage({
               </div>
             </div>
           ) : (
-            <ScButton variant="ghost" onClick={() => setShowCancelConfirm(true)}>
-              Cancel booking
-            </ScButton>
+            <button
+              type="button"
+              onClick={() => setShowCancelConfirm(true)}
+              className="w-full text-center text-[14px] font-semibold text-brand-red underline"
+            >
+              Cancel Booking
+            </button>
           )}
         </ScCard>
       )}

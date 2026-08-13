@@ -1,16 +1,25 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { IconHeart } from '@tabler/icons-react'
+import {
+  IconArrowLeft,
+  IconBuildingStore,
+  IconCheck,
+  IconClock,
+  IconHeart,
+  IconHeartFilled,
+  IconHome,
+  IconMapPin,
+  IconSearch,
+  IconStarFilled,
+} from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { Stars } from '@/components/sc/stars'
-import { TopBar } from '@/components/sc/top-bar'
-import { CATEGORY_LABELS } from '@/lib/mock/data'
 import { getVendorReviews } from '@/lib/api/reviews'
 import { getVendorServices } from '@/lib/api/services'
 import { getVendor } from '@/lib/api/vendors'
@@ -20,94 +29,176 @@ import { formatServicePrice } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 
 type Tab = 'services' | 'photos' | 'reviews'
+type Mode = 'dropin' | 'doorstep'
 
-export default function GaragePage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default function GaragePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [services, setServices] = useState<Service[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
-  const [selectedService, setSelectedService] = useState<string | null>(null)
-  const [modalService, setModalService] = useState<Service | null>(null)
-
-  const handleBook = () => {
-    const bookPath = `/book/${id}${selectedService ? `?service=${selectedService}` : ''}`
-    if (!user) {
-      router.push(`/login?next=${encodeURIComponent(bookPath)}`)
-    } else {
-      router.push(bookPath)
-    }
-  }
+  const [mode, setMode] = useState<Mode>('dropin')
+  const [query, setQuery] = useState('')
+  const [favourite, setFavourite] = useState(false)
+  // One service per booking — matches createBookingSchema on the server.
+  const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
-    getVendor(id).then((v) => setVendor(v ?? null))
+    getVendor(id).then((v) => {
+      setVendor(v ?? null)
+      if (v && !v.dropinEnabled && v.doorstepEnabled) setMode('doorstep')
+    })
     getVendorServices(id).then(setServices)
     getVendorReviews(id).then(setReviews)
   }, [id])
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return services
+    return services.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.description ?? '').toLowerCase().includes(q)
+    )
+  }, [services, query])
+
+  const selectedService = services.find((s) => s.id === selected) ?? null
+
+  const toggle = (serviceId: string) =>
+    setSelected((current) => (current === serviceId ? null : serviceId))
+
+  const handleBook = () => {
+    if (!selected) return
+    const bookPath = `/book/${id}?service=${selected}`
+    router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
+  }
+
   if (!vendor) {
     return (
-      <AppShell className="py-4">
-        <TopBar showBack title="Loading..." />
+      <AppShell className="items-center justify-center py-4">
+        <p className="text-[13px] text-text-secondary">Loading…</p>
       </AppShell>
     )
   }
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'services', label: 'Services' },
-    { key: 'photos', label: 'Photos' },
-    { key: 'reviews', label: 'Reviews' },
-  ]
 
   const avgRating =
     reviews.length > 0
       ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
       : vendor.rating
+  const hero = vendor.photos[0] ?? vendor.logoUrl
+  const hasDistance = /\d/.test(vendor.distance)
+  const bothModes = vendor.dropinEnabled && vendor.doorstepEnabled
 
   return (
-    <AppShell className="pb-24">
-      <div className="sticky top-0 z-10 bg-brand-black px-4 pt-4">
-        <TopBar
-          showBack
-          title={vendor.name}
-          right={
-            <button className="text-text-secondary">
-              <IconHeart size={22} stroke={1.5} />
-            </button>
-          }
-        />
+    <AppShell className={cn('px-0', selected ? 'pb-28' : 'pb-6')}>
+      {/* Hero — full-bleed cover with the back/favourite controls floated on top. */}
+      <div className="relative h-[210px] w-full shrink-0 bg-surface-elevated">
+        {hero ? (
+          <Image
+            src={hero}
+            alt={vendor.name}
+            fill
+            priority
+            sizes="428px"
+            className="object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-elevated to-surface">
+            <IconBuildingStore size={40} className="text-text-muted" />
+          </div>
+        )}
+        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/60 to-transparent" />
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Go back"
+          className="absolute left-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-brand-white backdrop-blur-sm"
+        >
+          <IconArrowLeft size={20} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setFavourite((f) => !f)}
+          aria-label={favourite ? 'Remove from favourites' : 'Save to favourites'}
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 backdrop-blur-sm"
+        >
+          {favourite ? (
+            <IconHeartFilled size={20} className="text-brand-red" />
+          ) : (
+            <IconHeart size={20} className="text-brand-white" />
+          )}
+        </button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto px-4 pb-4">
-        {vendor.photos.length > 0 ? (
-          vendor.photos.map((url, i) => (
-            <Image
-              key={url}
-              src={url}
-              alt={`${vendor.name} ${i + 1}`}
-              width={112}
-              height={80}
-              className="h-20 w-28 shrink-0 rounded-[10px] object-cover"
-            />
-          ))
-        ) : (
-          [1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="h-20 w-28 shrink-0 rounded-[10px] bg-surface"
-            />
-          ))
+      <div className="flex flex-col gap-3 px-4 pt-4">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-[22px] font-bold tracking-tight text-text-primary">{vendor.name}</h1>
+          {vendor.status === 'open' && (
+            <ScBadge variant="success" className="mt-1.5 shrink-0 uppercase tracking-wide">
+              Open
+            </ScBadge>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
+          <IconStarFilled size={13} className="text-warning" />
+          <span className="font-semibold text-text-primary">{avgRating.toFixed(1)}</span>
+          <span>({reviews.length} reviews)</span>
+          {hasDistance && (
+            <>
+              <span>·</span>
+              <span>{vendor.distance}</span>
+            </>
+          )}
+        </div>
+
+        {vendor.area && (
+          <div className="flex">
+            <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[12px] text-text-secondary">
+              <IconMapPin size={13} />
+              {vendor.area}
+            </span>
+          </div>
+        )}
+
+        {bothModes && (
+          <div className="mt-1 flex rounded-[12px] bg-surface p-1">
+            {(
+              [
+                { value: 'dropin', label: 'At Garage', icon: IconBuildingStore },
+                { value: 'doorstep', label: 'Doorstep', icon: IconHome },
+              ] as const
+            ).map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setMode(value)}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors',
+                  mode === value
+                    ? 'bg-surface-elevated text-text-primary ring-1 ring-border'
+                    : 'text-text-secondary'
+                )}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
-      <div className="flex border-b border-border px-4">
-        {tabs.map((t) => (
+      <div className="mt-4 flex border-b border-border px-4">
+        {(
+          [
+            { key: 'services', label: 'Services' },
+            { key: 'photos', label: 'Photos' },
+            { key: 'reviews', label: 'Reviews' },
+          ] as const
+        ).map((t) => (
           <button
             key={t.key}
             type="button"
@@ -124,64 +215,114 @@ export default function GaragePage({
         ))}
       </div>
 
-      <div className="flex flex-col gap-2 px-4 py-4">
-        {tab === 'services' &&
-          services.map((svc) => (
-            <button
-              key={svc.id}
-              type="button"
-              onClick={() => {
-                setSelectedService(svc.id)
-                setModalService(svc)
-              }}
-            >
-              <ScCard
-                className={cn(
-                  'text-left transition-colors',
-                  selectedService === svc.id && 'border-brand-red'
-                )}
-              >
-                <div className="flex items-start justify-between">
-                  <p className="text-[13px] font-semibold text-text-primary">{svc.name}</p>
-                  <span className="text-[13px] font-semibold text-text-primary">{formatServicePrice(svc)}</span>
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <ScBadge variant="muted">{CATEGORY_LABELS[svc.category]}</ScBadge>
-                  <span className="text-[11px] text-text-secondary">{svc.durationMins} min</span>
-                </div>
-              </ScCard>
-            </button>
-          ))}
+      <div className="flex flex-col gap-3 px-4 py-4">
+        {tab === 'services' && (
+          <>
+            <label className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 focus-within:border-brand-red">
+              <IconSearch size={17} className="text-text-secondary" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search services..."
+                className="w-full bg-transparent text-[13px] text-text-primary outline-none"
+              />
+            </label>
+
+            <div className="flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-text-primary">Services Available</h2>
+              <span className="text-[12px] text-text-secondary">
+                {filtered.length} {filtered.length === 1 ? 'service' : 'services'}
+              </span>
+            </div>
+
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-[13px] text-text-secondary">
+                {services.length === 0
+                  ? 'No services available yet.'
+                  : 'No services match that search.'}
+              </p>
+            ) : (
+              filtered.map((svc) => {
+                const added = selected === svc.id
+                return (
+                  <ScCard
+                    key={svc.id}
+                    className={cn('transition-colors', added && 'border-brand-red/50')}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[14px] font-semibold text-text-primary">{svc.name}</p>
+                      <span className="shrink-0 text-[14px] font-semibold text-text-primary">
+                        {formatServicePrice(svc)}
+                      </span>
+                    </div>
+                    {svc.description && (
+                      <p className="mt-1 text-[12px] text-text-secondary">{svc.description}</p>
+                    )}
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                        <IconClock size={13} />
+                        {svc.durationMins} min
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggle(svc.id)}
+                        className={cn(
+                          'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
+                          added
+                            ? 'bg-brand-white text-brand-black'
+                            : 'bg-surface-elevated text-text-primary ring-1 ring-border'
+                        )}
+                      >
+                        {added && <IconCheck size={13} />}
+                        {added ? 'Added' : 'Add'}
+                      </button>
+                    </div>
+                  </ScCard>
+                )
+              })
+            )}
+          </>
+        )}
 
         {tab === 'photos' && (
           <div className="grid grid-cols-2 gap-2">
-            {vendor.photos.length > 0
-              ? vendor.photos.map((url, i) => (
-                  <div key={url} className="relative aspect-square overflow-hidden rounded-[10px] bg-surface">
-                    <Image
-                      src={url}
-                      alt={`${vendor.name} ${i + 1}`}
-                      fill
-                      sizes="(max-width: 428px) 50vw, 200px"
-                      className="object-cover"
-                    />
-                  </div>
-                ))
-              : [1, 2, 3, 4].map((i) => (
-                  <div key={i} className="aspect-square rounded-[10px] bg-surface" />
-                ))}
+            {vendor.photos.length > 0 ? (
+              vendor.photos.map((url, i) => (
+                <div
+                  key={url}
+                  className="relative aspect-square overflow-hidden rounded-[10px] bg-surface"
+                >
+                  <Image
+                    src={url}
+                    alt={`${vendor.name} ${i + 1}`}
+                    fill
+                    sizes="(max-width: 428px) 50vw, 200px"
+                    className="object-cover"
+                  />
+                </div>
+              ))
+            ) : (
+              <p className="col-span-2 py-6 text-center text-[13px] text-text-secondary">
+                No photos yet.
+              </p>
+            )}
           </div>
         )}
 
         {tab === 'reviews' && (
           <>
             <div className="mb-2 flex items-center gap-3">
-              <span className="text-3xl font-semibold text-text-primary">{avgRating.toFixed(1)}</span>
+              <span className="text-3xl font-semibold text-text-primary">
+                {avgRating.toFixed(1)}
+              </span>
               <div>
                 <Stars rating={avgRating} size={16} />
                 <p className="text-[11px] text-text-secondary">{reviews.length} reviews</p>
               </div>
             </div>
+            {reviews.length === 0 && (
+              <p className="py-4 text-center text-[13px] text-text-secondary">No reviews yet.</p>
+            )}
             {reviews.map((review) => (
               <ScCard key={review.id}>
                 <div className="flex items-center gap-2">
@@ -201,43 +342,18 @@ export default function GaragePage({
         )}
       </div>
 
-      <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
-        {services.length > 0 && !selectedService && (
-          <p className="mb-2 text-center text-[11px] text-text-secondary">
-            Select a service to continue
-          </p>
-        )}
-        <ScButton onClick={handleBook} disabled={!selectedService}>
-          {services.length === 0 ? 'No services available' : 'Book now'}
-        </ScButton>
-      </div>
-
-      {modalService && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
-          onClick={() => setModalService(null)}
-        >
-          <div
-            className="w-full max-w-[360px] rounded-[20px] border border-border bg-brand-black px-4 pb-5 pt-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold text-text-primary">{modalService.name}</h2>
-              <span className="shrink-0 text-base font-semibold text-text-primary">
-                {formatServicePrice(modalService)}
-              </span>
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <ScBadge variant="muted">{CATEGORY_LABELS[modalService.category]}</ScBadge>
-              <span className="text-[11px] text-text-secondary">{modalService.durationMins} min</span>
-            </div>
-            <p className="mt-3 whitespace-pre-line text-[13px] text-text-secondary">
-              {modalService.description || 'No description available for this service.'}
+      {/* Sticky bar — appears once a service is picked, per the design. */}
+      {selectedService && (
+        <div className="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 border-t border-border bg-brand-black px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] text-text-secondary">{selectedService.name}</p>
+            <p className="text-[15px] font-semibold text-text-primary">
+              {formatServicePrice(selectedService)}
             </p>
-            <ScButton className="mt-5" onClick={handleBook}>
-              Book now
-            </ScButton>
           </div>
+          <ScButton fullWidth={false} className="px-8" onClick={handleBook}>
+            Book Now
+          </ScButton>
         </div>
       )}
     </AppShell>

@@ -10,15 +10,17 @@ interface TopBarProps {
   showBack?: boolean
   backHref?: string
   right?: React.ReactNode
+  /** Centers the title between the back button and the right slot. */
+  center?: boolean
   className?: string
 }
 
-export function TopBar({ title, showBack, backHref, right, className }: TopBarProps) {
+export function TopBar({ title, showBack, backHref, right, center, className }: TopBarProps) {
   const router = useRouter()
   return (
     <header
       className={cn(
-        'flex items-center justify-between gap-3 py-3',
+        'relative flex items-center justify-between gap-3 py-3',
         className
       )}
     >
@@ -38,10 +40,17 @@ export function TopBar({ title, showBack, backHref, right, className }: TopBarPr
               <IconArrowLeft size={22} stroke={1.5} />
             </button>
           ))}
-        {title && (
+        {title && !center && (
           <h1 className="truncate text-lg font-semibold text-text-primary">{title}</h1>
         )}
       </div>
+      {/* Centered variant: absolutely positioned so an odd-width right slot
+          can't nudge the title off-centre. */}
+      {title && center && (
+        <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 truncate text-[17px] font-semibold text-text-primary">
+          {title}
+        </h1>
+      )}
       {right && <div className="shrink-0">{right}</div>}
     </header>
   )

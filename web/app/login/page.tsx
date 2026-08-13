@@ -2,11 +2,13 @@
 
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconDroplet } from '@tabler/icons-react'
+import { IconChevronDown } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
+import { TopBar } from '@/components/sc/top-bar'
 import { sendOtp } from '@/lib/api/auth'
 import { ApiError } from '@/lib/api/client'
+import { cn } from '@/lib/utils'
 
 function LoginContent() {
   const router = useRouter()
@@ -37,43 +39,61 @@ function LoginContent() {
   }
 
   return (
-    <AppShell className="justify-between py-8">
-      <div className="flex flex-1 flex-col items-center justify-center gap-8">
-        <div className="flex flex-col items-center gap-2">
-          <IconDroplet size={40} className="text-brand-red" />
-          <h1 className="text-[22px] font-semibold text-text-primary">Detlio</h1>
-          <p className="text-[13px] text-text-secondary">Book car wash &amp; detailing</p>
+    <AppShell className="justify-between py-6">
+      <TopBar showBack />
+
+      <div className="flex flex-1 flex-col justify-center gap-10 pb-16">
+        <div className="flex flex-col items-center gap-3">
+          <h1 className="text-[34px] font-bold tracking-tight text-text-primary">Login</h1>
+          <p className="text-[14px] text-text-secondary">
+            Enter your phone number to continue
+          </p>
         </div>
 
         <div className="w-full space-y-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium text-text-secondary">Mobile number</label>
-            <div className="flex overflow-hidden rounded-[10px] border border-border bg-surface focus-within:border-brand-red">
-              <span className="flex items-center border-r border-border px-3 text-[13px] text-text-secondary">
-                +91
-              </span>
-              <input
-                type="tel"
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="98765 43210"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                className="flex-1 bg-transparent px-3 py-2.5 text-[13px] text-text-primary outline-none"
-              />
-            </div>
+          <div className="flex overflow-hidden rounded-[12px] border border-border bg-surface focus-within:border-brand-red">
+            <button
+              type="button"
+              className="flex shrink-0 items-center gap-1.5 border-r border-border px-3.5 text-[15px] text-text-primary"
+            >
+              <span className="text-[15px] leading-none">🇮🇳</span>
+              +91
+              <IconChevronDown size={16} className="text-text-secondary" />
+            </button>
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="Phone number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              className="w-full flex-1 bg-transparent px-3.5 py-4 text-[15px] text-text-primary outline-none"
+            />
           </div>
 
           {error && <p className="text-[12px] text-brand-red">{error}</p>}
 
-          <ScButton disabled={!isValid || loading} onClick={handleSubmit}>
+          {/* Design: the CTA sits muted until a full 10-digit number is entered,
+              then fills with the brand red. */}
+          <ScButton
+            disabled={!isValid || loading}
+            onClick={handleSubmit}
+            variant={isValid ? 'primary' : 'secondary'}
+            className={cn(
+              'rounded-full py-4 text-[15px]',
+              !isValid && 'border-transparent bg-surface-elevated text-text-secondary opacity-100'
+            )}
+          >
             {loading ? 'Sending...' : 'Send OTP'}
           </ScButton>
         </div>
       </div>
 
-      <p className="pb-4 text-center text-[11px] text-text-muted">
-        By continuing you agree to our Terms &amp; Privacy Policy
+      <p className="pb-2 text-center text-[12px] text-text-muted">
+        By continuing, you agree to our
+        <br />
+        <span className="underline">Terms</span> &amp;{' '}
+        <span className="underline">Privacy Policy</span>
       </p>
     </AppShell>
   )

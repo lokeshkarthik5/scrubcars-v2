@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconMessage } from '@tabler/icons-react'
+
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { OtpInput } from '@/components/sc/otp-input'
@@ -80,31 +80,42 @@ export default function VerifyOtpPage() {
     <AppShell className="py-4">
       <TopBar showBack backHref="/login" />
 
-      <div className="flex flex-1 flex-col items-center gap-6 pt-8">
-        <IconMessage size={32} className="text-brand-red" />
-        <div className="text-center">
-          <p className="text-[13px] font-medium text-text-primary">Enter the OTP sent to</p>
-          <p className="text-[13px] font-semibold text-brand-red">{formatPhone(phone)}</p>
+      <div className="flex flex-1 flex-col items-center">
+        <h1 className="pt-10 text-[30px] font-bold tracking-tight text-text-primary">
+          Verify your number
+        </h1>
+
+        <div className="pt-10 text-center">
+          <p className="text-[14px] text-text-secondary">Enter the 6-digit code sent to</p>
+          <p className="text-[15px] font-semibold text-text-primary">{formatPhone(phone)}</p>
         </div>
 
-        <OtpInput onComplete={setOtp} />
+        <div className="pt-7">
+          <OtpInput onComplete={setOtp} />
+        </div>
 
-        {error && <p className="text-[12px] text-brand-red">{error}</p>}
+        {error && <p className="pt-4 text-[12px] text-brand-red">{error}</p>}
 
-        <p className="text-[11px] text-text-secondary">
+        <p className="pt-6 text-[12px] text-text-secondary">
           Expires in {mins}:{secs}
         </p>
 
-        <div className="mt-auto w-full space-y-3 pb-4">
-          <ScButton disabled={loading || !phone || otp.length !== 6} onClick={() => handleVerify(otp)}>
-            {loading ? 'Verifying...' : 'Verify OTP'}
-          </ScButton>
+        <button
+          type="button"
+          disabled={timer > 0}
+          onClick={handleResend}
+          className="pt-3 text-[13px] font-semibold text-text-primary underline disabled:text-text-muted disabled:no-underline"
+        >
+          Resend OTP
+        </button>
+
+        <div className="mt-auto w-full pb-2">
           <ScButton
-            variant="ghost"
-            disabled={timer > 0}
-            onClick={handleResend}
+            disabled={loading || !phone || otp.length !== 6}
+            onClick={() => handleVerify(otp)}
+            className="rounded-full py-4 text-[15px]"
           >
-            Resend OTP
+            {loading ? 'Verifying...' : 'Verify'}
           </ScButton>
         </div>
       </div>

@@ -1,121 +1,191 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  IconDotsCircleHorizontal,
-  IconDroplet,
+  IconArrowsSort,
+  IconBuildingStore,
+  IconChevronDown,
+  IconHome,
   IconMapPin,
-  IconShield,
-  IconSparkles,
-  IconTool,
+  IconSearch,
 } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
-import { ScCard } from '@/components/sc/card'
-import { ScToggle } from '@/components/sc/toggle'
+import { SortSheet, sortLabel, type SortKey } from '@/components/sc/sort-sheet'
 import { Toast } from '@/components/sc/toast'
 import { VendorCard } from '@/components/features/vendor-card'
 import { getVendors } from '@/lib/api/vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Vendor } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
-type ServiceMode = 'all' | 'dropin' | 'doorstep'
-
-const SERVICE_MODES: { value: ServiceMode; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'dropin', label: 'Drop-in' },
-  { value: 'doorstep', label: 'Doorstep' },
-]
+type ServiceMode = 'dropin' | 'doorstep'
 
 const CATEGORIES = [
-  { key: 'car_wash', label: 'Car wash', icon: IconDroplet },
-  { key: 'detailing', label: 'Detailing', icon: IconSparkles },
-  { key: 'coating', label: 'Coating', icon: IconShield },
-  { key: 'scratch_removal', label: 'Scratch removal', icon: IconTool },
-  { key: 'others', label: 'Others', icon: IconDotsCircleHorizontal },
-]
+  { key: 'all', label: 'All' },
+  { key: 'car_wash', label: 'Car Wash' },
+  { key: 'detailing', label: 'Detailing' },
+  { key: 'coating', label: 'Coating' },
+  { key: 'scratch_removal', label: 'Scratch Removal' },
+] as const
+
+type CategoryKey = (typeof CATEGORIES)[number]['key']
 
 function HomeContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const authUser = useAuthStore((s) => s.user)
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
+
   const [vendors, setVendors] = useState<Vendor[]>([])
-  const [serviceMode, setServiceMode] = useState<ServiceMode>('all')
+  const [serviceMode, setServiceMode] = useState<ServiceMode>('dropin')
+  const [category, setCategory] = useState<CategoryKey>('all')
+  const [sort, setSort] = useState<SortKey>('relevance')
+  const [sortOpen, setSortOpen] = useState(false)
   const [showToast, setShowToast] = useState(false)
 
   const user = profile ?? authUser
 
   useEffect(() => {
-    const bookingType = serviceMode === 'all' ? undefined : serviceMode
-    getVendors({ bookingType }).then(setVendors).catch(console.error)
-  }, [serviceMode])
+    getVendors({
+      bookingType: serviceMode,
+      category: category === 'all' ? undefined : category,
+    })
+      .then(setVendors)
+      .catch(console.error)
+  }, [serviceMode, category])
 
   useEffect(() => {
     if (authUser) void fetchProfile().catch(() => undefined)
   }, [authUser, fetchProfile])
 
   useEffect(() => {
-    if (searchParams.get('welcome') === '1') {
-      setShowToast(true)
-    }
+    if (searchParams.get('welcome') === '1') setShowToast(true)
   }, [searchParams])
 
+  // Sorting is client-side: the list endpoint has no sort param, and the page
+  // already holds the full nearby set.
+  const sorted = useMemo(() => {
+    const list = [...vendors]
+    switch (sort) {
+      case 'rating':
+        return list.sort((a, b) => b.rating - a.rating)
+      case 'price_asc':
+        return list.sort((a, b) => a.startingPrice - b.startingPrice)
+      case 'price_desc':
+        return list.sort((a, b) => b.startingPrice - a.startingPrice)
+      case 'nearest':
+        // `distance` is a display string ("0.8 km"); parse the leading number.
+        return list.sort(
+          (a, b) => (parseFloat(a.distance) || Infinity) - (parseFloat(b.distance) || Infinity)
+        )
+      default:
+        return list
+    }
+  }, [vendors, sort])
+
   return (
-    <AppShell showNav className="gap-5 py-4">
+    <AppShell showNav className="gap-4 py-4">
       <Toast
         message={`Welcome, ${user?.name ?? 'there'}! Find your first car wash.`}
         visible={showToast}
         onDismiss={() => setShowToast(false)}
       />
 
-      <div className="flex items-center justify-between">
-        <button className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5">
-          <IconMapPin size={16} className="text-brand-red" />
-          <span className="text-[13px] font-medium text-text-primary">
-            {user?.area ?? ''}
-          </span>
-        </button>
-        {/* Notifications not wired up yet — hidden until the backend is ready. */}
-        {/* <button className="text-text-secondary">
-          <IconBell size={22} stroke={1.5} />
-        </button> */}
+      <header>
+        <div className="flex items-center gap-1.5">
+          <IconMapPin size={17} className="text-brand-red" />
+          <span className="text-[16px] font-semibold text-text-primary">Home</span>
+        </div>
+        <p className="mt-0.5 pl-[23px] text-[13px] text-text-secondary">
+          {user?.area || 'Set your location in Profile'}
+        </p>
+      </header>
+
+      <div className="flex rounded-[12px] bg-surface p-1">
+        {(
+          [
+            { value: 'dropin', label: 'At Garage', icon: IconBuildingStore },
+            { value: 'doorstep', label: 'Doorstep', icon: IconHome },
+          ] as const
+        ).map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setServiceMode(value)}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors',
+              serviceMode === value
+                ? 'bg-surface-elevated text-text-primary shadow-sm ring-1 ring-border'
+                : 'text-text-secondary'
+            )}
+          >
+            <Icon size={15} />
+            {label}
+          </button>
+        ))}
       </div>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-text-primary">Categories</h2>
-        <div className="grid grid-cols-2 gap-2">
-          {CATEGORIES.map(({ key, label, icon: Icon }) => (
-            <Link key={key} href={`/search?category=${key}`}>
-              <ScCard className="flex items-center gap-3 py-3.5">
-                <Icon size={20} className="text-brand-red" />
-                <span className="text-[13px] font-medium text-text-primary">{label}</span>
-              </ScCard>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <button
+        type="button"
+        onClick={() => router.push('/search')}
+        className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 text-left"
+      >
+        <IconSearch size={17} className="text-text-secondary" />
+        <span className="text-[13px] text-text-muted">Search garages, services...</span>
+      </button>
 
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-text-primary">Featured garages</h2>
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => setCategory(c.key)}
+            className={cn(
+              'shrink-0 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
+              category === c.key
+                ? 'bg-brand-red text-brand-white'
+                : 'bg-surface text-text-primary'
+            )}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-[17px] font-semibold text-text-primary">Nearby Garages</h2>
+          <button
+            type="button"
+            onClick={() => setSortOpen(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-[9px] bg-surface px-2.5 py-1.5 text-[12px] text-text-secondary"
+          >
+            <IconArrowsSort size={14} />
+            {sortLabel(sort)}
+            <IconChevronDown size={14} />
+          </button>
         </div>
-        <ScToggle
-          className="mb-3"
-          options={SERVICE_MODES}
-          value={serviceMode}
-          onChange={setServiceMode}
-        />
-        <div className="flex flex-col gap-2">
-          {vendors.length === 0 ? (
-            <p className="text-[13px] text-text-secondary">No garages found nearby.</p>
+
+        <div className="flex flex-col gap-3">
+          {sorted.length === 0 ? (
+            <p className="py-8 text-center text-[13px] text-text-secondary">
+              No garages found nearby.
+            </p>
           ) : (
-            vendors.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
+            sorted.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
           )}
         </div>
       </section>
+
+      <SortSheet
+        open={sortOpen}
+        value={sort}
+        onChange={setSort}
+        onClose={() => setSortOpen(false)}
+      />
     </AppShell>
   )
 }
