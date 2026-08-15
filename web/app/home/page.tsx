@@ -15,6 +15,7 @@ import { SortSheet, sortLabel, type SortKey } from '@/components/sc/sort-sheet'
 import { Toast } from '@/components/sc/toast'
 import { VendorCard } from '@/components/features/vendor-card'
 import { getVendors } from '@/lib/api/vendors'
+import { sortVendors } from '@/lib/sort-vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Vendor } from '@/lib/types'
@@ -65,44 +66,30 @@ function HomeContent() {
     if (searchParams.get('welcome') === '1') setShowToast(true)
   }, [searchParams])
 
-  // Sorting is client-side: the list endpoint has no sort param, and the page
-  // already holds the full nearby set.
-  const sorted = useMemo(() => {
-    const list = [...vendors]
-    switch (sort) {
-      case 'rating':
-        return list.sort((a, b) => b.rating - a.rating)
-      case 'price_asc':
-        return list.sort((a, b) => a.startingPrice - b.startingPrice)
-      case 'price_desc':
-        return list.sort((a, b) => b.startingPrice - a.startingPrice)
-      case 'nearest':
-        // `distance` is a display string ("0.8 km"); parse the leading number.
-        return list.sort(
-          (a, b) => (parseFloat(a.distance) || Infinity) - (parseFloat(b.distance) || Infinity)
-        )
-      default:
-        return list
-    }
-  }, [vendors, sort])
+  const sorted = useMemo(() => sortVendors(vendors, sort), [vendors, sort])
 
   return (
-    <AppShell showNav className="gap-4 py-4">
+    <AppShell
+      showNav
+      showBrand
+      className="gap-4 py-4"
+      brandRight={
+        <div className="min-w-0">
+          <div className="flex items-center justify-end gap-1.5">
+            <IconMapPin size={15} className="shrink-0 text-brand-red" />
+            <span className="text-[14px] font-semibold text-text-primary">Home</span>
+          </div>
+          <p className="truncate text-[12px] text-text-secondary">
+            {user?.area || 'Set your location in Profile'}
+          </p>
+        </div>
+      }
+    >
       <Toast
         message={`Welcome, ${user?.name ?? 'there'}! Find your first car wash.`}
         visible={showToast}
         onDismiss={() => setShowToast(false)}
       />
-
-      <header>
-        <div className="flex items-center gap-1.5">
-          <IconMapPin size={17} className="text-brand-red" />
-          <span className="text-[16px] font-semibold text-text-primary">Home</span>
-        </div>
-        <p className="mt-0.5 pl-[23px] text-[13px] text-text-secondary">
-          {user?.area || 'Set your location in Profile'}
-        </p>
-      </header>
 
       <div className="flex rounded-[12px] bg-surface p-1">
         {(

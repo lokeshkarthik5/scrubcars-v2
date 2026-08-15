@@ -83,6 +83,8 @@ export interface ApiVendorListItem {
   doorstepEnabled: boolean
   dropinEnabled: boolean
   startingPrice: number | null
+  rating: number | null
+  reviewCount: number
   serviceTags: string[]
   photos: string[]
 }
@@ -105,6 +107,8 @@ export interface ApiPublicVendor {
   createdAt: string
   photos: Array<{ id: string; url: string; sortOrder: number }>
   services: ApiService[]
+  rating: number | null
+  reviewCount: number
 }
 
 export interface VendorProfileExtras {

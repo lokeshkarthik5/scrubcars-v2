@@ -21,7 +21,7 @@ import type {
 } from '@/lib/types'
 import { APP_TIMEZONE } from '@/lib/utils'
 
-const CATEGORY_LABELS: Record<string, string> = {
+export const CATEGORY_LABELS: Record<string, string> = {
   car_wash: 'Car wash',
   detailing: 'Detailing',
   coating: 'Coating',
@@ -104,8 +104,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     logoUrl: item.logoUrl,
     area: item.city,
     distance: '—',
-    rating: 4.5,
-    reviewCount: 0,
+    rating: item.rating ?? 0,
+    reviewCount: item.reviewCount,
     status: mapVendorStatus(item.status),
     startingPrice: item.startingPrice ?? 0,
     dropinEnabled: item.dropinEnabled,
@@ -130,8 +130,8 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     logoUrl: vendor.logoUrl,
     area: vendor.city,
     distance: '—',
-    rating: 4.5,
-    reviewCount: 0,
+    rating: vendor.rating ?? 0,
+    reviewCount: vendor.reviewCount,
     status: mapVendorStatus(vendor.status),
     startingPrice: prices.length > 0 ? Math.min(...prices) : 0,
     dropinEnabled: vendor.dropinEnabled,
@@ -233,6 +233,8 @@ export function mapReview(review: ApiReview): Review {
   }
 }
 
+// The server returns only bookable slots, and vendor capacity is unlimited, so
+// every slot that comes back is available — there is no "taken" state to render.
 export function mapSlots(slots: string[]) {
   const now = Date.now()
   return slots
@@ -242,6 +244,5 @@ export function mapSlots(slots: string[]) {
     .map((iso) => ({
       time: iso,
       label: formatSlotTime(iso),
-      available: true,
     }))
 }

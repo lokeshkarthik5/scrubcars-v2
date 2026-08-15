@@ -1,7 +1,13 @@
-export type BookedRange = {
-  start: Date
-  end: Date
-}
+// Vendor capacity is currently unlimited: a vendor is assumed to be able to run
+// any number of jobs concurrently, so an existing booking never blocks a slot
+// and several customers can book the same time. Availability is therefore a
+// pure function of the working hours and the service duration.
+//
+// This is a deliberate early-stage simplification. When per-vendor capacity
+// lands (`vendors.bays` is already collected and stored, just unused), the
+// overlap check belongs here and in the booking transaction in
+// bookings.repository.ts — both must apply the same rule, or the picker will
+// offer slots the transaction then rejects.
 
 function parseTimeToMinutes(time: string): number {
   const parts = time.split(':')
@@ -37,15 +43,6 @@ function combineDateAndTime(date: string, time: string): Date {
   return new Date(`${date}T${time}+05:30`)
 }
 
-function rangesOverlap(
-  startA: Date,
-  endA: Date,
-  startB: Date,
-  endB: Date
-): boolean {
-  return startA < endB && endA > startB
-}
-
 export function computeAvailableSlots(input: {
   date: string
   openTime: string
@@ -53,7 +50,6 @@ export function computeAvailableSlots(input: {
   intervalMins: number
   isClosed: boolean
   serviceDurationMins: number
-  bookedRanges: BookedRange[]
 }): string[] {
   if (input.isClosed) {
     return []
@@ -77,13 +73,7 @@ export function computeAvailableSlots(input: {
       continue
     }
 
-    const overlapsBooking = input.bookedRanges.some((booking) =>
-      rangesOverlap(blockStart, blockEnd, booking.start, booking.end)
-    )
-
-    if (!overlapsBooking) {
-      available.push(blockStart.toISOString())
-    }
+    available.push(blockStart.toISOString())
   }
 
   return available

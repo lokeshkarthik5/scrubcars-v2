@@ -5,7 +5,6 @@ import {
   getDateKeyFromScheduledAt,
   getDayOfWeekFromDate,
   isScheduledAtAvailable,
-  type BookedRange,
 } from '../../lib/slots.js'
 import { computeServiceAmount } from '../../lib/pricing.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
@@ -193,20 +192,8 @@ async function validateSlotAvailability(
     )
   }
 
-  const dayBookings = await bookingsRepository.listBookingsForDate(
-    vendorId,
-    date
-  )
-
-  log.info({ vendorId, date, existingBookingsCount: dayBookings.length }, 'booking:day_bookings_fetched')
-
-  const bookedRanges: BookedRange[] = dayBookings.map((booking) => {
-    const durationMins = booking.service?.durationMins ?? serviceDurationMins
-    const start = booking.scheduledAt
-    const end = new Date(start.getTime() + durationMins * 60 * 1000)
-    return { start, end }
-  })
-
+  // Capacity is unlimited, so existing bookings are irrelevant here: this only
+  // checks that the requested time lands on a real slot within working hours.
   const vendor = await bookingsRepository.findVendorById(vendorId)
 
   if (!vendor) {
@@ -221,7 +208,6 @@ async function validateSlotAvailability(
     intervalMins: vendor.slotIntervalMins,
     isClosed: hours.isClosed,
     serviceDurationMins,
-    bookedRanges,
   })
 
   log.info({ vendorId, date, availableSlotsCount: availableSlots.length, requestedSlot: scheduledAt.toISOString() }, 'booking:available_slots_computed')
@@ -398,7 +384,6 @@ export const bookingsService = {
           vehicleId: vehicle.id,
           bookingType: input.bookingType,
           scheduledAt,
-          lockDate: bookingDate,
           serviceDurationMins: service.durationMins,
           amount,
           paymentMethod: input.paymentMethod,
@@ -407,12 +392,20 @@ export const bookingsService = {
           address,
         })
 
-      if (result.conflict) {
-        log.warn({ userId, vendorId: vendor.id, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_conflict')
+      if (result.vehicleClash) {
+        log.warn(
+          {
+            userId,
+            vehicleId: vehicle.id,
+            scheduledAt: scheduledAt.toISOString(),
+            clashingBookingId: result.vehicleClash.id,
+          },
+          'booking:vehicle_double_booked'
+        )
         throw new AppError(
           409,
-          'Selected slot was just booked. Please choose another slot.',
-          'SLOT_ALREADY_BOOKED'
+          'This vehicle already has a booking that overlaps this time',
+          'VEHICLE_DOUBLE_BOOKED'
         )
       }
 
@@ -552,7 +545,6 @@ export const bookingsService = {
       vehicleId: booking.vehicleId,
       bookingType: booking.bookingType,
       newScheduledAt,
-      lockDate: getDateKeyFromScheduledAt(newScheduledAt),
       serviceDurationMins: service.durationMins,
       status: booking.status,
       amount: booking.amount,
@@ -582,11 +574,20 @@ export const bookingsService = {
       )
     }
 
-    if (result.conflict) {
+    if (result.vehicleClash) {
+      log.warn(
+        {
+          userId,
+          vehicleId: booking.vehicleId,
+          newScheduledAt: newScheduledAt.toISOString(),
+          clashingBookingId: result.vehicleClash.id,
+        },
+        'booking:vehicle_double_booked'
+      )
       throw new AppError(
         409,
-        'Selected slot was just booked. Please choose another slot.',
-        'SLOT_ALREADY_BOOKED'
+        'This vehicle already has another booking that overlaps this time',
+        'VEHICLE_DOUBLE_BOOKED'
       )
     }
 
