@@ -4,7 +4,6 @@ import { logger } from '../../lib/logger.js'
 import {
   computeAvailableSlots,
   getDayOfWeekFromDate,
-  type BookedRange,
 } from '../../lib/slots.js'
 import {
   createPresignedUpload,
@@ -76,6 +75,9 @@ export type VendorResponse = {
 export type PublicVendorResponse = Omit<VendorResponse, 'ownerId'> & {
   photos: PhotoResponse[]
   services: ServiceResponse[]
+  // null when the vendor has no reviews yet — distinct from a rating of 0.
+  rating: number | null
+  reviewCount: number
 }
 
 export type VendorListItemResponse = {
@@ -88,6 +90,9 @@ export type VendorListItemResponse = {
   doorstepEnabled: boolean
   dropinEnabled: boolean
   startingPrice: number | null
+  // null when the vendor has no reviews yet — distinct from a rating of 0.
+  rating: number | null
+  reviewCount: number
   serviceTags: string[]
   photos: string[]
 }
@@ -229,49 +234,60 @@ export const vendorsService = {
       others: 'Others',
     }
 
-    return vendors
-      .filter((vendor) => {
-        if (query.q) {
-          const term = query.q.toLowerCase()
-          const matchesName = vendor.businessName.toLowerCase().includes(term)
-          const matchesCity = vendor.city.toLowerCase().includes(term)
-          if (!matchesName && !matchesCity) return false
-        }
+    const matching = vendors.filter((vendor) => {
+      if (query.q) {
+        const term = query.q.toLowerCase()
+        const matchesName = vendor.businessName.toLowerCase().includes(term)
+        const matchesCity = vendor.city.toLowerCase().includes(term)
+        if (!matchesName && !matchesCity) return false
+      }
 
-        if (query.category) {
-          const hasCategory = vendor.services.some(
-            (service) => service.category === query.category
-          )
-          if (!hasCategory) return false
-        }
+      if (query.category) {
+        const hasCategory = vendor.services.some(
+          (service) => service.category === query.category
+        )
+        if (!hasCategory) return false
+      }
 
-        if (query.bookingType === 'dropin' && !vendor.dropinEnabled) return false
-        if (query.bookingType === 'doorstep' && !vendor.doorstepEnabled) {
-          return false
-        }
-        return true
-      })
-      .map((vendor) => {
-        const categories = [
-          ...new Set(vendor.services.map((service) => service.category)),
-        ]
+      if (query.bookingType === 'dropin' && !vendor.dropinEnabled) return false
+      if (query.bookingType === 'doorstep' && !vendor.doorstepEnabled) {
+        return false
+      }
+      return true
+    })
 
-        return {
-          id: vendor.id,
-          businessName: vendor.businessName,
-          logoUrl: vendor.logoUrl,
-          city: vendor.city,
-          isVerified: vendor.isVerified,
-          status: vendor.status,
-          doorstepEnabled: vendor.doorstepEnabled,
-          dropinEnabled: vendor.dropinEnabled,
-          startingPrice: computeStartingPrice(vendor.services),
-          serviceTags: categories.map(
-            (category) => categoryLabels[category] ?? category
-          ),
-          photos: vendor.photos.map((photo) => photo.url),
-        }
-      })
+    // One grouped query for the whole page, keyed by vendor id.
+    const aggregates = await vendorsRepository.getRatingAggregates(
+      matching.map((vendor) => vendor.id)
+    )
+    const ratingsByVendor = new Map(
+      aggregates.map((row) => [row.vendorId, row])
+    )
+
+    return matching.map((vendor) => {
+      const categories = [
+        ...new Set(vendor.services.map((service) => service.category)),
+      ]
+      const rating = ratingsByVendor.get(vendor.id)
+
+      return {
+        id: vendor.id,
+        businessName: vendor.businessName,
+        logoUrl: vendor.logoUrl,
+        city: vendor.city,
+        isVerified: vendor.isVerified,
+        status: vendor.status,
+        doorstepEnabled: vendor.doorstepEnabled,
+        dropinEnabled: vendor.dropinEnabled,
+        startingPrice: computeStartingPrice(vendor.services),
+        rating: rating ? Number(rating.average.toFixed(2)) : null,
+        reviewCount: rating?.count ?? 0,
+        serviceTags: categories.map(
+          (category) => categoryLabels[category] ?? category
+        ),
+        photos: vendor.photos.map((photo) => photo.url),
+      }
+    })
   },
 
   async getPublicVendor(vendorId: string): Promise<PublicVendorResponse> {
@@ -281,17 +297,21 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services] = await Promise.all([
+    const [photos, services, aggregates] = await Promise.all([
       vendorsRepository.listPhotos(vendor.id),
       vendorsRepository.listServices(vendor.id, true),
+      vendorsRepository.getRatingAggregates([vendor.id]),
     ])
 
     const { ownerId: _ownerId, ...publicVendor } = toVendorResponse(vendor)
+    const rating = aggregates[0]
 
     return {
       ...publicVendor,
       photos: photos.map(toPhotoResponse),
       services: services.map(toServiceResponse),
+      rating: rating ? Number(rating.average.toFixed(2)) : null,
+      reviewCount: rating?.count ?? 0,
     }
   },
 
@@ -705,18 +725,8 @@ export const vendorsService = {
       }
     }
 
-    const dayBookings = await vendorsRepository.listBookingsForDate(
-      vendor.id,
-      query.date
-    )
-
-    const bookedRanges: BookedRange[] = dayBookings.map((booking) => {
-      const durationMins = booking.service?.durationMins ?? service.durationMins
-      const start = booking.scheduledAt
-      const end = new Date(start.getTime() + durationMins * 60 * 1000)
-      return { start, end }
-    })
-
+    // Existing bookings are not consulted: capacity is unlimited, so every slot
+    // within working hours is offered no matter how many bookings it already has.
     const slots = computeAvailableSlots({
       date: query.date,
       openTime: hours.openTime,
@@ -724,7 +734,6 @@ export const vendorsService = {
       intervalMins: vendor.slotIntervalMins,
       isClosed: hours.isClosed,
       serviceDurationMins: service.durationMins,
-      bookedRanges,
     })
 
     log.debug({ vendorId: vendor.id, date: query.date, serviceId: service.id, count: slots.length }, 'slots:computed')

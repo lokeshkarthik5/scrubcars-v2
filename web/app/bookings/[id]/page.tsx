@@ -219,7 +219,11 @@ export default function BookingDetailPage({
           </span>
         </div>
 
-        {booking.status !== 'rescheduled' && (
+        {/* A booking that is cancelled (including one cancelled by a
+            reschedule) has no progress to show, and the stepper falls back to
+            "Confirmed" for statuses it doesn't know. The panel below explains
+            the state instead. */}
+        {booking.status !== 'rescheduled' && booking.status !== 'cancelled' && (
           <>
             <div className="my-4 h-px bg-border" />
             <StatusStepper status={booking.status} />

@@ -71,7 +71,7 @@ export default function ProfilePage() {
 
   if (!authUser) {
     return (
-      <AppShell showNav className="gap-4 py-4">
+      <AppShell showNav showBrand className="gap-4 py-4">
         <TopBar title="Profile" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-[15px] font-semibold text-text-primary">Login to view your profile</p>
@@ -195,7 +195,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <AppShell showNav className="gap-4 py-4">
+    <AppShell showNav showBrand className="gap-4 py-4">
       <TopBar title="Profile" />
 
       <ScCard className="flex items-center gap-3">

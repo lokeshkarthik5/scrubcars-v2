@@ -1,7 +1,8 @@
-import { and, asc, eq, gte, lt, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookings,
+  reviews,
   services,
   users,
   vendorPhotos,
@@ -97,6 +98,26 @@ export const vendorsRepository = {
       where: eq(vendorWorkingHours.vendorId, vendorId),
       orderBy: [asc(vendorWorkingHours.dayOfWeek)],
     })
+  },
+
+  /**
+   * Average rating and review count per vendor, for the listing cards and the
+   * "Top Rated" sort. One grouped query for the whole page rather than one per
+   * vendor. Vendors with no reviews are simply absent from the result — callers
+   * treat a missing entry as "not yet rated", which is not the same as zero.
+   */
+  async getRatingAggregates(vendorIds: string[]) {
+    if (vendorIds.length === 0) return []
+
+    return db
+      .select({
+        vendorId: reviews.vendorId,
+        average: sql<number>`avg(${reviews.rating})::float`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(reviews)
+      .where(inArray(reviews.vendorId, vendorIds))
+      .groupBy(reviews.vendorId)
   },
 
   findWorkingHoursForDay(vendorId: string, dayOfWeek: number) {
@@ -360,20 +381,4 @@ export const vendorsRepository = {
       .returning()
   },
 
-  listBookingsForDate(vendorId: string, date: string) {
-    const dayStart = new Date(`${date}T00:00:00.000Z`)
-    const dayEnd = new Date(`${date}T23:59:59.999Z`)
-
-    return db.query.bookings.findMany({
-      where: and(
-        eq(bookings.vendorId, vendorId),
-        gte(bookings.scheduledAt, dayStart),
-        lt(bookings.scheduledAt, dayEnd),
-        ne(bookings.status, 'cancelled')
-      ),
-      with: {
-        service: true,
-      },
-    })
-  },
 }

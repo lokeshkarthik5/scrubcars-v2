@@ -4,11 +4,10 @@ import { useEffect } from 'react'
 import { IconCircleX } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
 
-export type SortKey = 'relevance' | 'nearest' | 'rating' | 'price_asc' | 'price_desc'
+export type SortKey = 'relevance' | 'rating' | 'price_asc' | 'price_desc'
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'relevance', label: 'Relevance' },
-  { value: 'nearest', label: 'Nearest' },
   { value: 'rating', label: 'Top Rated' },
   { value: 'price_asc', label: 'Cost: Low to High' },
   { value: 'price_desc', label: 'Cost: High to Low' },

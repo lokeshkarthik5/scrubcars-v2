@@ -25,7 +25,7 @@ export default function BookingsListPage() {
 
   if (!user) {
     return (
-      <AppShell showNav className="gap-4 py-4">
+      <AppShell showNav showBrand className="gap-4 py-4">
         <TopBar title="Bookings" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-[15px] font-semibold text-text-primary">Login to view your bookings</p>
@@ -37,7 +37,7 @@ export default function BookingsListPage() {
   }
 
   return (
-    <AppShell showNav className="gap-4 py-4">
+    <AppShell showNav showBrand className="gap-4 py-4">
       <TopBar title="Bookings" />
 
       {customerBookings.length === 0 ? (

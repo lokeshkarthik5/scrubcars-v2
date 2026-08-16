@@ -56,10 +56,21 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
           </div>
 
           {/* The list endpoint has no geo, so `distance` arrives as an em-dash
-              placeholder; skip it (and a ₹0 floor) rather than render a blank fact. */}
+              placeholder; skip it (and a ₹0 floor) rather than render a blank fact.
+              An unreviewed vendor reads as "New" — showing 0.0 stars would look
+              like a bad score rather than an absent one. */}
           <div className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-            <IconStarFilled size={12} className="text-warning" />
-            <span className="font-medium text-text-primary">{vendor.rating.toFixed(1)}</span>
+            {vendor.reviewCount > 0 ? (
+              <>
+                <IconStarFilled size={12} className="text-warning" />
+                <span className="font-medium text-text-primary">
+                  {vendor.rating.toFixed(1)}
+                </span>
+                <span>({vendor.reviewCount})</span>
+              </>
+            ) : (
+              <span className="font-medium text-text-primary">New</span>
+            )}
             {hasDistance && (
               <>
                 <span>·</span>

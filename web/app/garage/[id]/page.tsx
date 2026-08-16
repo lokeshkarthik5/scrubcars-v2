@@ -14,6 +14,7 @@ import {
   IconMapPin,
   IconSearch,
   IconStarFilled,
+  IconX,
 } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
@@ -23,13 +24,20 @@ import { Stars } from '@/components/sc/stars'
 import { getVendorReviews } from '@/lib/api/reviews'
 import { getVendorServices } from '@/lib/api/services'
 import { getVendor } from '@/lib/api/vendors'
+import { CATEGORY_LABELS } from '@/lib/api/mappers'
 import { useAuthStore } from '@/lib/stores/auth-store'
-import type { Review, Service, Vendor } from '@/lib/types'
-import { formatServicePrice } from '@/lib/pricing'
+import type { Review, Service, Vendor, VehicleType } from '@/lib/types'
+import { formatServicePrice, tierPriceFor } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 
 type Tab = 'services' | 'photos' | 'reviews'
 type Mode = 'dropin' | 'doorstep'
+
+const VEHICLE_TIERS: Array<{ type: VehicleType; label: string }> = [
+  { type: 'hatchback', label: 'Hatchback' },
+  { type: 'sedan', label: 'Sedan' },
+  { type: 'suv', label: 'SUV' },
+]
 
 export default function GaragePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -45,6 +53,8 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const [favourite, setFavourite] = useState(false)
   // One service per booking — matches createBookingSchema on the server.
   const [selected, setSelected] = useState<string | null>(null)
+  // The service whose details popup is open, if any.
+  const [details, setDetails] = useState<Service | null>(null)
 
   useEffect(() => {
     getVendor(id).then((v) => {
@@ -54,6 +64,16 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     getVendorServices(id).then(setServices)
     getVendorReviews(id).then(setReviews)
   }, [id])
+
+  // Escape closes the details popup, matching the click-outside affordance.
+  useEffect(() => {
+    if (!details) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDetails(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [details])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -249,33 +269,53 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                     key={svc.id}
                     className={cn('transition-colors', added && 'border-brand-red/50')}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-[14px] font-semibold text-text-primary">{svc.name}</p>
-                      <span className="shrink-0 text-[14px] font-semibold text-text-primary">
-                        {formatServicePrice(svc)}
-                      </span>
-                    </div>
-                    {svc.description && (
-                      <p className="mt-1 text-[12px] text-text-secondary">{svc.description}</p>
-                    )}
+                    {/* Tapping the card body opens the details popup; the Add
+                        button below stays a separate action. */}
+                    <button
+                      type="button"
+                      onClick={() => setDetails(svc)}
+                      aria-label={`View details for ${svc.name}`}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-[14px] font-semibold text-text-primary">{svc.name}</p>
+                        <span className="shrink-0 text-[14px] font-semibold text-text-primary">
+                          {formatServicePrice(svc)}
+                        </span>
+                      </div>
+                      {svc.description && (
+                        <p className="mt-1 line-clamp-2 text-[12px] text-text-secondary">
+                          {svc.description}
+                        </p>
+                      )}
+                    </button>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                         <IconClock size={13} />
                         {svc.durationMins} min
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => toggle(svc.id)}
-                        className={cn(
-                          'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
-                          added
-                            ? 'bg-brand-white text-brand-black'
-                            : 'bg-surface-elevated text-text-primary ring-1 ring-border'
-                        )}
-                      >
-                        {added && <IconCheck size={13} />}
-                        {added ? 'Added' : 'Add'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDetails(svc)}
+                          className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                        >
+                          Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggle(svc.id)}
+                          className={cn(
+                            'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
+                            added
+                              ? 'bg-brand-white text-brand-black'
+                              : 'bg-surface-elevated text-text-primary ring-1 ring-border'
+                          )}
+                        >
+                          {added && <IconCheck size={13} />}
+                          {added ? 'Added' : 'Add'}
+                        </button>
+                      </div>
                     </div>
                   </ScCard>
                 )
@@ -354,6 +394,95 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
           <ScButton fullWidth={false} className="px-8" onClick={handleBook}>
             Book Now
           </ScButton>
+        </div>
+      )}
+
+      {details && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
+          onClick={() => setDetails(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${details.name} details`}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-[360px] overflow-y-auto rounded-[20px] border border-border bg-brand-black px-4 pb-5 pt-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-base font-semibold text-text-primary">{details.name}</h2>
+              <button
+                type="button"
+                onClick={() => setDetails(null)}
+                aria-label="Close"
+                className="-mr-1 -mt-1 shrink-0 rounded-lg p-1 text-text-secondary transition-colors hover:text-text-primary"
+              >
+                <IconX size={18} />
+              </button>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <ScBadge variant="muted">
+                {CATEGORY_LABELS[details.category] ?? details.category}
+              </ScBadge>
+              <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+                <IconClock size={12} />
+                {details.durationMins} min
+              </span>
+            </div>
+
+            <p className="mt-3 whitespace-pre-line text-[13px] text-text-secondary">
+              {details.description || 'No description available for this service.'}
+            </p>
+
+            {/* Per-vehicle services price by tier, so show the breakdown rather
+                than cramming it into one line as the card does. */}
+            <div className="mt-4 border-t border-border pt-3">
+              {details.pricingType === 'per_vehicle' ? (
+                <>
+                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+                    Price by vehicle
+                  </p>
+                  {VEHICLE_TIERS.map(({ type, label }) => {
+                    const price = tierPriceFor(details, type)
+                    if (price == null) return null
+                    return (
+                      <div key={type} className="flex items-center justify-between py-0.5">
+                        <span className="text-[13px] text-text-secondary">{label}</span>
+                        <span className="text-[13px] font-semibold text-text-primary">
+                          ₹{price}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] text-text-secondary">
+                    {details.pricingType === 'on_inspection' ? 'Inspection fee' : 'Price'}
+                  </span>
+                  <span className="text-[15px] font-semibold text-text-primary">
+                    ₹{details.price}
+                  </span>
+                </div>
+              )}
+              {details.pricingType === 'on_inspection' && (
+                <p className="mt-1.5 text-[11px] text-text-muted">
+                  Final work is quoted after the inspection.
+                </p>
+              )}
+            </div>
+
+            <ScButton
+              className="mt-5"
+              onClick={() => {
+                toggle(details.id)
+                setDetails(null)
+              }}
+            >
+              {selected === details.id ? 'Remove from booking' : 'Add to booking'}
+            </ScButton>
+          </div>
         </div>
       )}
     </AppShell>

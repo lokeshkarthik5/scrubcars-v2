@@ -1,4 +1,5 @@
-import { and, count, desc, eq, gte, lt, notInArray, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
   bookingReschedules,
@@ -17,9 +18,71 @@ type BookingType = (typeof bookingTypeEnum.enumValues)[number]
 export type BookingRecord = typeof bookings.$inferSelect
 export type PaymentRecord = typeof payments.$inferSelect
 
-// Statuses that no longer hold a slot, so they're ignored when checking
-// availability: a cancelled booking and a rescheduled (moved) one both free up.
-const SLOT_FREEING_STATUSES: BookingStatus[] = ['cancelled', 'rescheduled']
+// Bookings that still lay claim to a vehicle. Cancelled and rescheduled ones
+// released it; a completed one is already done and can't clash with a future
+// slot.
+const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
+  'pending',
+  'confirmed',
+  'in_progress',
+]
+
+// Vendor capacity is unlimited, so nothing stops two customers — or the same
+// customer with two different cars — from taking the same time. What is still
+// impossible is one car being serviced in two places at once, so a vehicle may
+// not hold overlapping active bookings. This is the guard that replaces the old
+// vendor-wide slot conflict check, scoped to the vehicle rather than the slot.
+//
+// Runs inside the caller's transaction, after a lock on the vehicle, so two
+// concurrent requests can't both read "no overlap" and both insert.
+async function findOverlappingVehicleBooking(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  params: {
+    vehicleId: string
+    scheduledAt: Date
+    serviceDurationMins: number
+    excludeBookingId?: string
+  }
+) {
+  const requestedEnd = new Date(
+    params.scheduledAt.getTime() + params.serviceDurationMins * 60 * 1000
+  )
+
+  const [existing] = await tx
+    .select({ id: bookings.id, scheduledAt: bookings.scheduledAt })
+    .from(bookings)
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(
+      and(
+        eq(bookings.vehicleId, params.vehicleId),
+        inArray(bookings.status, ACTIVE_BOOKING_STATUSES),
+        params.excludeBookingId
+          ? ne(bookings.id, params.excludeBookingId)
+          : undefined,
+        // Half-open overlap: existing starts before this one ends, and ends
+        // after this one starts. Back-to-back bookings don't collide.
+        sql`${bookings.scheduledAt} < ${requestedEnd.toISOString()}::timestamptz`,
+        sql`${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${params.scheduledAt.toISOString()}::timestamptz`
+      )
+    )
+    .limit(1)
+
+  return existing ?? null
+}
+
+// Serialises concurrent bookings for one vehicle. Taken before the overlap
+// check in every path that creates a booking, and always acquired first so the
+// lock ordering is consistent and can't deadlock against the reschedule lock.
+async function lockVehicle(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  vehicleId: string
+) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`vehicle:${vehicleId}`})::bigint)`
+  )
+}
 
 export const bookingsRepository = {
   findBookingById(id: string) {
@@ -92,7 +155,6 @@ export const bookingsRepository = {
     vehicleId: string
     bookingType: BookingType
     scheduledAt: Date
-    lockDate: string
     serviceDurationMins: number
     amount: string
     paymentMethod: 'online' | 'cash'
@@ -100,32 +162,19 @@ export const bookingsRepository = {
     lng?: number | null
     address?: string | null
   }) {
+    // Capacity is unlimited, so there is no vendor-side slot contention to
+    // guard against — only the one-car-in-one-place rule below.
     return db.transaction(async (tx) => {
-      const requestedEnd = new Date(
-        data.scheduledAt.getTime() + data.serviceDurationMins * 60 * 1000
-      )
-      const lockKey = `booking:${data.vendorId}:${data.lockDate}`
+      await lockVehicle(tx, data.vehicleId)
 
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`
-      )
+      const clash = await findOverlappingVehicleBooking(tx, {
+        vehicleId: data.vehicleId,
+        scheduledAt: data.scheduledAt,
+        serviceDurationMins: data.serviceDurationMins,
+      })
 
-      const conflictingBookings = await tx
-        .select({ id: bookings.id })
-        .from(bookings)
-        .innerJoin(services, eq(bookings.serviceId, services.id))
-        .where(
-          and(
-            eq(bookings.vendorId, data.vendorId),
-            notInArray(bookings.status, SLOT_FREEING_STATUSES),
-            sql`${bookings.scheduledAt} < ${requestedEnd.toISOString()}::timestamptz`,
-            sql`${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${data.scheduledAt.toISOString()}::timestamptz`
-          )
-        )
-        .limit(1)
-
-      if (conflictingBookings.length > 0) {
-        return { booking: null, payment: null, conflict: true as const }
+      if (clash) {
+        return { booking: null, payment: null, vehicleClash: clash }
       }
 
       const [booking] = await tx
@@ -155,7 +204,7 @@ export const bookingsRepository = {
         })
         .returning()
 
-      return { booking, payment, conflict: false as const }
+      return { booking, payment, vehicleClash: null }
     })
   },
 
@@ -168,7 +217,6 @@ export const bookingsRepository = {
     vehicleId: string
     bookingType: BookingType
     newScheduledAt: Date
-    lockDate: string
     serviceDurationMins: number
     status: BookingStatus
     amount: string
@@ -188,7 +236,15 @@ export const bookingsRepository = {
     maxReschedules: number
   }) {
     return db.transaction(async (tx) => {
-      const lockKey = `booking:${data.vendorId}:${data.lockDate}`
+      // Vehicle lock first, matching the order used when creating a booking, so
+      // the two paths can never deadlock against each other.
+      await lockVehicle(tx, data.vehicleId)
+
+      // Then lock the reschedule chain, not the vendor's day: the remaining
+      // race is two concurrent moves of the same booking both reading a stale
+      // count and busting the cap. Keying this on vendor+date used to miss that
+      // race entirely whenever the two moves targeted different days.
+      const lockKey = `reschedule:${data.rootBookingId}`
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`
       )
@@ -204,35 +260,27 @@ export const bookingsRepository = {
         return {
           booking: null,
           payment: null,
-          conflict: false as const,
           capReached: true as const,
+          vehicleClash: null,
         }
       }
 
-      const requestedEnd = new Date(
-        data.newScheduledAt.getTime() + data.serviceDurationMins * 60 * 1000
-      )
+      // The booking being moved is still active at this point (it is cancelled
+      // further down), so it must be excluded or it would clash with itself
+      // whenever the new time overlaps the old one.
+      const clash = await findOverlappingVehicleBooking(tx, {
+        vehicleId: data.vehicleId,
+        scheduledAt: data.newScheduledAt,
+        serviceDurationMins: data.serviceDurationMins,
+        excludeBookingId: data.sourceBookingId,
+      })
 
-      const conflictingBookings = await tx
-        .select({ id: bookings.id })
-        .from(bookings)
-        .innerJoin(services, eq(bookings.serviceId, services.id))
-        .where(
-          and(
-            eq(bookings.vendorId, data.vendorId),
-            notInArray(bookings.status, SLOT_FREEING_STATUSES),
-            sql`${bookings.scheduledAt} < ${requestedEnd.toISOString()}::timestamptz`,
-            sql`${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${data.newScheduledAt.toISOString()}::timestamptz`
-          )
-        )
-        .limit(1)
-
-      if (conflictingBookings.length > 0) {
+      if (clash) {
         return {
           booking: null,
           payment: null,
-          conflict: true as const,
           capReached: false as const,
+          vehicleClash: clash,
         }
       }
 
@@ -271,10 +319,20 @@ export const bookingsRepository = {
         })
         .returning()
 
-      // Retire the source booking so it stops holding its old slot.
+      // Retire the source booking. It is cancelled outright (not left in a
+      // 'rescheduled' limbo state) and carries the usual cancellation
+      // metadata, so it reads as cancelled in the customer/vendor/admin lists.
+      // No refund is owed: the prepaid payment was carried to the new booking
+      // above.
       await tx
         .update(bookings)
-        .set({ status: 'rescheduled' })
+        .set({
+          status: 'cancelled',
+          cancelledBy: 'user',
+          cancelledAt: new Date(),
+          cancellationReason:
+            data.reason ?? 'Rescheduled to a new slot by the customer',
+        })
         .where(eq(bookings.id, data.sourceBookingId))
 
       await tx.insert(bookingReschedules).values({
@@ -288,8 +346,8 @@ export const bookingsRepository = {
       return {
         booking,
         payment,
-        conflict: false as const,
         capReached: false as const,
+        vehicleClash: null,
       }
     })
   },
@@ -371,23 +429,6 @@ export const bookingsRepository = {
   findServiceForVendor(vendorId: string, serviceId: string) {
     return db.query.services.findFirst({
       where: and(eq(services.id, serviceId), eq(services.vendorId, vendorId)),
-    })
-  },
-
-  listBookingsForDate(vendorId: string, date: string) {
-    const dayStart = new Date(`${date}T00:00:00.000Z`)
-    const dayEnd = new Date(`${date}T23:59:59.999Z`)
-
-    return db.query.bookings.findMany({
-      where: and(
-        eq(bookings.vendorId, vendorId),
-        gte(bookings.scheduledAt, dayStart),
-        lt(bookings.scheduledAt, dayEnd),
-        notInArray(bookings.status, SLOT_FREEING_STATUSES)
-      ),
-      with: {
-        service: true,
-      },
     })
   },
 }

@@ -74,7 +74,7 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
     const [y, m] = calendarMin.split('-').map(Number)
     return { year: y, month: m - 1 }
   })
-  const [slots, setSlots] = useState<Array<{ time: string; label: string; available: boolean }>>([])
+  const [slots, setSlots] = useState<Array<{ time: string; label: string }>>([])
   const [isClosedDay, setIsClosedDay] = useState(false)
   const [closedDays, setClosedDays] = useState<Set<number>>(new Set())
 
@@ -187,15 +187,12 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
             <button
               key={slot.time}
               type="button"
-              disabled={!slot.available}
               onClick={() => onChange(slot.time)}
               className={cn(
                 'rounded-[10px] py-3 text-[13px] font-medium transition-colors',
-                !slot.available
-                  ? 'cursor-not-allowed bg-surface text-text-muted opacity-50'
-                  : value === slot.time
-                    ? 'bg-brand-white font-semibold text-brand-black'
-                    : 'bg-surface text-text-primary'
+                value === slot.time
+                  ? 'bg-brand-white font-semibold text-brand-black'
+                  : 'bg-surface text-text-primary'
               )}
             >
               {slot.label}
