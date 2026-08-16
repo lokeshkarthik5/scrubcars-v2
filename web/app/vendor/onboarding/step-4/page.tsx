@@ -13,14 +13,9 @@ import { updateVendorSettings } from '@/lib/api/vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 import type { ServiceCategory } from '@/lib/types'
+import { SERVICE_CATEGORY_OPTIONS } from '@/lib/categories'
 
-const CATEGORIES: { value: ServiceCategory; label: string }[] = [
-  { value: 'car_wash', label: 'Car wash' },
-  { value: 'detailing', label: 'Detailing' },
-  { value: 'coating', label: 'Coating' },
-  { value: 'scratch_removal', label: 'Scratch removal' },
-  { value: 'others', label: 'Others' },
-]
+const CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
 // Quick-add presets — each prefills the service name + maps to a category.
 const SERVICE_PRESETS: { name: string; category: ServiceCategory }[] = [

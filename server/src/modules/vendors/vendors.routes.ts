@@ -8,6 +8,7 @@ import {
 import * as vendorsController from './vendors.controller.js'
 import {
   createPhotoSchema,
+  createPackageSchema,
   createServiceAreaSchema,
   createServiceSchema,
   createVendorSchema,
@@ -21,6 +22,7 @@ import {
   slotsQuerySchema,
   toggleServiceActiveSchema,
   updateJobTypesSchema,
+  updatePackageSchema,
   updateServiceSchema,
   updateSlotIntervalSchema,
   updateVendorSchema,
@@ -181,6 +183,36 @@ vendorsRoutes.delete(
 )
 
 vendorsRoutes.get(
+  '/me/packages',
+  ...ownerMiddleware,
+  vendorsController.listMyPackages
+)
+vendorsRoutes.post(
+  '/me/packages',
+  ...ownerMiddleware,
+  zValidator('json', createPackageSchema),
+  (c) => vendorsController.createPackage(c, c.req.valid('json'))
+)
+vendorsRoutes.patch(
+  '/me/packages/:id',
+  ...ownerMiddleware,
+  zValidator('param', resourceIdParamSchema),
+  zValidator('json', updatePackageSchema),
+  (c) =>
+    vendorsController.updatePackage(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+vendorsRoutes.delete(
+  '/me/packages/:id',
+  ...ownerMiddleware,
+  zValidator('param', resourceIdParamSchema),
+  (c) => vendorsController.deletePackage(c, c.req.valid('param').id)
+)
+
+vendorsRoutes.get(
   '/:id/slots',
   zValidator('query', slotsQuerySchema),
   zValidator('param', vendorIdParamSchema),
@@ -195,6 +227,11 @@ vendorsRoutes.get(
   '/:id/services',
   zValidator('param', vendorIdParamSchema),
   (c) => vendorsController.listPublicServices(c, c.req.valid('param').id)
+)
+vendorsRoutes.get(
+  '/:id/packages',
+  zValidator('param', vendorIdParamSchema),
+  (c) => vendorsController.listPublicPackages(c, c.req.valid('param').id)
 )
 vendorsRoutes.get(
   '/:id/working-hours',

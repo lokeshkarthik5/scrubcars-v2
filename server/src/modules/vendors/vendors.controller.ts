@@ -3,6 +3,7 @@ import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { vendorsService } from './vendors.service.js'
 import type {
   CreatePhotoInput,
+  CreatePackageInput,
   CreateServiceAreaInput,
   CreateServiceInput,
   CreateVendorInput,
@@ -15,6 +16,7 @@ import type {
   SlotsQueryInput,
   ToggleServiceActiveInput,
   UpdateJobTypesInput,
+  UpdatePackageInput,
   UpdateServiceInput,
   UpdateSlotIntervalInput,
   UpdateVendorInput,
@@ -343,5 +345,67 @@ export async function getPublicWorkingHours(
   return c.json({
     success: true,
     data: hours,
+  })
+}
+
+export async function listMyPackages(c: VendorsContext) {
+  const packages = await vendorsService.listMyPackages(getOwnerId(c))
+
+  return c.json({
+    success: true,
+    data: packages,
+  })
+}
+
+export async function listPublicPackages(
+  c: VendorsContext,
+  vendorId: string
+) {
+  const packages = await vendorsService.listPublicPackages(vendorId)
+
+  return c.json({
+    success: true,
+    data: packages,
+  })
+}
+
+export async function createPackage(
+  c: VendorsContext,
+  input: CreatePackageInput
+) {
+  const pkg = await vendorsService.createPackage(getOwnerId(c), input)
+
+  return c.json(
+    {
+      success: true,
+      data: pkg,
+    },
+    201
+  )
+}
+
+export async function updatePackage(
+  c: VendorsContext,
+  packageId: string,
+  input: UpdatePackageInput
+) {
+  const pkg = await vendorsService.updatePackage(
+    getOwnerId(c),
+    packageId,
+    input
+  )
+
+  return c.json({
+    success: true,
+    data: pkg,
+  })
+}
+
+export async function deletePackage(c: VendorsContext, packageId: string) {
+  const pkg = await vendorsService.deletePackage(getOwnerId(c), packageId)
+
+  return c.json({
+    success: true,
+    data: pkg,
   })
 }

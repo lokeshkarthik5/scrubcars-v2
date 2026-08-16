@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookings,
   reviews,
+  servicePackageItems,
   services,
   users,
   vendorPhotos,
@@ -295,16 +296,160 @@ export const vendorsRepository = {
     })
   },
 
+  // Plain services only. Packages live in the same table but are listed via
+  // listPackages — a caller that means "the vendor's services" must never get
+  // packages mixed in, or the garage page renders a bundle as a line item and
+  // the admin service count double-counts.
   listServices(vendorId: string, activeOnly = false) {
     return db.query.services.findMany({
-      where: activeOnly
-        ? and(eq(services.vendorId, vendorId), eq(services.isActive, true))
-        : eq(services.vendorId, vendorId),
+      where: and(
+        eq(services.vendorId, vendorId),
+        ne(services.category, 'package'),
+        ...(activeOnly ? [eq(services.isActive, true)] : [])
+      ),
       orderBy: [asc(services.name)],
     })
   },
 
+  listPackages(vendorId: string, activeOnly = false) {
+    return db.query.services.findMany({
+      where: and(
+        eq(services.vendorId, vendorId),
+        eq(services.category, 'package'),
+        ...(activeOnly ? [eq(services.isActive, true)] : [])
+      ),
+      orderBy: [asc(services.name)],
+      with: {
+        packageItems: {
+          orderBy: [asc(servicePackageItems.sortOrder)],
+          with: { service: true },
+        },
+      },
+    })
+  },
+
+  findPackageById(vendorId: string, packageId: string) {
+    return db.query.services.findFirst({
+      where: and(
+        eq(services.id, packageId),
+        eq(services.vendorId, vendorId),
+        eq(services.category, 'package')
+      ),
+      with: {
+        packageItems: {
+          orderBy: [asc(servicePackageItems.sortOrder)],
+          with: { service: true },
+        },
+      },
+    })
+  },
+
+  // Members a vendor is allowed to bundle: their own, active, non-package
+  // services. Used to validate serviceIds before writing the composition.
+  findEligiblePackageMembers(vendorId: string, serviceIds: string[]) {
+    if (serviceIds.length === 0) return Promise.resolve([])
+
+    return db.query.services.findMany({
+      where: and(
+        eq(services.vendorId, vendorId),
+        inArray(services.id, serviceIds),
+        ne(services.category, 'package'),
+        eq(services.isActive, true)
+      ),
+    })
+  },
+
+  // Packages that contain this service — non-empty means deactivating or
+  // deleting the service would leave those packages misrepresenting contents.
+  findPackagesContaining(vendorId: string, serviceId: string) {
+    return db
+      .select({ id: services.id, name: services.name })
+      .from(servicePackageItems)
+      .innerJoin(services, eq(servicePackageItems.packageId, services.id))
+      .where(
+        and(
+          eq(servicePackageItems.serviceId, serviceId),
+          eq(services.vendorId, vendorId)
+        )
+      )
+  },
+
+  // Create the package row and its composition atomically, so a failure part
+  // way through can never leave a package with no contents.
+  createPackage(
+    vendorId: string,
+    data: {
+      name: string
+      description?: string | null
+      pricingType: ServicePricingType
+      price: string
+      priceHatchback?: string | null
+      priceSedan?: string | null
+      priceSuv?: string | null
+      durationMins: number
+    },
+    serviceIds: string[]
+  ) {
+    return db.transaction(async (tx) => {
+      const [pkg] = await tx
+        .insert(services)
+        .values({
+          vendorId,
+          name: data.name,
+          description: data.description ?? null,
+          category: 'package',
+          pricingType: data.pricingType,
+          price: data.price,
+          priceHatchback: data.priceHatchback ?? null,
+          priceSedan: data.priceSedan ?? null,
+          priceSuv: data.priceSuv ?? null,
+          durationMins: data.durationMins,
+        })
+        .returning()
+
+      await tx.insert(servicePackageItems).values(
+        serviceIds.map((serviceId, index) => ({
+          packageId: pkg.id,
+          serviceId,
+          sortOrder: index,
+        }))
+      )
+
+      return pkg
+    })
+  },
+
+  replacePackageItems(packageId: string, serviceIds: string[]) {
+    return db.transaction(async (tx) => {
+      await tx
+        .delete(servicePackageItems)
+        .where(eq(servicePackageItems.packageId, packageId))
+
+      await tx.insert(servicePackageItems).values(
+        serviceIds.map((serviceId, index) => ({
+          packageId,
+          serviceId,
+          sortOrder: index,
+        }))
+      )
+    })
+  },
+
+  // Plain services only — the package endpoints use findPackageById, so a
+  // package can't be reshaped through the generic service update/delete path
+  // (which has no way to keep its composition coherent).
   findServiceById(vendorId: string, serviceId: string) {
+    return db.query.services.findFirst({
+      where: and(
+        eq(services.id, serviceId),
+        eq(services.vendorId, vendorId),
+        ne(services.category, 'package')
+      ),
+    })
+  },
+
+  // Either kind. Used by the shared active-toggle, which is valid for both.
+  findAnyServiceById(vendorId: string, serviceId: string) {
     return db.query.services.findFirst({
       where: and(eq(services.id, serviceId), eq(services.vendorId, vendorId)),
     })

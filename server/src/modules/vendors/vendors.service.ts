@@ -14,6 +14,7 @@ import {
   computeStartingPrice,
   resolveServicePricing,
 } from '../../lib/pricing.js'
+import { categoryLabel } from '../../lib/categories.js'
 import { vendorsRepository } from './vendors.repository.js'
 
 const log = logger.child({ module: 'vendors' })
@@ -25,6 +26,7 @@ import type {
   WorkingHoursRecord,
 } from './vendors.repository.js'
 import type {
+  CreatePackageInput,
   CreatePhotoInput,
   CreateServiceAreaInput,
   CreateServiceInput,
@@ -38,6 +40,7 @@ import type {
   SlotsQueryInput,
   ToggleServiceActiveInput,
   UpdateJobTypesInput,
+  UpdatePackageInput,
   UpdateServiceInput,
   UpdateSlotIntervalInput,
   UpdateVendorInput,
@@ -133,6 +136,26 @@ export type ServiceResponse = {
   isActive: boolean
 }
 
+export type PackageItemResponse = {
+  serviceId: string
+  name: string
+  price: string
+  durationMins: number
+  isActive: boolean
+}
+
+// A package response is a service response plus its contents. `itemsTotal` and
+// `savings` are computed per request from the members' current prices rather
+// than stored, so editing a member's price can never leave a stale claim on
+// screen. `savings` is null when the package is not cheaper than its parts, so
+// the UI has nothing to badge.
+export type PackageResponse = ServiceResponse & {
+  items: PackageItemResponse[]
+  itemsTotal: string
+  savings: string | null
+  hasInactiveItems: boolean
+}
+
 function toVendorResponse(vendor: VendorRecord): VendorResponse {
   return {
     id: vendor.id,
@@ -210,6 +233,60 @@ function toServiceResponse(service: ServiceRecord): ServiceResponse {
   }
 }
 
+type PackageWithItems = ServiceRecord & {
+  packageItems: Array<{ sortOrder: number; service: ServiceRecord }>
+}
+
+function toPackageResponse(pkg: PackageWithItems): PackageResponse {
+  const items = pkg.packageItems.map(({ service }) => ({
+    serviceId: service.id,
+    name: service.name,
+    price: service.price,
+    durationMins: service.durationMins,
+    isActive: service.isActive,
+  }))
+
+  // Compare like with like: a package's own base price against the sum of its
+  // members' base prices. For per-vehicle members `price` is the cheapest tier
+  // (see resolveServicePricing), so this stays a consistent floor-to-floor
+  // comparison rather than mixing a tier price into a flat total.
+  const itemsTotal = items.reduce((sum, item) => sum + Number(item.price), 0)
+  const packagePrice = Number(pkg.price)
+  const saved = itemsTotal - packagePrice
+
+  return {
+    ...toServiceResponse(pkg),
+    items,
+    itemsTotal: itemsTotal.toFixed(2),
+    savings: saved > 0 ? saved.toFixed(2) : null,
+    hasInactiveItems: items.some((item) => !item.isActive),
+  }
+}
+
+// Validates that every requested member is one of this vendor's own active,
+// non-package services, and returns them in the caller's order. Rejecting here
+// (rather than letting the FK fail) is what stops a vendor bundling another
+// vendor's service or nesting a package inside a package.
+async function assertValidPackageMembers(
+  vendorId: string,
+  serviceIds: string[]
+): Promise<void> {
+  const eligible = await vendorsRepository.findEligiblePackageMembers(
+    vendorId,
+    serviceIds
+  )
+  const eligibleIds = new Set(eligible.map((s) => s.id))
+  const rejected = serviceIds.filter((id) => !eligibleIds.has(id))
+
+  if (rejected.length > 0) {
+    throw new AppError(
+      400,
+      `A package can only contain your own active services (${rejected.length} invalid)`,
+      'INVALID_PACKAGE_ITEMS'
+    )
+  }
+}
+
 async function getOwnedVendor(ownerId: string): Promise<VendorRecord> {
   const vendor = await vendorsRepository.findVendorByOwnerId(ownerId)
 
@@ -225,14 +302,6 @@ export const vendorsService = {
     query: ListPublicVendorsQuery
   ): Promise<VendorListItemResponse[]> {
     const vendors = await vendorsRepository.listPublicVendors()
-
-    const categoryLabels: Record<string, string> = {
-      car_wash: 'Car wash',
-      detailing: 'Detailing',
-      coating: 'Coating',
-      scratch_removal: 'Scratch removal',
-      others: 'Others',
-    }
 
     const matching = vendors.filter((vendor) => {
       if (query.q) {
@@ -282,9 +351,7 @@ export const vendorsService = {
         startingPrice: computeStartingPrice(vendor.services),
         rating: rating ? Number(rating.average.toFixed(2)) : null,
         reviewCount: rating?.count ?? 0,
-        serviceTags: categories.map(
-          (category) => categoryLabels[category] ?? category
-        ),
+        serviceTags: categories.map(categoryLabel),
         photos: vendor.photos.map((photo) => photo.url),
       }
     })
@@ -656,7 +723,9 @@ export const vendorsService = {
     input: ToggleServiceActiveInput
   ) {
     const vendor = await getOwnedVendor(ownerId)
-    const existing = await vendorsRepository.findServiceById(
+    // findAnyServiceById, not findServiceById: activating/deactivating is
+    // valid for a package too, and the packages list uses this same endpoint.
+    const existing = await vendorsRepository.findAnyServiceById(
       vendor.id,
       serviceId
     )
@@ -685,9 +754,137 @@ export const vendorsService = {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
 
+    // service_package_items holds a restrict FK on the member side, so this
+    // delete would fail at the DB with an opaque constraint error. Check first
+    // and name the packages, so the vendor knows what to edit.
+    const containing = await vendorsRepository.findPackagesContaining(
+      vendor.id,
+      serviceId
+    )
+
+    if (containing.length > 0) {
+      throw new AppError(
+        409,
+        `Remove this service from ${containing
+          .map((p) => `"${p.name}"`)
+          .join(', ')} before deleting it`,
+        'SERVICE_IN_PACKAGE'
+      )
+    }
+
     const [deleted] = await vendorsRepository.deleteService(
       vendor.id,
       serviceId
+    )
+
+    return toServiceResponse(deleted)
+  },
+
+  async listMyPackages(ownerId: string): Promise<PackageResponse[]> {
+    const vendor = await getOwnedVendor(ownerId)
+    const packages = await vendorsRepository.listPackages(vendor.id)
+    return packages.map(toPackageResponse)
+  },
+
+  async listPublicPackages(vendorId: string): Promise<PackageResponse[]> {
+    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+
+    if (!vendor) {
+      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+
+    const packages = await vendorsRepository.listPackages(vendor.id, true)
+    return packages.map(toPackageResponse)
+  },
+
+  async createPackage(ownerId: string, input: CreatePackageInput) {
+    const vendor = await getOwnedVendor(ownerId)
+    await assertValidPackageMembers(vendor.id, input.serviceIds)
+
+    const pricing = resolveServicePricing(input)
+    const pkg = await vendorsRepository.createPackage(
+      vendor.id,
+      {
+        name: input.name,
+        description: input.description ?? null,
+        ...pricing,
+        durationMins: input.durationMins,
+      },
+      input.serviceIds
+    )
+
+    const created = await vendorsRepository.findPackageById(vendor.id, pkg.id)
+    return toPackageResponse(created as PackageWithItems)
+  },
+
+  async updatePackage(
+    ownerId: string,
+    packageId: string,
+    input: UpdatePackageInput
+  ) {
+    const vendor = await getOwnedVendor(ownerId)
+    const existing = await vendorsRepository.findPackageById(
+      vendor.id,
+      packageId
+    )
+
+    if (!existing) {
+      throw new AppError(404, 'Package not found', 'PACKAGE_NOT_FOUND')
+    }
+
+    if (input.serviceIds !== undefined) {
+      await assertValidPackageMembers(vendor.id, input.serviceIds)
+      await vendorsRepository.replacePackageItems(packageId, input.serviceIds)
+    }
+
+    // Same rule as updateService: providing a pricing type rewrites the whole
+    // pricing block so stale tiers can't survive a type switch.
+    const pricing =
+      input.pricingType !== undefined
+        ? resolveServicePricing({
+            pricingType: input.pricingType,
+            price: input.price,
+            priceHatchback: input.priceHatchback,
+            priceSedan: input.priceSedan,
+            priceSuv: input.priceSuv,
+          })
+        : {}
+
+    await vendorsRepository.updateService(vendor.id, packageId, {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.description !== undefined
+        ? { description: input.description }
+        : {}),
+      ...pricing,
+      ...(input.durationMins !== undefined
+        ? { durationMins: input.durationMins }
+        : {}),
+    })
+
+    const updated = await vendorsRepository.findPackageById(
+      vendor.id,
+      packageId
+    )
+    return toPackageResponse(updated as PackageWithItems)
+  },
+
+  async deletePackage(ownerId: string, packageId: string) {
+    const vendor = await getOwnedVendor(ownerId)
+    const existing = await vendorsRepository.findPackageById(
+      vendor.id,
+      packageId
+    )
+
+    if (!existing) {
+      throw new AppError(404, 'Package not found', 'PACKAGE_NOT_FOUND')
+    }
+
+    // Items cascade with the package row. Bookings hold a restrict FK on
+    // services, so a package that has ever been booked can't be hard-deleted —
+    // the vendor deactivates it instead, exactly like a plain service.
+    const [deleted] = await vendorsRepository.deleteService(
+      vendor.id,
+      packageId
     )
 
     return toServiceResponse(deleted)

@@ -2,6 +2,7 @@ import type {
   ApiAddress,
   ApiAuthUser,
   ApiBooking,
+  ApiPackage,
   ApiPublicVendor,
   ApiReview,
   ApiService,
@@ -14,19 +15,14 @@ import type {
   Booking,
   Review,
   Service,
+  ServicePackage,
   User,
   Vehicle,
   Vendor,
   VendorStatus,
 } from '@/lib/types'
 import { APP_TIMEZONE } from '@/lib/utils'
-
-export const CATEGORY_LABELS: Record<string, string> = {
-  car_wash: 'Car wash',
-  detailing: 'Detailing',
-  coating: 'Coating',
-  scratch_removal: 'Scratch removal',
-}
+import { categoryLabel } from '@/lib/categories'
 
 function mapVendorStatus(status: string): VendorStatus {
   if (status === 'active') return 'open'
@@ -136,7 +132,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     startingPrice: prices.length > 0 ? Math.min(...prices) : 0,
     dropinEnabled: vendor.dropinEnabled,
     doorstepEnabled: vendor.doorstepEnabled,
-    serviceTags: categories.map((c) => CATEGORY_LABELS[c] ?? c),
+    serviceTags: categories.map(categoryLabel),
     isVerified: vendor.isVerified,
     photos: vendor.photos.map((p) => p.url),
   }
@@ -157,6 +153,25 @@ export function mapService(service: ApiService, vendorId: string): Service {
     priceSuv: tier(service.priceSuv),
     durationMins: service.durationMins,
     isActive: service.isActive,
+  }
+}
+
+export function mapPackage(
+  pkg: ApiPackage,
+  vendorId: string
+): ServicePackage {
+  return {
+    ...mapService(pkg, vendorId),
+    items: pkg.items.map((item) => ({
+      serviceId: item.serviceId,
+      name: item.name,
+      price: Number(item.price),
+      durationMins: item.durationMins,
+      isActive: item.isActive,
+    })),
+    itemsTotal: Number(pkg.itemsTotal),
+    savings: pkg.savings === null ? null : Number(pkg.savings),
+    hasInactiveItems: pkg.hasInactiveItems,
   }
 }
 

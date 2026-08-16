@@ -132,6 +132,14 @@ export const serviceCategorySchema = z.enum([
   'coating',
   'scratch_removal',
   'others',
+  'package',
+])
+
+// The categories a plain service may use. 'package' is excluded: a package is
+// only meaningful with member services attached, so it is created and edited
+// through /me/packages, never by posting category: 'package' to /me/services.
+export const plainServiceCategorySchema = serviceCategorySchema.exclude([
+  'package',
 ])
 
 export const listPublicVendorsQuerySchema = z.object({
@@ -188,7 +196,7 @@ export const createServiceSchema = z
   .object({
     name: z.string().trim().min(1).max(255),
     description: z.string().trim().max(5000).optional(),
-    category: serviceCategorySchema,
+    category: plainServiceCategorySchema,
     pricingType: servicePricingTypeSchema.default('flat'),
     price: z.number().positive().optional(),
     priceHatchback: z.number().positive().optional(),
@@ -202,7 +210,7 @@ export const updateServiceSchema = z
   .object({
     name: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(5000).nullable().optional(),
-    category: serviceCategorySchema.optional(),
+    category: plainServiceCategorySchema.optional(),
     pricingType: servicePricingTypeSchema.optional(),
     price: z.number().positive().optional(),
     priceHatchback: z.number().positive().optional(),
@@ -225,6 +233,63 @@ export const toggleServiceActiveSchema = z.object({
   isActive: z.boolean(),
 })
 
+// ─── Packages ────────────────────────────────────────────────────────────────
+//
+// A package is a services row (category = 'package') plus the member services
+// it bundles. Its price and duration are set by the vendor and are independent
+// of the members — a bundled wash + interior is usually both cheaper and faster
+// than doing the two back to back. The members exist so the UI can itemize the
+// contents and compute savings against their live prices.
+
+// At least two members, or it is just a service with extra steps. The dedupe
+// check mirrors the unique index on (package_id, service_id).
+const packageItemIdsSchema = z
+  .array(z.string().uuid())
+  .min(2, 'A package needs at least 2 services')
+  .max(20)
+  .refine(
+    (ids) => new Set(ids).size === ids.length,
+    'The same service cannot be added twice'
+  )
+
+export const createPackageSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    description: z.string().trim().max(5000).optional(),
+    pricingType: servicePricingTypeSchema.default('flat'),
+    price: z.number().positive().optional(),
+    priceHatchback: z.number().positive().optional(),
+    priceSedan: z.number().positive().optional(),
+    priceSuv: z.number().positive().optional(),
+    durationMins: z.number().int().positive(),
+    serviceIds: packageItemIdsSchema,
+  })
+  .superRefine(refinePricing)
+
+export const updatePackageSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255).optional(),
+    description: z.string().trim().max(5000).nullable().optional(),
+    pricingType: servicePricingTypeSchema.optional(),
+    price: z.number().positive().optional(),
+    priceHatchback: z.number().positive().optional(),
+    priceSedan: z.number().positive().optional(),
+    priceSuv: z.number().positive().optional(),
+    durationMins: z.number().int().positive().optional(),
+    // Omitted = leave the contents alone; provided = replace them wholesale.
+    serviceIds: packageItemIdsSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (Object.keys(data).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one field must be provided',
+      })
+      return
+    }
+    refinePricing(data, ctx)
+  })
+
 export type CreateVendorInput = z.infer<typeof createVendorSchema>
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>
 export type UpdateJobTypesInput = z.infer<typeof updateJobTypesSchema>
@@ -239,5 +304,7 @@ export type SetLogoInput = z.infer<typeof setLogoSchema>
 export type CreateServiceInput = z.infer<typeof createServiceSchema>
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>
 export type ToggleServiceActiveInput = z.infer<typeof toggleServiceActiveSchema>
+export type CreatePackageInput = z.infer<typeof createPackageSchema>
+export type UpdatePackageInput = z.infer<typeof updatePackageSchema>
 export type SlotsQueryInput = z.infer<typeof slotsQuerySchema>
 export type ListPublicVendorsQuery = z.infer<typeof listPublicVendorsQuerySchema>

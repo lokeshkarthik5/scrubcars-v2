@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookings,
@@ -21,9 +21,11 @@ export const adminRepository = {
       with: {
         owner: true,
         // Only ids of active services — the service layer derives a count.
+        // Packages share this table, so they are excluded to keep the count a
+        // count of services.
         services: {
           columns: { id: true },
-          where: eq(services.isActive, true),
+          where: and(eq(services.isActive, true), ne(services.category, 'package')),
         },
       },
       orderBy: [desc(vendors.createdAt)],
@@ -45,7 +47,7 @@ export const adminRepository = {
         owner: true,
         workingHours: true,
         services: {
-          where: eq(services.isActive, true),
+          where: and(eq(services.isActive, true), ne(services.category, 'package')),
           orderBy: [asc(services.name)],
         },
       },
@@ -147,10 +149,16 @@ export const adminRepository = {
   },
 
   // Active service ids for a vendor, used to reconcile the admin edit payload.
+  // Packages MUST stay out: the admin editor never sends them, so including
+  // them here would make every save deactivate all of the vendor's packages.
   async listActiveServiceIds(vendorId: string): Promise<string[]> {
     const rows = await db.query.services.findMany({
       columns: { id: true },
-      where: and(eq(services.vendorId, vendorId), eq(services.isActive, true)),
+      where: and(
+        eq(services.vendorId, vendorId),
+        eq(services.isActive, true),
+        ne(services.category, 'package')
+      ),
     })
     return rows.map((r) => r.id)
   },

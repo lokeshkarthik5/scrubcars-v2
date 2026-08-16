@@ -17,16 +17,12 @@ import {
 } from '@/lib/api/services'
 import { toast } from 'react-toastify'
 import type { PricingType, Service, ServiceCategory } from '@/lib/types'
+import { SERVICE_CATEGORY_OPTIONS } from '@/lib/categories'
+import { PackagesPanel } from './packages-panel'
 import { PRICING_TYPES, formatServicePrice } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 
-const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
-  { value: 'car_wash', label: 'Car wash' },
-  { value: 'detailing', label: 'Detailing' },
-  { value: 'coating', label: 'Coating' },
-  { value: 'scratch_removal', label: 'Scratch removal' },
-  { value: 'others', label: 'Others' },
-]
+const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
 type ServiceForm = {
   name: string
@@ -64,6 +60,7 @@ function hasValidPricing(form: ServiceForm): boolean {
 }
 
 export default function VendorServicesPage() {
+  const [tab, setTab] = useState<'services' | 'packages'>('services')
   const [services, setServices] = useState<Service[]>([])
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm)
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
@@ -167,7 +164,7 @@ export default function VendorServicesPage() {
     <AppShell showNav navType="vendor" className="gap-5 py-4">
       <div className="flex items-center justify-between">
         <TopBar title="Services" />
-        {editingServiceId && (
+        {tab === 'services' && editingServiceId && (
           <button
             type="button"
             onClick={resetServiceForm}
@@ -178,6 +175,23 @@ export default function VendorServicesPage() {
         )}
       </div>
 
+      <div className="flex gap-2">
+        <Chip
+          label="Services"
+          selected={tab === 'services'}
+          onClick={() => setTab('services')}
+        />
+        <Chip
+          label="Packages"
+          selected={tab === 'packages'}
+          onClick={() => setTab('packages')}
+        />
+      </div>
+
+      {tab === 'packages' ? (
+        <PackagesPanel services={services} />
+      ) : (
+        <>
       <ScCard className="flex flex-col gap-3">
         <ScInput
           label="Service name"
@@ -322,6 +336,8 @@ export default function VendorServicesPage() {
           ))
         )}
       </div>
+        </>
+      )}
     </AppShell>
   )
 }

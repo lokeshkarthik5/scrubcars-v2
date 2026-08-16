@@ -341,9 +341,5 @@ export const MOCK_EARNINGS_JOBS: EarningsJob[] = [
   },
 ]
 
-export const CATEGORY_LABELS: Record<string, string> = {
-  car_wash: 'Car wash',
-  detailing: 'Detailing',
-  coating: 'Coating',
-  scratch_removal: 'Scratch removal',
-}
+// Re-exported so mock consumers and real ones can never drift apart.
+export { CATEGORY_LABELS } from '@/lib/categories'

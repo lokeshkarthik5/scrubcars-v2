@@ -44,12 +44,19 @@ export const vendorPickupEnum = pgEnum('vendor_pickup', [
   'no',
 ])
 
+// 'package' is a shape, not a kind of work: a package row bundles other
+// services of this vendor (see servicePackageItems). It lives in the same enum
+// so a package books and filters like anything else, at the cost of a package
+// not appearing under its members' categories — packages get their own chip.
+// Listings that mean "plain services" must exclude it; the booking path must
+// not, since a package occupies a slot like any other service.
 export const serviceCategoryEnum = pgEnum('service_category', [
   'car_wash',
   'detailing',
   'coating',
   'scratch_removal',
   'others',
+  'package',
 ])
 
 // How a service is priced. 'flat' = one price; 'per_vehicle' = a price per
@@ -318,6 +325,36 @@ export const services = pgTable(
   ]
 )
 
+// Composition of a package. `packageId` is a services row with
+// category = 'package'; `serviceId` is one of the plain services it bundles.
+// Members are restrict-deleted so a package can never silently lose contents,
+// and the package's own price is independent — the members are read only to
+// itemize the contents and compute savings against their current prices.
+export const servicePackageItems = pgTable(
+  'service_package_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    packageId: uuid('package_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'restrict' }),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('service_package_items_package_id_idx').on(table.packageId),
+    index('service_package_items_service_id_idx').on(table.serviceId),
+    uniqueIndex('service_package_items_package_service_key').on(
+      table.packageId,
+      table.serviceId
+    ),
+  ]
+)
+
 export const bookings = pgTable(
   'bookings',
   {
@@ -530,7 +567,31 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
     references: [vendors.id],
   }),
   bookings: many(bookings),
+  // Both sides of the composition point at `services`, so each needs an
+  // explicit relationName for drizzle to tell them apart. `packageItems` =
+  // what this package contains; `includedInPackages` = which packages contain
+  // this service (used to warn before deactivating a bundled service).
+  packageItems: many(servicePackageItems, { relationName: 'packageItems' }),
+  includedInPackages: many(servicePackageItems, {
+    relationName: 'serviceInPackages',
+  }),
 }))
+
+export const servicePackageItemsRelations = relations(
+  servicePackageItems,
+  ({ one }) => ({
+    package: one(services, {
+      fields: [servicePackageItems.packageId],
+      references: [services.id],
+      relationName: 'packageItems',
+    }),
+    service: one(services, {
+      fields: [servicePackageItems.serviceId],
+      references: [services.id],
+      relationName: 'serviceInPackages',
+    }),
+  })
+)
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
   user: one(users, {

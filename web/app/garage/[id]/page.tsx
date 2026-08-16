@@ -23,12 +23,19 @@ import { ScCard } from '@/components/sc/card'
 import { Stars } from '@/components/sc/stars'
 import { getVendorReviews } from '@/lib/api/reviews'
 import { getVendorServices } from '@/lib/api/services'
+import { getVendorPackages } from '@/lib/api/packages'
 import { getVendor } from '@/lib/api/vendors'
-import { CATEGORY_LABELS } from '@/lib/api/mappers'
+import { categoryLabel } from '@/lib/categories'
 import { useAuthStore } from '@/lib/stores/auth-store'
-import type { Review, Service, Vendor, VehicleType } from '@/lib/types'
+import type {
+  Review,
+  Service,
+  ServicePackage,
+  Vendor,
+  VehicleType,
+} from '@/lib/types'
 import { formatServicePrice, tierPriceFor } from '@/lib/pricing'
-import { cn } from '@/lib/utils'
+import { cn, formatDuration } from '@/lib/utils'
 
 type Tab = 'services' | 'photos' | 'reviews'
 type Mode = 'dropin' | 'doorstep'
@@ -46,6 +53,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [services, setServices] = useState<Service[]>([])
+  const [packages, setPackages] = useState<ServicePackage[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
   const [mode, setMode] = useState<Mode>('dropin')
@@ -62,6 +70,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
       if (v && !v.dropinEnabled && v.doorstepEnabled) setMode('doorstep')
     })
     getVendorServices(id).then(setServices)
+    getVendorPackages(id).then(setPackages)
     getVendorReviews(id).then(setReviews)
   }, [id])
 
@@ -75,17 +84,32 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     return () => window.removeEventListener('keydown', onKey)
   }, [details])
 
+  const matchesQuery = (s: Service, q: string) =>
+    s.name.toLowerCase().includes(q) ||
+    (s.description ?? '').toLowerCase().includes(q)
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return services
-    return services.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.description ?? '').toLowerCase().includes(q)
-    )
+    return services.filter((s) => matchesQuery(s, q))
   }, [services, query])
 
-  const selectedService = services.find((s) => s.id === selected) ?? null
+  // A package also matches on the names of the services it contains, so
+  // searching "coating" surfaces the bundle that includes it.
+  const filteredPackages = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return packages
+    return packages.filter(
+      (p) =>
+        matchesQuery(p, q) ||
+        p.items.some((item) => item.name.toLowerCase().includes(q))
+    )
+  }, [packages, query])
+
+  // Packages are services, so a selected package resolves through the same
+  // lookup and books through the same flow — no separate booking path.
+  const selectedService =
+    [...services, ...packages].find((s) => s.id === selected) ?? null
 
   const toggle = (serviceId: string) =>
     setSelected((current) => (current === serviceId ? null : serviceId))
@@ -248,6 +272,93 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
               />
             </label>
 
+            {filteredPackages.length > 0 && (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[15px] font-semibold text-text-primary">
+                    Packages
+                  </h2>
+                  <span className="text-[12px] text-text-secondary">
+                    {filteredPackages.length}{' '}
+                    {filteredPackages.length === 1 ? 'package' : 'packages'}
+                  </span>
+                </div>
+
+                {filteredPackages.map((pkg) => {
+                  const added = selected === pkg.id
+                  return (
+                    <ScCard
+                      key={pkg.id}
+                      className={cn(
+                        'transition-colors',
+                        added && 'border-brand-red/50'
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-[14px] font-semibold text-text-primary">
+                          {pkg.name}
+                        </p>
+                        <div className="shrink-0 text-right">
+                          <span className="text-[14px] font-semibold text-text-primary">
+                            {formatServicePrice(pkg)}
+                          </span>
+                          {pkg.savings !== null && (
+                            <p className="text-[11px] text-text-secondary line-through">
+                              ₹{pkg.itemsTotal}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {pkg.savings !== null && (
+                        <span className="mt-1.5 inline-block rounded-[6px] bg-brand-red/10 px-2 py-0.5 text-[11px] font-semibold text-brand-red">
+                          Save ₹{pkg.savings}
+                        </span>
+                      )}
+
+                      {pkg.description && (
+                        <p className="mt-1 text-[12px] text-text-secondary">
+                          {pkg.description}
+                        </p>
+                      )}
+
+                      <ul className="mt-2 flex flex-col gap-1">
+                        {pkg.items.map((item) => (
+                          <li
+                            key={item.serviceId}
+                            className="flex items-center gap-1.5 text-[12px] text-text-secondary"
+                          >
+                            <IconCheck size={13} className="shrink-0 text-brand-red" />
+                            {item.name}
+                          </li>
+                        ))}
+                      </ul>
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                          <IconClock size={13} />
+                          {formatDuration(pkg.durationMins)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggle(pkg.id)}
+                          className={cn(
+                            'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
+                            added
+                              ? 'bg-brand-white text-brand-black'
+                              : 'bg-surface-elevated text-text-primary ring-1 ring-border'
+                          )}
+                        >
+                          {added && <IconCheck size={13} />}
+                          {added ? 'Added' : 'Add'}
+                        </button>
+                      </div>
+                    </ScCard>
+                  )
+                })}
+              </>
+            )}
+
             <div className="flex items-center justify-between">
               <h2 className="text-[15px] font-semibold text-text-primary">Services Available</h2>
               <span className="text-[12px] text-text-secondary">
@@ -292,7 +403,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                         <IconClock size={13} />
-                        {svc.durationMins} min
+                        {formatDuration(svc.durationMins)}
                       </span>
                       <div className="flex items-center gap-2">
                         <button
@@ -422,12 +533,10 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <ScBadge variant="muted">
-                {CATEGORY_LABELS[details.category] ?? details.category}
-              </ScBadge>
+              <ScBadge variant="muted">{categoryLabel(details.category)}</ScBadge>
               <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
                 <IconClock size={12} />
-                {details.durationMins} min
+                {formatDuration(details.durationMins)}
               </span>
             </div>
 

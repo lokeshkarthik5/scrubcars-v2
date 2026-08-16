@@ -11,6 +11,8 @@ import { ScSelect } from '@/components/sc/select'
 import { TopBar } from '@/components/sc/top-bar'
 import { ApiError } from '@/lib/api/client'
 import { createAdminVendor } from '@/lib/api/admin'
+import { SERVICE_CATEGORY_OPTIONS } from '@/lib/categories'
+import type { ServiceCategory } from '@/lib/types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const VEHICLE_TYPES = ['Hatchback', 'Sedan', 'SUV / MUV', 'Luxury / Premium', 'Electric (EV)', 'Commercial / Van']
@@ -26,14 +28,7 @@ const STATUS_OPTIONS = [
   { value: 'suspended' as const, label: 'Suspended' },
 ]
 
-type ServiceCategory = 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
-const SERVICE_CATEGORIES: Array<{ value: ServiceCategory; label: string }> = [
-  { value: 'car_wash', label: 'Car wash' },
-  { value: 'detailing', label: 'Detailing' },
-  { value: 'coating', label: 'Coating' },
-  { value: 'scratch_removal', label: 'Scratch removal' },
-  { value: 'others', label: 'Others' },
-]
+const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
 type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [

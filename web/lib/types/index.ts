@@ -6,12 +6,15 @@ export type BookingStatus =
   | 'completed'
   | 'cancelled'
   | 'rescheduled'
+// 'package' bundles other services of the same vendor. Labels for every value
+// live in @/lib/categories — add new values there too, the map is exhaustive.
 export type ServiceCategory =
   | 'car_wash'
   | 'detailing'
   | 'coating'
   | 'scratch_removal'
   | 'others'
+  | 'package'
 // New bookings always prepay online; 'cash' remains only for historical rows.
 export type PaymentMethod = 'online' | 'cash'
 export type VendorStatus = 'open' | 'busy' | 'closed'
@@ -61,6 +64,25 @@ export interface Service {
   priceSuv: number | null
   durationMins: number
   isActive: boolean
+}
+
+export interface PackageItem {
+  serviceId: string
+  name: string
+  price: number
+  durationMins: number
+  isActive: boolean
+}
+
+// A package is a Service (category 'package') plus the services it bundles.
+// `itemsTotal` and `savings` come from the server, recomputed per request from
+// the members' current prices — never cache or persist them client-side, or the
+// "you save ₹X" badge can outlive the prices it was derived from.
+export interface ServicePackage extends Service {
+  items: PackageItem[]
+  itemsTotal: number
+  savings: number | null
+  hasInactiveItems: boolean
 }
 
 export interface Review {

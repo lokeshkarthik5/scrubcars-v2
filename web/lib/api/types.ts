@@ -172,6 +172,21 @@ export interface ApiService {
   isActive: boolean
 }
 
+export interface ApiPackageItem {
+  serviceId: string
+  name: string
+  price: string
+  durationMins: number
+  isActive: boolean
+}
+
+export interface ApiPackage extends ApiService {
+  items: ApiPackageItem[]
+  itemsTotal: string
+  savings: string | null
+  hasInactiveItems: boolean
+}
+
 export interface ApiSlotsResponse {
   date: string
   serviceId: string

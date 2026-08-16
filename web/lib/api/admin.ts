@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { ServiceCategory } from '@/lib/types'
 
 export interface AdminVendor {
   id: string
@@ -58,7 +59,7 @@ export interface AdminVendorDetail {
     id: string
     name: string
     description: string | null
-    category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+    category: ServiceCategory
     pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
     price: string
     priceHatchback: string | null
@@ -73,7 +74,7 @@ export interface UpdateVendorServiceInput {
   id?: string
   name: string
   description?: string
-  category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+  category: ServiceCategory
   pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
   price?: number
   priceHatchback?: number
@@ -159,7 +160,7 @@ export interface CreateVendorInput {
   services?: Array<{
     name: string
     description?: string
-    category: 'car_wash' | 'detailing' | 'coating' | 'scratch_removal' | 'others'
+    category: ServiceCategory
     pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
     price?: number
     priceHatchback?: number

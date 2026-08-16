@@ -19,17 +19,12 @@ import { sortVendors } from '@/lib/sort-vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Vendor } from '@/lib/types'
+import { CATEGORY_FILTERS } from '@/lib/categories'
 import { cn } from '@/lib/utils'
 
 type ServiceMode = 'dropin' | 'doorstep'
 
-const CATEGORIES = [
-  { key: 'all', label: 'All' },
-  { key: 'car_wash', label: 'Car Wash' },
-  { key: 'detailing', label: 'Detailing' },
-  { key: 'coating', label: 'Coating' },
-  { key: 'scratch_removal', label: 'Scratch Removal' },
-] as const
+const CATEGORIES = CATEGORY_FILTERS
 
 type CategoryKey = (typeof CATEGORIES)[number]['key']
 

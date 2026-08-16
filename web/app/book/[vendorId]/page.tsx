@@ -19,7 +19,7 @@ import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Service, Vendor } from '@/lib/types'
 import { formatServicePrice, resolveServiceAmount } from '@/lib/pricing'
-import { cn } from '@/lib/utils'
+import { cn, formatDuration } from '@/lib/utils'
 
 const BOOKING_TYPE_OPTIONS = [
   { value: 'dropin' as const, label: 'Drop In' },
@@ -141,7 +141,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </div>
           <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
             <IconShoppingCart size={13} />
-            {selectedService.name} · {selectedService.durationMins} min
+            {selectedService.name} · {formatDuration(selectedService.durationMins)}
           </p>
         </ScCard>
       )}

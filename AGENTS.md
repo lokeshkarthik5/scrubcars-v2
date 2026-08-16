@@ -63,7 +63,12 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
 
 ### Catalog
 
-- `services` — vendor-scoped. `category`: `car_wash` / `detailing` / `coating` / `scratch_removal`. `duration_mins` drives slot consumption
+- `services` — vendor-scoped. `category`: `car_wash` / `detailing` / `coating` / `scratch_removal` / `others` / `package`. `duration_mins` drives slot consumption
+- `service_package_items` — composition of a package. A package is a `services` row with `category = 'package'` that bundles other services of the same vendor, so it books, prices and consumes slots exactly like a service and `bookings.service_id` stays a single FK. Its price and duration are vendor-set and independent of its members; the members exist to itemize contents and compute savings from their live prices
+  - Listings that mean "plain services" MUST exclude `category = 'package'` (see `listServices`, and the admin repository — `listActiveServiceIds` especially, since the admin editor reconciles against it)
+  - The booking path MUST NOT exclude packages — a package occupies a slot like any other service
+  - Packages are created only via `/vendors/me/packages`; `POST /vendors/me/services` rejects `category: 'package'` because a package with no members is invalid
+- Category labels live in `server/src/lib/categories.ts` and `web/lib/categories.ts`, both keyed exhaustively on the category union — add new categories there or the build fails
 
 ### Transaction tables
 
