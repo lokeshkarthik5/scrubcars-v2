@@ -29,7 +29,7 @@ export function AppShell({
       >
         {showBrand && (
           <div className="flex items-center justify-between gap-3">
-            <BrandMark />
+            <BrandMark height={32} priority />
             {brandRight && <div className="min-w-0 text-right">{brandRight}</div>}
           </div>
         )}

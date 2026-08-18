@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppShell } from '@/components/sc/app-shell'
+import { BrandMark } from '@/components/sc/brand-mark'
 import { ScButton } from '@/components/sc/button'
 import { ScPhoneInput } from '@/components/sc/phone-input'
 import { TopBar } from '@/components/sc/top-bar'
@@ -61,7 +62,7 @@ export function PhoneLogin({ audience, verifyHref, showBack = true }: PhoneLogin
 
       <div className="flex flex-1 flex-col justify-center gap-10 pb-16">
         <div className="flex flex-col items-center gap-3">
-          <span className="mb-2 text-[17px] font-bold text-text-primary">Detlio</span>
+          <BrandMark height={64} priority className="mb-4" />
           <h1 className="text-[34px] font-bold tracking-tight text-text-primary">Login</h1>
           <p className="text-[14px] text-text-secondary">
             Enter your phone number to continue

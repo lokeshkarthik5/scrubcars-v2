@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/sc/app-shell'
+import { BrandMark } from '@/components/sc/brand-mark'
 import { ScButton } from '@/components/sc/button'
 import { cn } from '@/lib/utils'
 
@@ -52,9 +53,7 @@ export default function WelcomePage() {
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col px-6 pb-8 pt-14">
-        <h1 className="text-center text-[30px] font-bold tracking-tight text-text-primary">
-          Detlio<span className="text-brand-red">.</span>
-        </h1>
+        <BrandMark height={44} priority className="mx-auto" />
 
         <div className="mt-auto">
           <h2 className="whitespace-pre-line text-[30px] font-bold leading-[1.15] tracking-tight text-text-primary">

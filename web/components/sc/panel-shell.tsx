@@ -2,12 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  IconBrandWhatsapp,
-  IconDroplet,
-  IconLogout,
-  IconPhone,
-} from '@tabler/icons-react'
+import { IconBrandWhatsapp, IconLogout, IconPhone } from '@tabler/icons-react'
 import {
   SUPPORT_PHONE_DISPLAY,
   SUPPORT_TEL_HREF,
@@ -15,6 +10,7 @@ import {
 } from '@/lib/support'
 import { cn } from '@/lib/utils'
 import { BottomNav, type NavType } from './bottom-nav'
+import { BrandMark } from './brand-mark'
 
 export interface PanelNavItem {
   href: string
@@ -55,8 +51,8 @@ export function PanelShell({
         <div className="mx-auto flex w-full max-w-[1100px] items-center justify-between gap-4 px-4 py-3 md:px-6">
           <div className="flex min-w-0 items-center gap-6">
             <div className="flex shrink-0 items-center gap-2">
-              <IconDroplet size={22} className="text-brand-red" />
-              <span className="text-[15px] font-semibold">Detlio {brandLabel}</span>
+              <BrandMark height={24} priority />
+              <span className="text-[15px] font-semibold text-text-secondary">{brandLabel}</span>
             </div>
             {/* Tabs live in the header on desktop and in the BottomNav on mobile. */}
             <nav className="hidden items-center gap-1 md:flex">

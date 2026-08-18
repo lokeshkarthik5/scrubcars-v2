@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconDroplet } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
+import { BrandMark } from '@/components/sc/brand-mark'
 import { ScButton } from '@/components/sc/button'
 import { ScInput } from '@/components/sc/input'
 import { adminLogin } from '@/lib/api/admin'
@@ -36,8 +36,7 @@ export default function AdminLoginPage() {
     <AppShell className="justify-between py-8">
       <div className="flex flex-1 flex-col items-center justify-center gap-8">
         <div className="flex flex-col items-center gap-2">
-          <IconDroplet size={40} className="text-brand-red" />
-          <h1 className="text-[22px] font-semibold text-text-primary">Detlio</h1>
+          <BrandMark height={64} priority className="mb-2" />
           <p className="text-[13px] text-text-secondary">Admin panel</p>
         </div>
 
