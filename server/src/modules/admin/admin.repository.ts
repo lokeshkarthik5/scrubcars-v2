@@ -3,8 +3,10 @@ import { db } from '../../db/index.js'
 import {
   bookings,
   bookingStatusEnum,
+  serviceImages,
   services,
   users,
+  vendorPhotos,
   vendors,
   vendorWorkingHours,
 } from '../../db/schema.js'
@@ -39,16 +41,42 @@ export const adminRepository = {
   },
 
   // Full detail for the admin edit screen: owner + weekly working hours +
-  // active services (soft-deleted ones are hidden from the editor).
+  // active services (soft-deleted ones are hidden from the editor) + the media
+  // the admin can manage — gallery photos and each service's own images.
   findVendorDetailById(id: string) {
     return db.query.vendors.findFirst({
       where: eq(vendors.id, id),
       with: {
         owner: true,
         workingHours: true,
+        photos: {
+          orderBy: [asc(vendorPhotos.sortOrder), asc(vendorPhotos.createdAt)],
+        },
         services: {
           where: and(eq(services.isActive, true), ne(services.category, 'package')),
           orderBy: [asc(services.name)],
+          with: {
+            images: {
+              orderBy: [
+                asc(serviceImages.sortOrder),
+                asc(serviceImages.createdAt),
+              ],
+            },
+          },
+        },
+      },
+    })
+  },
+
+  // Any service (including a package) by id alone — the admin media routes are
+  // keyed by service, and need the row to resolve which vendor's R2 prefix the
+  // upload belongs under.
+  findServiceById(id: string) {
+    return db.query.services.findFirst({
+      where: eq(services.id, id),
+      with: {
+        images: {
+          orderBy: [asc(serviceImages.sortOrder), asc(serviceImages.createdAt)],
         },
       },
     })

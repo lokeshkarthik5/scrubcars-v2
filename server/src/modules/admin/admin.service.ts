@@ -4,12 +4,20 @@ import { AppError } from '../../lib/errors.js'
 import { signAdminToken } from '../../lib/jwt.js'
 import { logger } from '../../lib/logger.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
+import {
+  createPresignedUpload,
+  deleteObject,
+  keyFromPublicUrl,
+} from '../../lib/storage.js'
+import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { adminRepository } from './admin.repository.js'
 import type {
   CreateVendorInput,
   ListBookingsQuery,
   LoginInput,
+  MediaUrlInput,
   UpdateVendorInput,
+  UploadUrlInput,
 } from './admin.validation.js'
 
 const log = logger.child({ module: 'admin' })
@@ -20,6 +28,54 @@ function safeEqual(a: string, b: string): boolean {
   const bufB = Buffer.from(b)
   if (bufA.length !== bufB.length) return false
   return timingSafeEqual(bufA, bufB)
+}
+
+async function assertVendor(vendorId: string) {
+  const vendor = await adminRepository.findVendorById(vendorId)
+  if (!vendor) {
+    throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+  }
+  return vendor
+}
+
+async function assertService(serviceId: string) {
+  const service = await adminRepository.findServiceById(serviceId)
+  if (!service) {
+    throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+  }
+  return service
+}
+
+// Only accept URLs that actually point at our bucket, so an admin can't
+// register an arbitrary external image as vendor media.
+function assertOwnBucketUrl(url: string, code: string): string {
+  const storageKey = keyFromPublicUrl(url)
+  if (!storageKey) {
+    throw new AppError(400, 'Invalid image URL', code)
+  }
+  return storageKey
+}
+
+async function assertPhotoCapacity(vendorId: string) {
+  const [{ count }] = await vendorsRepository.countPhotos(vendorId)
+  if (count >= env.r2MaxPhotosPerVendor) {
+    throw new AppError(
+      409,
+      `This garage can have at most ${env.r2MaxPhotosPerVendor} photos`,
+      'PHOTO_LIMIT_REACHED'
+    )
+  }
+}
+
+async function assertServiceImageCapacity(serviceId: string) {
+  const [{ count }] = await vendorsRepository.countServiceImages(serviceId)
+  if (count >= env.r2MaxImagesPerService) {
+    throw new AppError(
+      409,
+      `A service can have at most ${env.r2MaxImagesPerService} images`,
+      'SERVICE_IMAGE_LIMIT_REACHED'
+    )
+  }
 }
 
 export const adminService = {
@@ -311,5 +367,174 @@ export const adminService = {
 
   async listBookings(query: ListBookingsQuery) {
     return adminRepository.listBookings(query.status)
+  },
+
+  // ─── Media ─────────────────────────────────────────────────────────────────
+  //
+  // The same logo / gallery / service-image capabilities the vendor panel has,
+  // reachable by an admin on any vendor's behalf. The vendor module owns the
+  // storage-backed queries, so these reuse vendorsRepository rather than
+  // restating them; what differs is only how the caller is authorized — an
+  // admin names the vendor, an owner is resolved from their token.
+
+  async createVendorLogoUploadUrl(vendorId: string, input: UploadUrlInput) {
+    const vendor = await assertVendor(vendorId)
+    const { uploadUrl, publicUrl } = await createPresignedUpload(
+      vendor.id,
+      input.contentType,
+      'logo'
+    )
+    return { uploadUrl, publicUrl }
+  },
+
+  async setVendorLogo(vendorId: string, input: MediaUrlInput) {
+    const vendor = await assertVendor(vendorId)
+
+    const storageKey = assertOwnBucketUrl(input.url, 'INVALID_LOGO_URL')
+    const previousKey = vendor.logoStorageKey
+
+    const [updated] = await adminRepository.updateVendor(vendor.id, {
+      logoUrl: input.url,
+      logoStorageKey: storageKey,
+    })
+
+    if (previousKey && previousKey !== storageKey) {
+      await deleteObject(previousKey)
+    }
+
+    log.info({ vendorId: vendor.id }, 'admin:vendor-logo-updated')
+    return updated
+  },
+
+  async deleteVendorLogo(vendorId: string) {
+    const vendor = await assertVendor(vendorId)
+
+    const [updated] = await adminRepository.updateVendor(vendor.id, {
+      logoUrl: null,
+      logoStorageKey: null,
+    })
+
+    const key = vendor.logoStorageKey ?? keyFromPublicUrl(vendor.logoUrl ?? '')
+    if (key) {
+      await deleteObject(key)
+    }
+
+    log.info({ vendorId: vendor.id }, 'admin:vendor-logo-removed')
+    return updated
+  },
+
+  async createVendorPhotoUploadUrl(vendorId: string, input: UploadUrlInput) {
+    const vendor = await assertVendor(vendorId)
+    await assertPhotoCapacity(vendor.id)
+
+    const { uploadUrl, publicUrl } = await createPresignedUpload(
+      vendor.id,
+      input.contentType
+    )
+    return { uploadUrl, publicUrl }
+  },
+
+  async addVendorPhoto(vendorId: string, input: MediaUrlInput) {
+    const vendor = await assertVendor(vendorId)
+    const storageKey = assertOwnBucketUrl(input.url, 'INVALID_PHOTO_URL')
+
+    // Re-checked after the presign: that URL stays usable for its whole TTL,
+    // so this is the check that actually holds the cap.
+    await assertPhotoCapacity(vendor.id)
+
+    const [{ maxOrder }] = await vendorsRepository.getNextPhotoSortOrder(
+      vendor.id
+    )
+    const [created] = await vendorsRepository.createPhoto(vendor.id, {
+      url: input.url,
+      storageKey,
+      sortOrder: maxOrder + 1,
+    })
+
+    log.info(
+      { vendorId: vendor.id, photoId: created.id },
+      'admin:vendor-photo-added'
+    )
+    return created
+  },
+
+  async deleteVendorPhoto(vendorId: string, photoId: string) {
+    const vendor = await assertVendor(vendorId)
+    const photo = await vendorsRepository.findPhotoById(vendor.id, photoId)
+
+    if (!photo) {
+      throw new AppError(404, 'Photo not found', 'PHOTO_NOT_FOUND')
+    }
+
+    const [deleted] = await vendorsRepository.deletePhoto(vendor.id, photoId)
+
+    const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
+    if (key) {
+      await deleteObject(key)
+    }
+
+    return deleted
+  },
+
+  async createServiceImageUploadUrl(serviceId: string, input: UploadUrlInput) {
+    const service = await assertService(serviceId)
+    await assertServiceImageCapacity(service.id)
+
+    // Keyed under the owning vendor, so a service's images sit beside the rest
+    // of that vendor's objects regardless of who uploaded them.
+    const { uploadUrl, publicUrl } = await createPresignedUpload(
+      service.vendorId,
+      input.contentType,
+      `services/${service.id}`
+    )
+    return { uploadUrl, publicUrl }
+  },
+
+  async addServiceImage(serviceId: string, input: MediaUrlInput) {
+    const service = await assertService(serviceId)
+    const storageKey = assertOwnBucketUrl(
+      input.url,
+      'INVALID_SERVICE_IMAGE_URL'
+    )
+
+    await assertServiceImageCapacity(service.id)
+
+    const [{ maxOrder }] =
+      await vendorsRepository.getNextServiceImageSortOrder(service.id)
+    await vendorsRepository.createServiceImage(service.id, {
+      url: input.url,
+      storageKey,
+      sortOrder: maxOrder + 1,
+    })
+
+    log.info(
+      { vendorId: service.vendorId, serviceId },
+      'admin:service-image-added'
+    )
+    return vendorsRepository.listServiceImages(service.id)
+  },
+
+  async deleteServiceImage(serviceId: string, imageId: string) {
+    const service = await assertService(serviceId)
+    const image = await vendorsRepository.findServiceImageById(
+      service.id,
+      imageId
+    )
+
+    if (!image) {
+      throw new AppError(404, 'Image not found', 'SERVICE_IMAGE_NOT_FOUND')
+    }
+
+    const [deleted] = await vendorsRepository.deleteServiceImage(
+      service.id,
+      imageId
+    )
+
+    const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
+    if (key) {
+      await deleteObject(key)
+    }
+
+    return vendorsRepository.listServiceImages(service.id)
   },
 }

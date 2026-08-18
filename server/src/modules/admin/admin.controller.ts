@@ -7,7 +7,9 @@ import type {
   CreateVendorInput,
   ListBookingsQuery,
   LoginInput,
+  MediaUrlInput,
   UpdateVendorInput,
+  UploadUrlInput,
 } from './admin.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
@@ -101,4 +103,83 @@ export async function createVendor(c: AdminContext, input: CreateVendorInput) {
 export async function listBookings(c: AdminContext, query: ListBookingsQuery) {
   const bookings = await adminService.listBookings(query)
   return c.json({ success: true, data: bookings })
+}
+
+// ─── Media ───────────────────────────────────────────────────────────────────
+
+export async function createVendorLogoUploadUrl(
+  c: AdminContext,
+  vendorId: string,
+  input: UploadUrlInput
+) {
+  const data = await adminService.createVendorLogoUploadUrl(vendorId, input)
+  return c.json({ success: true, data })
+}
+
+export async function setVendorLogo(
+  c: AdminContext,
+  vendorId: string,
+  input: MediaUrlInput
+) {
+  const vendor = await adminService.setVendorLogo(vendorId, input)
+  return c.json({ success: true, data: vendor })
+}
+
+export async function deleteVendorLogo(c: AdminContext, vendorId: string) {
+  const vendor = await adminService.deleteVendorLogo(vendorId)
+  return c.json({ success: true, data: vendor })
+}
+
+export async function createVendorPhotoUploadUrl(
+  c: AdminContext,
+  vendorId: string,
+  input: UploadUrlInput
+) {
+  const data = await adminService.createVendorPhotoUploadUrl(vendorId, input)
+  return c.json({ success: true, data })
+}
+
+export async function addVendorPhoto(
+  c: AdminContext,
+  vendorId: string,
+  input: MediaUrlInput
+) {
+  const photo = await adminService.addVendorPhoto(vendorId, input)
+  return c.json({ success: true, data: photo }, 201)
+}
+
+export async function deleteVendorPhoto(
+  c: AdminContext,
+  vendorId: string,
+  photoId: string
+) {
+  const photo = await adminService.deleteVendorPhoto(vendorId, photoId)
+  return c.json({ success: true, data: photo })
+}
+
+export async function createServiceImageUploadUrl(
+  c: AdminContext,
+  serviceId: string,
+  input: UploadUrlInput
+) {
+  const data = await adminService.createServiceImageUploadUrl(serviceId, input)
+  return c.json({ success: true, data })
+}
+
+export async function addServiceImage(
+  c: AdminContext,
+  serviceId: string,
+  input: MediaUrlInput
+) {
+  const images = await adminService.addServiceImage(serviceId, input)
+  return c.json({ success: true, data: images }, 201)
+}
+
+export async function deleteServiceImage(
+  c: AdminContext,
+  serviceId: string,
+  imageId: string
+) {
+  const images = await adminService.deleteServiceImage(serviceId, imageId)
+  return c.json({ success: true, data: images })
 }

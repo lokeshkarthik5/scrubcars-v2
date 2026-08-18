@@ -21,8 +21,15 @@ export interface AdminVendor {
   } | null
 }
 
+export interface AdminPhoto {
+  id: string
+  url: string
+  sortOrder: number
+}
+
 export interface AdminVendorDetail {
   id: string
+  logoUrl: string | null
   businessName: string
   phone: string
   address: string
@@ -55,6 +62,7 @@ export interface AdminVendorDetail {
     closeTime: string
     isClosed: boolean
   }>
+  photos: AdminPhoto[]
   services: Array<{
     id: string
     name: string
@@ -66,6 +74,7 @@ export interface AdminVendorDetail {
     priceSedan: string | null
     priceSuv: string | null
     durationMins: number
+    images: AdminPhoto[]
   }>
 }
 
@@ -241,6 +250,109 @@ export async function deleteAdminVendor(id: string) {
   return apiClient<void>(`/admin/vendors/${id}`, {
     method: 'DELETE',
   })
+}
+
+// ─── Media ───────────────────────────────────────────────────────────────────
+//
+// Presign → PUT straight to R2 → register the public URL, the same three steps
+// the vendor panel uses. The admin variants name the vendor (or service)
+// instead of resolving it from an owner token.
+
+type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
+
+async function putToR2(uploadUrl: string, file: File) {
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': file.type },
+  })
+  if (!put.ok) {
+    throw new Error('Upload failed. Please try again.')
+  }
+}
+
+/** Upload and set a garage logo. Returns the updated vendor row. */
+export async function uploadAdminVendorLogo(vendorId: string, file: File) {
+  const { uploadUrl, publicUrl } = await apiClient<{
+    uploadUrl: string
+    publicUrl: string
+  }>(`/admin/vendors/${vendorId}/logo/upload-url`, {
+    method: 'POST',
+    body: JSON.stringify({ contentType: file.type as UploadContentType }),
+  })
+
+  await putToR2(uploadUrl, file)
+
+  return apiClient<{ logoUrl: string | null }>(
+    `/admin/vendors/${vendorId}/logo`,
+    { method: 'PUT', body: JSON.stringify({ url: publicUrl }) }
+  )
+}
+
+/** DELETE /admin/vendors/:id/logo */
+export async function deleteAdminVendorLogo(vendorId: string) {
+  return apiClient<{ logoUrl: string | null }>(
+    `/admin/vendors/${vendorId}/logo`,
+    { method: 'DELETE' }
+  )
+}
+
+/** Upload and register one gallery photo. Returns the created row. */
+export async function uploadAdminVendorPhoto(vendorId: string, file: File) {
+  const { uploadUrl, publicUrl } = await apiClient<{
+    uploadUrl: string
+    publicUrl: string
+  }>(`/admin/vendors/${vendorId}/photos/upload-url`, {
+    method: 'POST',
+    body: JSON.stringify({ contentType: file.type as UploadContentType }),
+  })
+
+  await putToR2(uploadUrl, file)
+
+  return apiClient<AdminPhoto>(`/admin/vendors/${vendorId}/photos`, {
+    method: 'POST',
+    body: JSON.stringify({ url: publicUrl }),
+  })
+}
+
+/** DELETE /admin/vendors/:id/photos/:photoId */
+export async function deleteAdminVendorPhoto(
+  vendorId: string,
+  photoId: string
+) {
+  return apiClient<AdminPhoto>(
+    `/admin/vendors/${vendorId}/photos/${photoId}`,
+    { method: 'DELETE' }
+  )
+}
+
+/** Upload one service image. Returns that service's full image list. */
+export async function uploadAdminServiceImage(serviceId: string, file: File) {
+  const { uploadUrl, publicUrl } = await apiClient<{
+    uploadUrl: string
+    publicUrl: string
+  }>(`/admin/services/${serviceId}/images/upload-url`, {
+    method: 'POST',
+    body: JSON.stringify({ contentType: file.type as UploadContentType }),
+  })
+
+  await putToR2(uploadUrl, file)
+
+  return apiClient<AdminPhoto[]>(`/admin/services/${serviceId}/images`, {
+    method: 'POST',
+    body: JSON.stringify({ url: publicUrl }),
+  })
+}
+
+/** DELETE /admin/services/:serviceId/images/:imageId */
+export async function deleteAdminServiceImage(
+  serviceId: string,
+  imageId: string
+) {
+  return apiClient<AdminPhoto[]>(
+    `/admin/services/${serviceId}/images/${imageId}`,
+    { method: 'DELETE' }
+  )
 }
 
 /** GET /admin/bookings */

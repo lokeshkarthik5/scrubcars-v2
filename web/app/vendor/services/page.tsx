@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
+import { IconPhotoPlus, IconTrash } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -11,9 +13,12 @@ import { Chip } from '@/components/sc/chip'
 import {
   createService,
   deleteService,
+  deleteServiceImage,
   getMyServices,
   toggleServiceActive,
   updateService,
+  uploadServiceImage,
+  MAX_IMAGES_PER_SERVICE,
 } from '@/lib/api/services'
 import { toast } from 'react-toastify'
 import type { PricingType, Service, ServiceCategory } from '@/lib/types'
@@ -23,6 +28,9 @@ import { PRICING_TYPES, formatServicePrice } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 
 const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
+
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
 
 type ServiceForm = {
   name: string
@@ -52,7 +60,9 @@ const emptyServiceForm: ServiceForm = {
 // for the chosen pricing type.
 function hasValidPricing(form: ServiceForm): boolean {
   if (form.pricingType === 'per_vehicle') {
-    return [form.priceHatchback, form.priceSedan, form.priceSuv].some(
+    // Every tier, matching the server: a gap would leave that vehicle unable
+    // to book (see refinePricing in vendors.validation.ts).
+    return [form.priceHatchback, form.priceSedan, form.priceSuv].every(
       (p) => Number(p) > 0
     )
   }
@@ -66,6 +76,11 @@ export default function VendorServicesPage() {
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  // One hidden file input serves every row; this holds the service the next
+  // pick belongs to.
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
+  const [imageBusyId, setImageBusyId] = useState<string | null>(null)
 
   useEffect(() => {
     getMyServices()
@@ -145,6 +160,54 @@ export default function VendorServicesPage() {
       )
     })
 
+  const replaceService = (updated: Service) =>
+    setServices((current) =>
+      current.map((svc) => (svc.id === updated.id ? updated : svc))
+    )
+
+  const pickImage = (serviceId: string) => {
+    setImageTargetId(serviceId)
+    imageInputRef.current?.click()
+  }
+
+  const handleImageFile = async (files: FileList | null) => {
+    const file = files?.[0]
+    const serviceId = imageTargetId
+    // Clear the input first so picking the same file twice still fires change.
+    if (imageInputRef.current) imageInputRef.current.value = ''
+    if (!file || !serviceId) return
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      toast.error('Unsupported type (use JPEG, PNG or WebP)')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error('Image too large (max 5 MB)')
+      return
+    }
+
+    setImageBusyId(serviceId)
+    try {
+      replaceService(await uploadServiceImage(serviceId, file))
+      toast.success('Image added')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setImageBusyId(null)
+    }
+  }
+
+  const removeImage = async (serviceId: string, imageId: string) => {
+    setImageBusyId(serviceId)
+    try {
+      replaceService(await deleteServiceImage(serviceId, imageId))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove image')
+    } finally {
+      setImageBusyId(null)
+    }
+  }
+
   const removeService = (id: string) =>
     runAction(`service-delete-${id}`, async () => {
       await deleteService(id)
@@ -187,6 +250,14 @@ export default function VendorServicesPage() {
           onClick={() => setTab('packages')}
         />
       </div>
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES}
+        hidden
+        onChange={(e) => handleImageFile(e.target.files)}
+      />
 
       {tab === 'packages' ? (
         <PackagesPanel services={services} />
@@ -296,41 +367,89 @@ export default function VendorServicesPage() {
           </ScCard>
         ) : (
           services.map((svc) => (
-            <ScCard key={svc.id} className="flex items-center justify-between">
-              <div className="min-w-0 pr-2">
-                <p className="text-[13px] font-medium">{svc.name}</p>
-                {svc.description && (
-                  <p className="text-[11px] text-text-muted line-clamp-2">{svc.description}</p>
-                )}
-                <p className="text-[11px] text-text-secondary">
-                  {formatServicePrice(svc)} · {svc.durationMins} min
-                </p>
+            <ScCard key={svc.id} className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 pr-2">
+                  <p className="text-[13px] font-medium">{svc.name}</p>
+                  {svc.description && (
+                    <p className="text-[11px] text-text-muted line-clamp-2">{svc.description}</p>
+                  )}
+                  <p className="text-[11px] text-text-secondary">
+                    {formatServicePrice(svc)} · {svc.durationMins} min
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startEditService(svc)}
+                    className="text-[11px] text-brand-red"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setServiceActive(svc.id, !svc.isActive)}
+                    className={cn('text-[11px]', svc.isActive ? 'text-text-secondary' : 'text-brand-red')}
+                  >
+                    {svc.isActive ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeService(svc.id)}
+                    className="text-[11px] text-text-muted"
+                  >
+                    Delete
+                  </button>
+                  <ScBadge variant={svc.isActive ? 'success' : 'muted'}>
+                    {svc.isActive ? 'Active' : 'Inactive'}
+                  </ScBadge>
+                </div>
               </div>
+
+              {/* Images — up to MAX_IMAGES_PER_SERVICE, shown to customers in
+                  the service details popup. */}
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => startEditService(svc)}
-                  className="text-[11px] text-brand-red"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setServiceActive(svc.id, !svc.isActive)}
-                  className={cn('text-[11px]', svc.isActive ? 'text-text-secondary' : 'text-brand-red')}
-                >
-                  {svc.isActive ? 'Disable' : 'Enable'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeService(svc.id)}
-                  className="text-[11px] text-text-muted"
-                >
-                  Delete
-                </button>
-                <ScBadge variant={svc.isActive ? 'success' : 'muted'}>
-                  {svc.isActive ? 'Active' : 'Inactive'}
-                </ScBadge>
+                {svc.images.map((image) => (
+                  <div
+                    key={image.id}
+                    className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[8px] bg-surface"
+                  >
+                    <Image
+                      src={image.url}
+                      alt={svc.name}
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
+                    <button
+                      type="button"
+                      disabled={imageBusyId === svc.id}
+                      onClick={() => removeImage(svc.id, image.id)}
+                      title="Remove image"
+                      className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                    >
+                      <IconTrash size={11} />
+                    </button>
+                  </div>
+                ))}
+
+                {svc.images.length < MAX_IMAGES_PER_SERVICE && (
+                  <button
+                    type="button"
+                    disabled={imageBusyId === svc.id}
+                    onClick={() => pickImage(svc.id)}
+                    className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-dashed border-border text-text-muted disabled:opacity-50"
+                  >
+                    <IconPhotoPlus size={16} />
+                    <span className="text-[9px]">
+                      {imageBusyId === svc.id ? '…' : 'Add'}
+                    </span>
+                  </button>
+                )}
+
+                <p className="text-[10px] text-text-muted">
+                  {svc.images.length}/{MAX_IMAGES_PER_SERVICE} images
+                </p>
               </div>
             </ScCard>
           ))

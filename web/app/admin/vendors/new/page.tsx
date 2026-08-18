@@ -12,10 +12,10 @@ import { TopBar } from '@/components/sc/top-bar'
 import { ApiError } from '@/lib/api/client'
 import { createAdminVendor } from '@/lib/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@/lib/categories'
+import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@/lib/vehicles'
 import type { ServiceCategory } from '@/lib/types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const VEHICLE_TYPES = ['Hatchback', 'Sedan', 'SUV / MUV', 'Luxury / Premium', 'Electric (EV)', 'Commercial / Van']
 const PICKUP_OPTIONS = [
   { value: 'yes' as const, label: 'Yes' },
   { value: 'nearby' as const, label: 'Nearby only' },
@@ -80,7 +80,9 @@ const emptyService = (): ServiceRow => ({
 // A row's pricing is complete when the right price(s) exist for its type.
 function rowPricingValid(s: ServiceRow): boolean {
   if (s.pricingType === 'per_vehicle') {
-    return [s.priceHatchback, s.priceSedan, s.priceSuv].some((p) => Number(p) > 0)
+    // Every tier, matching the server: a gap would leave that vehicle
+    // unable to book the service.
+    return [s.priceHatchback, s.priceSedan, s.priceSuv].every((p) => Number(p) > 0)
   }
   return Number(s.price) > 0
 }
@@ -301,7 +303,7 @@ export default function NewVendorPage() {
 
         <ScSection title="Vehicle types">
           <div className="flex flex-wrap gap-2">
-            {VEHICLE_TYPES.map((v) => (
+            {VENDOR_VEHICLE_TYPE_OPTIONS.map((v) => (
               <Chip
                 key={v}
                 label={v}

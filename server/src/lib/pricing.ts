@@ -72,22 +72,33 @@ interface PricedService {
   priceSuv: string | null
 }
 
+/** The tier prices of a service, as stored. */
+export function tiersOf(
+  service: PricedService
+): Record<VehicleTier, string | null> {
+  return {
+    hatchback: service.priceHatchback,
+    sedan: service.priceSedan,
+    suv: service.priceSuv,
+  }
+}
+
 /**
  * The amount to charge for a booking of `service` for a given vehicle tier.
- * Returns a decimal string. 'on_inspection' resolves to '0.00' (quoted off-app).
+ * Returns a decimal string, or null when a per-vehicle service has no price
+ * for that tier.
+ *
+ * Null rather than a fallback on purpose: `price` holds the *cheapest* tier, so
+ * falling back to it would quietly bill an SUV at the hatchback rate. Callers
+ * must refuse the booking instead. New services can't hit this — validation
+ * requires all three tiers — but rows created before that rule still can.
  */
 export function computeServiceAmount(
   service: PricedService,
   vehicleType: VehicleTier
-): string {
+): string | null {
   if (service.pricingType === 'per_vehicle') {
-    const byTier: Record<VehicleTier, string | null> = {
-      hatchback: service.priceHatchback,
-      sedan: service.priceSedan,
-      suv: service.priceSuv,
-    }
-    // Fall back to the base (cheapest tier) if this tier wasn't priced.
-    return byTier[vehicleType] ?? service.price
+    return tiersOf(service)[vehicleType]
   }
 
   // flat | on_inspection both use the stored base (inspection) price.

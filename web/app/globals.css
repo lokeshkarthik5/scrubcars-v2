@@ -45,7 +45,153 @@
   }
 }
 
+/* ─── Motion ────────────────────────────────────────────────────────────────
+ *
+ * One vocabulary for the whole app: pages enter, lists reveal as they scroll
+ * into view, overlays fade while their panel slides or scales in, and a
+ * booking lands with a drawn checkmark. Everything is CSS — no animation
+ * library — so it runs on the compositor and costs nothing at runtime.
+ *
+ * Two rules hold it together:
+ *   · Only transform and opacity are animated, so nothing triggers layout.
+ *   · Every effect collapses under prefers-reduced-motion (bottom of file) —
+ *     content still arrives at its final state, just without the movement.
+ */
 @layer utilities {
+  /* Distance and easing are shared so separate effects feel like one system. */
+  :root {
+    --motion-rise: 12px;
+    --motion-fast: 180ms;
+    --motion-base: 320ms;
+    --motion-slow: 480ms;
+    /* Decelerating: quick to start, settles softly. */
+    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes motion-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes motion-rise-in {
+    from { opacity: 0; transform: translate3d(0, var(--motion-rise), 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+
+  @keyframes motion-scale-in {
+    from { opacity: 0; transform: scale(0.94) translate3d(0, 8px, 0); }
+    to { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
+  }
+
+  @keyframes motion-scale-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.96); }
+  }
+
+  @keyframes motion-sheet-in {
+    from { transform: translate3d(0, 100%, 0); }
+    to { transform: translate3d(0, 0, 0); }
+  }
+
+  @keyframes motion-sheet-out {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(0, 100%, 0); }
+  }
+
+  @keyframes motion-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  /* Page transition. Applied by app/template.tsx, which React remounts on
+     every navigation — so this replays per route without any router wiring.
+
+     Opacity only, deliberately: this wrapper is an ancestor of every page, and
+     an element with a transform becomes the containing block for any
+     `position: fixed` descendant. A rise here would re-anchor the bottom nav,
+     the sticky booking bars and every overlay to this div instead of the
+     viewport. Opacity creates a stacking context but no containing block, so
+     it is the one property that is safe to animate this high up. The sense of
+     movement comes from <Reveal> on the content below. */
+  .page-enter {
+    animation: motion-fade-in var(--motion-base) ease-out both;
+  }
+
+  /* Scroll reveal. Hidden until <Reveal> marks it on-screen; see reveal.tsx
+     for why the hidden state is opt-in rather than the default. */
+  .reveal {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-rise), 0);
+  }
+
+  .reveal[data-revealed='true'] {
+    animation: motion-rise-in var(--motion-base) var(--motion-ease) both;
+    /* Set inline by <Reveal index> to cascade a list instead of popping it. */
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+
+  /* Inline appearances — a confirmation block expanding inside a card, a
+     panel swapping in — where there is no overlay to animate. */
+  .rise-in { animation: motion-rise-in var(--motion-base) var(--motion-ease) both; }
+  .fade-in { animation: motion-fade-in var(--motion-base) ease-out both; }
+
+  .overlay-in { animation: motion-fade-in var(--motion-fast) ease-out both; }
+  .overlay-out { animation: motion-fade-out var(--motion-fast) ease-in both; }
+  .dialog-in { animation: motion-scale-in var(--motion-base) var(--motion-ease) both; }
+  .dialog-out { animation: motion-scale-out var(--motion-fast) ease-in both; }
+  .sheet-in { animation: motion-sheet-in var(--motion-base) var(--motion-ease) both; }
+  .sheet-out { animation: motion-sheet-out var(--motion-fast) ease-in both; }
+
+  /* Press feedback. Buttons and tappable cards dip slightly — the one place a
+     scale on :active reads as physical rather than decorative. */
+  .press {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* ─── Booking success ──────────────────────────────────────────────────── */
+
+  @keyframes success-ring {
+    from { opacity: 0.9; transform: scale(0.5); }
+    to { opacity: 0; transform: scale(1.9); }
+  }
+
+  @keyframes success-pop {
+    0% { opacity: 0; transform: scale(0.3); }
+    60% { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  /* The tick is one path; drawing it means walking its dash offset to zero. */
+  @keyframes success-draw {
+    from { stroke-dashoffset: 32; }
+    to { stroke-dashoffset: 0; }
+  }
+
+  @keyframes confetti-fall {
+    0% { opacity: 0; transform: translate3d(0, -10px, 0) rotate(0deg); }
+    12% { opacity: 1; }
+    100% { opacity: 0; transform: translate3d(var(--confetti-x, 0), 78px, 0) rotate(var(--confetti-r, 180deg)); }
+  }
+
+  .success-pop { animation: success-pop var(--motion-slow) var(--motion-ease) both; }
+
+  .success-ring {
+    animation: success-ring 1100ms ease-out 160ms infinite;
+  }
+
+  .success-draw {
+    stroke-dasharray: 32;
+    animation: success-draw 420ms var(--motion-ease) 260ms both;
+  }
+
+  .confetti-piece {
+    animation: confetti-fall 1200ms ease-in var(--confetti-delay, 0ms) both;
+  }
+
   .shimmer {
     background: linear-gradient(
       90deg,
@@ -69,5 +215,48 @@
   @keyframes pulse-dot {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.6; transform: scale(0.92); }
+  }
+
+  /* Motion is decoration; content is not. Under reduced motion everything
+     lands in its final state instantly — including .reveal, which would
+     otherwise leave scrolled content invisible. Looping ambient animations
+     (shimmer, pulse, success ring, confetti) stop outright. */
+  @media (prefers-reduced-motion: reduce) {
+    .page-enter,
+    .rise-in,
+    .fade-in,
+    .reveal,
+    .reveal[data-revealed='true'],
+    .overlay-in,
+    .overlay-out,
+    .dialog-in,
+    .dialog-out,
+    .sheet-in,
+    .sheet-out,
+    .success-pop,
+    .success-draw {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+      stroke-dashoffset: 0 !important;
+    }
+
+    .press,
+    .press:active:not(:disabled) {
+      transition: none;
+      transform: none;
+    }
+
+    .shimmer,
+    .pulse-dot,
+    .success-ring,
+    .confetti-piece {
+      animation: none !important;
+    }
+
+    .success-ring,
+    .confetti-piece {
+      display: none;
+    }
   }
 }

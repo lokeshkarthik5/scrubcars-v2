@@ -155,8 +155,19 @@ export const servicePricingTypeSchema = z.enum([
 ])
 
 // Shared cohesion check for a service's pricing fields. 'flat'/'on_inspection'
-// need a single `price`; 'per_vehicle' needs at least one tier price. Applied
-// via superRefine so we can report the offending field.
+// need a single `price`; 'per_vehicle' needs *every* tier priced. Applied via
+// superRefine so we can report the offending field.
+//
+// All three, not "at least one": the booking charge reads the tier matching the
+// customer's vehicle, so a missing tier would either bill them at another
+// vehicle's rate or block the booking outright. Neither is something a vendor
+// would choose on purpose, so the form asks for all three up front.
+const PER_VEHICLE_TIERS = [
+  { key: 'priceHatchback', label: 'Hatchback' },
+  { key: 'priceSedan', label: 'Sedan' },
+  { key: 'priceSuv', label: 'SUV' },
+] as const
+
 function refinePricing(
   data: {
     pricingType?: ServicePricingType
@@ -181,13 +192,15 @@ function refinePricing(
   }
 
   if (type === 'per_vehicle') {
-    const tiers = [data.priceHatchback, data.priceSedan, data.priceSuv]
-    if (!tiers.some((t) => typeof t === 'number' && t > 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['priceHatchback'],
-        message: 'At least one vehicle tier price is required for per-vehicle pricing',
-      })
+    for (const { key, label } of PER_VEHICLE_TIERS) {
+      const value = data[key]
+      if (typeof value !== 'number' || value <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `A ${label} price is required for per-vehicle pricing`,
+        })
+      }
     }
   }
 }
@@ -231,6 +244,21 @@ export const updateServiceSchema = z
 
 export const toggleServiceActiveSchema = z.object({
   isActive: z.boolean(),
+})
+
+// ─── Service images ──────────────────────────────────────────────────────────
+
+export const serviceImageUploadUrlSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+})
+
+export const createServiceImageSchema = z.object({
+  url: z.string().url().max(2048),
+})
+
+export const serviceImageParamSchema = z.object({
+  id: z.string().uuid(),
+  imageId: z.string().uuid(),
 })
 
 // ─── Packages ────────────────────────────────────────────────────────────────
@@ -304,6 +332,10 @@ export type SetLogoInput = z.infer<typeof setLogoSchema>
 export type CreateServiceInput = z.infer<typeof createServiceSchema>
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>
 export type ToggleServiceActiveInput = z.infer<typeof toggleServiceActiveSchema>
+export type ServiceImageUploadUrlInput = z.infer<
+  typeof serviceImageUploadUrlSchema
+>
+export type CreateServiceImageInput = z.infer<typeof createServiceImageSchema>
 export type CreatePackageInput = z.infer<typeof createPackageSchema>
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>
 export type SlotsQueryInput = z.infer<typeof slotsQuerySchema>

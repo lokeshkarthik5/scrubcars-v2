@@ -9,6 +9,8 @@ import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { ScInput } from '@/components/sc/input'
 import { SlotPicker } from '@/components/sc/slot-picker'
+import { ScSheet } from '@/components/sc/modal'
+import { SuccessBurst } from '@/components/sc/success-burst'
 import { StatusStepper } from '@/components/sc/status-stepper'
 import { Stars } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
@@ -46,6 +48,14 @@ export default function BookingDetailPage({
   const [rescheduleSlot, setRescheduleSlot] = useState<string | null>(null)
   const [rescheduling, setRescheduling] = useState(false)
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
+  // The booking flow lands here with ?celebrate=1 straight after payment.
+  // Read once into state rather than watching the URL, so the burst plays a
+  // single time and a refresh doesn't replay it (the param is stripped below).
+  const [celebrating, setCelebrating] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('celebrate') === '1'
+  )
 
   useEffect(() => {
     getBooking(id).then((b) => {
@@ -190,6 +200,18 @@ export default function BookingDetailPage({
 
   return (
     <AppShell showNav className="gap-4 py-4">
+      {celebrating && (
+        <SuccessBurst
+          title="Booking confirmed"
+          subtitle={`${booking.serviceName} at ${booking.vendorName} · ${booking.scheduledAt}`}
+          onDone={() => {
+            setCelebrating(false)
+            // Drop the flag so a refresh or back-navigation doesn't replay it.
+            window.history.replaceState(null, '', `/bookings/${booking.id}`)
+          }}
+        />
+      )}
+
       <TopBar showBack center title="Booking Status" />
 
       <div className="flex items-center justify-between gap-3">
@@ -318,7 +340,7 @@ export default function BookingDetailPage({
         <ScCard>
           <h2 className="mb-2 text-sm font-semibold text-text-primary">Cancel booking</h2>
           {showCancelConfirm ? (
-            <div className="flex flex-col gap-3">
+            <div className="rise-in flex flex-col gap-3">
               <p className="text-[13px] text-text-secondary">
                 Cancel this booking? This cannot be undone.
               </p>
@@ -395,16 +417,16 @@ export default function BookingDetailPage({
         </ScCard>
       )}
 
-      {showReschedule && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-          onClick={() => !rescheduling && setShowReschedule(false)}
-        >
-          <div
-            className="w-full max-w-[428px] rounded-t-[20px] border-t border-border bg-brand-black px-4 pb-6 pt-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-border" />
+      {/* dismissible=false while the reschedule is in flight, so a stray tap on
+          the backdrop can't close the sheet mid-request. */}
+      <ScSheet
+        open={showReschedule}
+        onClose={() => setShowReschedule(false)}
+        dismissible={!rescheduling}
+        aria-label="Reschedule booking"
+        className="px-4 pt-1"
+      >
+          <div>
             <h2 className="text-base font-semibold text-text-primary">Reschedule booking</h2>
             <p className="mb-4 mt-1 text-[12px] text-text-secondary">
               You can reschedule only twice · {booking.remainingReschedules} of 2 left. Pick a new slot below.
@@ -431,8 +453,7 @@ export default function BookingDetailPage({
               </ScButton>
             </div>
           </div>
-        </div>
-      )}
+      </ScSheet>
     </AppShell>
   )
 }

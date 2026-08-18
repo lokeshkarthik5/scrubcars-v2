@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
+import { IconPhotoPlus, IconTrash } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -10,10 +12,12 @@ import { ScInput, ScTextarea } from '@/components/sc/input'
 import {
   createPackage,
   deletePackage,
+  deletePackageImage,
   getMyPackages,
   updatePackage,
+  uploadPackageImage,
 } from '@/lib/api/packages'
-import { toggleServiceActive } from '@/lib/api/services'
+import { MAX_IMAGES_PER_SERVICE, toggleServiceActive } from '@/lib/api/services'
 import { PRICING_TYPES, formatServicePrice } from '@/lib/pricing'
 import type { PricingType, Service, ServicePackage } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -42,9 +46,13 @@ const emptyPackageForm: PackageForm = {
   serviceIds: [],
 }
 
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
+
 function hasValidPricing(form: PackageForm): boolean {
   if (form.pricingType === 'per_vehicle') {
-    return [form.priceHatchback, form.priceSedan, form.priceSuv].some(
+    // Every tier, matching the server — see hasValidPricing in ./page.tsx.
+    return [form.priceHatchback, form.priceSedan, form.priceSuv].every(
       (p) => Number(p) > 0
     )
   }
@@ -57,6 +65,11 @@ export function PackagesPanel({ services }: { services: Service[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  // One hidden file input serves every row; this holds the package the next
+  // pick belongs to.
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
+  const [imageBusyId, setImageBusyId] = useState<string | null>(null)
 
   // Only active services can be bundled — the server enforces this too, so
   // showing inactive ones as pickable would just produce a rejected save.
@@ -173,6 +186,54 @@ export function PackagesPanel({ services }: { services: Service[] }) {
       )
     })
 
+  const replacePackage = (updated: ServicePackage) =>
+    setPackages((current) =>
+      current.map((p) => (p.id === updated.id ? updated : p))
+    )
+
+  const pickImage = (packageId: string) => {
+    setImageTargetId(packageId)
+    imageInputRef.current?.click()
+  }
+
+  const handleImageFile = async (files: FileList | null) => {
+    const file = files?.[0]
+    const packageId = imageTargetId
+    // Clear the input first so picking the same file twice still fires change.
+    if (imageInputRef.current) imageInputRef.current.value = ''
+    if (!file || !packageId) return
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      toast.error('Unsupported type (use JPEG, PNG or WebP)')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error('Image too large (max 5 MB)')
+      return
+    }
+
+    setImageBusyId(packageId)
+    try {
+      replacePackage(await uploadPackageImage(packageId, file))
+      toast.success('Image added')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setImageBusyId(null)
+    }
+  }
+
+  const removeImage = async (packageId: string, imageId: string) => {
+    setImageBusyId(packageId)
+    try {
+      replacePackage(await deletePackageImage(packageId, imageId))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove image')
+    } finally {
+      setImageBusyId(null)
+    }
+  }
+
   const remove = (id: string) =>
     runAction(`package-delete-${id}`, async () => {
       await deletePackage(id)
@@ -202,6 +263,14 @@ export function PackagesPanel({ services }: { services: Service[] }) {
 
   return (
     <div className="flex flex-col gap-5">
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES}
+        hidden
+        onChange={(e) => handleImageFile(e.target.files)}
+      />
+
       <ScCard className="flex flex-col gap-3">
         {editingId && (
           <button
@@ -380,6 +449,51 @@ export function PackagesPanel({ services }: { services: Service[] }) {
                   {pkg.isActive ? 'Active' : 'Inactive'}
                 </ScBadge>
               </div>
+              {/* Images — shown to customers in the package details popup. */}
+              <div className="flex items-center gap-2">
+                {pkg.images.map((image) => (
+                  <div
+                    key={image.id}
+                    className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[8px] bg-surface"
+                  >
+                    <Image
+                      src={image.url}
+                      alt={pkg.name}
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
+                    <button
+                      type="button"
+                      disabled={imageBusyId === pkg.id}
+                      onClick={() => removeImage(pkg.id, image.id)}
+                      title="Remove image"
+                      className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                    >
+                      <IconTrash size={11} />
+                    </button>
+                  </div>
+                ))}
+
+                {pkg.images.length < MAX_IMAGES_PER_SERVICE && (
+                  <button
+                    type="button"
+                    disabled={imageBusyId === pkg.id}
+                    onClick={() => pickImage(pkg.id)}
+                    className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-dashed border-border text-text-muted disabled:opacity-50"
+                  >
+                    <IconPhotoPlus size={16} />
+                    <span className="text-[9px]">
+                      {imageBusyId === pkg.id ? '…' : 'Add'}
+                    </span>
+                  </button>
+                )}
+
+                <p className="text-[10px] text-text-muted">
+                  {pkg.images.length}/{MAX_IMAGES_PER_SERVICE} images
+                </p>
+              </div>
+
               <div className="flex items-center gap-3">
                 <button
                   type="button"

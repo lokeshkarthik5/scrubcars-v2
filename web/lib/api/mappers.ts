@@ -6,6 +6,7 @@ import type {
   ApiPublicVendor,
   ApiReview,
   ApiService,
+  ApiTierBreakdownEntry,
   ApiUserProfile,
   ApiVehicle,
   ApiVendorListItem,
@@ -16,6 +17,7 @@ import type {
   Review,
   Service,
   ServicePackage,
+  TierBreakdownEntry,
   User,
   Vehicle,
   Vendor,
@@ -153,6 +155,16 @@ export function mapService(service: ApiService, vendorId: string): Service {
     priceSuv: tier(service.priceSuv),
     durationMins: service.durationMins,
     isActive: service.isActive,
+    // Older responses (and any cached payload) may predate service images.
+    images: service.images ?? [],
+  }
+}
+
+function mapTierEntry(entry: ApiTierBreakdownEntry): TierBreakdownEntry {
+  return {
+    price: Number(entry.price),
+    itemsTotal: Number(entry.itemsTotal),
+    savings: entry.savings === null ? null : Number(entry.savings),
   }
 }
 
@@ -171,6 +183,13 @@ export function mapPackage(
     })),
     itemsTotal: Number(pkg.itemsTotal),
     savings: pkg.savings === null ? null : Number(pkg.savings),
+    tierBreakdown: pkg.tierBreakdown
+      ? {
+          hatchback: mapTierEntry(pkg.tierBreakdown.hatchback),
+          sedan: mapTierEntry(pkg.tierBreakdown.sedan),
+          suv: mapTierEntry(pkg.tierBreakdown.suv),
+        }
+      : null,
     hasInactiveItems: pkg.hasInactiveItems,
   }
 }

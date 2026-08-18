@@ -7,6 +7,7 @@ import { AppShell } from '@/components/sc/app-shell'
 import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
+import { Reveal } from '@/components/sc/reveal'
 import { EmptyState } from '@/components/sc/empty-state'
 import { TopBar } from '@/components/sc/top-bar'
 import { useAuthStore } from '@/lib/stores/auth-store'
@@ -49,11 +50,12 @@ export default function BookingsListPage() {
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {customerBookings.map((booking) => {
+          {customerBookings.map((booking, i) => {
             const badge = bookingStatusBadge(booking.status)
             return (
-              <Link key={booking.id} href={`/bookings/${booking.id}`}>
-                <ScCard className="flex flex-col gap-2">
+              <Reveal key={booking.id} index={i}>
+              <Link href={`/bookings/${booking.id}`}>
+                <ScCard className="press flex flex-col gap-2">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-[13px] font-semibold text-text-primary">{booking.serviceName}</p>
@@ -67,6 +69,7 @@ export default function BookingsListPage() {
                   </div>
                 </ScCard>
               </Link>
+              </Reveal>
             )
           })}
         </div>

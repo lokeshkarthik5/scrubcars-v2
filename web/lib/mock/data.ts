@@ -86,6 +86,7 @@ export const MOCK_SERVICES: Service[] = [
     priceSedan: null,
     priceSuv: null,
     isActive: true,
+    images: [],
   },
   {
     id: 'svc-2',
@@ -100,6 +101,7 @@ export const MOCK_SERVICES: Service[] = [
     priceSedan: null,
     priceSuv: null,
     isActive: true,
+    images: [],
   },
   {
     id: 'svc-3',
@@ -114,6 +116,7 @@ export const MOCK_SERVICES: Service[] = [
     priceSedan: null,
     priceSuv: null,
     isActive: true,
+    images: [],
   },
 ]
 

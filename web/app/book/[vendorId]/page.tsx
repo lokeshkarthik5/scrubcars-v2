@@ -75,6 +75,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const resolvedAmount = selectedService
     ? resolveServiceAmount(selectedService, selectedVehicleType)
     : null
+  // A per-vehicle service with no price for this vehicle. The server refuses
+  // such a booking (it would otherwise bill another vehicle's rate), so block
+  // it here rather than letting the customer pay and hit an error.
+  const unpricedForVehicle =
+    selectedService != null &&
+    selectedVehicleType != null &&
+    resolvedAmount == null
 
   const handleConfirm = async () => {
     if (bookingLockRef.current || loading) return
@@ -107,7 +114,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
             razorpayPaymentId: response.razorpay_payment_id,
             razorpaySignature: response.razorpay_signature,
           })
-          router.push(`/bookings/${booking.id}`)
+          // ?celebrate=1 triggers the success burst on arrival; the booking
+          // page strips it once played.
+          router.push(`/bookings/${booking.id}?celebrate=1`)
         },
         onDismiss: () => {
           toast.info('Payment cancelled. Your booking is saved — you can pay from booking details.')
@@ -200,18 +209,28 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
         <ScButton
-          disabled={!selectedService || !selectedSlot || !selectedVehicle || loading}
+          disabled={
+            !selectedService ||
+            !selectedSlot ||
+            !selectedVehicle ||
+            unpricedForVehicle ||
+            loading
+          }
           onClick={handleConfirm}
           className="rounded-full py-4 text-[15px]"
         >
           {loading
             ? 'Processing payment...'
-            : resolvedAmount == null
-              ? 'Confirm booking'
-              : `Pay Now (₹${resolvedAmount.toLocaleString('en-IN')})`}
+            : unpricedForVehicle
+              ? 'Not priced for this vehicle'
+              : resolvedAmount == null
+                ? 'Confirm booking'
+                : `Pay Now (₹${resolvedAmount.toLocaleString('en-IN')})`}
         </ScButton>
         <p className="mt-2 text-center text-[11px] text-text-muted">
-          Bookings are confirmed after online payment.
+          {unpricedForVehicle
+            ? 'This garage has not set a price for your vehicle type. Pick another vehicle or contact them.'
+            : 'Bookings are confirmed after online payment.'}
         </p>
       </div>
     </AppShell>

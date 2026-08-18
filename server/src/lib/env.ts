@@ -48,5 +48,8 @@ export const env = {
   // Public base URL the bucket is served from (e.g. https://cdn.detlio.com)
   r2PublicBaseUrl: process.env.R2_PUBLIC_BASE_URL?.replace(/\/+$/, ''),
   r2MaxPhotosPerVendor: Number(process.env.R2_MAX_PHOTOS_PER_VENDOR ?? '10'),
+  // Photos per service (and per package). Small by design: the details popup
+  // shows them in a single row.
+  r2MaxImagesPerService: Number(process.env.R2_MAX_IMAGES_PER_SERVICE ?? '3'),
   r2UploadUrlTtlSeconds: Number(process.env.R2_UPLOAD_URL_TTL_SECONDS ?? '120'),
 } as const

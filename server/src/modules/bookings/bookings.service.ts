@@ -358,7 +358,26 @@ export const bookingsService = {
       }
 
       // Resolve the charge from the pricing type and the customer's vehicle.
+      // A per-vehicle service with no price for this tier has no defensible
+      // amount — `price` is the cheapest tier, so charging it would bill an SUV
+      // at the hatchback rate. Refuse instead of guessing.
       const amount = computeServiceAmount(service, vehicle.vehicleType)
+
+      if (amount === null) {
+        log.warn(
+          {
+            userId,
+            serviceId: service.id,
+            vehicleType: vehicle.vehicleType,
+          },
+          'booking:service_not_priced_for_vehicle'
+        )
+        throw new AppError(
+          400,
+          'This service is not priced for your vehicle type yet. Please contact the garage.',
+          'SERVICE_NOT_PRICED_FOR_VEHICLE'
+        )
+      }
 
       let lat: number | null = null
       let lng: number | null = null

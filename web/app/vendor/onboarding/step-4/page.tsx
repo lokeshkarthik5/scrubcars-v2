@@ -12,8 +12,10 @@ import { createService } from '@/lib/api/services'
 import { updateVendorSettings } from '@/lib/api/vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
-import type { ServiceCategory } from '@/lib/types'
+import type { PricingType, ServiceCategory } from '@/lib/types'
 import { SERVICE_CATEGORY_OPTIONS } from '@/lib/categories'
+import { PRICING_TYPES } from '@/lib/pricing'
+import { VEHICLE_TIERS, VENDOR_VEHICLE_TYPE_OPTIONS } from '@/lib/vehicles'
 
 const CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
@@ -32,15 +34,6 @@ const SERVICE_PRESETS: { name: string; category: ServiceCategory }[] = [
   { name: 'EV servicing', category: 'others' },
 ]
 
-const VEHICLE_TYPES = [
-  'Hatchback',
-  'Sedan',
-  'SUV / MUV',
-  'Luxury / Premium',
-  'Electric (EV)',
-  'Commercial / Van',
-]
-
 const DURATIONS = [30, 45, 60, 90, 120, 180]
 
 export default function VendorOnboardingStep4() {
@@ -52,7 +45,11 @@ export default function VendorOnboardingStep4() {
   const update = useVendorOnboardingStore((s) => s.update)
   const [name, setName] = useState('')
   const [category, setCategory] = useState<ServiceCategory>('car_wash')
+  const [pricingType, setPricingType] = useState<PricingType>('flat')
   const [price, setPrice] = useState('')
+  // Per-vehicle tiers. All three are required by the server, since the booking
+  // charge reads the tier matching the customer's vehicle.
+  const [tiers, setTiers] = useState({ hatchback: '', sedan: '', suv: '' })
   const [duration, setDuration] = useState(30)
   const [addedCount, setAddedCount] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -71,23 +68,35 @@ export default function VendorOnboardingStep4() {
         : [...vehicleTypes, type],
     })
 
+  // Complete when the chosen pricing type has the price(s) it needs — the same
+  // rule the server applies (see refinePricing in vendors.validation.ts).
+  const pricingComplete =
+    pricingType === 'per_vehicle'
+      ? [tiers.hatchback, tiers.sedan, tiers.suv].every((p) => Number(p) > 0)
+      : Number(price) > 0
+
   const handleAddService = async () => {
-    if (!name || !price) return
+    if (!name || !pricingComplete) return
     setLoading(true)
     setError(null)
     try {
-      // Quick-add uses flat pricing; the vendor can switch a service to
-      // per-vehicle / from / on-inspection later in the Services page.
       await createService({
         name,
         category,
-        pricingType: 'flat',
-        price: Number(price),
+        pricingType,
         durationMins: duration,
+        ...(pricingType === 'per_vehicle'
+          ? {
+              priceHatchback: Number(tiers.hatchback),
+              priceSedan: Number(tiers.sedan),
+              priceSuv: Number(tiers.suv),
+            }
+          : { price: Number(price) }),
       })
       setAddedCount((count) => count + 1)
       setName('')
       setPrice('')
+      setTiers({ hatchback: '', sedan: '', suv: '' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add service')
     } finally {
@@ -154,12 +163,49 @@ export default function VendorOnboardingStep4() {
         </div>
       </section>
 
-      <ScInput
-        label="Price (₹)"
-        type="number"
-        value={price}
-        onChange={(e) => setPrice(e.target.value)}
-      />
+      <section>
+        <label className="mb-2 block text-[11px] font-medium text-text-secondary">
+          Pricing
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {PRICING_TYPES.map((pt) => (
+            <Chip
+              key={pt.value}
+              label={pt.label}
+              selected={pricingType === pt.value}
+              onClick={() => setPricingType(pt.value)}
+            />
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-text-muted">
+          {PRICING_TYPES.find((pt) => pt.value === pricingType)?.hint}
+        </p>
+      </section>
+
+      {pricingType === 'per_vehicle' ? (
+        <div className="grid grid-cols-3 gap-2">
+          {VEHICLE_TIERS.map(({ value, label }) => (
+            <ScInput
+              key={value}
+              label={`${label} (₹)`}
+              type="number"
+              value={tiers[value]}
+              onChange={(e) =>
+                setTiers((prev) => ({ ...prev, [value]: e.target.value }))
+              }
+            />
+          ))}
+        </div>
+      ) : (
+        <ScInput
+          label={
+            pricingType === 'on_inspection' ? 'Inspection fee (₹)' : 'Price (₹)'
+          }
+          type="number"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+        />
+      )}
 
       <section>
         <label className="mb-2 block text-[11px] font-medium text-text-secondary">Duration</label>
@@ -170,7 +216,10 @@ export default function VendorOnboardingStep4() {
         </div>
       </section>
 
-      <ScButton disabled={!name || !price || loading} onClick={handleAddService}>
+      <ScButton
+        disabled={!name || !pricingComplete || loading}
+        onClick={handleAddService}
+      >
         {loading ? 'Adding...' : 'Add service'}
       </ScButton>
 
@@ -185,7 +234,7 @@ export default function VendorOnboardingStep4() {
           Vehicle types handled
         </label>
         <div className="flex flex-wrap gap-2">
-          {VEHICLE_TYPES.map((type) => (
+          {VENDOR_VEHICLE_TYPE_OPTIONS.map((type) => (
             <Chip
               key={type}
               label={type}
@@ -194,6 +243,10 @@ export default function VendorOnboardingStep4() {
             />
           ))}
         </div>
+        <p className="mt-1.5 text-[11px] text-text-muted">
+          These are the vehicle types customers can book for, and the tiers you
+          price against when a service uses per-vehicle pricing.
+        </p>
       </section>
 
       {error && <p className="text-[12px] text-brand-red">{error}</p>}

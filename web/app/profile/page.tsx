@@ -15,15 +15,14 @@ import { createAddress, createVehicle, deleteAddress, deleteVehicle } from '@/li
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
+import { VEHICLE_TIERS } from '@/lib/vehicles'
 import Link from 'next/link'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
 
-const VEHICLE_TYPES: Array<{ value: VehicleType; label: string }> = [
-  { value: 'sedan', label: 'Sedan' },
-  { value: 'suv', label: 'SUV' },
-  { value: 'hatchback', label: 'Hatchback' },
-]
+// The bookable tiers, shared with per-vehicle service pricing so a customer
+// can never register a vehicle no service can be priced for.
+const VEHICLE_TYPES = VEHICLE_TIERS
 
 const emptyVehicleForm = {
   make: '',

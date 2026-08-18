@@ -325,6 +325,28 @@ export const services = pgTable(
   ]
 )
 
+// Photos of the work a service produces, shown in the service details popup on
+// the garage page. Capped per service in the service layer (see
+// MAX_IMAGES_PER_SERVICE) rather than by a constraint, so the limit can move
+// without a migration. Cascade-deleted with the service; the underlying R2
+// objects are removed best-effort alongside.
+export const serviceImages = pgTable(
+  'service_images',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    url: varchar('url', { length: 2048 }).notNull(),
+    storageKey: varchar('storage_key', { length: 1024 }),
+    sortOrder: integer('sort_order').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index('service_images_service_id_idx').on(table.serviceId)]
+)
+
 // Composition of a package. `packageId` is a services row with
 // category = 'package'; `serviceId` is one of the plain services it bundles.
 // Members are restrict-deleted so a package can never silently lose contents,
@@ -567,6 +589,7 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
     references: [vendors.id],
   }),
   bookings: many(bookings),
+  images: many(serviceImages),
   // Both sides of the composition point at `services`, so each needs an
   // explicit relationName for drizzle to tell them apart. `packageItems` =
   // what this package contains; `includedInPackages` = which packages contain
@@ -574,6 +597,13 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
   packageItems: many(servicePackageItems, { relationName: 'packageItems' }),
   includedInPackages: many(servicePackageItems, {
     relationName: 'serviceInPackages',
+  }),
+}))
+
+export const serviceImagesRelations = relations(serviceImages, ({ one }) => ({
+  service: one(services, {
+    fields: [serviceImages.serviceId],
+    references: [services.id],
   }),
 }))
 

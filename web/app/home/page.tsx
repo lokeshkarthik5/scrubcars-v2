@@ -14,6 +14,7 @@ import { AppShell } from '@/components/sc/app-shell'
 import { SortSheet, sortLabel, type SortKey } from '@/components/sc/sort-sheet'
 import { Toast } from '@/components/sc/toast'
 import { VendorCard } from '@/components/features/vendor-card'
+import { Reveal } from '@/components/sc/reveal'
 import { getVendors } from '@/lib/api/vendors'
 import { sortVendors } from '@/lib/sort-vendors'
 import { useAuthStore } from '@/lib/stores/auth-store'
@@ -157,7 +158,11 @@ function HomeContent() {
               No garages found nearby.
             </p>
           ) : (
-            sorted.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
+            sorted.map((vendor, i) => (
+            <Reveal key={vendor.id} index={i}>
+              <VendorCard vendor={vendor} />
+            </Reveal>
+          ))
           )}
         </div>
       </section>

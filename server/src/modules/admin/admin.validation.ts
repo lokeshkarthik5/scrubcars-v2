@@ -42,15 +42,25 @@ const refineServicePricing = (data: ServiceBase, ctx: z.RefinementCtx) => {
       })
     }
   }
+  // Every tier, not just one — see the note in vendors.validation.ts: the
+  // booking charge reads the tier matching the customer's vehicle, so a gap
+  // would misprice or block that booking.
   if (data.pricingType === 'per_vehicle') {
-    const tiers = [data.priceHatchback, data.priceSedan, data.priceSuv]
-    if (!tiers.some((t) => typeof t === 'number' && t > 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['priceHatchback'],
-        message:
-          'At least one vehicle tier price is required for per-vehicle pricing',
-      })
+    const tiers = [
+      { key: 'priceHatchback', label: 'Hatchback' },
+      { key: 'priceSedan', label: 'Sedan' },
+      { key: 'priceSuv', label: 'SUV' },
+    ] as const
+
+    for (const { key, label } of tiers) {
+      const value = data[key]
+      if (typeof value !== 'number' || value <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `A ${label} price is required for per-vehicle pricing`,
+        })
+      }
     }
   }
 }
@@ -150,6 +160,19 @@ export const updateVendorSchema = z.object({
   services: z.array(serviceUpdateSchema).max(50).optional(),
 })
 
+// ─── Media (vendor logo / photos, service images) ────────────────────────────
+//
+// Same two-step flow the vendor panel uses: presign, PUT to R2, then register
+// the returned public URL.
+
+export const uploadUrlSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+})
+
+export const mediaUrlSchema = z.object({
+  url: z.string().url().max(2048),
+})
+
 export const listBookingsQuerySchema = z.object({
   status: z
     .enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
@@ -160,3 +183,5 @@ export type LoginInput = z.infer<typeof loginSchema>
 export type CreateVendorInput = z.infer<typeof createVendorSchema>
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>
+export type UploadUrlInput = z.infer<typeof uploadUrlSchema>
+export type MediaUrlInput = z.infer<typeof mediaUrlSchema>

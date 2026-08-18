@@ -3,6 +3,7 @@ import { db } from '../../db/index.js'
 import {
   bookings,
   reviews,
+  serviceImages,
   servicePackageItems,
   services,
   users,
@@ -26,10 +27,20 @@ export type WorkingHoursRecord = typeof vendorWorkingHours.$inferSelect
 export type ServiceAreaRecord = typeof vendorServiceAreas.$inferSelect
 export type PhotoRecord = typeof vendorPhotos.$inferSelect
 export type ServiceRecord = typeof services.$inferSelect
+export type ServiceImageRecord = typeof serviceImages.$inferSelect
+export type ServiceWithImages = ServiceRecord & { images: ServiceImageRecord[] }
 export type BookingRecord = typeof bookings.$inferSelect
 
 function normalizeTime(time: string): string {
   return time.length === 5 ? `${time}:00` : time
+}
+
+// Images ride along with every service read, so the garage page never needs a
+// second round trip to fill the details popup.
+const withImages = {
+  images: {
+    orderBy: [asc(serviceImages.sortOrder), asc(serviceImages.createdAt)],
+  },
 }
 
 export const vendorsRepository = {
@@ -308,6 +319,7 @@ export const vendorsRepository = {
         ...(activeOnly ? [eq(services.isActive, true)] : [])
       ),
       orderBy: [asc(services.name)],
+      with: withImages,
     })
   },
 
@@ -320,6 +332,7 @@ export const vendorsRepository = {
       ),
       orderBy: [asc(services.name)],
       with: {
+        ...withImages,
         packageItems: {
           orderBy: [asc(servicePackageItems.sortOrder)],
           with: { service: true },
@@ -336,6 +349,7 @@ export const vendorsRepository = {
         eq(services.category, 'package')
       ),
       with: {
+        ...withImages,
         packageItems: {
           orderBy: [asc(servicePackageItems.sortOrder)],
           with: { service: true },
@@ -445,13 +459,16 @@ export const vendorsRepository = {
         eq(services.vendorId, vendorId),
         ne(services.category, 'package')
       ),
+      with: withImages,
     })
   },
 
-  // Either kind. Used by the shared active-toggle, which is valid for both.
+  // Either kind. Used by the shared active-toggle and the image endpoints,
+  // which are valid for both.
   findAnyServiceById(vendorId: string, serviceId: string) {
     return db.query.services.findFirst({
       where: and(eq(services.id, serviceId), eq(services.vendorId, vendorId)),
+      with: withImages,
     })
   },
 
@@ -526,4 +543,62 @@ export const vendorsRepository = {
       .returning()
   },
 
+  listServiceImages(serviceId: string) {
+    return db.query.serviceImages.findMany({
+      where: eq(serviceImages.serviceId, serviceId),
+      orderBy: [asc(serviceImages.sortOrder), asc(serviceImages.createdAt)],
+    })
+  },
+
+  countServiceImages(serviceId: string) {
+    return db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(serviceImages)
+      .where(eq(serviceImages.serviceId, serviceId))
+  },
+
+  getNextServiceImageSortOrder(serviceId: string) {
+    return db
+      .select({
+        maxOrder: sql<number>`coalesce(max(${serviceImages.sortOrder}), -1)`,
+      })
+      .from(serviceImages)
+      .where(eq(serviceImages.serviceId, serviceId))
+  },
+
+  createServiceImage(
+    serviceId: string,
+    data: { url: string; sortOrder: number; storageKey?: string | null }
+  ) {
+    return db
+      .insert(serviceImages)
+      .values({
+        serviceId,
+        url: data.url,
+        storageKey: data.storageKey ?? null,
+        sortOrder: data.sortOrder,
+      })
+      .returning()
+  },
+
+  findServiceImageById(serviceId: string, imageId: string) {
+    return db.query.serviceImages.findFirst({
+      where: and(
+        eq(serviceImages.id, imageId),
+        eq(serviceImages.serviceId, serviceId)
+      ),
+    })
+  },
+
+  deleteServiceImage(serviceId: string, imageId: string) {
+    return db
+      .delete(serviceImages)
+      .where(
+        and(
+          eq(serviceImages.id, imageId),
+          eq(serviceImages.serviceId, serviceId)
+        )
+      )
+      .returning()
+  },
 }

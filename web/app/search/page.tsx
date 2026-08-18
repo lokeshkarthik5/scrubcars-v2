@@ -7,6 +7,7 @@ import { AppShell } from '@/components/sc/app-shell'
 import { FilterChip } from '@/components/sc/chip'
 import { SortSheet, sortLabel, type SortKey } from '@/components/sc/sort-sheet'
 import { VendorCard } from '@/components/features/vendor-card'
+import { Reveal } from '@/components/sc/reveal'
 import { getVendors } from '@/lib/api/vendors'
 import { sortVendors } from '@/lib/sort-vendors'
 
@@ -80,7 +81,11 @@ function SearchContent() {
             No garages match your search.
           </p>
         ) : (
-          sorted.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)
+          sorted.map((vendor, i) => (
+            <Reveal key={vendor.id} index={i}>
+              <VendorCard vendor={vendor} />
+            </Reveal>
+          ))
         )}
       </div>
 

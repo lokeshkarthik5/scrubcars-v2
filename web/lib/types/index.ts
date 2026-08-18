@@ -49,6 +49,14 @@ export interface Vendor {
   photos: string[]
 }
 
+// Photos of a service's work, shown in the details popup on the garage page.
+// Capped server-side (3 per service) — see MAX_IMAGES_PER_SERVICE.
+export interface ServiceImage {
+  id: string
+  url: string
+  sortOrder: number
+}
+
 export interface Service {
   id: string
   vendorId: string
@@ -64,6 +72,7 @@ export interface Service {
   priceSuv: number | null
   durationMins: number
   isActive: boolean
+  images: ServiceImage[]
 }
 
 export interface PackageItem {
@@ -78,10 +87,19 @@ export interface PackageItem {
 // `itemsTotal` and `savings` come from the server, recomputed per request from
 // the members' current prices — never cache or persist them client-side, or the
 // "you save ₹X" badge can outlive the prices it was derived from.
+export interface TierBreakdownEntry {
+  price: number
+  itemsTotal: number
+  savings: number | null
+}
+
 export interface ServicePackage extends Service {
   items: PackageItem[]
   itemsTotal: number
+  // For a per-vehicle package this is the *smallest* saving across vehicles, so
+  // the badge holds for every customer. See tierBreakdown for the exact figures.
   savings: number | null
+  tierBreakdown: Record<VehicleType, TierBreakdownEntry> | null
   hasInactiveItems: boolean
 }
 

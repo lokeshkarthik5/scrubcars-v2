@@ -13,7 +13,13 @@ import {
 import {
   computeStartingPrice,
   resolveServicePricing,
+  tiersOf,
+  type VehicleTier,
 } from '../../lib/pricing.js'
+
+// Fixed order for every per-tier breakdown, so the UI can render rows without
+// sorting and the "smallest saving" scan is deterministic.
+const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
 import { categoryLabel } from '../../lib/categories.js'
 import { vendorsRepository } from './vendors.repository.js'
 
@@ -21,6 +27,7 @@ const log = logger.child({ module: 'vendors' })
 import type {
   PhotoRecord,
   ServiceAreaRecord,
+  ServiceImageRecord,
   ServiceRecord,
   VendorRecord,
   WorkingHoursRecord,
@@ -29,12 +36,14 @@ import type {
   CreatePackageInput,
   CreatePhotoInput,
   CreateServiceAreaInput,
+  CreateServiceImageInput,
   CreateServiceInput,
   CreateVendorInput,
   ListPublicVendorsQuery,
   LogoUploadUrlInput,
   PhotoUploadUrlInput,
   ReorderPhotosInput,
+  ServiceImageUploadUrlInput,
   SetLogoInput,
   SetWorkingHoursInput,
   SlotsQueryInput,
@@ -122,6 +131,12 @@ export type PhotoResponse = {
   createdAt: string
 }
 
+export type ServiceImageResponse = {
+  id: string
+  url: string
+  sortOrder: number
+}
+
 export type ServiceResponse = {
   id: string
   name: string
@@ -134,6 +149,7 @@ export type ServiceResponse = {
   priceSuv: string | null
   durationMins: number
   isActive: boolean
+  images: ServiceImageResponse[]
 }
 
 export type PackageItemResponse = {
@@ -144,15 +160,29 @@ export type PackageItemResponse = {
   isActive: boolean
 }
 
+export type TierBreakdownEntry = {
+  price: string
+  itemsTotal: string
+  savings: string | null
+}
+
 // A package response is a service response plus its contents. `itemsTotal` and
 // `savings` are computed per request from the members' current prices rather
 // than stored, so editing a member's price can never leave a stale claim on
 // screen. `savings` is null when the package is not cheaper than its parts, so
 // the UI has nothing to badge.
+//
+// For a per-vehicle package those two headline figures are floor-to-floor
+// (cheapest tier vs the sum of the members' cheapest tiers), which is the right
+// basis for a browsing card but is not what an SUV owner will pay. So a
+// per-vehicle package also carries `tierBreakdown` — the real price, parts total
+// and saving for each vehicle — and its headline `savings` is narrowed to the
+// smallest saving across tiers, so the badge understates rather than overpromises.
 export type PackageResponse = ServiceResponse & {
   items: PackageItemResponse[]
   itemsTotal: string
   savings: string | null
+  tierBreakdown: Record<VehicleTier, TierBreakdownEntry> | null
   hasInactiveItems: boolean
 }
 
@@ -217,8 +247,24 @@ function toPhotoResponse(photo: PhotoRecord): PhotoResponse {
   }
 }
 
-function toServiceResponse(service: ServiceRecord): ServiceResponse {
+function toServiceImageResponse(
+  image: ServiceImageRecord
+): ServiceImageResponse {
   return {
+    id: image.id,
+    url: image.url,
+    sortOrder: image.sortOrder,
+  }
+}
+
+// `images` is optional on the record because the write paths return a bare row
+// from `returning()`. Callers that mutate images pass the fresh list explicitly.
+function toServiceResponse(
+  service: ServiceRecord & { images?: ServiceImageRecord[] },
+  images: ServiceImageRecord[] = service.images ?? []
+): ServiceResponse {
+  return {
+    images: images.map(toServiceImageResponse),
     id: service.id,
     name: service.name,
     description: service.description,
@@ -234,6 +280,7 @@ function toServiceResponse(service: ServiceRecord): ServiceResponse {
 }
 
 type PackageWithItems = ServiceRecord & {
+  images?: ServiceImageRecord[]
   packageItems: Array<{ sortOrder: number; service: ServiceRecord }>
 }
 
@@ -254,11 +301,53 @@ function toPackageResponse(pkg: PackageWithItems): PackageResponse {
   const packagePrice = Number(pkg.price)
   const saved = itemsTotal - packagePrice
 
+  // What each vehicle actually pays, and saves. Only meaningful when the
+  // package itself prices by vehicle; a flat package costs the same either way.
+  const tierBreakdown =
+    pkg.pricingType === 'per_vehicle'
+      ? VEHICLE_TIERS.reduce(
+          (acc, tier) => {
+            // A member that doesn't price by vehicle contributes its flat price
+            // to every tier. A tier a member never priced falls back to its
+            // base — only reachable on rows predating the all-tiers rule.
+            const tierItemsTotal = pkg.packageItems.reduce(
+              (sum, { service }) =>
+                sum + Number(tiersOf(service)[tier] ?? service.price),
+              0
+            )
+            const tierPrice = Number(tiersOf(pkg)[tier] ?? pkg.price)
+            const tierSaved = tierItemsTotal - tierPrice
+
+            acc[tier] = {
+              price: tierPrice.toFixed(2),
+              itemsTotal: tierItemsTotal.toFixed(2),
+              savings: tierSaved > 0 ? tierSaved.toFixed(2) : null,
+            }
+            return acc
+          },
+          {} as Record<VehicleTier, TierBreakdownEntry>
+        )
+      : null
+
+  // Headline saving. For a per-vehicle package, the smallest saving any vehicle
+  // gets — so "Save ₹X" is true for every customer, not just the cheapest one.
+  // Null if any tier doesn't save, since the claim wouldn't hold for them.
+  const headlineSavings = tierBreakdown
+    ? VEHICLE_TIERS.every((tier) => tierBreakdown[tier].savings !== null)
+      ? VEHICLE_TIERS.map((tier) => Number(tierBreakdown[tier].savings))
+          .reduce((min, value) => Math.min(min, value))
+          .toFixed(2)
+      : null
+    : saved > 0
+      ? saved.toFixed(2)
+      : null
+
   return {
     ...toServiceResponse(pkg),
     items,
     itemsTotal: itemsTotal.toFixed(2),
-    savings: saved > 0 ? saved.toFixed(2) : null,
+    savings: headlineSavings,
+    tierBreakdown,
     hasInactiveItems: items.some((item) => !item.isActive),
   }
 }
@@ -285,6 +374,28 @@ async function assertValidPackageMembers(
       'INVALID_PACKAGE_ITEMS'
     )
   }
+}
+
+// Read back a service after an image write. A package is a services row, so it
+// resolves here too — and must come back in its package shape (contents,
+// savings), because the client swaps the whole object into its list and would
+// otherwise lose the composition.
+async function readServiceOrPackage(
+  vendorId: string,
+  serviceId: string
+): Promise<ServiceResponse | PackageResponse> {
+  const service = await vendorsRepository.findAnyServiceById(vendorId, serviceId)
+
+  if (!service) {
+    throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+  }
+
+  if (service.category !== 'package') {
+    return toServiceResponse(service)
+  }
+
+  const pkg = await vendorsRepository.findPackageById(vendorId, serviceId)
+  return pkg ? toPackageResponse(pkg) : toServiceResponse(service)
 }
 
 async function getOwnedVendor(ownerId: string): Promise<VendorRecord> {
@@ -376,7 +487,7 @@ export const vendorsService = {
     return {
       ...publicVendor,
       photos: photos.map(toPhotoResponse),
-      services: services.map(toServiceResponse),
+      services: services.map((service) => toServiceResponse(service)),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
       reviewCount: rating?.count ?? 0,
     }
@@ -644,13 +755,13 @@ export const vendorsService = {
     }
 
     const services = await vendorsRepository.listServices(vendor.id, true)
-    return services.map(toServiceResponse)
+    return services.map((service) => toServiceResponse(service))
   },
 
   async listMyServices(ownerId: string) {
     const vendor = await getOwnedVendor(ownerId)
     const services = await vendorsRepository.listServices(vendor.id)
-    return services.map(toServiceResponse)
+    return services.map((service) => toServiceResponse(service))
   },
 
   async createService(ownerId: string, input: CreateServiceInput) {
@@ -714,7 +825,7 @@ export const vendorsService = {
       }
     )
 
-    return toServiceResponse(updated)
+    return toServiceResponse(updated, existing.images)
   },
 
   async toggleServiceActive(
@@ -740,7 +851,7 @@ export const vendorsService = {
       { isActive: input.isActive }
     )
 
-    return toServiceResponse(updated)
+    return toServiceResponse(updated, existing.images)
   },
 
   async deleteService(ownerId: string, serviceId: string) {
@@ -777,7 +888,141 @@ export const vendorsService = {
       serviceId
     )
 
-    return toServiceResponse(deleted)
+    // The rows cascade with the service; the objects behind them don't, so
+    // clear them here or the bucket keeps paying for orphans.
+    for (const image of existing.images) {
+      const key = image.storageKey ?? keyFromPublicUrl(image.url)
+      if (key) {
+        await deleteObject(key)
+      }
+    }
+
+    return toServiceResponse(deleted, existing.images)
+  },
+
+  // ─── Service images ────────────────────────────────────────────────────────
+  //
+  // Scoped by service, but resolved through findAnyServiceById so a package can
+  // carry images too — a package is a services row, and its details popup wants
+  // the same treatment. Each mutation returns the whole service so the client
+  // can swap one object into its list rather than reconciling a sub-array.
+
+  async createServiceImageUploadUrl(
+    ownerId: string,
+    serviceId: string,
+    input: ServiceImageUploadUrlInput
+  ) {
+    const vendor = await getOwnedVendor(ownerId)
+    const service = await vendorsRepository.findAnyServiceById(
+      vendor.id,
+      serviceId
+    )
+
+    if (!service) {
+      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+    }
+
+    const [{ count }] = await vendorsRepository.countServiceImages(serviceId)
+    if (count >= env.r2MaxImagesPerService) {
+      throw new AppError(
+        409,
+        `You can add at most ${env.r2MaxImagesPerService} images per service`,
+        'SERVICE_IMAGE_LIMIT_REACHED'
+      )
+    }
+
+    const { uploadUrl, publicUrl } = await createPresignedUpload(
+      vendor.id,
+      input.contentType,
+      `services/${serviceId}`
+    )
+    return { uploadUrl, publicUrl }
+  },
+
+  async addServiceImage(
+    ownerId: string,
+    serviceId: string,
+    input: CreateServiceImageInput
+  ) {
+    const vendor = await getOwnedVendor(ownerId)
+    const service = await vendorsRepository.findAnyServiceById(
+      vendor.id,
+      serviceId
+    )
+
+    if (!service) {
+      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+    }
+
+    // Only accept URLs that actually point at our bucket.
+    const storageKey = keyFromPublicUrl(input.url)
+    if (!storageKey) {
+      throw new AppError(400, 'Invalid image URL', 'INVALID_SERVICE_IMAGE_URL')
+    }
+
+    // Re-check the cap here, not just at presign time: the presigned URL is
+    // reusable within its TTL, so this is the check that actually holds.
+    const [{ count }] = await vendorsRepository.countServiceImages(serviceId)
+    if (count >= env.r2MaxImagesPerService) {
+      throw new AppError(
+        409,
+        `You can add at most ${env.r2MaxImagesPerService} images per service`,
+        'SERVICE_IMAGE_LIMIT_REACHED'
+      )
+    }
+
+    const [{ maxOrder }] =
+      await vendorsRepository.getNextServiceImageSortOrder(serviceId)
+    const [created] = await vendorsRepository.createServiceImage(serviceId, {
+      url: input.url,
+      storageKey,
+      sortOrder: maxOrder + 1,
+    })
+
+    log.info(
+      { vendorId: vendor.id, serviceId, imageId: created.id },
+      'service:image-added'
+    )
+
+    return readServiceOrPackage(vendor.id, serviceId)
+  },
+
+  async deleteServiceImage(
+    ownerId: string,
+    serviceId: string,
+    imageId: string
+  ) {
+    const vendor = await getOwnedVendor(ownerId)
+    const service = await vendorsRepository.findAnyServiceById(
+      vendor.id,
+      serviceId
+    )
+
+    if (!service) {
+      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+    }
+
+    const image = await vendorsRepository.findServiceImageById(
+      serviceId,
+      imageId
+    )
+
+    if (!image) {
+      throw new AppError(404, 'Image not found', 'SERVICE_IMAGE_NOT_FOUND')
+    }
+
+    const [deleted] = await vendorsRepository.deleteServiceImage(
+      serviceId,
+      imageId
+    )
+
+    // Best-effort remove the underlying object so storage doesn't leak.
+    const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
+    if (key) {
+      await deleteObject(key)
+    }
+
+    return readServiceOrPackage(vendor.id, serviceId)
   },
 
   async listMyPackages(ownerId: string): Promise<PackageResponse[]> {

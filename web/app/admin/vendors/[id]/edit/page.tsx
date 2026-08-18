@@ -1,7 +1,13 @@
 'use client'
 
-import { use, useCallback, useEffect, useState } from 'react'
+import { use, useCallback, useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import {
+  IconBuildingStore,
+  IconPhotoPlus,
+  IconTrash,
+} from '@tabler/icons-react'
 import { ScButton } from '@/components/sc/button'
 import { ScCheckbox } from '@/components/sc/checkbox'
 import { Chip } from '@/components/sc/chip'
@@ -11,12 +17,25 @@ import { ScSection } from '@/components/sc/section'
 import { ScSelect } from '@/components/sc/select'
 import { TopBar } from '@/components/sc/top-bar'
 import { ApiError } from '@/lib/api/client'
-import { getAdminVendor, updateAdminVendor } from '@/lib/api/admin'
+import {
+  deleteAdminServiceImage,
+  deleteAdminVendorLogo,
+  deleteAdminVendorPhoto,
+  getAdminVendor,
+  updateAdminVendor,
+  uploadAdminServiceImage,
+  uploadAdminVendorLogo,
+  uploadAdminVendorPhoto,
+  type AdminPhoto,
+} from '@/lib/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@/lib/categories'
+import {
+  legacyVehicleTypes,
+  VENDOR_VEHICLE_TYPE_OPTIONS,
+} from '@/lib/vehicles'
 import type { ServiceCategory } from '@/lib/types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const VEHICLE_TYPES = ['Hatchback', 'Sedan', 'SUV / MUV', 'Luxury / Premium', 'Electric (EV)', 'Commercial / Van']
 const PICKUP_OPTIONS = [
   { value: 'yes' as const, label: 'Yes' },
   { value: 'nearby' as const, label: 'Nearby only' },
@@ -31,6 +50,20 @@ const STATUS_OPTIONS = [
 ]
 
 const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
+
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
+// Mirrors R2_MAX_IMAGES_PER_SERVICE on the server, which is the real cap.
+const MAX_IMAGES_PER_SERVICE = 3
+
+// Shared guard for every media picker on this page.
+function rejectFile(file: File): string | null {
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+    return 'Unsupported type (use JPEG, PNG or WebP)'
+  }
+  if (file.size > MAX_IMAGE_BYTES) return 'Image too large (max 5 MB)'
+  return null
+}
 
 type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [
@@ -74,9 +107,13 @@ interface ServiceRow {
   priceSuv: string
   durationValue: string
   durationUnit: DurationUnit
+  // Images are stored per service row, so they exist only once the service
+  // itself does — a row that has never been saved has nowhere to attach them.
+  images: AdminPhoto[]
 }
 
 const emptyService = (): ServiceRow => ({
+  images: [],
   name: '',
   description: '',
   category: 'car_wash',
@@ -96,7 +133,9 @@ const decToInput = (v: string | null): string =>
 // A row's pricing is complete when the right price(s) exist for its type.
 function rowPricingValid(s: ServiceRow): boolean {
   if (s.pricingType === 'per_vehicle') {
-    return [s.priceHatchback, s.priceSedan, s.priceSuv].some((p) => Number(p) > 0)
+    // Every tier, matching the server: a gap would leave that vehicle
+    // unable to book the service.
+    return [s.priceHatchback, s.priceSedan, s.priceSuv].every((p) => Number(p) > 0)
   }
   return Number(s.price) > 0
 }
@@ -139,6 +178,17 @@ export default function EditVendorPage({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Media is saved the moment it is picked, not on "Save changes" — an upload
+  // has already happened by then, and holding the registration until submit
+  // would strand the object in R2 if the admin navigates away.
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<AdminPhoto[]>([])
+  const [mediaBusy, setMediaBusy] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const serviceImageInputRef = useRef<HTMLInputElement>(null)
+  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
 
   const set = (key: keyof typeof form) => (v: string) =>
     setForm((prev) => ({ ...prev, [key]: v }))
@@ -185,9 +235,12 @@ export default function EditVendorPage({
       setVehicleTypes(v.vehicleTypes ?? [])
       setStatus(v.status as 'pending' | 'active' | 'suspended' | 'archived')
       setIsVerified(v.isVerified)
+      setLogoUrl(v.logoUrl)
+      setPhotos(v.photos ?? [])
       setServices(
         v.services.map((s) => ({
           id: s.id,
+          images: s.images ?? [],
           name: s.name,
           description: s.description ?? '',
           category: s.category,
@@ -228,6 +281,105 @@ export default function EditVendorPage({
   useEffect(() => {
     void load()
   }, [load])
+
+  // Every media action runs through here: one busy key, one error surface.
+  const runMedia = async (key: string, action: () => Promise<void>) => {
+    setMediaBusy(key)
+    setError('')
+    try {
+      await action()
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        router.replace('/admin/login')
+        return
+      }
+      setError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setMediaBusy(null)
+    }
+  }
+
+  const handleLogoFile = async (files: FileList | null) => {
+    const file = files?.[0]
+    if (logoInputRef.current) logoInputRef.current.value = ''
+    if (!file) return
+
+    const rejection = rejectFile(file)
+    if (rejection) {
+      setError(rejection)
+      return
+    }
+
+    await runMedia('logo', async () => {
+      const vendor = await uploadAdminVendorLogo(id, file)
+      setLogoUrl(vendor.logoUrl)
+    })
+  }
+
+  const handleRemoveLogo = () =>
+    runMedia('logo', async () => {
+      const vendor = await deleteAdminVendorLogo(id)
+      setLogoUrl(vendor.logoUrl)
+    })
+
+  const handlePhotoFiles = async (files: FileList | null) => {
+    const picked = files ? Array.from(files) : []
+    if (photoInputRef.current) photoInputRef.current.value = ''
+    if (picked.length === 0) return
+
+    await runMedia('photos', async () => {
+      for (const file of picked) {
+        const rejection = rejectFile(file)
+        if (rejection) {
+          setError(`${file.name}: ${rejection}`)
+          continue
+        }
+        const created = await uploadAdminVendorPhoto(id, file)
+        setPhotos((prev) => [...prev, created])
+      }
+    })
+  }
+
+  const handleRemovePhoto = (photoId: string) =>
+    runMedia(`photo-${photoId}`, async () => {
+      await deleteAdminVendorPhoto(id, photoId)
+      setPhotos((prev) => prev.filter((p) => p.id !== photoId))
+    })
+
+  const pickServiceImage = (serviceId: string) => {
+    setImageTargetId(serviceId)
+    serviceImageInputRef.current?.click()
+  }
+
+  const setServiceImages = (serviceId: string, images: AdminPhoto[]) =>
+    setServices((prev) =>
+      prev.map((s) => (s.id === serviceId ? { ...s, images } : s))
+    )
+
+  const handleServiceImageFile = async (files: FileList | null) => {
+    const file = files?.[0]
+    const serviceId = imageTargetId
+    if (serviceImageInputRef.current) serviceImageInputRef.current.value = ''
+    if (!file || !serviceId) return
+
+    const rejection = rejectFile(file)
+    if (rejection) {
+      setError(rejection)
+      return
+    }
+
+    await runMedia(`service-${serviceId}`, async () => {
+      setServiceImages(serviceId, await uploadAdminServiceImage(serviceId, file))
+    })
+  }
+
+  const handleRemoveServiceImage = (serviceId: string, imageId: string) =>
+    runMedia(`service-${serviceId}`, async () => {
+      setServiceImages(
+        serviceId,
+        await deleteAdminServiceImage(serviceId, imageId)
+      )
+    })
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -312,6 +464,29 @@ export default function EditVendorPage({
     <div className="mx-auto w-full max-w-[640px] space-y-5">
       <TopBar title="Edit vendor" showBack backHref="/admin/vendors" />
 
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES}
+        hidden
+        onChange={(e) => handleLogoFile(e.target.files)}
+      />
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES}
+        multiple
+        hidden
+        onChange={(e) => handlePhotoFiles(e.target.files)}
+      />
+      <input
+        ref={serviceImageInputRef}
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES}
+        hidden
+        onChange={(e) => handleServiceImageFile(e.target.files)}
+      />
+
       {loading ? (
         <div className="flex flex-col gap-3">
           <SkeletonCard />
@@ -333,6 +508,85 @@ export default function EditVendorPage({
             <div className="grid grid-cols-2 gap-3">
               <ScField label="Email (optional)" value={form.email} onChange={set('email')} type="email" />
               <ScField label="Years in operation (optional)" value={form.yearsInOperation} onChange={set('yearsInOperation')} placeholder="e.g. 5–10 years" />
+            </div>
+          </ScSection>
+
+          <ScSection title="Logo & photos">
+            <p className="text-[11px] text-text-muted">
+              Saved immediately — these do not wait for “Save changes”. JPEG,
+              PNG or WebP, up to 5 MB each.
+            </p>
+
+            <div className="flex items-center gap-4">
+              <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface">
+                {logoUrl ? (
+                  <Image src={logoUrl} alt="Logo" fill sizes="64px" className="object-cover" />
+                ) : (
+                  <IconBuildingStore size={26} className="text-text-muted" />
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <ScButton
+                  fullWidth={false}
+                  variant="secondary"
+                  disabled={mediaBusy === 'logo'}
+                  onClick={() => logoInputRef.current?.click()}
+                  className="px-3 py-2 text-[12px]"
+                >
+                  {mediaBusy === 'logo'
+                    ? 'Working…'
+                    : logoUrl
+                      ? 'Change logo'
+                      : 'Add logo'}
+                </ScButton>
+                {logoUrl && (
+                  <button
+                    type="button"
+                    disabled={mediaBusy === 'logo'}
+                    onClick={handleRemoveLogo}
+                    className="text-left text-[12px] text-brand-red disabled:opacity-50"
+                  >
+                    Remove logo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {photos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="relative h-20 w-20 overflow-hidden rounded-[10px] bg-surface"
+                >
+                  <Image
+                    src={photo.url}
+                    alt="Garage photo"
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                  <button
+                    type="button"
+                    disabled={mediaBusy === `photo-${photo.id}`}
+                    onClick={() => handleRemovePhoto(photo.id)}
+                    title="Delete photo"
+                    className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                  >
+                    <IconTrash size={12} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                disabled={mediaBusy === 'photos'}
+                onClick={() => photoInputRef.current?.click()}
+                className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-text-muted disabled:opacity-50"
+              >
+                <IconPhotoPlus size={18} />
+                <span className="text-[10px]">
+                  {mediaBusy === 'photos' ? 'Uploading…' : 'Add'}
+                </span>
+              </button>
             </div>
           </ScSection>
 
@@ -406,7 +660,7 @@ export default function EditVendorPage({
 
           <ScSection title="Vehicle types">
             <div className="flex flex-wrap gap-2">
-              {VEHICLE_TYPES.map((v) => (
+              {VENDOR_VEHICLE_TYPE_OPTIONS.map((v) => (
                 <Chip
                   key={v}
                   label={v}
@@ -415,6 +669,30 @@ export default function EditVendorPage({
                 />
               ))}
             </div>
+            <p className="text-[11px] text-text-muted">
+              These are the tiers a service prices against and a customer can
+              book for.
+            </p>
+
+            {/* Values from an earlier, longer checklist that no service could
+                ever price. Shown so they can be cleared, not offered again. */}
+            {legacyVehicleTypes(vehicleTypes).length > 0 && (
+              <>
+                <p className="text-[11px] text-brand-red">
+                  No longer offered — tap to remove:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {legacyVehicleTypes(vehicleTypes).map((v) => (
+                    <Chip
+                      key={v}
+                      label={`${v} ✕`}
+                      selected
+                      onClick={() => setVehicleTypes((list) => toggle(list, v))}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </ScSection>
 
           <ScSection title="Onboarding status">
@@ -550,6 +828,60 @@ export default function EditVendorPage({
                           onChange={(e) => updateService(i, { priceSuv: e.target.value })}
                         />
                       </div>
+                    )}
+
+                    {/* Images attach to a saved service row, so a brand-new row
+                        gets the hint instead of a picker. */}
+                    {s.id ? (
+                      <div className="flex items-center gap-2">
+                        {s.images.map((image) => (
+                          <div
+                            key={image.id}
+                            className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[8px] bg-surface"
+                          >
+                            <Image
+                              src={image.url}
+                              alt={s.name}
+                              fill
+                              sizes="56px"
+                              className="object-cover"
+                            />
+                            <button
+                              type="button"
+                              disabled={mediaBusy === `service-${s.id}`}
+                              onClick={() =>
+                                handleRemoveServiceImage(s.id as string, image.id)
+                              }
+                              title="Remove image"
+                              className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                            >
+                              <IconTrash size={11} />
+                            </button>
+                          </div>
+                        ))}
+
+                        {s.images.length < MAX_IMAGES_PER_SERVICE && (
+                          <button
+                            type="button"
+                            disabled={mediaBusy === `service-${s.id}`}
+                            onClick={() => pickServiceImage(s.id as string)}
+                            className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-dashed border-border text-text-muted disabled:opacity-50"
+                          >
+                            <IconPhotoPlus size={16} />
+                            <span className="text-[9px]">
+                              {mediaBusy === `service-${s.id}` ? '…' : 'Add'}
+                            </span>
+                          </button>
+                        )}
+
+                        <p className="text-[10px] text-text-muted">
+                          {s.images.length}/{MAX_IMAGES_PER_SERVICE} images
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-text-muted">
+                        Save this vendor to add images to the service.
+                      </p>
                     )}
                   </div>
                 ))}

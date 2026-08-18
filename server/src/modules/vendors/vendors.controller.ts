@@ -5,12 +5,14 @@ import type {
   CreatePhotoInput,
   CreatePackageInput,
   CreateServiceAreaInput,
+  CreateServiceImageInput,
   CreateServiceInput,
   CreateVendorInput,
   ListPublicVendorsQuery,
   LogoUploadUrlInput,
   PhotoUploadUrlInput,
   ReorderPhotosInput,
+  ServiceImageUploadUrlInput,
   SetLogoInput,
   SetWorkingHoursInput,
   SlotsQueryInput,
@@ -316,6 +318,60 @@ export async function toggleServiceActive(
 
 export async function deleteService(c: VendorsContext, serviceId: string) {
   const service = await vendorsService.deleteService(getOwnerId(c), serviceId)
+
+  return c.json({
+    success: true,
+    data: service,
+  })
+}
+
+export async function createServiceImageUploadUrl(
+  c: VendorsContext,
+  serviceId: string,
+  input: ServiceImageUploadUrlInput
+) {
+  const data = await vendorsService.createServiceImageUploadUrl(
+    getOwnerId(c),
+    serviceId,
+    input
+  )
+
+  return c.json({
+    success: true,
+    data,
+  })
+}
+
+export async function addServiceImage(
+  c: VendorsContext,
+  serviceId: string,
+  input: CreateServiceImageInput
+) {
+  const service = await vendorsService.addServiceImage(
+    getOwnerId(c),
+    serviceId,
+    input
+  )
+
+  return c.json(
+    {
+      success: true,
+      data: service,
+    },
+    201
+  )
+}
+
+export async function deleteServiceImage(
+  c: VendorsContext,
+  serviceId: string,
+  imageId: string
+) {
+  const service = await vendorsService.deleteServiceImage(
+    getOwnerId(c),
+    serviceId,
+    imageId
+  )
 
   return c.json({
     success: true,

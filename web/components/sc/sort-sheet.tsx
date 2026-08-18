@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
 import { IconCircleX } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
+import { ScSheet } from './modal'
 
 export type SortKey = 'relevance' | 'rating' | 'price_asc' | 'price_desc'
 
@@ -25,33 +25,10 @@ interface SortSheetProps {
 }
 
 export function SortSheet({ open, value, onChange, onClose }: SortSheetProps) {
-  // The sheet blurs the page behind it, so stop the page scrolling underneath.
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [open])
-
-  if (!open) return null
-
+  // ScSheet owns the slide-in/out, the scroll lock and Escape-to-close.
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[3px]"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-label="Sort by"
-        className="w-full max-w-[428px] rounded-t-[22px] border-t border-border bg-brand-black pb-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex justify-center py-2.5">
-          <span className="h-1 w-9 rounded-full bg-border" />
-        </div>
-
+    <ScSheet open={open} onClose={onClose} aria-label="Sort by">
+      <div>
         <div className="flex items-center justify-between border-b border-border px-5 pb-4 pt-1">
           <h2 className="text-[17px] font-semibold text-text-primary">Sort by</h2>
           <button type="button" onClick={onClose} aria-label="Close">
@@ -81,6 +58,6 @@ export function SortSheet({ open, value, onChange, onClose }: SortSheetProps) {
           </button>
         ))}
       </div>
-    </div>
+    </ScSheet>
   )
 }

@@ -25,7 +25,7 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
 
   return (
     <Link href={`/garage/${vendor.id}`}>
-      <article className="overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-brand-red/30">
+      <article className="press overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-brand-red/30">
         <div className="relative h-[150px] w-full bg-surface-elevated">
           {cover ? (
             <Image

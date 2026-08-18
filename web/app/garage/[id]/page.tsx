@@ -20,6 +20,8 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
+import { ScModal } from '@/components/sc/modal'
+import { Reveal } from '@/components/sc/reveal'
 import { Stars } from '@/components/sc/stars'
 import { getVendorReviews } from '@/lib/api/reviews'
 import { getVendorServices } from '@/lib/api/services'
@@ -27,24 +29,18 @@ import { getVendorPackages } from '@/lib/api/packages'
 import { getVendor } from '@/lib/api/vendors'
 import { categoryLabel } from '@/lib/categories'
 import { useAuthStore } from '@/lib/stores/auth-store'
-import type {
-  Review,
-  Service,
-  ServicePackage,
-  Vendor,
-  VehicleType,
-} from '@/lib/types'
+import type { Review, Service, ServicePackage, Vendor } from '@/lib/types'
 import { formatServicePrice, tierPriceFor } from '@/lib/pricing'
+import { VEHICLE_TIERS } from '@/lib/vehicles'
 import { cn, formatDuration } from '@/lib/utils'
 
 type Tab = 'services' | 'photos' | 'reviews'
 type Mode = 'dropin' | 'doorstep'
 
-const VEHICLE_TIERS: Array<{ type: VehicleType; label: string }> = [
-  { type: 'hatchback', label: 'Hatchback' },
-  { type: 'sedan', label: 'Sedan' },
-  { type: 'suv', label: 'SUV' },
-]
+// A package is a Service plus its contents, so the details popup takes either
+// and only the bundle-specific block below depends on the difference.
+const isPackage = (item: Service | ServicePackage): item is ServicePackage =>
+  'items' in item
 
 export default function GaragePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -61,8 +57,8 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const [favourite, setFavourite] = useState(false)
   // One service per booking — matches createBookingSchema on the server.
   const [selected, setSelected] = useState<string | null>(null)
-  // The service whose details popup is open, if any.
-  const [details, setDetails] = useState<Service | null>(null)
+  // The service or package whose details popup is open, if any.
+  const [details, setDetails] = useState<Service | ServicePackage | null>(null)
 
   useEffect(() => {
     getVendor(id).then((v) => {
@@ -74,15 +70,17 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     getVendorReviews(id).then(setReviews)
   }, [id])
 
-  // Escape closes the details popup, matching the click-outside affordance.
-  useEffect(() => {
-    if (!details) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDetails(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [details])
+  // Open/closed is tracked separately from *what* is shown: the popup animates
+  // out, so it has to keep rendering its contents after being dismissed.
+  // Closing therefore only flips this flag and leaves `details` in place, where
+  // it stays until the next service replaces it.
+  // (Escape and the scroll lock live in ScModal.)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+
+  const openDetails = (item: Service | ServicePackage) => {
+    setDetails(item)
+    setDetailsOpen(true)
+  }
 
   const matchesQuery = (s: Service, q: string) =>
     s.name.toLowerCase().includes(q) ||
@@ -284,76 +282,101 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                   </span>
                 </div>
 
-                {filteredPackages.map((pkg) => {
+                {filteredPackages.map((pkg, i) => {
                   const added = selected === pkg.id
                   return (
+                    <Reveal key={pkg.id} index={i}>
                     <ScCard
-                      key={pkg.id}
                       className={cn(
                         'transition-colors',
                         added && 'border-brand-red/50'
                       )}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-[14px] font-semibold text-text-primary">
-                          {pkg.name}
-                        </p>
-                        <div className="shrink-0 text-right">
-                          <span className="text-[14px] font-semibold text-text-primary">
-                            {formatServicePrice(pkg)}
-                          </span>
-                          {pkg.savings !== null && (
-                            <p className="text-[11px] text-text-secondary line-through">
-                              ₹{pkg.itemsTotal}
-                            </p>
-                          )}
+                      {/* Same affordance as a service card: the body opens the
+                          details popup, the Add button stays separate. */}
+                      <button
+                        type="button"
+                        onClick={() => openDetails(pkg)}
+                        aria-label={`View details for ${pkg.name}`}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
+                            {pkg.name}
+                          </p>
+                          <div className="shrink-0 text-right">
+                            <span className="text-[14px] font-semibold text-text-primary">
+                              {formatServicePrice(pkg)}
+                            </span>
+                            {/* The struck-through total only lines up with a
+                                single price. A per-vehicle bundle shows a range,
+                                so one "before" figure would be comparing against
+                                the wrong vehicle. */}
+                            {pkg.tierBreakdown === null && pkg.savings !== null && (
+                              <p className="text-[11px] text-text-secondary line-through">
+                                ₹{pkg.itemsTotal}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {pkg.savings !== null && (
-                        <span className="mt-1.5 inline-block rounded-[6px] bg-brand-red/10 px-2 py-0.5 text-[11px] font-semibold text-brand-red">
-                          Save ₹{pkg.savings}
-                        </span>
-                      )}
+                        {pkg.savings !== null && (
+                          <span className="mt-1.5 inline-block rounded-[6px] bg-brand-red/10 px-2 py-0.5 text-[11px] font-semibold text-brand-red">
+                            {pkg.tierBreakdown
+                              ? `Save ₹${pkg.savings}+`
+                              : `Save ₹${pkg.savings}`}
+                          </span>
+                        )}
 
-                      {pkg.description && (
-                        <p className="mt-1 text-[12px] text-text-secondary">
-                          {pkg.description}
-                        </p>
-                      )}
+                        {pkg.description && (
+                          <p className="mt-1 text-[12px] text-text-secondary">
+                            {pkg.description}
+                          </p>
+                        )}
 
-                      <ul className="mt-2 flex flex-col gap-1">
-                        {pkg.items.map((item) => (
-                          <li
-                            key={item.serviceId}
-                            className="flex items-center gap-1.5 text-[12px] text-text-secondary"
-                          >
-                            <IconCheck size={13} className="shrink-0 text-brand-red" />
-                            {item.name}
-                          </li>
-                        ))}
-                      </ul>
+                        <ul className="mt-2 flex flex-col gap-1">
+                          {pkg.items.map((item) => (
+                            <li
+                              key={item.serviceId}
+                              className="flex items-center gap-1.5 text-[12px] text-text-secondary"
+                            >
+                              <IconCheck size={13} className="shrink-0 text-brand-red" />
+                              {item.name}
+                            </li>
+                          ))}
+                        </ul>
+                      </button>
 
                       <div className="mt-3 flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                           <IconClock size={13} />
                           {formatDuration(pkg.durationMins)}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => toggle(pkg.id)}
-                          className={cn(
-                            'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
-                            added
-                              ? 'bg-brand-white text-brand-black'
-                              : 'bg-surface-elevated text-text-primary ring-1 ring-border'
-                          )}
-                        >
-                          {added && <IconCheck size={13} />}
-                          {added ? 'Added' : 'Add'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openDetails(pkg)}
+                            className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                          >
+                            Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggle(pkg.id)}
+                            className={cn(
+                              'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
+                              added
+                                ? 'bg-brand-white text-brand-black'
+                                : 'bg-surface-elevated text-text-primary ring-1 ring-border'
+                            )}
+                          >
+                            {added && <IconCheck size={13} />}
+                            {added ? 'Added' : 'Add'}
+                          </button>
+                        </div>
                       </div>
                     </ScCard>
+                    </Reveal>
                   )
                 })}
               </>
@@ -373,23 +396,25 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                   : 'No services match that search.'}
               </p>
             ) : (
-              filtered.map((svc) => {
+              filtered.map((svc, i) => {
                 const added = selected === svc.id
                 return (
+                  <Reveal key={svc.id} index={i}>
                   <ScCard
-                    key={svc.id}
                     className={cn('transition-colors', added && 'border-brand-red/50')}
                   >
                     {/* Tapping the card body opens the details popup; the Add
                         button below stays a separate action. */}
                     <button
                       type="button"
-                      onClick={() => setDetails(svc)}
+                      onClick={() => openDetails(svc)}
                       aria-label={`View details for ${svc.name}`}
                       className="w-full text-left"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <p className="text-[14px] font-semibold text-text-primary">{svc.name}</p>
+                        <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
+                          {svc.name}
+                        </p>
                         <span className="shrink-0 text-[14px] font-semibold text-text-primary">
                           {formatServicePrice(svc)}
                         </span>
@@ -408,7 +433,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setDetails(svc)}
+                          onClick={() => openDetails(svc)}
                           className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                         >
                           Details
@@ -429,6 +454,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                       </div>
                     </div>
                   </ScCard>
+                  </Reveal>
                 )
               })
             )}
@@ -439,8 +465,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
           <div className="grid grid-cols-2 gap-2">
             {vendor.photos.length > 0 ? (
               vendor.photos.map((url, i) => (
-                <div
+                <Reveal
                   key={url}
+                  index={i}
                   className="relative aspect-square overflow-hidden rounded-[10px] bg-surface"
                 >
                   <Image
@@ -450,7 +477,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                     sizes="(max-width: 428px) 50vw, 200px"
                     className="object-cover"
                   />
-                </div>
+                </Reveal>
               ))
             ) : (
               <p className="col-span-2 py-6 text-center text-[13px] text-text-secondary">
@@ -474,8 +501,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             {reviews.length === 0 && (
               <p className="py-4 text-center text-[13px] text-text-secondary">No reviews yet.</p>
             )}
-            {reviews.map((review) => (
-              <ScCard key={review.id}>
+            {reviews.map((review, i) => (
+              <Reveal key={review.id} index={i}>
+              <ScCard>
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-muted text-[11px] font-semibold text-brand-red">
                     {review.userName.slice(0, 2).toUpperCase()}
@@ -488,6 +516,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                 </div>
                 <p className="mt-2 text-[13px] text-text-secondary">{review.comment}</p>
               </ScCard>
+              </Reveal>
             ))}
           </>
         )}
@@ -498,7 +527,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         <div className="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 border-t border-border bg-brand-black px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] text-text-secondary">{selectedService.name}</p>
-            <p className="text-[15px] font-semibold text-text-primary">
+            <p className="truncate text-[15px] font-semibold text-text-primary">
               {formatServicePrice(selectedService)}
             </p>
           </div>
@@ -508,29 +537,53 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         </div>
       )}
 
-      {details && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
-          onClick={() => setDetails(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${details.name} details`}
-        >
-          <div
-            className="max-h-[80vh] w-full max-w-[360px] overflow-y-auto rounded-[20px] border border-border bg-brand-black px-4 pb-5 pt-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <ScModal
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        aria-label={details ? `${details.name} details` : 'Service details'}
+      >
+        {details && (
+          <>
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-base font-semibold text-text-primary">{details.name}</h2>
               <button
                 type="button"
-                onClick={() => setDetails(null)}
+                onClick={() => setDetailsOpen(false)}
                 aria-label="Close"
                 className="-mr-1 -mt-1 shrink-0 rounded-lg p-1 text-text-secondary transition-colors hover:text-text-primary"
               >
                 <IconX size={18} />
               </button>
             </div>
+
+            {/* Up to three service photos, capped server-side. One fills the
+                width; two or three share a row so the popup stays short. */}
+            {details.images.length > 0 && (
+              <div
+                className={cn(
+                  'mt-3 grid gap-1.5',
+                  details.images.length === 1 ? 'grid-cols-1' : 'grid-cols-3'
+                )}
+              >
+                {details.images.map((image, i) => (
+                  <div
+                    key={image.id}
+                    className={cn(
+                      'relative overflow-hidden rounded-[10px] bg-surface',
+                      details.images.length === 1 ? 'aspect-[16/10]' : 'aspect-square'
+                    )}
+                  >
+                    <Image
+                      src={image.url}
+                      alt={`${details.name} ${i + 1}`}
+                      fill
+                      sizes="(max-width: 428px) 33vw, 120px"
+                      className="object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <ScBadge variant="muted">{categoryLabel(details.category)}</ScBadge>
@@ -541,8 +594,39 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             </div>
 
             <p className="mt-3 whitespace-pre-line text-[13px] text-text-secondary">
-              {details.description || 'No description available for this service.'}
+              {details.description ||
+                (isPackage(details)
+                  ? 'No description available for this package.'
+                  : 'No description available for this service.')}
             </p>
+
+            {/* What the bundle contains, priced against the members' current
+                prices — the same numbers the card badges. */}
+            {isPackage(details) && (
+              <div className="mt-3">
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+                  Included
+                </p>
+                <ul className="flex flex-col gap-1">
+                  {details.items.map((item) => (
+                    <li
+                      key={item.serviceId}
+                      className="flex items-center gap-1.5 text-[13px] text-text-secondary"
+                    >
+                      <IconCheck size={13} className="shrink-0 text-brand-red" />
+                      {item.name}
+                    </li>
+                  ))}
+                </ul>
+                {/* A per-vehicle bundle's saving differs per vehicle, so it is
+                    shown on the tier rows below instead of as one figure. */}
+                {details.tierBreakdown === null && details.savings !== null && (
+                  <p className="mt-2 text-[12px] font-semibold text-brand-red">
+                    Save ₹{details.savings} vs ₹{details.itemsTotal} separately
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Per-vehicle services price by tier, so show the breakdown rather
                 than cramming it into one line as the card does. */}
@@ -552,15 +636,34 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                   <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
                     Price by vehicle
                   </p>
-                  {VEHICLE_TIERS.map(({ type, label }) => {
+                  {VEHICLE_TIERS.map(({ value: type, label }) => {
                     const price = tierPriceFor(details, type)
-                    if (price == null) return null
+                    // A bundle's per-vehicle saving, when this is a package.
+                    const tierSavings = isPackage(details)
+                      ? (details.tierBreakdown?.[type].savings ?? null)
+                      : null
                     return (
                       <div key={type} className="flex items-center justify-between py-0.5">
                         <span className="text-[13px] text-text-secondary">{label}</span>
-                        <span className="text-[13px] font-semibold text-text-primary">
-                          ₹{price}
-                        </span>
+                        {price == null ? (
+                          // Only reachable on services created before every tier
+                          // became mandatory. Say so plainly rather than showing
+                          // another vehicle's price — booking would be refused.
+                          <span className="text-[12px] text-text-muted">
+                            Price on request
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            {tierSavings !== null && (
+                              <span className="text-[11px] font-medium text-brand-red">
+                                save ₹{tierSavings}
+                              </span>
+                            )}
+                            <span className="text-[13px] font-semibold text-text-primary">
+                              ₹{price}
+                            </span>
+                          </span>
+                        )}
                       </div>
                     )
                   })}
@@ -586,14 +689,14 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
               className="mt-5"
               onClick={() => {
                 toggle(details.id)
-                setDetails(null)
+                setDetailsOpen(false)
               }}
             >
               {selected === details.id ? 'Remove from booking' : 'Add to booking'}
             </ScButton>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ScModal>
     </AppShell>
   )
 }

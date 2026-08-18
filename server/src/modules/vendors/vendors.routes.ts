@@ -10,12 +10,15 @@ import {
   createPhotoSchema,
   createPackageSchema,
   createServiceAreaSchema,
+  createServiceImageSchema,
   createServiceSchema,
   createVendorSchema,
   listPublicVendorsQuerySchema,
   logoUploadUrlSchema,
   photoUploadUrlSchema,
   reorderPhotosSchema,
+  serviceImageParamSchema,
+  serviceImageUploadUrlSchema,
   setLogoSchema,
   resourceIdParamSchema,
   setWorkingHoursSchema,
@@ -180,6 +183,44 @@ vendorsRoutes.delete(
   ...ownerMiddleware,
   zValidator('param', resourceIdParamSchema),
   (c) => vendorsController.deleteService(c, c.req.valid('param').id)
+)
+
+// Service images. Registered after the plain service routes above; the extra
+// path segment keeps them from colliding with /me/services/:id.
+vendorsRoutes.post(
+  '/me/services/:id/images/upload-url',
+  ...ownerMiddleware,
+  zValidator('param', resourceIdParamSchema),
+  zValidator('json', serviceImageUploadUrlSchema),
+  (c) =>
+    vendorsController.createServiceImageUploadUrl(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+vendorsRoutes.post(
+  '/me/services/:id/images',
+  ...ownerMiddleware,
+  zValidator('param', resourceIdParamSchema),
+  zValidator('json', createServiceImageSchema),
+  (c) =>
+    vendorsController.addServiceImage(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+vendorsRoutes.delete(
+  '/me/services/:id/images/:imageId',
+  ...ownerMiddleware,
+  zValidator('param', serviceImageParamSchema),
+  (c) =>
+    vendorsController.deleteServiceImage(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').imageId
+    )
 )
 
 vendorsRoutes.get(

@@ -24,7 +24,9 @@ export const ScButton = forwardRef<HTMLButtonElement, ScButtonProps>(
     <button
       ref={ref}
       className={cn(
-        'rounded-[10px] py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed',
+        // `press` dips the button on tap; it is inert when disabled and under
+        // reduced motion (see globals.css).
+        'press rounded-[10px] py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed',
         fullWidth && 'w-full',
         variantStyles[variant],
         className

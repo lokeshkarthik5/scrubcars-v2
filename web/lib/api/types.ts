@@ -158,6 +158,12 @@ export interface ApiServiceArea {
   radiusKm: number | null
 }
 
+export interface ApiServiceImage {
+  id: string
+  url: string
+  sortOrder: number
+}
+
 export interface ApiService {
   id: string
   name: string
@@ -170,6 +176,7 @@ export interface ApiService {
   priceSuv: string | null
   durationMins: number
   isActive: boolean
+  images: ApiServiceImage[]
 }
 
 export interface ApiPackageItem {
@@ -180,10 +187,21 @@ export interface ApiPackageItem {
   isActive: boolean
 }
 
+export interface ApiTierBreakdownEntry {
+  price: string
+  itemsTotal: string
+  savings: string | null
+}
+
 export interface ApiPackage extends ApiService {
   items: ApiPackageItem[]
   itemsTotal: string
   savings: string | null
+  // Present only for per-vehicle packages: what each vehicle pays and saves.
+  tierBreakdown: Record<
+    'hatchback' | 'sedan' | 'suv',
+    ApiTierBreakdownEntry
+  > | null
   hasInactiveItems: boolean
 }
 
