@@ -19,6 +19,8 @@ const ADMIN_CLEAN_TO_INTERNAL: Record<string, string> = {
   '/vendors':     '/admin/vendors',
   '/vendors/new': '/admin/vendors/new',
   '/bookings':    '/admin/bookings',
+  '/discounts':     '/admin/discounts',
+  '/discounts/new': '/admin/discounts/new',
 }
 
 // Clean public path on vendors.detlio.com → internal Next.js file path
@@ -66,7 +68,7 @@ export function middleware(request: NextRequest) {
 
     // Dynamic admin routes (e.g. /vendors/:id/edit) aren't in the static map.
     // Rewrite the clean path onto the internal /admin/* tree.
-    if (/^\/vendors\/[^/]+\/edit\/?$/.test(pathname)) {
+    if (/^\/(vendors|discounts)\/[^/]+\/edit\/?$/.test(pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = `/admin${pathname}`
       return NextResponse.rewrite(url)

@@ -14,6 +14,7 @@ import { reviewsRoutes } from './modules/reviews/reviews.routes.js'
 import { paymentsRoutes } from './modules/payments/payments.routes.js'
 import { vendorsRoutes } from './modules/vendors/vendors.routes.js'
 import { adminRoutes } from './modules/admin/admin.routes.js'
+import { discountsRoutes } from './modules/discounts/discounts.routes.js'
 
 console.log('[BOOT] app.ts loading')
 
@@ -81,6 +82,7 @@ app.route('/api/v1/vendors', vendorsRoutes)
 app.route('/api/v1/bookings', bookingsRoutes)
 app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
+app.route('/api/v1/discounts', discountsRoutes)
 app.route('/api/v1/admin', adminRoutes)
 
 console.log('[BOOT] app.ts ready')

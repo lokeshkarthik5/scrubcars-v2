@@ -48,6 +48,10 @@ export const createBookingSchema = z
     // All bookings prepay online via Razorpay; cash is no longer accepted.
     paymentMethod: z.literal('online').default('online'),
     addressId: z.string().uuid().optional(),
+    // Optional promo code. Only the shape is validated here — whether it
+    // applies is decided by the discount engine at write time, never by the
+    // client.
+    discountCode: z.string().trim().min(3).max(40).optional(),
   })
 
 export type ListMyBookingsQuery = z.infer<typeof listMyBookingsQuerySchema>

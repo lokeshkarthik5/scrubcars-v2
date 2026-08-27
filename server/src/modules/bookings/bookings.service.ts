@@ -7,7 +7,10 @@ import {
   isScheduledAtAvailable,
 } from '../../lib/slots.js'
 import { computeServiceAmount } from '../../lib/pricing.js'
+import { computeVendorPayout } from '../../lib/discounts.js'
+import { discountsService } from '../discounts/discounts.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
+import type { BookingDiscount } from './bookings.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
@@ -29,6 +32,10 @@ type BookingWithRelations = {
   bookingType: string
   scheduledAt: Date
   amount: string
+  subtotalAmount?: string | null
+  discountAmount?: string | null
+  discountCode?: string | null
+  discountFundedBy?: 'platform' | 'vendor' | null
   paymentMethod: string
   lat: number | null
   lng: number | null
@@ -98,6 +105,20 @@ function toBookingResponse(booking: BookingWithRelations) {
     bookingType: booking.bookingType,
     scheduledAt: booking.scheduledAt.toISOString(),
     amount: booking.amount,
+    // Pre-discount price, what came off, and who paid for it. `amount` stays
+    // the figure actually charged, so every existing consumer is unaffected.
+    subtotalAmount: booking.subtotalAmount ?? booking.amount,
+    discountAmount: booking.discountAmount ?? '0.00',
+    discountCode: booking.discountCode ?? null,
+    discountFundedBy: booking.discountFundedBy ?? null,
+    // What the garage is owed — the full price when Detlio funded the
+    // discount, the discounted price when the garage did. Computed here so the
+    // web Earnings screen never has to know the rule.
+    vendorPayoutAmount: computeVendorPayout({
+      amount: booking.amount,
+      subtotalAmount: booking.subtotalAmount ?? booking.amount,
+      discountFundedBy: booking.discountFundedBy ?? null,
+    }),
     paymentMethod: booking.paymentMethod,
     lat: booking.lat,
     lng: booking.lng,
@@ -379,6 +400,42 @@ export const bookingsService = {
         )
       }
 
+      // Resolve the promo code against the *server-computed* subtotal. A
+      // failure here (expired, limit reached, wrong garage) surfaces as the
+      // engine's own AppError, so the customer sees why.
+      let discount: BookingDiscount | null = null
+      let chargeAmount = amount
+
+      if (input.discountCode) {
+        const resolved = await discountsService.resolveDiscount({
+          code: input.discountCode,
+          userId,
+          vendorId: vendor.id,
+          subtotal: amount,
+        })
+
+        discount = {
+          discountId: resolved.discountId,
+          code: resolved.code,
+          discountAmount: resolved.discountAmount,
+          fundedBy: resolved.fundedBy,
+          perUserLimit: resolved.perUserLimit,
+          totalUsageLimit: resolved.totalUsageLimit,
+        }
+        chargeAmount = resolved.finalAmount
+
+        log.info(
+          {
+            userId,
+            code: resolved.code,
+            subtotal: amount,
+            discountAmount: resolved.discountAmount,
+            chargeAmount,
+          },
+          'booking:discount_resolved'
+        )
+      }
+
       let lat: number | null = null
       let lng: number | null = null
       let address: string | null = null
@@ -404,11 +461,13 @@ export const bookingsService = {
           bookingType: input.bookingType,
           scheduledAt,
           serviceDurationMins: service.durationMins,
-          amount,
+          subtotalAmount: amount,
+          amount: chargeAmount,
           paymentMethod: input.paymentMethod,
           lat,
           lng,
           address,
+          discount,
         })
 
       if (result.vehicleClash) {
@@ -425,6 +484,20 @@ export const bookingsService = {
           409,
           'This vehicle already has a booking that overlaps this time',
           'VEHICLE_DOUBLE_BOOKED'
+        )
+      }
+
+      // The limits were re-checked under a lock inside the transaction, so a
+      // code that was free a moment ago can still be gone by the time we write.
+      if (result.discountUnavailable) {
+        log.warn(
+          { userId, code: input.discountCode },
+          'booking:discount_exhausted_at_write'
+        )
+        throw new AppError(
+          409,
+          'That code was just fully redeemed. Please try again without it.',
+          'DISCOUNT_EXHAUSTED'
         )
       }
 
@@ -566,7 +639,12 @@ export const bookingsService = {
       newScheduledAt,
       serviceDurationMins: service.durationMins,
       status: booking.status,
+      subtotalAmount: booking.subtotalAmount ?? booking.amount,
       amount: booking.amount,
+      discountAmount: booking.discountAmount ?? '0.00',
+      discountId: booking.discountId ?? null,
+      discountCode: booking.discountCode ?? null,
+      discountFundedBy: booking.discountFundedBy ?? null,
       paymentMethod: booking.paymentMethod,
       lat: booking.lat,
       lng: booking.lng,

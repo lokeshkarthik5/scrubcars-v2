@@ -219,6 +219,11 @@ export interface ApiBooking {
   bookingType: string
   scheduledAt: string
   amount: string
+  subtotalAmount: string
+  discountAmount: string
+  discountCode: string | null
+  discountFundedBy: 'platform' | 'vendor' | null
+  vendorPayoutAmount: string
   paymentMethod: string
   lat: number | null
   lng: number | null

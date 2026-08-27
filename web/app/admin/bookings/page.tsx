@@ -131,8 +131,33 @@ export default function AdminBookingsPage() {
                     <span className="font-medium text-text-primary">
                       {formatBookingAmount(Number(b.amount))}
                     </span>
+                    {/* Only a discounted booking shows the strike-through and
+                        who funded the difference. */}
+                    {Number(b.discountAmount) > 0 && (
+                      <span className="text-text-muted">
+                        {' '}
+                        <s>{formatBookingAmount(Number(b.subtotalAmount))}</s>
+                      </span>
+                    )}
                   </Meta>
                 </div>
+
+                {Number(b.discountAmount) > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3 text-[11px]">
+                    <ScBadge variant="success">
+                      {b.discountCode ?? 'Discount'}
+                    </ScBadge>
+                    <span className="text-text-secondary">
+                      −{formatBookingAmount(Number(b.discountAmount))}
+                    </span>
+                    <span className="text-text-muted">
+                      ·{' '}
+                      {b.discountFundedBy === 'platform'
+                        ? 'Detlio funded'
+                        : 'Garage funded'}
+                    </span>
+                  </div>
+                )}
               </ScCard>
             )
           })}

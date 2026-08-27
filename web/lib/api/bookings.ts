@@ -11,6 +11,8 @@ export interface CreateBookingPayload {
   vehicleId: string
   addressId?: string
   paymentMethod: PaymentMethod
+  /** Promo code, if the customer applied one. The server re-resolves it. */
+  discountCode?: string
 }
 
 export interface SlotParams {
@@ -55,6 +57,7 @@ export async function createBooking(
       scheduledAt: payload.scheduledAt,
       paymentMethod: payload.paymentMethod,
       addressId: payload.addressId,
+      discountCode: payload.discountCode,
     }),
   })
   return mapBooking(booking)

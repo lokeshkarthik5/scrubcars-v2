@@ -1,5 +1,10 @@
 import type { Booking, EarningsJob, EarningsSummary, Review } from '@/lib/types'
 
+// Earnings read `vendorPayoutAmount`, never `servicePrice`. When Detlio funds a
+// promo code the garage is still owed the full pre-discount price, so paying
+// them the charged amount would silently dock them for a campaign they did not
+// run. The server decides which figure applies; this file just uses it.
+
 function isSettledPayment(status: Booking['paymentStatus']) {
   return status === 'paid' || status === 'collected'
 }
@@ -54,7 +59,7 @@ export function computeVendorDashboardStats(
   const weekEarnings = completedBookings(bookings)
     .filter((booking) => isWithinDays(booking.scheduledAtIso, 7))
     .filter((booking) => isSettledPayment(booking.paymentStatus))
-    .reduce((sum, booking) => sum + booking.servicePrice, 0)
+    .reduce((sum, booking) => sum + booking.vendorPayoutAmount, 0)
 
   return {
     todaysJobs,
@@ -85,9 +90,15 @@ export function computeEarningsSummary(
   )
 
   return {
-    totalEarned: settled.reduce((sum, booking) => sum + booking.servicePrice, 0),
+    totalEarned: settled.reduce(
+      (sum, booking) => sum + booking.vendorPayoutAmount,
+      0
+    ),
     jobsDone: inPeriod.length,
-    pending: pending.reduce((sum, booking) => sum + booking.servicePrice, 0),
+    pending: pending.reduce(
+      (sum, booking) => sum + booking.vendorPayoutAmount,
+      0
+    ),
     avgRating: averageRating(reviews),
   }
 }
@@ -105,7 +116,7 @@ export function computeRecentEarningsJobs(bookings: Booking[]): EarningsJob[] {
       customerName: booking.customerName ?? 'Customer',
       date: booking.scheduledAt,
       type: booking.bookingType,
-      amount: booking.servicePrice,
+      amount: booking.vendorPayoutAmount,
       settled: isSettledPayment(booking.paymentStatus),
     }))
 }

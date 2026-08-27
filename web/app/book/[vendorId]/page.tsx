@@ -3,15 +3,22 @@
 import { use, useEffect, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconShoppingCart } from '@tabler/icons-react'
+import { IconShoppingCart, IconTag } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
+import { ScInput } from '@/components/sc/input'
 import { SlotPicker } from '@/components/sc/slot-picker'
 import { ScToggle } from '@/components/sc/toggle'
 import { TopBar } from '@/components/sc/top-bar'
+import type { AppliedDiscount } from '@/lib/api/discounts'
+import {
+  errorMessage,
+  useValidateDiscount,
+} from '@/lib/api/hooks/use-discounts'
 import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
+import { ApiError } from '@/lib/api/client'
 import { getVendorServices } from '@/lib/api/services'
 import { getVendor } from '@/lib/api/vendors'
 import { openRazorpayCheckout } from '@/lib/razorpay'
@@ -45,6 +52,22 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
 
+  // What is typed vs what is actually applied. Kept apart so a keystroke never
+  // re-queries — only pressing Apply does.
+  const [promoInput, setPromoInput] = useState('')
+  // Stored with the service and vehicle it was validated against. Those two
+  // decide the subtotal, so a code checked against one pair says nothing about
+  // another — see `appliedDiscount` below.
+  const [appliedPromo, setAppliedPromo] = useState<{
+    discount: AppliedDiscount
+    serviceId: string
+    vehicleId: string
+  } | null>(null)
+  // The request lifecycle (pending, error) is the mutation's; `appliedPromo`
+  // above is ours, because "which code did the customer commit to" is client
+  // state, not a server response.
+  const applyPromo = useValidateDiscount()
+
   useEffect(() => {
     getVendor(vendorId).then((v) => {
       setVendor(v ?? null)
@@ -70,6 +93,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }, [vehicles, selectedVehicle])
 
+  // Derived rather than cleared in an effect: if the customer switches service
+  // or car, the applied code is simply not the applied code any more. There is
+  // no render in between where a stale discount could be shown or submitted.
+  const appliedDiscount =
+    appliedPromo &&
+    appliedPromo.serviceId === selectedService?.id &&
+    appliedPromo.vehicleId === selectedVehicle
+      ? appliedPromo.discount
+      : null
+
   const selectedVehicleType = vehicles.find((v) => v.id === selectedVehicle)?.vehicleType
   // The concrete amount to charge for the selected service/vehicle.
   const resolvedAmount = selectedService
@@ -82,6 +115,46 @@ function BookContent({ vendorId }: { vendorId: string }) {
     selectedService != null &&
     selectedVehicleType != null &&
     resolvedAmount == null
+
+  // What the customer will actually be charged. The server recomputes this at
+  // booking time; this is only what the button says.
+  const payableAmount = appliedDiscount
+    ? Number(appliedDiscount.finalAmount)
+    : resolvedAmount
+
+  const canApplyPromo =
+    promoInput.trim().length >= 3 &&
+    selectedService != null &&
+    selectedVehicle != null &&
+    !unpricedForVehicle
+
+  const handleApplyPromo = () => {
+    if (!canApplyPromo || applyPromo.isPending) return
+
+    const serviceId = selectedService!.id
+    const vehicleId = selectedVehicle!
+
+    applyPromo.mutate(
+      { code: promoInput.trim(), vendorId, serviceId, vehicleId },
+      {
+        onSuccess: (applied) =>
+          setAppliedPromo({ discount: applied, serviceId, vehicleId }),
+        onError: () => setAppliedPromo(null),
+      }
+    )
+  }
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null)
+    setPromoInput('')
+    applyPromo.reset()
+  }
+
+  // The server's message is the customer-facing reason — "This code has
+  // expired", "needs a booking of ₹500 or more" — so it is shown verbatim.
+  const promoError = applyPromo.error
+    ? errorMessage(applyPromo.error, "This code isn't valid.")
+    : ''
 
   const handleConfirm = async () => {
     if (bookingLockRef.current || loading) return
@@ -96,6 +169,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         bookingType,
         vehicleId: selectedVehicle,
         paymentMethod: 'online',
+        discountCode: appliedDiscount?.code,
       })
 
       const order = await createPaymentOrder(booking.id)
@@ -126,7 +200,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
         },
       })
     } catch (error) {
-      if (error instanceof Error && error.message !== 'Payment cancelled') {
+      // A code can lapse between Apply and Pay — someone else took the last
+      // use, or it expired. Drop it so the retry goes through at full price.
+      if (error instanceof ApiError && error.code?.startsWith('DISCOUNT_')) {
+        setAppliedPromo(null)
+        toast.error(error.message)
+      } else if (error instanceof Error && error.message !== 'Payment cancelled') {
         toast.error(error.message)
       }
     } finally {
@@ -152,8 +231,82 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <IconShoppingCart size={13} />
             {selectedService.name} · {formatDuration(selectedService.durationMins)}
           </p>
+
+          {/* Only shown once a code is applied — an untouched booking keeps the
+              single-line summary it has always had. */}
+          {appliedDiscount && (
+            <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-[12px]">
+              <div className="flex items-center justify-between text-text-secondary">
+                <span>Subtotal</span>
+                <span>₹{Number(appliedDiscount.subtotal).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex items-center justify-between text-success">
+                <span>Discount ({appliedDiscount.code})</span>
+                <span>
+                  −₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[13px] font-semibold text-text-primary">
+                <span>Total</span>
+                <span>₹{Number(appliedDiscount.finalAmount).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          )}
         </ScCard>
       )}
+
+      <section>
+        <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+          Promo code
+        </h2>
+        {appliedDiscount ? (
+          <ScCard className="flex items-center justify-between gap-3 py-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
+                <IconTag size={14} /> {appliedDiscount.code} applied
+              </p>
+              <p className="text-[11px] text-text-secondary">
+                You save ₹
+                {Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRemovePromo}
+              className="shrink-0 text-[12px] font-medium text-brand-red"
+            >
+              Remove
+            </button>
+          </ScCard>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-start gap-2">
+              <ScInput
+                id="promo-code"
+                placeholder="Enter code"
+                autoCapitalize="characters"
+                autoComplete="off"
+                value={promoInput}
+                onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                className="flex-1 uppercase"
+              />
+              <ScButton
+                fullWidth={false}
+                variant="secondary"
+                disabled={!canApplyPromo || applyPromo.isPending}
+                onClick={handleApplyPromo}
+                className="shrink-0 px-4 py-2.5 text-[13px]"
+              >
+                {applyPromo.isPending ? 'Checking…' : 'Apply'}
+              </ScButton>
+            </div>
+            {promoError && (
+              <p className="text-[11px] text-brand-red">{promoError}</p>
+            )}
+          </div>
+        )}
+      </section>
 
       {vendor && vendor.dropinEnabled && vendor.doorstepEnabled && (
         <section>
@@ -196,7 +349,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
         ) : (
           <div className="flex flex-col gap-2">
             {vehicles.map((v) => (
-              <button key={v.id} type="button" onClick={() => setSelectedVehicle(v.id)}>
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => {
+                  setSelectedVehicle(v.id)
+                  applyPromo.reset()
+                }}
+              >
                 <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>
                   <p className="text-[13px] font-medium">{v.make} {v.model}</p>
                   <p className="text-[11px] text-text-secondary">{v.plate}</p>
@@ -223,9 +383,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
             ? 'Processing payment...'
             : unpricedForVehicle
               ? 'Not priced for this vehicle'
-              : resolvedAmount == null
+              : payableAmount == null
                 ? 'Confirm booking'
-                : `Pay Now (₹${resolvedAmount.toLocaleString('en-IN')})`}
+                : `Pay Now (₹${payableAmount.toLocaleString('en-IN')})`}
         </ScButton>
         <p className="mt-2 text-center text-[11px] text-text-muted">
           {unpricedForVehicle

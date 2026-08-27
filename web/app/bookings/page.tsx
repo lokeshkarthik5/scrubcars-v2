@@ -65,7 +65,18 @@ export default function BookingsListPage() {
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-text-secondary">
                     <span>{booking.scheduledAt}</span>
-                    <span className="font-semibold text-text-primary">{formatBookingAmount(booking.servicePrice)}</span>
+                    <span className="flex items-center gap-1.5">
+                      {/* The struck price is the only hint that a code was
+                          used; the full breakdown lives on the detail page. */}
+                      {booking.discountAmount > 0 && (
+                        <s className="text-text-muted">
+                          {formatBookingAmount(booking.subtotalPrice)}
+                        </s>
+                      )}
+                      <span className="font-semibold text-text-primary">
+                        {formatBookingAmount(booking.servicePrice)}
+                      </span>
+                    </span>
                   </div>
                 </ScCard>
               </Link>

@@ -92,6 +92,23 @@ export const paymentMethodEnum = pgEnum('payment_method', ['online', 'cash'])
 
 export const paymentGatewayEnum = pgEnum('payment_gateway', ['razorpay'])
 
+// A discount is either a percentage off the service price or a flat rupee
+// amount off. Both are capped by the engine so at least ₹1 stays payable —
+// Razorpay rejects a zero-value order.
+export const discountTypeEnum = pgEnum('discount_type', [
+  'percentage',
+  'fixed',
+])
+
+// Who absorbs the discount. 'platform' (the default) means the garage is still
+// paid the full pre-discount price and Detlio eats the difference; 'vendor'
+// means the garage eats it. Snapshotted onto the booking at creation, so
+// editing a live code never rewrites a finished job's payout.
+export const discountFundedByEnum = pgEnum('discount_funded_by', [
+  'platform',
+  'vendor',
+])
+
 export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
   'paid',
@@ -396,7 +413,27 @@ export const bookings = pgTable(
     bookingType: bookingTypeEnum('booking_type').notNull(),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
     status: bookingStatusEnum('status').default('pending').notNull(),
+    // `amount` is what the customer is actually charged — payments.amount, the
+    // Razorpay order and the "Pay Now" button all read it. The pre-discount
+    // figure lives in `subtotalAmount`, and the invariant is
+    //   amount = subtotalAmount - discountAmount.
     amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    subtotalAmount: decimal('subtotal_amount', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    discountAmount: decimal('discount_amount', { precision: 10, scale: 2 })
+      .default('0.00')
+      .notNull(),
+    discountId: uuid('discount_id').references(() => discounts.id, {
+      onDelete: 'set null',
+    }),
+    // Snapshots taken at booking time. The code is denormalized so the receipt
+    // and the admin booking list need no join; the funding is denormalized so
+    // an admin editing the code later cannot retroactively change what this
+    // garage was owed.
+    discountCode: varchar('discount_code', { length: 40 }),
+    discountFundedBy: discountFundedByEnum('discount_funded_by'),
     paymentMethod: paymentMethodEnum('payment_method').notNull(),
     lat: real('lat'),
     lng: real('lng'),
@@ -425,6 +462,7 @@ export const bookings = pgTable(
     ),
     index('bookings_status_idx').on(table.status),
     index('bookings_original_booking_id_idx').on(table.originalBookingId),
+    index('bookings_discount_id_idx').on(table.discountId),
   ]
 )
 
@@ -454,6 +492,89 @@ export const bookingReschedules = pgTable(
   },
   (table) => [
     index('booking_reschedules_original_idx').on(table.originalBookingId),
+  ]
+)
+
+// An admin-created promo code. Every discount requires the customer to type
+// its code — there are no automatic, code-less discounts, and a booking can
+// carry at most one code (see discountRedemptions.bookingId).
+//
+// The effect columns are nullable because only one kind applies at a time;
+// which one is required is enforced by check constraints in the migration and
+// by the create/update Zod schemas.
+export const discounts = pgTable(
+  'discounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: varchar('code', { length: 40 }).notNull(),
+    description: text('description'),
+    discountType: discountTypeEnum('discount_type').notNull(),
+    // 20.00 = 20%. Capped at 99 so a booking always has ≥ ₹1 left to charge.
+    percentOff: decimal('percent_off', { precision: 5, scale: 2 }),
+    amountOff: decimal('amount_off', { precision: 10, scale: 2 }),
+    // Ceiling on a percentage effect; null = uncapped.
+    maxDiscountAmount: decimal('max_discount_amount', {
+      precision: 10,
+      scale: 2,
+    }),
+    minOrderAmount: decimal('min_order_amount', { precision: 10, scale: 2 }),
+    // null = unlimited on both limits; 1 = once per customer.
+    perUserLimit: integer('per_user_limit'),
+    totalUsageLimit: integer('total_usage_limit'),
+    // null = valid at every garage.
+    vendorId: uuid('vendor_id').references(() => vendors.id, {
+      onDelete: 'cascade',
+    }),
+    fundedBy: discountFundedByEnum('funded_by').default('platform').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    // Off switch that preserves history — prefer it over delete.
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // The case-insensitive unique index on lower(code) lives in the migration:
+    // drizzle cannot express a functional index here. Do not add a plain
+    // unique() to `code` — it would disagree with the database.
+    index('discounts_is_active_idx').on(table.isActive),
+    index('discounts_vendor_id_idx').on(table.vendorId),
+  ]
+)
+
+// Append-only audit: one row per booking that used a code. The unique
+// bookingId is what enforces "one code per booking", and the RESTRICT on
+// discountId is what stops a redeemed code being deleted out from under it.
+export const discountRedemptions = pgTable(
+  'discount_redemptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    discountId: uuid('discount_id')
+      .notNull()
+      .references(() => discounts.id, { onDelete: 'restrict' }),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .unique()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    code: varchar('code', { length: 40 }).notNull(),
+    discountAmount: decimal('discount_amount', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('discount_redemptions_discount_id_idx').on(table.discountId),
+    index('discount_redemptions_user_discount_idx').on(
+      table.userId,
+      table.discountId
+    ),
   ]
 )
 
@@ -623,10 +744,40 @@ export const servicePackageItemsRelations = relations(
   })
 )
 
+export const discountsRelations = relations(discounts, ({ one, many }) => ({
+  vendor: one(vendors, {
+    fields: [discounts.vendorId],
+    references: [vendors.id],
+  }),
+  redemptions: many(discountRedemptions),
+}))
+
+export const discountRedemptionsRelations = relations(
+  discountRedemptions,
+  ({ one }) => ({
+    discount: one(discounts, {
+      fields: [discountRedemptions.discountId],
+      references: [discounts.id],
+    }),
+    booking: one(bookings, {
+      fields: [discountRedemptions.bookingId],
+      references: [bookings.id],
+    }),
+    user: one(users, {
+      fields: [discountRedemptions.userId],
+      references: [users.id],
+    }),
+  })
+)
+
 export const bookingsRelations = relations(bookings, ({ one }) => ({
   user: one(users, {
     fields: [bookings.userId],
     references: [users.id],
+  }),
+  discount: one(discounts, {
+    fields: [bookings.discountId],
+    references: [discounts.id],
   }),
   vendor: one(vendors, {
     fields: [bookings.vendorId],

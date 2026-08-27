@@ -8,6 +8,7 @@ import { adminLogout, getAdminMe } from '@/lib/api/admin'
 const NAV: PanelNavItem[] = [
   { href: '/admin/vendors', label: 'Vendors' },
   { href: '/admin/bookings', label: 'Bookings' },
+  { href: '/admin/discounts', label: 'Discounts' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

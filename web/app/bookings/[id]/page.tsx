@@ -258,9 +258,26 @@ export default function BookingDetailPage({
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <span className="rounded-lg bg-surface-elevated px-2.5 py-1.5 text-[12px] text-text-primary">
-            {booking.serviceName} ({formatBookingAmount(booking.servicePrice)})
+            {booking.serviceName} ({formatBookingAmount(booking.subtotalPrice)})
           </span>
         </div>
+
+        {/* Only a discounted booking gets a breakdown; everything else keeps
+            the single total it has always shown. */}
+        {booking.discountAmount > 0 && (
+          <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-[12px]">
+            <div className="flex items-center justify-between text-text-secondary">
+              <span>Subtotal</span>
+              <span>{formatBookingAmount(booking.subtotalPrice)}</span>
+            </div>
+            <div className="flex items-center justify-between text-success">
+              <span>
+                Discount{booking.discountCode ? ` (${booking.discountCode})` : ''}
+              </span>
+              <span>−{formatBookingAmount(booking.discountAmount)}</span>
+            </div>
+          </div>
+        )}
 
         <div className="my-4 h-px bg-border" />
         <div className="flex items-center justify-between">
