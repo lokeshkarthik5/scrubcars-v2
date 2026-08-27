@@ -4,6 +4,7 @@ import { db } from '../../db/index.js'
 import {
   bookingReschedules,
   bookings,
+  discountRedemptions,
   payments,
   services,
   userAddresses,
@@ -11,12 +12,24 @@ import {
   vendors,
 } from '../../db/schema.js'
 import type { bookingStatusEnum, bookingTypeEnum } from '../../db/schema.js'
+import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 
 type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
 type BookingType = (typeof bookingTypeEnum.enumValues)[number]
 
 export type BookingRecord = typeof bookings.$inferSelect
 export type PaymentRecord = typeof payments.$inferSelect
+
+// The discount already resolved by discountsService, carried into the write so
+// the booking, its payment and the redemption row land in one transaction.
+export interface BookingDiscount {
+  discountId: string
+  code: string
+  discountAmount: string
+  fundedBy: 'platform' | 'vendor'
+  perUserLimit: number | null
+  totalUsageLimit: number | null
+}
 
 // Bookings that still lay claim to a vehicle. Cancelled and rescheduled ones
 // released it; a completed one is already done and can't clash with a future
@@ -74,6 +87,45 @@ async function findOverlappingVehicleBooking(
 // Serialises concurrent bookings for one vehicle. Taken before the overlap
 // check in every path that creates a booking, and always acquired first so the
 // lock ordering is consistent and can't deadlock against the reschedule lock.
+// Shares DISCOUNT_HELD with discounts.repository.ts rather than restating it:
+// the pre-check and this in-transaction re-check must apply the same rule, and
+// two hand-copied predicates were one edit away from disagreeing.
+async function countHeldRedemptions(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  discountId: string,
+  userId?: string
+): Promise<number> {
+  const [row] = await tx
+    .select({ value: count() })
+    .from(discountRedemptions)
+    .innerJoin(bookings, eq(bookings.id, discountRedemptions.bookingId))
+    .innerJoin(payments, eq(payments.bookingId, bookings.id))
+    .where(
+      and(
+        eq(discountRedemptions.discountId, discountId),
+        userId ? eq(discountRedemptions.userId, userId) : undefined,
+        DISCOUNT_HELD
+      )
+    )
+
+  return row?.value ?? 0
+}
+
+// Serialize writes for one discount so two simultaneous bookings can't both
+// read "one use left" and both take it. Always taken *after* the vehicle lock,
+// matching the ordering in rescheduleBookingWithPayment, so the two paths
+// cannot deadlock against each other.
+async function lockDiscount(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  discountId: string
+) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`discount:${discountId}`})::bigint)`
+  )
+}
+
 async function lockVehicle(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: PgTransaction<any, any, any>,
@@ -156,11 +208,15 @@ export const bookingsRepository = {
     bookingType: BookingType
     scheduledAt: Date
     serviceDurationMins: number
+    // Pre-discount service price.
+    subtotalAmount: string
+    // What is actually charged: subtotalAmount - discount.discountAmount.
     amount: string
     paymentMethod: 'online' | 'cash'
     lat?: number | null
     lng?: number | null
     address?: string | null
+    discount?: BookingDiscount | null
   }) {
     // Capacity is unlimited, so there is no vendor-side slot contention to
     // guard against — only the one-car-in-one-place rule below.
@@ -174,7 +230,47 @@ export const bookingsRepository = {
       })
 
       if (clash) {
-        return { booking: null, payment: null, vehicleClash: clash }
+        return {
+          booking: null,
+          payment: null,
+          vehicleClash: clash,
+          discountUnavailable: false as const,
+        }
+      }
+
+      // The service already resolved the code, but that read is outside this
+      // transaction. Re-check the limits here, under the lock, so the last use
+      // of a code can only be taken once. This is only meaningful because
+      // DISCOUNT_HELD counts unpaid bookings — a predicate that waited for
+      // payment would be false for every booking currently in flight.
+      if (data.discount) {
+        await lockDiscount(tx, data.discount.discountId)
+
+        const { discountId, totalUsageLimit, perUserLimit } = data.discount
+
+        if (totalUsageLimit !== null) {
+          const used = await countHeldRedemptions(tx, discountId)
+          if (used >= totalUsageLimit) {
+            return {
+              booking: null,
+              payment: null,
+              vehicleClash: null,
+              discountUnavailable: true as const,
+            }
+          }
+        }
+
+        if (perUserLimit !== null) {
+          const usedByUser = await countHeldRedemptions(tx, discountId, data.userId)
+          if (usedByUser >= perUserLimit) {
+            return {
+              booking: null,
+              payment: null,
+              vehicleClash: null,
+              discountUnavailable: true as const,
+            }
+          }
+        }
       }
 
       const [booking] = await tx
@@ -186,7 +282,12 @@ export const bookingsRepository = {
           vehicleId: data.vehicleId,
           bookingType: data.bookingType,
           scheduledAt: data.scheduledAt,
+          subtotalAmount: data.subtotalAmount,
           amount: data.amount,
+          discountAmount: data.discount?.discountAmount ?? '0.00',
+          discountId: data.discount?.discountId ?? null,
+          discountCode: data.discount?.code ?? null,
+          discountFundedBy: data.discount?.fundedBy ?? null,
           paymentMethod: data.paymentMethod,
           lat: data.lat ?? null,
           lng: data.lng ?? null,
@@ -204,7 +305,22 @@ export const bookingsRepository = {
         })
         .returning()
 
-      return { booking, payment, vehicleClash: null }
+      if (data.discount) {
+        await tx.insert(discountRedemptions).values({
+          discountId: data.discount.discountId,
+          bookingId: booking.id,
+          userId: data.userId,
+          code: data.discount.code,
+          discountAmount: data.discount.discountAmount,
+        })
+      }
+
+      return {
+        booking,
+        payment,
+        vehicleClash: null,
+        discountUnavailable: false as const,
+      }
     })
   },
 
@@ -219,7 +335,14 @@ export const bookingsRepository = {
     newScheduledAt: Date
     serviceDurationMins: number
     status: BookingStatus
+    // A reschedule is a move, not a re-price: these are copied verbatim from
+    // the booking being moved.
+    subtotalAmount: string
     amount: string
+    discountAmount: string
+    discountId: string | null
+    discountCode: string | null
+    discountFundedBy: 'platform' | 'vendor' | null
     paymentMethod: 'online' | 'cash'
     lat: number | null
     lng: number | null
@@ -294,7 +417,12 @@ export const bookingsRepository = {
           bookingType: data.bookingType,
           scheduledAt: data.newScheduledAt,
           status: data.status,
+          subtotalAmount: data.subtotalAmount,
           amount: data.amount,
+          discountAmount: data.discountAmount,
+          discountId: data.discountId,
+          discountCode: data.discountCode,
+          discountFundedBy: data.discountFundedBy,
           paymentMethod: data.paymentMethod,
           lat: data.lat,
           lng: data.lng,
@@ -318,6 +446,16 @@ export const bookingsRepository = {
           paidAt: data.sourcePayment?.paidAt ?? null,
         })
         .returning()
+
+      // Move any redemption onto the new booking. This is not bookkeeping
+      // tidiness: the source booking is cancelled below, and a redemption
+      // attached to a cancelled booking stops counting as consumed — the
+      // customer would get their allowance back while still holding the
+      // discounted slot. The unique booking_id makes this a move, not a copy.
+      await tx
+        .update(discountRedemptions)
+        .set({ bookingId: booking.id })
+        .where(eq(discountRedemptions.bookingId, data.sourceBookingId))
 
       // Retire the source booking. It is cancelled outright (not left in a
       // 'rescheduled' limbo state) and carries the usual cancellation

@@ -1,0 +1,215 @@
+import { and, asc, count, desc, eq, ilike, ne, or, sql } from 'drizzle-orm'
+import { DISCOUNT_HELD, DISCOUNT_REALIZED } from './discounts.predicates.js'
+import { db } from '../../db/index.js'
+import {
+  bookings,
+  discountRedemptions,
+  discounts,
+  payments,
+  services,
+  userVehicles,
+  vendors,
+} from '../../db/schema.js'
+
+export const discountsRepository = {
+  findByCode(code: string) {
+    return db.query.discounts.findFirst({
+      where: sql`lower(${discounts.code}) = lower(${code})`,
+    })
+  },
+
+  findById(id: string) {
+    return db.query.discounts.findFirst({ where: eq(discounts.id, id) })
+  },
+
+  /**
+   * How many times this discount is currently held — optionally narrowed to
+   * one customer, which is the per-user limit check. See DISCOUNT_HELD for why
+   * this counts unpaid bookings.
+   */
+  async countHeld(discountId: string, userId?: string): Promise<number> {
+    const [row] = await db
+      .select({ value: count() })
+      .from(discountRedemptions)
+      .innerJoin(bookings, eq(bookings.id, discountRedemptions.bookingId))
+      .innerJoin(payments, eq(payments.bookingId, bookings.id))
+      .where(
+        and(
+          eq(discountRedemptions.discountId, discountId),
+          userId ? eq(discountRedemptions.userId, userId) : undefined,
+          DISCOUNT_HELD
+        )
+      )
+
+    return row?.value ?? 0
+  },
+
+  /** Whether any redemption row exists at all — the delete gate. */
+  async hasRedemptions(discountId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ value: count() })
+      .from(discountRedemptions)
+      .where(eq(discountRedemptions.discountId, discountId))
+
+    return (row?.value ?? 0) > 0
+  },
+
+  /**
+   * Usage figures in one grouped pass — never a count query per row.
+   *
+   * `redemptionCount` is the size of the audit trail (what gates deletion),
+   * `heldCount` is what the limits compare against, and `realizedCount` /
+   * `totalSaved` are money that actually landed. Pass a `discountId` to scope
+   * the aggregate to one row instead of grouping the whole table.
+   */
+  async usageByDiscount(discountId?: string) {
+    const rows = await db
+      .select({
+        discountId: discountRedemptions.discountId,
+        redemptionCount: count(),
+        heldCount: sql<number>`count(*) filter (where ${DISCOUNT_HELD})`,
+        realizedCount: sql<number>`count(*) filter (where ${DISCOUNT_REALIZED})`,
+        totalSaved: sql<string>`coalesce(sum(${discountRedemptions.discountAmount}) filter (where ${DISCOUNT_REALIZED}), 0)`,
+      })
+      .from(discountRedemptions)
+      .innerJoin(bookings, eq(bookings.id, discountRedemptions.bookingId))
+      .innerJoin(payments, eq(payments.bookingId, bookings.id))
+      .where(
+        discountId
+          ? eq(discountRedemptions.discountId, discountId)
+          : undefined
+      )
+      .groupBy(discountRedemptions.discountId)
+
+    return new Map(
+      rows.map((row) => [
+        row.discountId,
+        {
+          redemptionCount: Number(row.redemptionCount),
+          heldCount: Number(row.heldCount),
+          realizedCount: Number(row.realizedCount),
+          totalSaved: Number(row.totalSaved).toFixed(2),
+        },
+      ])
+    )
+  },
+
+  listDiscounts(filters: { q?: string; active?: boolean }) {
+    // % and _ are wildcards to LIKE; an admin searching "20%" means the
+    // characters, not "anything after 20".
+    const term = filters.q?.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+
+    const conditions = [
+      filters.active === undefined
+        ? undefined
+        : eq(discounts.isActive, filters.active),
+      term
+        ? or(
+            ilike(discounts.code, `%${term}%`),
+            ilike(discounts.description, `%${term}%`)
+          )
+        : undefined,
+    ].filter(Boolean)
+
+    return db.query.discounts.findMany({
+      where: conditions.length > 0 ? and(...conditions) : undefined,
+      with: {
+        vendor: { columns: { id: true, businessName: true } },
+      },
+      orderBy: [desc(discounts.createdAt)],
+    })
+  },
+
+  findDetailById(id: string) {
+    return db.query.discounts.findFirst({
+      where: eq(discounts.id, id),
+      with: {
+        vendor: { columns: { id: true, businessName: true } },
+      },
+    })
+  },
+
+  async createDiscount(values: typeof discounts.$inferInsert) {
+    const [row] = await db.insert(discounts).values(values).returning()
+    return row
+  },
+
+  async updateDiscount(
+    id: string,
+    values: Partial<typeof discounts.$inferInsert>
+  ) {
+    const [row] = await db
+      .update(discounts)
+      .set(values)
+      .where(eq(discounts.id, id))
+      .returning()
+    return row
+  },
+
+  async deleteDiscount(id: string) {
+    await db.delete(discounts).where(eq(discounts.id, id))
+  },
+
+  async vendorExists(vendorId: string): Promise<boolean> {
+    const row = await db.query.vendors.findFirst({
+      where: eq(vendors.id, vendorId),
+      columns: { id: true },
+    })
+    return Boolean(row)
+  },
+
+  /** Vendor picker for the admin form: active garages, alphabetical. */
+  listVendorOptions() {
+    return db
+      .select({ id: vendors.id, businessName: vendors.businessName })
+      .from(vendors)
+      .where(ne(vendors.status, 'archived'))
+      .orderBy(asc(vendors.businessName))
+  },
+
+  /**
+   * The service and vehicle behind a preview request. The subtotal is always
+   * recomputed from these — a client-sent amount is never trusted.
+   */
+  async findPricingContext(input: {
+    vendorId: string
+    serviceId: string
+    userId: string
+    vehicleId: string
+  }) {
+    const [service] = await db
+      .select({
+        id: services.id,
+        pricingType: services.pricingType,
+        price: services.price,
+        priceHatchback: services.priceHatchback,
+        priceSedan: services.priceSedan,
+        priceSuv: services.priceSuv,
+        isActive: services.isActive,
+      })
+      .from(services)
+      .where(
+        and(
+          eq(services.id, input.serviceId),
+          eq(services.vendorId, input.vendorId)
+        )
+      )
+      .limit(1)
+
+    const [vehicle] = await db
+      .select({
+        id: userVehicles.id,
+        vehicleType: userVehicles.vehicleType,
+      })
+      .from(userVehicles)
+      .where(
+        and(
+          eq(userVehicles.id, input.vehicleId),
+          eq(userVehicles.userId, input.userId)
+        )
+      )
+      .limit(1)
+
+    return { service: service ?? null, vehicle: vehicle ?? null }
+  },
+}

@@ -127,6 +127,10 @@ export interface AdminBooking {
   scheduledAt: string
   status: string
   amount: string
+  subtotalAmount: string
+  discountAmount: string
+  discountCode: string | null
+  discountFundedBy: 'platform' | 'vendor' | null
   paymentMethod: string
   createdAt: string
   vendor: { id: string; businessName: string; phone: string } | null
@@ -360,4 +364,115 @@ export async function listAdminBookings(status?: string) {
   return apiClient<AdminBooking[]>('/admin/bookings', {
     params: { status },
   })
+}
+
+// ─── Discounts ───────────────────────────────────────────────────────────────
+//
+// Mounted under /admin/* because the admin session cookie is scoped to
+// path=/api/v1/admin — a discount route anywhere else never receives it.
+
+export type DiscountType = 'percentage' | 'fixed'
+export type DiscountFundedBy = 'platform' | 'vendor'
+
+export interface AdminDiscount {
+  id: string
+  code: string
+  description: string | null
+  discountType: DiscountType
+  /** Decimal strings as stored; null when the other effect applies. */
+  percentOff: string | null
+  amountOff: string | null
+  maxDiscountAmount: string | null
+  minOrderAmount: string | null
+  perUserLimit: number | null
+  totalUsageLimit: number | null
+  vendorId: string | null
+  vendorName: string | null
+  fundedBy: DiscountFundedBy
+  startsAt: string | null
+  endsAt: string | null
+  isActive: boolean
+  createdAt: string
+  /** Audit rows — any at all blocks deletion. */
+  redemptionCount: number
+  /** Live uses, paid or not — this is what the usage limits compare against. */
+  heldCount: number
+  /** Uses whose money actually landed. */
+  realizedCount: number
+  /** Rupees saved, realized only. */
+  totalSaved: string
+}
+
+/** Numbers here are plain units: 20 = 20%, 500 = ₹500. Null = unlimited/none. */
+export interface DiscountInput {
+  code: string
+  description?: string | null
+  discountType: DiscountType
+  percentOff?: number
+  amountOff?: number
+  maxDiscountAmount?: number | null
+  minOrderAmount?: number | null
+  perUserLimit?: number | null
+  totalUsageLimit?: number | null
+  vendorId?: string | null
+  fundedBy: DiscountFundedBy
+  startsAt?: string | null
+  endsAt?: string | null
+  isActive: boolean
+}
+
+export interface DiscountVendorOption {
+  id: string
+  businessName: string
+}
+
+/** GET /admin/discounts */
+export async function listAdminDiscounts(params?: {
+  q?: string
+  active?: boolean
+}): Promise<AdminDiscount[]> {
+  return apiClient<AdminDiscount[]>('/admin/discounts', {
+    params: {
+      q: params?.q || undefined,
+      active: params?.active === undefined ? undefined : String(params.active),
+    },
+  })
+}
+
+/** GET /admin/discounts/:id */
+export async function getAdminDiscount(id: string): Promise<AdminDiscount> {
+  return apiClient<AdminDiscount>(`/admin/discounts/${id}`)
+}
+
+/** POST /admin/discounts */
+export async function createAdminDiscount(
+  input: DiscountInput
+): Promise<AdminDiscount> {
+  return apiClient<AdminDiscount>('/admin/discounts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** PATCH /admin/discounts/:id — also the activate/deactivate path. */
+export async function updateAdminDiscount(
+  id: string,
+  input: Partial<DiscountInput>
+): Promise<AdminDiscount> {
+  return apiClient<AdminDiscount>(`/admin/discounts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+/** DELETE /admin/discounts/:id — 409 DISCOUNT_IN_USE once redeemed. */
+export async function deleteAdminDiscount(id: string): Promise<void> {
+  await apiClient(`/admin/discounts/${id}`, { method: 'DELETE' })
+}
+
+/** GET /admin/discounts/vendors — the garage picker for vendor-scoped codes. */
+export async function listDiscountVendorOptions(): Promise<
+  DiscountVendorOption[]
+> {
+  return apiClient<DiscountVendorOption[]>('/admin/discounts/vendors')
 }

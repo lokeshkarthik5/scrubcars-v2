@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { IconCalendar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
-import { getAvailableSlots } from '@/lib/api/bookings'
-import { getVendorWorkingHours } from '@/lib/api/vendors'
+import { ScSheet } from '@/components/sc/modal'
+import {
+  useAvailableSlots,
+  useVendorWorkingHours,
+} from '@/lib/api/hooks/use-slots'
 import { APP_TIMEZONE, cn } from '@/lib/utils'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -50,12 +53,37 @@ function addDaysToKey(key: string, days: number) {
   return `${yyyy}-${mm}-${dd}`
 }
 
+/** Same box as a date chip, so the row doesn't resize when the data lands. */
+function DateChipSkeleton() {
+  return <span className="h-[62px] w-[52px] shrink-0 rounded-[12px] shimmer" />
+}
+
+/** Same box as a time button, in the same three-column grid. */
+function TimeGridSkeleton() {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <span key={i} className="h-[42px] rounded-[10px] shimmer" />
+      ))}
+    </div>
+  )
+}
+
 interface SlotPickerProps {
   vendorId: string
   serviceId: string | null
   /** Currently selected slot, as a scheduledAt ISO string. */
   value: string | null
   onChange: (scheduledAt: string | null) => void
+  /**
+   * Reveal the time slots only once a date has been picked, and start with no
+   * date selected.
+   *
+   * Off by default: the reschedule sheet wants the whole picker at once,
+   * because the customer already has a booking and is comparing times. The
+   * booking flow opts in so a first-time customer is asked one thing at a time.
+   */
+  progressive?: boolean
 }
 
 /**
@@ -63,38 +91,46 @@ interface SlotPickerProps {
  * popup for dates further out, and the available time slots for the chosen
  * date. Emits the selected slot's scheduledAt ISO string via onChange.
  */
-export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerProps) {
+export function SlotPicker({
+  vendorId,
+  serviceId,
+  value,
+  onChange,
+  progressive = false,
+}: SlotPickerProps) {
   const dateOptions = buildDateOptions()
   const calendarMin = addDaysToKey(dateOptions[dateOptions.length - 1].value, 1)
 
-  const [selectedDate, setSelectedDate] = useState(dateOptions[0].value)
+  const [selectedDate, setSelectedDate] = useState<string | null>(
+    progressive ? null : dateOptions[0].value
+  )
   const [customDate, setCustomDate] = useState<string | null>(null)
   const [showCalendar, setShowCalendar] = useState(false)
   const [calMonth, setCalMonth] = useState(() => {
     const [y, m] = calendarMin.split('-').map(Number)
     return { year: y, month: m - 1 }
   })
-  const [slots, setSlots] = useState<Array<{ time: string; label: string }>>([])
-  const [isClosedDay, setIsClosedDay] = useState(false)
-  const [closedDays, setClosedDays] = useState<Set<number>>(new Set())
+  const workingHours = useVendorWorkingHours(vendorId)
+  const slotsQuery = useAvailableSlots({ vendorId, serviceId, date: selectedDate })
 
-  useEffect(() => {
-    getVendorWorkingHours(vendorId)
-      .then((hours) =>
-        setClosedDays(new Set(hours.filter((h) => h.isClosed).map((h) => h.dayOfWeek)))
-      )
-      .catch(() => setClosedDays(new Set()))
-  }, [vendorId])
+  const closedDays = useMemo(
+    () =>
+      new Set(
+        (workingHours.data ?? [])
+          .filter((h) => h.isClosed)
+          .map((h) => h.dayOfWeek)
+      ),
+    [workingHours.data]
+  )
 
-  useEffect(() => {
-    if (!serviceId) return
-    getAvailableSlots({ vendorId, serviceId, date: selectedDate }).then(
-      ({ isClosed, slots }) => {
-        setSlots(slots)
-        setIsClosedDay(isClosed)
-      }
-    )
-  }, [vendorId, serviceId, selectedDate])
+  const slots = slotsQuery.data?.slots ?? []
+  const isClosedDay = slotsQuery.data?.isClosed ?? false
+
+  // Until the answer is in, say nothing. Rendering the empty state off an
+  // empty-by-default array is what made the picker flash "No slots available"
+  // before every fetch — a false negative the customer sees more often than
+  // the real one. A disabled query (no service yet) counts as loading too.
+  const slotsLoading = !serviceId || slotsQuery.isPending
 
   const selectDate = (date: string) => {
     setSelectedDate(date)
@@ -105,7 +141,12 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
     <div>
       <h2 className="mb-3 text-[15px] font-semibold text-text-primary">Select Date</h2>
       <div className="-mx-4 mb-6 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {dateOptions.map((d) => {
+        {/* Held back until the closed days are known: rendering the chips
+            first means days pop from selectable to disabled under the
+            customer's thumb. */}
+        {workingHours.isPending
+          ? dateOptions.map((d) => <DateChipSkeleton key={d.value} />)
+          : dateOptions.map((d) => {
           const closed = closedDays.has(d.dayOfWeek)
           return (
             <button
@@ -132,8 +173,8 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
               </span>
               <span className="text-[16px] font-semibold">{d.date.split(' ')[0]}</span>
             </button>
-          )
-        })}
+              )
+            })}
 
         {customDate && (
           <button
@@ -176,122 +217,130 @@ export function SlotPicker({ vendorId, serviceId, value, onChange }: SlotPickerP
         </button>
       </div>
 
-      <h2 className="mb-3 text-[15px] font-semibold text-text-primary">Select Time</h2>
-      {slots.length === 0 ? (
-        <p className="text-[12px] text-text-secondary">
-          {isClosedDay ? 'Vendor is closed on this day.' : 'No slots available on this date.'}
-        </p>
-      ) : (
-        <div className="grid grid-cols-3 gap-2">
-          {slots.map((slot) => (
-            <button
-              key={slot.time}
-              type="button"
-              onClick={() => onChange(slot.time)}
-              className={cn(
-                'rounded-[10px] py-3 text-[13px] font-medium transition-colors',
-                value === slot.time
-                  ? 'bg-brand-white font-semibold text-brand-black'
-                  : 'bg-surface text-text-primary'
-              )}
-            >
-              {slot.label}
-            </button>
+      {selectedDate && (
+        <>
+          <h2 className="mb-3 text-[15px] font-semibold text-text-primary">
+            Select Time
+          </h2>
+          {slotsLoading ? (
+            <TimeGridSkeleton />
+          ) : slots.length === 0 ? (
+            <p className="text-[12px] text-text-secondary">
+              {isClosedDay
+                ? 'Vendor is closed on this day.'
+                : 'No slots available on this date.'}
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {slots.map((slot) => (
+                <button
+                  key={slot.time}
+                  type="button"
+                  onClick={() => onChange(slot.time)}
+                  className={cn(
+                    'rounded-[10px] py-3 text-[13px] font-medium transition-colors',
+                    value === slot.time
+                      ? 'bg-brand-white font-semibold text-brand-black'
+                      : 'bg-surface text-text-primary'
+                  )}
+                >
+                  {slot.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* A sheet, like every other overlay in the app. It also inherits the
+          things this hand-rolled dialog never had: Escape to dismiss, a scroll
+          lock on the page behind, and enter/exit animations. */}
+      <ScSheet
+        open={showCalendar}
+        onClose={() => setShowCalendar(false)}
+        aria-label="Pick a date"
+        className="px-4"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() =>
+              setCalMonth((c) =>
+                c.month === 0
+                  ? { year: c.year - 1, month: 11 }
+                  : { year: c.year, month: c.month - 1 }
+              )
+            }
+            className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
+            aria-label="Previous month"
+          >
+            <IconChevronLeft size={20} />
+          </button>
+          <span className="text-sm font-semibold text-text-primary">
+            {MONTH_NAMES[calMonth.month]} {calMonth.year}
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setCalMonth((c) =>
+                c.month === 11
+                  ? { year: c.year + 1, month: 0 }
+                  : { year: c.year, month: c.month + 1 }
+              )
+            }
+            className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
+            aria-label="Next month"
+          >
+            <IconChevronRight size={20} />
+          </button>
+        </div>
+
+        <div className="mb-1 grid grid-cols-7 text-center">
+          {DAY_NAMES.map((d) => (
+            <span key={d} className="text-[10px] font-medium text-text-muted">
+              {d[0]}
+            </span>
           ))}
         </div>
-      )}
 
-      {showCalendar && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-6"
-          onClick={() => setShowCalendar(false)}
-        >
-          <div
-            className="w-full max-w-[340px] rounded-[20px] border border-border bg-brand-black p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({
+            length: new Date(Date.UTC(calMonth.year, calMonth.month, 1)).getUTCDay(),
+          }).map((_, i) => (
+            <span key={`pad-${i}`} />
+          ))}
+          {Array.from({
+            length: new Date(Date.UTC(calMonth.year, calMonth.month + 1, 0)).getUTCDate(),
+          }).map((_, i) => {
+            const day = i + 1
+            const key = `${calMonth.year}-${String(calMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            const disabled = key < calendarMin
+            const selected = key === customDate
+            return (
               <button
+                key={key}
                 type="button"
-                onClick={() =>
-                  setCalMonth((c) =>
-                    c.month === 0
-                      ? { year: c.year - 1, month: 11 }
-                      : { year: c.year, month: c.month - 1 }
-                  )
-                }
-                className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
-                aria-label="Previous month"
+                disabled={disabled}
+                onClick={() => {
+                  setCustomDate(key)
+                  selectDate(key)
+                  setShowCalendar(false)
+                }}
+                className={cn(
+                  'flex h-9 items-center justify-center rounded-lg text-[13px] transition-colors',
+                  disabled
+                    ? 'cursor-not-allowed text-text-muted opacity-30'
+                    : selected
+                      ? 'bg-brand-red font-semibold text-brand-white'
+                      : 'text-text-primary hover:bg-surface'
+                )}
               >
-                <IconChevronLeft size={20} />
+                {day}
               </button>
-              <span className="text-sm font-semibold text-text-primary">
-                {MONTH_NAMES[calMonth.month]} {calMonth.year}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setCalMonth((c) =>
-                    c.month === 11
-                      ? { year: c.year + 1, month: 0 }
-                      : { year: c.year, month: c.month + 1 }
-                  )
-                }
-                className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
-                aria-label="Next month"
-              >
-                <IconChevronRight size={20} />
-              </button>
-            </div>
-
-            <div className="mb-1 grid grid-cols-7 text-center">
-              {DAY_NAMES.map((d) => (
-                <span key={d} className="text-[10px] font-medium text-text-muted">
-                  {d[0]}
-                </span>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({
-                length: new Date(Date.UTC(calMonth.year, calMonth.month, 1)).getUTCDay(),
-              }).map((_, i) => (
-                <span key={`pad-${i}`} />
-              ))}
-              {Array.from({
-                length: new Date(Date.UTC(calMonth.year, calMonth.month + 1, 0)).getUTCDate(),
-              }).map((_, i) => {
-                const day = i + 1
-                const key = `${calMonth.year}-${String(calMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                const disabled = key < calendarMin
-                const selected = key === customDate
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => {
-                      setCustomDate(key)
-                      selectDate(key)
-                      setShowCalendar(false)
-                    }}
-                    className={cn(
-                      'flex h-9 items-center justify-center rounded-lg text-[13px] transition-colors',
-                      disabled
-                        ? 'cursor-not-allowed text-text-muted opacity-30'
-                        : selected
-                          ? 'bg-brand-red font-semibold text-brand-white'
-                          : 'text-text-primary hover:bg-surface'
-                    )}
-                  >
-                    {day}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+            )
+      })}
+    </div>
+      </ScSheet>
     </div>
   )
 }

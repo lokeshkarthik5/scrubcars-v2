@@ -6,6 +6,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { env } from './lib/env.js'
 import { AppError } from './lib/errors.js'
 import { logger } from './lib/logger.js'
+import { APP_VERSION } from './lib/version.js'
 import { globalRateLimiter } from './middleware/rate-limit.middleware.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { usersRoutes } from './modules/users/users.routes.js'
@@ -14,8 +15,9 @@ import { reviewsRoutes } from './modules/reviews/reviews.routes.js'
 import { paymentsRoutes } from './modules/payments/payments.routes.js'
 import { vendorsRoutes } from './modules/vendors/vendors.routes.js'
 import { adminRoutes } from './modules/admin/admin.routes.js'
+import { discountsRoutes } from './modules/discounts/discounts.routes.js'
 
-console.log('[BOOT] app.ts loading')
+console.log(`[BOOT] app.ts loading (v${APP_VERSION})`)
 
 export const app = new Hono()
 
@@ -73,7 +75,7 @@ app.onError((err, c) => {
   return c.json({ success: false, message: 'Internal server error' }, 500)
 })
 
-app.get('/', (c) => c.text('Detlio API'))
+app.get('/', (c) => c.text(`Detlio API v${APP_VERSION}`))
 
 app.route('/api/v1/auth', authRoutes)
 app.route('/api/v1/users', usersRoutes)
@@ -81,6 +83,7 @@ app.route('/api/v1/vendors', vendorsRoutes)
 app.route('/api/v1/bookings', bookingsRoutes)
 app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
+app.route('/api/v1/discounts', discountsRoutes)
 app.route('/api/v1/admin', adminRoutes)
 
 console.log('[BOOT] app.ts ready')

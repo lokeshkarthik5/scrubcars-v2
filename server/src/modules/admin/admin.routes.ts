@@ -7,6 +7,7 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
+import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   createVendorSchema,
@@ -188,6 +189,11 @@ adminRoutes.delete(
       c.req.valid('param').imageId
     )
 )
+
+// Discount CRUD. Nested here rather than mounted at the app root because the
+// admin session cookie is scoped to path=/api/v1/admin — anywhere else and the
+// browser never sends it.
+adminRoutes.route('/discounts', adminDiscountRoutes)
 
 adminRoutes.get(
   '/bookings',

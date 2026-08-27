@@ -140,7 +140,19 @@ export interface Booking {
   vendorName: string
   serviceId: string
   serviceName: string
+  /** What the customer is actually charged, after any discount. */
   servicePrice: number
+  /** The pre-discount price. Equal to servicePrice when no code was used. */
+  subtotalPrice: number
+  discountAmount: number
+  discountCode?: string
+  discountFundedBy?: 'platform' | 'vendor'
+  /**
+   * What the garage is owed: the full pre-discount price when Detlio funded
+   * the discount, the charged amount when the garage funded it. Computed
+   * server-side — never re-derive it here.
+   */
+  vendorPayoutAmount: number
   servicePricingType?: PricingType
   status: BookingStatus
   bookingType: BookingType

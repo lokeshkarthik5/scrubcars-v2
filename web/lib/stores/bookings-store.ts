@@ -23,6 +23,9 @@ function bookingRequestKey(payload: CreateBookingPayload) {
     payload.vehicleId,
     payload.addressId ?? '',
     payload.paymentMethod,
+    // Without the code, a discounted retry would be deduped against the
+    // full-price attempt that preceded it.
+    payload.discountCode ?? '',
   ].join('|')
 }
 
