@@ -129,7 +129,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     reviews.length > 0
       ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
       : vendor.rating
-  const hero = vendor.photos[0] ?? vendor.logoUrl
+  // Gallery-only hero — the logo gets its own badge below, so using it as the
+  // hero too would repeat the same image.
+  const hero = vendor.photos[0] ?? null
   const hasDistance = /\d/.test(vendor.distance)
   const bothModes = vendor.dropinEnabled && vendor.doorstepEnabled
 
@@ -172,6 +174,17 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             <IconHeart size={20} className="text-brand-white" />
           )}
         </button>
+        {vendor.logoUrl && (
+          <div className="absolute bottom-3 left-4 h-14 w-14 overflow-hidden rounded-[14px] border border-white/70 bg-surface shadow-md">
+            <Image
+              src={vendor.logoUrl}
+              alt={`${vendor.name} logo`}
+              fill
+              sizes="56px"
+              className="object-cover"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 px-4 pt-4">

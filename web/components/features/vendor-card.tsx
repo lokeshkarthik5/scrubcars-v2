@@ -20,7 +20,9 @@ function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep'
 }
 
 export function VendorCard({ vendor }: { vendor: Vendor }) {
-  const cover = vendor.photos[0] ?? vendor.logoUrl
+  // The logo has its own badge now, so the cover is gallery-only — reusing the
+  // logo as a full-bleed cover would show the same image twice on the card.
+  const cover = vendor.photos[0] ?? null
   const hasDistance = /\d/.test(vendor.distance)
 
   return (
@@ -40,6 +42,18 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
             // imagery, so the card never implies a photo we don't have.
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-elevated to-surface">
               <IconBuildingStore size={30} className="text-text-muted" />
+            </div>
+          )}
+
+          {vendor.logoUrl && (
+            <div className="absolute bottom-2 left-2 h-10 w-10 overflow-hidden rounded-[10px] border border-white/70 bg-surface shadow-sm">
+              <Image
+                src={vendor.logoUrl}
+                alt={`${vendor.name} logo`}
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
             </div>
           )}
         </div>

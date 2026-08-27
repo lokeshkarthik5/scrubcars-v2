@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useRef, useState, Suspense } from 'react'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconChevronRight,
@@ -260,12 +261,25 @@ function BookContent({ vendorId }: { vendorId: string }) {
           determine it: a per-vehicle service isn't priced until a car is
           picked, so quoting up here would show a number that later moves. */}
       {selectedService && vendor && (
-        <ScCard className="py-3.5">
-          <p className="text-[15px] font-semibold text-text-primary">{vendor.name}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
-            <IconShoppingCart size={13} />
-            {selectedService.name} · {formatDuration(selectedService.durationMins)}
-          </p>
+        <ScCard className="flex items-center gap-3 py-3.5">
+          {vendor.logoUrl && (
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border border-border bg-surface-elevated">
+              <Image
+                src={vendor.logoUrl}
+                alt={`${vendor.name} logo`}
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-semibold text-text-primary">{vendor.name}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
+              <IconShoppingCart size={13} />
+              {selectedService.name} · {formatDuration(selectedService.durationMins)}
+            </p>
+          </div>
         </ScCard>
       )}
 
