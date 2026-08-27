@@ -12,6 +12,7 @@ import {
   vendors,
 } from '../../db/schema.js'
 import type { bookingStatusEnum, bookingTypeEnum } from '../../db/schema.js'
+import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 
 type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
 type BookingType = (typeof bookingTypeEnum.enumValues)[number]
@@ -86,10 +87,10 @@ async function findOverlappingVehicleBooking(
 // Serialises concurrent bookings for one vehicle. Taken before the overlap
 // check in every path that creates a booking, and always acquired first so the
 // lock ordering is consistent and can't deadlock against the reschedule lock.
-// A redemption counts against a limit only once its booking is genuinely
-// consumed — paid for and not cancelled. Mirrors the CONSUMED predicate in
-// discounts.repository.ts; both must move together.
-async function countConsumedRedemptions(
+// Shares DISCOUNT_HELD with discounts.repository.ts rather than restating it:
+// the pre-check and this in-transaction re-check must apply the same rule, and
+// two hand-copied predicates were one edit away from disagreeing.
+async function countHeldRedemptions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: PgTransaction<any, any, any>,
   discountId: string,
@@ -104,8 +105,7 @@ async function countConsumedRedemptions(
       and(
         eq(discountRedemptions.discountId, discountId),
         userId ? eq(discountRedemptions.userId, userId) : undefined,
-        ne(bookings.status, 'cancelled'),
-        eq(payments.status, 'paid')
+        DISCOUNT_HELD
       )
     )
 
@@ -240,14 +240,16 @@ export const bookingsRepository = {
 
       // The service already resolved the code, but that read is outside this
       // transaction. Re-check the limits here, under the lock, so the last use
-      // of a code can only be taken once.
+      // of a code can only be taken once. This is only meaningful because
+      // DISCOUNT_HELD counts unpaid bookings — a predicate that waited for
+      // payment would be false for every booking currently in flight.
       if (data.discount) {
         await lockDiscount(tx, data.discount.discountId)
 
         const { discountId, totalUsageLimit, perUserLimit } = data.discount
 
         if (totalUsageLimit !== null) {
-          const used = await countConsumedRedemptions(tx, discountId)
+          const used = await countHeldRedemptions(tx, discountId)
           if (used >= totalUsageLimit) {
             return {
               booking: null,
@@ -259,11 +261,7 @@ export const bookingsRepository = {
         }
 
         if (perUserLimit !== null) {
-          const usedByUser = await countConsumedRedemptions(
-            tx,
-            discountId,
-            data.userId
-          )
+          const usedByUser = await countHeldRedemptions(tx, discountId, data.userId)
           if (usedByUser >= perUserLimit) {
             return {
               booking: null,

@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, ilike, ne, or, sql } from 'drizzle-orm'
+import { DISCOUNT_HELD, DISCOUNT_REALIZED } from './discounts.predicates.js'
 import { db } from '../../db/index.js'
 import {
   bookings,
@@ -9,14 +10,6 @@ import {
   userVehicles,
   vendors,
 } from '../../db/schema.js'
-
-// A redemption only counts against a limit once the booking is genuinely
-// consumed: paid for and not cancelled. An abandoned checkout or a cancelled
-// booking hands the allowance back to the customer.
-//
-// This predicate is the single definition of "used"; both limit checks and the
-// admin list's counts are built from it, so they can never disagree.
-const CONSUMED = and(ne(bookings.status, 'cancelled'), eq(payments.status, 'paid'))
 
 export const discountsRepository = {
   findByCode(code: string) {
@@ -30,10 +23,11 @@ export const discountsRepository = {
   },
 
   /**
-   * How many times this discount has actually been consumed — optionally
-   * narrowed to one customer, which is the per-user limit check.
+   * How many times this discount is currently held — optionally narrowed to
+   * one customer, which is the per-user limit check. See DISCOUNT_HELD for why
+   * this counts unpaid bookings.
    */
-  async countConsumed(discountId: string, userId?: string): Promise<number> {
+  async countHeld(discountId: string, userId?: string): Promise<number> {
     const [row] = await db
       .select({ value: count() })
       .from(discountRedemptions)
@@ -43,7 +37,7 @@ export const discountsRepository = {
         and(
           eq(discountRedemptions.discountId, discountId),
           userId ? eq(discountRedemptions.userId, userId) : undefined,
-          CONSUMED
+          DISCOUNT_HELD
         )
       )
 
@@ -61,22 +55,30 @@ export const discountsRepository = {
   },
 
   /**
-   * Usage figures for every discount in one grouped pass — never a count query
-   * per row. `redemptionCount` is the size of the audit trail (what gates
-   * deletion); `consumedCount` and `totalSaved` only count paid, uncancelled
-   * bookings (what gates the limits).
+   * Usage figures in one grouped pass — never a count query per row.
+   *
+   * `redemptionCount` is the size of the audit trail (what gates deletion),
+   * `heldCount` is what the limits compare against, and `realizedCount` /
+   * `totalSaved` are money that actually landed. Pass a `discountId` to scope
+   * the aggregate to one row instead of grouping the whole table.
    */
-  async usageByDiscount() {
+  async usageByDiscount(discountId?: string) {
     const rows = await db
       .select({
         discountId: discountRedemptions.discountId,
         redemptionCount: count(),
-        consumedCount: sql<number>`count(*) filter (where ${CONSUMED})`,
-        totalSaved: sql<string>`coalesce(sum(${discountRedemptions.discountAmount}) filter (where ${CONSUMED}), 0)`,
+        heldCount: sql<number>`count(*) filter (where ${DISCOUNT_HELD})`,
+        realizedCount: sql<number>`count(*) filter (where ${DISCOUNT_REALIZED})`,
+        totalSaved: sql<string>`coalesce(sum(${discountRedemptions.discountAmount}) filter (where ${DISCOUNT_REALIZED}), 0)`,
       })
       .from(discountRedemptions)
       .innerJoin(bookings, eq(bookings.id, discountRedemptions.bookingId))
       .innerJoin(payments, eq(payments.bookingId, bookings.id))
+      .where(
+        discountId
+          ? eq(discountRedemptions.discountId, discountId)
+          : undefined
+      )
       .groupBy(discountRedemptions.discountId)
 
     return new Map(
@@ -84,7 +86,8 @@ export const discountsRepository = {
         row.discountId,
         {
           redemptionCount: Number(row.redemptionCount),
-          consumedCount: Number(row.consumedCount),
+          heldCount: Number(row.heldCount),
+          realizedCount: Number(row.realizedCount),
           totalSaved: Number(row.totalSaved).toFixed(2),
         },
       ])
@@ -92,14 +95,18 @@ export const discountsRepository = {
   },
 
   listDiscounts(filters: { q?: string; active?: boolean }) {
+    // % and _ are wildcards to LIKE; an admin searching "20%" means the
+    // characters, not "anything after 20".
+    const term = filters.q?.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+
     const conditions = [
       filters.active === undefined
         ? undefined
         : eq(discounts.isActive, filters.active),
-      filters.q
+      term
         ? or(
-            ilike(discounts.code, `%${filters.q}%`),
-            ilike(discounts.description, `%${filters.q}%`)
+            ilike(discounts.code, `%${term}%`),
+            ilike(discounts.description, `%${term}%`)
           )
         : undefined,
     ].filter(Boolean)
@@ -141,6 +148,14 @@ export const discountsRepository = {
 
   async deleteDiscount(id: string) {
     await db.delete(discounts).where(eq(discounts.id, id))
+  },
+
+  async vendorExists(vendorId: string): Promise<boolean> {
+    const row = await db.query.vendors.findFirst({
+      where: eq(vendors.id, vendorId),
+      columns: { id: true },
+    })
+    return Boolean(row)
   },
 
   /** Vendor picker for the admin form: active garages, alphabetical. */

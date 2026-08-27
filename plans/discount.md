@@ -56,9 +56,19 @@ audit, limits count only paid usage, never hard-delete a used rule.
 
 ## 2. Data model
 
-New migration `server/drizzle/0016_add_discounts.sql` + journal entry
-(idx 16, tag `0016_add_discounts`), applied with `bun run migrate` from
-`server/`. Schema mirrored in `server/src/db/schema.ts`.
+Two migrations, both applied with `bun run migrate` from `server/`, schema
+mirrored in `server/src/db/schema.ts`:
+
+- `0016_add_discounts.sql` — the tables, enums and booking columns.
+- `0017_tighten_discount_effect_constraints.sql` — narrows the effect checks so
+  a row cannot carry the opposite effect's columns. Split out rather than
+  folded into 0016 because 0016 had already been run; an applied migration is
+  immutable, and `migrate.sh` refuses to proceed on a checksum mismatch.
+
+**Deploy ordering:** 0016 makes `bookings.subtotal_amount` NOT NULL, which the
+*previous* server build cannot satisfy — it does not know the column. Ship the
+server build before running the migration, or booking creation fails in the
+gap.
 
 ### `discounts`
 
@@ -159,20 +169,26 @@ Steps, in order (first failure wins):
    `DISCOUNT_ALREADY_USED`
 8. **Compute** (below).
 
-**Consumed-count definition** — one shared SQL helper, used by both limit checks
-and by the admin list's `redemptionCount`:
+**Two counting predicates**, both in `discounts.predicates.ts` and imported by
+the two repositories that need them — never hand-copied:
 
-```sql
-discount_redemptions r
-  JOIN bookings b ON b.id = r.booking_id
-  JOIN payments  p ON p.booking_id = b.id
-WHERE r.discount_id = $1
-  AND b.status <> 'cancelled'
-  AND p.status = 'paid'
-```
+| | Rule | Used for |
+|---|---|---|
+| `DISCOUNT_HELD` | booking not cancelled **and** payment not refunded | every usage-limit check |
+| `DISCOUNT_REALIZED` | booking not cancelled **and** payment `paid` or `collected` | admin `realizedCount` / `totalSaved` |
 
-A booking that was created but never paid, or that was cancelled, does **not**
-burn an allowance.
+**A limit must count unpaid bookings.** The redemption row and its `pending`
+payment are written in the same transaction, so a predicate that waits for
+`paid` is false for *every* booking currently in flight — a customer could open
+N bookings with a once-per-customer code, pass the check each time because none
+had been paid, then pay for all N. Holding is the correct semantic: you hold a
+live discounted booking, so you have used the code. Cancelling it (or a refund)
+returns the allowance; a `failed` payment does not, because the booking is
+still live and still discounted and can be paid from the booking detail screen.
+
+`collected` appears in the realized predicate because `markCompleted` settles a
+cash booking to `collected`, never `paid`, and the vendor-facing earnings math
+in `web/lib/vendor-stats.ts` has always counted both.
 
 **Divergence from the base plan, on purpose:** Medici returns one vague message
 for every failure because a leak would reveal sandbox-gated internal codes.
@@ -347,6 +363,14 @@ using `[authMiddleware, requireAdmin]` exactly like the vendor routes.
 | `DELETE /:id` | 409 `DISCOUNT_IN_USE` once any redemption exists; hard-deletes only an unused code |
 | `GET /vendors` | Garage options for the vendor-scope picker. Registered before `/:id` so "vendors" is never read as an id |
 
+**Zod gotcha, encoded in `discounts.validation.ts`:** Zod 4 applies `.default()`
+*through* `.partial()`, so `{ isActive: false }` parsed against a partial schema
+whose base carries defaults comes back as `{ isActive: false, fundedBy:
+'platform' }`. With a `'fundedBy' in input` write gate that silently re-funded
+every vendor-funded code to the platform on each activate/deactivate. Defaults
+therefore live only on `createDiscountSchema` (via `.extend`), never on the base
+the update schema is derived from.
+
 Validation lives in `discounts.validation.ts`, refined so that:
 - `percentage` requires `percentOff` (0 < p ≤ 99) and forbids `amountOff`;
 - `fixed` requires `amountOff > 0` and forbids `percentOff`/`maxDiscountAmount`;
@@ -414,7 +438,9 @@ booking is the whole reporting story for the POC.
    `discount_redemptions`, not just by convention.
 6. **The redemption row is written in the same transaction as the booking**,
    under the discount advisory lock.
-7. **Limits count paid, non-cancelled redemptions only.**
+7. **Limits count *held* redemptions — unpaid included.** Only cancellation or
+   a refund releases an allowance. Reporting uses the stricter realized
+   predicate; the two must never be swapped.
 8. **A resolved total is never below ₹1.** The engine clamps; nothing
    downstream has to defend against a ₹0 Razorpay order.
 9. **Never hard-delete a redeemed discount** — 409, deactivate instead.
@@ -485,10 +511,11 @@ test order:
   stacking later a migration, which is the right cost for a feature nobody has
   asked for.
 - **No automatic discounts.** Everything requires typing a code.
-- **Limits are eventually correct, not instantaneous.** Two unpaid bookings can
-  both hold the last use of a code; whichever pays second still keeps its
-  discounted price. The advisory lock only stops the same-instant double write.
-  Accepted — same trade-off as the base plan.
+- **An abandoned checkout holds its allowance until cancelled.** The flip side
+  of counting held redemptions: a customer who opens a discounted booking and
+  never pays keeps the code spent until that booking is cancelled. There is no
+  booking expiry to release it automatically. The alternative — counting only
+  paid redemptions — makes per-user limits bypassable outright, which is worse.
 - **No per-service or per-category scoping** — vendor scope only.
 - **No free (₹0) bookings.** The engine floors every total at ₹1 because
   Razorpay cannot take a ₹0 order. A genuine free-booking feature needs a
@@ -537,9 +564,10 @@ and the pattern to copy when the rest of the app migrates.
 
 | Concern | File | New? |
 |---|---|---|
-| Migration | `server/drizzle/0016_add_discounts.sql` + `meta/_journal.json` | new |
+| Migrations | `server/drizzle/0016_add_discounts.sql` · `0017_tighten_discount_effect_constraints.sql` + `meta/_journal.json` | new |
 | Schema | `server/src/db/schema.ts` | edit |
 | Engine (math + row checks) | `server/src/lib/discounts.ts` | new |
+| Counting predicates | `server/src/modules/discounts/discounts.predicates.ts` | new |
 | Customer + admin API | `server/src/modules/discounts/*` | new |
 | Route mounts | `server/src/app.ts`, `server/src/modules/admin/admin.routes.ts` | edit |
 | Booking write path | `server/src/modules/bookings/{validation,service,repository}.ts` | edit |

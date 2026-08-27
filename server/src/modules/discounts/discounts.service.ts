@@ -73,7 +73,7 @@ export async function resolveDiscount(input: {
   // Then the two that need a count. Total first: "this code is gone" is more
   // useful to a customer than "you've used it before" when both are true.
   if (discount.totalUsageLimit !== null) {
-    const used = await discountsRepository.countConsumed(discount.id)
+    const used = await discountsRepository.countHeld(discount.id)
 
     if (used >= discount.totalUsageLimit) {
       throw new AppError(
@@ -85,7 +85,7 @@ export async function resolveDiscount(input: {
   }
 
   if (discount.perUserLimit !== null) {
-    const usedByUser = await discountsRepository.countConsumed(
+    const usedByUser = await discountsRepository.countHeld(
       discount.id,
       input.userId
     )
@@ -137,7 +137,8 @@ function toDiscountResponse(
   },
   usage?: {
     redemptionCount: number
-    consumedCount: number
+    heldCount: number
+    realizedCount: number
     totalSaved: string
   }
 ) {
@@ -160,7 +161,8 @@ function toDiscountResponse(
     isActive: discount.isActive,
     createdAt: discount.createdAt.toISOString(),
     redemptionCount: usage?.redemptionCount ?? 0,
-    consumedCount: usage?.consumedCount ?? 0,
+    heldCount: usage?.heldCount ?? 0,
+    realizedCount: usage?.realizedCount ?? 0,
     totalSaved: usage?.totalSaved ?? '0.00',
   }
 }
@@ -209,12 +211,13 @@ function clearOppositeEffect(
   }
 }
 
+// A single indexed lookup, and deliberately not restricted to the picker's
+// list: that list hides archived garages, so checking against it would 404 when
+// an admin edits an existing discount whose garage was archived later.
 async function assertVendorExists(vendorId: string | null | undefined) {
   if (!vendorId) return
 
-  const options = await discountsRepository.listVendorOptions()
-
-  if (!options.some((vendor) => vendor.id === vendorId)) {
+  if (!(await discountsRepository.vendorExists(vendorId))) {
     throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
   }
 }
@@ -292,7 +295,7 @@ export const discountsService = {
       throw new AppError(404, 'Discount not found', 'DISCOUNT_NOT_FOUND')
     }
 
-    const usage = await discountsRepository.usageByDiscount()
+    const usage = await discountsRepository.usageByDiscount(discount.id)
 
     return toDiscountResponse(discount, usage.get(discount.id))
   },
@@ -330,8 +333,34 @@ export const discountsService = {
 
     await assertVendorExists(input.vendorId)
 
+    // A PATCH that omits `discountType` is still a PATCH *of* a typed row, and
+    // the Zod refinement can only see the payload. Reconcile against the stored
+    // type here so `{ percentOff: 20 }` on a flat discount is rejected rather
+    // than writing a percent_off the engine will silently ignore.
+    const effectiveType = input.discountType ?? existing.discountType
+
+    if (effectiveType === 'percentage' && typeof input.amountOff === 'number') {
+      throw new AppError(
+        400,
+        'A percentage discount cannot also have a flat amount',
+        'DISCOUNT_EFFECT_MISMATCH'
+      )
+    }
+
+    if (
+      effectiveType === 'fixed' &&
+      (typeof input.percentOff === 'number' ||
+        typeof input.maxDiscountAmount === 'number')
+    ) {
+      throw new AppError(
+        400,
+        'A flat discount cannot have a percentage or a maximum',
+        'DISCOUNT_EFFECT_MISMATCH'
+      )
+    }
+
     const values = toRowValues(input)
-    clearOppositeEffect(values, input.discountType)
+    clearOppositeEffect(values, effectiveType)
 
     try {
       const updated = await discountsRepository.updateDiscount(id, values)

@@ -26,6 +26,7 @@ import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Service, Vendor } from '@/lib/types'
 import { formatServicePrice, resolveServiceAmount } from '@/lib/pricing'
+import { VEHICLE_TIERS } from '@/lib/vehicles'
 import { cn, formatDuration } from '@/lib/utils'
 
 const BOOKING_TYPE_OPTIONS = [
@@ -104,6 +105,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
       : null
 
   const selectedVehicleType = vehicles.find((v) => v.id === selectedVehicle)?.vehicleType
+  // The tier drives the price for per-vehicle services, so the summary names
+  // it — using the same labels the vendor priced against ("SUV / MUV", not "suv").
+  const vehicleTierLabel = VEHICLE_TIERS.find(
+    (tier) => tier.value === selectedVehicleType
+  )?.label
   // The concrete amount to charge for the selected service/vehicle.
   const resolvedAmount = selectedService
     ? resolveServiceAmount(selectedService, selectedVehicleType)
@@ -150,11 +156,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
     applyPromo.reset()
   }
 
-  // The server's message is the customer-facing reason — "This code has
-  // expired", "needs a booking of ₹500 or more" — so it is shown verbatim.
-  const promoError = applyPromo.error
-    ? errorMessage(applyPromo.error, "This code isn't valid.")
-    : ''
+  // Derived the same way `appliedDiscount` is, and for the same reason: the
+  // failure belongs to the service/vehicle it was submitted against, so
+  // changing either retires the message without an imperative reset. The
+  // server's wording is the customer-facing reason — "This code has expired",
+  // "needs a booking of ₹500 or more" — so it is shown verbatim.
+  const promoError =
+    applyPromo.error &&
+    applyPromo.variables?.serviceId === selectedService?.id &&
+    applyPromo.variables?.vehicleId === selectedVehicle
+      ? errorMessage(applyPromo.error, "This code isn't valid.")
+      : ''
 
   const handleConfirm = async () => {
     if (bookingLockRef.current || loading) return
@@ -218,95 +230,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
     <AppShell className="gap-5 pb-24 pt-4">
       <TopBar showBack center title="Pick a Slot" />
 
-      {/* Cart summary — vendor, what's being booked, and the total to pay. */}
+      {/* Identity only — what you're booking and where. Every rupee figure
+          lives in the order summary at the bottom, after the choices that
+          determine it: a per-vehicle service isn't priced until a car is
+          picked, so quoting up here would show a number that later moves. */}
       {selectedService && vendor && (
         <ScCard className="py-3.5">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-[15px] font-semibold text-text-primary">{vendor.name}</p>
-            <span className="shrink-0 text-[15px] font-semibold text-text-primary">
-              {formatServicePrice(selectedService, selectedVehicleType)}
-            </span>
-          </div>
+          <p className="text-[15px] font-semibold text-text-primary">{vendor.name}</p>
           <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
             <IconShoppingCart size={13} />
             {selectedService.name} · {formatDuration(selectedService.durationMins)}
           </p>
-
-          {/* Only shown once a code is applied — an untouched booking keeps the
-              single-line summary it has always had. */}
-          {appliedDiscount && (
-            <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-[12px]">
-              <div className="flex items-center justify-between text-text-secondary">
-                <span>Subtotal</span>
-                <span>₹{Number(appliedDiscount.subtotal).toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex items-center justify-between text-success">
-                <span>Discount ({appliedDiscount.code})</span>
-                <span>
-                  −₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[13px] font-semibold text-text-primary">
-                <span>Total</span>
-                <span>₹{Number(appliedDiscount.finalAmount).toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-          )}
         </ScCard>
       )}
-
-      <section>
-        <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
-          Promo code
-        </h2>
-        {appliedDiscount ? (
-          <ScCard className="flex items-center justify-between gap-3 py-3">
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
-                <IconTag size={14} /> {appliedDiscount.code} applied
-              </p>
-              <p className="text-[11px] text-text-secondary">
-                You save ₹
-                {Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleRemovePromo}
-              className="shrink-0 text-[12px] font-medium text-brand-red"
-            >
-              Remove
-            </button>
-          </ScCard>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-start gap-2">
-              <ScInput
-                id="promo-code"
-                placeholder="Enter code"
-                autoCapitalize="characters"
-                autoComplete="off"
-                value={promoInput}
-                onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
-                className="flex-1 uppercase"
-              />
-              <ScButton
-                fullWidth={false}
-                variant="secondary"
-                disabled={!canApplyPromo || applyPromo.isPending}
-                onClick={handleApplyPromo}
-                className="shrink-0 px-4 py-2.5 text-[13px]"
-              >
-                {applyPromo.isPending ? 'Checking…' : 'Apply'}
-              </ScButton>
-            </div>
-            {promoError && (
-              <p className="text-[11px] text-brand-red">{promoError}</p>
-            )}
-          </div>
-        )}
-      </section>
 
       {vendor && vendor.dropinEnabled && vendor.doorstepEnabled && (
         <section>
@@ -352,10 +288,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <button
                 key={v.id}
                 type="button"
-                onClick={() => {
-                  setSelectedVehicle(v.id)
-                  applyPromo.reset()
-                }}
+                onClick={() => setSelectedVehicle(v.id)}
               >
                 <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>
                   <p className="text-[13px] font-medium">{v.make} {v.model}</p>
@@ -366,6 +299,114 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </div>
         )}
       </section>
+
+      {/* Order summary: line items, then the promo field, then the total.
+          Last on the page because it depends on everything above it — and
+          because Apply needs a selected car, so offering it any earlier would
+          be a control the customer can't yet use. */}
+      {selectedService && (
+        <section>
+          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+            Order summary
+          </h2>
+          <ScCard className="flex flex-col gap-3 py-3.5">
+            <div className="flex items-start justify-between gap-3 text-[13px]">
+              <span className="min-w-0 text-text-secondary">
+                {selectedService.name}
+                {vehicleTierLabel && (
+                  <span className="text-text-muted"> · {vehicleTierLabel}</span>
+                )}
+              </span>
+              <span className="shrink-0 font-medium text-text-primary">
+                {unpricedForVehicle
+                  ? '—'
+                  : formatServicePrice(selectedService, selectedVehicleType)}
+              </span>
+            </div>
+
+            <div className="border-t border-border pt-3">
+              {appliedDiscount ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
+                      <IconTag size={14} /> {appliedDiscount.code} applied
+                    </p>
+                    <p className="text-[11px] text-text-secondary">
+                      You save ₹
+                      {Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemovePromo}
+                    className="shrink-0 text-[12px] font-medium text-brand-red"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-start gap-2">
+                    <ScInput
+                      id="promo-code"
+                      placeholder="Promo code"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                      className="flex-1 uppercase"
+                    />
+                    <ScButton
+                      fullWidth={false}
+                      variant="secondary"
+                      disabled={!canApplyPromo || applyPromo.isPending}
+                      onClick={handleApplyPromo}
+                      className="shrink-0 px-4 py-2.5 text-[13px]"
+                    >
+                      {applyPromo.isPending ? 'Checking…' : 'Apply'}
+                    </ScButton>
+                  </div>
+                  {promoError ? (
+                    <p className="text-[11px] text-brand-red">{promoError}</p>
+                  ) : (
+                    !selectedVehicle &&
+                    vehicles.length > 0 && (
+                      <p className="text-[11px] text-text-muted">
+                        Pick a car to use a promo code.
+                      </p>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            {appliedDiscount && (
+              <div className="flex flex-col gap-1 border-t border-border pt-3 text-[12px]">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span>Subtotal</span>
+                  <span>₹{Number(appliedDiscount.subtotal).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex items-center justify-between text-success">
+                  <span>Discount</span>
+                  <span>
+                    −₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
+              <span>Total</span>
+              <span>
+                {payableAmount == null
+                  ? '—'
+                  : `₹${payableAmount.toLocaleString('en-IN')}`}
+              </span>
+            </div>
+          </ScCard>
+        </section>
+      )}
 
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
         <ScButton

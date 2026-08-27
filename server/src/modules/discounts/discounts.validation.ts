@@ -44,10 +44,15 @@ const discountBaseSchema = z.object({
   perUserLimit: optionalLimitSchema,
   totalUsageLimit: optionalLimitSchema,
   vendorId: z.string().uuid().nullable().optional(),
-  fundedBy: z.enum(['platform', 'vendor']).default('platform'),
+  // No .default() here, deliberately. Zod 4 applies defaults *through*
+  // .partial(), so a default on the base schema would materialise on every
+  // PATCH: `{ isActive: false }` would parse to `{ isActive: false, fundedBy:
+  // 'platform' }` and silently rewrite a vendor-funded code to platform-funded
+  // on every activate/deactivate. Defaults belong to create alone, below.
+  fundedBy: z.enum(['platform', 'vendor']),
   startsAt: isoDateSchema.nullable().optional(),
   endsAt: isoDateSchema.nullable().optional(),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean(),
 })
 
 type DiscountBase = z.infer<typeof discountBaseSchema>
@@ -113,12 +118,18 @@ const refineDiscountEffect = (
   }
 }
 
-export const createDiscountSchema =
-  discountBaseSchema.superRefine(refineDiscountEffect)
+export const createDiscountSchema = discountBaseSchema
+  .extend({
+    fundedBy: z.enum(['platform', 'vendor']).default('platform'),
+    isActive: z.boolean().default(true),
+  })
+  .superRefine(refineDiscountEffect)
 
-// PATCH stays partial — only the keys actually present are written — but the
-// effect refinement still runs, so switching a code from percentage to fixed
-// must send the new effect column in the same request.
+// PATCH stays partial — only the keys actually present are written. The effect
+// refinement still runs here, but it can only see the payload; a PATCH that
+// omits `discountType` is reconciled against the stored row in
+// discountsService.updateDiscount, which is the only place the effective type
+// is known.
 export const updateDiscountSchema = discountBaseSchema
   .partial()
   .superRefine(refineDiscountEffect)

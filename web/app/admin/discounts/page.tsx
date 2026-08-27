@@ -266,9 +266,12 @@ export default function AdminDiscountsPage() {
                   <Meta label="Effect">{effectLabel(discount)}</Meta>
                   <Meta label="Conditions">{conditionLabel(discount)}</Meta>
                   <Meta label="Used">
-                    {discount.consumedCount > 0 ? (
+                    {discount.heldCount > 0 ? (
                       <>
-                        {discount.consumedCount}
+                        {/* Held, not realized: this is the number the usage
+                            limit is checked against, so it must be the one an
+                            admin sees next to that limit. */}
+                        {discount.heldCount}
                         {discount.totalUsageLimit
                           ? ` / ${discount.totalUsageLimit}`
                           : ''}
