@@ -10,6 +10,7 @@ import { APP_VERSION } from './lib/version.js'
 import { globalRateLimiter } from './middleware/rate-limit.middleware.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { usersRoutes } from './modules/users/users.routes.js'
+import { bookingIntentsRoutes } from './modules/booking-intents/booking-intents.routes.js'
 import { bookingsRoutes } from './modules/bookings/bookings.routes.js'
 import { reviewsRoutes } from './modules/reviews/reviews.routes.js'
 import { paymentsRoutes } from './modules/payments/payments.routes.js'
@@ -81,6 +82,7 @@ app.route('/api/v1/auth', authRoutes)
 app.route('/api/v1/users', usersRoutes)
 app.route('/api/v1/vendors', vendorsRoutes)
 app.route('/api/v1/bookings', bookingsRoutes)
+app.route('/api/v1/booking-intents', bookingIntentsRoutes)
 app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
 app.route('/api/v1/discounts', discountsRoutes)

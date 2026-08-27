@@ -64,7 +64,9 @@ export function loadRazorpayScript(): Promise<void> {
 }
 
 export interface OpenRazorpayCheckoutInput {
-  order: PaymentOrder
+  // Only the gateway fields matter here, so this accepts both a booking order
+  // and a booking-intent order rather than naming one of them.
+  order: Pick<PaymentOrder, 'orderId' | 'amount' | 'currency' | 'keyId'>
   description: string
   customer?: {
     name?: string

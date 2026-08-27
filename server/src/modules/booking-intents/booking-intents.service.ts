@@ -1,0 +1,195 @@
+import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
+import { createRazorpayOrder } from '../../lib/razorpay.js'
+import { resolveBookingDraft } from '../bookings/bookings.service.js'
+import { bookingIntentsRepository } from './booking-intents.repository.js'
+import type { ConsumeIntentResult } from './booking-intents.repository.js'
+import type { CreateBookingIntentInput } from './booking-intents.validation.js'
+
+const log = logger.child({ module: 'booking-intents' })
+
+// How long a customer has to complete checkout. Generous, because an intent
+// costs nothing to leave lying around: it holds no slot, no promo code and no
+// vehicle. Enforced on read, so no cleanup job is needed.
+const INTENT_TTL_MS = 30 * 60 * 1000
+
+export const bookingIntentsService = {
+  /**
+   * Price a booking and open a Razorpay order against it — without creating the
+   * booking. Nothing here is visible to the vendor and nothing is held, so a
+   * customer who closes the checkout sheet leaves no trace.
+   */
+  async createIntent(userId: string, input: CreateBookingIntentInput) {
+    const draft = await resolveBookingDraft(userId, input)
+
+    const [intent] = await bookingIntentsRepository.createIntent({
+      userId,
+      vendorId: draft.vendor.id,
+      serviceId: draft.service.id,
+      vehicleId: draft.vehicle.id,
+      bookingType: input.bookingType,
+      scheduledAt: draft.scheduledAt,
+      serviceDurationMins: draft.service.durationMins,
+      subtotalAmount: draft.amount,
+      amount: draft.chargeAmount,
+      discountAmount: draft.discount?.discountAmount ?? '0.00',
+      discountId: draft.discount?.discountId ?? null,
+      discountCode: draft.discount?.code ?? null,
+      discountFundedBy: draft.discount?.fundedBy ?? null,
+      paymentMethod: input.paymentMethod,
+      lat: draft.lat,
+      lng: draft.lng,
+      address: draft.address,
+      expiresAt: new Date(Date.now() + INTENT_TTL_MS),
+    })
+
+    const order = await createRazorpayOrder({
+      amount: intent.amount,
+      receipt: intent.id,
+      intentId: intent.id,
+    })
+
+    await bookingIntentsRepository.setGatewayTxnId(intent.id, order.orderId)
+
+    log.info(
+      {
+        intentId: intent.id,
+        userId,
+        vendorId: intent.vendorId,
+        orderId: order.orderId,
+        amount: intent.amount,
+      },
+      'booking_intent:created'
+    )
+
+    return {
+      intentId: intent.id,
+      orderId: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: order.keyId,
+    }
+  },
+
+  /**
+   * Confirm a captured payment into a booking.
+   *
+   * Called from two places that race by design — the client's success callback
+   * and the Razorpay webhook — because the client one can simply never arrive
+   * (app killed, tab closed, network dropped) and a customer who paid must end
+   * up with a booking either way. `consumeIntent` makes the second caller a
+   * no-op.
+   */
+  async confirmIntent(params: {
+    intentId: string
+    razorpayPaymentId: string
+    razorpayOrderId?: string
+    userId?: string
+  }) {
+    const result = await bookingIntentsRepository.consumeIntent(params)
+
+    return await handleConsumeResult(params, result)
+  },
+
+  /** Webhook entry point: the order id is all Razorpay gives us to go on. */
+  async confirmIntentByOrderId(orderId: string, razorpayPaymentId: string) {
+    const intent = await bookingIntentsRepository.findByGatewayTxnId(orderId)
+
+    if (!intent) return null
+
+    return bookingIntentsService.confirmIntent({
+      intentId: intent.id,
+      razorpayPaymentId,
+      razorpayOrderId: orderId,
+    })
+  },
+}
+
+async function handleConsumeResult(
+  params: { intentId: string; razorpayPaymentId: string; userId?: string },
+  result: ConsumeIntentResult
+): Promise<{ bookingId: string; created: boolean }> {
+  switch (result.kind) {
+    case 'created':
+      log.info(
+        {
+          intentId: params.intentId,
+          bookingId: result.bookingId,
+          paymentId: params.razorpayPaymentId,
+        },
+        'booking_intent:consumed'
+      )
+      return { bookingId: result.bookingId, created: true }
+
+    case 'already':
+      log.info(
+        { intentId: params.intentId, bookingId: result.bookingId },
+        'booking_intent:already_consumed'
+      )
+      return { bookingId: result.bookingId, created: false }
+
+    case 'not_found':
+      throw new AppError(404, 'Booking intent not found', 'INTENT_NOT_FOUND')
+
+    case 'order_mismatch':
+      throw new AppError(400, 'Order mismatch', 'PAYMENT_ORDER_MISMATCH')
+
+    // Confirm only ever runs on a captured payment, so an intent that aged out
+    // between opening the sheet and paying is a refund case too, not a plain
+    // rejection — record the payment id rather than dropping it.
+    case 'expired':
+      return failIntent(
+        params,
+        'intent_expired',
+        'This checkout expired before the payment completed, so the booking could not be confirmed. Your payment will be refunded.'
+      )
+
+    // Below here the money is captured and there is no booking to show for it.
+    // These are refund cases, so they are logged loudly with the payment id
+    // rather than swallowed — the alternative (relaxing the checks and booking
+    // anyway) is a double-booked car or an over-redeemed code.
+    case 'vehicle_clash':
+      return failIntent(
+        params,
+        'vehicle_double_booked',
+        'That car already has an overlapping booking, so this one could not be confirmed. Your payment will be refunded.'
+      )
+
+    case 'discount_exhausted':
+      return failIntent(
+        params,
+        'discount_exhausted',
+        'That promo code was fully redeemed before this payment completed, so the booking could not be confirmed. Your payment will be refunded.'
+      )
+
+    case 'previously_failed':
+      throw new AppError(
+        409,
+        'This payment could not be turned into a booking. A refund is being processed.',
+        'BOOKING_CONFIRM_FAILED_REFUND_DUE'
+      )
+  }
+}
+
+async function failIntent(
+  params: { intentId: string; razorpayPaymentId: string },
+  reason: string,
+  message: string
+): Promise<never> {
+  await bookingIntentsRepository.markFailed(
+    params.intentId,
+    params.razorpayPaymentId,
+    reason
+  )
+
+  log.error(
+    {
+      intentId: params.intentId,
+      razorpayPaymentId: params.razorpayPaymentId,
+      reason,
+    },
+    'booking_intent:confirm_failed_refund_due'
+  )
+
+  throw new AppError(409, message, 'BOOKING_CONFIRM_FAILED_REFUND_DUE')
+}

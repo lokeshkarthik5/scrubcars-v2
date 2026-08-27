@@ -43,7 +43,13 @@ export function toPaise(amount: string | number) {
 export async function createRazorpayOrder(input: {
   amount: string
   receipt: string
-  bookingId: string
+  // Exactly one of these identifies what is being paid for. `bookingId` is the
+  // legacy path (an unpaid booking that already exists); `intentId` is the
+  // current one, where the booking is only written once this order is captured.
+  // Both are echoed into `notes` so the webhook can resolve either kind without
+  // depending on which flow opened the checkout.
+  bookingId?: string
+  intentId?: string
 }) {
   const { keyId, keySecret } = getCredentials()
   const amount = toPaise(input.amount)
@@ -60,7 +66,8 @@ export async function createRazorpayOrder(input: {
       currency: 'INR',
       receipt: input.receipt,
       notes: {
-        booking_id: input.bookingId,
+        ...(input.bookingId ? { booking_id: input.bookingId } : {}),
+        ...(input.intentId ? { intent_id: input.intentId } : {}),
       },
     }),
   })

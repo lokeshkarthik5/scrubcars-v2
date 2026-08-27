@@ -5,6 +5,7 @@ import {
   verifyPaymentSignature,
   verifyWebhookSignature,
 } from '../../lib/razorpay.js'
+import { bookingIntentsService } from '../booking-intents/booking-intents.service.js'
 import { paymentsRepository } from './payments.repository.js'
 import type { VerifyPaymentInput } from './payments.validation.js'
 
@@ -20,6 +21,7 @@ type RazorpayWebhookPayload = {
         status?: string
         notes?: {
           booking_id?: string
+          intent_id?: string
         }
       }
     }
@@ -138,6 +140,44 @@ export const paymentsService = {
   },
 
   async verifyPayment(userId: string, input: VerifyPaymentInput) {
+    // The intent flow: no booking exists yet, and confirming is what creates
+    // it. Signature first — an unverified caller must not be able to conjure a
+    // booking out of an intent id.
+    if ('intentId' in input) {
+      const isValid = verifyPaymentSignature({
+        orderId: input.razorpayOrderId,
+        paymentId: input.razorpayPaymentId,
+        signature: input.razorpaySignature,
+      })
+
+      if (!isValid) {
+        log.warn(
+          { intentId: input.intentId, orderId: input.razorpayOrderId },
+          'payment:invalid_signature'
+        )
+        throw new AppError(400, 'Invalid payment signature', 'INVALID_SIGNATURE')
+      }
+
+      const { bookingId } = await bookingIntentsService.confirmIntent({
+        intentId: input.intentId,
+        razorpayPaymentId: input.razorpayPaymentId,
+        razorpayOrderId: input.razorpayOrderId,
+        userId,
+      })
+
+      log.info(
+        { intentId: input.intentId, bookingId, paymentId: input.razorpayPaymentId },
+        'payment:verified'
+      )
+
+      const payment = await paymentsRepository.findPaymentByBookingId(bookingId)
+
+      return {
+        bookingId,
+        payment: payment ? toPaymentResponse(payment) : null,
+      }
+    }
+
     const { booking, payment } = await getOnlinePaymentForCustomer(
       userId,
       input.bookingId
@@ -197,6 +237,59 @@ export const paymentsService = {
 
     if (!entity?.id) {
       return { handled: false }
+    }
+
+    // An intent-backed order has no booking (and no payment row) until this
+    // fires, so it cannot be resolved through the payments table. Try it first,
+    // and only fall through to the legacy booking lookup when there is no
+    // intent behind this order. This is the recovery path for a customer whose
+    // client never came back to confirm.
+    if (event === 'payment.captured' || entity.status === 'captured') {
+      const intentId = entity.notes?.intent_id
+
+      try {
+        const confirmed = intentId
+          ? await bookingIntentsService.confirmIntent({
+              intentId,
+              razorpayPaymentId: entity.id,
+              razorpayOrderId: entity.order_id,
+            })
+          : entity.order_id
+            ? await bookingIntentsService.confirmIntentByOrderId(
+                entity.order_id,
+                entity.id
+              )
+            : null
+
+        if (confirmed) {
+          log.info(
+            {
+              event,
+              intentId,
+              bookingId: confirmed.bookingId,
+              created: confirmed.created,
+              paymentId: entity.id,
+            },
+            'webhook:intent_confirmed'
+          )
+          return { handled: true, event }
+        }
+      } catch (err) {
+        // A confirm that fails here (expired intent, a clash that appeared
+        // while the sheet was open) will fail identically on every retry, and
+        // the intent is already marked failed with the payment id on it. Report
+        // handled so Razorpay stops redelivering, and let the error log drive
+        // the refund.
+        if (err instanceof AppError) {
+          log.error(
+            { err, event, intentId, paymentId: entity.id },
+            'webhook:intent_confirm_failed'
+          )
+          return { handled: true, event }
+        }
+
+        throw err
+      }
     }
 
     const bookingId = entity.notes?.booking_id

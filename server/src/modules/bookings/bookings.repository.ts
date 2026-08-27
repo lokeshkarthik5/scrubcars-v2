@@ -48,7 +48,7 @@ const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
 //
 // Runs inside the caller's transaction, after a lock on the vehicle, so two
 // concurrent requests can't both read "no overlap" and both insert.
-async function findOverlappingVehicleBooking(
+export async function findOverlappingVehicleBooking(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: PgTransaction<any, any, any>,
   params: {
@@ -90,7 +90,7 @@ async function findOverlappingVehicleBooking(
 // Shares DISCOUNT_HELD with discounts.repository.ts rather than restating it:
 // the pre-check and this in-transaction re-check must apply the same rule, and
 // two hand-copied predicates were one edit away from disagreeing.
-async function countHeldRedemptions(
+export async function countHeldRedemptions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: PgTransaction<any, any, any>,
   discountId: string,
@@ -116,7 +116,7 @@ async function countHeldRedemptions(
 // read "one use left" and both take it. Always taken *after* the vehicle lock,
 // matching the ordering in rescheduleBookingWithPayment, so the two paths
 // cannot deadlock against each other.
-async function lockDiscount(
+export async function lockDiscount(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: PgTransaction<any, any, any>,
   discountId: string
@@ -126,7 +126,7 @@ async function lockDiscount(
   )
 }
 
-async function lockVehicle(
+export async function lockVehicle(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: PgTransaction<any, any, any>,
   vehicleId: string
@@ -177,11 +177,33 @@ export const bookingsRepository = {
     })
   },
 
+  /**
+   * A garage only ever sees work that has been paid for.
+   *
+   * Bookings used to be written before Razorpay opened, so an abandoned
+   * checkout put a real-looking request in front of a vendor who could accept,
+   * start and complete a job nobody had paid for. New bookings are only created
+   * once the money lands, but this filter stays as the backstop — it also
+   * retires the unpaid rows already in the database, without a data migration.
+   *
+   * `collected` counts alongside `paid` because markCompleted settles legacy
+   * cash bookings to `collected`; DISCOUNT_REALIZED already treats both as
+   * settled.
+   */
   listBookingsForVendor(
     vendorId: string,
     status?: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
   ) {
-    const conditions = [eq(bookings.vendorId, vendorId)]
+    const conditions = [
+      eq(bookings.vendorId, vendorId),
+      inArray(
+        bookings.id,
+        db
+          .select({ bookingId: payments.bookingId })
+          .from(payments)
+          .where(inArray(payments.status, ['paid', 'collected']))
+      ),
+    ]
 
     if (status) {
       conditions.push(eq(bookings.status, status))

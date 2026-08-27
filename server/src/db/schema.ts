@@ -117,6 +117,17 @@ export const paymentStatusEnum = pgEnum('payment_status', [
   'collected',
 ])
 
+// Lifecycle of a booking intent — the priced, validated record of what a
+// customer is about to buy, written *before* Razorpay opens. 'consumed' means
+// the payment landed and the booking exists; 'failed' means the money was
+// captured but the booking could not be written (see bookingIntents.bookingId
+// and .failureReason), which is a manual-refund case.
+export const bookingIntentStatusEnum = pgEnum('booking_intent_status', [
+  'pending',
+  'consumed',
+  'failed',
+])
+
 // ─── Tables ──────────────────────────────────────────────────────────────────
 
 export const users = pgTable(
@@ -602,6 +613,80 @@ export const payments = pgTable(
   ]
 )
 
+// A booking that has been validated and priced but not yet paid for.
+//
+// Bookings used to be written before Razorpay opened, so abandoning the
+// checkout sheet left a live request in front of the garage, a held promo code
+// and a vehicle lock that blocked the customer's own retry. The intent holds
+// none of those: it is inert until the money lands, at which point
+// `confirmIntent` turns it into a booking + a paid payment in one transaction.
+//
+// Every priced figure is snapshotted here rather than recomputed at capture
+// time, so a vendor editing a price or duration mid-checkout cannot change what
+// the customer already agreed to pay.
+export const bookingIntents = pgTable(
+  'booking_intents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'restrict' }),
+    vehicleId: uuid('vehicle_id')
+      .notNull()
+      .references(() => userVehicles.id, { onDelete: 'restrict' }),
+    bookingType: bookingTypeEnum('booking_type').notNull(),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
+    serviceDurationMins: integer('service_duration_mins').notNull(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    subtotalAmount: decimal('subtotal_amount', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    discountAmount: decimal('discount_amount', { precision: 10, scale: 2 })
+      .default('0.00')
+      .notNull(),
+    discountId: uuid('discount_id').references(() => discounts.id, {
+      onDelete: 'set null',
+    }),
+    discountCode: varchar('discount_code', { length: 40 }),
+    discountFundedBy: discountFundedByEnum('discount_funded_by'),
+    paymentMethod: paymentMethodEnum('payment_method').notNull(),
+    lat: real('lat'),
+    lng: real('lng'),
+    address: text('address'),
+    // The Razorpay order id. Unique because it is how the webhook finds this
+    // intent when the client never comes back to confirm it.
+    gatewayTxnId: varchar('gateway_txn_id', { length: 255 }).unique(),
+    status: bookingIntentStatusEnum('status').default('pending').notNull(),
+    // Set when the intent is consumed. Its presence *is* the idempotency
+    // record: the client callback and the webhook both confirm, and whichever
+    // arrives second returns this booking instead of creating a second one.
+    bookingId: uuid('booking_id').references(() => bookings.id, {
+      onDelete: 'set null',
+    }),
+    // Only set on 'failed': the captured Razorpay payment awaiting a manual
+    // refund, and why the booking could not be written.
+    paymentRef: varchar('payment_ref', { length: 255 }),
+    failureReason: varchar('failure_reason', { length: 255 }),
+    // An unpaid intent past this point is dead. Nothing needs to collect them —
+    // they hold no resource — so expiry is enforced on read, not by a job.
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('booking_intents_user_id_idx').on(table.userId),
+    index('booking_intents_status_idx').on(table.status),
+  ]
+)
+
 export const reviews = pgTable(
   'reviews',
   {
@@ -798,6 +883,21 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
   review: one(reviews, {
     fields: [bookings.id],
     references: [reviews.bookingId],
+  }),
+}))
+
+export const bookingIntentsRelations = relations(bookingIntents, ({ one }) => ({
+  service: one(services, {
+    fields: [bookingIntents.serviceId],
+    references: [services.id],
+  }),
+  vehicle: one(userVehicles, {
+    fields: [bookingIntents.vehicleId],
+    references: [userVehicles.id],
+  }),
+  booking: one(bookings, {
+    fields: [bookingIntents.bookingId],
+    references: [bookings.id],
   }),
 }))
 

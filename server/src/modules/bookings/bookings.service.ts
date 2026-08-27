@@ -291,6 +291,161 @@ async function getBookingForViewer(
   throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
 }
 
+/**
+ * Validate and price a booking request, without writing anything.
+ *
+ * This is everything that has to be true before money can be taken: the slot is
+ * real, the vendor takes this booking type, the service is priced for this
+ * customer's vehicle, and the promo code applies. It is deliberately separate
+ * from the write so the payment flow can price a booking that does not exist
+ * yet — see booking-intents — while `createBooking` keeps using the exact same
+ * rules. Two copies of this would be one edit away from a checkout that charges
+ * a different figure than the booking it creates.
+ */
+export async function resolveBookingDraft(
+  userId: string,
+  input: CreateBookingInput
+) {
+  const scheduledAt = new Date(input.scheduledAt)
+
+  if (Number.isNaN(scheduledAt.getTime())) {
+    log.warn({ userId, scheduledAt: input.scheduledAt }, 'booking:invalid_scheduled_at')
+    throw new AppError(400, 'Invalid scheduledAt', 'INVALID_SCHEDULED_AT')
+  }
+
+  if (scheduledAt.getTime() <= Date.now()) {
+    log.warn({ userId, scheduledAt: scheduledAt.toISOString() }, 'booking:scheduled_at_in_past')
+    throw new AppError(
+      400,
+      'Cannot book a slot in the past',
+      'INVALID_SCHEDULED_AT'
+    )
+  }
+
+  const vendor = await bookingsRepository.findPublicVendorById(input.vendorId)
+  log.info({ vendorId: input.vendorId, found: !!vendor, isVerified: vendor?.isVerified, status: vendor?.status }, 'booking:vendor_lookup')
+
+  if (!vendor) {
+    log.warn({ userId, vendorId: input.vendorId }, 'booking:vendor_not_found')
+    throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+  }
+
+  if (input.bookingType === 'dropin' && !vendor.dropinEnabled) {
+    log.warn({ userId, vendorId: vendor.id, bookingType: input.bookingType }, 'booking:dropin_not_enabled')
+    throw new AppError(
+      400,
+      'Vendor does not accept drop-in bookings',
+      'DROPIN_NOT_ENABLED'
+    )
+  }
+
+  const service = await bookingsRepository.findServiceForVendor(
+    vendor.id,
+    input.serviceId
+  )
+  log.info({ vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_lookup')
+
+  if (!service || !service.isActive) {
+    log.warn({ userId, vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_not_found')
+    throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+  }
+
+  const vehicle = await bookingsRepository.findVehicleForUser(
+    userId,
+    input.vehicleId
+  )
+  log.info({ userId, vehicleId: input.vehicleId, found: !!vehicle }, 'booking:vehicle_lookup')
+
+  if (!vehicle) {
+    log.warn({ userId, vehicleId: input.vehicleId }, 'booking:vehicle_not_found')
+    throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
+  }
+
+  // Resolve the charge from the pricing type and the customer's vehicle.
+  // A per-vehicle service with no price for this tier has no defensible
+  // amount — `price` is the cheapest tier, so charging it would bill an SUV
+  // at the hatchback rate. Refuse instead of guessing.
+  const amount = computeServiceAmount(service, vehicle.vehicleType)
+
+  if (amount === null) {
+    log.warn(
+      {
+        userId,
+        serviceId: service.id,
+        vehicleType: vehicle.vehicleType,
+      },
+      'booking:service_not_priced_for_vehicle'
+    )
+    throw new AppError(
+      400,
+      'This service is not priced for your vehicle type yet. Please contact the garage.',
+      'SERVICE_NOT_PRICED_FOR_VEHICLE'
+    )
+  }
+
+  // Resolve the promo code against the *server-computed* subtotal. A
+  // failure here (expired, limit reached, wrong garage) surfaces as the
+  // engine's own AppError, so the customer sees why.
+  let discount: BookingDiscount | null = null
+  let chargeAmount = amount
+
+  if (input.discountCode) {
+    const resolved = await discountsService.resolveDiscount({
+      code: input.discountCode,
+      userId,
+      vendorId: vendor.id,
+      subtotal: amount,
+    })
+
+    discount = {
+      discountId: resolved.discountId,
+      code: resolved.code,
+      discountAmount: resolved.discountAmount,
+      fundedBy: resolved.fundedBy,
+      perUserLimit: resolved.perUserLimit,
+      totalUsageLimit: resolved.totalUsageLimit,
+    }
+    chargeAmount = resolved.finalAmount
+
+    log.info(
+      {
+        userId,
+        code: resolved.code,
+        subtotal: amount,
+        discountAmount: resolved.discountAmount,
+        chargeAmount,
+      },
+      'booking:discount_resolved'
+    )
+  }
+
+  let lat: number | null = null
+  let lng: number | null = null
+  let address: string | null = null
+
+  log.info({ userId, vendorId: vendor.id, serviceId: service.id, scheduledAt: scheduledAt.toISOString(), durationMins: service.durationMins }, 'booking:slot_validation_start')
+
+  await validateSlotAvailability(
+    vendor.id,
+    service.id,
+    scheduledAt,
+    service.durationMins
+  )
+  return {
+    vendor,
+    service,
+    vehicle,
+    scheduledAt,
+    // Pre-discount price, and what is actually charged. Equal when no code.
+    amount,
+    chargeAmount,
+    discount,
+    lat,
+    lng,
+    address,
+  }
+}
+
 export const bookingsService = {
   async listMyBookings(userId: string, query: ListMyBookingsQuery) {
     const bookings = await bookingsRepository.listBookingsForUser(userId, {
@@ -323,131 +478,18 @@ export const bookingsService = {
     }, 'booking:create_start')
 
     try {
-      const scheduledAt = new Date(input.scheduledAt)
-
-      if (Number.isNaN(scheduledAt.getTime())) {
-        log.warn({ userId, scheduledAt: input.scheduledAt }, 'booking:invalid_scheduled_at')
-        throw new AppError(400, 'Invalid scheduledAt', 'INVALID_SCHEDULED_AT')
-      }
-
-      if (scheduledAt.getTime() <= Date.now()) {
-        log.warn({ userId, scheduledAt: scheduledAt.toISOString() }, 'booking:scheduled_at_in_past')
-        throw new AppError(
-          400,
-          'Cannot book a slot in the past',
-          'INVALID_SCHEDULED_AT'
-        )
-      }
-
-      const vendor = await bookingsRepository.findPublicVendorById(input.vendorId)
-      log.info({ vendorId: input.vendorId, found: !!vendor, isVerified: vendor?.isVerified, status: vendor?.status }, 'booking:vendor_lookup')
-
-      if (!vendor) {
-        log.warn({ userId, vendorId: input.vendorId }, 'booking:vendor_not_found')
-        throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
-      }
-
-      if (input.bookingType === 'dropin' && !vendor.dropinEnabled) {
-        log.warn({ userId, vendorId: vendor.id, bookingType: input.bookingType }, 'booking:dropin_not_enabled')
-        throw new AppError(
-          400,
-          'Vendor does not accept drop-in bookings',
-          'DROPIN_NOT_ENABLED'
-        )
-      }
-
-      const service = await bookingsRepository.findServiceForVendor(
-        vendor.id,
-        input.serviceId
-      )
-      log.info({ vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_lookup')
-
-      if (!service || !service.isActive) {
-        log.warn({ userId, vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_not_found')
-        throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
-      }
-
-      const vehicle = await bookingsRepository.findVehicleForUser(
-        userId,
-        input.vehicleId
-      )
-      log.info({ userId, vehicleId: input.vehicleId, found: !!vehicle }, 'booking:vehicle_lookup')
-
-      if (!vehicle) {
-        log.warn({ userId, vehicleId: input.vehicleId }, 'booking:vehicle_not_found')
-        throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
-      }
-
-      // Resolve the charge from the pricing type and the customer's vehicle.
-      // A per-vehicle service with no price for this tier has no defensible
-      // amount — `price` is the cheapest tier, so charging it would bill an SUV
-      // at the hatchback rate. Refuse instead of guessing.
-      const amount = computeServiceAmount(service, vehicle.vehicleType)
-
-      if (amount === null) {
-        log.warn(
-          {
-            userId,
-            serviceId: service.id,
-            vehicleType: vehicle.vehicleType,
-          },
-          'booking:service_not_priced_for_vehicle'
-        )
-        throw new AppError(
-          400,
-          'This service is not priced for your vehicle type yet. Please contact the garage.',
-          'SERVICE_NOT_PRICED_FOR_VEHICLE'
-        )
-      }
-
-      // Resolve the promo code against the *server-computed* subtotal. A
-      // failure here (expired, limit reached, wrong garage) surfaces as the
-      // engine's own AppError, so the customer sees why.
-      let discount: BookingDiscount | null = null
-      let chargeAmount = amount
-
-      if (input.discountCode) {
-        const resolved = await discountsService.resolveDiscount({
-          code: input.discountCode,
-          userId,
-          vendorId: vendor.id,
-          subtotal: amount,
-        })
-
-        discount = {
-          discountId: resolved.discountId,
-          code: resolved.code,
-          discountAmount: resolved.discountAmount,
-          fundedBy: resolved.fundedBy,
-          perUserLimit: resolved.perUserLimit,
-          totalUsageLimit: resolved.totalUsageLimit,
-        }
-        chargeAmount = resolved.finalAmount
-
-        log.info(
-          {
-            userId,
-            code: resolved.code,
-            subtotal: amount,
-            discountAmount: resolved.discountAmount,
-            chargeAmount,
-          },
-          'booking:discount_resolved'
-        )
-      }
-
-      let lat: number | null = null
-      let lng: number | null = null
-      let address: string | null = null
-
-      log.info({ userId, vendorId: vendor.id, serviceId: service.id, scheduledAt: scheduledAt.toISOString(), durationMins: service.durationMins }, 'booking:slot_validation_start')
-
-      await validateSlotAvailability(
-        vendor.id,
-        service.id,
+      const {
+        vendor,
+        service,
+        vehicle,
         scheduledAt,
-        service.durationMins
-      )
+        amount,
+        chargeAmount,
+        discount,
+        lat,
+        lng,
+        address,
+      } = await resolveBookingDraft(userId, input)
 
       const bookingDate = getDateKeyFromScheduledAt(scheduledAt)
       log.info({ userId, vendorId: vendor.id, bookingDate, scheduledAt: scheduledAt.toISOString() }, 'booking:db_insert_start')
@@ -723,6 +765,20 @@ export const bookingsService = {
         400,
         'Only pending bookings can be accepted',
         'INVALID_BOOKING_STATUS'
+      )
+    }
+
+    // Belt and braces with the payment filter in listBookingsForVendor: a
+    // vendor must never be able to commit to a job that has not been paid for,
+    // whichever route the booking id arrived by.
+    if (
+      !booking.payment ||
+      !['paid', 'collected'].includes(booking.payment.status)
+    ) {
+      throw new AppError(
+        400,
+        'This booking has not been paid for yet',
+        'BOOKING_NOT_PAID'
       )
     }
 

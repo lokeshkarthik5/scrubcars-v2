@@ -24,12 +24,11 @@ import {
   errorMessage,
   useValidateDiscount,
 } from '@/lib/api/hooks/use-discounts'
-import { createPaymentOrder, verifyPayment } from '@/lib/api/payments'
+import { createBookingIntent, verifyPayment } from '@/lib/api/payments'
 import { ApiError } from '@/lib/api/client'
 import { getVendorServices } from '@/lib/api/services'
 import { getVendor } from '@/lib/api/vendors'
 import { openRazorpayCheckout } from '@/lib/razorpay'
-import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
 import type { Service, Vendor } from '@/lib/types'
 import { formatServicePrice, resolveServiceAmount } from '@/lib/pricing'
@@ -45,7 +44,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const serviceId = searchParams.get('service')
-  const createBooking = useBookingsStore((s) => s.createBooking)
   const vehicles = useUserStore((s) => s.vehicles)
   const profile = useUserStore((s) => s.profile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
@@ -192,7 +190,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
     bookingLockRef.current = true
     setLoading(true)
     try {
-      const booking = await createBooking({
+      // Nothing is booked yet. The intent is priced and validated server-side,
+      // but it holds no slot, no promo code and no claim on the car — so a
+      // customer who closes the sheet below leaves the garage none the wiser.
+      // verifyPayment is what turns it into a booking.
+      const order = await createBookingIntent({
         vendorId,
         serviceId: selectedService.id,
         scheduledAt: selectedSlot,
@@ -202,8 +204,6 @@ function BookContent({ vendorId }: { vendorId: string }) {
         discountCode: appliedDiscount?.code,
       })
 
-      const order = await createPaymentOrder(booking.id)
-
       await openRazorpayCheckout({
         order,
         description: `${selectedService.name} at ${vendor?.name ?? 'vendor'}`,
@@ -212,18 +212,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
           phone: profile?.phone,
         },
         onSuccess: async (response) => {
-          await verifyPayment({
-            bookingId: booking.id,
+          const { bookingId } = await verifyPayment({
+            intentId: order.intentId,
             razorpayOrderId: response.razorpay_order_id,
             razorpayPaymentId: response.razorpay_payment_id,
             razorpaySignature: response.razorpay_signature,
           })
           // ?celebrate=1 triggers the success burst on arrival; the booking
           // page strips it once played.
-          router.push(`/bookings/${booking.id}?celebrate=1`)
+          router.push(`/bookings/${bookingId}?celebrate=1`)
         },
         onDismiss: () => {
-          toast.info('Payment cancelled. Your booking is saved — you can pay from booking details.')
+          toast.info('Payment cancelled. Nothing was booked.')
         },
         onFailure: (message) => {
           toast.error(message)
@@ -307,7 +307,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         />
       </section>
 
-      {/* Not in the design, but createBookingSchema requires a vehicleId — the
+      {/* Not in the design, but the booking intent requires a vehicleId — the
           booking can't be created without one. */}
       {selectedSlot && (
         <Reveal as="section">
