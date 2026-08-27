@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { setUnauthorizedHandler } from '@/lib/api/client'
+import { APP_VERSION } from '@/lib/version'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
@@ -70,6 +71,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     typeof window !== 'undefined' && window.location.hostname.startsWith('vendor.')
   const vp = (vendorPath: string) =>
     isVendorSubdomain ? vendorPath.replace('/vendor', '') || '/' : vendorPath
+
+  // Printed once per load so a bug report can name the build it came from.
+  useEffect(() => {
+    console.log(`%cDetlio v${APP_VERSION}`, 'color:#E33402;font-weight:600')
+  }, [])
 
   useEffect(() => {
     setUnauthorizedHandler(async () => {
