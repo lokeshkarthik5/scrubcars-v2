@@ -14,13 +14,12 @@ import {
   IconMapPin,
   IconSearch,
   IconStarFilled,
-  IconX,
 } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
-import { ScModal } from '@/components/sc/modal'
+import { ScSheet } from '@/components/sc/modal'
 import { Reveal } from '@/components/sc/reveal'
 import { Stars } from '@/components/sc/stars'
 import { getVendorReviews } from '@/lib/api/reviews'
@@ -74,7 +73,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   // out, so it has to keep rendering its contents after being dismissed.
   // Closing therefore only flips this flag and leaves `details` in place, where
   // it stays until the next service replaces it.
-  // (Escape and the scroll lock live in ScModal.)
+  // (Escape and the scroll lock live in ScSheet.)
   const [detailsOpen, setDetailsOpen] = useState(false)
 
   const openDetails = (item: Service | ServicePackage) => {
@@ -537,24 +536,24 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         </div>
       )}
 
-      <ScModal
+      {/* A sheet rather than a centred dialog: this is a one-handed phone app,
+          so the panel rises from the thumb rather than floating mid-screen,
+          and it can grow as tall as its content needs without the cramped
+          max-width a centred box imposes. */}
+      <ScSheet
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         aria-label={details ? `${details.name} details` : 'Service details'}
+        className="px-4 pt-1"
       >
         {details && (
           <>
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold text-text-primary">{details.name}</h2>
-              <button
-                type="button"
-                onClick={() => setDetailsOpen(false)}
-                aria-label="Close"
-                className="-mr-1 -mt-1 shrink-0 rounded-lg p-1 text-text-secondary transition-colors hover:text-text-primary"
-              >
-                <IconX size={18} />
-              </button>
-            </div>
+            {/* No close button: the sheet's own handle, backdrop tap and
+                Escape all dismiss it, and the primary action sits at the
+                bottom within thumb reach. */}
+            <h2 className="text-[17px] font-semibold text-text-primary">
+              {details.name}
+            </h2>
 
             {/* Up to three service photos, capped server-side. One fills the
                 width; two or three share a row so the popup stays short. */}
@@ -696,7 +695,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             </ScButton>
           </>
         )}
-      </ScModal>
+      </ScSheet>
     </AppShell>
   )
 }

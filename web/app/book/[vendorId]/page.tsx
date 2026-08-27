@@ -1,14 +1,20 @@
 'use client'
 
 import { use, useEffect, useRef, useState, Suspense } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconShoppingCart, IconTag } from '@tabler/icons-react'
+import {
+  IconChevronRight,
+  IconPercentage,
+  IconPlus,
+  IconShoppingCart,
+} from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { AddCarSheet } from '@/components/features/add-car-sheet'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
-import { ScInput } from '@/components/sc/input'
+import { ScSheet } from '@/components/sc/modal'
+import { Reveal } from '@/components/sc/reveal'
 import { SlotPicker } from '@/components/sc/slot-picker'
 import { ScToggle } from '@/components/sc/toggle'
 import { TopBar } from '@/components/sc/top-bar'
@@ -56,6 +62,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // What is typed vs what is actually applied. Kept apart so a keystroke never
   // re-queries — only pressing Apply does.
   const [promoInput, setPromoInput] = useState('')
+  // The coupon field starts closed — a row to tap, not a form to ignore.
+  const [promoOpen, setPromoOpen] = useState(false)
+  const [addCarOpen, setAddCarOpen] = useState(false)
   // Stored with the service and vehicle it was validated against. Those two
   // decide the subtotal, so a code checked against one pair says nothing about
   // another — see `appliedDiscount` below.
@@ -87,10 +96,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
     void fetchProfile()
   }, [vendorId, serviceId, fetchVehicles, fetchProfile])
 
+  // Auto-select only when there is nothing to choose between. With several
+  // cars, preselecting one would make the order summary appear the instant a
+  // time was picked — collapsing the "pick your car" step the page is built
+  // around. With exactly one car, asking for a tap is pure friction.
   useEffect(() => {
-    if (vehicles.length > 0 && !selectedVehicle) {
-      const defaultVehicle = vehicles.find((v) => v.isDefault) ?? vehicles[0]
-      setSelectedVehicle(defaultVehicle.id)
+    if (vehicles.length === 1 && !selectedVehicle) {
+      setSelectedVehicle(vehicles[0].id)
     }
   }, [vehicles, selectedVehicle])
 
@@ -143,8 +155,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
     applyPromo.mutate(
       { code: promoInput.trim(), vendorId, serviceId, vehicleId },
       {
-        onSuccess: (applied) =>
-          setAppliedPromo({ discount: applied, serviceId, vehicleId }),
+        onSuccess: (applied) => {
+          setAppliedPromo({ discount: applied, serviceId, vehicleId })
+          setPromoOpen(false)
+        },
         onError: () => setAppliedPromo(null),
       }
     )
@@ -154,6 +168,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
     setAppliedPromo(null)
     setPromoInput('')
     applyPromo.reset()
+    // Back to the resting row rather than an empty open form; trying another
+    // code is one tap away.
+    setPromoOpen(false)
   }
 
   // Derived the same way `appliedDiscount` is, and for the same reason: the
@@ -227,8 +244,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
   }
 
   return (
-    <AppShell className="gap-5 pb-24 pt-4">
-      <TopBar showBack center title="Pick a Slot" />
+    <AppShell className="gap-7 pb-[calc(8rem_+_env(safe-area-inset-bottom))] pt-0">
+      {/* Sticky, not fixed: it keeps its place in the flow so the content
+          below needs no compensating offset. Full-bleed via -mx-4 against
+          AppShell's px-4, and opaque so rows scroll under it cleanly. */}
+      <TopBar
+        showBack
+        center
+        title="Pick a Slot"
+        className="sticky top-0 z-30 -mx-4 mb-1 border-b border-border bg-brand-black px-4"
+      />
 
       {/* Identity only — what you're booking and where. Every rupee figure
           lives in the order summary at the bottom, after the choices that
@@ -255,8 +280,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </section>
       )}
 
+      {/* Each step below appears only once the one before it is answered, so
+          the page opens as a single question rather than five stacked ones.
+          The picker reveals its own time slots after a date is chosen. */}
       <section>
         <SlotPicker
+          progressive
           vendorId={vendorId}
           serviceId={selectedService?.id ?? null}
           value={selectedSlot}
@@ -264,151 +293,228 @@ function BookContent({ vendorId }: { vendorId: string }) {
         />
       </section>
 
-      {vehicles.length === 0 && (
-        <ScCard className="flex flex-col gap-1 border-warning bg-warning-muted/20">
-          <p className="text-[13px] font-medium text-text-primary">Before you book</p>
-          <p className="text-[12px] text-text-secondary">
-            Add a car to continue.
-          </p>
-          <Link href="/profile" className="mt-1 text-[12px] font-medium text-brand-red">
-            Go to profile →
-          </Link>
-        </ScCard>
-      )}
-
       {/* Not in the design, but createBookingSchema requires a vehicleId — the
           booking can't be created without one. */}
-      <section>
-        <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Car details</h2>
-        {vehicles.length === 0 ? (
-          <p className="text-[12px] text-text-secondary">No cars added yet.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {vehicles.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => setSelectedVehicle(v.id)}
+      {selectedSlot && (
+        <Reveal as="section">
+          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Car details</h2>
+          {vehicles.length === 0 ? (
+            <ScCard className="flex flex-col items-start gap-2 border-warning bg-warning-muted/20">
+              <p className="text-[13px] font-medium text-text-primary">
+                Add a car to continue
+              </p>
+              <p className="text-[12px] text-text-secondary">
+                We need to know which car we&apos;re washing — pricing can
+                differ by type.
+              </p>
+              <ScButton
+                fullWidth={false}
+                variant="secondary"
+                onClick={() => setAddCarOpen(true)}
+                className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[12px]"
               >
-                <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>
-                  <p className="text-[13px] font-medium">{v.make} {v.model}</p>
-                  <p className="text-[11px] text-text-secondary">{v.plate}</p>
-                </ScCard>
+                <IconPlus size={14} /> Add a car
+              </ScButton>
+            </ScCard>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {vehicles.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setSelectedVehicle(v.id)}
+                >
+                  <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>
+                    <p className="text-[13px] font-medium">{v.make} {v.model}</p>
+                    <p className="text-[11px] text-text-secondary">{v.plate}</p>
+                  </ScCard>
+                </button>
+              ))}
+              {/* In place, not a link to /profile: leaving the page would
+                  discard the slot and any applied code. */}
+              <button
+                type="button"
+                onClick={() => setAddCarOpen(true)}
+                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-brand-red hover:text-brand-red"
+              >
+                <IconPlus size={14} /> Add another car
               </button>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Order summary: line items, then the promo field, then the total.
-          Last on the page because it depends on everything above it — and
-          because Apply needs a selected car, so offering it any earlier would
-          be a control the customer can't yet use. */}
-      {selectedService && (
-        <section>
-          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
-            Order summary
-          </h2>
-          <ScCard className="flex flex-col gap-3 py-3.5">
-            <div className="flex items-start justify-between gap-3 text-[13px]">
-              <span className="min-w-0 text-text-secondary">
-                {selectedService.name}
-                {vehicleTierLabel && (
-                  <span className="text-text-muted"> · {vehicleTierLabel}</span>
-                )}
-              </span>
-              <span className="shrink-0 font-medium text-text-primary">
-                {unpricedForVehicle
-                  ? '—'
-                  : formatServicePrice(selectedService, selectedVehicleType)}
-              </span>
             </div>
+          )}
+        </Reveal>
+      )}
 
-            <div className="border-t border-border pt-3">
-              {appliedDiscount ? (
-                <div className="flex items-center justify-between gap-3">
+      {/* Coupons, then the payment summary — the Urban Company cart shape.
+          Coupons is a row you tap rather than a form that is always open, and
+          the saving reads as a strike-through on the line it applies to
+          instead of its own subtotal/discount block. With a single service
+          that says the same thing in two rows fewer. */}
+      {selectedService && selectedSlot && selectedVehicle && (
+        <Reveal as="section" className="flex flex-col gap-4">
+          <ScCard className="py-3.5">
+            {appliedDiscount ? (
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span className="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-success-muted text-success">
+                    <IconPercentage size={14} />
+                  </span>
                   <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
-                      <IconTag size={14} /> {appliedDiscount.code} applied
+                    <p className="truncate text-[13px] font-medium text-text-primary">
+                      {appliedDiscount.code} applied
                     </p>
-                    <p className="text-[11px] text-text-secondary">
+                    <p className="text-[11px] text-success">
                       You save ₹
                       {Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleRemovePromo}
-                    className="shrink-0 text-[12px] font-medium text-brand-red"
-                  >
-                    Remove
-                  </button>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-start gap-2">
-                    <ScInput
-                      id="promo-code"
-                      placeholder="Promo code"
-                      autoCapitalize="characters"
-                      autoComplete="off"
-                      value={promoInput}
-                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                      onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
-                      className="flex-1 uppercase"
-                    />
-                    <ScButton
-                      fullWidth={false}
-                      variant="secondary"
-                      disabled={!canApplyPromo || applyPromo.isPending}
-                      onClick={handleApplyPromo}
-                      className="shrink-0 px-4 py-2.5 text-[13px]"
-                    >
-                      {applyPromo.isPending ? 'Checking…' : 'Apply'}
-                    </ScButton>
-                  </div>
-                  {promoError ? (
-                    <p className="text-[11px] text-brand-red">{promoError}</p>
-                  ) : (
-                    !selectedVehicle &&
-                    vehicles.length > 0 && (
-                      <p className="text-[11px] text-text-muted">
-                        Pick a car to use a promo code.
-                      </p>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={handleRemovePromo}
+                  className="shrink-0 text-[12px] font-medium text-brand-red"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPromoOpen(true)}
+                  className="flex w-full items-center justify-between gap-3"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-success-muted text-success">
+                      <IconPercentage size={14} />
+                    </span>
+                    <span className="text-[13px] font-medium text-text-primary">
+                      Coupons and offers
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-brand-red">
+                    Apply
+                    <IconChevronRight size={14} />
+                  </span>
+                </button>
 
-            {appliedDiscount && (
-              <div className="flex flex-col gap-1 border-t border-border pt-3 text-[12px]">
-                <div className="flex items-center justify-between text-text-secondary">
-                  <span>Subtotal</span>
-                  <span>₹{Number(appliedDiscount.subtotal).toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex items-center justify-between text-success">
-                  <span>Discount</span>
-                  <span>
+              </>
+            )}
+          </ScCard>
+
+          <div>
+            <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+              Payment summary
+            </h2>
+            <ScCard className="flex flex-col gap-3 py-3.5">
+              <div className="flex items-start justify-between gap-3 text-[13px]">
+                <span className="min-w-0 text-text-secondary">
+                  {selectedService.name}
+                  {vehicleTierLabel && (
+                    <span className="text-text-muted"> · {vehicleTierLabel}</span>
+                  )}
+                </span>
+                <span className="shrink-0 font-medium text-text-primary">
+                  {unpricedForVehicle
+                    ? '—'
+                    : formatServicePrice(selectedService, selectedVehicleType)}
+                </span>
+              </div>
+
+              {/* Spelled out rather than folded into a struck-through price:
+                  the discount can be most of the bill, and the customer should
+                  see the arithmetic that produced what they are about to pay. */}
+              {appliedDiscount && (
+                <div className="flex items-start justify-between gap-3 text-[13px]">
+                  <span className="min-w-0 truncate text-success">
+                    Discount ({appliedDiscount.code})
+                  </span>
+                  <span className="shrink-0 font-medium text-success">
                     −₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
                   </span>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
-              <span>Total</span>
-              <span>
-                {payableAmount == null
-                  ? '—'
-                  : `₹${payableAmount.toLocaleString('en-IN')}`}
-              </span>
-            </div>
-          </ScCard>
-        </section>
+              <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
+                <span>Amount to pay</span>
+                <span>
+                  {payableAmount == null
+                    ? '—'
+                    : `₹${payableAmount.toLocaleString('en-IN')}`}
+                </span>
+              </div>
+            </ScCard>
+
+            {/* Mirrors what the server actually enforces: CANCELLATION_CUTOFF_MS
+                and MAX_RESCHEDULES in bookings.service.ts. Deliberately silent
+                on refunds — there is no refund path in the code yet, so
+                promising one here would be a claim the product can't keep. */}
+            <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
+              <span className="font-medium text-text-secondary">
+                Cancellation policy:
+              </span>{' '}
+              Cancel or reschedule up to 2 hours before your slot. A booking can
+              be rescheduled up to 2 times.
+            </p>
+          </div>
+        </Reveal>
       )}
 
-      <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3">
+      {/* Coupon entry as a sheet rather than an inline expander: it keeps the
+          summary from reflowing under the customer, and gives the field room
+          plus a keyboard without the page jumping. */}
+      <AddCarSheet
+        open={addCarOpen}
+        onClose={() => setAddCarOpen(false)}
+        onAdded={(vehicle) => setSelectedVehicle(vehicle.id)}
+      />
+
+      <ScSheet
+        open={promoOpen}
+        onClose={() => setPromoOpen(false)}
+        dismissible={!applyPromo.isPending}
+        aria-label="Coupons and offers"
+        className="px-4"
+      >
+        <h2 className="text-[19px] font-semibold text-text-primary">
+          Coupons &amp; Offers
+        </h2>
+
+        <div className="mt-4 flex items-center gap-2 rounded-[12px] border border-border bg-surface px-3">
+          <input
+            id="promo-code"
+            autoFocus
+            autoCapitalize="characters"
+            autoComplete="off"
+            placeholder="Enter coupon code"
+            value={promoInput}
+            onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+            className="min-w-0 flex-1 bg-transparent py-3.5 text-[14px] uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-muted"
+          />
+          <button
+            type="button"
+            disabled={!canApplyPromo || applyPromo.isPending}
+            onClick={handleApplyPromo}
+            className="shrink-0 px-1 text-[14px] font-semibold text-brand-red transition-colors disabled:text-text-muted"
+          >
+            {applyPromo.isPending ? 'Checking…' : 'Apply'}
+          </button>
+        </div>
+
+        {promoError && (
+          <p className="mt-2 text-[12px] text-brand-red">{promoError}</p>
+        )}
+
+        <p className="mt-4 text-[12px] text-text-muted">
+          Have a code from Detlio? Enter it above to see your savings before you
+          pay.
+        </p>
+      </ScSheet>
+
+      {/* Height here (~104px: py-3 + the py-4 button + the helper line) is what
+          the page's bottom padding above must clear, plus the iOS home
+          indicator inset added to both. */}
+      <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
         <ScButton
           disabled={
             !selectedService ||
