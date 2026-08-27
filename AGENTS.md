@@ -109,7 +109,7 @@ Cash:    pending → collected
 Failed:  pending → failed
 ```
 
----
+
 
 ## Key constraints
 
