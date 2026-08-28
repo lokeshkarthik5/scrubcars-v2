@@ -20,9 +20,11 @@ import {
   type TokenAudience,
 } from '../../lib/jwt.js'
 import { membersRepository } from '../members/members.repository.js'
+import { membersService } from '../members/members.service.js'
+import type { VendorScopedRole } from '../members/members.repository.js'
 import { authRepository } from './auth.repository.js'
 import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
-import type { UserRecord, VendorRecord } from './auth.repository.js'
+import type { UserRecord } from './auth.repository.js'
 
 const log = logger.child({ module: 'auth' })
 
@@ -47,16 +49,26 @@ export type AuthUserResponse = {
 export type AuthVendorResponse = {
   id: string
   businessName: string
+  logoUrl: string | null
   phone: string
   status: string
   isVerified: boolean
+  /** This caller's power inside this company. */
+  role: VendorScopedRole
+  isOwner: boolean
 }
 
 export type SessionResult = {
   accessToken: string
   refreshToken: string
   user: AuthUserResponse
+  /**
+   * The active company. Populated when there is exactly one, so every existing
+   * single-garage client survives the transition untouched; `vendors` is the
+   * full list the switcher reads.
+   */
   vendor: AuthVendorResponse | null
+  vendors: AuthVendorResponse[]
 }
 
 function toUserResponse(user: UserRecord): AuthUserResponse {
@@ -72,14 +84,27 @@ function toUserResponse(user: UserRecord): AuthUserResponse {
   }
 }
 
-function toVendorResponse(vendor: VendorRecord): AuthVendorResponse {
-  return {
-    id: vendor.id,
-    businessName: vendor.businessName,
-    phone: vendor.phone,
-    status: vendor.status,
-    isVerified: vendor.isVerified,
-  }
+/**
+ * Every company this person can act as, each carrying the role they hold in it.
+ * The 1:1 `findVendorByOwnerId` this replaces could only ever answer "the one
+ * company they own", which is now the wrong question in two ways: they may hold
+ * several, and they may hold a seat in one they do not own.
+ */
+async function listSessionVendors(
+  userId: string
+): Promise<AuthVendorResponse[]> {
+  const seats = await membersService.listMyVendors(userId)
+
+  return seats.map((seat) => ({
+    id: seat.id,
+    businessName: seat.businessName,
+    logoUrl: seat.logoUrl,
+    phone: seat.phone,
+    status: seat.status,
+    isVerified: seat.isVerified,
+    role: seat.role,
+    isOwner: seat.isOwner,
+  }))
 }
 
 function assertActiveUser(user: UserRecord) {
@@ -235,18 +260,20 @@ async function createSession(
     expiresAt: getRefreshTokenExpiryDate(),
   })
 
-  const vendor =
-    audience === 'vendor' && user.isVendorOwner
-      ? await authRepository.findVendorByOwnerId(user.id)
-      : null
+  const vendors =
+    audience === 'vendor' ? await listSessionVendors(user.id) : []
 
-  log.info({ userId: user.id, audience }, 'session:created')
+  log.info(
+    { userId: user.id, audience, vendorCount: vendors.length },
+    'session:created'
+  )
 
   return {
     accessToken,
     refreshToken,
     user: toUserResponse(user),
-    vendor: vendor ? toVendorResponse(vendor) : null,
+    vendor: vendors.length === 1 ? vendors[0] : null,
+    vendors,
   }
 }
 
@@ -357,7 +384,14 @@ export const authService = {
 
     await authRepository.revokeRefreshToken(storedToken.id)
 
-    const audience: TokenAudience = user.isVendorOwner ? 'vendor' : 'customer'
+    // Which app this session belongs to. Asked of the mapping table rather
+    // than the legacy flag, so someone whose last seat was revoked refreshes
+    // into the customer app instead of a vendor session with no company.
+    const audience: TokenAudience = (await membersRepository.hasActiveVendorSeat(
+      user.id
+    ))
+      ? 'vendor'
+      : 'customer'
     log.info({ userId: user.id, audience }, 'session:refreshed')
     return createSession(user, audience)
   },
@@ -386,14 +420,22 @@ export const authService = {
 
     assertActiveUser(user)
 
-    const vendor =
-      audience === 'vendor' && user.isVendorOwner
-        ? await authRepository.findVendorByOwnerId(user.id)
-        : null
+    const vendors =
+      audience === 'vendor' ? await listSessionVendors(user.id) : []
 
     return {
       user: toUserResponse(user),
-      vendor: vendor ? toVendorResponse(vendor) : null,
+      vendor: vendors.length === 1 ? vendors[0] : null,
+      vendors,
     }
+  },
+
+  /** The company switcher's data source. Active, vendor-scoped rows only. */
+  async listMyVendors(userId: string) {
+    if (!UUID_RE.test(userId)) {
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND')
+    }
+
+    return listSessionVendors(userId)
   },
 }

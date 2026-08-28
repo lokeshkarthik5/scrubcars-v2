@@ -38,6 +38,11 @@ authRoutes.get(
   requireCustomer,
   authController.getMeCustomer
 )
+// Every company the caller can act as, with the role they hold in each. This is
+// what the in-page switcher reads, and what makes "which company am I acting
+// as?" answerable at all.
+authRoutes.get('/me/vendors', authMiddleware, authController.getMyVendors)
+
 // Superseded by GET /auth/me/vendors, which returns every company the caller
 // can act as. Kept working through resolveTenant so existing clients — which
 // send no X-Vendor-Id and have exactly one seat — are unaffected.

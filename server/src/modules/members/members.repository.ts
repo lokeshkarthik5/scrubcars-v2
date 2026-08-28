@@ -186,6 +186,67 @@ export const membersRepository = {
       .returning()
   },
 
+  findUserByPhone(phone: string) {
+    return db.query.users.findFirst({ where: eq(users.phone, phone) })
+  },
+
+  findUserById(id: string) {
+    return db.query.users.findFirst({ where: eq(users.id, id) })
+  },
+
+  /**
+   * A phone with no account yet. There is no invite-acceptance flow: the row
+   * exists so the mapping has something to point at, and the person picks it up
+   * on their first OTP login.
+   */
+  createStubUser(data: { name: string; phone: string }) {
+    return db
+      .insert(users)
+      .values({
+        name: data.name,
+        phone: data.phone,
+        isCustomer: false,
+        isVendorOwner: true,
+        phoneVerified: false,
+      })
+      .returning()
+  },
+
+  setVendorOwnerFlag(userId: string, value: boolean) {
+    return db
+      .update(users)
+      .set({ isVendorOwner: value })
+      .where(eq(users.id, userId))
+      .returning()
+  },
+
+  findVendorById(vendorId: string) {
+    return db.query.vendors.findFirst({ where: eq(vendors.id, vendorId) })
+  },
+
+  /**
+   * Ownership moves in one transaction: the target is promoted to vendor_admin
+   * if they were not one already, and `vendors.owner_id` swaps. The protection
+   * in §5 is attached to owner_id, so it moves with it — there is never a
+   * moment where two rows are protected or none are.
+   */
+  transferOwnership(vendorId: string, membershipId: string, newOwnerId: string) {
+    return db.transaction(async (tx) => {
+      await tx
+        .update(userMemberMapping)
+        .set({ role: 'vendor_admin', status: 'active' })
+        .where(eq(userMemberMapping.id, membershipId))
+
+      const [vendor] = await tx
+        .update(vendors)
+        .set({ ownerId: newOwnerId })
+        .where(eq(vendors.id, vendorId))
+        .returning()
+
+      return vendor
+    })
+  },
+
   countActiveVendorSeats(userId: string) {
     return db
       .select({ value: sql<number>`count(*)` })

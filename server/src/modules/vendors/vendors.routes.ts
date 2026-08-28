@@ -6,6 +6,7 @@ import {
   resolveTenant,
   type TenantVariables,
 } from '../../middleware/tenant.middleware.js'
+import { membersRoutes } from '../members/members.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createPhotoSchema,
@@ -102,6 +103,10 @@ vendorsRoutes.get(
   zValidator('query', earningsQuerySchema),
   (c) => vendorsController.getEarnings(c, c.req.valid('query'))
 )
+
+// The team screen. Nested here so it inherits the /vendors/me prefix — the
+// company it acts on is the one resolveTenant produced, never a path parameter.
+vendorsRoutes.route('/me/members', membersRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

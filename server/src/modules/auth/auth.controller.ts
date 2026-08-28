@@ -142,3 +142,12 @@ export async function getMeVendor(c: AuthContext) {
     data,
   })
 }
+
+export async function getMyVendors(c: AuthContext) {
+  const vendors = await authService.listMyVendors(c.get('auth').sub)
+
+  return c.json({
+    success: true,
+    data: vendors,
+  })
+}
