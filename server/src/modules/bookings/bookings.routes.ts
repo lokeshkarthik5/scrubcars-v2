@@ -3,9 +3,11 @@ import { Hono } from 'hono'
 import {
   authMiddleware,
   requireCustomer,
-  requireVendor,
-  type AuthVariables,
 } from '../../middleware/auth.middleware.js'
+import {
+  resolveTenant,
+  type TenantVariables,
+} from '../../middleware/tenant.middleware.js'
 import * as bookingsController from './bookings.controller.js'
 import {
   bookingIdParamSchema,
@@ -17,7 +19,7 @@ import {
 } from './bookings.validation.js'
 import type { Context } from 'hono'
 
-export const bookingsRoutes = new Hono<{ Variables: AuthVariables }>()
+export const bookingsRoutes = new Hono<{ Variables: TenantVariables }>()
 
 // Cancel/reject can carry an optional { reason } JSON body. The body is
 // optional, so parse leniently and fall back to no reason when absent.
@@ -38,7 +40,7 @@ bookingsRoutes.get(
 bookingsRoutes.get(
   '/vendor',
   authMiddleware,
-  requireVendor,
+  resolveTenant,
   zValidator('query', listVendorBookingsQuerySchema),
   (c) => bookingsController.listVendorBookings(c, c.req.valid('query'))
 )
@@ -81,7 +83,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/accept',
   authMiddleware,
-  requireVendor,
+  resolveTenant,
   zValidator('param', bookingIdParamSchema),
   (c) => bookingsController.acceptBooking(c, c.req.valid('param').id)
 )
@@ -89,7 +91,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/reject',
   authMiddleware,
-  requireVendor,
+  resolveTenant,
   zValidator('param', bookingIdParamSchema),
   async (c) =>
     bookingsController.rejectBooking(
@@ -102,7 +104,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/progress',
   authMiddleware,
-  requireVendor,
+  resolveTenant,
   zValidator('param', bookingIdParamSchema),
   (c) => bookingsController.markInProgress(c, c.req.valid('param').id)
 )
@@ -110,7 +112,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/complete',
   authMiddleware,
-  requireVendor,
+  resolveTenant,
   zValidator('param', bookingIdParamSchema),
   (c) => bookingsController.markCompleted(c, c.req.valid('param').id)
 )

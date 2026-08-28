@@ -2,11 +2,11 @@ import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import type { TenantVariables } from '../../middleware/tenant.middleware.js'
 import { authService } from './auth.service.js'
 import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
 
-type AuthContext = Context<{ Variables: AuthVariables }>
+type AuthContext = Context<{ Variables: TenantVariables }>
 
 const REFRESH_COOKIE = 'refresh_token'
 const ACCESS_COOKIE = 'access_token'

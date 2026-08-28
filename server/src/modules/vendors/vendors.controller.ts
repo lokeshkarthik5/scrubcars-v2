@@ -1,5 +1,5 @@
 import type { Context } from 'hono'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import type { TenantVariables } from '../../middleware/tenant.middleware.js'
 import { vendorsService } from './vendors.service.js'
 import type {
   CreatePhotoInput,
@@ -24,7 +24,7 @@ import type {
   UpdateVendorInput,
 } from './vendors.validation.js'
 
-type VendorsContext = Context<{ Variables: AuthVariables }>
+type VendorsContext = Context<{ Variables: TenantVariables }>
 
 function getOwnerId(c: VendorsContext): string {
   return c.get('auth').sub

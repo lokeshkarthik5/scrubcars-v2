@@ -1,5 +1,5 @@
 import type { Context } from 'hono'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import type { TenantVariables } from '../../middleware/tenant.middleware.js'
 import { bookingsService } from './bookings.service.js'
 import type {
   CancelBookingInput,
@@ -9,7 +9,7 @@ import type {
   RescheduleBookingInput,
 } from './bookings.validation.js'
 
-type BookingsContext = Context<{ Variables: AuthVariables }>
+type BookingsContext = Context<{ Variables: TenantVariables }>
 
 function getAuth(c: BookingsContext) {
   return c.get('auth')

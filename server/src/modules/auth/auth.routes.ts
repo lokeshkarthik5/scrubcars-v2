@@ -3,14 +3,16 @@ import { Hono } from 'hono'
 import {
   authMiddleware,
   requireCustomer,
-  requireVendor,
-  type AuthVariables,
 } from '../../middleware/auth.middleware.js'
+import {
+  resolveTenant,
+  type TenantVariables,
+} from '../../middleware/tenant.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import * as authController from './auth.controller.js'
 import { sendOtpSchema, verifyOtpSchema } from './auth.validation.js'
 
-export const authRoutes = new Hono<{ Variables: AuthVariables }>()
+export const authRoutes = new Hono<{ Variables: TenantVariables }>()
 
 authRoutes.post(
   '/otp/send',
@@ -36,9 +38,12 @@ authRoutes.get(
   requireCustomer,
   authController.getMeCustomer
 )
+// Superseded by GET /auth/me/vendors, which returns every company the caller
+// can act as. Kept working through resolveTenant so existing clients — which
+// send no X-Vendor-Id and have exactly one seat — are unaffected.
 authRoutes.get(
   '/me/vendor',
   authMiddleware,
-  requireVendor,
+  resolveTenant,
   authController.getMeVendor
 )
