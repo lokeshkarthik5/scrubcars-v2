@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { IconPhotoPlus, IconTrash } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
@@ -10,6 +11,7 @@ import { ScCard } from '@/components/sc/card'
 import { ScInput, ScTextarea } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
+import { useIsVendorAdmin } from '@/lib/hooks/use-vendor-role'
 import {
   createService,
   deleteService,
@@ -70,6 +72,14 @@ function hasValidPricing(form: ServiceForm): boolean {
 }
 
 export default function VendorServicesPage() {
+  const isVendorAdmin = useIsVendorAdmin()
+  const roleRouter = useRouter()
+
+  // Catalogue and media are vendor_admin-only server-side, and an operator's
+  // nav has no tab for either, so this is only reachable by typing the URL.
+  useEffect(() => {
+    if (!isVendorAdmin) roleRouter.replace('/vendor/home')
+  }, [isVendorAdmin, roleRouter])
   const [tab, setTab] = useState<'services' | 'packages'>('services')
   const [services, setServices] = useState<Service[]>([])
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm)

@@ -1,3 +1,4 @@
+import { VendorShellHeader } from '@/components/features/vendor-shell-header'
 import { cn } from '@/lib/utils'
 import { BottomNav, type NavType } from './bottom-nav'
 import { BrandMark } from './brand-mark'
@@ -27,6 +28,7 @@ export function AppShell({
         className={cn('flex flex-1 flex-col px-4', className)}
         style={showNav ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' } : undefined}
       >
+        {navType === 'vendor' && <VendorShellHeader />}
         {showBrand && (
           <div className="flex items-center justify-between gap-3">
             <BrandMark height={32} priority />

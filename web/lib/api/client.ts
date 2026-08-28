@@ -3,6 +3,45 @@ import type { ApiErrorResponse, ApiSuccessResponse } from './types'
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
 
+/**
+ * The company every vendor-scoped request acts on. Attached here, in the one
+ * place that builds request headers, so no individual API module has to know
+ * about tenancy — and so a company switch cannot leave one module pointing at
+ * the previous company.
+ */
+let activeVendorId: string | null = null
+
+export function setActiveVendorId(vendorId: string | null) {
+  activeVendorId = vendorId
+}
+
+/**
+ * Set on every response to a request that resolved through a platform grant
+ * rather than a seat. The portal renders a persistent support-session banner
+ * from it — see `subscribeToSupportSession`.
+ */
+const SUPPORT_SESSION_HEADER = 'x-detlio-support-session'
+
+let isSupportSession = false
+const supportSessionListeners = new Set<(active: boolean) => void>()
+
+export function subscribeToSupportSession(
+  listener: (active: boolean) => void
+) {
+  supportSessionListeners.add(listener)
+  listener(isSupportSession)
+  return () => {
+    supportSessionListeners.delete(listener)
+  }
+}
+
+function noteSupportSession(response: Response) {
+  const active = response.headers.get(SUPPORT_SESSION_HEADER) === 'true'
+  if (active === isSupportSession) return
+  isSupportSession = active
+  supportSessionListeners.forEach((listener) => listener(active))
+}
+
 let unauthorizedHandler: (() => void | Promise<void>) | null = null
 let handlingUnauthorized = false
 let refreshPromise: Promise<boolean> | null = null
@@ -81,6 +120,7 @@ export async function apiClient<T>(
 
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(activeVendorId ? { 'X-Vendor-Id': activeVendorId } : {}),
     ...(headers as Record<string, string>),
   }
 
@@ -90,6 +130,8 @@ export async function apiClient<T>(
     credentials: 'include',
   })
 
+  noteSupportSession(response)
+
   if (response.status === 401 && auth) {
     const refreshed = await tryRefreshCookies()
     if (refreshed) {
@@ -98,6 +140,7 @@ export async function apiClient<T>(
         headers: requestHeaders,
         credentials: 'include',
       })
+      noteSupportSession(response)
     }
   }
 

@@ -9,6 +9,7 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScButton } from '@/components/sc/button'
 import { TopBar } from '@/components/sc/top-bar'
 import { ApiError } from '@/lib/api/client'
+import { useIsVendorAdmin } from '@/lib/hooks/use-vendor-role'
 import {
   deleteVendorLogo,
   deleteVendorPhoto,
@@ -23,6 +24,14 @@ const ACCEPTED = 'image/jpeg,image/png,image/webp'
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 
 export default function VendorPhotosPage() {
+  const isVendorAdmin = useIsVendorAdmin()
+  const roleRouter = useRouter()
+
+  // Catalogue and media are vendor_admin-only server-side, and an operator's
+  // nav has no tab for either, so this is only reachable by typing the URL.
+  useEffect(() => {
+    if (!isVendorAdmin) roleRouter.replace('/vendor/home')
+  }, [isVendorAdmin, roleRouter])
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const logoRef = useRef<HTMLInputElement>(null)

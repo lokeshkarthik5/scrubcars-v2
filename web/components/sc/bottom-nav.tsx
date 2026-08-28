@@ -46,12 +46,20 @@ const itemsByType: Record<NavType, typeof customerItems> = {
 export function BottomNav({ type = 'customer' }: { type?: NavType }) {
   const pathname = usePathname()
   const isVendorAdmin = useIsVendorAdmin()
-  // An operator's nav is four items. Hiding the tab is not the boundary — the
-  // endpoint behind it refuses them — but leaving it visible would put a 403 in
-  // front of someone doing their job.
+  // An operator's nav is Home and Bookings — jobs, which is their whole job.
+  // Earnings is money, and Services and Settings are catalogue and
+  // configuration; every endpoint behind those three is vendor_admin-only, so
+  // leaving the tabs visible would only put a 403 in front of someone trying to
+  // work. Hiding them is convenience, not the boundary.
+  const OPERATOR_HIDDEN = [
+    '/vendor/earnings',
+    '/vendor/services',
+    '/vendor/settings',
+  ]
+
   const items =
     type === 'vendor' && !isVendorAdmin
-      ? vendorItems.filter((item) => item.href !== '/vendor/earnings')
+      ? vendorItems.filter((item) => !OPERATOR_HIDDEN.includes(item.href))
       : itemsByType[type]
 
   return (
