@@ -62,6 +62,13 @@ export const resolveTenant = createMiddleware<{ Variables: TenantVariables }>(
     const auth = c.get('auth')
     const header = c.req.header(VENDOR_ID_HEADER)?.trim()
 
+    // The env-credential break-glass session has no `users` row, so its subject
+    // is the literal 'admin' rather than a uuid. It therefore holds no seats and
+    // no platform row, and 404 is the honest answer — without this guard the
+    // mapping lookups below compare a uuid column against 'admin' and the
+    // request dies as a 500 instead.
+    if (!UUID_RE.test(auth.sub)) notFound()
+
     if (!header) {
       // No header. This is what keeps every existing single-garage client
       // working with no change — and it deliberately ignores super_admin rows,
