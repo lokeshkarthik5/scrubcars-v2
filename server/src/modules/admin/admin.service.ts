@@ -291,14 +291,9 @@ export const adminService = {
       if (!owner.isVendorOwner) {
         ;[owner] = await adminRepository.setUserAsVendorOwner(owner.id)
       }
-      const existingVendor = await adminRepository.findVendorByOwnerId(owner.id)
-      if (existingVendor) {
-        throw new AppError(
-          409,
-          'A vendor profile already exists for this owner',
-          'VENDOR_ALREADY_EXISTS'
-        )
-      }
+      // No "already a vendor" block: one person owning several garages is the
+      // point of the team model, and refusing it here would leave admins unable
+      // to onboard the exact operators this feature exists for.
     } else {
       ;[owner] = await adminRepository.createOwner({
         name: input.ownerName,
