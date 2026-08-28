@@ -1,6 +1,11 @@
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { userMemberMapping, users, vendors } from '../../db/schema.js'
+import {
+  internalAccessLog,
+  userMemberMapping,
+  users,
+  vendors,
+} from '../../db/schema.js'
 import type { memberRoleEnum } from '../../db/schema.js'
 
 export type MemberRole = (typeof memberRoleEnum.enumValues)[number]
@@ -245,6 +250,48 @@ export const membersRepository = {
 
       return vendor
     })
+  },
+
+  /** Every platform-scoped grant, for the admin portal's list screen. */
+  listPlatformRows() {
+    return db
+      .select({
+        id: userMemberMapping.id,
+        role: userMemberMapping.role,
+        status: userMemberMapping.status,
+        createdAt: userMemberMapping.createdAt,
+        addedBy: userMemberMapping.addedBy,
+        user: {
+          id: users.id,
+          name: users.name,
+          phone: users.phone,
+        },
+      })
+      .from(userMemberMapping)
+      .innerJoin(users, eq(users.id, userMemberMapping.userId))
+      .where(isNull(userMemberMapping.vendorId))
+      .orderBy(asc(userMemberMapping.createdAt))
+  },
+
+  /** Does this person own any company? A super_admin may not (§10). */
+  async ownsAnyVendor(userId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(eq(vendors.ownerId, userId))
+      .limit(1)
+
+    return Boolean(row)
+  },
+
+  /** Append-only. Never updated, never deleted from. */
+  logInternalAccess(data: {
+    userId: string
+    vendorId: string
+    method: string
+    endpoint: string
+  }) {
+    return db.insert(internalAccessLog).values(data)
   },
 
   countActiveVendorSeats(userId: string) {

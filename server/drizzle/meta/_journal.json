@@ -148,6 +148,13 @@
       "when": 1787834189800,
       "tag": "0020_drop_users_is_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787834189900,
+      "tag": "0021_add_internal_access_log",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import { AppError } from './lib/errors.js'
 import { logger } from './lib/logger.js'
 import { APP_VERSION } from './lib/version.js'
 import { globalRateLimiter } from './middleware/rate-limit.middleware.js'
+import { SUPPORT_SESSION_HEADER } from './middleware/tenant.middleware.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { usersRoutes } from './modules/users/users.routes.js'
 import { bookingIntentsRoutes } from './modules/booking-intents/booking-intents.routes.js'
@@ -43,6 +44,10 @@ app.use(
   cors({
     origin: env.corsOrigin,
     credentials: true,
+    // A custom response header is invisible to the browser unless it is
+    // exposed. This one is how the vendor portal knows to render its support
+    // session banner.
+    exposeHeaders: [SUPPORT_SESSION_HEADER],
   })
 )
 

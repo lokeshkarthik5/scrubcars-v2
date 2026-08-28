@@ -11,7 +11,9 @@ import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   createVendorSchema,
+  grantSuperAdminSchema,
   listBookingsQuerySchema,
+  superAdminIdParamSchema,
   loginSchema,
   mediaUrlSchema,
   updateVendorSchema,
@@ -29,6 +31,26 @@ adminRoutes.post('/login', rateLimiter, zValidator('json', loginSchema), (c) =>
 )
 adminRoutes.post('/logout', adminController.logout)
 adminRoutes.get('/me', ...adminMiddleware, adminController.getMe)
+
+// Platform admin grants. Reachable only by an existing super-admin (or the
+// break-glass session), never self-serve.
+adminRoutes.get(
+  '/super-admins',
+  ...adminMiddleware,
+  adminController.listSuperAdmins
+)
+adminRoutes.post(
+  '/super-admins',
+  ...adminMiddleware,
+  zValidator('json', grantSuperAdminSchema),
+  (c) => adminController.grantSuperAdmin(c, c.req.valid('json'))
+)
+adminRoutes.delete(
+  '/super-admins/:id',
+  ...adminMiddleware,
+  zValidator('param', superAdminIdParamSchema),
+  (c) => adminController.revokeSuperAdmin(c, c.req.valid('param').id)
+)
 
 adminRoutes.get('/vendors', ...adminMiddleware, adminController.listVendors)
 adminRoutes.post(

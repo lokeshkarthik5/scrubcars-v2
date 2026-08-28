@@ -4,6 +4,7 @@ import { env } from '../../lib/env.js'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { adminService } from './admin.service.js'
 import type {
+  GrantSuperAdminInput,
   CreateVendorInput,
   ListBookingsQuery,
   LoginInput,
@@ -182,4 +183,28 @@ export async function deleteServiceImage(
 ) {
   const images = await adminService.deleteServiceImage(serviceId, imageId)
   return c.json({ success: true, data: images })
+}
+
+// ─── Platform admins ─────────────────────────────────────────────────────────
+
+export async function listSuperAdmins(c: AdminContext) {
+  const admins = await adminService.listSuperAdmins()
+  return c.json({ success: true, data: admins })
+}
+
+export async function grantSuperAdmin(
+  c: AdminContext,
+  input: GrantSuperAdminInput
+) {
+  // The env-credential session has no users row, so it cannot be attributed.
+  const sub = c.get('auth').sub
+  const grantedBy = sub === 'admin' ? null : sub
+
+  const grant = await adminService.grantSuperAdmin(input, grantedBy)
+  return c.json({ success: true, data: grant }, 201)
+}
+
+export async function revokeSuperAdmin(c: AdminContext, id: string) {
+  await adminService.revokeSuperAdmin(id)
+  return c.json({ success: true })
 }

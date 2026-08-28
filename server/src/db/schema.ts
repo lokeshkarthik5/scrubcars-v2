@@ -355,6 +355,34 @@ export const userMemberMapping = pgTable(
   ]
 )
 
+// Append-only record of Detlio staff acting inside a customer's company. It is
+// the only control on that access — a super_admin resolves as vendor_admin, so
+// they can change a garage's prices and read its earnings — which is why it is
+// written by the middleware on every such request, never by a handler that
+// could forget.
+export const internalAccessLog = pgTable(
+  'internal_access_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    method: varchar('method', { length: 10 }).notNull(),
+    endpoint: varchar('endpoint', { length: 512 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('internal_access_log_user_id_idx').on(table.userId),
+    index('internal_access_log_vendor_id_idx').on(table.vendorId),
+    index('internal_access_log_created_at_idx').on(table.createdAt),
+  ]
+)
+
 export const vendorWorkingHours = pgTable(
   'vendor_working_hours',
   {

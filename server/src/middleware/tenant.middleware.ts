@@ -20,6 +20,9 @@ import type { AuthVariables } from './auth.middleware.js'
  */
 export const VENDOR_ID_HEADER = 'X-Vendor-Id'
 
+/** Set on every response to a request that resolved through a platform grant. */
+export const SUPPORT_SESSION_HEADER = 'X-Detlio-Support-Session'
+
 export type TenantContext = {
   vendorId: string
   /**
@@ -110,10 +113,26 @@ export const resolveTenant = createMiddleware<{ Variables: TenantVariables }>(
       vendorId: header,
       // Deliberate, and the widest grant in the system: support sessions act
       // with write access to the garage's prices, services and settings. The
-      // control is the audit log in the internal-access middleware.
+      // only control is the audit row written below.
       role: 'vendor_admin',
       viaSuperAdmin: true,
     })
+
+    // Written here rather than in a handler, so no route can be added that
+    // reaches a customer's company without leaving a trace. Logged before the
+    // request runs, so one that throws is still recorded.
+    await membersRepository.logInternalAccess({
+      userId: auth.sub,
+      vendorId: header,
+      method: c.req.method,
+      endpoint: c.req.path,
+    })
+
+    // What the portal renders its persistent "Detlio support session" banner
+    // from. A header rather than a body field because it has to be true of
+    // every response on the request, not of one endpoint's payload.
+    c.header(SUPPORT_SESSION_HEADER, 'true')
+
     await next()
   }
 )
