@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import {
   authMiddleware,
-  requireAdmin,
+  requireSuperAdmin,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
@@ -20,7 +20,7 @@ import {
 
 export const adminRoutes = new Hono<{ Variables: AuthVariables }>()
 
-const adminMiddleware = [authMiddleware, requireAdmin] as const
+const adminMiddleware = [authMiddleware, requireSuperAdmin] as const
 
 const vendorIdParamSchema = z.object({ id: z.string().uuid() })
 

@@ -44,7 +44,7 @@ function clearAccessCookie(c: AdminContext) {
 export async function login(c: AdminContext, input: LoginInput) {
   const { accessToken } = await adminService.login(input)
   setAccessCookie(c, accessToken)
-  return c.json({ success: true, data: { isAdmin: true } })
+  return c.json({ success: true, data: { isSuperAdmin: true } })
 }
 
 export async function logout(c: AdminContext) {
@@ -53,7 +53,7 @@ export async function logout(c: AdminContext) {
 }
 
 export async function getMe(c: AdminContext) {
-  return c.json({ success: true, data: { isAdmin: true } })
+  return c.json({ success: true, data: { isSuperAdmin: true } })
 }
 
 export async function listVendors(c: AdminContext) {

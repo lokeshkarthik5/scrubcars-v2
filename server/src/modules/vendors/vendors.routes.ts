@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { authMiddleware } from '../../middleware/auth.middleware.js'
 import {
+  requireVendorRole,
   resolveTenant,
   type TenantVariables,
 } from '../../middleware/tenant.middleware.js'
@@ -37,7 +38,25 @@ export const vendorsRoutes = new Hono<{ Variables: TenantVariables }>()
 // Every /me route resolves the active company from the session or the
 // X-Vendor-Id header before the handler runs. `/me` is unchanged as a path —
 // what it means is now "the company I am acting as", not "the company I own".
-const tenantMiddleware = [authMiddleware, resolveTenant] as const
+//
+// Default deny: the shared chain is vendor_admin-only, so a route added to this
+// file is never accidentally exposed to operators. Widening is deliberate, and
+// there is exactly one widened route below.
+const tenantMiddleware = [
+  authMiddleware,
+  resolveTenant,
+  requireVendorRole('vendor_admin'),
+] as const
+
+// Reading the company profile is the one thing an operator needs from this
+// module: the vendor app renders the business name and logo in its shell on
+// every screen, including the job list. Writing it (PATCH /me) stays admin-only,
+// as does everything else here — money, settings, catalogue and members.
+const anyMemberMiddleware = [
+  authMiddleware,
+  resolveTenant,
+  requireVendorRole('vendor_admin', 'vendor_operator'),
+] as const
 
 vendorsRoutes.get(
   '/',
@@ -52,7 +71,7 @@ vendorsRoutes.post(
   (c) => vendorsController.createVendor(c, c.req.valid('json'))
 )
 
-vendorsRoutes.get('/me', ...tenantMiddleware, vendorsController.getMyVendor)
+vendorsRoutes.get('/me', ...anyMemberMiddleware, vendorsController.getMyVendor)
 vendorsRoutes.patch(
   '/me',
   ...tenantMiddleware,

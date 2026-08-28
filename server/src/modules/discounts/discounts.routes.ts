@@ -2,7 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import {
   authMiddleware,
-  requireAdmin,
+  requireSuperAdmin,
   requireCustomer,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
@@ -34,7 +34,7 @@ discountsRoutes.post(
 // cannot live anywhere else or the browser will not send it.
 export const adminDiscountRoutes = new Hono<{ Variables: AuthVariables }>()
 
-const adminMiddleware = [authMiddleware, requireAdmin] as const
+const adminMiddleware = [authMiddleware, requireSuperAdmin] as const
 
 adminDiscountRoutes.get(
   '/',

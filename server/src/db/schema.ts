@@ -166,7 +166,11 @@ export const users = pgTable(
     phoneVerified: boolean('phone_verified').default(false).notNull(),
     isCustomer: boolean('is_customer').default(true).notNull(),
     isVendorOwner: boolean('is_vendor_owner').default(false).notNull(),
-    isAdmin: boolean('is_admin').default(false).notNull(),
+    // There is deliberately no `is_admin`. Nothing ever wrote it, but it was
+    // copied into every OTP-issued session token and trusted by the admin gate —
+    // a dormant second path into /admin that one UPDATE would have opened.
+    // Platform admin now comes from an active `super_admin` row in
+    // user_member_mapping, or from the env-credential break-glass token.
     status: userStatusEnum('status').default('active').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()

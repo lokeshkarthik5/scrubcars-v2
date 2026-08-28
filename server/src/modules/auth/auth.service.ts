@@ -19,6 +19,7 @@ import {
   type AccessTokenPayload,
   type TokenAudience,
 } from '../../lib/jwt.js'
+import { membersRepository } from '../members/members.repository.js'
 import { authRepository } from './auth.repository.js'
 import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
 import type { UserRecord, VendorRecord } from './auth.repository.js'
@@ -40,7 +41,6 @@ export type AuthUserResponse = {
   phoneVerified: boolean
   isCustomer: boolean
   isVendorOwner: boolean
-  isAdmin: boolean
   status: string
 }
 
@@ -68,7 +68,6 @@ function toUserResponse(user: UserRecord): AuthUserResponse {
     phoneVerified: user.phoneVerified,
     isCustomer: user.isCustomer,
     isVendorOwner: user.isVendorOwner,
-    isAdmin: user.isAdmin,
     status: user.status,
   }
 }
@@ -114,7 +113,10 @@ async function validateSendOtpRules(input: SendOtpInput) {
 
     assertActiveUser(existingUser)
 
-    if (input.audience === 'vendor' && !existingUser.isVendorOwner) {
+    if (
+      input.audience === 'vendor' &&
+      !(await membersRepository.hasActiveVendorSeat(existingUser.id))
+    ) {
       throw new AppError(
         403,
         'This phone number is not registered as a vendor',
@@ -190,7 +192,14 @@ async function resolveUserAfterVerification(
 
   assertActiveUser(existingUser)
 
-  if (input.audience === 'vendor' && !existingUser.isVendorOwner) {
+  // The vendor-app login gate. One query per login, not per request — and note
+  // the role filter inside it: a bare "has any mapping row" check would let a
+  // super_admin open the vendor app with no company, and tenant resolution
+  // would then 404 them on every request.
+  if (
+    input.audience === 'vendor' &&
+    !(await membersRepository.hasActiveVendorSeat(existingUser.id))
+  ) {
     throw new AppError(
       403,
       'This phone number is not registered as a vendor',
@@ -214,7 +223,6 @@ async function createSession(
     aud: audience,
     isCustomer: user.isCustomer,
     isVendorOwner: user.isVendorOwner,
-    isAdmin: user.isAdmin,
   }
 
   const accessToken = await signAccessToken(payload)
