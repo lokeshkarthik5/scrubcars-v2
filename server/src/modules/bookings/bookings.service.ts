@@ -332,6 +332,19 @@ async function getBookingForViewer(userId: string, bookingId: string) {
   const platformRow = await membersRepository.findActivePlatformRow(userId)
 
   if (platformRow?.role === 'super_admin') {
+    // Logged here rather than in middleware, which is the exception and worth
+    // being explicit about: this route serves customers too, so it never runs
+    // `resolveTenant` — and `resolveTenant` is where every other support-access
+    // row is written. Without this, staff could read any booking's customer
+    // name, phone and doorstep address on any garage with no trace, which is
+    // exactly the access the audit log exists to record.
+    await membersRepository.logInternalAccess({
+      userId,
+      vendorId: booking.vendorId,
+      method: 'GET',
+      endpoint: `/bookings/${bookingId}`,
+    })
+
     return { booking, viewer: 'vendor' as const }
   }
 
