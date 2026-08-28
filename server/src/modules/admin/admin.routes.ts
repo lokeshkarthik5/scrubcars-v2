@@ -8,6 +8,10 @@ import {
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
+import {
+  addMemberSchema,
+  updateMemberSchema,
+} from '../members/members.validation.js'
 import * as adminController from './admin.controller.js'
 import {
   createVendorSchema,
@@ -95,6 +99,57 @@ adminRoutes.delete(
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
   (c) => adminController.deleteVendor(c, c.req.valid('param').id)
+)
+
+// Vendor team. Ownership transfer is deliberately absent: adding, removing and
+// changing roles is admin work, but reassigning who *owns* a business is a
+// heavier act that stays owner-only.
+const memberParamSchema = z.object({
+  id: z.string().uuid(),
+  memberId: z.string().uuid(),
+})
+
+adminRoutes.get(
+  '/vendors/:id/members',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.listVendorMembers(c, c.req.valid('param').id)
+)
+adminRoutes.post(
+  '/vendors/:id/members',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  zValidator('json', addMemberSchema),
+  (c) =>
+    adminController.addVendorMember(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+adminRoutes.patch(
+  '/vendors/:id/members/:memberId',
+  ...adminMiddleware,
+  zValidator('param', memberParamSchema),
+  zValidator('json', updateMemberSchema),
+  (c) =>
+    adminController.updateVendorMember(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').memberId,
+      c.req.valid('json')
+    )
+)
+adminRoutes.delete(
+  '/vendors/:id/members/:memberId',
+  ...adminMiddleware,
+  zValidator('param', memberParamSchema),
+  (c) =>
+    adminController.removeVendorMember(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').memberId
+    )
 )
 
 // Vendor media. Registered before the catch-all vendor routes above only in

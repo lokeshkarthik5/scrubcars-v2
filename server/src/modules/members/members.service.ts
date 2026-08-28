@@ -90,7 +90,11 @@ export const membersService = {
     }))
   },
 
-  async addMember(vendorId: string, actorId: string, input: AddMemberInput) {
+  async addMember(
+    vendorId: string,
+    actorId: string | null,
+    input: AddMemberInput
+  ) {
     await getVendorOrThrow(vendorId)
 
     // A phone with no account yet gets a stub row rather than an invite. There
@@ -141,7 +145,7 @@ export const membersService = {
 
   async updateMember(
     vendorId: string,
-    actorId: string,
+    actorId: string | null,
     membershipId: string,
     input: UpdateMemberInput
   ) {
@@ -172,7 +176,11 @@ export const membersService = {
     return updated
   },
 
-  async removeMember(vendorId: string, actorId: string, membershipId: string) {
+  async removeMember(
+    vendorId: string,
+    actorId: string | null,
+    membershipId: string
+  ) {
     const vendor = await getVendorOrThrow(vendorId)
     const membership = await getMembershipInVendor(vendorId, membershipId)
 

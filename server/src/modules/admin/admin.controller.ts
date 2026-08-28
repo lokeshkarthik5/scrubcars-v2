@@ -2,7 +2,12 @@ import type { Context } from 'hono'
 import { deleteCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import { membersService } from '../members/members.service.js'
 import { adminService } from './admin.service.js'
+import type {
+  AddMemberInput,
+  UpdateMemberInput,
+} from '../members/members.validation.js'
 import type {
   GrantSuperAdminInput,
   CreateVendorInput,
@@ -206,5 +211,64 @@ export async function grantSuperAdmin(
 
 export async function revokeSuperAdmin(c: AdminContext, id: string) {
   await adminService.revokeSuperAdmin(id)
+  return c.json({ success: true })
+}
+
+// ─── Vendor team ─────────────────────────────────────────────────────────────
+//
+// The same service the vendor-facing team screen uses. It takes the vendorId as
+// an argument and never reads a tenant, so mounting it here needs no new
+// business logic — and the owner-immutability rules come along with it rather
+// than having to be restated.
+
+/**
+ * Who made this change. The break-glass session has no `users` row, so its
+ * changes land with `added_by = null` — "someone with the admin password". A
+ * named super-admin is attributable; the shared credential is not.
+ */
+function getAdminActorId(c: AdminContext): string | null {
+  const sub = c.get('auth').sub
+  return sub === 'admin' ? null : sub
+}
+
+export async function listVendorMembers(c: AdminContext, vendorId: string) {
+  const members = await membersService.listMembers(vendorId)
+  return c.json({ success: true, data: members })
+}
+
+export async function addVendorMember(
+  c: AdminContext,
+  vendorId: string,
+  input: AddMemberInput
+) {
+  const member = await membersService.addMember(
+    vendorId,
+    getAdminActorId(c),
+    input
+  )
+  return c.json({ success: true, data: member }, 201)
+}
+
+export async function updateVendorMember(
+  c: AdminContext,
+  vendorId: string,
+  membershipId: string,
+  input: UpdateMemberInput
+) {
+  const member = await membersService.updateMember(
+    vendorId,
+    getAdminActorId(c),
+    membershipId,
+    input
+  )
+  return c.json({ success: true, data: member })
+}
+
+export async function removeVendorMember(
+  c: AdminContext,
+  vendorId: string,
+  membershipId: string
+) {
+  await membersService.removeMember(vendorId, getAdminActorId(c), membershipId)
   return c.json({ success: true })
 }
