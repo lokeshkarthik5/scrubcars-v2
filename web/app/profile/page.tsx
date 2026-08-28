@@ -15,6 +15,10 @@ import { createAddress, createVehicle, deleteAddress, deleteVehicle } from '@/li
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useUserStore } from '@/lib/stores/user-store'
+import {
+  LocationPicker,
+  type PickedLocation,
+} from '@/components/features/location-picker'
 import { VEHICLE_TIERS } from '@/lib/vehicles'
 import Link from 'next/link'
 
@@ -36,6 +40,10 @@ const emptyAddressForm = {
   address: '',
   city: '',
   pincode: '',
+  // Null until the customer pins it. Optional on purpose: an address with text
+  // but no pin books a drop-in slot perfectly well, and is prompted for a pin at
+  // the one moment it matters — picking it for a doorstep booking.
+  pin: null as PickedLocation | null,
 }
 
 export default function ProfilePage() {
@@ -152,8 +160,11 @@ export default function ProfilePage() {
         label: addressForm.label,
         address: `${addressForm.address}, ${addressForm.pincode}`,
         city: addressForm.city,
-        lat: 13.0067,
-        lng: 80.2574,
+        // Previously hardcoded to a single Chennai point for every address ever
+        // saved, which made doorstep radius checks meaningless.
+        lat: addressForm.pin?.lat,
+        lng: addressForm.pin?.lng,
+        geoSource: addressForm.pin?.source,
         isDefault: addresses.length === 0,
       })
       useUserStore.setState((s) => ({ addresses: [...s.addresses, created] }))
@@ -367,6 +378,34 @@ export default function ProfilePage() {
               value={addressForm.label}
               onChange={(e) => setAddressForm({ ...addressForm, label: e.target.value })}
             />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-medium text-text-secondary">
+                Pin the exact spot (optional)
+              </span>
+              <p className="text-[11px] text-text-muted">
+                Needed only for doorstep service — we&apos;ll ask before your
+                first one if you skip it.
+              </p>
+              {/* GPS-first for customers: they are usually standing at the
+                  address they are saving, unlike a garage owner onboarding. */}
+              <LocationPicker
+                showSearch
+                value={
+                  addressForm.pin
+                    ? { lat: addressForm.pin.lat, lng: addressForm.pin.lng }
+                    : null
+                }
+                onChange={(picked) =>
+                  setAddressForm((form) => ({
+                    ...form,
+                    pin: picked,
+                    address: form.address || picked.address,
+                    city: form.city || picked.city,
+                    pincode: picked.pincode || form.pincode,
+                  }))
+                }
+              />
+            </div>
             <ScInput
               label="Address"
               placeholder="Street, area"

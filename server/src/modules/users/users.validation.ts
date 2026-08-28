@@ -9,27 +9,49 @@ export const updateProfileSchema = z
     message: 'At least one field must be provided',
   })
 
-export const createAddressSchema = z.object({
-  label: z.string().trim().min(1).max(100),
-  address: z.string().trim().min(1),
-  city: z.string().trim().min(1).max(100),
-  lat: z.number().finite(),
-  lng: z.number().finite(),
-  isDefault: z.boolean().optional(),
-})
+// Where a saved coordinate came from. Customers only ever produce these two:
+// 'gps' from the browser's location, 'map_pin' from dragging the marker.
+// 'unset' is implied by omitting lat/lng entirely.
+export const customerGeoSourceSchema = z.enum(['gps', 'map_pin'])
+
+// Coordinates are optional and all-or-nothing. Optional because an address with
+// text but no pin is usable for a drop-in booking, and the customer is prompted
+// for a pin at the point it actually matters (picking it for doorstep).
+// All-or-nothing because a half-set pair is never anything but a bug.
+const coordinates = {
+  lat: z.number().finite().min(-90).max(90).optional(),
+  lng: z.number().finite().min(-180).max(180).optional(),
+  geoSource: customerGeoSourceSchema.optional(),
+}
+
+function bothOrNeither(data: { lat?: number; lng?: number }) {
+  return (data.lat === undefined) === (data.lng === undefined)
+}
+
+const COORDINATE_PAIR_MESSAGE = 'lat and lng must be provided together'
+
+export const createAddressSchema = z
+  .object({
+    label: z.string().trim().min(1).max(100),
+    address: z.string().trim().min(1),
+    city: z.string().trim().min(1).max(100),
+    ...coordinates,
+    isDefault: z.boolean().optional(),
+  })
+  .refine(bothOrNeither, { message: COORDINATE_PAIR_MESSAGE })
 
 export const updateAddressSchema = z
   .object({
     label: z.string().trim().min(1).max(100).optional(),
     address: z.string().trim().min(1).optional(),
     city: z.string().trim().min(1).max(100).optional(),
-    lat: z.number().finite().optional(),
-    lng: z.number().finite().optional(),
+    ...coordinates,
     isDefault: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided',
   })
+  .refine(bothOrNeither, { message: COORDINATE_PAIR_MESSAGE })
 
 export const vehicleTypeSchema = z.enum(['sedan', 'suv', 'hatchback'])
 

@@ -419,9 +419,86 @@ export async function resolveBookingDraft(
     )
   }
 
+  // Doorstep snapshots the customer's location onto the booking, so a later
+  // edit to the saved address cannot change where the garage was told to go.
+  //
+  // Until now `addressId` was accepted and silently ignored: doorstep bookings
+  // carried no address at all, and no coverage rule was ever enforced despite
+  // being documented. Both are handled here.
   let lat: number | null = null
   let lng: number | null = null
   let address: string | null = null
+
+  // Booking creation is drop-in only today — `createBookingTypeSchema` is a
+  // literal, so this branch is currently unreachable. It is written and kept
+  // live anyway so that widening that literal is the *only* thing needed to
+  // turn doorstep on: the coverage rule ships with the feature rather than
+  // being something someone has to remember afterwards.
+  const bookingType = input.bookingType as 'dropin' | 'doorstep'
+
+  if (bookingType === 'doorstep') {
+    if (!vendor.doorstepEnabled) {
+      log.warn(
+        { userId, vendorId: vendor.id },
+        'booking:doorstep_not_enabled'
+      )
+      throw new AppError(
+        400,
+        'Vendor does not accept doorstep bookings',
+        'DOORSTEP_NOT_ENABLED'
+      )
+    }
+
+    if (!input.addressId) {
+      throw new AppError(
+        400,
+        'Choose the address we should come to',
+        'ADDRESS_REQUIRED'
+      )
+    }
+
+    const savedAddress = await bookingsRepository.findAddressForUser(
+      userId,
+      input.addressId
+    )
+
+    if (!savedAddress) {
+      throw new AppError(404, 'Address not found', 'ADDRESS_NOT_FOUND')
+    }
+
+    // An address saved without a pin is fine for drop-in and normal to have —
+    // this is the one moment its coordinates actually matter, which is why the
+    // customer is prompted here rather than nagged in their profile.
+    if (savedAddress.lat === null || savedAddress.lng === null) {
+      throw new AppError(
+        422,
+        'Confirm exactly where we should come on the map',
+        'ADDRESS_LOCATION_REQUIRED'
+      )
+    }
+
+    const covered = await bookingsRepository.isWithinDoorstepRadius(
+      vendor.id,
+      savedAddress.lat,
+      savedAddress.lng
+    )
+
+    if (!covered) {
+      log.warn(
+        { userId, vendorId: vendor.id, addressId: input.addressId },
+        'booking:outside_doorstep_radius'
+      )
+      throw new AppError(
+        400,
+        'This garage does not travel to that address',
+        'OUTSIDE_DOORSTEP_RADIUS'
+      )
+    }
+
+    lat = savedAddress.lat
+    lng = savedAddress.lng
+    address = savedAddress.address
+  }
 
   log.info({ userId, vendorId: vendor.id, serviceId: service.id, scheduledAt: scheduledAt.toISOString(), durationMins: service.durationMins }, 'booking:slot_validation_start')
 

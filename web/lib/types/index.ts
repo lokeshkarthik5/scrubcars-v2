@@ -37,7 +37,13 @@ export interface Vendor {
   name: string
   logoUrl: string | null
   area: string
+  /** Human-phrased distance, or an em-dash when unknown. See formatDistance. */
   distance: string
+  /** Raw km for sorting and filtering. Null when the origin was unknown. */
+  distanceKm: number | null
+  /** Where the garage is, for the map view. Null only if it was never pinned. */
+  lat: number | null
+  lng: number | null
   rating: number
   reviewCount: number
   status: VendorStatus

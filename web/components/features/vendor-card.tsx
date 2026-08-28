@@ -23,7 +23,10 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
   // The logo has its own badge now, so the cover is gallery-only — reusing the
   // logo as a full-bleed cover would show the same image twice on the card.
   const cover = vendor.photos[0] ?? null
-  const hasDistance = /\d/.test(vendor.distance)
+  // Null distance means the request carried no origin, not that the garage is
+  // at zero km — the same "unknown is not zero" rule applied to price and rating
+  // just below.
+  const hasDistance = vendor.distanceKm !== null
 
   return (
     <Link href={`/garage/${vendor.id}`}>
@@ -69,8 +72,8 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
             </div>
           </div>
 
-          {/* The list endpoint has no geo, so `distance` arrives as an em-dash
-              placeholder; skip it (and a ₹0 floor) rather than render a blank fact.
+          {/* Distance is absent until the customer shares a location, so it is
+              skipped (like a ₹0 floor) rather than rendered as a blank fact.
               An unreviewed vendor reads as "New" — showing 0.0 stars would look
               like a bad score rather than an absent one. */}
           <div className="flex items-center gap-1.5 text-[12px] text-text-secondary">

@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import type { GeoSource } from '../../lib/geo/index.js'
 import {
   createUserUpload,
   deleteObject,
@@ -42,8 +43,15 @@ export type AddressResponse = {
   label: string
   address: string
   city: string
-  lat: number
-  lng: number
+  /**
+   * Null when the customer saved an address without dropping a pin. That is a
+   * legitimate state — the address books a drop-in slot fine, and is only
+   * prompted for a pin when it is picked for doorstep, which is the one place
+   * the coordinate is actually needed.
+   */
+  lat: number | null
+  lng: number | null
+  geoSource: GeoSource
   isDefault: boolean
   createdAt: string
 }
@@ -82,6 +90,7 @@ function toAddressResponse(address: AddressRecord): AddressResponse {
     city: address.city,
     lat: address.lat,
     lng: address.lng,
+    geoSource: address.geoSource,
     isDefault: address.isDefault,
     createdAt: address.createdAt.toISOString(),
   }
@@ -227,8 +236,12 @@ export const usersService = {
       label: input.label,
       address: input.address,
       city: input.city,
-      lat: input.lat,
-      lng: input.lng,
+      lat: input.lat ?? null,
+      lng: input.lng ?? null,
+      // Validation guarantees lat/lng arrive together, so coordinates without a
+      // stated source can only mean the client forgot to say — 'map_pin' is the
+      // safer assumption than 'gps', since it does not claim device accuracy.
+      geoSource: input.lat !== undefined ? (input.geoSource ?? 'map_pin') : 'unset',
       isDefault: shouldBeDefault,
     })
 
@@ -253,6 +266,10 @@ export const usersService = {
       ...(input.city !== undefined ? { city: input.city } : {}),
       ...(input.lat !== undefined ? { lat: input.lat } : {}),
       ...(input.lng !== undefined ? { lng: input.lng } : {}),
+      // Provenance moves with the coordinates it describes, never on its own.
+      ...(input.lat !== undefined
+        ? { geoSource: input.geoSource ?? 'map_pin' }
+        : {}),
       ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
     })
 

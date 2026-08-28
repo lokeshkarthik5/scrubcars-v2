@@ -2,8 +2,10 @@ import { relations } from 'drizzle-orm'
 import {
   boolean,
   decimal,
+  doublePrecision,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   real,
@@ -14,6 +16,21 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+
+// ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
+//
+// `vendors.geo` and `user_addresses.geo` exist in the database but are
+// deliberately NOT declared below. They are `gis.geography(Point,4326)` columns
+// GENERATED ALWAYS from lat/lng, with GiST indexes — see drizzle/0019_add_geo.sql,
+// which is the source of truth for them.
+//
+// Leaving them undeclared is the safe default, not an oversight. Drizzle never
+// writes a generated column, and every read of one goes through an explicit
+// `sql` fragment that selects ST_Distance/ST_DWithin rather than the raw value.
+// Declaring them would put them in the implicit SELECT list of every
+// `findMany`, so the postgres driver would return an EWKB hex blob that then
+// rides along in any API response built by spreading a row — which is exactly
+// what the admin endpoints do. Nothing needs the raw geometry client-side.
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +59,19 @@ export const vendorPickupEnum = pgEnum('vendor_pickup', [
   'yes',
   'nearby',
   'no',
+])
+
+// Where a set of coordinates came from, and therefore how much to trust it.
+// 'unset' is the default and the honest answer for anything never pinned — no
+// coordinate is ever guessed on a row's behalf (see plans/geo.md §7).
+// 'geocoded' is unused today; it exists so a future bulk partner import can be
+// told apart from a human-placed pin.
+export const geoSourceEnum = pgEnum('geo_source', [
+  'unset',
+  'gps',
+  'map_pin',
+  'geocoded',
+  'admin',
 ])
 
 // 'package' is a shape, not a kind of work: a package row bundles other
@@ -203,8 +233,12 @@ export const userAddresses = pgTable(
     label: varchar('label', { length: 100 }).notNull(),
     address: text('address').notNull(),
     city: varchar('city', { length: 100 }).notNull(),
-    lat: real('lat').notNull(),
-    lng: real('lng').notNull(),
+    // Nullable since 0019. An address with text but no pin is a legitimate
+    // state: it books a drop-in slot fine, and only needs coordinates when the
+    // customer picks it for doorstep — which is where they get prompted.
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    geoSource: geoSourceEnum('geo_source').default('unset').notNull(),
     isDefault: boolean('is_default').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
@@ -244,14 +278,25 @@ export const vendors = pgTable(
     address: text('address').notNull(),
     city: varchar('city', { length: 100 }).notNull(),
     pincode: varchar('pincode', { length: 10 }).notNull().default(''),
-    lat: real('lat'),
-    lng: real('lng'),
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    geoSource: geoSourceEnum('geo_source').default('unset').notNull(),
+    // Stamped when an admin confirms the pin on a map. A vendor cannot be
+    // verified without coordinates, and listings already require is_verified —
+    // which is what keeps pin-less garages out of customer-facing results
+    // without any special case in the listing query.
+    geoConfirmedAt: timestamp('geo_confirmed_at', { withTimezone: true }),
     whatsapp: varchar('whatsapp', { length: 20 }),
     email: varchar('email', { length: 255 }),
     yearsInOperation: varchar('years_in_operation', { length: 20 }),
     mapsUrl: varchar('maps_url', { length: 2048 }),
     pickup: vendorPickupEnum('pickup'),
     pickupRadiusKm: real('pickup_radius_km'),
+    // How far this garage will travel to a customer for doorstep work.
+    // Deliberately separate from pickupRadiusKm, which is pickup-and-drop of the
+    // vehicle. The doorstep listing asks "who will come to me", so this is the
+    // vendor's number, not a radius the customer chooses.
+    doorstepRadiusKm: doublePrecision('doorstep_radius_km'),
     bays: integer('bays'),
     jobsPerDay: integer('jobs_per_day'),
     vehicleTypes: text('vehicle_types').array().notNull().default([]),
@@ -268,6 +313,8 @@ export const vendors = pgTable(
   (table) => [
     index('vendors_owner_id_idx').on(table.ownerId),
     index('vendors_status_idx').on(table.status),
+    // The GiST indexes on `geo` live in drizzle/0019_add_geo.sql alongside the
+    // column itself; see the note at the top of this file.
   ]
 )
 
@@ -711,6 +758,23 @@ export const reviews = pgTable(
     index('reviews_vendor_id_idx').on(table.vendorId),
     index('reviews_user_id_idx').on(table.userId),
   ]
+)
+
+// Cached geocoding responses, keyed "{provider}:{op}:{normalised-input}". Lives
+// in Postgres rather than process memory because the API is serverless — an
+// in-process cache would be cold on most requests and would multiply by
+// instance count, which is the opposite of what a free-tier budget wants.
+// TTL is applied on read against createdAt; see geo.repository.ts.
+export const geoCache = pgTable(
+  'geo_cache',
+  {
+    cacheKey: varchar('cache_key', { length: 512 }).primaryKey(),
+    payload: jsonb('payload').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index('geo_cache_created_at_idx').on(table.createdAt)]
 )
 
 // ─── Relations ───────────────────────────────────────────────────────────────

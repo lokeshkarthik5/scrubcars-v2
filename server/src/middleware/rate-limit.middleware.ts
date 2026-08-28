@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory'
+import { env } from '../lib/env.js'
 import { AppError } from '../lib/errors.js'
 
 interface RateLimitEntry {
@@ -39,3 +40,12 @@ export const rateLimiter = createRateLimiter(10, 60 * 1000)
 
 // 100 requests per minute — global API guard
 export const globalRateLimiter = createRateLimiter(100, 60 * 1000)
+
+// Address autocomplete is the only endpoint whose call volume tracks typing
+// rather than saves, so it is the only one that can burn the map provider's
+// free tier through ordinary use. The client debounces; this is the backstop
+// for a client that stops debouncing.
+export const geoAutocompleteRateLimiter = createRateLimiter(
+  env.geoAutocompleteRateLimit,
+  60 * 1000
+)

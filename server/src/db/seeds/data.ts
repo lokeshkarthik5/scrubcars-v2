@@ -154,8 +154,12 @@ export const SEED_VENDORS: SeedVendor[] = [
     phone: '9876510001',
     address: '14, Gandhi Nagar, Adyar, Chennai – 600020',
     city: 'Adyar',
-    lat: 13.0067,
-    lng: 80.2574,
+    // Gandhi Nagar, Adyar. Deliberately NOT 13.0067/80.2574 — that exact pair
+    // was the app's old hardcoded placeholder, and drizzle/0019_add_geo.sql
+    // nulls any row still carrying it. A fixture that collides with the purge
+    // value would silently lose its pin on a re-run.
+    lat: 13.0043,
+    lng: 80.2554,
     isVerified: true,
     status: 'active',
     doorstepEnabled: true,

@@ -5,12 +5,12 @@ import { AppShell } from '@/components/sc/app-shell'
 import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
+import { ScSegmented } from '@/components/sc/segmented'
 import { ScInput } from '@/components/sc/input'
 import { StarRating } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import type { Booking } from '@/lib/types'
-import { cn } from '@/lib/utils'
 
 type Tab = 'incoming' | 'upcoming' | 'completed' | 'cancelled'
 
@@ -80,21 +80,15 @@ export default function VendorBookingsPage() {
         }
       />
 
-      <div className="flex rounded-[10px] bg-surface p-0.5">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'flex-1 rounded-lg py-2 text-[12px] font-medium',
-              tab === t.key ? 'bg-brand-red text-brand-white' : 'text-text-secondary'
-            )}
-          >
-            {t.label} ({t.count})
-          </button>
-        ))}
-      </div>
+      <ScSegmented
+        aria-label="Filter bookings by status"
+        value={tab}
+        onChange={setTab}
+        options={tabs.map((t) => ({
+          value: t.key,
+          label: `${t.label} (${t.count})`,
+        }))}
+      />
 
       <div className="flex flex-col gap-2">
         {filtered.length === 0 ? (
