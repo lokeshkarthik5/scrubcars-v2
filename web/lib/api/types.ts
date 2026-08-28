@@ -21,21 +21,35 @@ export interface ApiAuthUser {
   phoneVerified: boolean
   isCustomer: boolean
   isVendorOwner: boolean
-  isAdmin: boolean
   status: string
 }
+
+/**
+ * The caller's power inside one company. Namespaced by scope on purpose — no
+ * role is called `admin`, because `/admin` already means Detlio staff.
+ */
+export type VendorRole = 'vendor_admin' | 'vendor_operator'
 
 export interface ApiAuthVendor {
   id: string
   businessName: string
+  logoUrl?: string | null
   phone: string
   status: string
   isVerified: boolean
+  /** Present once the server ships the team model; absent on older sessions. */
+  role?: VendorRole
+  isOwner?: boolean
 }
 
 export interface ApiSessionData {
   user: ApiAuthUser
+  /**
+   * The active company. Kept populated when there is exactly one so existing
+   * clients survive the transition; `vendors` is the full list.
+   */
   vendor: ApiAuthVendor | null
+  vendors?: ApiAuthVendor[]
 }
 
 export interface ApiUserProfile {
@@ -47,7 +61,6 @@ export interface ApiUserProfile {
   phoneVerified: boolean
   isCustomer: boolean
   isVendorOwner: boolean
-  isAdmin: boolean
   status: string
   createdAt: string
 }
@@ -219,11 +232,15 @@ export interface ApiBooking {
   bookingType: string
   scheduledAt: string
   amount: string
-  subtotalAmount: string
-  discountAmount: string
+  // Absent on every vendor-facing payload: the payout split and the discount
+  // breakdown are served only by GET /vendors/me/earnings, behind a
+  // vendor_admin check. `amount` and `paymentMethod` are always present —
+  // whoever finishes a cash job has to know what to collect.
+  subtotalAmount?: string
+  discountAmount?: string
   discountCode: string | null
-  discountFundedBy: 'platform' | 'vendor' | null
-  vendorPayoutAmount: string
+  discountFundedBy?: 'platform' | 'vendor' | null
+  vendorPayoutAmount?: string
   paymentMethod: string
   lat: number | null
   lng: number | null

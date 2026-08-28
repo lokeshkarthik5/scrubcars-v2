@@ -21,10 +21,16 @@ import {
 // sorting and the "smallest saving" scan is deterministic.
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
 import { categoryLabel } from '../../lib/categories.js'
+import { computeVendorPayout } from '../../lib/discounts.js'
+import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { membersRepository } from '../members/members.repository.js'
+import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
 
 const log = logger.child({ module: 'vendors' })
+
+// How many finished jobs the Earnings screen lists.
+const RECENT_EARNINGS_JOBS = 10
 
 // Self-serve create is no longer capped at one company per person. The cap is
 // on how many a single account may hold at once — high enough that a real
@@ -190,6 +196,72 @@ export type PackageResponse = ServiceResponse & {
   savings: string | null
   tierBreakdown: Record<VehicleTier, TierBreakdownEntry> | null
   hasInactiveItems: boolean
+}
+
+export type EarningsSummaryResponse = {
+  totalEarned: number
+  jobsDone: number
+  pending: number
+  avgRating: number
+}
+
+export type EarningsJobResponse = {
+  id: string
+  serviceName: string
+  customerName: string
+  scheduledAt: string
+  bookingType: string
+  amount: number
+  settled: boolean
+}
+
+export type EarningsResponse = {
+  summary: EarningsSummaryResponse
+  /** Always the trailing week, whatever period the screen is showing. */
+  weekEarnings: number
+  jobs: EarningsJobResponse[]
+}
+
+// Earnings read the payout, never the charged amount. When Detlio funds a promo
+// code the garage is still owed the full pre-discount price, so paying them what
+// the customer was charged would silently dock them for a campaign they did not
+// run. The rule lives in computeVendorPayout; this file just applies it.
+function payoutOf(booking: {
+  amount: string
+  subtotalAmount?: string | null
+  discountFundedBy?: 'platform' | 'vendor' | null
+}) {
+  return computeVendorPayout({
+    amount: booking.amount,
+    subtotalAmount: booking.subtotalAmount ?? booking.amount,
+    discountFundedBy: booking.discountFundedBy ?? null,
+  })
+}
+
+function sumPayouts(
+  bookings: {
+    amount: string
+    subtotalAmount?: string | null
+    discountFundedBy?: 'platform' | 'vendor' | null
+  }[]
+) {
+  return bookings.reduce((sum, booking) => sum + Number(payoutOf(booking)), 0)
+}
+
+function isSettledPayment(status: string | undefined | null) {
+  return status === 'paid' || status === 'collected'
+}
+
+function isWithinDays(date: Date, days: number) {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  return date >= cutoff
+}
+
+function isWithinMonths(date: Date, months: number) {
+  const cutoff = new Date()
+  cutoff.setMonth(cutoff.getMonth() - months)
+  return date >= cutoff
 }
 
 function toVendorResponse(vendor: VendorRecord): VendorResponse {
@@ -1218,5 +1290,77 @@ export const vendorsService = {
 
     const hours = await vendorsRepository.listWorkingHours(vendor.id)
     return hours.map(toWorkingHoursResponse)
+  },
+
+  /**
+   * Everything the Earnings screen and the home dashboard's week-earnings tile
+   * used to derive on the client from the vendor booking list.
+   *
+   * The computation moved here so the money can leave the booking payload
+   * entirely (see toVendorBookingResponse). That is what makes the boundary
+   * hold: a field that is never serialized cannot be forgotten about on a new
+   * endpoint, whereas a role-conditional response shape has to be got right
+   * every time. The role check lives in exactly one place — this route's
+   * middleware.
+   */
+  async getEarnings(
+    vendorId: string,
+    period: 'week' | 'month'
+  ): Promise<EarningsResponse> {
+    const [bookings, reviews] = await Promise.all([
+      bookingsRepository.listBookingsForVendor(vendorId),
+      reviewsRepository.listReviewsForVendor(vendorId),
+    ])
+
+    const completed = bookings.filter(
+      (booking) => booking.status === 'completed'
+    )
+    const inPeriod = completed.filter((booking) =>
+      period === 'week'
+        ? isWithinDays(booking.scheduledAt, 7)
+        : isWithinMonths(booking.scheduledAt, 1)
+    )
+
+    const settled = inPeriod.filter((booking) =>
+      isSettledPayment(booking.payment?.status)
+    )
+    const unsettled = inPeriod.filter(
+      (booking) => !isSettledPayment(booking.payment?.status)
+    )
+
+    const avgRating =
+      reviews.length === 0
+        ? 0
+        : reviews.reduce((sum, review) => sum + review.rating, 0) /
+          reviews.length
+
+    return {
+      summary: {
+        totalEarned: sumPayouts(settled),
+        jobsDone: inPeriod.length,
+        pending: sumPayouts(unsettled),
+        avgRating,
+      },
+      // The home dashboard's tile is always the trailing week, regardless of
+      // the period the Earnings screen is showing.
+      weekEarnings: sumPayouts(
+        completed
+          .filter((booking) => isWithinDays(booking.scheduledAt, 7))
+          .filter((booking) => isSettledPayment(booking.payment?.status))
+      ),
+      jobs: completed
+        .slice()
+        .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())
+        .slice(0, RECENT_EARNINGS_JOBS)
+        .map((booking) => ({
+          id: booking.id,
+          serviceName: booking.service?.name ?? '',
+          customerName: booking.user?.name ?? 'Customer',
+          scheduledAt: booking.scheduledAt.toISOString(),
+          bookingType: booking.bookingType,
+          amount: Number(payoutOf(booking)),
+          settled: isSettledPayment(booking.payment?.status),
+        })),
+    }
   },
 }

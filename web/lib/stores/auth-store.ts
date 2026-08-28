@@ -10,7 +10,7 @@ import {
   type VerifyOtpOptions,
 } from '@/lib/api/auth'
 import { mapAuthUser } from '@/lib/api/mappers'
-import type { ApiAuthVendor, ApiAuthUser } from '@/lib/api/types'
+import type { ApiAuthVendor, ApiAuthUser, VendorRole } from '@/lib/api/types'
 import type { User } from '@/lib/types'
 
 export type AuthAudience = 'customer' | 'vendor'
@@ -18,6 +18,8 @@ export type AuthAudience = 'customer' | 'vendor'
 interface AuthState {
   user: User | null
   vendor: ApiAuthVendor | null
+  /** Role in the active company. Null until the session reports one. */
+  role: VendorRole | null
   audience: AuthAudience | null
   isHydrated: boolean
   isSessionReady: boolean
@@ -39,6 +41,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   vendor: null,
+  role: null,
   audience: null,
   isHydrated: true, // no localStorage rehydration needed — cookies handle persistence
   isSessionReady: false,
@@ -48,12 +51,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({
       user: mapAuthUser(user),
       vendor,
+      role: vendor?.role ?? null,
       audience: audience ?? (vendor ? 'vendor' : 'customer'),
     })
   },
 
   clearSession() {
-    set({ user: null, vendor: null, audience: null })
+    set({ user: null, vendor: null, role: null, audience: null })
   },
 
   async fetchSession() {
@@ -61,6 +65,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({
       user: mapAuthUser(me.user),
       vendor: me.vendor,
+      role: me.vendor?.role ?? null,
       audience: get().audience ?? (me.vendor ? 'vendor' : 'customer'),
     })
   },
@@ -74,6 +79,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({
         user: mapAuthUser(result.user),
         vendor: result.vendor,
+        role: result.vendor?.role ?? null,
         audience: options.audience,
         isSessionReady: true,
       })
@@ -91,6 +97,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({
         user: mapAuthUser(me.user),
         vendor: me.vendor,
+        role: me.vendor?.role ?? null,
         audience: get().audience ?? (me.vendor ? 'vendor' : 'customer'),
         isSessionReady: true,
       })

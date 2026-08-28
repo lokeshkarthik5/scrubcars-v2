@@ -185,7 +185,7 @@ export interface CreateVendorInput {
 
 /** POST /admin/login */
 export async function adminLogin(username: string, password: string) {
-  return apiClient<{ isAdmin: boolean }>('/admin/login', {
+  return apiClient<{ isSuperAdmin: boolean }>('/admin/login', {
     method: 'POST',
     auth: false,
     body: JSON.stringify({ username, password }),
@@ -199,7 +199,7 @@ export async function adminLogout() {
 
 /** GET /admin/me — session check */
 export async function getAdminMe() {
-  return apiClient<{ isAdmin: boolean }>('/admin/me')
+  return apiClient<{ isSuperAdmin: boolean }>('/admin/me')
 }
 
 /** GET /admin/vendors */

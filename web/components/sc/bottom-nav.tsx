@@ -12,6 +12,7 @@ import {
   IconTool,
   IconUser,
 } from '@tabler/icons-react'
+import { useIsVendorAdmin } from '@/lib/hooks/use-vendor-role'
 import { cn } from '@/lib/utils'
 
 export type NavType = 'customer' | 'vendor' | 'admin'
@@ -44,7 +45,14 @@ const itemsByType: Record<NavType, typeof customerItems> = {
 
 export function BottomNav({ type = 'customer' }: { type?: NavType }) {
   const pathname = usePathname()
-  const items = itemsByType[type]
+  const isVendorAdmin = useIsVendorAdmin()
+  // An operator's nav is four items. Hiding the tab is not the boundary — the
+  // endpoint behind it refuses them — but leaving it visible would put a 403 in
+  // front of someone doing their job.
+  const items =
+    type === 'vendor' && !isVendorAdmin
+      ? vendorItems.filter((item) => item.href !== '/vendor/earnings')
+      : itemsByType[type]
 
   return (
     <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-surface">

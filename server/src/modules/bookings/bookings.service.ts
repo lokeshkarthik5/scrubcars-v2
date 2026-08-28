@@ -179,6 +179,32 @@ function toBookingResponse(booking: BookingWithRelations) {
 }
 
 /**
+ * The vendor-facing shape of a booking. Two mappers for two audiences, not one
+ * mapper with a role flag: the vendor payload has a single fixed shape whatever
+ * the caller's role, which is easier to type on the client and impossible to get
+ * wrong per request.
+ *
+ * What is missing is the whole point. `vendorPayoutAmount`, `subtotalAmount`,
+ * `discountAmount` and `discountFundedBy` had no vendor-side consumer left once
+ * the earnings computation moved server-side, so they are simply absent — and a
+ * field that is never serialized cannot be forgotten about on a new endpoint.
+ *
+ * `amount` and `paymentMethod` stay: a cash booking goes pending → collected at
+ * completion, so whoever finishes the job has to know what to collect.
+ */
+function toVendorBookingResponse(booking: BookingWithRelations) {
+  const {
+    vendorPayoutAmount: _payout,
+    subtotalAmount: _subtotal,
+    discountAmount: _discountAmount,
+    discountFundedBy: _fundedBy,
+    ...vendorView
+  } = toBookingResponse(booking)
+
+  return vendorView
+}
+
+/**
  * The vendorId always comes from `resolveTenant`, which has already checked the
  * caller has an active seat in it. This re-reads the row; it does not
  * re-authorize.
@@ -478,9 +504,13 @@ export const bookingsService = {
   },
 
   async getBookingDetail(userId: string, bookingId: string) {
-    const { booking } = await getBookingForViewer(userId, bookingId)
+    const { booking, viewer } = await getBookingForViewer(userId, bookingId)
 
-    return toBookingResponse(booking)
+    // The same booking, two shapes. The customer who owns it still gets the
+    // discount breakdown their receipt needs; a vendor member does not.
+    return viewer === 'vendor'
+      ? toVendorBookingResponse(booking)
+      : toBookingResponse(booking)
   },
 
   async createBooking(userId: string, input: CreateBookingInput) {
@@ -771,7 +801,7 @@ export const bookingsService = {
       query.status
     )
 
-    return bookings.map(toBookingResponse)
+    return bookings.map(toVendorBookingResponse)
   },
 
   async acceptBooking(vendorId: string, actorId: string, bookingId: string) {
@@ -805,7 +835,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, status: 'confirmed' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 
   async rejectBooking(
@@ -828,7 +858,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, status: 'cancelled', cancelledBy: 'vendor' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 
   async markInProgress(vendorId: string, actorId: string, bookingId: string) {
@@ -846,7 +876,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, status: 'in_progress' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 
   async markCompleted(vendorId: string, actorId: string, bookingId: string) {
@@ -871,6 +901,6 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 }

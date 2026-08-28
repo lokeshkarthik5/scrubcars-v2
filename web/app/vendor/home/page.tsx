@@ -7,7 +7,9 @@ import { bookingStatusBadge, ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
+import { getEarningsData } from '@/lib/api/earnings'
 import { getVendorReviews } from '@/lib/api/reviews'
+import { useIsVendorAdmin } from '@/lib/hooks/use-vendor-role'
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
@@ -21,6 +23,8 @@ export default function VendorHomePage() {
   const fetchVendorBookings = useBookingsStore((s) => s.fetchVendorBookings)
   const updateStatus = useBookingsStore((s) => s.updateStatus)
   const [reviews, setReviews] = useState<Review[]>([])
+  const [weekEarnings, setWeekEarnings] = useState<number | null>(null)
+  const isVendorAdmin = useIsVendorAdmin()
 
   const isVerified = vendor?.isVerified ?? false
   const pending = useMemo(
@@ -39,6 +43,14 @@ export default function VendorHomePage() {
       getVendorReviews(vendor.id).then(setReviews),
     ])
   }, [vendor?.id, fetchVendorBookings])
+
+  // Money is a separate call now, and an operator's home page never makes it —
+  // gating the Earnings tab alone would have left this tile on their landing
+  // page, which is the easiest half of the boundary to miss.
+  useEffect(() => {
+    if (!vendor?.id || !isVendorAdmin) return
+    void getEarningsData().then((data) => setWeekEarnings(data.weekEarnings))
+  }, [vendor?.id, isVendorAdmin])
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
@@ -65,12 +77,14 @@ export default function VendorHomePage() {
           <p className="text-[11px] text-text-secondary">Pending requests</p>
           <p className="text-lg font-semibold text-text-primary">{stats.pendingRequests}</p>
         </ScCard>
-        <ScCard>
-          <p className="text-[11px] text-text-secondary">This week (₹)</p>
-          <p className="text-lg font-semibold text-text-primary">
-            {stats.weekEarnings.toLocaleString('en-IN')}
-          </p>
-        </ScCard>
+        {isVendorAdmin && (
+          <ScCard>
+            <p className="text-[11px] text-text-secondary">This week (₹)</p>
+            <p className="text-lg font-semibold text-text-primary">
+              {(weekEarnings ?? 0).toLocaleString('en-IN')}
+            </p>
+          </ScCard>
+        )}
         <ScCard>
           <p className="text-[11px] text-text-secondary">Avg rating</p>
           {stats.reviewCount > 0 ? (

@@ -25,6 +25,7 @@ import type {
   UpdateServiceInput,
   UpdateSlotIntervalInput,
   UpdateVendorInput,
+  EarningsQuery,
 } from './vendors.validation.js'
 
 type VendorsContext = Context<{ Variables: TenantVariables }>
@@ -476,5 +477,17 @@ export async function deletePackage(c: VendorsContext, packageId: string) {
   return c.json({
     success: true,
     data: pkg,
+  })
+}
+
+export async function getEarnings(c: VendorsContext, query: EarningsQuery) {
+  const earnings = await vendorsService.getEarnings(
+    getVendorId(c),
+    query.period
+  )
+
+  return c.json({
+    success: true,
+    data: earnings,
   })
 }

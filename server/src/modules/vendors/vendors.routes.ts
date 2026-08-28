@@ -14,6 +14,7 @@ import {
   createServiceImageSchema,
   createServiceSchema,
   createVendorSchema,
+  earningsQuerySchema,
   listPublicVendorsQuerySchema,
   logoUploadUrlSchema,
   photoUploadUrlSchema,
@@ -89,6 +90,17 @@ vendorsRoutes.patch(
   ...tenantMiddleware,
   zValidator('json', updateSlotIntervalSchema),
   (c) => vendorsController.updateSlotInterval(c, c.req.valid('json'))
+)
+
+// The only endpoint that serves money. Everything an operator must not see —
+// the payout split, the discount breakdown and every aggregate — lives behind
+// this one role check, rather than being conditionally stripped from a shared
+// booking payload.
+vendorsRoutes.get(
+  '/me/earnings',
+  ...tenantMiddleware,
+  zValidator('query', earningsQuerySchema),
+  (c) => vendorsController.getEarnings(c, c.req.valid('query'))
 )
 
 vendorsRoutes.get(

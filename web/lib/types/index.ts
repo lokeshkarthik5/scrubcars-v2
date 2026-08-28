@@ -152,7 +152,6 @@ export interface Booking {
    * the discount, the charged amount when the garage funded it. Computed
    * server-side — never re-derive it here.
    */
-  vendorPayoutAmount: number
   servicePricingType?: PricingType
   status: BookingStatus
   bookingType: BookingType
