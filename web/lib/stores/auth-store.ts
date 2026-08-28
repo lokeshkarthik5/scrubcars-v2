@@ -10,7 +10,7 @@ import {
   type SendOtpOptions,
   type VerifyOtpOptions,
 } from '@/lib/api/auth'
-import { setActiveVendorId } from '@/lib/api/client'
+import { clearSupportSession, setActiveVendorId } from '@/lib/api/client'
 import { mapAuthUser } from '@/lib/api/mappers'
 import type { ApiAuthVendor, ApiAuthUser, VendorRole } from '@/lib/api/types'
 import type { User } from '@/lib/types'
@@ -152,6 +152,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   clearSession() {
     setActiveVendorId(null)
     persistVendorId(null)
+    // The support-session flag latches for the whole session, so this is the
+    // one place it comes back down.
+    clearSupportSession()
     set({
       user: null,
       vendor: null,

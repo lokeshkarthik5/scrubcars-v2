@@ -33,9 +33,13 @@ const log = logger.child({ module: 'vendors' })
 const RECENT_EARNINGS_JOBS = 10
 
 // Self-serve create is no longer capped at one company per person. The cap is
-// on how many a single account may hold at once — high enough that a real
-// multi-garage operator never meets it, low enough that a scripted loop does.
-const MAX_COMPANIES_PER_USER = 10
+// on how many one account may *own* — high enough that a real multi-garage
+// operator never meets it, low enough that a scripted loop does.
+//
+// Deliberately not a count of seats: holding a seat is someone else adding you
+// to their garage, and being an operator at ten of them says nothing about
+// whether you may start your own.
+const MAX_COMPANIES_OWNED = 10
 import type {
   PhotoRecord,
   ServiceAreaRecord,
@@ -586,13 +590,13 @@ export const vendorsService = {
     // "vendor already exists" block any more. The guard that replaces it is a
     // sane cap, which stops a scripted signup loop without standing in the way
     // of anyone who genuinely runs a few garages.
-    const [{ value: seatCount }] =
-      await membersRepository.countActiveVendorSeats(ownerId)
+    const [{ value: ownedCount }] =
+      await membersRepository.countOwnedVendors(ownerId)
 
-    if (Number(seatCount) >= MAX_COMPANIES_PER_USER) {
+    if (Number(ownedCount) >= MAX_COMPANIES_OWNED) {
       throw new AppError(
         409,
-        `You can belong to at most ${MAX_COMPANIES_PER_USER} companies`,
+        `You can own at most ${MAX_COMPANIES_OWNED} companies`,
         'COMPANY_LIMIT_REACHED'
       )
     }

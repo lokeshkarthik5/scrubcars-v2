@@ -35,11 +35,27 @@ export function subscribeToSupportSession(
   }
 }
 
+/**
+ * Latches on, and stays on until the session ends.
+ *
+ * Only tenant-resolved endpoints carry the header, so clearing the flag whenever
+ * a response arrives without it made the banner blink off every time an
+ * unrelated request (`/auth/me`, reviews) happened to land last. The flag is a
+ * property of the session, not of the most recent response — so it is cleared
+ * by `clearSupportSession` on logout, and by nothing else.
+ */
 function noteSupportSession(response: Response) {
-  const active = response.headers.get(SUPPORT_SESSION_HEADER) === 'true'
-  if (active === isSupportSession) return
-  isSupportSession = active
-  supportSessionListeners.forEach((listener) => listener(active))
+  if (isSupportSession) return
+  if (response.headers.get(SUPPORT_SESSION_HEADER) !== 'true') return
+
+  isSupportSession = true
+  supportSessionListeners.forEach((listener) => listener(true))
+}
+
+export function clearSupportSession() {
+  if (!isSupportSession) return
+  isSupportSession = false
+  supportSessionListeners.forEach((listener) => listener(false))
 }
 
 let unauthorizedHandler: (() => void | Promise<void>) | null = null

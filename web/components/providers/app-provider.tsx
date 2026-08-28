@@ -8,7 +8,6 @@ import { APP_VERSION } from '@/lib/version'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
-import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 
 type RouteAccess = 'public' | 'guest' | 'customer' | 'vendor' | 'vendor-onboarding'
 
@@ -63,7 +62,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       restoreSession: s.restoreSession,
     }))
   )
-  const isOnboardingComplete = useVendorOnboardingStore((s) => s.isComplete)
 
   // On vendor.detlio.com the middleware rewrites clean paths to /vendor/* internally,
   // so redirect targets should use the clean form (e.g. '/home' not '/vendor/home').
@@ -137,7 +135,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       !isVendorSession
     ) {
       redirectPath = vp('/vendor/login')
-    } else if (routeAccess === 'vendor-onboarding' && vendor && isOnboardingComplete) {
+    } else if (routeAccess === 'vendor-onboarding' && vendor) {
+      // Onboarding means "your first garage". Anyone who already has one is
+      // sent home — deliberately not conditioned on `isOnboardingComplete`,
+      // which is persisted per browser, so the same account used to reach this
+      // flow or not depending on local storage that has nothing to do with the
+      // question. Additional garages are created from the admin panel.
       redirectPath = vp('/vendor/home')
     } else if (routeAccess === 'vendor' && !vendor) {
       redirectPath = vp('/vendor/onboarding/step-1')

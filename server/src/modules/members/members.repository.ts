@@ -273,6 +273,13 @@ export const membersRepository = {
       .orderBy(asc(userMemberMapping.createdAt))
   },
 
+  countOwnedVendors(userId: string) {
+    return db
+      .select({ value: sql<number>`count(*)` })
+      .from(vendors)
+      .where(eq(vendors.ownerId, userId))
+  },
+
   /** Does this person own any company? A super_admin may not (§10). */
   async ownsAnyVendor(userId: string): Promise<boolean> {
     const [row] = await db
