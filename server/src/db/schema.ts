@@ -1,6 +1,7 @@
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import {
   boolean,
+  check,
   decimal,
   index,
   integer,
@@ -126,6 +127,28 @@ export const bookingIntentStatusEnum = pgEnum('booking_intent_status', [
   'pending',
   'consumed',
   'failed',
+])
+
+// The single role vocabulary for the whole product. Values are namespaced by
+// scope rather than by context, so a role name never means two different things
+// depending on which row you found it in — there is deliberately no bare
+// 'admin'. Which scope a value belongs to is a property of the row, enforced by
+// the CHECK on userMemberMapping:
+//   vendor_admin / vendor_operator ⇒ vendorId IS NOT NULL
+//   user / super_admin             ⇒ vendorId IS NULL
+export const memberRoleEnum = pgEnum('member_role', [
+  'user',
+  'super_admin',
+  'vendor_admin',
+  'vendor_operator',
+])
+
+// An enum rather than a boolean so 'revoked' or 'invited' can be added without
+// a migration. Every read of the mapping table must filter on 'active' — miss
+// it in one place and a suspended member still has access.
+export const memberStatusEnum = pgEnum('member_status', [
+  'active',
+  'suspended',
 ])
 
 // ─── Tables ──────────────────────────────────────────────────────────────────
@@ -268,6 +291,63 @@ export const vendors = pgTable(
   (table) => [
     index('vendors_owner_id_idx').on(table.ownerId),
     index('vendors_status_idx').on(table.status),
+  ]
+)
+
+// Who can act, where, and with what power. One table for both scopes — a
+// garage seat and a Detlio staff grant are the same insert against the same
+// index, so there is one resolver, one status filter and one revocation path
+// instead of two of each.
+//
+// `vendorId` is null exactly when the row is platform-scoped. The absence of a
+// row *is* the 'user' role: baseline accounts are never materialized, because
+// 'user' confers nothing a row-less account does not already have.
+export const userMemberMapping = pgTable(
+  'user_member_mapping',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Null = platform-scoped (super_admin), meaning every company.
+    vendorId: uuid('vendor_id').references(() => vendors.id, {
+      onDelete: 'cascade',
+    }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: memberRoleEnum('role').notNull(),
+    status: memberStatusEnum('status').default('active').notNull(),
+    addedBy: uuid('added_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // One role per person per company.
+    uniqueIndex('user_member_mapping_vendor_user_key').on(
+      table.vendorId,
+      table.userId
+    ),
+    // The composite above does not cover platform rows: Postgres treats NULLs
+    // as distinct, so (NULL, user_x) could be inserted repeatedly. This partial
+    // index is what makes "one platform role per person" true.
+    uniqueIndex('user_member_mapping_platform_user_key')
+      .on(table.userId)
+      .where(sql`${table.vendorId} is null`),
+    index('user_member_mapping_user_id_idx').on(table.userId),
+    index('user_member_mapping_vendor_id_idx').on(table.vendorId),
+    // Without this, ('vendor_operator', NULL) is representable — a company seat
+    // that silently applies to every company. That is the single worst row this
+    // schema can hold and it is one typo away in any insert path, so it belongs
+    // in the database rather than in a service-layer validation.
+    check(
+      'user_member_mapping_scope_check',
+      sql`(
+        (${table.role} in ('vendor_admin', 'vendor_operator') and ${table.vendorId} is not null)
+        or
+        (${table.role} in ('user', 'super_admin') and ${table.vendorId} is null)
+      )`
+    ),
   ]
 )
 
@@ -460,6 +540,16 @@ export const bookings = pgTable(
     originalBookingId: uuid('original_booking_id'),
     rescheduledFromId: uuid('rescheduled_from_id'),
     rescheduleCount: integer('reschedule_count').default(0).notNull(),
+    // Which *person* moved the job, not which company. With a team, "who
+    // accepted this?" is otherwise unanswerable, and backfilling it later is
+    // impossible. Written by the vendor action handlers from the authenticated
+    // user; null on every booking that predates the team model.
+    acceptedBy: uuid('accepted_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    completedBy: uuid('completed_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -720,9 +810,31 @@ export const usersRelations = relations(users, ({ many }) => ({
   addresses: many(userAddresses),
   vehicles: many(userVehicles),
   ownedVendors: many(vendors),
+  memberships: many(userMemberMapping, { relationName: 'memberUser' }),
   bookings: many(bookings),
   reviews: many(reviews),
 }))
+
+export const userMemberMappingRelations = relations(
+  userMemberMapping,
+  ({ one }) => ({
+    vendor: one(vendors, {
+      fields: [userMemberMapping.vendorId],
+      references: [vendors.id],
+    }),
+    // Both sides point at `users`, so each needs an explicit relationName.
+    user: one(users, {
+      fields: [userMemberMapping.userId],
+      references: [users.id],
+      relationName: 'memberUser',
+    }),
+    addedByUser: one(users, {
+      fields: [userMemberMapping.addedBy],
+      references: [users.id],
+      relationName: 'memberAddedBy',
+    }),
+  })
+)
 
 export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {
@@ -754,6 +866,7 @@ export const vendorsRelations = relations(vendors, ({ one, many }) => ({
     fields: [vendors.ownerId],
     references: [users.id],
   }),
+  members: many(userMemberMapping),
   workingHours: many(vendorWorkingHours),
   serviceAreas: many(vendorServiceAreas),
   photos: many(vendorPhotos),

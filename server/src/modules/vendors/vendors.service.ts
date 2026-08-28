@@ -21,6 +21,7 @@ import {
 // sorting and the "smallest saving" scan is deterministic.
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
 import { categoryLabel } from '../../lib/categories.js'
+import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
 
 const log = logger.child({ module: 'vendors' })
@@ -515,6 +516,10 @@ export const vendorsService = {
     })
 
     await vendorsRepository.setUserAsVendorOwner(ownerId)
+    // The owner is always an active vendor_admin. Writing it here is what makes
+    // "at least one active vendor_admin exists" true by construction rather
+    // than something to enforce with a count query.
+    await membersRepository.createOwnerMembership(vendor.id, ownerId)
     log.info({ vendorId: vendor.id, ownerId, businessName: vendor.businessName }, 'vendor:created')
 
     return toVendorResponse(vendor)

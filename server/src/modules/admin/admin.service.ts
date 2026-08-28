@@ -9,6 +9,7 @@ import {
   deleteObject,
   keyFromPublicUrl,
 } from '../../lib/storage.js'
+import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { adminRepository } from './admin.repository.js'
 import type {
@@ -328,6 +329,10 @@ export const adminService = {
       ...(input.status !== undefined && { status: input.status }),
       ...(input.isVerified !== undefined && { isVerified: input.isVerified }),
     })
+
+    // The owner's seat. Same write as the self-serve path — both company-create
+    // paths dual-write, so no company is ever left with zero members.
+    await membersRepository.createOwnerMembership(vendor.id, owner.id)
 
     // Working hours: open on the selected days, closed on the rest. Only written
     // when the admin picked days, so a bare vendor keeps the defaults (none).
