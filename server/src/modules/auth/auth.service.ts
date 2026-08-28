@@ -107,6 +107,32 @@ async function listSessionVendors(
   }))
 }
 
+/**
+ * May this person open the vendor app?
+ *
+ * Normally: they hold an active seat in at least one company. Note the role
+ * filter inside `hasActiveVendorSeat` — a bare "has any mapping row" check would
+ * let a super_admin in with no company, and tenant resolution would then 404
+ * them on every request.
+ *
+ * The second clause is the onboarding window, and it is why this is not just the
+ * seat check. `vendor_onboard` sets `is_vendor_owner` when the OTP is verified,
+ * but the company — and therefore the mapping row — is not created until step 2
+ * of onboarding. Between those two points a real vendor has the flag and no
+ * seat, so a seat-only gate locks them out of the flow they are halfway through.
+ *
+ * This does not reopen suspension: member management keeps the flag in step with
+ * the seats, clearing it when someone's last active seat goes away, so a
+ * suspended or removed member fails both clauses. The flag is retired once
+ * onboarding writes the mapping row before it needs the vendor session, and this
+ * clause goes with it.
+ */
+async function canOpenVendorApp(user: UserRecord): Promise<boolean> {
+  return (
+    (await membersRepository.hasActiveVendorSeat(user.id)) || user.isVendorOwner
+  )
+}
+
 function assertActiveUser(user: UserRecord) {
   if (user.status === 'suspended') {
     throw new AppError(403, 'Account is suspended', 'ACCOUNT_SUSPENDED')
@@ -138,10 +164,7 @@ async function validateSendOtpRules(input: SendOtpInput) {
 
     assertActiveUser(existingUser)
 
-    if (
-      input.audience === 'vendor' &&
-      !(await membersRepository.hasActiveVendorSeat(existingUser.id))
-    ) {
+    if (input.audience === 'vendor' && !(await canOpenVendorApp(existingUser))) {
       throw new AppError(
         403,
         'This phone number is not registered as a vendor',
@@ -217,14 +240,8 @@ async function resolveUserAfterVerification(
 
   assertActiveUser(existingUser)
 
-  // The vendor-app login gate. One query per login, not per request — and note
-  // the role filter inside it: a bare "has any mapping row" check would let a
-  // super_admin open the vendor app with no company, and tenant resolution
-  // would then 404 them on every request.
-  if (
-    input.audience === 'vendor' &&
-    !(await membersRepository.hasActiveVendorSeat(existingUser.id))
-  ) {
+  // The vendor-app login gate. One query per login, not per request.
+  if (input.audience === 'vendor' && !(await canOpenVendorApp(existingUser))) {
     throw new AppError(
       403,
       'This phone number is not registered as a vendor',
@@ -384,12 +401,10 @@ export const authService = {
 
     await authRepository.revokeRefreshToken(storedToken.id)
 
-    // Which app this session belongs to. Asked of the mapping table rather
-    // than the legacy flag, so someone whose last seat was revoked refreshes
-    // into the customer app instead of a vendor session with no company.
-    const audience: TokenAudience = (await membersRepository.hasActiveVendorSeat(
-      user.id
-    ))
+    // Which app this session belongs to. Same rule as the login gate, so a
+    // half-onboarded vendor refreshing their tab lands back in the vendor app
+    // rather than being bounced to the customer one mid-signup.
+    const audience: TokenAudience = (await canOpenVendorApp(user))
       ? 'vendor'
       : 'customer'
     log.info({ userId: user.id, audience }, 'session:refreshed')
