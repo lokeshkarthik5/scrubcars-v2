@@ -95,7 +95,7 @@ export const membersService = {
     actorId: string | null,
     input: AddMemberInput
   ) {
-    await getVendorOrThrow(vendorId)
+    const vendor = await getVendorOrThrow(vendorId)
 
     // A phone with no account yet gets a stub row rather than an invite. There
     // is no consent step in v1: being added grants access on first login.
@@ -115,13 +115,22 @@ export const membersService = {
     const existing = await membersRepository.findMembership(vendorId, user.id)
 
     if (existing) {
+      // Re-adding the owner is the back door into demotion: posting their phone
+      // with role: 'vendor_operator' would otherwise strip the last
+      // vendor_admin and orphan the company, which is exactly what
+      // assertNotOwner exists to prevent everywhere else. Their role is pinned
+      // instead of rejected — the call is an add, not a demotion, and it stays
+      // idempotent for the owner's own row.
+      const isOwner = user.id === vendor.ownerId
+      const role = isOwner ? (existing.role as VendorScopedRole) : input.role
+
       const [updated] = await membersRepository.updateMembership(existing.id, {
-        role: input.role,
+        role,
         status: 'active',
       })
       await syncVendorOwnerFlag(user.id)
       log.info(
-        { vendorId, actorId, userId: user.id, role: input.role },
+        { vendorId, actorId, userId: user.id, role },
         'member:reactivated'
       )
       return updated
