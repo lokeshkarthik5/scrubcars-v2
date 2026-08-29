@@ -23,12 +23,13 @@ const VENDOR_ROUTES = [
   '/vendor/reviews',
   '/vendor/services',
   '/vendor/settings',
+  '/vendor/photos',
 ]
 const VENDOR_ONBOARDING_ROUTE = '/vendor/onboarding'
 
 // Clean paths served by the vendor subdomain (middleware strips the /vendor prefix)
 const VENDOR_SUBDOMAIN_GUEST_ROUTES = ['/', '/login', '/verify-otp']
-const VENDOR_SUBDOMAIN_VENDOR_ROUTES = ['/home', '/bookings', '/earnings', '/reviews', '/services', '/settings']
+const VENDOR_SUBDOMAIN_VENDOR_ROUTES = ['/home', '/bookings', '/earnings', '/reviews', '/services', '/settings', '/photos']
 const VENDOR_SUBDOMAIN_ONBOARDING_ROUTE = '/onboarding'
 
 function matchesRoute(pathname: string, routes: string[]) {
@@ -78,7 +79,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(async () => {
       const { audience, logout, clearSession } = useAuthStore.getState()
-      const loginPath = audience === 'vendor' ? '/vendor/login' : '/login'
+      // Read the host here rather than closing over `isVendorSubdomain`: this
+      // handler is registered once, and the clean form is what the URL bar
+      // actually holds — comparing against '/vendor/login' on the vendor host
+      // never matches, so a 401 raised *on* the login page reloaded it.
+      const onVendorHost =
+        typeof window !== 'undefined' && window.location.hostname.startsWith('vendor.')
+      const loginPath = audience === 'vendor' && !onVendorHost ? '/vendor/login' : '/login'
 
       try {
         await logout()
