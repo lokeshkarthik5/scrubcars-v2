@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { useAuthStore } from '@/lib/stores/auth-store'
 import {
   mapPublicVendor,
   mapVendorListItem,
@@ -74,8 +75,8 @@ export async function createVendor(
     lat: number
     lng: number
   } & VendorProfileInput
-): Promise<void> {
-  await apiClient('/vendors', {
+): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors', {
     method: 'POST',
     body: JSON.stringify(data),
   })
@@ -293,7 +294,7 @@ export async function submitVendorOnboarding(
   data: Record<string, unknown>
 ): Promise<void> {
   if (step === 2) {
-    await createVendor({
+    const vendor = await createVendor({
       businessName: data.businessName as string,
       phone: data.phone as string,
       address: data.address as string,
@@ -306,6 +307,14 @@ export async function submitVendorOnboarding(
       yearsInOperation: (data.yearsInOperation as string) || undefined,
       mapsUrl: (data.mapsUrl as string) || undefined,
     })
+
+    // Steps 3 and 4 configure "the company I am acting as", so the new one has
+    // to become active before they run. Without this, someone onboarding a
+    // second garage would silently rewrite the first one's hours and services —
+    // the client would still be sending the previous company's id.
+    const auth = useAuthStore.getState()
+    await auth.refreshVendors()
+    auth.setActiveVendor(vendor.id)
     return
   }
 

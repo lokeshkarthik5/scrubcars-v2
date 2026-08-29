@@ -46,7 +46,7 @@ function formatSlotTime(iso: string): string {
     .toUpperCase()
 }
 
-function formatScheduledAt(iso: string): string {
+export function formatScheduledAt(iso: string): string {
   const date = new Date(iso)
   return date.toLocaleString('en-IN', {
     day: 'numeric',
@@ -227,7 +227,6 @@ export function mapBooking(booking: ApiBooking): Booking {
     discountAmount: Number(booking.discountAmount ?? 0),
     discountCode: booking.discountCode ?? undefined,
     discountFundedBy: booking.discountFundedBy ?? undefined,
-    vendorPayoutAmount: Number(booking.vendorPayoutAmount ?? booking.amount),
     servicePricingType: booking.service?.pricingType,
     status: booking.status as Booking['status'],
     bookingType: booking.bookingType as Booking['bookingType'],

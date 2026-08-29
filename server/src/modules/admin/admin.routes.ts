@@ -3,15 +3,21 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import {
   authMiddleware,
-  requireAdmin,
+  requireSuperAdmin,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
+import {
+  addMemberSchema,
+  updateMemberSchema,
+} from '../members/members.validation.js'
 import * as adminController from './admin.controller.js'
 import {
   createVendorSchema,
+  grantSuperAdminSchema,
   listBookingsQuerySchema,
+  superAdminIdParamSchema,
   loginSchema,
   mediaUrlSchema,
   updateVendorSchema,
@@ -20,7 +26,7 @@ import {
 
 export const adminRoutes = new Hono<{ Variables: AuthVariables }>()
 
-const adminMiddleware = [authMiddleware, requireAdmin] as const
+const adminMiddleware = [authMiddleware, requireSuperAdmin] as const
 
 const vendorIdParamSchema = z.object({ id: z.string().uuid() })
 
@@ -29,6 +35,26 @@ adminRoutes.post('/login', rateLimiter, zValidator('json', loginSchema), (c) =>
 )
 adminRoutes.post('/logout', adminController.logout)
 adminRoutes.get('/me', ...adminMiddleware, adminController.getMe)
+
+// Platform admin grants. Reachable only by an existing super-admin (or the
+// break-glass session), never self-serve.
+adminRoutes.get(
+  '/super-admins',
+  ...adminMiddleware,
+  adminController.listSuperAdmins
+)
+adminRoutes.post(
+  '/super-admins',
+  ...adminMiddleware,
+  zValidator('json', grantSuperAdminSchema),
+  (c) => adminController.grantSuperAdmin(c, c.req.valid('json'))
+)
+adminRoutes.delete(
+  '/super-admins/:id',
+  ...adminMiddleware,
+  zValidator('param', superAdminIdParamSchema),
+  (c) => adminController.revokeSuperAdmin(c, c.req.valid('param').id)
+)
 
 adminRoutes.get('/vendors', ...adminMiddleware, adminController.listVendors)
 adminRoutes.post(
@@ -73,6 +99,57 @@ adminRoutes.delete(
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
   (c) => adminController.deleteVendor(c, c.req.valid('param').id)
+)
+
+// Vendor team. Ownership transfer is deliberately absent: adding, removing and
+// changing roles is admin work, but reassigning who *owns* a business is a
+// heavier act that stays owner-only.
+const memberParamSchema = z.object({
+  id: z.string().uuid(),
+  memberId: z.string().uuid(),
+})
+
+adminRoutes.get(
+  '/vendors/:id/members',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.listVendorMembers(c, c.req.valid('param').id)
+)
+adminRoutes.post(
+  '/vendors/:id/members',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  zValidator('json', addMemberSchema),
+  (c) =>
+    adminController.addVendorMember(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+adminRoutes.patch(
+  '/vendors/:id/members/:memberId',
+  ...adminMiddleware,
+  zValidator('param', memberParamSchema),
+  zValidator('json', updateMemberSchema),
+  (c) =>
+    adminController.updateVendorMember(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').memberId,
+      c.req.valid('json')
+    )
+)
+adminRoutes.delete(
+  '/vendors/:id/members/:memberId',
+  ...adminMiddleware,
+  zValidator('param', memberParamSchema),
+  (c) =>
+    adminController.removeVendorMember(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').memberId
+    )
 )
 
 // Vendor media. Registered before the catch-all vendor routes above only in

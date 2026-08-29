@@ -21,9 +21,25 @@ import {
 // sorting and the "smallest saving" scan is deterministic.
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
 import { categoryLabel } from '../../lib/categories.js'
+import { computeVendorPayout } from '../../lib/discounts.js'
+import { bookingsRepository } from '../bookings/bookings.repository.js'
+import { membersRepository } from '../members/members.repository.js'
+import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
 
 const log = logger.child({ module: 'vendors' })
+
+// How many finished jobs the Earnings screen lists.
+const RECENT_EARNINGS_JOBS = 10
+
+// Self-serve create is no longer capped at one company per person. The cap is
+// on how many one account may *own* — high enough that a real multi-garage
+// operator never meets it, low enough that a scripted loop does.
+//
+// Deliberately not a count of seats: holding a seat is someone else adding you
+// to their garage, and being an operator at ten of them says nothing about
+// whether you may start your own.
+const MAX_COMPANIES_OWNED = 10
 import type {
   PhotoRecord,
   ServiceAreaRecord,
@@ -184,6 +200,72 @@ export type PackageResponse = ServiceResponse & {
   savings: string | null
   tierBreakdown: Record<VehicleTier, TierBreakdownEntry> | null
   hasInactiveItems: boolean
+}
+
+export type EarningsSummaryResponse = {
+  totalEarned: number
+  jobsDone: number
+  pending: number
+  avgRating: number
+}
+
+export type EarningsJobResponse = {
+  id: string
+  serviceName: string
+  customerName: string
+  scheduledAt: string
+  bookingType: string
+  amount: number
+  settled: boolean
+}
+
+export type EarningsResponse = {
+  summary: EarningsSummaryResponse
+  /** Always the trailing week, whatever period the screen is showing. */
+  weekEarnings: number
+  jobs: EarningsJobResponse[]
+}
+
+// Earnings read the payout, never the charged amount. When Detlio funds a promo
+// code the garage is still owed the full pre-discount price, so paying them what
+// the customer was charged would silently dock them for a campaign they did not
+// run. The rule lives in computeVendorPayout; this file just applies it.
+function payoutOf(booking: {
+  amount: string
+  subtotalAmount?: string | null
+  discountFundedBy?: 'platform' | 'vendor' | null
+}) {
+  return computeVendorPayout({
+    amount: booking.amount,
+    subtotalAmount: booking.subtotalAmount ?? booking.amount,
+    discountFundedBy: booking.discountFundedBy ?? null,
+  })
+}
+
+function sumPayouts(
+  bookings: {
+    amount: string
+    subtotalAmount?: string | null
+    discountFundedBy?: 'platform' | 'vendor' | null
+  }[]
+) {
+  return bookings.reduce((sum, booking) => sum + Number(payoutOf(booking)), 0)
+}
+
+function isSettledPayment(status: string | undefined | null) {
+  return status === 'paid' || status === 'collected'
+}
+
+function isWithinDays(date: Date, days: number) {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  return date >= cutoff
+}
+
+function isWithinMonths(date: Date, months: number) {
+  const cutoff = new Date()
+  cutoff.setMonth(cutoff.getMonth() - months)
+  return date >= cutoff
 }
 
 function toVendorResponse(vendor: VendorRecord): VendorResponse {
@@ -398,8 +480,13 @@ async function readServiceOrPackage(
   return pkg ? toPackageResponse(pkg) : toServiceResponse(service)
 }
 
-async function getOwnedVendor(ownerId: string): Promise<VendorRecord> {
-  const vendor = await vendorsRepository.findVendorByOwnerId(ownerId)
+/**
+ * Loads the company the caller is acting as. The vendorId always comes from
+ * `resolveTenant`, which has already checked the caller has an active seat in
+ * it — this function re-reads the row, it does not re-authorize.
+ */
+async function getTenantVendor(vendorId: string): Promise<VendorRecord> {
+  const vendor = await vendorsRepository.findVendorById(vendorId)
 
   if (!vendor) {
     throw new AppError(404, 'Vendor profile not found', 'VENDOR_NOT_FOUND')
@@ -493,19 +580,24 @@ export const vendorsService = {
     }
   },
 
-  async getMyVendor(ownerId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async getMyVendor(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
     return toVendorResponse(vendor)
   },
 
   async createVendor(ownerId: string, input: CreateVendorInput) {
-    const existing = await vendorsRepository.findVendorByOwnerId(ownerId)
+    // A second company is the point of this feature, so there is no
+    // "vendor already exists" block any more. The guard that replaces it is a
+    // sane cap, which stops a scripted signup loop without standing in the way
+    // of anyone who genuinely runs a few garages.
+    const [{ value: ownedCount }] =
+      await membersRepository.countOwnedVendors(ownerId)
 
-    if (existing) {
+    if (Number(ownedCount) >= MAX_COMPANIES_OWNED) {
       throw new AppError(
         409,
-        'Vendor profile already exists for this user',
-        'VENDOR_ALREADY_EXISTS'
+        `You can own at most ${MAX_COMPANIES_OWNED} companies`,
+        'COMPANY_LIMIT_REACHED'
       )
     }
 
@@ -515,19 +607,23 @@ export const vendorsService = {
     })
 
     await vendorsRepository.setUserAsVendorOwner(ownerId)
+    // The owner is always an active vendor_admin. Writing it here is what makes
+    // "at least one active vendor_admin exists" true by construction rather
+    // than something to enforce with a count query.
+    await membersRepository.createOwnerMembership(vendor.id, ownerId)
     log.info({ vendorId: vendor.id, ownerId, businessName: vendor.businessName }, 'vendor:created')
 
     return toVendorResponse(vendor)
   },
 
-  async updateVendor(ownerId: string, input: UpdateVendorInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async updateVendor(vendorId: string, input: UpdateVendorInput) {
+    const vendor = await getTenantVendor(vendorId)
     const [updated] = await vendorsRepository.updateVendor(vendor.id, input)
     return toVendorResponse(updated)
   },
 
-  async updateJobTypes(ownerId: string, input: UpdateJobTypesInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async updateJobTypes(vendorId: string, input: UpdateJobTypesInput) {
+    const vendor = await getTenantVendor(vendorId)
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
       ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
       ...(input.doorstepEnabled !== undefined && { doorstepEnabled: input.doorstepEnabled }),
@@ -535,22 +631,22 @@ export const vendorsService = {
     return toVendorResponse(updated)
   },
 
-  async updateSlotInterval(ownerId: string, input: UpdateSlotIntervalInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async updateSlotInterval(vendorId: string, input: UpdateSlotIntervalInput) {
+    const vendor = await getTenantVendor(vendorId)
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
       slotIntervalMins: input.slotIntervalMins,
     })
     return toVendorResponse(updated)
   },
 
-  async getWorkingHours(ownerId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async getWorkingHours(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const hours = await vendorsRepository.listWorkingHours(vendor.id)
     return hours.map(toWorkingHoursResponse)
   },
 
-  async setWorkingHours(ownerId: string, input: SetWorkingHoursInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async setWorkingHours(vendorId: string, input: SetWorkingHoursInput) {
+    const vendor = await getTenantVendor(vendorId)
 
     for (const day of input.days) {
       if (!day.isClosed && day.openTime >= day.closeTime) {
@@ -570,20 +666,20 @@ export const vendorsService = {
     return hours.map(toWorkingHoursResponse)
   },
 
-  async listServiceAreas(ownerId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async listServiceAreas(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const areas = await vendorsRepository.listServiceAreas(vendor.id)
     return areas.map(toServiceAreaResponse)
   },
 
-  async createServiceArea(ownerId: string, input: CreateServiceAreaInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async createServiceArea(vendorId: string, input: CreateServiceAreaInput) {
+    const vendor = await getTenantVendor(vendorId)
     const [area] = await vendorsRepository.createServiceArea(vendor.id, input)
     return toServiceAreaResponse(area)
   },
 
-  async deleteServiceArea(ownerId: string, areaId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async deleteServiceArea(vendorId: string, areaId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const area = await vendorsRepository.findServiceAreaById(vendor.id, areaId)
 
     if (!area) {
@@ -602,8 +698,8 @@ export const vendorsService = {
     return toServiceAreaResponse(deleted)
   },
 
-  async createLogoUploadUrl(ownerId: string, input: LogoUploadUrlInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async createLogoUploadUrl(vendorId: string, input: LogoUploadUrlInput) {
+    const vendor = await getTenantVendor(vendorId)
     const { uploadUrl, publicUrl } = await createPresignedUpload(
       vendor.id,
       input.contentType,
@@ -612,8 +708,8 @@ export const vendorsService = {
     return { uploadUrl, publicUrl }
   },
 
-  async setLogo(ownerId: string, input: SetLogoInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async setLogo(vendorId: string, input: SetLogoInput) {
+    const vendor = await getTenantVendor(vendorId)
 
     const storageKey = keyFromPublicUrl(input.url)
     if (!storageKey) {
@@ -636,8 +732,8 @@ export const vendorsService = {
     return toVendorResponse(updated)
   },
 
-  async deleteLogo(ownerId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async deleteLogo(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
 
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
       logoUrl: null,
@@ -653,14 +749,14 @@ export const vendorsService = {
     return toVendorResponse(updated)
   },
 
-  async listPhotos(ownerId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async listPhotos(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const photos = await vendorsRepository.listPhotos(vendor.id)
     return photos.map(toPhotoResponse)
   },
 
-  async createPhotoUploadUrl(ownerId: string, input: PhotoUploadUrlInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async createPhotoUploadUrl(vendorId: string, input: PhotoUploadUrlInput) {
+    const vendor = await getTenantVendor(vendorId)
 
     const [{ count }] = await vendorsRepository.countPhotos(vendor.id)
     if (count >= env.r2MaxPhotosPerVendor) {
@@ -678,8 +774,8 @@ export const vendorsService = {
     return { uploadUrl, publicUrl }
   },
 
-  async addPhoto(ownerId: string, input: CreatePhotoInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async addPhoto(vendorId: string, input: CreatePhotoInput) {
+    const vendor = await getTenantVendor(vendorId)
 
     // Only accept URLs that actually point at our bucket.
     const storageKey = keyFromPublicUrl(input.url)
@@ -709,8 +805,8 @@ export const vendorsService = {
     return toPhotoResponse(created)
   },
 
-  async reorderPhotos(ownerId: string, input: ReorderPhotosInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async reorderPhotos(vendorId: string, input: ReorderPhotosInput) {
+    const vendor = await getTenantVendor(vendorId)
     const existing = await vendorsRepository.listPhotos(vendor.id)
     const existingIds = new Set(existing.map((photo) => photo.id))
 
@@ -728,8 +824,8 @@ export const vendorsService = {
     return photos.map(toPhotoResponse)
   },
 
-  async deletePhoto(ownerId: string, photoId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async deletePhoto(vendorId: string, photoId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const photo = await vendorsRepository.findPhotoById(vendor.id, photoId)
 
     if (!photo) {
@@ -758,14 +854,14 @@ export const vendorsService = {
     return services.map((service) => toServiceResponse(service))
   },
 
-  async listMyServices(ownerId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async listMyServices(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const services = await vendorsRepository.listServices(vendor.id)
     return services.map((service) => toServiceResponse(service))
   },
 
-  async createService(ownerId: string, input: CreateServiceInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async createService(vendorId: string, input: CreateServiceInput) {
+    const vendor = await getTenantVendor(vendorId)
     const pricing = resolveServicePricing(input)
     const [service] = await vendorsRepository.createService(vendor.id, {
       name: input.name,
@@ -779,11 +875,11 @@ export const vendorsService = {
   },
 
   async updateService(
-    ownerId: string,
+    vendorId: string,
     serviceId: string,
     input: UpdateServiceInput
   ) {
-    const vendor = await getOwnedVendor(ownerId)
+    const vendor = await getTenantVendor(vendorId)
     const existing = await vendorsRepository.findServiceById(
       vendor.id,
       serviceId
@@ -829,11 +925,11 @@ export const vendorsService = {
   },
 
   async toggleServiceActive(
-    ownerId: string,
+    vendorId: string,
     serviceId: string,
     input: ToggleServiceActiveInput
   ) {
-    const vendor = await getOwnedVendor(ownerId)
+    const vendor = await getTenantVendor(vendorId)
     // findAnyServiceById, not findServiceById: activating/deactivating is
     // valid for a package too, and the packages list uses this same endpoint.
     const existing = await vendorsRepository.findAnyServiceById(
@@ -854,8 +950,8 @@ export const vendorsService = {
     return toServiceResponse(updated, existing.images)
   },
 
-  async deleteService(ownerId: string, serviceId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async deleteService(vendorId: string, serviceId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const existing = await vendorsRepository.findServiceById(
       vendor.id,
       serviceId
@@ -908,11 +1004,11 @@ export const vendorsService = {
   // can swap one object into its list rather than reconciling a sub-array.
 
   async createServiceImageUploadUrl(
-    ownerId: string,
+    vendorId: string,
     serviceId: string,
     input: ServiceImageUploadUrlInput
   ) {
-    const vendor = await getOwnedVendor(ownerId)
+    const vendor = await getTenantVendor(vendorId)
     const service = await vendorsRepository.findAnyServiceById(
       vendor.id,
       serviceId
@@ -940,11 +1036,11 @@ export const vendorsService = {
   },
 
   async addServiceImage(
-    ownerId: string,
+    vendorId: string,
     serviceId: string,
     input: CreateServiceImageInput
   ) {
-    const vendor = await getOwnedVendor(ownerId)
+    const vendor = await getTenantVendor(vendorId)
     const service = await vendorsRepository.findAnyServiceById(
       vendor.id,
       serviceId
@@ -988,11 +1084,11 @@ export const vendorsService = {
   },
 
   async deleteServiceImage(
-    ownerId: string,
+    vendorId: string,
     serviceId: string,
     imageId: string
   ) {
-    const vendor = await getOwnedVendor(ownerId)
+    const vendor = await getTenantVendor(vendorId)
     const service = await vendorsRepository.findAnyServiceById(
       vendor.id,
       serviceId
@@ -1025,8 +1121,8 @@ export const vendorsService = {
     return readServiceOrPackage(vendor.id, serviceId)
   },
 
-  async listMyPackages(ownerId: string): Promise<PackageResponse[]> {
-    const vendor = await getOwnedVendor(ownerId)
+  async listMyPackages(vendorId: string): Promise<PackageResponse[]> {
+    const vendor = await getTenantVendor(vendorId)
     const packages = await vendorsRepository.listPackages(vendor.id)
     return packages.map(toPackageResponse)
   },
@@ -1042,8 +1138,8 @@ export const vendorsService = {
     return packages.map(toPackageResponse)
   },
 
-  async createPackage(ownerId: string, input: CreatePackageInput) {
-    const vendor = await getOwnedVendor(ownerId)
+  async createPackage(vendorId: string, input: CreatePackageInput) {
+    const vendor = await getTenantVendor(vendorId)
     await assertValidPackageMembers(vendor.id, input.serviceIds)
 
     const pricing = resolveServicePricing(input)
@@ -1063,11 +1159,11 @@ export const vendorsService = {
   },
 
   async updatePackage(
-    ownerId: string,
+    vendorId: string,
     packageId: string,
     input: UpdatePackageInput
   ) {
-    const vendor = await getOwnedVendor(ownerId)
+    const vendor = await getTenantVendor(vendorId)
     const existing = await vendorsRepository.findPackageById(
       vendor.id,
       packageId
@@ -1113,8 +1209,8 @@ export const vendorsService = {
     return toPackageResponse(updated as PackageWithItems)
   },
 
-  async deletePackage(ownerId: string, packageId: string) {
-    const vendor = await getOwnedVendor(ownerId)
+  async deletePackage(vendorId: string, packageId: string) {
+    const vendor = await getTenantVendor(vendorId)
     const existing = await vendorsRepository.findPackageById(
       vendor.id,
       packageId
@@ -1198,5 +1294,77 @@ export const vendorsService = {
 
     const hours = await vendorsRepository.listWorkingHours(vendor.id)
     return hours.map(toWorkingHoursResponse)
+  },
+
+  /**
+   * Everything the Earnings screen and the home dashboard's week-earnings tile
+   * used to derive on the client from the vendor booking list.
+   *
+   * The computation moved here so the money can leave the booking payload
+   * entirely (see toVendorBookingResponse). That is what makes the boundary
+   * hold: a field that is never serialized cannot be forgotten about on a new
+   * endpoint, whereas a role-conditional response shape has to be got right
+   * every time. The role check lives in exactly one place — this route's
+   * middleware.
+   */
+  async getEarnings(
+    vendorId: string,
+    period: 'week' | 'month'
+  ): Promise<EarningsResponse> {
+    const [bookings, reviews] = await Promise.all([
+      bookingsRepository.listBookingsForVendor(vendorId),
+      reviewsRepository.listReviewsForVendor(vendorId),
+    ])
+
+    const completed = bookings.filter(
+      (booking) => booking.status === 'completed'
+    )
+    const inPeriod = completed.filter((booking) =>
+      period === 'week'
+        ? isWithinDays(booking.scheduledAt, 7)
+        : isWithinMonths(booking.scheduledAt, 1)
+    )
+
+    const settled = inPeriod.filter((booking) =>
+      isSettledPayment(booking.payment?.status)
+    )
+    const unsettled = inPeriod.filter(
+      (booking) => !isSettledPayment(booking.payment?.status)
+    )
+
+    const avgRating =
+      reviews.length === 0
+        ? 0
+        : reviews.reduce((sum, review) => sum + review.rating, 0) /
+          reviews.length
+
+    return {
+      summary: {
+        totalEarned: sumPayouts(settled),
+        jobsDone: inPeriod.length,
+        pending: sumPayouts(unsettled),
+        avgRating,
+      },
+      // The home dashboard's tile is always the trailing week, regardless of
+      // the period the Earnings screen is showing.
+      weekEarnings: sumPayouts(
+        completed
+          .filter((booking) => isWithinDays(booking.scheduledAt, 7))
+          .filter((booking) => isSettledPayment(booking.payment?.status))
+      ),
+      jobs: completed
+        .slice()
+        .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())
+        .slice(0, RECENT_EARNINGS_JOBS)
+        .map((booking) => ({
+          id: booking.id,
+          serviceName: booking.service?.name ?? '',
+          customerName: booking.user?.name ?? 'Customer',
+          scheduledAt: booking.scheduledAt.toISOString(),
+          bookingType: booking.bookingType,
+          amount: Number(payoutOf(booking)),
+          settled: isSettledPayment(booking.payment?.status),
+        })),
+    }
   },
 }

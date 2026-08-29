@@ -29,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     getAdminMe()
       .then((me) => {
         if (!active) return
-        if (me.isAdmin) setAuthed(true)
+        if (me.isSuperAdmin) setAuthed(true)
         else router.replace('/admin/login')
       })
       .catch(() => {

@@ -45,7 +45,8 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
 
 ### Auth tables
 
-- `users` — single table for all user types. Flags: `is_customer`, `is_vendor_owner`, `is_admin`
+- `users` — single table for all user types. Flags: `is_customer`, `is_vendor_owner`. There is deliberately no `is_admin`: platform admin comes from a `super_admin` row in `user_member_mapping` or the env-credential break-glass login, never from a column or a JWT claim
+- `user_member_mapping` — **the single role table for the whole product**: `(vendor_id, user_id, role, status)`. `role` is namespaced by scope — `user` / `super_admin` (both `vendor_id IS NULL`) and `vendor_admin` / `vendor_operator` (both `vendor_id NOT NULL`), enforced by a CHECK constraint. The absence of a row *is* the `user` role; baseline accounts are never materialized
 - `otp_verifications` — stateless OTP log. `purpose`: `login` / `register` / `vendor_onboard`
 - `refresh_tokens` — one row per session. Store SHA-256 hash of raw token, never plaintext
 
@@ -56,7 +57,7 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
 
 ### Vendor tables
 
-- `vendors` — core vendor record. `is_verified` is flipped manually by admin. `slot_interval_mins` sets calendar granularity (30/45/60)
+- `vendors` — the company. `owner_id` names the one person who owns the business; `user_member_mapping` answers the separate question of who can use the portal and with what power. `is_verified` is flipped manually by admin. `slot_interval_mins` sets calendar granularity (30/45/60)
 - `vendor_working_hours` — one row per day of week (0=Sun … 6=Sat). `is_closed` handles off days
 - `vendor_service_areas` — pincodes/areas covered for doorstep jobs
 - `vendor_photos` — ordered gallery. `sort_order` controls display sequence
@@ -117,6 +118,13 @@ Failed:  pending → failed
 - Doorstep bookings require `vendors.doorstep_enabled = true` and a matching `vendor_service_areas` row for the customer's location
 - Drop-in bookings require `vendors.dropin_enabled = true`
 - Vendor listings are only shown when `vendors.status = active` AND `vendors.is_verified = true`
-- A user can be both a customer and a vendor owner — check `is_customer` and `is_vendor_owner` flags independently
+- A user can be both a customer and a vendor member — check `is_customer` independently of their mapping rows
+- **The active `vendorId` is produced by `resolveTenant` and read from context. No handler, service or repository ever reads it from a request parameter** — that is what keeps `X-Vendor-Id` from turning every vendor endpoint into an IDOR candidate
+- A mapping miss returns 404, never 403 — a 403 confirms the company exists and leaks the id space
+- Every read of `user_member_mapping` must filter `status = 'active'`. Miss it in one place and a suspended member still has access
+- The vendor-app login gate is "active seat **or** `is_vendor_owner`". The second clause is the onboarding window: `vendor_onboard` sets the flag when the OTP is verified, but the company — and so the mapping row — is not created until onboarding step 2. Member management keeps the flag in step with the seats, so this does not let a suspended member back in
+- Vendor routes default deny: a new route under `/vendors/me` is `vendor_admin`-only until someone deliberately widens it with `requireVendorRole`
+- The owner's mapping row cannot be removed, demoted **or suspended** by anyone, including the owner. That is what guarantees at least one active `vendor_admin` always exists. Ownership moves only by explicit transfer
+- Vendor-facing booking payloads carry no `vendorPayoutAmount`, `subtotalAmount`, `discountAmount` or `discountFundedBy` — money lives behind `GET /vendors/me/earnings`, which is `vendor_admin`-only. Use `toVendorBookingResponse` for any new vendor endpoint
 
 <!-- END:nextjs-agent-rules -->

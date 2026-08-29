@@ -1,10 +1,6 @@
-import { getVendorBookings } from './bookings'
-import { getVendorReviews } from './reviews'
-import {
-  computeEarningsSummary,
-  computeRecentEarningsJobs,
-} from '@/lib/vendor-stats'
+import { apiClient } from './client'
 import type { EarningsJob, EarningsSummary } from '@/lib/types'
+import { formatScheduledAt } from './mappers'
 
 export const EMPTY_EARNINGS_SUMMARY: EarningsSummary = {
   totalEarned: 0,
@@ -13,21 +9,64 @@ export const EMPTY_EARNINGS_SUMMARY: EarningsSummary = {
   avgRating: 0,
 }
 
-/** Fetches bookings + reviews in parallel and derives both summary and recent jobs. */
+interface ApiEarnings {
+  summary: EarningsSummary
+  weekEarnings: number
+  jobs: {
+    id: string
+    serviceName: string
+    customerName: string
+    scheduledAt: string
+    bookingType: string
+    amount: number
+    settled: boolean
+  }[]
+}
+
+export interface EarningsData {
+  summary: EarningsSummary
+  /** Always the trailing week, whatever period was asked for. */
+  weekEarnings: number
+  jobs: EarningsJob[]
+}
+
+export const EMPTY_EARNINGS: EarningsData = {
+  summary: EMPTY_EARNINGS_SUMMARY,
+  weekEarnings: 0,
+  jobs: [],
+}
+
+/**
+ * GET /vendors/me/earnings — vendor_admin only.
+ *
+ * This used to be derived on the client from the vendor booking list. It is a
+ * server call now because the figures it needs are no longer in that list: the
+ * payout split and discount breakdown are absent from every vendor booking
+ * payload, so there is nothing to reconstruct them from. An operator's client
+ * never calls this, and would get a 403 if it did.
+ */
 export async function getEarningsData(
-  vendorId: string,
   period: 'week' | 'month' = 'week'
-): Promise<{ summary: EarningsSummary; jobs: EarningsJob[] }> {
+): Promise<EarningsData> {
   try {
-    const [bookings, reviews] = await Promise.all([
-      getVendorBookings(),
-      getVendorReviews(vendorId).catch(() => []),
-    ])
+    const data = await apiClient<ApiEarnings>('/vendors/me/earnings', {
+      params: { period },
+    })
+
     return {
-      summary: computeEarningsSummary(bookings, reviews, period),
-      jobs: computeRecentEarningsJobs(bookings),
+      summary: data.summary,
+      weekEarnings: data.weekEarnings,
+      jobs: data.jobs.map((job) => ({
+        id: job.id,
+        serviceName: job.serviceName,
+        customerName: job.customerName,
+        date: formatScheduledAt(job.scheduledAt),
+        type: job.bookingType as EarningsJob['type'],
+        amount: job.amount,
+        settled: job.settled,
+      })),
     }
   } catch {
-    return { summary: EMPTY_EARNINGS_SUMMARY, jobs: [] }
+    return EMPTY_EARNINGS
   }
 }

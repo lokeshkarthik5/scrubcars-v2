@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../index.js'
 import {
   services,
+  userMemberMapping,
   users,
   vendorServiceAreas,
   vendorWorkingHours,
@@ -145,6 +146,15 @@ async function upsertVendor(seed: SeedVendor) {
       .set({ isVendorOwner: true })
       .where(eq(users.id, owner.id))
   }
+
+  // The owner's seat. Seeded companies go through the same invariant as real
+  // ones: owner_id's user always has an active vendor_admin row.
+  await db
+    .insert(userMemberMapping)
+    .values({ vendorId: vendor.id, userId: owner.id, role: 'vendor_admin' })
+    .onConflictDoNothing({
+      target: [userMemberMapping.vendorId, userMemberMapping.userId],
+    })
 
   await upsertWorkingHours(vendor.id)
   await upsertServiceAreas(vendor.id, seed.serviceAreas)

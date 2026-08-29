@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { IconLogout, IconPhoto, IconChevronRight } from '@tabler/icons-react'
+import { useRouter } from 'next/navigation'
+import { IconLogout, IconPhoto, IconChevronRight, IconUsers } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
@@ -24,6 +25,7 @@ import type {
   ApiWorkingHours,
 } from '@/lib/api/types'
 import { toast } from 'react-toastify'
+import { useIsVendorAdmin } from '@/lib/hooks/use-vendor-role'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
@@ -90,6 +92,16 @@ export default function VendorSettingsPage() {
   const resetUser = useUserStore((s) => s.reset)
   const resetBookings = useBookingsStore((s) => s.reset)
   const resetOnboarding = useVendorOnboardingStore((s) => s.reset)
+  const isVendorAdmin = useIsVendorAdmin()
+  const activeVendorId = useAuthStore((s) => s.activeVendorId)
+  const router = useRouter()
+
+  // Every screen behind Settings is vendor_admin-only per the permission
+  // matrix, and the operator nav has no Settings tab, so this is only reachable
+  // by typing the URL.
+  useEffect(() => {
+    if (!isVendorAdmin) router.replace('/vendor/home')
+  }, [isVendorAdmin, router])
 
   useEffect(() => {
     async function loadSettings() {
@@ -117,7 +129,10 @@ export default function VendorSettingsPage() {
     }
 
     void loadSettings()
-  }, [])
+    // Reloads on a company switch: this form edits whichever company is
+    // active, and leaving the previous one's values in it would let an admin
+    // save the wrong garage's details.
+  }, [activeVendorId])
 
   const runAction = async (key: string, action: () => Promise<void>) => {
     setSaving(key)
@@ -190,6 +205,19 @@ export default function VendorSettingsPage() {
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
       <TopBar title="Settings" />
+
+      <Link href="/vendor/settings/members">
+        <ScCard className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
+            <IconUsers size={18} className="text-brand-red" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[13px] font-semibold text-text-primary">Team</p>
+            <p className="text-[11px] text-text-secondary">Add admins and operators, and set what they can do</p>
+          </div>
+          <IconChevronRight size={18} className="text-text-muted" />
+        </ScCard>
+      </Link>
 
       <Link href="/vendor/photos">
         <ScCard className="flex items-center gap-3">

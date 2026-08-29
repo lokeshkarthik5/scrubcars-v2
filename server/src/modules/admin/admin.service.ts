@@ -9,10 +9,12 @@ import {
   deleteObject,
   keyFromPublicUrl,
 } from '../../lib/storage.js'
+import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { adminRepository } from './admin.repository.js'
 import type {
   CreateVendorInput,
+  GrantSuperAdminInput,
   ListBookingsQuery,
   LoginInput,
   MediaUrlInput,
@@ -290,14 +292,9 @@ export const adminService = {
       if (!owner.isVendorOwner) {
         ;[owner] = await adminRepository.setUserAsVendorOwner(owner.id)
       }
-      const existingVendor = await adminRepository.findVendorByOwnerId(owner.id)
-      if (existingVendor) {
-        throw new AppError(
-          409,
-          'A vendor profile already exists for this owner',
-          'VENDOR_ALREADY_EXISTS'
-        )
-      }
+      // No "already a vendor" block: one person owning several garages is the
+      // point of the team model, and refusing it here would leave admins unable
+      // to onboard the exact operators this feature exists for.
     } else {
       ;[owner] = await adminRepository.createOwner({
         name: input.ownerName,
@@ -328,6 +325,10 @@ export const adminService = {
       ...(input.status !== undefined && { status: input.status }),
       ...(input.isVerified !== undefined && { isVerified: input.isVerified }),
     })
+
+    // The owner's seat. Same write as the self-serve path — both company-create
+    // paths dual-write, so no company is ever left with zero members.
+    await membersRepository.createOwnerMembership(vendor.id, owner.id)
 
     // Working hours: open on the selected days, closed on the rest. Only written
     // when the admin picked days, so a bare vendor keeps the defaults (none).
@@ -536,5 +537,95 @@ export const adminService = {
     }
 
     return vendorsRepository.listServiceImages(service.id)
+  },
+
+  // ─── Platform admins ───────────────────────────────────────────────────────
+
+  async listSuperAdmins() {
+    const rows = await membersRepository.listPlatformRows()
+
+    return rows
+      .filter((row) => row.role === 'super_admin')
+      .map((row) => ({
+        id: row.id,
+        userId: row.user.id,
+        name: row.user.name,
+        phone: row.user.phone,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+      }))
+  },
+
+  /**
+   * Grant platform admin to a real, named person.
+   *
+   * This is the trade the design makes on purpose: folding platform roles into
+   * the mapping table means an OTP session *can* be super-admin, which an
+   * env-only admin password could not. What it buys is named admins with an
+   * `added_by` and an immediate revocation path, instead of a shared secret.
+   *
+   * Two refusals keep the blast radius bounded, and both are checks here rather
+   * than conventions:
+   *
+   *  - never to a company owner. The two grants compose into "owns a garage, and
+   *    can silently act on its competitors" — and worse, tenant resolution
+   *    prefers their own seat, so the request that matters is not even logged as
+   *    support access.
+   *  - never to an account that can authenticate without a one-time code. Today
+   *    OTP is the only login path for a `users` row, so this holds by
+   *    construction; if a password or social login is ever added, this is the
+   *    check that has to grow with it.
+   */
+  async grantSuperAdmin(input: GrantSuperAdminInput, grantedBy: string | null) {
+    const user = await membersRepository.findUserByPhone(input.phone)
+
+    if (!user) {
+      throw new AppError(
+        404,
+        'No account found for this phone number',
+        'USER_NOT_FOUND'
+      )
+    }
+
+    if (await membersRepository.ownsAnyVendor(user.id)) {
+      throw new AppError(
+        409,
+        'A company owner cannot be granted platform admin',
+        'OWNER_CANNOT_BE_SUPER_ADMIN'
+      )
+    }
+
+    const existing = await membersRepository.findActivePlatformRow(user.id)
+
+    if (existing?.role === 'super_admin') {
+      return { id: existing.id, userId: user.id }
+    }
+
+    const [created] = await membersRepository.createMembership({
+      vendorId: null,
+      userId: user.id,
+      role: 'super_admin',
+      // The break-glass subject has no users row, so there is nobody to
+      // attribute the grant to. Null is the honest answer.
+      addedBy: grantedBy,
+    })
+
+    log.info({ userId: user.id, grantedBy }, 'admin:super_admin_granted')
+    return { id: created.id, userId: user.id }
+  },
+
+  /**
+   * Revocation is a delete, and it takes effect on the next request — every
+   * check reads the table, never a token.
+   */
+  async revokeSuperAdmin(membershipId: string) {
+    const row = await membersRepository.findMembershipById(membershipId)
+
+    if (!row || row.vendorId !== null || row.role !== 'super_admin') {
+      throw new AppError(404, 'Grant not found', 'GRANT_NOT_FOUND')
+    }
+
+    await membersRepository.deleteMembership(membershipId)
+    log.info({ userId: row.userId }, 'admin:super_admin_revoked')
   },
 }

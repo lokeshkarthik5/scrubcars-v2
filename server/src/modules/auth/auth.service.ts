@@ -19,9 +19,12 @@ import {
   type AccessTokenPayload,
   type TokenAudience,
 } from '../../lib/jwt.js'
+import { membersRepository } from '../members/members.repository.js'
+import { membersService } from '../members/members.service.js'
+import type { VendorScopedRole } from '../members/members.repository.js'
 import { authRepository } from './auth.repository.js'
 import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
-import type { UserRecord, VendorRecord } from './auth.repository.js'
+import type { UserRecord } from './auth.repository.js'
 
 const log = logger.child({ module: 'auth' })
 
@@ -40,23 +43,32 @@ export type AuthUserResponse = {
   phoneVerified: boolean
   isCustomer: boolean
   isVendorOwner: boolean
-  isAdmin: boolean
   status: string
 }
 
 export type AuthVendorResponse = {
   id: string
   businessName: string
+  logoUrl: string | null
   phone: string
   status: string
   isVerified: boolean
+  /** This caller's power inside this company. */
+  role: VendorScopedRole
+  isOwner: boolean
 }
 
 export type SessionResult = {
   accessToken: string
   refreshToken: string
   user: AuthUserResponse
+  /**
+   * The active company. Populated when there is exactly one, so every existing
+   * single-garage client survives the transition untouched; `vendors` is the
+   * full list the switcher reads.
+   */
   vendor: AuthVendorResponse | null
+  vendors: AuthVendorResponse[]
 }
 
 function toUserResponse(user: UserRecord): AuthUserResponse {
@@ -68,19 +80,57 @@ function toUserResponse(user: UserRecord): AuthUserResponse {
     phoneVerified: user.phoneVerified,
     isCustomer: user.isCustomer,
     isVendorOwner: user.isVendorOwner,
-    isAdmin: user.isAdmin,
     status: user.status,
   }
 }
 
-function toVendorResponse(vendor: VendorRecord): AuthVendorResponse {
-  return {
-    id: vendor.id,
-    businessName: vendor.businessName,
-    phone: vendor.phone,
-    status: vendor.status,
-    isVerified: vendor.isVerified,
-  }
+/**
+ * Every company this person can act as, each carrying the role they hold in it.
+ * The 1:1 `findVendorByOwnerId` this replaces could only ever answer "the one
+ * company they own", which is now the wrong question in two ways: they may hold
+ * several, and they may hold a seat in one they do not own.
+ */
+async function listSessionVendors(
+  userId: string
+): Promise<AuthVendorResponse[]> {
+  const seats = await membersService.listMyVendors(userId)
+
+  return seats.map((seat) => ({
+    id: seat.id,
+    businessName: seat.businessName,
+    logoUrl: seat.logoUrl,
+    phone: seat.phone,
+    status: seat.status,
+    isVerified: seat.isVerified,
+    role: seat.role,
+    isOwner: seat.isOwner,
+  }))
+}
+
+/**
+ * May this person open the vendor app?
+ *
+ * Normally: they hold an active seat in at least one company. Note the role
+ * filter inside `hasActiveVendorSeat` — a bare "has any mapping row" check would
+ * let a super_admin in with no company, and tenant resolution would then 404
+ * them on every request.
+ *
+ * The second clause is the onboarding window, and it is why this is not just the
+ * seat check. `vendor_onboard` sets `is_vendor_owner` when the OTP is verified,
+ * but the company — and therefore the mapping row — is not created until step 2
+ * of onboarding. Between those two points a real vendor has the flag and no
+ * seat, so a seat-only gate locks them out of the flow they are halfway through.
+ *
+ * This does not reopen suspension: member management keeps the flag in step with
+ * the seats, clearing it when someone's last active seat goes away, so a
+ * suspended or removed member fails both clauses. The flag is retired once
+ * onboarding writes the mapping row before it needs the vendor session, and this
+ * clause goes with it.
+ */
+async function canOpenVendorApp(user: UserRecord): Promise<boolean> {
+  return (
+    (await membersRepository.hasActiveVendorSeat(user.id)) || user.isVendorOwner
+  )
 }
 
 function assertActiveUser(user: UserRecord) {
@@ -114,7 +164,7 @@ async function validateSendOtpRules(input: SendOtpInput) {
 
     assertActiveUser(existingUser)
 
-    if (input.audience === 'vendor' && !existingUser.isVendorOwner) {
+    if (input.audience === 'vendor' && !(await canOpenVendorApp(existingUser))) {
       throw new AppError(
         403,
         'This phone number is not registered as a vendor',
@@ -190,7 +240,8 @@ async function resolveUserAfterVerification(
 
   assertActiveUser(existingUser)
 
-  if (input.audience === 'vendor' && !existingUser.isVendorOwner) {
+  // The vendor-app login gate. One query per login, not per request.
+  if (input.audience === 'vendor' && !(await canOpenVendorApp(existingUser))) {
     throw new AppError(
       403,
       'This phone number is not registered as a vendor',
@@ -214,7 +265,6 @@ async function createSession(
     aud: audience,
     isCustomer: user.isCustomer,
     isVendorOwner: user.isVendorOwner,
-    isAdmin: user.isAdmin,
   }
 
   const accessToken = await signAccessToken(payload)
@@ -227,18 +277,20 @@ async function createSession(
     expiresAt: getRefreshTokenExpiryDate(),
   })
 
-  const vendor =
-    audience === 'vendor' && user.isVendorOwner
-      ? await authRepository.findVendorByOwnerId(user.id)
-      : null
+  const vendors =
+    audience === 'vendor' ? await listSessionVendors(user.id) : []
 
-  log.info({ userId: user.id, audience }, 'session:created')
+  log.info(
+    { userId: user.id, audience, vendorCount: vendors.length },
+    'session:created'
+  )
 
   return {
     accessToken,
     refreshToken,
     user: toUserResponse(user),
-    vendor: vendor ? toVendorResponse(vendor) : null,
+    vendor: vendors.length === 1 ? vendors[0] : null,
+    vendors,
   }
 }
 
@@ -349,7 +401,12 @@ export const authService = {
 
     await authRepository.revokeRefreshToken(storedToken.id)
 
-    const audience: TokenAudience = user.isVendorOwner ? 'vendor' : 'customer'
+    // Which app this session belongs to. Same rule as the login gate, so a
+    // half-onboarded vendor refreshing their tab lands back in the vendor app
+    // rather than being bounced to the customer one mid-signup.
+    const audience: TokenAudience = (await canOpenVendorApp(user))
+      ? 'vendor'
+      : 'customer'
     log.info({ userId: user.id, audience }, 'session:refreshed')
     return createSession(user, audience)
   },
@@ -378,14 +435,22 @@ export const authService = {
 
     assertActiveUser(user)
 
-    const vendor =
-      audience === 'vendor' && user.isVendorOwner
-        ? await authRepository.findVendorByOwnerId(user.id)
-        : null
+    const vendors =
+      audience === 'vendor' ? await listSessionVendors(user.id) : []
 
     return {
       user: toUserResponse(user),
-      vendor: vendor ? toVendorResponse(vendor) : null,
+      vendor: vendors.length === 1 ? vendors[0] : null,
+      vendors,
     }
+  },
+
+  /** The company switcher's data source. Active, vendor-scoped rows only. */
+  async listMyVendors(userId: string) {
+    if (!UUID_RE.test(userId)) {
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND')
+    }
+
+    return listSessionVendors(userId)
   },
 }

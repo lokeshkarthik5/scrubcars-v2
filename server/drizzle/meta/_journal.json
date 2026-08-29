@@ -134,6 +134,27 @@
       "when": 1787834189656,
       "tag": "0018_add_booking_intents",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787834189700,
+      "tag": "0019_add_user_member_mapping",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787834189800,
+      "tag": "0020_drop_users_is_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787834189900,
+      "tag": "0021_add_internal_access_log",
+      "breakpoints": true
     }
   ]
 }

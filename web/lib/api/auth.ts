@@ -1,5 +1,6 @@
 import { apiClient } from './client'
 import type {
+  ApiAuthVendor,
   ApiSessionData,
   AuthAudience,
   OtpPurpose,
@@ -21,7 +22,10 @@ export interface VerifyOtpOptions {
 
 export interface AuthResult {
   user: ApiSessionData['user']
+  /** The active company — populated when there is exactly one. */
   vendor: ApiSessionData['vendor']
+  /** Every company this person can act as. */
+  vendors?: ApiAuthVendor[]
   isNewUser: boolean
 }
 
@@ -82,6 +86,7 @@ export async function verifyOtp(options: VerifyOtpOptions): Promise<AuthResult> 
   return {
     user: data.user,
     vendor: data.vendor,
+    vendors: data.vendors,
     isNewUser: options.purpose === 'register' || options.purpose === 'vendor_onboard',
   }
 }
@@ -107,8 +112,10 @@ export async function refreshSession(): Promise<
   return {
     user: data.user,
     vendor: data.vendor,
+    vendors: data.vendors,
     isNewUser: false,
-    audience: data.vendor ? 'vendor' : 'customer',
+    audience:
+      data.vendor || (data.vendors?.length ?? 0) > 0 ? 'vendor' : 'customer',
   }
 }
 
@@ -119,8 +126,17 @@ export async function logout(): Promise<void> {
 
 /** GET /auth/me */
 export async function getAuthMe({ auth = true }: { auth?: boolean } = {}) {
-  return apiClient<{ user: ApiSessionData['user']; vendor: ApiSessionData['vendor'] }>(
-    '/auth/me',
-    { auth }
-  )
+  return apiClient<{
+    user: ApiSessionData['user']
+    vendor: ApiSessionData['vendor']
+    vendors?: ApiAuthVendor[]
+  }>('/auth/me', { auth })
+}
+
+/**
+ * GET /auth/me/vendors — the company switcher's data source. Active,
+ * vendor-scoped seats only, so a suspended member's companies simply disappear.
+ */
+export async function getMyVendors(): Promise<ApiAuthVendor[]> {
+  return apiClient<ApiAuthVendor[]>('/auth/me/vendors')
 }

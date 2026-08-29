@@ -1,10 +1,12 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { authMiddleware } from '../../middleware/auth.middleware.js'
 import {
-  authMiddleware,
-  requireVendor,
-  type AuthVariables,
-} from '../../middleware/auth.middleware.js'
+  requireVendorRole,
+  resolveTenant,
+  type TenantVariables,
+} from '../../middleware/tenant.middleware.js'
+import { membersRoutes } from '../members/members.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createPhotoSchema,
@@ -13,6 +15,7 @@ import {
   createServiceImageSchema,
   createServiceSchema,
   createVendorSchema,
+  earningsQuerySchema,
   listPublicVendorsQuerySchema,
   logoUploadUrlSchema,
   photoUploadUrlSchema,
@@ -32,9 +35,30 @@ import {
   vendorIdParamSchema,
 } from './vendors.validation.js'
 
-export const vendorsRoutes = new Hono<{ Variables: AuthVariables }>()
+export const vendorsRoutes = new Hono<{ Variables: TenantVariables }>()
 
-const ownerMiddleware = [authMiddleware, requireVendor] as const
+// Every /me route resolves the active company from the session or the
+// X-Vendor-Id header before the handler runs. `/me` is unchanged as a path —
+// what it means is now "the company I am acting as", not "the company I own".
+//
+// Default deny: the shared chain is vendor_admin-only, so a route added to this
+// file is never accidentally exposed to operators. Widening is deliberate, and
+// there is exactly one widened route below.
+const tenantMiddleware = [
+  authMiddleware,
+  resolveTenant,
+  requireVendorRole('vendor_admin'),
+] as const
+
+// Reading the company profile is the one thing an operator needs from this
+// module: the vendor app renders the business name and logo in its shell on
+// every screen, including the job list. Writing it (PATCH /me) stays admin-only,
+// as does everything else here — money, settings, catalogue and members.
+const anyMemberMiddleware = [
+  authMiddleware,
+  resolveTenant,
+  requireVendorRole('vendor_admin', 'vendor_operator'),
+] as const
 
 vendorsRoutes.get(
   '/',
@@ -49,114 +73,129 @@ vendorsRoutes.post(
   (c) => vendorsController.createVendor(c, c.req.valid('json'))
 )
 
-vendorsRoutes.get('/me', ...ownerMiddleware, vendorsController.getMyVendor)
+vendorsRoutes.get('/me', ...anyMemberMiddleware, vendorsController.getMyVendor)
 vendorsRoutes.patch(
   '/me',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', updateVendorSchema),
   (c) => vendorsController.updateVendor(c, c.req.valid('json'))
 )
 vendorsRoutes.patch(
   '/me/job-types',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', updateJobTypesSchema),
   (c) => vendorsController.updateJobTypes(c, c.req.valid('json'))
 )
 vendorsRoutes.patch(
   '/me/slot-interval',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', updateSlotIntervalSchema),
   (c) => vendorsController.updateSlotInterval(c, c.req.valid('json'))
 )
 
+// The only endpoint that serves money. Everything an operator must not see —
+// the payout split, the discount breakdown and every aggregate — lives behind
+// this one role check, rather than being conditionally stripped from a shared
+// booking payload.
+vendorsRoutes.get(
+  '/me/earnings',
+  ...tenantMiddleware,
+  zValidator('query', earningsQuerySchema),
+  (c) => vendorsController.getEarnings(c, c.req.valid('query'))
+)
+
+// The team screen. Nested here so it inherits the /vendors/me prefix — the
+// company it acts on is the one resolveTenant produced, never a path parameter.
+vendorsRoutes.route('/me/members', membersRoutes)
+
 vendorsRoutes.get(
   '/me/working-hours',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   vendorsController.getWorkingHours
 )
 vendorsRoutes.put(
   '/me/working-hours',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', setWorkingHoursSchema),
   (c) => vendorsController.setWorkingHours(c, c.req.valid('json'))
 )
 
 vendorsRoutes.get(
   '/me/service-areas',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   vendorsController.listServiceAreas
 )
 vendorsRoutes.post(
   '/me/service-areas',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', createServiceAreaSchema),
   (c) => vendorsController.createServiceArea(c, c.req.valid('json'))
 )
 vendorsRoutes.delete(
   '/me/service-areas/:id',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   (c) => vendorsController.deleteServiceArea(c, c.req.valid('param').id)
 )
 
 vendorsRoutes.post(
   '/me/logo/upload-url',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', logoUploadUrlSchema),
   (c) => vendorsController.createLogoUploadUrl(c, c.req.valid('json'))
 )
 vendorsRoutes.put(
   '/me/logo',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', setLogoSchema),
   (c) => vendorsController.setLogo(c, c.req.valid('json'))
 )
-vendorsRoutes.delete('/me/logo', ...ownerMiddleware, vendorsController.deleteLogo)
+vendorsRoutes.delete('/me/logo', ...tenantMiddleware, vendorsController.deleteLogo)
 
 vendorsRoutes.get(
   '/me/photos',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   vendorsController.listPhotos
 )
 vendorsRoutes.post(
   '/me/photos/upload-url',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', photoUploadUrlSchema),
   (c) => vendorsController.createPhotoUploadUrl(c, c.req.valid('json'))
 )
 vendorsRoutes.post(
   '/me/photos',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', createPhotoSchema),
   (c) => vendorsController.addPhoto(c, c.req.valid('json'))
 )
 vendorsRoutes.patch(
   '/me/photos/order',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', reorderPhotosSchema),
   (c) => vendorsController.reorderPhotos(c, c.req.valid('json'))
 )
 vendorsRoutes.delete(
   '/me/photos/:id',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   (c) => vendorsController.deletePhoto(c, c.req.valid('param').id)
 )
 
 vendorsRoutes.get(
   '/me/services',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   vendorsController.listMyServices
 )
 vendorsRoutes.post(
   '/me/services',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', createServiceSchema),
   (c) => vendorsController.createService(c, c.req.valid('json'))
 )
 vendorsRoutes.patch(
   '/me/services/:id/active',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   zValidator('json', toggleServiceActiveSchema),
   (c) =>
@@ -168,7 +207,7 @@ vendorsRoutes.patch(
 )
 vendorsRoutes.patch(
   '/me/services/:id',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   zValidator('json', updateServiceSchema),
   (c) =>
@@ -180,7 +219,7 @@ vendorsRoutes.patch(
 )
 vendorsRoutes.delete(
   '/me/services/:id',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   (c) => vendorsController.deleteService(c, c.req.valid('param').id)
 )
@@ -189,7 +228,7 @@ vendorsRoutes.delete(
 // path segment keeps them from colliding with /me/services/:id.
 vendorsRoutes.post(
   '/me/services/:id/images/upload-url',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   zValidator('json', serviceImageUploadUrlSchema),
   (c) =>
@@ -201,7 +240,7 @@ vendorsRoutes.post(
 )
 vendorsRoutes.post(
   '/me/services/:id/images',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   zValidator('json', createServiceImageSchema),
   (c) =>
@@ -213,7 +252,7 @@ vendorsRoutes.post(
 )
 vendorsRoutes.delete(
   '/me/services/:id/images/:imageId',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', serviceImageParamSchema),
   (c) =>
     vendorsController.deleteServiceImage(
@@ -225,18 +264,18 @@ vendorsRoutes.delete(
 
 vendorsRoutes.get(
   '/me/packages',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   vendorsController.listMyPackages
 )
 vendorsRoutes.post(
   '/me/packages',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('json', createPackageSchema),
   (c) => vendorsController.createPackage(c, c.req.valid('json'))
 )
 vendorsRoutes.patch(
   '/me/packages/:id',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   zValidator('json', updatePackageSchema),
   (c) =>
@@ -248,7 +287,7 @@ vendorsRoutes.patch(
 )
 vendorsRoutes.delete(
   '/me/packages/:id',
-  ...ownerMiddleware,
+  ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
   (c) => vendorsController.deletePackage(c, c.req.valid('param').id)
 )

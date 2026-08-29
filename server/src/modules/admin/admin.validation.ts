@@ -179,6 +179,22 @@ export const listBookingsQuerySchema = z.object({
     .optional(),
 })
 
+// ─── Platform admins ─────────────────────────────────────────────────────────
+//
+// A super_admin row opens both the platform portal and every company. Granted
+// only from here, only by an existing super-admin, never self-serve.
+
+export const grantSuperAdminSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, 'Phone must be 10 digits'),
+})
+
+export const superAdminIdParamSchema = z.object({ id: z.string().uuid() })
+
+export type GrantSuperAdminInput = z.infer<typeof grantSuperAdminSchema>
+
 export type LoginInput = z.infer<typeof loginSchema>
 export type CreateVendorInput = z.infer<typeof createVendorSchema>
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>

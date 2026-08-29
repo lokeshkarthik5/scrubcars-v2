@@ -1,4 +1,6 @@
 import { apiClient } from './client'
+import type { ApiMember } from './members'
+import type { VendorRole } from './types'
 import type { ServiceCategory } from '@/lib/types'
 
 export interface AdminVendor {
@@ -185,7 +187,7 @@ export interface CreateVendorInput {
 
 /** POST /admin/login */
 export async function adminLogin(username: string, password: string) {
-  return apiClient<{ isAdmin: boolean }>('/admin/login', {
+  return apiClient<{ isSuperAdmin: boolean }>('/admin/login', {
     method: 'POST',
     auth: false,
     body: JSON.stringify({ username, password }),
@@ -199,7 +201,7 @@ export async function adminLogout() {
 
 /** GET /admin/me — session check */
 export async function getAdminMe() {
-  return apiClient<{ isAdmin: boolean }>('/admin/me')
+  return apiClient<{ isSuperAdmin: boolean }>('/admin/me')
 }
 
 /** GET /admin/vendors */
@@ -475,4 +477,51 @@ export async function listDiscountVendorOptions(): Promise<
   DiscountVendorOption[]
 > {
   return apiClient<DiscountVendorOption[]>('/admin/discounts/vendors')
+}
+
+// ─── Vendor team ─────────────────────────────────────────────────────────────
+//
+// The admin panel edits a *named* vendor's team, so these take an explicit
+// vendorId — unlike the vendor-facing `/lib/api/members`, where the company is
+// whichever one the caller is acting as. Same service behind both, so the
+// owner-immutability rules are identical.
+
+/** GET /admin/vendors/:id/members */
+export async function listAdminVendorMembers(
+  vendorId: string
+): Promise<ApiMember[]> {
+  return apiClient<ApiMember[]>(`/admin/vendors/${vendorId}/members`)
+}
+
+/** POST /admin/vendors/:id/members */
+export async function addAdminVendorMember(
+  vendorId: string,
+  input: { phone: string; name?: string; role: VendorRole }
+): Promise<void> {
+  await apiClient(`/admin/vendors/${vendorId}/members`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** PATCH /admin/vendors/:id/members/:memberId */
+export async function updateAdminVendorMember(
+  vendorId: string,
+  memberId: string,
+  input: { role?: VendorRole; status?: 'active' | 'suspended' }
+): Promise<void> {
+  await apiClient(`/admin/vendors/${vendorId}/members/${memberId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+/** DELETE /admin/vendors/:id/members/:memberId */
+export async function removeAdminVendorMember(
+  vendorId: string,
+  memberId: string
+): Promise<void> {
+  await apiClient(`/admin/vendors/${vendorId}/members/${memberId}`, {
+    method: 'DELETE',
+  })
 }

@@ -1,5 +1,8 @@
 import type { Context } from 'hono'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import {
+  getTenant,
+  type TenantVariables,
+} from '../../middleware/tenant.middleware.js'
 import { bookingsService } from './bookings.service.js'
 import type {
   CancelBookingInput,
@@ -9,10 +12,15 @@ import type {
   RescheduleBookingInput,
 } from './bookings.validation.js'
 
-type BookingsContext = Context<{ Variables: AuthVariables }>
+type BookingsContext = Context<{ Variables: TenantVariables }>
 
 function getAuth(c: BookingsContext) {
   return c.get('auth')
+}
+
+/** The active company. Produced by resolveTenant, never by a request param. */
+function getVendorId(c: BookingsContext): string {
+  return getTenant(c).vendorId
 }
 
 export async function listMyBookings(
@@ -28,10 +36,8 @@ export async function listMyBookings(
 }
 
 export async function getBookingDetail(c: BookingsContext, bookingId: string) {
-  const auth = getAuth(c)
   const booking = await bookingsService.getBookingDetail(
-    auth.sub,
-    auth.isVendorOwner,
+    getAuth(c).sub,
     bookingId
   )
 
@@ -96,7 +102,7 @@ export async function listVendorBookings(
   query: ListVendorBookingsQuery
 ) {
   const bookings = await bookingsService.listVendorBookings(
-    getAuth(c).sub,
+    getVendorId(c),
     query
   )
 
@@ -107,7 +113,11 @@ export async function listVendorBookings(
 }
 
 export async function acceptBooking(c: BookingsContext, bookingId: string) {
-  const booking = await bookingsService.acceptBooking(getAuth(c).sub, bookingId)
+  const booking = await bookingsService.acceptBooking(
+    getVendorId(c),
+    getAuth(c).sub,
+    bookingId
+  )
 
   return c.json({
     success: true,
@@ -121,6 +131,7 @@ export async function rejectBooking(
   input?: CancelBookingInput
 ) {
   const booking = await bookingsService.rejectBooking(
+    getVendorId(c),
     getAuth(c).sub,
     bookingId,
     input?.reason
@@ -134,6 +145,7 @@ export async function rejectBooking(
 
 export async function markInProgress(c: BookingsContext, bookingId: string) {
   const booking = await bookingsService.markInProgress(
+    getVendorId(c),
     getAuth(c).sub,
     bookingId
   )
@@ -145,7 +157,11 @@ export async function markInProgress(c: BookingsContext, bookingId: string) {
 }
 
 export async function markCompleted(c: BookingsContext, bookingId: string) {
-  const booking = await bookingsService.markCompleted(getAuth(c).sub, bookingId)
+  const booking = await bookingsService.markCompleted(
+    getVendorId(c),
+    getAuth(c).sub,
+    bookingId
+  )
 
   return c.json({
     success: true,
