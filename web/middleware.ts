@@ -34,6 +34,7 @@ const CLEAN_TO_INTERNAL: Record<string, string> = {
   '/reviews':           '/vendor/reviews',
   '/services':          '/vendor/services',
   '/settings':          '/vendor/settings',
+  '/settings/members':  '/vendor/settings/members',
   '/photos':            '/vendor/photos',
   '/onboarding/step-1': '/vendor/onboarding/step-1',
   '/onboarding/step-2': '/vendor/onboarding/step-2',
