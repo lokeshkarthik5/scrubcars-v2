@@ -9,6 +9,7 @@ import {
 import { computeServiceAmount } from '../../lib/pricing.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { discountsService } from '../discounts/discounts.service.js'
+import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import type { BookingDiscount } from './bookings.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
@@ -177,8 +178,39 @@ function toBookingResponse(booking: BookingWithRelations) {
   }
 }
 
-async function getVendorForOwner(ownerId: string) {
-  const vendor = await vendorsRepository.findVendorByOwnerId(ownerId)
+/**
+ * The vendor-facing shape of a booking. Two mappers for two audiences, not one
+ * mapper with a role flag: the vendor payload has a single fixed shape whatever
+ * the caller's role, which is easier to type on the client and impossible to get
+ * wrong per request.
+ *
+ * What is missing is the whole point. `vendorPayoutAmount`, `subtotalAmount`,
+ * `discountAmount` and `discountFundedBy` had no vendor-side consumer left once
+ * the earnings computation moved server-side, so they are simply absent — and a
+ * field that is never serialized cannot be forgotten about on a new endpoint.
+ *
+ * `amount` and `paymentMethod` stay: a cash booking goes pending → collected at
+ * completion, so whoever finishes the job has to know what to collect.
+ */
+function toVendorBookingResponse(booking: BookingWithRelations) {
+  const {
+    vendorPayoutAmount: _payout,
+    subtotalAmount: _subtotal,
+    discountAmount: _discountAmount,
+    discountFundedBy: _fundedBy,
+    ...vendorView
+  } = toBookingResponse(booking)
+
+  return vendorView
+}
+
+/**
+ * The vendorId always comes from `resolveTenant`, which has already checked the
+ * caller has an active seat in it. This re-reads the row; it does not
+ * re-authorize.
+ */
+async function getTenantVendor(vendorId: string) {
+  const vendor = await vendorsRepository.findVendorById(vendorId)
 
   if (!vendor) {
     throw new AppError(404, 'Vendor profile not found', 'VENDOR_NOT_FOUND')
@@ -255,8 +287,8 @@ async function getBookingForCustomer(userId: string, bookingId: string) {
   return booking
 }
 
-async function getBookingForVendor(ownerId: string, bookingId: string) {
-  const vendor = await getVendorForOwner(ownerId)
+async function getBookingForVendor(vendorId: string, bookingId: string) {
+  const vendor = await getTenantVendor(vendorId)
   const booking = await bookingsRepository.findBookingById(bookingId)
 
   if (!booking || booking.vendorId !== vendor.id) {
@@ -266,11 +298,17 @@ async function getBookingForVendor(ownerId: string, bookingId: string) {
   return { booking, vendor }
 }
 
-async function getBookingForViewer(
-  userId: string,
-  isVendorOwner: boolean,
-  bookingId: string
-) {
+/**
+ * Read authorization for `GET /bookings/:id`, which serves customers *and*
+ * vendors, and is the only place the old 1:1 was assumed inline. The vendor
+ * branch is a mapping lookup now: "does this person hold an active seat in the
+ * company that owns this booking?" — which is true for every member of that
+ * company and for nobody else.
+ *
+ * Returns how the viewer resolved, because the vendor payload omits the money
+ * breakdown the customer receipt needs (see toVendorBookingResponse).
+ */
+async function getBookingForViewer(userId: string, bookingId: string) {
   const booking = await bookingsRepository.findBookingById(bookingId)
 
   if (!booking) {
@@ -278,14 +316,36 @@ async function getBookingForViewer(
   }
 
   if (booking.userId === userId) {
-    return booking
+    return { booking, viewer: 'customer' as const }
   }
 
-  if (isVendorOwner) {
-    const vendor = await vendorsRepository.findVendorByOwnerId(userId)
-    if (vendor && booking.vendorId === vendor.id) {
-      return booking
-    }
+  const seat = await membersRepository.findActiveVendorSeat(
+    booking.vendorId,
+    userId
+  )
+
+  if (seat) {
+    return { booking, viewer: 'vendor' as const }
+  }
+
+  // A platform grant reads every company, same as it resolves every tenant.
+  const platformRow = await membersRepository.findActivePlatformRow(userId)
+
+  if (platformRow?.role === 'super_admin') {
+    // Logged here rather than in middleware, which is the exception and worth
+    // being explicit about: this route serves customers too, so it never runs
+    // `resolveTenant` — and `resolveTenant` is where every other support-access
+    // row is written. Without this, staff could read any booking's customer
+    // name, phone and doorstep address on any garage with no trace, which is
+    // exactly the access the audit log exists to record.
+    await membersRepository.logInternalAccess({
+      userId,
+      vendorId: booking.vendorId,
+      method: 'GET',
+      endpoint: `/bookings/${bookingId}`,
+    })
+
+    return { booking, viewer: 'vendor' as const }
   }
 
   throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
@@ -533,14 +593,14 @@ export const bookingsService = {
     return bookings.map(toBookingResponse)
   },
 
-  async getBookingDetail(
-    userId: string,
-    isVendorOwner: boolean,
-    bookingId: string
-  ) {
-    const booking = await getBookingForViewer(userId, isVendorOwner, bookingId)
+  async getBookingDetail(userId: string, bookingId: string) {
+    const { booking, viewer } = await getBookingForViewer(userId, bookingId)
 
-    return toBookingResponse(booking)
+    // The same booking, two shapes. The customer who owns it still gets the
+    // discount breakdown their receipt needs; a vendor member does not.
+    return viewer === 'vendor'
+      ? toVendorBookingResponse(booking)
+      : toBookingResponse(booking)
   },
 
   async createBooking(userId: string, input: CreateBookingInput) {
@@ -824,18 +884,18 @@ export const bookingsService = {
     return toBookingResponse(fullBooking!)
   },
 
-  async listVendorBookings(ownerId: string, query: ListVendorBookingsQuery) {
-    const vendor = await getVendorForOwner(ownerId)
+  async listVendorBookings(vendorId: string, query: ListVendorBookingsQuery) {
+    const vendor = await getTenantVendor(vendorId)
     const bookings = await bookingsRepository.listBookingsForVendor(
       vendor.id,
       query.status
     )
 
-    return bookings.map(toBookingResponse)
+    return bookings.map(toVendorBookingResponse)
   },
 
-  async acceptBooking(ownerId: string, bookingId: string) {
-    const { booking } = await getBookingForVendor(ownerId, bookingId)
+  async acceptBooking(vendorId: string, actorId: string, bookingId: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
 
     if (booking.status !== 'pending') {
       throw new AppError(
@@ -859,15 +919,22 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.updateBookingStatus(bookingId, 'confirmed')
-    log.info({ bookingId, ownerId, status: 'confirmed' }, 'booking:status_updated')
+    await bookingsRepository.updateBookingStatus(bookingId, 'confirmed', {
+      acceptedBy: actorId,
+    })
+    log.info({ bookingId, vendorId, actorId, status: 'confirmed' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 
-  async rejectBooking(ownerId: string, bookingId: string, reason?: string) {
-    const { booking } = await getBookingForVendor(ownerId, bookingId)
+  async rejectBooking(
+    vendorId: string,
+    actorId: string,
+    bookingId: string,
+    reason?: string
+  ) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
 
     if (booking.status !== 'pending') {
       throw new AppError(
@@ -878,14 +945,14 @@ export const bookingsService = {
     }
 
     await bookingsRepository.cancelBooking(bookingId, 'vendor', reason)
-    log.info({ bookingId, ownerId, status: 'cancelled', cancelledBy: 'vendor' }, 'booking:status_updated')
+    log.info({ bookingId, vendorId, actorId, status: 'cancelled', cancelledBy: 'vendor' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 
-  async markInProgress(ownerId: string, bookingId: string) {
-    const { booking } = await getBookingForVendor(ownerId, bookingId)
+  async markInProgress(vendorId: string, actorId: string, bookingId: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
 
     if (booking.status !== 'confirmed') {
       throw new AppError(
@@ -896,14 +963,14 @@ export const bookingsService = {
     }
 
     await bookingsRepository.updateBookingStatus(bookingId, 'in_progress')
-    log.info({ bookingId, ownerId, status: 'in_progress' }, 'booking:status_updated')
+    log.info({ bookingId, vendorId, actorId, status: 'in_progress' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 
-  async markCompleted(ownerId: string, bookingId: string) {
-    const { booking } = await getBookingForVendor(ownerId, bookingId)
+  async markCompleted(vendorId: string, actorId: string, bookingId: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
 
     if (booking.status !== 'in_progress') {
       throw new AppError(
@@ -913,15 +980,17 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.updateBookingStatus(bookingId, 'completed')
+    await bookingsRepository.updateBookingStatus(bookingId, 'completed', {
+      completedBy: actorId,
+    })
 
     if (booking.paymentMethod === 'cash') {
       await bookingsRepository.updatePaymentStatus(bookingId, 'collected', new Date())
     }
 
-    log.info({ bookingId, ownerId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')
+    log.info({ bookingId, vendorId, actorId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    return toBookingResponse(updated!)
+    return toVendorBookingResponse(updated!)
   },
 }

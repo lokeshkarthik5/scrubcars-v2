@@ -8,7 +8,6 @@ export type AccessTokenPayload = {
   aud: TokenAudience
   isCustomer: boolean
   isVendorOwner: boolean
-  isAdmin: boolean
 }
 
 type JwtPayload = AccessTokenPayload & {
@@ -57,6 +56,11 @@ export async function signAccessToken(
 
 // Env-based admin auth has no `users` row / refresh-token session, so we mint a
 // standalone longer-lived access token instead of relying on the refresh flow.
+// Note what this token does *not* carry: a role. `requireSuperAdmin` recognises
+// the 'admin' subject itself, and every other caller is checked against the
+// mapping table per request, so a grant can be revoked without waiting out a
+// token. This is the break-glass path — do not retire it in the same deploy
+// that moves /admin onto the mapping table.
 export async function signAdminToken(): Promise<string> {
   const exp = Math.floor(
     Date.now() / 1000 + parseExpiryToSeconds(env.adminTokenExpiresIn)
@@ -68,7 +72,6 @@ export async function signAdminToken(): Promise<string> {
       aud: 'customer',
       isCustomer: false,
       isVendorOwner: false,
-      isAdmin: true,
       exp,
     },
     env.jwtSecret
@@ -85,6 +88,5 @@ export async function verifyAccessToken(
     aud: payload.aud,
     isCustomer: payload.isCustomer,
     isVendorOwner: payload.isVendorOwner,
-    isAdmin: payload.isAdmin,
   }
 }

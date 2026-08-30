@@ -8,7 +8,6 @@ import { APP_VERSION } from '@/lib/version'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBookingsStore } from '@/lib/stores/bookings-store'
 import { useUserStore } from '@/lib/stores/user-store'
-import { useVendorOnboardingStore } from '@/lib/stores/vendor-onboarding-store'
 
 type RouteAccess = 'public' | 'guest' | 'customer' | 'vendor' | 'vendor-onboarding'
 
@@ -24,12 +23,13 @@ const VENDOR_ROUTES = [
   '/vendor/reviews',
   '/vendor/services',
   '/vendor/settings',
+  '/vendor/photos',
 ]
 const VENDOR_ONBOARDING_ROUTE = '/vendor/onboarding'
 
 // Clean paths served by the vendor subdomain (middleware strips the /vendor prefix)
 const VENDOR_SUBDOMAIN_GUEST_ROUTES = ['/', '/login', '/verify-otp']
-const VENDOR_SUBDOMAIN_VENDOR_ROUTES = ['/home', '/bookings', '/earnings', '/reviews', '/services', '/settings']
+const VENDOR_SUBDOMAIN_VENDOR_ROUTES = ['/home', '/bookings', '/earnings', '/reviews', '/services', '/settings', '/photos']
 const VENDOR_SUBDOMAIN_ONBOARDING_ROUTE = '/onboarding'
 
 function matchesRoute(pathname: string, routes: string[]) {
@@ -63,7 +63,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       restoreSession: s.restoreSession,
     }))
   )
-  const isOnboardingComplete = useVendorOnboardingStore((s) => s.isComplete)
 
   // On vendor.detlio.com the middleware rewrites clean paths to /vendor/* internally,
   // so redirect targets should use the clean form (e.g. '/home' not '/vendor/home').
@@ -80,7 +79,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(async () => {
       const { audience, logout, clearSession } = useAuthStore.getState()
-      const loginPath = audience === 'vendor' ? '/vendor/login' : '/login'
+      // Read the host here rather than closing over `isVendorSubdomain`: this
+      // handler is registered once, and the clean form is what the URL bar
+      // actually holds — comparing against '/vendor/login' on the vendor host
+      // never matches, so a 401 raised *on* the login page reloaded it.
+      const onVendorHost =
+        typeof window !== 'undefined' && window.location.hostname.startsWith('vendor.')
+      const loginPath = audience === 'vendor' && !onVendorHost ? '/vendor/login' : '/login'
 
       try {
         await logout()
@@ -137,7 +142,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       !isVendorSession
     ) {
       redirectPath = vp('/vendor/login')
-    } else if (routeAccess === 'vendor-onboarding' && vendor && isOnboardingComplete) {
+    } else if (routeAccess === 'vendor-onboarding' && vendor) {
+      // Onboarding means "your first garage". Anyone who already has one is
+      // sent home — deliberately not conditioned on `isOnboardingComplete`,
+      // which is persisted per browser, so the same account used to reach this
+      // flow or not depending on local storage that has nothing to do with the
+      // question. Additional garages are created from the admin panel.
       redirectPath = vp('/vendor/home')
     } else if (routeAccess === 'vendor' && !vendor) {
       redirectPath = vp('/vendor/onboarding/step-1')

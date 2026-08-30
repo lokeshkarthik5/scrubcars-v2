@@ -1,17 +1,11 @@
 import { and, desc, eq, gt, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import {
-  otpVerifications,
-  refreshTokens,
-  users,
-  vendors,
-} from '../../db/schema.js'
+import { otpVerifications, refreshTokens, users } from '../../db/schema.js'
 import type { otpPurposeEnum } from '../../db/schema.js'
 
 type OtpPurpose = (typeof otpPurposeEnum.enumValues)[number]
 
 export type UserRecord = typeof users.$inferSelect
-export type VendorRecord = typeof vendors.$inferSelect
 
 export const authRepository = {
   findUserByPhone(phone: string) {
@@ -23,12 +17,6 @@ export const authRepository = {
   findUserById(id: string) {
     return db.query.users.findFirst({
       where: eq(users.id, id),
-    })
-  },
-
-  findVendorByOwnerId(ownerId: string) {
-    return db.query.vendors.findFirst({
-      where: eq(vendors.ownerId, ownerId),
     })
   },
 

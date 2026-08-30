@@ -3,9 +3,12 @@ import { Hono } from 'hono'
 import {
   authMiddleware,
   requireCustomer,
-  requireVendor,
-  type AuthVariables,
 } from '../../middleware/auth.middleware.js'
+import {
+  requireVendorRole,
+  resolveTenant,
+  type TenantVariables,
+} from '../../middleware/tenant.middleware.js'
 import * as bookingsController from './bookings.controller.js'
 import {
   bookingIdParamSchema,
@@ -17,10 +20,19 @@ import {
 } from './bookings.validation.js'
 import type { Context } from 'hono'
 
-export const bookingsRoutes = new Hono<{ Variables: AuthVariables }>()
+export const bookingsRoutes = new Hono<{ Variables: TenantVariables }>()
 
 // Cancel/reject can carry an optional { reason } JSON body. The body is
 // optional, so parse leniently and fall back to no reason when absent.
+// Jobs are the operator's whole job. Someone who can accept a booking but
+// cannot mark it complete cannot do the work, so all four transitions — and the
+// list they act on — are open to both roles. What operators do not get is the
+// money: see the earnings boundary and the vendor booking mapper.
+const jobMiddleware = [
+  resolveTenant,
+  requireVendorRole('vendor_admin', 'vendor_operator'),
+] as const
+
 async function parseCancelInput(c: Context) {
   const body = await c.req.json().catch(() => ({}))
   const parsed = cancelBookingSchema.safeParse(body ?? {})
@@ -38,7 +50,7 @@ bookingsRoutes.get(
 bookingsRoutes.get(
   '/vendor',
   authMiddleware,
-  requireVendor,
+  ...jobMiddleware,
   zValidator('query', listVendorBookingsQuerySchema),
   (c) => bookingsController.listVendorBookings(c, c.req.valid('query'))
 )
@@ -81,7 +93,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/accept',
   authMiddleware,
-  requireVendor,
+  ...jobMiddleware,
   zValidator('param', bookingIdParamSchema),
   (c) => bookingsController.acceptBooking(c, c.req.valid('param').id)
 )
@@ -89,7 +101,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/reject',
   authMiddleware,
-  requireVendor,
+  ...jobMiddleware,
   zValidator('param', bookingIdParamSchema),
   async (c) =>
     bookingsController.rejectBooking(
@@ -102,7 +114,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/progress',
   authMiddleware,
-  requireVendor,
+  ...jobMiddleware,
   zValidator('param', bookingIdParamSchema),
   (c) => bookingsController.markInProgress(c, c.req.valid('param').id)
 )
@@ -110,7 +122,7 @@ bookingsRoutes.patch(
 bookingsRoutes.patch(
   '/:id/complete',
   authMiddleware,
-  requireVendor,
+  ...jobMiddleware,
   zValidator('param', bookingIdParamSchema),
   (c) => bookingsController.markCompleted(c, c.req.valid('param').id)
 )

@@ -33,7 +33,6 @@ export type UserProfileResponse = {
   phoneVerified: boolean
   isCustomer: boolean
   isVendorOwner: boolean
-  isAdmin: boolean
   status: string
   createdAt: string
 }
@@ -76,7 +75,6 @@ function toProfileResponse(user: UserRecord): UserProfileResponse {
     phoneVerified: user.phoneVerified,
     isCustomer: user.isCustomer,
     isVendorOwner: user.isVendorOwner,
-    isAdmin: user.isAdmin,
     status: user.status,
     createdAt: user.createdAt.toISOString(),
   }

@@ -459,3 +459,11 @@ export type UpdatePackageInput = z.infer<typeof updatePackageSchema>
 export type SlotsQueryInput = z.infer<typeof slotsQuerySchema>
 export type ListPublicVendorsQuery = z.infer<typeof listPublicVendorsQuerySchema>
 export type DoorstepAreaInput = z.infer<typeof doorstepAreaSchema>
+
+// The Earnings screen's period toggle. Defaults to the trailing week, which is
+// what the screen opens on.
+export const earningsQuerySchema = z.object({
+  period: z.enum(['week', 'month']).default('week'),
+})
+
+export type EarningsQuery = z.infer<typeof earningsQuerySchema>

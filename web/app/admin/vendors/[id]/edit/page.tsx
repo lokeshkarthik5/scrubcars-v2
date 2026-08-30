@@ -39,6 +39,7 @@ import {
   VENDOR_VEHICLE_TYPE_OPTIONS,
 } from '@/lib/vehicles'
 import type { ServiceCategory } from '@/lib/types'
+import { VendorTeamSection } from './team-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PICKUP_OPTIONS = [
@@ -585,6 +586,10 @@ export default function EditVendorPage({
                 <ScField label="Years in operation (optional)" value={form.yearsInOperation} onChange={set('yearsInOperation')} placeholder="e.g. 5–10 years" />
               </div>
             </ScSection>
+
+            {/* Team management came from main; it sits in Details, immediately
+                before the media section, which is where main placed it. */}
+            <VendorTeamSection vendorId={id} />
 
             <ScSection title="Logo & photos">
               <p className="text-[11px] text-text-muted">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScCard } from '@/components/sc/card'
@@ -8,23 +9,32 @@ import { ScSegmented } from '@/components/sc/segmented'
 import { StarRating } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
 import { EMPTY_EARNINGS_SUMMARY, getEarningsData } from '@/lib/api/earnings'
+import { useIsVendorAdmin } from '@/lib/hooks/use-vendor-role'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import type { EarningsJob, EarningsSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export default function VendorEarningsPage() {
   const vendor = useAuthStore((s) => s.vendor)
+  const isVendorAdmin = useIsVendorAdmin()
+  const router = useRouter()
   const [period, setPeriod] = useState<'week' | 'month'>('week')
   const [summary, setSummary] = useState<EarningsSummary>(EMPTY_EARNINGS_SUMMARY)
   const [jobs, setJobs] = useState<EarningsJob[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Operators have no Earnings tab, so this is only reachable by typing the
+  // URL. Send them home rather than showing an empty screen full of zeros.
   useEffect(() => {
-    if (!vendor?.id) return
+    if (!isVendorAdmin) router.replace('/vendor/home')
+  }, [isVendorAdmin, router])
+
+  useEffect(() => {
+    if (!vendor?.id || !isVendorAdmin) return
     let active = true
     setLoading(true)
 
-    getEarningsData(vendor.id, period)
+    getEarningsData(period)
       .then(({ summary: nextSummary, jobs: nextJobs }) => {
         if (!active) return
         setSummary(nextSummary)
@@ -42,7 +52,7 @@ export default function VendorEarningsPage() {
     return () => {
       active = false
     }
-  }, [period, vendor?.id])
+  }, [period, vendor?.id, isVendorAdmin])
 
   const metrics = [
     { label: 'Total earned', value: `₹${summary.totalEarned.toLocaleString('en-IN')}`, color: 'text-success' },

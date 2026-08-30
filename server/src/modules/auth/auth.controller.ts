@@ -2,11 +2,11 @@ import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import type { TenantVariables } from '../../middleware/tenant.middleware.js'
 import { authService } from './auth.service.js'
 import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
 
-type AuthContext = Context<{ Variables: AuthVariables }>
+type AuthContext = Context<{ Variables: TenantVariables }>
 
 const REFRESH_COOKIE = 'refresh_token'
 const ACCESS_COOKIE = 'access_token'
@@ -60,7 +60,12 @@ function sessionResponse(
     success: true,
     data: {
       user: session.user,
+      // `vendor` is the active company and is null the moment there are two of
+      // them — `vendors` is the real answer. Dropping it here told a
+      // multi-company user they had no garage at all, which the vendor app
+      // reads as "not onboarded yet".
       vendor: session.vendor,
+      vendors: session.vendors,
     },
   })
 }
@@ -89,16 +94,10 @@ export async function refresh(c: AuthContext) {
   }
 
   const session = await authService.refreshSession(refreshToken)
-  setRefreshCookie(c, session.refreshToken)
-  setAccessCookie(c, session.accessToken)
 
-  return c.json({
-    success: true,
-    data: {
-      user: session.user,
-      vendor: session.vendor,
-    },
-  })
+  // Shares sessionResponse rather than rebuilding the payload: the duplicate is
+  // how `vendors` came to be missing from one of the two in the first place.
+  return sessionResponse(c, session)
 }
 
 export async function logout(c: AuthContext) {
@@ -140,5 +139,14 @@ export async function getMeVendor(c: AuthContext) {
   return c.json({
     success: true,
     data,
+  })
+}
+
+export async function getMyVendors(c: AuthContext) {
+  const vendors = await authService.listMyVendors(c.get('auth').sub)
+
+  return c.json({
+    success: true,
+    data: vendors,
   })
 }

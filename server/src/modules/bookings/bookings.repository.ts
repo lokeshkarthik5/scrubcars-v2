@@ -557,10 +557,17 @@ export const bookingsRepository = {
     })
   },
 
-  updateBookingStatus(bookingId: string, status: BookingStatus) {
+  // `actor` records which *person* moved the job — with a team, "who accepted
+  // this?" is otherwise unanswerable. It is the authenticated user, never the
+  // tenant.
+  updateBookingStatus(
+    bookingId: string,
+    status: BookingStatus,
+    actor?: { acceptedBy?: string; completedBy?: string }
+  ) {
     return db
       .update(bookings)
-      .set({ status })
+      .set({ status, ...actor })
       .where(eq(bookings.id, bookingId))
       .returning()
   },
