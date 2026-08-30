@@ -18,6 +18,7 @@ import type {
 } from '../../db/schema.js'
 
 type ServiceCategory = (typeof serviceCategoryEnum.enumValues)[number]
+type VendorSort = 'distance' | 'rating' | 'price_asc' | 'price_desc' | 'relevance'
 type ServicePricingType = (typeof servicePricingTypeEnum.enumValues)[number]
 
 export type VendorRecord = typeof vendors.$inferSelect
@@ -66,12 +67,172 @@ export const vendorsRepository = {
     })
   },
 
-  listPublicVendors() {
-    return db.query.vendors.findMany({
-      where: and(
-        eq(vendors.status, 'active'),
-        eq(vendors.isVerified, true)
-      ),
+  /**
+   * One page of public vendor ids, already filtered, sorted and bounded.
+   *
+   * Filtering and sorting are in SQL rather than in JS over the whole table,
+   * because neither survives pagination: you cannot sort page 2 of a list the
+   * caller can only partly see. That is also why this returns ids rather than
+   * rows — the page is chosen here, and the payload for those ids is loaded
+   * with Drizzle's relational queries afterwards.
+   *
+   * All PostGIS calls are schema-qualified (`gis.`), since the extension lives
+   * outside `public` and Supabase's pooler does not reliably carry a
+   * session-level search_path in transaction mode.
+   */
+  async listPublicVendorPage(params: {
+    origin?: { lat: number; lng: number }
+    radiusM?: number
+    bbox?: { minLng: number; minLat: number; maxLng: number; maxLat: number }
+    bookingType?: 'dropin' | 'doorstep'
+    category?: ServiceCategory
+    q?: string
+    sort: VendorSort
+    /**
+     * Which half of the result set to read.
+     *
+     * 'located'   — garages with coordinates. Geo-filtered and KNN-ordered.
+     * 'unlocated' — garages with no pin yet. Every geo filter is skipped, since
+     *               none of them can be evaluated without coordinates.
+     *
+     * They are read as separate queries rather than one query with
+     * `ORDER BY (geo IS NULL), geo <-> point`, because a leading non-geo sort
+     * key defeats the KNN index scan — Postgres would fall back to sorting the
+     * whole candidate set, which is exactly the property this design exists to
+     * preserve.
+     */
+    segment: 'located' | 'unlocated'
+    limit: number
+    offset: number
+  }): Promise<Array<{ id: string; distanceM: number | null }>> {
+    const { origin, bbox, bookingType, category, q, sort, segment, limit, offset } =
+      params
+
+    const unlocated = segment === 'unlocated'
+
+    const point =
+      origin && !unlocated
+        ? sql`gis.ST_SetSRID(gis.ST_MakePoint(${origin.lng}, ${origin.lat}), 4326)::gis.geography`
+        : null
+
+    const conditions = [
+      sql`v.status = 'active'`,
+      sql`v.is_verified = true`,
+      unlocated ? sql`v.geo IS NULL` : sql`v.geo IS NOT NULL`,
+    ]
+
+    if (q) {
+      const term = `%${q}%`
+      conditions.push(sql`(v.business_name ILIKE ${term} OR v.city ILIKE ${term})`)
+    }
+
+    if (category) {
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM services s
+         WHERE s.vendor_id = v.id AND s.is_active = true AND s.category = ${category}
+      )`)
+    }
+
+    if (bookingType === 'dropin') conditions.push(sql`v.dropin_enabled = true`)
+
+    if (bookingType === 'doorstep') {
+      conditions.push(sql`v.doorstep_enabled = true`)
+      // Doorstep asks "who will come to me", so the bound is the garage's own
+      // willingness to travel — not a radius the customer picked. A drawn
+      // polygon wins when there is one, since real coverage is rarely circular;
+      // otherwise the radius applies. A vendor with neither has not opted into
+      // travelling anywhere yet, which COALESCE to 0 expresses exactly.
+      if (point) {
+        conditions.push(sql`CASE
+          WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${point})
+          ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, 0) * 1000, false)
+        END`)
+      }
+    } else if (point && params.radiusM) {
+      // `false` selects sphere maths over spheroid: measurably faster, and
+      // under 0.5% off at city scale. The spheroid stays for the distance we
+      // actually show the customer, below.
+      conditions.push(sql`gis.ST_DWithin(v.geo, ${point}, ${params.radiusM}, false)`)
+    }
+
+    if (bbox && !unlocated) {
+      // OPERATOR(gis.&&), not a bare `&&`. PostGIS lives in the `gis` schema and
+      // nothing here relies on search_path, but an infix operator cannot take a
+      // `gis.` prefix the way a function can — it needs this form or it fails at
+      // runtime with "operator does not exist".
+      conditions.push(
+        sql`v.geo OPERATOR(gis.&&) gis.ST_MakeEnvelope(${bbox.minLng}, ${bbox.minLat}, ${bbox.maxLng}, ${bbox.maxLat}, 4326)::gis.geography`
+      )
+    }
+
+    const distance = point
+      ? sql`gis.ST_Distance(v.geo, ${point})`
+      : sql`NULL::double precision`
+
+    // Aggregates needed only for their sorts. Scalar subqueries rather than
+    // joins so the rating average cannot fan out the row count.
+    const rating = sql`(SELECT avg(r.rating) FROM reviews r WHERE r.vendor_id = v.id)`
+    const startingPrice = sql`(
+      SELECT min(s.price) FROM services s
+       WHERE s.vendor_id = v.id AND s.is_active = true AND s.price > 0
+    )`
+
+    const orderBy = (() => {
+      // Validation rejects sort=distance without an origin, and the service
+      // never picks it without one. Belt-and-braces because the alternative is
+      // interpolating a null into the KNN operator, which is a SQL error rather
+      // than a wrong answer.
+      // Distance is meaningless without an origin, and impossible for a garage
+      // with no pin — the unlocated tail falls back to alphabetical.
+      const effectiveSort =
+        sort === 'distance' && (!point || unlocated) ? 'relevance' : sort
+
+      switch (effectiveSort) {
+        // The KNN operator: PostgreSQL walks the GiST index in distance order
+        // and stops at LIMIT, rather than scanning the candidate set and
+        // sorting it. This is the piece that stays flat as the garage count
+        // grows.
+        //
+        // Spelled OPERATOR(gis.<->) because PostGIS is in the `gis` schema and
+        // nothing here relies on search_path. An infix operator cannot take a
+        // `gis.` prefix the way a function can, so a bare `<->` fails at
+        // runtime with "operator does not exist".
+        case 'distance':
+          return sql`v.geo OPERATOR(gis.<->) ${point}`
+        case 'rating':
+          return sql`${rating} DESC NULLS LAST, v.business_name ASC`
+        case 'price_asc':
+          return sql`${startingPrice} ASC NULLS LAST, v.business_name ASC`
+        case 'price_desc':
+          return sql`${startingPrice} DESC NULLS LAST, v.business_name ASC`
+        default:
+          return sql`v.business_name ASC`
+      }
+    })()
+
+    const rows = await db.execute<{ id: string; distance_m: number | null }>(sql`
+      SELECT v.id, ${distance} AS distance_m
+        FROM vendors v
+       WHERE ${sql.join(conditions, sql` AND `)}
+       ORDER BY ${orderBy}
+       LIMIT ${limit} OFFSET ${offset}
+    `)
+
+    return Array.from(rows).map((row) => ({
+      id: row.id,
+      distanceM: row.distance_m === null ? null : Number(row.distance_m),
+    }))
+  },
+
+  /**
+   * Full payload for one page of vendor ids, in the order given. The page is
+   * already chosen by `listPublicVendorPage`; this only hydrates it.
+   */
+  async listPublicVendorsByIds(ids: string[]) {
+    if (ids.length === 0) return []
+
+    const rows = await db.query.vendors.findMany({
+      where: inArray(vendors.id, ids),
       with: {
         photos: {
           orderBy: [asc(vendorPhotos.sortOrder)],
@@ -81,8 +242,69 @@ export const vendorsRepository = {
         },
         serviceAreas: true,
       },
-      orderBy: [asc(vendors.businessName)],
     })
+
+    // `inArray` does not preserve the ordering the page was chosen in, and that
+    // ordering is the whole product of the query above.
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    return ids.map((id) => byId.get(id)).filter((row) => row !== undefined)
+  },
+
+  /**
+   * The vendor's drawn doorstep polygon as a GeoJSON ring, or null.
+   *
+   * Read through an explicit ST_AsGeoJSON rather than by selecting the column:
+   * the driver would otherwise hand back EWKB hex, and the browser wants
+   * GeoJSON to draw with. Same reason the `geo` columns are not declared in the
+   * Drizzle schema at all — see the note at the top of db/schema.ts.
+   */
+  async getDoorstepArea(
+    vendorId: string
+  ): Promise<Array<[number, number]> | null> {
+    const rows = await db.execute<{ ring: string | null }>(sql`
+      SELECT gis.ST_AsGeoJSON(v.doorstep_area) AS ring
+        FROM vendors v
+       WHERE v.id = ${vendorId}
+    `)
+
+    const raw = Array.from(rows)[0]?.ring
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as { coordinates?: number[][][] }
+    // GeoJSON polygons are an array of rings; we only ever store the outer one.
+    return (parsed.coordinates?.[0] as Array<[number, number]>) ?? null
+  },
+
+  /**
+   * Replaces the drawn coverage area. `null` clears it, which falls the vendor
+   * back to `doorstep_radius_km`.
+   *
+   * ST_MakeValid guards the one thing a drag-to-draw UI reliably produces: a
+   * self-intersecting ring. An invalid polygon would make every ST_Covers
+   * against it throw at *booking* time, which is the worst place to find out.
+   */
+  async setDoorstepArea(
+    vendorId: string,
+    ring: Array<[number, number]> | null
+  ) {
+    // Raw SQL both ways: `doorstep_area` is deliberately not declared in the
+    // Drizzle schema, for the same reason the `geo` columns are not — see the
+    // note at the top of db/schema.ts.
+    if (ring === null) {
+      return db.execute(sql`
+        UPDATE vendors SET doorstep_area = NULL WHERE id = ${vendorId}
+      `)
+    }
+
+    const geojson = JSON.stringify({ type: 'Polygon', coordinates: [ring] })
+
+    return db.execute(sql`
+      UPDATE vendors
+         SET doorstep_area = gis.ST_MakeValid(
+               gis.ST_SetSRID(gis.ST_GeomFromGeoJSON(${geojson}), 4326)
+             )::gis.geography
+       WHERE id = ${vendorId}
+    `)
   },
 
   createVendor(data: VendorInsert) {

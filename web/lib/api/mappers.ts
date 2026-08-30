@@ -1,3 +1,4 @@
+import { formatDistance } from '@/lib/map'
 import type {
   ApiAddress,
   ApiAuthUser,
@@ -101,7 +102,10 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     name: item.businessName,
     logoUrl: item.logoUrl,
     area: item.city,
-    distance: '—',
+    distance: formatDistance(item.distanceKm),
+    distanceKm: item.distanceKm,
+    lat: item.lat,
+    lng: item.lng,
     rating: item.rating ?? 0,
     reviewCount: item.reviewCount,
     status: mapVendorStatus(item.status),
@@ -127,7 +131,12 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     name: vendor.businessName,
     logoUrl: vendor.logoUrl,
     area: vendor.city,
+    // The single-vendor endpoint carries no origin, so it has no distance to
+    // report. Left as an em-dash rather than 0, which would read as "here".
     distance: '—',
+    distanceKm: null,
+    lat: vendor.lat,
+    lng: vendor.lng,
     rating: vendor.rating ?? 0,
     reviewCount: vendor.reviewCount,
     status: mapVendorStatus(vendor.status),

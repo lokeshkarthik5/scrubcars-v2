@@ -29,3 +29,6 @@ lerna-debug.log*
 .DS_Store
 .vercel
 .env*
+# ...but the template is meant to be committed — it is the only record of which
+# variables exist, and it holds placeholders rather than values.
+!.env.example

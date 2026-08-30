@@ -114,6 +114,12 @@ async function upsertVendor(seed: SeedVendor) {
           city: seed.city,
           lat: seed.lat,
           lng: seed.lng,
+          // Seeded pins are hand-placed fixtures, so they count as admin-set
+          // and confirmed. Without this they would read as 'unset' and land in
+          // the admin's "needs a pin" queue on every fresh seed.
+          geoSource: 'admin',
+          geoConfirmedAt: new Date(),
+          doorstepRadiusKm: seed.doorstepEnabled ? 8 : null,
           isVerified: seed.isVerified,
           status: seed.status,
           doorstepEnabled: seed.doorstepEnabled,
@@ -132,6 +138,12 @@ async function upsertVendor(seed: SeedVendor) {
           city: seed.city,
           lat: seed.lat,
           lng: seed.lng,
+          // Seeded pins are hand-placed fixtures, so they count as admin-set
+          // and confirmed. Without this they would read as 'unset' and land in
+          // the admin's "needs a pin" queue on every fresh seed.
+          geoSource: 'admin',
+          geoConfirmedAt: new Date(),
+          doorstepRadiusKm: seed.doorstepEnabled ? 8 : null,
           isVerified: seed.isVerified,
           status: seed.status,
           doorstepEnabled: seed.doorstepEnabled,

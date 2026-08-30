@@ -100,6 +100,22 @@ export interface ApiVendorListItem {
   reviewCount: number
   serviceTags: string[]
   photos: string[]
+  /** Null when the request carried no origin. Never 0 to mean "unknown". */
+  distanceKm: number | null
+  /** The garage's own coordinates, for plotting it on the map view. */
+  lat: number | null
+  lng: number | null
+}
+
+export interface ApiVendorList {
+  items: ApiVendorListItem[]
+  /** Opaque; pass back as `cursor`. Null when the list is exhausted. */
+  nextCursor: string | null
+  /**
+   * The radius that actually produced these results. Differs from the requested
+   * one when the search auto-widened, which the UI must say out loud.
+   */
+  appliedRadiusKm: number | null
 }
 
 export interface ApiPublicVendor {
@@ -131,6 +147,11 @@ export interface VendorProfileExtras {
   mapsUrl: string | null
   pickup: 'yes' | 'nearby' | 'no' | null
   pickupRadiusKm: number | null
+  /** How far this garage travels for doorstep work. Null means "nowhere yet". */
+  doorstepRadiusKm: number | null
+  geoSource: 'unset' | 'gps' | 'map_pin' | 'geocoded' | 'admin'
+  /** Set when an admin confirmed the pin on a map. Null means nobody has. */
+  geoConfirmedAt: string | null
   bays: number | null
   jobsPerDay: number | null
   vehicleTypes: string[]

@@ -24,8 +24,17 @@ const pickupSchema = z.enum(['yes', 'nearby', 'no'])
 
 const vehicleTypesSchema = z.array(z.string().trim().min(1).max(100)).max(20)
 
+// Where the garage's pin came from. 'map_pin' is what the onboarding picker
+// sends after the owner drags the marker; 'gps' when they tapped "use my
+// current location" and did not move it; 'admin' when staff placed it.
+export const vendorGeoSourceSchema = z.enum(['gps', 'map_pin', 'admin'])
+
 const vendorProfileFields = {
   whatsapp: phoneSchema.optional(),
+  geoSource: vendorGeoSourceSchema.optional(),
+  // How far this garage will travel for doorstep work. Separate from
+  // pickupRadiusKm, which is pickup-and-drop of the vehicle.
+  doorstepRadiusKm: z.number().positive().max(100).optional(),
   email: z.string().trim().email().max(255).optional(),
   yearsInOperation: z.string().trim().max(20).optional(),
   mapsUrl: z.string().trim().url().max(2048).optional(),
@@ -43,8 +52,11 @@ export const createVendorSchema = z.object({
   address: z.string().trim().min(1),
   city: z.string().trim().min(1).max(100),
   pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number'),
-  lat: z.number().finite(),
-  lng: z.number().finite(),
+  // Required, unlike on update. A garage without coordinates cannot be found,
+  // cannot be distance-sorted and cannot have its doorstep radius checked — and
+  // it is far cheaper to insist at creation than to chase it afterwards.
+  lat: z.number().finite().min(-90).max(90),
+  lng: z.number().finite().min(-180).max(180),
   ...vendorProfileFields,
 })
 
@@ -55,12 +67,15 @@ export const updateVendorSchema = z
     address: z.string().trim().min(1).optional(),
     city: z.string().trim().min(1).max(100).optional(),
     pincode: z.string().trim().regex(/^\d{6}$/, 'Pincode must be a 6-digit number').optional(),
-    lat: z.number().finite().optional(),
-    lng: z.number().finite().optional(),
+    lat: z.number().finite().min(-90).max(90).optional(),
+    lng: z.number().finite().min(-180).max(180).optional(),
     ...vendorProfileFields,
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided',
+  })
+  .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
+    message: 'lat and lng must be provided together',
   })
 
 export const updateJobTypesSchema = z
@@ -142,11 +157,114 @@ export const plainServiceCategorySchema = serviceCategorySchema.exclude([
   'package',
 ])
 
-export const listPublicVendorsQuerySchema = z.object({
-  category: serviceCategorySchema.optional(),
-  q: z.string().trim().min(1).optional(),
-  bookingType: z.enum(['dropin', 'doorstep']).optional(),
+// ─── Public listing ──────────────────────────────────────────────────────────
+
+export const vendorSortSchema = z.enum([
+  'distance',
+  'rating',
+  'price_asc',
+  'price_desc',
+  'relevance',
+])
+
+/**
+ * Viewport rectangle as "minLng,minLat,maxLng,maxLat" — the order PostGIS's
+ * ST_MakeEnvelope takes, so it needs no reshuffling downstream.
+ *
+ * This exists for the map view's "search as I move the map". A viewport is not
+ * a radius, and expressing one as the other is what forces an API rewrite later
+ * (see plans/geo.md §8), so both shapes are accepted from the start.
+ */
+export const bboxSchema = z
+  .string()
+  .trim()
+  .transform((raw, ctx) => {
+    const parts = raw.split(',').map((p) => Number(p.trim()))
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'bbox must be "minLng,minLat,maxLng,maxLat"',
+      })
+      return z.NEVER
+    }
+
+    const [minLng, minLat, maxLng, maxLat] = parts
+
+    if (minLat < -90 || maxLat > 90 || minLng < -180 || maxLng > 180) {
+      ctx.addIssue({ code: 'custom', message: 'bbox is out of range' })
+      return z.NEVER
+    }
+
+    if (minLat >= maxLat || minLng >= maxLng) {
+      ctx.addIssue({ code: 'custom', message: 'bbox min must be below max' })
+      return z.NEVER
+    }
+
+    return { minLng, minLat, maxLng, maxLat }
+  })
+
+/**
+ * A doorstep coverage polygon, as a GeoJSON-style outer ring of [lng, lat]
+ * pairs. `null` clears it and falls the vendor back to doorstepRadiusKm.
+ *
+ * Capped at 200 vertices: a drag-drawn area needs a fraction of that, and an
+ * uncapped ring is an easy way to make every ST_Covers against this vendor slow
+ * for everyone.
+ */
+export const doorstepAreaSchema = z.object({
+  ring: z
+    .array(
+      z.tuple([
+        z.number().finite().min(-180).max(180),
+        z.number().finite().min(-90).max(90),
+      ])
+    )
+    // A ring needs at least three distinct corners plus the repeated closing
+    // point. Fewer is a line, not an area.
+    .min(4)
+    .max(200)
+    .nullable(),
 })
+
+export const listPublicVendorsQuerySchema = z
+  .object({
+    category: serviceCategorySchema.optional(),
+    q: z.string().trim().min(1).optional(),
+    bookingType: z.enum(['dropin', 'doorstep']).optional(),
+    // Origin. Optional throughout — the list must render for someone who has
+    // declined location permission, just without distances.
+    lat: z.coerce.number().finite().min(-90).max(90).optional(),
+    lng: z.coerce.number().finite().min(-180).max(180).optional(),
+    // Drop-in only. Doorstep deliberately ignores this and uses the *vendor's*
+    // doorstepRadiusKm instead: the question is "who will come to me", and the
+    // garage is the one that decides how far it travels.
+    radiusKm: z.coerce.number().positive().max(50).optional(),
+    bbox: bboxSchema.optional(),
+    sort: vendorSortSchema.optional(),
+    /**
+     * Append garages that have no coordinates yet, after the located ones.
+     *
+     * Defaults to true. Hiding them is the worse failure while most garages are
+     * still unpinned — a geo filter they cannot satisfy would empty the listing
+     * for a city full of garages. Pass false when the surface genuinely cannot
+     * use them, which today means the map view.
+     */
+    includeUnlocated: z
+      .enum(['true', 'false'])
+      .transform((v) => v === 'true')
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+    cursor: z.string().trim().min(1).max(200).optional(),
+  })
+  .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
+    message: 'lat and lng must be provided together',
+  })
+  .refine((data) => !(data.bbox && data.radiusKm), {
+    message: 'Pass either bbox or radiusKm, not both',
+  })
+  .refine((data) => !(data.sort === 'distance' && data.lat === undefined), {
+    message: 'sort=distance requires lat and lng',
+  })
 
 export const servicePricingTypeSchema = z.enum([
   'flat',
@@ -340,6 +458,7 @@ export type CreatePackageInput = z.infer<typeof createPackageSchema>
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>
 export type SlotsQueryInput = z.infer<typeof slotsQuerySchema>
 export type ListPublicVendorsQuery = z.infer<typeof listPublicVendorsQuerySchema>
+export type DoorstepAreaInput = z.infer<typeof doorstepAreaSchema>
 
 // The Earnings screen's period toggle. Defaults to the trailing week, which is
 // what the screen opens on.

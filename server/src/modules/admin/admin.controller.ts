@@ -67,6 +67,15 @@ export async function listVendors(c: AdminContext) {
   return c.json({ success: true, data: vendors })
 }
 
+export async function getDemandSupply(c: AdminContext) {
+  const cells = await adminService.getDemandSupply()
+
+  return c.json({
+    success: true,
+    data: cells,
+  })
+}
+
 export async function getVendor(c: AdminContext, id: string) {
   const vendor = await adminService.getVendor(id)
   return c.json({ success: true, data: vendor })

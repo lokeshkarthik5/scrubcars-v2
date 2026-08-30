@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import type { GeoSource } from '../../lib/geo/index.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import {
@@ -50,6 +51,7 @@ import type {
 } from './vendors.repository.js'
 import type {
   CreatePackageInput,
+  DoorstepAreaInput,
   CreatePhotoInput,
   CreateServiceAreaInput,
   CreateServiceImageInput,
@@ -88,6 +90,10 @@ export type VendorResponse = {
   mapsUrl: string | null
   pickup: string | null
   pickupRadiusKm: number | null
+  doorstepRadiusKm: number | null
+  geoSource: GeoSource
+  /** Set when an admin confirmed the pin on a map. Null means nobody has. */
+  geoConfirmedAt: string | null
   bays: number | null
   jobsPerDay: number | null
   vehicleTypes: string[]
@@ -123,6 +129,34 @@ export type VendorListItemResponse = {
   reviewCount: number
   serviceTags: string[]
   photos: string[]
+  // null when the caller sent no origin. Never 0 as a stand-in for "unknown" —
+  // the same rule the client already applies to price and rating.
+  distanceKm: number | null
+  /**
+   * The garage's own coordinates, for plotting it on the map view. Typed
+   * nullable because the column is, though in practice a listed vendor always
+   * has them: verification refuses a garage with no pin, and listings require
+   * verification.
+   */
+  lat: number | null
+  lng: number | null
+}
+
+export type VendorListResponse = {
+  items: VendorListItemResponse[]
+  /**
+   * Opaque. Pass back as `cursor` for the next page; null when the list is
+   * exhausted. Opaque on purpose: it is offset-backed today, and keyset
+   * pagination can replace that later without an API change.
+   */
+  nextCursor: string | null
+  /**
+   * The radius that actually produced these results, in km. Differs from the
+   * requested one when the search auto-widened, and the UI must say so —
+   * silently returning 25 km results for a 10 km query makes a far garage look
+   * near, which is exactly the trust a distance figure is meant to build.
+   */
+  appliedRadiusKm: number | null
 }
 
 export type WorkingHoursResponse = {
@@ -286,6 +320,9 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     mapsUrl: vendor.mapsUrl,
     pickup: vendor.pickup,
     pickupRadiusKm: vendor.pickupRadiusKm,
+    doorstepRadiusKm: vendor.doorstepRadiusKm,
+    geoSource: vendor.geoSource,
+    geoConfirmedAt: vendor.geoConfirmedAt?.toISOString() ?? null,
     bays: vendor.bays,
     jobsPerDay: vendor.jobsPerDay,
     vehicleTypes: vendor.vehicleTypes,
@@ -495,47 +532,185 @@ async function getTenantVendor(vendorId: string): Promise<VendorRecord> {
   return vendor
 }
 
+/**
+ * Drop-in default. Deliberately not 15 km: nobody drives across a city for a
+ * car wash, and a padded list is a worse list. The ladder below handles the
+ * small-town case where 10 km genuinely has nothing in it.
+ */
+const DEFAULT_RADIUS_KM = 10
+
+/**
+ * Tried in order until a page comes back non-empty. Widening is visible to the
+ * caller via `appliedRadiusKm` — a silent widen would make a far garage look
+ * near, which defeats the point of showing a distance at all.
+ *
+ * Only used when the caller did not pin a radius themselves; an explicit
+ * `radiusKm` is taken as a real constraint, not a suggestion.
+ */
+const RADIUS_LADDER_KM = [10, 25, 50]
+
+const DEFAULT_PAGE_SIZE = 20
+
+type Segment = 'located' | 'unlocated'
+
+/**
+ * Opaque to callers; offset-backed today. Carries the segment as well as the
+ * offset, because the list is really two lists back to back — garages with
+ * coordinates, then those still waiting for a pin — and a bare offset could not
+ * say which one a page continues.
+ *
+ * See VendorListResponse.nextCursor.
+ */
+function encodeCursor(segment: Segment, offset: number): string {
+  return Buffer.from(`${segment}:${offset}`).toString('base64url')
+}
+
+function decodeCursor(cursor: string | undefined): {
+  segment: Segment
+  offset: number
+} {
+  const fallback = { segment: 'located' as Segment, offset: 0 }
+  if (!cursor) return fallback
+  try {
+    const [segment, rawOffset] = Buffer.from(cursor, 'base64url')
+      .toString('utf8')
+      .split(':')
+    const offset = Number(rawOffset)
+    if (segment !== 'located' && segment !== 'unlocated') return fallback
+    if (!Number.isInteger(offset) || offset < 0) return fallback
+    return { segment, offset }
+  } catch {
+    // A malformed cursor is a client bug, not a reason to 400 a browse — the
+    // worst case of ignoring it is that the customer sees page one again.
+    return fallback
+  }
+}
+
 export const vendorsService = {
   async listPublicVendors(
     query: ListPublicVendorsQuery
-  ): Promise<VendorListItemResponse[]> {
-    const vendors = await vendorsRepository.listPublicVendors()
+  ): Promise<VendorListResponse> {
+    const origin =
+      query.lat !== undefined && query.lng !== undefined
+        ? { lat: query.lat, lng: query.lng }
+        : undefined
 
-    const matching = vendors.filter((vendor) => {
-      if (query.q) {
-        const term = query.q.toLowerCase()
-        const matchesName = vendor.businessName.toLowerCase().includes(term)
-        const matchesCity = vendor.city.toLowerCase().includes(term)
-        if (!matchesName && !matchesCity) return false
+    // Distance is the most useful default once we know where the customer is,
+    // and impossible before then.
+    const sort = query.sort ?? (origin ? 'distance' : 'relevance')
+    const limit = query.limit ?? DEFAULT_PAGE_SIZE
+    const { segment: startSegment, offset } = decodeCursor(query.cursor)
+
+    // Doorstep is bounded by each vendor's own doorstepRadiusKm, and the map
+    // view is bounded by the viewport. Neither takes a customer radius, so
+    // neither has anything to widen.
+    const usesRadius =
+      origin !== undefined &&
+      query.bbox === undefined &&
+      query.bookingType !== 'doorstep'
+
+    /**
+     * Whether to append garages that have no coordinates yet.
+     *
+     * On by default, because hiding them is the worse failure. Most garages are
+     * still unpinned, and a geo filter they cannot satisfy would empty the
+     * listing entirely — a customer would see "no garages" for a city full of
+     * them. They are appended after the located ones rather than mixed in,
+     * since there is no honest way to rank a garage whose distance is unknown
+     * against one whose distance is 800 m.
+     *
+     * The map view is the exception and passes false: a garage with no
+     * coordinates cannot be drawn on a map, so there is nothing to show.
+     */
+    const includeUnlocated = query.bbox ? false : (query.includeUnlocated ?? true)
+
+    const attempts = !usesRadius
+      ? [undefined]
+      : query.radiusKm !== undefined
+        ? [query.radiusKm]
+        : RADIUS_LADDER_KM
+
+    let page: Array<{ id: string; distanceM: number | null }> = []
+    let appliedRadiusKm: number | null = null
+    let segment: Segment = startSegment
+    let segmentOffset = offset
+
+    // ── Located garages ──────────────────────────────────────────────────────
+    if (segment === 'located') {
+      for (const radiusKm of attempts) {
+        page = await vendorsRepository.listPublicVendorPage({
+          origin,
+          radiusM: radiusKm === undefined ? undefined : radiusKm * 1000,
+          bbox: query.bbox,
+          bookingType: query.bookingType,
+          category: query.category,
+          q: query.q,
+          sort,
+          segment: 'located',
+          limit,
+          offset,
+        })
+        // Only claim a radius that actually produced something. Otherwise a
+        // page made entirely of unlocated garages would be labelled "showing
+        // garages within 50 km" — a statement about a radius that matched
+        // nothing, attached to results the radius never touched.
+        appliedRadiusKm = page.length > 0 ? (radiusKm ?? null) : null
+        // Widening only makes sense while looking at the first page. Past that,
+        // an empty page means the list ran out, not that the radius was too tight.
+        if (page.length > 0 || offset > 0) break
       }
 
-      if (query.category) {
-        const hasCategory = vendor.services.some(
-          (service) => service.category === query.category
-        )
-        if (!hasCategory) return false
+      // The located half is exhausted, so this page continues into the tail.
+      if (page.length < limit && includeUnlocated) {
+        const tail = await vendorsRepository.listPublicVendorPage({
+          bookingType: query.bookingType,
+          category: query.category,
+          q: query.q,
+          sort,
+          segment: 'unlocated',
+          limit: limit - page.length,
+          offset: 0,
+        })
+        segment = 'unlocated'
+        segmentOffset = tail.length
+        page = [...page, ...tail]
+      } else {
+        segmentOffset = offset + page.length
       }
+    } else if (includeUnlocated) {
+      // ── Unlocated tail, continued ──────────────────────────────────────────
+      page = await vendorsRepository.listPublicVendorPage({
+        bookingType: query.bookingType,
+        category: query.category,
+        q: query.q,
+        sort,
+        segment: 'unlocated',
+        limit,
+        offset,
+      })
+      segmentOffset = offset + page.length
+    }
 
-      if (query.bookingType === 'dropin' && !vendor.dropinEnabled) return false
-      if (query.bookingType === 'doorstep' && !vendor.doorstepEnabled) {
-        return false
-      }
-      return true
-    })
+    const rows = await vendorsRepository.listPublicVendorsByIds(
+      page.map((row) => row.id)
+    )
 
-    // One grouped query for the whole page, keyed by vendor id.
     const aggregates = await vendorsRepository.getRatingAggregates(
-      matching.map((vendor) => vendor.id)
+      rows.map((vendor) => vendor.id)
     )
     const ratingsByVendor = new Map(
       aggregates.map((row) => [row.vendorId, row])
     )
+    const distanceByVendor = new Map(
+      page.map((row) => [row.id, row.distanceM])
+    )
 
-    return matching.map((vendor) => {
+    const items = rows.map((vendor): VendorListItemResponse => {
       const categories = [
         ...new Set(vendor.services.map((service) => service.category)),
       ]
       const rating = ratingsByVendor.get(vendor.id)
+      const distanceM = distanceByVendor.get(vendor.id) ?? null
 
       return {
         id: vendor.id,
@@ -551,8 +726,23 @@ export const vendorsService = {
         reviewCount: rating?.count ?? 0,
         serviceTags: categories.map(categoryLabel),
         photos: vendor.photos.map((photo) => photo.url),
+        // One decimal is all a straight-line distance can honestly claim.
+        distanceKm:
+          distanceM === null ? null : Number((distanceM / 1000).toFixed(1)),
+        lat: vendor.lat,
+        lng: vendor.lng,
       }
     })
+
+    return {
+      items,
+      // A full page means there may be another. A short one is the end — and in
+      // the located segment that is only true once the tail has been offered
+      // too, which the segment switch above has already done.
+      nextCursor:
+        items.length === limit ? encodeCursor(segment, segmentOffset) : null,
+      appliedRadiusKm,
+    }
   },
 
   async getPublicVendor(vendorId: string): Promise<PublicVendorResponse> {
@@ -604,6 +794,10 @@ export const vendorsService = {
     const [vendor] = await vendorsRepository.createVendor({
       ownerId,
       ...input,
+      // Coordinates are required at creation, so provenance is always known.
+      // 'map_pin' rather than 'gps' when the client did not say: it makes the
+      // weaker claim, and only 'gps' asserts device-grade accuracy.
+      geoSource: input.geoSource ?? 'map_pin',
     })
 
     await vendorsRepository.setUserAsVendorOwner(ownerId)
@@ -618,8 +812,51 @@ export const vendorsService = {
 
   async updateVendor(vendorId: string, input: UpdateVendorInput) {
     const vendor = await getTenantVendor(vendorId)
-    const [updated] = await vendorsRepository.updateVendor(vendor.id, input)
+    const [updated] = await vendorsRepository.updateVendor(vendor.id, {
+      ...input,
+      // Provenance moves with the coordinates it describes, never on its own.
+      // Moving the pin also clears any prior admin confirmation: what was
+      // confirmed is not where it now is.
+      ...(input.lat !== undefined
+        ? {
+            geoSource: input.geoSource ?? 'map_pin',
+            geoConfirmedAt: null,
+          }
+        : {}),
+    })
     return toVendorResponse(updated)
+  },
+
+  async getDoorstepArea(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
+    const ring = await vendorsRepository.getDoorstepArea(vendor.id)
+    return { ring, doorstepRadiusKm: vendor.doorstepRadiusKm }
+  },
+
+  async setDoorstepArea(vendorId: string, input: DoorstepAreaInput) {
+    const vendor = await getTenantVendor(vendorId)
+
+    // A ring must close. Accepting an open one and silently closing it would
+    // hide a client bug that produces a subtly different area than was drawn.
+    if (input.ring) {
+      const [first] = input.ring
+      const last = input.ring[input.ring.length - 1]
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        throw new AppError(
+          400,
+          'Coverage area must be a closed ring',
+          'INVALID_COVERAGE_AREA'
+        )
+      }
+    }
+
+    await vendorsRepository.setDoorstepArea(vendor.id, input.ring)
+    log.info(
+      { vendorId: vendor.id, cleared: input.ring === null },
+      'vendor:doorstep_area_updated'
+    )
+
+    return vendorsRepository.getDoorstepArea(vendor.id).then((ring) => ({ ring }))
   },
 
   async updateJobTypes(vendorId: string, input: UpdateJobTypesInput) {

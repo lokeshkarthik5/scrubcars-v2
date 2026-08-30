@@ -16,8 +16,9 @@ interface OnboardingData {
   address: string
   pincode: string
   mapsUrl: string
-  lat: number
-  lng: number
+  /** Null until the owner pins the garage on the map in step 2. */
+  lat: number | null
+  lng: number | null
   dropin: boolean
   doorstep: boolean
   pickup: PickupOption
@@ -51,8 +52,12 @@ const initialState: OnboardingData = {
   address: '',
   pincode: '',
   mapsUrl: '',
-  lat: 13.0067,
-  lng: 80.2574,
+  // Null until the owner drops a pin. Previously these defaulted to a hardcoded
+  // Chennai point, which meant every garage submitted the same coordinates and
+  // no distance sort could ever be right. A missing pin is now blocked at the
+  // form rather than papered over with a plausible-looking lie.
+  lat: null,
+  lng: null,
   dropin: true,
   doorstep: false,
   pickup: '',

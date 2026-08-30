@@ -1,7 +1,9 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { userAddresses, users, userVehicles } from '../../db/schema.js'
-import type { vehicleTypeEnum } from '../../db/schema.js'
+import type { geoSourceEnum, vehicleTypeEnum } from '../../db/schema.js'
+
+type GeoSource = (typeof geoSourceEnum.enumValues)[number]
 
 type VehicleType = (typeof vehicleTypeEnum.enumValues)[number]
 
@@ -60,8 +62,9 @@ export const usersRepository = {
     label: string
     address: string
     city: string
-    lat: number
-    lng: number
+    lat?: number | null
+    lng?: number | null
+    geoSource?: GeoSource
     isDefault: boolean
   }) {
     return db.insert(userAddresses).values(data).returning()
@@ -74,8 +77,9 @@ export const usersRepository = {
       label: string
       address: string
       city: string
-      lat: number
-      lng: number
+      lat: number | null
+      lng: number | null
+      geoSource: GeoSource
       isDefault: boolean
     }>
   ) {

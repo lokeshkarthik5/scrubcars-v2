@@ -8,6 +8,12 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  LocationPicker,
+  type PickedLocation,
+} from '@/components/features/location-picker'
+import { CoverageEditor } from '@/components/features/coverage-editor'
 import { ScInput } from '@/components/sc/input'
 import { TopBar } from '@/components/sc/top-bar'
 import { Chip } from '@/components/sc/chip'
@@ -86,6 +92,8 @@ export default function VendorSettingsPage() {
   const [workingHours, setWorkingHours] = useState<WorkingHoursForm[]>(
     defaultWorkingHours()
   )
+  const [pin, setPin] = useState<PickedLocation | null>(null)
+  const [doorstepRadiusKm, setDoorstepRadiusKm] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const logout = useAuthStore((s) => s.logout)
@@ -121,6 +129,21 @@ export default function VendorSettingsPage() {
           pincode: vendorData.pincode,
         })
         setWorkingHours(mapWorkingHours(hoursData))
+        setDoorstepRadiusKm(
+          vendorData.doorstepRadiusKm != null
+            ? String(vendorData.doorstepRadiusKm)
+            : ''
+        )
+        if (vendorData.lat != null && vendorData.lng != null) {
+          setPin({
+            lat: vendorData.lat,
+            lng: vendorData.lng,
+            address: vendorData.address,
+            city: vendorData.city,
+            pincode: vendorData.pincode,
+            source: 'map_pin',
+          })
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to load settings')
       } finally {
@@ -155,8 +178,24 @@ export default function VendorSettingsPage() {
         address: profileForm.address,
         city: profileForm.city,
         pincode: profileForm.pincode,
-        lat: vendor.lat ?? undefined,
-        lng: vendor.lng ?? undefined,
+        lat: pin?.lat ?? vendor.lat ?? undefined,
+        lng: pin?.lng ?? vendor.lng ?? undefined,
+        geoSource: pin?.source,
+      })
+      setVendor(updated)
+    })
+
+  const saveLocation = () =>
+    vendor &&
+    runAction('location', async () => {
+      if (!pin) return
+      const updated = await updateVendorSettings({
+        lat: pin.lat,
+        lng: pin.lng,
+        geoSource: pin.source,
+        doorstepRadiusKm: doorstepRadiusKm
+          ? Number(doorstepRadiusKm)
+          : undefined,
       })
       setVendor(updated)
     })
@@ -206,229 +245,318 @@ export default function VendorSettingsPage() {
     <AppShell showNav navType="vendor" className="gap-5 py-4">
       <TopBar title="Settings" />
 
-      <Link href="/vendor/settings/members">
-        <ScCard className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
-            <IconUsers size={18} className="text-brand-red" />
-          </div>
-          <div className="flex-1">
-            <p className="text-[13px] font-semibold text-text-primary">Team</p>
-            <p className="text-[11px] text-text-secondary">Add admins and operators, and set what they can do</p>
-          </div>
-          <IconChevronRight size={18} className="text-text-muted" />
-        </ScCard>
-      </Link>
+      {/* Four tabs rather than one long scroll. Grouped by the question being
+          answered — who you are, where you are, when you work, everything else —
+          so each panel is a similar size and nothing important sits below three
+          screens of other settings. */}
+      <Tabs defaultValue="profile">
+        <TabsList>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="location">Location</TabsTrigger>
+          <TabsTrigger value="hours">Hours</TabsTrigger>
+          <TabsTrigger value="account">Account</TabsTrigger>
+        </TabsList>
 
-      <Link href="/vendor/photos">
-        <ScCard className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
-            <IconPhoto size={18} className="text-brand-red" />
-          </div>
-          <div className="flex-1">
-            <p className="text-[13px] font-semibold text-text-primary">Garage photos</p>
-            <p className="text-[11px] text-text-secondary">Add photos customers see on your listing</p>
-          </div>
-          <IconChevronRight size={18} className="text-text-muted" />
-        </ScCard>
-      </Link>
-
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Profile</h2>
-          {vendor && (
-            <ScBadge variant={vendor.isVerified ? 'success' : 'pending'}>
-              {vendor.isVerified ? 'Verified' : 'Under review'}
-            </ScBadge>
-          )}
-        </div>
-        <ScCard className="flex flex-col gap-3">
-          <ScInput
-            label="Business name"
-            value={profileForm.businessName}
-            onChange={(e) =>
-              setProfileForm({ ...profileForm, businessName: e.target.value })
-            }
-          />
-          <ScInput
-            label="Phone"
-            value={profileForm.phone}
-            onChange={(e) =>
-              setProfileForm({
-                ...profileForm,
-                phone: e.target.value.replace(/\D/g, '').slice(0, 10),
-              })
-            }
-          />
-          <ScInput
-            label="Address"
-            value={profileForm.address}
-            onChange={(e) =>
-              setProfileForm({ ...profileForm, address: e.target.value })
-            }
-          />
-          <ScInput
-            label="City"
-            value={profileForm.city}
-            onChange={(e) =>
-              setProfileForm({ ...profileForm, city: e.target.value })
-            }
-          />
-          <ScInput
-            label="Pincode"
-            inputMode="numeric"
-            maxLength={6}
-            placeholder="600001"
-            value={profileForm.pincode}
-            onChange={(e) =>
-              setProfileForm({ ...profileForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })
-            }
-          />
-          <ScButton disabled={saving === 'profile'} onClick={saveProfile}>
-            {saving === 'profile' ? 'Saving...' : 'Save profile'}
-          </ScButton>
-        </ScCard>
-      </section>
-
-      {vendor && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold">Slot interval</h2>
-          <ScCard>
-            <div className="flex gap-2">
-              {SLOT_INTERVALS.map((interval) => (
-                <Chip
-                  key={interval}
-                  label={`${interval} min`}
-                  selected={vendor.slotIntervalMins === interval}
-                  onClick={() => saveSlotInterval(interval)}
-                  disabled={saving === 'slot-interval'}
-                />
-              ))}
+        <TabsContent value="profile">
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Profile</h2>
+              {vendor && (
+                <ScBadge variant={vendor.isVerified ? 'success' : 'pending'}>
+                  {vendor.isVerified ? 'Verified' : 'Under review'}
+                </ScBadge>
+              )}
             </div>
-          </ScCard>
-        </section>
-      )}
+            <ScCard className="flex flex-col gap-3">
+              <ScInput
+                label="Business name"
+                value={profileForm.businessName}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, businessName: e.target.value })
+                }
+              />
+              <ScInput
+                label="Phone"
+                value={profileForm.phone}
+                onChange={(e) =>
+                  setProfileForm({
+                    ...profileForm,
+                    phone: e.target.value.replace(/\D/g, '').slice(0, 10),
+                  })
+                }
+              />
+              <ScInput
+                label="Address"
+                value={profileForm.address}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, address: e.target.value })
+                }
+              />
+              <ScInput
+                label="City"
+                value={profileForm.city}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, city: e.target.value })
+                }
+              />
+              <ScInput
+                label="Pincode"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="600001"
+                value={profileForm.pincode}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })
+                }
+              />
+              <ScButton disabled={saving === 'profile'} onClick={saveProfile}>
+                {saving === 'profile' ? 'Saving...' : 'Save profile'}
+              </ScButton>
+            </ScCard>
+          </section>
 
-      {vendor && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold">Job types</h2>
-          <ScCard className="flex flex-col gap-3">
-            {(
-              [
-                { field: 'dropinEnabled', label: 'Drop In', description: 'Customers visit your garage' },
-                { field: 'doorstepEnabled', label: 'Doorstep', description: 'You travel to the customer' },
-              ] as const
-            ).map(({ field, label, description }) => {
-              const enabled = vendor[field]
-              const key = `job-type-${field}`
-              return (
-                <div key={field} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[13px] font-medium text-text-primary">{label}</p>
-                    <p className="text-[11px] text-text-secondary">{description}</p>
-                  </div>
+          <Link href="/vendor/photos">
+            <ScCard className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
+                <IconPhoto size={18} className="text-brand-red" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold text-text-primary">Garage photos</p>
+                <p className="text-[11px] text-text-secondary">Add photos customers see on your listing</p>
+              </div>
+              <IconChevronRight size={18} className="text-text-muted" />
+            </ScCard>
+          </Link>
+        </TabsContent>
+
+        <TabsContent value="location">
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Garage location</h2>
+              {vendor && vendor.lat === null && (
+                <ScBadge variant="pending">Not set</ScBadge>
+              )}
+            </div>
+            <ScCard className="flex flex-col gap-3">
+              {vendor?.lat === null && (
+                <p className="text-[12px] text-warning">
+                  Customers can&apos;t find you until your garage is pinned on the
+                  map, and we can&apos;t verify you without it.
+                </p>
+              )}
+              <LocationPicker
+                value={pin ? { lat: pin.lat, lng: pin.lng } : null}
+                onChange={setPin}
+                expectedCity={profileForm.city}
+              />
+              <ScInput
+                label="Doorstep travel radius (km)"
+                inputMode="decimal"
+                placeholder="e.g. 8"
+                value={doorstepRadiusKm}
+                onChange={(e) =>
+                  setDoorstepRadiusKm(e.target.value.replace(/[^\d.]/g, ''))
+                }
+              />
+              {/* This is the garage's own number, not a radius the customer picks:
+                  a doorstep search asks "who will come to me", so only the garage
+                  can answer it. Leaving it empty means doorstep jobs are declined. */}
+              <p className="text-[11px] text-text-muted">
+                How far you&apos;ll travel for doorstep jobs. Leave empty if you
+                don&apos;t travel.
+              </p>
+              <ScButton
+                disabled={!pin || saving === 'location'}
+                onClick={saveLocation}
+              >
+                {saving === 'location' ? 'Saving...' : 'Save location'}
+              </ScButton>
+            </ScCard>
+          </section>
+
+          {/* Only offered once the garage has a pin — an area drawn around nowhere
+              in particular is not useful, and the map would open on a default city
+              centre rather than on the garage. */}
+          {vendor?.lat != null && (
+            <section>
+              <h2 className="mb-2 text-sm font-semibold">Doorstep coverage area</h2>
+              <ScCard className="flex flex-col gap-3">
+                <p className="text-[12px] text-text-secondary">
+                  Optional. Draw the exact area you&apos;ll travel to — useful when a
+                  river, highway or city boundary means a plain radius gets it wrong.
+                </p>
+                <CoverageEditor
+                  center={{ lat: vendor.lat, lng: vendor.lng as number }}
+                  fallbackRadiusKm={vendor.doorstepRadiusKm}
+                />
+              </ScCard>
+            </section>
+          )}
+        </TabsContent>
+
+        <TabsContent value="hours">
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold">Working hours</h2>
+            <div className="flex flex-col gap-2">
+              {workingHours.map((day) => (
+                <ScCard
+                  key={day.dayOfWeek}
+                  className={cn('flex items-center gap-2', day.isClosed && 'opacity-50')}
+                >
+                  <span className="w-8 text-[12px] font-medium">{DAYS[day.dayOfWeek]}</span>
+                  <input
+                    type="time"
+                    value={day.openTime}
+                    onChange={(e) =>
+                      setWorkingHours((current) =>
+                        current.map((item) =>
+                          item.dayOfWeek === day.dayOfWeek
+                            ? { ...item, openTime: e.target.value }
+                            : item
+                        )
+                      )
+                    }
+                    className="flex-1 rounded-md border border-border bg-surface px-2 py-1 text-[12px]"
+                    disabled={day.isClosed}
+                  />
+                  <input
+                    type="time"
+                    value={day.closeTime}
+                    onChange={(e) =>
+                      setWorkingHours((current) =>
+                        current.map((item) =>
+                          item.dayOfWeek === day.dayOfWeek
+                            ? { ...item, closeTime: e.target.value }
+                            : item
+                        )
+                      )
+                    }
+                    className="flex-1 rounded-md border border-border bg-surface px-2 py-1 text-[12px]"
+                    disabled={day.isClosed}
+                  />
                   <button
                     type="button"
-                    disabled={saving === key}
-                    onClick={() => saveJobType(field, !enabled)}
+                    onClick={() =>
+                      setWorkingHours((current) =>
+                        current.map((item) =>
+                          item.dayOfWeek === day.dayOfWeek
+                            ? { ...item, isClosed: !item.isClosed }
+                            : item
+                        )
+                      )
+                    }
                     className={cn(
-                      'relative h-6 w-11 rounded-full transition-colors',
-                      enabled ? 'bg-brand-red' : 'bg-surface border border-border',
-                      saving === key && 'opacity-50'
+                      'text-[10px] font-medium',
+                      day.isClosed ? 'text-brand-red' : 'text-text-secondary'
                     )}
                   >
-                    <span
-                      className={cn(
-                        'absolute top-0.5 h-5 w-5 rounded-full bg-brand-white shadow transition-transform',
-                        enabled ? 'left-[22px]' : 'left-0.5'
-                      )}
-                    />
+                    {day.isClosed ? 'Closed' : 'Open'}
                   </button>
-                </div>
-              )
-            })}
-          </ScCard>
-        </section>
-      )}
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Working hours</h2>
-        <div className="flex flex-col gap-2">
-          {workingHours.map((day) => (
-            <ScCard
-              key={day.dayOfWeek}
-              className={cn('flex items-center gap-2', day.isClosed && 'opacity-50')}
-            >
-              <span className="w-8 text-[12px] font-medium">{DAYS[day.dayOfWeek]}</span>
-              <input
-                type="time"
-                value={day.openTime}
-                onChange={(e) =>
-                  setWorkingHours((current) =>
-                    current.map((item) =>
-                      item.dayOfWeek === day.dayOfWeek
-                        ? { ...item, openTime: e.target.value }
-                        : item
-                    )
-                  )
-                }
-                className="flex-1 rounded-md border border-border bg-surface px-2 py-1 text-[12px]"
-                disabled={day.isClosed}
-              />
-              <input
-                type="time"
-                value={day.closeTime}
-                onChange={(e) =>
-                  setWorkingHours((current) =>
-                    current.map((item) =>
-                      item.dayOfWeek === day.dayOfWeek
-                        ? { ...item, closeTime: e.target.value }
-                        : item
-                    )
-                  )
-                }
-                className="flex-1 rounded-md border border-border bg-surface px-2 py-1 text-[12px]"
-                disabled={day.isClosed}
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setWorkingHours((current) =>
-                    current.map((item) =>
-                      item.dayOfWeek === day.dayOfWeek
-                        ? { ...item, isClosed: !item.isClosed }
-                        : item
-                    )
-                  )
-                }
-                className={cn(
-                  'text-[10px] font-medium',
-                  day.isClosed ? 'text-brand-red' : 'text-text-secondary'
-                )}
+                </ScCard>
+              ))}
+              <ScButton
+                disabled={saving === 'working-hours'}
+                onClick={saveWorkingHours}
               >
-                {day.isClosed ? 'Closed' : 'Open'}
-              </button>
+                {saving === 'working-hours' ? 'Saving...' : 'Save working hours'}
+              </ScButton>
+            </div>
+          </section>
+
+          {vendor && (
+            <section>
+              <h2 className="mb-2 text-sm font-semibold">Slot interval</h2>
+              <ScCard>
+                <div className="flex gap-2">
+                  {SLOT_INTERVALS.map((interval) => (
+                    <Chip
+                      key={interval}
+                      label={`${interval} min`}
+                      selected={vendor.slotIntervalMins === interval}
+                      onClick={() => saveSlotInterval(interval)}
+                      disabled={saving === 'slot-interval'}
+                    />
+                  ))}
+                </div>
+              </ScCard>
+            </section>
+          )}
+
+          {vendor && (
+            <section>
+              <h2 className="mb-2 text-sm font-semibold">Job types</h2>
+              <ScCard className="flex flex-col gap-3">
+                {(
+                  [
+                    { field: 'dropinEnabled', label: 'Drop In', description: 'Customers visit your garage' },
+                    { field: 'doorstepEnabled', label: 'Doorstep', description: 'You travel to the customer' },
+                  ] as const
+                ).map(({ field, label, description }) => {
+                  const enabled = vendor[field]
+                  const key = `job-type-${field}`
+                  return (
+                    <div key={field} className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[13px] font-medium text-text-primary">{label}</p>
+                        <p className="text-[11px] text-text-secondary">{description}</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving === key}
+                        onClick={() => saveJobType(field, !enabled)}
+                        className={cn(
+                          'relative h-6 w-11 rounded-full transition-colors',
+                          enabled ? 'bg-brand-red' : 'bg-surface border border-border',
+                          saving === key && 'opacity-50'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'absolute top-0.5 h-5 w-5 rounded-full bg-brand-white shadow transition-transform',
+                            enabled ? 'left-[22px]' : 'left-0.5'
+                          )}
+                        />
+                      </button>
+                    </div>
+                  )
+                })}
+              </ScCard>
+            </section>
+          )}
+        </TabsContent>
+
+        <TabsContent value="account">
+
+          {/* Team management arrived on main while this branch was tabbing the
+              screen. It lives under Account rather than Profile: it is about who
+              can act on the garage, not about the garage itself. */}
+          <Link href="/vendor/settings/members">
+            <ScCard className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
+                <IconUsers size={18} className="text-brand-red" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold text-text-primary">Team</p>
+                <p className="text-[11px] text-text-secondary">Add admins and operators, and set what they can do</p>
+              </div>
+              <IconChevronRight size={18} className="text-text-muted" />
             </ScCard>
-          ))}
-          <ScButton
-            disabled={saving === 'working-hours'}
-            onClick={saveWorkingHours}
-          >
-            {saving === 'working-hours' ? 'Saving...' : 'Save working hours'}
+          </Link>
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold">Support</h2>
+            <SupportCard />
+          </section>
+
+          <ScButton variant="secondary" onClick={handleLogout} className="mb-4">
+            <span className="flex items-center justify-center gap-2">
+              <IconLogout size={18} />
+              Log out
+            </span>
           </ScButton>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Support</h2>
-        <SupportCard />
-      </section>
-
-      <ScButton variant="secondary" onClick={handleLogout} className="mb-4">
-        <span className="flex items-center justify-center gap-2">
-          <IconLogout size={18} />
-          Log out
-        </span>
-      </ScButton>
+        </TabsContent>
+      </Tabs>
     </AppShell>
   )
 }

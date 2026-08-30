@@ -13,6 +13,11 @@ export interface AdminVendor {
   email: string | null
   whatsapp: string | null
   isVerified: boolean
+  /** Null until someone pins the garage. Blocks verification while unset. */
+  lat: number | null
+  lng: number | null
+  geoSource: 'unset' | 'gps' | 'map_pin' | 'geocoded' | 'admin'
+  geoConfirmedAt: string | null
   status: string
   createdAt: string
   serviceCount: number
@@ -43,6 +48,12 @@ export interface AdminVendorDetail {
   mapsUrl: string | null
   pickup: 'yes' | 'nearby' | 'no' | null
   pickupRadiusKm: number | null
+  doorstepRadiusKm: number | null
+  /** Null until someone pins the garage. A vendor cannot be verified without it. */
+  lat: number | null
+  lng: number | null
+  geoSource: 'unset' | 'gps' | 'map_pin' | 'geocoded' | 'admin'
+  geoConfirmedAt: string | null
   dropinEnabled: boolean
   doorstepEnabled: boolean
   slotIntervalMins: number
@@ -108,6 +119,16 @@ export interface UpdateVendorInput {
   mapsUrl?: string | null
   pickup?: 'yes' | 'nearby' | 'no' | null
   pickupRadiusKm?: number | null
+  doorstepRadiusKm?: number | null
+  /** Both or neither — the server rejects a half-set pair. */
+  lat?: number
+  lng?: number
+  /**
+   * "I looked at this pin and it is right." Stamps `geoConfirmedAt` without
+   * moving anything — the only way to confirm a pin on an already-verified
+   * vendor, since verification is the other writer and cannot run twice.
+   */
+  confirmLocation?: true
   dropinEnabled?: boolean
   doorstepEnabled?: boolean
   slotIntervalMins?: 30 | 45 | 60
@@ -160,6 +181,9 @@ export interface CreateVendorInput {
   mapsUrl?: string
   pickup?: 'yes' | 'nearby' | 'no'
   pickupRadiusKm?: number
+  doorstepRadiusKm?: number
+  lat?: number
+  lng?: number
   dropinEnabled?: boolean
   doorstepEnabled?: boolean
   slotIntervalMins?: 30 | 45 | 60
@@ -207,6 +231,20 @@ export async function getAdminMe() {
 /** GET /admin/vendors */
 export async function listAdminVendors() {
   return apiClient<AdminVendor[]>('/admin/vendors')
+}
+
+export interface DemandSupplyCell {
+  lat: number
+  lng: number
+  vendorCount: number
+  bookingCount: number
+  /** bookings − garages. Positive means demand this cell cannot serve locally. */
+  gap: number
+}
+
+/** GET /admin/demand-supply */
+export async function getDemandSupply() {
+  return apiClient<DemandSupplyCell[]>('/admin/demand-supply')
 }
 
 /** POST /admin/vendors */

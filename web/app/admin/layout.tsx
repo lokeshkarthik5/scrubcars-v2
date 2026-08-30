@@ -9,6 +9,7 @@ const NAV: PanelNavItem[] = [
   { href: '/admin/vendors', label: 'Vendors' },
   { href: '/admin/bookings', label: 'Bookings' },
   { href: '/admin/discounts', label: 'Discounts' },
+  { href: '/admin/coverage', label: 'Coverage' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

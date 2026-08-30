@@ -7,6 +7,7 @@ import { vendorsService } from './vendors.service.js'
 import type {
   CreatePhotoInput,
   CreatePackageInput,
+  DoorstepAreaInput,
   CreateServiceAreaInput,
   CreateServiceImageInput,
   CreateServiceInput,
@@ -143,6 +144,27 @@ export async function setWorkingHours(
   return c.json({
     success: true,
     data: hours,
+  })
+}
+
+export async function getDoorstepArea(c: VendorsContext) {
+  const area = await vendorsService.getDoorstepArea(getVendorId(c))
+
+  return c.json({
+    success: true,
+    data: area,
+  })
+}
+
+export async function setDoorstepArea(
+  c: VendorsContext,
+  input: DoorstepAreaInput
+) {
+  const area = await vendorsService.setDoorstepArea(getVendorId(c), input)
+
+  return c.json({
+    success: true,
+    data: area,
   })
 }
 

@@ -43,6 +43,28 @@
   textarea::placeholder {
     color: #555555;
   }
+  .maplibregl-popup-content {
+    @apply bg-transparent! shadow-none! p-0! rounded-none!;
+  }
+  .maplibregl-popup-tip {
+    @apply hidden!;
+  }
+  /* mapcn ships these against shadcn's default token names (background,
+     muted-foreground, foreground), which this theme does not define — it uses
+     surface / text-* / brand-*. Remapped rather than adding alias tokens, so
+     there is one vocabulary in the stylesheet rather than two. */
+  .maplibregl-ctrl-attrib {
+    @apply bg-surface! text-text-muted! border-border! rounded-md! border! shadow-sm!;
+  }
+  .maplibregl-ctrl-attrib a {
+    @apply text-text-muted!;
+  }
+  .maplibregl-ctrl-attrib a:hover {
+    @apply text-text-primary!;
+  }
+  .maplibregl-ctrl-attrib-button {
+    @apply bg-transparent! invert;
+  }
 }
 
 /* ─── Motion ────────────────────────────────────────────────────────────────

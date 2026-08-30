@@ -7,31 +7,83 @@ import {
 import type {
   ApiPublicVendor,
   ApiServiceArea,
-  ApiVendorListItem,
+  ApiVendorList,
   ApiVendorProfile,
   ApiWorkingHours,
 } from './types'
 import type { BookingType, Vendor } from '@/lib/types'
 
+export type VendorSort =
+  | 'distance'
+  | 'rating'
+  | 'price_asc'
+  | 'price_desc'
+  | 'relevance'
+
 export interface VendorListParams {
   q?: string
   bookingType?: BookingType
   category?: string
-  pincode?: string
+  /** Customer origin. Both or neither — the server rejects a half-set pair. */
+  lat?: number
+  lng?: number
+  /**
+   * Drop-in only. Doorstep is bounded by each garage's own travel radius, since
+   * the question there is "who will come to me".
+   */
+  radiusKm?: number
+  /** Viewport for the map view's "search as I move the map". */
+  bbox?: string
+  sort?: VendorSort
+  /**
+   * Append garages that have no coordinates yet, after the located ones.
+   * Defaults to true server-side — while most garages are still unpinned,
+   * hiding them would empty the listing for a city full of them.
+   *
+   * Pass false where they cannot be used: the map view cannot draw a garage
+   * with no coordinates.
+   */
+  includeUnlocated?: boolean
+  limit?: number
+  cursor?: string
+}
+
+export interface VendorListResult {
+  vendors: Vendor[]
+  nextCursor: string | null
+  /**
+   * The radius these results actually came from. Worth surfacing: silently
+   * showing 25 km results for a 10 km search makes a far garage look near.
+   */
+  appliedRadiusKm: number | null
 }
 
 /** GET /vendors */
-export async function getVendors(params?: VendorListParams): Promise<Vendor[]> {
-  const vendors = await apiClient<ApiVendorListItem[]>('/vendors', {
+export async function getVendors(
+  params?: VendorListParams
+): Promise<VendorListResult> {
+  const result = await apiClient<ApiVendorList>('/vendors', {
     auth: false,
     params: {
       q: params?.q || undefined,
       bookingType: params?.bookingType,
       category: params?.category,
-      pincode: params?.pincode,
+      lat: params?.lat,
+      lng: params?.lng,
+      radiusKm: params?.radiusKm,
+      bbox: params?.bbox,
+      sort: params?.sort,
+      includeUnlocated: params?.includeUnlocated,
+      limit: params?.limit,
+      cursor: params?.cursor,
     },
   })
-  return vendors.map(mapVendorListItem)
+
+  return {
+    vendors: result.items.map(mapVendorListItem),
+    nextCursor: result.nextCursor,
+    appliedRadiusKm: result.appliedRadiusKm,
+  }
 }
 
 /** GET /vendors/:id */
@@ -58,6 +110,10 @@ export interface VendorProfileInput {
   mapsUrl?: string
   pickup?: 'yes' | 'nearby' | 'no'
   pickupRadiusKm?: number
+  /** How far this garage will travel for doorstep work. */
+  doorstepRadiusKm?: number
+  /** How the coordinates were arrived at. See plans/geo.md §4. */
+  geoSource?: 'gps' | 'map_pin'
   bays?: number
   jobsPerDay?: number
   vehicleTypes?: string[]
@@ -302,6 +358,7 @@ export async function submitVendorOnboarding(
       pincode: data.pincode as string,
       lat: data.lat as number,
       lng: data.lng as number,
+      geoSource: (data.geoSource as 'gps' | 'map_pin') || undefined,
       whatsapp: (data.whatsapp as string) || undefined,
       email: (data.email as string) || undefined,
       yearsInOperation: (data.yearsInOperation as string) || undefined,

@@ -9,6 +9,8 @@ import { ScCard } from '@/components/sc/card'
 import { StarRating } from '@/components/sc/stars'
 import { getEarningsData } from '@/lib/api/earnings'
 import { getVendorReviews } from '@/lib/api/reviews'
+import { getMyVendor } from '@/lib/api/vendors'
+import type { ApiVendorProfile } from '@/lib/api/types'
 import { useIsVendorAdmin } from '@/lib/hooks/use-vendor-role'
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@/lib/stores/auth-store'
@@ -23,10 +25,14 @@ export default function VendorHomePage() {
   const fetchVendorBookings = useBookingsStore((s) => s.fetchVendorBookings)
   const updateStatus = useBookingsStore((s) => s.updateStatus)
   const [reviews, setReviews] = useState<Review[]>([])
+  const [profile, setProfile] = useState<ApiVendorProfile | null>(null)
   const [weekEarnings, setWeekEarnings] = useState<number | null>(null)
   const isVendorAdmin = useIsVendorAdmin()
 
   const isVerified = vendor?.isVerified ?? false
+  // Only meaningful once the profile has loaded — `null` while loading must not
+  // flash a "location missing" warning at a garage that has one.
+  const needsLocation = profile !== null && profile.lat === null
   const pending = useMemo(
     () => vendorBookings.filter((b) => b.status === 'pending'),
     [vendorBookings]
@@ -41,6 +47,9 @@ export default function VendorHomePage() {
     void Promise.all([
       fetchVendorBookings(),
       getVendorReviews(vendor.id).then(setReviews),
+      // The session's vendor summary carries no coordinates, so the full
+      // profile is needed to know whether the garage has been pinned.
+      getMyVendor().then(setProfile).catch(() => undefined),
     ])
   }, [vendor?.id, fetchVendorBookings])
 
@@ -62,10 +71,26 @@ export default function VendorHomePage() {
         {/* <button className="text-text-secondary"><IconBell size={22} /></button> */}
       </div>
 
-      {!isVerified && (
-        <div className="rounded-[10px] border-l-[3px] border-warning bg-warning-muted/30 px-3 py-2.5 text-[13px] text-text-primary">
-          Your profile is under review. You&apos;ll be notified once verified.
-        </div>
+      {/* Ordered by what actually blocks the garage. An unpinned garage cannot
+          be verified at all, so telling them "under review" first would be
+          misleading — there is nothing to review until they act. */}
+      {needsLocation ? (
+        <Link
+          href="/vendor/settings"
+          className="block rounded-[10px] border-l-[3px] border-warning bg-warning-muted/30 px-3 py-2.5 text-[13px] text-text-primary"
+        >
+          <span className="font-medium">Set your garage location</span>
+          <span className="mt-0.5 block text-[12px] text-text-secondary">
+            Customers can&apos;t find you until your garage is on the map, and
+            we can&apos;t verify you without it. Tap to pin it.
+          </span>
+        </Link>
+      ) : (
+        !isVerified && (
+          <div className="rounded-[10px] border-l-[3px] border-warning bg-warning-muted/30 px-3 py-2.5 text-[13px] text-text-primary">
+            Your profile is under review. You&apos;ll be notified once verified.
+          </div>
+        )
       )}
 
       <div className="grid grid-cols-2 gap-2">

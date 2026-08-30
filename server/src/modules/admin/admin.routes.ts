@@ -57,6 +57,14 @@ adminRoutes.delete(
 )
 
 adminRoutes.get('/vendors', ...adminMiddleware, adminController.listVendors)
+
+// Supply-vs-demand by geographic cell: where customers are booking doorstep
+// work with no garage nearby, i.e. where to recruit next.
+adminRoutes.get(
+  '/demand-supply',
+  ...adminMiddleware,
+  adminController.getDemandSupply
+)
 adminRoutes.post(
   '/vendors',
   ...adminMiddleware,

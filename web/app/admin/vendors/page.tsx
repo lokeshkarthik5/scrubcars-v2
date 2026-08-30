@@ -183,6 +183,28 @@ export default function AdminVendorsPage() {
                     )}
                   </Meta>
                   <Meta label="City">{v.city}</Meta>
+                  <Meta label="Location">
+                    {v.lat === null ? (
+                      <Link
+                        href={`/admin/vendors/${v.id}/edit`}
+                        className="text-warning underline-offset-2 hover:underline"
+                      >
+                        Not pinned
+                      </Link>
+                    ) : v.geoConfirmedAt ? (
+                      'Confirmed'
+                    ) : (
+                      // Links straight to the map on the edit screen, since the
+                      // fix is always "look at the pin", never something that can
+                      // be done from this row.
+                      <Link
+                        href={`/admin/vendors/${v.id}/edit`}
+                        className="text-text-muted underline-offset-2 hover:text-text-primary hover:underline"
+                      >
+                        Unconfirmed pin →
+                      </Link>
+                    )}
+                  </Meta>
                   <Meta label="Services">
                     {v.serviceCount > 0 ? (
                       `${v.serviceCount} service${v.serviceCount === 1 ? '' : 's'}`
@@ -197,6 +219,17 @@ export default function AdminVendorsPage() {
                     <span className="inline-flex items-center gap-1 text-[12px] text-text-muted">
                       <IconCheck size={14} /> Verified
                     </span>
+                  ) : v.lat === null ? (
+                    // The server refuses to verify a garage with no pin, since
+                    // listings gate on is_verified and an unpinned garage cannot
+                    // be distance-sorted or checked against a doorstep radius.
+                    // Surfaced here so the block is visible before the click.
+                    <Link
+                      href={`/admin/vendors/${v.id}/edit`}
+                      className="text-[12px] font-medium text-warning"
+                    >
+                      Set location before verifying →
+                    </Link>
                   ) : (
                     <ScButton
                       fullWidth={false}

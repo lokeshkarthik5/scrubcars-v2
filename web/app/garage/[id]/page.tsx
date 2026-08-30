@@ -19,6 +19,7 @@ import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScButton } from '@/components/sc/button'
 import { ScCard } from '@/components/sc/card'
+import { ScSegmented } from '@/components/sc/segmented'
 import { ScSheet } from '@/components/sc/modal'
 import { Reveal } from '@/components/sc/reveal'
 import { Stars } from '@/components/sc/stars'
@@ -28,6 +29,8 @@ import { getVendorPackages } from '@/lib/api/packages'
 import { getVendor } from '@/lib/api/vendors'
 import { categoryLabel } from '@/lib/categories'
 import { useAuthStore } from '@/lib/stores/auth-store'
+import { coarse, useLocationStore } from '@/lib/stores/location-store'
+import { toMinutes, useTravelTime } from '@/lib/api/hooks/use-travel-time'
 import type { Review, Service, ServicePackage, Vendor } from '@/lib/types'
 import { formatServicePrice, tierPriceFor } from '@/lib/pricing'
 import { VEHICLE_TIERS } from '@/lib/vehicles'
@@ -45,6 +48,8 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const { id } = use(params)
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+  // Named to avoid shadowing the DOM's global `location`.
+  const activeLocation = useLocationStore((s) => s.location)
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [services, setServices] = useState<Service[]>([])
@@ -116,6 +121,15 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     const bookPath = `/book/${id}?service=${selected}`
     router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
   }
+
+  // Routing is the one geo call whose volume tracks browsing rather than saves,
+  // so it fires for this one garage only, never for a list. Declared above the
+  // loading early-return with the other hooks — the query is disabled until
+  // both endpoints are known, so it costs nothing while the vendor loads.
+  const travel = useTravelTime(
+    activeLocation ? coarse(activeLocation) : null,
+    vendor ? { lat: vendor.lat, lng: vendor.lng } : null
+  )
 
   if (!vendor) {
     return (
@@ -207,6 +221,15 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
               <span>{vendor.distance}</span>
             </>
           )}
+          {/* Straight-line distance above, driving time here — kept as two
+              separate facts on purpose. "2.1 km away" across a river is honest;
+              calling it an 8-minute drive would not be. */}
+          {travel.data && (
+            <>
+              <span>·</span>
+              <span>{formatDuration(toMinutes(travel.data.durationS))} drive</span>
+            </>
+          )}
         </div>
 
         {vendor.area && (
@@ -219,29 +242,24 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         )}
 
         {bothModes && (
-          <div className="mt-1 flex rounded-[12px] bg-surface p-1">
-            {(
-              [
-                { value: 'dropin', label: 'At Garage', icon: IconBuildingStore },
-                { value: 'doorstep', label: 'Doorstep', icon: IconHome },
-              ] as const
-            ).map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setMode(value)}
-                className={cn(
-                  'flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors',
-                  mode === value
-                    ? 'bg-surface-elevated text-text-primary ring-1 ring-border'
-                    : 'text-text-secondary'
-                )}
-              >
-                <Icon size={15} />
-                {label}
-              </button>
-            ))}
-          </div>
+          <ScSegmented
+            aria-label="Service mode"
+            className="mt-1"
+            value={mode}
+            onChange={setMode}
+            options={[
+              {
+                value: 'dropin',
+                label: 'At Garage',
+                icon: <IconBuildingStore size={15} />,
+              },
+              {
+                value: 'doorstep',
+                label: 'Doorstep',
+                icon: <IconHome size={15} />,
+              },
+            ]}
+          />
         )}
       </div>
 

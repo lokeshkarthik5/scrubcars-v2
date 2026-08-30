@@ -80,6 +80,34 @@ async function assertServiceImageCapacity(serviceId: string) {
   }
 }
 
+/**
+ * A garage with no coordinates cannot be distance-sorted, cannot be found by a
+ * customer browsing nearby, and cannot have its doorstep radius checked.
+ *
+ * Public listings already require `is_verified`, so refusing to verify without
+ * a pin is what keeps pin-less garages out of customer-facing results — with no
+ * special case in the listing query and no "location not set" tail to design.
+ * The invariant is enforced at the one gate a human already stands at.
+ */
+function assertPinnedBeforeVerifying(vendor: {
+  lat: number | null
+  lng: number | null
+}) {
+  // Off by default while the pre-map-picker backlog is still unpinned — see
+  // env.geoRequirePin. Verifying without a pin is survivable now that the
+  // listing appends unlocated garages after the located ones; what it costs
+  // them is distance sorting and doorstep coverage, not visibility.
+  if (!env.geoRequirePin) return
+
+  if (vendor.lat === null || vendor.lng === null) {
+    throw new AppError(
+      422,
+      'Set the garage location on the map before verifying',
+      'VENDOR_LOCATION_REQUIRED'
+    )
+  }
+}
+
 export const adminService = {
   async login(input: LoginInput): Promise<{ accessToken: string }> {
     const validUser = safeEqual(input.username, env.adminUsername)
@@ -136,6 +164,30 @@ export const adminService = {
       })
     }
 
+    // Flipping isVerified through the general update has the same requirement
+    // as the dedicated verify endpoint, and must check against the pin the row
+    // will have *after* this patch — an admin can legitimately set the
+    // coordinates and verify in one submit.
+    if (input.isVerified) {
+      assertPinnedBeforeVerifying({
+        lat: input.lat ?? vendor.lat,
+        lng: input.lng ?? vendor.lng,
+      })
+    }
+
+    const pinMoved =
+      input.lat !== undefined &&
+      input.lng !== undefined &&
+      (input.lat !== vendor.lat || input.lng !== vendor.lng)
+
+    if (input.confirmLocation === true && !pinMoved && vendor.lat === null) {
+      throw new AppError(
+        422,
+        'Set the garage location before confirming it',
+        'VENDOR_LOCATION_REQUIRED'
+      )
+    }
+
     // Only forward vendor-table columns that were actually provided. `null`
     // clears a nullable column; `undefined` leaves it untouched.
     const patch: Parameters<typeof adminRepository.updateVendor>[1] = {
@@ -154,6 +206,29 @@ export const adminService = {
       ...(input.pickupRadiusKm !== undefined && {
         pickupRadiusKm: input.pickupRadiusKm,
       }),
+      ...(input.doorstepRadiusKm !== undefined && {
+        doorstepRadiusKm: input.doorstepRadiusKm,
+      }),
+      // Staff placing a pin by hand is its own provenance, and it supersedes
+      // whatever the vendor originally set. Moving it also counts as confirming
+      // it — an admin who just dragged a marker onto a garage has done exactly
+      // the checking that `geoConfirmedAt` records.
+      //
+      // Compared against the stored value rather than merely being present: the
+      // edit form round-trips the current coordinates on every save, so keying
+      // off presence alone would let someone confirm a pin by editing a phone
+      // number.
+      ...(pinMoved && {
+        lat: input.lat,
+        lng: input.lng,
+        geoSource: 'admin' as const,
+        geoConfirmedAt: new Date(),
+      }),
+      // An explicit "this pin is already right" from the admin screen, for the
+      // common case where nothing needs moving. Without it there was no way to
+      // confirm a pin at all once a vendor was verified — `verifyVendor` was the
+      // only writer, and it cannot run twice.
+      ...(input.confirmLocation === true && { geoConfirmedAt: new Date() }),
       ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
       ...(input.doorstepEnabled !== undefined && {
         doorstepEnabled: input.doorstepEnabled,
@@ -241,12 +316,36 @@ export const adminService = {
     return updated
   },
 
+  /**
+   * Where demand outruns supply.
+   *
+   * Each cell reports how many live garages and how many doorstep bookings it
+   * contains. `gap` is the ops signal: bookings with no garage in the cell means
+   * customers are being served from further away than they should be, which is
+   * where the next garage is worth recruiting.
+   */
+  async getDemandSupply() {
+    const cells = await adminRepository.getDemandSupplyCells()
+
+    return cells.map((cell) => ({
+      ...cell,
+      // Positive when a cell has demand it cannot serve locally. Kept as a raw
+      // difference rather than a ratio so a cell with 3 bookings and 0 garages
+      // is not indistinguishable from one with 30 and 0.
+      gap: cell.bookingCount - cell.vendorCount,
+    }))
+  },
+
   async verifyVendor(id: string) {
     const vendor = await adminRepository.findVendorById(id)
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
+    assertPinnedBeforeVerifying(vendor)
+
+    // Verifying is the moment a human looked at this garage, so it is also the
+    // moment its pin becomes confirmed.
     const [updated] = await adminRepository.verifyVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-verified')
     return updated
@@ -302,6 +401,13 @@ export const adminService = {
       })
     }
 
+    if (input.isVerified) {
+      assertPinnedBeforeVerifying({
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+      })
+    }
+
     const [vendor] = await adminRepository.createVendor({
       ownerId: owner.id,
       businessName: input.businessName,
@@ -315,6 +421,10 @@ export const adminService = {
       mapsUrl: input.mapsUrl ?? null,
       pickup: input.pickup ?? null,
       pickupRadiusKm: input.pickupRadiusKm ?? null,
+      doorstepRadiusKm: input.doorstepRadiusKm ?? null,
+      lat: input.lat ?? null,
+      lng: input.lng ?? null,
+      ...(input.lat !== undefined && { geoSource: 'admin' as const }),
       ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
       ...(input.doorstepEnabled !== undefined && { doorstepEnabled: input.doorstepEnabled }),
       ...(input.slotIntervalMins !== undefined && { slotIntervalMins: input.slotIntervalMins }),

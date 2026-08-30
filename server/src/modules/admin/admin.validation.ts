@@ -95,9 +95,18 @@ export const createVendorSchema = z.object({
   whatsapp: phoneSchema.optional(),
   yearsInOperation: z.string().trim().max(20).optional(),
   mapsUrl: z.string().trim().url().max(2048).optional(),
+  // Location. Optional here, unlike the vendor's own onboarding: staff often
+  // create a garage record from a phone call and pin it afterwards. The
+  // consequence is enforced at verification instead — a garage cannot go live
+  // without coordinates.
+  lat: z.number().finite().min(-90).max(90).optional(),
+  lng: z.number().finite().min(-180).max(180).optional(),
   // Operations
   pickup: z.enum(['yes', 'nearby', 'no']).optional(),
   pickupRadiusKm: z.number().positive().optional(),
+  // How far this garage travels for doorstep work. Distinct from
+  // pickupRadiusKm, which is pickup-and-drop of the vehicle.
+  doorstepRadiusKm: z.number().positive().max(100).optional(),
   dropinEnabled: z.boolean().optional(),
   doorstepEnabled: z.boolean().optional(),
   slotIntervalMins: z
@@ -117,6 +126,9 @@ export const createVendorSchema = z.object({
   // Services offered (structured: bookable line items)
   services: z.array(serviceInputSchema).max(50).optional(),
 })
+  .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
+    message: 'lat and lng must be provided together',
+  })
 
 // Partial update of an existing vendor. Every field is optional; only the keys
 // present in the payload are changed. Nullable fields accept `null` to clear
@@ -140,6 +152,18 @@ export const updateVendorSchema = z.object({
   mapsUrl: z.string().trim().url().max(2048).nullable().optional(),
   pickup: z.enum(['yes', 'nearby', 'no']).nullable().optional(),
   pickupRadiusKm: z.number().positive().nullable().optional(),
+  doorstepRadiusKm: z.number().positive().max(100).nullable().optional(),
+  // Staff correcting a pin on the map. Both or neither — a half-set pair is
+  // never anything but a bug.
+  lat: z.number().finite().min(-90).max(90).optional(),
+  lng: z.number().finite().min(-180).max(180).optional(),
+  /**
+   * "I looked at this pin and it is right." Stamps `geoConfirmedAt` without
+   * moving anything, which is the only way to confirm a pin on a vendor that is
+   * already verified — verification is the other writer, and it cannot run
+   * twice.
+   */
+  confirmLocation: z.literal(true).optional(),
   dropinEnabled: z.boolean().optional(),
   doorstepEnabled: z.boolean().optional(),
   slotIntervalMins: z
@@ -159,6 +183,9 @@ export const updateVendorSchema = z.object({
   // Omit the key entirely to leave services untouched.
   services: z.array(serviceUpdateSchema).max(50).optional(),
 })
+  .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
+    message: 'lat and lng must be provided together',
+  })
 
 // ─── Media (vendor logo / photos, service images) ────────────────────────────
 //

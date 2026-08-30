@@ -137,6 +137,51 @@ export async function lockVehicle(
 }
 
 export const bookingsRepository = {
+  /**
+   * Is this garage willing to travel to this point?
+   *
+   * The bound is the vendor's own coverage, not a radius the customer chose —
+   * the question a doorstep booking asks is "will you come to me", and the
+   * garage is the only party that can answer it.
+   *
+   * Two shapes, in priority order:
+   *   1. A drawn polygon (`doorstep_area`), when the vendor set one. Real
+   *      coverage is rarely circular — a river or a highway cuts it.
+   *   2. Otherwise `doorstep_radius_km`, the simple default.
+   * A vendor with neither has not opted into travelling anywhere, which the
+   * COALESCE to 0 expresses precisely.
+   *
+   * PostGIS calls are schema-qualified because the extension lives in `gis`;
+   * see drizzle/0019_add_geo.sql.
+   */
+  async isWithinDoorstepRadius(
+    vendorId: string,
+    lat: number,
+    lng: number
+  ): Promise<boolean> {
+    const rows = await db.execute<{ covered: boolean }>(sql`
+      SELECT CASE
+               WHEN v.doorstep_area IS NOT NULL
+               THEN gis.ST_Covers(
+                      v.doorstep_area,
+                      gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography
+                    )
+               ELSE gis.ST_DWithin(
+                      v.geo,
+                      gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography,
+                      COALESCE(v.doorstep_radius_km, 0) * 1000,
+                      false
+                    )
+             END AS covered
+        FROM vendors v
+       WHERE v.id = ${vendorId} AND v.geo IS NOT NULL
+    `)
+
+    // No row means the garage has no pin at all, which cannot be verified and
+    // therefore cannot be booked — not "covered by default".
+    return Array.from(rows)[0]?.covered === true
+  },
+
   findBookingById(id: string) {
     return db.query.bookings.findFirst({
       where: eq(bookings.id, id),

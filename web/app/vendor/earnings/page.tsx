@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/sc/app-shell'
 import { ScBadge } from '@/components/sc/badge'
 import { ScCard } from '@/components/sc/card'
+import { ScSegmented } from '@/components/sc/segmented'
 import { StarRating } from '@/components/sc/stars'
 import { TopBar } from '@/components/sc/top-bar'
 import { EMPTY_EARNINGS_SUMMARY, getEarningsData } from '@/lib/api/earnings'
@@ -65,21 +66,16 @@ export default function VendorEarningsPage() {
       <TopBar
         title="Earnings"
         right={
-          <div className="flex rounded-md bg-surface p-0.5 text-[11px]">
-            {(['week', 'month'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriod(p)}
-                className={cn(
-                  'rounded px-2 py-1 capitalize',
-                  period === p ? 'bg-brand-red text-brand-white' : 'text-text-secondary'
-                )}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          <ScSegmented
+            aria-label="Earnings period"
+            size="sm"
+            value={period}
+            onChange={setPeriod}
+            options={[
+              { value: 'week', label: 'Week' },
+              { value: 'month', label: 'Month' },
+            ]}
+          />
         }
       />
 

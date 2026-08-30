@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookings,
@@ -86,10 +86,75 @@ export const adminRepository = {
     return db.update(vendors).set(data).where(eq(vendors.id, id)).returning()
   },
 
+  /**
+   * Supply-vs-demand by geographic cell, for the ops view.
+   *
+   * Buckets both garages and doorstep booking locations onto a grid and reports
+   * where they disagree — cells with customers ordering doorstep work but no
+   * garage nearby are where the next garage should be recruited.
+   *
+   * The grid is plain coordinate rounding rather than H3. At city scale the
+   * distortion from using degrees is irrelevant (a cell is ~1.1 km tall and
+   * ~1.08 km wide at Chennai's latitude), and it needs no extension, no
+   * dependency and no index — the alternative was pulling in H3 to answer a
+   * question that a GROUP BY already answers. Revisit if this ever needs to be
+   * correct across very different latitudes.
+   */
+  async getDemandSupplyCells(precision = 2) {
+    const rows = await db.execute<{
+      cell_lat: number
+      cell_lng: number
+      vendor_count: number
+      booking_count: number
+    }>(sql`
+      WITH grid AS (
+        SELECT
+          round(v.lat::numeric, ${precision}) AS cell_lat,
+          round(v.lng::numeric, ${precision}) AS cell_lng,
+          1 AS is_vendor,
+          0 AS is_booking
+          FROM vendors v
+         WHERE v.lat IS NOT NULL
+           AND v.status = 'active'
+           AND v.is_verified = true
+
+        UNION ALL
+
+        SELECT
+          round(b.lat::numeric, ${precision}) AS cell_lat,
+          round(b.lng::numeric, ${precision}) AS cell_lng,
+          0 AS is_vendor,
+          1 AS is_booking
+          FROM bookings b
+         WHERE b.lat IS NOT NULL
+           AND b.status <> 'cancelled'
+      )
+      SELECT
+        cell_lat::float AS cell_lat,
+        cell_lng::float AS cell_lng,
+        sum(is_vendor)::int  AS vendor_count,
+        sum(is_booking)::int AS booking_count
+        FROM grid
+       GROUP BY cell_lat, cell_lng
+       ORDER BY sum(is_booking) DESC, sum(is_vendor) ASC
+       LIMIT 500
+    `)
+
+    return Array.from(rows).map((row) => ({
+      lat: Number(row.cell_lat),
+      lng: Number(row.cell_lng),
+      vendorCount: Number(row.vendor_count),
+      bookingCount: Number(row.booking_count),
+    }))
+  },
+
   verifyVendor(id: string) {
     return db
       .update(vendors)
-      .set({ isVerified: true, status: 'active' })
+      // Verifying is the moment a human actually looked at this garage, so it
+      // is also the moment its pin counts as confirmed. The service refuses to
+      // get here while geo is null.
+      .set({ isVerified: true, status: 'active', geoConfirmedAt: new Date() })
       .where(eq(vendors.id, id))
       .returning()
   },

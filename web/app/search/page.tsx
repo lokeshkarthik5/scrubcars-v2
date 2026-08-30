@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { IconAdjustments, IconSearch } from '@tabler/icons-react'
 import { AppShell } from '@/components/sc/app-shell'
@@ -8,15 +8,16 @@ import { FilterChip } from '@/components/sc/chip'
 import { SortSheet, sortLabel, type SortKey } from '@/components/sc/sort-sheet'
 import { VendorCard } from '@/components/features/vendor-card'
 import { Reveal } from '@/components/sc/reveal'
-import { getVendors } from '@/lib/api/vendors'
-import { sortVendors } from '@/lib/sort-vendors'
-
-import type { Vendor } from '@/lib/types'
+import { useVendorSearch } from '@/lib/api/hooks/use-vendors'
+import { InfiniteSentinel } from '@/components/sc/infinite-sentinel'
+import { useDebounced } from '@/lib/hooks/use-debounced'
+import { coarse, useLocationStore } from '@/lib/stores/location-store'
 
 // Quick-access shortcuts for the most-used sorts. The Filter button opens the
 // sheet with the full set, and both drive the same `sort` state so the chip
 // highlight always reflects what the list is actually ordered by.
 const SORT_CHIPS: { label: string; value: SortKey }[] = [
+  { label: 'Nearest', value: 'distance' },
   { label: 'Rating', value: 'rating' },
   { label: 'Price', value: 'price_asc' },
 ]
@@ -26,14 +27,29 @@ function SearchContent() {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('relevance')
   const [sortOpen, setSortOpen] = useState(false)
-  const [vendors, setVendors] = useState<Vendor[]>([])
+  const location = useLocationStore((s) => s.location)
+  // Without this, every keystroke is a fresh paged query.
+  const debouncedQuery = useDebounced(query, 300)
+  const category = searchParams.get('category') ?? undefined
+  const origin = location ? coarse(location) : undefined
 
-  useEffect(() => {
-    const category = searchParams.get('category') ?? undefined
-    getVendors({ q: query, category }).then(setVendors)
-  }, [query, searchParams])
-
-  const sorted = useMemo(() => sortVendors(vendors, sort), [vendors, sort])
+  // Filtering, sorting and paging all happen in SQL — the client holds one page
+  // and cannot order a list it has only partly seen.
+  const {
+    vendors,
+    hasMore,
+    isLoading,
+    isFetchingMore,
+    loadMore,
+  } = useVendorSearch({
+    q: debouncedQuery || undefined,
+    category,
+    lat: origin?.lat,
+    lng: origin?.lng,
+    // Falling back off 'distance' matters: without an origin the server
+    // rejects it, and a rejected browse is worse than an unsorted one.
+    sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
+  })
 
   return (
     <AppShell showNav showBrand className="gap-4 py-4">
@@ -69,23 +85,40 @@ function SearchContent() {
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] text-text-secondary">{sorted.length} garages found</p>
+        <p className="text-[11px] text-text-secondary">
+          {/* "20+" rather than "20": the count is what has been paged in so
+              far, not the size of the result set, and stating it flatly would
+              be a number the next scroll contradicts. */}
+          {vendors.length}
+          {hasMore ? '+' : ''} garage{vendors.length === 1 && !hasMore ? '' : 's'} found
+        </p>
         {sort !== 'relevance' && (
           <p className="text-[11px] text-text-secondary">Sorted by {sortLabel(sort)}</p>
         )}
       </div>
 
       <div className="flex flex-col gap-2">
-        {sorted.length === 0 ? (
+        {isLoading ? (
+          <p className="py-6 text-center text-[13px] text-text-secondary">
+            Searching…
+          </p>
+        ) : vendors.length === 0 ? (
           <p className="py-6 text-center text-[13px] text-text-secondary">
             No garages match your search.
           </p>
         ) : (
-          sorted.map((vendor, i) => (
-            <Reveal key={vendor.id} index={i}>
-              <VendorCard vendor={vendor} />
-            </Reveal>
-          ))
+          <>
+            {vendors.map((vendor, i) => (
+              <Reveal key={vendor.id} index={i}>
+                <VendorCard vendor={vendor} />
+              </Reveal>
+            ))}
+            <InfiniteSentinel
+              onVisible={loadMore}
+              enabled={hasMore}
+              loading={isFetchingMore}
+            />
+          </>
         )}
       </div>
 
@@ -94,6 +127,7 @@ function SearchContent() {
         value={sort}
         onChange={setSort}
         onClose={() => setSortOpen(false)}
+        locationUnavailable={!location}
       />
     </AppShell>
   )

@@ -16,8 +16,15 @@ export interface CreateAddressPayload {
   label: string
   address: string
   city: string
-  lat: number
-  lng: number
+  /**
+   * Optional, and all-or-nothing with `lng`. An address saved without a pin is
+   * a legitimate state — it books a drop-in slot fine, and the customer is
+   * prompted for a pin when they pick it for doorstep, which is the one place
+   * the coordinate actually matters.
+   */
+  lat?: number
+  lng?: number
+  geoSource?: 'gps' | 'map_pin'
   isDefault?: boolean
 }
 

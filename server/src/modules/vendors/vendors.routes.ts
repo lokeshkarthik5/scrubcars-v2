@@ -33,6 +33,7 @@ import {
   updateSlotIntervalSchema,
   updateVendorSchema,
   vendorIdParamSchema,
+  doorstepAreaSchema,
 } from './vendors.validation.js'
 
 export const vendorsRoutes = new Hono<{ Variables: TenantVariables }>()
@@ -118,6 +119,21 @@ vendorsRoutes.put(
   ...tenantMiddleware,
   zValidator('json', setWorkingHoursSchema),
   (c) => vendorsController.setWorkingHours(c, c.req.valid('json'))
+)
+
+// Drawn doorstep coverage. Overrides doorstepRadiusKm when set, because real
+// coverage is rarely a circle — a river or a highway cuts it.
+vendorsRoutes.get(
+  '/me/doorstep-area',
+  ...tenantMiddleware,
+  vendorsController.getDoorstepArea
+)
+
+vendorsRoutes.put(
+  '/me/doorstep-area',
+  ...tenantMiddleware,
+  zValidator('json', doorstepAreaSchema),
+  (c) => vendorsController.setDoorstepArea(c, c.req.valid('json'))
 )
 
 vendorsRoutes.get(
