@@ -45,10 +45,20 @@ app.use(
   cors({
     origin: env.corsOrigin,
     credentials: true,
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // Stated rather than reflected back from Access-Control-Request-Headers.
+    // X-Vendor-Id is a non-simple header, so every vendor-scoped mutation now
+    // preflights; naming it here means a misconfigured reflection cannot
+    // silently strip the tenant header and turn every multi-company request
+    // into a 400 VENDOR_ID_REQUIRED.
+    allowHeaders: ['Content-Type', 'X-Vendor-Id'],
     // A custom response header is invisible to the browser unless it is
     // exposed. This one is how the vendor portal knows to render its support
     // session banner.
     exposeHeaders: [SUPPORT_SESSION_HEADER],
+    // Cache the preflight for a day so the extra round-trip is paid once per
+    // browser session rather than before every mutation.
+    maxAge: 86400,
   })
 )
 

@@ -21,10 +21,30 @@ export const env = {
   refreshTokenExpiresDays: Number(
     process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? '30'
   ),
+  /**
+   * Origins allowed to call this API with credentials.
+   *
+   * Each frontend is its own deployment on its own host and calls this API
+   * directly, so every one of them needs a seat here — including the three
+   * local dev ports (users 3000, vendors 3001, admin 3002).
+   *
+   * The session cookies stay SameSite=Lax and host-only on the API domain:
+   * detlio.com, vendor.detlio.com, admin.detlio.com and api.detlio.com share
+   * the registrable domain detlio.com, which makes these requests same-site,
+   * so Lax cookies are sent without needing SameSite=None.
+   *
+   * Preview deployments are the exception — *.vercel.app is on the Public
+   * Suffix List, so each preview URL is a different site and its cookies would
+   * be dropped. Previews route through their own app's /api/v1 proxy instead,
+   * which is why no *.vercel.app origin is listed here.
+   */
   corsOrigin: process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
     : [
         'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'https://detlio.com',
         'https://www.detlio.com',
         'https://vendor.detlio.com',
         'https://admin.detlio.com',

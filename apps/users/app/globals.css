@@ -1,0 +1,7 @@
+@import '@repo/ui/styles/globals.css';
+
+/* Tailwind v4 discovers utility classes by scanning source files. The app's own
+   files are found automatically; the shared component package is not, and
+   without this line every class that only appears in @repo/ui is dropped from
+   the build. */
+@source '../../../packages/ui/src';
