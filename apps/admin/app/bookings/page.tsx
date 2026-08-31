@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconCalendar } from '@tabler/icons-react'
 import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
@@ -8,8 +8,8 @@ import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { TopBar } from '@repo/ui/sc/top-bar'
-import { ApiError } from '@repo/core/api/client'
-import { listAdminBookings, type AdminBooking } from '@repo/core/api/admin'
+import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
+import { useAdminBookings } from '@repo/core/api/hooks/use-admin-vendors'
 import { formatBookingAmount } from '@repo/core/pricing'
 import { APP_TIMEZONE } from '@repo/core/utils'
 
@@ -38,30 +38,16 @@ function Meta({ label, children }: { label: string; children: React.ReactNode })
 
 export default function AdminBookingsPage() {
   const router = useRouter()
-  const [bookings, setBookings] = useState<AdminBooking[]>([])
   const [status, setStatus] = useState<(typeof STATUSES)[number]>('all')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      setBookings(await listAdminBookings(status === 'all' ? undefined : status))
-    } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        router.replace('/login')
-        return
-      }
-      setError('Failed to load bookings')
-    } finally {
-      setLoading(false)
-    }
-  }, [router, status])
+  const { data, isPending, error, refetch } = useAdminBookings(status)
+  const bookings = data ?? []
+  const loading = isPending
 
+  // A dead admin session is a redirect, not an error message.
   useEffect(() => {
-    void load()
-  }, [load])
+    if (isAuthError(error)) router.replace('/login')
+  }, [error, router])
 
   return (
     <>
@@ -92,7 +78,10 @@ export default function AdminBookingsPage() {
           <SkeletonCard />
         </div>
       ) : error ? (
-        <ErrorState message={error} onRetry={load} />
+        <ErrorState
+          message={errorMessage(error, 'Failed to load bookings')}
+          onRetry={() => void refetch()}
+        />
       ) : bookings.length === 0 ? (
         <EmptyState
           icon={<IconCalendar size={32} stroke={1.5} />}

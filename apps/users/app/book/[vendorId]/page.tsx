@@ -50,10 +50,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
-  const [services, setServices] = useState<Service[]>([])
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
-  const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
+  const [pickedVehicle, setPickedVehicle] = useState<string | null>(null)
   const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
@@ -85,7 +84,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       }
     })
     getVendorServices(vendorId).then((svcs) => {
-      setServices(svcs)
+      // The list itself is never rendered — this screen books one service, so
+      // only the selection is kept.
       const preselected = serviceId
         ? svcs.find((s) => s.id === serviceId)
         : svcs[0]
@@ -99,11 +99,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // cars, preselecting one would make the order summary appear the instant a
   // time was picked — collapsing the "pick your car" step the page is built
   // around. With exactly one car, asking for a tap is pure friction.
-  useEffect(() => {
-    if (vehicles.length === 1 && !selectedVehicle) {
-      setSelectedVehicle(vehicles[0].id)
-    }
-  }, [vehicles, selectedVehicle])
+  //
+  // Derived rather than written back by an effect, for the same reason
+  // `appliedDiscount` below is: with one car there is no render where the
+  // selection is still empty, and nothing has to re-fire when the car list
+  // arrives.
+  const selectedVehicle =
+    pickedVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
 
   // Derived rather than cleared in an effect: if the customer switches service
   // or car, the applied code is simply not the applied code any more. There is
@@ -336,7 +338,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <button
                   key={v.id}
                   type="button"
-                  onClick={() => setSelectedVehicle(v.id)}
+                  onClick={() => setPickedVehicle(v.id)}
                 >
                   <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>
                     <p className="text-[13px] font-medium">{v.make} {v.model}</p>
@@ -479,7 +481,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       <AddCarSheet
         open={addCarOpen}
         onClose={() => setAddCarOpen(false)}
-        onAdded={(vehicle) => setSelectedVehicle(vehicle.id)}
+        onAdded={(vehicle) => setPickedVehicle(vehicle.id)}
       />
 
       <ScSheet

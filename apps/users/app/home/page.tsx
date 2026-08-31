@@ -51,7 +51,14 @@ function HomeContent() {
   // effect, so a location fix cannot race a tap on the sort sheet.
   const [chosenSort, setChosenSort] = useState<SortKey | null>(null)
   const [sortOpen, setSortOpen] = useState(false)
-  const [showToast, setShowToast] = useState(false)
+  // Derived from the URL rather than synced into state by an effect: the
+  // toast is a function of "arrived with ?welcome=1 and hasn't dismissed it",
+  // and there is no render in between where the two could disagree. Safe to
+  // read during render because this component sits inside the <Suspense>
+  // boundary below, so it is never part of the prerendered HTML.
+  const [toastDismissed, setToastDismissed] = useState(false)
+  const showToast =
+    !toastDismissed && searchParams.get('welcome') === '1'
 
   const location = useLocationStore((s) => s.location)
   const permission = useLocationStore((s) => s.permission)
@@ -104,10 +111,6 @@ function HomeContent() {
   useEffect(() => {
     if (authUser) void fetchProfile().catch(() => undefined)
   }, [authUser, fetchProfile])
-
-  useEffect(() => {
-    if (searchParams.get('welcome') === '1') setShowToast(true)
-  }, [searchParams])
 
   // Offered only after results are on screen: the sheet argues "sort these by
   // distance", which needs a list to point at. Prompting before anything has
@@ -163,7 +166,7 @@ function HomeContent() {
       <Toast
         message={`Welcome, ${user?.name ?? 'there'}! Find your first car wash.`}
         visible={showToast}
-        onDismiss={() => setShowToast(false)}
+        onDismiss={() => setToastDismissed(true)}
       />
 
       <ScSegmented

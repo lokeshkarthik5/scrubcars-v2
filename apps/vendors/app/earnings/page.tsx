@@ -32,7 +32,6 @@ export default function VendorEarningsPage() {
   useEffect(() => {
     if (!vendor?.id || !isVendorAdmin) return
     let active = true
-    setLoading(true)
 
     getEarningsData(period)
       .then(({ summary: nextSummary, jobs: nextJobs }) => {
@@ -70,7 +69,13 @@ export default function VendorEarningsPage() {
             aria-label="Earnings period"
             size="sm"
             value={period}
-            onChange={setPeriod}
+            onChange={(next) => {
+              // Raised here rather than in the effect below: this is the only
+              // thing that refetches after mount, and a spinner owed to a tap
+              // belongs to the tap.
+              setLoading(true)
+              setPeriod(next)
+            }}
             options={[
               { value: 'week', label: 'Week' },
               { value: 'month', label: 'Month' },

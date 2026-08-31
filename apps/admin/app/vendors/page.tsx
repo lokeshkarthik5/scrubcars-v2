@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -17,15 +17,14 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { TopBar } from '@repo/ui/sc/top-bar'
-import { ApiError } from '@repo/core/api/client'
+import { type AdminVendor } from '@repo/core/api/admin'
+import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import {
-  listAdminVendors,
-  verifyAdminVendor,
-  archiveAdminVendor,
-  unarchiveAdminVendor,
-  deleteAdminVendor,
-  type AdminVendor,
-} from '@repo/core/api/admin'
+  useAdminVendors,
+  useArchiveAdminVendor,
+  useDeleteAdminVendor,
+  useVerifyAdminVendor,
+} from '@repo/core/api/hooks/use-admin-vendors'
 
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -40,61 +39,57 @@ function Meta({ label, children }: { label: string; children: React.ReactNode })
 
 export default function AdminVendorsPage() {
   const router = useRouter()
-  const [vendors, setVendors] = useState<AdminVendor[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [verifyingId, setVerifyingId] = useState<string | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      setVendors(await listAdminVendors())
-    } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        router.replace('/login')
-        return
-      }
-      setError('Failed to load vendors')
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
+  const { data, isPending, error: loadError, refetch } = useAdminVendors()
+  const vendors = data ?? []
+  const loading = isPending
 
+  const verify = useVerifyAdminVendor()
+  const archive = useArchiveAdminVendor()
+  const remove = useDeleteAdminVendor()
+
+  // Row-action failures surface in the same place a load failure does, which
+  // is what this screen has always done — a failed verify replaces the list
+  // rather than sitting above it.
+  const [actionError, setActionError] = useState('')
+  const error = loadError
+    ? errorMessage(loadError, 'Failed to load vendors')
+    : actionError
+
+  // A dead admin session is a redirect, not an error message.
   useEffect(() => {
-    void load()
-  }, [load])
+    if (isAuthError(loadError)) router.replace('/login')
+  }, [loadError, router])
 
-  const handleVerify = async (id: string) => {
-    setVerifyingId(id)
-    try {
-      const updated = await verifyAdminVendor(id)
-      setVendors((prev) => prev.map((v) => (v.id === id ? { ...v, ...updated } : v)))
-    } catch {
-      setError('Failed to verify vendor')
-    } finally {
-      setVerifyingId(null)
-    }
+  const verifyingId = verify.isPending ? verify.variables : null
+  const busyId = archive.isPending
+    ? archive.variables?.id
+    : remove.isPending
+      ? remove.variables
+      : null
+
+  const handleVerify = (id: string) => {
+    setActionError('')
+    verify.mutate(id, {
+      onError: () => setActionError('Failed to verify vendor'),
+    })
   }
 
-  const handleArchiveToggle = async (v: AdminVendor) => {
+  const handleArchiveToggle = (v: AdminVendor) => {
     const archiving = v.status !== 'archived'
-    setBusyId(v.id)
-    setError('')
-    try {
-      const updated = archiving
-        ? await archiveAdminVendor(v.id)
-        : await unarchiveAdminVendor(v.id)
-      setVendors((prev) => prev.map((x) => (x.id === v.id ? { ...x, ...updated } : x)))
-    } catch {
-      setError(`Failed to ${archiving ? 'archive' : 'restore'} vendor`)
-    } finally {
-      setBusyId(null)
-    }
+    setActionError('')
+    archive.mutate(
+      { id: v.id, archiving },
+      {
+        onError: () =>
+          setActionError(
+            `Failed to ${archiving ? 'archive' : 'restore'} vendor`
+          ),
+      }
+    )
   }
 
-  const handleDelete = async (v: AdminVendor) => {
+  const handleDelete = (v: AdminVendor) => {
     if (
       !window.confirm(
         `Permanently delete "${v.businessName}"?\n\nThis removes the vendor and all its bookings, reviews and services. This cannot be undone. Use Archive instead if you want to keep the data.`
@@ -102,16 +97,10 @@ export default function AdminVendorsPage() {
     ) {
       return
     }
-    setBusyId(v.id)
-    setError('')
-    try {
-      await deleteAdminVendor(v.id)
-      setVendors((prev) => prev.filter((x) => x.id !== v.id))
-    } catch {
-      setError('Failed to delete vendor')
-    } finally {
-      setBusyId(null)
-    }
+    setActionError('')
+    remove.mutate(v.id, {
+      onError: () => setActionError('Failed to delete vendor'),
+    })
   }
 
   return (
@@ -138,7 +127,7 @@ export default function AdminVendorsPage() {
           <SkeletonCard />
         </div>
       ) : error && vendors.length === 0 ? (
-        <ErrorState message={error} onRetry={load} />
+        <ErrorState message={error} onRetry={() => void refetch()} />
       ) : vendors.length === 0 ? (
         <EmptyState
           icon={<IconBuildingStore size={32} stroke={1.5} />}

@@ -217,9 +217,12 @@ export default function EditVendorPage({
     (s) => s.name.trim() && rowPricingValid(s)
   )
 
+  // No setLoading/setError before the first await: this runs from an effect on
+  // mount, where `loading` already starts true and `error` already starts
+  // empty. Setting them here synchronously would be a cascading render for no
+  // change in what the user sees. Nothing else calls load() — a route param
+  // change remounts the page.
   const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
     try {
       const v = await getAdminVendor(id)
       setForm({
@@ -307,7 +310,13 @@ export default function EditVendorPage({
     }
   }, [id, router])
 
+  // load() hydrates 16 pieces of form state from the fetched vendor. The rule's
+  // fix is to lift the fetch out and initialise a child form component from
+  // props, which means splitting this 1000-line file — worth doing, but not as
+  // a drive-by. Every setState in load() already runs after the await, so the
+  // cascading render the rule warns about is one commit on load, not a loop.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
 
