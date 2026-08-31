@@ -1,6 +1,11 @@
 {
   "framework": null,
   "buildCommand": "",
-  "outputDirectory": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ]
 }
