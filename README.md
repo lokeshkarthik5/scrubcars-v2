@@ -16,8 +16,16 @@ packages/eslint-config
 
 ## Getting started
 
-Requires **bun 1.4+** (older bun writes a binary `bun.lockb` that Turborepo
-cannot parse). `bun upgrade` if needed.
+Requires **bun 1.3.x** — pinned in `packageManager`, and deliberately not
+newer. Vercel's build image ships bun 1.3.14, which cannot read the
+`lockfileVersion: 2` lockfile that bun 1.4 writes; it fails the install with
+"Unknown lockfile version" and silently resolves fresh, so the committed
+lockfile stops meaning anything. Bun older than 1.1.39 is also out — it writes
+a binary `bun.lockb` that Turborepo cannot parse.
+
+```bash
+curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"
+```
 
 ```bash
 bun install
