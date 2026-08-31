@@ -16,6 +16,9 @@ packages/eslint-config
 
 ## Getting started
 
+Requires **bun 1.4+** (older bun writes a binary `bun.lockb` that Turborepo
+cannot parse). `bun upgrade` if needed.
+
 ```bash
 bun install
 cp apps/server/.env.example apps/server/.env     # fill in DATABASE_URL etc.
