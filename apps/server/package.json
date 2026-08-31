@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts | pino-pretty --colorize --translateTime 'HH:MM:ss' --ignore 'pid,hostname,service'",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "migrate": "bash scripts/migrate.sh migrate",
     "migrate:status": "bash scripts/migrate.sh status",

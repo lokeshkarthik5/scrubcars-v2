@@ -1,7 +1,10 @@
 .DS_Store
 *.log
-.env
-
-/node_modules
+node_modules/
+.next/
+dist/
+.turbo/
+*.tsbuildinfo
 .vercel
+.env
 .env*
