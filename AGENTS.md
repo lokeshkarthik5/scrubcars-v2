@@ -16,6 +16,30 @@
 
 ## Rules
 
+### Repository layout
+
+This is a bun-workspaces monorepo driven by Turborepo. Four deployables:
+
+```
+apps/users      detlio.com          customer app
+apps/vendors    vendor.detlio.com   vendor portal
+apps/admin      admin.detlio.com    operations panel
+apps/server     api.detlio.com      Hono API
+packages/core   @repo/core          API client, types, stores, domain helpers
+packages/ui     @repo/ui            shared components + globals.css
+```
+
+- Each frontend serves its routes at their real public paths. There is no
+  middleware rewriting `/vendor/*` or `/admin/*` any more — a route's directory
+  under `app/` is the URL it is served at. Do not reintroduce a path map.
+- Surface-specific code lives in its app. `packages/*` is for code at least two
+  apps use; `packages/core` must never import from `packages/ui`.
+- The three frontends call `api.detlio.com` directly. Any new origin that needs
+  to reach the API must be added to `corsOrigin` in `apps/server/src/lib/env.ts`.
+- `apps/server/src/package.json` is a one-line ESM marker required by the Vercel
+  build output. It is not a workspace — never add `apps/server/**` to the
+  workspace globs, and do not delete or rename it.
+
 ### Database
 
 - Do NOT run migrations when making schema changes
@@ -69,7 +93,7 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
   - Listings that mean "plain services" MUST exclude `category = 'package'` (see `listServices`, and the admin repository — `listActiveServiceIds` especially, since the admin editor reconciles against it)
   - The booking path MUST NOT exclude packages — a package occupies a slot like any other service
   - Packages are created only via `/vendors/me/packages`; `POST /vendors/me/services` rejects `category: 'package'` because a package with no members is invalid
-- Category labels live in `server/src/lib/categories.ts` and `web/lib/categories.ts`, both keyed exhaustively on the category union — add new categories there or the build fails
+- Category labels live in `apps/server/src/lib/categories.ts` and `packages/core/src/categories.ts`, both keyed exhaustively on the category union — add new categories there or the build fails
 
 ### Transaction tables
 
