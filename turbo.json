@@ -1,17 +1,46 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": ["NODE_ENV"],
+  "globalEnv": [
+    "NODE_ENV"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ],
       "env": [
+        "ADMIN_PASSWORD",
+        "ADMIN_USERNAME",
+        "BACKEND_URL",
+        "CORS_ORIGIN",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "GEO_AUTOCOMPLETE_RATE_LIMIT",
+        "GEO_CACHE_TTL_HOURS",
+        "GEO_PROVIDER",
+        "JWT_SECRET",
         "NEXT_PUBLIC_API_URL",
         "NEXT_PUBLIC_APP_VERSION",
-        "NEXT_PUBLIC_RAZORPAY_KEY_ID",
         "NEXT_PUBLIC_MAP_STYLE_URL",
         "NEXT_PUBLIC_MAP_STYLE_URL_DARK",
-        "BACKEND_URL"
+        "NEXT_PUBLIC_RAZORPAY_KEY_ID",
+        "OLA_MAPS_API_KEY",
+        "OLA_MAPS_ORIGIN",
+        "R2_ACCESS_KEY_ID",
+        "R2_ACCOUNT_ID",
+        "R2_BUCKET",
+        "R2_PUBLIC_BASE_URL",
+        "R2_SECRET_ACCESS_KEY",
+        "RAZORPAY_KEY_ID",
+        "RAZORPAY_KEY_SECRET",
+        "RAZORPAY_WEBHOOK_SECRET",
+        "SMS",
+        "VERCEL_EXPERIMENTAL_BACKENDS"
       ]
     },
     "dev": {
@@ -20,7 +49,9 @@
     },
     "lint": {},
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     }
   }
 }
