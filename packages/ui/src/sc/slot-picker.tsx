@@ -71,7 +71,11 @@ function TimeGridSkeleton() {
 
 interface SlotPickerProps {
   vendorId: string
-  serviceId: string | null
+  /**
+   * The services being booked together. Slots are computed for their combined
+   * duration, so this is the whole selection, not just the first one.
+   */
+  serviceIds: string[]
   /** Currently selected slot, as a scheduledAt ISO string. */
   value: string | null
   onChange: (scheduledAt: string | null) => void
@@ -93,7 +97,7 @@ interface SlotPickerProps {
  */
 export function SlotPicker({
   vendorId,
-  serviceId,
+  serviceIds,
   value,
   onChange,
   progressive = false,
@@ -111,7 +115,7 @@ export function SlotPicker({
     return { year: y, month: m - 1 }
   })
   const workingHours = useVendorWorkingHours(vendorId)
-  const slotsQuery = useAvailableSlots({ vendorId, serviceId, date: selectedDate })
+  const slotsQuery = useAvailableSlots({ vendorId, serviceIds, date: selectedDate })
 
   const closedDays = useMemo(
     () =>
@@ -126,11 +130,20 @@ export function SlotPicker({
   const slots = slotsQuery.data?.slots ?? []
   const isClosedDay = slotsQuery.data?.isClosed ?? false
 
+  // An open day whose *whole* schedule offers nothing means the combined
+  // duration does not fit between opening and closing — not that the day
+  // filled up. Capacity is unlimited, so "no slots left" is never the reason,
+  // and telling the customer to try again later would send them round a loop
+  // that cannot end. `fitsInDay` is checked before past times are filtered,
+  // so an evening with nothing left today does not trip it.
+  const tooLongForTheDay =
+    !isClosedDay && slotsQuery.isSuccess && !slotsQuery.data.fitsInDay
+
   // Until the answer is in, say nothing. Rendering the empty state off an
   // empty-by-default array is what made the picker flash "No slots available"
   // before every fetch — a false negative the customer sees more often than
   // the real one. A disabled query (no service yet) counts as loading too.
-  const slotsLoading = !serviceId || slotsQuery.isPending
+  const slotsLoading = serviceIds.length === 0 || slotsQuery.isPending
 
   const selectDate = (date: string) => {
     setSelectedDate(date)
@@ -228,7 +241,9 @@ export function SlotPicker({
             <p className="text-[12px] text-text-secondary">
               {isClosedDay
                 ? 'Vendor is closed on this day.'
-                : 'No slots available on this date.'}
+                : tooLongForTheDay
+                  ? "These services need more time than this garage's day allows. Remove one, or pick another day."
+                  : 'No slots available on this date.'}
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2">

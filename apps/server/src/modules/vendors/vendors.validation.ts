@@ -15,10 +15,34 @@ export const resourceIdParamSchema = z.object({
   id: z.string().uuid(),
 })
 
-export const slotsQuerySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
-  service_id: z.string().uuid(),
-})
+// `service_id` takes one id or a comma-separated list, because a booking can
+// now be several services and the block that has to fit is their combined
+// duration. A single id is still exactly what it was.
+export const slotsQuerySchema = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
+    service_id: z.string().min(1),
+  })
+  .transform(({ service_id, ...rest }) => ({
+    ...rest,
+    serviceIds: Array.from(
+      new Set(
+        service_id
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      )
+    ),
+  }))
+  .refine(
+    (input) =>
+      input.serviceIds.length > 0 &&
+      input.serviceIds.length <= 10 &&
+      input.serviceIds.every((id) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      ),
+    { message: 'service_id must be one or more service UUIDs', path: ['service_id'] }
+  )
 
 const pickupSchema = z.enum(['yes', 'nearby', 'no'])
 

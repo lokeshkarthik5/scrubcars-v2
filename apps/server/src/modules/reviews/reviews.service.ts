@@ -19,6 +19,7 @@ type ReviewWithRelations = ReviewRecord & {
   booking?: {
     id: string
     scheduledAt: Date
+    items?: Array<{ name: string }> | null
     service?: {
       id: string
       name: string
@@ -52,6 +53,9 @@ function toReviewResponse(review: ReviewWithRelations) {
       ? {
           id: review.booking.id,
           scheduledAt: review.booking.scheduledAt.toISOString(),
+          // Every service the review is about. The client renders the summary
+          // label; `service` below is the deprecated first item.
+          serviceNames: (review.booking.items ?? []).map((item) => item.name),
           service: review.booking.service
             ? {
                 id: review.booking.service.id,

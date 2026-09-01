@@ -95,7 +95,7 @@ export default function BookingDetailPage({
       const order = await createPaymentOrder(booking.id)
       await openRazorpayCheckout({
         order,
-        description: `${booking.serviceName} at ${booking.vendorName}`,
+        description: `${booking.serviceSummary} at ${booking.vendorName}`,
         customer: {
           name: profile?.name,
           phone: profile?.phone,
@@ -203,7 +203,7 @@ export default function BookingDetailPage({
       {celebrating && (
         <SuccessBurst
           title="Booking confirmed"
-          subtitle={`${booking.serviceName} at ${booking.vendorName} · ${booking.scheduledAt}`}
+          subtitle={`${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`}
           onDone={() => {
             setCelebrating(false)
             // Drop the flag so a refresh or back-navigation doesn't replay it.
@@ -256,10 +256,18 @@ export default function BookingDetailPage({
         <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
           Services
         </p>
+        {/* One chip per service, each with the price it was sold at. The
+            chips sum to the subtotal below — the discount applies to the
+            order, not to any one line. */}
         <div className="mt-2 flex flex-wrap gap-2">
-          <span className="rounded-lg bg-surface-elevated px-2.5 py-1.5 text-[12px] text-text-primary">
-            {booking.serviceName} ({formatBookingAmount(booking.subtotalPrice)})
-          </span>
+          {booking.items.map((item) => (
+            <span
+              key={item.id}
+              className="rounded-lg bg-surface-elevated px-2.5 py-1.5 text-[12px] text-text-primary"
+            >
+              {item.name} ({formatBookingAmount(item.amount)})
+            </span>
+          ))}
         </div>
 
         {/* Only a discounted booking gets a breakdown; everything else keeps
@@ -450,7 +458,9 @@ export default function BookingDetailPage({
             </p>
             <SlotPicker
               vendorId={booking.vendorId}
-              serviceId={booking.serviceId}
+              // Every service on the booking: a move has to fit the whole job,
+              // not just its first line.
+              serviceIds={booking.items.map((item) => item.serviceId)}
               value={rescheduleSlot}
               onChange={setRescheduleSlot}
             />

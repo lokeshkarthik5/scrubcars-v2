@@ -8,8 +8,8 @@ export const slotKeys = {
   all: ['slots'] as const,
   workingHours: (vendorId: string) =>
     [...slotKeys.all, 'working-hours', vendorId] as const,
-  available: (vendorId: string, serviceId: string, date: string) =>
-    [...slotKeys.all, 'available', vendorId, serviceId, date] as const,
+  available: (vendorId: string, serviceIds: string[], date: string) =>
+    [...slotKeys.all, 'available', vendorId, serviceIds.join(','), date] as const,
 }
 
 /**
@@ -25,7 +25,10 @@ export function useVendorWorkingHours(vendorId: string) {
 }
 
 /**
- * Bookable times for one vendor/service/date.
+ * Bookable times for one vendor/date and a set of services.
+ *
+ * Keyed on every service, not just the first: adding a service lengthens the
+ * block that has to fit, so the answer genuinely changes.
  *
  * Keyed on the date so switching days is a fresh query rather than a mutation
  * of shared state — which is what lets the picker show a skeleton for the new
@@ -34,16 +37,15 @@ export function useVendorWorkingHours(vendorId: string) {
  */
 export function useAvailableSlots(params: {
   vendorId: string
-  serviceId: string | null
+  serviceIds: string[]
   date: string | null
 }) {
-  const { vendorId, serviceId, date } = params
+  const { vendorId, serviceIds, date } = params
 
   return useQuery({
-    queryKey: slotKeys.available(vendorId, serviceId ?? '', date ?? ''),
-    queryFn: () =>
-      getAvailableSlots({ vendorId, serviceId: serviceId!, date: date! }),
-    enabled: Boolean(serviceId && date),
+    queryKey: slotKeys.available(vendorId, serviceIds, date ?? ''),
+    queryFn: () => getAvailableSlots({ vendorId, serviceIds, date: date! }),
+    enabled: serviceIds.length > 0 && Boolean(date),
     // Slots go stale as other customers book, so re-check on return to the tab.
     staleTime: 15_000,
   })

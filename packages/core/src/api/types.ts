@@ -241,7 +241,9 @@ export interface ApiPackage extends ApiService {
 
 export interface ApiSlotsResponse {
   date: string
-  serviceId: string
+  serviceIds: string[]
+  /** The combined duration the slots were computed for. */
+  durationMins: number
   slotIntervalMins: number
   isClosed: boolean
   slots: string[]
@@ -288,6 +290,17 @@ export interface ApiBooking {
     phone: string
     city: string
   } | null
+  /** Every service on the booking, priced and named as sold. */
+  items: Array<{
+    id: string
+    serviceId: string
+    name: string
+    amount: string
+    durationMins: number
+  }>
+  /** The booking's total duration: the sum of its items. */
+  durationMins: number
+  /** Deprecated: the first item. Read `items`. */
   service: {
     id: string
     name: string
@@ -330,6 +343,9 @@ export interface ApiReview {
   booking: {
     id: string
     scheduledAt: string
+    /** Every service the review is about. */
+    serviceNames?: string[]
+    /** Deprecated: the first service. */
     service: {
       id: string
       name: string

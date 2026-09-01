@@ -21,7 +21,7 @@ export interface BookingIntentOrder {
 // same body it used to create a booking from.
 export interface CreateBookingIntentPayload {
   vendorId: string
-  serviceId: string
+  serviceIds: string[]
   vehicleId: string
   bookingType: BookingType
   scheduledAt: string

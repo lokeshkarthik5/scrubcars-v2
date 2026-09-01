@@ -161,7 +161,7 @@ export function useValidateDiscount() {
   return useMutation<
     AppliedDiscount,
     Error,
-    { code: string; vendorId: string; serviceId: string; vehicleId: string }
+    { code: string; vendorId: string; serviceIds: string[]; vehicleId: string }
   >({
     mutationFn: validateDiscount,
   })

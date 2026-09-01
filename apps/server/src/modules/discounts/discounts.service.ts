@@ -6,7 +6,7 @@ import {
   type DiscountRule,
 } from '../../lib/discounts.js'
 import { logger } from '../../lib/logger.js'
-import { computeServiceAmount } from '../../lib/pricing.js'
+import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { discountsRepository } from './discounts.repository.js'
 import type {
   CreateDiscountInput,
@@ -231,14 +231,14 @@ export const discountsService = {
    * the code. Non-binding: `POST /bookings` resolves again.
    */
   async validateForCustomer(userId: string, input: ValidateDiscountInput) {
-    const { service, vehicle } = await discountsRepository.findPricingContext({
+    const { services, vehicle } = await discountsRepository.findPricingContext({
       vendorId: input.vendorId,
-      serviceId: input.serviceId,
+      serviceIds: input.serviceIds,
       userId,
       vehicleId: input.vehicleId,
     })
 
-    if (!service || !service.isActive) {
+    if (services.some((service) => !service || !service.isActive)) {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
 
@@ -246,15 +246,24 @@ export const discountsService = {
       throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
     }
 
-    const subtotal = computeServiceAmount(service, vehicle.vehicleType)
+    // The whole cart, priced the way the booking will price it: a minimum
+    // order value has to be tested against the total the customer will pay,
+    // not against whichever service happened to be first.
+    const lineAmounts = services.map((service) => {
+      const lineAmount = computeServiceAmount(service!, vehicle.vehicleType)
 
-    if (subtotal === null) {
-      throw new AppError(
-        400,
-        'This service is not priced for your vehicle type yet. Please contact the garage.',
-        'SERVICE_NOT_PRICED_FOR_VEHICLE'
-      )
-    }
+      if (lineAmount === null) {
+        throw new AppError(
+          400,
+          `${service!.name} is not priced for your vehicle type yet. Remove it, or contact the garage.`,
+          'SERVICE_NOT_PRICED_FOR_VEHICLE'
+        )
+      }
+
+      return lineAmount
+    })
+
+    const subtotal = sumAmounts(lineAmounts)
 
     const resolved = await resolveDiscount({
       code: input.code,

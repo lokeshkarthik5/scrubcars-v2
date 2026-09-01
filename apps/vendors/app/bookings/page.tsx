@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { IconCheck } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -11,6 +12,7 @@ import { StarRating } from '@repo/ui/sc/stars'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import type { Booking } from '@repo/core/types'
+import { formatDuration } from '@repo/core/utils'
 
 type Tab = 'incoming' | 'upcoming' | 'completed' | 'cancelled'
 
@@ -104,10 +106,30 @@ export default function VendorBookingsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[13px] font-semibold">{b.customerName}</p>
-                  <p className="text-[11px] text-text-secondary">{b.serviceName} · {b.scheduledAt}</p>
+                  <p className="text-[11px] text-text-secondary">{b.serviceSummary} · {b.scheduledAt}</p>
                 </div>
                 <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
               </div>
+
+              {/* The summary line above says "+2 more"; whoever does the work
+                  needs the actual list, so a multi-service job spells it out.
+                  A single-service job reads exactly as it always did. */}
+              {b.items.length > 1 && (
+                <ul className="flex flex-col gap-0.5">
+                  {b.items.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center gap-1.5 text-[11px] text-text-secondary"
+                    >
+                      <IconCheck size={12} className="shrink-0 text-brand-red" />
+                      {item.name}
+                      <span className="text-text-muted">
+                        · {formatDuration(item.durationMins)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {b.vehicle && (
                 <p className="text-[11px] text-text-secondary">

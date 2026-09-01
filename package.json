@@ -20,7 +20,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "seed": "bun run --filter server seed",
     "migrate": "bun run --filter server migrate",
-    "migrate:status": "bun run --filter server migrate:status"
+    "migrate:status": "bun run --filter server migrate:status",
+    "test": "turbo run test"
   },
   "devDependencies": {
     "prettier": "^3.9.0",

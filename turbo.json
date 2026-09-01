@@ -52,6 +52,7 @@
       "dependsOn": [
         "^build"
       ]
-    }
+    },
+    "test": {}
   }
 }

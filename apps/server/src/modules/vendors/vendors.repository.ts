@@ -694,10 +694,10 @@ export const vendorsRepository = {
     })
   },
 
-  findPublicService(vendorId: string, serviceId: string) {
-    return db.query.services.findFirst({
+  findPublicServices(vendorId: string, serviceIds: string[]) {
+    return db.query.services.findMany({
       where: and(
-        eq(services.id, serviceId),
+        inArray(services.id, serviceIds),
         eq(services.vendorId, vendorId),
         eq(services.isActive, true)
       ),

@@ -58,7 +58,7 @@ export default function BookingsListPage() {
                 <ScCard className="press flex flex-col gap-2">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-[13px] font-semibold text-text-primary">{booking.serviceName}</p>
+                      <p className="text-[13px] font-semibold text-text-primary">{booking.serviceSummary}</p>
                       <p className="text-[11px] text-text-secondary">{booking.vendorName}</p>
                     </div>
                     <ScBadge variant={badge.variant}>{badge.label}</ScBadge>

@@ -1,6 +1,7 @@
 import { apiClient } from './client'
 import type { EarningsJob, EarningsSummary } from '@repo/core/types'
 import { formatScheduledAt } from './mappers'
+import { formatServiceSummary } from '@repo/core/utils'
 
 export const EMPTY_EARNINGS_SUMMARY: EarningsSummary = {
   totalEarned: 0,
@@ -15,6 +16,7 @@ interface ApiEarnings {
   jobs: {
     id: string
     serviceName: string
+    serviceNames?: string[]
     customerName: string
     scheduledAt: string
     bookingType: string
@@ -58,7 +60,11 @@ export async function getEarningsData(
       weekEarnings: data.weekEarnings,
       jobs: data.jobs.map((job) => ({
         id: job.id,
-        serviceName: job.serviceName,
+        // Every service on the job, collapsed to one line. Falls back to the
+        // deprecated single name for a response that predates the list.
+        serviceName: formatServiceSummary(
+          job.serviceNames ?? [job.serviceName]
+        ),
         customerName: job.customerName,
         date: formatScheduledAt(job.scheduledAt),
         type: job.bookingType as EarningsJob['type'],

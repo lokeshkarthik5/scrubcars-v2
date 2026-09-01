@@ -112,7 +112,13 @@ export default function AdminBookingsPage() {
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
                   <Meta label="Vendor">{b.vendor?.businessName ?? '—'}</Meta>
-                  <Meta label="Service">{b.service?.name ?? '—'}</Meta>
+                  {/* Support reads this row to answer "what did they book?",
+                      so every service is listed rather than the first one. */}
+                  <Meta label={(b.items?.length ?? 0) > 1 ? 'Services' : 'Service'}>
+                    {b.items && b.items.length > 0
+                      ? b.items.map((item) => item.name).join(', ')
+                      : (b.service?.name ?? '—')}
+                  </Meta>
                   <Meta label="Type">
                     <span className="capitalize">{b.bookingType.replace('_', ' ')}</span>
                   </Meta>

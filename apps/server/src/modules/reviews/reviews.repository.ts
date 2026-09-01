@@ -1,6 +1,6 @@
-import { desc, eq } from 'drizzle-orm'
+import { asc, desc, eq } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { bookings, reviews, vendors } from '../../db/schema.js'
+import { bookingItems, bookings, reviews, vendors } from '../../db/schema.js'
 
 export type ReviewRecord = typeof reviews.$inferSelect
 
@@ -48,6 +48,7 @@ export const reviewsRepository = {
         booking: {
           with: {
             service: true,
+            items: { orderBy: [asc(bookingItems.sortOrder)] },
           },
         },
         vendor: true,
@@ -64,6 +65,7 @@ export const reviewsRepository = {
         booking: {
           with: {
             service: true,
+            items: { orderBy: [asc(bookingItems.sortOrder)] },
           },
         },
       },

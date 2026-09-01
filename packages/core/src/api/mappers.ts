@@ -24,7 +24,7 @@ import type {
   Vendor,
   VendorStatus,
 } from '@repo/core/types'
-import { APP_TIMEZONE } from '@repo/core/utils'
+import { APP_TIMEZONE, formatServiceSummary } from '@repo/core/utils'
 import { categoryLabel } from '@repo/core/categories'
 
 function mapVendorStatus(status: string): VendorStatus {
@@ -225,12 +225,40 @@ export function mapAddress(address: ApiAddress): Address {
 }
 
 export function mapBooking(booking: ApiBooking): Booking {
+  // Older payloads (and any response cached before multi-service bookings) have
+  // no `items`, so the deprecated single `service` stands in as one line.
+  const items = (booking.items ?? []).map((item) => ({
+    id: item.id,
+    serviceId: item.serviceId,
+    name: item.name,
+    amount: Number(item.amount),
+    durationMins: item.durationMins,
+  }))
+
+  const fallbackItems =
+    items.length > 0 || !booking.service
+      ? items
+      : [
+          {
+            id: booking.service.id,
+            serviceId: booking.service.id,
+            name: booking.service.name,
+            amount: Number(booking.subtotalAmount ?? booking.amount),
+            durationMins: booking.service.durationMins,
+          },
+        ]
+
   return {
     id: booking.id,
     vendorId: booking.vendor?.id ?? '',
     vendorName: booking.vendor?.businessName ?? '',
-    serviceId: booking.service?.id ?? '',
-    serviceName: booking.service?.name ?? '',
+    items: fallbackItems,
+    serviceId: fallbackItems[0]?.serviceId ?? '',
+    serviceName: fallbackItems[0]?.name ?? '',
+    serviceSummary: formatServiceSummary(fallbackItems.map((item) => item.name)),
+    durationMins:
+      booking.durationMins ??
+      fallbackItems.reduce((total, item) => total + item.durationMins, 0),
     servicePrice: Number(booking.amount),
     subtotalPrice: Number(booking.subtotalAmount ?? booking.amount),
     discountAmount: Number(booking.discountAmount ?? 0),
@@ -276,7 +304,15 @@ export function mapReview(review: ApiReview): Review {
     rating: review.rating,
     comment: review.comment ?? '',
     date: formatReviewDate(review.createdAt),
-    bookingContext: review.booking?.service?.name,
+    // The job this review is about, as one line. With several services that is
+    // the summary label — naming only the first would misdescribe the job.
+    bookingContext: review.booking
+      ? formatServiceSummary(
+          review.booking.serviceNames?.length
+            ? review.booking.serviceNames
+            : [review.booking.service?.name ?? '']
+        ) || undefined
+      : undefined,
   }
 }
 

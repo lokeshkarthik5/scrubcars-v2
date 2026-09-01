@@ -8,6 +8,7 @@ import {
   IconPercentage,
   IconPlus,
   IconShoppingCart,
+  IconX,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
@@ -27,13 +28,14 @@ import {
 import { createBookingIntent, verifyPayment } from '@repo/core/api/payments'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorServices } from '@repo/core/api/services'
+import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { openRazorpayCheckout } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
-import { cn, formatDuration } from '@repo/core/utils'
+import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
 
 const BOOKING_TYPE_OPTIONS = [
   { value: 'dropin' as const, label: 'Drop In' },
@@ -43,14 +45,15 @@ const BOOKING_TYPE_OPTIONS = [
 function BookContent({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const serviceId = searchParams.get('service')
+  // Comma-separated, in the order they were added on the garage page.
+  const serviceIdsParam = searchParams.get('service')
   const vehicles = useUserStore((s) => s.vehicles)
   const profile = useUserStore((s) => s.profile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [selectedServices, setSelectedServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [pickedVehicle, setPickedVehicle] = useState<string | null>(null)
   const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
@@ -63,12 +66,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The coupon field starts closed — a row to tap, not a form to ignore.
   const [promoOpen, setPromoOpen] = useState(false)
   const [addCarOpen, setAddCarOpen] = useState(false)
-  // Stored with the service and vehicle it was validated against. Those two
-  // decide the subtotal, so a code checked against one pair says nothing about
-  // another — see `appliedDiscount` below.
+  // Stored with the exact cart and vehicle it was validated against. Those
+  // decide the subtotal, so a code checked against one basket says nothing
+  // about another — removing a service can drop the total below the code's
+  // minimum. See `appliedDiscount` below.
   const [appliedPromo, setAppliedPromo] = useState<{
     discount: AppliedDiscount
-    serviceId: string
+    serviceKey: string
     vehicleId: string
   } | null>(null)
   // The request lifecycle (pending, error) is the mutation's; `appliedPromo`
@@ -83,17 +87,32 @@ function BookContent({ vendorId }: { vendorId: string }) {
         setBookingType('doorstep')
       }
     })
-    getVendorServices(vendorId).then((svcs) => {
-      // The list itself is never rendered — this screen books one service, so
-      // only the selection is kept.
-      const preselected = serviceId
-        ? svcs.find((s) => s.id === serviceId)
-        : svcs[0]
-      setSelectedService(preselected ?? null)
+    // Packages are fetched alongside the plain services because a package is
+    // a bookable line like any other, and `/services` deliberately excludes
+    // them. Without this, a customer who added a package on the garage page
+    // arrived here with nothing selected.
+    Promise.all([
+      getVendorServices(vendorId),
+      getVendorPackages(vendorId),
+    ]).then(([svcs, pkgs]) => {
+      const catalogue: Service[] = [...svcs, ...pkgs]
+
+      // Resolved in the order the ids arrived, not the order the catalogue
+      // came back in: that order is the customer's, and it is what the summary
+      // and the booking's line items preserve.
+      const ids = serviceIdsParam?.split(',').filter(Boolean) ?? []
+      const picked = ids
+        .map((id) => catalogue.find((s) => s.id === id))
+        .filter((s): s is Service => s != null)
+
+      // Landing here with no service at all (a shared link, a stale tab) still
+      // has to book something, so the first service stands in — as it did when
+      // this screen only ever handled one.
+      setSelectedServices(picked.length > 0 ? picked : svcs.slice(0, 1))
     })
     void fetchVehicles()
     void fetchProfile()
-  }, [vendorId, serviceId, fetchVehicles, fetchProfile])
+  }, [vendorId, serviceIdsParam, fetchVehicles, fetchProfile])
 
   // Auto-select only when there is nothing to choose between. With several
   // cars, preselecting one would make the order summary appear the instant a
@@ -107,12 +126,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const selectedVehicle =
     pickedVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
 
-  // Derived rather than cleared in an effect: if the customer switches service
-  // or car, the applied code is simply not the applied code any more. There is
-  // no render in between where a stale discount could be shown or submitted.
+  // Identifies the exact cart a code was validated against. Removing a service
+  // changes it, which retires the code — the total it was checked against no
+  // longer exists.
+  const serviceIds = selectedServices.map((service) => service.id)
+  const serviceKey = serviceIds.join(',')
+
+  // Derived rather than cleared in an effect: if the customer changes the
+  // services or the car, the applied code is simply not the applied code any
+  // more. There is no render in between where a stale discount could be shown
+  // or submitted.
   const appliedDiscount =
     appliedPromo &&
-    appliedPromo.serviceId === selectedService?.id &&
+    appliedPromo.serviceKey === serviceKey &&
     appliedPromo.vehicleId === selectedVehicle
       ? appliedPromo.discount
       : null
@@ -123,45 +149,72 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const vehicleTierLabel = VEHICLE_TIERS.find(
     (tier) => tier.value === selectedVehicleType
   )?.label
-  // The concrete amount to charge for the selected service/vehicle.
-  const resolvedAmount = selectedService
-    ? resolveServiceAmount(selectedService, selectedVehicleType)
-    : null
-  // A per-vehicle service with no price for this vehicle. The server refuses
-  // such a booking (it would otherwise bill another vehicle's rate), so block
-  // it here rather than letting the customer pay and hit an error.
-  const unpricedForVehicle =
-    selectedService != null &&
-    selectedVehicleType != null &&
-    resolvedAmount == null
+
+  // One priced line per service, in the customer's order. `amount` is null for
+  // a per-vehicle service the garage has not priced for this car — the server
+  // refuses such a booking rather than billing another tier's rate, so the
+  // line is shown but the payment is blocked below.
+  const lines = selectedServices.map((service) => ({
+    service,
+    amount: resolveServiceAmount(service, selectedVehicleType),
+  }))
+
+  const unpricedLines =
+    selectedVehicleType != null
+      ? lines.filter((line) => line.amount == null)
+      : []
+  const unpricedForVehicle = unpricedLines.length > 0
+
+  // The pre-discount total. Summed in paise so the arithmetic never runs
+  // through a float — the same rule the server applies.
+  const subtotal = unpricedForVehicle
+    ? null
+    : lines.reduce(
+        (total, line) => total + Math.round((line.amount ?? 0) * 100),
+        0
+      ) / 100
 
   // What the customer will actually be charged. The server recomputes this at
   // booking time; this is only what the button says.
   const payableAmount = appliedDiscount
     ? Number(appliedDiscount.finalAmount)
-    : resolvedAmount
+    : subtotal
+
+  const totalDuration = selectedServices.reduce(
+    (total, service) => total + service.durationMins,
+    0
+  )
 
   const canApplyPromo =
     promoInput.trim().length >= 3 &&
-    selectedService != null &&
+    selectedServices.length > 0 &&
     selectedVehicle != null &&
     !unpricedForVehicle
 
   const handleApplyPromo = () => {
     if (!canApplyPromo || applyPromo.isPending) return
 
-    const serviceId = selectedService!.id
     const vehicleId = selectedVehicle!
 
     applyPromo.mutate(
-      { code: promoInput.trim(), vendorId, serviceId, vehicleId },
+      { code: promoInput.trim(), vendorId, serviceIds, vehicleId },
       {
         onSuccess: (applied) => {
-          setAppliedPromo({ discount: applied, serviceId, vehicleId })
+          setAppliedPromo({ discount: applied, serviceKey, vehicleId })
           setPromoOpen(false)
         },
         onError: () => setAppliedPromo(null),
       }
+    )
+  }
+
+  // Removing a line from the summary rather than going back a screen. The last
+  // one cannot be removed: an empty booking is not a state this page has.
+  const removeService = (serviceId: string) => {
+    setSelectedServices((current) =>
+      current.length <= 1
+        ? current
+        : current.filter((service) => service.id !== serviceId)
     )
   }
 
@@ -181,14 +234,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // "needs a booking of ₹500 or more" — so it is shown verbatim.
   const promoError =
     applyPromo.error &&
-    applyPromo.variables?.serviceId === selectedService?.id &&
+    applyPromo.variables?.serviceIds.join(',') === serviceKey &&
     applyPromo.variables?.vehicleId === selectedVehicle
       ? errorMessage(applyPromo.error, "This code isn't valid.")
       : ''
 
   const handleConfirm = async () => {
     if (bookingLockRef.current || loading) return
-    if (!selectedService || !selectedSlot || !selectedVehicle) return
+    if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle) return
     bookingLockRef.current = true
     setLoading(true)
     try {
@@ -198,7 +251,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       // verifyPayment is what turns it into a booking.
       const order = await createBookingIntent({
         vendorId,
-        serviceId: selectedService.id,
+        serviceIds,
         scheduledAt: selectedSlot,
         bookingType,
         vehicleId: selectedVehicle,
@@ -208,7 +261,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
       await openRazorpayCheckout({
         order,
-        description: `${selectedService.name} at ${vendor?.name ?? 'vendor'}`,
+        description: `${formatServiceSummary(
+          selectedServices.map((service) => service.name)
+        )} at ${vendor?.name ?? 'vendor'}`,
         customer: {
           name: profile?.name,
           phone: profile?.phone,
@@ -262,7 +317,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           lives in the order summary at the bottom, after the choices that
           determine it: a per-vehicle service isn't priced until a car is
           picked, so quoting up here would show a number that later moves. */}
-      {selectedService && vendor && (
+      {selectedServices.length > 0 && vendor && (
         <ScCard className="flex items-center gap-3 py-3.5">
           {vendor.logoUrl && (
             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border border-border bg-surface-elevated">
@@ -279,7 +334,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
             <p className="truncate text-[15px] font-semibold text-text-primary">{vendor.name}</p>
             <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
               <IconShoppingCart size={13} />
-              {selectedService.name} · {formatDuration(selectedService.durationMins)}
+              {formatServiceSummary(
+                selectedServices.map((service) => service.name)
+              )}{' '}
+              · {formatDuration(totalDuration)}
             </p>
           </div>
         </ScCard>
@@ -303,7 +361,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <SlotPicker
           progressive
           vendorId={vendorId}
-          serviceId={selectedService?.id ?? null}
+          serviceIds={serviceIds}
           value={selectedSlot}
           onChange={setSelectedSlot}
         />
@@ -365,7 +423,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           the saving reads as a strike-through on the line it applies to
           instead of its own subtotal/discount block. With a single service
           that says the same thing in two rows fewer. */}
-      {selectedService && selectedSlot && selectedVehicle && (
+      {selectedServices.length > 0 && selectedSlot && selectedVehicle && (
         <Reveal as="section" className="flex flex-col gap-4">
           <ScCard className="py-3.5">
             {appliedDiscount ? (
@@ -422,19 +480,59 @@ function BookContent({ vendorId }: { vendorId: string }) {
               Payment summary
             </h2>
             <ScCard className="flex flex-col gap-3 py-3.5">
-              <div className="flex items-start justify-between gap-3 text-[13px]">
-                <span className="min-w-0 text-text-secondary">
-                  {selectedService.name}
-                  {vehicleTierLabel && (
-                    <span className="text-text-muted"> · {vehicleTierLabel}</span>
-                  )}
-                </span>
-                <span className="shrink-0 font-medium text-text-primary">
-                  {unpricedForVehicle
-                    ? '—'
-                    : formatServicePrice(selectedService, selectedVehicleType)}
-                </span>
-              </div>
+              {/* One row per service, each removable. A cart the customer
+                  cannot edit here would send them back a screen to drop one
+                  line, losing the slot and any applied code on the way. */}
+              {lines.map(({ service, amount }) => (
+                <div
+                  key={service.id}
+                  className="flex items-start justify-between gap-3 text-[13px]"
+                >
+                  <span className="flex min-w-0 items-start gap-2">
+                    {selectedServices.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeService(service.id)}
+                        aria-label={`Remove ${service.name}`}
+                        className="mt-px shrink-0 text-text-muted transition-colors hover:text-brand-red"
+                      >
+                        <IconX size={14} />
+                      </button>
+                    )}
+                    <span className="min-w-0 text-text-secondary">
+                      {service.name}
+                      {vehicleTierLabel && (
+                        <span className="text-text-muted"> · {vehicleTierLabel}</span>
+                      )}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      'shrink-0 font-medium',
+                      amount == null && selectedVehicleType != null
+                        ? 'text-brand-red'
+                        : 'text-text-primary'
+                    )}
+                  >
+                    {amount == null && selectedVehicleType != null
+                      ? 'Not priced'
+                      : formatServicePrice(service, selectedVehicleType)}
+                  </span>
+                </div>
+              ))}
+
+              {/* The subtotal only earns its row once there is more than one
+                  line to add up. */}
+              {selectedServices.length > 1 && (
+                <div className="flex items-start justify-between gap-3 border-t border-border pt-3 text-[13px]">
+                  <span className="text-text-secondary">Subtotal</span>
+                  <span className="shrink-0 font-medium text-text-primary">
+                    {subtotal == null
+                      ? '—'
+                      : `₹${subtotal.toLocaleString('en-IN')}`}
+                  </span>
+                </div>
+              )}
 
               {/* Spelled out rather than folded into a struck-through price:
                   the discount can be most of the bill, and the customer should
@@ -533,7 +631,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
         <ScButton
           disabled={
-            !selectedService ||
+            selectedServices.length === 0 ||
             !selectedSlot ||
             !selectedVehicle ||
             unpricedForVehicle ||
@@ -545,14 +643,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
           {loading
             ? 'Processing payment...'
             : unpricedForVehicle
-              ? 'Not priced for this vehicle'
+              ? 'Remove the unpriced service'
               : payableAmount == null
                 ? 'Confirm booking'
                 : `Pay Now (₹${payableAmount.toLocaleString('en-IN')})`}
         </ScButton>
         <p className="mt-2 text-center text-[11px] text-text-muted">
           {unpricedForVehicle
-            ? 'This garage has not set a price for your vehicle type. Pick another vehicle or contact them.'
+            ? `${unpricedLines
+                .map((line) => line.service.name)
+                .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
             : 'Bookings are confirmed after online payment.'}
         </p>
       </div>

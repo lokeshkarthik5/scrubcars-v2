@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  bookingItems,
   bookings,
   bookingStatusEnum,
   serviceImages,
@@ -277,7 +278,10 @@ export const adminRepository = {
       with: {
         vendor: true,
         user: true,
+        // `service` is the deprecated first-item pointer; `items` is what a
+        // multi-service booking actually contains.
         service: true,
+        items: { orderBy: [asc(bookingItems.sortOrder)] },
         vehicle: true,
         payment: true,
       },

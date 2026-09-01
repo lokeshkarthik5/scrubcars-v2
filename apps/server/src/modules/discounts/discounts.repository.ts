@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
 import { DISCOUNT_HELD, DISCOUNT_REALIZED } from './discounts.predicates.js'
 import { db } from '../../db/index.js'
 import {
@@ -168,18 +168,19 @@ export const discountsRepository = {
   },
 
   /**
-   * The service and vehicle behind a preview request. The subtotal is always
+   * The services and vehicle behind a preview request. The subtotal is always
    * recomputed from these — a client-sent amount is never trusted.
    */
   async findPricingContext(input: {
     vendorId: string
-    serviceId: string
+    serviceIds: string[]
     userId: string
     vehicleId: string
   }) {
-    const [service] = await db
+    const rows = await db
       .select({
         id: services.id,
+        name: services.name,
         pricingType: services.pricingType,
         price: services.price,
         priceHatchback: services.priceHatchback,
@@ -190,11 +191,10 @@ export const discountsRepository = {
       .from(services)
       .where(
         and(
-          eq(services.id, input.serviceId),
-          eq(services.vendorId, input.vendorId)
+          eq(services.vendorId, input.vendorId),
+          inArray(services.id, input.serviceIds)
         )
       )
-      .limit(1)
 
     const [vehicle] = await db
       .select({
@@ -210,6 +210,13 @@ export const discountsRepository = {
       )
       .limit(1)
 
-    return { service: service ?? null, vehicle: vehicle ?? null }
+    // Returned in the caller's order, not the database's, so the line that
+    // fails a pricing check can be named by position as the customer sees it.
+    const byId = new Map(rows.map((row) => [row.id, row]))
+
+    return {
+      services: input.serviceIds.map((id) => byId.get(id) ?? null),
+      vehicle: vehicle ?? null,
+    }
   },
 }

@@ -17,7 +17,7 @@ const bookingRequests = new Map<string, Promise<Booking>>()
 function bookingRequestKey(payload: CreateBookingPayload) {
   return [
     payload.vendorId,
-    payload.serviceId,
+    payload.serviceIds.join(','),
     payload.scheduledAt,
     payload.bookingType,
     payload.vehicleId,

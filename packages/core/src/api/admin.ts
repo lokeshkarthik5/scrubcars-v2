@@ -158,6 +158,15 @@ export interface AdminBooking {
   createdAt: string
   vendor: { id: string; businessName: string; phone: string } | null
   user: { id: string; name: string; phone: string } | null
+  /** Every service on the booking, priced as sold. */
+  items?: Array<{
+    id: string
+    serviceId: string
+    name: string
+    amount: string
+    durationMins: number
+  }>
+  /** Deprecated: the first item. */
   service: {
     id: string
     name: string

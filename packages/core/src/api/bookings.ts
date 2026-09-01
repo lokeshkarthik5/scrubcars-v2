@@ -5,7 +5,8 @@ import type { Booking, BookingType, PaymentMethod } from '@repo/core/types'
 
 export interface CreateBookingPayload {
   vendorId: string
-  serviceId: string
+  /** The services being booked, in the order the customer picked them. */
+  serviceIds: string[]
   scheduledAt: string
   bookingType: BookingType
   vehicleId: string
@@ -17,13 +18,23 @@ export interface CreateBookingPayload {
 
 export interface SlotParams {
   vendorId: string
-  serviceId: string
+  /** Slots must fit every service booked together, so this is the whole cart. */
+  serviceIds: string[]
   date: string
 }
 
 export interface AvailableSlots {
   isClosed: boolean
   slots: ReturnType<typeof mapSlots>
+  /** Combined duration of the requested services, as the server computed it. */
+  durationMins: number
+  /**
+   * Whether the combined duration fits the day at all, before past times are
+   * filtered out. `slots` being empty means either "nothing left today" or
+   * "this list of services never fits", and only the second is worth telling
+   * the customer about — they can act on it.
+   */
+  fitsInDay: boolean
 }
 
 function todayDateString(): string {
@@ -37,10 +48,16 @@ export async function getAvailableSlots(params: SlotParams): Promise<AvailableSl
     auth: false,
     params: {
       date,
-      service_id: params.serviceId,
+      // Comma-separated: one id is still exactly the old request.
+      service_id: params.serviceIds.join(','),
     },
   })
-  return { isClosed: data.isClosed, slots: mapSlots(data.slots) }
+  return {
+    isClosed: data.isClosed,
+    slots: mapSlots(data.slots),
+    durationMins: data.durationMins ?? 0,
+    fitsInDay: data.slots.length > 0,
+  }
 }
 
 /** POST /bookings */
@@ -51,7 +68,7 @@ export async function createBooking(
     method: 'POST',
     body: JSON.stringify({
       vendorId: payload.vendorId,
-      serviceId: payload.serviceId,
+      serviceIds: payload.serviceIds,
       vehicleId: payload.vehicleId,
       bookingType: payload.bookingType,
       scheduledAt: payload.scheduledAt,

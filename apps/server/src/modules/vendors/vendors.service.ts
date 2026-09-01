@@ -245,7 +245,10 @@ export type EarningsSummaryResponse = {
 
 export type EarningsJobResponse = {
   id: string
+  /** Deprecated: the first service. Read `serviceNames` instead. */
   serviceName: string
+  /** Every service on the job, in the order the customer picked them. */
+  serviceNames: string[]
   customerName: string
   scheduledAt: string
   bookingType: string
@@ -1475,14 +1478,22 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const service = await vendorsRepository.findPublicService(
+    const requested = await vendorsRepository.findPublicServices(
       vendor.id,
-      query.service_id
+      query.serviceIds
     )
 
-    if (!service) {
+    // Every requested service must exist: a partial match would quote times
+    // for a shorter job than the customer is about to book.
+    if (requested.length !== query.serviceIds.length) {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
+
+    // Services run one after another, so the block to fit is their sum.
+    const durationMins = requested.reduce(
+      (total, service) => total + service.durationMins,
+      0
+    )
 
     const dayOfWeek = getDayOfWeekFromDate(query.date)
     const hours = await vendorsRepository.findWorkingHoursForDay(
@@ -1493,7 +1504,8 @@ export const vendorsService = {
     if (!hours || hours.isClosed) {
       return {
         date: query.date,
-        serviceId: service.id,
+        serviceIds: query.serviceIds,
+        durationMins,
         slotIntervalMins: vendor.slotIntervalMins,
         isClosed: true,
         slots: [] as string[],
@@ -1508,14 +1520,18 @@ export const vendorsService = {
       closeTime: hours.closeTime,
       intervalMins: vendor.slotIntervalMins,
       isClosed: hours.isClosed,
-      serviceDurationMins: service.durationMins,
+      serviceDurationMins: durationMins,
     })
 
-    log.debug({ vendorId: vendor.id, date: query.date, serviceId: service.id, count: slots.length }, 'slots:computed')
+    log.debug({ vendorId: vendor.id, date: query.date, serviceIds: query.serviceIds, durationMins, count: slots.length }, 'slots:computed')
 
+    // An empty list on an open day means the combined duration does not fit
+    // between opening and closing — the client says so rather than showing an
+    // empty picker the customer can retry all afternoon.
     return {
       date: query.date,
-      serviceId: service.id,
+      serviceIds: query.serviceIds,
+      durationMins,
       slotIntervalMins: vendor.slotIntervalMins,
       isClosed: false,
       slots,
@@ -1595,7 +1611,8 @@ export const vendorsService = {
         .slice(0, RECENT_EARNINGS_JOBS)
         .map((booking) => ({
           id: booking.id,
-          serviceName: booking.service?.name ?? '',
+          serviceName: booking.items[0]?.name ?? booking.service?.name ?? '',
+          serviceNames: booking.items.map((item) => item.name),
           customerName: booking.user?.name ?? 'Customer',
           scheduledAt: booking.scheduledAt.toISOString(),
           bookingType: booking.bookingType,

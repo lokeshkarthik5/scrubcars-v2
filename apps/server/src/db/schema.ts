@@ -574,14 +574,21 @@ export const bookings = pgTable(
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => vendors.id, { onDelete: 'cascade' }),
-    serviceId: uuid('service_id')
-      .notNull()
-      .references(() => services.id, { onDelete: 'restrict' }),
+    // Deprecated in favour of `booking_items`, and nullable so it can be
+    // dropped without another schema change. Still written with the first
+    // item so every existing reader keeps working; see 0024.
+    serviceId: uuid('service_id').references(() => services.id, {
+      onDelete: 'restrict',
+    }),
     vehicleId: uuid('vehicle_id')
       .notNull()
       .references(() => userVehicles.id, { onDelete: 'restrict' }),
     bookingType: bookingTypeEnum('booking_type').notNull(),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
+    // The sum of the items' durations, snapshot at write time. The overlap
+    // check reads this rather than joining `services`, so a vendor editing a
+    // duration cannot move an existing booking's window.
+    durationMins: integer('duration_mins').notNull(),
     status: bookingStatusEnum('status').default('pending').notNull(),
     // `amount` is what the customer is actually charged — payments.amount, the
     // Razorpay order and the "Pay Now" button all read it. The pre-discount
@@ -643,6 +650,44 @@ export const bookings = pgTable(
     index('bookings_status_idx').on(table.status),
     index('bookings_original_booking_id_idx').on(table.originalBookingId),
     index('bookings_discount_id_idx').on(table.discountId),
+  ]
+)
+
+// The services a booking was actually sold, one row each.
+//
+// Name, price and duration are snapshots, not joins: a vendor renaming or
+// repricing a service afterwards must not change what a past booking says it
+// charged. `amount` is the pre-discount line price — the discount is resolved
+// against the order total and lives on the booking, so the lines always sum to
+// `bookings.subtotal_amount`.
+export const bookingItems = pgTable(
+  'booking_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'restrict' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    durationMins: integer('duration_mins').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('booking_items_booking_id_idx').on(table.bookingId),
+    index('booking_items_service_id_idx').on(table.serviceId),
+    // A service appears at most once per booking. There is no quantity
+    // concept: two coats of polish is a different service, not the same one
+    // twice.
+    uniqueIndex('booking_items_booking_service_key').on(
+      table.bookingId,
+      table.serviceId
+    ),
   ]
 )
 
@@ -856,6 +901,36 @@ export const bookingIntents = pgTable(
   ]
 )
 
+// The same lines as booking_items, held against an unpaid intent. Copied
+// verbatim into booking_items by `consumeIntent`, so what the customer saw in
+// the Razorpay sheet is what the booking ends up recording.
+export const bookingIntentItems = pgTable(
+  'booking_intent_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    intentId: uuid('intent_id')
+      .notNull()
+      .references(() => bookingIntents.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'restrict' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    durationMins: integer('duration_mins').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('booking_intent_items_intent_id_idx').on(table.intentId),
+    uniqueIndex('booking_intent_items_intent_service_key').on(
+      table.intentId,
+      table.serviceId
+    ),
+  ]
+)
+
 export const reviews = pgTable(
   'reviews',
   {
@@ -1064,7 +1139,8 @@ export const discountRedemptionsRelations = relations(
   })
 )
 
-export const bookingsRelations = relations(bookings, ({ one }) => ({
+export const bookingsRelations = relations(bookings, ({ one, many }) => ({
+  items: many(bookingItems),
   user: one(users, {
     fields: [bookings.userId],
     references: [users.id],
@@ -1095,7 +1171,8 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
   }),
 }))
 
-export const bookingIntentsRelations = relations(bookingIntents, ({ one }) => ({
+export const bookingIntentsRelations = relations(bookingIntents, ({ one, many }) => ({
+  items: many(bookingIntentItems),
   service: one(services, {
     fields: [bookingIntents.serviceId],
     references: [services.id],
@@ -1109,6 +1186,31 @@ export const bookingIntentsRelations = relations(bookingIntents, ({ one }) => ({
     references: [bookings.id],
   }),
 }))
+
+export const bookingItemsRelations = relations(bookingItems, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [bookingItems.bookingId],
+    references: [bookings.id],
+  }),
+  service: one(services, {
+    fields: [bookingItems.serviceId],
+    references: [services.id],
+  }),
+}))
+
+export const bookingIntentItemsRelations = relations(
+  bookingIntentItems,
+  ({ one }) => ({
+    intent: one(bookingIntents, {
+      fields: [bookingIntentItems.intentId],
+      references: [bookingIntents.id],
+    }),
+    service: one(services, {
+      fields: [bookingIntentItems.serviceId],
+      references: [services.id],
+    }),
+  })
+)
 
 export const paymentsRelations = relations(payments, ({ one }) => ({
   booking: one(bookings, {
