@@ -24,12 +24,27 @@ const isoDateSchema = z
   .trim()
   .refine((value) => !Number.isNaN(Date.parse(value)), 'Invalid date')
 
-export const validateDiscountSchema = z.object({
-  code: codeSchema,
-  vendorId: z.string().uuid(),
-  serviceId: z.string().uuid(),
-  vehicleId: z.string().uuid(),
-})
+// The preview prices the same cart the booking will: a code with a minimum
+// order value has to be checked against the whole total, not one line of it.
+// `serviceId` is the old single-service shape, still accepted.
+export const validateDiscountSchema = z
+  .object({
+    code: codeSchema,
+    vendorId: z.string().uuid(),
+    serviceId: z.string().uuid().optional(),
+    serviceIds: z.array(z.string().uuid()).min(1).max(10).optional(),
+    vehicleId: z.string().uuid(),
+  })
+  .transform(({ serviceId, serviceIds, ...rest }) => ({
+    ...rest,
+    serviceIds: Array.from(
+      new Set(serviceIds ?? (serviceId ? [serviceId] : []))
+    ),
+  }))
+  .refine((input) => input.serviceIds.length > 0, {
+    message: 'Pick at least one service',
+    path: ['serviceIds'],
+  })
 
 const discountBaseSchema = z.object({
   code: codeSchema,

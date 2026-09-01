@@ -140,12 +140,35 @@ export interface TimeSlot {
   available: boolean
 }
 
+/** One service on a booking, as it was sold. */
+export interface BookingItem {
+  id: string
+  serviceId: string
+  name: string
+  /** The pre-discount line price. */
+  amount: number
+  durationMins: number
+}
+
 export interface Booking {
   id: string
   vendorId: string
   vendorName: string
+  /**
+   * Every service on this booking. Anything that shows what was booked should
+   * read this — `serviceId`/`serviceName` below are the first item only, and
+   * showing one service for a three-service job is the failure mode this
+   * field exists to prevent.
+   */
+  items: BookingItem[]
+  /** Deprecated: the first item's id. */
   serviceId: string
+  /** Deprecated: the first item's name. Use `items` or `serviceSummary`. */
   serviceName: string
+  /** Every service name, ready to render: "Full wash + 2 more". */
+  serviceSummary: string
+  /** The booking's total duration, in minutes. */
+  durationMins: number
   /** What the customer is actually charged, after any discount. */
   servicePrice: number
   /** The pre-discount price. Equal to servicePrice when no code was used. */

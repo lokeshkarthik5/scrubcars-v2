@@ -139,7 +139,7 @@ export default function VendorHomePage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-[13px] font-semibold">{b.customerName}</p>
-                      <p className="text-[11px] text-text-secondary">{b.serviceName} · {b.scheduledAt}</p>
+                      <p className="text-[11px] text-text-secondary">{b.serviceSummary} · {b.scheduledAt}</p>
                     </div>
                     <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
                   </div>

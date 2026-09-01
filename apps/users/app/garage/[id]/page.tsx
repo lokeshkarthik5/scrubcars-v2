@@ -59,8 +59,10 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const [mode, setMode] = useState<Mode>('dropin')
   const [query, setQuery] = useState('')
   const [favourite, setFavourite] = useState(false)
-  // One service per booking — matches createBookingSchema on the server.
-  const [selected, setSelected] = useState<string | null>(null)
+  // Several services can go into one booking. Order matters: it is the order
+  // they were added, and it is what the summary, the receipt and the vendor's
+  // job list all show.
+  const [selected, setSelected] = useState<string[]>([])
   // The service or package whose details popup is open, if any.
   const [details, setDetails] = useState<Service | ServicePackage | null>(null)
 
@@ -109,16 +111,42 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   }, [packages, query])
 
   // Packages are services, so a selected package resolves through the same
-  // lookup and books through the same flow — no separate booking path.
-  const selectedService =
-    [...services, ...packages].find((s) => s.id === selected) ?? null
+  // lookup and books through the same flow — no separate booking path. A
+  // package still counts as one line: it is priced and sold as a bundle, and
+  // expanding it into its members here would double-charge.
+  const selectedServices = useMemo(() => {
+    const catalogue = [...services, ...packages]
+    return selected
+      .map((serviceId) => catalogue.find((s) => s.id === serviceId))
+      .filter((s): s is Service | ServicePackage => s != null)
+  }, [selected, services, packages])
 
   const toggle = (serviceId: string) =>
-    setSelected((current) => (current === serviceId ? null : serviceId))
+    setSelected((current) =>
+      current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId]
+    )
+
+  // The running total is the sum of the list prices. For a per-vehicle service
+  // that is the "from" price — the car is not known until the next screen, so
+  // this is deliberately the same figure the cards show, and the checkout
+  // summary is where the real per-vehicle amount appears.
+  const selectedTotal = selectedServices.reduce(
+    (total, service) => total + service.price,
+    0
+  )
+  const selectedDuration = selectedServices.reduce(
+    (total, service) => total + service.durationMins,
+    0
+  )
+  const hasPerVehiclePricing = selectedServices.some(
+    (service) => service.pricingType === 'per_vehicle'
+  )
 
   const handleBook = () => {
-    if (!selected) return
-    const bookPath = `/book/${id}?service=${selected}`
+    if (selected.length === 0) return
+    const bookPath = `/book/${id}?service=${selected.join(',')}`
     router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
   }
 
@@ -150,7 +178,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const bothModes = vendor.dropinEnabled && vendor.doorstepEnabled
 
   return (
-    <AppShell className={cn('px-0', selected ? 'pb-28' : 'pb-6')}>
+    <AppShell className={cn('px-0', selected.length > 0 ? 'pb-28' : 'pb-6')}>
       {/* Hero — full-bleed cover with the back/favourite controls floated on top. */}
       <div className="relative h-[210px] w-full shrink-0 bg-surface-elevated">
         {hero ? (
@@ -313,7 +341,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                 </div>
 
                 {filteredPackages.map((pkg, i) => {
-                  const added = selected === pkg.id
+                  const added = selected.includes(pkg.id)
                   return (
                     <Reveal key={pkg.id} index={i}>
                     <ScCard
@@ -427,7 +455,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
               </p>
             ) : (
               filtered.map((svc, i) => {
-                const added = selected === svc.id
+                const added = selected.includes(svc.id)
                 return (
                   <Reveal key={svc.id} index={i}>
                   <ScCard
@@ -552,13 +580,24 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         )}
       </div>
 
-      {/* Sticky bar — appears once a service is picked, per the design. */}
-      {selectedService && (
+      {/* Sticky bar — appears once something is picked, per the design. With
+          several services it carries the running count, total and combined
+          time, because the time is what decides whether the booking will fit
+          a slot at all. */}
+      {selectedServices.length > 0 && (
         <div className="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 border-t border-border bg-brand-black px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] text-text-secondary">{selectedService.name}</p>
+            <p className="truncate text-[13px] text-text-secondary">
+              {selectedServices.length === 1
+                ? selectedServices[0].name
+                : `${selectedServices.length} services · ${formatDuration(selectedDuration)}`}
+            </p>
             <p className="truncate text-[15px] font-semibold text-text-primary">
-              {formatServicePrice(selectedService)}
+              {selectedServices.length === 1
+                ? formatServicePrice(selectedServices[0])
+                : // "from" because a per-vehicle line is only priced once the
+                  // car is known, one screen along.
+                  `${hasPerVehiclePricing ? 'from ' : ''}₹${selectedTotal.toLocaleString('en-IN')}`}
             </p>
           </div>
           <ScButton fullWidth={false} className="px-8" onClick={handleBook}>
@@ -722,7 +761,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                 setDetailsOpen(false)
               }}
             >
-              {selected === details.id ? 'Remove from booking' : 'Add to booking'}
+              {selected.includes(details.id)
+                ? 'Remove from booking'
+                : 'Add to booking'}
             </ScButton>
           </>
         )}

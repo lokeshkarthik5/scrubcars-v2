@@ -22,26 +22,32 @@ export const bookingIntentsService = {
   async createIntent(userId: string, input: CreateBookingIntentInput) {
     const draft = await resolveBookingDraft(userId, input)
 
-    const [intent] = await bookingIntentsRepository.createIntent({
-      userId,
-      vendorId: draft.vendor.id,
-      serviceId: draft.service.id,
-      vehicleId: draft.vehicle.id,
-      bookingType: input.bookingType,
-      scheduledAt: draft.scheduledAt,
-      serviceDurationMins: draft.service.durationMins,
-      subtotalAmount: draft.amount,
-      amount: draft.chargeAmount,
-      discountAmount: draft.discount?.discountAmount ?? '0.00',
-      discountId: draft.discount?.discountId ?? null,
-      discountCode: draft.discount?.code ?? null,
-      discountFundedBy: draft.discount?.fundedBy ?? null,
-      paymentMethod: input.paymentMethod,
-      lat: draft.lat,
-      lng: draft.lng,
-      address: draft.address,
-      expiresAt: new Date(Date.now() + INTENT_TTL_MS),
-    })
+    const [intent] = await bookingIntentsRepository.createIntent(
+      {
+        userId,
+        vendorId: draft.vendor.id,
+        // The first service, for the column that still carries one. The full
+        // list is the items below.
+        serviceId: draft.service.id,
+        vehicleId: draft.vehicle.id,
+        bookingType: input.bookingType,
+        scheduledAt: draft.scheduledAt,
+        // The whole booking's duration, not one service's.
+        serviceDurationMins: draft.durationMins,
+        subtotalAmount: draft.amount,
+        amount: draft.chargeAmount,
+        discountAmount: draft.discount?.discountAmount ?? '0.00',
+        discountId: draft.discount?.discountId ?? null,
+        discountCode: draft.discount?.code ?? null,
+        discountFundedBy: draft.discount?.fundedBy ?? null,
+        paymentMethod: input.paymentMethod,
+        lat: draft.lat,
+        lng: draft.lng,
+        address: draft.address,
+        expiresAt: new Date(Date.now() + INTENT_TTL_MS),
+      },
+      draft.items
+    )
 
     const order = await createRazorpayOrder({
       amount: intent.amount,

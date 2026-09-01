@@ -1,7 +1,8 @@
-import { and, count, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
+  bookingItems,
   bookingReschedules,
   bookings,
   discountRedemptions,
@@ -19,6 +20,15 @@ type BookingType = (typeof bookingTypeEnum.enumValues)[number]
 
 export type BookingRecord = typeof bookings.$inferSelect
 export type PaymentRecord = typeof payments.$inferSelect
+
+// One line of a booking, already priced against the customer's vehicle. Name,
+// amount and duration are snapshots — see booking_items in schema.ts.
+export interface BookingItemInput {
+  serviceId: string
+  name: string
+  amount: string
+  durationMins: number
+}
 
 // The discount already resolved by discountsService, carried into the write so
 // the booking, its payment and the redemption row land in one transaction.
@@ -54,18 +64,18 @@ export async function findOverlappingVehicleBooking(
   params: {
     vehicleId: string
     scheduledAt: Date
-    serviceDurationMins: number
+    // The whole booking's duration — the sum of its services, not one of them.
+    durationMins: number
     excludeBookingId?: string
   }
 ) {
   const requestedEnd = new Date(
-    params.scheduledAt.getTime() + params.serviceDurationMins * 60 * 1000
+    params.scheduledAt.getTime() + params.durationMins * 60 * 1000
   )
 
   const [existing] = await tx
     .select({ id: bookings.id, scheduledAt: bookings.scheduledAt })
     .from(bookings)
-    .innerJoin(services, eq(bookings.serviceId, services.id))
     .where(
       and(
         eq(bookings.vehicleId, params.vehicleId),
@@ -75,8 +85,14 @@ export async function findOverlappingVehicleBooking(
           : undefined,
         // Half-open overlap: existing starts before this one ends, and ends
         // after this one starts. Back-to-back bookings don't collide.
+        //
+        // The existing booking's end comes from its own `duration_mins`
+        // snapshot. This used to join `services.duration_mins`, which meant a
+        // vendor editing a service silently moved the window of every booking
+        // already taken against it — and with several services per booking
+        // there is no single service row to join to any more.
         sql`${bookings.scheduledAt} < ${requestedEnd.toISOString()}::timestamptz`,
-        sql`${bookings.scheduledAt} + (${services.durationMins} * interval '1 minute') > ${params.scheduledAt.toISOString()}::timestamptz`
+        sql`${bookings.scheduledAt} + (${bookings.durationMins} * interval '1 minute') > ${params.scheduledAt.toISOString()}::timestamptz`
       )
     )
     .limit(1)
@@ -136,6 +152,13 @@ export async function lockVehicle(
   )
 }
 
+// Line items in the order the customer added them. Declared once because
+// every booking read needs the same shape — a list that came back ordered
+// differently in one place would show a different "first service" there.
+const BOOKING_ITEMS = {
+  orderBy: [asc(bookingItems.sortOrder)],
+}
+
 export const bookingsRepository = {
   /**
    * Is this garage willing to travel to this point?
@@ -188,7 +211,10 @@ export const bookingsRepository = {
       with: {
         user: true,
         vendor: true,
+        // `service` is the deprecated first-item pointer, still loaded for the
+        // readers that have not moved to `items` yet.
         service: true,
+        items: BOOKING_ITEMS,
         vehicle: true,
         payment: true,
         review: true,
@@ -215,6 +241,7 @@ export const bookingsRepository = {
       with: {
         vendor: true,
         service: true,
+        items: BOOKING_ITEMS,
         vehicle: true,
         payment: true,
       },
@@ -259,6 +286,7 @@ export const bookingsRepository = {
       with: {
         user: true,
         service: true,
+        items: BOOKING_ITEMS,
         vehicle: true,
         payment: true,
         review: true,
@@ -270,12 +298,14 @@ export const bookingsRepository = {
   createBookingWithPayment(data: {
     userId: string
     vendorId: string
-    serviceId: string
+    // The services being booked, in the order the customer picked them. The
+    // first one is also written to the deprecated `bookings.service_id`.
+    items: BookingItemInput[]
     vehicleId: string
     bookingType: BookingType
     scheduledAt: Date
-    serviceDurationMins: number
-    // Pre-discount service price.
+    durationMins: number
+    // Pre-discount total: the sum of the item amounts.
     subtotalAmount: string
     // What is actually charged: subtotalAmount - discount.discountAmount.
     amount: string
@@ -293,7 +323,7 @@ export const bookingsRepository = {
       const clash = await findOverlappingVehicleBooking(tx, {
         vehicleId: data.vehicleId,
         scheduledAt: data.scheduledAt,
-        serviceDurationMins: data.serviceDurationMins,
+        durationMins: data.durationMins,
       })
 
       if (clash) {
@@ -345,10 +375,11 @@ export const bookingsRepository = {
         .values({
           userId: data.userId,
           vendorId: data.vendorId,
-          serviceId: data.serviceId,
+          serviceId: data.items[0].serviceId,
           vehicleId: data.vehicleId,
           bookingType: data.bookingType,
           scheduledAt: data.scheduledAt,
+          durationMins: data.durationMins,
           subtotalAmount: data.subtotalAmount,
           amount: data.amount,
           discountAmount: data.discount?.discountAmount ?? '0.00',
@@ -361,6 +392,17 @@ export const bookingsRepository = {
           address: data.address ?? null,
         })
         .returning()
+
+      await tx.insert(bookingItems).values(
+        data.items.map((item, index) => ({
+          bookingId: booking.id,
+          serviceId: item.serviceId,
+          name: item.name,
+          amount: item.amount,
+          durationMins: item.durationMins,
+          sortOrder: index,
+        }))
+      )
 
       const [payment] = await tx
         .insert(payments)
@@ -396,11 +438,12 @@ export const bookingsRepository = {
     rootBookingId: string
     userId: string
     vendorId: string
-    serviceId: string
+    // A move copies the lines verbatim, prices and all — it is not a re-quote.
+    items: BookingItemInput[]
     vehicleId: string
     bookingType: BookingType
     newScheduledAt: Date
-    serviceDurationMins: number
+    durationMins: number
     status: BookingStatus
     // A reschedule is a move, not a re-price: these are copied verbatim from
     // the booking being moved.
@@ -461,7 +504,7 @@ export const bookingsRepository = {
       const clash = await findOverlappingVehicleBooking(tx, {
         vehicleId: data.vehicleId,
         scheduledAt: data.newScheduledAt,
-        serviceDurationMins: data.serviceDurationMins,
+        durationMins: data.durationMins,
         excludeBookingId: data.sourceBookingId,
       })
 
@@ -479,10 +522,11 @@ export const bookingsRepository = {
         .values({
           userId: data.userId,
           vendorId: data.vendorId,
-          serviceId: data.serviceId,
+          serviceId: data.items[0].serviceId,
           vehicleId: data.vehicleId,
           bookingType: data.bookingType,
           scheduledAt: data.newScheduledAt,
+          durationMins: data.durationMins,
           status: data.status,
           subtotalAmount: data.subtotalAmount,
           amount: data.amount,
@@ -499,6 +543,17 @@ export const bookingsRepository = {
           rescheduleCount: existing + 1,
         })
         .returning()
+
+      await tx.insert(bookingItems).values(
+        data.items.map((item, index) => ({
+          bookingId: booking.id,
+          serviceId: item.serviceId,
+          name: item.name,
+          amount: item.amount,
+          durationMins: item.durationMins,
+          sortOrder: index,
+        }))
+      )
 
       // Carry the prepaid payment to the new booking (no re-charge).
       const [payment] = await tx
@@ -638,9 +693,17 @@ export const bookingsRepository = {
     })
   },
 
-  findServiceForVendor(vendorId: string, serviceId: string) {
-    return db.query.services.findFirst({
-      where: and(eq(services.id, serviceId), eq(services.vendorId, vendorId)),
+  /**
+   * The requested services, restricted to this vendor. Returns whatever
+   * matched — the caller compares against what it asked for, so it can name
+   * the service that was missing rather than failing the whole cart blindly.
+   */
+  findServicesForVendor(vendorId: string, serviceIds: string[]) {
+    return db.query.services.findMany({
+      where: and(
+        eq(services.vendorId, vendorId),
+        inArray(services.id, serviceIds)
+      ),
     })
   },
 }

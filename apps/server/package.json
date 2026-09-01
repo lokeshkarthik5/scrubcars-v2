@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts | pino-pretty --colorize --translateTime 'HH:MM:ss' --ignore 'pid,hostname,service'",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "migrate": "bash scripts/migrate.sh migrate",
@@ -12,7 +12,8 @@
     "migrate:check": "bash scripts/migrate.sh check",
     "seed": "bash scripts/seed.sh",
     "seed:users": "bash scripts/seed.sh --users",
-    "seed:vendors": "bash scripts/seed.sh --vendors"
+    "seed:vendors": "bash scripts/seed.sh --vendors",
+    "test": "bun test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1101.0",
@@ -27,6 +28,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.0",
     "@types/node": "^20.11.17",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",

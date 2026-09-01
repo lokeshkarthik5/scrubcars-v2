@@ -6,7 +6,7 @@ import {
   getDayOfWeekFromDate,
   isScheduledAtAvailable,
 } from '../../lib/slots.js'
-import { computeServiceAmount } from '../../lib/pricing.js'
+import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -32,6 +32,7 @@ type BookingWithRelations = {
   status: string
   bookingType: string
   scheduledAt: Date
+  durationMins?: number | null
   amount: string
   subtotalAmount?: string | null
   discountAmount?: string | null
@@ -72,6 +73,14 @@ type BookingWithRelations = {
     pricingType: string
     durationMins: number
   } | null
+  items?: Array<{
+    id: string
+    serviceId: string
+    name: string
+    amount: string
+    durationMins: number
+    sortOrder: number
+  }> | null
   vehicle?: {
     id: string
     make: string
@@ -156,6 +165,22 @@ function toBookingResponse(booking: BookingWithRelations) {
           city: booking.vendor.city,
         }
       : null,
+    // The services this booking is for, in the order they were picked, with
+    // the name and price as sold. Every consumer that shows more than one
+    // service reads this.
+    items: (booking.items ?? []).map((item) => ({
+      id: item.id,
+      serviceId: item.serviceId,
+      name: item.name,
+      amount: item.amount,
+      durationMins: item.durationMins,
+    })),
+    durationMins:
+      booking.durationMins ??
+      (booking.items ?? []).reduce((total, item) => total + item.durationMins, 0),
+    // Deprecated: the first item, kept so clients that predate `items` keep
+    // rendering something correct for a single-service booking. Remove once
+    // they have all moved over.
     service: booking.service
       ? {
           id: booking.service.id,
@@ -221,13 +246,15 @@ async function getTenantVendor(vendorId: string) {
 
 async function validateSlotAvailability(
   vendorId: string,
-  serviceId: string,
+  serviceIds: string[],
   scheduledAt: Date,
-  serviceDurationMins: number
+  // The total across every service in the booking. A five-service cart needs a
+  // block long enough for all of it, and may not fit the day at all.
+  durationMins: number
 ) {
   const date = getDateKeyFromScheduledAt(scheduledAt)
   const dayOfWeek = getDayOfWeekFromDate(date)
-  log.info({ vendorId, serviceId, date, dayOfWeek, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_check_start')
+  log.info({ vendorId, serviceIds, date, dayOfWeek, durationMins, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_check_start')
 
   const hours = await vendorsRepository.findWorkingHoursForDay(
     vendorId,
@@ -260,13 +287,25 @@ async function validateSlotAvailability(
     closeTime: hours.closeTime,
     intervalMins: vendor.slotIntervalMins,
     isClosed: hours.isClosed,
-    serviceDurationMins,
+    serviceDurationMins: durationMins,
   })
 
   log.info({ vendorId, date, availableSlotsCount: availableSlots.length, requestedSlot: scheduledAt.toISOString() }, 'booking:available_slots_computed')
 
   if (!isScheduledAtAvailable(scheduledAt, availableSlots)) {
-    log.warn({ vendorId, date, scheduledAt: scheduledAt.toISOString(), availableSlotsCount: availableSlots.length }, 'booking:slot_unavailable_taken')
+    log.warn({ vendorId, date, scheduledAt: scheduledAt.toISOString(), durationMins, availableSlotsCount: availableSlots.length }, 'booking:slot_unavailable_taken')
+
+    // A long enough list of services fits nowhere in the day, and "that slot
+    // has gone" would be a lie — the customer can retry all afternoon and
+    // never succeed. Say which it is.
+    if (availableSlots.length === 0) {
+      throw new AppError(
+        400,
+        'These services need more time than this garage has left in the day. Remove one, or pick another day.',
+        'DURATION_EXCEEDS_WORKING_DAY'
+      )
+    }
+
     throw new AppError(
       400,
       'Selected slot is not available',
@@ -399,16 +438,39 @@ export async function resolveBookingDraft(
     )
   }
 
-  const service = await bookingsRepository.findServiceForVendor(
+  // Every requested service must belong to this vendor and be active. Fetched
+  // in one query and then re-ordered to the customer's order, so the summary,
+  // the receipt and the deprecated `bookings.service_id` all agree on which
+  // service came first.
+  const found = await bookingsRepository.findServicesForVendor(
     vendor.id,
-    input.serviceId
+    input.serviceIds
   )
-  log.info({ vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_lookup')
+  const byId = new Map(found.map((row) => [row.id, row]))
+  const services = input.serviceIds.map((id) => byId.get(id))
 
-  if (!service || !service.isActive) {
-    log.warn({ userId, vendorId: vendor.id, serviceId: input.serviceId, found: !!service, isActive: service?.isActive }, 'booking:service_not_found')
-    throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+  log.info({ vendorId: vendor.id, serviceIds: input.serviceIds, foundCount: found.length }, 'booking:service_lookup')
+
+  const missing = input.serviceIds.filter((id) => {
+    const row = byId.get(id)
+    return !row || !row.isActive
+  })
+
+  if (missing.length > 0) {
+    log.warn({ userId, vendorId: vendor.id, serviceIds: input.serviceIds, missing }, 'booking:service_not_found')
+    throw new AppError(
+      404,
+      missing.length === input.serviceIds.length
+        ? 'Service not found'
+        : 'One of the services you picked is no longer available',
+      'SERVICE_NOT_FOUND'
+    )
   }
+
+  const resolvedServices = services as NonNullable<(typeof services)[number]>[]
+  // The first service, for the columns that still hold one. Not a fallback:
+  // `serviceIds` is non-empty by schema, so this always exists.
+  const service = resolvedServices[0]
 
   const vehicle = await bookingsRepository.findVehicleForUser(
     userId,
@@ -421,27 +483,44 @@ export async function resolveBookingDraft(
     throw new AppError(404, 'Vehicle not found', 'VEHICLE_NOT_FOUND')
   }
 
-  // Resolve the charge from the pricing type and the customer's vehicle.
+  // Price each line from its pricing type and the customer's vehicle.
   // A per-vehicle service with no price for this tier has no defensible
   // amount — `price` is the cheapest tier, so charging it would bill an SUV
-  // at the hatchback rate. Refuse instead of guessing.
-  const amount = computeServiceAmount(service, vehicle.vehicleType)
+  // at the hatchback rate. Refuse instead of guessing, and name the service:
+  // with several in the cart, "this service isn't priced" does not tell the
+  // customer which one to remove.
+  const items = resolvedServices.map((row) => {
+    const lineAmount = computeServiceAmount(row, vehicle.vehicleType)
 
-  if (amount === null) {
-    log.warn(
-      {
-        userId,
-        serviceId: service.id,
-        vehicleType: vehicle.vehicleType,
-      },
-      'booking:service_not_priced_for_vehicle'
-    )
-    throw new AppError(
-      400,
-      'This service is not priced for your vehicle type yet. Please contact the garage.',
-      'SERVICE_NOT_PRICED_FOR_VEHICLE'
-    )
-  }
+    if (lineAmount === null) {
+      log.warn(
+        {
+          userId,
+          serviceId: row.id,
+          vehicleType: vehicle.vehicleType,
+        },
+        'booking:service_not_priced_for_vehicle'
+      )
+      throw new AppError(
+        400,
+        `${row.name} is not priced for your vehicle type yet. Remove it, or contact the garage.`,
+        'SERVICE_NOT_PRICED_FOR_VEHICLE'
+      )
+    }
+
+    return {
+      serviceId: row.id,
+      name: row.name,
+      amount: lineAmount,
+      durationMins: row.durationMins,
+    }
+  })
+
+  // Sum the lines, then discount — never discount per line — or the invariant
+  // `amount = subtotalAmount - discountAmount` drifts by a paisa. Summed in
+  // paise so the arithmetic never runs through a float.
+  const amount = sumAmounts(items.map((item) => item.amount))
+  const durationMins = items.reduce((total, item) => total + item.durationMins, 0)
 
   // Resolve the promo code against the *server-computed* subtotal. A
   // failure here (expired, limit reached, wrong garage) surfaces as the
@@ -560,20 +639,24 @@ export async function resolveBookingDraft(
     address = savedAddress.address
   }
 
-  log.info({ userId, vendorId: vendor.id, serviceId: service.id, scheduledAt: scheduledAt.toISOString(), durationMins: service.durationMins }, 'booking:slot_validation_start')
+  log.info({ userId, vendorId: vendor.id, serviceIds: input.serviceIds, scheduledAt: scheduledAt.toISOString(), durationMins }, 'booking:slot_validation_start')
 
   await validateSlotAvailability(
     vendor.id,
-    service.id,
+    input.serviceIds,
     scheduledAt,
-    service.durationMins
+    durationMins
   )
   return {
     vendor,
+    // The lines as they will be written, and the first service for the columns
+    // that still carry one.
+    items,
     service,
+    durationMins,
     vehicle,
     scheduledAt,
-    // Pre-discount price, and what is actually charged. Equal when no code.
+    // Pre-discount total, and what is actually charged. Equal when no code.
     amount,
     chargeAmount,
     discount,
@@ -607,7 +690,7 @@ export const bookingsService = {
     log.info({
       userId,
       vendorId: input.vendorId,
-      serviceId: input.serviceId,
+      serviceIds: input.serviceIds,
       vehicleId: input.vehicleId,
       scheduledAt: input.scheduledAt,
       bookingType: input.bookingType,
@@ -617,7 +700,8 @@ export const bookingsService = {
     try {
       const {
         vendor,
-        service,
+        items,
+        durationMins,
         vehicle,
         scheduledAt,
         amount,
@@ -635,11 +719,11 @@ export const bookingsService = {
         await bookingsRepository.createBookingWithPayment({
           userId,
           vendorId: vendor.id,
-          serviceId: service.id,
+          items,
           vehicleId: vehicle.id,
           bookingType: input.bookingType,
           scheduledAt,
-          serviceDurationMins: service.durationMins,
+          durationMins,
           subtotalAmount: amount,
           amount: chargeAmount,
           paymentMethod: input.paymentMethod,
@@ -698,7 +782,7 @@ export const bookingsService = {
         bookingId: booking.id,
         userId,
         vendorId: vendor.id,
-        serviceId: service.id,
+        serviceIds: input.serviceIds,
         vehicleId: vehicle.id,
         scheduledAt: scheduledAt.toISOString(),
         bookingType: input.bookingType,
@@ -713,7 +797,7 @@ export const bookingsService = {
         err,
         userId,
         vendorId: input.vendorId,
-        serviceId: input.serviceId,
+        serviceIds: input.serviceIds,
         vehicleId: input.vehicleId,
         scheduledAt: input.scheduledAt,
       }, 'booking:create_failed')
@@ -793,16 +877,23 @@ export const bookingsService = {
       )
     }
 
-    const service = booking.service
-    if (!service) {
+    // A move re-books exactly what was sold, so the lines come off the booking
+    // rather than being re-resolved: a service repriced or deactivated since
+    // must not change (or block) a booking the customer has already paid for.
+    const items = booking.items ?? []
+    if (items.length === 0) {
       throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
     }
 
+    const durationMins =
+      booking.durationMins ??
+      items.reduce((total, item) => total + item.durationMins, 0)
+
     await validateSlotAvailability(
       booking.vendorId,
-      service.id,
+      items.map((item) => item.serviceId),
       newScheduledAt,
-      service.durationMins
+      durationMins
     )
 
     const rootBookingId = booking.originalBookingId ?? booking.id
@@ -812,11 +903,16 @@ export const bookingsService = {
       rootBookingId,
       userId,
       vendorId: booking.vendorId,
-      serviceId: service.id,
+      items: items.map((item) => ({
+        serviceId: item.serviceId,
+        name: item.name,
+        amount: item.amount,
+        durationMins: item.durationMins,
+      })),
       vehicleId: booking.vehicleId,
       bookingType: booking.bookingType,
       newScheduledAt,
-      serviceDurationMins: service.durationMins,
+      durationMins,
       status: booking.status,
       subtotalAmount: booking.subtotalAmount ?? booking.amount,
       amount: booking.amount,

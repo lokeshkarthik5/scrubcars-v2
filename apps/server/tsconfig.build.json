@@ -1,0 +1,7 @@
+{
+  // Emit only the app. Tests live beside the code they cover and are run by
+  // `bun test`, which needs no compile step — shipping them in dist/ would put
+  // `bun:test` imports in a Node build that cannot resolve them.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

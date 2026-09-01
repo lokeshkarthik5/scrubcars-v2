@@ -106,6 +106,24 @@ export function computeServiceAmount(
 }
 
 /**
+ * Add rupee amounts that are stored as decimal strings.
+ *
+ * Money is `numeric(10,2)` throughout and carried as strings. Summing them as
+ * floats works until it doesn't — 0.1 + 0.2 is the standard example — and a
+ * booking total a paisa off its own line items is the kind of bug that only
+ * surfaces in a reconciliation months later. Shared by the booking draft and
+ * the discount preview so the two can never compute different subtotals for
+ * the same cart.
+ */
+export function sumAmounts(amounts: string[]): string {
+  const paise = amounts.reduce(
+    (total, value) => total + Math.round(Number(value) * 100),
+    0
+  )
+  return (paise / 100).toFixed(2)
+}
+
+/**
  * The lowest concrete price across a vendor's services, for the listing card.
  * Returns null if no service has a positive price.
  */

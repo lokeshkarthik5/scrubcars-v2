@@ -1,7 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  bookingIntentItems,
   bookingIntents,
+  bookingItems,
   bookings,
   discountRedemptions,
   discounts,
@@ -16,6 +18,15 @@ import {
 
 export type BookingIntentRecord = typeof bookingIntents.$inferSelect
 type BookingIntentInsert = typeof bookingIntents.$inferInsert
+
+// The lines an intent was priced from, in the customer's order. Copied
+// verbatim into booking_items when the payment lands.
+export interface BookingIntentItemInput {
+  serviceId: string
+  name: string
+  amount: string
+  durationMins: number
+}
 
 // What `consumeIntent` did. Everything except 'created' and 'already' means no
 // booking exists for money that may already have been captured, so the service
@@ -32,8 +43,28 @@ export type ConsumeIntentResult =
   | { kind: 'previously_failed'; failureReason: string | null }
 
 export const bookingIntentsRepository = {
-  createIntent(data: BookingIntentInsert) {
-    return db.insert(bookingIntents).values(data).returning()
+  /**
+   * One intent and its lines, in a transaction. An intent without its items
+   * would price a booking nobody could reconstruct — and `consumeIntent`
+   * builds the booking's lines from exactly these rows.
+   */
+  createIntent(data: BookingIntentInsert, items: BookingIntentItemInput[]) {
+    return db.transaction(async (tx) => {
+      const [intent] = await tx.insert(bookingIntents).values(data).returning()
+
+      await tx.insert(bookingIntentItems).values(
+        items.map((item, index) => ({
+          intentId: intent.id,
+          serviceId: item.serviceId,
+          name: item.name,
+          amount: item.amount,
+          durationMins: item.durationMins,
+          sortOrder: index,
+        }))
+      )
+
+      return [intent]
+    })
   },
 
   setGatewayTxnId(intentId: string, gatewayTxnId: string) {
@@ -130,7 +161,7 @@ export const bookingIntentsRepository = {
       const clash = await findOverlappingVehicleBooking(tx, {
         vehicleId: intent.vehicleId,
         scheduledAt: intent.scheduledAt,
-        serviceDurationMins: intent.serviceDurationMins,
+        durationMins: intent.serviceDurationMins,
       })
 
       if (clash) {
@@ -172,6 +203,15 @@ export const bookingIntentsRepository = {
         }
       }
 
+      // The lines the customer paid against. Read before the booking is
+      // written so the two land in the same transaction — a booking whose
+      // items failed to copy would show as an empty order.
+      const intentItems = await tx
+        .select()
+        .from(bookingIntentItems)
+        .where(eq(bookingIntentItems.intentId, intent.id))
+        .orderBy(asc(bookingIntentItems.sortOrder))
+
       const [booking] = await tx
         .insert(bookings)
         .values({
@@ -181,6 +221,7 @@ export const bookingIntentsRepository = {
           vehicleId: intent.vehicleId,
           bookingType: intent.bookingType,
           scheduledAt: intent.scheduledAt,
+          durationMins: intent.serviceDurationMins,
           subtotalAmount: intent.subtotalAmount,
           amount: intent.amount,
           discountAmount: intent.discountAmount,
@@ -193,6 +234,17 @@ export const bookingIntentsRepository = {
           address: intent.address,
         })
         .returning()
+
+      await tx.insert(bookingItems).values(
+        intentItems.map((item) => ({
+          bookingId: booking.id,
+          serviceId: item.serviceId,
+          name: item.name,
+          amount: item.amount,
+          durationMins: item.durationMins,
+          sortOrder: item.sortOrder,
+        }))
+      )
 
       // `paid` from the outset — this row only exists because the money landed.
       await tx.insert(payments).values({

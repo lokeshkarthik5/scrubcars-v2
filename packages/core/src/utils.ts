@@ -41,3 +41,18 @@ export function formatDuration(totalMins: number): string {
 
   return parts.join(' ')
 }
+
+/**
+ * A one-line label for the services on a booking: "Full wash",
+ * "Full wash + 1 more", "Full wash + 3 more".
+ *
+ * Every list row — customer, vendor, earnings — is a single line of small text,
+ * so the names cannot all fit. What matters is that a multi-service job never
+ * *looks* like a single-service one: a garage seeing only "Full wash" for a
+ * three-service booking is the worst failure this feature can produce.
+ */
+export function formatServiceSummary(names: string[]): string {
+  const [first, ...rest] = names.filter(Boolean)
+  if (!first) return ''
+  return rest.length === 0 ? first : `${first} + ${rest.length} more`
+}

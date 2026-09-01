@@ -13,7 +13,7 @@ export interface AppliedDiscount {
 /**
  * POST /discounts/validate — a preview only.
  *
- * The server recomputes the subtotal from the service and vehicle, so nothing
+ * The server recomputes the subtotal from the services and vehicle, so nothing
  * here is trusted at payment time: `POST /bookings` resolves the code again and
  * that result is the one that binds. Throws an ApiError whose message is the
  * customer-facing reason ("This code has expired.").
@@ -21,7 +21,8 @@ export interface AppliedDiscount {
 export async function validateDiscount(input: {
   code: string
   vendorId: string
-  serviceId: string
+  /** The whole cart: a code's minimum order value is tested against the total. */
+  serviceIds: string[]
   vehicleId: string
 }): Promise<AppliedDiscount> {
   return apiClient<AppliedDiscount>('/discounts/validate', {
