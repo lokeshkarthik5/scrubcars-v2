@@ -119,7 +119,8 @@ async function seedPeople() {
     ...[CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review, CUSTOMERS.payLater,
         CUSTOMERS.coupons, CUSTOMERS.browse, CUSTOMERS.journey,
         CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
-        CUSTOMERS.logout, CUSTOMERS.session].map((c, i) => ({
+        CUSTOMERS.logout, CUSTOMERS.session,
+        CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -133,7 +134,8 @@ async function seedPeople() {
     [CUSTOMERS.book, CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review,
      CUSTOMERS.payLater, CUSTOMERS.coupons, CUSTOMERS.browse,
      CUSTOMERS.journey, CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
-     CUSTOMERS.logout, CUSTOMERS.session].map((c) => ({
+     CUSTOMERS.logout, CUSTOMERS.session,
+     CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c) => ({
       userId: c.id, label: 'Home', address: '14, Gandhi Nagar, Adyar',
       city: 'Chennai', lat: ORIGIN.lat, lng: ORIGIN.lng, isDefault: true,
     }))

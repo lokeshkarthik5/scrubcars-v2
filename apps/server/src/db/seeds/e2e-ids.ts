@@ -48,6 +48,10 @@ export const CUSTOMERS = {
    * ambiguous and the run would accept the wrong job.
    */
   journey: { id: id(109), phone: '9000000009', name: 'Journey Jaya', vehicleId: id(718) },
+  /** One per cross-app journey, for the same reason as `journey` above: the
+   *  vendor app finds a job by its customer's name. */
+  journeyCancel: { id: id(114), phone: '9000000014', name: 'Journey Cancel Chitra', vehicleId: id(723) },
+  journeyMove: { id: id(115), phone: '9000000015', name: 'Journey Move Mani', vehicleId: id(724) },
   /**
    * Customers that exist only to own the vendor-side fixture bookings.
    *
@@ -74,6 +78,9 @@ export const CUSTOMERS = {
  * been seen before; anything seeded would send it down the returning-user path.
  */
 export const UNREGISTERED_PHONE = '9000000099'
+
+/** The same, for the vendor app: onboarding only runs for a brand-new owner. */
+export const UNREGISTERED_VENDOR_PHONE = '9000000098'
 
 export const STAFF = {
   /** Owns both MAIN and SECOND — the company switcher needs two to switch between. */

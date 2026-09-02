@@ -77,3 +77,20 @@ test.describe('admin panel', () => {
     await expect(page.getByText(/₹/).first()).toBeVisible()
   })
 })
+
+test.describe('coverage', () => {
+  test.use({ storageState: asRole('admin') })
+
+  test('the demand map renders with map tiles blocked', async ({ page }) => {
+    await page.goto('/coverage')
+
+    // A read-only heatmap of doorstep demand per ~1km cell, not an editor.
+    await expect(page.getByRole('heading', { name: /Coverage/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Biggest gaps' })).toBeVisible()
+
+    // Tiles are blocked by the fixture, so this also proves the page degrades
+    // rather than throwing when the tile host is unreachable — which is what
+    // an offline or rate-limited tile provider looks like in production.
+    await expect(page.getByText(/Loading…/)).toHaveCount(0)
+  })
+})

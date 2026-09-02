@@ -36,6 +36,18 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '**',
       },
+      // Local object storage only. The E2E stack (and anyone running MinIO
+      // locally) serves uploads over plain http on localhost, which the https
+      // pattern above rejects — next/image then throws and takes the page with
+      // it.
+      //
+      // Excluded from production builds deliberately: the image optimizer
+      // fetches whatever it is pointed at, so allowing localhost on a
+      // deployed server would let a crafted src probe services reachable only
+      // from inside it.
+      ...(process.env.NODE_ENV === 'production'
+        ? []
+        : [{ protocol: 'http' as const, hostname: 'localhost' }]),
     ],
   },
 }

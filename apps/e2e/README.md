@@ -69,6 +69,23 @@ signed out simply omit it.
   `BYPASS_PHONES` list in `auth.service.ts` — those are real production numbers
   and tests should not depend on that bypass surviving.
 
+## Known gaps, kept visible
+
+Two tests are marked `test.fail()`. They are not unwritten specs — they are
+defects the suite found, encoded so they stay on the report instead of in a
+comment nobody reads. Each will start passing when the underlying issue is
+fixed, at which point Playwright flags the annotation as stale and it should be
+deleted along with the explanation above it.
+
+- `vendors/onboarding.spec.ts` — the garage is created at step 2 of the wizard,
+  and app-provider then redirects every `/onboarding` route to `/home`. Steps 3
+  and 4 (working hours, first service) are unreachable, so a garage onboarded
+  through the real UI is saved with no working hours and can never take a
+  booking.
+- `platform/accessibility.spec.ts` — every screen has text below the WCAG AA
+  contrast threshold. The per-screen gate excludes `color-contrast` so the rest
+  of the accessibility floor can be enforced today.
+
 ## Selectors
 
 There are no `data-testid` attributes. Selectors are roles, accessible names
