@@ -31,7 +31,15 @@ const frontend = (name: string, port: number) => ({
   timeout: 180_000,
   stdout: 'pipe' as const,
   stderr: 'pipe' as const,
-  env: process.env as Record<string, string>,
+  env: {
+    ...(process.env as Record<string, string>),
+    // .env.e2e sets NODE_ENV=development because the API needs it: cookies are
+    // `secure: !isDev`, and secure cookies are dropped over plain http, which
+    // would log every test out. The frontends have the opposite need — in CI
+    // they serve a production build — so the value is corrected here rather
+    // than split across two env files.
+    ...(CI ? { NODE_ENV: 'production' } : {}),
+  },
 })
 
 export default defineConfig({
@@ -114,7 +122,10 @@ export default defineConfig({
 
   webServer: [
     {
-      command: 'bun run --filter server dev',
+      // Matches the frontends: CI serves the compiled build, local runs the
+      // watcher. The dev script also pipes through pino-pretty, which is noise
+      // in a CI log and one more process between here and a readiness check.
+      command: CI ? 'bun run --filter server start' : 'bun run --filter server dev',
       url: `${API}/`, // app.ts:95 — `Detlio API v<version>`
       cwd: repoRoot,
       reuseExistingServer: !CI,
