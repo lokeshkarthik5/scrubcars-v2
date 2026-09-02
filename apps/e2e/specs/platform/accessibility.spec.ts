@@ -10,7 +10,9 @@
  * test does not notice, like contrast and duplicated ids.
  */
 import AxeBuilder from '@axe-core/playwright'
+import { devices } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
+import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
 import { BOOKINGS, VENDORS, SERVICES } from '../../support/seed-ids'
 
 /**
@@ -158,21 +160,45 @@ test.describe('accessibility debt', () => {
 })
 
 test.describe('responsive', () => {
-  test.use({ storageState: asRole('customer-browse') })
-
-  test('the customer app does not scroll sideways on a small phone', async ({ page }) => {
-    // 320px is the narrowest viewport worth supporting; the app is built to a
-    // 428px shell, so this is the case where a fixed width would show.
-    await page.setViewportSize({ width: 320, height: 720 })
+  test('the customer app does not scroll sideways on a small phone', async ({ browser }) => {
+    // A context sized at creation, rather than `page.setViewportSize` on the
+    // project's Pixel 7 page.
+    //
+    // Resizing after the fact drops Chromium's mobile viewport emulation, and
+    // a desktop Linux Chromium then reserves ~15px for a classic scrollbar —
+    // so the page lays out in 305px, overflows by 8px, and CI fails a check
+    // that passes on macOS purely because macOS scrollbars are overlays. No
+    // phone has a scrollbar that takes layout space, so that failure was about
+    // the runner, not the app.
+    const context = await browser.newContext({
+      ...devices['Pixel 7'],
+      viewport: { width: 320, height: 720 },
+      storageState: asRole('customer-browse'),
+    })
+    await blockThirdParties(context)
+    await dismissLocationPrompt(context)
+    const page = await context.newPage()
 
     for (const path of ['/home', `/garage/${VENDORS.main.id}`, `/bookings/${BOOKINGS.reviewable}`]) {
       await page.goto(path)
       await settle(page)
+
+      // Guards the assumption above. If mobile emulation is ever lost, the
+      // layout width silently shrinks by the width of a scrollbar and the
+      // overflow check below starts reporting the runner's chrome rather than
+      // the app's layout — so fail here, where the message says what happened.
+      const layoutWidth = await page.evaluate(() => document.documentElement.clientWidth)
+      expect(
+        layoutWidth,
+        'lost mobile viewport emulation — a scrollbar is taking layout space'
+      ).toBe(320)
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth
       )
       expect(overflow, `${path} overflows horizontally by ${overflow}px`).toBeLessThanOrEqual(1)
     }
+
+    await context.close()
   })
 })
