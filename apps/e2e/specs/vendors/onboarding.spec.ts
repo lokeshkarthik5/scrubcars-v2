@@ -4,13 +4,13 @@
  * The only flow in the app that creates a vendor from nothing, and the only
  * one gated on a map pin. Runs signed out, so it does not use a storageState.
  */
-import { test, expect } from '../../support/fixtures'
+import { test, expect, asRole } from '../../support/fixtures'
 import { latestOtp, sql } from '../../support/db'
 import { UNREGISTERED_VENDOR_PHONE } from '../../support/seed-ids'
 
 test.describe.configure({ mode: 'serial' })
 
-test('a new owner signs up and their garage is created', async ({ page }) => {
+test('a new owner signs up and is taken through all four steps', async ({ page }) => {
   const phone = UNREGISTERED_VENDOR_PHONE
 
   // Repeatable: a previous run would have made this a returning owner.
@@ -53,9 +53,21 @@ test('a new owner signs up and their garage is created', async ({ page }) => {
   await expect(continueStep2).toBeEnabled()
   await continueStep2.click()
 
-  // Step 2 is where the garage is actually written, and creating it ends the
-  // wizard: app-provider sends anyone who already has a garage away from
-  // /onboarding (app-provider.tsx:106), so the app lands on /home from here.
+  // ── step 3: when you work ───────────────────────────────────────────────
+  // Reachable only because the route guard is scoped to the two steps that
+  // create the garage; guarding all four sent the vendor home from here.
+  await expect(page).toHaveURL(/\/onboarding\/step-3/)
+  await page.getByRole('button', { name: /Continue/i }).click()
+
+  // ── step 4: what you sell ───────────────────────────────────────────────
+  await expect(page).toHaveURL(/\/onboarding\/step-4/)
+  await page.getByLabel('Service name').fill('Onboarding Wash')
+  await page.getByLabel(/^Price/).first().fill('450')
+  await page.getByRole('button', { name: /^Add service/ }).click()
+  // The step reports a count rather than listing what was added.
+  await expect(page.getByText('1 service added.')).toBeVisible()
+
+  await page.getByRole('button', { name: /Finish|Done|Go to dashboard/i }).click()
   await expect(page).toHaveURL(/\/home/)
   await expect(page.getByText(/under review/i)).toBeVisible()
 
@@ -68,36 +80,32 @@ test('a new owner signs up and their garage is created', async ({ page }) => {
   expect(vendor.lat).not.toBeNull()
   // Unverified: an admin still has to let it into customer listings.
   expect(vendor.is_verified).toBe(false)
-})
 
-/**
- * Marked `fail` on purpose: this is a bug the suite found, not a spec that has
- * not been written yet.
- *
- * Steps 3 and 4 collect working hours and the first service, but the garage is
- * created at step 2 — and from that moment app-provider redirects every
- * /onboarding route to /home. So a garage onboarded through the real UI is
- * saved with **no working hours at all**, and validateSlotAvailability rejects
- * any day it has no hours for. The garage therefore cannot take a booking even
- * after an admin verifies it.
- *
- * There is more than one reasonable fix — create the vendor at step 4, or
- * exempt an in-progress wizard from the guard — so this documents the gap
- * rather than choosing one. When it is fixed this test will start passing and
- * Playwright will report the `fail` annotation as stale, which is the prompt to
- * delete this comment.
- */
-test('onboarding should collect working hours before finishing', async () => {
-  test.fail()
-
-  const [vendor] = await sql<{ id: string }[]>`
-    select v.id from vendors v join users u on u.id = v.owner_id
-     where u.phone = ${UNREGISTERED_VENDOR_PHONE}
-  `
-  const [{ n }] = await sql<{ n: string }[]>`
+  // The point of steps 3 and 4. A garage with no working hours reads as closed
+  // every day to the slot check, so it could never take a booking however many
+  // times an admin verified it.
+  const [{ n: hours }] = await sql<{ n: string }[]>`
     select count(*)::text as n from vendor_working_hours where vendor_id = ${vendor.id}
   `
+  expect(Number(hours)).toBe(7)
 
-  // A garage with no hours can never be booked.
-  expect(Number(n)).toBeGreaterThan(0)
+  const services = await sql<{ name: string }[]>`
+    select name from services where vendor_id = ${vendor.id}
+  `
+  expect(services.map((s) => s.name)).toContain('Onboarding Wash')
+})
+
+test.describe('an owner who already has a garage', () => {
+  test.use({ storageState: asRole('vendor-owner') })
+
+  test('cannot re-enter the creation steps', async ({ page }) => {
+    // The guard still does its original job: an owner with a garage has no
+    // business on the steps that make one. Additional garages come from the
+    // admin panel.
+    await page.goto('/onboarding/step-1')
+    await expect(page).toHaveURL(/\/home/)
+
+    await page.goto('/onboarding/step-2')
+    await expect(page).toHaveURL(/\/home/)
+  })
 })

@@ -30,7 +30,7 @@ import { ApiError } from '@repo/core/api/client'
 import { getVendorServices } from '@repo/core/api/services'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
-import { openRazorpayCheckout } from '@repo/core/razorpay'
+import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
@@ -292,7 +292,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
       if (error instanceof ApiError && error.code?.startsWith('DISCOUNT_')) {
         setAppliedPromo(null)
         toast.error(error.message)
-      } else if (error instanceof Error && error.message !== 'Payment cancelled') {
+      } else if (!(error instanceof RazorpayReportedError) && error instanceof Error) {
+        // Anything the sheet already reported — a dismissal, a declined card —
+        // has been shown once already.
         toast.error(error.message)
       }
     } finally {

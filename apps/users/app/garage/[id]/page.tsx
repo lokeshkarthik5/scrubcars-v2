@@ -380,8 +380,12 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                           </div>
                         </div>
 
+                        {/* Inset on the page colour rather than a red tint: a
+                            10% tint lifted the chip to #2b1819 and left this
+                            red label at 4.16:1, under AA. On #0A0A0A it is
+                            4.9:1 and still reads as a chip. */}
                         {pkg.savings !== null && (
-                          <span className="mt-1.5 inline-block rounded-[6px] bg-brand-red/10 px-2 py-0.5 text-[11px] font-semibold text-brand-red">
+                          <span className="mt-1.5 inline-block rounded-[6px] bg-brand-black px-2 py-0.5 text-[11px] font-semibold text-brand-red">
                             {pkg.tierBreakdown
                               ? `Save ₹${pkg.savings}+`
                               : `Save ₹${pkg.savings}`}

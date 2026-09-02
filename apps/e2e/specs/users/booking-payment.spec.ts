@@ -78,7 +78,7 @@ test.describe('payment @p0', () => {
     await setPaymentMode(page, 'dismiss')
     await checkout.pay()
 
-    await expect(page.getByText('Payment cancelled. Nothing was booked.')).toBeVisible()
+    await expect(page.getByText('Payment cancelled. Nothing was booked.')).toHaveCount(1)
     await expect(page).toHaveURL(/\/book\//)
 
     // The message has to be true: an intent exists, a booking must not.
@@ -96,12 +96,10 @@ test.describe('payment @p0', () => {
     await setPaymentMode(page, 'fail')
     await checkout.pay()
 
-    // `.first()` because the message currently arrives twice: openRazorpayCheckout
-    // toasts it in onFailure and then rejects, and handleConfirm's catch toasts
-    // the same Error again (book/[vendorId]/page.tsx:286 and :295). Asserting
-    // "visible" rather than a count keeps this test honest whichever way that
-    // duplicate is resolved.
-    await expect(page.getByText('Your card was declined.').first()).toBeVisible()
+    // Exactly one toast. The message used to arrive twice — the checkout sheet
+    // reported it through onFailure and then rejected, and handleConfirm's
+    // catch reported the same Error again.
+    await expect(page.getByText('Your card was declined.')).toHaveCount(1)
     expect(await countBookingsForUser(CUSTOMERS.book.id)).toBe(before)
   })
 

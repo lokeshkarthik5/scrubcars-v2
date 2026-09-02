@@ -71,20 +71,26 @@ signed out simply omit it.
 
 ## Known gaps, kept visible
 
-Two tests are marked `test.fail()`. They are not unwritten specs — they are
-defects the suite found, encoded so they stay on the report instead of in a
-comment nobody reads. Each will start passing when the underlying issue is
-fixed, at which point Playwright flags the annotation as stale and it should be
-deleted along with the explanation above it.
+One test is marked `test.fail()`. It is not an unwritten spec — it is a defect
+the suite found, encoded so it stays on the report instead of in a comment
+nobody reads. It will start passing when the underlying issue is fixed, at
+which point Playwright flags the annotation as stale and it should be deleted
+along with the explanation above it.
 
-- `vendors/onboarding.spec.ts` — the garage is created at step 2 of the wizard,
-  and app-provider then redirects every `/onboarding` route to `/home`. Steps 3
-  and 4 (working hours, first service) are unreachable, so a garage onboarded
-  through the real UI is saved with no working hours and can never take a
-  booking.
-- `platform/accessibility.spec.ts` — every screen has text below the WCAG AA
-  contrast threshold. The per-screen gate excludes `color-contrast` so the rest
-  of the accessibility floor can be enforced today.
+- `platform/accessibility.spec.ts` — brand red does not meet WCAG AA at small
+  text sizes, in either direction: white on `#EF3240` is 3.87:1 (ScButton's
+  primary style, so every CTA), and `#EF3240` on a raised surface is 4.12:1
+  (ScSegmented's selected state). Neither is fixable where it appears — red
+  text only clears 4.5:1 on surfaces at or below `#151515`, which is darker
+  than the elevated surface it sits on. The remedy is accessible variants of
+  the brand colour, which is a design decision.
+
+A note on measuring contrast: the accessibility spec waits for entrance
+animations to finish before scanning. Cards enter through `.reveal`, which
+starts at `opacity: 0`, and axe samples the *computed* colour — scanning early
+measures half-faded text and reports failures that do not exist at rest. It
+reported about twenty; three were real. `settle()` skips infinite animations
+(shimmer, pulse), which never finish by design.
 
 ## Selectors
 

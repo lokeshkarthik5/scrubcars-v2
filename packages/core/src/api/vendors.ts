@@ -378,6 +378,25 @@ export async function submitVendorOnboarding(
   if (step === 3) {
     const pickup = data.pickup as 'yes' | 'nearby' | 'no' | ''
 
+    // Every field on this call is optional on the screen, so leaving them all
+    // blank is a normal way to finish the step. PATCH /vendors/me rejects an
+    // empty body ("At least one field must be provided"), which turned that
+    // into a Bad Request the vendor could not get past — so only send it when
+    // there is something to send.
+    const settings = {
+      ...(pickup ? { pickup } : {}),
+      ...(data.pickupRadiusKm != null
+        ? { pickupRadiusKm: data.pickupRadiusKm as number }
+        : {}),
+      ...(data.bays != null ? { bays: data.bays as number } : {}),
+      ...(data.jobsPerDay != null
+        ? { jobsPerDay: data.jobsPerDay as number }
+        : {}),
+      ...((data.vehicleTypes as string[])?.length
+        ? { vehicleTypes: data.vehicleTypes as string[] }
+        : {}),
+    }
+
     await Promise.all([
       updateVendorJobTypes({
         dropinEnabled: data.dropin as boolean,
@@ -389,19 +408,7 @@ export async function submitVendorOnboarding(
         data.openTime as string,
         data.closeTime as string
       ),
-      updateVendorSettings({
-        ...(pickup ? { pickup } : {}),
-        ...(data.pickupRadiusKm != null
-          ? { pickupRadiusKm: data.pickupRadiusKm as number }
-          : {}),
-        ...(data.bays != null ? { bays: data.bays as number } : {}),
-        ...(data.jobsPerDay != null
-          ? { jobsPerDay: data.jobsPerDay as number }
-          : {}),
-        ...((data.vehicleTypes as string[])?.length
-          ? { vehicleTypes: data.vehicleTypes as string[] }
-          : {}),
-      }),
+      ...(Object.keys(settings).length > 0 ? [updateVendorSettings(settings)] : []),
     ])
 
     const areas = data.areas as Array<{ pincode: string; name: string }>
