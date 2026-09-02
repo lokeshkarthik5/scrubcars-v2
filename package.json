@@ -21,7 +21,12 @@
     "seed": "bun run --filter server seed",
     "migrate": "bun run --filter server migrate",
     "migrate:status": "bun run --filter server migrate:status",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "test:e2e": "bun run --filter @repo/e2e test:e2e",
+    "test:e2e:p0": "bun run --filter @repo/e2e test:e2e:p0",
+    "e2e:up": "bun run --filter @repo/e2e db:up",
+    "e2e:down": "bun run --filter @repo/e2e db:down",
+    "e2e:reset": "bun run --filter @repo/e2e db:reset"
   },
   "devDependencies": {
     "prettier": "^3.9.0",

@@ -291,7 +291,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         )}
       </div>
 
-      <div className="mt-4 flex border-b border-border px-4">
+      <div className="mt-4 flex border-b border-border px-4" role="tablist" aria-label="Garage sections">
         {(
           [
             { key: 'services', label: 'Services' },
@@ -302,6 +302,8 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={cn(
               'flex-1 border-b-2 py-2.5 text-[13px] font-medium transition-colors',
@@ -413,6 +415,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
+                            aria-label={`View details for ${pkg.name}`}
                             onClick={() => openDetails(pkg)}
                             className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                           >
@@ -420,6 +423,15 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                           </button>
                           <button
                             type="button"
+                            // Five identical "Add" buttons on a page are five
+                            // identical announcements; the name has to say what
+                            // is being added.
+                            aria-label={
+                              added
+                                ? `Remove ${pkg.name} from booking`
+                                : `Add ${pkg.name} to booking`
+                            }
+                            aria-pressed={added}
                             onClick={() => toggle(pkg.id)}
                             className={cn(
                               'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
@@ -491,6 +503,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          aria-label={`View details for ${svc.name}`}
                           onClick={() => openDetails(svc)}
                           className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                         >
@@ -498,6 +511,12 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                         </button>
                         <button
                           type="button"
+                          aria-label={
+                            added
+                              ? `Remove ${svc.name} from booking`
+                              : `Add ${svc.name} to booking`
+                          }
+                          aria-pressed={added}
                           onClick={() => toggle(svc.id)}
                           className={cn(
                             'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',

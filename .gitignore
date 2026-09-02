@@ -8,3 +8,11 @@ dist/
 .vercel
 .env
 .env*
+
+# apps/e2e ships a committed, secret-free env file for the test stack.
+!apps/e2e/.env.e2e
+apps/e2e/.auth/
+apps/e2e/test-results/
+apps/e2e/playwright-report/
+apps/e2e/blob-report/
+apps/e2e/.cache/

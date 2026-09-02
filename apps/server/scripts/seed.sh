@@ -17,11 +17,20 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SERVER_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# An explicitly exported DATABASE_URL beats server/.env — see the same guard in
+# migrate.sh. Seeding the wrong database is quieter than migrating it and just
+# as unwelcome.
+DATABASE_URL_OVERRIDE="${DATABASE_URL:-}"
+
 if [[ -f "${SERVER_DIR}/.env" ]]; then
   # shellcheck disable=SC1091
   set -a
   source "${SERVER_DIR}/.env"
   set +a
+fi
+
+if [[ -n "${DATABASE_URL_OVERRIDE}" ]]; then
+  export DATABASE_URL="${DATABASE_URL_OVERRIDE}"
 fi
 
 cd "${SERVER_DIR}"

@@ -165,6 +165,10 @@ export function SlotPicker({
             <button
               key={d.value}
               type="button"
+              // Selection is otherwise expressed only through background
+              // classes, which leaves it invisible to assistive tech and to
+              // anything asserting on state.
+              aria-pressed={selectedDate === d.value}
               disabled={closed}
               onClick={() => selectDate(d.value)}
               className={cn(
@@ -192,6 +196,7 @@ export function SlotPicker({
         {customDate && (
           <button
             type="button"
+            aria-pressed={selectedDate === customDate}
             onClick={() => selectDate(customDate)}
             className={cn(
               'flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors',
@@ -251,6 +256,7 @@ export function SlotPicker({
                 <button
                   key={slot.time}
                   type="button"
+                  aria-pressed={value === slot.time}
                   onClick={() => onChange(slot.time)}
                   className={cn(
                     'rounded-[10px] py-3 text-[13px] font-medium transition-colors',
@@ -335,6 +341,7 @@ export function SlotPicker({
               <button
                 key={key}
                 type="button"
+                aria-pressed={selectedDate === key}
                 disabled={disabled}
                 onClick={() => {
                   setCustomDate(key)

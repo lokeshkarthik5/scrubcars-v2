@@ -396,6 +396,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <button
                   key={v.id}
                   type="button"
+                  // The selected car is otherwise marked only by a red border
+                  // on the card inside.
+                  aria-pressed={selectedVehicle === v.id}
                   onClick={() => setPickedVehicle(v.id)}
                 >
                   <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>

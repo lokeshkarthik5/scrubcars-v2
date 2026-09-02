@@ -1,0 +1,10 @@
+[test]
+# `bun test` walks the whole repo and matches *.spec.ts as well as *.test.ts,
+# which means it also picks up apps/e2e — Playwright specs that import
+# @playwright/test and cannot run under bun's runner.
+#
+# apps/server is the only package with bun tests today, so point the runner
+# straight at it. The monorepo entry point remains `bun run test` (turbo), which
+# runs each package's own test script; add a line here if another package gains
+# bun tests.
+root = "apps/server"

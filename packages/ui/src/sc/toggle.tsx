@@ -26,6 +26,9 @@ export function ScToggle<T extends string>({
         <button
           key={opt.value}
           type="button"
+          // Which option is active is otherwise carried only by a background
+          // colour — nothing a screen reader or a test can read.
+          aria-pressed={value === opt.value}
           onClick={() => onChange(opt.value)}
           className={cn(
             'flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors',

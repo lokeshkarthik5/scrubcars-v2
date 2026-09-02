@@ -1,0 +1,24 @@
+{
+  "name": "@repo/e2e",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:p0": "playwright test --grep @p0",
+    "test:e2e:ui": "playwright test --ui",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down -v",
+    "db:reset": "tsx scripts/reset-db.ts",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.10.0",
+    "dotenv": "^16.4.7",
+    "postgres": "^3.4.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

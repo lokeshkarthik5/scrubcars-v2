@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
 import { AppError } from './errors.js'
 import { env } from './env.js'
 
@@ -9,6 +9,15 @@ type RazorpayOrder = {
   receipt: string
   status: string
 }
+
+/**
+ * Prefix marking an order this server minted itself under E2E_FAKE_PAYMENTS.
+ *
+ * It is what keeps the test bypass narrow: verifyPaymentSignature waives the
+ * HMAC for these ids and only these ids, so a real Razorpay order id can never
+ * take the fake path even with the flag on.
+ */
+const FAKE_ORDER_PREFIX = 'order_e2e_'
 
 function getCredentials() {
   if (!env.razorpayKeyId || !env.razorpayKeySecret) {
@@ -54,6 +63,18 @@ export async function createRazorpayOrder(input: {
   const { keyId, keySecret } = getCredentials()
   const amount = toPaise(input.amount)
 
+  // Tests stand in for the gateway rather than reaching it. The amount is
+  // still computed by the real toPaise, so the value the checkout sheet shows
+  // and the value asserted in the database are the ones production would use.
+  if (env.e2eFakePayments) {
+    return {
+      orderId: `${FAKE_ORDER_PREFIX}${randomUUID()}`,
+      amount,
+      currency: 'INR',
+      keyId,
+    }
+  }
+
   const response = await fetch('https://api.razorpay.com/v1/orders', {
     method: 'POST',
     signal: AbortSignal.timeout(10_000),
@@ -98,6 +119,14 @@ export function verifyPaymentSignature(input: {
   signature: string
 }) {
   const { keySecret } = getCredentials()
+
+  // Only orders this server minted under the flag skip the check. Anything
+  // else — including a real order id while the flag happens to be on — still
+  // has to produce a matching HMAC.
+  if (env.e2eFakePayments && input.orderId.startsWith(FAKE_ORDER_PREFIX)) {
+    return true
+  }
+
   const payload = `${input.orderId}|${input.paymentId}`
   const expected = createHmac('sha256', keySecret)
     .update(payload)

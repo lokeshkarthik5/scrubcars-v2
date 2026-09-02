@@ -16,13 +16,16 @@
       "env": [
         "ADMIN_PASSWORD",
         "ADMIN_USERNAME",
+        "AUTH_RATE_LIMIT",
         "BACKEND_URL",
         "CORS_ORIGIN",
         "DATABASE_URL",
         "DIRECT_URL",
+        "E2E_FAKE_PAYMENTS",
         "GEO_AUTOCOMPLETE_RATE_LIMIT",
         "GEO_CACHE_TTL_HOURS",
         "GEO_PROVIDER",
+        "GLOBAL_RATE_LIMIT",
         "JWT_SECRET",
         "NEXT_PUBLIC_API_URL",
         "NEXT_PUBLIC_APP_VERSION",
@@ -34,6 +37,7 @@
         "R2_ACCESS_KEY_ID",
         "R2_ACCOUNT_ID",
         "R2_BUCKET",
+        "R2_ENDPOINT",
         "R2_PUBLIC_BASE_URL",
         "R2_SECRET_ACCESS_KEY",
         "RAZORPAY_KEY_ID",
@@ -53,6 +57,21 @@
         "^build"
       ]
     },
-    "test": {}
+    "test": {},
+    "test:e2e": {
+      "cache": false,
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "AUTH_RATE_LIMIT",
+        "CI",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "E2E_FAKE_PAYMENTS",
+        "GLOBAL_RATE_LIMIT",
+        "R2_ENDPOINT"
+      ]
+    }
   }
 }

@@ -9,9 +9,37 @@ function requireEnv(name: string): string {
   return value
 }
 
+/**
+ * Whether to fake the payment gateway instead of calling Razorpay.
+ *
+ * Checkout is online-only: a booking is only ever written by verifyPayment,
+ * which means an automated test cannot create one without either hitting the
+ * real gateway or standing in for it. This flag does the latter — see
+ * lib/razorpay.ts, where it mints `order_e2e_*` order ids locally and accepts
+ * exactly those ids at signature-verification time. Every other order id still
+ * goes through the real HMAC check.
+ *
+ * It is refused outright in production rather than merely defaulting off, so
+ * that a leaked value in a deploy environment fails the boot instead of
+ * quietly making every payment free.
+ */
+function readFakePaymentsFlag(): boolean {
+  const enabled = process.env.E2E_FAKE_PAYMENTS === '1'
+
+  if (enabled && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'E2E_FAKE_PAYMENTS is set in production. This disables payment ' +
+        'signature verification and must never be enabled outside tests.'
+    )
+  }
+
+  return enabled
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   databaseUrl: requireEnv('DATABASE_URL'),
+  e2eFakePayments: readFakePaymentsFlag(),
   jwtSecret:
     process.env.JWT_SECRET ??
     (process.env.NODE_ENV === 'production'
@@ -66,6 +94,11 @@ export const env = {
   r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   r2Bucket: process.env.R2_BUCKET,
+  // Overrides the derived Cloudflare endpoint. Unset in every real
+  // environment; the E2E stack points it at a local MinIO, which speaks the
+  // same S3 API, so upload flows are exercised for real instead of asserting
+  // a STORAGE_NOT_CONFIGURED 503.
+  r2Endpoint: process.env.R2_ENDPOINT,
   // Public base URL the bucket is served from (e.g. https://cdn.detlio.com)
   r2PublicBaseUrl: process.env.R2_PUBLIC_BASE_URL?.replace(/\/+$/, ''),
   r2MaxPhotosPerVendor: Number(process.env.R2_MAX_PHOTOS_PER_VENDOR ?? '10'),
@@ -116,4 +149,11 @@ export const env = {
    * shows which garages those are.
    */
   geoRequirePin: process.env.GEO_REQUIRE_PIN === 'true',
+
+  // ─── Rate limiting ─────────────────────────────────────────────────────────
+  // Both limiters key on client IP. The defaults are the production values;
+  // they are configurable because a test suite runs every request from a single
+  // IP and would otherwise spend most of a run being throttled by itself.
+  authRateLimit: Number(process.env.AUTH_RATE_LIMIT ?? '10'),
+  globalRateLimit: Number(process.env.GLOBAL_RATE_LIMIT ?? '100'),
 } as const
