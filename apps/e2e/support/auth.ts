@@ -92,10 +92,9 @@ export async function saveAdminState(role = 'admin') {
  * with two garages lands on whichever the app picks, and a tenancy assertion
  * would be testing a coin flip.
  */
-export async function setActiveVendor(context: BrowserContext, vendorId: string, origin: string) {
+export async function setActiveVendor(context: BrowserContext, vendorId: string) {
   await context.addInitScript(
     ([key, id]) => window.localStorage.setItem(key, id),
     ['detlio.activeVendorId', vendorId] as const
   )
-  void origin
 }

@@ -117,7 +117,8 @@ async function seedPeople() {
     // because bookings.vehicle_id is NOT NULL and the fixture bookings below
     // have to name it.
     ...[CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review, CUSTOMERS.payLater,
-        CUSTOMERS.coupons, CUSTOMERS.browse].map((c, i) => ({
+        CUSTOMERS.coupons, CUSTOMERS.browse, CUSTOMERS.journey,
+        CUSTOMERS.vendorJob, CUSTOMERS.vendorReject].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -129,7 +130,8 @@ async function seedPeople() {
   // spec adds them, and asserting "added" is only meaningful from empty.
   await db.insert(userAddresses).values(
     [CUSTOMERS.book, CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review,
-     CUSTOMERS.payLater, CUSTOMERS.coupons, CUSTOMERS.browse].map((c) => ({
+     CUSTOMERS.payLater, CUSTOMERS.coupons, CUSTOMERS.browse,
+     CUSTOMERS.journey, CUSTOMERS.vendorJob, CUSTOMERS.vendorReject].map((c) => ({
       userId: c.id, label: 'Home', address: '14, Gandhi Nagar, Adyar',
       city: 'Chennai', lat: ORIGIN.lat, lng: ORIGIN.lng, isDefault: true,
     }))
@@ -480,9 +482,13 @@ async function seedBookingRows() {
     scheduledAt: tomorrowAt(15), status: 'pending', items: [washItem],
     payment: { status: 'pending' } })
 
-  await insertBooking({ id: BOOKINGS.vendorIncoming, userId: CUSTOMERS.book.id,
-    vehicleId: VEHICLES.hatchback, scheduledAt: tomorrowAt(16), status: 'pending',
+  await insertBooking({ id: BOOKINGS.vendorIncoming, userId: CUSTOMERS.vendorJob.id,
+    vehicleId: CUSTOMERS.vendorJob.vehicleId, scheduledAt: tomorrowAt(16), status: 'pending',
     items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_incoming' } })
+
+  await insertBooking({ id: BOOKINGS.vendorRejectable, userId: CUSTOMERS.vendorReject.id,
+    vehicleId: CUSTOMERS.vendorReject.vehicleId, scheduledAt: tomorrowAt(17), status: 'pending',
+    items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_rejectable' } })
 
   // Lives on SECOND. While MAIN is the active tenant this must never be
   // visible — that is the whole point of the tenancy spec.

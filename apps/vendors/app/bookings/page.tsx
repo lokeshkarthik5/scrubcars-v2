@@ -139,8 +139,22 @@ export default function VendorBookingsPage() {
 
               {tab === 'incoming' && rejectId !== b.id && (
                 <div className="grid grid-cols-2 gap-2">
-                  <ScButton variant="secondary" onClick={() => { setRejectId(b.id); setRejectReason('') }}>Reject</ScButton>
-                  <ScButton onClick={() => handleStatus(b.id, 'confirmed')}>Accept</ScButton>
+                  {/* A list of identical "Accept" buttons announces as a list of
+                      identical "Accept" buttons; the name has to say whose job
+                      it is. */}
+                  <ScButton
+                    variant="secondary"
+                    aria-label={`Reject booking for ${b.customerName}`}
+                    onClick={() => { setRejectId(b.id); setRejectReason('') }}
+                  >
+                    Reject
+                  </ScButton>
+                  <ScButton
+                    aria-label={`Accept booking for ${b.customerName}`}
+                    onClick={() => handleStatus(b.id, 'confirmed')}
+                  >
+                    Accept
+                  </ScButton>
                 </div>
               )}
 
@@ -159,11 +173,21 @@ export default function VendorBookingsPage() {
               )}
 
               {tab === 'upcoming' && b.status === 'confirmed' && (
-                <ScButton onClick={() => handleStatus(b.id, 'in_progress')}>Mark in progress</ScButton>
+                <ScButton
+                  aria-label={`Mark booking for ${b.customerName} in progress`}
+                  onClick={() => handleStatus(b.id, 'in_progress')}
+                >
+                  Mark in progress
+                </ScButton>
               )}
 
               {tab === 'upcoming' && b.status === 'in_progress' && (
-                <ScButton onClick={() => handleStatus(b.id, 'completed')}>Mark completed</ScButton>
+                <ScButton
+                  aria-label={`Mark booking for ${b.customerName} completed`}
+                  onClick={() => handleStatus(b.id, 'completed')}
+                >
+                  Mark completed
+                </ScButton>
               )}
 
               {tab === 'completed' && b.review && (

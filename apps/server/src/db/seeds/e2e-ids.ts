@@ -40,6 +40,24 @@ export const CUSTOMERS = {
   coupons: { id: id(107), phone: '9000000007', name: 'Coupon Kavya', vehicleId: id(717) },
   /** Deliberately owns no car and no address — the profile spec adds both. */
   profile: { id: id(108), phone: '9000000008', name: 'Profile Priya', vehicleId: null },
+  /**
+   * The cross-app journey's customer, with no seeded bookings at all.
+   *
+   * The journey drives the vendor app and clicks "Accept booking for <name>",
+   * so any pre-existing booking for this customer would make that button
+   * ambiguous and the run would accept the wrong job.
+   */
+  journey: { id: id(109), phone: '9000000009', name: 'Journey Jaya', vehicleId: id(718) },
+  /**
+   * Customers that exist only to own the vendor-side fixture bookings.
+   *
+   * The vendor app identifies a job by its customer's name ("Accept booking
+   * for X"), so a customer who also books through the users specs would put
+   * two identically named buttons on the vendor's screen and the vendor spec
+   * would accept whichever it found first.
+   */
+  vendorJob: { id: id(110), phone: '9000000010', name: 'Vendor Job Vimal', vehicleId: id(719) },
+  vendorReject: { id: id(111), phone: '9000000011', name: 'Vendor Reject Radha', vehicleId: id(720) },
 } as const
 
 /**
@@ -143,6 +161,10 @@ export const BOOKINGS = {
   unpaid: id(609),
   /** pending at MAIN — what the vendor sees under "Incoming". */
   vendorIncoming: id(610),
+  /** A second pending booking at MAIN. Reject is only offered on the Incoming
+   *  tab, so the reject case needs its own pending row rather than reusing the
+   *  one the accept case consumes. */
+  vendorRejectable: id(613),
   /** confirmed at SECOND — must never appear while MAIN is the active tenant. */
   secondTenant: id(611),
 } as const
