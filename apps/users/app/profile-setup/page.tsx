@@ -76,6 +76,7 @@ export default function ProfileSetupPage() {
       </h1>
 
       <ScInput
+        id="profile-name"
         label="Full name"
         placeholder="Your name"
         value={name}
@@ -90,6 +91,7 @@ export default function ProfileSetupPage() {
               <button
                 key={l}
                 type="button"
+                aria-pressed={label === l}
                 onClick={() => setLabel(l)}
                 className={`rounded-[8px] border px-4 py-2 text-[12px] font-medium transition-colors ${
                   label === l
@@ -104,6 +106,7 @@ export default function ProfileSetupPage() {
         </div>
 
         <ScTextarea
+          id="profile-address"
           label="Street address"
           placeholder="Flat no., building, street"
           rows={2}
@@ -112,6 +115,7 @@ export default function ProfileSetupPage() {
         />
 
         <ScInput
+          id="profile-city"
           label="City"
           placeholder="Chennai"
           value={city}

@@ -11,8 +11,16 @@
   --color-surface: #151515;
   --color-surface-elevated: #1E1E1E;
   --color-text-primary: #FAFAFA;
-  --color-text-secondary: #9A9A9A;
-  --color-text-muted: #555555;
+  /* The three text levels all clear WCAG AA (4.5:1) against every surface they
+     sit on — bg #0A0A0A, surface #151515, elevated #1E1E1E — with the worst
+     case being muted on elevated at 4.9:1.
+
+     Muted was #555555, which is 2.3:1 on elevated and fails outright; it is
+     used for placeholders and helper text, which is content, not decoration.
+     Raising it alone would have left it a shade off secondary, so secondary
+     moved up too to keep the three levels visibly apart. */
+  --color-text-secondary: #B0B0B0;
+  --color-text-muted: #8A8A8A;
   --color-border: #2A2A2A;
   --color-accent: #EF3240;
   --color-accent-hover: #D42433;

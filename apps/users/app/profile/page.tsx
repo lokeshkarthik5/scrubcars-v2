@@ -345,6 +345,7 @@ export default function ProfilePage() {
                 {v.isDefault && <ScBadge variant="success">Default</ScBadge>}
                 <button
                   type="button"
+                  aria-label={`Remove ${v.make} ${v.model}`}
                   onClick={() => removeVehicle(v.id)}
                   disabled={deleting === v.id}
                   className="shrink-0 text-text-muted transition-colors hover:text-brand-red disabled:opacity-40"
@@ -461,6 +462,7 @@ export default function ProfilePage() {
                 {a.isDefault && <ScBadge variant="success">Default</ScBadge>}
                 <button
                   type="button"
+                  aria-label={`Remove ${a.label} address`}
                   onClick={() => removeAddress(a.id)}
                   disabled={deleting === a.id}
                   className="shrink-0 text-text-muted transition-colors hover:text-brand-red disabled:opacity-40"

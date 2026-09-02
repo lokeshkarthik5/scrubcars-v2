@@ -225,6 +225,7 @@ export default function VendorPhotosPage() {
                 type="button"
                 disabled={deletingId === photo.id}
                 onClick={() => handleDelete(photo.id)}
+                aria-label="Delete photo"
                 title="Delete photo"
                 className="absolute right-1.5 top-1.5 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 disabled:opacity-50"
               >

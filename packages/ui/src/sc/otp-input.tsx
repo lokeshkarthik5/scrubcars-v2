@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@repo/core/utils'
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 interface OtpInputProps {
   length?: number
@@ -12,18 +12,36 @@ export function OtpInput({ length = 6, onComplete }: OtpInputProps) {
   const [values, setValues] = useState<string[]>(Array(length).fill(''))
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
+  // Reported to the parent from an effect rather than from the change handler.
+  //
+  // The handler used to build the next array from `values` captured at render
+  // and call onComplete with it. Two changes landing in one React batch — fast
+  // typing, a paste, an SMS autofill — both read the same stale array, so the
+  // completed code was never assembled and onComplete never fired. The parent
+  // (phone-verify.tsx) has no other channel, so its Verify button stayed
+  // disabled and the code could not be submitted at all.
+  useEffect(() => {
+    if (values.every(Boolean)) {
+      onComplete?.(values.join(''))
+    }
+    // onComplete is a setState in every current caller, so it is stable; naming
+    // it here would re-fire on any parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values])
+
   const handleChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return
-    const next = [...values]
-    next[index] = value
-    setValues(next)
+
+    // Functional update: consecutive changes must each build on the previous
+    // one, not on whatever `values` was when this handler was created.
+    setValues((current) => {
+      const next = [...current]
+      next[index] = value
+      return next
+    })
 
     if (value && index < length - 1) {
       refs.current[index + 1]?.focus()
-    }
-
-    if (next.every((v) => v) && onComplete) {
-      onComplete(next.join(''))
     }
   }
 

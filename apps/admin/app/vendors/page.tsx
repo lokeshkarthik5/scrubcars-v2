@@ -224,13 +224,14 @@ export default function AdminVendorsPage() {
                       fullWidth={false}
                       variant="secondary"
                       disabled={verifyingId === v.id}
+                      aria-label={`Verify ${v.businessName}`}
                       onClick={() => handleVerify(v.id)}
                       className="px-3 py-1.5 text-[12px]"
                     >
                       {verifyingId === v.id ? 'Verifying…' : 'Verify'}
                     </ScButton>
                   )}
-                  <Link href={`/vendors/${v.id}/edit`}>
+                  <Link href={`/vendors/${v.id}/edit`} aria-label={`Edit ${v.businessName}`}>
                     <ScButton
                       fullWidth={false}
                       variant="secondary"
@@ -243,6 +244,11 @@ export default function AdminVendorsPage() {
                     fullWidth={false}
                     variant="secondary"
                     disabled={busyId === v.id}
+                    aria-label={
+                      v.status === 'archived'
+                        ? `Restore ${v.businessName}`
+                        : `Archive ${v.businessName}`
+                    }
                     onClick={() => handleArchiveToggle(v)}
                     className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
                   >

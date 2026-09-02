@@ -35,11 +35,12 @@ function createRateLimiter(limit: number, windowMs: number) {
   })
 }
 
-// 5 requests per minute — for sensitive auth actions
-export const rateLimiter = createRateLimiter(10, 60 * 1000)
+// Sensitive auth actions. 10 per minute in production; see env.authRateLimit
+// for why it is configurable.
+export const rateLimiter = createRateLimiter(env.authRateLimit, 60 * 1000)
 
-// 100 requests per minute — global API guard
-export const globalRateLimiter = createRateLimiter(100, 60 * 1000)
+// Global API guard. 100 per minute in production.
+export const globalRateLimiter = createRateLimiter(env.globalRateLimit, 60 * 1000)
 
 // Address autocomplete is the only endpoint whose call volume tracks typing
 // rather than saves, so it is the only one that can burn the map provider's

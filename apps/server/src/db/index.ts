@@ -3,12 +3,21 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import * as schema from './schema.js'
 
-const client = postgres(process.env.DATABASE_URL!, {
+const connectionString = process.env.DATABASE_URL!
+
+// Supabase requires TLS, so `require` stays the default. A local Postgres —
+// the Docker instance the E2E suite runs against — offers none, and forcing
+// TLS there fails the connection outright. Honour libpq's own switch rather
+// than inventing a flag: `?sslmode=disable` in the URL turns it off, and psql
+// (which the migration runner shells out to) already reads it the same way.
+const sslDisabled = /[?&]sslmode=disable(&|$)/.test(connectionString)
+
+const client = postgres(connectionString, {
   prepare: false,
   max: 1,
   connect_timeout: 10,
   idle_timeout: 20,
-  ssl: 'require',
+  ssl: sslDisabled ? false : 'require',
 })
 
 const queryLogger =

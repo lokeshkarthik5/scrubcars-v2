@@ -32,6 +32,16 @@ const VENDOR_ROUTES = [
 ]
 const ONBOARDING_ROUTE = '/onboarding'
 
+/**
+ * The onboarding steps that run *before* a garage exists.
+ *
+ * Step 2 is where the garage is created, and steps 3 and 4 then configure it —
+ * working hours and the first service — which is why submitVendorOnboarding
+ * makes the new garage active before they run (api/vendors.ts). So "already
+ * has a garage" only means "should not be here" for these two.
+ */
+const ONBOARDING_CREATE_ROUTES = ['/onboarding/step-1', '/onboarding/step-2']
+
 function matchesRoute(pathname: string, routes: string[]) {
   return routes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -103,12 +113,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       redirectPath = null
     } else if (!user) {
       redirectPath = '/login'
-    } else if (routeAccess === 'vendor-onboarding' && vendor) {
+    } else if (
+      routeAccess === 'vendor-onboarding' &&
+      vendor &&
+      matchesRoute(pathname, ONBOARDING_CREATE_ROUTES)
+    ) {
       // Onboarding means "your first garage". Anyone who already has one is
       // sent home — deliberately not conditioned on `isOnboardingComplete`,
       // which is persisted per browser, so the same account used to reach this
       // flow or not depending on local storage that has nothing to do with the
       // question. Additional garages are created from the admin panel.
+      //
+      // Scoped to the two steps that create the garage. Guarding all four sent
+      // every new vendor home the instant step 2 saved, because that is what
+      // makes the garage exist — so steps 3 and 4 never ran and the garage was
+      // left with no working hours at all, which the slot check reads as
+      // "closed every day". It could then never take a booking, verified or
+      // not.
       redirectPath = '/home'
     } else if (routeAccess === 'vendor' && !vendor) {
       redirectPath = '/onboarding/step-1'

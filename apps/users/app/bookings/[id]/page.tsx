@@ -18,7 +18,7 @@ import { getBooking } from '@repo/core/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments'
 import { submitReview } from '@repo/core/api/reviews'
 import { toast } from 'react-toastify'
-import { openRazorpayCheckout } from '@repo/core/razorpay'
+import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { formatBookingAmount } from '@repo/core/pricing'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
@@ -61,6 +61,13 @@ export default function BookingDetailPage({
     getBooking(id).then((b) => {
       if (b) {
         setBooking(b)
+        // Seed from the booking that came back, not just from a submission
+        // made in this session. Without this, revisiting a job you have
+        // already reviewed shows the empty rating form again and invites a
+        // second review that reviews.booking_id (unique) will refuse.
+        if (b.review) {
+          setSubmittedReview(b.review)
+        }
       } else {
         setLoadError(true)
       }
@@ -119,7 +126,7 @@ export default function BookingDetailPage({
         },
       })
     } catch (error) {
-      if (error instanceof Error && error.message !== 'Payment cancelled') {
+      if (!(error instanceof RazorpayReportedError) && error instanceof Error) {
         toast.error(error.message)
       }
     } finally {

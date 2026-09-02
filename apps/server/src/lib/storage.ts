@@ -37,7 +37,10 @@ function getClient(): S3Client {
 
   return new S3Client({
     region: 'auto',
-    endpoint: `https://${env.r2AccountId}.r2.cloudflarestorage.com`,
+    endpoint: env.r2Endpoint ?? `https://${env.r2AccountId}.r2.cloudflarestorage.com`,
+    // R2 serves buckets from the account subdomain; a local MinIO puts the
+    // bucket in the path. Only the override needs path style.
+    forcePathStyle: Boolean(env.r2Endpoint),
     credentials: {
       accessKeyId: env.r2AccessKeyId,
       secretAccessKey: env.r2SecretAccessKey,

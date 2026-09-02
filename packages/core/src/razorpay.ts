@@ -63,6 +63,22 @@ export function loadRazorpayScript(): Promise<void> {
   return scriptPromise
 }
 
+/**
+ * A checkout outcome the sheet has already told the customer about.
+ *
+ * `openRazorpayCheckout` rejects for two reasons that are not faults the caller
+ * needs to report: the customer closed the sheet, and the gateway declined the
+ * card. Both are surfaced at the point they happen — the first through
+ * `onDismiss`, the second through `onFailure` — so a caller that also toasts
+ * its catch shows the same message twice. Callers should skip reporting these.
+ */
+export class RazorpayReportedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RazorpayReportedError'
+  }
+}
+
 export interface OpenRazorpayCheckoutInput {
   // Only the gateway fields matter here, so this accepts both a booking order
   // and a booking-intent order rather than naming one of them.
@@ -120,7 +136,7 @@ export async function openRazorpayCheckout(
       modal: {
         ondismiss: () => {
           input.onDismiss?.()
-          reject(new Error('Payment cancelled'))
+          reject(new RazorpayReportedError('Payment cancelled'))
         },
       },
     })
@@ -128,7 +144,7 @@ export async function openRazorpayCheckout(
     rzp.on('payment.failed', (response) => {
       const message = response.error?.description ?? 'Payment failed'
       input.onFailure?.(message)
-      reject(new Error(message))
+      reject(new RazorpayReportedError(message))
     })
 
     rzp.open()

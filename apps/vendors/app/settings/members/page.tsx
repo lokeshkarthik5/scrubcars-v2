@@ -130,17 +130,20 @@ export default function VendorMembersPage() {
         </h2>
         <ScCard className="flex flex-col gap-3">
           <ScInput
+            id="member-phone"
             label="Phone"
             value={phone}
             inputMode="numeric"
             onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
           />
           <ScInput
+            id="member-name"
             label="Name (optional)"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <ScSelect
+            id="member-role"
             label="Role"
             value={role}
             onChange={(e) => setRole(e.target.value as VendorRole)}

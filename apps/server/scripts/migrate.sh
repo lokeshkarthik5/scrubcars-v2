@@ -45,11 +45,25 @@ usage() {
 }
 
 load_env() {
+  # An explicitly exported DIRECT_URL beats server/.env.
+  #
+  # `set -a; source .env` overwrites variables that are already exported, so
+  # without this a caller deliberately pointing at another database — the E2E
+  # harness, a staging restore — would be silently redirected to whatever .env
+  # holds, which is production. Dotfiles fill in blanks; they do not override
+  # an explicit choice.
+  local direct_url_override="${DIRECT_URL:-}"
+
   if [[ -f "${SERVER_DIR}/.env" ]]; then
     # shellcheck disable=SC1091
     set -a
     source "${SERVER_DIR}/.env"
     set +a
+  fi
+
+  if [[ -n "${direct_url_override}" ]]; then
+    DIRECT_URL="${direct_url_override}"
+    export DIRECT_URL
   fi
 
   if [[ -z "${DIRECT_URL:-}" ]]; then

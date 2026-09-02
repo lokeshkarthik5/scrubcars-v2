@@ -269,6 +269,7 @@ export default function VendorSettingsPage() {
             </div>
             <ScCard className="flex flex-col gap-3">
               <ScInput
+                id="settings-business-name"
                 label="Business name"
                 value={profileForm.businessName}
                 onChange={(e) =>
@@ -276,6 +277,7 @@ export default function VendorSettingsPage() {
                 }
               />
               <ScInput
+                id="settings-phone"
                 label="Phone"
                 value={profileForm.phone}
                 onChange={(e) =>
@@ -286,6 +288,7 @@ export default function VendorSettingsPage() {
                 }
               />
               <ScInput
+                id="settings-address"
                 label="Address"
                 value={profileForm.address}
                 onChange={(e) =>
@@ -293,6 +296,7 @@ export default function VendorSettingsPage() {
                 }
               />
               <ScInput
+                id="settings-city"
                 label="City"
                 value={profileForm.city}
                 onChange={(e) =>
@@ -300,6 +304,7 @@ export default function VendorSettingsPage() {
                 }
               />
               <ScInput
+                id="settings-pincode"
                 label="Pincode"
                 inputMode="numeric"
                 maxLength={6}
@@ -407,6 +412,7 @@ export default function VendorSettingsPage() {
                   <span className="w-8 text-[12px] font-medium">{DAYS[day.dayOfWeek]}</span>
                   <input
                     type="time"
+                    aria-label={`${DAYS[day.dayOfWeek]} opening time`}
                     value={day.openTime}
                     onChange={(e) =>
                       setWorkingHours((current) =>
@@ -422,6 +428,7 @@ export default function VendorSettingsPage() {
                   />
                   <input
                     type="time"
+                    aria-label={`${DAYS[day.dayOfWeek]} closing time`}
                     value={day.closeTime}
                     onChange={(e) =>
                       setWorkingHours((current) =>
@@ -437,6 +444,8 @@ export default function VendorSettingsPage() {
                   />
                   <button
                     type="button"
+                    aria-label={`${DAYS[day.dayOfWeek]} closed all day`}
+                    aria-pressed={day.isClosed}
                     onClick={() =>
                       setWorkingHours((current) =>
                         current.map((item) =>

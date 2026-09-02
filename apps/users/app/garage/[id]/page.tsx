@@ -291,7 +291,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         )}
       </div>
 
-      <div className="mt-4 flex border-b border-border px-4">
+      <div className="mt-4 flex border-b border-border px-4" role="tablist" aria-label="Garage sections">
         {(
           [
             { key: 'services', label: 'Services' },
@@ -302,6 +302,8 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={cn(
               'flex-1 border-b-2 py-2.5 text-[13px] font-medium transition-colors',
@@ -378,8 +380,12 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                           </div>
                         </div>
 
+                        {/* Inset on the page colour rather than a red tint: a
+                            10% tint lifted the chip to #2b1819 and left this
+                            red label at 4.16:1, under AA. On #0A0A0A it is
+                            4.9:1 and still reads as a chip. */}
                         {pkg.savings !== null && (
-                          <span className="mt-1.5 inline-block rounded-[6px] bg-brand-red/10 px-2 py-0.5 text-[11px] font-semibold text-brand-red">
+                          <span className="mt-1.5 inline-block rounded-[6px] bg-brand-black px-2 py-0.5 text-[11px] font-semibold text-brand-red">
                             {pkg.tierBreakdown
                               ? `Save ₹${pkg.savings}+`
                               : `Save ₹${pkg.savings}`}
@@ -420,6 +426,15 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                           </button>
                           <button
                             type="button"
+                            // Five identical "Add" buttons on a page are five
+                            // identical announcements; the name has to say what
+                            // is being added.
+                            aria-label={
+                              added
+                                ? `Remove ${pkg.name} from booking`
+                                : `Add ${pkg.name} to booking`
+                            }
+                            aria-pressed={added}
                             onClick={() => toggle(pkg.id)}
                             className={cn(
                               'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
@@ -498,6 +513,12 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                         </button>
                         <button
                           type="button"
+                          aria-label={
+                            added
+                              ? `Remove ${svc.name} from booking`
+                              : `Add ${svc.name} to booking`
+                          }
+                          aria-pressed={added}
                           onClick={() => toggle(svc.id)}
                           className={cn(
                             'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
