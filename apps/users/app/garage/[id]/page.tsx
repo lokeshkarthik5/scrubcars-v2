@@ -415,7 +415,6 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            aria-label={`View details for ${pkg.name}`}
                             onClick={() => openDetails(pkg)}
                             className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                           >
@@ -503,7 +502,6 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          aria-label={`View details for ${svc.name}`}
                           onClick={() => openDetails(svc)}
                           className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                         >

@@ -61,6 +61,13 @@ export default function BookingDetailPage({
     getBooking(id).then((b) => {
       if (b) {
         setBooking(b)
+        // Seed from the booking that came back, not just from a submission
+        // made in this session. Without this, revisiting a job you have
+        // already reviewed shows the empty rating form again and invites a
+        // second review that reviews.booking_id (unique) will refuse.
+        if (b.review) {
+          setSubmittedReview(b.review)
+        }
       } else {
         setLoadError(true)
       }

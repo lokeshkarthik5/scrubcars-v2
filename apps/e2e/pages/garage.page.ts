@@ -38,8 +38,10 @@ export class GaragePage {
 
   remove = (serviceName: string) => this.removeButton(serviceName).click()
 
+  /** The whole card is the details control; the inner "Details" text is part
+   *  of it rather than a second button with the same name. */
   openDetails = (serviceName: string) =>
-    this.page.getByRole('button', { name: `View details for ${serviceName}` }).click()
+    this.page.getByRole('button', { name: `View details for ${serviceName}` }).first().click()
 
   detailsCta = () =>
     this.page.getByRole('button', { name: /(Add to|Remove from) booking/ })

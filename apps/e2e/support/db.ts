@@ -34,22 +34,32 @@ export const sql = postgres(url, {
  * bypass staying in place is a suite that breaks when someone rightly removes
  * it. Reading the row exercises the genuine flow and works for any number.
  */
-export async function latestOtp(phone: string): Promise<string> {
-  const rows = await sql<{ otp_code: string }[]>`
-    select otp_code
-      from otp_verifications
-     where phone = ${phone}
-       and verified = false
-       and expires_at > now()
-     order by created_at desc
-     limit 1
-  `
+export async function latestOtp(phone: string, timeoutMs = 5000): Promise<string> {
+  const deadline = Date.now() + timeoutMs
 
-  if (rows.length === 0) {
-    throw new Error(`No pending OTP for ${phone}. Was /auth/otp/send called?`)
+  // Polled, not read once. The row is written by a request the browser fires,
+  // so a caller that reads immediately after clicking "Send OTP" races it —
+  // and for an unrecognised number the client makes *two* calls, trying
+  // `login` first and falling back to `register` on the 404.
+  for (;;) {
+    const rows = await sql<{ otp_code: string }[]>`
+      select otp_code
+        from otp_verifications
+       where phone = ${phone}
+         and verified = false
+         and expires_at > now()
+       order by created_at desc
+       limit 1
+    `
+
+    if (rows.length > 0) return rows[0].otp_code
+
+    if (Date.now() > deadline) {
+      throw new Error(`No pending OTP for ${phone} after ${timeoutMs}ms. Was /auth/otp/send called?`)
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
   }
-
-  return rows[0].otp_code
 }
 
 export type BookingRow = {
