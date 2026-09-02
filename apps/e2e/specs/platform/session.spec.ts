@@ -9,14 +9,14 @@ import { sql } from '../../support/db'
 import { BOOKINGS, CUSTOMERS, VENDORS } from '../../support/seed-ids'
 
 test.describe('session', () => {
-  test.use({ storageState: asRole('customer-browse') })
+  test.use({ storageState: asRole('customer-session') })
 
   test('a session survives a full reload', async ({ page }) => {
     await page.goto('/profile')
-    await expect(page.getByText(CUSTOMERS.browse.name)).toBeVisible()
+    await expect(page.getByText(CUSTOMERS.session.name)).toBeVisible()
 
     await page.reload()
-    await expect(page.getByText(CUSTOMERS.browse.name)).toBeVisible()
+    await expect(page.getByText(CUSTOMERS.session.name)).toBeVisible()
   })
 
   test('an expired access token is refreshed rather than logging the user out', async ({
@@ -24,7 +24,7 @@ test.describe('session', () => {
     context,
   }) => {
     await page.goto('/profile')
-    await expect(page.getByText(CUSTOMERS.browse.name)).toBeVisible()
+    await expect(page.getByText(CUSTOMERS.session.name)).toBeVisible()
 
     // Drop only the access token. The refresh token lives at a different path
     // and survives, so the client's single silent retry through /auth/refresh
@@ -41,12 +41,12 @@ test.describe('session', () => {
 
   test('a revoked refresh token ends the session', async ({ page, context }) => {
     await page.goto('/profile')
-    await expect(page.getByText(CUSTOMERS.browse.name)).toBeVisible()
+    await expect(page.getByText(CUSTOMERS.session.name)).toBeVisible()
 
     // Revoke server-side, then drop the access token so the next call has to
     // fall back to a refresh that will now be refused.
     await sql`
-      update refresh_tokens set revoked = true where user_id = ${CUSTOMERS.browse.id}
+      update refresh_tokens set revoked = true where user_id = ${CUSTOMERS.session.id}
     `
     const kept = (await context.cookies()).filter((c) => c.name !== 'access_token')
     await context.clearCookies()
@@ -58,7 +58,7 @@ test.describe('session', () => {
 })
 
 test.describe('error handling', () => {
-  test.use({ storageState: asRole('customer-browse') })
+  test.use({ storageState: asRole('customer-session') })
 
   // The same message covers both "no such booking" and "not yours", which is
   // the right call: telling the difference would confirm that a booking id

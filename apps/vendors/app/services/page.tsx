@@ -275,6 +275,7 @@ export default function VendorServicesPage() {
         <>
       <ScCard className="flex flex-col gap-3">
         <ScInput
+          id="service-name"
           label="Service name"
           value={serviceForm.name}
           onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
@@ -318,6 +319,7 @@ export default function VendorServicesPage() {
         {(serviceForm.pricingType === 'flat' ||
           serviceForm.pricingType === 'on_inspection') && (
           <ScInput
+            id="service-price"
             label={
               serviceForm.pricingType === 'on_inspection'
                 ? 'Inspection fee (₹)'
@@ -353,6 +355,7 @@ export default function VendorServicesPage() {
         )}
 
         <ScInput
+          id="service-duration"
           label="Duration (mins)"
           type="number"
           value={serviceForm.durationMins}

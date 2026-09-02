@@ -118,7 +118,8 @@ async function seedPeople() {
     // have to name it.
     ...[CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review, CUSTOMERS.payLater,
         CUSTOMERS.coupons, CUSTOMERS.browse, CUSTOMERS.journey,
-        CUSTOMERS.vendorJob, CUSTOMERS.vendorReject].map((c, i) => ({
+        CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
+        CUSTOMERS.logout, CUSTOMERS.session].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -131,7 +132,8 @@ async function seedPeople() {
   await db.insert(userAddresses).values(
     [CUSTOMERS.book, CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review,
      CUSTOMERS.payLater, CUSTOMERS.coupons, CUSTOMERS.browse,
-     CUSTOMERS.journey, CUSTOMERS.vendorJob, CUSTOMERS.vendorReject].map((c) => ({
+     CUSTOMERS.journey, CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
+     CUSTOMERS.logout, CUSTOMERS.session].map((c) => ({
       userId: c.id, label: 'Home', address: '14, Gandhi Nagar, Adyar',
       city: 'Chennai', lat: ORIGIN.lat, lng: ORIGIN.lng, isDefault: true,
     }))

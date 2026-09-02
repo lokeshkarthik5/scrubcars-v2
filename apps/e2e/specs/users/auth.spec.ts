@@ -113,7 +113,7 @@ test.describe('customer auth', () => {
     // Starts from a saved session rather than logging in through the UI: this
     // test is about logout, and a third UI login in one file also walks into
     // the 3-attempts-per-5-minutes cap that lib/otp.ts enforces per phone.
-    test.use({ storageState: asRole('customer-profile') })
+    test.use({ storageState: asRole('customer-logout') })
 
     test('returns the customer to a guest session', async ({ page }) => {
       await page.goto('/profile')

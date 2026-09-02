@@ -58,6 +58,15 @@ export const CUSTOMERS = {
    */
   vendorJob: { id: id(110), phone: '9000000010', name: 'Vendor Job Vimal', vehicleId: id(719) },
   vendorReject: { id: id(111), phone: '9000000011', name: 'Vendor Reject Radha', vehicleId: id(720) },
+  /**
+   * Customers whose *session* is the thing under test.
+   *
+   * Logging out and revoking refresh tokens are destructive to the session
+   * they touch, so they must not be aimed at a customer another file is
+   * reading — the storageState minted in global setup would go stale mid-run.
+   */
+  logout: { id: id(112), phone: '9000000012', name: 'Logout Lakshmi', vehicleId: id(721) },
+  session: { id: id(113), phone: '9000000013', name: 'Session Suresh', vehicleId: id(722) },
 } as const
 
 /**
