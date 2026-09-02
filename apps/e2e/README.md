@@ -85,6 +85,14 @@ along with the explanation above it.
   than the elevated surface it sits on. The remedy is accessible variants of
   the brand colour, which is a design decision.
 
+An open question: at a 320px viewport the home screen reports an 8px
+horizontal overflow on a Linux CI runner and none on macOS, and the
+element-level diagnostic in `platform/accessibility.spec.ts` finds nothing
+whose bounding box exceeds the viewport — so it is a pseudo-element, a scroll
+container, or a platform text-metric difference. The responsive check runs at
+360px, which is the narrow end of what people actually carry. If you can
+reproduce on Linux, the 8px is worth chasing.
+
 A note on measuring contrast: the accessibility spec waits for entrance
 animations to finish before scanning. Cards enter through `.reveal`, which
 starts at `opacity: 0`, and axe samples the *computed* colour — scanning early
