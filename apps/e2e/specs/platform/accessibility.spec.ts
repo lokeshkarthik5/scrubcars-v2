@@ -193,10 +193,33 @@ test.describe('responsive', () => {
         'lost mobile viewport emulation — a scrollbar is taking layout space'
       ).toBe(320)
 
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-      )
-      expect(overflow, `${path} overflows horizontally by ${overflow}px`).toBeLessThanOrEqual(1)
+      // Reports which elements stick out, not just that something does. Text
+      // metrics differ between platforms, so this can fail on a Linux runner
+      // and pass on macOS — and "8px" alone gives no way to tell whether that
+      // is the app or the environment.
+      const { overflow, offenders } = await page.evaluate(() => {
+        const root = document.documentElement
+        const limit = root.clientWidth
+        const offenders: string[] = []
+
+        for (const element of Array.from(document.querySelectorAll('*'))) {
+          const rect = element.getBoundingClientRect()
+          if (rect.width === 0) continue
+          if (rect.right > limit + 0.5 || rect.left < -0.5) {
+            const classes = String((element as HTMLElement).className || '').slice(0, 60)
+            offenders.push(
+              `${element.tagName}.${classes} [${rect.left.toFixed(0)}..${rect.right.toFixed(0)}]`
+            )
+          }
+        }
+
+        return { overflow: root.scrollWidth - limit, offenders: offenders.slice(0, 6) }
+      })
+
+      expect(
+        overflow,
+        `${path} overflows horizontally by ${overflow}px. Offending elements:\n  ${offenders.join('\n  ')}`
+      ).toBeLessThanOrEqual(1)
     }
 
     await context.close()

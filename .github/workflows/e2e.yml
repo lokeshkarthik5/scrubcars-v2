@@ -9,6 +9,11 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Pull requests run only the @p0 specs, so anything outside that tag cannot
+  # be verified on a branch. This runs the full suite on demand — which is what
+  # you want when the thing you are changing is a test that main runs and a
+  # pull request does not.
+  workflow_dispatch:
 
 concurrency:
   group: e2e-${{ github.ref }}
