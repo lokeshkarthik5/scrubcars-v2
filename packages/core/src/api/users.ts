@@ -120,10 +120,38 @@ export async function getAddresses(): Promise<Address[]> {
   return addresses.map(mapAddress)
 }
 
+export interface UpdateAddressPayload {
+  label?: string
+  address?: string
+  city?: string
+  /** All-or-nothing with `lng`, same as on create. */
+  lat?: number
+  lng?: number
+  geoSource?: 'gps' | 'map_pin'
+  isDefault?: boolean
+}
+
 /** POST /users/me/addresses */
 export async function createAddress(payload: CreateAddressPayload): Promise<Address> {
   const address = await apiClient<ApiAddress>('/users/me/addresses', {
     method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return mapAddress(address)
+}
+
+/**
+ * PATCH /users/me/addresses/:id
+ *
+ * Used at doorstep checkout to drop a pin on an address saved without one,
+ * which is the one moment the coordinate actually matters.
+ */
+export async function updateAddress(
+  id: string,
+  payload: UpdateAddressPayload
+): Promise<Address> {
+  const address = await apiClient<ApiAddress>(`/users/me/addresses/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   })
   return mapAddress(address)
@@ -144,7 +172,13 @@ export async function createVehicle(payload: {
   return mapVehicle(vehicle)
 }
 
-/** DELETE /users/me/vehicles/:id */
+/**
+ * DELETE /users/me/vehicles/:id
+ *
+ * Removes the car from the garage. One a booking still names is archived
+ * server-side rather than deleted, so this succeeds either way and the
+ * booking keeps the car it was for.
+ */
 export async function deleteVehicle(id: string): Promise<void> {
   await apiClient(`/users/me/vehicles/${id}`, { method: 'DELETE' })
 }
@@ -152,6 +186,24 @@ export async function deleteVehicle(id: string): Promise<void> {
 /** DELETE /users/me/addresses/:id */
 export async function deleteAddress(id: string): Promise<void> {
   await apiClient(`/users/me/addresses/${id}`, { method: 'DELETE' })
+}
+
+/** PATCH /users/me/vehicles/:id/default */
+export async function setDefaultVehicle(id: string): Promise<Vehicle> {
+  const vehicle = await apiClient<ApiVehicle>(
+    `/users/me/vehicles/${id}/default`,
+    { method: 'PATCH' }
+  )
+  return mapVehicle(vehicle)
+}
+
+/** PATCH /users/me/addresses/:id/default */
+export async function setDefaultAddress(id: string): Promise<Address> {
+  const address = await apiClient<ApiAddress>(
+    `/users/me/addresses/${id}/default`,
+    { method: 'PATCH' }
+  )
+  return mapAddress(address)
 }
 
 /** GPS location — not implemented on backend; returns placeholder */

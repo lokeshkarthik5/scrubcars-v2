@@ -49,6 +49,33 @@ export class CheckoutPage {
 
   addCar = () => this.page.getByRole('button', { name: /Add another car/i }).click()
 
+  // ─── doorstep ────────────────────────────────────────────────────────────
+
+  /**
+   * The address step. Mounts only for doorstep, and only once a slot is
+   * chosen — drop-in never asks, because the customer comes to the garage.
+   */
+  addressStep = () => this.page.getByRole('heading', { name: /Where should we come/i })
+
+  addressCard = (label: string | RegExp) =>
+    this.page.getByRole('button', { name: label })
+
+  async pickAddress(label: string | RegExp) {
+    await this.addressCard(label).click()
+  }
+
+  /**
+   * Shown when the chosen address has no coordinates. The server refuses such
+   * a booking (ADDRESS_LOCATION_REQUIRED) because it cannot run the coverage
+   * check, so this prompt is the only way past it.
+   */
+  pinPrompt = () => this.page.getByText(/Pin the exact spot/i)
+
+  /** Geolocation is granted per-context at Chennai, which is where the seeded
+   *  garages are — so this drops a pin inside MAIN's doorstep radius. */
+  useCurrentLocation = () =>
+    this.page.getByRole('button', { name: /Use my current location/i }).click()
+
   // ─── promo ───────────────────────────────────────────────────────────────
 
   /**

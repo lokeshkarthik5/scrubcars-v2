@@ -26,6 +26,12 @@ export interface CreateBookingIntentPayload {
   bookingType: BookingType
   scheduledAt: string
   paymentMethod: PaymentMethod
+  /**
+   * Required for doorstep, ignored for drop-in. The server snapshots the saved
+   * address onto the booking and checks it against the garage's travel radius,
+   * so this is an id rather than a typed-in address.
+   */
+  addressId?: string
   /** Promo code, if the customer applied one. The server re-resolves it. */
   discountCode?: string
 }

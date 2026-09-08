@@ -132,6 +132,13 @@ export interface Address {
   label: string
   address: string
   pincode: string
+  /**
+   * Null until the customer drops a pin. Carried on the domain type because
+   * doorstep checkout has to know which saved addresses can actually be
+   * delivered to, and prompt for a pin on the one that cannot.
+   */
+  lat: number | null
+  lng: number | null
   isDefault: boolean
 }
 

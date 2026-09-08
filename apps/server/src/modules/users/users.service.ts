@@ -360,11 +360,24 @@ export const usersService = {
     return toVehicleResponse(updated)
   },
 
+  /**
+   * Remove a car from the customer's garage.
+   *
+   * A car a booking or an intent still points at cannot be deleted — those FKs
+   * are ON DELETE RESTRICT so a booking can never lose the car it was for — so
+   * it is archived instead: gone from the garage and from every picker, still
+   * there for the booking that names it. A car nothing references is deleted
+   * outright, so a typo added and removed leaves nothing behind.
+   */
   async deleteVehicle(userId: string, vehicleId: string) {
     await getActiveUser(userId)
     const existing = await getOwnedVehicle(userId, vehicleId)
 
-    const [deleted] = await usersRepository.deleteVehicle(userId, vehicleId)
+    const referenced = await usersRepository.isVehicleReferenced(vehicleId)
+
+    const [removed] = referenced
+      ? await usersRepository.archiveVehicle(userId, vehicleId)
+      : await usersRepository.deleteVehicle(userId, vehicleId)
 
     if (existing.isDefault) {
       const remaining = await usersRepository.listVehicles(userId)
@@ -373,7 +386,9 @@ export const usersService = {
       }
     }
 
-    return toVehicleResponse(deleted)
+    log.info({ userId, vehicleId, archived: referenced }, 'user:vehicle-removed')
+
+    return toVehicleResponse(removed)
   },
 
   async setDefaultVehicle(userId: string, vehicleId: string) {

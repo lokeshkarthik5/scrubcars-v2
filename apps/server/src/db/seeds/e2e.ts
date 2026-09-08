@@ -45,6 +45,7 @@ import {
   SERVICES,
   STAFF,
   VEHICLES,
+  ADDRESSES,
   VENDORS,
   fillerVendorId,
 } from './e2e-ids.js'
@@ -116,10 +117,17 @@ async function seedPeople() {
     // specs don't have to care about the vehicle step at all. The id is pinned
     // because bookings.vehicle_id is NOT NULL and the fixture bookings below
     // have to name it.
+    // Two cars, because deleting one is the point: VEHICLES.booked is named by
+    // BOOKINGS.vehicleArchive and must survive as an archived row, while the
+    // spare is on nothing and must be deleted outright.
+    { id: VEHICLES.booked, userId: CUSTOMERS.vehicles.id, make: 'Skoda', model: 'Slavia',
+      color: 'Grey', licensePlate: 'TN03CC0001', vehicleType: 'sedan', isDefault: true },
+    { id: VEHICLES.spare, userId: CUSTOMERS.vehicles.id, make: 'Renault', model: 'Kwid',
+      color: 'Green', licensePlate: 'TN03CC0002', vehicleType: 'hatchback', isDefault: false },
     ...[CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review, CUSTOMERS.payLater,
         CUSTOMERS.coupons, CUSTOMERS.browse, CUSTOMERS.journey,
         CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
-        CUSTOMERS.logout, CUSTOMERS.session,
+        CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.doorstep,
         CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
@@ -130,16 +138,27 @@ async function seedPeople() {
 
   // CUSTOMERS.profile deliberately has no vehicle and no address: the profile
   // spec adds them, and asserting "added" is only meaningful from empty.
-  await db.insert(userAddresses).values(
-    [CUSTOMERS.book, CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review,
+  await db.insert(userAddresses).values([
+    ...[CUSTOMERS.book, CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review,
      CUSTOMERS.payLater, CUSTOMERS.coupons, CUSTOMERS.browse,
      CUSTOMERS.journey, CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
-     CUSTOMERS.logout, CUSTOMERS.session,
+     CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.vehicles,
      CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c) => ({
       userId: c.id, label: 'Home', address: '14, Gandhi Nagar, Adyar',
       city: 'Chennai', lat: ORIGIN.lat, lng: ORIGIN.lng, isDefault: true,
-    }))
-  )
+    })),
+    // The doorstep fixture's pair. The default one is pinned at ORIGIN, which
+    // is MAIN's own location and so comfortably inside its 15 km radius. The
+    // other has no coordinates at all — the state the booking page has to
+    // notice and prompt for, since the server cannot run a coverage check
+    // without them.
+    { id: ADDRESSES.doorstepPinned, userId: CUSTOMERS.doorstep.id, label: 'Home',
+      address: '14, Gandhi Nagar, Adyar', city: 'Chennai',
+      lat: ORIGIN.lat, lng: ORIGIN.lng, geoSource: 'map_pin', isDefault: true },
+    { id: ADDRESSES.doorstepUnpinned, userId: CUSTOMERS.doorstep.id, label: 'Office',
+      address: '9, Mount Road, Guindy', city: 'Chennai',
+      lat: null, lng: null, geoSource: 'unset', isDefault: false },
+  ])
 }
 
 // ─── garages ────────────────────────────────────────────────────────────────
@@ -440,6 +459,13 @@ async function seedBookingRows() {
   await insertBooking({ id: BOOKINGS.cancellable, userId: CUSTOMERS.cancel.id, vehicleId: CUSTOMERS.cancel.vehicleId,
     scheduledAt: tomorrowAt(10), status: 'confirmed', items: [washItem],
     payment: { status: 'paid', txnId: 'pay_seed_cancellable' } })
+
+  // Exists only so VEHICLES.booked is referenced. Completed rather than
+  // upcoming, so the garage spec cannot delete it by cancelling first — the
+  // car has to be removable while real history still names it.
+  await insertBooking({ id: BOOKINGS.vehicleArchive, userId: CUSTOMERS.vehicles.id,
+    vehicleId: VEHICLES.booked, scheduledAt: daysAgo(3), status: 'completed',
+    items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_vehicle_archive' } })
 
   await insertBooking({ id: BOOKINGS.cancellableNoReason, userId: CUSTOMERS.cancel.id,
     vehicleId: CUSTOMERS.cancel.vehicleId, scheduledAt: tomorrowAt(18), status: 'confirmed',

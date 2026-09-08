@@ -9,6 +9,7 @@ import { createBookingSchema } from './bookings.validation.js'
 
 const A = '11111111-1111-4111-8111-111111111111'
 const B = '22222222-2222-4222-8222-222222222222'
+const ADDRESS = '55555555-5555-4555-8555-555555555555'
 
 const base = {
   vendorId: '33333333-3333-4333-8333-333333333333',
@@ -46,5 +47,36 @@ describe('createBookingSchema', () => {
     expect(() =>
       createBookingSchema.parse({ ...base, serviceIds: tooMany })
     ).toThrow()
+  })
+
+  // Doorstep used to be refused outright by a `z.literal('dropin')`, which is
+  // why the booking page's Doorstep toggle 400'd. It is bookable now, and the
+  // address it needs is required here rather than left to the service — a
+  // doorstep request with nowhere to go is malformed, not a business-rule
+  // failure.
+  it('accepts a doorstep booking with an address', () => {
+    const parsed = createBookingSchema.parse({
+      ...base,
+      serviceId: A,
+      bookingType: 'doorstep',
+      addressId: ADDRESS,
+    })
+    expect(parsed.bookingType).toBe('doorstep')
+    expect(parsed.addressId).toBe(ADDRESS)
+  })
+
+  it('rejects a doorstep booking with no address', () => {
+    expect(() =>
+      createBookingSchema.parse({
+        ...base,
+        serviceId: A,
+        bookingType: 'doorstep',
+      })
+    ).toThrow()
+  })
+
+  it('does not require an address for drop-in', () => {
+    const parsed = createBookingSchema.parse({ ...base, serviceId: A })
+    expect(parsed.addressId).toBeUndefined()
   })
 })

@@ -1,4 +1,16 @@
-import { and, asc, count, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { DISCOUNT_HELD, DISCOUNT_REALIZED } from './discounts.predicates.js'
 import { db } from '../../db/index.js'
 import {
@@ -205,7 +217,10 @@ export const discountsRepository = {
       .where(
         and(
           eq(userVehicles.id, input.vehicleId),
-          eq(userVehicles.userId, input.userId)
+          eq(userVehicles.userId, input.userId),
+          // Same rule as the booking draft: a car the customer has archived is
+          // not one a promo can be priced against.
+          isNull(userVehicles.archivedAt)
         )
       )
       .limit(1)
