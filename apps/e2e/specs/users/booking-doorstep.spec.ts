@@ -65,8 +65,12 @@ test.describe('doorstep booking', () => {
     // ADDRESS_LOCATION_REQUIRED, so the page has to ask first.
     await checkout.pickAddress(/Office/)
     await expect(checkout.pinPrompt()).toBeVisible()
-    // No summary, no CTA: there is nothing to pay for yet.
-    await expect(checkout.cta()).toBeHidden()
+
+    // The bottom bar is always on screen, so the CTA cannot simply vanish —
+    // it has to be disabled *and* say why. An enabled button that silently
+    // does nothing is the one outcome worse than no button at all.
+    await expect(checkout.cta()).toHaveText('Pin your address on the map')
+    await expect(checkout.cta()).toBeDisabled()
 
     // Asked here rather than back in the profile, because leaving the page
     // would discard the slot and any applied code.

@@ -313,6 +313,9 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => setShowVehicleForm((v) => !v)}
+            // Both section headers render a button reading "Add", which on its
+            // own tells a screen reader nothing about what is being added.
+            aria-label="Add vehicle"
             className="flex items-center gap-1 text-[12px] text-brand-red"
           >
             <IconPlus size={14} />
@@ -420,6 +423,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => setShowAddressForm((a) => !a)}
+            aria-label="Add address"
             className="flex items-center gap-1 text-[12px] text-brand-red"
           >
             <IconPlus size={14} />

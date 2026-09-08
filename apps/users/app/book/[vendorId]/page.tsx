@@ -157,8 +157,22 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const addressNeedsPin =
     selectedAddressRecord != null &&
     (selectedAddressRecord.lat == null || selectedAddressRecord.lng == null)
-  const doorstepReady =
-    !isDoorstep || (selectedAddress != null && !addressNeedsPin)
+  /**
+   * Why doorstep cannot be paid for yet, if it cannot.
+   *
+   * Named rather than a boolean because the CTA has to say which of the two it
+   * is — the bottom bar is always on screen, so an unexplained dead button is
+   * the one outcome worse than no button at all. Same shape as
+   * `unpricedForVehicle` below, which already disables and explains.
+   */
+  const doorstepBlocker: 'address' | 'pin' | null = !isDoorstep
+    ? null
+    : selectedAddress == null
+      ? 'address'
+      : addressNeedsPin
+        ? 'pin'
+        : null
+  const doorstepReady = doorstepBlocker === null
 
   // Identifies the exact cart a code was validated against. Removing a service
   // changes it, which retires the code — the total it was checked against no
@@ -771,6 +785,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             !selectedSlot ||
             !selectedVehicle ||
             unpricedForVehicle ||
+            !doorstepReady ||
             loading
           }
           onClick={handleConfirm}
@@ -780,12 +795,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
             ? 'Processing payment...'
             : unpricedForVehicle
               ? 'Remove the unpriced service'
-              : payableAmount == null
-                ? 'Confirm booking'
-                : `Pay Now (₹${payableAmount.toLocaleString('en-IN')})`}
+              : doorstepBlocker === 'address'
+                ? 'Choose an address'
+                : doorstepBlocker === 'pin'
+                  ? 'Pin your address on the map'
+                  : payableAmount == null
+                    ? 'Confirm booking'
+                    : `Pay Now (₹${payableAmount.toLocaleString('en-IN')})`}
         </ScButton>
         <p className="mt-2 text-center text-[11px] text-text-muted">
-          {unpricedForVehicle
+          {doorstepBlocker === 'address'
+            ? 'Pick the address we should come to.'
+            : doorstepBlocker === 'pin'
+              ? 'We need the exact spot to check this garage travels to you.'
+              : unpricedForVehicle
             ? `${unpricedLines
                 .map((line) => line.service.name)
                 .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`

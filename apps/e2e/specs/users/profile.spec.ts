@@ -15,7 +15,7 @@ test.describe('profile', () => {
     await page.goto('/profile')
     await expect(page.getByText(/No vehicles added yet/i)).toBeVisible()
 
-    await page.getByRole('button', { name: 'Add' }).first().click()
+    await page.getByRole('button', { name: 'Add vehicle', exact: true }).click()
     await page.getByPlaceholder('e.g. Maruti').fill('Kia')
     await page.getByPlaceholder('e.g. Swift').fill('Seltos')
 
@@ -50,7 +50,7 @@ test.describe('profile', () => {
 
     // The first car added becomes the default, so a second one is what makes
     // "change it" mean anything.
-    await page.getByRole('button', { name: 'Add' }).first().click()
+    await page.getByRole('button', { name: 'Add vehicle', exact: true }).click()
     await page.getByPlaceholder('e.g. Maruti').fill('Honda')
     await page.getByPlaceholder('e.g. Swift').fill('City')
     await page.getByRole('button', { name: 'Save vehicle' }).click()
@@ -92,7 +92,14 @@ test.describe('profile', () => {
       page.getByRole('button', { name: `Remove ${label} address` })
 
     const addAddress = async (label: string, street: string, pincode: string) => {
-      await page.getByRole('button', { name: 'Add' }).last().click()
+      // `exact`, and named rather than positional. Playwright matches an
+      // accessible name by case-insensitive *substring*, so a bare "Add"
+      // also matches "Remove Home address" and "Make Home the default
+      // address" — "address" contains "add". Once one address existed,
+      // `.last()` was the trash icon, and the second add deleted the first.
+      await page
+        .getByRole('button', { name: 'Add address', exact: true })
+        .click()
       await page.getByPlaceholder('e.g. Home, Work').fill(label)
       await page.getByPlaceholder('Street, area').fill(street)
       await page.getByPlaceholder('e.g. Chennai').fill('Chennai')

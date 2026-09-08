@@ -130,7 +130,7 @@ export class CheckoutPage {
    *  amount, the disabled reason, and the in-flight state. */
   cta = () =>
     this.page.getByRole('button', {
-      name: /Pay Now|Confirm booking|Processing payment|Remove the unpriced service/,
+      name: /Pay Now|Confirm booking|Processing payment|Remove the unpriced service|Choose an address|Pin your address/,
     })
 
   pay = () => this.cta().click()
