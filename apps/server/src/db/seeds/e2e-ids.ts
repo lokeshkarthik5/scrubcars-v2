@@ -16,6 +16,13 @@ const id = (n: number): string =>
   `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
 /**
+ * CUSTOMERS.vehicles' car that a fixture booking names. Declared ahead of
+ * CUSTOMERS because that customer's `vehicleId` is this one — the booking is
+ * the whole point of the fixture.
+ */
+const VEHICLE_BOOKED = id(704)
+
+/**
  * Customers, one per concern.
  *
  * Specs run in parallel against a single database that is seeded once per run,
@@ -48,6 +55,20 @@ export const CUSTOMERS = {
    * ambiguous and the run would accept the wrong job.
    */
   journey: { id: id(109), phone: '9000000009', name: 'Journey Jaya', vehicleId: id(718) },
+  /**
+   * Owns two cars, one of which a booking names. Deleting a car that history
+   * points at used to raise a foreign-key error and surface as a 500; it is
+   * archived now, and the two cars are what tell archive and hard-delete
+   * apart in the same spec.
+   */
+  vehicles: { id: id(116), phone: '9000000016', name: 'Garage Gowri', vehicleId: VEHICLE_BOOKED },
+  /**
+   * Doorstep checkout. Owns two addresses — one pinned, one saved without
+   * coordinates — because the pinless one is what makes the "pin the exact
+   * spot" prompt reachable, and that prompt is the only place a customer can
+   * satisfy the server's coverage check.
+   */
+  doorstep: { id: id(117), phone: '9000000017', name: 'Doorstep Deepa', vehicleId: id(727) },
   /** One per cross-app journey, for the same reason as `journey` above: the
    *  vendor app finds a job by its customer's name. */
   journeyCancel: { id: id(114), phone: '9000000014', name: 'Journey Cancel Chitra', vehicleId: id(723) },
@@ -183,6 +204,9 @@ export const BOOKINGS = {
   vendorRejectable: id(613),
   /** confirmed at SECOND — must never appear while MAIN is the active tenant. */
   secondTenant: id(611),
+  /** completed, naming VEHICLES.booked. Its only job is to make that car
+   *  undeletable by the old code path — the regression this pins. */
+  vehicleArchive: id(614),
 } as const
 
 export const VEHICLES = {
@@ -191,6 +215,27 @@ export const VEHICLES = {
   /** SUV — deliberately unpriced on SERVICES.tiered. */
   suv: id(702),
   sedan: id(703),
+  /** CUSTOMERS.vehicles' default car, named by BOOKINGS.vehicleArchive.
+   *  Deleting it must archive the row rather than fail. */
+  booked: VEHICLE_BOOKED,
+  /** CUSTOMERS.vehicles' second car, on no booking at all. Deleting it must
+   *  take the row with it — archiving everything would fill the table with
+   *  tombstones for cars added by mistake. */
+  spare: id(705),
+} as const
+
+/**
+ * Addresses that a spec needs to name.
+ *
+ * Only the doorstep fixture's two are pinned: every other seeded address is
+ * incidental to its customer and nothing asserts on it by id.
+ */
+export const ADDRESSES = {
+  /** Has coordinates, at ORIGIN — inside MAIN's 15 km doorstep radius. */
+  doorstepPinned: id(901),
+  /** Saved with no lat/lng. Doorstep checkout must prompt for a pin rather
+   *  than letting the booking fail the server's coverage check. */
+  doorstepUnpinned: id(902),
 } as const
 
 export const REVIEWS = { existing: id(801) } as const

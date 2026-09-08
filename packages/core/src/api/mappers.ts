@@ -220,6 +220,8 @@ export function mapAddress(address: ApiAddress): Address {
     label: address.label,
     address: `${address.address}, ${address.city}`,
     pincode: address.address.match(/\d{6}/)?.[0] ?? '',
+    lat: address.lat,
+    lng: address.lng,
     isDefault: address.isDefault,
   }
 }

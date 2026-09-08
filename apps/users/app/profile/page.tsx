@@ -11,7 +11,14 @@ import { ScInput } from '@repo/ui/sc/input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
 import { SupportCard } from '@repo/ui/features/support-card'
-import { createAddress, createVehicle, deleteAddress, deleteVehicle } from '@repo/core/api/users'
+import {
+  createAddress,
+  createVehicle,
+  deleteAddress,
+  deleteVehicle,
+  setDefaultAddress,
+  setDefaultVehicle,
+} from '@repo/core/api/users'
 import { toast } from 'react-toastify'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
@@ -66,6 +73,9 @@ export default function ProfilePage() {
   const [addressForm, setAddressForm] = useState(emptyAddressForm)
   const [saving, setSaving] = useState<'vehicle' | 'address' | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  // Shares one id across cars and addresses: only one row is ever mid-request,
+  // and the two lists cannot collide on a uuid.
+  const [promoting, setPromoting] = useState<string | null>(null)
 
   const user = profile ?? authUser
 
@@ -175,6 +185,40 @@ export default function ProfilePage() {
       toast.error(err instanceof Error ? err.message : 'Failed to add address')
     } finally {
       setSaving(null)
+    }
+  }
+
+  // The default is what the booking page preselects, so changing it is the
+  // point of the badge rather than decoration on it. Both lists write the
+  // whole collection back from the response's `isDefault`, since promoting one
+  // demotes whichever held it before.
+  const makeVehicleDefault = async (id: string) => {
+    setPromoting(id)
+    try {
+      await setDefaultVehicle(id)
+      useUserStore.setState((s) => ({
+        vehicles: s.vehicles.map((v) => ({ ...v, isDefault: v.id === id })),
+      }))
+      toast.success('Default vehicle updated')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set default vehicle')
+    } finally {
+      setPromoting(null)
+    }
+  }
+
+  const makeAddressDefault = async (id: string) => {
+    setPromoting(id)
+    try {
+      await setDefaultAddress(id)
+      useUserStore.setState((s) => ({
+        addresses: s.addresses.map((a) => ({ ...a, isDefault: a.id === id })),
+      }))
+      toast.success('Default address updated')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set default address')
+    } finally {
+      setPromoting(null)
     }
   }
 
@@ -342,7 +386,19 @@ export default function ProfilePage() {
                     <p className="text-[11px] text-text-secondary">{v.plate}</p>
                   )}
                 </div>
-                {v.isDefault && <ScBadge variant="success">Default</ScBadge>}
+                {v.isDefault ? (
+                  <ScBadge variant="success">Default</ScBadge>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`Make ${v.make} ${v.model} the default vehicle`}
+                    onClick={() => makeVehicleDefault(v.id)}
+                    disabled={promoting === v.id}
+                    className="shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-brand-red disabled:opacity-40"
+                  >
+                    {promoting === v.id ? 'Setting...' : 'Set default'}
+                  </button>
+                )}
                 <button
                   type="button"
                   aria-label={`Remove ${v.make} ${v.model}`}
@@ -459,7 +515,19 @@ export default function ProfilePage() {
                   <p className="text-[11px] text-text-secondary truncate">{a.address}</p>
                   {a.pincode && <p className="text-[11px] text-text-muted">{a.pincode}</p>}
                 </div>
-                {a.isDefault && <ScBadge variant="success">Default</ScBadge>}
+                {a.isDefault ? (
+                  <ScBadge variant="success">Default</ScBadge>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`Make ${a.label} the default address`}
+                    onClick={() => makeAddressDefault(a.id)}
+                    disabled={promoting === a.id}
+                    className="shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-brand-red disabled:opacity-40"
+                  >
+                    {promoting === a.id ? 'Setting...' : 'Set default'}
+                  </button>
+                )}
                 <button
                   type="button"
                   aria-label={`Remove ${a.label} address`}

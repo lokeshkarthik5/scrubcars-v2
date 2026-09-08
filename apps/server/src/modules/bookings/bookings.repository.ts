@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -659,11 +659,16 @@ export const bookingsRepository = {
       .returning()
   },
 
+  // Archived cars are excluded: one the customer has removed from their garage
+  // must not be bookable again, even if a stale client still holds its id.
+  // Past bookings read their vehicle through the relation, by primary key, so
+  // they still render the car they were for.
   findVehicleForUser(userId: string, vehicleId: string) {
     return db.query.userVehicles.findFirst({
       where: and(
         eq(userVehicles.id, vehicleId),
-        eq(userVehicles.userId, userId)
+        eq(userVehicles.userId, userId),
+        isNull(userVehicles.archivedAt)
       ),
     })
   },

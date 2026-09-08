@@ -561,19 +561,13 @@ export async function resolveBookingDraft(
   // Doorstep snapshots the customer's location onto the booking, so a later
   // edit to the saved address cannot change where the garage was told to go.
   //
-  // Until now `addressId` was accepted and silently ignored: doorstep bookings
-  // carried no address at all, and no coverage rule was ever enforced despite
-  // being documented. Both are handled here.
+  // Drop-in leaves all three null: the customer comes to the garage, so there
+  // is no address to record.
   let lat: number | null = null
   let lng: number | null = null
   let address: string | null = null
 
-  // Booking creation is drop-in only today — `createBookingTypeSchema` is a
-  // literal, so this branch is currently unreachable. It is written and kept
-  // live anyway so that widening that literal is the *only* thing needed to
-  // turn doorstep on: the coverage rule ships with the feature rather than
-  // being something someone has to remember afterwards.
-  const bookingType = input.bookingType as 'dropin' | 'doorstep'
+  const bookingType = input.bookingType
 
   if (bookingType === 'doorstep') {
     if (!vendor.doorstepEnabled) {

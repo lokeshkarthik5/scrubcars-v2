@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconChevronRight,
+  IconMapPin,
   IconPercentage,
   IconPlus,
   IconShoppingCart,
@@ -12,6 +13,10 @@ import {
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
+import {
+  LocationPicker,
+  type PickedLocation,
+} from '@repo/ui/features/location-picker'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -26,6 +31,7 @@ import {
   useValidateDiscount,
 } from '@repo/core/api/hooks/use-discounts'
 import { createBookingIntent, verifyPayment } from '@repo/core/api/payments'
+import { updateAddress } from '@repo/core/api/users'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorServices } from '@repo/core/api/services'
 import { getVendorPackages } from '@repo/core/api/packages'
@@ -48,14 +54,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Comma-separated, in the order they were added on the garage page.
   const serviceIdsParam = searchParams.get('service')
   const vehicles = useUserStore((s) => s.vehicles)
+  const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
+  const fetchAddresses = useUserStore((s) => s.fetchAddresses)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [pickedVehicle, setPickedVehicle] = useState<string | null>(null)
+  const [pickedAddress, setPickedAddress] = useState<string | null>(null)
+  // Set while an address saved without a pin is being given one, inline.
+  const [pinningAddress, setPinningAddress] = useState(false)
   const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
@@ -111,8 +122,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
       setSelectedServices(picked.length > 0 ? picked : svcs.slice(0, 1))
     })
     void fetchVehicles()
+    void fetchAddresses().catch(() => undefined)
     void fetchProfile()
-  }, [vendorId, serviceIdsParam, fetchVehicles, fetchProfile])
+  }, [vendorId, serviceIdsParam, fetchVehicles, fetchAddresses, fetchProfile])
 
   // Auto-select only when there is nothing to choose between. With several
   // cars, preselecting one would make the order summary appear the instant a
@@ -125,6 +137,28 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // arrives.
   const selectedVehicle =
     pickedVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
+
+  // Doorstep only. Unlike the car, the default *is* preselected: the customer
+  // chose it as "where I am" in their profile, so re-asking adds a step
+  // without adding a decision. Falls back to the only address when there is
+  // one and none is marked default.
+  const isDoorstep = bookingType === 'doorstep'
+  const selectedAddress = isDoorstep
+    ? (pickedAddress ??
+      addresses.find((a) => a.isDefault)?.id ??
+      (addresses.length === 1 ? addresses[0].id : null))
+    : null
+  const selectedAddressRecord =
+    addresses.find((a) => a.id === selectedAddress) ?? null
+  // The server refuses a doorstep booking against an address with no
+  // coordinates (ADDRESS_LOCATION_REQUIRED) — it cannot check the garage's
+  // travel radius without them — so the pin is asked for here rather than
+  // letting checkout fail.
+  const addressNeedsPin =
+    selectedAddressRecord != null &&
+    (selectedAddressRecord.lat == null || selectedAddressRecord.lng == null)
+  const doorstepReady =
+    !isDoorstep || (selectedAddress != null && !addressNeedsPin)
 
   // Identifies the exact cart a code was validated against. Removing a service
   // changes it, which retires the code — the total it was checked against no
@@ -239,9 +273,33 @@ function BookContent({ vendorId }: { vendorId: string }) {
       ? errorMessage(applyPromo.error, "This code isn't valid.")
       : ''
 
+  // An address saved without a pin is normal — only doorstep needs one. Rather
+  // than sending the customer to their profile (which would lose the slot and
+  // any applied code), the pin is dropped here and saved onto the address.
+  const handlePinAddress = async (picked: PickedLocation) => {
+    if (!selectedAddress) return
+    setPinningAddress(true)
+    try {
+      const saved = await updateAddress(selectedAddress, {
+        lat: picked.lat,
+        lng: picked.lng,
+        geoSource: picked.source,
+      })
+      useUserStore.setState((state) => ({
+        addresses: state.addresses.map((a) => (a.id === saved.id ? saved : a)),
+      }))
+      toast.success('Location saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save that location')
+    } finally {
+      setPinningAddress(false)
+    }
+  }
+
   const handleConfirm = async () => {
     if (bookingLockRef.current || loading) return
     if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle) return
+    if (!doorstepReady) return
     bookingLockRef.current = true
     setLoading(true)
     try {
@@ -256,6 +314,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
         bookingType,
         vehicleId: selectedVehicle,
         paymentMethod: 'online',
+        // Only ever sent for doorstep; drop-in has nowhere to travel to.
+        addressId: selectedAddress ?? undefined,
         discountCode: appliedDiscount?.code,
       })
 
@@ -423,12 +483,83 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </Reveal>
       )}
 
+      {/* Doorstep only: the garage has to be told where to come, and the
+          address is picked from the customer's saved ones so the server can
+          check it against the garage's travel radius. */}
+      {selectedSlot && isDoorstep && (
+        <Reveal as="section">
+          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+            Where should we come?
+          </h2>
+          {addresses.length === 0 ? (
+            <ScCard className="flex flex-col items-start gap-2 border-warning bg-warning-muted/20">
+              <p className="text-[13px] font-medium text-text-primary">
+                Add an address to continue
+              </p>
+              <p className="text-[12px] text-text-secondary">
+                Doorstep service needs somewhere to go. You can add one from
+                your profile.
+              </p>
+              <ScButton
+                fullWidth={false}
+                variant="secondary"
+                onClick={() => router.push('/profile')}
+                className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[12px]"
+              >
+                <IconPlus size={14} /> Add an address
+              </ScButton>
+            </ScCard>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {addresses.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  aria-pressed={selectedAddress === a.id}
+                  onClick={() => setPickedAddress(a.id)}
+                >
+                  <ScCard
+                    className={cn(
+                      'flex items-center gap-3 text-left',
+                      selectedAddress === a.id && 'border-brand-red'
+                    )}
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-accent-muted">
+                      <IconMapPin size={18} className="text-brand-red" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-medium">{a.label}</span>
+                      <span className="block truncate text-[11px] text-text-secondary">
+                        {a.address}
+                      </span>
+                    </span>
+                  </ScCard>
+                </button>
+              ))}
+
+              {addressNeedsPin && (
+                <ScCard className="flex flex-col gap-2 border-warning bg-warning-muted/20">
+                  <p className="text-[13px] font-medium text-text-primary">
+                    Pin the exact spot
+                  </p>
+                  <p className="text-[12px] text-text-secondary">
+                    We need it to check this garage travels to you.
+                    {pinningAddress ? ' Saving...' : ''}
+                  </p>
+                  <LocationPicker showSearch onChange={handlePinAddress} />
+                </ScCard>
+              )}
+            </div>
+          )}
+        </Reveal>
+      )}
+
       {/* Coupons, then the payment summary — the Urban Company cart shape.
           Coupons is a row you tap rather than a form that is always open, and
           the saving reads as a strike-through on the line it applies to
           instead of its own subtotal/discount block. With a single service
           that says the same thing in two rows fewer. */}
-      {selectedServices.length > 0 && selectedSlot && selectedVehicle && (
+      {selectedServices.length > 0 && selectedSlot && selectedVehicle && doorstepReady && (
         <Reveal as="section" className="flex flex-col gap-4">
           <ScCard className="py-3.5">
             {appliedDiscount ? (

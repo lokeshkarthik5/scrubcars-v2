@@ -78,6 +78,15 @@ export type BookingRow = {
   rescheduled_from_id: string | null
   vehicle_id: string
   scheduled_at: Date
+  booking_type: string
+  /**
+   * The doorstep snapshot: where the garage was told to go, copied off the
+   * saved address at write time rather than joined. All three are null for
+   * drop-in, where the customer comes to the garage.
+   */
+  address: string | null
+  lat: number | null
+  lng: number | null
 }
 
 export const getBooking = async (id: string): Promise<BookingRow | undefined> =>

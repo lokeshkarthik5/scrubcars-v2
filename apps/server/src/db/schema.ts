@@ -287,6 +287,12 @@ export const userVehicles = pgTable(
     licensePlate: varchar('license_plate', { length: 20 }),
     vehicleType: vehicleTypeEnum('vehicle_type').notNull(),
     isDefault: boolean('is_default').default(false).notNull(),
+    // Set when a customer removes a car that a booking or intent still points
+    // at. Those FKs are ON DELETE RESTRICT so history can never lose the car it
+    // was for, which made such a vehicle undeletable; archiving takes it out of
+    // the customer's garage without touching what was already booked. A car
+    // nothing references is still deleted outright.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
   },
   (table) => [index('user_vehicles_user_id_idx').on(table.userId)]
 )

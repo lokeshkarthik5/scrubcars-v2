@@ -10,7 +10,10 @@ export const bookingStatusSchema = z.enum([
 ])
 
 export const bookingTypeSchema = z.enum(['doorstep', 'dropin'])
-export const createBookingTypeSchema = z.literal('dropin')
+// Both modes are bookable. Doorstep additionally requires `addressId`, which
+// `createBookingSchema` enforces below rather than leaving to the service — a
+// doorstep request with no address is malformed, not a business-rule failure.
+export const createBookingTypeSchema = bookingTypeSchema
 
 export const paymentMethodSchema = z.enum(['online', 'cash'])
 
@@ -61,6 +64,7 @@ export const createBookingSchema = z
     scheduledAt: z.string().datetime(),
     // All bookings prepay online via Razorpay; cash is no longer accepted.
     paymentMethod: z.literal('online').default('online'),
+    // Required for doorstep and meaningless for drop-in; see the refine below.
     addressId: z.string().uuid().optional(),
     // Optional promo code. Only the shape is validated here — whether it
     // applies is decided by the discount engine at write time, never by the
@@ -83,6 +87,13 @@ export const createBookingSchema = z
     message: `A booking can include at most ${MAX_SERVICES_PER_BOOKING} services`,
     path: ['serviceIds'],
   })
+  .refine(
+    (input) => input.bookingType !== 'doorstep' || input.addressId !== undefined,
+    {
+      message: 'Choose the address we should come to',
+      path: ['addressId'],
+    }
+  )
 
 export type ListMyBookingsQuery = z.infer<typeof listMyBookingsQuerySchema>
 export type ListVendorBookingsQuery = z.infer<

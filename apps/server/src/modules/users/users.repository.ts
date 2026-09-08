@@ -1,6 +1,12 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, isNull } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { userAddresses, users, userVehicles } from '../../db/schema.js'
+import {
+  bookingIntents,
+  bookings,
+  userAddresses,
+  users,
+  userVehicles,
+} from '../../db/schema.js'
 import type { geoSourceEnum, vehicleTypeEnum } from '../../db/schema.js'
 
 type GeoSource = (typeof geoSourceEnum.enumValues)[number]
@@ -127,14 +133,20 @@ export const usersRepository = {
 
   listVehicles(userId: string) {
     return db.query.userVehicles.findMany({
-      where: eq(userVehicles.userId, userId),
+      where: and(
+        eq(userVehicles.userId, userId),
+        isNull(userVehicles.archivedAt)
+      ),
       orderBy: [asc(userVehicles.make), asc(userVehicles.model)],
     })
   },
 
   countVehicles(userId: string) {
     return db.query.userVehicles.findMany({
-      where: eq(userVehicles.userId, userId),
+      where: and(
+        eq(userVehicles.userId, userId),
+        isNull(userVehicles.archivedAt)
+      ),
       columns: { id: true },
     })
   },
@@ -143,7 +155,8 @@ export const usersRepository = {
     return db.query.userVehicles.findFirst({
       where: and(
         eq(userVehicles.id, vehicleId),
-        eq(userVehicles.userId, userId)
+        eq(userVehicles.userId, userId),
+        isNull(userVehicles.archivedAt)
       ),
     })
   },
@@ -181,9 +194,47 @@ export const usersRepository = {
       .returning()
   },
 
+  /**
+   * Whether history still points at this car. Both FKs are ON DELETE RESTRICT,
+   * so this is the question that decides between deleting the row and
+   * archiving it.
+   */
+  async isVehicleReferenced(vehicleId: string) {
+    const [referenced] = await db
+      .select({ id: bookings.id })
+      .from(bookings)
+      .where(eq(bookings.vehicleId, vehicleId))
+      .limit(1)
+
+    if (referenced) return true
+
+    const [intent] = await db
+      .select({ id: bookingIntents.id })
+      .from(bookingIntents)
+      .where(eq(bookingIntents.vehicleId, vehicleId))
+      .limit(1)
+
+    return Boolean(intent)
+  },
+
   deleteVehicle(userId: string, vehicleId: string) {
     return db
       .delete(userVehicles)
+      .where(
+        and(eq(userVehicles.id, vehicleId), eq(userVehicles.userId, userId))
+      )
+      .returning()
+  },
+
+  /**
+   * Takes the car out of the customer's garage without deleting the row a
+   * booking still names. Clears `is_default` in the same statement so an
+   * archived car cannot stay the default the pickers preselect.
+   */
+  archiveVehicle(userId: string, vehicleId: string) {
+    return db
+      .update(userVehicles)
+      .set({ archivedAt: new Date(), isDefault: false })
       .where(
         and(eq(userVehicles.id, vehicleId), eq(userVehicles.userId, userId))
       )
@@ -208,7 +259,11 @@ export const usersRepository = {
         .update(userVehicles)
         .set({ isDefault: true })
         .where(
-          and(eq(userVehicles.id, vehicleId), eq(userVehicles.userId, userId))
+          and(
+            eq(userVehicles.id, vehicleId),
+            eq(userVehicles.userId, userId),
+            isNull(userVehicles.archivedAt)
+          )
         )
         .returning()
     })

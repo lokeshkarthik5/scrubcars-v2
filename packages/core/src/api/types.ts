@@ -70,8 +70,14 @@ export interface ApiAddress {
   label: string
   address: string
   city: string
-  lat: number
-  lng: number
+  /**
+   * Null when the address was saved without dropping a pin — a legitimate
+   * state, since only doorstep needs a coordinate. Was typed non-nullable
+   * here, which quietly promised every address had one.
+   */
+  lat: number | null
+  lng: number | null
+  geoSource: 'unset' | 'gps' | 'map_pin'
   isDefault: boolean
   createdAt: string
 }
