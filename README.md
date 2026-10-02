@@ -37,7 +37,7 @@ bun run dev
 `bun run dev` starts all four. Individually: `bun run dev:api`, `dev:users`,
 `dev:vendors`, `dev:admin`.
 
-## How the pieces fit
+## How the pieces fit:::
 
 **Routing.** Each frontend is its own deployment and serves its routes at their
 real public paths — a directory under `app/` *is* the URL. There is no
