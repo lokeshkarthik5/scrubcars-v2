@@ -8,6 +8,7 @@ import { APP_VERSION } from '@repo/core/version'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
+import { SIGNED_IN_HINT_KEY } from './signed-in-landing'
 
 /**
  * Route gate for the customer app.
@@ -18,9 +19,18 @@ import { useUserStore } from '@repo/core/stores/user-store'
  * deployment on its own domain, and bouncing them off this one would make the
  * two accounts they actually have impossible to use at the same time.
  */
-type RouteAccess = 'public' | 'guest' | 'customer'
+type RouteAccess = 'marketing' | 'public' | 'guest' | 'customer'
 
-const GUEST_ROUTES = ['/', '/login', '/verify-otp']
+/**
+ * The marketing homepage. Unlike every other route it renders before the
+ * session resolves: it is the page search engines index and first-time
+ * visitors land on, so it has to arrive as server-rendered HTML rather than
+ * waiting on a round trip to the API. Signed-in customers are still sent on
+ * to the app — before paint by a localStorage hint, or here once the session
+ * resolves if the hint was missing (see signed-in-landing.ts).
+ */
+const MARKETING_ROUTES = ['/']
+const GUEST_ROUTES = ['/login', '/verify-otp']
 const CUSTOMER_ROUTES = ['/book', '/profile-setup']
 
 function matchesRoute(pathname: string, routes: string[]) {
@@ -30,6 +40,8 @@ function matchesRoute(pathname: string, routes: string[]) {
 }
 
 function getRouteAccess(pathname: string): RouteAccess {
+  // Exact match: matchesRoute would treat every path as under '/'.
+  if (MARKETING_ROUTES.includes(pathname)) return 'marketing'
   if (matchesRoute(pathname, GUEST_ROUTES)) return 'guest'
   if (matchesRoute(pathname, CUSTOMER_ROUTES)) return 'customer'
   return 'public'
@@ -86,11 +98,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   let redirectPath: string | null = null
 
   if (isHydrated && isSessionReady) {
-    if (routeAccess === 'guest') {
-      // '/' is the only guest route with somewhere to send a signed-out
-      // visitor: the onboarding carousel. /login and /verify-otp are already
-      // where they need to be.
-      redirectPath = user ? signedInLanding : pathname === '/' ? '/welcome' : null
+    if (routeAccess === 'marketing' || routeAccess === 'guest') {
+      redirectPath = user ? signedInLanding : null
     } else if (routeAccess === 'public') {
       redirectPath = null
     } else if (!user) {
@@ -103,6 +112,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (redirectPath && redirectPath !== pathname) router.replace(redirectPath)
   }, [pathname, redirectPath, router])
+
+  useEffect(() => {
+    if (!isHydrated || !isSessionReady) return
+    try {
+      if (user && !isProfileIncomplete) window.localStorage.setItem(SIGNED_IN_HINT_KEY, '1')
+      else window.localStorage.removeItem(SIGNED_IN_HINT_KEY)
+    } catch {
+      // Storage blocked (private mode, policy). The hint is an optimisation;
+      // the redirect above still runs once the session resolves.
+    }
+  }, [isHydrated, isSessionReady, user, isProfileIncomplete])
+
+  // Never gated: the homepage is server-rendered for every visitor. A
+  // signed-in one keeps seeing it, rather than a blank screen, for the moment
+  // the redirect takes.
+  if (routeAccess === 'marketing') return <>{children}</>
 
   if (
     !isHydrated ||

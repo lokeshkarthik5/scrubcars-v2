@@ -5,3 +5,21 @@
    without this line every class that only appears in @repo/ui is dropped from
    the build. */
 @source '../../../packages/ui/src';
+
+/* Brand-kit colours the marketing homepage uses that the shared app theme
+   does not define (Figma: Detlio Colour System, core palette). Kept to this
+   app because no other surface uses them yet. */
+@theme inline {
+  --color-brand-rich: #141416;
+  --color-brand-graphite: #272730;
+}
+
+/* ─── Marketing homepage ───────────────────────────────────────────────────── */
+
+/* The homepage's header is fixed, so anything scrolled into view — an anchor
+   jump, or keyboard focus moving down the page — must stop below it rather
+   than underneath it (WCAG 2.4.11). Scoped to the homepage; the app's own
+   screens have no fixed header. */
+html:has(main[data-marketing-home]) {
+  scroll-padding-top: 5rem;
+}
