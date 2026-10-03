@@ -61,11 +61,15 @@ export function PhoneLogin({ audience, verifyHref, showBack = true }: PhoneLogin
       <TopBar showBack={showBack} />
 
       <div className="flex flex-1 flex-col justify-center gap-10 pb-16">
-        <div className="flex flex-col items-center gap-3">
-          <BrandMark height={64} priority className="mb-4" />
-          <h1 className="text-[34px] font-bold tracking-tight text-text-primary">Login</h1>
-          <p className="text-[14px] text-text-secondary">
-            Enter your phone number to continue
+        <div className="flex flex-col items-center text-center">
+          <BrandMark height={44} priority />
+          {/* One screen both signs in and signs up — the OTP flow registers a
+              new number — so the title says both. */}
+          <h1 className="mt-8 text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
+            Log in or sign up
+          </h1>
+          <p className="mt-2 max-w-[18rem] text-[15px] leading-6 text-text-secondary">
+            Enter your mobile number and we&rsquo;ll send you a 6-digit code.
           </p>
         </div>
 

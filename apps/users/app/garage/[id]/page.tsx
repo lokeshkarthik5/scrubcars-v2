@@ -167,6 +167,10 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     )
   }
 
+  // A garage with no reviews yet shows none of the rating furniture — a
+  // "0.0 (0 reviews)" line reads as a bad score, not as a new listing.
+  const reviewCount = reviews.length || vendor.reviewCount
+  const hasReviews = reviewCount > 0
   const avgRating =
     reviews.length > 0
       ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
@@ -240,9 +244,17 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         </div>
 
         <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
-          <IconStarFilled size={13} className="text-warning" />
-          <span className="font-semibold text-text-primary">{avgRating.toFixed(1)}</span>
-          <span>({reviews.length} reviews)</span>
+          {hasReviews ? (
+            <>
+              <IconStarFilled size={13} className="text-warning" />
+              <span className="font-semibold text-text-primary">{avgRating.toFixed(1)}</span>
+              <span>
+                ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
+              </span>
+            </>
+          ) : (
+            <span className="font-medium text-text-primary">New on Detlio</span>
+          )}
           {hasDistance && (
             <>
               <span>·</span>
@@ -298,7 +310,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             { key: 'photos', label: 'Photos' },
             { key: 'reviews', label: 'Reviews' },
           ] as const
-        ).map((t) => (
+        )
+          .filter((t) => t.key !== 'reviews' || hasReviews)
+          .map((t) => (
           <button
             key={t.key}
             type="button"
@@ -440,7 +454,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                               'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
                               added
                                 ? 'bg-brand-white text-brand-black'
-                                : 'bg-surface-elevated text-text-primary ring-1 ring-border'
+                                : 'bg-brand-red text-brand-white hover:bg-brand-red-hover'
                             )}
                           >
                             {added && <IconCheck size={13} />}
@@ -524,7 +538,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                             'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
                             added
                               ? 'bg-brand-white text-brand-black'
-                              : 'bg-surface-elevated text-text-primary ring-1 ring-border'
+                              : 'bg-brand-red text-brand-white hover:bg-brand-red-hover'
                           )}
                         >
                           {added && <IconCheck size={13} />}

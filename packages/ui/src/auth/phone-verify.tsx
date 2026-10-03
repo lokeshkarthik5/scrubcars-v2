@@ -113,12 +113,12 @@ export function PhoneVerify({
       <TopBar showBack backHref={backHref} />
 
       <div className="flex flex-1 flex-col items-center">
-        <h1 className="pt-10 text-[30px] font-bold tracking-tight text-text-primary">
+        <h1 className="pt-10 text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
           Verify your number
         </h1>
 
-        <div className="pt-10 text-center">
-          <p className="text-[14px] text-text-secondary">Enter the 6-digit code sent to</p>
+        <div className="pt-2 text-center">
+          <p className="text-[15px] leading-6 text-text-secondary">Enter the 6-digit code sent to</p>
           <p className="text-[15px] font-semibold text-text-primary">{formatPhone(phone)}</p>
         </div>
 
