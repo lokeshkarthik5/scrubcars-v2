@@ -188,7 +188,9 @@ export function SlotPicker({
               >
                 {d.dayName}
               </span>
-              <span className="text-[16px] font-semibold">{d.date.split(' ')[0]}</span>
+              {/* Dates and times are figures, so they take the brand's
+                  numeric face; the day names around them stay Inter. */}
+              <span className="font-numeric text-[16px] font-bold">{d.date.split(' ')[0]}</span>
             </button>
               )
             })}
@@ -213,7 +215,7 @@ export function SlotPicker({
             >
               {formatDateChip(customDate).dayName}
             </span>
-            <span className="text-[16px] font-semibold">
+            <span className="font-numeric text-[16px] font-bold">
               {formatDateChip(customDate).date.split(' ')[0]}
             </span>
           </button>
@@ -227,7 +229,7 @@ export function SlotPicker({
             setCalMonth({ year: y, month: m - 1 })
             setShowCalendar(true)
           }}
-          className="flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] bg-surface text-text-secondary transition-colors hover:text-brand-red"
+          className="flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] bg-surface text-text-secondary transition-colors hover:text-text-primary"
           title="Pick another date"
         >
           <IconCalendar size={19} stroke={1.5} />
@@ -259,9 +261,9 @@ export function SlotPicker({
                   aria-pressed={value === slot.time}
                   onClick={() => onChange(slot.time)}
                   className={cn(
-                    'rounded-[10px] py-3 text-[13px] font-medium transition-colors',
+                    'rounded-[10px] py-3 font-numeric text-[13px] font-medium transition-colors',
                     value === slot.time
-                      ? 'bg-brand-white font-semibold text-brand-black'
+                      ? 'bg-brand-white font-bold text-brand-black'
                       : 'bg-surface text-text-primary'
                   )}
                 >
@@ -292,7 +294,7 @@ export function SlotPicker({
                   : { year: c.year, month: c.month - 1 }
               )
             }
-            className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
+            className="rounded-lg p-1 text-text-secondary hover:text-text-primary"
             aria-label="Previous month"
           >
             <IconChevronLeft size={20} />
@@ -309,7 +311,7 @@ export function SlotPicker({
                   : { year: c.year, month: c.month + 1 }
               )
             }
-            className="rounded-lg p-1 text-text-secondary hover:text-brand-red"
+            className="rounded-lg p-1 text-text-secondary hover:text-text-primary"
             aria-label="Next month"
           >
             <IconChevronRight size={20} />
@@ -349,11 +351,11 @@ export function SlotPicker({
                   setShowCalendar(false)
                 }}
                 className={cn(
-                  'flex h-9 items-center justify-center rounded-lg text-[13px] transition-colors',
+                  'flex h-9 items-center justify-center rounded-lg font-numeric text-[13px] font-medium transition-colors',
                   disabled
                     ? 'cursor-not-allowed text-text-muted opacity-30'
                     : selected
-                      ? 'bg-brand-red font-semibold text-brand-white'
+                      ? 'bg-brand-white font-bold text-brand-black'
                       : 'text-text-primary hover:bg-surface'
                 )}
               >

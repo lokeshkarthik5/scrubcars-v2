@@ -1,6 +1,6 @@
 'use client'
 
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { getVendors, type VendorListParams } from '@repo/core/api/vendors'
 import type { Vendor } from '@repo/core/types'
 
@@ -26,7 +26,13 @@ export interface VendorSearchResult {
    */
   appliedRadiusKm: number | null
   hasMore: boolean
+  /** True only on a first load, when there is nothing to show yet. */
   isLoading: boolean
+  /**
+   * True while the list on screen still belongs to the previous filters and
+   * the new results are on their way. Only ever set with `keepPrevious`.
+   */
+  isRefreshing: boolean
   isFetchingMore: boolean
   isError: boolean
   loadMore: () => void
@@ -34,7 +40,19 @@ export interface VendorSearchResult {
 
 export function useVendorSearch(
   params: VendorListParams,
-  options?: { enabled?: boolean }
+  options?: {
+    enabled?: boolean
+    /**
+     * Keep the current results on screen while a changed filter loads, rather
+     * than dropping back to the loading state.
+     *
+     * Opt-in because it suits a list and not a map: switching mode or sort on
+     * a list should not blank the page and throw away the scroll position,
+     * but the map re-searches when it moves somewhere else entirely, and pins
+     * left over from the previous area would sit in the wrong place.
+     */
+    keepPrevious?: boolean
+  }
 ): VendorSearchResult {
   const query = useInfiniteQuery({
     queryKey: vendorKeys.list(params),
@@ -46,21 +64,29 @@ export function useVendorSearch(
     // A garage's details do not change while someone scrolls a list, and
     // refetching every page on focus would multiply the query cost for nothing.
     staleTime: 60_000,
+    placeholderData: options?.keepPrevious ? keepPreviousData : undefined,
   })
 
   const pages = query.data?.pages ?? []
+  // The pages on screen are the previous query's. Paging them on would ask
+  // the new query for a "next" page of a list it has not fetched yet.
+  const isRefreshing = query.isPlaceholderData
+  const hasMore = query.hasNextPage && !isRefreshing
 
   return {
     vendors: pages.flatMap((page) => page.vendors),
     // The first page decides the radius: later pages are drawn from the same
     // bounded candidate set, so a later page's value would say nothing new.
     appliedRadiusKm: pages[0]?.appliedRadiusKm ?? null,
-    hasMore: query.hasNextPage,
+    hasMore,
+    // Placeholder data counts as success, so this stays false through a
+    // refresh and the full loading state is kept for the very first load.
     isLoading: query.isPending,
+    isRefreshing,
     isFetchingMore: query.isFetchingNextPage,
     isError: query.isError,
     loadMore: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage) {
+      if (hasMore && !query.isFetchingNextPage) {
         void query.fetchNextPage()
       }
     },

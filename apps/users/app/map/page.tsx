@@ -15,9 +15,12 @@ import {
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
+import { Figures } from '@repo/ui/sc/figures'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, formatDistance } from '@repo/core/map'
 import { cn } from '@repo/core/utils'
-import type { Vendor } from '@repo/core/types'
+import { bookingTypeParam } from '@repo/core/booking-types'
+import type { BookingType, Vendor } from '@repo/core/types'
+import { OpenStatus } from '@/components/open-status'
 
 /**
  * Airbnb-style map browse: the map is the filter.
@@ -311,7 +314,10 @@ function MapBrowseContent() {
               // pointer-events-none so the map stays draggable through it, and
               // without this the button rendered perfectly but every tap fell
               // through to the map underneath.
-              className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-surface-elevated px-4 py-2 text-[13px] font-semibold text-brand-red shadow-lg ring-1 ring-brand-red/50"
+              //
+              // White, not red: the map's one red is the selected garage's
+              // pin, and red text on graphite is under AA contrast anyway.
+              className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-[13px] font-semibold text-brand-black shadow-lg"
             >
               <IconRefresh size={15} />
               Search this area
@@ -350,6 +356,7 @@ function MapBrowseContent() {
                     key={vendor.id}
                     vendor={vendor}
                     selected={vendor.id === selectedId}
+                    mode={bookingType}
                   />
                 ))}
               </div>
@@ -415,6 +422,8 @@ function VendorPin({
             // Garages with no priced service fall back to their name, capped
             // and ellipsised — a hard character slice cut them mid-word.
             'block max-w-[140px] truncate rounded-full px-2.5 py-1 text-[12px] font-semibold shadow-md ring-1 transition-all',
+            // A price pin is a figure, in the brand's numeric face.
+            vendor.startingPrice > 0 && 'font-numeric font-bold',
             selected
               ? 'scale-110 bg-brand-red text-brand-white ring-brand-red'
               : 'bg-surface-elevated text-text-primary ring-border'
@@ -439,19 +448,27 @@ function VendorPin({
 function MapVendorCard({
   vendor,
   selected,
+  mode,
 }: {
   vendor: Vendor
   selected: boolean
+  /** The mode home handed the map, passed on so checkout opens on it too. */
+  mode: BookingType
 }) {
-  const isOpen = vendor.status === 'open'
+  const modeParam = bookingTypeParam(mode)
 
   return (
     <Link
-      href={`/garage/${vendor.id}`}
+      href={
+        modeParam
+          ? `/garage/${vendor.id}?mode=${modeParam}`
+          : `/garage/${vendor.id}`
+      }
       data-vendor-id={vendor.id}
       className={cn(
         'flex w-[78vw] max-w-[300px] shrink-0 snap-center flex-col overflow-hidden rounded-[16px] bg-surface-elevated shadow-xl ring-1 transition-colors',
-        selected ? 'ring-brand-red/60' : 'ring-border'
+        // The selected card is outlined in white; its pin carries the red.
+        selected ? 'ring-text-primary/60' : 'ring-border'
       )}
     >
       <div className="relative h-[112px] w-full bg-surface">
@@ -470,17 +487,16 @@ function MapVendorCard({
 
         {/* Whether they are taking work right now is the first thing that makes
             a card actionable or not, so it sits on the photo rather than
-            competing with the details below. */}
-        <span
+            competing with the details below. Read from the garage's hours;
+            nothing shows when the list did not carry them. */}
+        <OpenStatus
+          hours={vendor.openingHours}
+          variant="overlay"
           className={cn(
-            'absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-            isOpen
-              ? 'bg-success/90 text-brand-black'
-              : 'bg-surface-elevated/90 text-text-secondary ring-1 ring-border'
+            'absolute left-2 top-2',
+            vendor.doorstepEnabled ? 'max-w-[calc(100%-6rem)]' : 'max-w-[calc(100%-1rem)]'
           )}
-        >
-          {isOpen ? 'Open' : 'Closed'}
-        </span>
+        />
 
         {vendor.doorstepEnabled && (
           <span className="absolute right-2 top-2 rounded-full bg-surface-elevated/90 px-2 py-0.5 text-[10px] font-semibold text-text-primary ring-1 ring-border">
@@ -497,7 +513,7 @@ function MapVendorCard({
           {vendor.reviewCount > 0 ? (
             <span className="flex shrink-0 items-center gap-1 text-[12px]">
               <IconStarFilled size={11} className="text-warning" />
-              <span className="font-medium text-text-primary">
+              <span className="font-numeric font-medium text-text-primary">
                 {vendor.rating.toFixed(1)}
               </span>
               <span className="text-text-secondary">({vendor.reviewCount})</span>
@@ -516,14 +532,19 @@ function MapVendorCard({
         )}
 
         <p className="truncate text-[12px] text-text-secondary">
-          {[vendor.area, vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null]
-            .filter(Boolean)
-            .join(' · ')}
+          <Figures
+            text={[
+              vendor.area,
+              vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          />
         </p>
 
         {vendor.startingPrice > 0 && (
           <p className="mt-0.5 text-[13px] text-text-secondary">
-            <span className="font-semibold text-text-primary">
+            <span className="font-numeric font-bold text-text-primary">
               ₹{vendor.startingPrice}
             </span>{' '}
             onwards

@@ -13,8 +13,9 @@ export class CheckoutPage {
   goto = (vendorId: string, serviceIds: string[]) =>
     this.page.goto(`/book/${vendorId}?service=${serviceIds.join(',')}`)
 
-  bookingType = (label: 'Drop In' | 'Doorstep') =>
-    this.page.getByRole('button', { name: label })
+  /** The At garage / Doorstep toggle. Only rendered for a garage doing both. */
+  bookingType = (label: 'At garage' | 'Doorstep') =>
+    this.page.getByRole('button', { name: label, exact: true })
 
   /** Tomorrow, never today: it keeps the run independent of the wall clock and
    *  clear of the 2-hour cancel/reschedule cutoff. */
@@ -127,11 +128,22 @@ export class CheckoutPage {
   discountRow = (code: string) => this.page.getByText(`Discount (${code})`)
 
   /** The fixed bottom CTA. Its label is the assertion surface — it carries the
-   *  amount, the disabled reason, and the in-flight state. */
+   *  amount, the next missing step, and the in-flight state. */
   cta = () =>
     this.page.getByRole('button', {
-      name: /Pay Now|Confirm booking|Processing payment|Remove the unpriced service|Choose an address|Pin your address/,
+      name: /^(Pay ₹|Confirm booking|Processing payment|Pick a time|Choose your car|Add your car|Choose an address|Add your address|Pin your address|Remove the unpriced service)/,
     })
 
-  pay = () => this.cta().click()
+  /**
+   * Pays, once the CTA offers to.
+   *
+   * The wait is not decoration. While a step is missing the CTA is live and
+   * scrolls to that step, so clicking it early no longer waits on a disabled
+   * button — it would scroll, and the spec would carry on as if it had paid.
+   */
+  async pay() {
+    const cta = this.cta()
+    await expect(cta).toHaveText(/^(Pay ₹|Confirm booking)/)
+    await cta.click()
+  }
 }

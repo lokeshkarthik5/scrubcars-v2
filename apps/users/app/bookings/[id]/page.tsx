@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconCreditCard, IconHome, IconMapPin } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
-import { ScBadge, bookingStatusBadge } from '@repo/ui/sc/badge'
+import { ScBadge, customerBookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
@@ -20,6 +20,7 @@ import { submitReview } from '@repo/core/api/reviews'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { formatBookingAmount } from '@repo/core/pricing'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
@@ -200,17 +201,22 @@ export default function BookingDetailPage({
     )
   }
 
-  const statusBadge = bookingStatusBadge(
-    // Before the vendor accepts, the design calls this state "Waiting".
-    booking.status === 'pending' ? 'waiting' : booking.status
-  )
+  const statusBadge = customerBookingStatusBadge(booking.status)
+  // Paying sends a request; only the garage's accept confirms it. Celebrating
+  // a "confirmed" booking that the garage then declines teaches customers not
+  // to believe this screen, so the moment says exactly what happened.
+  const awaitingGarage = booking.status === 'pending'
 
   return (
     <AppShell showNav className="gap-4 py-4">
       {celebrating && (
         <SuccessBurst
-          title="Booking confirmed"
-          subtitle={`${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`}
+          title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
+          subtitle={
+            awaitingGarage
+              ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.`
+              : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`
+          }
           onDone={() => {
             setCelebrating(false)
             // Drop the flag so a refresh or back-navigation doesn't replay it.
@@ -235,7 +241,9 @@ export default function BookingDetailPage({
         <h2 className="text-[20px] font-bold tracking-tight text-text-primary">
           {booking.vendorName}
         </h2>
-        <p className="mt-1 text-[13px] text-text-secondary">{booking.scheduledAt}</p>
+        <p className="mt-1 font-numeric text-[13px] font-medium text-text-secondary">
+          {booking.scheduledAt}
+        </p>
 
         <div className="mt-3 flex items-center gap-2 text-[13px]">
           {booking.bookingType === 'doorstep' ? (
@@ -243,15 +251,16 @@ export default function BookingDetailPage({
           ) : (
             <IconMapPin size={15} className="text-text-primary" />
           )}
+          {/* The same name the customer chose it by on home and at checkout. */}
           <span className="font-medium text-text-primary">
-            {booking.bookingType === 'doorstep' ? 'Doorstep Mode' : 'At Garage Mode'}
+            {BOOKING_TYPE_LABELS[booking.bookingType]}
           </span>
         </div>
 
         {/* A booking that is cancelled (including one cancelled by a
-            reschedule) has no progress to show, and the stepper falls back to
-            "Confirmed" for statuses it doesn't know. The panel below explains
-            the state instead. */}
+            reschedule) has no progress to show, and the stepper reads a
+            status it doesn't know as an open request. The panel below
+            explains the state instead. */}
         {booking.status !== 'rescheduled' && booking.status !== 'cancelled' && (
           <>
             <div className="my-4 h-px bg-border" />
@@ -272,7 +281,10 @@ export default function BookingDetailPage({
               key={item.id}
               className="rounded-lg bg-surface-elevated px-2.5 py-1.5 text-[12px] text-text-primary"
             >
-              {item.name} ({formatBookingAmount(item.amount)})
+              {item.name}{' '}
+              <span className="font-numeric font-medium">
+                ({formatBookingAmount(item.amount)})
+              </span>
             </span>
           ))}
         </div>
@@ -283,13 +295,17 @@ export default function BookingDetailPage({
           <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-[12px]">
             <div className="flex items-center justify-between text-text-secondary">
               <span>Subtotal</span>
-              <span>{formatBookingAmount(booking.subtotalPrice)}</span>
+              <span className="font-numeric font-medium">
+                {formatBookingAmount(booking.subtotalPrice)}
+              </span>
             </div>
             <div className="flex items-center justify-between text-success">
               <span>
                 Discount{booking.discountCode ? ` (${booking.discountCode})` : ''}
               </span>
-              <span>−{formatBookingAmount(booking.discountAmount)}</span>
+              <span className="font-numeric font-medium">
+                −{formatBookingAmount(booking.discountAmount)}
+              </span>
             </div>
           </div>
         )}
@@ -304,7 +320,7 @@ export default function BookingDetailPage({
                 ? `Online · ${booking.paymentStatus}`
                 : `Cash · ${booking.paymentStatus}`}
           </span>
-          <span className="text-[15px] font-semibold text-text-primary">
+          <span className="font-numeric text-[15px] font-bold text-text-primary">
             {formatBookingAmount(booking.servicePrice)}
           </span>
         </div>
@@ -343,9 +359,17 @@ export default function BookingDetailPage({
         booking.paymentStatus === 'pending' &&
         booking.status !== 'cancelled' && (
           <ScButton disabled={paying} onClick={handlePayNow} className="rounded-full py-4 text-[15px]">
-            {paying
-              ? 'Opening payment...'
-              : `Pay Now (${formatBookingAmount(booking.servicePrice)})`}
+            {paying ? (
+              'Opening payment...'
+            ) : (
+              <>
+                Pay Now (
+                <span className="font-numeric font-bold">
+                  {formatBookingAmount(booking.servicePrice)}
+                </span>
+                )
+              </>
+            )}
           </ScButton>
         )}
 
@@ -403,10 +427,12 @@ export default function BookingDetailPage({
               </div>
             </div>
           ) : (
+            // A plain underlined link: cancelling is not what this screen
+            // wants pressed, and red is the colour that says "press me".
             <button
               type="button"
               onClick={() => setShowCancelConfirm(true)}
-              className="w-full text-center text-[14px] font-semibold text-brand-red underline"
+              className="w-full text-center text-[14px] font-semibold text-text-primary underline"
             >
               Cancel Booking
             </button>

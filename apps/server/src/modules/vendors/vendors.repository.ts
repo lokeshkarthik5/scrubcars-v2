@@ -241,6 +241,9 @@ export const vendorsRepository = {
           where: eq(services.isActive, true),
         },
         serviceAreas: true,
+        workingHours: {
+          orderBy: [asc(vendorWorkingHours.dayOfWeek)],
+        },
       },
     })
 

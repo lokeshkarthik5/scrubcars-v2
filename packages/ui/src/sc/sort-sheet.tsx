@@ -35,6 +35,38 @@ interface SortSheetProps {
    * at the fix.
    */
   locationUnavailable?: boolean
+  /**
+   * Whether "Top Rated" means anything for this list — see canSortByRating.
+   * Unlike "Nearest first" it is hidden rather than disabled: there is
+   * nothing the customer can do to make reviews exist, so a disabled row
+   * would only advertise that the marketplace is empty.
+   */
+  ratingAvailable: boolean
+}
+
+/**
+ * Whether sorting by rating can change anything: some garage in the list has
+ * been reviewed. Until then every garage is "New", and a "Top Rated" option
+ * sorts by a number nobody has.
+ *
+ * Only pages loaded so far can be checked, so while more remain the answer is
+ * unknown and the option stays: a reviewed garage may sit further down a list
+ * sorted by distance. It is hidden only once the whole result set is in and
+ * nobody in it has a review.
+ *
+ * A list already sorted by rating keeps the option, so the sheet never shows
+ * a selected sort that is missing from its own list.
+ */
+export function canSortByRating(
+  vendors: ReadonlyArray<{ reviewCount: number }>,
+  currentSort: SortKey,
+  hasMore: boolean
+) {
+  return (
+    currentSort === 'rating' ||
+    hasMore ||
+    vendors.some((v) => v.reviewCount > 0)
+  )
 }
 
 export function SortSheet({
@@ -43,6 +75,7 @@ export function SortSheet({
   onChange,
   onClose,
   locationUnavailable = false,
+  ratingAvailable,
 }: SortSheetProps) {
   // ScSheet owns the slide-in/out, the scroll lock and Escape-to-close.
   return (
@@ -55,7 +88,9 @@ export function SortSheet({
           </button>
         </div>
 
-        {SORT_OPTIONS.map((opt) => {
+        {SORT_OPTIONS.filter(
+          (opt) => opt.value !== 'rating' || ratingAvailable
+        ).map((opt) => {
           const disabled = opt.value === 'distance' && locationUnavailable
 
           return (
@@ -77,13 +112,15 @@ export function SortSheet({
                 </span>
               )}
             </span>
+            {/* White, like every other chosen state: a red radio here read as
+                one more thing to press on a screen that already had one. */}
             <span
               className={cn(
                 'flex h-[18px] w-[18px] items-center justify-center rounded-full border-2',
-                value === opt.value ? 'border-brand-red' : 'border-text-muted'
+                value === opt.value ? 'border-text-primary' : 'border-text-muted'
               )}
             >
-              {value === opt.value && <span className="h-2.5 w-2.5 rounded-full bg-brand-red" />}
+              {value === opt.value && <span className="h-2.5 w-2.5 rounded-full bg-text-primary" />}
             </span>
           </button>
           )

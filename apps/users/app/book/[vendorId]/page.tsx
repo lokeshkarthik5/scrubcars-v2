@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState, Suspense } from 'react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  IconAlertCircle,
   IconChevronRight,
   IconMapPin,
   IconPercentage,
@@ -12,6 +13,7 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { AddAddressSheet } from '@/components/add-address-sheet'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
 import {
   LocationPicker,
@@ -38,21 +40,37 @@ import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
-import type { Service, Vendor } from '@repo/core/types'
+import {
+  BOOKING_TYPE_LABELS,
+  parseBookingType,
+  resolveBookingType,
+} from '@repo/core/booking-types'
+import type { BookingType, Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
+import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
 
-const BOOKING_TYPE_OPTIONS = [
-  { value: 'dropin' as const, label: 'Drop In' },
-  { value: 'doorstep' as const, label: 'Doorstep' },
-]
+const BOOKING_TYPE_OPTIONS = (['dropin', 'doorstep'] as const).map((value) => ({
+  value,
+  label: BOOKING_TYPE_LABELS[value],
+}))
+
+/**
+ * What checkout can still be waiting on, in the order the page asks for it.
+ * `address` and `pin` are doorstep-only; `unpriced` is a service the garage has
+ * not priced for the chosen car, which only shows once a car is picked.
+ */
+type CheckoutStep = 'slot' | 'car' | 'address' | 'pin' | 'unpriced'
 
 function BookContent({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   // Comma-separated, in the order they were added on the garage page.
   const serviceIdsParam = searchParams.get('service')
+  // At garage or Doorstep, as chosen on home or the garage page. Absent means
+  // no choice was made, which checkout takes as At garage.
+  const modeParam = searchParams.get('mode')
   const vehicles = useUserStore((s) => s.vehicles)
   const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
@@ -67,9 +85,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [pickedAddress, setPickedAddress] = useState<string | null>(null)
   // Set while an address saved without a pin is being given one, inline.
   const [pinningAddress, setPinningAddress] = useState(false)
-  const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
+  const [chosenType, setChosenType] = useState<BookingType | null>(() =>
+    parseBookingType(modeParam)
+  )
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
+
+  // Where the bottom button takes the customer when a step is still missing.
+  // Headings rather than whole sections, so focus lands on something with a
+  // name; the slot picker owns its headings, so its wrapper stands in.
+  const slotStepRef = useRef<HTMLElement>(null)
+  const carStepRef = useRef<HTMLHeadingElement>(null)
+  const addressStepRef = useRef<HTMLHeadingElement>(null)
+  const pinStepRef = useRef<HTMLParagraphElement>(null)
+  const summaryStepRef = useRef<HTMLHeadingElement>(null)
 
   // What is typed vs what is actually applied. Kept apart so a keystroke never
   // re-queries — only pressing Apply does.
@@ -77,6 +106,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The coupon field starts closed — a row to tap, not a form to ignore.
   const [promoOpen, setPromoOpen] = useState(false)
   const [addCarOpen, setAddCarOpen] = useState(false)
+  const [addAddressOpen, setAddAddressOpen] = useState(false)
   // Stored with the exact cart and vehicle it was validated against. Those
   // decide the subtotal, so a code checked against one basket says nothing
   // about another — removing a service can drop the total below the code's
@@ -92,12 +122,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const applyPromo = useValidateDiscount()
 
   useEffect(() => {
-    getVendor(vendorId).then((v) => {
-      setVendor(v ?? null)
-      if (v && !v.dropinEnabled && v.doorstepEnabled) {
-        setBookingType('doorstep')
-      }
-    })
+    getVendor(vendorId).then((v) => setVendor(v ?? null))
     // Packages are fetched alongside the plain services because a package is
     // a bookable line like any other, and `/services` deliberately excludes
     // them. Without this, a customer who added a package on the garage page
@@ -138,6 +163,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const selectedVehicle =
     pickedVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
 
+  // Derived rather than set when the garage loads, for the same reason the car
+  // is: the choice carried in from the garage page stands unless this garage
+  // cannot do it, and there is no render where the toggle shows the wrong one.
+  const bookingType = resolveBookingType(chosenType, vendor)
+
   // Doorstep only. Unlike the car, the default *is* preselected: the customer
   // chose it as "where I am" in their profile, so re-asking adds a step
   // without adding a decision. Falls back to the only address when there is
@@ -154,9 +184,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // coordinates (ADDRESS_LOCATION_REQUIRED) — it cannot check the garage's
   // travel radius without them — so the pin is asked for here rather than
   // letting checkout fail.
+  //
+  // 0,0 counts as no pin. Profile setup used to save it whenever location was
+  // refused, and the server takes it as a real point in the Gulf of Guinea, so
+  // those addresses failed the radius check at payment instead of being asked
+  // for a pin here. Setup no longer writes it; this catches the ones it did.
   const addressNeedsPin =
     selectedAddressRecord != null &&
-    (selectedAddressRecord.lat == null || selectedAddressRecord.lng == null)
+    (selectedAddressRecord.lat == null ||
+      selectedAddressRecord.lng == null ||
+      (selectedAddressRecord.lat === 0 && selectedAddressRecord.lng === 0))
   /**
    * Why doorstep cannot be paid for yet, if it cannot.
    *
@@ -212,6 +249,54 @@ function BookContent({ vendorId }: { vendorId: string }) {
       ? lines.filter((line) => line.amount == null)
       : []
   const unpricedForVehicle = unpricedLines.length > 0
+
+  /**
+   * The first thing still missing before the customer can pay, or null when
+   * nothing is.
+   *
+   * The bottom bar is on screen the whole time, so it names this step and
+   * tapping it scrolls there. It used to read "Pay Now" from the first second,
+   * disabled and faded, with nothing to say what it was waiting for.
+   */
+  const nextStep: CheckoutStep | null = !selectedSlot
+    ? 'slot'
+    : !selectedVehicle
+      ? 'car'
+      : (doorstepBlocker ?? (unpricedForVehicle ? 'unpriced' : null))
+
+  const stepLabels: Record<CheckoutStep, string> = {
+    slot: 'Pick a time',
+    // "Choose" only when there is something to choose between; the step
+    // itself says "Add a car" when the customer has none.
+    car: vehicles.length === 0 ? 'Add your car' : 'Choose your car',
+    address: addresses.length === 0 ? 'Add your address' : 'Choose an address',
+    pin: 'Pin your address on the map',
+    unpriced: 'Remove the unpriced service',
+  }
+
+  // Scrolls to the step and puts focus on it, so a keyboard or screen-reader
+  // user arrives there too. `preventScroll` keeps the focus call from cutting
+  // the smooth scroll short with a jump; the step's scroll-margin keeps its
+  // heading clear of the sticky top bar.
+  const goToStep = (step: CheckoutStep) => {
+    const target = {
+      slot: slotStepRef,
+      car: carStepRef,
+      address: addressStepRef,
+      pin: pinStepRef,
+      unpriced: summaryStepRef,
+    }[step].current
+    if (!target) return
+
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches
+    target.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'start',
+    })
+    target.focus({ preventScroll: true })
+  }
 
   // The pre-discount total. Summed in paise so the arithmetic never runs
   // through a float — the same rule the server applies.
@@ -413,7 +498,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
               {formatServiceSummary(
                 selectedServices.map((service) => service.name)
               )}{' '}
-              · {formatDuration(totalDuration)}
+              ·{' '}
+              <span className="font-numeric font-medium">
+                {formatDuration(totalDuration)}
+              </span>
             </p>
           </div>
         </ScCard>
@@ -425,7 +513,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           <ScToggle
             options={BOOKING_TYPE_OPTIONS}
             value={bookingType}
-            onChange={setBookingType}
+            onChange={setChosenType}
           />
         </section>
       )}
@@ -433,7 +521,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
       {/* Each step below appears only once the one before it is answered, so
           the page opens as a single question rather than five stacked ones.
           The picker reveals its own time slots after a date is chosen. */}
-      <section>
+      <section
+        ref={slotStepRef}
+        tabIndex={-1}
+        aria-label="Date and time"
+        className="scroll-mt-20 outline-none"
+      >
         <SlotPicker
           progressive
           vendorId={vendorId}
@@ -447,7 +540,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
           booking can't be created without one. */}
       {selectedSlot && (
         <Reveal as="section">
-          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Car details</h2>
+          <h2
+            ref={carStepRef}
+            tabIndex={-1}
+            className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
+          >
+            Car details
+          </h2>
           {vehicles.length === 0 ? (
             <ScCard className="flex flex-col items-start gap-2 border-warning bg-warning-muted/20">
               <p className="text-[13px] font-medium text-text-primary">
@@ -472,12 +571,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <button
                   key={v.id}
                   type="button"
-                  // The selected car is otherwise marked only by a red border
-                  // on the card inside.
+                  // The selected car is otherwise marked only by a white border
+                  // on the card inside — white, as chosen things are; red here
+                  // is the Pay button's.
                   aria-pressed={selectedVehicle === v.id}
                   onClick={() => setPickedVehicle(v.id)}
                 >
-                  <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>
+                  <ScCard className={cn(selectedVehicle === v.id && 'border-text-primary')}>
                     <p className="text-[13px] font-medium">{v.make} {v.model}</p>
                     <p className="text-[11px] text-text-secondary">{v.plate}</p>
                   </ScCard>
@@ -488,7 +588,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <button
                 type="button"
                 onClick={() => setAddCarOpen(true)}
-                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-brand-red hover:text-brand-red"
+                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary"
               >
                 <IconPlus size={14} /> Add another car
               </button>
@@ -502,7 +602,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           check it against the garage's travel radius. */}
       {selectedSlot && isDoorstep && (
         <Reveal as="section">
-          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+          <h2
+            ref={addressStepRef}
+            tabIndex={-1}
+            className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
+          >
             Where should we come?
           </h2>
           {addresses.length === 0 ? (
@@ -511,13 +615,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 Add an address to continue
               </p>
               <p className="text-[12px] text-text-secondary">
-                Doorstep service needs somewhere to go. You can add one from
-                your profile.
+                Doorstep service needs somewhere to go.
               </p>
+              {/* In place, as with cars: sign-up no longer asks for an
+                  address, so this is where a new customer gives one, and a
+                  link out to /profile would drop the slot and any code. */}
               <ScButton
                 fullWidth={false}
                 variant="secondary"
-                onClick={() => router.push('/profile')}
+                onClick={() => setAddAddressOpen(true)}
                 className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[12px]"
               >
                 <IconPlus size={14} /> Add an address
@@ -535,11 +641,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <ScCard
                     className={cn(
                       'flex items-center gap-3 text-left',
-                      selectedAddress === a.id && 'border-brand-red'
+                      selectedAddress === a.id && 'border-text-primary'
                     )}
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-accent-muted">
-                      <IconMapPin size={18} className="text-brand-red" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
+                      <IconMapPin size={18} className="text-text-primary" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[13px] font-medium">{a.label}</span>
@@ -553,7 +659,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
               {addressNeedsPin && (
                 <ScCard className="flex flex-col gap-2 border-warning bg-warning-muted/20">
-                  <p className="text-[13px] font-medium text-text-primary">
+                  <p
+                    ref={pinStepRef}
+                    tabIndex={-1}
+                    className="scroll-mt-20 text-[13px] font-medium text-text-primary outline-none"
+                  >
                     Pin the exact spot
                   </p>
                   <p className="text-[12px] text-text-secondary">
@@ -563,6 +673,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <LocationPicker showSearch onChange={handlePinAddress} />
                 </ScCard>
               )}
+
+              <button
+                type="button"
+                onClick={() => setAddAddressOpen(true)}
+                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary"
+              >
+                <IconPlus size={14} /> Add another address
+              </button>
             </div>
           )}
         </Reveal>
@@ -587,15 +705,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       {appliedDiscount.code} applied
                     </p>
                     <p className="text-[11px] text-success">
-                      You save ₹
-                      {Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                      You save{' '}
+                      <span className="font-numeric font-medium">
+                        ₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                      </span>
                     </p>
                   </div>
                 </div>
+                {/* Neutral, like the Apply row this replaces: red on checkout
+                    is kept for Pay. */}
                 <button
                   type="button"
                   onClick={handleRemovePromo}
-                  className="shrink-0 text-[12px] font-medium text-brand-red"
+                  className="shrink-0 text-[12px] font-medium text-text-primary"
                 >
                   Remove
                 </button>
@@ -615,7 +737,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       Coupons and offers
                     </span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-brand-red">
+                  <span className="flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-text-primary">
                     Apply
                     <IconChevronRight size={14} />
                   </span>
@@ -626,7 +748,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </ScCard>
 
           <div>
-            <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+            <h2
+              ref={summaryStepRef}
+              tabIndex={-1}
+              className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
+            >
               Payment summary
             </h2>
             <ScCard className="flex flex-col gap-3 py-3.5">
@@ -644,7 +770,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         type="button"
                         onClick={() => removeService(service.id)}
                         aria-label={`Remove ${service.name}`}
-                        className="mt-px shrink-0 text-text-muted transition-colors hover:text-brand-red"
+                        className="mt-px shrink-0 text-text-muted transition-colors hover:text-text-primary"
                       >
                         <IconX size={14} />
                       </button>
@@ -656,17 +782,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       )}
                     </span>
                   </span>
+                  {/* Not priced is a problem, so it is amber like every other
+                      error — red would read as something to tap. */}
                   <span
                     className={cn(
                       'shrink-0 font-medium',
                       amount == null && selectedVehicleType != null
-                        ? 'text-brand-red'
+                        ? 'text-error'
                         : 'text-text-primary'
                     )}
                   >
-                    {amount == null && selectedVehicleType != null
-                      ? 'Not priced'
-                      : formatServicePrice(service, selectedVehicleType)}
+                    {amount == null && selectedVehicleType != null ? (
+                      'Not priced'
+                    ) : (
+                      <Figures
+                        text={formatServicePrice(service, selectedVehicleType)}
+                      />
+                    )}
                   </span>
                 </div>
               ))}
@@ -676,7 +808,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               {selectedServices.length > 1 && (
                 <div className="flex items-start justify-between gap-3 border-t border-border pt-3 text-[13px]">
                   <span className="text-text-secondary">Subtotal</span>
-                  <span className="shrink-0 font-medium text-text-primary">
+                  <span className="shrink-0 font-numeric font-medium text-text-primary">
                     {subtotal == null
                       ? '—'
                       : `₹${subtotal.toLocaleString('en-IN')}`}
@@ -692,7 +824,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <span className="min-w-0 truncate text-success">
                     Discount ({appliedDiscount.code})
                   </span>
-                  <span className="shrink-0 font-medium text-success">
+                  <span className="shrink-0 font-numeric font-medium text-success">
                     −₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -700,7 +832,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
               <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
                 <span>Amount to pay</span>
-                <span>
+                <span className="font-numeric font-bold">
                   {payableAmount == null
                     ? '—'
                     : `₹${payableAmount.toLocaleString('en-IN')}`}
@@ -730,6 +862,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
         open={addCarOpen}
         onClose={() => setAddCarOpen(false)}
         onAdded={(vehicle) => setPickedVehicle(vehicle.id)}
+      />
+
+      <AddAddressSheet
+        open={addAddressOpen}
+        onClose={() => setAddAddressOpen(false)}
+        onAdded={(address) => setPickedAddress(address.id)}
       />
 
       <ScSheet
@@ -765,8 +903,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </button>
         </div>
 
+        {/* Amber with an icon, never red — red in this sheet is Apply. Kept
+            a single <p>: the e2e page object finds the message as the sheet's
+            one paragraph that is not the static hint below. */}
         {promoError && (
-          <p className="mt-2 text-[12px] text-brand-red">{promoError}</p>
+          <p role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-error">
+            <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
+            {promoError}
+          </p>
         )}
 
         <p className="mt-4 text-[12px] text-text-muted">
@@ -780,39 +924,53 @@ function BookContent({ vendorId }: { vendorId: string }) {
           indicator inset added to both. */}
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
         <ScButton
-          disabled={
-            selectedServices.length === 0 ||
-            !selectedSlot ||
-            !selectedVehicle ||
-            unpricedForVehicle ||
-            !doorstepReady ||
-            loading
-          }
-          onClick={handleConfirm}
-          className="rounded-full py-4 text-[15px]"
+          // Disabled only while a payment is opening. Before that it is never
+          // a dead end: it names what is missing and tapping it goes there.
+          disabled={loading}
+          aria-describedby="checkout-cta-hint"
+          onClick={nextStep ? () => goToStep(nextStep) : handleConfirm}
+          className={cn(
+            'rounded-full py-4 text-[15px]',
+            // Graphite until the booking is ready, so red only ever means
+            // "this pays". The disabled red at 40% it replaces read as pink
+            // and broken rather than as "not yet".
+            nextStep &&
+              'bg-surface-elevated text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated',
+            loading && 'disabled:cursor-wait disabled:opacity-100'
+          )}
         >
           {loading
             ? 'Processing payment...'
-            : unpricedForVehicle
-              ? 'Remove the unpriced service'
-              : doorstepBlocker === 'address'
-                ? 'Choose an address'
-                : doorstepBlocker === 'pin'
-                  ? 'Pin your address on the map'
-                  : payableAmount == null
-                    ? 'Confirm booking'
-                    : `Pay Now (₹${payableAmount.toLocaleString('en-IN')})`}
+            : nextStep
+              ? stepLabels[nextStep]
+              : payableAmount == null
+                ? 'Confirm booking'
+                : (
+                    <>
+                      Pay{' '}
+                      <span className="font-numeric font-bold">
+                        ₹{payableAmount.toLocaleString('en-IN')}
+                      </span>
+                    </>
+                  )}
         </ScButton>
-        <p className="mt-2 text-center text-[11px] text-text-muted">
-          {doorstepBlocker === 'address'
-            ? 'Pick the address we should come to.'
-            : doorstepBlocker === 'pin'
+        <p
+          id="checkout-cta-hint"
+          className="mt-2 text-center text-[11px] text-text-muted"
+        >
+          {nextStep === 'address'
+            ? addresses.length === 0
+              ? 'Add the address we should come to.'
+              : 'Pick the address we should come to.'
+            : nextStep === 'pin'
               ? 'We need the exact spot to check this garage travels to you.'
-              : unpricedForVehicle
-            ? `${unpricedLines
-                .map((line) => line.service.name)
-                .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
-            : 'Bookings are confirmed after online payment.'}
+              : nextStep === 'unpriced'
+                ? `${unpricedLines
+                    .map((line) => line.service.name)
+                    .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
+                : // Paying sends the request; the garage's accept is what
+                  // confirms it, so the footer does not promise more.
+                  'You pay now. Your booking is confirmed once the garage accepts it.'}
         </p>
       </div>
     </AppShell>

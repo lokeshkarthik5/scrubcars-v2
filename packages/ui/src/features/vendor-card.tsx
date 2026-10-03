@@ -3,7 +3,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { IconBuildingStore, IconStarFilled } from '@tabler/icons-react'
-import type { Vendor } from '@repo/core/types'
+import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
+import type { BookingType, Vendor } from '@repo/core/types'
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
   return (
@@ -19,7 +20,17 @@ function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep'
   )
 }
 
-export function VendorCard({ vendor }: { vendor: Vendor }) {
+export function VendorCard({
+  vendor,
+  mode,
+}: {
+  vendor: Vendor
+  /**
+   * The At garage / Doorstep choice the list was filtered by. Carried into
+   * the garage page so the customer is not asked again there or at checkout.
+   */
+  mode?: BookingType
+}) {
   // The logo has its own badge now, so the cover is gallery-only — reusing the
   // logo as a full-bleed cover would show the same image twice on the card.
   const cover = vendor.photos[0] ?? null
@@ -27,10 +38,17 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
   // at zero km — the same "unknown is not zero" rule applied to price and rating
   // just below.
   const hasDistance = vendor.distanceKm !== null
+  const modeParam = mode ? bookingTypeParam(mode) : null
 
   return (
-    <Link href={`/garage/${vendor.id}`}>
-      <article className="press overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-brand-red/30">
+    <Link
+      href={
+        modeParam
+          ? `/garage/${vendor.id}?mode=${modeParam}`
+          : `/garage/${vendor.id}`
+      }
+    >
+      <article className="press overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-text-secondary/40">
         <div className="relative h-[150px] w-full bg-surface-elevated">
           {cover ? (
             <Image
@@ -67,20 +85,30 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
               {vendor.name}
             </h3>
             <div className="flex shrink-0 gap-1.5">
-              {vendor.dropinEnabled && <ModeBadge label="At Garage" tone="garage" />}
-              {vendor.doorstepEnabled && <ModeBadge label="Doorstep" tone="doorstep" />}
+              {vendor.dropinEnabled && (
+                <ModeBadge label={BOOKING_TYPE_LABELS.dropin} tone="garage" />
+              )}
+              {vendor.doorstepEnabled && (
+                <ModeBadge
+                  label={BOOKING_TYPE_LABELS.doorstep}
+                  tone="doorstep"
+                />
+              )}
             </div>
           </div>
 
           {/* Distance is absent until the customer shares a location, so it is
               skipped (like a ₹0 floor) rather than rendered as a blank fact.
               An unreviewed vendor reads as "New" — showing 0.0 stars would look
-              like a bad score rather than an absent one. */}
+              like a bad score rather than an absent one.
+
+              The figures — score, distance, price — are in the brand's numeric
+              face; the words between them stay Inter. */}
           <div className="flex items-center gap-1.5 text-[12px] text-text-secondary">
             {vendor.reviewCount > 0 ? (
               <>
                 <IconStarFilled size={12} className="text-warning" />
-                <span className="font-medium text-text-primary">
+                <span className="font-numeric font-medium text-text-primary">
                   {vendor.rating.toFixed(1)}
                 </span>
                 <span>({vendor.reviewCount})</span>
@@ -91,13 +119,18 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
             {hasDistance && (
               <>
                 <span>·</span>
-                <span>{vendor.distance}</span>
+                <span className="font-numeric font-medium">{vendor.distance}</span>
               </>
             )}
             {vendor.startingPrice > 0 && (
               <>
                 <span>·</span>
-                <span>From ₹{vendor.startingPrice}</span>
+                <span>
+                  From{' '}
+                  <span className="font-numeric font-medium text-text-primary">
+                    ₹{vendor.startingPrice}
+                  </span>
+                </span>
               </>
             )}
           </div>

@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconArrowLeft,
   IconBuildingStore,
@@ -12,6 +12,7 @@ import {
   IconHeartFilled,
   IconHome,
   IconMapPin,
+  IconPlus,
   IconSearch,
   IconStarFilled,
 } from '@tabler/icons-react'
@@ -28,24 +29,110 @@ import { getVendorServices } from '@repo/core/api/services'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { categoryLabel } from '@repo/core/categories'
+import {
+  BOOKING_TYPE_LABELS,
+  bookingTypeParam,
+  parseBookingType,
+  resolveBookingType,
+} from '@repo/core/booking-types'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time'
-import type { Review, Service, ServicePackage, Vendor } from '@repo/core/types'
+import { useVendorWorkingHours } from '@repo/core/api/hooks/use-slots'
+import type {
+  BookingType,
+  Review,
+  Service,
+  ServicePackage,
+  Vendor,
+} from '@repo/core/types'
 import { formatServicePrice, tierPriceFor } from '@repo/core/pricing'
+import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration } from '@repo/core/utils'
+import { OpenStatus } from '@/components/open-status'
 
 type Tab = 'services' | 'photos' | 'reviews'
-type Mode = 'dropin' | 'doorstep'
 
 // A package is a Service plus its contents, so the details popup takes either
 // and only the bundle-specific block below depends on the difference.
 const isPackage = (item: Service | ServicePackage): item is ServicePackage =>
   'items' in item
 
-export default function GaragePage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * The body of a service or package card, which is the card's details control.
+ *
+ * Its ::after is stretched over the whole card (ScCard is `relative`), so a tap
+ * anywhere on the card opens the details — the separate "Details" button that
+ * used to sit beside Add did exactly the same thing and is gone. The overlay
+ * also carries the hover/press tint and the keyboard focus ring, so focus
+ * outlines the card the customer is on rather than a sliver of text. The
+ * radius is inherited through the button so it follows ScCard's.
+ */
+const CARD_DETAILS_TRIGGER = cn(
+  'w-full cursor-pointer rounded-[inherit] text-left focus-visible:outline-none',
+  "after:absolute after:-inset-px after:rounded-[inherit] after:content-['']",
+  'after:transition-colors after:duration-150 after:ease-[cubic-bezier(0.2,0,0,1)]',
+  'hover:after:bg-text-primary/[0.03] active:after:bg-text-primary/[0.06]',
+  'focus-visible:after:ring-2 focus-visible:after:ring-text-primary/70'
+)
+
+/**
+ * The Add / Added toggle on a service or package card.
+ *
+ * 44px tall, the comfortable thumb size, and the same width in both states so
+ * nothing shifts on tap. Red only while it invites an add; once added it
+ * settles to a graphite outline with a check, so a page with several picks is
+ * not a column of bright pills competing with Book Now. `relative z-10` lifts
+ * it above the card's stretched details layer, keeping it a separate target.
+ */
+function AddToBookingButton({
+  name,
+  added,
+  onToggle,
+}: {
+  name: string
+  added: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      // Five identical "Add" buttons on a page are five identical
+      // announcements; the name has to say what is being added.
+      aria-label={added ? `Remove ${name} from booking` : `Add ${name} to booking`}
+      aria-pressed={added}
+      onClick={onToggle}
+      className={cn(
+        'press relative z-10 inline-flex h-11 min-w-[104px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border px-4 text-[14px] font-semibold',
+        'transition-colors duration-150 ease-[cubic-bezier(0.2,0,0,1)]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+        added
+          ? 'border-text-primary/40 bg-surface-elevated text-text-primary hover:border-text-primary/60'
+          : 'border-transparent bg-brand-red text-white hover:bg-brand-red-hover active:bg-brand-red-hover'
+      )}
+    >
+      {added ? (
+        <IconCheck size={16} stroke={2.5} aria-hidden="true" />
+      ) : (
+        <IconPlus size={16} stroke={2.5} aria-hidden="true" />
+      )}
+      {added ? 'Added' : 'Add'}
+    </button>
+  )
+}
+
+export default function GaragePage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = use(params)
+  // From the live URL, not the page's searchParams prop: changeMode writes
+  // the choice into the URL with replaceState, and on Back from checkout the
+  // prop still holds the payload cached before that write, while the router's
+  // URL — what this reads — has the choice.
+  const modeParam = useSearchParams().get('mode')
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   // Named to avoid shadowing the DOM's global `location`.
@@ -56,7 +143,11 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const [packages, setPackages] = useState<ServicePackage[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
-  const [mode, setMode] = useState<Mode>('dropin')
+  // The At garage / Doorstep choice, as made on home or here. Null until one
+  // is made; `mode` below is what the garage can actually do with it.
+  const [chosenMode, setChosenMode] = useState<BookingType | null>(() =>
+    parseBookingType(modeParam)
+  )
   const [query, setQuery] = useState('')
   const [favourite, setFavourite] = useState(false)
   // Several services can go into one booking. Order matters: it is the order
@@ -67,10 +158,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const [details, setDetails] = useState<Service | ServicePackage | null>(null)
 
   useEffect(() => {
-    getVendor(id).then((v) => {
-      setVendor(v ?? null)
-      if (v && !v.dropinEnabled && v.doorstepEnabled) setMode('doorstep')
-    })
+    getVendor(id).then((v) => setVendor(v ?? null))
     getVendorServices(id).then(setServices)
     getVendorPackages(id).then(setPackages)
     getVendorReviews(id).then(setReviews)
@@ -144,9 +232,36 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     (service) => service.pricingType === 'per_vehicle'
   )
 
+  // Derived rather than set when the garage loads: a garage that only travels
+  // is Doorstep whatever was chosen, and one that does both honours the
+  // choice, with no render in between where the toggle shows the wrong one.
+  const mode = resolveBookingType(chosenMode, vendor)
+
+  const changeMode = (next: BookingType) => {
+    setChosenMode(next)
+    // Mirrored into the URL so Back from checkout lands on the same choice.
+    // replaceState rather than router.replace: nothing needs re-rendering,
+    // and Next keeps its router in step with the native history call.
+    const url = new URLSearchParams(window.location.search)
+    const param = bookingTypeParam(next)
+    if (param) url.set('mode', param)
+    else url.delete('mode')
+    const search = url.toString()
+    window.history.replaceState(
+      null,
+      '',
+      search ? `?${search}` : window.location.pathname
+    )
+  }
+
   const handleBook = () => {
     if (selected.length === 0) return
-    const bookPath = `/book/${id}?service=${selected.join(',')}`
+    // The mode rides along so checkout opens on it. Without it checkout reset
+    // to At garage, and a Doorstep customer had to choose a third time.
+    const modeQuery = bookingTypeParam(mode)
+    const bookPath = `/book/${id}?service=${selected.join(',')}${
+      modeQuery ? `&mode=${modeQuery}` : ''
+    }`
     router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
   }
 
@@ -159,6 +274,10 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     vendor ? { lat: vendor.lat, lng: vendor.lng } : null
   )
 
+  // The same query checkout's slot picker uses to grey out closed days, so
+  // the hours read here are already cached by the time Book Now is tapped.
+  const workingHours = useVendorWorkingHours(id)
+
   if (!vendor) {
     return (
       <AppShell className="items-center justify-center py-4">
@@ -167,6 +286,10 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     )
   }
 
+  // A garage with no reviews yet shows none of the rating furniture — a
+  // "0.0 (0 reviews)" line reads as a bad score, not as a new listing.
+  const reviewCount = reviews.length || vendor.reviewCount
+  const hasReviews = reviewCount > 0
   const avgRating =
     reviews.length > 0
       ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
@@ -211,7 +334,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
           className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 backdrop-blur-sm"
         >
           {favourite ? (
-            <IconHeartFilled size={20} className="text-brand-red" />
+            // White when saved: a state, not a thing to press, and red on
+            // this page belongs to Add and Book Now.
+            <IconHeartFilled size={20} className="text-brand-white" />
           ) : (
             <IconHeart size={20} className="text-brand-white" />
           )}
@@ -230,23 +355,32 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
       </div>
 
       <div className="flex flex-col gap-3 px-4 pt-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
           <h1 className="text-[22px] font-bold tracking-tight text-text-primary">{vendor.name}</h1>
-          {vendor.status === 'open' && (
-            <ScBadge variant="success" className="mt-1.5 shrink-0 uppercase tracking-wide">
-              Open
-            </ScBadge>
-          )}
+          {/* From the garage's hours, read in IST — never from the account
+              status, which is "active" at 2 AM too. Absent until the hours
+              arrive, and for good if the garage has not set any. */}
+          <OpenStatus hours={workingHours.data} />
         </div>
 
+        {/* Score, distance and drive time are figures, in the brand's numeric
+            face; the words between them stay Inter. */}
         <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
-          <IconStarFilled size={13} className="text-warning" />
-          <span className="font-semibold text-text-primary">{avgRating.toFixed(1)}</span>
-          <span>({reviews.length} reviews)</span>
+          {hasReviews ? (
+            <>
+              <IconStarFilled size={13} className="text-warning" />
+              <span className="font-numeric font-bold text-text-primary">{avgRating.toFixed(1)}</span>
+              <span>
+                ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
+              </span>
+            </>
+          ) : (
+            <span className="font-medium text-text-primary">New on Detlio</span>
+          )}
           {hasDistance && (
             <>
               <span>·</span>
-              <span>{vendor.distance}</span>
+              <span className="font-numeric font-medium">{vendor.distance}</span>
             </>
           )}
           {/* Straight-line distance above, driving time here — kept as two
@@ -255,7 +389,12 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
           {travel.data && (
             <>
               <span>·</span>
-              <span>{formatDuration(toMinutes(travel.data.durationS))} drive</span>
+              <span>
+                <span className="font-numeric font-medium">
+                  {formatDuration(toMinutes(travel.data.durationS))}
+                </span>{' '}
+                drive
+              </span>
             </>
           )}
         </div>
@@ -274,16 +413,16 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             aria-label="Service mode"
             className="mt-1"
             value={mode}
-            onChange={setMode}
+            onChange={changeMode}
             options={[
               {
                 value: 'dropin',
-                label: 'At Garage',
+                label: BOOKING_TYPE_LABELS.dropin,
                 icon: <IconBuildingStore size={15} />,
               },
               {
                 value: 'doorstep',
-                label: 'Doorstep',
+                label: BOOKING_TYPE_LABELS.doorstep,
                 icon: <IconHome size={15} />,
               },
             ]}
@@ -298,17 +437,22 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             { key: 'photos', label: 'Photos' },
             { key: 'reviews', label: 'Reviews' },
           ] as const
-        ).map((t) => (
+        )
+          .filter((t) => t.key !== 'reviews' || hasReviews)
+          .map((t) => (
           <button
             key={t.key}
             type="button"
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
+            // White, not red: with an Add button on every card and Book Now
+            // below, a red tab as well pushed this page past the brand's
+            // 5–8% budget for red.
             className={cn(
               'flex-1 border-b-2 py-2.5 text-[13px] font-medium transition-colors',
               tab === t.key
-                ? 'border-brand-red text-brand-red'
+                ? 'border-text-primary text-text-primary'
                 : 'border-transparent text-text-secondary'
             )}
           >
@@ -320,7 +464,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
       <div className="flex flex-col gap-3 px-4 py-4">
         {tab === 'services' && (
           <>
-            <label className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 focus-within:border-brand-red">
+            <label className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 focus-within:border-text-secondary">
               <IconSearch size={17} className="text-text-secondary" />
               <input
                 value={query}
@@ -348,47 +492,49 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                     <Reveal key={pkg.id} index={i}>
                     <ScCard
                       className={cn(
-                        'transition-colors',
-                        added && 'border-brand-red/50'
+                        'relative transition-colors',
+                        added && 'border-text-primary/30'
                       )}
                     >
-                      {/* Same affordance as a service card: the body opens the
-                          details popup, the Add button stays separate. */}
+                      {/* Same affordance as a service card: the whole card
+                          opens the details popup, the Add button stays
+                          separate. */}
                       <button
                         type="button"
                         onClick={() => openDetails(pkg)}
                         aria-label={`View details for ${pkg.name}`}
-                        className="w-full text-left"
+                        className={CARD_DETAILS_TRIGGER}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
                             {pkg.name}
                           </p>
                           <div className="shrink-0 text-right">
-                            <span className="text-[14px] font-semibold text-text-primary">
-                              {formatServicePrice(pkg)}
+                            <span className="text-[14px] font-bold text-text-primary">
+                              <Figures text={formatServicePrice(pkg)} />
                             </span>
                             {/* The struck-through total only lines up with a
                                 single price. A per-vehicle bundle shows a range,
                                 so one "before" figure would be comparing against
                                 the wrong vehicle. */}
                             {pkg.tierBreakdown === null && pkg.savings !== null && (
-                              <p className="text-[11px] text-text-secondary line-through">
+                              <p className="font-numeric text-[11px] font-medium text-text-secondary line-through">
                                 ₹{pkg.itemsTotal}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        {/* Inset on the page colour rather than a red tint: a
-                            10% tint lifted the chip to #2b1819 and left this
-                            red label at 4.16:1, under AA. On #0A0A0A it is
-                            4.9:1 and still reads as a chip. */}
+                        {/* A graphite tag with white text. It was red, which
+                            made a saving read like a button — on a card whose
+                            only button is the red Add below it. */}
                         {pkg.savings !== null && (
-                          <span className="mt-1.5 inline-block rounded-[6px] bg-brand-black px-2 py-0.5 text-[11px] font-semibold text-brand-red">
-                            {pkg.tierBreakdown
-                              ? `Save ₹${pkg.savings}+`
-                              : `Save ₹${pkg.savings}`}
+                          <span className="mt-1.5 inline-block rounded-[4px] bg-surface-elevated px-2 py-0.5 text-[11px] font-semibold text-text-primary">
+                            Save{' '}
+                            <span className="font-numeric font-bold">
+                              ₹{pkg.savings}
+                              {pkg.tierBreakdown ? '+' : ''}
+                            </span>
                           </span>
                         )}
 
@@ -404,7 +550,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                               key={item.serviceId}
                               className="flex items-center gap-1.5 text-[12px] text-text-secondary"
                             >
-                              <IconCheck size={13} className="shrink-0 text-brand-red" />
+                              <IconCheck size={13} className="shrink-0 text-text-secondary" />
                               {item.name}
                             </li>
                           ))}
@@ -414,39 +560,15 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                       <div className="mt-3 flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                           <IconClock size={13} />
-                          {formatDuration(pkg.durationMins)}
+                          <span className="font-numeric font-medium">
+                            {formatDuration(pkg.durationMins)}
+                          </span>
                         </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openDetails(pkg)}
-                            className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-                          >
-                            Details
-                          </button>
-                          <button
-                            type="button"
-                            // Five identical "Add" buttons on a page are five
-                            // identical announcements; the name has to say what
-                            // is being added.
-                            aria-label={
-                              added
-                                ? `Remove ${pkg.name} from booking`
-                                : `Add ${pkg.name} to booking`
-                            }
-                            aria-pressed={added}
-                            onClick={() => toggle(pkg.id)}
-                            className={cn(
-                              'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
-                              added
-                                ? 'bg-brand-white text-brand-black'
-                                : 'bg-surface-elevated text-text-primary ring-1 ring-border'
-                            )}
-                          >
-                            {added && <IconCheck size={13} />}
-                            {added ? 'Added' : 'Add'}
-                          </button>
-                        </div>
+                        <AddToBookingButton
+                          name={pkg.name}
+                          added={added}
+                          onToggle={() => toggle(pkg.id)}
+                        />
                       </div>
                     </ScCard>
                     </Reveal>
@@ -474,22 +596,25 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                 return (
                   <Reveal key={svc.id} index={i}>
                   <ScCard
-                    className={cn('transition-colors', added && 'border-brand-red/50')}
+                    className={cn(
+                      'relative transition-colors',
+                      added && 'border-text-primary/30'
+                    )}
                   >
-                    {/* Tapping the card body opens the details popup; the Add
-                        button below stays a separate action. */}
+                    {/* Tapping anywhere on the card opens the details popup;
+                        the Add button below stays a separate action. */}
                     <button
                       type="button"
                       onClick={() => openDetails(svc)}
                       aria-label={`View details for ${svc.name}`}
-                      className="w-full text-left"
+                      className={CARD_DETAILS_TRIGGER}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
                           {svc.name}
                         </p>
-                        <span className="shrink-0 text-[14px] font-semibold text-text-primary">
-                          {formatServicePrice(svc)}
+                        <span className="shrink-0 text-[14px] font-bold text-text-primary">
+                          <Figures text={formatServicePrice(svc)} />
                         </span>
                       </div>
                       {svc.description && (
@@ -501,36 +626,15 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                         <IconClock size={13} />
-                        {formatDuration(svc.durationMins)}
+                        <span className="font-numeric font-medium">
+                          {formatDuration(svc.durationMins)}
+                        </span>
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openDetails(svc)}
-                          className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-                        >
-                          Details
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={
-                            added
-                              ? `Remove ${svc.name} from booking`
-                              : `Add ${svc.name} to booking`
-                          }
-                          aria-pressed={added}
-                          onClick={() => toggle(svc.id)}
-                          className={cn(
-                            'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
-                            added
-                              ? 'bg-brand-white text-brand-black'
-                              : 'bg-surface-elevated text-text-primary ring-1 ring-border'
-                          )}
-                        >
-                          {added && <IconCheck size={13} />}
-                          {added ? 'Added' : 'Add'}
-                        </button>
-                      </div>
+                      <AddToBookingButton
+                        name={svc.name}
+                        added={added}
+                        onToggle={() => toggle(svc.id)}
+                      />
                     </div>
                   </ScCard>
                   </Reveal>
@@ -569,7 +673,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         {tab === 'reviews' && (
           <>
             <div className="mb-2 flex items-center gap-3">
-              <span className="text-3xl font-semibold text-text-primary">
+              <span className="font-numeric text-3xl font-bold text-text-primary">
                 {avgRating.toFixed(1)}
               </span>
               <div>
@@ -584,12 +688,12 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
               <Reveal key={review.id} index={i}>
               <ScCard>
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-muted text-[11px] font-semibold text-brand-red">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-elevated text-[11px] font-semibold text-text-primary">
                     {review.userName.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1">
                     <p className="text-[13px] font-medium text-text-primary">{review.userName}</p>
-                    <p className="text-[10px] text-text-muted">{review.date}</p>
+                    <p className="font-numeric text-[10px] font-medium text-text-muted">{review.date}</p>
                   </div>
                   <Stars rating={review.rating} size={12} />
                 </div>
@@ -609,16 +713,27 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
         <div className="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 border-t border-border bg-brand-black px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] text-text-secondary">
-              {selectedServices.length === 1
-                ? selectedServices[0].name
-                : `${selectedServices.length} services · ${formatDuration(selectedDuration)}`}
+              {selectedServices.length === 1 ? (
+                selectedServices[0].name
+              ) : (
+                <>
+                  {selectedServices.length} services ·{' '}
+                  <span className="font-numeric font-medium">
+                    {formatDuration(selectedDuration)}
+                  </span>
+                </>
+              )}
             </p>
-            <p className="truncate text-[15px] font-semibold text-text-primary">
-              {selectedServices.length === 1
-                ? formatServicePrice(selectedServices[0])
-                : // "from" because a per-vehicle line is only priced once the
-                  // car is known, one screen along.
-                  `${hasPerVehiclePricing ? 'from ' : ''}₹${selectedTotal.toLocaleString('en-IN')}`}
+            <p className="truncate text-[15px] font-bold text-text-primary">
+              <Figures
+                text={
+                  selectedServices.length === 1
+                    ? formatServicePrice(selectedServices[0])
+                    : // "from" because a per-vehicle line is only priced once
+                      // the car is known, one screen along.
+                      `${hasPerVehiclePricing ? 'from ' : ''}₹${selectedTotal.toLocaleString('en-IN')}`
+                }
+              />
             </p>
           </div>
           <ScButton fullWidth={false} className="px-8" onClick={handleBook}>
@@ -679,7 +794,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
               <ScBadge variant="muted">{categoryLabel(details.category)}</ScBadge>
               <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
                 <IconClock size={12} />
-                {formatDuration(details.durationMins)}
+                <span className="font-numeric font-medium">
+                  {formatDuration(details.durationMins)}
+                </span>
               </span>
             </div>
 
@@ -703,7 +820,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                       key={item.serviceId}
                       className="flex items-center gap-1.5 text-[13px] text-text-secondary"
                     >
-                      <IconCheck size={13} className="shrink-0 text-brand-red" />
+                      <IconCheck size={13} className="shrink-0 text-text-secondary" />
                       {item.name}
                     </li>
                   ))}
@@ -711,8 +828,9 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                 {/* A per-vehicle bundle's saving differs per vehicle, so it is
                     shown on the tier rows below instead of as one figure. */}
                 {details.tierBreakdown === null && details.savings !== null && (
-                  <p className="mt-2 text-[12px] font-semibold text-brand-red">
-                    Save ₹{details.savings} vs ₹{details.itemsTotal} separately
+                  <p className="mt-2 text-[12px] font-semibold text-text-primary">
+                    Save <span className="font-numeric font-bold">₹{details.savings}</span> vs{' '}
+                    <span className="font-numeric font-bold">₹{details.itemsTotal}</span> separately
                   </p>
                 )}
               </div>
@@ -745,11 +863,12 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                         ) : (
                           <span className="flex items-center gap-2">
                             {tierSavings !== null && (
-                              <span className="text-[11px] font-medium text-brand-red">
-                                save ₹{tierSavings}
+                              <span className="text-[11px] font-medium text-text-secondary">
+                                save{' '}
+                                <span className="font-numeric">₹{tierSavings}</span>
                               </span>
                             )}
-                            <span className="text-[13px] font-semibold text-text-primary">
+                            <span className="font-numeric text-[13px] font-bold text-text-primary">
                               ₹{price}
                             </span>
                           </span>
@@ -763,7 +882,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
                   <span className="text-[13px] text-text-secondary">
                     {details.pricingType === 'on_inspection' ? 'Inspection fee' : 'Price'}
                   </span>
-                  <span className="text-[15px] font-semibold text-text-primary">
+                  <span className="font-numeric text-[15px] font-bold text-text-primary">
                     ₹{details.price}
                   </span>
                 </div>
@@ -775,8 +894,11 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
               )}
             </div>
 
+            {/* Red only while it adds: removing is the quieter action, the
+                same way the card's Added state is. */}
             <ScButton
               className="mt-5"
+              variant={selected.includes(details.id) ? 'secondary' : 'primary'}
               onClick={() => {
                 toggle(details.id)
                 setDetailsOpen(false)

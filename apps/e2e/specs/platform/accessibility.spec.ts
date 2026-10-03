@@ -50,27 +50,29 @@ const scan = (page: import('@playwright/test').Page) =>
 /**
  * Brand red at small text sizes.
  *
- * Two pairings, one underlying decision:
+ * One pairing remains:
  *
- *   white #FAFAFA on brand red #EF3240      3.87:1  — ScButton's primary
- *                                                     style, so every CTA
- *   brand red #EF3240 on raised surfaces    4.12:1  — ScSegmented's selected
- *                                                     state (#1E1E1E)
+ *   white on brand red #EF3240    3.87:1 (#FAFAFA) to 4.0:1 (#FFF) — ScButton's
+ *                                 primary style and the garage page's Add
+ *                                 buttons, so every primary action
  *
- * Neither is a page-level mistake and neither can be fixed where it appears.
- * Red text only clears 4.5:1 on surfaces at or below #151515, so darkening the
- * elevated surface enough would make it darker than the surface it is meant to
- * sit above. And white on #EF3240 cannot reach 4.5:1 at all without changing
- * the red.
+ * It is not a page-level mistake and cannot be fixed where it appears: white
+ * on #EF3240 cannot reach 4.5:1 at all without changing the red.
  *
- * The usual remedy is accessible variants of the brand colour — a darker red
- * behind white text (#D42433 gives 4.91:1) and a lighter one for small red
- * text (#F4525C gives 5.4:1 on surface) — keeping #EF3240 for fills and large
- * elements. That is a design decision about the brand, not a test failure to
- * patch away, so the pairings are excluded from the gate below and kept on the
- * report by the test at the bottom of this file.
+ * There used to be a second — red text on a raised surface, from ScSegmented's
+ * selected state. That went when red was kept for things to press: selected
+ * states are now white on graphite, and the red that is left on customer
+ * screens as text (Profile's Add, the coupon sheet's Apply) sits on the canvas,
+ * where it clears 4.5:1. Red text on graphite (#272730) would be 3.66:1, so
+ * keep it off raised surfaces.
  *
- * axe under-reports both: it exempts disabled controls, and most primary
+ * The usual remedy is an accessible variant of the brand colour — a darker red
+ * behind white text (#D42433 gives 4.91:1) — keeping #EF3240 for fills and
+ * large elements. That is a design decision about the brand, not a test
+ * failure to patch away, so the pairing is excluded from the gate below and
+ * kept on the report by the test at the bottom of this file.
+ *
+ * axe under-reports it: it exempts disabled controls, and most primary
  * buttons are disabled until their form is valid.
  */
 const BRAND_RED = '#ef3240'
@@ -140,6 +142,11 @@ test.describe('accessibility', () => {
  * See the note on `isBrandRedPairing` above. This starts passing once brand red
  * has accessible variants, at which point Playwright reports the annotation as
  * stale — delete it and the exclusion together.
+ *
+ * Measured on the garage page, not home: home no longer has red text at all
+ * (its selected chip, mode switch and nav item are white), so scanning it
+ * would pass for the wrong reason. The garage page carries the pairing that
+ * is still open — white on red, on every Add button.
  */
 test.describe('accessibility debt', () => {
   test.use({ storageState: asRole('customer-browse') })
@@ -147,7 +154,7 @@ test.describe('accessibility debt', () => {
   test('brand red should meet AA at small text sizes', async ({ page }) => {
     test.fail()
 
-    await page.goto('/home')
+    await page.goto(`/garage/${VENDORS.main.id}`)
     await settle(page)
 
     const results = await scan(page)

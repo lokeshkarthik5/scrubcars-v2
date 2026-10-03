@@ -1,16 +1,27 @@
 'use client'
 
+import type { InputHTMLAttributes } from 'react'
 import { IconChevronDown } from '@tabler/icons-react'
+import { normaliseIndianMobile } from '@repo/core/phone'
 import { cn } from '@repo/core/utils'
 
 interface ScPhoneInputProps {
   value: string
-  /** Receives digits only — non-numeric input is stripped. */
+  /**
+   * Receives the national digits only: "+91 98765 43210" pasted or autofilled
+   * arrives as "9876543210". See normaliseIndianMobile.
+   */
   onChange: (value: string) => void
   label?: string
   placeholder?: string
   /** Wire up when country selection ships; until then the code renders inert. */
   onCountryClick?: () => void
+  /** 'glass' for the frosted sign-in card, where a solid field reads as a hole. */
+  tone?: 'solid' | 'glass'
+  /** For screens where the number is the only thing to do. */
+  autoFocus?: boolean
+  /** The label on the keyboard's return key, e.g. 'go' when it submits. */
+  enterKeyHint?: InputHTMLAttributes<HTMLInputElement>['enterKeyHint']
   className?: string
 }
 
@@ -24,17 +35,26 @@ export function ScPhoneInput({
   label,
   placeholder = 'Phone number',
   onCountryClick,
+  tone = 'solid',
+  autoFocus,
+  enterKeyHint,
   className,
 }: ScPhoneInputProps) {
+  // The chevron promises a picker, so it shows only once there is one. On the
+  // inert label it read as a dropdown that did nothing when tapped.
   const code = (
     <>
-      <span className="text-[15px] leading-none">🇮🇳</span>
+      <span className="text-[16px] leading-none">🇮🇳</span>
       +91
-      <IconChevronDown size={16} className="text-text-secondary" />
+      {onCountryClick && (
+        <IconChevronDown size={16} className="text-text-secondary" />
+      )}
     </>
   )
-  const codeClass =
-    'flex shrink-0 items-center gap-1.5 border-r border-border px-3.5 text-[15px] text-text-primary'
+  const codeClass = cn(
+    'flex shrink-0 items-center gap-1.5 border-r px-3.5 text-[16px] text-text-primary',
+    tone === 'glass' ? 'border-white/15' : 'border-border'
+  )
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
@@ -43,7 +63,13 @@ export function ScPhoneInput({
           {label}
         </label>
       )}
-      <div className="flex overflow-hidden rounded-[12px] border border-border bg-surface transition-colors focus-within:border-brand-red">
+      <div
+        className={cn(
+          // A light edge marks focus; red is for the Send OTP button below.
+          'flex overflow-hidden rounded-[12px] border transition-colors focus-within:border-text-secondary',
+          tone === 'glass' ? 'border-white/15 bg-white/[0.06]' : 'border-border bg-surface'
+        )}
+      >
         {/* Country picker isn't built yet — render it inert rather than as a
             focusable button that does nothing. */}
         {onCountryClick ? (
@@ -55,15 +81,27 @@ export function ScPhoneInput({
             {code}
           </div>
         )}
+        {/* No maxLength: the browser would cut a pasted "+91 98765 43210" to
+            ten characters before onChange could read the whole thing. The
+            length is enforced on the normalised digits instead — an edit that
+            would leave more than ten is refused, as maxLength would refuse the
+            keystroke. 16px is the body size, and the size below which iOS
+            Safari zooms into a focused field. */}
         <input
           id="sc-phone"
+          name="phone"
           type="tel"
           inputMode="numeric"
-          maxLength={10}
+          autoComplete="tel-national"
+          autoFocus={autoFocus}
+          enterKeyHint={enterKeyHint}
           placeholder={placeholder}
           value={value}
-          onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
-          className="w-full flex-1 bg-transparent px-3.5 py-4 text-[15px] text-text-primary outline-none"
+          onChange={(e) => {
+            const digits = normaliseIndianMobile(e.target.value)
+            if (digits.length <= 10) onChange(digits)
+          }}
+          className="w-full flex-1 bg-transparent px-3.5 py-4 text-[16px] text-text-primary outline-none"
         />
       </div>
     </div>

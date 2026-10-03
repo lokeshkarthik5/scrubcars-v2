@@ -61,12 +61,21 @@ export const useUserStore = create<UserState>((set, get) => ({
       if (data.area && data.pincode) {
         const addresses = get().addresses
         if (addresses.length === 0) {
+          // Coordinates only when the caller has a real pair. This used to
+          // fall back to a fixed point in Chennai, which looks like a real pin
+          // to doorstep checkout — the radius check then ran against a spot
+          // the customer never chose. An address without a pin is valid (the
+          // server takes lat/lng as both-or-neither); checkout asks for one
+          // when a doorstep booking needs it.
+          const pin =
+            data.lat !== undefined && data.lng !== undefined
+              ? { lat: data.lat, lng: data.lng }
+              : {}
           await apiCreateAddress({
             label: 'Home',
             address: `${data.area}, ${data.pincode}`,
             city: data.area,
-            lat: data.lat ?? 13.0067,
-            lng: data.lng ?? 80.2574,
+            ...pin,
             isDefault: true,
           })
           const updated = await getAddresses()

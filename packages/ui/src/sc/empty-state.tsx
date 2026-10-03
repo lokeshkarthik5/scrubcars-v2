@@ -39,7 +39,9 @@ export function ErrorState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <IconAlertCircle size={32} className="text-brand-red" />
+      {/* Amber, not red: red means "press this", and the press here is the
+          neutral Retry below. */}
+      <IconAlertCircle size={32} className="text-error" />
       <p className="text-[13px] text-text-secondary">{message}</p>
       {onRetry && (
         <ScButton variant="secondary" className="max-w-[160px]" onClick={onRetry}>

@@ -1,3 +1,5 @@
+import type { OpeningDay } from '@repo/core/opening-hours'
+
 export type BookingType = 'doorstep' | 'dropin'
 export type BookingStatus =
   | 'pending'
@@ -17,7 +19,6 @@ export type ServiceCategory =
   | 'package'
 // New bookings always prepay online; 'cash' remains only for historical rows.
 export type PaymentMethod = 'online' | 'cash'
-export type VendorStatus = 'open' | 'busy' | 'closed'
 export type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 export type VehicleType = 'hatchback' | 'sedan' | 'suv'
 
@@ -46,7 +47,13 @@ export interface Vendor {
   lng: number | null
   rating: number
   reviewCount: number
-  status: VendorStatus
+  /**
+   * The weekly hours, when the response carried them; null when it did not.
+   * This, not the account status, is what "Open" is decided from — see
+   * openStatus in @repo/core/opening-hours. An active account is not an open
+   * garage.
+   */
+  openingHours: OpeningDay[] | null
   startingPrice: number
   dropinEnabled: boolean
   doorstepEnabled: boolean

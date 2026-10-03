@@ -11,6 +11,11 @@ export class GaragePage {
 
   goto = (vendorId: string) => this.page.goto(`/garage/${vendorId}`)
 
+  /** The At garage / Doorstep switch, a radiogroup. Only rendered for a garage
+   *  doing both; the choice rides along to checkout as `&mode=`. */
+  mode = (label: 'At garage' | 'Doorstep') =>
+    this.page.getByRole('radio', { name: label, exact: true })
+
   tab = (name: 'Services' | 'Photos' | 'Reviews') => this.page.getByRole('tab', { name })
 
   openTab = (name: 'Services' | 'Photos' | 'Reviews') => this.tab(name).click()
@@ -38,8 +43,8 @@ export class GaragePage {
 
   remove = (serviceName: string) => this.removeButton(serviceName).click()
 
-  /** The whole card is the details control; the inner "Details" text is part
-   *  of it rather than a second button with the same name. */
+  /** The whole card is the details control — its body button's hit area is
+   *  stretched over the card, and there is no separate "Details" button. */
   openDetails = (serviceName: string) =>
     this.page.getByRole('button', { name: `View details for ${serviceName}` }).first().click()
 

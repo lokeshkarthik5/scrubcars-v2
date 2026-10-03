@@ -20,7 +20,7 @@ export function SupportCard() {
       <div className="flex gap-2">
         <a
           href={SUPPORT_TEL_HREF}
-          className="flex flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-surface py-2.5 text-[13px] font-medium text-text-primary transition-colors hover:border-brand-red"
+          className="flex flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-surface py-2.5 text-[13px] font-medium text-text-primary transition-colors hover:border-text-secondary"
         >
           <IconPhone size={16} /> Call
         </a>

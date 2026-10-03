@@ -7,7 +7,8 @@ export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 const borderColors: Record<ToastType, string> = {
   success: 'border-l-success',
-  error: 'border-l-brand-red',
+  // Amber, as every error is: red is kept for what to press.
+  error: 'border-l-error',
   warning: 'border-l-warning',
   info: 'border-l-info',
 }

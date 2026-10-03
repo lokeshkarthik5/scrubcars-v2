@@ -55,13 +55,13 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         'flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-2.5 text-[13px] font-medium text-text-secondary transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/60',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70',
         'disabled:pointer-events-none disabled:opacity-40',
         // Radix sets data-state="active". The selected tab is marked by a
-        // raised surface plus the brand colour as an accent — red hairline and
-        // label — kept byte-identical to ScSegmented so the two never drift
-        // into looking like different controls.
-        'data-[state=active]:bg-surface-elevated data-[state=active]:text-brand-red data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-brand-red/50',
+        // raised graphite surface and a white label — kept byte-identical to
+        // ScSegmented so the two never drift into looking like different
+        // controls. No red: that is reserved for primary actions.
+        'data-[state=active]:bg-surface-elevated data-[state=active]:text-text-primary data-[state=active]:shadow-sm',
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}

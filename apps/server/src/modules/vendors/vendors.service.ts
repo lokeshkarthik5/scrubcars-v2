@@ -140,6 +140,13 @@ export type VendorListItemResponse = {
    */
   lat: number | null
   lng: number | null
+  /**
+   * The weekly hours, so a card can say "Open · closes 7 PM" from the garage's
+   * real hours instead of reading `status` (an active account is not an open
+   * garage). Whole week rather than today's row: when it is closed, the card
+   * says when it next opens, which can be days away. Empty when none are set.
+   */
+  workingHours: OpeningHoursResponse[]
 }
 
 export type VendorListResponse = {
@@ -166,6 +173,9 @@ export type WorkingHoursResponse = {
   closeTime: string
   isClosed: boolean
 }
+
+/** A list item's hours: the same fields without the row id nobody needs. */
+export type OpeningHoursResponse = Omit<WorkingHoursResponse, 'id'>
 
 export type ServiceAreaResponse = {
   id: string
@@ -344,6 +354,17 @@ function toWorkingHoursResponse(
 ): WorkingHoursResponse {
   return {
     id: hours.id,
+    dayOfWeek: hours.dayOfWeek,
+    openTime: hours.openTime,
+    closeTime: hours.closeTime,
+    isClosed: hours.isClosed,
+  }
+}
+
+function toOpeningHoursResponse(
+  hours: WorkingHoursRecord
+): OpeningHoursResponse {
+  return {
     dayOfWeek: hours.dayOfWeek,
     openTime: hours.openTime,
     closeTime: hours.closeTime,
@@ -734,6 +755,7 @@ export const vendorsService = {
           distanceM === null ? null : Number((distanceM / 1000).toFixed(1)),
         lat: vendor.lat,
         lng: vendor.lng,
+        workingHours: vendor.workingHours.map(toOpeningHoursResponse),
       }
     })
 

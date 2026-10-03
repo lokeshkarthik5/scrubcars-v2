@@ -65,16 +65,22 @@ test('a booking is made, worked, completed and reviewed @p0', async ({ browser }
 
   // 499 + 599 (the hatchback tier) = 1098. 20% of that is 219.60, which the
   // code caps at 200 — so the customer pays 898, not 878.40.
-  await expect(checkout.cta()).toHaveText('Pay Now (₹1,098)')
+  await expect(checkout.cta()).toHaveText('Pay ₹1,098')
   await checkout.applyPromo(DISCOUNTS.percentCapped.code)
   await checkout.closePromo()
-  await expect(checkout.cta()).toHaveText('Pay Now (₹898)')
+  await expect(checkout.cta()).toHaveText('Pay ₹898')
 
   await checkout.pay()
   await customer.waitForURL(/\/bookings\/[0-9a-f-]+/)
 
   const [created] = await bookingsForUser(CUSTOMERS.journey.id)
   expect(created.status).toBe('pending')
+
+  // Paid, but not yet accepted: the customer is told it is a request, and
+  // nothing on the page claims a confirmation the garage has not given — the
+  // post-payment moment included, which used to say "Booking confirmed".
+  await expect(customer.getByText('Awaiting garage')).toBeVisible()
+  await expect(customer.getByText(/Confirmed/i)).toHaveCount(0)
 
   // ── 2. the garage sees it, accepts, works it, finishes it ────────────────
   await vendor.goto('/bookings')
@@ -85,7 +91,7 @@ test('a booking is made, worked, completed and reviewed @p0', async ({ browser }
 
   // The customer's page polls every 5s, so the change reaches them without a
   // reload — which is the actual promise the status stepper makes.
-  await expect(customer.getByText(/Confirmed/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(customer.getByText('Your slot is reserved')).toBeVisible({ timeout: 15_000 })
 
   await vendor.getByRole('radio', { name: /^Upcoming/ }).click()
   await vendor

@@ -14,6 +14,8 @@ export const ScInput = forwardRef<HTMLInputElement, ScInputProps>(
     const generatedId = useId()
     const inputId = id ?? generatedId
 
+    // Focus is a light edge rather than red: red marks what to press, and a
+    // form full of red-edged fields reads as a form full of errors.
     return (
     <div className="flex flex-col gap-1.5">
       {label && (
@@ -25,7 +27,7 @@ export const ScInput = forwardRef<HTMLInputElement, ScInputProps>(
         ref={ref}
         id={inputId}
         className={cn(
-          'w-full rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[13px] text-text-primary outline-none transition-colors focus:border-brand-red',
+          'w-full rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary',
           className
         )}
         {...props}
@@ -69,7 +71,7 @@ export const ScTextarea = forwardRef<HTMLTextAreaElement, ScTextareaProps>(
         ref={ref}
         id={textareaId}
         className={cn(
-          'w-full resize-none rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[13px] text-text-primary outline-none transition-colors focus:border-brand-red',
+          'w-full resize-none rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary',
           className
         )}
         {...props}

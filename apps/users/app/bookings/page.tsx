@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@repo/ui/sc/app-shell'
-import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
+import { customerBookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { Reveal } from '@repo/ui/sc/reveal'
@@ -51,7 +51,7 @@ export default function BookingsListPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {customerBookings.map((booking, i) => {
-            const badge = bookingStatusBadge(booking.status)
+            const badge = customerBookingStatusBadge(booking.status)
             return (
               <Reveal key={booking.id} index={i}>
               <Link href={`/bookings/${booking.id}`}>
@@ -63,17 +63,19 @@ export default function BookingsListPage() {
                     </div>
                     <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
                   </div>
+                  {/* When and how much are figures, in the brand's numeric
+                      face. */}
                   <div className="flex items-center justify-between text-[11px] text-text-secondary">
-                    <span>{booking.scheduledAt}</span>
+                    <span className="font-numeric font-medium">{booking.scheduledAt}</span>
                     <span className="flex items-center gap-1.5">
                       {/* The struck price is the only hint that a code was
                           used; the full breakdown lives on the detail page. */}
                       {booking.discountAmount > 0 && (
-                        <s className="text-text-muted">
+                        <s className="font-numeric font-medium text-text-muted">
                           {formatBookingAmount(booking.subtotalPrice)}
                         </s>
                       )}
-                      <span className="font-semibold text-text-primary">
+                      <span className="font-numeric font-bold text-text-primary">
                         {formatBookingAmount(booking.servicePrice)}
                       </span>
                     </span>

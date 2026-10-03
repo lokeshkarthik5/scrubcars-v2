@@ -14,7 +14,12 @@ import {
 } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScSegmented } from '@repo/ui/sc/segmented'
-import { SortSheet, sortLabel, type SortKey } from '@repo/ui/sc/sort-sheet'
+import {
+  SortSheet,
+  canSortByRating,
+  sortLabel,
+  type SortKey,
+} from '@repo/ui/sc/sort-sheet'
 import { Toast } from '@repo/ui/sc/toast'
 import { VendorCard } from '@repo/ui/features/vendor-card'
 import { Reveal } from '@repo/ui/sc/reveal'
@@ -29,6 +34,7 @@ import {
 } from '@repo/core/stores/location-store'
 import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { cn } from '@repo/core/utils'
 
 type ServiceMode = 'dropin' | 'doorstep'
@@ -85,15 +91,21 @@ function HomeContent() {
     appliedRadiusKm,
     hasMore,
     isLoading,
+    isRefreshing,
     isFetchingMore,
     loadMore,
-  } = useVendorSearch({
-    bookingType: serviceMode,
-    category: category === 'all' ? undefined : category,
-    lat: origin?.lat,
-    lng: origin?.lng,
-    sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
-  })
+  } = useVendorSearch(
+    {
+      bookingType: serviceMode,
+      category: category === 'all' ? undefined : category,
+      lat: origin?.lat,
+      lng: origin?.lng,
+      sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
+    },
+    // A mode, chip or sort change keeps the current garages on screen until
+    // the new ones land, instead of collapsing the page to one line of text.
+    { keepPrevious: true }
+  )
 
   // Where the located half ends. Only meaningful while an origin is known —
   // without one nothing has a distance, so there is no boundary to mark.
@@ -146,7 +158,7 @@ function HomeContent() {
           className="min-w-0 text-right"
         >
           <div className="flex items-center justify-end gap-1.5">
-            <IconMapPin size={15} className="shrink-0 text-brand-red" />
+            <IconMapPin size={15} className="shrink-0 text-text-primary" />
             <span className="text-[14px] font-semibold text-text-primary">
               {location ? location.label : 'Set location'}
             </span>
@@ -176,10 +188,14 @@ function HomeContent() {
         options={[
           {
             value: 'dropin',
-            label: 'At Garage',
+            label: BOOKING_TYPE_LABELS.dropin,
             icon: <IconBuildingStore size={15} />,
           },
-          { value: 'doorstep', label: 'Doorstep', icon: <IconHome size={15} /> },
+          {
+            value: 'doorstep',
+            label: BOOKING_TYPE_LABELS.doorstep,
+            icon: <IconHome size={15} />,
+          },
         ]}
       />
 
@@ -192,16 +208,20 @@ function HomeContent() {
         <span className="text-[13px] text-text-muted">Search garages, services...</span>
       </button>
 
+      {/* The chosen category is a white chip, not a red one: red on this
+          screen is kept for things to press, and a solid red "All" was the
+          loudest thing above the fold before a single garage had loaded. */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {CATEGORIES.map((c) => (
           <button
             key={c.key}
             type="button"
+            aria-pressed={category === c.key}
             onClick={() => setCategory(c.key)}
             className={cn(
               'shrink-0 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
               category === c.key
-                ? 'bg-brand-red text-brand-white'
+                ? 'bg-brand-white text-brand-black'
                 : 'bg-surface text-text-primary'
             )}
           >
@@ -247,8 +267,18 @@ function HomeContent() {
           </p>
         )}
 
-        <div className="flex flex-col gap-3">
-          {isLoading ? (
+        {/* Dimmed rather than replaced while a new filter loads. The delay
+            means a quick answer never dims at all; the return is immediate. */}
+        <div
+          aria-busy={isRefreshing || undefined}
+          className={cn(
+            'flex flex-col gap-3 transition-opacity duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
+            isRefreshing && 'opacity-60 delay-150'
+          )}
+        >
+          {/* An empty list mid-refresh has no answer yet — "No garages found"
+              would be the previous filter's result. */}
+          {isLoading || (isRefreshing && vendors.length === 0) ? (
             <p className="py-8 text-center text-[13px] text-text-secondary">
               Finding garages…
             </p>
@@ -272,7 +302,9 @@ function HomeContent() {
                     </p>
                   )}
                   <Reveal index={i}>
-                    <VendorCard vendor={vendor} />
+                    {/* The mode travels with the tap, so the garage page and
+                        checkout open on the choice made here. */}
+                    <VendorCard vendor={vendor} mode={serviceMode} />
                   </Reveal>
                 </Fragment>
               ))}
@@ -297,6 +329,8 @@ function HomeContent() {
         onChange={setChosenSort}
         onClose={() => setSortOpen(false)}
         locationUnavailable={!location}
+        // No "Top Rated" until a listed garage has a review to rank by.
+        ratingAvailable={canSortByRating(vendors, sort, hasMore)}
       />
     </AppShell>
   )

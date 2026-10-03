@@ -332,7 +332,7 @@ export function DiscountForm({
         />
       </ScCard>
 
-      {error && <p className="text-[12px] text-brand-red">{error}</p>}
+      {error && <p role="alert" className="text-[12px] text-error">{error}</p>}
 
       <div className="flex items-center gap-2">
         <ScButton disabled={!isValid || isPending} onClick={handleSubmit}>

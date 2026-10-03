@@ -51,11 +51,11 @@ test.describe('multi-service cart @p0', () => {
     await expect(checkout.subtotal()).toBeVisible()
     await expect(checkout.removeLine(SERVICES.wash.name)).toBeVisible()
     await expect(checkout.removeLine(SERVICES.detail.name)).toBeVisible()
-    await expect(checkout.cta()).toHaveText('Pay Now (₹2,498)')
+    await expect(checkout.cta()).toHaveText('Pay ₹2,498')
 
     await checkout.removeLine(SERVICES.wash.name).click()
 
-    await expect(checkout.cta()).toHaveText('Pay Now (₹1,999)')
+    await expect(checkout.cta()).toHaveText('Pay ₹1,999')
     await expect(checkout.removeLine(SERVICES.wash.name)).toHaveCount(0)
     // One line is not a list: the subtotal row retires with it.
     await expect(checkout.subtotal()).toHaveCount(0)
@@ -96,6 +96,6 @@ test.describe('multi-service cart @p0', () => {
     // an offer the page makes — and nothing to subtotal.
     await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(0)
     await expect(checkout.subtotal()).toHaveCount(0)
-    await expect(checkout.cta()).toHaveText('Pay Now (₹2,299)')
+    await expect(checkout.cta()).toHaveText('Pay ₹2,299')
   })
 })

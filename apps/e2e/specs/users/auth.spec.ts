@@ -8,7 +8,7 @@
  */
 import { test, expect, asRole } from '../../support/fixtures'
 import { latestOtp, sql } from '../../support/db'
-import { CUSTOMERS, UNREGISTERED_PHONE, VENDORS } from '../../support/seed-ids'
+import { CUSTOMERS, SERVICES, UNREGISTERED_PHONE, VENDORS } from '../../support/seed-ids'
 
 /**
  * Types the code into the six single-character boxes.
@@ -79,14 +79,29 @@ test.describe('customer auth', () => {
     await expect(send).toBeEnabled()
   })
 
-  test('a number nobody has used is taken through profile setup', async ({ page }) => {
+  test('a pasted +91 number is read as the ten digits', async ({ page }) => {
+    await page.goto('/login')
+    const phone = page.locator('#sc-phone')
+
+    // Focused on arrival — the number is the only thing on the screen.
+    await expect(phone).toBeFocused()
+
+    // What a paste or the keyboard's autofill chip delivers. The field used
+    // to cap at ten characters before stripping, which made this "9198765".
+    await page.keyboard.insertText('+91 98765 43210')
+    await expect(phone).toHaveValue('9876543210')
+    await expect(page.getByRole('button', { name: /Send OTP/i })).toBeEnabled()
+  })
+
+  test('a number nobody has used is asked only for a name', async ({ page }) => {
     // Cleaned first so the spec is repeatable: a previous run would have
     // turned this into a returning customer.
     await sql`delete from users where phone = ${UNREGISTERED_PHONE}`
 
     await page.goto('/login')
     await page.locator('#sc-phone').fill(UNREGISTERED_PHONE)
-    await page.getByRole('button', { name: /Send OTP/i }).click()
+    // The keyboard's Go key, not the button: the field sits in a real form.
+    await page.locator('#sc-phone').press('Enter')
 
     await enterOtp(page, await latestOtp(UNREGISTERED_PHONE))
     await page.getByRole('button', { name: /^Verify/i }).click()
@@ -94,19 +109,53 @@ test.describe('customer auth', () => {
     // New customers are asked who they are before they can book.
     await expect(page).toHaveURL(/\/profile-setup/)
 
-    // These bind only because the inputs were given ids; without them the
-    // labels are decorative.
+    // Only who they are. The address moved to doorstep checkout, the one
+    // place it is needed. Binds only because the input was given an id;
+    // without one the label is decorative.
+    await expect(page.getByLabel('Street address')).toHaveCount(0)
     await page.getByLabel('Full name').fill('Newly Arrived')
-    await page.getByLabel('Street address').fill('1, First Street')
-    await page.getByLabel('City').fill('Chennai')
-    await page.getByRole('button', { name: /Continue|Save|Get Started|Finish/i }).click()
+    await page.getByRole('button', { name: /Get started/i }).click()
 
     await expect(page).toHaveURL(/\/home/)
 
-    const [created] = await sql<{ name: string }[]>`
-      select name from users where phone = ${UNREGISTERED_PHONE}
+    const [created] = await sql<{ id: string; name: string }[]>`
+      select id, name from users where phone = ${UNREGISTERED_PHONE}
     `
     expect(created?.name).toBe('Newly Arrived')
+
+    // Nothing invented on their behalf: the old form always saved an
+    // address, pinned at 0,0 whenever location was refused.
+    const addresses = await sql`
+      select id from user_addresses where user_id = ${created.id}
+    `
+    expect(addresses).toHaveLength(0)
+  })
+
+  test('a new customer who started a booking is handed back to it', async ({ page }) => {
+    // Same number as above, so cleaned the same way. Only failed codes count
+    // towards the per-phone verify cap, so a second sign-up here is safe.
+    await sql`delete from users where phone = ${UNREGISTERED_PHONE}`
+
+    // Where Book Now on a garage page sends a guest.
+    const bookPath = `/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`
+    await page.goto(`/login?next=${encodeURIComponent(bookPath)}`)
+    await page.locator('#sc-phone').fill(UNREGISTERED_PHONE)
+    await page.getByRole('button', { name: /Send OTP/i }).click()
+
+    await enterOtp(page, await latestOtp(UNREGISTERED_PHONE))
+    await page.getByRole('button', { name: /^Verify/i }).click()
+
+    // The booking rides through setup rather than being dropped there — it
+    // used to land every new customer on Home with an empty cart.
+    await expect(page).toHaveURL(/\/profile-setup\?next=/)
+    await page.getByLabel('Full name').fill('Booking Newcomer')
+    await page.getByRole('button', { name: 'Continue to booking' }).click()
+
+    await page.waitForURL(
+      (url) =>
+        url.pathname === `/book/${VENDORS.main.id}` &&
+        url.searchParams.get('service') === SERVICES.wash.id
+    )
   })
 
   test.describe('signing out', () => {

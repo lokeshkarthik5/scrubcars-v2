@@ -1,13 +1,22 @@
 import { cn } from '@repo/core/utils'
 
-type BadgeVariant = 'success' | 'pending' | 'muted' | 'accent' | 'danger'
+type BadgeVariant = 'success' | 'pending' | 'muted' | 'active' | 'accent' | 'danger'
 
 const variants: Record<BadgeVariant, string> = {
   success: 'bg-success-muted text-success',
-  pending: 'bg-warning-muted text-warning',
+  // Waiting on someone — requested, pending review, scheduled, unverified.
+  // Neutral, not amber: nothing is wrong yet, and amber is kept for problems.
+  pending: 'border border-white/20 text-text-primary',
   muted: 'bg-surface-elevated text-text-secondary border border-border',
+  // Something happening right now. White, like every other "current" state —
+  // it used to borrow `danger`, which made a job in progress look like a fault.
+  active: 'bg-brand-white text-brand-black',
+  // Vendor and admin only — chiefly a new job waiting for the garage to
+  // accept, the one status that asks to be acted on, so the one that keeps
+  // brand red. Customer screens never show it.
   accent: 'bg-accent-muted text-brand-red',
-  danger: 'bg-accent-muted text-brand-red',
+  // A problem, in the amber errors use everywhere — never brand red.
+  danger: 'bg-error-muted text-error',
 }
 
 interface ScBadgeProps {
@@ -30,15 +39,6 @@ export function ScBadge({ children, variant = 'muted', className }: ScBadgeProps
   )
 }
 
-export function vendorStatusBadge(status: 'open' | 'busy' | 'closed') {
-  const map = {
-    open: { label: 'Open', variant: 'success' as const },
-    busy: { label: 'Busy', variant: 'pending' as const },
-    closed: { label: 'Closed', variant: 'muted' as const },
-  }
-  return map[status]
-}
-
 /** Onboarding stage shown in the admin panel (`vendors.status`). */
 export function vendorAdminStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
@@ -50,16 +50,32 @@ export function vendorAdminStatusBadge(status: string) {
   return map[status] ?? { label: status, variant: 'muted' as const }
 }
 
+/** A booking's status as the garage and the admin panel name it. */
 export function bookingStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
-    // Customer-facing name for `pending` while the vendor hasn't accepted yet.
-    waiting: { label: 'Waiting', variant: 'pending' },
     pending: { label: 'New', variant: 'accent' },
     confirmed: { label: 'Confirmed', variant: 'success' },
-    in_progress: { label: 'In progress', variant: 'danger' },
+    in_progress: { label: 'In progress', variant: 'active' },
     completed: { label: 'Completed', variant: 'success' },
     cancelled: { label: 'Cancelled', variant: 'muted' },
     rescheduled: { label: 'Rescheduled', variant: 'muted' },
   }
   return map[status] ?? { label: status, variant: 'muted' as const }
+}
+
+/**
+ * A booking's status as the customer names it — the list and the detail page
+ * both, so one booking never reads "New" in one place and "Waiting" in the
+ * other.
+ *
+ * It differs from the garage's wording in one place: `pending`. To the garage
+ * that is a new job to accept; to the customer who has just paid, it is a
+ * request the garage has not accepted yet, and anything that sounds like a
+ * confirmation would promise a slot nobody has agreed to.
+ */
+export function customerBookingStatusBadge(status: string) {
+  if (status === 'pending') {
+    return { label: 'Requested', variant: 'pending' as const }
+  }
+  return bookingStatusBadge(status)
 }

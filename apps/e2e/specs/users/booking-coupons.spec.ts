@@ -26,7 +26,7 @@ async function checkoutWith(page: import('@playwright/test').Page, serviceIds: s
 test.describe('coupons @p0', () => {
   test('a percentage code applies and stops at its cap', async ({ page }) => {
     const checkout = await checkoutWith(page, [SERVICES.wash.id, SERVICES.detail.id])
-    await expect(checkout.cta()).toHaveText('Pay Now (₹2,498)')
+    await expect(checkout.cta()).toHaveText('Pay ₹2,498')
 
     await checkout.applyPromo(DISCOUNTS.percentCapped.code)
 
@@ -34,20 +34,20 @@ test.describe('coupons @p0', () => {
     // 2298, not 1998. The cap is the whole point of this fixture.
     await expect(checkout.appliedBanner(DISCOUNTS.percentCapped.code)).toBeVisible()
     await expect(checkout.discountRow(DISCOUNTS.percentCapped.code)).toBeVisible()
-    await expect(checkout.cta()).toHaveText('Pay Now (₹2,298)')
+    await expect(checkout.cta()).toHaveText('Pay ₹2,298')
   })
 
   test('removing a service retires the code applied to the old cart', async ({ page }) => {
     const checkout = await checkoutWith(page, [SERVICES.wash.id, SERVICES.detail.id])
     await checkout.applyPromo(DISCOUNTS.percentCapped.code)
-    await expect(checkout.cta()).toHaveText('Pay Now (₹2,298)')
+    await expect(checkout.cta()).toHaveText('Pay ₹2,298')
 
     await checkout.removeLine(SERVICES.wash.name).click()
 
     // The cart the code was priced against no longer exists. It must drop
     // immediately rather than survive until the server rejects it.
     await expect(checkout.discountRow(DISCOUNTS.percentCapped.code)).toHaveCount(0)
-    await expect(checkout.cta()).toHaveText('Pay Now (₹1,999)')
+    await expect(checkout.cta()).toHaveText('Pay ₹1,999')
   })
 
   test('a fixed code below its minimum order is refused', async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('coupons @p0', () => {
     await expect(checkout.promoError()).toHaveText(
       'This code needs a booking of ₹1,000 or more.'
     )
-    await expect(checkout.cta()).toHaveText('Pay Now (₹499)')
+    await expect(checkout.cta()).toHaveText('Pay ₹499')
   })
 
   test('expired, other-vendor and exhausted codes are all refused', async ({ page }) => {
@@ -77,7 +77,7 @@ test.describe('coupons @p0', () => {
       await expect(checkout.promoError(), `${code} should be refused`).toBeVisible()
       // No discount row, and the total is untouched.
       await expect(checkout.appliedBanner(code)).toHaveCount(0)
-      await expect(checkout.cta()).toHaveText('Pay Now (₹2,498)')
+      await expect(checkout.cta()).toHaveText('Pay ₹2,498')
     }
   })
 })
