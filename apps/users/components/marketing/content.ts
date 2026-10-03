@@ -58,9 +58,9 @@ export const HERO = {
   status: 'Now booking',
   /** Two lines, rendered large; the brand's red period follows the second. */
   title: ['All your car care needs,', 'in one app'] as const,
-  body: 'Keep your car in pristine condition with garages we know personally. If anything goes wrong, we sort it out.',
+  body: 'Premium car care from verified specialists, with clear prices, live updates and a team on your side for every booking.',
   primaryCta: { label: 'Book a service', href: '/home' } satisfies Cta,
-  secondaryCta: { label: 'See the three ways', href: '#ways' } satisfies Cta,
+  secondaryCta: { label: 'How it works', href: '#how-it-works' } satisfies Cta,
   image: {
     src: '/onboarding-car.jpg',
     alt: 'A black sports car under a single overhead light in a dark studio',
