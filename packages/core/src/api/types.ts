@@ -335,6 +335,25 @@ export interface ApiBooking {
   } | null
 }
 
+/**
+ * A review from the public feed (GET /reviews/vendors/:vendorId): what the
+ * garage page shows, with the reviewer as "Arjun K." and no contact details.
+ */
+export interface ApiPublicReview {
+  id: string
+  vendorId: string
+  rating: number
+  comment: string | null
+  createdAt: string
+  user: { name: string } | null
+  booking: {
+    /** Every service the review is about. */
+    serviceNames?: string[]
+    /** Deprecated: the first service. */
+    service: { id: string; name: string } | null
+  } | null
+}
+
 export interface ApiReview {
   id: string
   bookingId: string
