@@ -6,6 +6,7 @@
  * to do something the database will refuse.
  */
 import { test, expect, asRole } from '../../support/fixtures'
+import { API } from '../../support/auth'
 import { sql } from '../../support/db'
 import { BOOKINGS, CUSTOMERS, VENDORS } from '../../support/seed-ids'
 
@@ -38,8 +39,9 @@ test.describe('reviews', () => {
   })
 
   test('the public review feed names the reviewer, and nothing that reaches them @p0', async ({ page }) => {
-    // No sign-in needed for this feed, so it must carry nothing private.
-    const response = await page.request.get(`/api/v1/reviews/vendors/${VENDORS.main.id}`)
+    // No sign-in needed for this feed, so it must carry nothing private. Asked
+    // of the API itself: the apps call it directly here, not via their proxy.
+    const response = await page.request.get(`${API}/api/v1/reviews/vendors/${VENDORS.main.id}`)
     expect(response.ok()).toBe(true)
     const body = await response.text()
 
