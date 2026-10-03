@@ -83,6 +83,9 @@ export const CUSTOMERS = {
    */
   vendorJob: { id: id(110), phone: '9000000010', name: 'Vendor Job Vimal', vehicleId: id(719) },
   vendorReject: { id: id(111), phone: '9000000011', name: 'Vendor Reject Radha', vehicleId: id(720) },
+  /** Owns MAIN's doorstep job — the one the vendor card shows an address and a
+   *  map link for. Nothing changes its booking, so any spec can read it. */
+  vendorDoorstep: { id: id(118), phone: '9000000018', name: 'Vendor Doorstep Divya', vehicleId: id(728) },
   /**
    * Customers whose *session* is the thing under test.
    *
@@ -202,6 +205,8 @@ export const BOOKINGS = {
    *  tab, so the reject case needs its own pending row rather than reusing the
    *  one the accept case consumes. */
   vendorRejectable: id(613),
+  /** pending doorstep job at MAIN, at a pinned address. Read-only. */
+  vendorDoorstep: id(615),
   /** confirmed at SECOND — must never appear while MAIN is the active tenant. */
   secondTenant: id(611),
   /** completed, naming VEHICLES.booked. Its only job is to make that car

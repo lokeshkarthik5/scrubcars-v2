@@ -33,6 +33,11 @@ test.describe('vendor booking lifecycle @p0', () => {
       name: `Accept booking for ${CUSTOMERS.vendorJob.name}`,
     })
     await expect(accept).toBeVisible()
+    // The customer's number is on the card, so the garage can call before
+    // deciding — it used to reach the portal and never be shown.
+    await expect(
+      page.getByRole('link', { name: `Call ${CUSTOMERS.vendorJob.name}` })
+    ).toHaveAttribute('href', `tel:+91${CUSTOMERS.vendorJob.phone}`)
     await accept.click()
     await expect.poll(statusOf(BOOKINGS.vendorIncoming)).toBe('confirmed')
 
@@ -47,6 +52,22 @@ test.describe('vendor booking lifecycle @p0', () => {
       .getByRole('button', { name: `Mark booking for ${CUSTOMERS.vendorJob.name} completed` })
       .click()
     await expect.poll(statusOf(BOOKINGS.vendorIncoming)).toBe('completed')
+  })
+
+  test('a doorstep job shows where to go and how to reach the customer', async ({ page }) => {
+    await page.goto('/bookings')
+
+    // Seeded pending and never touched, so it is always under Incoming.
+    await expect(page.getByText('7, Lake View Road, Adyar')).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: `Directions to ${CUSTOMERS.vendorDoorstep.name}` })
+    ).toHaveAttribute('href', /^https:\/\/www\.google\.com\/maps\/dir\/\?.*destination=13\.08/)
+    await expect(
+      page.getByRole('link', { name: `WhatsApp ${CUSTOMERS.vendorDoorstep.name}` })
+    ).toHaveAttribute(
+      'href',
+      new RegExp(`^https://wa\\.me/91${CUSTOMERS.vendorDoorstep.phone}\\?text=`)
+    )
   })
 
   test('rejecting takes a reason and is recorded as a vendor cancellation', async ({ page }) => {

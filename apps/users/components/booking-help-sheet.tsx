@@ -1,0 +1,91 @@
+'use client'
+
+import { ContactButtons } from '@repo/ui/sc/contact-buttons'
+import { ScSheet } from '@repo/ui/sc/modal'
+import { bookingReference } from '@repo/core/booking-types'
+import { telHref, whatsAppHref } from '@repo/core/contact-links'
+import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support'
+import type { Booking } from '@repo/core/types'
+
+interface BookingHelpSheetProps {
+  open: boolean
+  onClose: () => void
+  booking: Booking
+}
+
+/**
+ * The garage is reachable for as long as the job is on — including after it is
+ * done, when a customer may need to ask about the work. A cancelled or moved
+ * booking has no job left to talk to the garage about; Detlio handles those.
+ */
+const GARAGE_REACHABLE: ReadonlySet<Booking['status']> = new Set([
+  'pending',
+  'confirmed',
+  'in_progress',
+  'completed',
+])
+
+/**
+ * Who to talk to about this booking, one tap away: the garage for the job
+ * itself, the Detlio team for money or when something has gone wrong. Every
+ * message starts with the booking number, so nobody has to ask which booking.
+ */
+export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetProps) {
+  const reference = `#${bookingReference(booking.id)}`
+  const garage = booking.garage
+  const showGarage = GARAGE_REACHABLE.has(booking.status) && !!garage
+  const garageCall = showGarage ? telHref(garage?.phone) : null
+  const garageWhatsApp = showGarage
+    ? whatsAppHref(
+        garage?.whatsapp ?? garage?.phone,
+        `Hi, this is about my Detlio booking ${reference} with you for ${booking.scheduledAt}.`
+      )
+    : null
+
+  return (
+    <ScSheet open={open} onClose={onClose} aria-label="Help with this booking" className="px-4 pt-1">
+      <div className="flex flex-col gap-5">
+        <div>
+          <h2 className="text-base font-semibold text-text-primary">Help with this booking</h2>
+          <p className="mt-1 text-[12px] text-text-secondary">
+            Booking <span className="font-numeric font-medium">{reference}</span> ·{' '}
+            {booking.vendorName} · <span className="font-numeric">{booking.scheduledAt}</span>
+          </p>
+        </div>
+
+        {(garageCall || garageWhatsApp) && (
+          <section className="flex flex-col gap-2">
+            <div>
+              <h3 className="text-[13px] font-semibold text-text-primary">{booking.vendorName}</h3>
+              <p className="text-[12px] text-text-secondary">
+                For timings, finding the garage, or questions about the work.
+              </p>
+            </div>
+            <ContactButtons
+              who={booking.vendorName}
+              callHref={garageCall}
+              whatsAppHref={garageWhatsApp}
+            />
+          </section>
+        )}
+
+        <section className="flex flex-col gap-2">
+          <div>
+            <h3 className="text-[13px] font-semibold text-text-primary">Detlio team</h3>
+            <p className="text-[12px] text-text-secondary">
+              For payments and refunds, or if something isn&apos;t right. We&apos;ll take it
+              up with the garage for you.
+            </p>
+          </div>
+          <ContactButtons
+            who="Detlio support"
+            callHref={SUPPORT_TEL_HREF}
+            whatsAppHref={supportWhatsAppHref(
+              `Hi Detlio, I need help with booking ${reference} at ${booking.vendorName} (${booking.scheduledAt}).`
+            )}
+          />
+        </section>
+      </div>
+    </ScSheet>
+  )
+}

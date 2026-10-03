@@ -126,7 +126,7 @@ async function seedPeople() {
       color: 'Green', licensePlate: 'TN03CC0002', vehicleType: 'hatchback', isDefault: false },
     ...[CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review, CUSTOMERS.payLater,
         CUSTOMERS.coupons, CUSTOMERS.browse, CUSTOMERS.journey,
-        CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
+        CUSTOMERS.vendorJob, CUSTOMERS.vendorReject, CUSTOMERS.vendorDoorstep,
         CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.doorstep,
         CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c, i) => ({
       id: c.vehicleId as string,
@@ -379,6 +379,8 @@ type BookingSpec = {
   discount?: { id: string; code: string; amount: string; fundedBy: 'platform' | 'vendor' }
   payment?: { status: 'pending' | 'paid'; txnId?: string }
   rescheduleCount?: number
+  /** Defaults to an at-garage job. A doorstep one carries where to go. */
+  doorstep?: { address: string; lat: number; lng: number }
 }
 
 /**
@@ -398,7 +400,10 @@ async function insertBooking(spec: BookingSpec) {
     userId: spec.userId,
     vendorId: spec.vendorId ?? VENDORS.main.id,
     vehicleId: spec.vehicleId,
-    bookingType: 'dropin',
+    bookingType: spec.doorstep ? 'doorstep' : 'dropin',
+    address: spec.doorstep?.address ?? null,
+    lat: spec.doorstep?.lat ?? null,
+    lng: spec.doorstep?.lng ?? null,
     scheduledAt: spec.scheduledAt,
     durationMins,
     status: spec.status,
@@ -519,6 +524,11 @@ async function seedBookingRows() {
   await insertBooking({ id: BOOKINGS.vendorRejectable, userId: CUSTOMERS.vendorReject.id,
     vehicleId: CUSTOMERS.vendorReject.vehicleId, scheduledAt: tomorrowAt(17), status: 'pending',
     items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_rejectable' } })
+
+  await insertBooking({ id: BOOKINGS.vendorDoorstep, userId: CUSTOMERS.vendorDoorstep.id,
+    vehicleId: CUSTOMERS.vendorDoorstep.vehicleId, scheduledAt: tomorrowAt(18), status: 'pending',
+    items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_doorstep_job' },
+    doorstep: { address: '7, Lake View Road, Adyar', lat: ORIGIN.lat, lng: ORIGIN.lng } })
 
   // Lives on SECOND. While MAIN is the active tenant this must never be
   // visible — that is the whole point of the tenancy spec.

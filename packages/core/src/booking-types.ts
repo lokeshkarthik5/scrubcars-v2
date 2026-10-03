@@ -58,3 +58,12 @@ export function resolveBookingType(
   if (offers(DEFAULT_BOOKING_TYPE)) return DEFAULT_BOOKING_TYPE
   return vendor.doorstepEnabled ? 'doorstep' : DEFAULT_BOOKING_TYPE
 }
+
+/**
+ * The short, human-quotable booking number ("#3F2A9C1B" on screen): the first
+ * eight characters of the booking's id. Support finds a booking by it, so every
+ * screen and message that names a booking uses this one form.
+ */
+export function bookingReference(id: string): string {
+  return id.slice(0, 8).toUpperCase()
+}
