@@ -5,3 +5,253 @@
    without this line every class that only appears in @repo/ui is dropped from
    the build. */
 @source '../../../packages/ui/src';
+
+/* Brand-kit colours the marketing homepage uses that the shared app theme
+   does not define (Figma: Detlio Colour System, core palette). Kept to this
+   app because no other surface uses them yet. */
+@theme inline {
+  --color-brand-rich: #141416;
+  --color-brand-graphite: #272730;
+}
+
+/* ─── Marketing homepage ───────────────────────────────────────────────────── */
+
+/* The homepage's header is fixed, so anything scrolled into view — an anchor
+   jump, or keyboard focus moving down the page — must stop below it rather
+   than underneath it (WCAG 2.4.11). Scoped to the homepage; the app's own
+   screens have no fixed header. */
+html:has(main[data-marketing-home]) {
+  scroll-padding-top: 5rem;
+}
+
+/* ─── Homepage motion ──────────────────────────────────────────────────────
+ *
+ * Three kinds, all of it off under reduced motion. Almost all of it is
+ * transform and opacity; the headline sheen, the header settling and the step
+ * numbers' colour repaint, deliberately, on one element each:
+ *   · Load-in for the first screen, here — plays once. Fill is `backwards`,
+ *     so once it ends the element's own transforms (press, hover) apply.
+ *     Kept off the headline and its body copy: on a short phone the text is
+ *     the largest paint, and fading it in would hold back LCP.
+ *   · Reveals as each section comes into view (`.mk-reveal`, `.mk-word`) —
+ *     time-based, run by components/marketing/scroll-motion.tsx.
+ *   · Scroll-linked effects, here, where the motion should track the scroll
+ *     itself: the car driving off, the header settling, the steps lighting,
+ *     the phone straightening. Only where the browser supports scroll
+ *     timelines; elsewhere nothing moves and nothing is hidden.
+ */
+
+html:has(main[data-marketing-home]) {
+  scroll-behavior: smooth;
+}
+
+@keyframes mk-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 40px, 0);
+  }
+}
+
+/* Slides only — no fade. The car is the page's largest paint, and an
+   element at opacity 0 does not count as painted. */
+@keyframes mk-car-in {
+  from {
+    transform: translate3d(30%, 0, 0);
+  }
+}
+
+/* A band of light passing once across the headline's gradient. Rides on
+   the first background layer; the second is the white-to-grey fill. */
+@keyframes mk-sheen {
+  from {
+    background-position: 150% 0, 0 0;
+  }
+  to {
+    background-position: -60% 0, 0 0;
+  }
+}
+
+@keyframes mk-tag-swing {
+  from {
+    rotate: -32deg;
+    opacity: 0;
+  }
+  55% {
+    rotate: 5deg;
+    opacity: 1;
+  }
+  80% {
+    rotate: -9deg;
+  }
+}
+
+.mk-load {
+  animation: mk-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--d, 0) * 120ms + 100ms);
+}
+
+.mk-car {
+  animation: mk-car-in 1800ms cubic-bezier(0.16, 1, 0.3, 1) 350ms backwards;
+}
+
+.mk-sheen {
+  background-image:
+    linear-gradient(
+      100deg,
+      transparent 42%,
+      rgb(255 255 255 / 0.95) 50%,
+      transparent 58%
+    ),
+    linear-gradient(to bottom, #fff 35%, rgb(255 255 255 / 0.5));
+  background-size: 250% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: -60% 0, 0 0;
+  animation: mk-sheen 1600ms cubic-bezier(0.4, 0, 0.2, 1) 1100ms backwards;
+}
+
+.mk-tag {
+  animation: mk-tag-swing 1100ms cubic-bezier(0.2, 0, 0, 1) 700ms backwards;
+}
+
+/* Headline words move one by one, which needs them to be boxes. */
+.mk-word {
+  display: inline-block;
+}
+
+/* A soft light under the pointer; scroll-motion.tsx feeds --mx / --my. */
+.mk-spot {
+  position: relative;
+  isolation: isolate;
+}
+
+.mk-spot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(255 255 255 / 0.09),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .mk-spot:hover::before {
+    opacity: 1;
+  }
+}
+
+/* The steps' red rules stay hidden unless they can be driven by scroll. */
+.mk-step-line {
+  opacity: 0;
+}
+
+@supports (animation-timeline: view()) {
+  @keyframes mk-drive {
+    to {
+      transform: translate3d(-12%, 0, 0);
+      opacity: 0.25;
+    }
+  }
+
+  @keyframes mk-header-solid {
+    from {
+      background-color: rgb(10 10 10 / 0);
+      border-color: transparent;
+      backdrop-filter: none;
+    }
+  }
+
+  @keyframes mk-fill {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  @keyframes mk-phone-in {
+    from {
+      opacity: 0.2;
+      transform: translate3d(0, 120px, 0) rotate(10deg);
+    }
+  }
+
+  @keyframes mk-light {
+    from {
+      color: var(--color-text-muted);
+    }
+    to {
+      color: var(--color-brand-red);
+    }
+  }
+
+  /* The phone mockup straightens and rises as it scrolls in. */
+  .mk-phone {
+    animation: mk-phone-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 45%;
+  }
+
+  .mk-drive {
+    animation: mk-drive linear both;
+    animation-timeline: view();
+    animation-range: exit 10% exit 90%;
+  }
+
+  /* Clear over the hero, solid once the page has moved. */
+  .mk-header {
+    animation: mk-header-solid linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 240px;
+  }
+
+  .mk-steps {
+    view-timeline-name: --steps;
+  }
+
+  .mk-step-line {
+    opacity: 1;
+    animation: mk-fill linear both;
+    animation-timeline: --steps;
+    animation-range: cover calc(25% + var(--i, 0) * 9%)
+      cover calc(34% + var(--i, 0) * 9%);
+  }
+
+  .mk-step-num {
+    animation: mk-light linear both;
+    animation-timeline: --steps;
+    animation-range: cover calc(25% + var(--i, 0) * 9%)
+      cover calc(34% + var(--i, 0) * 9%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(main[data-marketing-home]) {
+    scroll-behavior: auto;
+  }
+
+  .mk-load,
+  .mk-car,
+  .mk-tag,
+  .mk-sheen,
+  .mk-phone,
+  .mk-drive,
+  .mk-header,
+  .mk-step-num {
+    animation: none;
+  }
+
+  .mk-spot::before {
+    transition: none;
+  }
+
+  /* Without the fill, show the rules complete rather than not at all. */
+  .mk-step-line {
+    animation: none;
+    opacity: 1;
+  }
+}

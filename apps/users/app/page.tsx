@@ -1,17 +1,127 @@
-'use client'
+import type { Metadata, Viewport } from 'next'
+import {
+  META,
+  RESULTS,
+  TESTIMONIALS,
+  VIDEOS,
+} from '@/components/marketing/content'
+import { getLiveGarages } from '@/components/marketing/live-garages'
+import { ScrollMotion } from '@/components/marketing/scroll-motion'
+import {
+  AppShowcase,
+  Faq,
+  FinalCta,
+  Garages,
+  Hero,
+  HowItWorks,
+  Instagram,
+  Perks,
+  Promises,
+  Results,
+  Services,
+  SiteFooter,
+  SiteHeader,
+  Testimonials,
+  Videos,
+} from '@/components/marketing/sections'
 
 /**
- * Landing gate.
+ * The marketing homepage — what detlio.com shows a visitor who is not signed
+ * in. Signed-in customers are sent on to the app: before paint by the script in
+ * the root layout (see signed-in-landing.ts), or by AppProvider once the
+ * session resolves.
  *
- * Renders nothing: AppProvider treats '/' as a guest route and sends the
- * visitor on to /welcome or /home once the session resolves.
- *
- * This used to be a server component reading the `access_token` cookie, which
- * never worked — that cookie is set with Path=/api/v1, so it is not sent on a
- * request to '/', and every visitor took the signed-out branch. Now that the
- * frontends call api.detlio.com directly the cookie is not on this host at all,
- * so the decision has to happen client-side against the session.
+ * Server-rendered, so it is indexable and paints without waiting on the API.
  */
-export default function RootPage() {
-  return null
+
+const { title: TITLE, description: DESCRIPTION } = META
+
+export const metadata: Metadata = {
+  metadataBase: new URL('https://detlio.com'),
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: 'Detlio',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [
+      { url: '/onboarding-car.jpg', width: 1170, height: 910, alt: 'Detlio' },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ['/onboarding-car.jpg'],
+  },
+}
+
+/**
+ * The root layout pins maximumScale to 1 so iOS does not zoom into the app's
+ * form fields. This page has no fields, and blocking pinch-zoom on a page
+ * meant for reading fails WCAG 1.4.4 — so here it is allowed.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+}
+
+/**
+ * Placeholder results, videos and reviews are for reviewing the layout: shown locally
+ * and on Vercel preview deployments, never in production — where a section
+ * with nothing real in it is left out. See content.ts.
+ */
+const SHOW_SAMPLES =
+  process.env.NODE_ENV === 'development' || process.env.VERCEL_ENV === 'preview'
+
+export default async function HomePage() {
+  const garages = await getLiveGarages()
+
+  const results = RESULTS.filter((result) => SHOW_SAMPLES || !result.sample)
+  const reels = VIDEOS.filter((reel) => SHOW_SAMPLES || !reel.sample)
+  const testimonials = TESTIMONIALS.filter(
+    (testimonial) => SHOW_SAMPLES || !testimonial.sample
+  )
+  // A row of one or two looks like an empty shop window; wait for a fuller one.
+  const showGarages = garages.featured.length >= 3
+
+  const navLinks = [
+    { label: 'Services', href: '#services' },
+    { label: 'Why Detlio', href: '#why' },
+    { label: 'How it works', href: '#how-it-works' },
+    { label: 'Rewards', href: '#perks' },
+    { label: 'FAQ', href: '#faq' },
+  ]
+
+  return (
+    <>
+      <SiteHeader links={navLinks} />
+      <main data-marketing-home>
+        <Hero
+          city={garages.cities.length === 1 ? garages.cities[0] : null}
+          startingPrice={garages.startingPrice}
+        />
+        <AppShowcase />
+        <Services />
+        <Promises />
+        <HowItWorks />
+        {reels.length > 0 && <Videos reels={reels} />}
+        {results.length > 0 && <Results results={results} />}
+        {showGarages && <Garages garages={garages.featured} />}
+        <Perks />
+        <Instagram />
+        {testimonials.length > 0 && (
+          <Testimonials testimonials={testimonials} />
+        )}
+        <Faq />
+        <FinalCta />
+      </main>
+      <SiteFooter />
+      <ScrollMotion />
+    </>
+  )
 }

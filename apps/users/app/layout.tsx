@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
 import { AppProvider } from '@/components/providers/app-provider'
+import { SIGNED_IN_REDIRECT_SCRIPT } from '@/components/providers/signed-in-landing'
 import { QueryProvider } from '@repo/ui/providers/query-provider'
 import 'react-toastify/dist/ReactToastify.css'
 import './globals.css'
@@ -48,6 +49,14 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} h-full`}
     >
+      <head>
+        {/* Sends a returning customer from the homepage to /home before it
+            paints. Here rather than in the page so it runs ahead of the body
+            and is never re-created on client navigation. */}
+        <script
+          dangerouslySetInnerHTML={{ __html: SIGNED_IN_REDIRECT_SCRIPT }}
+        />
+      </head>
       <body className="min-h-full font-sans">
         {/* Outside AppProvider: the auth gate returns null while it resolves,
             and queries mounted underneath must keep their cache across that. */}
