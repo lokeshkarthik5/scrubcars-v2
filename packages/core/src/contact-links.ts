@@ -20,6 +20,11 @@ export function indianE164(phone: string | null | undefined): string | null {
   return /^[1-9]\d{9}$/.test(digits) ? `91${digits}` : null
 }
 
+/** An Indian mobile: ten digits starting 6-9. Landlines have no WhatsApp. */
+function isMobile(e164: string): boolean {
+  return /^91[6-9]\d{9}$/.test(e164)
+}
+
 export function telHref(phone: string | null | undefined): string | null {
   const number = indianE164(phone)
   return number ? `tel:+${number}` : null
@@ -31,7 +36,8 @@ export function whatsAppHref(
   message?: string
 ): string | null {
   const number = indianE164(phone)
-  if (!number) return null
+  // A landline would open WhatsApp's "invalid number" screen instead.
+  if (!number || !isMobile(number)) return null
   return `https://wa.me/${number}${message ? `?text=${encodeURIComponent(message)}` : ''}`
 }
 

@@ -50,8 +50,8 @@ export function JobContact({ booking }: { booking: Booking }) {
       </span>
 
       {location && (
-        <div className="flex items-start justify-between gap-3 rounded-[10px] bg-surface-elevated px-3 py-2.5">
-          <div className="min-w-0">
+        <div className="flex flex-col gap-2 rounded-[10px] bg-surface-elevated px-3 py-2.5">
+          <div>
             <p className="text-[12px] text-text-primary">{location.address}</p>
             {/* An address saved before pins were required has none: the text
                 still gets Maps close, but the exact gate is worth a call. */}
@@ -62,14 +62,16 @@ export function JobContact({ booking }: { booking: Booking }) {
             )}
           </div>
           {mapsHref && (
+            // A full-height target: it is the one control a crew on the road
+            // reaches for. The name starts with what the button says.
             <a
               href={mapsHref}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Directions to ${who}`}
-              className="flex shrink-0 items-center gap-1 text-[12px] font-semibold text-text-primary underline"
+              aria-label={`Open in Maps for ${who}`}
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-border bg-surface px-3 text-[13px] font-medium text-text-primary transition-colors hover:border-text-secondary"
             >
-              <IconNavigation size={14} aria-hidden />
+              <IconNavigation size={16} aria-hidden />
               Open in Maps
             </a>
           )}
@@ -82,7 +84,8 @@ export function JobContact({ booking }: { booking: Booking }) {
           callHref={telHref(booking.customerPhone)}
           whatsAppHref={whatsAppHref(
             booking.customerPhone,
-            `Hi${firstName ? ` ${firstName}` : ''}, this is ${booking.vendorName} about your Detlio booking for ${booking.scheduledAt}.`
+            // Says who is writing: the customer has never seen this number.
+            `Hi${firstName ? ` ${firstName}` : ''}, this is ${booking.vendorName || 'your garage'} about your Detlio booking for ${booking.scheduledAt}.`
           )}
         />
       )}

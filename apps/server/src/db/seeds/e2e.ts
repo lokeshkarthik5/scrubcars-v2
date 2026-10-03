@@ -40,6 +40,7 @@ import {
   CUSTOMERS,
   DISCOUNTS,
   FILLER_VENDOR_COUNT,
+  DOORSTEP_JOB_PIN,
   ORIGIN,
   REVIEWS,
   SERVICES,
@@ -528,7 +529,7 @@ async function seedBookingRows() {
   await insertBooking({ id: BOOKINGS.vendorDoorstep, userId: CUSTOMERS.vendorDoorstep.id,
     vehicleId: CUSTOMERS.vendorDoorstep.vehicleId, scheduledAt: tomorrowAt(18), status: 'pending',
     items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_doorstep_job' },
-    doorstep: { address: '7, Lake View Road, Adyar', lat: ORIGIN.lat, lng: ORIGIN.lng } })
+    doorstep: { address: '7, Lake View Road, Adyar', ...DOORSTEP_JOB_PIN } })
 
   // Lives on SECOND. While MAIN is the active tenant this must never be
   // visible — that is the whole point of the tenancy spec.

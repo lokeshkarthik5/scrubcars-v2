@@ -250,3 +250,12 @@ export const ADMIN = { username: 'admin', password: 'admin' } as const
 
 /** Chennai. Vendors sit within a few km of this so distance sorting is stable. */
 export const ORIGIN = { lat: 13.0827, lng: 80.2707 } as const
+
+/**
+ * Where BOOKINGS.vendorDoorstep's customer is: ~1.6 km from MAIN, so a link
+ * routed to the garage's own pin by mistake cannot pass for one routed here.
+ * Both values are exact in binary (multiples of 1/32), so bookings.lat/lng —
+ * float4 columns — hand them back unchanged and a spec can match the link
+ * character for character.
+ */
+export const DOORSTEP_JOB_PIN = { lat: 13.09375, lng: 80.28125 } as const

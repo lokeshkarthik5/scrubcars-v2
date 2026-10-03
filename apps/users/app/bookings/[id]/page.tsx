@@ -27,13 +27,12 @@ import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { formatBookingAmount } from '@repo/core/pricing'
 import { BOOKING_TYPE_LABELS, bookingReference } from '@repo/core/booking-types'
-import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time'
-import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import { useTravelTime } from '@repo/core/api/hooks/use-travel-time'
+import { coarse, isStale, useLocationStore } from '@repo/core/stores/location-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
-import { formatDuration } from '@repo/core/utils'
-import { BookingDirectionsSheet } from '@/components/booking-directions-sheet'
+import { BookingDirectionsSheet, describeDrive } from '@/components/booking-directions-sheet'
 import { BookingHelpSheet } from '@/components/booking-help-sheet'
 
 /** A booking the customer still has to get to, or is at. */
@@ -65,10 +64,12 @@ export default function BookingDetailPage({
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
   const [showDirections, setShowDirections] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  // A drive time on the Getting there card only when the customer has already
-  // shared their GPS: the page never asks for location just by being opened.
+  // A drive time on the Getting there card only when the customer has just
+  // shared their GPS: the page never asks for location by being opened, and a
+  // fix from last week at home is not "from you" today.
   const storedLocation = useLocationStore((s) => s.location)
-  const gpsHere = storedLocation?.source === 'gps' ? coarse(storedLocation) : null
+  const gpsHere =
+    storedLocation?.source === 'gps' && !isStale(storedLocation) ? coarse(storedLocation) : null
   // The booking flow lands here with ?celebrate=1 straight after payment.
   // Read once into state rather than watching the URL, so the burst plays a
   // single time and a refresh doesn't replay it (the param is stripped below).
@@ -380,10 +381,16 @@ export default function BookingDetailPage({
             )}
             {travel.data && (
               <p className="mt-1 text-[12px] text-text-secondary">
-                <span className="font-numeric font-bold text-text-primary">
-                  {formatDuration(toMinutes(travel.data.durationS))}
-                </span>{' '}
-                drive from you
+                {describeDrive(travel.data).atGarage ? (
+                  "You're at the garage."
+                ) : (
+                  <>
+                    <span className="font-numeric font-bold text-text-primary">
+                      {describeDrive(travel.data).time}
+                    </span>{' '}
+                    drive from you
+                  </>
+                )}
               </p>
             )}
           </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { IconCircleX } from '@tabler/icons-react'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { bookingReference } from '@repo/core/booking-types'
@@ -35,22 +36,33 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
   const garage = booking.garage
   const showGarage = GARAGE_REACHABLE.has(booking.status) && !!garage
   const garageCall = showGarage ? telHref(garage?.phone) : null
+  const garageMessage = `Hi, this is about my Detlio booking ${reference} with you for ${booking.scheduledAt}.`
+  // The garage's WhatsApp number when it gave one, else its phone if that is
+  // a mobile — a landline gets no WhatsApp button rather than a broken one.
   const garageWhatsApp = showGarage
-    ? whatsAppHref(
-        garage?.whatsapp ?? garage?.phone,
-        `Hi, this is about my Detlio booking ${reference} with you for ${booking.scheduledAt}.`
-      )
+    ? (whatsAppHref(garage?.whatsapp, garageMessage) ?? whatsAppHref(garage?.phone, garageMessage))
     : null
 
   return (
     <ScSheet open={open} onClose={onClose} aria-label="Help with this booking" className="px-4 pt-1">
       <div className="flex flex-col gap-5">
-        <div>
-          <h2 className="text-base font-semibold text-text-primary">Help with this booking</h2>
-          <p className="mt-1 text-[12px] text-text-secondary">
-            Booking <span className="font-numeric font-medium">{reference}</span> ·{' '}
-            {booking.vendorName} · <span className="font-numeric">{booking.scheduledAt}</span>
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-text-primary">Help with this booking</h2>
+            <p className="mt-1 text-[12px] text-text-secondary">
+              Booking <span className="font-numeric font-medium">{reference}</span> ·{' '}
+              {booking.vendorName} · <span className="font-numeric">{booking.scheduledAt}</span>
+            </p>
+          </div>
+          {/* Every button below leaves the app; this one comes back. */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="-mr-2 -mt-1 flex size-11 shrink-0 items-center justify-center"
+          >
+            <IconCircleX size={22} className="text-text-secondary" />
+          </button>
         </div>
 
         {(garageCall || garageWhatsApp) && (
@@ -58,7 +70,9 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
             <div>
               <h3 className="text-[13px] font-semibold text-text-primary">{booking.vendorName}</h3>
               <p className="text-[12px] text-text-secondary">
-                For timings, finding the garage, or questions about the work.
+                {booking.bookingType === 'doorstep'
+                  ? 'For timings, finding your place, or questions about the work.'
+                  : 'For timings, finding the garage, or questions about the work.'}
               </p>
             </div>
             <ContactButtons
