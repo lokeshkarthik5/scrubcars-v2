@@ -31,7 +31,9 @@ export function AuthStage({
         aria-hidden
         // Wider than a phone screen, so the car has presence there; sized to
         // the viewport from sm up.
-        className="absolute bottom-0 left-1/2 -z-20 aspect-[1170/910] w-[130%] max-w-[960px] -translate-x-1/2 sm:w-full"
+        // Its sides fade out where the 960px cap ends inside the window,
+        // so the photo never shows a hard edge against the canvas.
+        className="absolute bottom-0 left-1/2 -z-20 aspect-[1170/910] w-[130%] max-w-[960px] -translate-x-1/2 sm:w-full min-[961px]:[mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]"
       >
         <Image
           src={backdrop}

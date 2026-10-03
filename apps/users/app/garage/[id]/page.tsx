@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconArrowLeft,
   IconBuildingStore,
@@ -47,6 +47,7 @@ import type {
   Vendor,
 } from '@repo/core/types'
 import { formatServicePrice, tierPriceFor } from '@repo/core/pricing'
+import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration } from '@repo/core/utils'
 import { OpenStatus } from '@/components/open-status'
@@ -123,15 +124,15 @@ function AddToBookingButton({
 
 export default function GaragePage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { id } = use(params)
-  // Read from the page's own props rather than useSearchParams: it is only
-  // the starting value, and this page has no Suspense boundary to need.
-  const { mode: modeParam } = use(searchParams)
+  // From the live URL, not the page's searchParams prop: changeMode writes
+  // the choice into the URL with replaceState, and on Back from checkout the
+  // prop still holds the payload cached before that write, while the router's
+  // URL — what this reads — has the choice.
+  const modeParam = useSearchParams().get('mode')
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   // Named to avoid shadowing the DOM's global `location`.
@@ -241,11 +242,15 @@ export default function GaragePage({
     // Mirrored into the URL so Back from checkout lands on the same choice.
     // replaceState rather than router.replace: nothing needs re-rendering,
     // and Next keeps its router in step with the native history call.
+    const url = new URLSearchParams(window.location.search)
     const param = bookingTypeParam(next)
+    if (param) url.set('mode', param)
+    else url.delete('mode')
+    const search = url.toString()
     window.history.replaceState(
       null,
       '',
-      param ? `?mode=${param}` : window.location.pathname
+      search ? `?${search}` : window.location.pathname
     )
   }
 
@@ -505,8 +510,8 @@ export default function GaragePage({
                             {pkg.name}
                           </p>
                           <div className="shrink-0 text-right">
-                            <span className="font-numeric text-[14px] font-bold text-text-primary">
-                              {formatServicePrice(pkg)}
+                            <span className="text-[14px] font-bold text-text-primary">
+                              <Figures text={formatServicePrice(pkg)} />
                             </span>
                             {/* The struck-through total only lines up with a
                                 single price. A per-vehicle bundle shows a range,
@@ -608,8 +613,8 @@ export default function GaragePage({
                         <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
                           {svc.name}
                         </p>
-                        <span className="shrink-0 font-numeric text-[14px] font-bold text-text-primary">
-                          {formatServicePrice(svc)}
+                        <span className="shrink-0 text-[14px] font-bold text-text-primary">
+                          <Figures text={formatServicePrice(svc)} />
                         </span>
                       </div>
                       {svc.description && (
@@ -719,12 +724,16 @@ export default function GaragePage({
                 </>
               )}
             </p>
-            <p className="truncate font-numeric text-[15px] font-bold text-text-primary">
-              {selectedServices.length === 1
-                ? formatServicePrice(selectedServices[0])
-                : // "from" because a per-vehicle line is only priced once the
-                  // car is known, one screen along.
-                  `${hasPerVehiclePricing ? 'from ' : ''}₹${selectedTotal.toLocaleString('en-IN')}`}
+            <p className="truncate text-[15px] font-bold text-text-primary">
+              <Figures
+                text={
+                  selectedServices.length === 1
+                    ? formatServicePrice(selectedServices[0])
+                    : // "from" because a per-vehicle line is only priced once
+                      // the car is known, one screen along.
+                      `${hasPerVehiclePricing ? 'from ' : ''}₹${selectedTotal.toLocaleString('en-IN')}`
+                }
+              />
             </p>
           </div>
           <ScButton fullWidth={false} className="px-8" onClick={handleBook}>

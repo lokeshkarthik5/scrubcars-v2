@@ -120,7 +120,11 @@ export function openStatus(
         ? `opens ${at}`
         : offset === 1
           ? `opens ${at} tomorrow`
-          : `opens ${WEEKDAYS[day]} ${at}`
+          : offset === 7
+            ? // Today's weekday again: without "next", "opens Mon 9 AM" read
+              // on a Monday evening looks like this morning.
+              `opens next ${WEEKDAYS[day]} ${at}`
+            : `opens ${WEEKDAYS[day]} ${at}`
     return { isOpen: false, detail }
   }
 

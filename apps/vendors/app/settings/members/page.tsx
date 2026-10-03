@@ -184,7 +184,7 @@ export default function VendorMembersPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     {member.status === 'suspended' && (
-                      <ScBadge variant="pending">Suspended</ScBadge>
+                      <ScBadge variant="danger">Suspended</ScBadge>
                     )}
                     {member.isOwner ? (
                       <ScBadge variant="success">Owner</ScBadge>

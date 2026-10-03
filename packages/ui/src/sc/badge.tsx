@@ -4,7 +4,9 @@ type BadgeVariant = 'success' | 'pending' | 'muted' | 'active' | 'accent' | 'dan
 
 const variants: Record<BadgeVariant, string> = {
   success: 'bg-success-muted text-success',
-  pending: 'bg-warning-muted text-warning',
+  // Waiting on someone — requested, pending review, scheduled, unverified.
+  // Neutral, not amber: nothing is wrong yet, and amber is kept for problems.
+  pending: 'border border-white/20 text-text-primary',
   muted: 'bg-surface-elevated text-text-secondary border border-border',
   // Something happening right now. White, like every other "current" state —
   // it used to borrow `danger`, which made a job in progress look like a fault.

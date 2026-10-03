@@ -40,8 +40,12 @@
   --color-accent-muted: rgba(239, 50, 64, 0.12);
   --color-success: #22C55E;
   --color-success-muted: rgba(34, 197, 94, 0.12);
-  --color-warning: #EAB308;
-  --color-warning-muted: rgba(234, 179, 8, 0.12);
+  /* One amber for every caution, the same as --color-error: two near-identical
+     yellows meaning different things (a suspended account beside an
+     unverified one) read as the same thing. Waiting states are not cautions —
+     see the `pending` badge, which is neutral. */
+  --color-warning: #F5A524;
+  --color-warning-muted: rgba(245, 165, 36, 0.12);
   /* Errors are amber, per the brand: red is what the customer should press,
      so an error in red reads as "tap here". 7.3:1 on graphite, 9.7:1 on the
      canvas — it stays legible at helper-text sizes. */

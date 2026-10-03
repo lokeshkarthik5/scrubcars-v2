@@ -276,7 +276,9 @@ function HomeContent() {
             isRefreshing && 'opacity-60 delay-150'
           )}
         >
-          {isLoading ? (
+          {/* An empty list mid-refresh has no answer yet — "No garages found"
+              would be the previous filter's result. */}
+          {isLoading || (isRefreshing && vendors.length === 0) ? (
             <p className="py-8 text-center text-[13px] text-text-secondary">
               Finding garages…
             </p>
@@ -328,7 +330,7 @@ function HomeContent() {
         onClose={() => setSortOpen(false)}
         locationUnavailable={!location}
         // No "Top Rated" until a listed garage has a review to rank by.
-        ratingAvailable={canSortByRating(vendors, sort)}
+        ratingAvailable={canSortByRating(vendors, sort, hasMore)}
       />
     </AppShell>
   )

@@ -49,14 +49,24 @@ interface SortSheetProps {
  * been reviewed. Until then every garage is "New", and a "Top Rated" option
  * sorts by a number nobody has.
  *
+ * Only pages loaded so far can be checked, so while more remain the answer is
+ * unknown and the option stays: a reviewed garage may sit further down a list
+ * sorted by distance. It is hidden only once the whole result set is in and
+ * nobody in it has a review.
+ *
  * A list already sorted by rating keeps the option, so the sheet never shows
  * a selected sort that is missing from its own list.
  */
 export function canSortByRating(
   vendors: ReadonlyArray<{ reviewCount: number }>,
-  currentSort: SortKey
+  currentSort: SortKey,
+  hasMore: boolean
 ) {
-  return currentSort === 'rating' || vendors.some((v) => v.reviewCount > 0)
+  return (
+    currentSort === 'rating' ||
+    hasMore ||
+    vendors.some((v) => v.reviewCount > 0)
+  )
 }
 
 export function SortSheet({

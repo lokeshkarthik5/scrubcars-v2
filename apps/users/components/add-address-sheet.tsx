@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
 import {
@@ -14,6 +14,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { createAddress } from '@repo/core/api/users'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Address } from '@repo/core/types'
+import { NO_PIN_TEXT, refillFromPin, type PinText } from './pin-autofill'
 
 const LABELS = ['Home', 'Office', 'Other'] as const
 
@@ -46,6 +47,8 @@ interface AddAddressSheetProps {
  */
 export function AddAddressSheet({ open, onClose, onAdded }: AddAddressSheetProps) {
   const [form, setForm] = useState(EMPTY)
+  // What the last pin wrote into the text fields — see refillFromPin.
+  const pinText = useRef<PinText>(NO_PIN_TEXT)
   const addresses = useUserStore((s) => s.addresses)
 
   const save = useMutation({
@@ -64,6 +67,7 @@ export function AddAddressSheet({ open, onClose, onAdded }: AddAddressSheetProps
     onSuccess: (created) => {
       useUserStore.setState((s) => ({ addresses: [...s.addresses, created] }))
       setForm(EMPTY)
+      pinText.current = NO_PIN_TEXT
       onAdded?.(created)
       onClose()
       toast.success('Address added')
@@ -81,6 +85,7 @@ export function AddAddressSheet({ open, onClose, onAdded }: AddAddressSheetProps
   const close = () => {
     if (save.isPending) return
     setForm(EMPTY)
+    pinText.current = NO_PIN_TEXT
     onClose()
   }
 
@@ -118,14 +123,13 @@ export function AddAddressSheet({ open, onClose, onAdded }: AddAddressSheetProps
         <LocationPicker
           showSearch
           value={form.pin ? { lat: form.pin.lat, lng: form.pin.lng } : null}
-          onChange={(picked) =>
-            setForm((current) => ({
-              ...current,
-              pin: picked,
-              address: current.address || picked.address,
-              city: current.city || picked.city,
-            }))
-          }
+          onChange={(picked) => {
+            const previous = pinText.current
+            pinText.current = { address: picked.address, city: picked.city }
+            setForm((current) =>
+              refillFromPin({ ...current, pin: picked }, picked, previous)
+            )
+          }}
         />
 
         <ScInput

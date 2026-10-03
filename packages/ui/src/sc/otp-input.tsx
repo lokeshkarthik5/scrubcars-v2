@@ -6,9 +6,11 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 interface OtpInputProps {
   length?: number
   onComplete?: (otp: string) => void
+  /** 'glass' on the frosted sign-in card, matching the phone field there. */
+  tone?: 'solid' | 'glass'
 }
 
-export function OtpInput({ length = 6, onComplete }: OtpInputProps) {
+export function OtpInput({ length = 6, onComplete, tone = 'solid' }: OtpInputProps) {
   const [values, setValues] = useState<string[]>(Array(length).fill(''))
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -67,8 +69,9 @@ export function OtpInput({ length = 6, onComplete }: OtpInputProps) {
           // grey edge and the focused one to white — six red outlines here
           // used to outshout the red Verify button they lead to.
           className={cn(
-            'h-[50px] w-11 rounded-[10px] border border-border bg-surface text-center font-numeric text-base font-bold text-text-primary outline-none transition-colors focus:border-text-primary',
-            val && 'border-text-muted/60'
+            'h-[50px] w-11 rounded-[10px] border text-center font-numeric text-base font-bold text-text-primary outline-none transition-colors focus:border-text-primary',
+            tone === 'glass' ? 'border-white/15 bg-white/[0.06]' : 'border-border bg-surface',
+            val && (tone === 'glass' ? 'border-white/30' : 'border-text-muted/60')
           )}
         />
       ))}

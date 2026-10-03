@@ -64,7 +64,10 @@ function SearchContent() {
   )
 
   // No "Rating" chip until a listed garage has a review to rank by.
-  const ratingAvailable = canSortByRating(vendors, sort)
+  const ratingAvailable = canSortByRating(vendors, sort, hasMore)
+  // A refresh still in flight over an empty list has no answer yet: "0 found"
+  // and "No garages match" would describe the previous query, not this one.
+  const awaitingFirstAnswer = isLoading || (isRefreshing && vendors.length === 0)
   const sortChips = SORT_CHIPS.filter(
     (chip) => chip.value !== 'rating' || ratingAvailable
   )
@@ -114,7 +117,7 @@ function SearchContent() {
         <div className="flex items-center justify-between gap-3">
           {/* Held back until the first page is in: "0 garages found" above
               "Searching…" was the page contradicting itself. */}
-          {!isLoading && (
+          {!awaitingFirstAnswer && (
             <p className="text-[11px] text-text-secondary">
               {/* "20+" rather than "20": the count is what has been paged in so
                   far, not the size of the result set, and stating it flatly
@@ -131,7 +134,7 @@ function SearchContent() {
         </div>
 
         <div className="flex flex-col gap-2">
-          {isLoading ? (
+          {awaitingFirstAnswer ? (
             <p className="py-6 text-center text-[13px] text-text-secondary">
               Searching…
             </p>

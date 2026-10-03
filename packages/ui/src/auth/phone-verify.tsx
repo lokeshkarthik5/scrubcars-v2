@@ -115,11 +115,11 @@ export function PhoneVerify({
 
   const intro = (
     <>
-      <h1 className="text-[26px] font-bold leading-8 tracking-[-0.02em] text-text-primary">
+      <h1 className="text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
         Verify your number
       </h1>
       <div className="pt-2 text-center">
-        <p className="text-[15px] leading-6 text-text-secondary">
+        <p className="text-base leading-6 text-text-secondary">
           Enter the 6-digit code sent to
         </p>
         <p className="text-[15px] font-semibold text-text-primary">
@@ -132,7 +132,7 @@ export function PhoneVerify({
   const code = (
     <>
       <div className="pt-7">
-        <OtpInput onComplete={setOtp} />
+        <OtpInput onComplete={setOtp} tone={backdrop ? 'glass' : 'solid'} />
       </div>
 
       {/* Amber, as on the login screen — red is the Verify button's. */}

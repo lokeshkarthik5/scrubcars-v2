@@ -47,6 +47,7 @@ import {
 } from '@repo/core/booking-types'
 import type { BookingType, Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
+import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
 
@@ -788,12 +789,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       'shrink-0 font-medium',
                       amount == null && selectedVehicleType != null
                         ? 'text-error'
-                        : 'font-numeric text-text-primary'
+                        : 'text-text-primary'
                     )}
                   >
-                    {amount == null && selectedVehicleType != null
-                      ? 'Not priced'
-                      : formatServicePrice(service, selectedVehicleType)}
+                    {amount == null && selectedVehicleType != null ? (
+                      'Not priced'
+                    ) : (
+                      <Figures
+                        text={formatServicePrice(service, selectedVehicleType)}
+                      />
+                    )}
                   </span>
                 </div>
               ))}
@@ -965,7 +970,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
                 : // Paying sends the request; the garage's accept is what
                   // confirms it, so the footer does not promise more.
-                  'You pay now. The garage then confirms your slot.'}
+                  'You pay now. Your booking is confirmed once the garage accepts it.'}
         </p>
       </div>
     </AppShell>

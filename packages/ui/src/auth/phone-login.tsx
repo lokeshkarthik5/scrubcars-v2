@@ -65,7 +65,10 @@ export function PhoneLogin({
       sessionStorage.setItem('auth_phone', phone)
       sessionStorage.setItem('auth_audience', audience)
       sessionStorage.setItem('auth_purpose', purpose)
+      // Every send records its own destination — a stale one from an
+      // abandoned attempt must not steer a later sign-up.
       if (next) sessionStorage.setItem('auth_next', next)
+      else sessionStorage.removeItem('auth_next')
       router.push(verifyHref)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to send OTP')
@@ -77,10 +80,10 @@ export function PhoneLogin({
   const header = (
     <div className="flex flex-col items-center text-center">
       <BrandMark height={36} priority />
-      <h1 className="mt-6 text-[26px] font-bold leading-8 tracking-[-0.02em] text-text-primary">
+      <h1 className="mt-6 text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
         Welcome to Detlio
       </h1>
-      <p className="mt-2 max-w-[18rem] text-[15px] leading-6 text-text-secondary">
+      <p className="mt-2 text-balance text-base leading-6 text-text-secondary">
         Log in or sign up with your mobile number.
       </p>
     </div>

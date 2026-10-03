@@ -15,6 +15,7 @@ import {
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
+import { Figures } from '@repo/ui/sc/figures'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, formatDistance } from '@repo/core/map'
 import { cn } from '@repo/core/utils'
 import { bookingTypeParam } from '@repo/core/booking-types'
@@ -512,7 +513,7 @@ function MapVendorCard({
           {vendor.reviewCount > 0 ? (
             <span className="flex shrink-0 items-center gap-1 text-[12px]">
               <IconStarFilled size={11} className="text-warning" />
-              <span className="font-medium text-text-primary">
+              <span className="font-numeric font-medium text-text-primary">
                 {vendor.rating.toFixed(1)}
               </span>
               <span className="text-text-secondary">({vendor.reviewCount})</span>
@@ -531,9 +532,14 @@ function MapVendorCard({
         )}
 
         <p className="truncate text-[12px] text-text-secondary">
-          {[vendor.area, vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null]
-            .filter(Boolean)
-            .join(' · ')}
+          <Figures
+            text={[
+              vendor.area,
+              vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          />
         </p>
 
         {vendor.startingPrice > 0 && (

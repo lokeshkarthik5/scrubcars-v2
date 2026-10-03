@@ -28,6 +28,11 @@ import {
 } from '@repo/ui/features/location-picker'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import Link from 'next/link'
+import {
+  NO_PIN_TEXT,
+  refillFromPin,
+  type PinText,
+} from '@/components/pin-autofill'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
 
@@ -71,6 +76,8 @@ export default function ProfilePage() {
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm)
   const [addressForm, setAddressForm] = useState(emptyAddressForm)
+  // What the last pin wrote into the address text — see refillFromPin.
+  const addressPinText = useRef<PinText>(NO_PIN_TEXT)
   const [saving, setSaving] = useState<'vehicle' | 'address' | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   // Shares one id across cars and addresses: only one row is ever mid-request,
@@ -179,6 +186,7 @@ export default function ProfilePage() {
       })
       useUserStore.setState((s) => ({ addresses: [...s.addresses, created] }))
       setAddressForm(emptyAddressForm)
+      addressPinText.current = NO_PIN_TEXT
       setShowAddressForm(false)
       toast.success('Address added')
     } catch (err) {
@@ -458,15 +466,24 @@ export default function ProfilePage() {
                     ? { lat: addressForm.pin.lat, lng: addressForm.pin.lng }
                     : null
                 }
-                onChange={(picked) =>
-                  setAddressForm((form) => ({
-                    ...form,
-                    pin: picked,
-                    address: form.address || picked.address,
-                    city: form.city || picked.city,
-                    pincode: picked.pincode || form.pincode,
-                  }))
-                }
+                onChange={(picked) => {
+                  const previous = addressPinText.current
+                  addressPinText.current = {
+                    address: picked.address,
+                    city: picked.city,
+                  }
+                  setAddressForm((form) =>
+                    refillFromPin(
+                      {
+                        ...form,
+                        pin: picked,
+                        pincode: picked.pincode || form.pincode,
+                      },
+                      picked,
+                      previous
+                    )
+                  )
+                }}
               />
             </div>
             <ScInput

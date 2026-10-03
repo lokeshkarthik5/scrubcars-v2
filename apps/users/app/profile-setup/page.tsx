@@ -79,10 +79,10 @@ function ProfileSetupForm() {
     <AuthStage backdrop="/onboarding-car.jpg" showBack={false}>
       <form noValidate onSubmit={handleSubmit} className="flex flex-col">
         <div className="text-center">
-          <h1 className="text-[26px] font-bold leading-8 tracking-[-0.02em] text-text-primary">
+          <h1 className="text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
             What&apos;s your name?
           </h1>
-          <p className="mt-2 text-[15px] leading-6 text-text-secondary">
+          <p className="mt-2 text-balance text-base leading-6 text-text-secondary">
             The garage sees it on your booking.
           </p>
         </div>
