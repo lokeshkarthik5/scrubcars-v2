@@ -6,9 +6,9 @@ import { cn } from '@repo/core/utils'
 interface RevealProps {
   children: React.ReactNode
   /**
-   * Position in a list. Cascades the start of each item by 60ms so a list
-   * arrives as a wave rather than all at once. Capped at 6 steps — past that
-   * the tail would visibly lag behind the scroll.
+   * Position in a list. Cascades the start of each item by 50ms (the brand's
+   * stagger) so a list arrives as a wave rather than all at once. Capped at 6
+   * steps — past that the tail would visibly lag behind the scroll.
    */
   index?: number
   /** Rendered element. Use 'li' inside a list so the markup stays valid. */
@@ -16,7 +16,7 @@ interface RevealProps {
   className?: string
 }
 
-const STAGGER_MS = 60
+const STAGGER_MS = 50
 const MAX_STAGGER_STEPS = 6
 
 /**

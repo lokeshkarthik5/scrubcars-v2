@@ -18,7 +18,7 @@ export const ScSelect = forwardRef<HTMLSelectElement, ScSelectProps>(
         ref={ref}
         id={id}
         className={cn(
-          'w-full rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[13px] text-text-primary outline-none transition-colors focus:border-brand-red',
+          'w-full rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary',
           className
         )}
         {...props}

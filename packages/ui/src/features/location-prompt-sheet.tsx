@@ -75,9 +75,11 @@ export function LocationPromptSheet({
   return (
     <ScSheet open={open} onClose={notNow} aria-label="Enable location">
       <div className="flex flex-col gap-5 px-5 pb-2 pt-1">
+        {/* Graphite and white throughout, so the one red on the sheet is
+            Enable location — the thing it is asking the customer to do. */}
         <div className="flex flex-col items-center gap-2 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-muted">
-            <IconMapPin size={24} className="text-brand-red" />
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-elevated">
+            <IconMapPin size={24} className="text-text-primary" />
           </span>
           <h2 className="text-[17px] font-semibold text-text-primary">
             {blocked ? 'Location is blocked' : 'Find garages near you'}
@@ -94,7 +96,7 @@ export function LocationPromptSheet({
             {REASONS.map(({ icon: Icon, title, body }) => (
               <li key={title} className="flex gap-3">
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-surface">
-                  <Icon size={15} className="text-brand-red" />
+                  <Icon size={15} className="text-text-primary" />
                 </span>
                 <span className="min-w-0">
                   <span className="block text-[13px] font-medium text-text-primary">

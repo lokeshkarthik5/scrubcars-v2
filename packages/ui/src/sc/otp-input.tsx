@@ -63,9 +63,12 @@ export function OtpInput({ length = 6, onComplete }: OtpInputProps) {
           value={val}
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
+          // Figures in the brand's numeric face. A filled box steps up to a
+          // grey edge and the focused one to white — six red outlines here
+          // used to outshout the red Verify button they lead to.
           className={cn(
-            'h-[50px] w-11 rounded-[10px] border border-border bg-surface text-center text-base font-semibold text-text-primary outline-none transition-colors focus:border-brand-red',
-            val && 'border-brand-red'
+            'h-[50px] w-11 rounded-[10px] border border-border bg-surface text-center font-numeric text-base font-bold text-text-primary outline-none transition-colors focus:border-text-primary',
+            val && 'border-text-muted/60'
           )}
         />
       ))}

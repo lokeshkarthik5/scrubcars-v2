@@ -71,17 +71,29 @@ export function BottomNav({ type = 'customer' }: { type?: NavType }) {
             <Link
               key={href}
               href={href}
-              className="flex flex-1 flex-col items-center gap-0.5 py-1"
+              // The colour change alone says nothing to a screen reader.
+              aria-current={active ? 'page' : undefined}
+              className="relative flex flex-1 flex-col items-center gap-0.5 py-1"
             >
+              {/* The current tab is white, and the bar's only red is this one
+                  4px dot above it — a focal point, per the brand, rather than
+                  a red icon and label sitting under every red button on the
+                  screen above. */}
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-1 h-1 w-1 rounded-full bg-brand-red"
+                />
+              )}
               <Icon
                 size={22}
-                stroke={1.5}
-                className={cn(active ? 'text-brand-red' : 'text-text-muted')}
+                stroke={active ? 2 : 1.5}
+                className={cn(active ? 'text-text-primary' : 'text-text-muted')}
               />
               <span
                 className={cn(
                   'text-[10px] font-medium',
-                  active ? 'text-brand-red' : 'text-text-muted'
+                  active ? 'text-text-primary' : 'text-text-muted'
                 )}
               >
                 {label}

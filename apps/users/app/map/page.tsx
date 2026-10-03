@@ -313,7 +313,10 @@ function MapBrowseContent() {
               // pointer-events-none so the map stays draggable through it, and
               // without this the button rendered perfectly but every tap fell
               // through to the map underneath.
-              className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-surface-elevated px-4 py-2 text-[13px] font-semibold text-brand-red shadow-lg ring-1 ring-brand-red/50"
+              //
+              // White, not red: the map's one red is the selected garage's
+              // pin, and red text on graphite is under AA contrast anyway.
+              className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-[13px] font-semibold text-brand-black shadow-lg"
             >
               <IconRefresh size={15} />
               Search this area
@@ -418,6 +421,8 @@ function VendorPin({
             // Garages with no priced service fall back to their name, capped
             // and ellipsised — a hard character slice cut them mid-word.
             'block max-w-[140px] truncate rounded-full px-2.5 py-1 text-[12px] font-semibold shadow-md ring-1 transition-all',
+            // A price pin is a figure, in the brand's numeric face.
+            vendor.startingPrice > 0 && 'font-numeric font-bold',
             selected
               ? 'scale-110 bg-brand-red text-brand-white ring-brand-red'
               : 'bg-surface-elevated text-text-primary ring-border'
@@ -461,7 +466,8 @@ function MapVendorCard({
       data-vendor-id={vendor.id}
       className={cn(
         'flex w-[78vw] max-w-[300px] shrink-0 snap-center flex-col overflow-hidden rounded-[16px] bg-surface-elevated shadow-xl ring-1 transition-colors',
-        selected ? 'ring-brand-red/60' : 'ring-border'
+        // The selected card is outlined in white; its pin carries the red.
+        selected ? 'ring-text-primary/60' : 'ring-border'
       )}
     >
       <div className="relative h-[112px] w-full bg-surface">
@@ -532,7 +538,7 @@ function MapVendorCard({
 
         {vendor.startingPrice > 0 && (
           <p className="mt-0.5 text-[13px] text-text-secondary">
-            <span className="font-semibold text-text-primary">
+            <span className="font-numeric font-bold text-text-primary">
               ₹{vendor.startingPrice}
             </span>{' '}
             onwards

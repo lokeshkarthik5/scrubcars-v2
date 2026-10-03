@@ -102,13 +102,15 @@ export function SortSheet({
                 </span>
               )}
             </span>
+            {/* White, like every other chosen state: a red radio here read as
+                one more thing to press on a screen that already had one. */}
             <span
               className={cn(
                 'flex h-[18px] w-[18px] items-center justify-center rounded-full border-2',
-                value === opt.value ? 'border-brand-red' : 'border-text-muted'
+                value === opt.value ? 'border-text-primary' : 'border-text-muted'
               )}
             >
-              {value === opt.value && <span className="h-2.5 w-2.5 rounded-full bg-brand-red" />}
+              {value === opt.value && <span className="h-2.5 w-2.5 rounded-full bg-text-primary" />}
             </span>
           </button>
           )

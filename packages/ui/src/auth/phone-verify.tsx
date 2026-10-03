@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { IconAlertCircle } from '@tabler/icons-react'
 import { AuthStage } from '@repo/ui/auth/auth-stage'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
@@ -134,10 +135,19 @@ export function PhoneVerify({
         <OtpInput onComplete={setOtp} />
       </div>
 
-      {error && <p className="pt-4 text-[12px] text-brand-red">{error}</p>}
+      {/* Amber, as on the login screen — red is the Verify button's. */}
+      {error && (
+        <p role="alert" className="flex items-start gap-1.5 pt-4 text-[12px] text-error">
+          <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      )}
 
       <p className="pt-6 text-[12px] text-text-secondary">
-        Expires in {mins}:{secs}
+        Expires in{' '}
+        <span className="font-numeric font-medium text-text-primary">
+          {mins}:{secs}
+        </span>
       </p>
 
       <button

@@ -440,7 +440,7 @@ export function LocationPicker({
                   >
                     <IconMapPin
                       size={15}
-                      className="mt-0.5 shrink-0 text-brand-red"
+                      className="mt-0.5 shrink-0 text-text-secondary"
                     />
                     <span className="min-w-0">
                       <span className="block truncate text-[13px] text-text-primary">
@@ -515,7 +515,7 @@ export function LocationPicker({
               }
             }}
             placeholder="Paste Google Maps link or 13.0043, 80.2554"
-            className="min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-brand-red"
+            className="min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-text-secondary"
           />
           <ScButton
             type="button"
@@ -562,7 +562,7 @@ export function LocationPicker({
         </p>
       )}
 
-      {error && <p className="text-[11px] text-brand-red">{error}</p>}
+      {error && <p role="alert" className="text-[11px] text-error">{error}</p>}
     </div>
   )
 }

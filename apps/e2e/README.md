@@ -77,13 +77,14 @@ nobody reads. It will start passing when the underlying issue is fixed, at
 which point Playwright flags the annotation as stale and it should be deleted
 along with the explanation above it.
 
-- `platform/accessibility.spec.ts` — brand red does not meet WCAG AA at small
-  text sizes, in either direction: white on `#EF3240` is 3.87:1 (ScButton's
-  primary style, so every CTA), and `#EF3240` on a raised surface is 4.12:1
-  (ScSegmented's selected state). Neither is fixable where it appears — red
-  text only clears 4.5:1 on surfaces at or below `#151515`, which is darker
-  than the elevated surface it sits on. The remedy is accessible variants of
-  the brand colour, which is a design decision.
+- `platform/accessibility.spec.ts` — white text on brand red `#EF3240` is
+  3.87:1, under WCAG AA at small sizes (ScButton's primary style and the garage
+  page's Add buttons, so every primary action). It is not fixable where it
+  appears; the remedy is an accessible variant of the brand colour, which is a
+  design decision. The check runs on the garage page, which has Add buttons.
+  The other pairing it used to track — red text on a raised surface, from the
+  segmented control's selected state — is gone: selected states are white on
+  graphite now, and red text is kept off raised surfaces.
 
 An open question: at a 320px viewport the home screen reports an 8px
 horizontal overflow on a Linux CI runner and none on macOS, and the

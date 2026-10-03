@@ -43,11 +43,13 @@ export function Stars({
             onClick={() => interactive && onChange?.(i + 1)}
             className={cn(interactive && 'cursor-pointer')}
           >
+            {/* The same amber as the star beside every rating in the app;
+                these were the only red ones. */}
             <Icon
               size={size}
               className={cn(
-                filled ? 'text-brand-red' : 'text-text-muted',
-                interactive && 'hover:text-brand-red'
+                filled ? 'text-warning' : 'text-text-muted',
+                interactive && 'hover:text-warning'
               )}
             />
           </button>

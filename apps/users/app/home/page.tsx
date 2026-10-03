@@ -158,7 +158,7 @@ function HomeContent() {
           className="min-w-0 text-right"
         >
           <div className="flex items-center justify-end gap-1.5">
-            <IconMapPin size={15} className="shrink-0 text-brand-red" />
+            <IconMapPin size={15} className="shrink-0 text-text-primary" />
             <span className="text-[14px] font-semibold text-text-primary">
               {location ? location.label : 'Set location'}
             </span>
@@ -208,16 +208,20 @@ function HomeContent() {
         <span className="text-[13px] text-text-muted">Search garages, services...</span>
       </button>
 
+      {/* The chosen category is a white chip, not a red one: red on this
+          screen is kept for things to press, and a solid red "All" was the
+          loudest thing above the fold before a single garage had loaded. */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {CATEGORIES.map((c) => (
           <button
             key={c.key}
             type="button"
+            aria-pressed={category === c.key}
             onClick={() => setCategory(c.key)}
             className={cn(
               'shrink-0 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
               category === c.key
-                ? 'bg-brand-red text-brand-white'
+                ? 'bg-brand-white text-brand-black'
                 : 'bg-surface text-text-primary'
             )}
           >

@@ -95,17 +95,17 @@ export function ScSegmented<T extends string>({
             onClick={() => onChange(option.value)}
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 font-medium transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/60',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70',
               'disabled:pointer-events-none disabled:opacity-40',
               size === 'sm'
                 ? 'rounded-[7px] px-2 py-1 text-[11px]'
                 : 'rounded-[9px] py-2.5 text-[13px]',
-              // The selected option carries the brand colour as an accent — a
-              // red hairline and label on a raised surface — rather than a
-              // solid red fill, which at four options competes with the red
-              // active item in the bottom nav directly below it.
+              // The selected option is raised onto graphite with a white
+              // label — no red. Red is kept for what the customer should
+              // press, and a red selection here sat a thumb's width above
+              // the red Add and Book buttons it was competing with.
               selected
-                ? 'bg-surface-elevated text-brand-red shadow-sm ring-1 ring-brand-red/50'
+                ? 'bg-surface-elevated text-text-primary shadow-sm'
                 : 'text-text-secondary'
             )}
           >

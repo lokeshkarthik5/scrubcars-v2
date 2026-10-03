@@ -70,7 +70,8 @@ export default function WelcomePage() {
                 onClick={() => setSlide(i)}
                 className={cn(
                   'h-1 rounded-full transition-all',
-                  i === slide ? 'w-6 bg-brand-red' : 'w-1.5 bg-text-muted'
+                  // White for where you are; red is the Next button's.
+                  i === slide ? 'w-6 bg-brand-white' : 'w-1.5 bg-text-muted'
                 )}
               />
             ))}

@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { IconAlertCircle } from '@tabler/icons-react'
 import { AuthStage } from '@repo/ui/auth/auth-stage'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
@@ -98,7 +99,14 @@ export function PhoneLogin({
         enterKeyHint="go"
       />
 
-      {error && <p className="text-[12px] text-brand-red">{error}</p>}
+      {/* Amber, never red: red on this screen is the Send OTP button. An
+          alert, so it is announced when it appears after a failed send. */}
+      {error && (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-error">
+          <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      )}
 
       {/* The CTA sits muted until a full 10-digit number is entered. */}
       <ScButton

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
 import { AppProvider } from '@/components/providers/app-provider'
 import { QueryProvider } from '@repo/ui/providers/query-provider'
@@ -11,6 +11,16 @@ const inter = Inter({
   variable: '--font-inter',
 })
 
+// The brand's face for figures — prices, durations, dates and times — exposed
+// as `font-numeric` (see globals.css). Only the two weights the brand allows:
+// a `font-semibold` figure resolves to the 700 rather than a synthesised 600.
+// latin-ext carries the rupee sign, which latin alone does not.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['500', '700'],
+  variable: '--font-space-grotesk',
+})
+
 export const metadata: Metadata = {
   title: 'Detlio',
   description: 'Book car wash & detailing',
@@ -20,6 +30,12 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  // The browser's own chrome (Android's address bar) in the app's canvas
+  // colour, so the page does not sit under a grey bar. Deliberately no
+  // `colorScheme: 'dark'` beside it: a dark page with a light-scheme iframe
+  // gets that iframe painted opaque, and Razorpay's checkout is an iframe
+  // whose backdrop is meant to be see-through.
+  themeColor: '#0A0A0B',
 }
 
 export default function RootLayout({
@@ -28,7 +44,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${spaceGrotesk.variable} h-full`}
+    >
       <body className="min-h-full font-sans">
         {/* Outside AppProvider: the auth gate returns null while it resolves,
             and queries mounted underneath must keep their cache across that. */}

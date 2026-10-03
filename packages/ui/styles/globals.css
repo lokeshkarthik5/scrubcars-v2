@@ -3,25 +3,38 @@
 
 @theme inline {
   --font-sans: var(--font-inter);
+  /* Space Grotesk is the brand face for figures only — prices, durations,
+     dates and times — never for UI text. An app loads it with next/font as
+     --font-space-grotesk; one that does not (the vendor portal, admin) falls
+     back to Inter here rather than to the browser default. */
+  --font-numeric: var(--font-space-grotesk, var(--font-inter));
+  /* Brand red is for things to press — primary buttons and a single focal
+     dot — and never for errors, selection or status. See --color-error. */
   --color-brand-red: #EF3240;
   --color-brand-red-hover: #D42433;
-  --color-brand-black: #0A0A0A;
+  /* The brand's canvas and graphite, from the Figma guideline: canvas #0A0A0B
+     with #141416 for cards, and #272730 graphite for anything raised above a
+     card (a selected segment, a pressed toggle, a popover). These were flat
+     neutral greys (#0A0A0A / #151515 / #1E1E1E); the faint blue in the brand
+     values is what keeps the dark from reading as a generic dark mode. */
+  --color-brand-black: #0A0A0B;
   --color-brand-white: #FAFAFA;
-  --color-brand-grey: #151515;
-  --color-surface: #151515;
-  --color-surface-elevated: #1E1E1E;
+  --color-brand-grey: #141416;
+  --color-surface: #141416;
+  --color-surface-elevated: #272730;
   --color-text-primary: #FAFAFA;
   /* The three text levels all clear WCAG AA (4.5:1) against every surface they
-     sit on — bg #0A0A0A, surface #151515, elevated #1E1E1E — with the worst
-     case being muted on elevated at 4.9:1.
+     sit on — bg #0A0A0B, surface #141416, elevated #272730 — with the worst
+     case being muted on elevated at 5.3:1.
 
-     Muted was #555555, which is 2.3:1 on elevated and fails outright; it is
-     used for placeholders and helper text, which is content, not decoration.
-     Raising it alone would have left it a shade off secondary, so secondary
-     moved up too to keep the three levels visibly apart. */
+     Muted was #555555, which failed outright; it is used for placeholders and
+     helper text, which is content, not decoration. It then sat at #8A8A8A,
+     which the brand graphite would have dropped to 4.29:1 — so it moved again,
+     to a cool grey that matches the surfaces it sits on. */
   --color-text-secondary: #B0B0B0;
-  --color-text-muted: #8A8A8A;
-  --color-border: #2A2A2A;
+  --color-text-muted: #9A9AA3;
+  /* A step above graphite, so a raised element keeps its edge. */
+  --color-border: #2E2E38;
   --color-accent: #EF3240;
   --color-accent-hover: #D42433;
   --color-accent-muted: rgba(239, 50, 64, 0.12);
@@ -29,7 +42,26 @@
   --color-success-muted: rgba(34, 197, 94, 0.12);
   --color-warning: #EAB308;
   --color-warning-muted: rgba(234, 179, 8, 0.12);
+  /* Errors are amber, per the brand: red is what the customer should press,
+     so an error in red reads as "tap here". 7.3:1 on graphite, 9.7:1 on the
+     canvas — it stays legible at helper-text sizes. */
+  --color-error: #F5A524;
+  --color-error-muted: rgba(245, 165, 36, 0.12);
   --color-info: #3B82F6;
+}
+
+/* react-toastify brings its own palette as :root variables in
+   ReactToastify.css, which each app imports beside this file: a red error
+   icon, a yellow warning, #121212 and a generic sans-serif. These put its
+   toasts on the brand surface, in Inter, with errors in the same amber as
+   everywhere else. Outside any layer (a layered rule would lose to the
+   unlayered library) and on a doubled :root, so it wins whichever of the two
+   stylesheets the bundler happens to emit last. */
+:root:root {
+  --toastify-color-dark: --theme(--color-surface);
+  --toastify-color-error: --theme(--color-error);
+  --toastify-color-warning: --theme(--color-error);
+  --toastify-font-family: var(--font-inter), sans-serif;
 }
 
 @layer base {
@@ -42,14 +74,17 @@
   }
 
   body {
-    background-color: #0A0A0A;
-    color: #FAFAFA;
+    background-color: --theme(--color-brand-black);
+    color: --theme(--color-text-primary);
     min-height: 100dvh;
   }
 
+  /* The muted level, not a hard-coded grey: placeholders were still #555555
+     (2.45:1 on a card) after muted itself was fixed, because they never read
+     the token. */
   input::placeholder,
   textarea::placeholder {
-    color: #555555;
+    color: --theme(--color-text-muted);
   }
   .maplibregl-popup-content {
     @apply bg-transparent! shadow-none! p-0! rounded-none!;
@@ -88,14 +123,17 @@
  *     content still arrives at its final state, just without the movement.
  */
 @layer utilities {
-  /* Distance and easing are shared so separate effects feel like one system. */
+  /* Distance and easing are shared so separate effects feel like one system.
+     The values are the brand's motion spec: 150–250ms, an 8px slide-up with a
+     fade, one easing curve. Exits use --motion-fast, so a sheet leaves quicker
+     than it arrives. */
   :root {
-    --motion-rise: 12px;
-    --motion-fast: 180ms;
-    --motion-base: 320ms;
-    --motion-slow: 480ms;
-    /* Decelerating: quick to start, settles softly. */
-    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-rise: 8px;
+    --motion-fast: 150ms;
+    --motion-base: 200ms;
+    --motion-slow: 250ms;
+    /* The brand's standard curve: quick to start, settles without overshoot. */
+    --motion-ease: cubic-bezier(0.2, 0, 0, 1);
   }
 
   @keyframes motion-fade-in {
@@ -169,7 +207,9 @@
   .overlay-out { animation: motion-fade-out var(--motion-fast) ease-in both; }
   .dialog-in { animation: motion-scale-in var(--motion-base) var(--motion-ease) both; }
   .dialog-out { animation: motion-scale-out var(--motion-fast) ease-in both; }
-  .sheet-in { animation: motion-sheet-in var(--motion-base) var(--motion-ease) both; }
+  /* A sheet travels its own height, so it gets the long end of the range;
+     at 200ms a tall one arrives as a jump rather than a slide. */
+  .sheet-in { animation: motion-sheet-in var(--motion-slow) var(--motion-ease) both; }
   .sheet-out { animation: motion-sheet-out var(--motion-fast) ease-in both; }
 
   /* Press feedback. Buttons and tappable cards dip slightly — the one place a
@@ -215,19 +255,23 @@
 
   .success-draw {
     stroke-dasharray: 32;
-    animation: success-draw 420ms var(--motion-ease) 260ms both;
+    /* Starts as the pop lands, so the tick is drawn on a still circle. */
+    animation: success-draw var(--motion-slow) var(--motion-ease) var(--motion-slow) both;
   }
 
   .confetti-piece {
     animation: confetti-fall 1200ms ease-in var(--confetti-delay, 0ms) both;
   }
 
+  /* Swept between the card surface and a point halfway to graphite — the same
+     small step the old #151515 → #1E1E1E sweep took. Going all the way to
+     #272730 would double it, from a shimmer to a flash. */
   .shimmer {
     background: linear-gradient(
       90deg,
-      #151515 0%,
-      #1E1E1E 50%,
-      #151515 100%
+      --theme(--color-surface) 0%,
+      color-mix(in oklab, --theme(--color-surface), --theme(--color-surface-elevated)) 50%,
+      --theme(--color-surface) 100%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;

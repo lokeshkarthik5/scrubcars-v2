@@ -63,17 +63,19 @@ export default function BookingsListPage() {
                     </div>
                     <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
                   </div>
+                  {/* When and how much are figures, in the brand's numeric
+                      face. */}
                   <div className="flex items-center justify-between text-[11px] text-text-secondary">
-                    <span>{booking.scheduledAt}</span>
+                    <span className="font-numeric font-medium">{booking.scheduledAt}</span>
                     <span className="flex items-center gap-1.5">
                       {/* The struck price is the only hint that a code was
                           used; the full breakdown lives on the detail page. */}
                       {booking.discountAmount > 0 && (
-                        <s className="text-text-muted">
+                        <s className="font-numeric font-medium text-text-muted">
                           {formatBookingAmount(booking.subtotalPrice)}
                         </s>
                       )}
-                      <span className="font-semibold text-text-primary">
+                      <span className="font-numeric font-bold text-text-primary">
                         {formatBookingAmount(booking.servicePrice)}
                       </span>
                     </span>

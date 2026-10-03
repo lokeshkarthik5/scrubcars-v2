@@ -48,7 +48,7 @@ export function VendorCard({
           : `/garage/${vendor.id}`
       }
     >
-      <article className="press overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-brand-red/30">
+      <article className="press overflow-hidden rounded-[16px] border border-border bg-surface transition-colors hover:border-text-secondary/40">
         <div className="relative h-[150px] w-full bg-surface-elevated">
           {cover ? (
             <Image
@@ -100,12 +100,15 @@ export function VendorCard({
           {/* Distance is absent until the customer shares a location, so it is
               skipped (like a ₹0 floor) rather than rendered as a blank fact.
               An unreviewed vendor reads as "New" — showing 0.0 stars would look
-              like a bad score rather than an absent one. */}
+              like a bad score rather than an absent one.
+
+              The figures — score, distance, price — are in the brand's numeric
+              face; the words between them stay Inter. */}
           <div className="flex items-center gap-1.5 text-[12px] text-text-secondary">
             {vendor.reviewCount > 0 ? (
               <>
                 <IconStarFilled size={12} className="text-warning" />
-                <span className="font-medium text-text-primary">
+                <span className="font-numeric font-medium text-text-primary">
                   {vendor.rating.toFixed(1)}
                 </span>
                 <span>({vendor.reviewCount})</span>
@@ -116,13 +119,18 @@ export function VendorCard({
             {hasDistance && (
               <>
                 <span>·</span>
-                <span>{vendor.distance}</span>
+                <span className="font-numeric font-medium">{vendor.distance}</span>
               </>
             )}
             {vendor.startingPrice > 0 && (
               <>
                 <span>·</span>
-                <span>From ₹{vendor.startingPrice}</span>
+                <span>
+                  From{' '}
+                  <span className="font-numeric font-medium text-text-primary">
+                    ₹{vendor.startingPrice}
+                  </span>
+                </span>
               </>
             )}
           </div>

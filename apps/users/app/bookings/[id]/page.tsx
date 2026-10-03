@@ -241,7 +241,9 @@ export default function BookingDetailPage({
         <h2 className="text-[20px] font-bold tracking-tight text-text-primary">
           {booking.vendorName}
         </h2>
-        <p className="mt-1 text-[13px] text-text-secondary">{booking.scheduledAt}</p>
+        <p className="mt-1 font-numeric text-[13px] font-medium text-text-secondary">
+          {booking.scheduledAt}
+        </p>
 
         <div className="mt-3 flex items-center gap-2 text-[13px]">
           {booking.bookingType === 'doorstep' ? (
@@ -279,7 +281,10 @@ export default function BookingDetailPage({
               key={item.id}
               className="rounded-lg bg-surface-elevated px-2.5 py-1.5 text-[12px] text-text-primary"
             >
-              {item.name} ({formatBookingAmount(item.amount)})
+              {item.name}{' '}
+              <span className="font-numeric font-medium">
+                ({formatBookingAmount(item.amount)})
+              </span>
             </span>
           ))}
         </div>
@@ -290,13 +295,17 @@ export default function BookingDetailPage({
           <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-[12px]">
             <div className="flex items-center justify-between text-text-secondary">
               <span>Subtotal</span>
-              <span>{formatBookingAmount(booking.subtotalPrice)}</span>
+              <span className="font-numeric font-medium">
+                {formatBookingAmount(booking.subtotalPrice)}
+              </span>
             </div>
             <div className="flex items-center justify-between text-success">
               <span>
                 Discount{booking.discountCode ? ` (${booking.discountCode})` : ''}
               </span>
-              <span>−{formatBookingAmount(booking.discountAmount)}</span>
+              <span className="font-numeric font-medium">
+                −{formatBookingAmount(booking.discountAmount)}
+              </span>
             </div>
           </div>
         )}
@@ -311,7 +320,7 @@ export default function BookingDetailPage({
                 ? `Online · ${booking.paymentStatus}`
                 : `Cash · ${booking.paymentStatus}`}
           </span>
-          <span className="text-[15px] font-semibold text-text-primary">
+          <span className="font-numeric text-[15px] font-bold text-text-primary">
             {formatBookingAmount(booking.servicePrice)}
           </span>
         </div>
@@ -350,9 +359,17 @@ export default function BookingDetailPage({
         booking.paymentStatus === 'pending' &&
         booking.status !== 'cancelled' && (
           <ScButton disabled={paying} onClick={handlePayNow} className="rounded-full py-4 text-[15px]">
-            {paying
-              ? 'Opening payment...'
-              : `Pay Now (${formatBookingAmount(booking.servicePrice)})`}
+            {paying ? (
+              'Opening payment...'
+            ) : (
+              <>
+                Pay Now (
+                <span className="font-numeric font-bold">
+                  {formatBookingAmount(booking.servicePrice)}
+                </span>
+                )
+              </>
+            )}
           </ScButton>
         )}
 
@@ -410,10 +427,12 @@ export default function BookingDetailPage({
               </div>
             </div>
           ) : (
+            // A plain underlined link: cancelling is not what this screen
+            // wants pressed, and red is the colour that says "press me".
             <button
               type="button"
               onClick={() => setShowCancelConfirm(true)}
-              className="w-full text-center text-[14px] font-semibold text-brand-red underline"
+              className="w-full text-center text-[14px] font-semibold text-text-primary underline"
             >
               Cancel Booking
             </button>

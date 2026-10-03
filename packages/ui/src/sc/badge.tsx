@@ -1,13 +1,20 @@
 import { cn } from '@repo/core/utils'
 
-type BadgeVariant = 'success' | 'pending' | 'muted' | 'accent' | 'danger'
+type BadgeVariant = 'success' | 'pending' | 'muted' | 'active' | 'accent' | 'danger'
 
 const variants: Record<BadgeVariant, string> = {
   success: 'bg-success-muted text-success',
   pending: 'bg-warning-muted text-warning',
   muted: 'bg-surface-elevated text-text-secondary border border-border',
+  // Something happening right now. White, like every other "current" state —
+  // it used to borrow `danger`, which made a job in progress look like a fault.
+  active: 'bg-brand-white text-brand-black',
+  // Vendor and admin only — chiefly a new job waiting for the garage to
+  // accept, the one status that asks to be acted on, so the one that keeps
+  // brand red. Customer screens never show it.
   accent: 'bg-accent-muted text-brand-red',
-  danger: 'bg-accent-muted text-brand-red',
+  // A problem, in the amber errors use everywhere — never brand red.
+  danger: 'bg-error-muted text-error',
 }
 
 interface ScBadgeProps {
@@ -46,7 +53,7 @@ export function bookingStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
     pending: { label: 'New', variant: 'accent' },
     confirmed: { label: 'Confirmed', variant: 'success' },
-    in_progress: { label: 'In progress', variant: 'danger' },
+    in_progress: { label: 'In progress', variant: 'active' },
     completed: { label: 'Completed', variant: 'success' },
     cancelled: { label: 'Cancelled', variant: 'muted' },
     rescheduled: { label: 'Rescheduled', variant: 'muted' },

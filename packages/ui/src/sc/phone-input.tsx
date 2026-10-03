@@ -65,7 +65,8 @@ export function ScPhoneInput({
       )}
       <div
         className={cn(
-          'flex overflow-hidden rounded-[12px] border transition-colors focus-within:border-brand-red',
+          // A light edge marks focus; red is for the Send OTP button below.
+          'flex overflow-hidden rounded-[12px] border transition-colors focus-within:border-text-secondary',
           tone === 'glass' ? 'border-white/15 bg-white/[0.06]' : 'border-border bg-surface'
         )}
       >

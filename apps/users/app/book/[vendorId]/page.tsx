@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState, Suspense } from 'react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  IconAlertCircle,
   IconChevronRight,
   IconMapPin,
   IconPercentage,
@@ -496,7 +497,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
               {formatServiceSummary(
                 selectedServices.map((service) => service.name)
               )}{' '}
-              · {formatDuration(totalDuration)}
+              ·{' '}
+              <span className="font-numeric font-medium">
+                {formatDuration(totalDuration)}
+              </span>
             </p>
           </div>
         </ScCard>
@@ -566,12 +570,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <button
                   key={v.id}
                   type="button"
-                  // The selected car is otherwise marked only by a red border
-                  // on the card inside.
+                  // The selected car is otherwise marked only by a white border
+                  // on the card inside — white, as chosen things are; red here
+                  // is the Pay button's.
                   aria-pressed={selectedVehicle === v.id}
                   onClick={() => setPickedVehicle(v.id)}
                 >
-                  <ScCard className={cn(selectedVehicle === v.id && 'border-brand-red')}>
+                  <ScCard className={cn(selectedVehicle === v.id && 'border-text-primary')}>
                     <p className="text-[13px] font-medium">{v.make} {v.model}</p>
                     <p className="text-[11px] text-text-secondary">{v.plate}</p>
                   </ScCard>
@@ -582,7 +587,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <button
                 type="button"
                 onClick={() => setAddCarOpen(true)}
-                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-brand-red hover:text-brand-red"
+                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary"
               >
                 <IconPlus size={14} /> Add another car
               </button>
@@ -635,11 +640,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <ScCard
                     className={cn(
                       'flex items-center gap-3 text-left',
-                      selectedAddress === a.id && 'border-brand-red'
+                      selectedAddress === a.id && 'border-text-primary'
                     )}
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-accent-muted">
-                      <IconMapPin size={18} className="text-brand-red" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
+                      <IconMapPin size={18} className="text-text-primary" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[13px] font-medium">{a.label}</span>
@@ -671,7 +676,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <button
                 type="button"
                 onClick={() => setAddAddressOpen(true)}
-                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-brand-red hover:text-brand-red"
+                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary"
               >
                 <IconPlus size={14} /> Add another address
               </button>
@@ -699,15 +704,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       {appliedDiscount.code} applied
                     </p>
                     <p className="text-[11px] text-success">
-                      You save ₹
-                      {Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                      You save{' '}
+                      <span className="font-numeric font-medium">
+                        ₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                      </span>
                     </p>
                   </div>
                 </div>
+                {/* Neutral, like the Apply row this replaces: red on checkout
+                    is kept for Pay. */}
                 <button
                   type="button"
                   onClick={handleRemovePromo}
-                  className="shrink-0 text-[12px] font-medium text-brand-red"
+                  className="shrink-0 text-[12px] font-medium text-text-primary"
                 >
                   Remove
                 </button>
@@ -727,7 +736,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       Coupons and offers
                     </span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-brand-red">
+                  <span className="flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-text-primary">
                     Apply
                     <IconChevronRight size={14} />
                   </span>
@@ -760,7 +769,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         type="button"
                         onClick={() => removeService(service.id)}
                         aria-label={`Remove ${service.name}`}
-                        className="mt-px shrink-0 text-text-muted transition-colors hover:text-brand-red"
+                        className="mt-px shrink-0 text-text-muted transition-colors hover:text-text-primary"
                       >
                         <IconX size={14} />
                       </button>
@@ -772,12 +781,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       )}
                     </span>
                   </span>
+                  {/* Not priced is a problem, so it is amber like every other
+                      error — red would read as something to tap. */}
                   <span
                     className={cn(
                       'shrink-0 font-medium',
                       amount == null && selectedVehicleType != null
-                        ? 'text-brand-red'
-                        : 'text-text-primary'
+                        ? 'text-error'
+                        : 'font-numeric text-text-primary'
                     )}
                   >
                     {amount == null && selectedVehicleType != null
@@ -792,7 +803,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               {selectedServices.length > 1 && (
                 <div className="flex items-start justify-between gap-3 border-t border-border pt-3 text-[13px]">
                   <span className="text-text-secondary">Subtotal</span>
-                  <span className="shrink-0 font-medium text-text-primary">
+                  <span className="shrink-0 font-numeric font-medium text-text-primary">
                     {subtotal == null
                       ? '—'
                       : `₹${subtotal.toLocaleString('en-IN')}`}
@@ -808,7 +819,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <span className="min-w-0 truncate text-success">
                     Discount ({appliedDiscount.code})
                   </span>
-                  <span className="shrink-0 font-medium text-success">
+                  <span className="shrink-0 font-numeric font-medium text-success">
                     −₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -816,7 +827,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
               <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
                 <span>Amount to pay</span>
-                <span>
+                <span className="font-numeric font-bold">
                   {payableAmount == null
                     ? '—'
                     : `₹${payableAmount.toLocaleString('en-IN')}`}
@@ -887,8 +898,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </button>
         </div>
 
+        {/* Amber with an icon, never red — red in this sheet is Apply. Kept
+            a single <p>: the e2e page object finds the message as the sheet's
+            one paragraph that is not the static hint below. */}
         {promoError && (
-          <p className="mt-2 text-[12px] text-brand-red">{promoError}</p>
+          <p role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-error">
+            <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
+            {promoError}
+          </p>
         )}
 
         <p className="mt-4 text-[12px] text-text-muted">
@@ -923,7 +940,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
               ? stepLabels[nextStep]
               : payableAmount == null
                 ? 'Confirm booking'
-                : `Pay ₹${payableAmount.toLocaleString('en-IN')}`}
+                : (
+                    <>
+                      Pay{' '}
+                      <span className="font-numeric font-bold">
+                        ₹{payableAmount.toLocaleString('en-IN')}
+                      </span>
+                    </>
+                  )}
         </ScButton>
         <p
           id="checkout-cta-hint"

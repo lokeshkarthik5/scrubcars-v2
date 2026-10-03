@@ -329,7 +329,9 @@ export default function GaragePage({
           className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 backdrop-blur-sm"
         >
           {favourite ? (
-            <IconHeartFilled size={20} className="text-brand-red" />
+            // White when saved: a state, not a thing to press, and red on
+            // this page belongs to Add and Book Now.
+            <IconHeartFilled size={20} className="text-brand-white" />
           ) : (
             <IconHeart size={20} className="text-brand-white" />
           )}
@@ -356,11 +358,13 @@ export default function GaragePage({
           <OpenStatus hours={workingHours.data} />
         </div>
 
+        {/* Score, distance and drive time are figures, in the brand's numeric
+            face; the words between them stay Inter. */}
         <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
           {hasReviews ? (
             <>
               <IconStarFilled size={13} className="text-warning" />
-              <span className="font-semibold text-text-primary">{avgRating.toFixed(1)}</span>
+              <span className="font-numeric font-bold text-text-primary">{avgRating.toFixed(1)}</span>
               <span>
                 ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
               </span>
@@ -371,7 +375,7 @@ export default function GaragePage({
           {hasDistance && (
             <>
               <span>·</span>
-              <span>{vendor.distance}</span>
+              <span className="font-numeric font-medium">{vendor.distance}</span>
             </>
           )}
           {/* Straight-line distance above, driving time here — kept as two
@@ -380,7 +384,12 @@ export default function GaragePage({
           {travel.data && (
             <>
               <span>·</span>
-              <span>{formatDuration(toMinutes(travel.data.durationS))} drive</span>
+              <span>
+                <span className="font-numeric font-medium">
+                  {formatDuration(toMinutes(travel.data.durationS))}
+                </span>{' '}
+                drive
+              </span>
             </>
           )}
         </div>
@@ -432,10 +441,13 @@ export default function GaragePage({
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
+            // White, not red: with an Add button on every card and Book Now
+            // below, a red tab as well pushed this page past the brand's
+            // 5–8% budget for red.
             className={cn(
               'flex-1 border-b-2 py-2.5 text-[13px] font-medium transition-colors',
               tab === t.key
-                ? 'border-brand-red text-brand-red'
+                ? 'border-text-primary text-text-primary'
                 : 'border-transparent text-text-secondary'
             )}
           >
@@ -447,7 +459,7 @@ export default function GaragePage({
       <div className="flex flex-col gap-3 px-4 py-4">
         {tab === 'services' && (
           <>
-            <label className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 focus-within:border-brand-red">
+            <label className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 focus-within:border-text-secondary">
               <IconSearch size={17} className="text-text-secondary" />
               <input
                 value={query}
@@ -493,7 +505,7 @@ export default function GaragePage({
                             {pkg.name}
                           </p>
                           <div className="shrink-0 text-right">
-                            <span className="text-[14px] font-semibold text-text-primary">
+                            <span className="font-numeric text-[14px] font-bold text-text-primary">
                               {formatServicePrice(pkg)}
                             </span>
                             {/* The struck-through total only lines up with a
@@ -501,22 +513,23 @@ export default function GaragePage({
                                 so one "before" figure would be comparing against
                                 the wrong vehicle. */}
                             {pkg.tierBreakdown === null && pkg.savings !== null && (
-                              <p className="text-[11px] text-text-secondary line-through">
+                              <p className="font-numeric text-[11px] font-medium text-text-secondary line-through">
                                 ₹{pkg.itemsTotal}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        {/* Inset on the page colour rather than a red tint: a
-                            10% tint lifted the chip to #2b1819 and left this
-                            red label at 4.16:1, under AA. On #0A0A0A it is
-                            4.9:1 and still reads as a chip. */}
+                        {/* A graphite tag with white text. It was red, which
+                            made a saving read like a button — on a card whose
+                            only button is the red Add below it. */}
                         {pkg.savings !== null && (
-                          <span className="mt-1.5 inline-block rounded-[6px] bg-brand-black px-2 py-0.5 text-[11px] font-semibold text-brand-red">
-                            {pkg.tierBreakdown
-                              ? `Save ₹${pkg.savings}+`
-                              : `Save ₹${pkg.savings}`}
+                          <span className="mt-1.5 inline-block rounded-[4px] bg-surface-elevated px-2 py-0.5 text-[11px] font-semibold text-text-primary">
+                            Save{' '}
+                            <span className="font-numeric font-bold">
+                              ₹{pkg.savings}
+                              {pkg.tierBreakdown ? '+' : ''}
+                            </span>
                           </span>
                         )}
 
@@ -532,7 +545,7 @@ export default function GaragePage({
                               key={item.serviceId}
                               className="flex items-center gap-1.5 text-[12px] text-text-secondary"
                             >
-                              <IconCheck size={13} className="shrink-0 text-brand-red" />
+                              <IconCheck size={13} className="shrink-0 text-text-secondary" />
                               {item.name}
                             </li>
                           ))}
@@ -542,7 +555,9 @@ export default function GaragePage({
                       <div className="mt-3 flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                           <IconClock size={13} />
-                          {formatDuration(pkg.durationMins)}
+                          <span className="font-numeric font-medium">
+                            {formatDuration(pkg.durationMins)}
+                          </span>
                         </span>
                         <AddToBookingButton
                           name={pkg.name}
@@ -593,7 +608,7 @@ export default function GaragePage({
                         <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
                           {svc.name}
                         </p>
-                        <span className="shrink-0 text-[14px] font-semibold text-text-primary">
+                        <span className="shrink-0 font-numeric text-[14px] font-bold text-text-primary">
                           {formatServicePrice(svc)}
                         </span>
                       </div>
@@ -606,7 +621,9 @@ export default function GaragePage({
                     <div className="mt-3 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                         <IconClock size={13} />
-                        {formatDuration(svc.durationMins)}
+                        <span className="font-numeric font-medium">
+                          {formatDuration(svc.durationMins)}
+                        </span>
                       </span>
                       <AddToBookingButton
                         name={svc.name}
@@ -651,7 +668,7 @@ export default function GaragePage({
         {tab === 'reviews' && (
           <>
             <div className="mb-2 flex items-center gap-3">
-              <span className="text-3xl font-semibold text-text-primary">
+              <span className="font-numeric text-3xl font-bold text-text-primary">
                 {avgRating.toFixed(1)}
               </span>
               <div>
@@ -666,12 +683,12 @@ export default function GaragePage({
               <Reveal key={review.id} index={i}>
               <ScCard>
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-muted text-[11px] font-semibold text-brand-red">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-elevated text-[11px] font-semibold text-text-primary">
                     {review.userName.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1">
                     <p className="text-[13px] font-medium text-text-primary">{review.userName}</p>
-                    <p className="text-[10px] text-text-muted">{review.date}</p>
+                    <p className="font-numeric text-[10px] font-medium text-text-muted">{review.date}</p>
                   </div>
                   <Stars rating={review.rating} size={12} />
                 </div>
@@ -691,11 +708,18 @@ export default function GaragePage({
         <div className="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 border-t border-border bg-brand-black px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] text-text-secondary">
-              {selectedServices.length === 1
-                ? selectedServices[0].name
-                : `${selectedServices.length} services · ${formatDuration(selectedDuration)}`}
+              {selectedServices.length === 1 ? (
+                selectedServices[0].name
+              ) : (
+                <>
+                  {selectedServices.length} services ·{' '}
+                  <span className="font-numeric font-medium">
+                    {formatDuration(selectedDuration)}
+                  </span>
+                </>
+              )}
             </p>
-            <p className="truncate text-[15px] font-semibold text-text-primary">
+            <p className="truncate font-numeric text-[15px] font-bold text-text-primary">
               {selectedServices.length === 1
                 ? formatServicePrice(selectedServices[0])
                 : // "from" because a per-vehicle line is only priced once the
@@ -761,7 +785,9 @@ export default function GaragePage({
               <ScBadge variant="muted">{categoryLabel(details.category)}</ScBadge>
               <span className="flex items-center gap-1.5 text-[11px] text-text-secondary">
                 <IconClock size={12} />
-                {formatDuration(details.durationMins)}
+                <span className="font-numeric font-medium">
+                  {formatDuration(details.durationMins)}
+                </span>
               </span>
             </div>
 
@@ -785,7 +811,7 @@ export default function GaragePage({
                       key={item.serviceId}
                       className="flex items-center gap-1.5 text-[13px] text-text-secondary"
                     >
-                      <IconCheck size={13} className="shrink-0 text-brand-red" />
+                      <IconCheck size={13} className="shrink-0 text-text-secondary" />
                       {item.name}
                     </li>
                   ))}
@@ -793,8 +819,9 @@ export default function GaragePage({
                 {/* A per-vehicle bundle's saving differs per vehicle, so it is
                     shown on the tier rows below instead of as one figure. */}
                 {details.tierBreakdown === null && details.savings !== null && (
-                  <p className="mt-2 text-[12px] font-semibold text-brand-red">
-                    Save ₹{details.savings} vs ₹{details.itemsTotal} separately
+                  <p className="mt-2 text-[12px] font-semibold text-text-primary">
+                    Save <span className="font-numeric font-bold">₹{details.savings}</span> vs{' '}
+                    <span className="font-numeric font-bold">₹{details.itemsTotal}</span> separately
                   </p>
                 )}
               </div>
@@ -827,11 +854,12 @@ export default function GaragePage({
                         ) : (
                           <span className="flex items-center gap-2">
                             {tierSavings !== null && (
-                              <span className="text-[11px] font-medium text-brand-red">
-                                save ₹{tierSavings}
+                              <span className="text-[11px] font-medium text-text-secondary">
+                                save{' '}
+                                <span className="font-numeric">₹{tierSavings}</span>
                               </span>
                             )}
-                            <span className="text-[13px] font-semibold text-text-primary">
+                            <span className="font-numeric text-[13px] font-bold text-text-primary">
                               ₹{price}
                             </span>
                           </span>
@@ -845,7 +873,7 @@ export default function GaragePage({
                   <span className="text-[13px] text-text-secondary">
                     {details.pricingType === 'on_inspection' ? 'Inspection fee' : 'Price'}
                   </span>
-                  <span className="text-[15px] font-semibold text-text-primary">
+                  <span className="font-numeric text-[15px] font-bold text-text-primary">
                     ₹{details.price}
                   </span>
                 </div>
