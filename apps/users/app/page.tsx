@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from 'next'
-import { META, RESULTS, TESTIMONIALS } from '@/components/marketing/content'
-import { getLiveGarages } from '@/components/marketing/live-garages'
 import {
+  META,
+  RESULTS,
+  TESTIMONIALS,
+  VIDEOS,
+} from '@/components/marketing/content'
+import { getLiveGarages } from '@/components/marketing/live-garages'
+import { ScrollMotion } from '@/components/marketing/scroll-motion'
+import {
+  AppShowcase,
   Faq,
   FinalCta,
   Garages,
   Hero,
   HowItWorks,
+  Instagram,
   Perks,
   Promises,
   Results,
@@ -14,6 +22,7 @@ import {
   SiteFooter,
   SiteHeader,
   Testimonials,
+  Videos,
 } from '@/components/marketing/sections'
 
 /**
@@ -73,6 +82,7 @@ export default async function HomePage() {
   const garages = await getLiveGarages()
 
   const results = RESULTS.filter((result) => SHOW_SAMPLES || !result.sample)
+  const reels = VIDEOS.filter((reel) => SHOW_SAMPLES || !reel.sample)
   const testimonials = TESTIMONIALS.filter(
     (testimonial) => SHOW_SAMPLES || !testimonial.sample
   )
@@ -95,12 +105,15 @@ export default async function HomePage() {
           city={garages.cities.length === 1 ? garages.cities[0] : null}
           startingPrice={garages.startingPrice}
         />
+        <AppShowcase />
         <Services />
         <Promises />
         <HowItWorks />
-        <Perks />
+        {reels.length > 0 && <Videos reels={reels} />}
         {results.length > 0 && <Results results={results} />}
         {showGarages && <Garages garages={garages.featured} />}
+        <Perks />
+        <Instagram />
         {testimonials.length > 0 && (
           <Testimonials testimonials={testimonials} />
         )}
@@ -108,6 +121,7 @@ export default async function HomePage() {
         <FinalCta />
       </main>
       <SiteFooter />
+      <ScrollMotion />
     </>
   )
 }

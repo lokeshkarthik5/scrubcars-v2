@@ -82,17 +82,28 @@ export const OFFER_TAG = {
 }
 
 /**
- * The native apps are planned, not published — so these are Detlio-styled
- * "coming soon" marks, not Apple's and Google's official badges, which may
- * only link to a live store listing.
+ * The app section. The native apps are planned, not published — so the store
+ * marks are Detlio-styled "coming soon" tiles, not Apple's and Google's
+ * official badges, which may only link to a live store listing.
+ *
+ * The screenshot is the customer app as it runs today (apps/users /home at
+ * 390×844, 2×), so the phone shows the real product. Retake it when the home
+ * screen changes.
  */
 export const APPS = {
-  label: 'The Detlio app is coming soon',
+  kicker: 'The Detlio app',
+  title: 'Detlio, in your pocket.',
+  body: 'Book from your phone today at detlio.com. The app for iPhone and Android is coming soon.',
+  label: 'Coming soon',
   stores: [
     { key: 'apple', name: 'App Store' },
     { key: 'google', name: 'Google Play' },
   ] as const,
   web: { label: 'Book on the web today', href: '/home' } satisfies Cta,
+  screenshot: {
+    src: '/marketing/app-home.jpg',
+    alt: 'The Detlio home screen, listing garages near you with prices',
+  },
 }
 
 /**
@@ -289,6 +300,65 @@ export const PERKS: Array<{
   },
 ]
 
+// ─── Videos ─────────────────────────────────────────────────────────────────
+
+/**
+ * Short clips of real jobs — vertical, like Instagram reels. Put each .mp4
+ * (H.264, ideally under 10 MB) and a poster .jpg in
+ * apps/users/public/marketing/ and add an entry here. They play only when
+ * tapped, so they cost nothing to visitors who do not.
+ */
+export interface Reel {
+  sample?: boolean
+  title: string
+  detail: string
+  /** e.g. '/marketing/foam-wash.mp4'. Samples have none. */
+  src?: string
+  /** e.g. '/marketing/foam-wash.jpg' — the frame shown before play. */
+  poster?: string
+}
+
+export const VIDEOS_INTRO = {
+  kicker: 'In motion',
+  title: 'Watch the work.',
+  body: 'Real jobs from garages on Detlio, from the first rinse to the final finish.',
+}
+
+export const VIDEOS: Reel[] = [
+  {
+    sample: true,
+    title: 'Foam wash',
+    detail: 'Sample — your video here',
+  },
+  {
+    sample: true,
+    title: 'Paint correction',
+    detail: 'Sample — your video here',
+  },
+  {
+    sample: true,
+    title: 'Ceramic coating',
+    detail: 'Sample — your video here',
+  },
+]
+
+// ─── Instagram ──────────────────────────────────────────────────────────────
+
+/**
+ * The giveaway runs on Instagram, not in the product. Instagram's promotion
+ * rules require each giveaway to state its own terms and that Instagram is
+ * not involved — the fine print says both.
+ */
+export const INSTAGRAM = {
+  handle: 'detlioapp',
+  url: 'https://www.instagram.com/detlioapp/',
+  kicker: 'Instagram',
+  title: 'Follow along. Win promo codes.',
+  body: 'Follow @detlioapp and join in on our posts. We pick lucky followers who engage and send them free Detlio promo codes.',
+  fine: 'Giveaway terms are shared with each giveaway post. Instagram does not sponsor or run these giveaways.',
+  cta: 'Follow @detlioapp',
+}
+
 // ─── Results ────────────────────────────────────────────────────────────────
 
 export interface Media {
@@ -482,6 +552,6 @@ export const FOOTER = {
    */
   contact: {
     email: '',
-    instagram: '',
+    instagram: 'detlioapp',
   },
 }

@@ -1,4 +1,5 @@
 import { Space_Grotesk } from 'next/font/google'
+import { Fragment } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -41,8 +42,10 @@ import {
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { BeforeAfter } from './before-after'
+import { Reel } from './reel'
 import {
   type Cta,
+  type Reel as ReelContent,
   type Result,
   type ServiceMode,
   type Testimonial,
@@ -51,6 +54,7 @@ import {
   FOOTER,
   GARAGES_INTRO,
   HERO,
+  INSTAGRAM,
   APPS,
   MODES,
   OFFER_TAG,
@@ -66,6 +70,7 @@ import {
   STEPS,
   STEPS_INTRO,
   TESTIMONIALS_INTRO,
+  VIDEOS_INTRO,
 } from './content'
 
 /**
@@ -92,6 +97,31 @@ const grotesk = Space_Grotesk({ subsets: ['latin'], weight: ['500', '700'] })
 const CONTAINER = 'mx-auto w-full max-w-[1440px] px-4 sm:px-8 lg:px-16 xl:px-20'
 
 const SECTION_Y = 'py-16 sm:py-24'
+
+/**
+ * Position in a sequence, for the motion in app/globals.css: `--d` delays a
+ * load-in, `--i` offsets a scroll reveal, so a row arrives as a wave.
+ */
+function stagger(index: number) {
+  return { '--d': index, '--i': index } as React.CSSProperties
+}
+
+/**
+ * A headline split into words that rise in one after another
+ * (scroll-motion.tsx). The spaces stay real text, so it reads and wraps as
+ * the plain sentence.
+ */
+function Words({ text }: { text: string }) {
+  const words = text.split(' ')
+  return words.map((word, index) => (
+    <Fragment key={index}>
+      <span className="mk-reveal mk-word" style={stagger(index)}>
+        {word}
+      </span>
+      {index < words.length - 1 && ' '}
+    </Fragment>
+  ))
+}
 
 /** The brand's terminal period: a red full stop on hero-level headlines. */
 function RedPeriod() {
@@ -157,14 +187,20 @@ function SectionIntro({
 }) {
   return (
     <div className={cn('max-w-2xl', className)}>
-      <p className="text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
+      <p
+        className="mk-reveal text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red"
+        style={stagger(0)}
+      >
         {kicker}
       </p>
       <h2 className="mt-3 text-balance text-[30px] font-bold leading-[1.12] tracking-[-0.03em] sm:text-[44px]">
-        {title}
+        <Words text={title} />
       </h2>
       {body && (
-        <p className="mt-4 text-pretty text-[16px] leading-relaxed text-text-secondary">
+        <p
+          className="mk-reveal mt-4 text-pretty text-[16px] leading-relaxed text-text-secondary"
+          style={stagger(2)}
+        >
           {body}
         </p>
       )}
@@ -203,7 +239,9 @@ function ComingSoonTag({ className }: { className?: string }) {
 
 export function SiteHeader({ links }: { links: Cta[] }) {
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/[0.06] bg-brand-black/75 backdrop-blur-md">
+    // mk-header: clear over the hero, settling to a solid bar as the page
+    // scrolls (app/globals.css). Without scroll timelines it stays solid.
+    <header className="mk-header fixed inset-x-0 top-0 z-40 border-b border-white/[0.06] bg-brand-black/75 backdrop-blur-md">
       <div
         className={cn(
           CONTAINER,
@@ -239,7 +277,7 @@ export function SiteHeader({ links }: { links: Cta[] }) {
           <Link
             href="/login"
             className={cn(
-              'hidden h-10 items-center whitespace-nowrap rounded-lg px-4 text-[14px] font-medium text-text-secondary transition-colors hover:text-brand-white sm:inline-flex',
+              'hidden h-10 items-center whitespace-nowrap rounded-lg border border-white/20 bg-brand-black px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06] sm:inline-flex',
               FOCUS_RING
             )}
           >
@@ -288,20 +326,32 @@ export function Hero({
           'relative z-10 flex flex-col items-center pt-6 text-center sm:pt-28'
         )}
       >
-        <p className="inline-flex items-center gap-2 text-[13px] font-medium text-text-secondary">
+        <p
+          className="mk-load inline-flex items-center gap-2 text-[13px] font-medium text-text-secondary"
+          style={stagger(0)}
+        >
           <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
           {status}
         </p>
-        <h1 className="mt-5 max-w-5xl bg-gradient-to-b from-white from-35% to-white/50 bg-clip-text pb-2 text-[40px] font-bold leading-[1] tracking-[-0.045em] text-transparent sm:text-[64px] lg:text-[74px] xl:text-[88px]">
+        <h1
+          style={stagger(1)}
+          className="mk-load mk-sheen mt-5 max-w-5xl bg-clip-text pb-2 text-[40px] font-bold leading-[1] tracking-[-0.045em] text-transparent sm:text-[64px] lg:text-[74px] xl:text-[88px]"
+        >
           {HERO.title[0]}
           <br />
           {HERO.title[1]}
           <RedPeriod />
         </h1>
-        <p className="mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
+        <p
+          className="mk-load mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]"
+          style={stagger(2)}
+        >
           {HERO.body}
         </p>
-        <div className="mt-8 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
+        <div
+          className="mk-load mt-8 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row"
+          style={stagger(3)}
+        >
           <CtaLink cta={HERO.primaryCta} className="w-full sm:w-auto" />
           <CtaLink
             cta={HERO.secondaryCta}
@@ -313,75 +363,53 @@ export function Hero({
 
       {/* Cropped from the top: the frame above the car is empty studio, and
           showing it pushes the car below the fold on a laptop. */}
-      <div className="relative mx-auto -mt-2 aspect-[1170/640] w-full max-w-[1170px] sm:-mt-10 lg:-mt-16">
-        <Image
-          src={HERO.image.src}
-          alt={HERO.image.alt}
-          fill
-          priority
-          sizes="(min-width: 1170px) 1170px, 100vw"
-          className="object-cover object-bottom [mask-image:radial-gradient(ellipse_70%_78%_at_50%_58%,black_50%,transparent_100%)]"
-        />
+      {/* The car drives in from the right on load (mk-car) and drives off to
+          the left as the hero scrolls away (mk-drive). */}
+      <div className="mk-drive relative mx-auto -mt-2 aspect-[1170/640] w-full max-w-[1170px] sm:-mt-10 lg:-mt-16">
+        <div className="mk-car absolute inset-0">
+          <Image
+            src={HERO.image.src}
+            alt={HERO.image.alt}
+            fill
+            priority
+            sizes="(min-width: 1170px) 1170px, 100vw"
+            className="object-cover object-bottom [mask-image:radial-gradient(ellipse_70%_78%_at_50%_58%,black_50%,transparent_100%)]"
+          />
+        </div>
       </div>
 
       <div
         id="ways"
-        className={cn(
-          CONTAINER,
-          'relative z-10 -mt-4 pb-16 sm:-mt-10 sm:pb-24'
-        )}
+        className={cn(CONTAINER, 'relative z-10 -mt-4 pb-8 sm:-mt-10 sm:pb-12')}
       >
         <p className="text-center text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
           {HERO.waysKicker}
         </p>
-        <ul className="mx-auto mt-6 grid max-w-5xl divide-y divide-white/[0.08] border-y border-white/[0.08] text-center md:grid-cols-3 md:divide-x md:divide-y-0">
-          {MODES.map((mode) => {
+        <ul className="mx-auto mt-8 grid max-w-5xl gap-4 md:grid-cols-3">
+          {MODES.map((mode, index) => {
             const Icon = MODE_ICONS[mode.key]
             return (
               <li
                 key={mode.key}
-                className="flex flex-col items-center px-6 py-8 sm:py-10"
+                className="mk-reveal mk-spot flex flex-col rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.01] p-6 sm:p-7"
+                style={stagger(index)}
               >
-                <Icon
-                  size={32}
-                  stroke={1.5}
-                  aria-hidden
-                  className="text-brand-white"
-                />
-                <h2 className="mt-5 text-[19px] font-semibold tracking-[-0.01em]">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex size-12 items-center justify-center rounded-lg bg-brand-white text-brand-black">
+                    <Icon size={24} stroke={1.75} aria-hidden />
+                  </span>
+                  {mode.comingSoon && <ComingSoonTag />}
+                </div>
+                <h2 className="mt-6 text-[20px] font-semibold tracking-[-0.01em]">
                   {mode.title}
                 </h2>
-                {mode.comingSoon && <ComingSoonTag className="mt-2" />}
-                <p className="mt-2 max-w-[18rem] text-[15px] leading-relaxed text-text-secondary">
+                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
                   {mode.body}
                 </p>
               </li>
             )
           })}
         </ul>
-
-        <div className="mt-12 flex flex-col items-center">
-          <p className="text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-text-muted">
-            {APPS.label}
-          </p>
-          <ul className="mt-4 flex flex-wrap justify-center gap-3">
-            {APPS.stores.map((store) => (
-              <li key={store.key}>
-                <StoreMark store={store} />
-              </li>
-            ))}
-          </ul>
-          <Link
-            href={APPS.web.href}
-            className={cn(
-              'mt-5 inline-flex items-center gap-1.5 rounded-sm text-[14px] font-medium text-brand-white underline-offset-4 hover:underline',
-              FOCUS_RING
-            )}
-          >
-            {APPS.web.label}
-            <IconArrowRight size={16} stroke={1.5} aria-hidden />
-          </Link>
-        </div>
       </div>
     </section>
   )
@@ -393,8 +421,8 @@ export function Hero({
  * the headline clear of it; centred above the headline on a phone, where a
  * corner would sit on top of it.
  *
- * Still at rest. It swings on hover — motion the visitor asks for, within the
- * guideline's 500ms — and not at all under reduced motion.
+ * It swings into place once on load (mk-tag), then rests; hover swings it
+ * again. Neither happens under reduced motion.
  */
 function OfferTag() {
   return (
@@ -406,7 +434,7 @@ function OfferTag() {
       )}
     >
       <span aria-hidden className="h-6 w-px bg-white/35 sm:h-8" />
-      <span className="-mt-1 origin-top -rotate-6 transition-transform duration-500 ease-[cubic-bezier(0.2,0,0,1)] group-hover:rotate-2 motion-reduce:transition-none">
+      <span className="mk-tag -mt-1 origin-top -rotate-6 transition-transform duration-500 ease-[cubic-bezier(0.2,0,0,1)] group-hover:rotate-2 motion-reduce:transition-none">
         <span className="relative block w-32 bg-brand-white px-3 pb-3.5 pt-6 text-center text-brand-black [clip-path:polygon(22%_0,78%_0,100%_16%,100%_100%,0_100%,0_16%)] sm:w-36">
           {/* The eyelet the thread passes through. */}
           <span
@@ -455,12 +483,16 @@ export function Services() {
             return (
               <li
                 key={service.category}
-                className={index < 2 ? 'lg:col-span-3' : 'lg:col-span-2'}
+                className={cn(
+                  'mk-reveal',
+                  index < 2 ? 'lg:col-span-3' : 'lg:col-span-2'
+                )}
+                style={stagger(index)}
               >
                 <Link
                   href={`/search?category=${service.category}`}
                   className={cn(
-                    'flex h-full flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 transition-colors hover:border-white/20 sm:p-8',
+                    'mk-spot flex h-full flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 transition-colors hover:border-white/20 sm:p-8',
                     FOCUS_RING
                   )}
                 >
@@ -497,14 +529,18 @@ export function HowItWorks() {
     <section id="how-it-works" className={SECTION_Y}>
       <div className={CONTAINER}>
         <SectionIntro {...STEPS_INTRO} />
-        <ol className="mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+        {/* As the list scrolls through view, each step's number lights and
+            its rule fills in turn (mk-steps, app/globals.css). */}
+        <ol className="mk-steps mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
           {STEPS.map((step, index) => (
-            <li key={step.title} className="relative">
+            <li key={step.title} className="relative" style={stagger(index)}>
               <div className="flex items-center gap-4">
-                <span className="text-[13px] font-medium tabular-nums tracking-[0.16em] text-text-muted">
+                <span className="mk-step-num text-[13px] font-medium tabular-nums tracking-[0.16em] text-text-muted">
                   {String(index + 1).padStart(2, '0')}
                 </span>
-                <span aria-hidden className="h-px flex-1 bg-white/10" />
+                <span aria-hidden className="relative h-px flex-1 bg-white/10">
+                  <span className="mk-step-line absolute inset-0 origin-left bg-brand-red" />
+                </span>
               </div>
               <h3 className="mt-5 text-[20px] font-semibold tracking-[-0.01em]">
                 {step.title}
@@ -532,7 +568,11 @@ export function Results({ results }: { results: Result[] }) {
         <SectionIntro {...RESULTS_INTRO} />
         <ul className="mt-12 grid gap-8 md:grid-cols-2">
           {results.map((result, index) => (
-            <li key={`${result.title}-${index}`}>
+            <li
+              key={`${result.title}-${index}`}
+              className="mk-reveal"
+              style={stagger(index)}
+            >
               {result.kind === 'compare' ? (
                 <BeforeAfter
                   before={result.before}
@@ -596,12 +636,12 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
           />
         </div>
         <ul className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {garages.map((garage) => (
-            <li key={garage.id}>
+          {garages.map((garage, index) => (
+            <li key={garage.id} className="mk-reveal" style={stagger(index)}>
               <Link
                 href={`/garage/${garage.id}`}
                 className={cn(
-                  'block overflow-hidden rounded-xl border border-white/[0.08] bg-brand-rich transition-colors hover:border-white/20',
+                  'mk-spot block overflow-hidden rounded-xl border border-white/[0.08] bg-brand-rich transition-colors hover:border-white/20',
                   FOCUS_RING
                 )}
               >
@@ -678,8 +718,12 @@ export function Testimonials({
         <SectionIntro {...TESTIMONIALS_INTRO} />
         <ul className="mt-12 grid gap-5 md:grid-cols-3">
           {testimonials.map((testimonial, index) => (
-            <li key={`${testimonial.name}-${index}`}>
-              <figure className="flex h-full flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 sm:p-8">
+            <li
+              key={`${testimonial.name}-${index}`}
+              className="mk-reveal"
+              style={stagger(index)}
+            >
+              <figure className="mk-spot flex h-full flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 sm:p-8">
                 <div className="flex items-center justify-between gap-3">
                   <p
                     role="img"
@@ -728,15 +772,208 @@ function StoreMark({ store }: { store: (typeof APPS.stores)[number] }) {
   const Icon =
     store.key === 'apple' ? IconBrandAppleFilled : IconBrandGooglePlay
   return (
-    <span className="inline-flex h-14 w-44 items-center gap-3 rounded-lg border border-white/15 bg-black px-5 text-left">
-      <Icon size={26} stroke={1.5} aria-hidden className="text-brand-white" />
+    <span className="inline-flex h-14 w-44 items-center gap-3 rounded-lg bg-brand-white px-5 text-left text-brand-black shadow-[0_10px_40px_-10px_rgba(255,255,255,0.25)]">
+      <Icon size={26} stroke={1.75} aria-hidden />
       <span className="flex flex-col leading-tight">
-        <span className="text-[11px] text-text-secondary">Coming soon on</span>
-        <span className="text-[17px] font-semibold tracking-[-0.01em] text-brand-white">
+        <span className="text-[11px] text-black/60">Coming soon on</span>
+        <span className="text-[17px] font-semibold tracking-[-0.01em]">
           {store.name}
         </span>
       </span>
     </span>
+  )
+}
+
+// ─── The app ────────────────────────────────────────────────────────────────
+
+/**
+ * The app, shown rather than described: the real home screen in a phone, the
+ * stores it is coming to, and the way to book today.
+ */
+export function AppShowcase() {
+  return (
+    <section
+      id="app"
+      className={cn(
+        'relative isolate overflow-hidden border-t border-white/[0.06]',
+        SECTION_Y
+      )}
+    >
+      <div className={cn(CONTAINER, 'grid items-center gap-14 lg:grid-cols-2')}>
+        <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+          <SectionIntro
+            kicker={APPS.kicker}
+            title={APPS.title}
+            body={APPS.body}
+          />
+          <p
+            className="mk-reveal mt-10 inline-flex items-center gap-2 text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-text-secondary"
+            style={stagger(3)}
+          >
+            <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
+            {APPS.label}
+          </p>
+          <ul
+            className="mk-reveal mt-4 flex flex-wrap justify-center gap-3 lg:justify-start"
+            style={stagger(4)}
+          >
+            {APPS.stores.map((store) => (
+              <li key={store.key}>
+                <StoreMark store={store} />
+              </li>
+            ))}
+          </ul>
+          <Link
+            href={APPS.web.href}
+            className={cn(
+              'mt-6 inline-flex items-center gap-1.5 rounded-sm text-[15px] font-medium text-brand-white underline-offset-4 hover:underline',
+              FOCUS_RING
+            )}
+          >
+            {APPS.web.label}
+            <IconArrowRight size={16} stroke={1.5} aria-hidden />
+          </Link>
+        </div>
+        <Phone />
+      </div>
+    </section>
+  )
+}
+
+/** The app screenshot in a phone frame, tilted, over a soft red glow. */
+function Phone() {
+  return (
+    <div className="mk-phone relative mx-auto w-[240px] sm:w-[280px]">
+      <div
+        aria-hidden
+        className="absolute left-1/2 top-1/2 -z-10 size-[150%] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(closest-side,rgba(239,50,64,0.30),transparent)]"
+      />
+      <div className="relative -rotate-3 overflow-hidden rounded-[2.6rem] border-[9px] border-[#1b1b1f] bg-[#0a0a0a] shadow-[0_50px_120px_-30px_rgba(0,0,0,0.9)] ring-1 ring-white/10">
+        {/* Status bar, with the camera cut-out sitting in it. */}
+        <div className="relative h-7">
+          <span
+            aria-hidden
+            className="absolute left-1/2 top-1.5 h-[20px] w-[72px] -translate-x-1/2 rounded-full bg-black"
+          />
+        </div>
+        <Image
+          src={APPS.screenshot.src}
+          alt={APPS.screenshot.alt}
+          width={780}
+          height={1688}
+          sizes="280px"
+          className="h-auto w-full"
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── Videos ─────────────────────────────────────────────────────────────────
+
+export function Videos({ reels }: { reels: ReelContent[] }) {
+  return (
+    <section
+      id="videos"
+      className={cn('border-t border-white/[0.06]', SECTION_Y)}
+    >
+      <div className={CONTAINER}>
+        <SectionIntro {...VIDEOS_INTRO} />
+        {/* A swipeable row on phones, a grid from sm up. */}
+        {/* Revealed as a row: on phones the row scrolls sideways, and an item
+            inside it would take that scroller as its view timeline. */}
+        <ul className="mk-reveal -mx-4 mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-auto sm:grid sm:max-w-4xl sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
+          {reels.map((reel, index) => (
+            <li
+              key={`${reel.title}-${index}`}
+              className="w-[68%] shrink-0 snap-center sm:w-auto"
+            >
+              <Reel reel={reel} />
+              <div className="mt-3 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[16px] font-semibold">{reel.title}</h3>
+                  <p className="mt-0.5 text-[13px] text-text-secondary">
+                    {reel.detail}
+                  </p>
+                </div>
+                {reel.sample && <SampleTag />}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+// ─── Instagram ──────────────────────────────────────────────────────────────
+
+export function Instagram() {
+  return (
+    <section
+      id="instagram"
+      className={cn('border-t border-white/[0.06]', SECTION_Y)}
+    >
+      <div className={CONTAINER}>
+        <div className="mk-reveal relative isolate grid items-center gap-12 overflow-hidden rounded-xl border border-white/[0.08] bg-brand-rich px-6 py-12 sm:px-12 sm:py-16 lg:grid-cols-[1.3fr_1fr]">
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_60%_80%_at_85%_50%,rgba(239,50,64,0.16),transparent_70%)]"
+          />
+          <div>
+            <p className="text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
+              {INSTAGRAM.kicker}
+            </p>
+            <h2 className="mt-3 text-balance text-[30px] font-bold leading-[1.12] tracking-[-0.03em] sm:text-[44px]">
+              {INSTAGRAM.title}
+            </h2>
+            <p className="mt-4 max-w-lg text-pretty text-[16px] leading-relaxed text-text-secondary">
+              {INSTAGRAM.body}
+            </p>
+            <a
+              href={INSTAGRAM.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                'press mt-8 inline-flex h-12 items-center gap-2 rounded-lg bg-brand-white px-6 text-[15px] font-semibold text-brand-black transition-colors hover:bg-white/90',
+                FOCUS_RING
+              )}
+            >
+              <IconBrandInstagram size={20} stroke={1.75} aria-hidden />
+              {INSTAGRAM.cta}
+            </a>
+            <p className="mt-4 max-w-lg text-[12px] leading-relaxed text-text-muted">
+              {INSTAGRAM.fine}
+            </p>
+          </div>
+          <Ticket />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/** A giveaway ticket, in the same paper as the offer tag up top. */
+function Ticket() {
+  return (
+    <div aria-hidden className="relative mx-auto w-full max-w-[300px] rotate-3">
+      <div className="relative rounded-lg bg-brand-white p-6 text-brand-black">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
+          Giveaway
+        </p>
+        <p className="mt-2 text-[28px] font-bold leading-none tracking-[-0.02em]">
+          Free promo code
+        </p>
+        <p className="mt-2 text-[14px] text-black/60">
+          For lucky followers who join in.
+        </p>
+        {/* Perforation. */}
+        <div className="my-5 border-t-2 border-dashed border-black/15" />
+        <p className="flex items-center gap-2 text-[16px] font-semibold">
+          <IconBrandInstagram size={20} stroke={1.75} />@{INSTAGRAM.handle}
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -760,10 +997,14 @@ export function Promises() {
       <div className={CONTAINER}>
         <SectionIntro {...PROMISE_INTRO} />
         <ul className="mt-12 grid gap-px overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.08] sm:grid-cols-2 lg:grid-cols-3">
-          {PROMISES.map((promise) => {
+          {PROMISES.map((promise, index) => {
             const Icon = PROMISE_ICONS[promise.icon]
             return (
-              <li key={promise.title} className="bg-brand-rich p-6 sm:p-8">
+              <li
+                key={promise.title}
+                className="mk-reveal mk-spot bg-brand-rich p-6 sm:p-8"
+                style={stagger(index % 3)}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <Icon
                     size={28}
@@ -836,12 +1077,13 @@ export function Perks() {
       <div className={CONTAINER}>
         <SectionIntro {...PERKS_INTRO} />
         <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PERKS.map((perk) => {
+          {PERKS.map((perk, index) => {
             const Icon = PERK_ICONS[perk.icon]
             return (
               <li
                 key={perk.title}
-                className="flex flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 sm:p-8"
+                className="mk-reveal mk-spot flex flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 sm:p-8"
+                style={stagger(index)}
               >
                 <div className="flex items-start justify-between gap-3">
                   <Icon
