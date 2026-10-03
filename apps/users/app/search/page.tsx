@@ -5,7 +5,12 @@ import { useSearchParams } from 'next/navigation'
 import { IconAdjustments, IconSearch } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { FilterChip } from '@repo/ui/sc/chip'
-import { SortSheet, sortLabel, type SortKey } from '@repo/ui/sc/sort-sheet'
+import {
+  SortSheet,
+  canSortByRating,
+  sortLabel,
+  type SortKey,
+} from '@repo/ui/sc/sort-sheet'
 import { VendorCard } from '@repo/ui/features/vendor-card'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
@@ -58,6 +63,12 @@ function SearchContent() {
     { keepPrevious: true }
   )
 
+  // No "Rating" chip until a listed garage has a review to rank by.
+  const ratingAvailable = canSortByRating(vendors, sort)
+  const sortChips = SORT_CHIPS.filter(
+    (chip) => chip.value !== 'rating' || ratingAvailable
+  )
+
   return (
     <AppShell showNav showBrand className="gap-4 py-4">
       <div className="flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2.5">
@@ -72,7 +83,7 @@ function SearchContent() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {SORT_CHIPS.map((chip) => (
+        {sortChips.map((chip) => (
           <FilterChip
             key={chip.value}
             label={chip.label}
@@ -151,6 +162,7 @@ function SearchContent() {
         onChange={setSort}
         onClose={() => setSortOpen(false)}
         locationUnavailable={!location}
+        ratingAvailable={ratingAvailable}
       />
     </AppShell>
   )

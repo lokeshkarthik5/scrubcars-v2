@@ -111,6 +111,12 @@ export interface ApiVendorListItem {
   /** The garage's own coordinates, for plotting it on the map view. */
   lat: number | null
   lng: number | null
+  /**
+   * The weekly hours, for the open/closed line on a card. Optional because an
+   * API deployed before the field existed does not send it, and a card then
+   * shows no status rather than a guessed one.
+   */
+  workingHours?: Array<Omit<ApiWorkingHours, 'id'>>
 }
 
 export interface ApiVendorList {

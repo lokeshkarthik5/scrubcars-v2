@@ -43,8 +43,8 @@ export class GaragePage {
 
   remove = (serviceName: string) => this.removeButton(serviceName).click()
 
-  /** The whole card is the details control; the inner "Details" text is part
-   *  of it rather than a second button with the same name. */
+  /** The whole card is the details control — its body button's hit area is
+   *  stretched over the card, and there is no separate "Details" button. */
   openDetails = (serviceName: string) =>
     this.page.getByRole('button', { name: `View details for ${serviceName}` }).first().click()
 

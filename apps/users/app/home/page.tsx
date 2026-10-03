@@ -14,7 +14,12 @@ import {
 } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScSegmented } from '@repo/ui/sc/segmented'
-import { SortSheet, sortLabel, type SortKey } from '@repo/ui/sc/sort-sheet'
+import {
+  SortSheet,
+  canSortByRating,
+  sortLabel,
+  type SortKey,
+} from '@repo/ui/sc/sort-sheet'
 import { Toast } from '@repo/ui/sc/toast'
 import { VendorCard } from '@repo/ui/features/vendor-card'
 import { Reveal } from '@repo/ui/sc/reveal'
@@ -318,6 +323,8 @@ function HomeContent() {
         onChange={setChosenSort}
         onClose={() => setSortOpen(false)}
         locationUnavailable={!location}
+        // No "Top Rated" until a listed garage has a review to rank by.
+        ratingAvailable={canSortByRating(vendors, sort)}
       />
     </AppShell>
   )

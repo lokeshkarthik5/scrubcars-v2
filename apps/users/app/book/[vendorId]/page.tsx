@@ -939,7 +939,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 ? `${unpricedLines
                     .map((line) => line.service.name)
                     .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
-                : 'Bookings are confirmed after online payment.'}
+                : // Paying sends the request; the garage's accept is what
+                  // confirms it, so the footer does not promise more.
+                  'You pay now. The garage then confirms your slot.'}
         </p>
       </div>
     </AppShell>

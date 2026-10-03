@@ -35,6 +35,28 @@ interface SortSheetProps {
    * at the fix.
    */
   locationUnavailable?: boolean
+  /**
+   * Whether "Top Rated" means anything for this list — see canSortByRating.
+   * Unlike "Nearest first" it is hidden rather than disabled: there is
+   * nothing the customer can do to make reviews exist, so a disabled row
+   * would only advertise that the marketplace is empty.
+   */
+  ratingAvailable: boolean
+}
+
+/**
+ * Whether sorting by rating can change anything: some garage in the list has
+ * been reviewed. Until then every garage is "New", and a "Top Rated" option
+ * sorts by a number nobody has.
+ *
+ * A list already sorted by rating keeps the option, so the sheet never shows
+ * a selected sort that is missing from its own list.
+ */
+export function canSortByRating(
+  vendors: ReadonlyArray<{ reviewCount: number }>,
+  currentSort: SortKey
+) {
+  return currentSort === 'rating' || vendors.some((v) => v.reviewCount > 0)
 }
 
 export function SortSheet({
@@ -43,6 +65,7 @@ export function SortSheet({
   onChange,
   onClose,
   locationUnavailable = false,
+  ratingAvailable,
 }: SortSheetProps) {
   // ScSheet owns the slide-in/out, the scroll lock and Escape-to-close.
   return (
@@ -55,7 +78,9 @@ export function SortSheet({
           </button>
         </div>
 
-        {SORT_OPTIONS.map((opt) => {
+        {SORT_OPTIONS.filter(
+          (opt) => opt.value !== 'rating' || ratingAvailable
+        ).map((opt) => {
           const disabled = opt.value === 'distance' && locationUnavailable
 
           return (

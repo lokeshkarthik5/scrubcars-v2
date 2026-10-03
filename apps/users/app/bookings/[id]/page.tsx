@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconCreditCard, IconHome, IconMapPin } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
-import { ScBadge, bookingStatusBadge } from '@repo/ui/sc/badge'
+import { ScBadge, customerBookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
@@ -201,17 +201,22 @@ export default function BookingDetailPage({
     )
   }
 
-  const statusBadge = bookingStatusBadge(
-    // Before the vendor accepts, the design calls this state "Waiting".
-    booking.status === 'pending' ? 'waiting' : booking.status
-  )
+  const statusBadge = customerBookingStatusBadge(booking.status)
+  // Paying sends a request; only the garage's accept confirms it. Celebrating
+  // a "confirmed" booking that the garage then declines teaches customers not
+  // to believe this screen, so the moment says exactly what happened.
+  const awaitingGarage = booking.status === 'pending'
 
   return (
     <AppShell showNav className="gap-4 py-4">
       {celebrating && (
         <SuccessBurst
-          title="Booking confirmed"
-          subtitle={`${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`}
+          title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
+          subtitle={
+            awaitingGarage
+              ? `Waiting for ${booking.vendorName} to accept your ${booking.scheduledAt} slot.`
+              : `${booking.serviceSummary} at ${booking.vendorName} · ${booking.scheduledAt}`
+          }
           onDone={() => {
             setCelebrating(false)
             // Drop the flag so a refresh or back-navigation doesn't replay it.
@@ -251,9 +256,9 @@ export default function BookingDetailPage({
         </div>
 
         {/* A booking that is cancelled (including one cancelled by a
-            reschedule) has no progress to show, and the stepper falls back to
-            "Confirmed" for statuses it doesn't know. The panel below explains
-            the state instead. */}
+            reschedule) has no progress to show, and the stepper reads a
+            status it doesn't know as an open request. The panel below
+            explains the state instead. */}
         {booking.status !== 'rescheduled' && booking.status !== 'cancelled' && (
           <>
             <div className="my-4 h-px bg-border" />

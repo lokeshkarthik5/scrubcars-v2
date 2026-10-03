@@ -22,16 +22,9 @@ import type {
   User,
   Vehicle,
   Vendor,
-  VendorStatus,
 } from '@repo/core/types'
 import { APP_TIMEZONE, formatServiceSummary } from '@repo/core/utils'
 import { categoryLabel } from '@repo/core/categories'
-
-function mapVendorStatus(status: string): VendorStatus {
-  if (status === 'active') return 'open'
-  if (status === 'suspended') return 'closed'
-  return 'closed'
-}
 
 function formatSlotTime(iso: string): string {
   const date = new Date(iso)
@@ -108,7 +101,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     lng: item.lng,
     rating: item.rating ?? 0,
     reviewCount: item.reviewCount,
-    status: mapVendorStatus(item.status),
+    openingHours: item.workingHours ?? null,
     startingPrice: item.startingPrice ?? 0,
     dropinEnabled: item.dropinEnabled,
     doorstepEnabled: item.doorstepEnabled,
@@ -139,7 +132,9 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     lng: vendor.lng,
     rating: vendor.rating ?? 0,
     reviewCount: vendor.reviewCount,
-    status: mapVendorStatus(vendor.status),
+    // Not on the single-vendor response: the garage page reads them from
+    // /vendors/:id/working-hours, the query checkout's slot picker shares.
+    openingHours: null,
     startingPrice: prices.length > 0 ? Math.min(...prices) : 0,
     dropinEnabled: vendor.dropinEnabled,
     doorstepEnabled: vendor.doorstepEnabled,

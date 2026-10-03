@@ -30,15 +30,6 @@ export function ScBadge({ children, variant = 'muted', className }: ScBadgeProps
   )
 }
 
-export function vendorStatusBadge(status: 'open' | 'busy' | 'closed') {
-  const map = {
-    open: { label: 'Open', variant: 'success' as const },
-    busy: { label: 'Busy', variant: 'pending' as const },
-    closed: { label: 'Closed', variant: 'muted' as const },
-  }
-  return map[status]
-}
-
 /** Onboarding stage shown in the admin panel (`vendors.status`). */
 export function vendorAdminStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
@@ -50,10 +41,9 @@ export function vendorAdminStatusBadge(status: string) {
   return map[status] ?? { label: status, variant: 'muted' as const }
 }
 
+/** A booking's status as the garage and the admin panel name it. */
 export function bookingStatusBadge(status: string) {
   const map: Record<string, { label: string; variant: BadgeVariant }> = {
-    // Customer-facing name for `pending` while the vendor hasn't accepted yet.
-    waiting: { label: 'Waiting', variant: 'pending' },
     pending: { label: 'New', variant: 'accent' },
     confirmed: { label: 'Confirmed', variant: 'success' },
     in_progress: { label: 'In progress', variant: 'danger' },
@@ -62,4 +52,21 @@ export function bookingStatusBadge(status: string) {
     rescheduled: { label: 'Rescheduled', variant: 'muted' },
   }
   return map[status] ?? { label: status, variant: 'muted' as const }
+}
+
+/**
+ * A booking's status as the customer names it — the list and the detail page
+ * both, so one booking never reads "New" in one place and "Waiting" in the
+ * other.
+ *
+ * It differs from the garage's wording in one place: `pending`. To the garage
+ * that is a new job to accept; to the customer who has just paid, it is a
+ * request the garage has not accepted yet, and anything that sounds like a
+ * confirmation would promise a slot nobody has agreed to.
+ */
+export function customerBookingStatusBadge(status: string) {
+  if (status === 'pending') {
+    return { label: 'Requested', variant: 'pending' as const }
+  }
+  return bookingStatusBadge(status)
 }

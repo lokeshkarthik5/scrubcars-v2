@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@repo/ui/sc/app-shell'
-import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
+import { customerBookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { Reveal } from '@repo/ui/sc/reveal'
@@ -51,7 +51,7 @@ export default function BookingsListPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {customerBookings.map((booking, i) => {
-            const badge = bookingStatusBadge(booking.status)
+            const badge = customerBookingStatusBadge(booking.status)
             return (
               <Reveal key={booking.id} index={i}>
               <Link href={`/bookings/${booking.id}`}>

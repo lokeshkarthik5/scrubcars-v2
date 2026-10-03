@@ -12,6 +12,7 @@ import {
   IconHeartFilled,
   IconHome,
   IconMapPin,
+  IconPlus,
   IconSearch,
   IconStarFilled,
 } from '@tabler/icons-react'
@@ -37,6 +38,7 @@ import {
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time'
+import { useVendorWorkingHours } from '@repo/core/api/hooks/use-slots'
 import type {
   BookingType,
   Review,
@@ -47,6 +49,7 @@ import type {
 import { formatServicePrice, tierPriceFor } from '@repo/core/pricing'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration } from '@repo/core/utils'
+import { OpenStatus } from '@/components/open-status'
 
 type Tab = 'services' | 'photos' | 'reviews'
 
@@ -54,6 +57,69 @@ type Tab = 'services' | 'photos' | 'reviews'
 // and only the bundle-specific block below depends on the difference.
 const isPackage = (item: Service | ServicePackage): item is ServicePackage =>
   'items' in item
+
+/**
+ * The body of a service or package card, which is the card's details control.
+ *
+ * Its ::after is stretched over the whole card (ScCard is `relative`), so a tap
+ * anywhere on the card opens the details — the separate "Details" button that
+ * used to sit beside Add did exactly the same thing and is gone. The overlay
+ * also carries the hover/press tint and the keyboard focus ring, so focus
+ * outlines the card the customer is on rather than a sliver of text. The
+ * radius is inherited through the button so it follows ScCard's.
+ */
+const CARD_DETAILS_TRIGGER = cn(
+  'w-full cursor-pointer rounded-[inherit] text-left focus-visible:outline-none',
+  "after:absolute after:-inset-px after:rounded-[inherit] after:content-['']",
+  'after:transition-colors after:duration-150 after:ease-[cubic-bezier(0.2,0,0,1)]',
+  'hover:after:bg-text-primary/[0.03] active:after:bg-text-primary/[0.06]',
+  'focus-visible:after:ring-2 focus-visible:after:ring-text-primary/70'
+)
+
+/**
+ * The Add / Added toggle on a service or package card.
+ *
+ * 44px tall, the comfortable thumb size, and the same width in both states so
+ * nothing shifts on tap. Red only while it invites an add; once added it
+ * settles to a graphite outline with a check, so a page with several picks is
+ * not a column of bright pills competing with Book Now. `relative z-10` lifts
+ * it above the card's stretched details layer, keeping it a separate target.
+ */
+function AddToBookingButton({
+  name,
+  added,
+  onToggle,
+}: {
+  name: string
+  added: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      // Five identical "Add" buttons on a page are five identical
+      // announcements; the name has to say what is being added.
+      aria-label={added ? `Remove ${name} from booking` : `Add ${name} to booking`}
+      aria-pressed={added}
+      onClick={onToggle}
+      className={cn(
+        'press relative z-10 inline-flex h-11 min-w-[104px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border px-4 text-[14px] font-semibold',
+        'transition-colors duration-150 ease-[cubic-bezier(0.2,0,0,1)]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+        added
+          ? 'border-text-primary/40 bg-surface-elevated text-text-primary hover:border-text-primary/60'
+          : 'border-transparent bg-brand-red text-white hover:bg-brand-red-hover active:bg-brand-red-hover'
+      )}
+    >
+      {added ? (
+        <IconCheck size={16} stroke={2.5} aria-hidden="true" />
+      ) : (
+        <IconPlus size={16} stroke={2.5} aria-hidden="true" />
+      )}
+      {added ? 'Added' : 'Add'}
+    </button>
+  )
+}
 
 export default function GaragePage({
   params,
@@ -203,6 +269,10 @@ export default function GaragePage({
     vendor ? { lat: vendor.lat, lng: vendor.lng } : null
   )
 
+  // The same query checkout's slot picker uses to grey out closed days, so
+  // the hours read here are already cached by the time Book Now is tapped.
+  const workingHours = useVendorWorkingHours(id)
+
   if (!vendor) {
     return (
       <AppShell className="items-center justify-center py-4">
@@ -278,13 +348,12 @@ export default function GaragePage({
       </div>
 
       <div className="flex flex-col gap-3 px-4 pt-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
           <h1 className="text-[22px] font-bold tracking-tight text-text-primary">{vendor.name}</h1>
-          {vendor.status === 'open' && (
-            <ScBadge variant="success" className="mt-1.5 shrink-0 uppercase tracking-wide">
-              Open
-            </ScBadge>
-          )}
+          {/* From the garage's hours, read in IST — never from the account
+              status, which is "active" at 2 AM too. Absent until the hours
+              arrive, and for good if the garage has not set any. */}
+          <OpenStatus hours={workingHours.data} />
         </div>
 
         <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
@@ -406,17 +475,18 @@ export default function GaragePage({
                     <Reveal key={pkg.id} index={i}>
                     <ScCard
                       className={cn(
-                        'transition-colors',
-                        added && 'border-brand-red/50'
+                        'relative transition-colors',
+                        added && 'border-text-primary/30'
                       )}
                     >
-                      {/* Same affordance as a service card: the body opens the
-                          details popup, the Add button stays separate. */}
+                      {/* Same affordance as a service card: the whole card
+                          opens the details popup, the Add button stays
+                          separate. */}
                       <button
                         type="button"
                         onClick={() => openDetails(pkg)}
                         aria-label={`View details for ${pkg.name}`}
-                        className="w-full text-left"
+                        className={CARD_DETAILS_TRIGGER}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
@@ -474,37 +544,11 @@ export default function GaragePage({
                           <IconClock size={13} />
                           {formatDuration(pkg.durationMins)}
                         </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openDetails(pkg)}
-                            className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-                          >
-                            Details
-                          </button>
-                          <button
-                            type="button"
-                            // Five identical "Add" buttons on a page are five
-                            // identical announcements; the name has to say what
-                            // is being added.
-                            aria-label={
-                              added
-                                ? `Remove ${pkg.name} from booking`
-                                : `Add ${pkg.name} to booking`
-                            }
-                            aria-pressed={added}
-                            onClick={() => toggle(pkg.id)}
-                            className={cn(
-                              'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
-                              added
-                                ? 'bg-brand-white text-brand-black'
-                                : 'bg-brand-red text-brand-white hover:bg-brand-red-hover'
-                            )}
-                          >
-                            {added && <IconCheck size={13} />}
-                            {added ? 'Added' : 'Add'}
-                          </button>
-                        </div>
+                        <AddToBookingButton
+                          name={pkg.name}
+                          added={added}
+                          onToggle={() => toggle(pkg.id)}
+                        />
                       </div>
                     </ScCard>
                     </Reveal>
@@ -532,15 +576,18 @@ export default function GaragePage({
                 return (
                   <Reveal key={svc.id} index={i}>
                   <ScCard
-                    className={cn('transition-colors', added && 'border-brand-red/50')}
+                    className={cn(
+                      'relative transition-colors',
+                      added && 'border-text-primary/30'
+                    )}
                   >
-                    {/* Tapping the card body opens the details popup; the Add
-                        button below stays a separate action. */}
+                    {/* Tapping anywhere on the card opens the details popup;
+                        the Add button below stays a separate action. */}
                     <button
                       type="button"
                       onClick={() => openDetails(svc)}
                       aria-label={`View details for ${svc.name}`}
-                      className="w-full text-left"
+                      className={CARD_DETAILS_TRIGGER}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
@@ -561,34 +608,11 @@ export default function GaragePage({
                         <IconClock size={13} />
                         {formatDuration(svc.durationMins)}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openDetails(svc)}
-                          className="rounded-[9px] px-2 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-                        >
-                          Details
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={
-                            added
-                              ? `Remove ${svc.name} from booking`
-                              : `Add ${svc.name} to booking`
-                          }
-                          aria-pressed={added}
-                          onClick={() => toggle(svc.id)}
-                          className={cn(
-                            'flex items-center gap-1 rounded-[9px] px-4 py-1.5 text-[12px] font-semibold transition-colors',
-                            added
-                              ? 'bg-brand-white text-brand-black'
-                              : 'bg-brand-red text-brand-white hover:bg-brand-red-hover'
-                          )}
-                        >
-                          {added && <IconCheck size={13} />}
-                          {added ? 'Added' : 'Add'}
-                        </button>
-                      </div>
+                      <AddToBookingButton
+                        name={svc.name}
+                        added={added}
+                        onToggle={() => toggle(svc.id)}
+                      />
                     </div>
                   </ScCard>
                   </Reveal>
@@ -833,8 +857,11 @@ export default function GaragePage({
               )}
             </div>
 
+            {/* Red only while it adds: removing is the quieter action, the
+                same way the card's Added state is. */}
             <ScButton
               className="mt-5"
+              variant={selected.includes(details.id) ? 'secondary' : 'primary'}
               onClick={() => {
                 toggle(details.id)
                 setDetailsOpen(false)

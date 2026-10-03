@@ -19,6 +19,7 @@ import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, formatDistance } from '@repo/cor
 import { cn } from '@repo/core/utils'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
+import { OpenStatus } from '@/components/open-status'
 
 /**
  * Airbnb-style map browse: the map is the filter.
@@ -448,7 +449,6 @@ function MapVendorCard({
   /** The mode home handed the map, passed on so checkout opens on it too. */
   mode: BookingType
 }) {
-  const isOpen = vendor.status === 'open'
   const modeParam = bookingTypeParam(mode)
 
   return (
@@ -480,17 +480,16 @@ function MapVendorCard({
 
         {/* Whether they are taking work right now is the first thing that makes
             a card actionable or not, so it sits on the photo rather than
-            competing with the details below. */}
-        <span
+            competing with the details below. Read from the garage's hours;
+            nothing shows when the list did not carry them. */}
+        <OpenStatus
+          hours={vendor.openingHours}
+          variant="overlay"
           className={cn(
-            'absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-            isOpen
-              ? 'bg-success/90 text-brand-black'
-              : 'bg-surface-elevated/90 text-text-secondary ring-1 ring-border'
+            'absolute left-2 top-2',
+            vendor.doorstepEnabled ? 'max-w-[calc(100%-6rem)]' : 'max-w-[calc(100%-1rem)]'
           )}
-        >
-          {isOpen ? 'Open' : 'Closed'}
-        </span>
+        />
 
         {vendor.doorstepEnabled && (
           <span className="absolute right-2 top-2 rounded-full bg-surface-elevated/90 px-2 py-0.5 text-[10px] font-semibold text-text-primary ring-1 ring-border">
