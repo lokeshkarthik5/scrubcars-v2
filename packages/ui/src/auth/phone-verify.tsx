@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { AuthStage } from '@repo/ui/auth/auth-stage'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { OtpInput } from '@repo/ui/sc/otp-input'
@@ -28,6 +29,8 @@ interface PhoneVerifyProps {
   registerName: string
   /** Where to go once verified. `next` is the stashed post-login destination. */
   resolveDestination: (result: { isNewUser: boolean }, next: string) => string
+  /** Stage the screen on this photo, as PhoneLogin does — see AuthStage. */
+  backdrop?: string
 }
 
 /**
@@ -41,6 +44,7 @@ export function PhoneVerify({
   registerPurpose,
   registerName,
   resolveDestination,
+  backdrop,
 }: PhoneVerifyProps) {
   const router = useRouter()
   const verifyOtp = useAuthStore((s) => s.verifyOtp)
@@ -108,48 +112,78 @@ export function PhoneVerify({
     }
   }
 
+  const intro = (
+    <>
+      <h1 className="text-[26px] font-bold leading-8 tracking-[-0.02em] text-text-primary">
+        Verify your number
+      </h1>
+      <div className="pt-2 text-center">
+        <p className="text-[15px] leading-6 text-text-secondary">
+          Enter the 6-digit code sent to
+        </p>
+        <p className="text-[15px] font-semibold text-text-primary">
+          {formatPhone(phone)}
+        </p>
+      </div>
+    </>
+  )
+
+  const code = (
+    <>
+      <div className="pt-7">
+        <OtpInput onComplete={setOtp} />
+      </div>
+
+      {error && <p className="pt-4 text-[12px] text-brand-red">{error}</p>}
+
+      <p className="pt-6 text-[12px] text-text-secondary">
+        Expires in {mins}:{secs}
+      </p>
+
+      <button
+        type="button"
+        disabled={timer > 0 || resending}
+        onClick={handleResend}
+        className="pt-3 text-[13px] font-semibold text-text-primary underline disabled:text-text-muted disabled:no-underline"
+      >
+        {resending ? 'Sending...' : 'Resend OTP'}
+      </button>
+    </>
+  )
+
+  const verifyButton = (
+    <ScButton
+      variant="cta"
+      disabled={loading || !phone || otp.length !== 6}
+      onClick={() => handleVerify(otp)}
+      className={
+        backdrop ? 'disabled:bg-white/10 disabled:hover:bg-white/10' : undefined
+      }
+    >
+      {loading ? 'Verifying...' : 'Verify'}
+    </ScButton>
+  )
+
+  if (backdrop) {
+    return (
+      <AuthStage backdrop={backdrop} showBack backHref={backHref}>
+        <div className="flex flex-col items-center text-center">
+          {intro}
+          {code}
+          <div className="mt-8 w-full">{verifyButton}</div>
+        </div>
+      </AuthStage>
+    )
+  }
+
   return (
     <AppShell className="py-4">
       <TopBar showBack backHref={backHref} />
 
       <div className="flex flex-1 flex-col items-center">
-        <h1 className="pt-10 text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
-          Verify your number
-        </h1>
-
-        <div className="pt-2 text-center">
-          <p className="text-[15px] leading-6 text-text-secondary">Enter the 6-digit code sent to</p>
-          <p className="text-[15px] font-semibold text-text-primary">{formatPhone(phone)}</p>
-        </div>
-
-        <div className="pt-7">
-          <OtpInput onComplete={setOtp} />
-        </div>
-
-        {error && <p className="pt-4 text-[12px] text-brand-red">{error}</p>}
-
-        <p className="pt-6 text-[12px] text-text-secondary">
-          Expires in {mins}:{secs}
-        </p>
-
-        <button
-          type="button"
-          disabled={timer > 0 || resending}
-          onClick={handleResend}
-          className="pt-3 text-[13px] font-semibold text-text-primary underline disabled:text-text-muted disabled:no-underline"
-        >
-          {resending ? 'Sending...' : 'Resend OTP'}
-        </button>
-
-        <div className="mt-auto w-full pb-2">
-          <ScButton
-            variant="cta"
-            disabled={loading || !phone || otp.length !== 6}
-            onClick={() => handleVerify(otp)}
-          >
-            {loading ? 'Verifying...' : 'Verify'}
-          </ScButton>
-        </div>
+        <div className="flex flex-col items-center pt-10">{intro}</div>
+        {code}
+        <div className="mt-auto w-full pb-2">{verifyButton}</div>
       </div>
     </AppShell>
   )

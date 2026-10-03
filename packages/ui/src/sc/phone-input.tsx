@@ -11,6 +11,8 @@ interface ScPhoneInputProps {
   placeholder?: string
   /** Wire up when country selection ships; until then the code renders inert. */
   onCountryClick?: () => void
+  /** 'glass' for the frosted sign-in card, where a solid field reads as a hole. */
+  tone?: 'solid' | 'glass'
   className?: string
 }
 
@@ -24,6 +26,7 @@ export function ScPhoneInput({
   label,
   placeholder = 'Phone number',
   onCountryClick,
+  tone = 'solid',
   className,
 }: ScPhoneInputProps) {
   const code = (
@@ -33,8 +36,10 @@ export function ScPhoneInput({
       <IconChevronDown size={16} className="text-text-secondary" />
     </>
   )
-  const codeClass =
-    'flex shrink-0 items-center gap-1.5 border-r border-border px-3.5 text-[15px] text-text-primary'
+  const codeClass = cn(
+    'flex shrink-0 items-center gap-1.5 border-r px-3.5 text-[15px] text-text-primary',
+    tone === 'glass' ? 'border-white/15' : 'border-border'
+  )
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
@@ -43,7 +48,12 @@ export function ScPhoneInput({
           {label}
         </label>
       )}
-      <div className="flex overflow-hidden rounded-[12px] border border-border bg-surface transition-colors focus-within:border-brand-red">
+      <div
+        className={cn(
+          'flex overflow-hidden rounded-[12px] border transition-colors focus-within:border-brand-red',
+          tone === 'glass' ? 'border-white/15 bg-white/[0.06]' : 'border-border bg-surface'
+        )}
+      >
         {/* Country picker isn't built yet — render it inert rather than as a
             focusable button that does nothing. */}
         {onCountryClick ? (

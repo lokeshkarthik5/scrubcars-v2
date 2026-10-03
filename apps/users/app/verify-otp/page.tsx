@@ -9,6 +9,7 @@ export default function VerifyOtpPage() {
       backHref="/login"
       registerPurpose="register"
       registerName="User"
+      backdrop="/onboarding-car.jpg"
       resolveDestination={(result, next) =>
         result.isNewUser ? '/profile-setup' : next || '/home?welcome=1'
       }
