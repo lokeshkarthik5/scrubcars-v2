@@ -2,10 +2,22 @@ import { Space_Grotesk } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
+  IconApps,
   IconArrowRight,
   IconArrowUpRight,
+  IconArrowsExchange,
   IconBrandInstagram,
+  IconBrandWhatsapp,
+  IconBuildingStore,
   IconCar,
+  IconCoins,
+  IconDiscount,
+  IconGift,
+  IconHeadset,
+  IconHome,
+  IconReceipt,
+  IconRoute,
+  IconUserCheck,
   IconChevronDown,
   IconCircleCheck,
   IconDroplet,
@@ -20,20 +32,32 @@ import {
 import type { ApiVendorListItem } from '@repo/core/api/types'
 import type { ServiceCategory } from '@repo/core/types'
 import { CATEGORY_LABELS } from '@repo/core/categories'
+import {
+  SUPPORT_PHONE_DISPLAY,
+  SUPPORT_TEL_HREF,
+  SUPPORT_WHATSAPP_HREF,
+} from '@repo/core/support'
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { BeforeAfter } from './before-after'
 import {
   type Cta,
   type Result,
+  type ServiceMode,
   type Testimonial,
   FAQS,
   FINAL_CTA,
   FOOTER,
   GARAGES_INTRO,
   HERO,
-  PILLARS,
-  PILLARS_INTRO,
+  MODES,
+  MODES_INTRO,
+  PERKS,
+  PERKS_INTRO,
+  PROMISE_INTRO,
+  PROMISES,
+  type PerkIcon,
+  type PromiseIcon,
   RESULTS_INTRO,
   SERVICES,
   SERVICES_INTRO,
@@ -156,6 +180,19 @@ function SampleTag() {
   )
 }
 
+/**
+ * Marks something the page describes but customers cannot book yet. A red
+ * status dot, as the guideline's dot language allows (ch. 08, use C).
+ */
+function ComingSoonTag() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-white/20 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary">
+      <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
+      Coming soon
+    </span>
+  )
+}
+
 // ─── Header ─────────────────────────────────────────────────────────────────
 
 export function SiteHeader({ links }: { links: Cta[] }) {
@@ -243,6 +280,22 @@ export function Hero({
         <p className="mt-6 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
           {HERO.body}
         </p>
+        <ul
+          aria-label="Ways to book"
+          className="mt-6 flex flex-wrap items-center justify-center gap-2"
+        >
+          {MODES.map((mode) => (
+            <li
+              key={mode.key}
+              className="inline-flex items-center gap-1.5 rounded border border-white/15 px-2.5 py-1 text-[13px] font-medium text-brand-white"
+            >
+              {mode.title}
+              {mode.comingSoon && (
+                <span className="font-normal text-text-muted">· soon</span>
+              )}
+            </li>
+          ))}
+        </ul>
         <div className="mt-9 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
           <CtaLink cta={HERO.primaryCta} className="w-full sm:w-auto" />
           <CtaLink
@@ -275,12 +328,7 @@ export function Hero({
         {startingPrice != null && (
           <li className="flex items-center gap-2 text-[14px] text-text-secondary">
             <IconCircleCheck size={18} stroke={1.5} aria-hidden />
-            Services from
-            <span
-              className={cn(grotesk.className, 'font-medium text-brand-white')}
-            >
-              ₹{startingPrice}
-            </span>
+            Services from ₹{startingPrice}
           </li>
         )}
         {TRUST_POINTS.map((point) => (
@@ -310,7 +358,10 @@ const SERVICE_ICONS: Record<ServiceCategory, typeof IconDroplet> = {
 
 export function Services() {
   return (
-    <section id="services" className={SECTION_Y}>
+    <section
+      id="services"
+      className={cn('border-t border-white/[0.06]', SECTION_Y)}
+    >
       <div className={CONTAINER}>
         <SectionIntro {...SERVICES_INTRO} />
         <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
@@ -358,10 +409,7 @@ export function Services() {
 
 export function HowItWorks() {
   return (
-    <section
-      id="how-it-works"
-      className={cn('border-y border-white/[0.06] bg-brand-rich', SECTION_Y)}
-    >
+    <section id="how-it-works" className={SECTION_Y}>
       <div className={CONTAINER}>
         <SectionIntro {...STEPS_INTRO} />
         <ol className="mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
@@ -391,7 +439,10 @@ export function HowItWorks() {
 
 export function Results({ results }: { results: Result[] }) {
   return (
-    <section id="results" className={SECTION_Y}>
+    <section
+      id="results"
+      className={cn('border-t border-white/[0.06]', SECTION_Y)}
+    >
       <div className={CONTAINER}>
         <SectionIntro {...RESULTS_INTRO} />
         <ul className="mt-12 grid gap-8 md:grid-cols-2">
@@ -488,12 +539,7 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
                     {garage.startingPrice != null && (
                       <p className="shrink-0 text-[14px] text-text-secondary">
                         from{' '}
-                        <span
-                          className={cn(
-                            grotesk.className,
-                            'font-medium text-brand-white'
-                          )}
-                        >
+                        <span className={grotesk.className}>
                           ₹{garage.startingPrice}
                         </span>
                       </p>
@@ -581,31 +627,172 @@ export function Testimonials({
   )
 }
 
+// ─── Three ways ─────────────────────────────────────────────────────────────
+
+const MODE_ICONS: Record<ServiceMode, typeof IconHome> = {
+  garage: IconBuildingStore,
+  doorstep: IconHome,
+  pickup: IconArrowsExchange,
+}
+
+export function Modes() {
+  return (
+    <section id="ways" className={SECTION_Y}>
+      <div className={CONTAINER}>
+        <SectionIntro {...MODES_INTRO} />
+        <ul className="mt-12 grid gap-4 md:grid-cols-3">
+          {MODES.map((mode) => {
+            const Icon = MODE_ICONS[mode.key]
+            return (
+              <li
+                key={mode.key}
+                className="flex flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 sm:p-8"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <Icon
+                    size={28}
+                    stroke={1.75}
+                    aria-hidden
+                    className="text-brand-white"
+                  />
+                  {mode.comingSoon && <ComingSoonTag />}
+                </div>
+                <h3 className="mt-6 text-[20px] font-semibold tracking-[-0.01em]">
+                  {mode.title}
+                </h3>
+                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                  {mode.body}
+                </p>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
 // ─── Why Detlio ─────────────────────────────────────────────────────────────
 
-export function Pillars() {
+const PROMISE_ICONS: Record<PromiseIcon, typeof IconHome> = {
+  'one-app': IconApps,
+  'known-garages': IconUserCheck,
+  support: IconHeadset,
+  prices: IconReceipt,
+  tracking: IconRoute,
+  rewards: IconGift,
+}
+
+export function Promises() {
   return (
     <section
+      id="why"
       className={cn('border-y border-white/[0.06] bg-brand-rich', SECTION_Y)}
     >
       <div className={CONTAINER}>
-        <SectionIntro {...PILLARS_INTRO} />
-        <ul className="mt-12 grid gap-px overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.08] md:grid-cols-3">
-          {PILLARS.map((pillar) => (
-            <li key={pillar.title} className="bg-brand-rich p-7 sm:p-9">
-              {/* The guideline's dot as a value marker (ch. 08, use B). */}
-              <h3 className="flex items-center gap-3 text-[26px] font-bold tracking-[-0.02em]">
-                <span
-                  aria-hidden
-                  className="size-2.5 shrink-0 rounded-full bg-brand-red"
-                />
-                {pillar.title}
-              </h3>
-              <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
-                {pillar.body}
-              </p>
-            </li>
-          ))}
+        <SectionIntro {...PROMISE_INTRO} />
+        <ul className="mt-12 grid gap-px overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.08] sm:grid-cols-2 lg:grid-cols-3">
+          {PROMISES.map((promise) => {
+            const Icon = PROMISE_ICONS[promise.icon]
+            return (
+              <li key={promise.title} className="bg-brand-rich p-6 sm:p-8">
+                <div className="flex items-start justify-between gap-3">
+                  <Icon
+                    size={28}
+                    stroke={1.75}
+                    aria-hidden
+                    className="text-brand-white"
+                  />
+                  {promise.comingSoon && <ComingSoonTag />}
+                </div>
+                <h3 className="mt-5 text-[20px] font-semibold tracking-[-0.01em]">
+                  {promise.title}
+                </h3>
+                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                  {promise.body}
+                </p>
+                {/* The support promise is only as good as the way to reach
+                    it, so it carries the real line. */}
+                {promise.icon === 'support' && (
+                  <SupportLinks className="mt-5" />
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+/** The business support line, from @repo/core/support — the one the app uses. */
+function SupportLinks({ className }: { className?: string }) {
+  const link = cn(
+    'inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-white/20 px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06]',
+    FOCUS_RING
+  )
+  return (
+    <div className={cn('flex flex-wrap gap-2', className)}>
+      <a href={SUPPORT_TEL_HREF} className={link}>
+        <IconHeadset size={18} stroke={1.5} aria-hidden />
+        {SUPPORT_PHONE_DISPLAY}
+      </a>
+      <a
+        href={SUPPORT_WHATSAPP_HREF}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={link}
+      >
+        <IconBrandWhatsapp size={18} stroke={1.5} aria-hidden />
+        WhatsApp
+      </a>
+    </div>
+  )
+}
+
+// ─── Offers & rewards ───────────────────────────────────────────────────────
+
+const PERK_ICONS: Record<PerkIcon, typeof IconHome> = {
+  promo: IconDiscount,
+  package: IconPackage,
+  free: IconGift,
+  points: IconCoins,
+}
+
+export function Perks() {
+  return (
+    <section
+      id="perks"
+      className={cn('border-t border-white/[0.06]', SECTION_Y)}
+    >
+      <div className={CONTAINER}>
+        <SectionIntro {...PERKS_INTRO} />
+        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PERKS.map((perk) => {
+            const Icon = PERK_ICONS[perk.icon]
+            return (
+              <li
+                key={perk.title}
+                className="flex flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 sm:p-8"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <Icon
+                    size={28}
+                    stroke={1.75}
+                    aria-hidden
+                    className="text-brand-white"
+                  />
+                  {perk.comingSoon && <ComingSoonTag />}
+                </div>
+                <h3 className="mt-6 text-[20px] font-semibold tracking-[-0.01em]">
+                  {perk.title}
+                </h3>
+                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                  {perk.body}
+                </p>
+              </li>
+            )
+          })}
         </ul>
       </div>
     </section>
@@ -679,14 +866,11 @@ export function FinalCta() {
 // ─── Footer ─────────────────────────────────────────────────────────────────
 
 export function SiteFooter() {
-  const { email, phone, instagram } = FOOTER.contact
+  const { email, instagram } = FOOTER.contact
   const contact = [
+    { href: SUPPORT_TEL_HREF, label: SUPPORT_PHONE_DISPLAY, Icon: IconPhone },
+    { href: SUPPORT_WHATSAPP_HREF, label: 'WhatsApp', Icon: IconBrandWhatsapp },
     email && { href: `mailto:${email}`, label: email, Icon: IconMail },
-    phone && {
-      href: `tel:${phone.replace(/\s/g, '')}`,
-      label: phone,
-      Icon: IconPhone,
-    },
     instagram && {
       href: `https://instagram.com/${instagram.replace(/^@/, '')}`,
       label: `@${instagram.replace(/^@/, '')}`,

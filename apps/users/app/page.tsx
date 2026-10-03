@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { RESULTS, TESTIMONIALS } from '@/components/marketing/content'
+import { META, RESULTS, TESTIMONIALS } from '@/components/marketing/content'
 import { getLiveGarages } from '@/components/marketing/live-garages'
 import {
   Faq,
@@ -7,7 +7,9 @@ import {
   Garages,
   Hero,
   HowItWorks,
-  Pillars,
+  Modes,
+  Perks,
+  Promises,
   Results,
   Services,
   SiteFooter,
@@ -24,9 +26,7 @@ import {
  * Server-rendered, so it is indexable and paints without waiting on the API.
  */
 
-const TITLE = 'Detlio — Car wash & detailing from verified garages'
-const DESCRIPTION =
-  'Car wash, detailing and coating from verified garages near you. See the price before you book, and track every stage until your car is ready.'
+const { title: TITLE, description: DESCRIPTION } = META
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://detlio.com'),
@@ -82,9 +82,9 @@ export default async function HomePage() {
 
   const navLinks = [
     { label: 'Services', href: '#services' },
+    { label: 'Why Detlio', href: '#why' },
     { label: 'How it works', href: '#how-it-works' },
-    ...(results.length ? [{ label: 'Results', href: '#results' }] : []),
-    ...(showGarages ? [{ label: 'Garages', href: '#garages' }] : []),
+    { label: 'Rewards', href: '#perks' },
     { label: 'FAQ', href: '#faq' },
   ]
 
@@ -96,14 +96,16 @@ export default async function HomePage() {
           city={garages.cities.length === 1 ? garages.cities[0] : null}
           startingPrice={garages.startingPrice}
         />
+        <Modes />
         <Services />
+        <Promises />
         <HowItWorks />
+        <Perks />
         {results.length > 0 && <Results results={results} />}
         {showGarages && <Garages garages={garages.featured} />}
         {testimonials.length > 0 && (
           <Testimonials testimonials={testimonials} />
         )}
-        <Pillars />
         <Faq />
         <FinalCta />
       </main>

@@ -4,13 +4,19 @@
  * Copy and media live here rather than in the section components so marketing
  * can change a headline, swap a photo or add a review without touching layout.
  *
+ * ── Message ────────────────────────────────────────────────────────────────
+ * Detlio is one app for all car care — at the garage, at your door, and soon
+ * pickup & drop — with a team that knows its garages and steps in when
+ * something is not right. Every section should leave that idea behind.
+ *
  * ── Voice ──────────────────────────────────────────────────────────────────
  * Written to the brand guideline (Figma: Detlio Brand Guideline, ch. 02):
- * short declarative sentences, precise service language, no hype. Headlines
- * come from its "Copy in Practice" list. Avoid: cheap, miracle, instant
- * perfection, ultimate luxury, guaranteed flawless — and no "certified",
- * "guaranteed" or "lifetime" claim until operations and legal have signed it
- * off (ch. 02.06). Every claim here must stay true of how the product behaves.
+ * short declarative sentences, precise service language, no hype. Avoid:
+ * cheap, miracle, instant perfection, ultimate luxury, guaranteed flawless —
+ * and no "certified", "guaranteed" or "lifetime" claim until operations and
+ * legal have signed it off (ch. 02.06). Every claim here must stay true of
+ * how the product behaves today; anything planned carries `comingSoon` and is
+ * worded in the future tense.
  *
  * ── Samples ────────────────────────────────────────────────────────────────
  * Results and testimonials need real material: photos of real jobs, quotes
@@ -26,6 +32,7 @@
  * desaturated, no faces, no flash).
  */
 
+import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
 import type { ServiceCategory } from '@repo/core/types'
 
 export interface Cta {
@@ -33,14 +40,23 @@ export interface Cta {
   href: string
 }
 
+/** The three ways a job gets done — the brand's "three service models". */
+export type ServiceMode = 'garage' | 'doorstep' | 'pickup'
+
+export const META = {
+  title: 'Detlio — One app for all your car care in Chennai',
+  description:
+    'Book car wash, detailing, coating and scratch removal from verified Chennai garages, at the garage or at your door. Prices before you book. Pickup & drop coming soon.',
+}
+
 export const HERO = {
   /** Replaced by "Now booking in <city>" when the live listing has one city. */
   status: 'Now booking',
   /** Rendered with the brand's red terminal period. */
-  title: 'Keep it in pristine condition',
-  body: 'Find a verified specialist near you. Book a slot at the garage or at your door. Follow every stage until your car is ready.',
+  title: 'Keep your car in pristine condition',
+  body: 'Detlio is one app for all your car care. Wash, detailing, coating and scratch removal from garages our team knows personally. If anything is not right, we take it up for you.',
   primaryCta: { label: 'Book a service', href: '/home' } satisfies Cta,
-  secondaryCta: { label: 'How it works', href: '#how-it-works' } satisfies Cta,
+  secondaryCta: { label: 'See the three ways', href: '#ways' } satisfies Cta,
   image: {
     src: '/onboarding-car.jpg',
     alt: 'A black sports car under a single overhead light in a dark studio',
@@ -49,16 +65,56 @@ export const HERO = {
 
 /** Short proof points under the hero. Each must stay true of the product. */
 export const TRUST_POINTS = [
-  'Verified garages',
+  'Garages our team knows personally',
   'Prices before you book',
-  'Secure online payment',
-  'Live booking status',
+  'Live status at every stage',
+  'Any issue? We take it up',
 ]
+
+// ─── Three ways ─────────────────────────────────────────────────────────────
+
+export const MODES_INTRO = {
+  kicker: 'Three ways',
+  title: 'One app. Three ways to get it done.',
+  body: 'Choose where the work happens. The garage, the price and the status stay in one app.',
+}
+
+/**
+ * `comingSoon` keeps a mode on the page, tagged, until it can be booked.
+ * Pickup & drop is planned but not yet bookable — when it launches, drop the
+ * flag and move its copy to the present tense (here, in STEPS, FAQS,
+ * FINAL_CTA and FOOTER).
+ */
+export const MODES: Array<{
+  key: ServiceMode
+  title: string
+  body: string
+  comingSoon?: boolean
+}> = [
+  {
+    key: 'garage',
+    title: 'At the garage',
+    body: 'Drop your car at a verified garage near you. Pick a slot, follow every stage on your phone, and collect it when it is ready.',
+  },
+  {
+    key: 'doorstep',
+    title: 'At your door',
+    body: 'The garage comes to your home or office, where it offers doorstep service. We check it covers your address before you pay.',
+  },
+  {
+    key: 'pickup',
+    title: 'Pickup & drop',
+    body: 'The garage will collect your car, do the work and drop it back. You will not need to drive anywhere.',
+    comingSoon: true,
+  },
+]
+
+// ─── Services ───────────────────────────────────────────────────────────────
 
 export const SERVICES_INTRO = {
   kicker: 'Services',
-  title: 'Know exactly what your car needs.',
-  body: 'Washing, detailing, coating and correction from specialists near you. Every price is shown before you book.',
+  title: 'Everything your car needs, in one place.',
+  body: 'Wash, detailing, coating and scratch removal from verified Chennai garages. You see the price, or the inspection fee, before you book.',
 }
 
 /** Each card opens the garage search filtered to its category. */
@@ -80,7 +136,7 @@ export const SERVICES: Array<{
   {
     category: 'coating',
     title: 'Coating',
-    body: 'Protective coatings that preserve the finish and make maintenance washes easier.',
+    body: 'Protective coatings that preserve the finish and make maintenance washes easier. Any inspection fee is shown before you book.',
   },
   {
     category: 'scratch_removal',
@@ -90,52 +146,130 @@ export const SERVICES: Array<{
   {
     category: 'package',
     title: 'Packages',
-    body: 'Services bundled together, with any saving against booking them separately shown before you book.',
+    body: 'Several services in one booking. Any saving against booking them separately is shown before you book.',
   },
 ]
 
+// ─── Why Detlio ─────────────────────────────────────────────────────────────
+
+export type PromiseIcon =
+  'one-app' | 'known-garages' | 'support' | 'prices' | 'tracking' | 'rewards'
+
+export const PROMISE_INTRO = {
+  kicker: 'Why Detlio',
+  title: 'Booked on Detlio. Looked after by Detlio.',
+  body: 'Detlio is not a garage. We verify the garages, take your booking, and stay on your side until the job is done.',
+}
+
+/** The 'support' entry also renders the real call and WhatsApp buttons. */
+export const PROMISES: Array<{
+  icon: PromiseIcon
+  title: string
+  body: string
+  comingSoon?: boolean
+}> = [
+  {
+    icon: 'one-app',
+    title: 'Every service, one app',
+    body: 'Wash, detailing, coating, scratch removal and packages, at the garage or at your door. One account to book, pay and track them all.',
+  },
+  {
+    icon: 'known-garages',
+    title: 'Garages we know personally',
+    body: 'Our team reviews every garage and marks it verified before it is listed. We know the people behind each one.',
+  },
+  {
+    icon: 'support',
+    title: 'Something not right? We step in',
+    body: 'Tell our team by call or WhatsApp. We take it up with the garage directly, so you are not left chasing anyone.',
+  },
+  {
+    icon: 'prices',
+    title: 'Prices before you book',
+    body: 'Each garage sets its own price, by car size where it applies. You see it before you book. Some work is quoted after a paid inspection.',
+  },
+  {
+    icon: 'tracking',
+    title: 'Every stage, on your phone',
+    body: 'Follow your booking from confirmed to in progress to completed. You know where things stand without making a call.',
+  },
+  {
+    icon: 'rewards',
+    title: 'Rewards for regulars',
+    body: 'A loyalty programme is on the way, with points on your bookings and a free service after five.',
+    comingSoon: true,
+  },
+]
+
+// ─── How it works ───────────────────────────────────────────────────────────
+
 export const STEPS_INTRO = {
   kicker: 'How it works',
-  title: 'Precision at every stage.',
+  title: 'Find, book, pay, track. All in Detlio.',
+  body: 'No ringing around garages. No guessing the price.',
 }
 
 export const STEPS = [
   {
-    title: 'Find a specialist',
-    body: 'Browse garages near you by service, price and distance. Use the list or the map.',
+    title: 'Choose your service',
+    body: 'Wash, detailing, coating, scratch removal or a package. Compare verified garages near you on a list or a map.',
   },
   {
-    title: 'Choose a slot',
-    body: 'Pick a time. Drop the car at the garage, or book doorstep service where the garage offers it.',
+    title: 'Choose how and when',
+    body: 'Pick a slot. Visit the garage, or book doorstep service where the garage offers it. Pickup & drop is coming soon.',
   },
   {
     title: 'Pay securely',
-    body: 'Pay online at checkout through Razorpay. Apply a promo code if you have one.',
+    body: 'Pay online at checkout through Razorpay. Apply a promo code first if you have one.',
   },
   {
     title: 'Track every stage',
-    body: 'Follow the booking from confirmed to in progress to completed. Leave a review when it is done.',
+    body: 'Follow it from confirmed to in progress to completed. Something not right? Tell us, and we take it up with the garage.',
   },
 ]
 
-/** The brand pillars (guideline ch. 01.06), written for car owners. */
-export const PILLARS_INTRO = {
-  kicker: 'Why Detlio',
-  title: 'Care without compromise.',
+// ─── Offers & rewards ───────────────────────────────────────────────────────
+
+export type PerkIcon = 'promo' | 'package' | 'free' | 'points'
+
+export const PERKS_INTRO = {
+  kicker: 'Offers & rewards',
+  title: 'Offers today. Rewards on the way.',
+  body: 'Promo codes and package savings work now. A loyalty programme for regular Detlio customers is coming soon.',
 }
 
-export const PILLARS = [
+/**
+ * Promo codes and package savings are live. The loyalty programme is not
+ * built yet — its terms are the business's to settle before the flag comes
+ * off.
+ */
+export const PERKS: Array<{
+  icon: PerkIcon
+  title: string
+  body: string
+  comingSoon?: boolean
+}> = [
   {
-    title: 'Precision',
-    body: 'Exact standards and clean execution. Every garage is reviewed before it is listed, and every price is shown before you book.',
+    icon: 'promo',
+    title: 'Promo codes at checkout',
+    body: 'Apply a Detlio promo code at checkout. The discount comes off before you pay.',
   },
   {
-    title: 'Preservation',
-    body: 'Care that protects your car’s finish, and its value, for as long as you own it.',
+    icon: 'package',
+    title: 'Package savings',
+    body: 'Book a garage’s package and see any saving against booking each service separately, before you pay.',
   },
   {
-    title: 'Pride',
-    body: 'The satisfaction of a car maintained to a mirror-like standard.',
+    icon: 'free',
+    title: 'Book 5, get 1 free',
+    body: 'Complete five bookings through Detlio and your next service will be free. Full terms at launch.',
+    comingSoon: true,
+  },
+  {
+    icon: 'points',
+    title: 'Loyalty points',
+    body: 'You will earn points each time you book through Detlio, and can put them towards your next service.',
+    comingSoon: true,
   },
 ]
 
@@ -172,7 +306,7 @@ export type Result =
 
 export const RESULTS_INTRO = {
   kicker: 'Results',
-  title: 'The work, before and after.',
+  title: 'The finish, before and after.',
   body: 'Drag across a photo to compare the same car before and after.',
 }
 
@@ -221,7 +355,7 @@ export interface Testimonial {
 
 export const TESTIMONIALS_INTRO = {
   kicker: 'Reviews',
-  title: 'What car owners say.',
+  title: 'What Chennai car owners say.',
 }
 
 export const TESTIMONIALS: Testimonial[] = [
@@ -256,8 +390,8 @@ export const TESTIMONIALS: Testimonial[] = [
 /** Live garages, fetched from the API — see live-garages.ts. */
 export const GARAGES_INTRO = {
   kicker: 'On Detlio',
-  title: 'Garages you can book today.',
-  body: 'Every garage is verified by our team before it is listed.',
+  title: 'We know the garages. You know the price.',
+  body: 'Every garage is reviewed and verified by our team before it is listed. Book any of them in the same app.',
   cta: { label: 'See all garages', href: '/home' } satisfies Cta,
 }
 
@@ -266,24 +400,40 @@ export const GARAGES_INTRO = {
 /** Answers must match how the product behaves — check before editing. */
 export const FAQS = [
   {
-    q: 'Where is Detlio available?',
-    a: 'Detlio is live in Chennai.',
+    q: 'What is Detlio?',
+    a: 'One app for all your car care. Book wash, detailing, coating, scratch removal and packages from verified Chennai garages, at the garage or at your door, then track every stage.',
+  },
+  {
+    q: 'Is Detlio a garage?',
+    a: 'No. Verified partner garages do the work. Detlio finds them, takes your booking and payment, and stays on your side if anything needs following up.',
+  },
+  {
+    q: 'What if something is not right with my service?',
+    a: `Call or WhatsApp our team on ${SUPPORT_PHONE_DISPLAY}. The same line is in the Need help? card in your profile. We know our partner garages personally, and we take it up with the garage for you.`,
   },
   {
     q: 'How are garages chosen?',
-    a: 'Every garage is reviewed and verified by the Detlio team before it appears on the platform.',
+    a: 'Our team reviews every garage and marks it verified before it is listed. We know the people behind each one, which is how we can step in for you.',
   },
   {
     q: 'Can someone come to my home?',
-    a: 'Yes, where the garage offers it. Choose Doorstep, pick your address at checkout, and we check the garage covers it before you pay.',
+    a: 'Yes, where the garage offers doorstep service. Pick your address at checkout, and we check the garage covers it before you pay.',
+  },
+  {
+    q: 'When will pickup & drop be available?',
+    a: 'Pickup & drop is coming soon. The garage will collect your car and bring it back after the work. Until then, book at the garage or at your door.',
+  },
+  {
+    q: 'Are there offers or rewards?',
+    a: 'Promo codes can be applied at checkout today, and packages show any saving before you book. A loyalty programme, with points and a free service after five bookings, is coming soon.',
   },
   {
     q: 'How much does it cost?',
-    a: 'Each garage sets its own prices. You see them before you book, by car size where it applies.',
+    a: 'Each garage sets its own prices, by car size where it applies. You see the price before you book. Some services charge an upfront inspection fee instead, and the final work is quoted after the inspection.',
   },
   {
-    q: 'How do I pay?',
-    a: 'Online, when you confirm your booking, through Razorpay’s secure checkout.',
+    q: 'Where is Detlio available?',
+    a: 'Detlio is live in Chennai.',
   },
   {
     q: 'Can I reschedule or cancel?',
@@ -293,24 +443,25 @@ export const FAQS = [
 
 export const FINAL_CTA = {
   /** Rendered with the brand's red terminal period. */
-  title: 'Protect the finish',
-  body: 'Find a verified specialist near you and book in minutes.',
+  title: 'All your car care. One app',
+  body: 'At the garage or at your door today. Pickup & drop coming soon. And a team that knows every garage, on your side.',
   cta: { label: 'Book a service', href: '/home' } satisfies Cta,
 }
 
 export const FOOTER = {
-  /** The brand promise (guideline ch. 01.03). */
   tagline:
-    'Premium care, confidently discovered, booked, tracked and remembered.',
+    'One app for all your car care. At the garage, at your door, and soon, pickup & drop.',
   links: [
     { label: 'Book a service', href: '/home' },
     { label: 'Find on a map', href: '/map' },
     { label: 'Sign in', href: '/login' },
   ] satisfies Cta[],
-  /** Shown in the footer when filled in; leave empty to hide. */
+  /**
+   * Shown in the footer when filled in; leave empty to hide. The support
+   * phone and WhatsApp always show — they come from @repo/core/support.
+   */
   contact: {
     email: '',
-    phone: '',
     instagram: '',
   },
 }
