@@ -65,10 +65,10 @@ test('a booking is made, worked, completed and reviewed @p0', async ({ browser }
 
   // 499 + 599 (the hatchback tier) = 1098. 20% of that is 219.60, which the
   // code caps at 200 — so the customer pays 898, not 878.40.
-  await expect(checkout.cta()).toHaveText('Pay Now (₹1,098)')
+  await expect(checkout.cta()).toHaveText('Pay ₹1,098')
   await checkout.applyPromo(DISCOUNTS.percentCapped.code)
   await checkout.closePromo()
-  await expect(checkout.cta()).toHaveText('Pay Now (₹898)')
+  await expect(checkout.cta()).toHaveText('Pay ₹898')
 
   await checkout.pay()
   await customer.waitForURL(/\/bookings\/[0-9a-f-]+/)

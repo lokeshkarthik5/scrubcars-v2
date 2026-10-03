@@ -105,7 +105,7 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
   await checkout.goto(garage.id, [serviceId])
   await checkout.pickTomorrowSlot()
   await checkout.pickVehicle(/Hyundai i20/)
-  await expect(checkout.cta()).toHaveText('Pay Now (₹550)')
+  await expect(checkout.cta()).toHaveText('Pay ₹550')
   await checkout.pay()
   await customer.waitForURL(/\/bookings\/[0-9a-f-]+/)
 

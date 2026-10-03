@@ -17,7 +17,8 @@ import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, formatDistance } from '@repo/core/map'
 import { cn } from '@repo/core/utils'
-import type { Vendor } from '@repo/core/types'
+import { bookingTypeParam } from '@repo/core/booking-types'
+import type { BookingType, Vendor } from '@repo/core/types'
 
 /**
  * Airbnb-style map browse: the map is the filter.
@@ -350,6 +351,7 @@ function MapBrowseContent() {
                     key={vendor.id}
                     vendor={vendor}
                     selected={vendor.id === selectedId}
+                    mode={bookingType}
                   />
                 ))}
               </div>
@@ -439,15 +441,23 @@ function VendorPin({
 function MapVendorCard({
   vendor,
   selected,
+  mode,
 }: {
   vendor: Vendor
   selected: boolean
+  /** The mode home handed the map, passed on so checkout opens on it too. */
+  mode: BookingType
 }) {
   const isOpen = vendor.status === 'open'
+  const modeParam = bookingTypeParam(mode)
 
   return (
     <Link
-      href={`/garage/${vendor.id}`}
+      href={
+        modeParam
+          ? `/garage/${vendor.id}?mode=${modeParam}`
+          : `/garage/${vendor.id}`
+      }
       data-vendor-id={vendor.id}
       className={cn(
         'flex w-[78vw] max-w-[300px] shrink-0 snap-center flex-col overflow-hidden rounded-[16px] bg-surface-elevated shadow-xl ring-1 transition-colors',

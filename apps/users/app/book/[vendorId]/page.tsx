@@ -39,21 +39,36 @@ import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
-import type { Service, Vendor } from '@repo/core/types'
+import {
+  BOOKING_TYPE_LABELS,
+  parseBookingType,
+  resolveBookingType,
+} from '@repo/core/booking-types'
+import type { BookingType, Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
 
-const BOOKING_TYPE_OPTIONS = [
-  { value: 'dropin' as const, label: 'Drop In' },
-  { value: 'doorstep' as const, label: 'Doorstep' },
-]
+const BOOKING_TYPE_OPTIONS = (['dropin', 'doorstep'] as const).map((value) => ({
+  value,
+  label: BOOKING_TYPE_LABELS[value],
+}))
+
+/**
+ * What checkout can still be waiting on, in the order the page asks for it.
+ * `address` and `pin` are doorstep-only; `unpriced` is a service the garage has
+ * not priced for the chosen car, which only shows once a car is picked.
+ */
+type CheckoutStep = 'slot' | 'car' | 'address' | 'pin' | 'unpriced'
 
 function BookContent({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   // Comma-separated, in the order they were added on the garage page.
   const serviceIdsParam = searchParams.get('service')
+  // At garage or Doorstep, as chosen on home or the garage page. Absent means
+  // no choice was made, which checkout takes as At garage.
+  const modeParam = searchParams.get('mode')
   const vehicles = useUserStore((s) => s.vehicles)
   const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
@@ -68,9 +83,20 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [pickedAddress, setPickedAddress] = useState<string | null>(null)
   // Set while an address saved without a pin is being given one, inline.
   const [pinningAddress, setPinningAddress] = useState(false)
-  const [bookingType, setBookingType] = useState<'dropin' | 'doorstep'>('dropin')
+  const [chosenType, setChosenType] = useState<BookingType | null>(() =>
+    parseBookingType(modeParam)
+  )
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
+
+  // Where the bottom button takes the customer when a step is still missing.
+  // Headings rather than whole sections, so focus lands on something with a
+  // name; the slot picker owns its headings, so its wrapper stands in.
+  const slotStepRef = useRef<HTMLElement>(null)
+  const carStepRef = useRef<HTMLHeadingElement>(null)
+  const addressStepRef = useRef<HTMLHeadingElement>(null)
+  const pinStepRef = useRef<HTMLParagraphElement>(null)
+  const summaryStepRef = useRef<HTMLHeadingElement>(null)
 
   // What is typed vs what is actually applied. Kept apart so a keystroke never
   // re-queries — only pressing Apply does.
@@ -94,12 +120,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const applyPromo = useValidateDiscount()
 
   useEffect(() => {
-    getVendor(vendorId).then((v) => {
-      setVendor(v ?? null)
-      if (v && !v.dropinEnabled && v.doorstepEnabled) {
-        setBookingType('doorstep')
-      }
-    })
+    getVendor(vendorId).then((v) => setVendor(v ?? null))
     // Packages are fetched alongside the plain services because a package is
     // a bookable line like any other, and `/services` deliberately excludes
     // them. Without this, a customer who added a package on the garage page
@@ -139,6 +160,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // arrives.
   const selectedVehicle =
     pickedVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
+
+  // Derived rather than set when the garage loads, for the same reason the car
+  // is: the choice carried in from the garage page stands unless this garage
+  // cannot do it, and there is no render where the toggle shows the wrong one.
+  const bookingType = resolveBookingType(chosenType, vendor)
 
   // Doorstep only. Unlike the car, the default *is* preselected: the customer
   // chose it as "where I am" in their profile, so re-asking adds a step
@@ -221,6 +247,54 @@ function BookContent({ vendorId }: { vendorId: string }) {
       ? lines.filter((line) => line.amount == null)
       : []
   const unpricedForVehicle = unpricedLines.length > 0
+
+  /**
+   * The first thing still missing before the customer can pay, or null when
+   * nothing is.
+   *
+   * The bottom bar is on screen the whole time, so it names this step and
+   * tapping it scrolls there. It used to read "Pay Now" from the first second,
+   * disabled and faded, with nothing to say what it was waiting for.
+   */
+  const nextStep: CheckoutStep | null = !selectedSlot
+    ? 'slot'
+    : !selectedVehicle
+      ? 'car'
+      : (doorstepBlocker ?? (unpricedForVehicle ? 'unpriced' : null))
+
+  const stepLabels: Record<CheckoutStep, string> = {
+    slot: 'Pick a time',
+    // "Choose" only when there is something to choose between; the step
+    // itself says "Add a car" when the customer has none.
+    car: vehicles.length === 0 ? 'Add your car' : 'Choose your car',
+    address: addresses.length === 0 ? 'Add your address' : 'Choose an address',
+    pin: 'Pin your address on the map',
+    unpriced: 'Remove the unpriced service',
+  }
+
+  // Scrolls to the step and puts focus on it, so a keyboard or screen-reader
+  // user arrives there too. `preventScroll` keeps the focus call from cutting
+  // the smooth scroll short with a jump; the step's scroll-margin keeps its
+  // heading clear of the sticky top bar.
+  const goToStep = (step: CheckoutStep) => {
+    const target = {
+      slot: slotStepRef,
+      car: carStepRef,
+      address: addressStepRef,
+      pin: pinStepRef,
+      unpriced: summaryStepRef,
+    }[step].current
+    if (!target) return
+
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches
+    target.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'start',
+    })
+    target.focus({ preventScroll: true })
+  }
 
   // The pre-discount total. Summed in paise so the arithmetic never runs
   // through a float — the same rule the server applies.
@@ -434,7 +508,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           <ScToggle
             options={BOOKING_TYPE_OPTIONS}
             value={bookingType}
-            onChange={setBookingType}
+            onChange={setChosenType}
           />
         </section>
       )}
@@ -442,7 +516,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
       {/* Each step below appears only once the one before it is answered, so
           the page opens as a single question rather than five stacked ones.
           The picker reveals its own time slots after a date is chosen. */}
-      <section>
+      <section
+        ref={slotStepRef}
+        tabIndex={-1}
+        aria-label="Date and time"
+        className="scroll-mt-20 outline-none"
+      >
         <SlotPicker
           progressive
           vendorId={vendorId}
@@ -456,7 +535,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
           booking can't be created without one. */}
       {selectedSlot && (
         <Reveal as="section">
-          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Car details</h2>
+          <h2
+            ref={carStepRef}
+            tabIndex={-1}
+            className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
+          >
+            Car details
+          </h2>
           {vehicles.length === 0 ? (
             <ScCard className="flex flex-col items-start gap-2 border-warning bg-warning-muted/20">
               <p className="text-[13px] font-medium text-text-primary">
@@ -511,7 +596,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           check it against the garage's travel radius. */}
       {selectedSlot && isDoorstep && (
         <Reveal as="section">
-          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+          <h2
+            ref={addressStepRef}
+            tabIndex={-1}
+            className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
+          >
             Where should we come?
           </h2>
           {addresses.length === 0 ? (
@@ -564,7 +653,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
               {addressNeedsPin && (
                 <ScCard className="flex flex-col gap-2 border-warning bg-warning-muted/20">
-                  <p className="text-[13px] font-medium text-text-primary">
+                  <p
+                    ref={pinStepRef}
+                    tabIndex={-1}
+                    className="scroll-mt-20 text-[13px] font-medium text-text-primary outline-none"
+                  >
                     Pin the exact spot
                   </p>
                   <p className="text-[12px] text-text-secondary">
@@ -645,7 +738,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </ScCard>
 
           <div>
-            <h2 className="mb-2 text-[15px] font-semibold text-text-primary">
+            <h2
+              ref={summaryStepRef}
+              tabIndex={-1}
+              className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
+            >
               Payment summary
             </h2>
             <ScCard className="flex flex-col gap-3 py-3.5">
@@ -805,39 +902,44 @@ function BookContent({ vendorId }: { vendorId: string }) {
           indicator inset added to both. */}
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
         <ScButton
-          disabled={
-            selectedServices.length === 0 ||
-            !selectedSlot ||
-            !selectedVehicle ||
-            unpricedForVehicle ||
-            !doorstepReady ||
-            loading
-          }
-          onClick={handleConfirm}
-          className="rounded-full py-4 text-[15px]"
+          // Disabled only while a payment is opening. Before that it is never
+          // a dead end: it names what is missing and tapping it goes there.
+          disabled={loading}
+          aria-describedby="checkout-cta-hint"
+          onClick={nextStep ? () => goToStep(nextStep) : handleConfirm}
+          className={cn(
+            'rounded-full py-4 text-[15px]',
+            // Graphite until the booking is ready, so red only ever means
+            // "this pays". The disabled red at 40% it replaces read as pink
+            // and broken rather than as "not yet".
+            nextStep &&
+              'bg-surface-elevated text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated',
+            loading && 'disabled:cursor-wait disabled:opacity-100'
+          )}
         >
           {loading
             ? 'Processing payment...'
-            : unpricedForVehicle
-              ? 'Remove the unpriced service'
-              : doorstepBlocker === 'address'
-                ? 'Choose an address'
-                : doorstepBlocker === 'pin'
-                  ? 'Pin your address on the map'
-                  : payableAmount == null
-                    ? 'Confirm booking'
-                    : `Pay Now (₹${payableAmount.toLocaleString('en-IN')})`}
+            : nextStep
+              ? stepLabels[nextStep]
+              : payableAmount == null
+                ? 'Confirm booking'
+                : `Pay ₹${payableAmount.toLocaleString('en-IN')}`}
         </ScButton>
-        <p className="mt-2 text-center text-[11px] text-text-muted">
-          {doorstepBlocker === 'address'
-            ? 'Pick the address we should come to.'
-            : doorstepBlocker === 'pin'
+        <p
+          id="checkout-cta-hint"
+          className="mt-2 text-center text-[11px] text-text-muted"
+        >
+          {nextStep === 'address'
+            ? addresses.length === 0
+              ? 'Add the address we should come to.'
+              : 'Pick the address we should come to.'
+            : nextStep === 'pin'
               ? 'We need the exact spot to check this garage travels to you.'
-              : unpricedForVehicle
-            ? `${unpricedLines
-                .map((line) => line.service.name)
-                .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
-            : 'Bookings are confirmed after online payment.'}
+              : nextStep === 'unpriced'
+                ? `${unpricedLines
+                    .map((line) => line.service.name)
+                    .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
+                : 'Bookings are confirmed after online payment.'}
         </p>
       </div>
     </AppShell>

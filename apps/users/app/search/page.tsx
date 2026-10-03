@@ -12,6 +12,7 @@ import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import { cn } from '@repo/core/utils'
 
 // Quick-access shortcuts for the most-used sorts. The Filter button opens the
 // sheet with the full set, and both drive the same `sort` state so the chip
@@ -39,17 +40,23 @@ function SearchContent() {
     vendors,
     hasMore,
     isLoading,
+    isRefreshing,
     isFetchingMore,
     loadMore,
-  } = useVendorSearch({
-    q: debouncedQuery || undefined,
-    category,
-    lat: origin?.lat,
-    lng: origin?.lng,
-    // Falling back off 'distance' matters: without an origin the server
-    // rejects it, and a rejected browse is worse than an unsorted one.
-    sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
-  })
+  } = useVendorSearch(
+    {
+      q: debouncedQuery || undefined,
+      category,
+      lat: origin?.lat,
+      lng: origin?.lng,
+      // Falling back off 'distance' matters: without an origin the server
+      // rejects it, and a rejected browse is worse than an unsorted one.
+      sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
+    },
+    // Each keystroke and sort change keeps the last results up until the new
+    // ones arrive, so typing does not blink the list out between letters.
+    { keepPrevious: true }
+  )
 
   return (
     <AppShell showNav showBrand className="gap-4 py-4">
@@ -84,42 +91,58 @@ function SearchContent() {
         </button>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] text-text-secondary">
-          {/* "20+" rather than "20": the count is what has been paged in so
-              far, not the size of the result set, and stating it flatly would
-              be a number the next scroll contradicts. */}
-          {vendors.length}
-          {hasMore ? '+' : ''} garage{vendors.length === 1 && !hasMore ? '' : 's'} found
-        </p>
-        {sort !== 'relevance' && (
-          <p className="text-[11px] text-text-secondary">Sorted by {sortLabel(sort)}</p>
+      {/* The count and the list are one answer, so they dim together while a
+          new one loads. The delay means a quick answer never dims at all. */}
+      <div
+        aria-busy={isRefreshing || undefined}
+        className={cn(
+          'flex flex-col gap-4 transition-opacity duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
+          isRefreshing && 'opacity-60 delay-150'
         )}
-      </div>
+      >
+        <div className="flex items-center justify-between gap-3">
+          {/* Held back until the first page is in: "0 garages found" above
+              "Searching…" was the page contradicting itself. */}
+          {!isLoading && (
+            <p className="text-[11px] text-text-secondary">
+              {/* "20+" rather than "20": the count is what has been paged in so
+                  far, not the size of the result set, and stating it flatly
+                  would be a number the next scroll contradicts. */}
+              {vendors.length}
+              {hasMore ? '+' : ''} garage{vendors.length === 1 && !hasMore ? '' : 's'} found
+            </p>
+          )}
+          {sort !== 'relevance' && (
+            <p className="ml-auto text-[11px] text-text-secondary">
+              Sorted by {sortLabel(sort)}
+            </p>
+          )}
+        </div>
 
-      <div className="flex flex-col gap-2">
-        {isLoading ? (
-          <p className="py-6 text-center text-[13px] text-text-secondary">
-            Searching…
-          </p>
-        ) : vendors.length === 0 ? (
-          <p className="py-6 text-center text-[13px] text-text-secondary">
-            No garages match your search.
-          </p>
-        ) : (
-          <>
-            {vendors.map((vendor, i) => (
-              <Reveal key={vendor.id} index={i}>
-                <VendorCard vendor={vendor} />
-              </Reveal>
-            ))}
-            <InfiniteSentinel
-              onVisible={loadMore}
-              enabled={hasMore}
-              loading={isFetchingMore}
-            />
-          </>
-        )}
+        <div className="flex flex-col gap-2">
+          {isLoading ? (
+            <p className="py-6 text-center text-[13px] text-text-secondary">
+              Searching…
+            </p>
+          ) : vendors.length === 0 ? (
+            <p className="py-6 text-center text-[13px] text-text-secondary">
+              No garages match your search.
+            </p>
+          ) : (
+            <>
+              {vendors.map((vendor, i) => (
+                <Reveal key={vendor.id} index={i}>
+                  <VendorCard vendor={vendor} />
+                </Reveal>
+              ))}
+              <InfiniteSentinel
+                onVisible={loadMore}
+                enabled={hasMore}
+                loading={isFetchingMore}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       <SortSheet

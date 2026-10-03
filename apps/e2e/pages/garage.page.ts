@@ -11,6 +11,11 @@ export class GaragePage {
 
   goto = (vendorId: string) => this.page.goto(`/garage/${vendorId}`)
 
+  /** The At garage / Doorstep switch, a radiogroup. Only rendered for a garage
+   *  doing both; the choice rides along to checkout as `&mode=`. */
+  mode = (label: 'At garage' | 'Doorstep') =>
+    this.page.getByRole('radio', { name: label, exact: true })
+
   tab = (name: 'Services' | 'Photos' | 'Reviews') => this.page.getByRole('tab', { name })
 
   openTab = (name: 'Services' | 'Photos' | 'Reviews') => this.tab(name).click()

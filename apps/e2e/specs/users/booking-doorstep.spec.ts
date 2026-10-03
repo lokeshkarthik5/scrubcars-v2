@@ -14,6 +14,7 @@
  */
 import { test, expect, asRole } from '../../support/fixtures'
 import { CheckoutPage } from '../../pages/checkout.page'
+import { GaragePage } from '../../pages/garage.page'
 import { bookingsForUser, countBookingsForUser, sql } from '../../support/db'
 import { ADDRESSES, CUSTOMERS, ORIGIN, SERVICES, VENDORS } from '../../support/seed-ids'
 
@@ -39,7 +40,7 @@ test.describe('doorstep booking', () => {
 
     // The default address is preselected — the customer already said "this is
     // where I am" in their profile, so re-asking adds a step, not a decision.
-    await expect(checkout.cta()).toHaveText('Pay Now (₹499)')
+    await expect(checkout.cta()).toHaveText('Pay ₹499')
     await checkout.pay()
 
     await page.waitForURL(/\/bookings\/[0-9a-f-]+/)
@@ -66,18 +67,20 @@ test.describe('doorstep booking', () => {
     await checkout.pickAddress(/Office/)
     await expect(checkout.pinPrompt()).toBeVisible()
 
-    // The bottom bar is always on screen, so the CTA cannot simply vanish —
-    // it has to be disabled *and* say why. An enabled button that silently
-    // does nothing is the one outcome worse than no button at all.
+    // The bottom bar is always on screen, so the CTA cannot simply vanish.
+    // It says what is missing, and tapping it goes there rather than paying —
+    // a button that silently does nothing is worse than no button at all.
     await expect(checkout.cta()).toHaveText('Pin your address on the map')
-    await expect(checkout.cta()).toBeDisabled()
+    await checkout.cta().click()
+    await expect(checkout.pinPrompt()).toBeInViewport()
+    await expect(page).toHaveURL(/\/book\//)
 
     // Asked here rather than back in the profile, because leaving the page
     // would discard the slot and any applied code.
     await checkout.useCurrentLocation()
 
     await expect(checkout.pinPrompt()).toBeHidden()
-    await expect(checkout.cta()).toHaveText('Pay Now (₹499)')
+    await expect(checkout.cta()).toHaveText('Pay ₹499')
 
     // The pin is saved onto the address, not just held in the page.
     const [row] = await sql<{ lat: number | null; geo_source: string }[]>`
@@ -93,10 +96,29 @@ test.describe('doorstep booking', () => {
 
     // The default mode. The customer comes to the garage, so there is nowhere
     // to travel to and nothing to ask.
-    await expect(checkout.bookingType('Drop In')).toHaveAttribute('aria-pressed', 'true')
+    await expect(checkout.bookingType('At garage')).toHaveAttribute('aria-pressed', 'true')
     await checkout.pickTomorrowSlot()
 
     await expect(checkout.addressStep()).toBeHidden()
-    await expect(checkout.cta()).toHaveText('Pay Now (₹499)')
+    await expect(checkout.cta()).toHaveText('Pay ₹499')
+  })
+
+  test('the mode chosen on the garage page carries into checkout', async ({ page }) => {
+    const garage = new GaragePage(page)
+    await garage.goto(VENDORS.main.id)
+
+    // Picked once, on the garage page. Checkout used to reset to At garage,
+    // so a Doorstep customer had to choose it again there.
+    await garage.mode('Doorstep').click()
+    await expect(garage.mode('Doorstep')).toHaveAttribute('aria-checked', 'true')
+    await garage.add(SERVICES.wash.name)
+    await garage.book()
+
+    await expect(page).toHaveURL(/\/book\/.*[?&]mode=doorstep/)
+    const checkout = new CheckoutPage(page)
+    await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-pressed', 'true')
+
+    await checkout.pickTomorrowSlot()
+    await expect(checkout.addressStep()).toBeVisible()
   })
 })

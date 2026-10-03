@@ -32,7 +32,7 @@ test.describe('payment @p0', () => {
     await checkout.applyPromo(DISCOUNTS.percentCapped.code)
     await checkout.closePromo()
 
-    await expect(checkout.cta()).toHaveText('Pay Now (₹2,298)')
+    await expect(checkout.cta()).toHaveText('Pay ₹2,298')
     await checkout.pay()
 
     // The success burst is keyed off ?celebrate=1, which the page strips once
@@ -103,6 +103,27 @@ test.describe('payment @p0', () => {
     expect(await countBookingsForUser(CUSTOMERS.book.id)).toBe(before)
   })
 
+  test('the CTA names the next missing step and goes to it', async ({ page }) => {
+    const checkout = new CheckoutPage(page)
+    await checkout.goto(VENDORS.main.id, [SERVICES.wash.id])
+
+    // A "Pay" button that cannot be pressed explains nothing; the step that is
+    // missing does. This customer owns three cars, so nothing is preselected
+    // and the car step is a real question.
+    await expect(checkout.cta()).toHaveText('Pick a time')
+    await checkout.pickTomorrowSlot()
+    await expect(checkout.cta()).toHaveText('Choose your car')
+
+    // Tapping it takes the customer to the step instead of doing nothing —
+    // and never towards payment, which is what the label promises.
+    await checkout.cta().click()
+    await expect(page.getByRole('heading', { name: 'Car details' })).toBeInViewport()
+    await expect(page).toHaveURL(/\/book\//)
+
+    await checkout.pickVehicle(/Maruti Swift/)
+    await expect(checkout.cta()).toHaveText('Pay ₹499')
+  })
+
   test('an on-inspection service charges its inspection fee upfront', async ({ page }) => {
     const checkout = new CheckoutPage(page)
     await checkout.goto(VENDORS.main.id, [SERVICES.inspect.id])
@@ -111,7 +132,7 @@ test.describe('payment @p0', () => {
 
     // on_inspection is not "unpriced": the customer pays a fixed inspection
     // fee now and the repair itself is quoted afterwards. resolveServiceAmount
-    // returns `price` for this type, so the CTA is a normal Pay Now.
-    await expect(checkout.cta()).toHaveText('Pay Now (₹299)')
+    // returns `price` for this type, so the CTA asks for payment as normal.
+    await expect(checkout.cta()).toHaveText('Pay ₹299')
   })
 })

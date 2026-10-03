@@ -29,6 +29,7 @@ import {
 } from '@repo/core/stores/location-store'
 import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { cn } from '@repo/core/utils'
 
 type ServiceMode = 'dropin' | 'doorstep'
@@ -85,15 +86,21 @@ function HomeContent() {
     appliedRadiusKm,
     hasMore,
     isLoading,
+    isRefreshing,
     isFetchingMore,
     loadMore,
-  } = useVendorSearch({
-    bookingType: serviceMode,
-    category: category === 'all' ? undefined : category,
-    lat: origin?.lat,
-    lng: origin?.lng,
-    sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
-  })
+  } = useVendorSearch(
+    {
+      bookingType: serviceMode,
+      category: category === 'all' ? undefined : category,
+      lat: origin?.lat,
+      lng: origin?.lng,
+      sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
+    },
+    // A mode, chip or sort change keeps the current garages on screen until
+    // the new ones land, instead of collapsing the page to one line of text.
+    { keepPrevious: true }
+  )
 
   // Where the located half ends. Only meaningful while an origin is known —
   // without one nothing has a distance, so there is no boundary to mark.
@@ -176,10 +183,14 @@ function HomeContent() {
         options={[
           {
             value: 'dropin',
-            label: 'At Garage',
+            label: BOOKING_TYPE_LABELS.dropin,
             icon: <IconBuildingStore size={15} />,
           },
-          { value: 'doorstep', label: 'Doorstep', icon: <IconHome size={15} /> },
+          {
+            value: 'doorstep',
+            label: BOOKING_TYPE_LABELS.doorstep,
+            icon: <IconHome size={15} />,
+          },
         ]}
       />
 
@@ -247,7 +258,15 @@ function HomeContent() {
           </p>
         )}
 
-        <div className="flex flex-col gap-3">
+        {/* Dimmed rather than replaced while a new filter loads. The delay
+            means a quick answer never dims at all; the return is immediate. */}
+        <div
+          aria-busy={isRefreshing || undefined}
+          className={cn(
+            'flex flex-col gap-3 transition-opacity duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
+            isRefreshing && 'opacity-60 delay-150'
+          )}
+        >
           {isLoading ? (
             <p className="py-8 text-center text-[13px] text-text-secondary">
               Finding garages…
@@ -272,7 +291,9 @@ function HomeContent() {
                     </p>
                   )}
                   <Reveal index={i}>
-                    <VendorCard vendor={vendor} />
+                    {/* The mode travels with the tap, so the garage page and
+                        checkout open on the choice made here. */}
+                    <VendorCard vendor={vendor} mode={serviceMode} />
                   </Reveal>
                 </Fragment>
               ))}

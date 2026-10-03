@@ -20,6 +20,7 @@ import { submitReview } from '@repo/core/api/reviews'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { formatBookingAmount } from '@repo/core/pricing'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
@@ -243,8 +244,9 @@ export default function BookingDetailPage({
           ) : (
             <IconMapPin size={15} className="text-text-primary" />
           )}
+          {/* The same name the customer chose it by on home and at checkout. */}
           <span className="font-medium text-text-primary">
-            {booking.bookingType === 'doorstep' ? 'Doorstep Mode' : 'At Garage Mode'}
+            {BOOKING_TYPE_LABELS[booking.bookingType]}
           </span>
         </div>
 

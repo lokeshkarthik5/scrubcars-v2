@@ -28,24 +28,44 @@ import { getVendorServices } from '@repo/core/api/services'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { categoryLabel } from '@repo/core/categories'
+import {
+  BOOKING_TYPE_LABELS,
+  bookingTypeParam,
+  parseBookingType,
+  resolveBookingType,
+} from '@repo/core/booking-types'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time'
-import type { Review, Service, ServicePackage, Vendor } from '@repo/core/types'
+import type {
+  BookingType,
+  Review,
+  Service,
+  ServicePackage,
+  Vendor,
+} from '@repo/core/types'
 import { formatServicePrice, tierPriceFor } from '@repo/core/pricing'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration } from '@repo/core/utils'
 
 type Tab = 'services' | 'photos' | 'reviews'
-type Mode = 'dropin' | 'doorstep'
 
 // A package is a Service plus its contents, so the details popup takes either
 // and only the bundle-specific block below depends on the difference.
 const isPackage = (item: Service | ServicePackage): item is ServicePackage =>
   'items' in item
 
-export default function GaragePage({ params }: { params: Promise<{ id: string }> }) {
+export default function GaragePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { id } = use(params)
+  // Read from the page's own props rather than useSearchParams: it is only
+  // the starting value, and this page has no Suspense boundary to need.
+  const { mode: modeParam } = use(searchParams)
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   // Named to avoid shadowing the DOM's global `location`.
@@ -56,7 +76,11 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const [packages, setPackages] = useState<ServicePackage[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
-  const [mode, setMode] = useState<Mode>('dropin')
+  // The At garage / Doorstep choice, as made on home or here. Null until one
+  // is made; `mode` below is what the garage can actually do with it.
+  const [chosenMode, setChosenMode] = useState<BookingType | null>(() =>
+    parseBookingType(modeParam)
+  )
   const [query, setQuery] = useState('')
   const [favourite, setFavourite] = useState(false)
   // Several services can go into one booking. Order matters: it is the order
@@ -67,10 +91,7 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
   const [details, setDetails] = useState<Service | ServicePackage | null>(null)
 
   useEffect(() => {
-    getVendor(id).then((v) => {
-      setVendor(v ?? null)
-      if (v && !v.dropinEnabled && v.doorstepEnabled) setMode('doorstep')
-    })
+    getVendor(id).then((v) => setVendor(v ?? null))
     getVendorServices(id).then(setServices)
     getVendorPackages(id).then(setPackages)
     getVendorReviews(id).then(setReviews)
@@ -144,9 +165,32 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
     (service) => service.pricingType === 'per_vehicle'
   )
 
+  // Derived rather than set when the garage loads: a garage that only travels
+  // is Doorstep whatever was chosen, and one that does both honours the
+  // choice, with no render in between where the toggle shows the wrong one.
+  const mode = resolveBookingType(chosenMode, vendor)
+
+  const changeMode = (next: BookingType) => {
+    setChosenMode(next)
+    // Mirrored into the URL so Back from checkout lands on the same choice.
+    // replaceState rather than router.replace: nothing needs re-rendering,
+    // and Next keeps its router in step with the native history call.
+    const param = bookingTypeParam(next)
+    window.history.replaceState(
+      null,
+      '',
+      param ? `?mode=${param}` : window.location.pathname
+    )
+  }
+
   const handleBook = () => {
     if (selected.length === 0) return
-    const bookPath = `/book/${id}?service=${selected.join(',')}`
+    // The mode rides along so checkout opens on it. Without it checkout reset
+    // to At garage, and a Doorstep customer had to choose a third time.
+    const modeQuery = bookingTypeParam(mode)
+    const bookPath = `/book/${id}?service=${selected.join(',')}${
+      modeQuery ? `&mode=${modeQuery}` : ''
+    }`
     router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
   }
 
@@ -286,16 +330,16 @@ export default function GaragePage({ params }: { params: Promise<{ id: string }>
             aria-label="Service mode"
             className="mt-1"
             value={mode}
-            onChange={setMode}
+            onChange={changeMode}
             options={[
               {
                 value: 'dropin',
-                label: 'At Garage',
+                label: BOOKING_TYPE_LABELS.dropin,
                 icon: <IconBuildingStore size={15} />,
               },
               {
                 value: 'doorstep',
-                label: 'Doorstep',
+                label: BOOKING_TYPE_LABELS.doorstep,
                 icon: <IconHome size={15} />,
               },
             ]}
