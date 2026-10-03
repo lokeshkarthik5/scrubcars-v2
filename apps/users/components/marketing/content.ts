@@ -54,7 +54,7 @@ export const HERO = {
   status: 'Now booking',
   /** Rendered with the brand's red terminal period. */
   title: 'Keep your car in pristine condition',
-  body: 'Detlio is one app for all your car care. Wash, detailing, coating and scratch removal from garages our team knows personally. If anything is not right, we take it up for you.',
+  body: 'Wash, detail and protect your car with garages we know personally. If anything goes wrong, we sort it out.',
   primaryCta: { label: 'Book a service', href: '/home' } satisfies Cta,
   secondaryCta: { label: 'See the three ways', href: '#ways' } satisfies Cta,
   image: {
@@ -71,12 +71,27 @@ export const TRUST_POINTS = [
   'Any issue? We take it up',
 ]
 
-// ─── Three ways ─────────────────────────────────────────────────────────────
+// ─── One app, three ways ────────────────────────────────────────────────────
 
-export const MODES_INTRO = {
-  kicker: 'Three ways',
-  title: 'One app. Three ways to get it done.',
-  body: 'Choose where the work happens. The garage, the price and the status stay in one app.',
+/** The brand statement under the hero, with the three ways and the apps. */
+export const ONE_APP = {
+  /** Two lines, rendered large; the brand's red period follows the second. */
+  title: ['All your car care needs,', 'in one app'] as const,
+  body: 'Choose where the work happens. The garage, the price and every update stay in one place.',
+}
+
+/**
+ * The native apps are planned, not published — so these are Detlio-styled
+ * "coming soon" marks, not Apple's and Google's official badges, which may
+ * only link to a live store listing.
+ */
+export const APPS = {
+  label: 'The Detlio app is coming soon',
+  stores: [
+    { key: 'apple', name: 'App Store' },
+    { key: 'google', name: 'Google Play' },
+  ] as const,
+  web: { label: 'Book on the web today', href: '/home' } satisfies Cta,
 }
 
 /**
@@ -94,17 +109,17 @@ export const MODES: Array<{
   {
     key: 'garage',
     title: 'At the garage',
-    body: 'Drop your car at a verified garage near you. Pick a slot, follow every stage on your phone, and collect it when it is ready.',
+    body: 'Book a slot, drop your car at a verified garage, and collect it when it is ready.',
   },
   {
     key: 'doorstep',
     title: 'At your door',
-    body: 'The garage comes to your home or office, where it offers doorstep service. We check it covers your address before you pay.',
+    body: 'A specialist comes to your home or office, where the garage covers your address.',
   },
   {
     key: 'pickup',
     title: 'Pickup & drop',
-    body: 'The garage will collect your car, do the work and drop it back. You will not need to drive anywhere.',
+    body: 'The garage will collect your car and bring it back when the work is done.',
     comingSoon: true,
   },
 ]
@@ -113,7 +128,7 @@ export const MODES: Array<{
 
 export const SERVICES_INTRO = {
   kicker: 'Services',
-  title: 'Everything your car needs, in one place.',
+  title: 'Know exactly what your car needs.',
   body: 'Wash, detailing, coating and scratch removal from verified Chennai garages. You see the price, or the inspection fee, before you book.',
 }
 
@@ -404,6 +419,10 @@ export const FAQS = [
     a: 'One app for all your car care. Book wash, detailing, coating, scratch removal and packages from verified Chennai garages, at the garage or at your door, then track every stage.',
   },
   {
+    q: 'Is there a Detlio app?',
+    a: 'The Detlio app for iPhone and Android is coming soon. Until then, book on the web at detlio.com. It works on any phone.',
+  },
+  {
     q: 'Is Detlio a garage?',
     a: 'No. Verified partner garages do the work. Detlio finds them, takes your booking and payment, and stays on your side if anything needs following up.',
   },
@@ -443,7 +462,7 @@ export const FAQS = [
 
 export const FINAL_CTA = {
   /** Rendered with the brand's red terminal period. */
-  title: 'All your car care. One app',
+  title: 'Care without compromise',
   body: 'At the garage or at your door today. Pickup & drop coming soon. And a team that knows every garage, on your side.',
   cta: { label: 'Book a service', href: '/home' } satisfies Cta,
 }

@@ -7,7 +7,7 @@ import {
   Garages,
   Hero,
   HowItWorks,
-  Modes,
+  OneApp,
   Perks,
   Promises,
   Results,
@@ -96,7 +96,7 @@ export default async function HomePage() {
           city={garages.cities.length === 1 ? garages.cities[0] : null}
           startingPrice={garages.startingPrice}
         />
-        <Modes />
+        <OneApp />
         <Services />
         <Promises />
         <HowItWorks />

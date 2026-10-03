@@ -6,6 +6,8 @@ import {
   IconArrowRight,
   IconArrowUpRight,
   IconArrowsExchange,
+  IconBrandAppleFilled,
+  IconBrandGooglePlay,
   IconBrandInstagram,
   IconBrandWhatsapp,
   IconBuildingStore,
@@ -50,8 +52,9 @@ import {
   FOOTER,
   GARAGES_INTRO,
   HERO,
+  APPS,
   MODES,
-  MODES_INTRO,
+  ONE_APP,
   PERKS,
   PERKS_INTRO,
   PROMISE_INTRO,
@@ -184,9 +187,14 @@ function SampleTag() {
  * Marks something the page describes but customers cannot book yet. A red
  * status dot, as the guideline's dot language allows (ch. 08, use C).
  */
-function ComingSoonTag() {
+function ComingSoonTag({ className }: { className?: string }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-white/20 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary">
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 rounded border border-white/20 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary',
+        className
+      )}
+    >
       <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
       Coming soon
     </span>
@@ -280,22 +288,6 @@ export function Hero({
         <p className="mt-6 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
           {HERO.body}
         </p>
-        <ul
-          aria-label="Ways to book"
-          className="mt-6 flex flex-wrap items-center justify-center gap-2"
-        >
-          {MODES.map((mode) => (
-            <li
-              key={mode.key}
-              className="inline-flex items-center gap-1.5 rounded border border-white/15 px-2.5 py-1 text-[13px] font-medium text-brand-white"
-            >
-              {mode.title}
-              {mode.comingSoon && (
-                <span className="font-normal text-text-muted">· soon</span>
-              )}
-            </li>
-          ))}
-        </ul>
         <div className="mt-9 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
           <CtaLink cta={HERO.primaryCta} className="w-full sm:w-auto" />
           <CtaLink
@@ -635,40 +627,107 @@ const MODE_ICONS: Record<ServiceMode, typeof IconHome> = {
   pickup: IconArrowsExchange,
 }
 
-export function Modes() {
+/**
+ * The brand statement: what Detlio is, said once and large, then the three
+ * ways a job gets done and the apps on the way. Sits straight under the hero,
+ * so the answer to "what is this?" arrives before any detail does.
+ */
+export function OneApp() {
   return (
-    <section id="ways" className={SECTION_Y}>
-      <div className={CONTAINER}>
-        <SectionIntro {...MODES_INTRO} />
-        <ul className="mt-12 grid gap-4 md:grid-cols-3">
+    <section
+      id="ways"
+      aria-labelledby="one-app-title"
+      className="relative isolate overflow-hidden border-t border-white/[0.06] py-20 sm:py-28"
+    >
+      {/* The hero's overhead light, carried over the headline. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 -z-10 h-[560px] bg-[radial-gradient(ellipse_38%_60%_at_50%_0%,rgba(255,255,255,0.08),transparent_75%)]"
+      />
+      <div className={cn(CONTAINER, 'text-center')}>
+        <h2
+          id="one-app-title"
+          className="mx-auto max-w-5xl bg-gradient-to-b from-white from-35% to-white/50 bg-clip-text pb-2 text-[40px] font-bold leading-[1] tracking-[-0.045em] text-transparent sm:text-[68px] lg:text-[92px]"
+        >
+          {ONE_APP.title[0]}
+          <br />
+          {ONE_APP.title[1]}
+          <RedPeriod />
+        </h2>
+        <p className="mx-auto mt-6 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
+          {ONE_APP.body}
+        </p>
+
+        <ul className="mx-auto mt-14 grid max-w-5xl divide-y divide-white/[0.08] border-y border-white/[0.08] md:grid-cols-3 md:divide-x md:divide-y-0">
           {MODES.map((mode) => {
             const Icon = MODE_ICONS[mode.key]
             return (
               <li
                 key={mode.key}
-                className="flex flex-col rounded-xl border border-white/[0.08] bg-brand-rich p-6 sm:p-8"
+                className="flex flex-col items-center px-6 py-8 sm:py-10"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <Icon
-                    size={28}
-                    stroke={1.75}
-                    aria-hidden
-                    className="text-brand-white"
-                  />
-                  {mode.comingSoon && <ComingSoonTag />}
-                </div>
-                <h3 className="mt-6 text-[20px] font-semibold tracking-[-0.01em]">
+                <Icon
+                  size={32}
+                  stroke={1.5}
+                  aria-hidden
+                  className="text-brand-white"
+                />
+                <h3 className="mt-5 text-[19px] font-semibold tracking-[-0.01em]">
                   {mode.title}
                 </h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
+                {mode.comingSoon && <ComingSoonTag className="mt-2" />}
+                <p className="mt-2 max-w-[18rem] text-[15px] leading-relaxed text-text-secondary">
                   {mode.body}
                 </p>
               </li>
             )
           })}
         </ul>
+
+        <div className="mt-14 flex flex-col items-center">
+          <p className="text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-text-muted">
+            {APPS.label}
+          </p>
+          <ul className="mt-4 flex flex-wrap justify-center gap-3">
+            {APPS.stores.map((store) => (
+              <li key={store.key}>
+                <StoreMark store={store} />
+              </li>
+            ))}
+          </ul>
+          <Link
+            href={APPS.web.href}
+            className={cn(
+              'mt-5 inline-flex items-center gap-1.5 rounded-sm text-[14px] font-medium text-brand-white underline-offset-4 hover:underline',
+              FOCUS_RING
+            )}
+          >
+            {APPS.web.label}
+            <IconArrowRight size={16} stroke={1.5} aria-hidden />
+          </Link>
+        </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * A store the app is coming to. Deliberately not the official badge and not a
+ * link: there is no listing to send anyone to yet.
+ */
+function StoreMark({ store }: { store: (typeof APPS.stores)[number] }) {
+  const Icon =
+    store.key === 'apple' ? IconBrandAppleFilled : IconBrandGooglePlay
+  return (
+    <span className="inline-flex h-14 w-44 items-center gap-3 rounded-lg border border-white/15 bg-black px-5 text-left">
+      <Icon size={26} stroke={1.5} aria-hidden className="text-brand-white" />
+      <span className="flex flex-col leading-tight">
+        <span className="text-[11px] text-text-secondary">Coming soon on</span>
+        <span className="text-[17px] font-semibold tracking-[-0.01em] text-brand-white">
+          {store.name}
+        </span>
+      </span>
+    </span>
   )
 }
 
