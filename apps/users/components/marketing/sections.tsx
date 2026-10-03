@@ -21,7 +21,6 @@ import {
   IconRoute,
   IconUserCheck,
   IconChevronDown,
-  IconCircleCheck,
   IconDroplet,
   IconMail,
   IconPackage,
@@ -54,7 +53,7 @@ import {
   HERO,
   APPS,
   MODES,
-  ONE_APP,
+  OFFER_TAG,
   PERKS,
   PERKS_INTRO,
   PROMISE_INTRO,
@@ -67,7 +66,6 @@ import {
   STEPS,
   STEPS_INTRO,
   TESTIMONIALS_INTRO,
-  TRUST_POINTS,
 } from './content'
 
 /**
@@ -256,6 +254,11 @@ export function SiteHeader({ links }: { links: Cta[] }) {
 
 // ─── Hero ───────────────────────────────────────────────────────────────────
 
+/**
+ * The first screen says what Detlio is before anything else: the statement,
+ * large, over the car — then the three ways a job gets done and the apps on
+ * the way, so "what is this?" is answered before the visitor scrolls.
+ */
 export function Hero({
   city,
   startingPrice,
@@ -263,32 +266,42 @@ export function Hero({
   city: string | null
   startingPrice: number | null
 }) {
+  const status = [
+    city ? `${HERO.status} in ${city}` : HERO.status,
+    startingPrice != null ? `Services from ₹${startingPrice}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <section className="relative isolate overflow-hidden pt-16">
       {/* The photo is cropped below its light source; this carries the
           overhead spotlight up behind the headline. */}
       <div
         aria-hidden
-        className="absolute inset-x-0 top-0 -z-10 h-[760px] bg-[radial-gradient(ellipse_32%_60%_at_50%_0%,rgba(255,255,255,0.09),transparent_75%)]"
+        className="absolute inset-x-0 top-0 -z-10 h-[820px] bg-[radial-gradient(ellipse_34%_60%_at_50%_0%,rgba(255,255,255,0.09),transparent_75%)]"
       />
+      <OfferTag />
       <div
         className={cn(
           CONTAINER,
-          'relative z-10 flex flex-col items-center pt-14 text-center sm:pt-20'
+          'relative z-10 flex flex-col items-center pt-6 text-center sm:pt-28'
         )}
       >
         <p className="inline-flex items-center gap-2 text-[13px] font-medium text-text-secondary">
           <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
-          {city ? `${HERO.status} in ${city}` : HERO.status}
+          {status}
         </p>
-        <h1 className="mt-5 max-w-4xl text-balance text-[44px] font-bold leading-[1.04] tracking-[-0.035em] sm:text-[60px] lg:text-[72px]">
-          {HERO.title}
+        <h1 className="mt-5 max-w-5xl bg-gradient-to-b from-white from-35% to-white/50 bg-clip-text pb-2 text-[40px] font-bold leading-[1] tracking-[-0.045em] text-transparent sm:text-[64px] lg:text-[74px] xl:text-[88px]">
+          {HERO.title[0]}
+          <br />
+          {HERO.title[1]}
           <RedPeriod />
         </h1>
-        <p className="mt-6 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
+        <p className="mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
           {HERO.body}
         </p>
-        <div className="mt-9 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
+        <div className="mt-8 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
           <CtaLink cta={HERO.primaryCta} className="w-full sm:w-auto" />
           <CtaLink
             cta={HERO.secondaryCta}
@@ -311,29 +324,109 @@ export function Hero({
         />
       </div>
 
-      <ul
+      <div
+        id="ways"
         className={cn(
           CONTAINER,
-          'relative z-10 -mt-6 flex flex-wrap justify-center gap-x-7 gap-y-3 pb-6 sm:-mt-12'
+          'relative z-10 -mt-4 pb-16 sm:-mt-10 sm:pb-24'
         )}
       >
-        {startingPrice != null && (
-          <li className="flex items-center gap-2 text-[14px] text-text-secondary">
-            <IconCircleCheck size={18} stroke={1.5} aria-hidden />
-            Services from ₹{startingPrice}
-          </li>
-        )}
-        {TRUST_POINTS.map((point) => (
-          <li
-            key={point}
-            className="flex items-center gap-2 text-[14px] text-text-secondary"
+        <p className="text-center text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-brand-red">
+          {HERO.waysKicker}
+        </p>
+        <ul className="mx-auto mt-6 grid max-w-5xl divide-y divide-white/[0.08] border-y border-white/[0.08] text-center md:grid-cols-3 md:divide-x md:divide-y-0">
+          {MODES.map((mode) => {
+            const Icon = MODE_ICONS[mode.key]
+            return (
+              <li
+                key={mode.key}
+                className="flex flex-col items-center px-6 py-8 sm:py-10"
+              >
+                <Icon
+                  size={32}
+                  stroke={1.5}
+                  aria-hidden
+                  className="text-brand-white"
+                />
+                <h2 className="mt-5 text-[19px] font-semibold tracking-[-0.01em]">
+                  {mode.title}
+                </h2>
+                {mode.comingSoon && <ComingSoonTag className="mt-2" />}
+                <p className="mt-2 max-w-[18rem] text-[15px] leading-relaxed text-text-secondary">
+                  {mode.body}
+                </p>
+              </li>
+            )
+          })}
+        </ul>
+
+        <div className="mt-12 flex flex-col items-center">
+          <p className="text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-text-muted">
+            {APPS.label}
+          </p>
+          <ul className="mt-4 flex flex-wrap justify-center gap-3">
+            {APPS.stores.map((store) => (
+              <li key={store.key}>
+                <StoreMark store={store} />
+              </li>
+            ))}
+          </ul>
+          <Link
+            href={APPS.web.href}
+            className={cn(
+              'mt-5 inline-flex items-center gap-1.5 rounded-sm text-[14px] font-medium text-brand-white underline-offset-4 hover:underline',
+              FOCUS_RING
+            )}
           >
-            <IconCircleCheck size={18} stroke={1.5} aria-hidden />
-            {point}
-          </li>
-        ))}
-      </ul>
+            {APPS.web.label}
+            <IconArrowRight size={16} stroke={1.5} aria-hidden />
+          </Link>
+        </div>
+      </div>
     </section>
+  )
+}
+
+/**
+ * A paper tag hanging on a thread from under the header, pointing at the
+ * offers. In the corner on larger screens, where the hero's top padding keeps
+ * the headline clear of it; centred above the headline on a phone, where a
+ * corner would sit on top of it.
+ *
+ * Still at rest. It swings on hover — motion the visitor asks for, within the
+ * guideline's 500ms — and not at all under reduced motion.
+ */
+function OfferTag() {
+  return (
+    <a
+      href={OFFER_TAG.href}
+      className={cn(
+        'group relative z-20 mx-auto flex w-fit flex-col items-center rounded-md sm:absolute sm:right-8 sm:top-16 sm:mx-0 lg:right-16 xl:right-24',
+        FOCUS_RING
+      )}
+    >
+      <span aria-hidden className="h-6 w-px bg-white/35 sm:h-8" />
+      <span className="-mt-1 origin-top -rotate-6 transition-transform duration-500 ease-[cubic-bezier(0.2,0,0,1)] group-hover:rotate-2 motion-reduce:transition-none">
+        <span className="relative block w-32 bg-brand-white px-3 pb-3.5 pt-6 text-center text-brand-black [clip-path:polygon(22%_0,78%_0,100%_16%,100%_100%,0_100%,0_16%)] sm:w-36">
+          {/* The eyelet the thread passes through. */}
+          <span
+            aria-hidden
+            className="absolute left-1/2 top-2 size-2.5 -translate-x-1/2 rounded-full bg-brand-black"
+          />
+          {/* The guideline's deeper red (#C8102E, ch. 05): brand red
+              #EF3240 is 3.9:1 on white, too faint for 10px text. */}
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
+            {OFFER_TAG.label}
+          </span>
+          <span className="mt-1 block text-[16px] font-bold leading-tight tracking-[-0.01em]">
+            {OFFER_TAG.title}
+          </span>
+          <span className="mt-1 block text-[11px] leading-snug text-black/60">
+            {OFFER_TAG.detail}
+          </span>
+        </span>
+      </span>
+    </a>
   )
 }
 
@@ -625,90 +718,6 @@ const MODE_ICONS: Record<ServiceMode, typeof IconHome> = {
   garage: IconBuildingStore,
   doorstep: IconHome,
   pickup: IconArrowsExchange,
-}
-
-/**
- * The brand statement: what Detlio is, said once and large, then the three
- * ways a job gets done and the apps on the way. Sits straight under the hero,
- * so the answer to "what is this?" arrives before any detail does.
- */
-export function OneApp() {
-  return (
-    <section
-      id="ways"
-      aria-labelledby="one-app-title"
-      className="relative isolate overflow-hidden border-t border-white/[0.06] py-20 sm:py-28"
-    >
-      {/* The hero's overhead light, carried over the headline. */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 top-0 -z-10 h-[560px] bg-[radial-gradient(ellipse_38%_60%_at_50%_0%,rgba(255,255,255,0.08),transparent_75%)]"
-      />
-      <div className={cn(CONTAINER, 'text-center')}>
-        <h2
-          id="one-app-title"
-          className="mx-auto max-w-5xl bg-gradient-to-b from-white from-35% to-white/50 bg-clip-text pb-2 text-[40px] font-bold leading-[1] tracking-[-0.045em] text-transparent sm:text-[68px] lg:text-[92px]"
-        >
-          {ONE_APP.title[0]}
-          <br />
-          {ONE_APP.title[1]}
-          <RedPeriod />
-        </h2>
-        <p className="mx-auto mt-6 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
-          {ONE_APP.body}
-        </p>
-
-        <ul className="mx-auto mt-14 grid max-w-5xl divide-y divide-white/[0.08] border-y border-white/[0.08] md:grid-cols-3 md:divide-x md:divide-y-0">
-          {MODES.map((mode) => {
-            const Icon = MODE_ICONS[mode.key]
-            return (
-              <li
-                key={mode.key}
-                className="flex flex-col items-center px-6 py-8 sm:py-10"
-              >
-                <Icon
-                  size={32}
-                  stroke={1.5}
-                  aria-hidden
-                  className="text-brand-white"
-                />
-                <h3 className="mt-5 text-[19px] font-semibold tracking-[-0.01em]">
-                  {mode.title}
-                </h3>
-                {mode.comingSoon && <ComingSoonTag className="mt-2" />}
-                <p className="mt-2 max-w-[18rem] text-[15px] leading-relaxed text-text-secondary">
-                  {mode.body}
-                </p>
-              </li>
-            )
-          })}
-        </ul>
-
-        <div className="mt-14 flex flex-col items-center">
-          <p className="text-[11px] font-medium uppercase leading-4 tracking-[0.16em] text-text-muted">
-            {APPS.label}
-          </p>
-          <ul className="mt-4 flex flex-wrap justify-center gap-3">
-            {APPS.stores.map((store) => (
-              <li key={store.key}>
-                <StoreMark store={store} />
-              </li>
-            ))}
-          </ul>
-          <Link
-            href={APPS.web.href}
-            className={cn(
-              'mt-5 inline-flex items-center gap-1.5 rounded-sm text-[14px] font-medium text-brand-white underline-offset-4 hover:underline',
-              FOCUS_RING
-            )}
-          >
-            {APPS.web.label}
-            <IconArrowRight size={16} stroke={1.5} aria-hidden />
-          </Link>
-        </div>
-      </div>
-    </section>
-  )
 }
 
 /**

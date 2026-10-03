@@ -49,35 +49,36 @@ export const META = {
     'Book car wash, detailing, coating and scratch removal from verified Chennai garages, at the garage or at your door. Prices before you book. Pickup & drop coming soon.',
 }
 
+/**
+ * The first screen: what Detlio is, said once and large, over the car — then
+ * the three ways and the apps directly beneath it.
+ */
 export const HERO = {
   /** Replaced by "Now booking in <city>" when the live listing has one city. */
   status: 'Now booking',
-  /** Rendered with the brand's red terminal period. */
-  title: 'Keep your car in pristine condition',
-  body: 'Wash, detail and protect your car with garages we know personally. If anything goes wrong, we sort it out.',
+  /** Two lines, rendered large; the brand's red period follows the second. */
+  title: ['All your car care needs,', 'in one app'] as const,
+  body: 'Keep your car in pristine condition with garages we know personally. If anything goes wrong, we sort it out.',
   primaryCta: { label: 'Book a service', href: '/home' } satisfies Cta,
   secondaryCta: { label: 'See the three ways', href: '#ways' } satisfies Cta,
   image: {
     src: '/onboarding-car.jpg',
     alt: 'A black sports car under a single overhead light in a dark studio',
   },
+  waysKicker: 'One app. Three ways.',
 }
 
-/** Short proof points under the hero. Each must stay true of the product. */
-export const TRUST_POINTS = [
-  'Garages our team knows personally',
-  'Prices before you book',
-  'Live status at every stage',
-  'Any issue? We take it up',
-]
-
-// ─── One app, three ways ────────────────────────────────────────────────────
-
-/** The brand statement under the hero, with the three ways and the apps. */
-export const ONE_APP = {
-  /** Two lines, rendered large; the brand's red period follows the second. */
-  title: ['All your car care needs,', 'in one app'] as const,
-  body: 'Choose where the work happens. The garage, the price and every update stay in one place.',
+/**
+ * The tag hanging in the top corner of the first screen. It must name an offer
+ * a customer can actually get: today that is promo codes at checkout. Replace
+ * with a specific live offer (code and amount, as set up in admin → Discounts)
+ * when marketing runs one — a named offer convinces more than a general one.
+ */
+export const OFFER_TAG = {
+  label: 'Offers',
+  title: 'Save at checkout',
+  detail: 'Promo codes on Detlio',
+  href: '#perks',
 }
 
 /**
