@@ -78,11 +78,17 @@ jobs:
         # container's options but not its command — so as a service it starts
         # and never listens. Postgres stays a service because it needs no
         # command.
+        #
+        # pgsty/minio, not minio/minio: MinIO withdrew its free images and
+        # binaries (Docker Hub, quay.io and dl.min.io now refuse anonymous
+        # pulls), which failed this step on every run. pgsty/minio is the
+        # community-maintained build of the same server — same binary, same
+        # `server /data`, same health endpoint — and ships `mc` inside it.
         run: |
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=detlio \
             -e MINIO_ROOT_PASSWORD=detlio-secret \
-            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+            pgsty/minio:RELEASE.2026-08-04T00-00-00Z server /data
 
           for i in $(seq 1 30); do
             if curl -sf http://localhost:9000/minio/health/live >/dev/null; then
@@ -96,12 +102,12 @@ jobs:
           exit 1
 
       - name: Create the storage bucket
+        # Through the `mc` bundled in the server image — the standalone client
+        # download at dl.min.io is gone too.
         run: |
-          curl -sSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc
-          chmod +x /usr/local/bin/mc
-          mc alias set local http://localhost:9000 detlio detlio-secret
-          mc mb --ignore-existing local/detlio-e2e
-          mc anonymous set download local/detlio-e2e
+          docker exec minio mc alias set local http://localhost:9000 detlio detlio-secret
+          docker exec minio mc mb --ignore-existing local/detlio-e2e
+          docker exec minio mc anonymous set download local/detlio-e2e
 
       - name: Typecheck
         run: bun run typecheck
