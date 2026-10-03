@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { IconPlayerPlayFilled } from '@tabler/icons-react'
 import { cn } from '@repo/core/utils'
 import type { Reel as ReelContent } from './content'
@@ -15,7 +15,21 @@ import type { Reel as ReelContent } from './content'
  */
 export function Reel({ reel }: { reel: ReelContent }) {
   const video = useRef<HTMLVideoElement>(null)
+  const playButton = useRef<HTMLButtonElement>(null)
+  const refocus = useRef(false)
   const [started, setStarted] = useState(false)
+
+  // The play button unmounts once the clip starts. If it had focus, hand
+  // focus to the video — which now has its controls — rather than letting it
+  // fall back to the top of the page.
+  useEffect(() => {
+    if (started && refocus.current) video.current?.focus()
+  }, [started])
+
+  const start = () => {
+    refocus.current = document.activeElement === playButton.current
+    setStarted(true)
+  }
 
   const frame =
     'relative aspect-[9/16] w-full overflow-hidden rounded-xl border border-white/[0.08] bg-brand-rich'
@@ -45,13 +59,17 @@ export function Reel({ reel }: { reel: ReelContent }) {
         preload="none"
         playsInline
         controls={started}
-        onPlay={() => setStarted(true)}
+        aria-label={reel.title}
+        onPlay={start}
         className="absolute inset-0 h-full w-full object-cover"
       />
       {!started && (
         <button
+          ref={playButton}
           type="button"
-          onClick={() => void video.current?.play()}
+          // A refused play (autoplay policy, a missing file) still reveals the
+          // native controls, which show the error and can retry.
+          onClick={() => video.current?.play().catch(start)}
           className="group absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/60 via-transparent to-transparent focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-brand-white"
         >
           <span className="flex size-16 items-center justify-center rounded-full bg-brand-white text-brand-black transition-transform duration-200 group-hover:scale-105">

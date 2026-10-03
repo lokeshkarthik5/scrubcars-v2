@@ -43,11 +43,11 @@ export function ScrollMotion() {
     }
 
     const waiting = new Map<Element, Animation>()
-    const fold = window.innerHeight * 0.9
 
     document.querySelectorAll<HTMLElement>('.mk-reveal').forEach((el) => {
+      // Anything showing at all — even a sliver at the bottom — stays put.
       const box = el.getBoundingClientRect()
-      if (box.top < fold && box.bottom > 0) return
+      if (box.top < window.innerHeight && box.bottom > 0) return
 
       const word = el.classList.contains('mk-word')
       const index = Number(getComputedStyle(el).getPropertyValue('--i')) || 0

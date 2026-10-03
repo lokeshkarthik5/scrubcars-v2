@@ -26,10 +26,13 @@ html:has(main[data-marketing-home]) {
 
 /* ─── Homepage motion ──────────────────────────────────────────────────────
  *
- * Three kinds, transform and opacity only, all of it off under reduced
- * motion:
+ * Three kinds, all of it off under reduced motion. Almost all of it is
+ * transform and opacity; the headline sheen, the header settling and the step
+ * numbers' colour repaint, deliberately, on one element each:
  *   · Load-in for the first screen, here — plays once. Fill is `backwards`,
  *     so once it ends the element's own transforms (press, hover) apply.
+ *     Kept off the headline and its body copy: on a short phone the text is
+ *     the largest paint, and fading it in would hold back LCP.
  *   · Reveals as each section comes into view (`.mk-reveal`, `.mk-word`) —
  *     time-based, run by components/marketing/scroll-motion.tsx.
  *   · Scroll-linked effects, here, where the motion should track the scroll
@@ -104,15 +107,6 @@ html:has(main[data-marketing-home]) {
   background-repeat: no-repeat;
   background-position: -60% 0, 0 0;
   animation: mk-sheen 1600ms cubic-bezier(0.4, 0, 0.2, 1) 1100ms backwards;
-}
-
-/* The headline both rises in and catches the light: one declaration, or the
-   later class would replace the earlier's animation outright. */
-.mk-load.mk-sheen {
-  animation:
-    mk-rise 900ms cubic-bezier(0.16, 1, 0.3, 1)
-      calc(var(--d, 0) * 120ms + 100ms) backwards,
-    mk-sheen 1600ms cubic-bezier(0.4, 0, 0.2, 1) 1100ms backwards;
 }
 
 .mk-tag {
@@ -241,7 +235,6 @@ html:has(main[data-marketing-home]) {
   }
 
   .mk-load,
-  .mk-load.mk-sheen,
   .mk-car,
   .mk-tag,
   .mk-sheen,

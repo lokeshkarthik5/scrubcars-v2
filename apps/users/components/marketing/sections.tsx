@@ -7,13 +7,12 @@ import {
   IconArrowRight,
   IconArrowUpRight,
   IconArrowsExchange,
-  IconBrandAppleFilled,
-  IconBrandGooglePlay,
   IconBrandInstagram,
   IconBrandWhatsapp,
   IconBuildingStore,
   IconCar,
   IconCoins,
+  IconDeviceMobile,
   IconDiscount,
   IconGift,
   IconHeadset,
@@ -74,19 +73,21 @@ import {
 } from './content'
 
 /**
- * The homepage, section by section. Server components throughout — the only
- * client code on the page is the before/after slider — so the whole page
- * arrives as HTML.
+ * The homepage, section by section. Server components throughout — the client
+ * code is the before/after slider, the reel player and ScrollMotion — so the
+ * whole page arrives as HTML.
  *
  * Unlike the rest of this app, which is a 428px phone column, the homepage is
  * a full-width responsive site: it is what a visitor on a laptop sees first.
  *
  * Built to the brand guideline (Figma: Detlio Brand Guideline, ch. 03–11):
  *   · Red is the signal — the primary action, the terminal period on the two
- *     hero-level headlines, the status dot and the pillar markers. Nothing else.
+ *     hero-level headlines, status dots and small kickers. Nothing else.
  *   · Inter throughout; Space Grotesk only for prices.
  *   · Borders over shadows; 8px buttons, 12px cards, 4px tags.
- *   · No decorative motion — colour transitions on hover only.
+ *   · Motion: a one-time load-in, reveals as sections enter view, and a few
+ *     scroll-linked effects (app/globals.css, scroll-motion.tsx) — all off
+ *     under reduced motion.
  *   · Margins 16 / 32 / 64 / 80px at the mobile / tablet / desktop / wide
  *     breakpoints; section padding on the 8px scale (64 → 96).
  */
@@ -294,8 +295,12 @@ export function SiteHeader({ links }: { links: Cta[] }) {
 
 /**
  * The first screen says what Detlio is before anything else: the statement,
- * large, over the car — then the three ways a job gets done and the apps on
- * the way, so "what is this?" is answered before the visitor scrolls.
+ * large, over the car — then the three ways a job gets done, so "what is
+ * this?" is answered before the visitor scrolls.
+ *
+ * `overflow: clip`, not `hidden`, where supported: `hidden` makes the section
+ * a scroll container, and the car's scroll-linked drive-off would then track
+ * this section — which never scrolls — instead of the page.
  */
 export function Hero({
   city,
@@ -312,7 +317,7 @@ export function Hero({
     .join(' · ')
 
   return (
-    <section className="relative isolate overflow-hidden pt-16">
+    <section className="relative isolate overflow-hidden pt-16 supports-[overflow:clip]:overflow-clip">
       {/* The photo is cropped below its light source; this carries the
           overhead spotlight up behind the headline. */}
       <div
@@ -333,19 +338,13 @@ export function Hero({
           <span aria-hidden className="size-1.5 rounded-full bg-brand-red" />
           {status}
         </p>
-        <h1
-          style={stagger(1)}
-          className="mk-load mk-sheen mt-5 max-w-5xl bg-clip-text pb-2 text-[40px] font-bold leading-[1] tracking-[-0.045em] text-transparent sm:text-[64px] lg:text-[74px] xl:text-[88px]"
-        >
+        <h1 className="mk-sheen mt-5 max-w-5xl bg-clip-text pb-2 text-[40px] font-bold leading-[1] tracking-[-0.045em] text-transparent sm:text-[64px] lg:text-[74px] xl:text-[88px]">
           {HERO.title[0]}
           <br />
           {HERO.title[1]}
           <RedPeriod />
         </h1>
-        <p
-          className="mk-load mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]"
-          style={stagger(2)}
-        >
+        <p className="mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-text-secondary sm:text-[18px]">
           {HERO.body}
         </p>
         <div
@@ -769,14 +768,12 @@ const MODE_ICONS: Record<ServiceMode, typeof IconHome> = {
  * link: there is no listing to send anyone to yet.
  */
 function StoreMark({ store }: { store: (typeof APPS.stores)[number] }) {
-  const Icon =
-    store.key === 'apple' ? IconBrandAppleFilled : IconBrandGooglePlay
   return (
-    <span className="inline-flex h-14 w-44 items-center gap-3 rounded-lg bg-brand-white px-5 text-left text-brand-black shadow-[0_10px_40px_-10px_rgba(255,255,255,0.25)]">
-      <Icon size={26} stroke={1.75} aria-hidden />
+    <span className="inline-flex h-14 w-48 items-center gap-3 rounded-lg bg-brand-white px-4 text-left text-brand-black shadow-[0_10px_40px_-10px_rgba(255,255,255,0.25)]">
+      <IconDeviceMobile size={24} stroke={1.75} aria-hidden />
       <span className="flex flex-col leading-tight">
-        <span className="text-[11px] text-black/60">Coming soon on</span>
-        <span className="text-[17px] font-semibold tracking-[-0.01em]">
+        <span className="text-[11px] text-black/60">Coming soon to</span>
+        <span className="text-[16px] font-semibold tracking-[-0.01em]">
           {store.name}
         </span>
       </span>
@@ -795,7 +792,8 @@ export function AppShowcase() {
     <section
       id="app"
       className={cn(
-        'relative isolate overflow-hidden border-t border-white/[0.06]',
+        // clip, not hidden: see Hero — the phone's tilt tracks the page scroll.
+        'relative isolate overflow-hidden border-t border-white/[0.06] supports-[overflow:clip]:overflow-clip',
         SECTION_Y
       )}
     >

@@ -10,8 +10,8 @@ test.describe('homepage @p0', () => {
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 
-    // Placeholder reviews and before/after photos are for preview builds
-    // only; a production build must never show one.
+    // Placeholder reviews, videos and before/after photos are for preview
+    // builds only; a production build must never show one.
     await expect(page.getByText('Sample', { exact: true })).toHaveCount(0)
 
     await page

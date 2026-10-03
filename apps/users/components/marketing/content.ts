@@ -19,8 +19,8 @@
  * worded in the future tense.
  *
  * ── Samples ────────────────────────────────────────────────────────────────
- * Results and testimonials need real material: photos of real jobs, quotes
- * from real customers. Until marketing supplies them, the entries below are
+ * Results, videos and testimonials need real material: photos and clips of
+ * real jobs, quotes from real customers. Until marketing supplies them, the entries below are
  * marked `sample: true`. Samples render with a "Sample" tag in development and
  * on Vercel preview deployments, so the layout can be reviewed, and are
  * dropped from production — a section with nothing real in it disappears
@@ -51,7 +51,7 @@ export const META = {
 
 /**
  * The first screen: what Detlio is, said once and large, over the car — then
- * the three ways and the apps directly beneath it.
+ * the three ways directly beneath it.
  */
 export const HERO = {
   /** Replaced by "Now booking in <city>" when the live listing has one city. */
@@ -82,13 +82,15 @@ export const OFFER_TAG = {
 }
 
 /**
- * The app section. The native apps are planned, not published — so the store
- * marks are Detlio-styled "coming soon" tiles, not Apple's and Google's
- * official badges, which may only link to a live store listing.
+ * The app section. The native apps are planned, not published, so the stores
+ * are named in plain text on Detlio's own tiles: the official badges may only
+ * link to a live listing, and neither Apple's logo nor Google Play's may be
+ * used outside them. Switch to the official badges, linked, at launch.
  *
  * The screenshot is the customer app as it runs today (apps/users /home at
- * 390×844, 2×), so the phone shows the real product. Retake it when the home
- * screen changes.
+ * 390×844, 2×), so the phone shows the real product. No readable number
+ * plates or faces (brand ch. 09) — blur them. Retake it when the home screen,
+ * or a pictured garage's listing or price, changes.
  */
 export const APPS = {
   kicker: 'The Detlio app',
@@ -96,8 +98,8 @@ export const APPS = {
   body: 'Book from your phone today at detlio.com. The app for iPhone and Android is coming soon.',
   label: 'Coming soon',
   stores: [
-    { key: 'apple', name: 'App Store' },
-    { key: 'google', name: 'Google Play' },
+    { key: 'app-store', name: 'the App Store' },
+    { key: 'google-play', name: 'Google Play' },
   ] as const,
   web: { label: 'Book on the web today', href: '/home' } satisfies Cta,
   screenshot: {

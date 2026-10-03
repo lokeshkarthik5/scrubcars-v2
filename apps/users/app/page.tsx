@@ -71,7 +71,7 @@ export const viewport: Viewport = {
 }
 
 /**
- * Placeholder results and reviews are for reviewing the layout: shown locally
+ * Placeholder results, videos and reviews are for reviewing the layout: shown locally
  * and on Vercel preview deployments, never in production — where a section
  * with nothing real in it is left out. See content.ts.
  */
