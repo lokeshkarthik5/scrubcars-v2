@@ -12,6 +12,7 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { AddAddressSheet } from '@/components/add-address-sheet'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
 import {
   LocationPicker,
@@ -77,6 +78,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The coupon field starts closed — a row to tap, not a form to ignore.
   const [promoOpen, setPromoOpen] = useState(false)
   const [addCarOpen, setAddCarOpen] = useState(false)
+  const [addAddressOpen, setAddAddressOpen] = useState(false)
   // Stored with the exact cart and vehicle it was validated against. Those
   // decide the subtotal, so a code checked against one basket says nothing
   // about another — removing a service can drop the total below the code's
@@ -154,9 +156,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // coordinates (ADDRESS_LOCATION_REQUIRED) — it cannot check the garage's
   // travel radius without them — so the pin is asked for here rather than
   // letting checkout fail.
+  //
+  // 0,0 counts as no pin. Profile setup used to save it whenever location was
+  // refused, and the server takes it as a real point in the Gulf of Guinea, so
+  // those addresses failed the radius check at payment instead of being asked
+  // for a pin here. Setup no longer writes it; this catches the ones it did.
   const addressNeedsPin =
     selectedAddressRecord != null &&
-    (selectedAddressRecord.lat == null || selectedAddressRecord.lng == null)
+    (selectedAddressRecord.lat == null ||
+      selectedAddressRecord.lng == null ||
+      (selectedAddressRecord.lat === 0 && selectedAddressRecord.lng === 0))
   /**
    * Why doorstep cannot be paid for yet, if it cannot.
    *
@@ -511,13 +520,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 Add an address to continue
               </p>
               <p className="text-[12px] text-text-secondary">
-                Doorstep service needs somewhere to go. You can add one from
-                your profile.
+                Doorstep service needs somewhere to go.
               </p>
+              {/* In place, as with cars: sign-up no longer asks for an
+                  address, so this is where a new customer gives one, and a
+                  link out to /profile would drop the slot and any code. */}
               <ScButton
                 fullWidth={false}
                 variant="secondary"
-                onClick={() => router.push('/profile')}
+                onClick={() => setAddAddressOpen(true)}
                 className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[12px]"
               >
                 <IconPlus size={14} /> Add an address
@@ -563,6 +574,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   <LocationPicker showSearch onChange={handlePinAddress} />
                 </ScCard>
               )}
+
+              <button
+                type="button"
+                onClick={() => setAddAddressOpen(true)}
+                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-brand-red hover:text-brand-red"
+              >
+                <IconPlus size={14} /> Add another address
+              </button>
             </div>
           )}
         </Reveal>
@@ -730,6 +749,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
         open={addCarOpen}
         onClose={() => setAddCarOpen(false)}
         onAdded={(vehicle) => setPickedVehicle(vehicle.id)}
+      />
+
+      <AddAddressSheet
+        open={addAddressOpen}
+        onClose={() => setAddAddressOpen(false)}
+        onAdded={(address) => setPickedAddress(address.id)}
       />
 
       <ScSheet

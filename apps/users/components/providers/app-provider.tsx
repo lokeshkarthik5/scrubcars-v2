@@ -101,8 +101,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    if (redirectPath && redirectPath !== pathname) router.replace(redirectPath)
-  }, [pathname, redirectPath, router])
+    if (!redirectPath || redirectPath === pathname) return
+    // Bounced into profile setup on the way to a page — a customer who signed
+    // up, left setup half done, and later tapped Book Now — so the page they
+    // asked for rides along and setup hands them back to it. Read from
+    // `window` rather than useSearchParams, which would need a Suspense
+    // boundary around the whole app; the booking's services live in the query.
+    if (redirectPath === '/profile-setup' && routeAccess === 'customer') {
+      const next = `${window.location.pathname}${window.location.search}`
+      router.replace(`/profile-setup?next=${encodeURIComponent(next)}`)
+      return
+    }
+    router.replace(redirectPath)
+  }, [pathname, redirectPath, routeAccess, router])
 
   if (
     !isHydrated ||

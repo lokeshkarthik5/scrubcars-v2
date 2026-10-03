@@ -1,136 +1,132 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { AppShell } from '@repo/ui/sc/app-shell'
+import { type FormEvent, Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { AuthStage } from '@repo/ui/auth/auth-stage'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScInput, ScTextarea } from '@repo/ui/sc/input'
-import { ProgressBar } from '@repo/ui/sc/progress-bar'
-import { createAddress, updateProfile } from '@repo/core/api/users'
+import { ScInput } from '@repo/ui/sc/input'
+import { updateProfile } from '@repo/core/api/users'
+import { safeNextPath } from '@repo/core/redirect'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { useUserStore } from '@repo/core/stores/user-store'
 import { toast } from 'react-toastify'
 
-const ADDRESS_LABELS = ['Home', 'Office', 'Other'] as const
-
-export default function ProfileSetupPage() {
+/**
+ * The last step of signing up: a name, and nothing else.
+ *
+ * It used to ask for a street address and city too, with the button locked
+ * until all three were filled — before a customer had booked anything, and
+ * whether or not they would ever need one. Only doorstep bookings do, and
+ * checkout asks for an address at that point (book/[vendorId]), pin included.
+ * Asking here also prompted for location cold, straight after the OTP, and
+ * saved 0,0 as the pin whenever that was refused — which then passed
+ * checkout's "has a pin" check and failed on the server at payment.
+ *
+ * `next` is where the customer was going when sign-in interrupted them,
+ * usually the booking they started as a guest. Losing it here sent every new
+ * customer to Home with an empty cart.
+ */
+function ProfileSetupForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Checked again here rather than trusted from verify-otp: this URL can be
+  // crafted as easily as the login one.
+  const next = safeNextPath(searchParams.get('next'))
   const [name, setName] = useState('')
-  const [label, setLabel] = useState<string>('Home')
-  const [address, setAddress] = useState('')
-  const [city, setCity] = useState('')
   const [loading, setLoading] = useState(false)
-  const coordsRef = useRef<{ lat: number; lng: number }>({ lat: 0, lng: 0 })
 
-  useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition((pos) => {
-      coordsRef.current = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-      }
-    })
-  }, [])
+  const canSubmit = name.trim().length > 0
 
-  const canSubmit = name.trim() && address.trim() && city.trim()
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return
-    const currentUser = useAuthStore.getState().user
-    console.log('[profile-setup] submit clicked — auth state:', {
-      userId: currentUser?.id,
-      userName: currentUser?.name,
-      isSessionReady: useAuthStore.getState().isSessionReady,
-    })
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!canSubmit || loading) return
+    const trimmed = name.trim()
     setLoading(true)
     try {
-      console.log('[profile-setup] calling updateProfile + createAddress')
-      await Promise.all([
-        updateProfile({ name: name.trim() }),
-        createAddress({
-          label,
-          address: address.trim(),
-          city: city.trim(),
-          lat: coordsRef.current.lat,
-          lng: coordsRef.current.lng,
-          isDefault: true,
-        }),
-      ])
-      console.log('[profile-setup] both calls succeeded')
+      const profile = await updateProfile({ name: trimmed })
+      // The placeholder name 'User' is what app-provider reads as "profile
+      // incomplete", so the session has to see the real one before leaving —
+      // otherwise /book bounces straight back here.
       useAuthStore.setState((s) => ({
-        user: s.user ? { ...s.user, name: name.trim() } : s.user,
+        user: s.user ? { ...s.user, name: profile.name } : s.user,
       }))
-      router.push('/home?welcome=1')
+      // A profile cached before setup (a visit to /profile) would still say
+      // 'User', and checkout prefills the payment sheet from it.
+      useUserStore.setState((s) => ({
+        profile: s.profile ? { ...s.profile, name: profile.name } : s.profile,
+      }))
+      // Replace, not push: Back from the booking should not land on a form
+      // that has already been filled in.
+      router.replace(next ?? '/home?welcome=1')
+      // Left loading on success — the button stays disabled until the next
+      // page takes over, so a second tap cannot resubmit.
     } catch (err) {
       console.log('[profile-setup] submit failed:', err)
       toast.error(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
       setLoading(false)
     }
   }
 
+  const cta = next?.startsWith('/book/')
+    ? 'Continue to booking'
+    : next
+      ? 'Continue'
+      : 'Get started'
+
   return (
-    <AppShell className="gap-5 py-4">
-      <ProgressBar progress={100} className="mb-2" />
-      <h1 className="text-center text-[15px] font-semibold text-text-primary">
-        Complete your profile
-      </h1>
-
-      <ScInput
-        id="profile-name"
-        label="Full name"
-        placeholder="Your name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-
-      <section className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-medium text-text-secondary">Address label</label>
-          <div className="flex gap-2">
-            {ADDRESS_LABELS.map((l) => (
-              <button
-                key={l}
-                type="button"
-                aria-pressed={label === l}
-                onClick={() => setLabel(l)}
-                className={`rounded-[8px] border px-4 py-2 text-[12px] font-medium transition-colors ${
-                  label === l
-                    ? 'border-brand-red bg-accent-muted text-brand-red'
-                    : 'border-border bg-surface text-text-primary'
-                }`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
+    // No back arrow: behind this is the OTP screen, which a signed-in
+    // customer is only redirected away from.
+    <AuthStage backdrop="/onboarding-car.jpg" showBack={false}>
+      <form noValidate onSubmit={handleSubmit} className="flex flex-col">
+        <div className="text-center">
+          <h1 className="text-[26px] font-bold leading-8 tracking-[-0.02em] text-text-primary">
+            What&apos;s your name?
+          </h1>
+          <p className="mt-2 text-[15px] leading-6 text-text-secondary">
+            The garage sees it on your booking.
+          </p>
         </div>
 
-        <ScTextarea
-          id="profile-address"
-          label="Street address"
-          placeholder="Flat no., building, street"
-          rows={2}
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
+        <div className="mt-8">
+          <ScInput
+            id="profile-name"
+            label="Full name"
+            placeholder="Your name"
+            autoComplete="name"
+            autoCapitalize="words"
+            autoFocus
+            enterKeyHint="go"
+            maxLength={255}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            // The glass card's field, as ScPhoneInput's `glass` tone draws it:
+            // a solid surface would read as a hole in the frosted card. 16px
+            // is the body size.
+            className="rounded-[12px] border-white/15 bg-white/[0.06] px-3.5 py-3.5 text-[16px]"
+          />
+        </div>
 
-        <ScInput
-          id="profile-city"
-          label="City"
-          placeholder="Chennai"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-        />
-      </section>
-
-      <div className="mt-auto space-y-3 pb-4">
-        <ScButton disabled={!canSubmit || loading} onClick={handleSubmit}>
-          {loading ? 'Saving...' : 'Get started'}
+        <ScButton
+          type="submit"
+          variant="cta"
+          disabled={!canSubmit || loading}
+          className="mt-6 disabled:bg-white/10 disabled:hover:bg-white/10"
+        >
+          {loading ? 'Saving...' : cta}
         </ScButton>
-        <p className="text-center text-[11px] text-text-muted">
-          You can update this anytime from your profile
+
+        <p className="mt-4 text-center text-[13px] leading-5 text-text-secondary">
+          We&apos;ll ask for an address only if you book a doorstep service.
         </p>
-      </div>
-    </AppShell>
+      </form>
+    </AuthStage>
+  )
+}
+
+export default function ProfileSetupPage() {
+  return (
+    <Suspense>
+      <ProfileSetupForm />
+    </Suspense>
   )
 }

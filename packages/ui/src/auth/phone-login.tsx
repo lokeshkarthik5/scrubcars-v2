@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AuthStage } from '@repo/ui/auth/auth-stage'
 import { AppShell } from '@repo/ui/sc/app-shell'
@@ -11,6 +11,7 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { sendOtp } from '@repo/core/api/auth'
 import { ApiError } from '@repo/core/api/client'
 import type { AuthAudience } from '@repo/core/api/types'
+import { safeNextPath } from '@repo/core/redirect'
 
 interface PhoneLoginProps {
   /** Which side of the app is signing in — drives the OTP audience. */
@@ -42,15 +43,20 @@ export function PhoneLogin({
 }: PhoneLoginProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') ?? ''
+  // Checked here, where it enters: it is stashed for after the OTP and then
+  // handed to router.push, which would follow "//evil.com" off-site.
+  const next = safeNextPath(searchParams.get('next')) ?? ''
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const isValid = /^\d{10}$/.test(phone)
 
-  const handleSubmit = async () => {
-    if (!isValid) return
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    // The keyboard's Go key submits too, so a second press while the first
+    // send is in flight must not fire another OTP.
+    if (!isValid || loading) return
     setLoading(true)
     setError('')
     try {
@@ -79,21 +85,26 @@ export function PhoneLogin({
     </div>
   )
 
+  // A real form, so the keyboard's Go key submits — the CTA can sit under the
+  // keyboard on a short phone. The number is the only thing on this screen, so
+  // the field is focused on arrival rather than waiting for a tap.
   const form = (
-    <div className="w-full space-y-4">
+    <form noValidate onSubmit={handleSubmit} className="w-full space-y-4">
       <ScPhoneInput
         value={phone}
         onChange={setPhone}
         tone={backdrop ? 'glass' : 'solid'}
+        autoFocus
+        enterKeyHint="go"
       />
 
       {error && <p className="text-[12px] text-brand-red">{error}</p>}
 
       {/* The CTA sits muted until a full 10-digit number is entered. */}
       <ScButton
+        type="submit"
         variant="cta"
         disabled={!isValid || loading}
-        onClick={handleSubmit}
         className={
           backdrop
             ? 'disabled:bg-white/10 disabled:hover:bg-white/10'
@@ -108,7 +119,7 @@ export function PhoneLogin({
       <p className="text-center text-[13px] leading-5 text-text-secondary">
         New to Detlio? Your account is created when you verify your number.
       </p>
-    </div>
+    </form>
   )
 
   const terms = (
