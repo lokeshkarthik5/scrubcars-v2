@@ -872,9 +872,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
             {/* Mirrors what the server actually enforces: CANCELLATION_CUTOFF_MS
                 (confirmed bookings only) and MAX_RESCHEDULES in
-                bookings.service.ts. Deliberately silent on refunds — there is
-                no refund path in the code yet, so promising one here would be
-                a claim the product can't keep. */}
+                bookings.service.ts. Deliberately silent on refunds in general —
+                there is no automatic refund path, so promising one here would
+                be a claim the product can't keep. The no-show line is the one
+                exception, and it promises the opposite: an owner decision that
+                ops applies from the admin panel (markNoShow). */}
             <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
               <span className="font-medium text-text-secondary">
                 Cancellation policy:
@@ -882,7 +884,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
               Cancel any time until the garage accepts. Once it has, cancel or
               reschedule up to 2 hours before your slot. You can reschedule up
               to 2 times; each new time goes back to the garage to accept, and
-              if it can&apos;t take it, the booking is cancelled.
+              if it can&apos;t take it, the booking is cancelled. If you
+              don&apos;t turn up for an accepted booking, it isn&apos;t refunded.
             </p>
           </div>
         </Reveal>

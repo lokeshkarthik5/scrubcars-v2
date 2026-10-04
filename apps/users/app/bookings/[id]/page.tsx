@@ -46,6 +46,66 @@ import { BookingHelpSheet } from '@/components/booking-help-sheet'
 /** A booking the customer still has to get to, or is at. */
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress'])
 
+/**
+ * What the customer is told about a cancelled booking: who cancelled it and,
+ * for a no-show, what happens to their money.
+ *
+ * A no-show is the one case where the money is the message. A customer
+ * no-show keeps the payment (the published policy), so it says so plainly and
+ * points at Help rather than leaving them to find out from their bank. A
+ * garage no-show is always refunded, by the Detlio team in Razorpay.
+ */
+function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
+  if (booking.noShow === 'customer') {
+    return {
+      title: 'Marked as a no-show',
+      lines: [
+        "The garage held your slot, so this payment isn't refunded. If this is wrong, use Help with this booking.",
+      ],
+    }
+  }
+
+  if (booking.noShow === 'garage') {
+    return {
+      title: "The garage couldn't serve this booking",
+      lines: [
+        booking.paymentStatus === 'refunded'
+          ? 'Your payment has been refunded.'
+          : booking.paymentStatus === 'paid'
+            ? 'Our team will refund your payment.'
+            : 'Nothing was charged online for it.',
+      ],
+    }
+  }
+
+  if (booking.cancelledBy === 'admin') {
+    const onBehalf =
+      booking.cancelledOnBehalfOf === 'garage'
+        ? "Cancelled at the garage's request."
+        : booking.cancelledOnBehalfOf === 'customer'
+          ? 'Cancelled at your request.'
+          : null
+    return {
+      title: 'Cancelled by Detlio',
+      lines: [onBehalf, booking.cancellationReason].filter(
+        (line): line is string => Boolean(line)
+      ),
+    }
+  }
+
+  if (booking.cancelledBy === 'vendor') {
+    return {
+      title: 'Rejected by vendor',
+      lines: [booking.cancellationReason ?? 'The vendor could not take this booking.'],
+    }
+  }
+
+  return {
+    title: booking.cancelledBy === 'user' ? 'Cancelled by you' : 'Booking cancelled',
+    lines: [booking.cancellationReason ?? 'This booking was cancelled.'],
+  }
+}
+
 export default function BookingDetailPage({
   params,
 }: {
@@ -269,6 +329,7 @@ export default function BookingDetailPage({
   }
 
   const statusBadge = customerBookingStatusBadge(booking.status)
+  const cancelled = booking.status === 'cancelled' ? cancelledPanel(booking) : null
   // An accepted booking can't be cancelled or moved under 2 hours out (the
   // server's CANCELLATION_CUTOFF_MS); a pending one can, any time.
   const lockedIn =
@@ -477,22 +538,14 @@ export default function BookingDetailPage({
         </ScCard>
       )}
 
-      {booking.status === 'cancelled' && (
+      {cancelled && (
         <ScCard>
-          <h2 className="mb-1 text-sm font-semibold text-text-primary">
-            {booking.cancelledBy === 'vendor'
-              ? 'Rejected by vendor'
-              : booking.cancelledBy === 'user'
-                ? 'Cancelled by you'
-                : 'Booking cancelled'}
-          </h2>
-          <p className="text-[13px] text-text-secondary">
-            {booking.cancellationReason
-              ? booking.cancellationReason
-              : booking.cancelledBy === 'vendor'
-                ? 'The vendor could not take this booking.'
-                : 'This booking was cancelled.'}
-          </p>
+          <h2 className="mb-1 text-sm font-semibold text-text-primary">{cancelled.title}</h2>
+          {cancelled.lines.map((line) => (
+            <p key={line} className="text-[13px] text-text-secondary">
+              {line}
+            </p>
+          ))}
         </ScCard>
       )}
 

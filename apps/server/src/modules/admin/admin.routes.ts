@@ -14,9 +14,13 @@ import {
 } from '../members/members.validation.js'
 import * as adminController from './admin.controller.js'
 import {
+  adminCancelBookingSchema,
+  bookingIdParamSchema,
+  createBookingNoteSchema,
   createVendorSchema,
   grantSuperAdminSchema,
   listBookingsQuerySchema,
+  markNoShowSchema,
   superAdminIdParamSchema,
   loginSchema,
   mediaUrlSchema,
@@ -285,4 +289,41 @@ adminRoutes.get(
   ...adminMiddleware,
   zValidator('query', listBookingsQuerySchema),
   (c) => adminController.listBookings(c, c.req.valid('query'))
+)
+adminRoutes.get(
+  '/bookings/:id',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => adminController.getBooking(c, c.req.valid('param').id)
+)
+
+// Booking actions. Each one leaves an internal note behind, so the notes are a
+// complete record of what ops did to a booking and who did it.
+adminRoutes.post(
+  '/bookings/:id/cancel',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', adminCancelBookingSchema),
+  (c) =>
+    adminController.cancelBooking(c, c.req.valid('param').id, c.req.valid('json'))
+)
+adminRoutes.post(
+  '/bookings/:id/no-show',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', markNoShowSchema),
+  (c) =>
+    adminController.markBookingNoShow(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+adminRoutes.post(
+  '/bookings/:id/notes',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', createBookingNoteSchema),
+  (c) =>
+    adminController.addBookingNote(c, c.req.valid('param').id, c.req.valid('json'))
 )

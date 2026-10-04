@@ -9,9 +9,12 @@ import type {
   UpdateMemberInput,
 } from '../members/members.validation.js'
 import type {
+  AdminCancelBookingInput,
+  CreateBookingNoteInput,
   GrantSuperAdminInput,
   CreateVendorInput,
   ListBookingsQuery,
+  MarkNoShowInput,
   LoginInput,
   MediaUrlInput,
   UpdateVendorInput,
@@ -118,6 +121,41 @@ export async function createVendor(c: AdminContext, input: CreateVendorInput) {
 export async function listBookings(c: AdminContext, query: ListBookingsQuery) {
   const bookings = await adminService.listBookings(query)
   return c.json({ success: true, data: bookings })
+}
+
+export async function getBooking(c: AdminContext, id: string) {
+  const booking = await adminService.getBooking(id)
+  return c.json({ success: true, data: booking })
+}
+
+// The three booking actions take the token's subject so the note each one
+// writes is signed by whoever did it.
+
+export async function cancelBooking(
+  c: AdminContext,
+  id: string,
+  input: AdminCancelBookingInput
+) {
+  const booking = await adminService.cancelBooking(id, c.get('auth').sub, input)
+  return c.json({ success: true, data: booking })
+}
+
+export async function markBookingNoShow(
+  c: AdminContext,
+  id: string,
+  input: MarkNoShowInput
+) {
+  const booking = await adminService.markNoShow(id, c.get('auth').sub, input)
+  return c.json({ success: true, data: booking })
+}
+
+export async function addBookingNote(
+  c: AdminContext,
+  id: string,
+  input: CreateBookingNoteInput
+) {
+  const note = await adminService.addBookingNote(id, c.get('auth').sub, input)
+  return c.json({ success: true, data: note }, 201)
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────

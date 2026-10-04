@@ -73,6 +73,11 @@ export type BookingRow = {
   cancelled_by: string | null
   cancellation_reason: string | null
   cancelled_at: Date | null
+  /** Only on an admin cancellation: 'customer' | 'garage' | 'detlio'. */
+  cancelled_on_behalf_of: string | null
+  /** Who didn't turn up, when ops marked a no-show: 'customer' | 'garage'. */
+  no_show: string | null
+  no_show_marked_at: Date | null
   reschedule_count: number
   original_booking_id: string | null
   rescheduled_from_id: string | null
@@ -153,6 +158,14 @@ export const rescheduleChain = async (rootId: string) =>
       from booking_reschedules
      where original_booking_id = ${rootId}
      order by created_at
+  `
+
+/** The ops team's internal notes on a booking, newest first. */
+export const bookingNotes = async (bookingId: string) =>
+  sql<{ author: string; body: string }[]>`
+    select author, body from booking_notes
+     where booking_id = ${bookingId}
+     order by created_at desc
   `
 
 export const countSupportAccessLogs = async (userId: string): Promise<number> =>

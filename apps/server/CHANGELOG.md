@@ -26,6 +26,29 @@ reconstructing every change in them.
   `CRON_SECRET`): an outside scheduler calls it every 10 minutes; it lists paid
   bookings no garage has accepted after 30 minutes, and those whose time passed
   unaccepted (refund due). Quiet 22:00–07:00 IST, with a 7 am roll-up.
+- **Admin booking operations** (migration `0026_admin_booking_ops`, which must
+  be applied before this API deploys — every booking read selects the new
+  columns):
+  - `GET /admin/bookings` takes `q` (reference, customer phone or name, garage
+    name), `vendorId`, `from`/`to` (IST dates), `limit` and `cursor` (`page`
+    still works for older callers), and each
+    row carries the reference, waiting minutes, the Razorpay payment id, the
+    garage and customer contacts, the car, the cancellation and no-show, and a
+    notes count. The old fields stay for panels deployed before this.
+  - `GET /admin/bookings/:id`: the full booking, its reschedule links, who
+    accepted and completed it, and its notes.
+  - `POST /admin/bookings/:id/cancel` (`onBehalfOf` customer / garage /
+    detlio, required `reason`): from pending, confirmed or in progress, with
+    no cutoff. A paid one posts a refund-due Telegram alert.
+  - `POST /admin/bookings/:id/no-show` (`party` customer / garage): only for an
+    accepted booking whose start time has passed (`NO_SHOW_TOO_EARLY`). A
+    customer no-show keeps the payment; a garage no-show posts a refund-due
+    alert.
+  - `POST /admin/bookings/:id/notes`: internal notes, signed by the admin who
+    wrote them. Cancelling and marking a no-show add one on their own. Notes
+    are never in a customer or garage payload.
+- **Customer and garage booking payloads** carry `cancelledOnBehalfOf` and
+  `noShow`; `cancelledBy` can now be `admin`.
 
 ### Changed
 

@@ -1,9 +1,32 @@
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  like,
+  lt,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  containsPattern,
+  type BookingListCursor,
+  type BookingSearch,
+} from '../../lib/booking-ops.js'
+import {
   bookingItems,
+  bookingNotes,
   bookings,
   bookingStatusEnum,
+  cancelledOnBehalfOfEnum,
+  noShowPartyEnum,
   serviceImages,
   services,
   users,
@@ -17,6 +40,36 @@ type ServiceInsert = typeof services.$inferInsert
 
 export type VendorInsert = typeof vendors.$inferInsert
 export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
+export type CancelledOnBehalfOf = (typeof cancelledOnBehalfOfEnum.enumValues)[number]
+export type NoShowParty = (typeof noShowPartyEnum.enumValues)[number]
+
+export interface BookingListFilters {
+  status?: BookingStatus
+  vendorId?: string
+  search: BookingSearch | null
+  /** Scheduled at or after. */
+  start: Date | null
+  /** Scheduled before. */
+  end: Date | null
+  /** Continue after this row; the panel pages this way. */
+  after: BookingListCursor | null
+  limit: number
+  /** Older callers page by offset; zero whenever `after` is set. */
+  offset: number
+}
+
+// Every relation an admin booking row renders. Declared once so the list and
+// the detail can never disagree about what a row carries.
+const ADMIN_BOOKING_RELATIONS = {
+  vendor: true as const,
+  user: true as const,
+  // `service` is the deprecated first-item pointer; `items` is what a
+  // multi-service booking actually contains.
+  service: true as const,
+  items: { orderBy: [asc(bookingItems.sortOrder)] },
+  vehicle: true as const,
+  payment: true as const,
+}
 
 export const adminRepository = {
   listVendors() {
@@ -272,20 +325,168 @@ export const adminRepository = {
       .returning()
   },
 
-  listBookings(status?: BookingStatus) {
+  /**
+   * One page of booking ids matching the filters, newest scheduled first.
+   *
+   * Ids only, because the search joins customers and garages to match on their
+   * names while the rows themselves are read with the relational API — which
+   * cannot filter on a joined table's columns. The id is the tiebreak so a page
+   * boundary never splits two bookings at the same time unpredictably.
+   */
+  async searchBookingIds(filters: BookingListFilters): Promise<string[]> {
+    const conditions: SQL[] = []
+
+    if (filters.status) conditions.push(eq(bookings.status, filters.status))
+    if (filters.vendorId) conditions.push(eq(bookings.vendorId, filters.vendorId))
+    if (filters.start) conditions.push(gte(bookings.scheduledAt, filters.start))
+    if (filters.end) conditions.push(lt(bookings.scheduledAt, filters.end))
+    // A row comparison in the same order as the ORDER BY below, so "after the
+    // cursor" means exactly "further down the list".
+    if (filters.after) {
+      conditions.push(
+        sql`(${bookings.scheduledAt}, ${bookings.id}) < (${filters.after.scheduledAt.toISOString()}::timestamptz, ${filters.after.id}::uuid)`
+      )
+    }
+
+    if (filters.search) {
+      const { text, idPrefix, phoneDigits } = filters.search
+      const matches: SQL[] = [
+        ilike(users.name, containsPattern(text)),
+        ilike(vendors.businessName, containsPattern(text)),
+      ]
+      // Ids are stored lowercase, so the prefix is lowercased by the parser and
+      // compared as plain text.
+      if (idPrefix) matches.push(sql`${bookings.id}::text like ${`${idPrefix}%`}`)
+      if (phoneDigits) matches.push(like(users.phone, containsPattern(phoneDigits)))
+      conditions.push(or(...matches)!)
+    }
+
+    const rows = await db
+      .select({ id: bookings.id })
+      .from(bookings)
+      .innerJoin(users, eq(users.id, bookings.userId))
+      .innerJoin(vendors, eq(vendors.id, bookings.vendorId))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(bookings.scheduledAt), desc(bookings.id))
+      .limit(filters.limit)
+      .offset(filters.offset)
+
+    return rows.map((row) => row.id)
+  },
+
+  /** The rows for a page of ids, in no particular order — the caller re-sorts. */
+  findBookingsByIds(ids: string[]) {
+    if (ids.length === 0) return Promise.resolve([])
     return db.query.bookings.findMany({
-      where: status ? eq(bookings.status, status) : undefined,
-      with: {
-        vendor: true,
-        user: true,
-        // `service` is the deprecated first-item pointer; `items` is what a
-        // multi-service booking actually contains.
-        service: true,
-        items: { orderBy: [asc(bookingItems.sortOrder)] },
-        vehicle: true,
-        payment: true,
-      },
-      orderBy: [desc(bookings.scheduledAt)],
+      where: inArray(bookings.id, ids),
+      with: ADMIN_BOOKING_RELATIONS,
     })
+  },
+
+  /** Note counts per booking, for the list. Bookings with none are absent. */
+  async countNotesByBooking(ids: string[]): Promise<Map<string, number>> {
+    if (ids.length === 0) return new Map()
+    const rows = await db
+      .select({ bookingId: bookingNotes.bookingId, value: count() })
+      .from(bookingNotes)
+      .where(inArray(bookingNotes.bookingId, ids))
+      .groupBy(bookingNotes.bookingId)
+    return new Map(rows.map((row) => [row.bookingId, row.value]))
+  },
+
+  /** One booking with the relations an action and its Telegram alert need. */
+  findBookingById(id: string) {
+    return db.query.bookings.findFirst({
+      where: eq(bookings.id, id),
+      with: ADMIN_BOOKING_RELATIONS,
+    })
+  },
+
+  /** One booking with everything the detail page shows, notes newest first. */
+  findBookingDetail(id: string) {
+    return db.query.bookings.findFirst({
+      where: eq(bookings.id, id),
+      with: {
+        ...ADMIN_BOOKING_RELATIONS,
+        notes: { orderBy: [desc(bookingNotes.createdAt), desc(bookingNotes.id)] },
+      },
+    })
+  },
+
+  /** The booking this one was moved to, if the customer rescheduled it. */
+  async findRescheduledToId(id: string): Promise<string | null> {
+    const row = await db.query.bookings.findFirst({
+      columns: { id: true },
+      where: eq(bookings.rescheduledFromId, id),
+    })
+    return row?.id ?? null
+  },
+
+  /** Names for a handful of user ids (who accepted, who completed). */
+  async findUserNames(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map()
+    const rows = await db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(inArray(users.id, ids))
+    return new Map(rows.map((row) => [row.id, row.name]))
+  },
+
+  findUserById(id: string) {
+    return db.query.users.findFirst({ where: eq(users.id, id) })
+  },
+
+  /**
+   * Cancels a booking as Detlio, and records why as an internal note, in one
+   * transaction — a cancellation with no note would be an ops action nobody
+   * can account for later.
+   *
+   * Moves on only from the status the caller saw (`from`), the same guard as
+   * bookingsRepository.cancelBooking: a garage accepting or a customer
+   * cancelling in between would otherwise be silently overwritten. Null means
+   * someone else got there first, and nothing was written.
+   */
+  cancelBookingAsAdmin(
+    bookingId: string,
+    from: BookingStatus,
+    change: {
+      onBehalfOf: CancelledOnBehalfOf
+      reason: string | null
+      noShow: NoShowParty | null
+      at: Date
+    },
+    note: { author: string; body: string }
+  ) {
+    return db.transaction(async (tx) => {
+      const [cancelled] = await tx
+        .update(bookings)
+        .set({
+          status: 'cancelled',
+          cancelledBy: 'admin',
+          cancelledOnBehalfOf: change.onBehalfOf,
+          cancellationReason: change.reason,
+          cancelledAt: change.at,
+          ...(change.noShow && {
+            noShow: change.noShow,
+            noShowMarkedAt: change.at,
+          }),
+        })
+        .where(and(eq(bookings.id, bookingId), eq(bookings.status, from)))
+        .returning()
+
+      if (!cancelled) return null
+
+      await tx.insert(bookingNotes).values({
+        bookingId,
+        author: note.author,
+        body: note.body,
+      })
+
+      return cancelled
+    })
+  },
+
+  createBookingNote(data: { bookingId: string; author: string; body: string }) {
+    return db.insert(bookingNotes).values(data).returning()
   },
 }

@@ -114,8 +114,25 @@ export const bookingStatusEnum = pgEnum('booking_status', [
 ])
 
 // Who cancelled a booking. 'vendor' means the vendor rejected/cancelled it,
-// 'user' means the customer cancelled it.
-export const cancelledByEnum = pgEnum('cancelled_by', ['user', 'vendor'])
+// 'user' means the customer cancelled it, 'admin' means the Detlio ops team
+// did it from the admin panel — see cancelledOnBehalfOfEnum for whose call it
+// actually was.
+export const cancelledByEnum = pgEnum('cancelled_by', ['user', 'vendor', 'admin'])
+
+// Whose decision an admin cancellation records. Ops often cancels because a
+// customer or a garage phoned in, and "cancelled by admin" alone would lose
+// that. Set only when cancelled_by = 'admin' (a CHECK in 0026 holds it).
+export const cancelledOnBehalfOfEnum = pgEnum('cancelled_on_behalf_of', [
+  'customer',
+  'garage',
+  'detlio',
+])
+
+// Who failed to turn up for an accepted booking. The two have opposite money
+// consequences: a customer no-show keeps the payment (the garage held the
+// slot, and that is the published policy), a garage no-show is always
+// refunded in full.
+export const noShowPartyEnum = pgEnum('no_show_party', ['customer', 'garage'])
 
 // New bookings always prepay online via Razorpay. 'cash' is retained only so
 // historical (pre-online-only) bookings still read correctly.
@@ -624,6 +641,12 @@ export const bookings = pgTable(
     cancelledBy: cancelledByEnum('cancelled_by'),
     cancellationReason: text('cancellation_reason'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    // Only on an admin cancellation: whose call it was. See the enum.
+    cancelledOnBehalfOf: cancelledOnBehalfOfEnum('cancelled_on_behalf_of'),
+    // Set when ops marks an accepted booking as a no-show, which also cancels
+    // it. Null on every other booking, cancelled or not.
+    noShow: noShowPartyEnum('no_show'),
+    noShowMarkedAt: timestamp('no_show_marked_at', { withTimezone: true }),
     // Reschedule chain. `originalBookingId` points to the first booking in the
     // chain (null on the original itself); every reschedule shares the same
     // root. `rescheduleCount` is that booking's position in the chain (0 for
@@ -656,6 +679,42 @@ export const bookings = pgTable(
     index('bookings_status_idx').on(table.status),
     index('bookings_original_booking_id_idx').on(table.originalBookingId),
     index('bookings_discount_id_idx').on(table.discountId),
+    // An on-behalf-of or a no-show without an admin cancellation would be a
+    // record of something nobody did. See 0026.
+    check(
+      'bookings_cancelled_on_behalf_of_admin_check',
+      sql`${table.cancelledOnBehalfOf} is null or ${table.cancelledBy} = 'admin'`
+    ),
+    check(
+      'bookings_no_show_admin_check',
+      sql`${table.noShow} is null or ${table.cancelledBy} = 'admin'`
+    ),
+  ]
+)
+
+// The ops team's own notes on a booking: complaints, calls made, what was
+// agreed. Internal only — no customer or garage payload ever includes them.
+//
+// `author` is a name, not a user id: the break-glass admin login has no users
+// row, and a note has to say who wrote it either way.
+export const bookingNotes = pgTable(
+  'booking_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    author: varchar('author', { length: 100 }).notNull(),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('booking_notes_booking_id_created_at_idx').on(
+      table.bookingId,
+      table.createdAt
+    ),
   ]
 )
 
@@ -1174,6 +1233,14 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   review: one(reviews, {
     fields: [bookings.id],
     references: [reviews.bookingId],
+  }),
+  notes: many(bookingNotes),
+}))
+
+export const bookingNotesRelations = relations(bookingNotes, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [bookingNotes.bookingId],
+    references: [bookings.id],
   }),
 }))
 

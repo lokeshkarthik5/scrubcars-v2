@@ -144,36 +144,102 @@ export interface UpdateVendorInput {
   services?: UpdateVendorServiceInput[]
 }
 
+export type BookingParty = 'customer' | 'garage'
+export type CancelledOnBehalfOf = BookingParty | 'detlio'
+
+/**
+ * One row of the admin bookings list — what ops needs to answer a call about
+ * a booking without opening it.
+ */
 export interface AdminBooking {
   id: string
+  /** "3F2A9C1B": the number customers and garages read out. */
+  reference: string
+  status: string
   bookingType: string
   scheduledAt: string
-  status: string
+  createdAt: string
+  /**
+   * Minutes a pending booking has waited for its garage, counted from the
+   * later of creation and payment. Null for every other status.
+   */
+  waitingMins: number | null
+  durationMins: number
   amount: string
   subtotalAmount: string
   discountAmount: string
   discountCode: string | null
   discountFundedBy: 'platform' | 'vendor' | null
   paymentMethod: string
-  createdAt: string
-  vendor: { id: string; businessName: string; phone: string } | null
-  user: { id: string; name: string; phone: string } | null
+  payment: {
+    status: string
+    /** The Razorpay payment id — what ops searches the dashboard for to refund. */
+    gatewayTxnId: string | null
+    paidAt: string | null
+  } | null
+  garage: { id: string; name: string; phone: string } | null
+  customer: { id: string; name: string; phone: string } | null
+  /** Where a doorstep job happens. Null for a job at the garage. */
+  address: string | null
+  vehicle: { id: string; make: string; model: string; plate: string | null } | null
   /** Every service on the booking, priced as sold. */
-  items?: Array<{
+  items: Array<{
     id: string
     serviceId: string
     name: string
     amount: string
     durationMins: number
   }>
-  /** Deprecated: the first item. */
-  service: {
-    id: string
-    name: string
-    pricingType?: 'flat' | 'per_vehicle' | 'on_inspection'
-  } | null
-  vehicle: { id: string; make: string; model: string } | null
-  payment: { status: string } | null
+  cancelledBy: 'user' | 'vendor' | 'admin' | null
+  /** Only on a Detlio cancellation: whose call it was. */
+  cancelledOnBehalfOf: CancelledOnBehalfOf | null
+  cancellationReason: string | null
+  cancelledAt: string | null
+  noShow: BookingParty | null
+  noShowMarkedAt: string | null
+  notesCount: number
+  rescheduledFromId: string | null
+}
+
+/** An ops-team note. Never shown to customers or garages. */
+export interface AdminBookingNote {
+  id: string
+  author: string
+  body: string
+  createdAt: string
+}
+
+export interface AdminBookingDetail extends AdminBooking {
+  lat: number | null
+  lng: number | null
+  garageAddress: string | null
+  /** Who at the garage accepted / completed it, when the garage recorded it. */
+  acceptedByName: string | null
+  completedByName: string | null
+  originalBookingId: string | null
+  /** The booking this one was moved to, when the customer rescheduled it. */
+  rescheduledToId: string | null
+  rescheduleCount: number
+  /** Newest first. */
+  notes: AdminBookingNote[]
+}
+
+export interface AdminBookingFilters {
+  /** A booking reference, a customer phone or name, or a garage name. */
+  q?: string
+  status?: string
+  vendorId?: string
+  /** IST calendar dates (YYYY-MM-DD) on the scheduled time, both inclusive. */
+  from?: string
+  to?: string
+  limit?: number
+  /** Older paging; the panel uses `cursor`. */
+  page?: number
+  /**
+   * Continue after this row: "<scheduledAt ISO>_<id>" of the last row of the
+   * previous page (see adminBookingsCursor).
+   */
+  cursor?: string
 }
 
 export interface CreateVendorInput {
@@ -408,10 +474,57 @@ export async function deleteAdminServiceImage(
   )
 }
 
-/** GET /admin/bookings */
-export async function listAdminBookings(status?: string) {
+/** GET /admin/bookings — one page, newest scheduled first. */
+export async function listAdminBookings(filters: AdminBookingFilters = {}) {
   return apiClient<AdminBooking[]>('/admin/bookings', {
-    params: { status },
+    params: {
+      q: filters.q || undefined,
+      status: filters.status || undefined,
+      vendorId: filters.vendorId || undefined,
+      from: filters.from || undefined,
+      to: filters.to || undefined,
+      limit: filters.limit,
+      page: filters.page,
+      cursor: filters.cursor,
+    },
+  })
+}
+
+/** GET /admin/bookings/:id */
+export async function getAdminBooking(id: string) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}`)
+}
+
+/** POST /admin/bookings/:id/cancel — returns the updated booking. */
+export async function cancelAdminBooking(
+  id: string,
+  input: { onBehalfOf: CancelledOnBehalfOf; reason: string }
+) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST /admin/bookings/:id/no-show — returns the updated booking. Refused with
+ * 400 NO_SHOW_TOO_EARLY before the start time.
+ */
+export async function markAdminBookingNoShow(
+  id: string,
+  input: { party: BookingParty; note?: string }
+) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/no-show`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** POST /admin/bookings/:id/notes */
+export async function addAdminBookingNote(id: string, body: string) {
+  return apiClient<AdminBookingNote>(`/admin/bookings/${id}/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
   })
 }
 

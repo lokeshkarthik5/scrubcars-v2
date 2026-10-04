@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  isCalendarDate,
+  parseBookingListCursor,
+} from '../../lib/booking-ops.js'
 
 const phoneSchema = z
   .string()
@@ -200,10 +204,75 @@ export const mediaUrlSchema = z.object({
   url: z.string().url().max(2048),
 })
 
-export const listBookingsQuerySchema = z.object({
-  status: z
-    .enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
-    .optional(),
+// ─── Bookings ────────────────────────────────────────────────────────────────
+
+// The filters live in the panel's URL, so a hand-edited or mistyped date
+// arrives here. One that doesn't exist is a 400, not an Invalid Date for the
+// query to choke on.
+const istDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Dates must be YYYY-MM-DD')
+  .refine(isCalendarDate, 'That date does not exist')
+
+/**
+ * Every param is optional, so the panel built before search existed — which
+ * sends `status` alone, or nothing — still gets the list it expects.
+ *
+ * `q` is matched as a booking reference, a customer phone, a customer name and
+ * a garage name at once (see parseBookingSearch). `from`/`to` are IST calendar
+ * dates on the scheduled time, both inclusive.
+ *
+ * `cursor` continues the list after a given row (see parseBookingListCursor)
+ * and is what the panel pages with. `page` stays for older callers; when a
+ * cursor is sent, it is ignored.
+ */
+export const listBookingsQuerySchema = z
+  .object({
+    status: z
+      .enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
+      .optional(),
+    q: z.string().trim().max(100).optional(),
+    vendorId: z.string().uuid().optional(),
+    from: istDateSchema.optional(),
+    to: istDateSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+    page: z.coerce.number().int().min(1).max(1000).default(1),
+    cursor: z
+      .string()
+      .max(100)
+      .transform((value, ctx) => {
+        const cursor = parseBookingListCursor(value)
+        if (!cursor) {
+          ctx.addIssue({ code: 'custom', message: 'Invalid cursor' })
+          return z.NEVER
+        }
+        return cursor
+      })
+      .optional(),
+  })
+  .refine((data) => !data.from || !data.to || data.from <= data.to, {
+    message: "'from' must be on or before 'to'",
+    path: ['from'],
+  })
+
+export const bookingIdParamSchema = z.object({ id: z.string().uuid() })
+
+/**
+ * The reason is required: an admin cancellation is always someone's decision
+ * on someone's behalf, and the customer and the garage both read it.
+ */
+export const adminCancelBookingSchema = z.object({
+  onBehalfOf: z.enum(['customer', 'garage', 'detlio']),
+  reason: z.string().trim().min(1, 'Give a reason').max(500),
+})
+
+export const markNoShowSchema = z.object({
+  party: z.enum(['customer', 'garage']),
+  note: z.string().trim().max(2000).optional(),
+})
+
+export const createBookingNoteSchema = z.object({
+  body: z.string().trim().min(1, 'Write a note').max(2000),
 })
 
 // ─── Platform admins ─────────────────────────────────────────────────────────
@@ -226,5 +295,8 @@ export type LoginInput = z.infer<typeof loginSchema>
 export type CreateVendorInput = z.infer<typeof createVendorSchema>
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>
+export type AdminCancelBookingInput = z.infer<typeof adminCancelBookingSchema>
+export type MarkNoShowInput = z.infer<typeof markNoShowSchema>
+export type CreateBookingNoteInput = z.infer<typeof createBookingNoteSchema>
 export type UploadUrlInput = z.infer<typeof uploadUrlSchema>
 export type MediaUrlInput = z.infer<typeof mediaUrlSchema>
