@@ -33,6 +33,7 @@ import {
   serviceImages,
   services,
   users,
+  vendorClosures,
   vendorPhotos,
   vendors,
   vendorWorkingHours,
@@ -98,14 +99,21 @@ export const adminRepository = {
   },
 
   // Full detail for the admin edit screen: owner + weekly working hours +
-  // active services (soft-deleted ones are hidden from the editor) + the media
-  // the admin can manage — gallery photos and each service's own images.
-  findVendorDetailById(id: string) {
+  // holidays from `closuresFrom` on + active services (soft-deleted ones are
+  // hidden from the editor) + the media the admin can manage — gallery photos
+  // and each service's own images.
+  findVendorDetailById(id: string, closuresFrom: string) {
     return db.query.vendors.findFirst({
       where: eq(vendors.id, id),
       with: {
         owner: true,
-        workingHours: true,
+        workingHours: {
+          orderBy: [asc(vendorWorkingHours.dayOfWeek)],
+        },
+        closures: {
+          where: gte(vendorClosures.date, closuresFrom),
+          orderBy: [asc(vendorClosures.date)],
+        },
         photos: {
           orderBy: [asc(vendorPhotos.sortOrder), asc(vendorPhotos.createdAt)],
         },
@@ -234,9 +242,18 @@ export const adminRepository = {
       .returning()
   },
 
+  /** Every booking the garage has ever had, in any state. */
+  async countBookingsForVendor(vendorId: string): Promise<number> {
+    const [row] = await db
+      .select({ value: count() })
+      .from(bookings)
+      .where(eq(bookings.vendorId, vendorId))
+    return row?.value ?? 0
+  },
+
   // Hard delete. FK cascades remove the vendor's services, photos, working
   // hours, service areas, bookings, payments and reviews. The owner user row
-  // is preserved.
+  // is preserved. Refused by the service for any garage with bookings.
   deleteVendor(id: string) {
     return db.delete(vendors).where(eq(vendors.id, id)).returning()
   },

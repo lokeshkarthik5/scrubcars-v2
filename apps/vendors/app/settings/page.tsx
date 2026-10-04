@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { IconLogout, IconPhoto, IconChevronRight, IconUsers } from '@tabler/icons-react'
@@ -19,6 +19,7 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
 import { SupportCard } from '@repo/ui/features/support-card'
 import {
+  getMyClosures,
   getMyVendor,
   getWorkingHours,
   setVendorWorkingHours,
@@ -27,9 +28,11 @@ import {
   updateVendorSettings,
 } from '@repo/core/api/vendors'
 import type {
+  ApiVendorClosure,
   ApiVendorProfile,
   ApiWorkingHours,
 } from '@repo/core/api/types'
+import { ApiError } from '@repo/core/api/client'
 import { toast } from 'react-toastify'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
@@ -37,9 +40,37 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import { cn } from '@repo/core/utils'
+import { HolidaysSection, PauseSection } from './time-off-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+// The tabs a ?tab= link can open on. Anything else lands on Profile.
+const TABS = ['profile', 'location', 'hours', 'time-off', 'account'] as const
+type SettingsTab = (typeof TABS)[number]
+// The radius the server accepts for doorstep jobs, as onboarding asks it.
+const MIN_DOORSTEP_KM = 1
+const MAX_DOORSTEP_KM = 30
 const SLOT_INTERVALS = [30, 45, 60] as const
+// The server's bounds for bays; jobs per day is 1–500 or blank.
+const MAX_BAYS = 20
+const MAX_JOBS_PER_DAY = 500
+
+/**
+ * What is wrong with the capacity form, in the owner's words, or null. Bays
+ * must be a whole number from 1 to 20; the daily limit is blank (no limit) or
+ * a whole number from 1 up.
+ */
+function capacityProblem(bays: string, jobsPerDay: string): string | null {
+  const bayCount = Number(bays)
+  if (!/^\d+$/.test(bays) || bayCount < 1 || bayCount > MAX_BAYS) {
+    return `Cars at the same time must be between 1 and ${MAX_BAYS}.`
+  }
+  if (jobsPerDay.trim() === '') return null
+  const jobs = Number(jobsPerDay)
+  if (!/^\d+$/.test(jobsPerDay) || jobs < 1 || jobs > MAX_JOBS_PER_DAY) {
+    return `Jobs in a day must be between 1 and ${MAX_JOBS_PER_DAY}, or left blank.`
+  }
+  return null
+}
 
 type WorkingHoursForm = {
   dayOfWeek: number
@@ -94,6 +125,22 @@ export default function VendorSettingsPage() {
   )
   const [pin, setPin] = useState<PickedLocation | null>(null)
   const [doorstepRadiusKm, setDoorstepRadiusKm] = useState('')
+  const [capacity, setCapacity] = useState({ bays: '1', jobsPerDay: '' })
+  const [closures, setClosures] = useState<ApiVendorClosure[]>([])
+  const [closuresFailed, setClosuresFailed] = useState(false)
+  // The tab a link asked for, e.g. /settings?tab=time-off from Home's
+  // "paused" banner. Read once rather than through useSearchParams, which
+  // would need a Suspense boundary around the page for one string; the tabs
+  // only render after settings load, on the client, so there is no server
+  // render to disagree with.
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    if (typeof window === 'undefined') return 'profile'
+    const requested = new URLSearchParams(window.location.search).get('tab')
+    return TABS.includes(requested as SettingsTab) ? (requested as SettingsTab) : 'profile'
+  })
+  // Shown under the doorstep switch when turning it on needs a radius first,
+  // so the owner can give one here instead of hunting for the Location tab.
+  const [doorstepPrompt, setDoorstepPrompt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const logout = useAuthStore((s) => s.logout)
@@ -112,6 +159,17 @@ export default function VendorSettingsPage() {
   }, [isVendorAdmin, router])
 
   useEffect(() => {
+    // Holidays load on their own: a failure there (or a server that does not
+    // have them yet) should cost the Holidays list, not every tab.
+    async function loadClosures() {
+      try {
+        setClosures(await getMyClosures())
+        setClosuresFailed(false)
+      } catch {
+        setClosuresFailed(true)
+      }
+    }
+
     async function loadSettings() {
       setLoading(true)
       try {
@@ -129,6 +187,12 @@ export default function VendorSettingsPage() {
           pincode: vendorData.pincode,
         })
         setWorkingHours(mapWorkingHours(hoursData))
+        setCapacity({
+          // Unset reads as one bay, which is also what the slot list assumes.
+          bays: String(vendorData.bays && vendorData.bays > 0 ? vendorData.bays : 1),
+          jobsPerDay:
+            vendorData.jobsPerDay != null ? String(vendorData.jobsPerDay) : '',
+        })
         setDoorstepRadiusKm(
           vendorData.doorstepRadiusKm != null
             ? String(vendorData.doorstepRadiusKm)
@@ -152,6 +216,7 @@ export default function VendorSettingsPage() {
     }
 
     void loadSettings()
+    void loadClosures()
     // Reloads on a company switch: this form edits whichever company is
     // active, and leaving the previous one's values in it would let an admin
     // save the wrong garage's details.
@@ -200,17 +265,62 @@ export default function VendorSettingsPage() {
       setVendor(updated)
     })
 
+  const capacityError = capacityProblem(capacity.bays, capacity.jobsPerDay)
+
+  const saveCapacity = () =>
+    !capacityError &&
+    runAction('capacity', async () => {
+      const updated = await updateVendorSettings({
+        bays: Number(capacity.bays),
+        // Blank clears the cap rather than leaving the old one in place.
+        jobsPerDay: capacity.jobsPerDay.trim() ? Number(capacity.jobsPerDay) : null,
+      })
+      setVendor(updated)
+    })
+
   const saveSlotInterval = (slotIntervalMins: 30 | 45 | 60) =>
     runAction('slot-interval', async () => {
       const updated = await updateSlotInterval(slotIntervalMins)
       setVendor(updated)
     })
 
-  const saveJobType = (field: 'dropinEnabled' | 'doorstepEnabled', value: boolean) =>
-    runAction(`job-type-${field}`, async () => {
-      const updated = await updateVendorJobTypes({ [field]: value })
+  const saveJobType = async (
+    field: 'dropinEnabled' | 'doorstepEnabled',
+    value: boolean,
+    doorstepRadius?: number
+  ) => {
+    const key = `job-type-${field}`
+    setSaving(key)
+    try {
+      const updated = await updateVendorJobTypes({
+        [field]: value,
+        ...(doorstepRadius !== undefined && { doorstepRadiusKm: doorstepRadius }),
+      })
       setVendor(updated)
-    })
+      if (updated.doorstepRadiusKm != null) {
+        setDoorstepRadiusKm(String(updated.doorstepRadiusKm))
+      }
+      setDoorstepPrompt(null)
+      toast.success('Saved successfully')
+    } catch (err) {
+      // Doorstep needs a "how far" first. Ask for it right here, next to the
+      // switch, rather than leave the owner to find the Location tab.
+      if (err instanceof ApiError && err.code === 'DOORSTEP_RADIUS_REQUIRED') {
+        setDoorstepPrompt('')
+        return
+      }
+      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const promptRadius = Number(doorstepPrompt)
+  const promptRadiusValid =
+    doorstepPrompt !== null &&
+    doorstepPrompt.trim() !== '' &&
+    promptRadius >= MIN_DOORSTEP_KM &&
+    promptRadius <= MAX_DOORSTEP_KM
 
   const saveWorkingHours = () =>
     runAction('working-hours', async () => {
@@ -245,15 +355,16 @@ export default function VendorSettingsPage() {
     <AppShell showNav navType="vendor" className="gap-5 py-4">
       <TopBar title="Settings" />
 
-      {/* Four tabs rather than one long scroll. Grouped by the question being
-          answered — who you are, where you are, when you work, everything else —
-          so each panel is a similar size and nothing important sits below three
-          screens of other settings. */}
-      <Tabs defaultValue="profile">
+      {/* Tabs rather than one long scroll. Grouped by the question being
+          answered — who you are, where you are, when you work, when you are
+          not working, everything else — so each panel is a similar size and
+          nothing important sits below three screens of other settings. */}
+      <Tabs value={tab} onValueChange={(value) => setTab(value as SettingsTab)}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="location">Location</TabsTrigger>
           <TabsTrigger value="hours">Hours</TabsTrigger>
+          <TabsTrigger value="time-off">Time off</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
         </TabsList>
 
@@ -494,6 +605,53 @@ export default function VendorSettingsPage() {
 
           {vendor && (
             <section>
+              <h2 className="mb-2 text-sm font-semibold">Capacity</h2>
+              <ScCard className="flex flex-col gap-3">
+                <ScInput
+                  id="settings-bays"
+                  label="How many cars can you work on at the same time?"
+                  inputMode="numeric"
+                  className="font-numeric"
+                  value={capacity.bays}
+                  onChange={(e) =>
+                    setCapacity({ ...capacity, bays: e.target.value.replace(/\D/g, '').slice(0, 2) })
+                  }
+                />
+                <ScInput
+                  id="settings-jobs-per-day"
+                  label="Most jobs in a day (optional)"
+                  inputMode="numeric"
+                  placeholder="No limit"
+                  className="font-numeric"
+                  value={capacity.jobsPerDay}
+                  onChange={(e) =>
+                    setCapacity({ ...capacity, jobsPerDay: e.target.value.replace(/\D/g, '').slice(0, 3) })
+                  }
+                />
+                {/* What the numbers do, in one line: customers are only offered
+                    a time when a car can actually go in. */}
+                <p className="text-[11px] text-text-muted">
+                  Customers are only offered times when you have room for one
+                  more car. Leave the daily limit blank for no limit.
+                </p>
+                {capacityError && (
+                  <p className="text-[12px] text-warning">{capacityError}</p>
+                )}
+                {/* Secondary: "Save working hours" above is this tab's main
+                    action, and red is kept for one per screen. */}
+                <ScButton
+                  variant="secondary"
+                  disabled={!!capacityError || saving === 'capacity'}
+                  onClick={saveCapacity}
+                >
+                  {saving === 'capacity' ? 'Saving...' : 'Save capacity'}
+                </ScButton>
+              </ScCard>
+            </section>
+          )}
+
+          {vendor && (
+            <section>
               <h2 className="mb-2 text-sm font-semibold">Job types</h2>
               <ScCard className="flex flex-col gap-3">
                 {(
@@ -505,34 +663,82 @@ export default function VendorSettingsPage() {
                   const enabled = vendor[field]
                   const key = `job-type-${field}`
                   return (
-                    <div key={field} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[13px] font-medium text-text-primary">{label}</p>
-                        <p className="text-[11px] text-text-secondary">{description}</p>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={saving === key}
-                        onClick={() => saveJobType(field, !enabled)}
-                        className={cn(
-                          'relative h-6 w-11 rounded-full transition-colors',
-                          enabled ? 'bg-brand-red' : 'bg-surface border border-border',
-                          saving === key && 'opacity-50'
-                        )}
-                      >
-                        <span
+                    <Fragment key={field}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[13px] font-medium text-text-primary">{label}</p>
+                          <p className="text-[11px] text-text-secondary">{description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={saving === key}
+                          onClick={() => saveJobType(field, !enabled)}
                           className={cn(
-                            'absolute top-0.5 h-5 w-5 rounded-full bg-brand-white shadow transition-transform',
-                            enabled ? 'left-[22px]' : 'left-0.5'
+                            'relative h-6 w-11 rounded-full transition-colors',
+                            enabled ? 'bg-brand-red' : 'bg-surface border border-border',
+                            saving === key && 'opacity-50'
                           )}
-                        />
-                      </button>
-                    </div>
+                        >
+                          <span
+                            className={cn(
+                              'absolute top-0.5 h-5 w-5 rounded-full bg-brand-white shadow transition-transform',
+                              enabled ? 'left-[22px]' : 'left-0.5'
+                            )}
+                          />
+                        </button>
+                      </div>
+                      {field === 'doorstepEnabled' && doorstepPrompt !== null && (
+                        <div className="flex flex-col gap-2">
+                          <ScInput
+                            id="settings-doorstep-radius-inline"
+                            label="How far will you travel? (km)"
+                            inputMode="numeric"
+                            className="font-numeric"
+                            placeholder="e.g. 8"
+                            value={doorstepPrompt}
+                            onChange={(e) =>
+                              setDoorstepPrompt(e.target.value.replace(/\D/g, '').slice(0, 2))
+                            }
+                          />
+                          <p className="text-[11px] text-text-muted">
+                            Doorstep needs a distance from {MIN_DOORSTEP_KM} to{' '}
+                            {MAX_DOORSTEP_KM} km, so customers within it can book you.
+                            You can change it later under Location.
+                          </p>
+                          <div className="flex gap-2">
+                            <ScButton
+                              variant="secondary"
+                              className="flex-1"
+                              onClick={() => setDoorstepPrompt(null)}
+                            >
+                              Not now
+                            </ScButton>
+                            <ScButton
+                              variant="secondary"
+                              className="flex-1"
+                              disabled={!promptRadiusValid || saving === key}
+                              onClick={() => saveJobType('doorstepEnabled', true, promptRadius)}
+                            >
+                              {saving === key ? 'Saving...' : 'Turn on doorstep'}
+                            </ScButton>
+                          </div>
+                        </div>
+                      )}
+                    </Fragment>
                   )
                 })}
               </ScCard>
             </section>
           )}
+        </TabsContent>
+
+        <TabsContent value="time-off">
+          {vendor && <PauseSection vendor={vendor} onChange={setVendor} />}
+          <HolidaysSection
+            closures={closures}
+            loadFailed={closuresFailed}
+            onChange={setClosures}
+          />
         </TabsContent>
 
         <TabsContent value="account">

@@ -17,6 +17,26 @@ reconstructing every change in them.
 
 ### Added
 
+- **Holidays and pausing in the garage portal**: Settings has a Time off tab
+  to add or remove holidays (warning when bookings are already on that day)
+  and a "Pause new bookings" switch with an optional reason; Home shows a
+  banner while paused. Settings → Hours asks how many cars the garage can work
+  on at once and the most jobs in a day.
+- **Customers see it**: the slot picker greys out holidays like weekly off
+  days and says when a day is fully booked ("All times on this day are booked.
+  Pick another day.") or the garage is paused; the garage page says "Closed
+  today" on a holiday and "Not taking bookings right now" in place of Book
+  Now while paused.
+- **Admin vendor page** shows the real per-day hours, the paused state and
+  upcoming holidays, and can pause or resume a garage.
+- **Rescheduling** offers the times around the booking being moved (its own
+  bay no longer counts against it), and a paused garage's reschedule sheet
+  says the booking stays as it is or can be cancelled.
+- **Garage portal**: the pause reason sits above the switch and can be updated
+  while paused; Home's banners open Settings on the right tab; turning
+  doorstep on without a radius asks for one next to the switch; Settings still
+  loads if holidays can't be read.
+
 - **Pilot numbers** on the admin landing page (Vendors): checkouts started,
   paid, accepted, completed and the rates between them; revenue; paid with no
   booking (refunds to do); cancellations by whose call; no-shows; the top five
@@ -44,6 +64,14 @@ reconstructing every change in them.
   start time, with what it means for the money), and internal notes.
 
 ### Changed
+
+- **Garage onboarding** asks "How do customers get serviced?" — at the
+  garage, or also at the customer's up to a distance (1–30 km) — instead of
+  a pickup question that switched doorstep on with no distance.
+- **Home's Reject** on an incoming booking asks "Reject this booking?" first,
+  like the Bookings page.
+- **Admin delete** of a garage with bookings shows the server's "Archive it
+  instead" message rather than a generic failure.
 
 - **No double payments.** Once Razorpay reports a payment, checkout and the
   booking page's Pay Now switch to "Payment received — confirming your

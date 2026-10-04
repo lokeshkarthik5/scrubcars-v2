@@ -33,12 +33,16 @@ export default function VendorHomePage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [profile, setProfile] = useState<ApiVendorProfile | null>(null)
   const [weekEarnings, setWeekEarnings] = useState<number | null>(null)
+  // The incoming card whose Reject was tapped, waiting on "Reject this
+  // booking?". One tap used to decline a paid job outright.
+  const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null)
   const isVendorAdmin = useIsVendorAdmin()
 
   const isVerified = vendor?.isVerified ?? false
   // Only meaningful once the profile has loaded — `null` while loading must not
   // flash a "location missing" warning at a garage that has one.
   const needsLocation = profile !== null && profile.lat === null
+  const paused = profile !== null && profile.bookingsPausedAt != null
   const pending = useMemo(
     () => vendorBookings.filter((b) => b.status === 'pending'),
     [vendorBookings]
@@ -82,7 +86,7 @@ export default function VendorHomePage() {
           misleading — there is nothing to review until they act. */}
       {needsLocation ? (
         <Link
-          href="/settings"
+          href="/settings?tab=location"
           className="block rounded-[10px] border-l-[3px] border-warning bg-warning-muted/30 px-3 py-2.5 text-[13px] text-text-primary"
         >
           <span className="font-medium">Set your garage location</span>
@@ -98,6 +102,32 @@ export default function VendorHomePage() {
           </div>
         )
       )}
+
+      {/* A paused garage is invisible to customers, which is easy to forget
+          a week later — so Home says so for as long as it lasts. Only an
+          admin can resume (Settings is theirs), so only they get the link. */}
+      {paused &&
+        (isVendorAdmin ? (
+          <Link
+            // Straight to the tab with the switch, not Settings' first tab.
+            href="/settings?tab=time-off"
+            className="block rounded-[10px] border-l-[3px] border-warning bg-warning-muted/30 px-3 py-2.5 text-[13px] text-text-primary"
+          >
+            <span className="font-medium">New bookings are paused</span>
+            <span className="mt-0.5 block text-[12px] text-text-secondary">
+              Customers can&apos;t find or book you. Bookings you already have
+              stay as they are. Tap to resume in Settings.
+            </span>
+          </Link>
+        ) : (
+          <div className="rounded-[10px] border-l-[3px] border-warning bg-warning-muted/30 px-3 py-2.5 text-[13px] text-text-primary">
+            <span className="font-medium">New bookings are paused</span>
+            <span className="mt-0.5 block text-[12px] text-text-secondary">
+              Customers can&apos;t find or book this garage. Bookings already
+              made stay as they are.
+            </span>
+          </div>
+        ))}
 
       <div className="grid grid-cols-2 gap-2">
         <ScCard>
@@ -158,24 +188,48 @@ export default function VendorHomePage() {
                       customer can be refunded.
                     </p>
                   )}
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <ScButton
-                      variant="secondary"
-                      aria-label={`Reject booking for ${b.customerName}`}
-                      className={new Date(b.scheduledAtIso).getTime() <= now ? 'col-span-2' : undefined}
-                      onClick={() => updateStatus(b.id, 'cancelled').then(() => toast.success('Booking rejected')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to reject'); void reload() })}
-                    >
-                      Reject
-                    </ScButton>
-                    {new Date(b.scheduledAtIso).getTime() > now && (
+                  {confirmRejectId === b.id ? (
+                    // The same inline confirm as the Bookings page: declining
+                    // refunds a customer who has paid, so it takes two taps.
+                    <div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+                      <p className="text-[13px] font-medium text-text-primary">
+                        Reject this booking?
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <ScButton variant="secondary" onClick={() => setConfirmRejectId(null)}>
+                          Keep
+                        </ScButton>
+                        <ScButton
+                          aria-label={`Confirm reject booking for ${b.customerName}`}
+                          onClick={() => {
+                            setConfirmRejectId(null)
+                            updateStatus(b.id, 'cancelled').then(() => toast.success('Booking rejected')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to reject'); void reload() })
+                          }}
+                        >
+                          Reject
+                        </ScButton>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       <ScButton
-                        aria-label={`Accept booking for ${b.customerName}`}
-                        onClick={() => updateStatus(b.id, 'confirmed').then(() => toast.success('Booking accepted')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to accept'); void reload() })}
+                        variant="secondary"
+                        aria-label={`Reject booking for ${b.customerName}`}
+                        className={new Date(b.scheduledAtIso).getTime() <= now ? 'col-span-2' : undefined}
+                        onClick={() => setConfirmRejectId(b.id)}
                       >
-                        Accept
+                        Reject
                       </ScButton>
-                    )}
-                  </div>
+                      {new Date(b.scheduledAtIso).getTime() > now && (
+                        <ScButton
+                          aria-label={`Accept booking for ${b.customerName}`}
+                          onClick={() => updateStatus(b.id, 'confirmed').then(() => toast.success('Booking accepted')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to accept'); void reload() })}
+                        >
+                          Accept
+                        </ScButton>
+                      )}
+                    </div>
+                  )}
                 </ScCard>
               )
             })

@@ -10,18 +10,18 @@ import { ProgressBar } from '@repo/ui/sc/progress-bar'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { submitVendorOnboarding } from '@repo/core/api/vendors'
 import { toast } from 'react-toastify'
-import {
-  useVendorOnboardingStore,
-  type PickupOption,
-} from '@repo/core/stores/vendor-onboarding-store'
+import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
+import { cn } from '@repo/core/utils'
 
 const SLOT_INTERVALS = [30, 45, 60] as const
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const PICKUP_OPTIONS: { value: PickupOption; label: string }[] = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'nearby', label: 'Nearby only' },
-  { value: 'no', label: 'No' },
-]
+// The server's bounds: how far a garage can say it travels, and how many cars
+// it can have in at once.
+const MIN_RADIUS_KM = 1
+const MAX_RADIUS_KM = 30
+const MAX_BAYS = 20
+
+type ServiceMode = 'garage' | 'doorstep'
 
 export default function VendorOnboardingStep3() {
   const router = useRouter()
@@ -30,11 +30,35 @@ export default function VendorOnboardingStep3() {
   const [openTime, setOpenTime] = useState('09:00')
   const [closeTime, setCloseTime] = useState('18:00')
   const [workingDays, setWorkingDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
-  const [pickup, setPickup] = useState<PickupOption>('')
-  const [pickupRadiusKm, setPickupRadiusKm] = useState('')
+  // "How do customers get serviced?" This used to be a Pickup & drop
+  // question that switched doorstep on with no distance — a garage that goes
+  // to customers but nowhere in particular, which no address ever matched.
+  const [mode, setMode] = useState<ServiceMode>('garage')
+  const [radiusKm, setRadiusKm] = useState('')
   const [bays, setBays] = useState('')
   const [jobsPerDay, setJobsPerDay] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const doorstep = mode === 'doorstep'
+  const radius = Number(radiusKm)
+  const radiusError =
+    doorstep &&
+    (radiusKm.trim() === '' ||
+      !Number.isFinite(radius) ||
+      radius < MIN_RADIUS_KM ||
+      radius > MAX_RADIUS_KM)
+      ? `Enter how far you'll go, from ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} km.`
+      : null
+  const bayCount = Number(bays)
+  const baysError =
+    bays.trim() !== '' && (!Number.isInteger(bayCount) || bayCount < 1 || bayCount > MAX_BAYS)
+      ? `Cars at the same time must be between 1 and ${MAX_BAYS}.`
+      : null
+  const jobs = Number(jobsPerDay)
+  const jobsError =
+    jobsPerDay.trim() !== '' && (!Number.isInteger(jobs) || jobs < 1)
+      ? 'Jobs in a day must be 1 or more, or left blank.'
+      : null
 
   const toggleDay = (day: number) =>
     setWorkingDays((days) =>
@@ -42,18 +66,15 @@ export default function VendorOnboardingStep3() {
     )
 
   const handleContinue = async () => {
+    if (radiusError || baysError || jobsError) return
     setLoading(true)
     try {
-      const doorstep = pickup === 'yes' || pickup === 'nearby'
-      const radius = pickupRadiusKm ? Number(pickupRadiusKm) : null
-      const bayCount = bays ? Number(bays) : null
-      const jobs = jobsPerDay ? Number(jobsPerDay) : null
+      const doorstepRadiusKm = doorstep ? radius : null
 
       update({
         dropin: true,
         doorstep,
-        pickup,
-        pickupRadiusKm: radius,
+        doorstepRadiusKm,
         bays,
         jobsPerDay,
         slotInterval,
@@ -65,10 +86,9 @@ export default function VendorOnboardingStep3() {
       await submitVendorOnboarding(3, {
         dropin: true,
         doorstep,
-        pickup,
-        pickupRadiusKm: radius,
-        bays: bayCount,
-        jobsPerDay: jobs,
+        doorstepRadiusKm,
+        bays: bays ? bayCount : null,
+        jobsPerDay: jobsPerDay ? jobs : null,
         slotInterval,
         workingDays,
         openTime,
@@ -127,53 +147,108 @@ export default function VendorOnboardingStep3() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold">Pickup &amp; drop</h2>
-        <div className="flex flex-wrap gap-2">
-          {PICKUP_OPTIONS.map((opt) => (
-            <Chip
-              key={opt.value}
-              label={opt.label}
-              selected={pickup === opt.value}
-              onClick={() => setPickup(pickup === opt.value ? '' : opt.value)}
-            />
+        <h2 id="service-mode-heading" className="mb-2 text-sm font-semibold">
+          How do customers get serviced?
+        </h2>
+        {/* Two radios rather than chips: exactly one answer is always true,
+            and the doorstep one carries its own distance. */}
+        <div role="radiogroup" aria-labelledby="service-mode-heading" className="flex flex-col gap-2">
+          {(
+            [
+              { value: 'garage', label: 'They come to my garage' },
+              { value: 'doorstep', label: 'I also go to them' },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={mode === option.value}
+              onClick={() => setMode(option.value)}
+              className={cn(
+                'flex min-h-11 items-center gap-3 rounded-[10px] border px-3 py-2.5 text-left text-[13px] transition-colors',
+                mode === option.value
+                  ? 'border-text-primary/60 bg-surface-elevated text-text-primary'
+                  : 'border-border bg-surface text-text-secondary'
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                  mode === option.value ? 'border-text-primary' : 'border-text-muted'
+                )}
+              >
+                {mode === option.value && <span className="h-2 w-2 rounded-full bg-text-primary" />}
+              </span>
+              {option.label}
+            </button>
           ))}
         </div>
-        {(pickup === 'yes' || pickup === 'nearby') && (
+        {doorstep && (
           <div className="mt-2">
             <ScInput
-              label="Pickup radius (km)"
+              id="onboarding-doorstep-radius"
+              label="Up to how many km from your garage?"
               type="number"
               inputMode="numeric"
-              placeholder="5"
-              value={pickupRadiusKm}
-              onChange={(e) => setPickupRadiusKm(e.target.value)}
+              min={MIN_RADIUS_KM}
+              max={MAX_RADIUS_KM}
+              placeholder="8"
+              className="font-numeric"
+              value={radiusKm}
+              onChange={(e) => setRadiusKm(e.target.value)}
             />
+            {radiusError && radiusKm.trim() !== '' && (
+              <p className="mt-1 text-[12px] text-warning">{radiusError}</p>
+            )}
+            <p className="mt-1 text-[11px] text-text-muted">
+              Customers further away than this won&apos;t see you for doorstep jobs.
+              You can draw an exact area later in Settings.
+            </p>
           </div>
         )}
       </section>
 
-      <section>
-        <div className="grid grid-cols-2 gap-2">
-          <ScInput
-            label="Bays (cars at once)"
-            type="number"
-            inputMode="numeric"
-            placeholder="2"
-            value={bays}
-            onChange={(e) => setBays(e.target.value)}
-          />
-          <ScInput
-            label="Jobs per day"
-            type="number"
-            inputMode="numeric"
-            placeholder="15"
-            value={jobsPerDay}
-            onChange={(e) => setJobsPerDay(e.target.value)}
-          />
-        </div>
+      <section className="flex flex-col gap-2">
+        <ScInput
+          id="onboarding-bays"
+          label="How many cars can you work on at the same time?"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={MAX_BAYS}
+          placeholder="1"
+          className="font-numeric"
+          value={bays}
+          onChange={(e) => setBays(e.target.value)}
+        />
+        <ScInput
+          id="onboarding-jobs-per-day"
+          label="Most jobs in a day (optional)"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          placeholder="No limit"
+          className="font-numeric"
+          value={jobsPerDay}
+          onChange={(e) => setJobsPerDay(e.target.value)}
+        />
+        {(baysError || jobsError) && (
+          <p className="text-[12px] text-warning">{baysError ?? jobsError}</p>
+        )}
+        <p className="text-[11px] text-text-muted">
+          Customers are only offered times when you have room for one more car.
+        </p>
       </section>
 
-      <ScButton className="mb-4" disabled={loading} onClick={handleContinue}>Continue</ScButton>
+      <ScButton
+        className="mb-4"
+        disabled={loading || !!radiusError || !!baysError || !!jobsError}
+        onClick={handleContinue}
+      >
+        Continue
+      </ScButton>
     </AppShell>
   )
 }

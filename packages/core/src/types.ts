@@ -54,6 +54,18 @@ export interface Vendor {
    * garage.
    */
   openingHours: OpeningDay[] | null
+  /**
+   * The garage's upcoming holidays as IST dates ("2026-10-20"), so "Closed
+   * today" can be said on one. Empty when there are none or the response did
+   * not carry them.
+   */
+  closures: string[]
+  /**
+   * Whether the garage has stopped taking new bookings for now, and the
+   * reason it gave. Its page says so in place of the Book button.
+   */
+  bookingsPaused: boolean
+  bookingsPausedReason: string | null
   startingPrice: number
   dropinEnabled: boolean
   doorstepEnabled: boolean

@@ -93,14 +93,17 @@ export default function AdminVendorsPage() {
   const handleDelete = (v: AdminVendor) => {
     if (
       !window.confirm(
-        `Permanently delete "${v.businessName}"?\n\nThis removes the vendor and all its bookings, reviews and services. This cannot be undone. Use Archive instead if you want to keep the data.`
+        `Permanently delete "${v.businessName}"?\n\nThis removes the vendor, its services and photos. It cannot be undone. A garage that has any bookings cannot be deleted — archive it instead.`
       )
     ) {
       return
     }
     setActionError('')
     remove.mutate(v.id, {
-      onError: () => setActionError('Failed to delete vendor'),
+      // The server's own words: a garage with bookings is refused with "This
+      // garage has bookings. Archive it instead.", which tells the admin what
+      // to do next where a generic failure would not.
+      onError: (err) => setActionError(errorMessage(err, 'Failed to delete vendor')),
     })
   }
 
@@ -146,7 +149,7 @@ export default function AdminVendorsPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {/* Errors from a row action surface above the list the row is in. */}
-          {error && <p className="text-[12px] text-brand-red">{error}</p>}
+          {error && <p role="alert" className="text-[12px] text-warning">{error}</p>}
 
           {vendors.map((v) => {
             const stage = vendorAdminStatusBadge(v.status)
@@ -161,6 +164,9 @@ export default function AdminVendorsPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <ScBadge variant={stage.variant}>{stage.label}</ScBadge>
+                    {/* Live but hidden from customers by its own (or ops')
+                        choice — worth seeing at a glance in the list. */}
+                    {v.bookingsPausedAt && <ScBadge variant="pending">Paused</ScBadge>}
                     <ScBadge variant={v.isVerified ? 'success' : 'pending'}>
                       {v.isVerified ? 'Verified' : 'Unverified'}
                     </ScBadge>

@@ -31,12 +31,20 @@ const FAILURE_MESSAGES: Record<string, string> = {
     'That car already has an overlapping booking, so this one could not be confirmed. Your payment will be refunded.',
   discount_exhausted:
     'That promo code was fully redeemed before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
+  slot_full:
+    'That time was booked up at the garage before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
+  garage_closed:
+    'The garage closed that day before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
+  garage_paused:
+    'The garage stopped taking bookings before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
 }
 
 const FALLBACK_FAILURE_MESSAGE =
   'This payment could not be turned into a booking. A refund is being processed.'
 
-function failureMessage(reason: string | null): string {
+// Exported for the pay-later path (payments.service), which can take money
+// for a booking the garage then turns down in exactly these ways.
+export function failureMessage(reason: string | null): string {
   return (reason && FAILURE_MESSAGES[reason]) || FALLBACK_FAILURE_MESSAGE
 }
 
@@ -212,6 +220,18 @@ async function handleConsumeResult(
     // anyway) is a double-booked car or an over-redeemed code.
     case 'vehicle_clash':
       return failIntent(params, 'vehicle_double_booked')
+
+    // The garage filled up, marked the day a holiday or paused while the
+    // customer was paying. Booking anyway would put a job in front of a garage
+    // that has said it cannot do it.
+    case 'slot_full':
+      return failIntent(params, 'slot_full')
+
+    case 'garage_closed':
+      return failIntent(params, 'garage_closed')
+
+    case 'garage_paused':
+      return failIntent(params, 'garage_paused')
 
     case 'discount_exhausted':
       return failIntent(params, 'discount_exhausted')

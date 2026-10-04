@@ -80,9 +80,67 @@ reconstructing every change in them.
     are never in a customer or garage payload.
 - **Customer and garage booking payloads** carry `cancelledOnBehalfOf` and
   `noShow`; `cancelledBy` can now be `admin`.
+- **Bay capacity.** A garage runs at most `vendors.bays` jobs at once (null or
+  0 = 1) and, when `jobs_per_day` is set, at most that many in an IST day.
+  Pending, confirmed and in-progress bookings that are paid hold their
+  `[scheduled_at, + duration_mins)`. The slot list leaves full times out (and
+  reports `fullSlots`); checkout and reschedule refuse one with 409
+  `SLOT_FULL`, re-checked under a per-garage-per-day advisory lock where the
+  booking is written. A payment that lands after the last bay went becomes a
+  refund-due failure, `slot_full`.
+- **`GET /vendors/:id/slots/reschedule/:bookingId`** (signed-in customer, their
+  own booking at that garage, else 404): the slot list for moving a booking,
+  with that booking left out of the garage's capacity, so a one-bay garage
+  still offers the times around it.
+- **Holidays and pausing** (migration `0027_vendor_closures_and_pause`, which
+  must be applied before this API deploys — every vendor read selects the new
+  columns):
+  - `GET/POST /vendors/me/closures`, `DELETE /vendors/me/closures/:id`
+    (vendor_admin): a date from today to a year ahead; POST returns the
+    bookings still on that day. A holiday offers no slots (`isClosed: true`,
+    `closedReason: 'holiday'`) and refuses checkout and reschedule with 400
+    `GARAGE_CLOSED_THAT_DAY`.
+  - `POST /vendors/me/pause` (`reason` optional) and `POST /vendors/me/resume`
+    (vendor_admin), and `POST /admin/vendors/:id/pause|resume`. A paused
+    garage is left out of the list, search and map, its slot list says
+    `paused: true`, and checkout and reschedule are refused with 409
+    `GARAGE_PAUSED`. Its page still loads, with `bookingsPausedAt` and
+    `bookingsPausedReason`.
+  - `GET /vendors/:id/closures`: the next 60 days' holidays, for the picker.
+    List items carry the coming week's as `closures`.
+  - Neither touches existing bookings. A payment that lands after either
+    becomes a refund-due failure (`garage_closed`, `garage_paused`).
 
 ### Changed
 
+- **Admin vendor edit** takes per-day `workingHours` and changes only the days
+  sent; the panel sends them only when the admin edited the hours. Saving any
+  other field no longer resets a garage's week to one schedule.
+  `workingDays` + `openTime`/`closeTime` still work for older callers.
+- **Deleting a garage that has bookings** is refused with 409
+  `VENDOR_HAS_BOOKINGS` ("This garage has bookings. Archive it instead.").
+  It used to cascade through every booking, payment and review.
+- **Deleting a service or package that a booking or checkout names** is
+  refused with 409 `SERVICE_IN_USE` ("This service has bookings. Disable it
+  instead.", or "This package …") instead of a 500.
+- **Paying for an unpaid booking later** (`POST /payments/orders`, then verify
+  or the webhook) runs the garage checks too. The order is refused up front
+  with `SLOT_FULL`, `GARAGE_PAUSED` or `GARAGE_CLOSED_THAT_DAY`; a payment that
+  lands anyway is recorded as paid, the booking is cancelled (by Detlio, with
+  an internal note), ops get the "payment taken, no booking" alert, and the
+  customer gets 409 `BOOKING_CONFIRM_FAILED_REFUND_DUE`. Until now an unpaid
+  booking held no bay, and paying for it took one without asking.
+- **Rescheduling at a paused garage** is refused with its own words ("This
+  garage isn't taking changes right now. Your booking stays at its current
+  time, or you can cancel it."), still 409 `GARAGE_PAUSED`.
+- **Admin vendor edit** checks per-day hours before writing anything, so an
+  invalid day no longer returns 400 after the rest of the save went through.
+- **Switching doorstep on** needs a travel radius or a drawn area
+  (`DOORSTEP_RADIUS_REQUIRED`, which now says where to set it);
+  `PATCH /vendors/me/job-types` takes `doorstepRadiusKm` (1–30) so the two can
+  be set together.
+- **`PATCH /vendors/me`** takes `bays` 1–20 and `jobsPerDay` 1–500 or `null`
+  (no limit).
 - **OTP attempts are counted atomically.** Each guess claims an attempt in one
   `UPDATE … WHERE attempts < cap RETURNING` before it is compared, the cap
   worked out from the window's other codes only, so guesses sent in parallel

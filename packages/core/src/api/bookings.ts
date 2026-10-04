@@ -23,6 +23,12 @@ export interface SlotParams {
   date: string
   /** Doorstep needs more notice than at-garage, so the list depends on it. */
   bookingType: BookingType
+  /**
+   * The customer's booking being moved, when this list is for a reschedule.
+   * It still holds its current time, and without this it would count against
+   * the garage and hide the times around itself.
+   */
+  rescheduleOf?: string
 }
 
 export interface AvailableSlots {
@@ -37,17 +43,33 @@ export interface AvailableSlots {
    * the customer about — they can act on it.
    */
   fitsInDay: boolean
+  /** Why a closed day is closed, when it is. */
+  closedReason: 'holiday' | 'weekly_off' | null
+  /** The garage is not taking new bookings at all right now. */
+  paused: boolean
+  /**
+   * Every time with enough notice is already booked up. Distinct from an
+   * evening with no time left, which is about the clock, not the garage.
+   */
+  allBooked: boolean
 }
 
 function todayDateString(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-/** GET /vendors/:vendorId/slots */
+/**
+ * GET /vendors/:vendorId/slots, or for a reschedule
+ * GET /vendors/:vendorId/slots/reschedule/:bookingId — the signed-in variant,
+ * since it names one of the customer's bookings.
+ */
 export async function getAvailableSlots(params: SlotParams): Promise<AvailableSlots> {
   const date = params.date === 'today' ? todayDateString() : params.date
-  const data = await apiClient<ApiSlotsResponse>(`/vendors/${params.vendorId}/slots`, {
-    auth: false,
+  const path = params.rescheduleOf
+    ? `/vendors/${params.vendorId}/slots/reschedule/${params.rescheduleOf}`
+    : `/vendors/${params.vendorId}/slots`
+  const data = await apiClient<ApiSlotsResponse>(path, {
+    auth: Boolean(params.rescheduleOf),
     params: {
       date,
       // Comma-separated: one id is still exactly the old request.
@@ -63,6 +85,11 @@ export async function getAvailableSlots(params: SlotParams): Promise<AvailableSl
     // back empty although the job fits: only its own fitsInDay tells the two
     // apart. An older server sends the whole day, where the length still does.
     fitsInDay: data.fitsInDay ?? data.slots.length > 0,
+    // All three absent from a server older than capacity and holidays, which
+    // had none of these states to report.
+    closedReason: data.closedReason ?? null,
+    paused: data.paused ?? false,
+    allBooked: data.slots.length === 0 && (data.fullSlots ?? 0) > 0,
   }
 }
 

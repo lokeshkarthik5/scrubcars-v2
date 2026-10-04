@@ -105,15 +105,27 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
 
 ## Slot availability logic
 
-Do NOT store slots in the DB. Generate them dynamically:
+Do NOT store slots in the DB. Generate them dynamically (`apps/server/src/lib/slots.ts`):
 
 ```ts
-available_slots = generate_slots(open_time, close_time, slot_interval_mins)
-booked_ranges   = bookings WHERE vendor_id = ? AND date = ? AND status != 'cancelled'
-                  // each range = scheduled_at to scheduled_at + service.duration_mins
-free_slots      = available_slots - booked_ranges
-slots_needed    = ceil(service.duration_mins / vendor.slot_interval_mins)
+day        = dayStatus(paused?, holiday?, weekly hours)   // paused > holiday > weekly off day
+day_slots  = starts from open_time every slot_interval_mins whose whole job
+             (the sum of the services' durations) ends by close_time
+noticed    = day_slots - starts sooner than the minimum notice (1h at garage, 3h doorstep)
+busy       = bookings WHERE vendor_id = ? AND status IN (pending, confirmed, in_progress)
+             AND payment is paid/collected, starting that IST day (or the day before)
+             // each range = [scheduled_at, scheduled_at + bookings.duration_mins)
+free_slots = noticed - starts where the peak number of busy jobs during the new
+             job's range is already >= bays, or the day already has jobs_per_day jobs
 ```
+
+- **Capacity**: `vendors.bays` is how many cars a garage works on at once (null or 0 = 1). `vendors.jobs_per_day` is an optional cap per IST day (null = no cap). Back-to-back jobs do not overlap; a booking holds capacity for its own `duration_mins` snapshot. Cancelled and completed bookings hold nothing.
+- **Holidays**: a `vendor_closures` row for the IST date makes it a closed day (`isClosed: true, closedReason: 'holiday'`). **Paused**: `vendors.bookings_paused_at` set means no slots on any day (`paused: true`), no checkout, and absent from every public list/search/map — but the garage page still loads. Neither touches existing bookings.
+- The same rules run twice: in the slot list / pre-payment checks, and again inside the transaction that writes the booking (`checkGarageCanTake` in bookings.repository.ts) under a per-garage-per-IST-day advisory lock. Keep the two in step — both read the pure functions in `lib/slots.ts`.
+- Advisory locks are always taken in one order: vehicle → reschedule chain → vendor-day → discount (see the comment above `lockVehicle`). Add any new lock to that list.
+- An unpaid booking holds nothing, so paying for one later is a booking write too: `POST /payments/orders` refuses a full/closed/paused garage up front, and `paymentsRepository.settlePayment` re-checks under the vendor-day lock when the money lands (a refusal cancels the booking and flags the payment for refund).
+- A reschedule leaves the booking being moved out of the count, everywhere: the write, the pre-check, and the picker's list (`GET /vendors/:id/slots/reschedule/:bookingId`).
+- Refusals: 409 `SLOT_FULL`, 400 `GARAGE_CLOSED_THAT_DAY`, 409 `GARAGE_PAUSED`. After payment they become refund-due intent failures (`slot_full`, `garage_closed`, `garage_paused`).
 
 ---
 

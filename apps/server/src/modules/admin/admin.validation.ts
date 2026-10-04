@@ -134,10 +134,25 @@ export const createVendorSchema = z.object({
     message: 'lat and lng must be provided together',
   })
 
+// One day of the week as the garage keeps it, the same shape the vendor's own
+// settings save. Closed days still carry times, which are ignored.
+const workingHoursDaySchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  openTime: timeSchema,
+  closeTime: timeSchema,
+  isClosed: z.boolean(),
+})
+
 // Partial update of an existing vendor. Every field is optional; only the keys
 // present in the payload are changed. Nullable fields accept `null` to clear
-// them. Owner name/phone update the linked user row. Passing `workingDays`
-// rewrites the whole weekly schedule (open on those days, closed on the rest).
+// them. Owner name/phone update the linked user row.
+//
+// Hours: `workingHours` sets the named days exactly as given and leaves the
+// rest alone; the panel sends it only when the admin changed a day. The older
+// `workingDays` + one open/close time rewrites the whole week to a single
+// schedule — kept for callers that still send it, but it flattens per-day
+// hours, which is how an admin fixing a phone number used to reset a garage's
+// Saturday.
 export const updateVendorSchema = z.object({
   ownerName: z.string().trim().min(1).max(255).optional(),
   ownerPhone: phoneSchema.optional(),
@@ -176,6 +191,15 @@ export const updateVendorSchema = z.object({
   bays: z.number().int().min(0).nullable().optional(),
   jobsPerDay: z.number().int().min(0).nullable().optional(),
   vehicleTypes: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  workingHours: z
+    .array(workingHoursDaySchema)
+    .min(1)
+    .max(7)
+    .refine(
+      (days) => new Set(days.map((day) => day.dayOfWeek)).size === days.length,
+      'Each day can appear only once'
+    )
+    .optional(),
   workingDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
   openTime: timeSchema.optional(),
   closeTime: timeSchema.optional(),
@@ -190,6 +214,14 @@ export const updateVendorSchema = z.object({
   .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
     message: 'lat and lng must be provided together',
   })
+
+// Pausing a garage on its behalf — the owner asked ops to, or ops has a
+// reason of its own. The reason is shown on the garage page.
+export const pauseVendorSchema = z.object({
+  reason: z.string().trim().max(200).optional(),
+})
+
+export type PauseVendorInput = z.infer<typeof pauseVendorSchema>
 
 // ─── Media (vendor logo / photos, service images) ────────────────────────────
 //

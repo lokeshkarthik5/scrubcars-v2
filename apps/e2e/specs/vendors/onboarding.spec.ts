@@ -10,7 +10,7 @@ import { UNREGISTERED_VENDOR_PHONE } from '../../support/seed-ids'
 
 test.describe.configure({ mode: 'serial' })
 
-test('a new owner signs up and is taken through all four steps', async ({ page }) => {
+test('a new owner signs up and is taken through all four steps @p0', async ({ page }) => {
   const phone = UNREGISTERED_VENDOR_PHONE
 
   // Repeatable: a previous run would have made this a returning owner.
@@ -59,7 +59,15 @@ test('a new owner signs up and is taken through all four steps', async ({ page }
   // Reachable only because the route guard is scoped to the two steps that
   // create the garage; guarding all four sent the vendor home from here.
   await expect(page).toHaveURL(/\/onboarding\/step-3/)
-  await page.getByRole('button', { name: /Continue/i }).click()
+
+  // Going to customers needs a distance: Continue waits for one in range.
+  await page.getByRole('radio', { name: 'I also go to them' }).click()
+  const continueStep3 = page.getByRole('button', { name: /Continue/i })
+  await expect(continueStep3).toBeDisabled()
+  await page.getByLabel('Up to how many km from your garage?').fill('8')
+  await page.getByLabel('How many cars can you work on at the same time?').fill('2')
+  await expect(continueStep3).toBeEnabled()
+  await continueStep3.click()
 
   // ── step 4: what you sell ───────────────────────────────────────────────
   await expect(page).toHaveURL(/\/onboarding\/step-4/)
@@ -73,13 +81,25 @@ test('a new owner signs up and is taken through all four steps', async ({ page }
   await expect(page).toHaveURL(/\/home/)
   await expect(page.getByText(/under review/i)).toBeVisible()
 
-  const [vendor] = await sql<{ id: string; is_verified: boolean; lat: number | null }[]>`
-    select v.id, v.is_verified, v.lat from vendors v
+  const [vendor] = await sql<{
+    id: string
+    is_verified: boolean
+    lat: number | null
+    doorstep_enabled: boolean
+    doorstep_radius_km: number | null
+    bays: number | null
+  }[]>`
+    select v.id, v.is_verified, v.lat, v.doorstep_enabled, v.doorstep_radius_km, v.bays
+      from vendors v
       join users u on u.id = v.owner_id
      where u.phone = ${phone}
   `
   expect(vendor).toBeTruthy()
   expect(vendor.lat).not.toBeNull()
+  // Doorstep is on only together with how far the garage goes.
+  expect(vendor.doorstep_enabled).toBe(true)
+  expect(vendor.doorstep_radius_km).toBe(8)
+  expect(vendor.bays).toBe(2)
   // Unverified: an admin still has to let it into customer listings.
   expect(vendor.is_verified).toBe(false)
 

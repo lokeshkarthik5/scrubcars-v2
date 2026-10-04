@@ -16,6 +16,7 @@ import {
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
+import { todayDateKey } from '../../lib/slots.js'
 import {
   createPresignedUpload,
   deleteObject,
@@ -33,12 +34,15 @@ import type {
   MarkNoShowInput,
   LoginInput,
   MediaUrlInput,
+  PauseVendorInput,
   PilotStatsQuery,
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
 
 const log = logger.child({ module: 'admin' })
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 // Constant-time string compare to avoid leaking credential length/prefix via timing.
 function safeEqual(a: string, b: string): boolean {
@@ -321,7 +325,8 @@ export const adminService = {
   },
 
   async getVendor(id: string) {
-    const vendor = await adminRepository.findVendorDetailById(id)
+    // Holidays from today on: past ones are history nobody acts on here.
+    const vendor = await adminRepository.findVendorDetailById(id, todayDateKey())
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
@@ -332,6 +337,20 @@ export const adminService = {
     const vendor = await adminRepository.findVendorById(id)
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+
+    // Checked before anything is written. The owner, the vendor row and the
+    // hours are separate writes, so a bad Saturday found after the first two
+    // would return an error for a save that had in fact half happened — and
+    // the admin reads an error as "nothing saved".
+    for (const day of input.workingHours ?? []) {
+      if (!day.isClosed && day.openTime >= day.closeTime) {
+        throw new AppError(
+          400,
+          `Opening time must be before closing time on ${DAY_NAMES[day.dayOfWeek]}`,
+          'INVALID_WORKING_HOURS'
+        )
+      }
     }
 
     // Owner name/phone live on the linked user row. Guard against moving the
@@ -437,8 +456,14 @@ export const adminService = {
       ? await adminRepository.updateVendor(id, patch)
       : [vendor]
 
-    // Rewrite the weekly schedule when the admin submitted working days.
-    if (input.workingDays !== undefined) {
+    // Per-day hours, exactly as given, for only the days given. The panel
+    // sends them only when the admin touched the schedule, so saving any other
+    // field leaves the garage's hours as they were.
+    if (input.workingHours !== undefined) {
+      await vendorsRepository.upsertWorkingHours(id, input.workingHours)
+    } else if (input.workingDays !== undefined) {
+      // The older shape: one schedule for every open day. Still honoured for
+      // a caller that sends it, but it rewrites the whole week.
       await adminRepository.deleteWorkingHours(id)
       if (input.workingDays.length > 0) {
         const open = new Set(input.workingDays)
@@ -591,8 +616,45 @@ export const adminService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
+    // Deleting cascades to every booking, payment and review the garage has —
+    // the record of money taken and work done. A garage that has ever been
+    // booked is archived instead, which takes it out of circulation and keeps
+    // that history.
+    if ((await adminRepository.countBookingsForVendor(id)) > 0) {
+      throw new AppError(
+        409,
+        'This garage has bookings. Archive it instead.',
+        'VENDOR_HAS_BOOKINGS'
+      )
+    }
+
     await adminRepository.deleteVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-deleted')
+  },
+
+  /**
+   * Stops a garage taking new bookings on its behalf. Same effect as the
+   * owner's own switch: out of the lists, checkout refused, existing bookings
+   * untouched. Pausing a paused garage only changes the reason.
+   */
+  async pauseVendor(id: string, input: PauseVendorInput) {
+    const vendor = await assertVendor(id)
+    const [updated] = await vendorsRepository.updateVendor(id, {
+      bookingsPausedAt: vendor.bookingsPausedAt ?? new Date(),
+      bookingsPausedReason: input.reason || null,
+    })
+    log.info({ vendorId: id }, 'admin:vendor-paused')
+    return updated
+  },
+
+  async resumeVendor(id: string) {
+    await assertVendor(id)
+    const [updated] = await vendorsRepository.updateVendor(id, {
+      bookingsPausedAt: null,
+      bookingsPausedReason: null,
+    })
+    log.info({ vendorId: id }, 'admin:vendor-resumed')
+    return updated
   },
 
   async createVendor(input: CreateVendorInput) {

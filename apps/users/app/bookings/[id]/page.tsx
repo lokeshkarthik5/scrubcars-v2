@@ -26,7 +26,11 @@ import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments'
 import { submitReview } from '@repo/core/api/reviews'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
-import { confirmPayment, realClock } from '@repo/core/payment-confirmation'
+import {
+  confirmPayment,
+  FALLBACK_REFUND_MESSAGE,
+  realClock,
+} from '@repo/core/payment-confirmation'
 import { formatBookingAmount } from '@repo/core/pricing'
 import {
   BOOKING_TYPE_LABELS,
@@ -242,9 +246,16 @@ export default function BookingDetailPage({
             },
             poll: async () => {
               const fresh = await getBooking(booking.id)
-              return fresh?.paymentStatus === 'paid'
-                ? { kind: 'booked', bookingId: booking.id }
-                : { kind: 'pending' }
+              if (fresh?.paymentStatus !== 'paid') return { kind: 'pending' }
+              // Paid but cancelled: the garage could no longer take this time
+              // when the money landed, and the booking carries the words
+              // saying it will be refunded.
+              return fresh.status === 'cancelled'
+                ? {
+                    kind: 'failed',
+                    message: fresh.cancellationReason ?? FALLBACK_REFUND_MESSAGE,
+                  }
+                : { kind: 'booked', bookingId: booking.id }
             },
             ...realClock,
           })
@@ -308,8 +319,14 @@ export default function BookingDetailPage({
       router.push(`/bookings/${created.id}`)
     } catch (error) {
       const code = error instanceof ApiError ? error.code : undefined
-      if (code === 'SLOT_TOO_SOON' || code === 'INVALID_SCHEDULED_AT') {
-        // The chosen time ran out of notice: keep the sheet open on fresh times.
+      if (
+        code === 'SLOT_TOO_SOON' ||
+        code === 'INVALID_SCHEDULED_AT' ||
+        code === 'SLOT_FULL' ||
+        code === 'GARAGE_CLOSED_THAT_DAY'
+      ) {
+        // The chosen time ran out of notice, filled up or became a holiday:
+        // keep the sheet open on fresh times.
         setRescheduleSlot(null)
         void queryClient.invalidateQueries({ queryKey: slotKeys.all })
       } else if (
@@ -814,6 +831,9 @@ export default function BookingDetailPage({
               onChange={setRescheduleSlot}
               onLapse={() => toast.info('That time is now too soon to book. Pick another time.')}
               bookingType={booking.bookingType}
+              // Its own time does not count against the garage: moving a job
+              // 30 minutes at a one-bay garage would otherwise look full.
+              rescheduleOf={booking.id}
             />
             <div className="mt-5 flex gap-2">
               <ScButton

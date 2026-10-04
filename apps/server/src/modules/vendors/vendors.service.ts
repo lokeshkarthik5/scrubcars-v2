@@ -4,9 +4,14 @@ import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import {
   MIN_NOTICE_MS,
+  addDaysToDateKey,
+  closureDateProblem,
   computeAvailableSlots,
+  dayStatus,
+  filterByCapacity,
   filterByMinNotice,
   getDayOfWeekFromDate,
+  todayDateKey,
 } from '../../lib/slots.js'
 import {
   createPresignedUpload,
@@ -26,6 +31,7 @@ const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
 import { categoryLabel } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
+import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
@@ -34,6 +40,15 @@ const log = logger.child({ module: 'vendors' })
 
 // How many finished jobs the Earnings screen lists.
 const RECENT_EARNINGS_JOBS = 10
+
+// How far ahead the customer's slot picker is told about holidays. Its quick
+// chips cover a week and its calendar a couple of months; a holiday further
+// out than this is still refused at checkout, just not greyed in advance.
+const PUBLIC_CLOSURE_DAYS_AHEAD = 60
+
+// The listing cards only ever say "Closed today" or when a garage next opens,
+// which is at most a week away.
+const LISTING_CLOSURE_DAYS_AHEAD = 7
 
 // Self-serve create is no longer capped at one company per person. The cap is
 // on how many one account may *own* — high enough that a real multi-garage
@@ -44,6 +59,7 @@ const RECENT_EARNINGS_JOBS = 10
 // whether you may start your own.
 const MAX_COMPANIES_OWNED = 10
 import type {
+  ClosureRecord,
   PhotoRecord,
   ServiceAreaRecord,
   ServiceImageRecord,
@@ -52,6 +68,7 @@ import type {
   WorkingHoursRecord,
 } from './vendors.repository.js'
 import type {
+  CreateClosureInput,
   CreatePackageInput,
   DoorstepAreaInput,
   CreatePhotoInput,
@@ -61,6 +78,7 @@ import type {
   CreateVendorInput,
   ListPublicVendorsQuery,
   LogoUploadUrlInput,
+  PauseBookingsInput,
   PhotoUploadUrlInput,
   ReorderPhotosInput,
   ServiceImageUploadUrlInput,
@@ -105,6 +123,13 @@ export type VendorResponse = {
   dropinEnabled: boolean
   slotIntervalMins: number
   status: string
+  /**
+   * When the garage stopped taking new bookings, or null while it takes them.
+   * Public on purpose: the garage page says "Not taking bookings right now",
+   * with the reason when the owner gave one.
+   */
+  bookingsPausedAt: string | null
+  bookingsPausedReason: string | null
   createdAt: string
 }
 
@@ -149,6 +174,11 @@ export type VendorListItemResponse = {
    * says when it next opens, which can be days away. Empty when none are set.
    */
   workingHours: OpeningHoursResponse[]
+  /**
+   * The garage's holidays in the coming week (IST date keys), so a card can
+   * say "Closed today" on one rather than reading the weekly hours alone.
+   */
+  closures: string[]
 }
 
 export type VendorListResponse = {
@@ -178,6 +208,18 @@ export type WorkingHoursResponse = {
 
 /** A list item's hours: the same fields without the row id nobody needs. */
 export type OpeningHoursResponse = Omit<WorkingHoursResponse, 'id'>
+
+export type ClosureResponse = {
+  id: string
+  /** The IST calendar day, YYYY-MM-DD. */
+  date: string
+  reason: string | null
+  /**
+   * Bookings still on for that day. Marking a holiday does not touch them, so
+   * the garage is told how many it has to sort out with the customers.
+   */
+  activeBookingCount: number
+}
 
 export type ServiceAreaResponse = {
   id: string
@@ -347,7 +389,21 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     dropinEnabled: vendor.dropinEnabled,
     slotIntervalMins: vendor.slotIntervalMins,
     status: vendor.status,
+    bookingsPausedAt: vendor.bookingsPausedAt?.toISOString() ?? null,
+    bookingsPausedReason: vendor.bookingsPausedReason,
     createdAt: vendor.createdAt.toISOString(),
+  }
+}
+
+function toClosureResponse(
+  closure: ClosureRecord,
+  activeBookingCount: number
+): ClosureResponse {
+  return {
+    id: closure.id,
+    date: closure.date,
+    reason: closure.reason,
+    activeBookingCount,
   }
 }
 
@@ -543,6 +599,17 @@ async function readServiceOrPackage(
   return pkg ? toPackageResponse(pkg) : toServiceResponse(service)
 }
 
+// Worded after the button the owner has next to Delete ("Disable"), so the
+// way out is the control they can see. Packages are services underneath but
+// not to the owner, so they get their own noun.
+function serviceInUse(kind: 'service' | 'package' = 'service') {
+  return new AppError(
+    409,
+    `This ${kind} has bookings. Disable it instead.`,
+    'SERVICE_IN_USE'
+  )
+}
+
 /**
  * Loads the company the caller is acting as. The vendorId always comes from
  * `resolveTenant`, which has already checked the caller has an active seat in
@@ -721,9 +788,21 @@ export const vendorsService = {
       page.map((row) => row.id)
     )
 
-    const aggregates = await vendorsRepository.getRatingAggregates(
-      rows.map((vendor) => vendor.id)
-    )
+    const today = todayDateKey()
+    const [aggregates, closures] = await Promise.all([
+      vendorsRepository.getRatingAggregates(rows.map((vendor) => vendor.id)),
+      vendorsRepository.listClosuresForVendors(
+        rows.map((vendor) => vendor.id),
+        today,
+        addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
+      ),
+    ])
+    const closuresByVendor = new Map<string, string[]>()
+    for (const closure of closures) {
+      const dates = closuresByVendor.get(closure.vendorId) ?? []
+      dates.push(closure.date)
+      closuresByVendor.set(closure.vendorId, dates)
+    }
     const ratingsByVendor = new Map(
       aggregates.map((row) => [row.vendorId, row])
     )
@@ -758,6 +837,7 @@ export const vendorsService = {
         lat: vendor.lat,
         lng: vendor.lng,
         workingHours: vendor.workingHours.map(toOpeningHoursResponse),
+        closures: closuresByVendor.get(vendor.id) ?? [],
       }
     })
 
@@ -888,10 +968,139 @@ export const vendorsService = {
 
   async updateJobTypes(vendorId: string, input: UpdateJobTypesInput) {
     const vendor = await getTenantVendor(vendorId)
+
+    // Going to customers needs a "how far". Without a radius or a drawn area
+    // the doorstep search matches no address at all, so switching it on would
+    // tell the owner they take doorstep jobs while no customer could book one.
+    if (input.doorstepEnabled === true) {
+      const radius = input.doorstepRadiusKm ?? vendor.doorstepRadiusKm
+      const area =
+        radius == null ? await vendorsRepository.getDoorstepArea(vendor.id) : null
+
+      if (radius == null && !area) {
+        throw new AppError(
+          400,
+          // Names where the setting lives: the doorstep switch is on the
+          // Hours tab, the radius on Location.
+          "Set how far you'll travel for doorstep jobs first, in Settings → Location.",
+          'DOORSTEP_RADIUS_REQUIRED'
+        )
+      }
+    }
+
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
       ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
       ...(input.doorstepEnabled !== undefined && { doorstepEnabled: input.doorstepEnabled }),
+      ...(input.doorstepRadiusKm !== undefined && {
+        doorstepRadiusKm: input.doorstepRadiusKm,
+      }),
     })
+    return toVendorResponse(updated)
+  },
+
+  // ─── Holidays and pausing ──────────────────────────────────────────────────
+  //
+  // Neither touches a booking that already exists. A holiday is shown with the
+  // bookings still on that day, and the owner sorts those out with the
+  // customers — cancelling them for the garage would be a decision nobody
+  // asked it to make.
+
+  async listMyClosures(vendorId: string): Promise<ClosureResponse[]> {
+    const vendor = await getTenantVendor(vendorId)
+    const today = todayDateKey()
+    const closures = await vendorsRepository.listClosures(vendor.id, today)
+
+    if (closures.length === 0) return []
+
+    const last = closures[closures.length - 1].date
+    const counts = await bookingsRepository.countActiveBookingsByDate(
+      vendor.id,
+      today,
+      addDaysToDateKey(last, 1)
+    )
+
+    return closures.map((closure) =>
+      toClosureResponse(closure, counts.get(closure.date) ?? 0)
+    )
+  },
+
+  async addClosure(vendorId: string, input: CreateClosureInput) {
+    const vendor = await getTenantVendor(vendorId)
+
+    const problem = closureDateProblem(input.date)
+    if (problem) {
+      throw new AppError(
+        400,
+        problem === 'in_the_past'
+          ? 'Pick today or a later day.'
+          : 'Holidays can be set up to a year ahead.',
+        'INVALID_CLOSURE_DATE'
+      )
+    }
+
+    const [created] = await vendorsRepository.createClosure(vendor.id, {
+      date: input.date,
+      reason: input.reason || null,
+    })
+
+    if (!created) {
+      throw new AppError(
+        409,
+        'That day is already marked as a holiday.',
+        'CLOSURE_EXISTS'
+      )
+    }
+
+    const bookings = await bookingsRepository.listActiveBookingsForVendorOn(
+      vendor.id,
+      created.date
+    )
+
+    log.info(
+      { vendorId: vendor.id, date: created.date, activeBookings: bookings.length },
+      'vendor:closure_added'
+    )
+
+    return {
+      closure: toClosureResponse(created, bookings.length),
+      // The jobs still on that day, in the vendor shape: the screen names them
+      // so the owner knows whom to call.
+      bookings: bookings.map(toVendorBookingResponse),
+    }
+  },
+
+  async removeClosure(vendorId: string, closureId: string) {
+    const vendor = await getTenantVendor(vendorId)
+    const [deleted] = await vendorsRepository.deleteClosure(vendor.id, closureId)
+
+    // Another garage's closure id reads exactly like one that never existed.
+    if (!deleted) {
+      throw new AppError(404, 'Holiday not found', 'CLOSURE_NOT_FOUND')
+    }
+
+    log.info({ vendorId: vendor.id, date: deleted.date }, 'vendor:closure_removed')
+    return toClosureResponse(deleted, 0)
+  },
+
+  async pauseBookings(vendorId: string, input: PauseBookingsInput) {
+    const vendor = await getTenantVendor(vendorId)
+    const [updated] = await vendorsRepository.updateVendor(vendor.id, {
+      // Pausing again only changes the reason: "paused since" stays the day
+      // it actually stopped.
+      bookingsPausedAt: vendor.bookingsPausedAt ?? new Date(),
+      bookingsPausedReason: input.reason || null,
+    })
+    log.info({ vendorId: vendor.id }, 'vendor:bookings_paused')
+    return toVendorResponse(updated)
+  },
+
+  async resumeBookings(vendorId: string) {
+    const vendor = await getTenantVendor(vendorId)
+    const [updated] = await vendorsRepository.updateVendor(vendor.id, {
+      bookingsPausedAt: null,
+      bookingsPausedReason: null,
+    })
+    log.info({ vendorId: vendor.id }, 'vendor:bookings_resumed')
     return toVendorResponse(updated)
   },
 
@@ -1243,6 +1452,12 @@ export const vendorsService = {
       )
     }
 
+    // Bookings name the service they were for, and that history must stay
+    // whole, so a service anyone has booked is switched off, never deleted.
+    if (await vendorsRepository.isServiceReferenced(serviceId)) {
+      throw serviceInUse()
+    }
+
     const [deleted] = await vendorsRepository.deleteService(
       vendor.id,
       serviceId
@@ -1487,6 +1702,10 @@ export const vendorsService = {
     // Items cascade with the package row. Bookings hold a restrict FK on
     // services, so a package that has ever been booked can't be hard-deleted —
     // the vendor deactivates it instead, exactly like a plain service.
+    if (await vendorsRepository.isServiceReferenced(packageId)) {
+      throw serviceInUse('package')
+    }
+
     const [deleted] = await vendorsRepository.deleteService(
       vendor.id,
       packageId
@@ -1495,7 +1714,14 @@ export const vendorsService = {
     return toServiceResponse(deleted)
   },
 
-  async getAvailableSlots(vendorId: string, query: SlotsQueryInput) {
+  async getAvailableSlots(
+    vendorId: string,
+    query: SlotsQueryInput,
+    // The booking a reschedule is moving. It holds its current time until the
+    // move is written, so counting it would hide the times around its own —
+    // at a one-bay garage, every time that overlaps it.
+    options: { excludeBookingId?: string } = {}
+  ) {
     const vendor = await vendorsRepository.findPublicVendorById(vendorId)
 
     if (!vendor) {
@@ -1520,55 +1746,135 @@ export const vendorsService = {
     )
 
     const dayOfWeek = getDayOfWeekFromDate(query.date)
-    const hours = await vendorsRepository.findWorkingHoursForDay(
-      vendor.id,
-      dayOfWeek
-    )
+    const [hours, closure] = await Promise.all([
+      vendorsRepository.findWorkingHoursForDay(vendor.id, dayOfWeek),
+      bookingsRepository.findClosure(vendor.id, query.date),
+    ])
 
     const minNoticeMins = MIN_NOTICE_MS[query.bookingType] / 60_000
-
-    if (!hours || hours.isClosed) {
-      return {
-        date: query.date,
-        serviceIds: query.serviceIds,
-        durationMins,
-        slotIntervalMins: vendor.slotIntervalMins,
-        isClosed: true,
-        fitsInDay: true,
-        minNoticeMins,
-        slots: [] as string[],
-      }
-    }
-
-    // Existing bookings are not consulted: capacity is unlimited, so every slot
-    // within working hours is offered no matter how many bookings it already has.
-    const allDay = computeAvailableSlots({
-      date: query.date,
-      openTime: hours.openTime,
-      closeTime: hours.closeTime,
-      intervalMins: vendor.slotIntervalMins,
-      isClosed: hours.isClosed,
-      serviceDurationMins: durationMins,
-    })
-    // Past times and times too soon for the garage to accept (2h at the
-    // garage, 3h doorstep) are not offered at all.
-    const slots = filterByMinNotice(allDay, query.bookingType)
-
-    log.debug({ vendorId: vendor.id, date: query.date, serviceIds: query.serviceIds, durationMins, bookingType: query.bookingType, count: slots.length }, 'slots:computed')
-
-    // `fitsInDay` is judged before the notice filter: an empty list because
-    // the job is longer than the garage's day ("pick fewer services") is a
-    // different message from an evening with no time left ("pick another day").
-    return {
+    const base = {
       date: query.date,
       serviceIds: query.serviceIds,
       durationMins,
       slotIntervalMins: vendor.slotIntervalMins,
-      isClosed: false,
-      fitsInDay: allDay.length > 0,
       minNoticeMins,
+    }
+
+    const day = dayStatus({
+      pausedAt: vendor.bookingsPausedAt,
+      isHoliday: !!closure,
+      hours,
+    })
+
+    // A paused garage is not "closed on this day" — every day is the same to
+    // it — so it says `paused` rather than borrowing isClosed. A holiday is a
+    // closed day like a weekly one, and `closedReason` tells the two apart.
+    if (!day.open) {
+      return {
+        ...base,
+        isClosed: day.reason !== 'paused',
+        closedReason: day.reason === 'paused' ? null : day.reason,
+        paused: day.reason === 'paused',
+        fitsInDay: true,
+        fullSlots: 0,
+        slots: [] as string[],
+      }
+    }
+
+    const openHours = hours!
+    const allDay = computeAvailableSlots({
+      date: query.date,
+      openTime: openHours.openTime,
+      closeTime: openHours.closeTime,
+      intervalMins: vendor.slotIntervalMins,
+      isClosed: openHours.isClosed,
+      serviceDurationMins: durationMins,
+    })
+    // Past times and times too soon for the garage to accept (1h at the
+    // garage, 3h doorstep) are not offered at all.
+    const noticed = filterByMinNotice(allDay, query.bookingType)
+
+    // Then the garage's room: a time at which it already has as many cars as
+    // bays, or a day that has reached its job cap, is not offered. Only read
+    // when there is something left to filter.
+    const busy =
+      noticed.length > 0
+        ? await bookingsRepository.listCapacityHolders({
+            vendorId: vendor.id,
+            date: query.date,
+            excludeBookingId: options.excludeBookingId,
+          })
+        : []
+    const slots = filterByCapacity(noticed, {
+      durationMins,
+      busy,
+      bays: vendor.bays,
+      jobsPerDay: vendor.jobsPerDay,
+    })
+
+    log.debug({ vendorId: vendor.id, date: query.date, serviceIds: query.serviceIds, durationMins, bookingType: query.bookingType, count: slots.length, full: noticed.length - slots.length }, 'slots:computed')
+
+    // `fitsInDay` is judged before the notice and capacity filters: an empty
+    // list because the job is longer than the garage's day ("pick fewer
+    // services") is a different message from an evening with no time left
+    // ("pick another day"). `fullSlots` is how many times had enough notice
+    // but were booked up, so the picker can say "all booked" when that is why
+    // the list is empty.
+    return {
+      ...base,
+      isClosed: false,
+      closedReason: null,
+      paused: false,
+      fitsInDay: allDay.length > 0,
+      fullSlots: noticed.length - slots.length,
       slots,
     }
+  },
+
+  /**
+   * The slot list for moving one of the customer's own bookings: the same
+   * list, except the booking being moved does not count against the garage.
+   * The reschedule itself excludes it the same way (validateSlotAvailability
+   * and checkGarageCanTake), so this offers exactly the times it would accept.
+   *
+   * Someone else's booking, or one at another garage, is a 404 — the same
+   * answer as one that does not exist, so ids cannot be probed.
+   */
+  async getRescheduleSlots(
+    userId: string,
+    vendorId: string,
+    bookingId: string,
+    query: SlotsQueryInput
+  ) {
+    const booking = await bookingsRepository.findBookingById(bookingId)
+
+    if (!booking || booking.userId !== userId || booking.vendorId !== vendorId) {
+      throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
+    }
+
+    return vendorsService.getAvailableSlots(vendorId, query, {
+      excludeBookingId: booking.id,
+    })
+  },
+
+  /**
+   * The garage's holidays over the next couple of months, as IST date keys,
+   * so the customer's picker can grey them out like weekly off days.
+   */
+  async getPublicClosures(vendorId: string): Promise<string[]> {
+    const vendor = await vendorsRepository.findPublicVendorById(vendorId)
+
+    if (!vendor) {
+      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+    }
+
+    const today = todayDateKey()
+    const closures = await vendorsRepository.listClosures(
+      vendor.id,
+      today,
+      addDaysToDateKey(today, PUBLIC_CLOSURE_DAYS_AHEAD)
+    )
+    return closures.map((closure) => closure.date)
   },
 
   async getPublicWorkingHours(vendorId: string) {

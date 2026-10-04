@@ -513,11 +513,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
         toast.error(error.message)
       } else if (
         error instanceof ApiError &&
-        (error.code === 'SLOT_TOO_SOON' || error.code === 'INVALID_SCHEDULED_AT')
+        (error.code === 'SLOT_TOO_SOON' ||
+          error.code === 'INVALID_SCHEDULED_AT' ||
+          error.code === 'SLOT_FULL' ||
+          error.code === 'GARAGE_CLOSED_THAT_DAY')
       ) {
-        // The chosen time ran out of notice before Pay (nothing was charged:
-        // the server refuses before any payment order exists). Clear it, fetch
-        // fresh times, and take the customer back to choose again.
+        // The chosen time ran out of notice, was booked up by someone else, or
+        // the garage marked the day a holiday, all before Pay (nothing was
+        // charged: the server refuses before any payment order exists). Clear
+        // it, fetch fresh times, and take the customer back to choose again.
         setSelectedSlot(null)
         void queryClient.invalidateQueries({ queryKey: slotKeys.all })
         toast.error(error.message)

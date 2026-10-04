@@ -3,8 +3,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type PickupOption = 'yes' | 'nearby' | 'no' | ''
-
 interface OnboardingData {
   businessName: string
   ownerName: string
@@ -21,8 +19,8 @@ interface OnboardingData {
   lng: number | null
   dropin: boolean
   doorstep: boolean
-  pickup: PickupOption
-  pickupRadiusKm: number | null
+  /** How far the garage travels for doorstep jobs. Null when it doesn't. */
+  doorstepRadiusKm: number | null
   bays: string
   jobsPerDay: string
   slotInterval: number
@@ -60,8 +58,7 @@ const initialState: OnboardingData = {
   lng: null,
   dropin: true,
   doorstep: false,
-  pickup: '',
-  pickupRadiusKm: null,
+  doorstepRadiusKm: null,
   bays: '',
   jobsPerDay: '',
   slotInterval: 30,

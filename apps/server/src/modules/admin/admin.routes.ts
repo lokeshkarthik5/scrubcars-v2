@@ -25,6 +25,7 @@ import {
   superAdminIdParamSchema,
   loginSchema,
   mediaUrlSchema,
+  pauseVendorSchema,
   updateVendorSchema,
   uploadUrlSchema,
 } from './admin.validation.js'
@@ -119,6 +120,23 @@ adminRoutes.delete(
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
   (c) => adminController.deleteVendor(c, c.req.valid('param').id)
+)
+// Pause / resume new bookings on a garage's behalf. POST rather than the
+// PATCH of verify/archive: these are actions with a body (the reason), not a
+// flip of a column the list already shows.
+adminRoutes.post(
+  '/vendors/:id/pause',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  zValidator('json', pauseVendorSchema),
+  (c) =>
+    adminController.pauseVendor(c, c.req.valid('param').id, c.req.valid('json'))
+)
+adminRoutes.post(
+  '/vendors/:id/resume',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.resumeVendor(c, c.req.valid('param').id)
 )
 
 // Vendor team. Ownership transfer is deliberately absent: adding, removing and

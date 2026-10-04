@@ -17,6 +17,7 @@ import type {
   MarkNoShowInput,
   LoginInput,
   MediaUrlInput,
+  PauseVendorInput,
   PilotStatsQuery,
   UpdateVendorInput,
   UploadUrlInput,
@@ -112,6 +113,20 @@ export async function unarchiveVendor(c: AdminContext, id: string) {
 export async function deleteVendor(c: AdminContext, id: string) {
   await adminService.deleteVendor(id)
   return c.json({ success: true })
+}
+
+export async function pauseVendor(
+  c: AdminContext,
+  id: string,
+  input: PauseVendorInput
+) {
+  const vendor = await adminService.pauseVendor(id, input)
+  return c.json({ success: true, data: vendor })
+}
+
+export async function resumeVendor(c: AdminContext, id: string) {
+  const vendor = await adminService.resumeVendor(id)
+  return c.json({ success: true, data: vendor })
 }
 
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {
