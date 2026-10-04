@@ -16,7 +16,29 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Team alerts in Telegram** (`lib/ops-alerts.ts`): a new paid booking, a
+  payment that produced no booking (refund due), a garage decline, a customer
+  cancel and a reschedule post to the team group. Production only; never fail
+  or slow the booking (`@vercel/functions` waitUntil).
+- **30-minute nudge** (`POST /api/v1/ops/pending-digest`, behind
+  `CRON_SECRET`): an outside scheduler calls it every 10 minutes; it lists paid
+  bookings no garage has accepted after 30 minutes, and those whose time passed
+  unaccepted (refund due). Quiet 22:00–07:00 IST, with a 7 am roll-up.
+
+### Changed
+
+- **Minimum notice**: 2 hours at the garage, 3 doorstep, for the slot list
+  (`booking_type` query param; `fitsInDay` and `minNoticeMins` in the
+  response), checkout intents and reschedules (`SLOT_TOO_SOON`).
+- **Cancel and reschedule cutoff** applies only once the garage has accepted; a
+  pending booking can be cancelled or moved any time.
+- **Reschedule** creates the new booking as pending: the garage accepts the new
+  time.
+- **Accept** is refused once the start time has passed (`BOOKING_START_PASSED`).
+- **Status changes are conditional** on the status read: a simultaneous accept
+  and cancel can no longer both succeed (`BOOKING_STATE_CHANGED`, 409).
 
 ## [0.3.0] — 2026-08-28
 

@@ -21,6 +21,8 @@ export interface SlotParams {
   /** Slots must fit every service booked together, so this is the whole cart. */
   serviceIds: string[]
   date: string
+  /** Doorstep needs more notice than at-garage, so the list depends on it. */
+  bookingType: BookingType
 }
 
 export interface AvailableSlots {
@@ -50,13 +52,17 @@ export async function getAvailableSlots(params: SlotParams): Promise<AvailableSl
       date,
       // Comma-separated: one id is still exactly the old request.
       service_id: params.serviceIds.join(','),
+      booking_type: params.bookingType,
     },
   })
   return {
     isClosed: data.isClosed,
     slots: mapSlots(data.slots),
     durationMins: data.durationMins ?? 0,
-    fitsInDay: data.slots.length > 0,
+    // The server now drops times too soon to book, so an evening can come
+    // back empty although the job fits: only its own fitsInDay tells the two
+    // apart. An older server sends the whole day, where the length still does.
+    fitsInDay: data.fitsInDay ?? data.slots.length > 0,
   }
 }
 

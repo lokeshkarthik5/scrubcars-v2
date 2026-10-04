@@ -6,6 +6,8 @@ import {
   getDateKeyFromScheduledAt,
   getDayOfWeekFromDate,
   isScheduledAtAvailable,
+  meetsMinNotice,
+  minNoticeMessage,
 } from '../../lib/slots.js'
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
@@ -17,7 +19,25 @@ import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
 
-// Customers must cancel or reschedule at least this far ahead of the time.
+/** Refuses a booking that starts too soon for its type (2h at the garage, 3h doorstep). */
+function assertMinNotice(scheduledAt: Date, bookingType: 'dropin' | 'doorstep') {
+  if (!meetsMinNotice(scheduledAt, bookingType)) {
+    throw new AppError(400, minNoticeMessage(bookingType), 'SLOT_TOO_SOON')
+  }
+}
+
+/** Someone else changed the booking between our read and our write. */
+function stateChanged() {
+  return new AppError(
+    409,
+    'This booking was just updated by someone else. Refresh to see its latest status.',
+    'BOOKING_STATE_CHANGED'
+  )
+}
+
+// Once the garage has accepted, customers must cancel or reschedule at least
+// this far ahead of the time. Before it accepts, they can do either any time:
+// nobody has committed to the slot yet.
 const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // A booking may be rescheduled at most this many times across its chain.
 const MAX_RESCHEDULES = 2
@@ -433,6 +453,12 @@ export async function resolveBookingDraft(
     )
   }
 
+  // Time for the garage to see and accept it, and for a doorstep crew to get
+  // there. Checked here, before any payment order exists, so a refusal costs
+  // the customer nothing. (Payment itself does not re-check: an intent lives
+  // 30 minutes, so a booking paid late still has at least 1h30 of notice.)
+  assertMinNotice(scheduledAt, input.bookingType)
+
   const vendor = await bookingsRepository.findPublicVendorById(input.vendorId)
   log.info({ vendorId: input.vendorId, found: !!vendor, isVerified: vendor?.isVerified, status: vendor?.status }, 'booking:vendor_lookup')
 
@@ -822,17 +848,24 @@ export const bookingsService = {
       )
     }
 
-    const msUntilBooking = booking.scheduledAt.getTime() - Date.now()
-    if (msUntilBooking < CANCELLATION_CUTOFF_MS) {
-      throw new AppError(
-        400,
-        'Bookings can only be cancelled at least 2 hours before the scheduled time',
-        'CANCELLATION_WINDOW_PASSED'
-      )
+    // Until the garage accepts, the customer can cancel any time — even after
+    // the start, when a garage never answered. The cutoff protects a garage
+    // that has committed to the slot.
+    const from = booking.status === 'confirmed' ? 'confirmed' : 'pending'
+    if (from === 'confirmed') {
+      const msUntilBooking = booking.scheduledAt.getTime() - Date.now()
+      if (msUntilBooking < CANCELLATION_CUTOFF_MS) {
+        throw new AppError(
+          400,
+          'Once the garage has accepted, bookings can only be cancelled at least 2 hours before the scheduled time',
+          'CANCELLATION_WINDOW_PASSED'
+        )
+      }
     }
 
-    await bookingsRepository.cancelBooking(bookingId, 'user', reason)
-    log.info({ bookingId, userId, status: 'cancelled', cancelledBy: 'user' }, 'booking:status_updated')
+    const [cancelled] = await bookingsRepository.cancelBooking(bookingId, 'user', from, reason)
+    if (!cancelled) throw stateChanged()
+    log.info({ bookingId, userId, status: 'cancelled', cancelledBy: 'user', from }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     alertOps({ kind: 'customer_cancelled', booking: updated!, reason })
@@ -863,13 +896,16 @@ export const bookingsService = {
       )
     }
 
-    const msUntilBooking = booking.scheduledAt.getTime() - Date.now()
-    if (msUntilBooking < CANCELLATION_CUTOFF_MS) {
-      throw new AppError(
-        400,
-        'Bookings can only be rescheduled at least 2 hours before the scheduled time',
-        'RESCHEDULE_WINDOW_PASSED'
-      )
+    // Same rule as cancelling: the cutoff protects a garage that has accepted.
+    if (booking.status === 'confirmed') {
+      const msUntilBooking = booking.scheduledAt.getTime() - Date.now()
+      if (msUntilBooking < CANCELLATION_CUTOFF_MS) {
+        throw new AppError(
+          400,
+          'Once the garage has accepted, bookings can only be rescheduled at least 2 hours before the scheduled time',
+          'RESCHEDULE_WINDOW_PASSED'
+        )
+      }
     }
 
     const newScheduledAt = new Date(newScheduledAtInput)
@@ -883,6 +919,7 @@ export const bookingsService = {
         'INVALID_SCHEDULED_AT'
       )
     }
+    assertMinNotice(newScheduledAt, booking.bookingType as 'dropin' | 'doorstep')
 
     // A move re-books exactly what was sold, so the lines come off the booking
     // rather than being re-resolved: a service repriced or deactivated since
@@ -920,7 +957,6 @@ export const bookingsService = {
       bookingType: booking.bookingType,
       newScheduledAt,
       durationMins,
-      status: booking.status,
       subtotalAmount: booking.subtotalAmount ?? booking.amount,
       amount: booking.amount,
       discountAmount: booking.discountAmount ?? '0.00',
@@ -952,6 +988,8 @@ export const bookingsService = {
         'RESCHEDULE_LIMIT_REACHED'
       )
     }
+
+    if (result.stateChanged) throw stateChanged()
 
     if (result.vehicleClash) {
       log.warn(
@@ -1027,9 +1065,20 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.updateBookingStatus(bookingId, 'confirmed', {
+    // A slot that has already started can't be taken on any more: the
+    // customer has waited past their time. Declining it is what is left.
+    if (booking.scheduledAt.getTime() <= Date.now()) {
+      throw new AppError(
+        400,
+        "This booking's start time has passed, so it can't be accepted. Decline it so the customer can be refunded.",
+        'BOOKING_START_PASSED'
+      )
+    }
+
+    const [accepted] = await bookingsRepository.updateBookingStatus(bookingId, 'confirmed', 'pending', {
       acceptedBy: actorId,
     })
+    if (!accepted) throw stateChanged()
     log.info({ bookingId, vendorId, actorId, status: 'confirmed' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
@@ -1052,7 +1101,8 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.cancelBooking(bookingId, 'vendor', reason)
+    const [declined] = await bookingsRepository.cancelBooking(bookingId, 'vendor', 'pending', reason)
+    if (!declined) throw stateChanged()
     log.info({ bookingId, vendorId, actorId, status: 'cancelled', cancelledBy: 'vendor' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
@@ -1071,7 +1121,8 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.updateBookingStatus(bookingId, 'in_progress')
+    const [started] = await bookingsRepository.updateBookingStatus(bookingId, 'in_progress', 'confirmed')
+    if (!started) throw stateChanged()
     log.info({ bookingId, vendorId, actorId, status: 'in_progress' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
@@ -1089,9 +1140,10 @@ export const bookingsService = {
       )
     }
 
-    await bookingsRepository.updateBookingStatus(bookingId, 'completed', {
+    const [completed] = await bookingsRepository.updateBookingStatus(bookingId, 'completed', 'in_progress', {
       completedBy: actorId,
     })
+    if (!completed) throw stateChanged()
 
     if (booking.paymentMethod === 'cash') {
       await bookingsRepository.updatePaymentStatus(bookingId, 'collected', new Date())

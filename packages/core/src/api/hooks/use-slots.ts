@@ -3,13 +3,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { getAvailableSlots } from '@repo/core/api/bookings'
 import { getVendorWorkingHours } from '@repo/core/api/vendors'
+import type { BookingType } from '@repo/core/types'
 
 export const slotKeys = {
   all: ['slots'] as const,
   workingHours: (vendorId: string) =>
     [...slotKeys.all, 'working-hours', vendorId] as const,
-  available: (vendorId: string, serviceIds: string[], date: string) =>
-    [...slotKeys.all, 'available', vendorId, serviceIds.join(','), date] as const,
+  available: (vendorId: string, serviceIds: string[], date: string, bookingType: BookingType) =>
+    [...slotKeys.all, 'available', vendorId, serviceIds.join(','), date, bookingType] as const,
 }
 
 /**
@@ -39,12 +40,14 @@ export function useAvailableSlots(params: {
   vendorId: string
   serviceIds: string[]
   date: string | null
+  /** In the key: doorstep and at-garage get different lists (3h vs 2h notice). */
+  bookingType: BookingType
 }) {
-  const { vendorId, serviceIds, date } = params
+  const { vendorId, serviceIds, date, bookingType } = params
 
   return useQuery({
-    queryKey: slotKeys.available(vendorId, serviceIds, date ?? ''),
-    queryFn: () => getAvailableSlots({ vendorId, serviceIds, date: date! }),
+    queryKey: slotKeys.available(vendorId, serviceIds, date ?? '', bookingType),
+    queryFn: () => getAvailableSlots({ vendorId, serviceIds, date: date!, bookingType }),
     enabled: serviceIds.length > 0 && Boolean(date),
     // Slots go stale as other customers book, so re-check on return to the tab.
     staleTime: 15_000,

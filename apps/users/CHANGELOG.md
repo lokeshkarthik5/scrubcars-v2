@@ -15,7 +15,22 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- **Booking timing rules.** Slots need 2 hours' notice at the garage and 3 for
+  doorstep: the picker says so, drops times that run out while it is open, and
+  explains an empty evening ("No times left on this day…") instead of calling
+  it too long for the day. Checkout sends the booking type with the slot
+  request and, if a time lapses before Pay, clears it and returns to the slot
+  step.
+- **Cancelling and rescheduling.** A booking the garage has not accepted can be
+  cancelled any time. Once accepted, cancel and reschedule close 2 hours before
+  the slot, and the booking page now shows that instead of offering a control
+  the server refuses. A reschedule goes back to Requested until the garage
+  accepts the new time, and the copy says so.
+- **Garage portal.** A pending job whose time has passed shows Decline only,
+  with why; a moved job says the customer chose a new time; refused actions
+  show the server's message and refresh the list.
 
 ## [0.3.0] — 2026-08-28
 

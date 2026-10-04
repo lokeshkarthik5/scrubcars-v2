@@ -18,6 +18,7 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { computeVendorDashboardStats } from '@repo/core/vendor-stats'
 import type { Review } from '@repo/core/types'
 import { JobContact } from '@/components/job-contact'
+import { useNow } from '@repo/core/hooks/use-now'
 
 export default function VendorHomePage() {
   const user = useAuthStore((s) => s.user)
@@ -25,6 +26,10 @@ export default function VendorHomePage() {
   const vendorBookings = useBookingsStore((s) => s.vendorBookings)
   const fetchVendorBookings = useBookingsStore((s) => s.fetchVendorBookings)
   const updateStatus = useBookingsStore((s) => s.updateStatus)
+  // A pending job whose time passes while Home is open loses its Accept.
+  const now = useNow(30_000)
+  // After a refused action, re-read the list so the card shows what is true.
+  const reload = () => fetchVendorBookings().catch(() => undefined)
   const [reviews, setReviews] = useState<Review[]>([])
   const [profile, setProfile] = useState<ApiVendorProfile | null>(null)
   const [weekEarnings, setWeekEarnings] = useState<number | null>(null)
@@ -145,9 +150,31 @@ export default function VendorHomePage() {
                     <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
                   </div>
                   <JobContact booking={b} />
+                  {/* Past its time unaccepted: only declining is left (the
+                      server refuses a late accept). */}
+                  {new Date(b.scheduledAtIso).getTime() <= now && (
+                    <p className="text-[12px] text-text-secondary">
+                      This slot&apos;s time has passed without being accepted. Decline it so the
+                      customer can be refunded.
+                    </p>
+                  )}
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <ScButton variant="secondary" onClick={() => updateStatus(b.id, 'cancelled').then(() => toast.success('Booking rejected')).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to reject'))}>Reject</ScButton>
-                    <ScButton onClick={() => updateStatus(b.id, 'confirmed').then(() => toast.success('Booking accepted')).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to accept'))}>Accept</ScButton>
+                    <ScButton
+                      variant="secondary"
+                      aria-label={`Reject booking for ${b.customerName}`}
+                      className={new Date(b.scheduledAtIso).getTime() <= now ? 'col-span-2' : undefined}
+                      onClick={() => updateStatus(b.id, 'cancelled').then(() => toast.success('Booking declined')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to decline'); void reload() })}
+                    >
+                      Reject
+                    </ScButton>
+                    {new Date(b.scheduledAtIso).getTime() > now && (
+                      <ScButton
+                        aria-label={`Accept booking for ${b.customerName}`}
+                        onClick={() => updateStatus(b.id, 'confirmed').then(() => toast.success('Booking accepted')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to accept'); void reload() })}
+                      >
+                        Accept
+                      </ScButton>
+                    )}
                   </div>
                 </ScCard>
               )

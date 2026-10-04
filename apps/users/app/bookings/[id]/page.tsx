@@ -26,7 +26,15 @@ import { submitReview } from '@repo/core/api/reviews'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { formatBookingAmount } from '@repo/core/pricing'
-import { BOOKING_TYPE_LABELS, bookingReference } from '@repo/core/booking-types'
+import {
+  BOOKING_TYPE_LABELS,
+  CONFIRMED_CHANGE_CUTOFF_MINS,
+  bookingReference,
+} from '@repo/core/booking-types'
+import { ApiError } from '@repo/core/api/client'
+import { slotKeys } from '@repo/core/api/hooks/use-slots'
+import { useNow } from '@repo/core/hooks/use-now'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time'
 import { coarse, isStale, useLocationStore } from '@repo/core/stores/location-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
@@ -48,6 +56,10 @@ export default function BookingDetailPage({
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const cancelBooking = useBookingsStore((s) => s.cancelBooking)
+  const queryClient = useQueryClient()
+  // For the 2-hour cutoff on an accepted booking, which a page left open can
+  // cross while the customer looks at it.
+  const now = useNow(30_000)
   const rescheduleBooking = useBookingsStore((s) => s.rescheduleBooking)
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -180,9 +192,26 @@ export default function BookingDetailPage({
       const created = await rescheduleBooking(booking.id, rescheduleSlot)
       setShowReschedule(false)
       setRescheduleSlot(null)
-      toast.success('Booking rescheduled')
+      // A move goes back to the garage: say so, rather than "rescheduled",
+      // which reads as done.
+      toast.success(`New time sent to ${booking.vendorName}. Waiting for them to accept.`)
       router.push(`/bookings/${created.id}`)
     } catch (error) {
+      const code = error instanceof ApiError ? error.code : undefined
+      if (code === 'SLOT_TOO_SOON' || code === 'INVALID_SCHEDULED_AT') {
+        // The chosen time ran out of notice: keep the sheet open on fresh times.
+        setRescheduleSlot(null)
+        void queryClient.invalidateQueries({ queryKey: slotKeys.all })
+      } else if (
+        code === 'RESCHEDULE_WINDOW_PASSED' ||
+        code === 'RESCHEDULE_LIMIT_REACHED' ||
+        code === 'BOOKING_STATE_CHANGED'
+      ) {
+        // Nothing to pick any more — the booking itself has moved on.
+        setShowReschedule(false)
+        const fresh = await getBooking(id).catch(() => null)
+        if (fresh) setBooking(fresh)
+      }
       toast.error(error instanceof Error ? error.message : 'Failed to reschedule booking')
     } finally {
       setRescheduling(false)
@@ -239,6 +268,11 @@ export default function BookingDetailPage({
   }
 
   const statusBadge = customerBookingStatusBadge(booking.status)
+  // An accepted booking can't be cancelled or moved under 2 hours out (the
+  // server's CANCELLATION_CUTOFF_MS); a pending one can, any time.
+  const lockedIn =
+    booking.status === 'confirmed' &&
+    new Date(booking.scheduledAtIso).getTime() - now < CONFIRMED_CHANGE_CUTOFF_MINS * 60_000
   // Paying sends a request; only the garage's accept confirms it. Celebrating
   // a "confirmed" booking that the garage then declines teaches customers not
   // to believe this screen, so the moment says exactly what happened.
@@ -419,7 +453,8 @@ export default function BookingDetailPage({
         <ScCard>
           <h2 className="mb-1 text-sm font-semibold text-text-primary">Rescheduled</h2>
           <p className="text-[13px] text-text-secondary">
-            This booking was moved to a new time. Check your bookings for the updated slot.
+            This booking was moved to a new time. The garage needs to accept the new time. Check your
+            bookings for its status.
           </p>
         </ScCard>
       )}
@@ -466,17 +501,25 @@ export default function BookingDetailPage({
         <ScCard>
           <h2 className="mb-1 text-sm font-semibold text-text-primary">Reschedule booking</h2>
           <p className="mb-3 text-[12px] text-text-secondary">
-            You can reschedule a booking only twice · {booking.remainingReschedules} of 2 left.
+            {lockedIn
+              ? `Your slot is less than 2 hours away, so it can't be moved here. Use Help with this booking to reach ${booking.vendorName} or our team.`
+              : booking.status === 'confirmed'
+                ? `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. Your booking goes back to Requested until ${booking.vendorName} accepts the new time.`
+                : `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. ${booking.vendorName} will need to accept the new time.`}
           </p>
           <ScButton
             variant="secondary"
-            disabled={booking.remainingReschedules <= 0}
+            disabled={booking.remainingReschedules <= 0 || lockedIn}
             onClick={() => {
               setRescheduleSlot(null)
               setShowReschedule(true)
             }}
           >
-            {booking.remainingReschedules > 0 ? 'Reschedule' : 'No reschedules left'}
+            {booking.remainingReschedules <= 0
+              ? 'No reschedules left'
+              : lockedIn
+                ? 'Too close to your slot to move'
+                : 'Reschedule'}
           </ScButton>
         </ScCard>
       )}
@@ -484,10 +527,20 @@ export default function BookingDetailPage({
       {['pending', 'confirmed'].includes(booking.status) && (
         <ScCard>
           <h2 className="mb-2 text-sm font-semibold text-text-primary">Cancel booking</h2>
-          {showCancelConfirm ? (
+          {lockedIn ? (
+            // Shown instead of a control the server would refuse: the garage
+            // has accepted and the slot is under 2 hours away.
+            <p className="text-[13px] text-text-secondary">
+              Your slot is less than 2 hours away and {booking.vendorName} has accepted it, so it
+              can&apos;t be cancelled here. Use Help with this booking to reach the garage or our
+              team.
+            </p>
+          ) : showCancelConfirm ? (
             <div className="rise-in flex flex-col gap-3">
               <p className="text-[13px] text-text-secondary">
-                Cancel this booking? This cannot be undone.
+                {booking.status === 'pending'
+                  ? `${booking.vendorName} hasn't accepted yet, so you can cancel any time. This cannot be undone.`
+                  : 'Cancel this booking? This cannot be undone.'}
               </p>
               <ScInput
                 placeholder="Reason (optional)"
@@ -585,7 +638,8 @@ export default function BookingDetailPage({
           <div>
             <h2 className="text-base font-semibold text-text-primary">Reschedule booking</h2>
             <p className="mb-4 mt-1 text-[12px] text-text-secondary">
-              You can reschedule only twice · {booking.remainingReschedules} of 2 left. Pick a new slot below.
+              You can reschedule only twice · {booking.remainingReschedules} of 2 left. Pick a new
+              time; {booking.vendorName} will be asked to accept it.
             </p>
             <SlotPicker
               vendorId={booking.vendorId}
@@ -594,6 +648,7 @@ export default function BookingDetailPage({
               serviceIds={booking.items.map((item) => item.serviceId)}
               value={rescheduleSlot}
               onChange={setRescheduleSlot}
+              bookingType={booking.bookingType}
             />
             <div className="mt-5 flex gap-2">
               <ScButton

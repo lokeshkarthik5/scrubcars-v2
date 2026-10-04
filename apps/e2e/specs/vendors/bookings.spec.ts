@@ -6,7 +6,7 @@
  * not the transition.
  */
 import { test, expect, asRole } from '../../support/fixtures'
-import { setActiveVendor } from '../../support/auth'
+import { API, setActiveVendor } from '../../support/auth'
 import { getBooking } from '../../support/db'
 import { BOOKINGS, CUSTOMERS, DOORSTEP_JOB_PIN, VENDORS } from '../../support/seed-ids'
 
@@ -80,6 +80,28 @@ test.describe('vendor booking lifecycle @p0', () => {
     expect(whatsApp).toMatch(new RegExp(`^https://wa\\.me/91${CUSTOMERS.vendorDoorstep.phone}\\?text=`))
     // Opens saying who is writing: the customer has never seen this number.
     expect(new URL(whatsApp!).searchParams.get('text')).toContain(VENDORS.main.name)
+  })
+
+  test('a job whose time passed unaccepted can only be declined', async ({ page }) => {
+    await page.goto('/bookings')
+
+    // Seeded pending at MAIN an hour ago: Accept is gone, and the card says why.
+    await expect(page.getByText(/time has passed without being accepted/i).first()).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: `Accept booking for ${CUSTOMERS.vendorLate.name}` })
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: `Reject booking for ${CUSTOMERS.vendorLate.name}` })
+    ).toBeVisible()
+
+    // The server refuses a late accept on its own.
+    const response = await page.request.patch(
+      `${API}/api/v1/bookings/${BOOKINGS.vendorStarted}/accept`,
+      { headers: { 'x-vendor-id': VENDORS.main.id } }
+    )
+    expect(response.status()).toBe(400)
+    expect((await response.json()).code).toBe('BOOKING_START_PASSED')
+    expect((await getBooking(BOOKINGS.vendorStarted))?.status).toBe('pending')
   })
 
   test('rejecting takes a reason and is recorded as a vendor cancellation', async ({ page }) => {

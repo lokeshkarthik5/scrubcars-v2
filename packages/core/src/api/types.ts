@@ -258,6 +258,13 @@ export interface ApiSlotsResponse {
   durationMins: number
   slotIntervalMins: number
   isClosed: boolean
+  /**
+   * Whether the services fit the day at all, judged before past and too-soon
+   * times are removed. Absent from servers older than the notice rule.
+   */
+  fitsInDay?: boolean
+  /** The notice the list was filtered by, in minutes. */
+  minNoticeMins?: number
   slots: string[]
 }
 

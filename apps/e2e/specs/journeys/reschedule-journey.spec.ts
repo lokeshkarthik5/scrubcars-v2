@@ -30,8 +30,8 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
 
   const [original] = await bookingsForUser(CUSTOMERS.journeyMove.id)
 
-  // The garage accepts it before the customer moves it — the interesting case,
-  // because the commitment has to travel to the new booking.
+  // The garage accepts it before the customer moves it — the interesting case:
+  // it agreed to the old time, so the move has to come back to it.
   await vendor.goto('/bookings')
   await vendor
     .getByRole('button', { name: `Accept booking for ${CUSTOMERS.journeyMove.name}` })
@@ -53,8 +53,10 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
   expect(moved?.rescheduled_from_id).toBe(original.id)
   expect(moved?.original_booking_id).toBe(original.id)
   expect(moved?.reschedule_count).toBe(1)
-  // Status carries across: an accepted job stays accepted after a move.
-  expect(moved?.status).toBe('confirmed')
+  // An accepted job goes back to a request after a move: the garage agreed to
+  // the old time, not the new one.
+  expect(moved?.status).toBe('pending')
+  expect(moved?.accepted_by).toBeNull()
 
   // The payment follows the booking; the customer is not charged twice.
   const payment = await getPayment(movedId)
@@ -66,8 +68,14 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
   expect(chain[0]).toMatchObject({ from_booking_id: original.id, to_booking_id: movedId })
 
   // ── the garage's view ────────────────────────────────────────────────────
+  // The moved job is back under Incoming, saying the customer moved it, and
+  // the garage accepts the new time.
   await vendor.goto('/bookings')
-  await vendor.getByRole('radio', { name: /^Upcoming/ }).click()
+  await expect(vendor.getByText(/The customer moved this booking to a new time/).first()).toBeVisible()
+  await vendor
+    .getByRole('button', { name: `Accept booking for ${CUSTOMERS.journeyMove.name}` })
+    .click()
+  await expect.poll(async () => (await getBooking(movedId))?.status).toBe('confirmed')
 
   // Exactly one live job for this customer: the moved one. The original must
   // not still be sitting in the list.

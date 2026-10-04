@@ -245,7 +245,7 @@ export const STEPS = [
   },
   {
     title: 'Choose how and when',
-    body: 'Pick a slot. Visit the garage, or book doorstep service where the garage offers it. Pickup & drop is coming soon.',
+    body: 'Pick a slot at least 2 hours ahead at the garage, or 3 hours ahead for doorstep. Visit the garage, or book doorstep service where the garage offers it. Pickup & drop is coming soon.',
   },
   {
     title: 'Pay securely',
@@ -529,7 +529,7 @@ export const FAQS = [
   },
   {
     q: 'Can I reschedule or cancel?',
-    a: 'Yes. You can reschedule a booking up to twice, or cancel it, from the booking screen up to 2 hours before your slot.',
+    a: 'Yes, from the booking screen. Until the garage accepts, you can cancel any time. Once it has, you can cancel or reschedule up to 2 hours before your slot. You can reschedule up to twice, and the garage accepts each new time.',
   },
 ]
 

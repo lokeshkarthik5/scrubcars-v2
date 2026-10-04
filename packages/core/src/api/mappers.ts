@@ -297,6 +297,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     cancellationReason: booking.cancellationReason ?? undefined,
     rescheduleCount: booking.rescheduleCount ?? 0,
     remainingReschedules: booking.remainingReschedules ?? 0,
+    rescheduledFromId: booking.rescheduledFromId ?? undefined,
     review: booking.review
       ? {
           id: booking.review.id,

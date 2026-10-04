@@ -16,6 +16,9 @@ import type { bookingStatusEnum, bookingTypeEnum } from '../../db/schema.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 
 type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
+
+/** A booking can be moved to a new time only while it is still on. */
+const MOVABLE_STATUSES: readonly BookingStatus[] = ['pending', 'confirmed']
 type BookingType = (typeof bookingTypeEnum.enumValues)[number]
 
 export type BookingRecord = typeof bookings.$inferSelect
@@ -447,7 +450,6 @@ export const bookingsRepository = {
     bookingType: BookingType
     newScheduledAt: Date
     durationMins: number
-    status: BookingStatus
     // A reschedule is a move, not a re-price: these are copied verbatim from
     // the booking being moved.
     subtotalAmount: string
@@ -485,6 +487,26 @@ export const bookingsRepository = {
         sql`select pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`
       )
 
+      // The booking being moved must still be movable now, not just when the
+      // service read it: a garage decline or a customer cancel can land in
+      // between. Locked, so those wait for this move and then find nothing
+      // left to change.
+      const [source] = await tx
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, data.sourceBookingId))
+        .for('update')
+
+      if (!source || !MOVABLE_STATUSES.includes(source.status)) {
+        return {
+          booking: null,
+          payment: null,
+          capReached: false as const,
+          vehicleClash: null,
+          stateChanged: true as const,
+        }
+      }
+
       // Cap check inside the transaction (race-safe): the number of successful
       // moves for this chain is the authoritative reschedule count.
       const [{ value: existing }] = await tx
@@ -498,6 +520,7 @@ export const bookingsRepository = {
           payment: null,
           capReached: true as const,
           vehicleClash: null,
+          stateChanged: false as const,
         }
       }
 
@@ -517,6 +540,7 @@ export const bookingsRepository = {
           payment: null,
           capReached: false as const,
           vehicleClash: clash,
+          stateChanged: false as const,
         }
       }
 
@@ -530,7 +554,9 @@ export const bookingsRepository = {
           bookingType: data.bookingType,
           scheduledAt: data.newScheduledAt,
           durationMins: data.durationMins,
-          status: data.status,
+          // Always back to pending: the garage agreed to the old time, not
+          // this one, so it has to accept the move.
+          status: 'pending',
           subtotalAmount: data.subtotalAmount,
           amount: data.amount,
           discountAmount: data.discountAmount,
@@ -611,6 +637,7 @@ export const bookingsRepository = {
         payment,
         capReached: false as const,
         vehicleClash: null,
+        stateChanged: false as const,
       }
     })
   },
@@ -618,21 +645,30 @@ export const bookingsRepository = {
   // `actor` records which *person* moved the job — with a team, "who accepted
   // this?" is otherwise unanswerable. It is the authenticated user, never the
   // tenant.
+  /**
+   * Moves a booking on only from the status the caller saw (`from`). Two
+   * people acting on one booking at once — a garage accepting while the
+   * customer cancels — would otherwise both succeed, the second overwriting
+   * the first. An empty result means someone else got there first.
+   */
   updateBookingStatus(
     bookingId: string,
     status: BookingStatus,
+    from: BookingStatus,
     actor?: { acceptedBy?: string; completedBy?: string }
   ) {
     return db
       .update(bookings)
       .set({ status, ...actor })
-      .where(eq(bookings.id, bookingId))
+      .where(and(eq(bookings.id, bookingId), eq(bookings.status, from)))
       .returning()
   },
 
+  /** Cancels only from the status the caller saw; empty if it changed. */
   cancelBooking(
     bookingId: string,
     cancelledBy: 'user' | 'vendor',
+    from: BookingStatus,
     reason?: string | null
   ) {
     return db
@@ -643,7 +679,7 @@ export const bookingsRepository = {
         cancellationReason: reason ?? null,
         cancelledAt: new Date(),
       })
-      .where(eq(bookings.id, bookingId))
+      .where(and(eq(bookings.id, bookingId), eq(bookings.status, from)))
       .returning()
   },
 

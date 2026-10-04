@@ -1,12 +1,15 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNow } from '@repo/core/hooks/use-now'
 import { IconCalendar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { ScSheet } from '@repo/ui/sc/modal'
 import {
   useAvailableSlots,
   useVendorWorkingHours,
 } from '@repo/core/api/hooks/use-slots'
+import { meetsNotice, noticeSentence } from '@repo/core/booking-types'
+import type { BookingType } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -80,6 +83,11 @@ interface SlotPickerProps {
   value: string | null
   onChange: (scheduledAt: string | null) => void
   /**
+   * At the garage or doorstep: doorstep needs 3 hours' notice, at-garage 2,
+   * so the times on offer depend on it.
+   */
+  bookingType: BookingType
+  /**
    * Reveal the time slots only once a date has been picked, and start with no
    * date selected.
    *
@@ -100,8 +108,12 @@ export function SlotPicker({
   serviceIds,
   value,
   onChange,
+  bookingType,
   progressive = false,
 }: SlotPickerProps) {
+  // Ticks each minute: a picker left open keeps offering a slot only while it
+  // still has enough notice.
+  const now = useNow()
   const dateOptions = buildDateOptions()
   const calendarMin = addDaysToKey(dateOptions[dateOptions.length - 1].value, 1)
 
@@ -115,7 +127,7 @@ export function SlotPicker({
     return { year: y, month: m - 1 }
   })
   const workingHours = useVendorWorkingHours(vendorId)
-  const slotsQuery = useAvailableSlots({ vendorId, serviceIds, date: selectedDate })
+  const slotsQuery = useAvailableSlots({ vendorId, serviceIds, date: selectedDate, bookingType })
 
   const closedDays = useMemo(
     () =>
@@ -127,8 +139,19 @@ export function SlotPicker({
     [workingHours.data]
   )
 
-  const slots = slotsQuery.data?.slots ?? []
+  // The server already leaves out times without enough notice; filtering
+  // again here drops the ones that run out while the picker sits open.
+  const slots = (slotsQuery.data?.slots ?? []).filter((slot) =>
+    meetsNotice(slot.time, bookingType, now)
+  )
   const isClosedDay = slotsQuery.data?.isClosed ?? false
+
+  // A chosen time that no longer has enough notice — the clock moved on, or
+  // the customer switched to doorstep, which needs more — is let go rather
+  // than carried into a checkout the server would refuse.
+  useEffect(() => {
+    if (value && !meetsNotice(value, bookingType, now)) onChange(null)
+  }, [value, bookingType, now, onChange])
 
   // An open day whose *whole* schedule offers nothing means the combined
   // duration does not fit between opening and closing — not that the day
@@ -239,9 +262,8 @@ export function SlotPicker({
 
       {selectedDate && (
         <>
-          <h2 className="mb-3 text-[15px] font-semibold text-text-primary">
-            Select Time
-          </h2>
+          <h2 className="text-[15px] font-semibold text-text-primary">Select Time</h2>
+          <p className="mb-3 mt-0.5 text-[12px] text-text-secondary">{noticeSentence(bookingType)}</p>
           {slotsLoading ? (
             <TimeGridSkeleton />
           ) : slots.length === 0 ? (
@@ -250,7 +272,7 @@ export function SlotPicker({
                 ? 'Vendor is closed on this day.'
                 : tooLongForTheDay
                   ? "These services need more time than this garage's day allows. Remove one, or pick another day."
-                  : 'No slots available on this date.'}
+                  : `No times left on this day. ${noticeSentence(bookingType)} Pick another day.`}
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
