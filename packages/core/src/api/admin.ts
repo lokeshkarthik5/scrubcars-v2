@@ -216,8 +216,33 @@ export interface AdminBooking {
   cancelledAt: string | null
   noShow: BookingParty | null
   noShowMarkedAt: string | null
+  /**
+   * When the garage moved the job on. Optional for a server older than job
+   * records; null on jobs from before they were kept.
+   */
+  acceptedAt?: string | null
+  startedAt?: string | null
+  completedAt?: string | null
+  /** The balance still to pay on a final bill ("Bill due ₹Z"); null when none. */
+  billDue?: string | null
   notesCount: number
   rescheduledFromId: string | null
+}
+
+/** A final bill as ops sees it, with the Razorpay ids to find the payment by. */
+export interface AdminFinalBill {
+  id: string
+  status: 'due' | 'paid' | 'cancelled' | 'not_needed'
+  lines: Array<{ description: string; amount: string }>
+  totalAmount: string
+  paidBefore: string
+  amountDue: string
+  note: string | null
+  gatewayOrderId: string | null
+  gatewayPaymentId: string | null
+  paidAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 /** An ops-team note. Never shown to customers or garages. */
@@ -241,6 +266,15 @@ export interface AdminBookingDetail extends AdminBooking {
   rescheduleCount: number
   /** Newest first. */
   notes: AdminBookingNote[]
+  /** The final bill that stands, if the garage raised one. */
+  finalBill?: AdminFinalBill | null
+  /**
+   * Unpaid bills the garage replaced, newest first. One with a payment id is
+   * money taken for a bill that no longer stands: a refund to do.
+   */
+  replacedFinalBills?: AdminFinalBill[]
+  /** The garage's before/after photos, oldest first. */
+  photos?: Array<{ id: string; stage: 'before' | 'after'; url: string; createdAt: string }>
 }
 
 export interface AdminBookingFilters {
@@ -351,6 +385,13 @@ export interface PilotStats {
   customerNoShows: number
   garageNoShows: number
   revenue: number
+  /**
+   * Median minutes from payment to the garage accepting, over bookings
+   * accepted in the window. Null under three of them (`acceptSamples`), and
+   * absent from a server older than accept times.
+   */
+  medianAcceptMins?: number | null
+  acceptSamples?: number
   rates: {
     paidOfStarted: number | null
     acceptedOfPaid: number | null

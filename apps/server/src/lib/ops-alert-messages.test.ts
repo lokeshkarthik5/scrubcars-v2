@@ -272,3 +272,62 @@ describe('pending digest', () => {
     expect(text.length).toBeLessThan(4096)
   })
 })
+
+describe('final bill alerts', () => {
+  test('a final bill with a balance gives the total, what was paid and what is left', () => {
+    const text = formatOpsAlert({
+      kind: 'final_bill_raised',
+      booking,
+      totalAmount: '3500.00',
+      paidBefore: '299.00',
+      amountDue: '3201.00',
+    })
+    expect(text).toContain('🧾 Final bill #3F2A9C1B · ₹3,500 total, ₹3,201 to pay')
+    expect(text).toContain('Marina Auto Spa · +91 98765 00011')
+    expect(text).toContain('Paid at booking ₹299. The customer pays the rest in the app.')
+  })
+
+  test('a paid final bill names the Razorpay payment', () => {
+    const text = formatOpsAlert({
+      kind: 'final_bill_paid',
+      booking,
+      amountDue: '3201.00',
+      paymentId: 'pay_BILL1',
+    })
+    expect(text).toContain('✅ Final bill paid #3F2A9C1B · ₹3,201')
+    expect(text).toContain('Razorpay payment pay_BILL1')
+  })
+
+  test('a bill paid after the garage replaced it is a refund to do', () => {
+    const text = formatOpsAlert({
+      kind: 'final_bill_refund_due',
+      reason: 'replaced',
+      booking,
+      amount: '3201.00',
+      paymentId: 'pay_OLD',
+    })
+    expect(text).toContain('⚠️ Final bill paid after it was replaced #3F2A9C1B · refund due')
+    expect(text).toContain('₹3,201 · Razorpay payment pay_OLD')
+  })
+
+  test('a bill paid twice, or after the booking was cancelled, says which', () => {
+    const twice = formatOpsAlert({
+      kind: 'final_bill_refund_due',
+      reason: 'paid_twice',
+      booking,
+      amount: '3201.00',
+      paymentId: 'pay_SECOND',
+    })
+    expect(twice).toContain('⚠️ Final bill paid twice #3F2A9C1B · refund due')
+    expect(twice).toContain('Refund this second one in Razorpay')
+
+    const cancelled = formatOpsAlert({
+      kind: 'final_bill_refund_due',
+      reason: 'booking_cancelled',
+      booking,
+      amount: '3201.00',
+      paymentId: 'pay_LATE',
+    })
+    expect(cancelled).toContain('Final bill paid after the booking was cancelled')
+  })
+})

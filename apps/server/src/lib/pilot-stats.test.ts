@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  acceptMinutes,
   cancelledBy,
   keptMoney,
+  summariseAcceptTime,
   summarisePilot,
   wasAccepted,
+  type PilotAcceptRow,
   type PilotBookingRow,
   type PilotIntentRow,
 } from './pilot-stats.js'
@@ -21,6 +24,7 @@ const row = (overrides: Partial<PilotBookingRow> = {}): PilotBookingRow => ({
   noShow: null,
   paymentStatus: 'paid',
   paymentAmount: '499.00',
+  chargesPaid: null,
   ...overrides,
 })
 
@@ -214,5 +218,83 @@ describe('summarisePilot', () => {
 
     expect(stats.topGarages.map((g) => g.vendorId)).toEqual(['e', 'b', 'c', 'd', 'f'])
     expect(stats.topGarages[2]).toEqual({ vendorId: 'c', name: 'Garage c', paidBookings: 2, revenue: 1000 })
+  })
+})
+
+describe('final bills in the revenue', () => {
+  test('a final bill paid in the app adds to revenue and to its garage', () => {
+    const stats = summarisePilot([], [
+      row({ vendorId: 'i', vendorName: 'Inspect Garage', status: 'completed', paymentAmount: '299.00', chargesPaid: '2201.00' }),
+    ])
+    expect(stats.revenue).toBe(2500)
+    expect(stats.topGarages).toEqual([{ vendorId: 'i', name: 'Inspect Garage', paidBookings: 1, revenue: 2500 }])
+  })
+
+  test('a cancelled booking keeps none of it', () => {
+    const stats = summarisePilot([], [
+      row({ status: 'cancelled', cancelledBy: 'admin', cancelledOnBehalfOf: 'detlio', chargesPaid: '800.00' }),
+    ])
+    expect(stats.revenue).toBe(0)
+  })
+})
+
+// 10:00 UTC on a fixed day; every row is relative to it.
+const T0 = new Date('2026-10-05T10:00:00Z').getTime()
+const at = (mins: number) => new Date(T0 + mins * 60_000)
+const accept = (overrides: Partial<PilotAcceptRow> = {}): PilotAcceptRow => ({
+  createdAt: at(0),
+  paidAt: at(0),
+  acceptedAt: at(10),
+  ...overrides,
+})
+
+describe('acceptMinutes', () => {
+  test('from payment to accept', () => {
+    expect(acceptMinutes(accept({ acceptedAt: at(25) }))).toBe(25)
+  })
+
+  test('a pay-later booking starts its clock when it is paid', () => {
+    expect(acceptMinutes(accept({ createdAt: at(-120), paidAt: at(0), acceptedAt: at(15) }))).toBe(15)
+  })
+
+  test('a moved booking starts its clock when it is written, not at the old payment', () => {
+    expect(acceptMinutes(accept({ createdAt: at(0), paidAt: at(-1440), acceptedAt: at(30) }))).toBe(30)
+  })
+
+  test('nothing to measure without an accept or a payment', () => {
+    expect(acceptMinutes(accept({ acceptedAt: null }))).toBeNull()
+    expect(acceptMinutes(accept({ paidAt: null }))).toBeNull()
+  })
+})
+
+describe('summariseAcceptTime', () => {
+  const since = at(-60)
+
+  test('the median, to the minute', () => {
+    const rows = [5, 40, 12].map((m) => accept({ acceptedAt: at(m) }))
+    expect(summariseAcceptTime(rows, since)).toEqual({ medianAcceptMins: 12, acceptSamples: 3 })
+  })
+
+  test('an even count averages the middle two', () => {
+    const rows = [5, 10, 20, 100].map((m) => accept({ acceptedAt: at(m) }))
+    expect(summariseAcceptTime(rows, since)).toEqual({ medianAcceptMins: 15, acceptSamples: 4 })
+  })
+
+  test('under three accepts is not enough data', () => {
+    const rows = [5, 40].map((m) => accept({ acceptedAt: at(m) }))
+    expect(summariseAcceptTime(rows, since)).toEqual({ medianAcceptMins: null, acceptSamples: 2 })
+  })
+
+  test('only accepts in the window, and only measurable ones', () => {
+    const rows = [
+      accept({ acceptedAt: at(5) }),
+      accept({ acceptedAt: at(6) }),
+      // Accepted before the window opened.
+      accept({ createdAt: at(-200), paidAt: at(-200), acceptedAt: at(-90) }),
+      // Never paid: nothing to measure from.
+      accept({ paidAt: null, acceptedAt: at(7) }),
+      accept({ acceptedAt: null }),
+    ]
+    expect(summariseAcceptTime(rows, since)).toEqual({ medianAcceptMins: null, acceptSamples: 2 })
   })
 })

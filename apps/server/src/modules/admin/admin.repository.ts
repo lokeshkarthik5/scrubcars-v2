@@ -22,10 +22,12 @@ import {
   type BookingSearch,
 } from '../../lib/booking-ops.js'
 import {
+  bookingCharges,
   bookingIntents,
   bookingItems,
   bookingNotes,
   bookings,
+  jobPhotos,
   bookingStatusEnum,
   cancelledOnBehalfOfEnum,
   noShowPartyEnum,
@@ -73,6 +75,9 @@ const ADMIN_BOOKING_RELATIONS = {
   items: { orderBy: [asc(bookingItems.sortOrder)] },
   vehicle: true as const,
   payment: true as const,
+  // Every final bill, newest first: the list flags one still to be paid, and
+  // the detail shows the live one and any it replaced.
+  charges: { orderBy: [desc(bookingCharges.createdAt)] },
 }
 
 export const adminRepository = {
@@ -429,6 +434,7 @@ export const adminRepository = {
       with: {
         ...ADMIN_BOOKING_RELATIONS,
         notes: { orderBy: [desc(bookingNotes.createdAt), desc(bookingNotes.id)] },
+        photos: { orderBy: [asc(jobPhotos.createdAt), asc(jobPhotos.id)] },
       },
     })
   },
@@ -502,6 +508,16 @@ export const adminRepository = {
         body: note.body,
       })
 
+      // An unpaid final bill goes with the booking: a cancelled job is not
+      // chased for money. A payment already on its way for it then lands on
+      // a withdrawn bill, which is noted and alerted as a refund (see
+      // settleCaptured in booking-charges.service). A paid bill is left as
+      // it is; whether that money goes back is ops' call.
+      await tx
+        .update(bookingCharges)
+        .set({ status: 'cancelled', updatedAt: change.at })
+        .where(and(eq(bookingCharges.bookingId, bookingId), eq(bookingCharges.status, 'due')))
+
       return cancelled
     })
   },
@@ -542,6 +558,13 @@ export const adminRepository = {
         noShow: bookings.noShow,
         paymentStatus: payments.status,
         paymentAmount: payments.amount,
+        // Final bills paid in the app on this booking, added up.
+        chargesPaid: sql<string | null>`(
+          select sum(${bookingCharges.amountDue})::text
+            from ${bookingCharges}
+           where ${bookingCharges.bookingId} = ${bookings.id}
+             and ${bookingCharges.status} = 'paid'
+        )`,
       })
       .from(bookings)
       .innerJoin(vendors, eq(vendors.id, bookings.vendorId))
@@ -550,5 +573,22 @@ export const adminRepository = {
       .where(
         sql`coalesce(${root.createdAt}, ${bookings.createdAt}) >= ${since.toISOString()}::timestamptz`
       )
+  },
+
+  /**
+   * Every booking a garage accepted since `since`, with what the accept time
+   * is measured from. Windowed on the accept itself rather than the booking's
+   * creation: the question is how fast garages answer now.
+   */
+  listAcceptsSince(since: Date) {
+    return db
+      .select({
+        createdAt: bookings.createdAt,
+        paidAt: payments.paidAt,
+        acceptedAt: bookings.acceptedAt,
+      })
+      .from(bookings)
+      .leftJoin(payments, eq(payments.bookingId, bookings.id))
+      .where(gte(bookings.acceptedAt, since))
   },
 }

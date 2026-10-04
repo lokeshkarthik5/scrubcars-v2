@@ -1,6 +1,6 @@
 import { ScBadge } from '@repo/ui/sc/badge'
 import type { BookingParty } from '@repo/core/api/admin'
-import { formatWaiting, WAITING_ALERT_MINS } from '@/lib/bookings'
+import { formatRupees, formatWaiting, WAITING_ALERT_MINS } from '@/lib/bookings'
 
 /**
  * How long a pending booking has waited for its garage. Amber from 30
@@ -19,6 +19,18 @@ export function NoShowBadge({ party }: { party: BookingParty }) {
   return (
     <ScBadge variant="danger">
       {party === 'customer' ? 'Customer no-show' : 'Garage no-show'}
+    </ScBadge>
+  )
+}
+
+/**
+ * A final bill the customer has not paid yet. Neutral rather than amber: the
+ * customer pays it in the app, so nothing is wrong until ops is asked about it.
+ */
+export function BillDueBadge({ amount }: { amount: string }) {
+  return (
+    <ScBadge variant="pending">
+      Bill due&nbsp;<span className="font-numeric">{formatRupees(amount)}</span>
     </ScBadge>
   )
 }

@@ -31,6 +31,7 @@ import {
   FALLBACK_REFUND_MESSAGE,
   realClock,
 } from '@repo/core/payment-confirmation'
+import { finalBillMayChange, formatStepTime } from '@repo/core/job-records'
 import { formatBookingAmount } from '@repo/core/pricing'
 import {
   BOOKING_TYPE_LABELS,
@@ -48,6 +49,8 @@ import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking-directions-sheet'
 import { BookingHelpSheet } from '@/components/booking-help-sheet'
+import { FinalBillCard, type BillPayment } from '@/components/final-bill-card'
+import { JobPhotosCard } from '@/components/job-photos-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 
 /** A booking the customer still has to get to, or is at. */
@@ -143,6 +146,12 @@ export default function BookingDetailPage({
     phase: 'confirming' | 'booked' | 'unconfirmed' | 'failed'
     refundMessage?: string
   } | null>(null)
+  // Where paying each final bill stands, by the bill's id. Here rather than in
+  // the bill's card: a bill replaced mid-payment takes its card with it, and
+  // the old payment's "will be refunded" must stay on the page.
+  const [billPayments, setBillPayments] = useState<Record<string, BillPayment>>({})
+  const recordBillPayment = (chargeId: string, payment: BillPayment) =>
+    setBillPayments((current) => ({ ...current, [chargeId]: payment }))
   const [cancelling, setCancelling] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -185,24 +194,30 @@ export default function BookingDetailPage({
   }, [id])
 
   // Poll for live status updates (e.g. vendor accepts/rejects) every 5s.
-  // Stop once the booking reaches a terminal state.
+  // Stop once the booking reaches a terminal state — except a completed
+  // inspection job, whose final bill can still arrive (up to three days after
+  // completion) or be settled by the webhook. That is watched more slowly,
+  // and only while the bill can still change (finalBillMayChange).
   const bookingStatus = booking?.status
+  const watchingBill = booking ? finalBillMayChange(booking, now) : false
   useEffect(() => {
     if (!bookingStatus) return
-    if (
+    const terminal =
       bookingStatus === 'completed' ||
       bookingStatus === 'cancelled' ||
       bookingStatus === 'rescheduled'
-    )
-      return
+    if (terminal && !watchingBill) return
 
-    const interval = setInterval(async () => {
-      const fresh = await getBooking(id)
-      if (fresh) setBooking(fresh)
-    }, 5000)
+    const interval = setInterval(
+      async () => {
+        const fresh = await getBooking(id)
+        if (fresh) setBooking(fresh)
+      },
+      terminal ? 15_000 : 5000
+    )
 
     return () => clearInterval(interval)
-  }, [id, bookingStatus])
+  }, [id, bookingStatus, watchingBill])
 
   // The webhook can settle the payment after we stopped watching. The 5-second
   // poll above then shows the booking as paid, and a panel still saying
@@ -410,6 +425,11 @@ export default function BookingDetailPage({
   // server refuses), so the page stops promising that it might.
   const missedByGarage =
     booking.status === 'pending' && new Date(booking.scheduledAtIso).getTime() <= now
+  // A final bill with a balance makes paying it the page's one main action,
+  // so nothing else on the page is red while it is due.
+  const billDue = booking.finalBill?.status === 'due' && booking.status !== 'cancelled'
+  // When each step happened, under the step. An older booking has none.
+  const stepTime = (iso: string | undefined) => (iso ? formatStepTime(iso, now) : undefined)
 
   return (
     <AppShell showNav className="gap-4 py-4">
@@ -475,7 +495,15 @@ export default function BookingDetailPage({
         {booking.status !== 'rescheduled' && booking.status !== 'cancelled' && !missedByGarage && (
           <>
             <div className="my-4 h-px bg-border" />
-            <StatusStepper status={booking.status} />
+            <StatusStepper
+              status={booking.status}
+              times={{
+                requested: stepTime(booking.requestedAtIso),
+                confirmed: stepTime(booking.acceptedAtIso),
+                in_progress: stepTime(booking.startedAtIso),
+                completed: stepTime(booking.completedAtIso),
+              }}
+            />
           </>
         )}
 
@@ -536,6 +564,48 @@ export default function BookingDetailPage({
           </span>
         </div>
       </ScCard>
+
+      {/* A payment for a bill that no longer stands — the garage replaced
+          it, or the booking was cancelled, while the customer paid. Its card
+          has gone; what happened to the money has not. */}
+      {Object.entries(billPayments)
+        .filter(([chargeId, payment]) => chargeId !== booking.finalBill?.id && payment.phase !== 'paid')
+        .map(([chargeId, payment]) => (
+          <ScCard key={chargeId} className="flex flex-col gap-3 px-4 py-4">
+            <h2 className="text-sm font-semibold text-text-primary">Your earlier bill payment</h2>
+            {payment.phase === 'confirming' ? (
+              <p role="status" className="flex items-center gap-2 text-[13px] text-text-primary">
+                <IconLoader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+                Payment received — confirming…
+              </p>
+            ) : (
+              <PaymentReceivedPanel
+                paymentId={payment.paymentId}
+                refundMessage={payment.phase === 'failed' ? payment.refundMessage : undefined}
+                waitingOn="bill_not_marked_paid"
+              />
+            )}
+          </ScCard>
+        ))}
+
+      {/* Keyed by the bill: a replaced bill is a new one to read and pay,
+          not the old card with new numbers in it. On a cancelled booking only
+          a bill already paid stays: there is nothing left to pay there, but
+          the customer paid it and should still see it. */}
+      {booking.finalBill &&
+        (booking.status !== 'cancelled' || booking.finalBill.status === 'paid') && (
+          <FinalBillCard
+            key={booking.finalBill.id}
+            booking={booking}
+            bill={booking.finalBill}
+            payment={billPayments[booking.finalBill.id]}
+            onPayment={recordBillPayment}
+            onUpdated={setBooking}
+            customer={{ name: profile?.name, phone: profile?.phone }}
+          />
+        )}
+
+      <JobPhotosCard photos={booking.jobPhotos} />
 
       {missedByGarage && (
         <ScCard>
@@ -788,6 +858,9 @@ export default function BookingDetailPage({
               </div>
               <ScButton
                 className="mt-3"
+                // Quieter while a final bill is due: paying it is the page's
+                // main action.
+                variant={billDue ? 'secondary' : 'primary'}
                 disabled={!rating || submitting}
                 onClick={handleSubmitReview}
               >

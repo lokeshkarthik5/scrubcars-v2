@@ -146,6 +146,22 @@ export const CUSTOMERS = {
    */
   payLaterFull: { id: id(129), phone: '9000000029', name: 'Late Payer Lakshmi', vehicleId: id(738) },
   /**
+   * The final-bill journey's customers, each owning one in-progress
+   * inspection job at VENDORS.inspect (BOOKINGS.billDue / billNone). Their own
+   * customers because the garage's job card is found by the customer's name.
+   */
+  billPayer: { id: id(130), phone: '9000000030', name: 'Bill Payer Bindu', vehicleId: id(739) },
+  billSmall: { id: id(131), phone: '9000000031', name: 'Small Bill Sudha', vehicleId: id(740) },
+  /** Owns nothing at VENDORS.inspect: must get a 404 for anyone else's bill. */
+  billStranger: { id: id(132), phone: '9000000032', name: 'Stranger Sarath', vehicleId: id(741) },
+  /** Owns BOOKINGS.jobRecords, which the garage accepts, starts, photographs and completes. */
+  jobRecords: { id: id(133), phone: '9000000033', name: 'Job Records Janani', vehicleId: id(742) },
+  /**
+   * Owns BOOKINGS.billWebhook, whose bill is settled by the Razorpay webhook
+   * alone — the app never confirms it — and then paid a second time.
+   */
+  billWebhook: { id: id(134), phone: '9000000034', name: 'Webhook Payer Vimala', vehicleId: id(743) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -191,6 +207,11 @@ export const STAFF = {
    * and the owner's company switcher keeps its two companies.
    */
   scheduleOwner: { id: id(205), phone: '9000001006', name: 'Schedule Shalini' },
+  /**
+   * Owns VENDORS.inspect only, so the final-bill journey's garage session
+   * has one company and nothing another spec books.
+   */
+  inspectOwner: { id: id(206), phone: '9000001007', name: 'Inspect Ilango' },
 } as const
 
 export const VENDORS = {
@@ -225,6 +246,12 @@ export const VENDORS = {
    * CAPACITY, whose 09:30/10:00/10:30 the scheduling spec reads as fixed.
    */
   lastBay: { id: id(309), name: 'Last Bay Garage' },
+  /**
+   * Inspection jobs and their final bills, and job records (times, photos).
+   * One on_inspection service; every booking on it is the job-records
+   * journey's. Nobody books it through checkout.
+   */
+  inspect: { id: id(310), name: 'Inspection Test Garage' },
 } as const
 
 /** Filler garages so listing, sorting and infinite scroll have real volume. */
@@ -263,6 +290,11 @@ export const SERVICES = {
   pausedWash: { id: id(412), name: 'Paused Wash', price: '450.00', durationMins: 30 },
   timeOffWash: { id: id(413), name: 'Time Off Wash', price: '450.00', durationMins: 30 },
   lastBayWash: { id: id(414), name: 'Last Bay Wash', price: '450.00', durationMins: 30 },
+  /**
+   * On INSPECT, priced on inspection: ₹299 prepaid, the work billed after.
+   * What makes its bookings eligible for a final bill.
+   */
+  inspectFee: { id: id(415), name: 'Dent Inspection', price: '299.00', durationMins: 60 },
 } as const
 
 export const DISCOUNTS = {
@@ -351,6 +383,18 @@ export const BOOKINGS = {
   adminOpsNoShow: refId('ad905401'),
   /** confirmed + paid, tomorrow: too early for a no-show, so one is refused. */
   adminOpsTooEarly: refId('ad905402'),
+  /**
+   * The final-bill journey's jobs at INSPECT, both in progress and paid ₹299
+   * for the inspection. The garage bills one above the fee (the customer
+   * pays the rest in the app) and one below it (nothing more to pay).
+   */
+  billDue: refId('b111d0e1'),
+  billNone: refId('b111d0e2'),
+  /** pending + paid at INSPECT tomorrow: accepted, started (with a before
+   *  photo) and completed through the portal, to record each step's time. */
+  jobRecords: refId('b111d0e3'),
+  /** in_progress + paid ₹299 at INSPECT: a bill paid through the webhook only. */
+  billWebhook: refId('b111d0e4'),
 } as const
 
 export const VEHICLES = {

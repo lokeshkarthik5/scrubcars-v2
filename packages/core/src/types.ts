@@ -174,6 +174,33 @@ export interface BookingItem {
   /** The pre-discount line price. */
   amount: number
   durationMins: number
+  /** How the service is priced; an inspection fee is not the whole price. */
+  pricingType?: PricingType
+}
+
+/** A photo the garage took of the job: the car before, or the work after. */
+export interface JobPhoto {
+  id: string
+  stage: 'before' | 'after'
+  url: string
+  createdAt: string
+}
+
+/**
+ * The final bill of an inspection job. The customer prepaid the inspection
+ * fee; this is what the work came to, what was already paid, and what is
+ * left (never below zero — nothing is refunded when it comes to less).
+ */
+export interface FinalBill {
+  id: string
+  status: 'due' | 'paid' | 'cancelled' | 'not_needed'
+  lines: Array<{ description: string; amount: number }>
+  total: number
+  paidBefore: number
+  amountDue: number
+  note: string | null
+  paidAt: string | null
+  createdAt: string
 }
 
 export interface Booking {
@@ -240,6 +267,23 @@ export interface Booking {
   /** Set when the customer moved an earlier booking to this new time. */
   rescheduledFromId?: string
   review?: Review
+  /** When each step happened, as ISO strings. Absent until it does. */
+  requestedAtIso: string
+  acceptedAtIso?: string
+  startedAtIso?: string
+  completedAtIso?: string
+  /**
+   * What the booking already covers toward a final bill: its pre-discount
+   * price once the payment landed, otherwise 0. The bill subtracts this, so a
+   * promo code used at checkout stays the customer's.
+   */
+  paidAtBooking: number
+  /** Before/after photos; empty where the payload does not carry them. */
+  jobPhotos: JobPhoto[]
+  /** The final bill that stands, if the garage has raised one. */
+  finalBill: FinalBill | null
+  /** Garage only: the job card can offer "Raise final bill" now. */
+  canRaiseFinalBill: boolean
 }
 
 export interface JobLocation {

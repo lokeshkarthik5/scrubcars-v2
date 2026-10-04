@@ -47,6 +47,7 @@ async function globalSetup() {
 
   await saveState('vendor-owner', STAFF.owner.phone, 'vendor')
   await saveState('vendor-schedule', STAFF.scheduleOwner.phone, 'vendor')
+  await saveState('vendor-inspect', STAFF.inspectOwner.phone, 'vendor')
   await saveState('vendor-operator', STAFF.operator.phone, 'vendor')
   await saveState('super-admin', STAFF.superAdmin.phone, 'vendor')
   await saveAdminState('admin')

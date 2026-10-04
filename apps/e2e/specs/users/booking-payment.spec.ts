@@ -33,6 +33,8 @@ test.describe('payment @p0', () => {
     await checkout.closePromo()
 
     await expect(checkout.cta()).toHaveText('Pay ₹2,298')
+    // Flat-priced services have no final bill to explain.
+    await expect(page.getByText(/You pay the inspection fee now/)).toHaveCount(0)
     await checkout.pay()
 
     // The success burst is keyed off ?celebrate=1, which the page strips once
@@ -166,8 +168,15 @@ test.describe('payment @p0', () => {
     await checkout.pickVehicle(/Maruti Swift/)
 
     // on_inspection is not "unpriced": the customer pays a fixed inspection
-    // fee now and the repair itself is quoted afterwards. resolveServiceAmount
-    // returns `price` for this type, so the CTA asks for payment as normal.
+    // fee now and the rest, if the work costs more, as a final bill in the
+    // app afterwards. resolveServiceAmount returns `price` for this type, so
+    // the CTA asks for payment as normal — and the summary says how the rest
+    // is paid before anyone pays the fee.
     await expect(checkout.cta()).toHaveText('Pay ₹299')
+    await expect(
+      page.getByText(
+        'You pay the inspection fee now. If the work costs more, the garage sends the final bill in the app and you pay the rest here.'
+      )
+    ).toBeVisible()
   })
 })

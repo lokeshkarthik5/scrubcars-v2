@@ -18,6 +18,47 @@ reconstructing every change in them.
 
 ### Added
 
+- **Job records** (migration `0028_job_records_and_final_bill`, which must be
+  applied before deploying): `bookings.accepted_at`, `started_at` and
+  `completed_at`, stamped by the same conditional write that moves the status,
+  and on every booking payload (customer, garage, admin). Older bookings keep
+  them null.
+- **Job photos** (`job_photos`): `GET/POST /vendors/me/bookings/:id/photos`,
+  `POST …/photos/upload-url` (`{ stage, contentType }`, a presigned R2 upload
+  under `vendors/<vendorId>/job-photos/<bookingId>/`), `DELETE
+  …/photos/:photoId`. Open to `vendor_admin` and `vendor_operator`; a job of
+  another garage is a 404. Before photos from acceptance, after photos once
+  started, six per stage, frozen a week after completion; a key outside the
+  job's folder is refused (`INVALID_JOB_PHOTO_KEY`). Customers get them on
+  their booking once the work has started. Rules in `lib/job-records.ts`.
+- **Final bill for inspection jobs** (`booking_charges`): the garage raises
+  it with `POST /vendors/me/bookings/:id/final-bill` (1–20 lines, optional
+  note) on a booking with an on-inspection service, while in progress or up
+  to 3 days after completion, replacing an unpaid one; a paid one is locked
+  (`FINAL_BILL_PAID`). `amount_due` = max(0, total − `paid_before`), where
+  `paid_before` is the booking's pre-discount price once its payment landed
+  (so a promo code is not charged back, and the garage's payout plus the
+  balance equals its bill); none due is `not_needed`, with nothing refunded.
+  Booking payloads with job records carry `paidAtBooking`, the same figure.
+  The customer pays the balance
+  with `POST /bookings/:id/charges/:chargeId/pay` (one Razorpay order per
+  bill, reused on every tap) and `…/verify`; the webhook settles a captured
+  payment whose notes carry `charge_id`, or whose order id is a bill's
+  (amount must match). Settling is
+  conditional on the bill still being due, so the app and the webhook cannot
+  both settle it; a payment landing on a bill the garage replaced, on a
+  booking ops cancelled (which withdraws an unpaid bill), or on a bill already
+  paid is recorded with one internal note and one `final_bill_refund_due`
+  alert, and the app is told it will be refunded (`FINAL_BILL_REFUND_DUE`).
+  Telegram alerts when a bill with a balance is raised and when it is paid.
+  Rules in `lib/final-bill.ts`.
+- Garage **earnings** include final bills paid in the app; the **pilot
+  numbers** count them in revenue and add the median minutes from payment to
+  the garage accepting (`medianAcceptMins`, null under three accepts in the
+  window, with `acceptSamples`). The admin booking list flags a bill still due
+  (`billDue`); the detail carries the bill with its Razorpay ids, the bills it
+  replaced, and the photos.
+
 - **`GET /api/v1/health`** for the uptime monitor: runs `select 1` and
   answers `{ status: 'ok', db: 'ok', version }`, or 503 with `db: 'down'`
   when the database fails or takes over 3 seconds. Public, uncached.
@@ -31,8 +72,8 @@ reconstructing every change in them.
   booking counts once, as the latest row of its chain, in the window of its
   first booking; it is not a customer cancellation. Revenue and the garage
   ranking leave out cancelled bookings (the money goes back), except customer
-  no-shows, where the payment is kept. No time-to-accept: there is no
-  accepted-at timestamp.
+  no-shows, where the payment is kept. (Time-to-accept arrives with
+  `accepted_at`; see job records above.)
 - **Per-phone limit on login codes**, counted from `otp_verifications` (no new
   table): one every 30 seconds and five per rolling hour. Refused with 429
   `OTP_RATE_LIMITED`, a message saying how long to wait, `retryAfterSeconds`

@@ -17,6 +17,29 @@ reconstructing every change in them.
 
 ### Added
 
+- **Final bill for inspection jobs.** After inspecting the car the garage
+  raises the final bill on the job card ("Raise final bill": lines with
+  amounts, a live total, what the customer already paid and the balance, and
+  an optional note; a first bill starts from the services booked), and can
+  replace it until it is paid. The customer sees it
+  on their booking — lines, total, "Paid at booking" (with any discount kept
+  and shown), "To pay" — and pays the
+  balance with a red "Pay ₹Z", with the same no-double-payment handling as Pay
+  Now; or reads "Nothing more to pay" when the work came to no more than the
+  fee. The page keeps checking a finished inspection job for its bill for
+  three days, and keeps a "will be refunded" outcome on screen if the garage
+  replaced the bill mid-payment. Checkout and the service details sheet say how inspection pricing
+  works, and the homepage FAQ answers it.
+- **Job records.** The customer's progress steps show when each happened;
+  the garage's job card says "Accepted 9:15 am · Started 10:42 am"; the admin
+  timeline shows the times. Garages can add optional before and after photos
+  to a job (shrunk to a 1600px JPEG on the phone before upload; removing one
+  is done from the full-size view and asks first); customers see
+  them once the work starts, admin on the booking.
+- **Admin**: a "Bill due ₹Z" badge on bookings with an unpaid final bill, the
+  bill and its Razorpay ids on the booking, and the median time from payment
+  to the garage accepting on the pilot numbers card.
+
 - **Holidays and pausing in the garage portal**: Settings has a Time off tab
   to add or remove holidays (warning when bookings are already on that day)
   and a "Pause new bookings" switch with an optional reason; Home shows a

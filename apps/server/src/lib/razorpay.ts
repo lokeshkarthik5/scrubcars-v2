@@ -52,13 +52,16 @@ export function toPaise(amount: string | number) {
 export async function createRazorpayOrder(input: {
   amount: string
   receipt: string
-  // Exactly one of these identifies what is being paid for. `bookingId` is the
-  // legacy path (an unpaid booking that already exists); `intentId` is the
-  // current one, where the booking is only written once this order is captured.
-  // Both are echoed into `notes` so the webhook can resolve either kind without
-  // depending on which flow opened the checkout.
+  // What is being paid for. `bookingId` alone is the legacy path (an unpaid
+  // booking that already exists); `intentId` is the current one, where the
+  // booking is only written once this order is captured; `chargeId` (with its
+  // `bookingId`) is a final bill paid after the job. All are echoed into
+  // `notes` so the webhook can resolve any kind without depending on which
+  // flow opened the checkout — and it checks `charge_id` first, because a
+  // bill's order carries its booking's id too.
   bookingId?: string
   intentId?: string
+  chargeId?: string
 }) {
   const { keyId, keySecret } = getCredentials()
   const amount = toPaise(input.amount)
@@ -89,6 +92,7 @@ export async function createRazorpayOrder(input: {
       notes: {
         ...(input.bookingId ? { booking_id: input.bookingId } : {}),
         ...(input.intentId ? { intent_id: input.intentId } : {}),
+        ...(input.chargeId ? { charge_id: input.chargeId } : {}),
       },
     }),
   })
@@ -111,6 +115,16 @@ export async function createRazorpayOrder(input: {
     currency: order.currency,
     keyId,
   }
+}
+
+/**
+ * The public key id the checkout sheet opens with. For handing an order that
+ * already exists back to the app (a final bill's order is reused rather than
+ * opened again), where there is no fresh createRazorpayOrder result to read it
+ * from.
+ */
+export function razorpayKeyId(): string {
+  return getCredentials().keyId
 }
 
 export function verifyPaymentSignature(input: {

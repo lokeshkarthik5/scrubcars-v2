@@ -45,6 +45,32 @@ export type OpsAlert =
     }
   | { kind: 'garage_no_show'; booking: AlertBooking }
   | {
+      /** A garage raised the final bill of an inspection job, with a balance. */
+      kind: 'final_bill_raised'
+      booking: AlertBooking
+      totalAmount: string
+      paidBefore: string
+      amountDue: string
+    }
+  | {
+      kind: 'final_bill_paid'
+      booking: AlertBooking
+      amountDue: string
+      paymentId: string
+    }
+  | {
+      /**
+       * A payment landed for a final bill that could no longer take it, and
+       * has to go back: the garage had replaced the bill, Detlio had cancelled
+       * the booking, or the bill was already paid by another payment.
+       */
+      kind: 'final_bill_refund_due'
+      reason: 'replaced' | 'booking_cancelled' | 'paid_twice'
+      booking: AlertBooking
+      amount: string
+      paymentId: string
+    }
+  | {
       kind: 'pending_digest'
       now: Date
       waiting: DigestBooking[]
@@ -157,6 +183,54 @@ export function formatOpsAlert(alert: OpsAlert): string {
         paid
           ? `${rupees(b.amount)} was paid. Refund the customer in full in Razorpay.`
           : 'Not paid online, so nothing to refund.',
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'final_bill_raised': {
+      // Nothing to do yet: the customer pays in the app. Said so ops can
+      // answer the call when a customer rings about a bigger bill.
+      const b = alert.booking
+      return lines(
+        `🧾 Final bill #${reference(b.id)} · ${rupees(alert.totalAmount)} total, ${rupees(alert.amountDue)} to pay`,
+        garageLine(b),
+        services(b),
+        `Paid at booking ${rupees(alert.paidBefore)}. The customer pays the rest in the app.`,
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'final_bill_paid': {
+      const b = alert.booking
+      return lines(
+        `✅ Final bill paid #${reference(b.id)} · ${rupees(alert.amountDue)}`,
+        garageLine(b),
+        `Razorpay payment ${alert.paymentId}`,
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'final_bill_refund_due': {
+      const b = alert.booking
+      const [title, why] = {
+        replaced: [
+          'Final bill paid after it was replaced',
+          'The garage changed the bill while the customer was paying. Refund this payment in Razorpay; the customer was told it would be refunded and can pay the new bill.',
+        ],
+        booking_cancelled: [
+          'Final bill paid after the booking was cancelled',
+          'The booking was cancelled while the customer was paying its bill. Refund this payment in Razorpay; the customer was told it would be refunded.',
+        ],
+        paid_twice: [
+          'Final bill paid twice',
+          'The bill was already paid by another payment. Refund this second one in Razorpay; the customer was told it would be refunded.',
+        ],
+      }[alert.reason]
+      return lines(
+        `⚠️ ${title} #${reference(b.id)} · refund due`,
+        garageLine(b),
+        `${rupees(alert.amount)} · Razorpay payment ${alert.paymentId}`,
+        why,
         adminBookingUrl(b.id)
       )
     }

@@ -177,6 +177,26 @@ export const bookingIntentStatusEnum = pgEnum('booking_intent_status', [
   'failed',
 ])
 
+// When a job photo was taken. 'before' is the car as it arrived, 'after' the
+// work as it was handed back. They are the garage's evidence in a dispute, so
+// the stage is part of the record, not a caption.
+export const jobPhotoStageEnum = pgEnum('job_photo_stage', ['before', 'after'])
+
+// What an extra charge on a booking is for. Only the final bill of an
+// inspection job today; an enum so a second kind is a migration, not a guess.
+export const bookingChargeKindEnum = pgEnum('booking_charge_kind', ['final_bill'])
+
+// Where a charge stands. 'due' waits for the customer to pay in the app;
+// 'not_needed' is a bill that came to no more than they already paid, kept as
+// the record of what the work cost; 'cancelled' is a bill the garage replaced
+// before it was paid. 'paid' is final: a paid bill is never edited.
+export const bookingChargeStatusEnum = pgEnum('booking_charge_status', [
+  'due',
+  'paid',
+  'cancelled',
+  'not_needed',
+])
+
 // The single role vocabulary for the whole product. Values are namespaced by
 // scope rather than by context, so a role name never means two different things
 // depending on which row you found it in — there is deliberately no bare
@@ -702,6 +722,13 @@ export const bookings = pgTable(
     completedBy: uuid('completed_by').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // When each step of the job happened, written by the same conditional
+    // update that moves the status (see 0028). Null on bookings that never
+    // reached the step, and on every booking from before the column existed —
+    // an old job has no recorded time rather than a made-up one.
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -752,6 +779,104 @@ export const bookingNotes = pgTable(
       table.bookingId,
       table.createdAt
     ),
+  ]
+)
+
+// Photos a garage takes of a job: the car before the work and after it. They
+// are evidence if a customer later disputes what was done, so a row is never
+// edited — a wrong photo is removed and another taken — and the garage can
+// only add or remove them for a week after the job is finished (see
+// lib/job-records.ts for the rules).
+//
+// `storage_key` is the object in R2, under vendors/<vendorId>/job-photos/
+// <bookingId>/, which is how the API knows a key it is handed belongs to this
+// booking. `uploaded_by` is the person, not the company, for the same reason
+// as bookings.accepted_by.
+export const jobPhotos = pgTable(
+  'job_photos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    stage: jobPhotoStageEnum('stage').notNull(),
+    storageKey: text('storage_key').notNull(),
+    url: text('url').notNull(),
+    uploadedBy: uuid('uploaded_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Every read is "this booking's photos, by stage, oldest first", and the
+    // per-stage cap counts the same rows.
+    index('job_photos_booking_stage_created_at_idx').on(
+      table.bookingId,
+      table.stage,
+      table.createdAt
+    ),
+  ]
+)
+
+// Money asked of the customer after checkout. Today that is only the final
+// bill of an inspection job: the customer prepaid the inspection fee, the
+// garage looked at the car and did the work, and this is what it came to.
+//
+// The figures are snapshots, written once. `paid_before` is what the booking
+// already covered toward the bill when it was raised: its price before any
+// promo discount, once its payment landed (creditAtBooking in
+// lib/final-bill.ts), so a discount is never charged back. `amount_due` is
+// max(0, total_amount − paid_before), what is left to pay in the app. A bill
+// that comes to no more than that is 'not_needed': there is nothing to pay
+// and nothing is refunded (the inspection fee is the minimum), but the record
+// of what the work cost is kept.
+//
+// A garage can replace an unpaid bill: the old row is cancelled and a new one
+// written, so the history of what the customer was shown survives. At most
+// one bill per booking is ever live (partial unique index below). The
+// Razorpay ids are unique because they are how the webhook finds the bill
+// when the app never comes back to confirm it.
+export const bookingCharges = pgTable(
+  'booking_charges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    kind: bookingChargeKindEnum('kind').notNull(),
+    totalAmount: decimal('total_amount', { precision: 10, scale: 2 }).notNull(),
+    paidBefore: decimal('paid_before', { precision: 10, scale: 2 }).notNull(),
+    amountDue: decimal('amount_due', { precision: 10, scale: 2 }).notNull(),
+    // [{ description, amount }], as the garage typed them. Amounts are decimal
+    // strings, like every other money column.
+    lines: jsonb('lines')
+      .$type<Array<{ description: string; amount: string }>>()
+      .notNull(),
+    note: text('note'),
+    status: bookingChargeStatusEnum('status').notNull(),
+    gatewayOrderId: varchar('gateway_order_id', { length: 255 }).unique(),
+    gatewayPaymentId: varchar('gateway_payment_id', { length: 255 }).unique(),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    createdBy: uuid('created_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('booking_charges_booking_id_idx').on(table.bookingId),
+    // One live final bill per booking. Replacing one cancels the old row in
+    // the same transaction, so two garage members raising a bill at once
+    // cannot both succeed.
+    uniqueIndex('booking_charges_one_live_final_bill')
+      .on(table.bookingId)
+      .where(sql`${table.kind} = 'final_bill' and ${table.status} <> 'cancelled'`),
   ]
 )
 
@@ -1280,11 +1405,27 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
     references: [reviews.bookingId],
   }),
   notes: many(bookingNotes),
+  photos: many(jobPhotos),
+  charges: many(bookingCharges),
 }))
 
 export const bookingNotesRelations = relations(bookingNotes, ({ one }) => ({
   booking: one(bookings, {
     fields: [bookingNotes.bookingId],
+    references: [bookings.id],
+  }),
+}))
+
+export const jobPhotosRelations = relations(jobPhotos, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [jobPhotos.bookingId],
+    references: [bookings.id],
+  }),
+}))
+
+export const bookingChargesRelations = relations(bookingCharges, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [bookingCharges.bookingId],
     references: [bookings.id],
   }),
 }))

@@ -521,7 +521,11 @@ export const FAQS = [
   },
   {
     q: 'How much does it cost?',
-    a: 'Each garage sets its own prices, by car size where it applies. You see the price before you book. Some services charge an upfront inspection fee instead, and the final work is quoted after the inspection.',
+    a: 'Each garage sets its own prices, by car size where it applies. You see the price before you book. Some services charge an upfront inspection fee instead, and the final bill comes after the inspection.',
+  },
+  {
+    q: 'How does inspection pricing work?',
+    a: 'Some work can only be priced once the garage has seen the car. For these you pay the inspection fee when you book. If the work costs more, the garage sends the final bill in the app, showing what you already paid, and you pay the rest there. If it costs no more, there is nothing more to pay.',
   },
   {
     q: 'Where is Detlio available?',

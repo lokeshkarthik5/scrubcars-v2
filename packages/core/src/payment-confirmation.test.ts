@@ -3,6 +3,9 @@ import { ApiError } from '@repo/core/api/client'
 import {
   confirmPayment,
   FALLBACK_REFUND_MESSAGE,
+  FINAL_BILL_CANCELLED_MESSAGE,
+  FINAL_BILL_REPLACED_MESSAGE,
+  finalBillPollResult,
   intentPollResult,
   isRetryable,
   paymentHelpMessage,
@@ -78,6 +81,12 @@ describe('refundMessage', () => {
     expect(refundMessage(refund())).toContain('Your payment will be refunded.')
     expect(refundMessage(refused())).toBeNull()
     expect(refundMessage(network())).toBeNull()
+  })
+
+  test('so does a final bill paid after the garage replaced it', () => {
+    const replaced = new ApiError(409, FINAL_BILL_REPLACED_MESSAGE, 'FINAL_BILL_REFUND_DUE')
+    expect(refundMessage(replaced)).toBe(FINAL_BILL_REPLACED_MESSAGE)
+    expect(refundMessage(new ApiError(409, 'This bill is already paid.', 'CHARGE_ALREADY_PAID'))).toBeNull()
   })
 })
 
@@ -207,9 +216,57 @@ describe('intentPollResult', () => {
   })
 })
 
+describe('finalBillPollResult', () => {
+  test('the bill that stands, paid, is done', () => {
+    expect(finalBillPollResult('b1', 'c1', { id: 'c1', status: 'paid' })).toEqual({
+      kind: 'booked',
+      bookingId: 'b1',
+    })
+  })
+
+  test('still due is still on its way: the webhook may settle it', () => {
+    expect(finalBillPollResult('b1', 'c1', { id: 'c1', status: 'due' })).toEqual({ kind: 'pending' })
+  })
+
+  test('another bill standing in its place means the one paid for was replaced', () => {
+    expect(finalBillPollResult('b1', 'c1', { id: 'c2', status: 'due' })).toEqual({
+      kind: 'failed',
+      message: FINAL_BILL_REPLACED_MESSAGE,
+    })
+    expect(finalBillPollResult('b1', 'c1', null)).toEqual({
+      kind: 'failed',
+      message: FINAL_BILL_REPLACED_MESSAGE,
+    })
+  })
+
+  test('no bill standing on a cancelled booking means the booking was cancelled, not the bill changed', () => {
+    expect(finalBillPollResult('b1', 'c1', null, 'cancelled')).toEqual({
+      kind: 'failed',
+      message: FINAL_BILL_CANCELLED_MESSAGE,
+    })
+    expect(finalBillPollResult('b1', 'c1', null, 'in_progress')).toEqual({
+      kind: 'failed',
+      message: FINAL_BILL_REPLACED_MESSAGE,
+    })
+  })
+
+  test('confirmPayment never asks again once the bill is paid by the webhook', async () => {
+    const clock = fakeClock()
+    let looks = 0
+    const outcome = await confirmPayment({
+      verify: async () => {
+        throw new TypeError('Failed to fetch')
+      },
+      poll: async () => finalBillPollResult('b1', 'c1', { id: 'c1', status: ++looks < 3 ? 'due' : 'paid' }),
+      ...clock,
+    })
+    expect(outcome).toEqual({ kind: 'booked', bookingId: 'b1' })
+  })
+})
+
 describe('paymentHelpMessage', () => {
   test('carries the payment id, whatever the situation', () => {
-    for (const situation of ['missing_booking', 'not_marked_paid', 'refund'] as const) {
+    for (const situation of ['missing_booking', 'not_marked_paid', 'bill_not_marked_paid', 'refund', 'bill_refund'] as const) {
       expect(paymentHelpMessage('pay_ABC123', situation)).toContain('Payment ID: pay_ABC123')
     }
   })
@@ -226,5 +283,17 @@ describe('paymentHelpMessage', () => {
 
   test('the Pay Now case says the booking does not show the payment', () => {
     expect(paymentHelpMessage('pay_ABC123', 'not_marked_paid')).toContain("doesn't show as paid yet")
+  })
+
+  test('a final bill refund is about the bill, not a booking that was never made', () => {
+    const message = paymentHelpMessage('pay_ABC123', 'bill_refund')
+    expect(message).toContain('paid the final bill for my booking and was told this payment will be refunded')
+    expect(message).not.toContain("couldn't be made into a booking")
+  })
+
+  test('a final bill says it is the bill that does not show as paid', () => {
+    expect(paymentHelpMessage('pay_ABC123', 'bill_not_marked_paid')).toContain(
+      "paid the final bill for my booking but it doesn't show as paid yet"
+    )
   })
 })
