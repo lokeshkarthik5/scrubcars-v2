@@ -173,7 +173,7 @@ export function shouldOfferLocationPrompt(state: {
  * finer than any sort needs and coarse enough that we are not shipping someone's
  * doorstep to the server to browse car washes.
  */
-export function coarse(location: ActiveLocation): { lat: number; lng: number } {
+export function coarse(location: Pick<ActiveLocation, 'lat' | 'lng'>): { lat: number; lng: number } {
   return {
     lat: Number(location.lat.toFixed(3)),
     lng: Number(location.lng.toFixed(3)),

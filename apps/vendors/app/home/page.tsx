@@ -17,6 +17,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { computeVendorDashboardStats } from '@repo/core/vendor-stats'
 import type { Review } from '@repo/core/types'
+import { JobContact } from '@/components/job-contact'
 
 export default function VendorHomePage() {
   const user = useAuthStore((s) => s.user)
@@ -143,6 +144,7 @@ export default function VendorHomePage() {
                     </div>
                     <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
                   </div>
+                  <JobContact booking={b} />
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <ScButton variant="secondary" onClick={() => updateStatus(b.id, 'cancelled').then(() => toast.success('Booking rejected')).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to reject'))}>Reject</ScButton>
                     <ScButton onClick={() => updateStatus(b.id, 'confirmed').then(() => toast.success('Booking accepted')).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to accept'))}>Accept</ScButton>

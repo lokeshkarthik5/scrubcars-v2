@@ -53,3 +53,21 @@ export function formatDistance(km: number | null): string {
   if (km < 1) return `${Math.round(km * 1000)} m`
   return `${km.toFixed(1)} km`
 }
+
+/**
+ * Kilometres between two points as the crow flies (haversine). The fallback
+ * when road routing is unavailable — always shown as a distance, never turned
+ * into a time, for the reason formatDistance gives.
+ */
+export function straightLineKm(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+): number {
+  const rad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = rad(to.lat - from.lat)
+  const dLng = rad(to.lng - from.lng)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(from.lat)) * Math.cos(rad(to.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(h))
+}

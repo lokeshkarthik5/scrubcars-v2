@@ -66,6 +66,10 @@ type BookingWithRelations = {
     businessName: string
     phone: string
     city: string
+    address: string
+    lat: number | null
+    lng: number | null
+    whatsapp: string | null
   } | null
   service?: {
     id: string
@@ -158,12 +162,19 @@ function toBookingResponse(booking: BookingWithRelations) {
           phone: booking.user.phone,
         }
       : null,
+    // Where the garage is and how to reach it: the customer's booking page
+    // gives directions and a call/WhatsApp button from these. All of it is
+    // already public on the garage page.
     vendor: booking.vendor
       ? {
           id: booking.vendor.id,
           businessName: booking.vendor.businessName,
           phone: booking.vendor.phone,
           city: booking.vendor.city,
+          address: booking.vendor.address,
+          lat: booking.vendor.lat,
+          lng: booking.vendor.lng,
+          whatsapp: booking.vendor.whatsapp,
         }
       : null,
     // The services this booking is for, in the order they were picked, with

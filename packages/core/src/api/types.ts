@@ -301,6 +301,12 @@ export interface ApiBooking {
     businessName: string
     phone: string
     city: string
+    // Optional: the API and the apps deploy separately, so a client can meet
+    // a server that does not send these yet.
+    address?: string
+    lat?: number | null
+    lng?: number | null
+    whatsapp?: string | null
   } | null
   /** Every service on the booking, priced and named as sold. */
   items: Array<{

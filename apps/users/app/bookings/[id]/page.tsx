@@ -2,7 +2,13 @@
 
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconCreditCard, IconHome, IconMapPin } from '@tabler/icons-react'
+import {
+  IconCreditCard,
+  IconHelpCircle,
+  IconHome,
+  IconMapPin,
+  IconNavigation,
+} from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge, customerBookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -20,10 +26,17 @@ import { submitReview } from '@repo/core/api/reviews'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { formatBookingAmount } from '@repo/core/pricing'
-import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
+import { BOOKING_TYPE_LABELS, bookingReference } from '@repo/core/booking-types'
+import { useTravelTime } from '@repo/core/api/hooks/use-travel-time'
+import { coarse, isStale, useLocationStore } from '@repo/core/stores/location-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
+import { BookingDirectionsSheet, describeDrive } from '@/components/booking-directions-sheet'
+import { BookingHelpSheet } from '@/components/booking-help-sheet'
+
+/** A booking the customer still has to get to, or is at. */
+const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress'])
 
 export default function BookingDetailPage({
   params,
@@ -49,6 +62,14 @@ export default function BookingDetailPage({
   const [rescheduleSlot, setRescheduleSlot] = useState<string | null>(null)
   const [rescheduling, setRescheduling] = useState(false)
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
+  const [showDirections, setShowDirections] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  // A drive time on the Getting there card only when the customer has just
+  // shared their GPS: the page never asks for location by being opened, and a
+  // fix from last week at home is not "from you" today.
+  const storedLocation = useLocationStore((s) => s.location)
+  const gpsHere =
+    storedLocation?.source === 'gps' && !isStale(storedLocation) ? coarse(storedLocation) : null
   // The booking flow lands here with ?celebrate=1 straight after payment.
   // Read once into state rather than watching the URL, so the burst plays a
   // single time and a refresh doesn't replay it (the param is stripped below).
@@ -182,6 +203,22 @@ export default function BookingDetailPage({
     }
   }
 
+  // Above the early returns with the other hooks. Disabled until both ends
+  // are known, so it costs nothing for a doorstep job or an unpinned garage.
+  // Only with somewhere real to send them: a pin or a street address. A
+  // server older than this page sends neither, and directions to "Chennai"
+  // would be worse than no card.
+  const garage = booking?.garage
+  const findable = !!garage && ((garage.lat !== null && garage.lng !== null) || !!garage.address)
+  const gettingThere =
+    booking?.bookingType === 'dropin' && OPEN_STATUSES.has(booking.status) && findable
+      ? garage
+      : undefined
+  const travel = useTravelTime(
+    gettingThere ? gpsHere : null,
+    gettingThere ? { lat: gettingThere.lat, lng: gettingThere.lng } : null
+  )
+
   if (loadError) {
     return (
       <AppShell showNav className="py-4">
@@ -230,7 +267,7 @@ export default function BookingDetailPage({
       <div className="flex items-center justify-between gap-3">
         {/* Short, human-quotable reference derived from the booking UUID. */}
         <span className="text-[13px] text-text-secondary">
-          Booking #{booking.id.slice(0, 8).toUpperCase()}
+          Booking #{bookingReference(booking.id)}
         </span>
         <ScBadge variant={statusBadge.variant} className="uppercase tracking-wide">
           {statusBadge.label}
@@ -256,6 +293,13 @@ export default function BookingDetailPage({
             {BOOKING_TYPE_LABELS[booking.bookingType]}
           </span>
         </div>
+        {/* Where the garage comes to, so a wrong address is caught before
+            anyone sets off. */}
+        {booking.jobLocation && (
+          <p className="mt-1 pl-[23px] text-[12px] text-text-secondary">
+            {booking.jobLocation.address}
+          </p>
+        )}
 
         {/* A booking that is cancelled (including one cancelled by a
             reschedule) has no progress to show, and the stepper reads a
@@ -325,6 +369,51 @@ export default function BookingDetailPage({
           </span>
         </div>
       </ScCard>
+
+      {gettingThere && (
+        <ScCard className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-primary">Getting there</h2>
+            {gettingThere.address && (
+              <p className="mt-0.5 text-[12px] text-text-secondary">
+                {[gettingThere.address, gettingThere.city].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {travel.data && (
+              <p className="mt-1 text-[12px] text-text-secondary">
+                {describeDrive(travel.data).atGarage ? (
+                  "You're at the garage."
+                ) : (
+                  <>
+                    <span className="font-numeric font-bold text-text-primary">
+                      {describeDrive(travel.data).time}
+                    </span>{' '}
+                    drive from you
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+          <ScButton
+            variant="secondary"
+            fullWidth={false}
+            onClick={() => setShowDirections(true)}
+            className="flex shrink-0 items-center gap-1.5 px-4"
+          >
+            <IconNavigation size={16} aria-hidden />
+            Directions
+          </ScButton>
+        </ScCard>
+      )}
+
+      <ScButton
+        variant="secondary"
+        onClick={() => setShowHelp(true)}
+        className="flex items-center justify-center gap-2"
+      >
+        <IconHelpCircle size={18} aria-hidden />
+        Help with this booking
+      </ScButton>
 
       {booking.status === 'rescheduled' && (
         <ScCard>
@@ -474,6 +563,15 @@ export default function BookingDetailPage({
           )}
         </ScCard>
       )}
+
+      {gettingThere && (
+        <BookingDirectionsSheet
+          open={showDirections}
+          onClose={() => setShowDirections(false)}
+          booking={booking}
+        />
+      )}
+      <BookingHelpSheet open={showHelp} onClose={() => setShowHelp(false)} booking={booking} />
 
       {/* dismissible=false while the reschedule is in flight, so a stray tap on
           the backdrop can't close the sheet mid-request. */}
