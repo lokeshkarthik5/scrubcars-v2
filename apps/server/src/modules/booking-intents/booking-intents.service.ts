@@ -193,7 +193,7 @@ async function failIntent(
   reason: string,
   message: string
 ): Promise<never> {
-  await bookingIntentsRepository.markFailed(
+  const [recorded] = await bookingIntentsRepository.markFailed(
     params.intentId,
     params.razorpayPaymentId,
     reason
@@ -209,9 +209,10 @@ async function failIntent(
   )
 
   // Money captured, no booking: someone has to refund it, and until now the
-  // error log above was the only place that said so. 'previously_failed' does
-  // not come through here, so a retried confirm does not alert twice.
-  alertOps(async () => {
+  // error log above was the only place that said so. Only the call that
+  // recorded the failure alerts — a racing confirm, or a later retry
+  // ('previously_failed'), does not flag the same refund twice.
+  if (recorded) alertOps(async () => {
     const intent = await bookingIntentsRepository.findById(params.intentId)
     const vendor = intent ? await vendorsRepository.findVendorById(intent.vendorId) : null
     return {

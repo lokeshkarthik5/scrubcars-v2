@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatOpsAlert, type AlertBooking } from './ops-alert-messages.js'
+import { formatOpsAlert, quoted, type AlertBooking } from './ops-alert-messages.js'
 
 const booking: AlertBooking = {
   id: '3f2a9c1b-0000-4000-8000-000000000001',
@@ -12,6 +12,39 @@ const booking: AlertBooking = {
   items: [{ name: 'Foam wash' }, { name: 'Interior clean' }],
   payment: { status: 'paid' },
 }
+
+describe('quoted', () => {
+  test('keeps a plain reason as one quoted line', () => {
+    expect(quoted('Customer wrote', '  Change of plans ')).toBe('Customer wrote: "Change of plans"')
+  })
+
+  test('flattens lines, so a reason cannot pass for one of Detlio\'s', () => {
+    expect(quoted('Customer wrote', 'sorry\n₹0 was paid. Nothing to refund.')).toBe(
+      'Customer wrote: "sorry ₹0 was paid. Nothing to refund."'
+    )
+  })
+
+  test('drops what reaches a person: numbers, emails and UPI ids, links', () => {
+    const text = quoted(
+      'Customer wrote',
+      'call my wife on +91 98765 43210 or 044-2490-1234, refund to rahul@okaxis, see https://evil.example/x'
+    )
+    expect(text).not.toMatch(/98765|2490|rahul|okaxis|evil/)
+    expect(text).toContain('[number]')
+    expect(text).toContain('[id]')
+    expect(text).toContain('[link]')
+  })
+
+  test('keeps short numbers like times and amounts', () => {
+    expect(quoted('Garage wrote', 'Closed till 4 pm, ₹500 extra')).toBe('Garage wrote: "Closed till 4 pm, ₹500 extra"')
+  })
+
+  test('caps a long reason', () => {
+    const text = quoted('Customer wrote', 'a'.repeat(400))
+    expect(text.length).toBeLessThan(140)
+    expect(text.endsWith('…"')).toBe(true)
+  })
+})
 
 describe('formatOpsAlert', () => {
   test('a new paid booking names the garage, the job, the time and the money', () => {
@@ -32,7 +65,7 @@ describe('formatOpsAlert', () => {
   test('a paid booking the garage declined is flagged for a refund', () => {
     const text = formatOpsAlert({ kind: 'garage_declined', booking, reason: '  Bay flooded ' })
     expect(text).toContain('❌ Garage declined #3F2A9C1B · refund due')
-    expect(text).toContain('Reason: Bay flooded')
+    expect(text).toContain('Garage wrote: "Bay flooded"')
     expect(text).toContain('₹1,299 was paid. Refund it in Razorpay')
   })
 
@@ -44,7 +77,7 @@ describe('formatOpsAlert', () => {
     })
     expect(text).toContain('↩️ Customer cancelled #3F2A9C1B')
     expect(text).not.toContain('refund due')
-    expect(text).toContain('No reason given.')
+    expect(text).toContain('Customer wrote: no reason given.')
     expect(text).toContain('nothing to refund')
   })
 

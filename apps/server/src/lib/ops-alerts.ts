@@ -1,6 +1,7 @@
 import { env } from './env.js'
 import { logger } from './logger.js'
 import { runInBackground } from './background.js'
+import { opsAlertChat } from './ops-alert-gate.js'
 import { formatOpsAlert, type OpsAlert } from './ops-alert-messages.js'
 import { sendTelegramMessage } from './telegram.js'
 
@@ -14,15 +15,22 @@ const log = logger.child({ module: 'ops-alerts' })
  *
  * Fire and forget: it returns at once, never throws, and a failed send is
  * logged and dropped — an alert must never slow down or fail the booking it
- * is about. Off (and free of any DB read) unless both Telegram variables are
- * set, so development, E2E and previews never message the real team.
+ * is about. Off, and free of any DB read, everywhere but Production (see
+ * ops-alert-gate.ts), so development, E2E and previews never message the
+ * real team.
  *
  * Pass a loader instead of an alert when the facts still need reading: it
  * runs after the response, and only when alerts are on.
  */
 export function alertOps(alert: OpsAlert | (() => Promise<OpsAlert | null>)): void {
-  const chatId = env.telegramOpsChatId
-  if (!env.telegramBotToken || !chatId) {
+  const chatId = opsAlertChat({
+    token: env.telegramBotToken,
+    chatId: env.telegramOpsChatId,
+    vercelEnv: env.vercelEnv,
+    forced: env.opsAlertsForced,
+    fakePayments: env.e2eFakePayments,
+  })
+  if (!chatId) {
     log.debug({ kind: typeof alert === 'function' ? 'deferred' : alert.kind }, 'ops_alert:off')
     return
   }

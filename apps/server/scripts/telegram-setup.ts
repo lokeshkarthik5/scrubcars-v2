@@ -1,17 +1,20 @@
 /**
  * Connecting booking alerts to the team's Telegram group.
  *
- *   bun run alerts:telegram         list the chats the bot has been added to
- *   bun run alerts:telegram --test  send a test message to TELEGRAM_OPS_CHAT_ID
+ *   TELEGRAM_BOT_TOKEN=… bun run alerts:telegram
+ *       lists the groups the bot has been added to, with their ids
+ *   TELEGRAM_BOT_TOKEN=… TELEGRAM_OPS_CHAT_ID=… bun run alerts:telegram --test
+ *       sends a test message to that group
  *
- * Reads TELEGRAM_BOT_TOKEN (and TELEGRAM_OPS_CHAT_ID for --test) from the
- * environment or .env. Standalone on purpose — it does not load the app's env
- * module, so it runs without a database URL or any other server secret.
+ * The values are passed on the command line, not read from .env, on purpose:
+ * a token saved in apps/server/.env would also be picked up by local dev and
+ * E2E runs. Standalone — it needs no database URL or other server secret.
  *
- * Telegram keeps a bot's pending updates for 24 hours, so run the listing soon
- * after adding the bot to the group (or send a message in the group first).
+ * Telegram keeps a bot's updates for 24 hours, and a bot in a group sees only
+ * commands addressed to it, not ordinary messages. If the listing is empty,
+ * send /start@<bot username> in the group, or remove and re-add the bot, and
+ * run it again.
  */
-import 'dotenv/config'
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 const chatId = process.env.TELEGRAM_OPS_CHAT_ID
@@ -22,6 +25,9 @@ type Update = {
   message?: { chat: Chat; migrate_to_chat_id?: number }
   my_chat_member?: { chat: Chat; new_chat_member: { status: string } }
 }
+
+/** The bot is no longer in a chat it was removed from or left. */
+const GONE = new Set(['left', 'kicked'])
 
 async function main() {
   if (!token) {
@@ -54,19 +60,27 @@ async function main() {
     process.exit(1)
   }
 
+  // Updates arrive oldest first, so the last word on each chat wins.
   const chats = new Map<number, string>()
   for (const update of body.result ?? []) {
     const chat = update.my_chat_member?.chat ?? update.message?.chat
     if (!chat || chat.type === 'private') continue
+    if (update.my_chat_member && GONE.has(update.my_chat_member.new_chat_member.status)) {
+      chats.delete(chat.id)
+      continue
+    }
     chats.set(chat.id, `${chat.title ?? '(untitled)'} [${chat.type}]`)
     // A group upgraded to a supergroup gets a new id; the old one stops working.
     const movedTo = update.message?.migrate_to_chat_id
-    if (movedTo) chats.set(movedTo, `${chat.title ?? '(untitled)'} [supergroup, use this one]`)
+    if (movedTo) {
+      chats.delete(chat.id)
+      chats.set(movedTo, `${chat.title ?? '(untitled)'} [supergroup]`)
+    }
   }
 
   if (chats.size === 0) {
     console.log(
-      'No groups yet. Add the bot to the team group, send any message there, then run this again.'
+      'No groups found. In the team group send /start@<bot username> (or remove and re-add the bot), then run this again.'
     )
     return
   }

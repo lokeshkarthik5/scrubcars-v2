@@ -15,9 +15,11 @@ const log = logger.child({ module: 'background' })
  */
 export function runInBackground(label: string, task: () => Promise<unknown>): void {
   try {
-    // Through a resolved promise, so a task that throws before its first
-    // await is caught here too rather than escaping into the request.
-    const promise = Promise.resolve()
+    // Started on the next turn of the event loop, after the request's own
+    // queued work: with a single database connection, a background read
+    // started sooner would sit ahead of the query the response is waiting on.
+    // A task that throws before its first await is caught here too.
+    const promise = new Promise((resolve) => setImmediate(resolve))
       .then(task)
       .catch((err) => log.error({ err, task: label }, 'background:failed'))
     waitUntil(promise)

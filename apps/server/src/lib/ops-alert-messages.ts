@@ -61,10 +61,10 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `❌ Garage declined #${reference(b.id)}${paid ? ' · refund due' : ''}`,
         garageLine(b),
         `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
-        alert.reason?.trim() ? `Reason: ${alert.reason.trim()}` : 'No reason given.',
         paid
           ? `${rupees(b.amount)} was paid. Refund it in Razorpay, and offer the customer another garage.`
           : 'Not paid online, so nothing to refund.',
+        quoted('Garage wrote', alert.reason),
         ADMIN_BOOKINGS_URL
       )
     }
@@ -76,10 +76,10 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `↩️ Customer cancelled #${reference(b.id)}${paid ? ' · refund due' : ''}`,
         garageLine(b),
         `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
-        alert.reason?.trim() ? `Reason: ${alert.reason.trim()}` : 'No reason given.',
         paid
           ? `${rupees(b.amount)} was paid. Refund it in Razorpay.`
           : 'Not paid online, so nothing to refund.',
+        quoted('Customer wrote', alert.reason),
         ADMIN_BOOKINGS_URL
       )
     }
@@ -114,6 +114,29 @@ const FAILURE_REASONS: Record<string, string> = {
   intent_expired: 'the checkout expired before the payment went through',
   vehicle_double_booked: 'that car already had a booking at that time',
   discount_exhausted: 'the promo code ran out before the payment went through',
+}
+
+/**
+ * Someone's own words, as one clearly quoted line under Detlio's.
+ *
+ * A reason is typed by a customer or a garage, and it lands in a group chat
+ * that keeps everything: so it is flattened to one line (no faking a line of
+ * Detlio's instructions), capped, and stripped of anything that reaches a
+ * person or account — numbers, emails and UPI ids, links. The full text stays
+ * on the booking for admin.
+ */
+const QUOTE_MAX = 120
+
+export function quoted(label: string, text: string | null | undefined): string {
+  const clean = (text ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, '[link]')
+    .replace(/\S+@\S+/g, '[id]')
+    .replace(/\+?\d[\d\s-]{5,}\d/g, '[number]')
+    .trim()
+  if (!clean) return `${label}: no reason given.`
+  const short = clean.length > QUOTE_MAX ? `${clean.slice(0, QUOTE_MAX - 1).trimEnd()}…` : clean
+  return `${label}: "${short.replace(/"/g, "'")}"`
 }
 
 function lines(...parts: Array<string | null | undefined>): string {

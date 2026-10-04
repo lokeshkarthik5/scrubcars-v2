@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookingIntentItems,
@@ -87,11 +87,17 @@ export const bookingIntentsRepository = {
     })
   },
 
+  /**
+   * Records a captured payment that produced no booking. Only a still-pending
+   * intent is written: when the browser callback and the webhook both fail
+   * the same intent, the second write matches nothing and returns no row, so
+   * the refund is flagged once.
+   */
   markFailed(intentId: string, paymentRef: string, failureReason: string) {
     return db
       .update(bookingIntents)
       .set({ status: 'failed', paymentRef, failureReason })
-      .where(eq(bookingIntents.id, intentId))
+      .where(and(eq(bookingIntents.id, intentId), eq(bookingIntents.status, 'pending')))
       .returning()
   },
 
