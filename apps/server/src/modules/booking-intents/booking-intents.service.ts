@@ -1,7 +1,10 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
+import { alertOps } from '../../lib/ops-alerts.js'
 import { createRazorpayOrder } from '../../lib/razorpay.js'
+import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { resolveBookingDraft } from '../bookings/bookings.service.js'
+import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
 import type { CreateBookingIntentInput } from './booking-intents.validation.js'
@@ -125,6 +128,14 @@ async function handleConsumeResult(
         },
         'booking_intent:consumed'
       )
+      // Exactly once per booking: the browser callback and the webhook race to
+      // consume the intent, and only the winner lands here ('already' is the
+      // loser). The booking is read after the response, and only if alerts
+      // are on.
+      alertOps(async () => {
+        const booking = await bookingsRepository.findBookingById(result.bookingId)
+        return booking ? { kind: 'booking_paid', booking } : null
+      })
       return { bookingId: result.bookingId, created: true }
 
     case 'already':
@@ -196,6 +207,22 @@ async function failIntent(
     },
     'booking_intent:confirm_failed_refund_due'
   )
+
+  // Money captured, no booking: someone has to refund it, and until now the
+  // error log above was the only place that said so. 'previously_failed' does
+  // not come through here, so a retried confirm does not alert twice.
+  alertOps(async () => {
+    const intent = await bookingIntentsRepository.findById(params.intentId)
+    const vendor = intent ? await vendorsRepository.findVendorById(intent.vendorId) : null
+    return {
+      kind: 'paid_no_booking',
+      paymentId: params.razorpayPaymentId,
+      reason,
+      amount: intent?.amount,
+      garageName: vendor?.businessName,
+      scheduledAt: intent?.scheduledAt,
+    }
+  })
 
   throw new AppError(409, message, 'BOOKING_CONFIRM_FAILED_REFUND_DUE')
 }

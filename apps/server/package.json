@@ -13,6 +13,7 @@
     "seed": "bash scripts/seed.sh",
     "seed:users": "bash scripts/seed.sh --users",
     "seed:vendors": "bash scripts/seed.sh --vendors",
+    "alerts:telegram": "tsx scripts/telegram-setup.ts",
     "test": "bun test"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1101.0",
     "@hono/node-server": "^2.0.6",
     "@hono/zod-validator": "^0.8.0",
+    "@vercel/functions": "^3.9.11",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.27",

@@ -78,6 +78,13 @@ export const env = {
         'https://admin.detlio.com',
       ],
   smsApiKey: process.env.SMS,
+  // ─── Ops alerts ────────────────────────────────────────────────────────────
+  // A Telegram bot that posts booking events (new paid booking, refund due,
+  // decline, cancel, reschedule) into the Detlio team's group. Both unset —
+  // as in development, E2E and previews — turns alerts off and nothing else
+  // changes. The token is a password for the bot: Production only.
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
+  telegramOpsChatId: process.env.TELEGRAM_OPS_CHAT_ID,
   adminUsername: process.env.ADMIN_USERNAME ?? 'admin',
   adminPassword:
     process.env.ADMIN_PASSWORD ??
