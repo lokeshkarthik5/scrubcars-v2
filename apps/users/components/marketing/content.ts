@@ -245,7 +245,7 @@ export const STEPS = [
   },
   {
     title: 'Choose how and when',
-    body: 'Pick a slot at least 2 hours ahead at the garage, or 3 hours ahead for doorstep. Visit the garage, or book doorstep service where the garage offers it. Pickup & drop is coming soon.',
+    body: 'Pick a slot at least an hour ahead at the garage, or 3 hours ahead for doorstep. Visit the garage, or book doorstep service where the garage offers it. Pickup & drop is coming soon.',
   },
   {
     title: 'Pay securely',

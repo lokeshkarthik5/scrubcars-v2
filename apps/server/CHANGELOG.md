@@ -29,7 +29,7 @@ reconstructing every change in them.
 
 ### Changed
 
-- **Minimum notice**: 2 hours at the garage, 3 doorstep, for the slot list
+- **Minimum notice**: 1 hour at the garage, 3 doorstep, for the slot list
   (`booking_type` query param; `fitsInDay` and `minNoticeMins` in the
   response), checkout intents and reschedules (`SLOT_TOO_SOON`).
 - **Cancel and reschedule cutoff** applies only once the garage has accepted; a

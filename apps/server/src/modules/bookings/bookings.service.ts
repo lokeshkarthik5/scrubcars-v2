@@ -19,7 +19,7 @@ import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
 
-/** Refuses a booking that starts too soon for its type (2h at the garage, 3h doorstep). */
+/** Refuses a booking that starts too soon for its type (1h at the garage, 3h doorstep). */
 function assertMinNotice(scheduledAt: Date, bookingType: 'dropin' | 'doorstep') {
   if (!meetsMinNotice(scheduledAt, bookingType)) {
     throw new AppError(400, minNoticeMessage(bookingType), 'SLOT_TOO_SOON')
@@ -456,7 +456,8 @@ export async function resolveBookingDraft(
   // Time for the garage to see and accept it, and for a doorstep crew to get
   // there. Checked here, before any payment order exists, so a refusal costs
   // the customer nothing. (Payment itself does not re-check: an intent lives
-  // 30 minutes, so a booking paid late still has at least 1h30 of notice.)
+  // 30 minutes, so a booking paid late still has at least 30 minutes' notice
+  // at the garage and 2h30 doorstep — and never starts in the past.)
   assertMinNotice(scheduledAt, input.bookingType)
 
   const vendor = await bookingsRepository.findPublicVendorById(input.vendorId)

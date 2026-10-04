@@ -104,7 +104,7 @@ test.describe('reschedule @p0', () => {
 
   test('a new time without enough notice is refused', async ({ page }) => {
     // Any slot: the notice is checked before the garage's hours or grid.
-    const soon = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    const soon = new Date(Date.now() + 30 * 60 * 1000).toISOString()
     const response = await page.request.patch(
       `${API}/api/v1/bookings/${BOOKINGS.reschedulePendingSoon}/reschedule`,
       { data: { scheduledAt: soon } }
@@ -112,7 +112,7 @@ test.describe('reschedule @p0', () => {
     expect(response.status()).toBe(400)
     const body = await response.json()
     expect(body.code).toBe('SLOT_TOO_SOON')
-    expect(body.message).toMatch(/2 hours' notice/)
+    expect(body.message).toMatch(/1 hour's notice/)
     expect((await getBooking(BOOKINGS.reschedulePendingSoon))?.reschedule_count).toBe(0)
   })
 

@@ -1,5 +1,5 @@
 /**
- * Minimum notice: a slot must start at least 2 hours out at the garage and 3
+ * Minimum notice: a slot must start at least 1 hour out at the garage and 3
  * hours out for doorstep.
  *
  * Checked as an invariant on the slot list rather than by booking a near time:
@@ -35,15 +35,15 @@ async function slots(
 }
 
 test.describe('booking notice @p0', () => {
-  test('today offers nothing sooner than 2 hours at the garage or 3 doorstep', async ({ request }) => {
+  test('today offers nothing sooner than 1 hour at the garage or 3 doorstep', async ({ request }) => {
     const asked = Date.now()
     const dropin = await slots(request, istDate(0), 'dropin')
     const doorstep = await slots(request, istDate(0), 'doorstep')
 
-    expect(dropin.minNoticeMins).toBe(120)
+    expect(dropin.minNoticeMins).toBe(60)
     expect(doorstep.minNoticeMins).toBe(180)
     for (const slot of dropin.slots) {
-      expect(new Date(slot).getTime()).toBeGreaterThanOrEqual(asked + 2 * HOUR - TOLERANCE)
+      expect(new Date(slot).getTime()).toBeGreaterThanOrEqual(asked + 1 * HOUR - TOLERANCE)
     }
     for (const slot of doorstep.slots) {
       expect(new Date(slot).getTime()).toBeGreaterThanOrEqual(asked + 3 * HOUR - TOLERANCE)
@@ -73,18 +73,18 @@ test.describe('booking notice at checkout @p0', () => {
   test.describe('at the garage', () => {
     test.use({ storageState: asRole('customer-book') })
 
-    test('a time under 2 hours away is refused', async ({ request }) => {
+    test('a time under an hour away is refused', async ({ request }) => {
       const response = await intent(request, {
         vendorId: VENDORS.main.id,
         serviceIds: [SERVICES.wash.id],
         vehicleId: CUSTOMERS.book.vehicleId,
         bookingType: 'dropin',
-        scheduledAt: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+        scheduledAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       })
       expect(response.status()).toBe(400)
       const body = await response.json()
       expect(body.code).toBe('SLOT_TOO_SOON')
-      expect(body.message).toMatch(/2 hours' notice/)
+      expect(body.message).toMatch(/1 hour's notice/)
     })
   })
 

@@ -71,9 +71,9 @@ describe('minimum notice', () => {
   const day = computeAvailableSlots({ ...OPEN_DAY, intervalMins: 30, serviceDurationMins: 60 })
   const ist = (time: string) => new Date(`2026-09-01T${time}+05:30`).toISOString()
 
-  it('offers at-garage slots from two hours out', () => {
+  it('offers at-garage slots from an hour out', () => {
     const slots = filterByMinNotice(day, 'dropin', NOW)
-    expect(slots[0]).toBe(ist('12:30:00'))
+    expect(slots[0]).toBe(ist('11:30:00'))
   })
 
   it('offers doorstep slots from three hours out', () => {
@@ -82,8 +82,8 @@ describe('minimum notice', () => {
   })
 
   it('counts a start exactly on the line as enough notice', () => {
-    expect(meetsMinNotice(new Date(NOW + 2 * 3_600_000), 'dropin', NOW)).toBe(true)
-    expect(meetsMinNotice(new Date(NOW + 2 * 3_600_000 - 1), 'dropin', NOW)).toBe(false)
+    expect(meetsMinNotice(new Date(NOW + 3_600_000), 'dropin', NOW)).toBe(true)
+    expect(meetsMinNotice(new Date(NOW + 3_600_000 - 1), 'dropin', NOW)).toBe(false)
   })
 
   it('leaves a later day untouched', () => {
@@ -116,7 +116,7 @@ describe('minimum notice', () => {
   })
 
   it('says how much notice each kind of booking needs', () => {
-    expect(minNoticeMessage('dropin')).toContain('2 hours')
+    expect(minNoticeMessage('dropin')).toContain("at least 1 hour's notice")
     expect(minNoticeMessage('doorstep')).toContain('3 hours')
   })
 })

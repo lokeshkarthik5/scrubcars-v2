@@ -18,12 +18,12 @@ export const BOOKING_TYPE_LABELS: Record<BookingType, string> = {
 export const DEFAULT_BOOKING_TYPE: BookingType = 'dropin'
 
 /**
- * How far ahead a booking must start: 2 hours at the garage, 3 for doorstep.
+ * How far ahead a booking must start: 1 hour at the garage, 3 for doorstep.
  * Mirrors MIN_NOTICE_MS in apps/server/src/lib/slots.ts, which is what
  * actually enforces it — change both together.
  */
 export const MIN_NOTICE_MINS: Record<BookingType, number> = {
-  dropin: 120,
+  dropin: 60,
   doorstep: 180,
 }
 
@@ -32,12 +32,13 @@ export function meetsNotice(iso: string, type: BookingType, now: number = Date.n
   return new Date(iso).getTime() >= now + MIN_NOTICE_MINS[type] * 60_000
 }
 
-/** "At-garage bookings need at least 2 hours' notice." */
+/** "At-garage bookings need at least 1 hour's notice." */
 export function noticeSentence(type: BookingType): string {
   const hours = MIN_NOTICE_MINS[type] / 60
+  const notice = hours === 1 ? "1 hour's notice" : `${hours} hours' notice`
   return type === 'doorstep'
-    ? `Doorstep visits need at least ${hours} hours' notice.`
-    : `At-garage bookings need at least ${hours} hours' notice.`
+    ? `Doorstep visits need at least ${notice}.`
+    : `At-garage bookings need at least ${notice}.`
 }
 
 /**

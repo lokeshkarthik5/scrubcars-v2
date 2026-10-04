@@ -113,7 +113,7 @@ const HOUR_MS = 60 * 60 * 1000
 export type NoticeBookingType = 'dropin' | 'doorstep'
 
 export const MIN_NOTICE_MS: Record<NoticeBookingType, number> = {
-  dropin: 2 * HOUR_MS,
+  dropin: 1 * HOUR_MS,
   doorstep: 3 * HOUR_MS,
 }
 
@@ -147,7 +147,8 @@ export function filterByMinNotice(
 /** "Doorstep visits need at least 3 hours' notice." — for refusals. */
 export function minNoticeMessage(type: NoticeBookingType): string {
   const hours = MIN_NOTICE_MS[type] / HOUR_MS
+  const notice = hours === 1 ? "1 hour's notice" : `${hours} hours' notice`
   return type === 'doorstep'
-    ? `Doorstep visits need at least ${hours} hours' notice. Please pick a later time.`
-    : `At-garage bookings need at least ${hours} hours' notice. Please pick a later time.`
+    ? `Doorstep visits need at least ${notice}. Please pick a later time.`
+    : `At-garage bookings need at least ${notice}. Please pick a later time.`
 }
