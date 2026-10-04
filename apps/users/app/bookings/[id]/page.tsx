@@ -205,7 +205,8 @@ export default function BookingDetailPage({
       } else if (
         code === 'RESCHEDULE_WINDOW_PASSED' ||
         code === 'RESCHEDULE_LIMIT_REACHED' ||
-        code === 'BOOKING_STATE_CHANGED'
+        code === 'BOOKING_STATE_CHANGED' ||
+        code === 'INVALID_BOOKING_STATUS'
       ) {
         // Nothing to pick any more — the booking itself has moved on.
         setShowReschedule(false)
@@ -277,6 +278,10 @@ export default function BookingDetailPage({
   // a "confirmed" booking that the garage then declines teaches customers not
   // to believe this screen, so the moment says exactly what happened.
   const awaitingGarage = booking.status === 'pending'
+  // Still pending at its start time: the garage can no longer accept it (the
+  // server refuses), so the page stops promising that it might.
+  const missedByGarage =
+    booking.status === 'pending' && new Date(booking.scheduledAtIso).getTime() <= now
 
   return (
     <AppShell showNav className="gap-4 py-4">
@@ -339,7 +344,7 @@ export default function BookingDetailPage({
             reschedule) has no progress to show, and the stepper reads a
             status it doesn't know as an open request. The panel below
             explains the state instead. */}
-        {booking.status !== 'rescheduled' && booking.status !== 'cancelled' && (
+        {booking.status !== 'rescheduled' && booking.status !== 'cancelled' && !missedByGarage && (
           <>
             <div className="my-4 h-px bg-border" />
             <StatusStepper status={booking.status} />
@@ -404,7 +409,20 @@ export default function BookingDetailPage({
         </div>
       </ScCard>
 
-      {gettingThere && (
+      {missedByGarage && (
+        <ScCard>
+          <h2 className="mb-1 text-sm font-semibold text-text-primary">
+            {booking.vendorName} didn&apos;t accept in time
+          </h2>
+          <p className="text-[13px] text-text-secondary">
+            Your booking time has passed without the garage accepting, so this booking won&apos;t go
+            ahead. Cancel it or pick a new time below, or use Help with this booking about your
+            payment.
+          </p>
+        </ScCard>
+      )}
+
+      {gettingThere && !missedByGarage && (
         <ScCard className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-text-primary">Getting there</h2>
@@ -453,8 +471,8 @@ export default function BookingDetailPage({
         <ScCard>
           <h2 className="mb-1 text-sm font-semibold text-text-primary">Rescheduled</h2>
           <p className="text-[13px] text-text-secondary">
-            This booking was moved to a new time. The garage needs to accept the new time. Check your
-            bookings for its status.
+            This booking was moved to a new time. Open your bookings to see the new one and whether
+            the garage has accepted it.
           </p>
         </ScCard>
       )}
@@ -648,6 +666,7 @@ export default function BookingDetailPage({
               serviceIds={booking.items.map((item) => item.serviceId)}
               value={rescheduleSlot}
               onChange={setRescheduleSlot}
+              onLapse={() => toast.info('That time is now too soon to book. Pick another time.')}
               bookingType={booking.bookingType}
             />
             <div className="mt-5 flex gap-2">

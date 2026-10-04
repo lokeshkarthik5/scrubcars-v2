@@ -214,6 +214,9 @@ export const BOOKINGS = {
   cancelPendingSoon: id(616),
   /** pending + paid at MAIN, started an hour ago: can only be declined now. */
   vendorStarted: id(617),
+  /** pending + paid, an hour out, CUSTOMERS.reschedule: not accepted yet, so
+   *  it can still be moved inside 2 hours (to a time with enough notice). */
+  reschedulePendingSoon: id(618),
   /** confirmed at SECOND — must never appear while MAIN is the active tenant. */
   secondTenant: id(611),
   /** completed, naming VEHICLES.booked. Its only job is to make that car

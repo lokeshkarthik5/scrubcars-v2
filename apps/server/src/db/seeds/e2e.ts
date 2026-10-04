@@ -536,6 +536,10 @@ async function seedBookingRows() {
     vehicleId: CUSTOMERS.cancel.vehicleId, scheduledAt: insideCutoff(), status: 'pending',
     items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_pending_soon' } })
 
+  await insertBooking({ id: BOOKINGS.reschedulePendingSoon, userId: CUSTOMERS.reschedule.id,
+    vehicleId: CUSTOMERS.reschedule.vehicleId, scheduledAt: insideCutoff(), status: 'pending',
+    items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_move_soon' } })
+
   await insertBooking({ id: BOOKINGS.vendorStarted, userId: CUSTOMERS.vendorLate.id,
     vehicleId: CUSTOMERS.vendorLate.vehicleId, scheduledAt: anHourAgo(), status: 'pending',
     items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_started' } })

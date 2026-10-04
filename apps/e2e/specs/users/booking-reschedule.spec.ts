@@ -102,6 +102,41 @@ test.describe('reschedule @p0', () => {
     expect(row?.reschedule_count).toBe(2)
   })
 
+  test('a new time without enough notice is refused', async ({ page }) => {
+    // Any slot: the notice is checked before the garage's hours or grid.
+    const soon = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    const response = await page.request.patch(
+      `${API}/api/v1/bookings/${BOOKINGS.reschedulePendingSoon}/reschedule`,
+      { data: { scheduledAt: soon } }
+    )
+    expect(response.status()).toBe(400)
+    const body = await response.json()
+    expect(body.code).toBe('SLOT_TOO_SOON')
+    expect(body.message).toMatch(/2 hours' notice/)
+    expect((await getBooking(BOOKINGS.reschedulePendingSoon))?.reschedule_count).toBe(0)
+  })
+
+  test('a booking the garage has not accepted can be moved even inside 2 hours', async ({ page }) => {
+    const booking = new BookingPage(page)
+    const checkout = new CheckoutPage(page)
+    await booking.goto(BOOKINGS.reschedulePendingSoon)
+
+    // Seeded pending at now + 1h: the cutoff only binds an accepted booking.
+    await expect(page.getByRole('button', { name: 'Too close to your slot to move' })).toHaveCount(0)
+    await booking.openReschedule()
+    await checkout.pickTomorrow()
+    // The first slot: this customer's car already has a late-evening job
+    // tomorrow from the first test, and the last slot would clash with it.
+    await checkout.slots().first().click()
+    await booking.confirmReschedule()
+
+    await page.waitForURL((url) => !url.pathname.includes(BOOKINGS.reschedulePendingSoon))
+    const moved = await getBooking(booking.currentId())
+    expect(moved?.rescheduled_from_id).toBe(BOOKINGS.reschedulePendingSoon)
+    expect(moved?.status).toBe('pending')
+    expect(moved?.reschedule_count).toBe(1)
+  })
+
   test('an accepted booking inside the 2-hour cutoff cannot be moved', async ({ page }) => {
     const booking = new BookingPage(page)
     await booking.goto(BOOKINGS.rescheduleTooLate)

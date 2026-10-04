@@ -7,12 +7,14 @@
  *
  * - a booking reached 30 minutes of waiting since the last tick → post;
  * - a waiting booking's start time passed since the last tick → post;
- * - on the hour, while anything is still waiting → post a reminder;
+ * - on the hour, while anything is waiting or refund-due → post a reminder;
  * - at 07:00 IST, if anything is listed → post the morning roll-up;
  * - never between 22:00 and 07:00 IST (the morning roll-up catches the night).
  *
  * Every post lists everything still waiting, so one message is the whole
- * picture. A skipped run delays a nudge to the next hourly reminder at worst.
+ * picture. A run that fails or is skipped — including the 7 am one — delays a
+ * nudge to the next hourly reminder at worst. A refund-due booking keeps being
+ * listed hourly until someone declines or cancels it.
  */
 
 export interface PendingBookingRow {
@@ -80,6 +82,6 @@ export function planPendingDigest(now: number, rows: PendingBookingRow[]): Diges
   }
   if (missed.some((row) => crossed(row.scheduledAt.getTime()))) return plan(true, 'new_missed')
   if (hour === MORNING_HOUR && minute === 0) return plan(true, 'morning')
-  if (minute === 0 && waiting.length > 0) return plan(true, 'hourly')
+  if (minute === 0) return plan(true, 'hourly')
   return plan(false, 'nothing_new')
 }

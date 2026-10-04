@@ -27,6 +27,8 @@ test.describe('scheduled jobs @p0', () => {
     const { data } = await response.json()
     expect(data.posted).toBe(false)
     expect(typeof data.waiting).toBe('number')
-    expect(typeof data.missed).toBe('number')
+    // BOOKINGS.vendorStarted is paid, pending and an hour past its time, so
+    // the digest's query must list it as missed whatever the hour.
+    expect(data.missed).toBeGreaterThanOrEqual(1)
   })
 })

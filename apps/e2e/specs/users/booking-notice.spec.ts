@@ -6,9 +6,9 @@
  * which times exist "today" depends on when the suite runs, but "nothing
  * offered starts sooner than the notice" holds at any hour. Read-only.
  */
-import { test, expect } from '../../support/fixtures'
+import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
-import { SERVICES, VENDORS } from '../../support/seed-ids'
+import { ADDRESSES, CUSTOMERS, SERVICES, VENDORS } from '../../support/seed-ids'
 
 const HOUR = 60 * 60 * 1000
 // The request takes a moment; a slot on the line when the server answered may
@@ -61,3 +61,50 @@ test.describe('booking notice @p0', () => {
     expect(doorstep.slots).toEqual(dropin.slots)
   })
 })
+
+// Checkout refuses a too-soon time before any payment order exists. The notice
+// is checked before the garage's hours or slot grid, so these hold at any hour.
+const intent = (
+  request: import('@playwright/test').APIRequestContext,
+  data: Record<string, unknown>
+) => request.post(`${API}/api/v1/booking-intents`, { data })
+
+test.describe('booking notice at checkout @p0', () => {
+  test.describe('at the garage', () => {
+    test.use({ storageState: asRole('customer-book') })
+
+    test('a time under 2 hours away is refused', async ({ request }) => {
+      const response = await intent(request, {
+        vendorId: VENDORS.main.id,
+        serviceIds: [SERVICES.wash.id],
+        vehicleId: CUSTOMERS.book.vehicleId,
+        bookingType: 'dropin',
+        scheduledAt: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+      })
+      expect(response.status()).toBe(400)
+      const body = await response.json()
+      expect(body.code).toBe('SLOT_TOO_SOON')
+      expect(body.message).toMatch(/2 hours' notice/)
+    })
+  })
+
+  test.describe('doorstep', () => {
+    test.use({ storageState: asRole('customer-doorstep') })
+
+    test('a time under 3 hours away is refused', async ({ request }) => {
+      const response = await intent(request, {
+        vendorId: VENDORS.main.id,
+        serviceIds: [SERVICES.wash.id],
+        vehicleId: CUSTOMERS.doorstep.vehicleId,
+        bookingType: 'doorstep',
+        addressId: ADDRESSES.doorstepPinned,
+        scheduledAt: new Date(Date.now() + 150 * 60 * 1000).toISOString(),
+      })
+      expect(response.status()).toBe(400)
+      const body = await response.json()
+      expect(body.code).toBe('SLOT_TOO_SOON')
+      expect(body.message).toMatch(/3 hours' notice/)
+    })
+  })
+})
+

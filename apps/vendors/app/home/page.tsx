@@ -154,7 +154,7 @@ export default function VendorHomePage() {
                       server refuses a late accept). */}
                   {new Date(b.scheduledAtIso).getTime() <= now && (
                     <p className="text-[12px] text-text-secondary">
-                      This slot&apos;s time has passed without being accepted. Decline it so the
+                      This slot&apos;s time has passed without being accepted. Reject it so the
                       customer can be refunded.
                     </p>
                   )}
@@ -163,7 +163,7 @@ export default function VendorHomePage() {
                       variant="secondary"
                       aria-label={`Reject booking for ${b.customerName}`}
                       className={new Date(b.scheduledAtIso).getTime() <= now ? 'col-span-2' : undefined}
-                      onClick={() => updateStatus(b.id, 'cancelled').then(() => toast.success('Booking declined')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to decline'); void reload() })}
+                      onClick={() => updateStatus(b.id, 'cancelled').then(() => toast.success('Booking rejected')).catch((err) => { toast.error(err instanceof Error ? err.message : 'Failed to reject'); void reload() })}
                     >
                       Reject
                     </ScButton>

@@ -957,6 +957,7 @@ export const bookingsService = {
       bookingType: booking.bookingType,
       newScheduledAt,
       durationMins,
+      expectedStatus: booking.status === 'confirmed' ? 'confirmed' : 'pending',
       subtotalAmount: booking.subtotalAmount ?? booking.amount,
       amount: booking.amount,
       discountAmount: booking.discountAmount ?? '0.00',
@@ -1070,7 +1071,7 @@ export const bookingsService = {
     if (booking.scheduledAt.getTime() <= Date.now()) {
       throw new AppError(
         400,
-        "This booking's start time has passed, so it can't be accepted. Decline it so the customer can be refunded.",
+        "This booking's start time has passed, so it can't be accepted. Reject it so the customer can be refunded.",
         'BOOKING_START_PASSED'
       )
     }

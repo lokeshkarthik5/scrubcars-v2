@@ -81,7 +81,7 @@ export default function VendorBookingsPage() {
       setRejectId(null)
       setRejectReason('')
     } catch (error) {
-      refused(error, 'Could not decline this booking')
+      refused(error, 'Could not reject this booking')
     }
   }
 
@@ -160,7 +160,7 @@ export default function VendorBookingsPage() {
 
               <JobContact booking={b} />
 
-              {b.status === 'pending' && b.rescheduledFromId && (
+              {b.status === 'pending' && b.rescheduledFromId && !slotPassed(b, now) && (
                 <p className="text-[12px] text-text-secondary">
                   The customer moved this booking to a new time. Accept it if you can do it.
                 </p>
@@ -171,7 +171,7 @@ export default function VendorBookingsPage() {
                 // waited and nobody answered. Declining frees the refund.
                 <div className="flex flex-col gap-2">
                   <p className="text-[12px] text-text-secondary">
-                    This slot&apos;s time has passed without being accepted. Decline it so the
+                    This slot&apos;s time has passed without being accepted. Reject it so the
                     customer can be refunded, or call them to rebook.
                   </p>
                   <ScButton
@@ -179,7 +179,7 @@ export default function VendorBookingsPage() {
                     aria-label={`Reject booking for ${b.customerName}`}
                     onClick={() => { setRejectId(b.id); setRejectReason('') }}
                   >
-                    Decline
+                    Reject
                   </ScButton>
                 </div>
               )}
@@ -267,7 +267,7 @@ export default function VendorBookingsPage() {
   )
 }
 
-/** A pending job whose start time has come and gone: it can only be declined. */
+/** A pending job whose start time has come and gone: it can only be rejected. */
 function slotPassed(b: Booking, now: number): boolean {
   return b.status === 'pending' && new Date(b.scheduledAtIso).getTime() <= now
 }

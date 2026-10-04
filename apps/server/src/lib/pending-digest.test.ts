@@ -78,4 +78,36 @@ describe('planPendingDigest', () => {
       reason: 'empty',
     })
   })
+
+  test('a refund-due booking whose crossing run failed comes back at the next hour', () => {
+    const rows = [row(IST('09:00:00'), IST('15:00:00'))]
+    // Suppose the 15:00 run failed or never came: 15:10 has nothing new...
+    expect(planPendingDigest(IST('15:10:00').getTime(), rows)).toMatchObject({
+      post: false,
+      reason: 'nothing_new',
+    })
+    // ...and 16:00 lists it again, with nothing else waiting.
+    const plan = planPendingDigest(IST('16:00:00').getTime(), rows)
+    expect(plan).toMatchObject({ post: true, reason: 'hourly' })
+    expect(plan.missed.map((r) => r.id)).toEqual(['b1'])
+  })
+
+  test('a failed 7 am roll-up is covered at 8', () => {
+    const rows = [row(IST('21:40:00', '2026-10-04'), IST('10:00:00'))]
+    expect(planPendingDigest(IST('08:00:00').getTime(), rows)).toMatchObject({
+      post: true,
+      reason: 'hourly',
+    })
+  })
+
+  test('a booking that reaches 30 minutes at night waits for the 7 am roll-up', () => {
+    const rows = [row(IST('21:25:00'), IST('12:00:00', '2026-10-06'))]
+    expect(planPendingDigest(IST('21:50:00').getTime(), rows).post).toBe(false)
+    expect(planPendingDigest(IST('22:00:00').getTime(), rows).reason).toBe('quiet_hours')
+    expect(planPendingDigest(IST('07:00:00', '2026-10-06').getTime(), rows)).toMatchObject({
+      post: true,
+      reason: 'morning',
+    })
+  })
 })
+

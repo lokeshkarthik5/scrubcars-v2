@@ -88,6 +88,11 @@ interface SlotPickerProps {
    */
   bookingType: BookingType
   /**
+   * Called when a chosen time is let go because it no longer has enough
+   * notice, so the screen can say so rather than silently undo the choice.
+   */
+  onLapse?: (scheduledAt: string) => void
+  /**
    * Reveal the time slots only once a date has been picked, and start with no
    * date selected.
    *
@@ -109,6 +114,7 @@ export function SlotPicker({
   value,
   onChange,
   bookingType,
+  onLapse,
   progressive = false,
 }: SlotPickerProps) {
   // Ticks each minute: a picker left open keeps offering a slot only while it
@@ -150,8 +156,11 @@ export function SlotPicker({
   // the customer switched to doorstep, which needs more — is let go rather
   // than carried into a checkout the server would refuse.
   useEffect(() => {
-    if (value && !meetsNotice(value, bookingType, now)) onChange(null)
-  }, [value, bookingType, now, onChange])
+    if (value && !meetsNotice(value, bookingType, now)) {
+      onChange(null)
+      onLapse?.(value)
+    }
+  }, [value, bookingType, now, onChange, onLapse])
 
   // An open day whose *whole* schedule offers nothing means the combined
   // duration does not fit between opening and closing — not that the day

@@ -46,6 +46,7 @@ import {
   BOOKING_TYPE_LABELS,
   parseBookingType,
   resolveBookingType,
+  noticeSentence,
 } from '@repo/core/booking-types'
 import type { BookingType, Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
@@ -301,6 +302,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
     target.focus({ preventScroll: true })
   }
 
+  // The picker let go of the chosen time (it ran out of notice, or the
+  // customer switched to doorstep, which needs more): say so and go back to it.
+  const handleSlotLapse = (scheduledAt: string) => {
+    const label = new Date(scheduledAt).toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata',
+    })
+    toast.info(`${label} is now too soon to book. ${noticeSentence(bookingType)} Pick another time.`)
+    goToStep('slot')
+  }
+
   // The pre-discount total. Summed in paise so the arithmetic never runs
   // through a float — the same rule the server applies.
   const subtotal = unpricedForVehicle
@@ -548,6 +562,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           value={selectedSlot}
           onChange={setSelectedSlot}
           bookingType={bookingType}
+          onLapse={handleSlotLapse}
         />
       </section>
 
@@ -866,7 +881,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </span>{' '}
               Cancel any time until the garage accepts. Once it has, cancel or
               reschedule up to 2 hours before your slot. You can reschedule up
-              to 2 times, and the garage accepts each new time.
+              to 2 times; each new time goes back to the garage to accept, and
+              if it can&apos;t take it, the booking is cancelled.
             </p>
           </div>
         </Reveal>

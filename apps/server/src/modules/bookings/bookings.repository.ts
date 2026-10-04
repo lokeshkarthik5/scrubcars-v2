@@ -450,6 +450,12 @@ export const bookingsRepository = {
     bookingType: BookingType
     newScheduledAt: Date
     durationMins: number
+    /**
+     * The source's status when the service checked the rules. The move goes
+     * ahead only if it is still that: a garage accept landing in between
+     * would otherwise let a confirmed booking skip the 2-hour cutoff.
+     */
+    expectedStatus: BookingStatus
     // A reschedule is a move, not a re-price: these are copied verbatim from
     // the booking being moved.
     subtotalAmount: string
@@ -497,7 +503,11 @@ export const bookingsRepository = {
         .where(eq(bookings.id, data.sourceBookingId))
         .for('update')
 
-      if (!source || !MOVABLE_STATUSES.includes(source.status)) {
+      if (
+        !source ||
+        !MOVABLE_STATUSES.includes(source.status) ||
+        source.status !== data.expectedStatus
+      ) {
         return {
           booking: null,
           payment: null,

@@ -529,7 +529,7 @@ export const FAQS = [
   },
   {
     q: 'Can I reschedule or cancel?',
-    a: 'Yes, from the booking screen. Until the garage accepts, you can cancel any time. Once it has, you can cancel or reschedule up to 2 hours before your slot. You can reschedule up to twice, and the garage accepts each new time.',
+    a: 'Yes, from the booking screen. Until the garage accepts, you can cancel any time. Once it has, you can cancel or reschedule up to 2 hours before your slot. You can reschedule up to twice; each new time goes back to the garage to accept.',
   },
 ]
 
