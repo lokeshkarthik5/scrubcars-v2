@@ -18,6 +18,37 @@ reconstructing every change in them.
 
 ### Added
 
+- **`GET /api/v1/health`** for the uptime monitor: runs `select 1` and
+  answers `{ status: 'ok', db: 'ok', version }`, or 503 with `db: 'down'`
+  when the database fails or takes over 3 seconds. Public, uncached.
+- **`GET /api/v1/booking-intents/:id`**: where a checkout stands (`pending`,
+  `consumed` with its `bookingId`, or `failed` with `failureReason` and the
+  customer's refund `message`). The customer's own only; anyone else's is a
+  404.
+- **`GET /api/v1/admin/stats/pilot?days=7|30`** (super admin): the checkout
+  funnel, how bookings ended, revenue and the top five garages, from existing
+  tables. Definitions and tests in `lib/pilot-stats.ts`. A rescheduled
+  booking counts once, as the latest row of its chain, in the window of its
+  first booking; it is not a customer cancellation. Revenue and the garage
+  ranking leave out cancelled bookings (the money goes back), except customer
+  no-shows, where the payment is kept. No time-to-accept: there is no
+  accepted-at timestamp.
+- **Per-phone limit on login codes**, counted from `otp_verifications` (no new
+  table): one every 30 seconds and five per rolling hour. Refused with 429
+  `OTP_RATE_LIMITED`, a message saying how long to wait, `retryAfterSeconds`
+  in the body and a `Retry-After` header. The per-IP limiter stays. A code
+  the SMS provider definitely refused is deleted, so a provider outage does
+  not use up anyone's sends; after a timeout, network error or 5xx the SMS
+  may still arrive, so that code stays valid and counted.
+- **Telegram alert when the SMS provider fails** (`sms_failed`): the masked
+  number and the provider's message, at most once per 10 minutes per server
+  instance.
+- **Crash reporting with Sentry** (`@sentry/node`), off — and not even loaded —
+  unless `SENTRY_DSN` is set. Reports only unexpected errors from
+  `app.onError` (not `AppError`s) and failed background tasks; no traces,
+  request bodies, headers or cookies, and phone numbers and 6-digit codes
+  scrubbed (`lib/scrub.ts`).
+
 - **Team alerts in Telegram** (`lib/ops-alerts.ts`): a new paid booking, a
   payment that produced no booking (refund due), a garage decline, a customer
   cancel and a reschedule post to the team group. Production only; never fail
@@ -51,6 +82,26 @@ reconstructing every change in them.
   `noShow`; `cancelledBy` can now be `admin`.
 
 ### Changed
+
+- **OTP attempts are counted atomically.** Each guess claims an attempt in one
+  `UPDATE … WHERE attempts < cap RETURNING` before it is compared, the cap
+  worked out from the window's other codes only, so guesses sent in parallel
+  can no longer exceed three per window; the right guess's
+  attempt is handed back, and a code can be used once even by two
+  simultaneous requests. Rules and messages unchanged.
+- **SMS failures** (network error, timeout, HTTP error, provider refusal) all
+  come back as 502 `SMS_SEND_FAILED` with a plain message; the provider's own
+  words go to the logs and the team alert, not the customer.
+- **`POST /auth/refresh`** is behind the global limiter only, not the strict
+  10-a-minute auth one: it needs a valid cookie, and several open tabs
+  refreshing at once could log a household out.
+- **Telegram alerts link to the booking's own admin page**
+  (`admin.detlio.com/bookings/<id>`) instead of the list. The pending digest,
+  which lists many, still links to the list.
+- **`AppError` can carry `retryAfterSeconds`**, sent as `Retry-After` and in
+  the error body; the per-IP limiter uses it too.
+- **Payment-failure messages** live in one table in the booking-intents
+  service, shared by the confirm call and the new status read.
 
 - **Minimum notice**: 1 hour at the garage, 3 doorstep, for the slot list
   (`booking_type` query param; `fitsInDay` and `minNoticeMins` in the

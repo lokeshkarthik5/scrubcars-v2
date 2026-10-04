@@ -84,3 +84,27 @@ export async function verifyPayment(
     body: JSON.stringify(payload),
   })
 }
+
+/** Where a checkout stands after payment. Mirrors GET /booking-intents/:id. */
+export interface BookingIntentStatus {
+  status: 'pending' | 'consumed' | 'failed'
+  /** Set once the payment has become a booking. */
+  bookingId: string | null
+  /** Set when the payment landed but no booking could be written. */
+  failureReason: string | null
+  /** The customer-facing words for that failure, which promise the refund. */
+  message: string | null
+}
+
+/**
+ * GET /booking-intents/:id
+ *
+ * Polled after a payment whose confirm call never came back: the Razorpay
+ * webhook confirms the same payment on its own, and this is how checkout
+ * learns that it has.
+ */
+export async function getBookingIntentStatus(
+  intentId: string
+): Promise<BookingIntentStatus> {
+  return apiClient<BookingIntentStatus>(`/booking-intents/${intentId}`)
+}

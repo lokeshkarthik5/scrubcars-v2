@@ -1,11 +1,12 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   IconCreditCard,
   IconHelpCircle,
   IconHome,
+  IconLoader2,
   IconMapPin,
   IconNavigation,
 } from '@tabler/icons-react'
@@ -25,6 +26,7 @@ import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments'
 import { submitReview } from '@repo/core/api/reviews'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
+import { confirmPayment, realClock } from '@repo/core/payment-confirmation'
 import { formatBookingAmount } from '@repo/core/pricing'
 import {
   BOOKING_TYPE_LABELS,
@@ -42,6 +44,7 @@ import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking-directions-sheet'
 import { BookingHelpSheet } from '@/components/booking-help-sheet'
+import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 
 /** A booking the customer still has to get to, or is at. */
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress'])
@@ -127,6 +130,15 @@ export default function BookingDetailPage({
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [paying, setPaying] = useState(false)
+  // Set once Razorpay reports this booking paid, and never cleared: the Pay
+  // button is gone from then on, whatever the confirm call does. See
+  // @repo/core/payment-confirmation for why a second tap is the real risk.
+  const paidRef = useRef(false)
+  const [paid, setPaid] = useState<{
+    paymentId: string
+    phase: 'confirming' | 'booked' | 'unconfirmed' | 'failed'
+    refundMessage?: string
+  } | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -188,8 +200,18 @@ export default function BookingDetailPage({
     return () => clearInterval(interval)
   }, [id, bookingStatus])
 
+  // The webhook can settle the payment after we stopped watching. The 5-second
+  // poll above then shows the booking as paid, and a panel still saying
+  // "we're confirming" under it would contradict the card it sits below — so
+  // once the booking reads paid, the panel is gone, whatever `paid` says.
+  const bookingPaid = booking?.paymentStatus === 'paid'
+  const paymentSettled =
+    paid?.phase === 'booked' || (paid !== null && paid.phase !== 'confirming' && bookingPaid)
+  const showPaymentPanel =
+    !paymentSettled && (paid?.phase === 'unconfirmed' || paid?.phase === 'failed')
+
   const handlePayNow = async () => {
-    if (!booking || paying) return
+    if (!booking || paying || paidRef.current) return
     setPaying(true)
     try {
       if (!profile) await fetchProfile()
@@ -202,15 +224,43 @@ export default function BookingDetailPage({
           phone: profile?.phone,
         },
         onSuccess: async (response) => {
-          await verifyPayment({
-            bookingId: booking.id,
-            razorpayOrderId: response.razorpay_order_id,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpaySignature: response.razorpay_signature,
+          const paymentId = response.razorpay_payment_id
+          paidRef.current = true
+          setPaid({ paymentId, phase: 'confirming' })
+
+          // The booking already exists here, so "confirmed" means its payment
+          // reads paid — which the webhook also does on its own.
+          const outcome = await confirmPayment({
+            verify: async () => {
+              await verifyPayment({
+                bookingId: booking.id,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: paymentId,
+                razorpaySignature: response.razorpay_signature,
+              })
+              return { bookingId: booking.id }
+            },
+            poll: async () => {
+              const fresh = await getBooking(booking.id)
+              return fresh?.paymentStatus === 'paid'
+                ? { kind: 'booked', bookingId: booking.id }
+                : { kind: 'pending' }
+            },
+            ...realClock,
           })
-          const updated = await getBooking(booking.id)
-          setBooking(updated ?? null)
-          toast.success('Payment successful')
+
+          if (outcome.kind === 'booked') {
+            const updated = await getBooking(booking.id)
+            if (updated) setBooking(updated)
+            setPaid({ paymentId, phase: 'booked' })
+            toast.success('Payment successful')
+          } else {
+            setPaid({
+              paymentId,
+              phase: outcome.kind,
+              refundMessage: outcome.kind === 'failed' ? outcome.message : undefined,
+            })
+          }
         },
         onDismiss: () => {
           toast.info('Payment cancelled. You can pay anytime from booking details.')
@@ -550,7 +600,50 @@ export default function BookingDetailPage({
       )}
 
       {/* Totals live on the status card above; this is just the outstanding-payment CTA. */}
-      {booking.paymentMethod === 'online' &&
+      {/* Says each step after payment out loud. On the page from the start
+          and only its text changes: a live region that mounts with its words
+          already in it is usually not announced, and the Pay Now button
+          that had focus is gone by the time any of this happens. */}
+      <p role="status" className="sr-only">
+        {paid?.phase === 'confirming'
+          ? 'Payment received. Confirming your booking.'
+          : paymentSettled
+            ? 'Payment confirmed.'
+            : paid
+              ? paymentReceivedText(
+                  paid.paymentId,
+                  paid.phase === 'failed' ? paid.refundMessage : undefined
+                )
+              : ''}
+      </p>
+
+      {paid?.phase === 'confirming' && (
+        // Graphite with a spinner, not the red pill: red means "this pays",
+        // and a full-strength red button that does nothing gets tapped again
+        // and again on a phone, where nothing shows it is disabled.
+        <ScButton
+          disabled
+          className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-[15px] text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+        >
+          <IconLoader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+          Payment received — confirming your booking…
+        </ScButton>
+      )}
+
+      {showPaymentPanel && paid && (
+        <ScCard>
+          <PaymentReceivedPanel
+            paymentId={paid.paymentId}
+            refundMessage={paid.phase === 'failed' ? paid.refundMessage : undefined}
+            waitingOn="not_marked_paid"
+          />
+        </ScCard>
+      )}
+
+      {/* Never again once Razorpay has reported this booking paid, even while
+          the booking itself still reads pending. */}
+      {!paid &&
+        booking.paymentMethod === 'online' &&
         booking.paymentStatus === 'pending' &&
         booking.status !== 'cancelled' && (
           <ScButton disabled={paying} onClick={handlePayNow} className="rounded-full py-4 text-[15px]">

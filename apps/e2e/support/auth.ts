@@ -15,7 +15,7 @@ import { request, type APIRequestContext, type BrowserContext } from '@playwrigh
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { latestOtp } from './db'
+import { forgetOtps, latestOtp } from './db'
 import { ADMIN } from './seed-ids'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
@@ -41,6 +41,10 @@ export async function loginViaApi(
   audience: Audience = 'customer'
 ): Promise<APIRequestContext> {
   const ctx = await request.newContext({ baseURL: API })
+
+  // A phone may only be sent a code every 30 seconds, and global setup has
+  // usually just sent this one its own. See forgetOtps.
+  await forgetOtps(phone)
 
   const send = await ctx.post('/api/v1/auth/otp/send', {
     data: { phone, purpose: 'login', audience },

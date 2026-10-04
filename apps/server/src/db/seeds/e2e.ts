@@ -17,6 +17,8 @@
 import 'dotenv/config'
 import { db } from '../index.js'
 import {
+  bookingIntentItems,
+  bookingIntents,
   bookingItems,
   bookingReschedules,
   bookings,
@@ -36,12 +38,14 @@ import {
   vendors,
 } from '../schema.js'
 import {
+  BOOKING_INTENTS,
   BOOKINGS,
   CUSTOMERS,
   DISCOUNTS,
   FILLER_VENDOR_COUNT,
   DOORSTEP_JOB_PIN,
   ORIGIN,
+  OTP_LIMITED_CUSTOMER,
   REVIEWS,
   SERVICES,
   STAFF,
@@ -99,6 +103,15 @@ async function seedPeople() {
       phoneVerified: true,
       status: 'active' as const,
     })),
+    {
+      id: OTP_LIMITED_CUSTOMER.id,
+      name: OTP_LIMITED_CUSTOMER.name,
+      phone: OTP_LIMITED_CUSTOMER.phone,
+      isCustomer: true,
+      isVendorOwner: false,
+      phoneVerified: true,
+      status: 'active' as const,
+    },
     ...Object.values(STAFF).map((s) => ({
       id: s.id,
       name: s.name,
@@ -136,7 +149,8 @@ async function seedPeople() {
         CUSTOMERS.vendorJob, CUSTOMERS.vendorReject, CUSTOMERS.vendorDoorstep,
         CUSTOMERS.vendorLate,
         CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.doorstep,
-        CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove, CUSTOMERS.adminOps].map((c, i) => ({
+        CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove, CUSTOMERS.adminOps,
+        CUSTOMERS.intents, CUSTOMERS.intentsStranger, CUSTOMERS.pilotStats].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -598,6 +612,41 @@ async function seedBookingRows() {
 }
 
 /**
+ * A checkout whose payment landed after its car was booked elsewhere: money
+ * taken, no booking. What the intent-status read reports as failed with a
+ * refund message — and, being CUSTOMERS.intents', what every other customer
+ * must get a 404 for.
+ */
+async function seedIntentRows() {
+  await db.insert(bookingIntents).values({
+    id: BOOKING_INTENTS.failed,
+    userId: CUSTOMERS.intents.id,
+    vendorId: VENDORS.main.id,
+    serviceId: SERVICES.wash.id,
+    vehicleId: CUSTOMERS.intents.vehicleId,
+    bookingType: 'dropin',
+    scheduledAt: tomorrowAt(10),
+    serviceDurationMins: SERVICES.wash.durationMins,
+    amount: SERVICES.wash.price,
+    subtotalAmount: SERVICES.wash.price,
+    paymentMethod: 'online',
+    gatewayTxnId: 'order_seed_intent_failed',
+    status: 'failed',
+    paymentRef: 'pay_seed_intent_failed',
+    failureReason: 'vehicle_double_booked',
+    expiresAt: new Date(now.getTime() + 30 * MINUTE),
+  })
+  await db.insert(bookingIntentItems).values({
+    intentId: BOOKING_INTENTS.failed,
+    serviceId: SERVICES.wash.id,
+    name: SERVICES.wash.name,
+    amount: SERVICES.wash.price,
+    durationMins: SERVICES.wash.durationMins,
+    sortOrder: 0,
+  })
+}
+
+/**
  * Burns the single global use of USEDUP against a booking that already exists,
  * so the code is genuinely exhausted rather than merely configured to be.
  */
@@ -625,6 +674,7 @@ async function main() {
   await seedDiscountRows()
   console.log('[e2e-seed] bookings…')
   await seedBookingRows()
+  await seedIntentRows()
   await exhaustDiscounts()
   console.log('[e2e-seed] done')
   process.exit(0)

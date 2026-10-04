@@ -26,8 +26,11 @@ function createRateLimiter(limit: number, windowMs: number) {
 
     if (entry.count >= limit) {
       const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
-      c.header('Retry-After', String(retryAfter))
-      throw new AppError(429, 'Too many requests', 'RATE_LIMIT_EXCEEDED')
+      // Carried on the error rather than set here: app.onError builds the
+      // response, and it writes the Retry-After header from this.
+      throw new AppError(429, 'Too many requests', 'RATE_LIMIT_EXCEEDED', {
+        retryAfterSeconds: retryAfter,
+      })
     }
 
     entry.count++

@@ -104,6 +104,25 @@ export const CUSTOMERS = {
    */
   adminOps: { id: id(120), phone: '9000000020', name: 'Admin Ops Anand', vehicleId: id(730) },
   /**
+   * Owns BOOKING_INTENTS.failed, the checkout the intent-status spec reads.
+   * Nobody else's intent may be readable by anyone else, so this customer's
+   * one exists for other customers to be refused.
+   */
+  intents: { id: id(121), phone: '9000000021', name: 'Intent Indira', vehicleId: id(731) },
+  /**
+   * The other customer the intent-status spec signs in as, to be refused
+   * CUSTOMERS.intents' checkout. Its own number, because that spec logs in
+   * fresh (a saved token can expire mid-run) and a fresh login clears the
+   * number's codes — which would race any other file using it.
+   */
+  intentsStranger: { id: id(123), phone: '9000000023', name: 'Stranger Selvi', vehicleId: id(732) },
+  /**
+   * A plain customer the pilot-stats spec signs in as, fresh, to prove a
+   * valid customer session is refused the admin-only numbers. Its own number
+   * for the same reason as `intentsStranger`.
+   */
+  pilotStats: { id: id(124), phone: '9000000024', name: 'Pilot Prakash', vehicleId: id(733) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -122,6 +141,17 @@ export const UNREGISTERED_PHONE = '9000000099'
 
 /** The same, for the vendor app: onboarding only runs for a brand-new owner. */
 export const UNREGISTERED_VENDOR_PHONE = '9000000098'
+
+/**
+ * A customer kept out of CUSTOMERS on purpose: global setup sends every one
+ * of those a login code, and the per-phone send limit spec needs a number
+ * whose sends it alone controls.
+ */
+export const OTP_LIMITED_CUSTOMER = {
+  id: id(122),
+  phone: '9000000022',
+  name: 'Limit Lalitha',
+} as const
 
 export const STAFF = {
   /** Owns both MAIN and SECOND — the company switcher needs two to switch between. */
@@ -285,6 +315,12 @@ export const ADDRESSES = {
 } as const
 
 export const REVIEWS = { existing: id(801) } as const
+
+/**
+ * Checkouts. `failed` is CUSTOMERS.intents' paid-but-no-booking checkout:
+ * failed so its status read carries the refund message too.
+ */
+export const BOOKING_INTENTS = { failed: id(1001) } as const
 
 /** Admin panel credentials, matching ADMIN_USERNAME / ADMIN_PASSWORD in .env.e2e. */
 export const ADMIN = { username: 'admin', password: 'admin' } as const

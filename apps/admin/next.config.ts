@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@repo/ui', '@repo/core'],
   env: {
     NEXT_PUBLIC_APP_VERSION: appVersion(),
+    // Which Vercel environment this build is for, so a crash report says
+    // whether it came from Production or a preview. VERCEL_ENV exists only at
+    // build time on Vercel; the browser bundle needs it inlined.
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.VERCEL_ENV ?? 'development',
   },
   images: {
     remotePatterns: [

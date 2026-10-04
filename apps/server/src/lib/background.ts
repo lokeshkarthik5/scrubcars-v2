@@ -1,5 +1,6 @@
 import { waitUntil } from '@vercel/functions'
 import { logger } from './logger.js'
+import { reportError } from './monitoring.js'
 
 const log = logger.child({ module: 'background' })
 
@@ -21,9 +22,19 @@ export function runInBackground(label: string, task: () => Promise<unknown>): vo
     // A task that throws before its first await is caught here too.
     const promise = new Promise((resolve) => setImmediate(resolve))
       .then(task)
-      .catch((err) => log.error({ err, task: label }, 'background:failed'))
+      .catch((err) => failed(label, err))
     waitUntil(promise)
   } catch (err) {
-    log.error({ err, task: label }, 'background:failed')
+    failed(label, err)
   }
+}
+
+/**
+ * Nobody is waiting on a background task, so nobody sees it fail: the log
+ * line is for whoever goes looking, and the crash report (when Sentry is on)
+ * is what makes someone look.
+ */
+function failed(label: string, err: unknown) {
+  log.error({ err, task: label }, 'background:failed')
+  reportError(err, { task: label })
 }

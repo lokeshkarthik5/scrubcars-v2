@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconArrowLeft,
@@ -20,14 +21,13 @@ import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
 import { getVendorReviews } from '@repo/core/api/reviews'
-import { getVendorServices } from '@repo/core/api/services'
-import { getVendorPackages } from '@repo/core/api/packages'
-import { getVendor } from '@repo/core/api/vendors'
+import { useGarage } from '@repo/core/api/hooks/use-vendors'
 import { categoryLabel } from '@repo/core/categories'
 import {
   BOOKING_TYPE_LABELS,
@@ -53,6 +53,11 @@ import { cn, formatDuration } from '@repo/core/utils'
 import { OpenStatus } from '@/components/open-status'
 
 type Tab = 'services' | 'photos' | 'reviews'
+
+// Stable empties, so the memos below do not recompute on every render while
+// the garage loads.
+const NO_SERVICES: Service[] = []
+const NO_PACKAGES: ServicePackage[] = []
 
 // A package is a Service plus its contents, so the details popup takes either
 // and only the bundle-specific block below depends on the difference.
@@ -138,9 +143,13 @@ export default function GaragePage({
   // Named to avoid shadowing the DOM's global `location`.
   const activeLocation = useLocationStore((s) => s.location)
 
-  const [vendor, setVendor] = useState<Vendor | null>(null)
-  const [services, setServices] = useState<Service[]>([])
-  const [packages, setPackages] = useState<ServicePackage[]>([])
+  // The garage and its catalogue arrive together or not at all (see
+  // useGarage). Reviews stay a side fetch: a page without them is still a
+  // page someone can book from.
+  const garage = useGarage(id)
+  const vendor: Vendor | null = garage.data?.vendor ?? null
+  const services = garage.data?.services ?? NO_SERVICES
+  const packages = garage.data?.packages ?? NO_PACKAGES
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
   // The At garage / Doorstep choice, as made on home or here. Null until one
@@ -158,10 +167,9 @@ export default function GaragePage({
   const [details, setDetails] = useState<Service | ServicePackage | null>(null)
 
   useEffect(() => {
-    getVendor(id).then((v) => setVendor(v ?? null))
-    getVendorServices(id).then(setServices)
-    getVendorPackages(id).then(setPackages)
-    getVendorReviews(id).then(setReviews)
+    getVendorReviews(id)
+      .then(setReviews)
+      .catch(() => undefined)
   }, [id])
 
   // Open/closed is tracked separately from *what* is shown: the popup animates
@@ -281,7 +289,28 @@ export default function GaragePage({
   if (!vendor) {
     return (
       <AppShell className="items-center justify-center py-4">
-        <p className="text-[13px] text-text-secondary">Loading…</p>
+        {garage.isError && !garage.isFetching ? (
+          // A failed load said "Loading…" for ever. This one can be retried.
+          <ErrorState
+            message="Couldn't load this garage. Check your connection."
+            onRetry={() => void garage.refetch()}
+          />
+        ) : garage.data === null ? (
+          // 404: the garage is not listed (unverified, archived, or never was).
+          <div className="flex flex-col items-center gap-3 py-12 text-center">
+            <p className="text-[13px] text-text-secondary">
+              This garage isn&apos;t taking bookings on Detlio.
+            </p>
+            <Link
+              href="/home"
+              className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline"
+            >
+              Find another garage
+            </Link>
+          </div>
+        ) : (
+          <p className="text-[13px] text-text-secondary">Loading…</p>
+        )}
       </AppShell>
     )
   }

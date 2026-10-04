@@ -128,10 +128,11 @@ export class CheckoutPage {
   discountRow = (code: string) => this.page.getByText(`Discount (${code})`)
 
   /** The fixed bottom CTA. Its label is the assertion surface — it carries the
-   *  amount, the next missing step, and the in-flight state. */
+   *  amount, the next missing step, and the in-flight state — including the
+   *  paid one, which can no longer be pressed. */
   cta = () =>
     this.page.getByRole('button', {
-      name: /^(Pay ₹|Confirm booking|Processing payment|Pick a time|Choose your car|Add your car|Choose an address|Add your address|Pin your address|Remove the unpriced service)/,
+      name: /^(Pay ₹|Confirm booking|Processing payment|Payment received|Pick a time|Choose your car|Add your car|Choose an address|Add your address|Pin your address|Remove the unpriced service)/,
     })
 
   /**
