@@ -142,13 +142,14 @@ test.describe('a booked service @p0', () => {
       `/api/v1/vendors/me/services/${SERVICES.capacityWash.id}`,
       { headers: { 'x-vendor-id': VENDORS.capacity.id } }
     )
-    await owner.dispose()
+    // Read before disposing: a disposed context discards its responses' bodies.
     expect(response.status()).toBe(409)
     expect(await response.json()).toEqual({
       success: false,
       message: 'This service has bookings. Disable it instead.',
       code: 'SERVICE_IN_USE',
     })
+    await owner.dispose()
 
     await page.goto('/services')
     await expect(page.getByText(SERVICES.capacityWash.name).first()).toBeVisible()
