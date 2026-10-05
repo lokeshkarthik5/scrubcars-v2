@@ -57,15 +57,23 @@ export const reviewsRepository = {
     })
   },
 
+  /**
+   * Feeds the public review list, so it loads only what that list shows: the
+   * reviewer's name (never their phone) and the services' names.
+   */
   listReviewsForVendor(vendorId: string) {
     return db.query.reviews.findMany({
       where: eq(reviews.vendorId, vendorId),
       with: {
-        user: true,
+        user: { columns: { name: true } },
         booking: {
+          columns: { id: true },
           with: {
-            service: true,
-            items: { orderBy: [asc(bookingItems.sortOrder)] },
+            service: { columns: { id: true, name: true } },
+            items: {
+              columns: { name: true },
+              orderBy: [asc(bookingItems.sortOrder)],
+            },
           },
         },
       },
