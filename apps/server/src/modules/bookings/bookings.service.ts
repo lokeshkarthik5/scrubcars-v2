@@ -21,6 +21,7 @@ import {
   type FinalBillRecord,
 } from '../../lib/final-bill.js'
 import { customerRefund } from '../../lib/refunds.js'
+import { buildReceipt, receiptAvailability } from '../../lib/receipts.js'
 import {
   customerSeesPhotos,
   toJobPhotoView,
@@ -345,6 +346,12 @@ function toBookingResponse(booking: BookingWithRelations, moved = false) {
       payment: booking.payment,
       charges: booking.charges,
     }),
+    // Whether GET /bookings/:id/receipt has a receipt to give: the booking
+    // page offers "View receipt" from this, so the rule lives in one place
+    // (lib/receipts.ts) rather than being re-derived from the payment status.
+    receiptAvailable:
+      receiptAvailability({ status: booking.status, moved, payment: booking.payment }) ===
+      'available',
     // The customer sees the job's photos once the work has started, next to
     // the step that says so (see customerSeesPhotos).
     ...(booking.photos !== undefined && {
@@ -393,6 +400,8 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     discountFundedBy: _fundedBy,
     // What the customer gets back is between them and Detlio.
     refund: _refund,
+    // So is the customer's receipt.
+    receiptAvailable: _receiptAvailable,
     ...vendorView
   } = toBookingResponse(booking)
 
@@ -964,6 +973,40 @@ export const bookingsService = {
 
     const moved = await bookingsRepository.findMovedBookingIds([booking.id])
     return toBookingResponse(booking, moved.has(booking.id))
+  },
+
+  /**
+   * The customer's payment receipt for one of their bookings. Anyone else
+   * gets the same 404 as for a booking that does not exist; a booking with
+   * no payment through yet, or one moved to a new time, gets
+   * RECEIPT_NOT_AVAILABLE.
+   */
+  async getReceipt(userId: string, bookingId: string) {
+    const booking = await getBookingForCustomer(userId, bookingId)
+    const moved = await bookingsRepository.findMovedBookingIds([booking.id])
+
+    const availability = receiptAvailability({
+      status: booking.status,
+      moved: moved.has(booking.id),
+      payment: booking.payment,
+    })
+    if (availability === 'moved') {
+      throw new AppError(
+        404,
+        'This booking was moved to a new time and its payment went with it. The receipt is on the new booking.',
+        'RECEIPT_NOT_AVAILABLE'
+      )
+    }
+    if (availability === 'unpaid') {
+      throw new AppError(
+        404,
+        'There is no receipt for this booking yet. One is ready once a payment for it has gone through.',
+        'RECEIPT_NOT_AVAILABLE'
+      )
+    }
+
+    const refundRecords = await bookingsRepository.listRefundRecordsForBooking(booking.id)
+    return buildReceipt(booking, refundRecords)
   },
 
   async createBooking(userId: string, input: CreateBookingInput) {

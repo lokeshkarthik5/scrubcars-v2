@@ -17,6 +17,17 @@ reconstructing every change in them.
 
 ### Added
 
+- **Payment receipts.** A booking whose payment went through has a "View
+  receipt" button on its page (secondary, not red). The receipt
+  (`/bookings/[id]/receipt`) is a white, A4-friendly page that reads the same
+  on a phone: the booking, the services and amounts, any discount, the
+  Razorpay payment id, a paid final bill, refunds as minus lines, the net paid,
+  and "This is a payment receipt, not a tax invoice." with the support number.
+  "Download PDF" opens the print screen, with a line on how to save a PDF on
+  Android and on iPhone, and an amber notice when an in-app browser opens no
+  print screen. "Share" sends the page link (or copies it); the link only
+  opens for the signed-in customer, which the page says. Printing shows only
+  the receipt, black on white with A4 margins.
 - **Refunds owed and done (admin).** A Refunds page (Owed / Done): each refund
   with the amount owed, how long it has been owed (amber after two days), the
   customer with tap-to-call, the Razorpay payment id with copy, and why; "Mark

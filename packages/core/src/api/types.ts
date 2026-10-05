@@ -381,6 +381,12 @@ export interface ApiBooking {
     amountRefunded: string
     refundedAt: string | null
   }
+  /**
+   * Customer payloads only: whether GET /bookings/:id/receipt has a receipt
+   * (a payment went through and the booking was not moved). Absent from
+   * garage payloads and from servers older than receipts.
+   */
+  receiptAvailable?: boolean
   review: {
     id: string
     rating: number

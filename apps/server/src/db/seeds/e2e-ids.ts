@@ -169,6 +169,19 @@ export const CUSTOMERS = {
    */
   refunds: { id: id(135), phone: '9000000035', name: 'Refund Revathi', vehicleId: id(744) },
   /**
+   * Owns the receipt spec's two paid bookings at MAIN (BOOKINGS.receiptPaid,
+   * receiptRefunded), which it only reads. Its own customer so nothing else
+   * changes what those receipts say.
+   */
+  receipts: { id: id(136), phone: '9000000036', name: 'Receipt Rekha', vehicleId: id(745) },
+  /**
+   * The other customer the receipt spec signs in as, fresh: refused
+   * CUSTOMERS.receipts' receipt, and the owner of BOOKINGS.receiptUnpaid,
+   * which has no receipt yet. Its own number for the same reason as
+   * `intentsStranger`.
+   */
+  receiptsStranger: { id: id(137), phone: '9000000037', name: 'Stranger Shankar', vehicleId: id(746) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -437,6 +450,17 @@ export const BOOKINGS = {
    */
   refundMovedFrom: refId('5efd0005'),
   refundMovedTo: refId('5efd0006'),
+  /**
+   * The receipt spec's bookings at MAIN, read-only.
+   *
+   * completed, two services with SAVE20 (₹2,498 less ₹200), paid ₹2,298 two
+   * days ago: the receipt with a discount.
+   */
+  receiptPaid: refId('2ec10001'),
+  /** Declined by the garage and refunded in full in Razorpay: a refund line. */
+  receiptRefunded: refId('2ec10002'),
+  /** CUSTOMERS.receiptsStranger's, pending with nothing paid: no receipt yet. */
+  receiptUnpaid: refId('2ec10003'),
 } as const
 
 export const VEHICLES = {

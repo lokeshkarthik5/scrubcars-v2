@@ -9,6 +9,7 @@ import {
   discountRedemptions,
   jobPhotos,
   payments,
+  refundRecords,
   services,
   userAddresses,
   userVehicles,
@@ -410,6 +411,26 @@ export const bookingsRepository = {
         ...JOB_RECORDS,
       },
     })
+  },
+
+  /**
+   * Every refund recorded against a booking (its own payment and its bills),
+   * oldest first. For the customer's receipt, which lists each one; only the
+   * columns the receipt may show are read — never who recorded it or the
+   * team's note.
+   */
+  listRefundRecordsForBooking(bookingId: string) {
+    return db
+      .select({
+        kind: refundRecords.kind,
+        targetId: refundRecords.targetId,
+        amount: refundRecords.amount,
+        refundRef: refundRecords.refundRef,
+        recordedAt: refundRecords.recordedAt,
+      })
+      .from(refundRecords)
+      .where(eq(refundRecords.bookingId, bookingId))
+      .orderBy(asc(refundRecords.recordedAt), asc(refundRecords.id))
   },
 
   listBookingsForUser(

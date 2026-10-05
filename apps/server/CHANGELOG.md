@@ -18,6 +18,24 @@ reconstructing every change in them.
 
 ### Added
 
+- **Payment receipts** (no migration). `GET /bookings/:id/receipt` gives the
+  customer a receipt for a booking whose payment went through (paid,
+  collected, or refunded since), built by the pure `lib/receipts.ts` from rows
+  the server already has: a receipt number `DTL-<IST yymmdd of the first
+  payment>-<reference of the first booking in the reschedule chain>`, the
+  services as sold, the discount, the booking payment with its Razorpay
+  payment id, a paid final bill as its own section, each refund as its own
+  line, and the net paid. Only the booking's customer can read it; anyone else
+  gets 404 `BOOKING_NOT_FOUND`. A booking with nothing paid, or one the
+  customer moved (its payment went with it), gets 404
+  `RECEIPT_NOT_AVAILABLE`. Cancelled bookings and customer no-shows still have
+  one. It is a payment receipt, not a tax invoice: no GSTIN and no tax lines
+  until the CA confirms the GST setup. Customer booking payloads gain
+  `receiptAvailable`; `toVendorBookingResponse` drops it.
+- **Rollout: fill in `RECEIPT_ISSUER`** in `lib/receipts.ts` before telling
+  customers about receipts: the registered legal name and address, as the CA
+  has them, and a support email if there is an inbox someone reads. They are
+  null placeholders, and the receipt leaves those lines out until they are set.
 - **Recording refunds** (migration `0029_record_refunds`, which must be
   applied before deploying). Refunds stay manual in the Razorpay dashboard;
   ops now records each one. `payments`, `booking_intents` and

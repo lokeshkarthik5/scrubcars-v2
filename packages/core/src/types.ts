@@ -289,6 +289,11 @@ export interface Booking {
    * on garage payloads, on older servers, and on a customer no-show.
    */
   refund: BookingRefund
+  /**
+   * Customer only: a payment receipt can be opened for this booking (see
+   * BookingReceipt). False on garage payloads and on older servers.
+   */
+  receiptAvailable: boolean
 }
 
 /**
@@ -301,6 +306,78 @@ export interface BookingRefund {
   amount: number
   amountRefunded: number
   refundedAt?: string
+}
+
+/**
+ * A booking's payment receipt, as GET /bookings/:id/receipt sends it
+ * (apps/server/src/lib/receipts.ts). Not a tax invoice: no GSTIN and no tax
+ * lines until GST is set up.
+ *
+ * Kept as the server sends it — amounts as decimal strings, dates as ISO with
+ * an IST label beside them — because a receipt shows exactly those figures
+ * and dates, and the labels are made on the server so they read the same on
+ * every phone whatever its timezone.
+ */
+export interface BookingReceipt {
+  receiptNumber: string
+  issuedAt: string
+  issuedOn: string
+  issuer: {
+    name: string
+    /** Null until the owner fills in the registered name (server config). */
+    legalName: string | null
+    address: string | null
+    supportPhone: string
+    supportEmail: string | null
+    website: string
+  }
+  customer: { name: string; phone: string }
+  garage: { name: string; address: string }
+  booking: {
+    id: string
+    reference: string
+    /** The first booking's reference when this one was moved here; else null. */
+    originalReference: string | null
+    bookingType: BookingType
+    status: BookingStatus
+    statusLabel: string
+    scheduledAt: string
+    scheduledAtLabel: string
+  }
+  items: Array<{ name: string; amount: string }>
+  subtotal: string
+  discount: { code: string | null; amount: string } | null
+  bookingPayment: {
+    amount: string
+    method: string
+    paymentId: string | null
+    paidAt: string | null
+    paidAtLabel: string | null
+  }
+  finalBill: {
+    lines: Array<{ description: string; amount: string }>
+    total: string
+    /** What the customer paid at booking toward the bill (after any discount). */
+    creditedFromBooking: string
+    /** The booking's discount, kept off the bill; null when there was none. */
+    discount: { code: string | null; amount: string } | null
+    balancePaid: string
+    paymentId: string | null
+    paidAt: string | null
+    paidAtLabel: string | null
+  } | null
+  refunds: Array<{
+    against: 'booking' | 'final_bill'
+    amount: string
+    refundedAt: string | null
+    refundedAtLabel: string | null
+    /** How the money went back, saying no more than the server knows. */
+    method: string
+    reference: string | null
+  }>
+  totalPaid: string
+  totalRefunded: string
+  netPaid: string
 }
 
 export interface JobLocation {
