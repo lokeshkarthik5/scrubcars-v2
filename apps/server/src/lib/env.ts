@@ -78,6 +78,19 @@ export const env = {
         'https://admin.detlio.com',
       ],
   smsApiKey: process.env.SMS,
+  // ─── Ops alerts ────────────────────────────────────────────────────────────
+  // A Telegram bot that posts booking events (new paid booking, refund due,
+  // decline, cancel, reschedule) into the Detlio team's group. Both unset —
+  // as in development, E2E and previews — turns alerts off and nothing else
+  // changes. The token is a password for the bot: Production only.
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
+  telegramOpsChatId: process.env.TELEGRAM_OPS_CHAT_ID,
+  // Alerts go out from the Production deployment only, whatever else is set:
+  // a preview, `vercel env pull` or a local .env holding the token must never
+  // post test bookings to the real team. OPS_ALERTS=on overrides that for a
+  // deliberate local test.
+  vercelEnv: process.env.VERCEL_ENV,
+  opsAlertsForced: process.env.OPS_ALERTS === 'on',
   adminUsername: process.env.ADMIN_USERNAME ?? 'admin',
   adminPassword:
     process.env.ADMIN_PASSWORD ??

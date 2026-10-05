@@ -1,5 +1,6 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
+import { alertOps } from '../../lib/ops-alerts.js'
 import {
   computeAvailableSlots,
   getDateKeyFromScheduledAt,
@@ -834,6 +835,7 @@ export const bookingsService = {
     log.info({ bookingId, userId, status: 'cancelled', cancelledBy: 'user' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    alertOps({ kind: 'customer_cancelled', booking: updated!, reason })
     return toBookingResponse(updated!)
   },
 
@@ -982,6 +984,11 @@ export const bookingsService = {
     const fullBooking = await bookingsRepository.findBookingById(
       result.booking.id
     )
+    alertOps({
+      kind: 'rescheduled',
+      booking: fullBooking!,
+      previousScheduledAt: booking.scheduledAt,
+    })
     return toBookingResponse(fullBooking!)
   },
 
@@ -1049,6 +1056,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, status: 'cancelled', cancelledBy: 'vendor' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    alertOps({ kind: 'garage_declined', booking: updated!, reason })
     return toVendorBookingResponse(updated!)
   },
 
