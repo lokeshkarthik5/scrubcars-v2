@@ -125,9 +125,37 @@ export const getBookingItems = async (bookingId: string) =>
       from booking_items where booking_id = ${bookingId} order by sort_order
   `
 
+export type PaymentRow = {
+  status: string
+  amount: string
+  gateway_txn_id: string | null
+  paid_at: Date | null
+  /** What ops has recorded giving back (0029); null until then. */
+  refunded_amount: string | null
+  refund_ref: string | null
+  refunded_at: Date | null
+  refunded_by: string | null
+  refund_note: string | null
+}
+
 export const getPayment = async (bookingId: string) =>
-  (await sql<{ status: string; amount: string; gateway_txn_id: string | null; paid_at: Date | null }[]>`
-    select status, amount, gateway_txn_id, paid_at from payments where booking_id = ${bookingId}
+  (await sql<PaymentRow[]>`
+    select status, amount, gateway_txn_id, paid_at,
+           refunded_amount, refund_ref, refunded_at, refunded_by, refund_note
+      from payments where booking_id = ${bookingId}
+  `)[0]
+
+/** A checkout's status and what has been refunded on it. */
+export const getIntent = async (intentId: string) =>
+  (await sql<{
+    status: string
+    payment_ref: string | null
+    refunded_amount: string | null
+    refund_ref: string | null
+    refund_note: string | null
+  }[]>`
+    select status, payment_ref, refunded_amount, refund_ref, refund_note
+      from booking_intents where id = ${intentId}
   `)[0]
 
 export const countRedemptions = async (bookingId: string): Promise<number> =>

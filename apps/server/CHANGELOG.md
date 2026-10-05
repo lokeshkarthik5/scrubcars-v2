@@ -18,6 +18,98 @@ reconstructing every change in them.
 
 ### Added
 
+- **Recording refunds** (migration `0029_record_refunds`, which must be
+  applied before deploying). Refunds stay manual in the Razorpay dashboard;
+  ops now records each one. `payments`, `booking_intents` and
+  `booking_charges` gain `refunded_amount` (running total), `refund_ref`
+  (rfnd_…, or null when refunded by UPI/bank), `refunded_at`, `refunded_by`
+  and `refund_note`, with a CHECK that the total never passes what was paid,
+  and `bookings` gains an index on `rescheduled_from_id`. What is owed lives
+  in `lib/refunds.ts`: a cancelled booking's paid payment (whoever cancelled,
+  a garage no-show included) except a customer no-show or a booking the
+  customer moved; a failed checkout with a captured payment; a paid final
+  bill on a cancelled booking (not a customer no-show); a payment that landed
+  on a replaced or withdrawn bill. A second payment on an already-paid bill is
+  still only a booking note, so it is not listed. The same migration adds
+  `refund_records`: one row per refund recorded (the money rows keep only the
+  running total and the latest), with a unique index on `refund_ref` so one
+  Razorpay refund can't be recorded on two customers, and one on
+  `(kind, target_id, refunded_before)` so the same refund can't be recorded
+  twice.
+- **Rollout: clear the refunds already done by hand.** Until now nothing
+  marked a refund on its row, so every refund already done in Razorpay still
+  reads `payments.status = 'paid'` on a cancelled booking (or a failed
+  checkout with a `payment_ref`). Once deployed, each one would show as owed
+  on the Refunds page and the pilot card, and the customer's booking page
+  would promise a refund they already have. Right after applying 0029 and
+  before deploying the apps, list them (read-only):
+
+  ```sql
+  select 'booking' as kind, b.id, p.amount, p.gateway_txn_id as razorpay_payment_id, b.cancelled_at as since
+    from bookings b join payments p on p.booking_id = b.id
+   where b.status = 'cancelled' and p.status = 'paid'
+     and (b.no_show is null or b.no_show <> 'customer')
+     and not exists (select 1 from bookings m where m.rescheduled_from_id = b.id)
+  union all
+  select 'checkout', i.id, i.amount, i.payment_ref, i.created_at
+    from booking_intents i
+   where i.status = 'failed' and i.payment_ref is not null
+  union all
+  select 'bill', c.id, c.amount_due, c.gateway_payment_id, c.updated_at
+    from booking_charges c join bookings b on b.id = c.booking_id
+   where (c.status = 'cancelled' and c.gateway_payment_id is not null)
+      or (c.status = 'paid' and b.status = 'cancelled'
+          and (b.no_show is null or b.no_show <> 'customer'))
+  order by since;
+  ```
+
+  Ops checks each payment id in the Razorpay dashboard and records the ones
+  already refunded on the admin Refunds page as soon as it is live ("Mark
+  refunded…" with the real rfnd_ id, or "Refunded outside Razorpay" with a
+  note such as "Refunded before refunds were recorded"). What is left is
+  money still owed. If the backlog can't be cleared before launch, a one-off
+  hand-run UPDATE (never in a migration) may mark the confirmed ones
+  refunded, with `refund_note` saying so and a `refund_records` row each —
+  only for payments confirmed refunded in Razorpay.
+- `GET /admin/refunds?status=owed|done` lists refunds (kind `booking` /
+  `checkout` / `bill`, customer, garage, paid / refunded / owed, Razorpay
+  payment id, why and since when, and the refund once done). `POST
+  /admin/refunds` `{ kind, id, amount, refundRef | outsideRazorpayNote, note? }`
+  records a full or part refund (part refunds add up): refused when not owed
+  (`REFUND_NOT_DUE`), above what is owed (`REFUND_TOO_MUCH`), already refunded
+  in full (409 `ALREADY_REFUNDED`), under a refund id already recorded on any
+  refund (409 `REFUND_REF_USED`) or when the figures moved first (409
+  `REFUND_STATE_CHANGED`). The write is conditional on the running total the
+  caller saw (optional `expectedRefunded`, which the admin dialog always
+  sends; the total read otherwise), so a retry after a lost response is
+  refused rather than recorded twice. A full refund of a booking's payment
+  moves it to `refunded`. Leaves a booking note and sends a `refund_recorded`
+  Telegram alert; the `paid_no_booking` alert now links the Refunds page.
+- Admin booking rows carry `refundOwed` and `refunded`; the detail carries
+  `refunds`. The pilot numbers add `refundsOwed`, `refundsOwedAmount` (all
+  still owed) and `refunded`, `refundedAmount` (recorded in the window), and
+  revenue is kept money less refunds.
+- Customer booking payloads carry `refund` `{ status: owed | refunded | none,
+  amount, amountRefunded, refundedAt }` — never owed on a customer no-show,
+  and no refund ids or names. Garage payloads leave it out.
+- Garage **earnings** include customer no-shows on a kept payment at the
+  normal payout (`kind: 'customer_no_show'` on the job); garage no-shows and
+  other cancellations still earn nothing. `jobsDone` counts jobs done only.
+
+### Changed
+
+- A promo code used on a booking the customer didn't turn up for stays used:
+  `DISCOUNT_HELD` and `DISCOUNT_REALIZED` count customer no-shows. Every other
+  cancellation still gives the use back.
+- `GET /bookings/vendor` keeps bookings whose payment is `refunded`: a
+  declined booking or the garage's own no-show stays on its Cancelled tab
+  after the customer is refunded in full. Accepting and capacity still need
+  `paid`.
+- A payment ops has refunded is never moved back to `paid` or `failed` by a
+  late webhook or verify call, and a refunded booking can't be paid again
+  (`PAYMENT_REFUNDED`).
+
+
 - **Job records** (migration `0028_job_records_and_final_bill`, which must be
   applied before deploying): `bookings.accepted_at`, `started_at` and
   `completed_at`, stamped by the same conditional write that moves the status,

@@ -20,6 +20,7 @@ import {
   toFinalBillView,
   type FinalBillRecord,
 } from '../../lib/final-bill.js'
+import { customerRefund } from '../../lib/refunds.js'
 import {
   customerSeesPhotos,
   toJobPhotoView,
@@ -214,7 +215,13 @@ function finalBillOf(charges: FinalBillRecord[]) {
   return bill ? toFinalBillView(bill) : null
 }
 
-function toBookingResponse(booking: BookingWithRelations) {
+/**
+ * The customer's shape of a booking. `moved` is whether they moved it to a
+ * new time (another booking was rescheduled from it): its payment went with
+ * it, so it is never shown as money owed back. False wherever the caller has
+ * just written the booking, which cannot have been moved yet.
+ */
+function toBookingResponse(booking: BookingWithRelations, moved = false) {
   return {
     id: booking.id,
     status: booking.status,
@@ -327,6 +334,17 @@ function toBookingResponse(booking: BookingWithRelations) {
         }
       : null,
     payment: toPaymentResponse(booking.payment),
+    // Whether money is owed back on this booking or has gone back, how much,
+    // and when (lib/refunds.ts): what the booking page tells the customer
+    // about their refund. No refund ids, notes or who did it. Never 'owed' on
+    // a customer no-show, which keeps the payment.
+    refund: customerRefund({
+      status: booking.status,
+      noShow: (booking.noShow as 'customer' | 'garage' | null | undefined) ?? null,
+      moved,
+      payment: booking.payment,
+      charges: booking.charges,
+    }),
     // The customer sees the job's photos once the work has started, next to
     // the step that says so (see customerSeesPhotos).
     ...(booking.photos !== undefined && {
@@ -373,6 +391,8 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     subtotalAmount: _subtotal,
     discountAmount: _discountAmount,
     discountFundedBy: _fundedBy,
+    // What the customer gets back is between them and Detlio.
+    refund: _refund,
     ...vendorView
   } = toBookingResponse(booking)
 
@@ -928,8 +948,11 @@ export const bookingsService = {
       status: query.status,
       bookingType: query.booking_type,
     })
+    const moved = await bookingsRepository.findMovedBookingIds(
+      bookings.map((booking) => booking.id)
+    )
 
-    return bookings.map(toBookingResponse)
+    return bookings.map((booking) => toBookingResponse(booking, moved.has(booking.id)))
   },
 
   async getBookingDetail(userId: string, bookingId: string) {
@@ -937,9 +960,10 @@ export const bookingsService = {
 
     // The same booking, two shapes. The customer who owns it still gets the
     // discount breakdown their receipt needs; a vendor member does not.
-    return viewer === 'vendor'
-      ? toVendorBookingResponse(booking)
-      : toBookingResponse(booking)
+    if (viewer === 'vendor') return toVendorBookingResponse(booking)
+
+    const moved = await bookingsRepository.findMovedBookingIds([booking.id])
+    return toBookingResponse(booking, moved.has(booking.id))
   },
 
   async createBooking(userId: string, input: CreateBookingInput) {

@@ -14,6 +14,7 @@ import {
   waitingMinutes,
 } from '../../lib/booking-ops.js'
 import { liveFinalBill, type FinalBillRecord } from '../../lib/final-bill.js'
+import { bookingRefundTotals } from '../../lib/refunds.js'
 import { toJobPhotoView } from '../../lib/job-records.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
@@ -25,6 +26,7 @@ import {
   keyFromPublicUrl,
 } from '../../lib/storage.js'
 import { membersRepository } from '../members/members.repository.js'
+import { refundsService } from '../refunds/refunds.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { adminRepository } from './admin.repository.js'
 import type {
@@ -206,7 +208,32 @@ function billDueOf(booking: AdminBookingRecord): string | null {
   return bill?.status === 'due' ? bill.amountDue : null
 }
 
-function toAdminBookingRow(booking: AdminBookingRecord, notesCount: number, now: number) {
+/**
+ * What is still to give back on a booking, and what has gone back, for the
+ * list's "Refund owed ₹X" / "Refunded" flag: its payment and any bills, by
+ * the rules in lib/refunds.ts. `moved` is whether the customer moved it to a
+ * new time, which took its payment with it.
+ */
+function refundFlagsOf(booking: AdminBookingRecord, moved: boolean) {
+  const totals = bookingRefundTotals({
+    status: booking.status,
+    noShow: booking.noShow,
+    moved,
+    payment: booking.payment,
+    charges: booking.charges,
+  })
+  return {
+    refundOwed: Number(totals.owed) > 0 ? totals.owed : null,
+    refunded: Number(totals.refunded) > 0 ? totals.refunded : null,
+  }
+}
+
+function toAdminBookingRow(
+  booking: AdminBookingRecord,
+  notesCount: number,
+  now: number,
+  moved = false
+) {
   return {
     id: booking.id,
     reference: bookingReference(booking.id),
@@ -276,6 +303,7 @@ function toAdminBookingRow(booking: AdminBookingRecord, notesCount: number, now:
     startedAt: booking.startedAt?.toISOString() ?? null,
     completedAt: booking.completedAt?.toISOString() ?? null,
     billDue: billDueOf(booking),
+    ...refundFlagsOf(booking, moved),
     notesCount,
     rescheduledFromId: booking.rescheduledFromId,
     // Deprecated — see above.
@@ -306,15 +334,19 @@ async function loadBookingDetail(id: string, now: number) {
   const staffIds = [booking.acceptedBy, booking.completedBy].filter(
     (staffId): staffId is string => staffId !== null
   )
-  const [rescheduledToId, names] = await Promise.all([
+  const [rescheduledToId, names, refunds] = await Promise.all([
     adminRepository.findRescheduledToId(id),
     adminRepository.findUserNames(staffIds),
+    refundsService.listForBooking(id),
   ])
 
   const { notes, photos, ...row } = booking
   const finalBill = liveFinalBill(booking.charges)
   return {
-    ...toAdminBookingRow(row, notes.length, now),
+    ...toAdminBookingRow(row, notes.length, now, rescheduledToId !== null),
+    // Money owed back on this booking, or given back: its payment and any
+    // bills, each with what ops needs to refund it and mark it done.
+    refunds,
     // The bill that stands, and the unpaid ones it replaced, newest first. A
     // replaced bill with a payment id on it is money taken for a bill that no
     // longer stands — a refund to do.
@@ -601,9 +633,10 @@ export const adminService = {
 
   /**
    * The pilot's numbers over the last 7 or 30 days, rolling from now: the
-   * checkout funnel, how bookings ended, the money, the busiest garages, and
-   * the median minutes from payment to the garage accepting. Definitions live
-   * in lib/pilot-stats.ts.
+   * checkout funnel, how bookings ended, the money, the busiest garages, the
+   * median minutes from payment to the garage accepting, and refunds (all
+   * still owed, and those recorded in the window). Definitions live in
+   * lib/pilot-stats.ts.
    *
    * The accept time reads `accepted_at`, which only bookings accepted since
    * migration 0028 have; under three accepts in the window it says so rather
@@ -611,10 +644,11 @@ export const adminService = {
    */
   async getPilotStats(query: PilotStatsQuery, now = Date.now()) {
     const since = new Date(now - query.days * 24 * 60 * 60 * 1000)
-    const [intents, bookingRows, accepts] = await Promise.all([
+    const [intents, bookingRows, accepts, refunds] = await Promise.all([
       adminRepository.listIntentsCreatedSince(since),
       adminRepository.listBookingsCreatedSince(since),
       adminRepository.listAcceptsSince(since),
+      refundsService.pilotRefunds(since),
     ])
 
     return {
@@ -622,6 +656,7 @@ export const adminService = {
       since: since.toISOString(),
       ...summarisePilot(intents, bookingRows),
       ...summariseAcceptTime(accepts, since),
+      ...refunds,
     }
   },
 
@@ -815,16 +850,19 @@ export const adminService = {
       offset: query.cursor ? 0 : (query.page - 1) * query.limit,
     })
 
-    const [rows, notesCounts] = await Promise.all([
+    const [rows, notesCounts, movedIds] = await Promise.all([
       adminRepository.findBookingsByIds(ids),
       adminRepository.countNotesByBooking(ids),
+      adminRepository.findMovedBookingIds(ids),
     ])
 
     // The rows come back unordered; the id query decided the order.
     const byId = new Map(rows.map((row) => [row.id, row]))
     return ids.flatMap((id) => {
       const booking = byId.get(id)
-      return booking ? [toAdminBookingRow(booking, notesCounts.get(id) ?? 0, now)] : []
+      return booking
+        ? [toAdminBookingRow(booking, notesCounts.get(id) ?? 0, now, movedIds.has(id))]
+        : []
     })
   },
 
@@ -838,8 +876,8 @@ export const adminService = {
    * Allowed from any state the booking is still live in — unlike the
    * customer's cancel, there is no 2-hour cutoff: ops cancels because
    * something has already gone wrong, often at the last minute. The money is
-   * not touched here; refunds are done by hand in Razorpay, and the alert
-   * below is what puts a paid one on the team's list.
+   * not touched here; refunds are done by hand in Razorpay, and a paid one
+   * goes on the Refunds page (and gets the alert below) until ops records it.
    */
   async cancelBooking(id: string, sub: string, input: AdminCancelBookingInput) {
     const booking = await adminRepository.findBookingById(id)

@@ -205,6 +205,9 @@ const CSV_COLUMNS: Array<
   ['Amount', (b) => Number(b.amount)],
   ['Payment', (b) => b.payment?.status ?? null],
   ['Razorpay payment id', (b) => b.payment?.gatewayTxnId ?? null],
+  // Money still owed back, and given back, on the booking and its bills.
+  ['Refund owed', (b) => (b.refundOwed ? Number(b.refundOwed) : null)],
+  ['Refunded', (b) => (b.refunded ? Number(b.refunded) : null)],
   ['Cancelled', (b) => cancellationLabel(b)],
   ['Reason', (b) => b.cancellationReason],
   ['Notes', (b) => b.notesCount],

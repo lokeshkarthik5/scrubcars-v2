@@ -146,6 +146,9 @@ describe('formatOpsAlert', () => {
     expect(text).toContain('₹799 · Razorpay payment pay_ABC123')
     expect(text).toContain('Garage: Marina Auto Spa')
     expect(text).toContain('Why: that car already had a booking at that time')
+    // There is no booking page to link to; the Refunds page is where it is marked done.
+    expect(text).toContain('mark it refunded on the Refunds page')
+    expect(text).toContain('https://admin.detlio.com/refunds')
   })
 
   test('a garage that filled up, closed or paused mid-payment is said in words', () => {
@@ -329,5 +332,48 @@ describe('final bill alerts', () => {
       paymentId: 'pay_LATE',
     })
     expect(cancelled).toContain('Final bill paid after the booking was cancelled')
+  })
+})
+
+describe('refund recorded', () => {
+  const recorded = {
+    kind: 'refund_recorded',
+    what: 'booking',
+    bookingId: booking.id,
+    garageName: 'Marina Auto Spa',
+    amount: '1299.00',
+    paid: '1299.00',
+    refundedTotal: '1299.00',
+    refundRef: 'rfnd_ABC123',
+    paymentId: 'pay_SEED',
+    by: 'Anand',
+  } satisfies OpsAlert
+
+  test('a full refund names the refund, the payment and who recorded it', () => {
+    const text = formatOpsAlert(recorded)
+    expect(text).toContain('💸 Refund recorded #3F2A9C1B · ₹1,299')
+    expect(text).toContain('Booking payment · Marina Auto Spa')
+    expect(text).toContain('Razorpay refund rfnd_ABC123 for pay_SEED')
+    expect(text).toContain('Refunded in full.')
+    expect(text).toContain('Recorded by Anand.')
+    expect(text).toContain(adminBookingUrl(booking.id))
+  })
+
+  test('a part refund says what is still owed', () => {
+    const text = formatOpsAlert({ ...recorded, amount: '300.00', refundedTotal: '300.00' })
+    expect(text).toContain('Part refund: ₹300 of ₹1,299 back so far. The rest is still owed.')
+  })
+
+  test('a refund outside Razorpay says so, and a checkout links to the refunds page', () => {
+    const text = formatOpsAlert({
+      ...recorded,
+      what: 'checkout',
+      bookingId: null,
+      refundRef: null,
+    })
+    expect(text).toContain('💸 Refund recorded · ₹1,299')
+    expect(text).toContain('Payment with no booking · Marina Auto Spa')
+    expect(text).toContain('Refunded outside Razorpay (payment pay_SEED).')
+    expect(text).toContain('https://admin.detlio.com/refunds')
   })
 })

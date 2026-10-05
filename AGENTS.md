@@ -99,6 +99,8 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
 
 - `bookings` — central entity. `booking_type`: `doorstep` / `dropin`. `scheduled_at` is the start timestamp. Doorstep lat/lng/address snapshotted from user address
 - `payments` — 1:1 with bookings. Cash bookings: `status: pending` → `status: collected` on job completion
+- Refunds (0029) are manual in the Razorpay dashboard; ops records each one (`POST /admin/refunds`). `payments`, `booking_intents` and `booking_charges` share five refund columns (`refunded_amount` is the running total of every refund so far; `refund_ref` (rfnd_… or null for UPI/bank, with `refund_note` saying how), `refunded_at`, `refunded_by` describe the latest); every refund is also a `refund_records` row (unique `refund_ref`, unique `(kind, target_id, refunded_before)`), written in the same transaction, and the write is conditional on the total the dialog saw (`expectedRefunded`). A full refund of a booking's payment moves it to `refunded`; a part refund leaves it `paid`. What is owed is decided only by `lib/refunds.ts`: a cancelled booking's paid payment (any canceller, garage no-show included) except a **customer no-show** and a booking the customer **moved** (a reschedule cancels the old row with its payment still `paid` — find it by `bookings.rescheduled_from_id`); a failed intent with a `payment_ref`; a paid bill on a cancelled booking (not a customer no-show); a payment recorded on a cancelled (replaced/withdrawn) bill. The refunds repository's SQL only narrows to candidates; keep it no narrower than the lib. Nothing that settles or fails a payment may write over `refunded` (see `settlePayment`, `markBookingPaid`)
+- No-show money: a customer no-show keeps the payment, keeps the promo use spent (`DISCOUNT_HELD`/`DISCOUNT_REALIZED` and their pure twins in `discounts.predicates.ts`), and earns the garage its normal payout (`lib/earnings.ts`, labelled "Customer no-show" in earnings). A garage no-show is refunded in full and earns nothing
 - `reviews` — unique on `booking_id`. Only allowed after `bookings.status = completed`
 - `bookings.accepted_at` / `started_at` / `completed_at` — written by the same conditional update that moves the status (`updateBookingStatus`). Null on bookings from before 0028; never backfill a guessed time
 - `job_photos` — a job's before/after photos (`stage`), the garage's evidence in a dispute. Key always under `vendors/<vendorId>/job-photos/<bookingId>/`; before from `confirmed`, after from `in_progress`, 6 per stage, frozen 7 days after completion (`lib/job-records.ts`). Customers see them once the job is `in_progress`
@@ -144,7 +146,7 @@ pending → confirmed → in_progress → completed
 ## Payment status flow
 
 ```
-Online:  pending → paid → refunded
+Online:  pending → paid → refunded   (refunded only when ops records a full refund)
 Cash:    pending → collected
 Failed:  pending → failed
 ```

@@ -284,6 +284,23 @@ export interface Booking {
   finalBill: FinalBill | null
   /** Garage only: the job card can offer "Raise final bill" now. */
   canRaiseFinalBill: boolean
+  /**
+   * Customer only: money owed back on this booking, or given back. 'none'
+   * on garage payloads, on older servers, and on a customer no-show.
+   */
+  refund: BookingRefund
+}
+
+/**
+ * Whether money is coming back on a booking, as its customer is told:
+ * `amount` is all of it, `amountRefunded` what has gone back so far, and
+ * `refundedAt` when the latest refund was recorded.
+ */
+export interface BookingRefund {
+  status: 'owed' | 'refunded' | 'none'
+  amount: number
+  amountRefunded: number
+  refundedAt?: string
 }
 
 export interface JobLocation {
@@ -323,4 +340,9 @@ export interface EarningsJob {
   type: BookingType
   amount: number
   settled: boolean
+  /**
+   * What earned it: the job done, or a customer who didn't turn up — paid as
+   * if the job happened, since the garage held the slot.
+   */
+  kind: 'job' | 'customer_no_show'
 }

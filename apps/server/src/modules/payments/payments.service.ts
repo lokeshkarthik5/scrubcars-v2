@@ -141,7 +141,9 @@ async function markBookingPaid(
     throw new AppError(404, 'Payment not found', 'PAYMENT_NOT_FOUND')
   }
 
-  if (payment.status === 'paid') {
+  // A refunded payment was settled before it was refunded: a capture event
+  // redelivered after ops recorded the refund must not flip it back to paid.
+  if (payment.status === 'paid' || payment.status === 'refunded') {
     return payment
   }
 
@@ -231,6 +233,16 @@ export const paymentsService = {
       throw new AppError(400, 'Payment already completed', 'PAYMENT_ALREADY_PAID')
     }
 
+    // Only a cancelled booking is ever refunded, and there is nothing on it
+    // to pay for again.
+    if (payment.status === 'refunded') {
+      throw new AppError(
+        400,
+        'This payment was refunded, so there is nothing to pay.',
+        'PAYMENT_REFUNDED'
+      )
+    }
+
     // Refused before the customer is charged, where it can still be said
     // plainly. settlePayment checks again when the money lands. Only a
     // booking that is still on has a time to check — the same rule there.
@@ -303,7 +315,7 @@ export const paymentsService = {
       input.bookingId
     )
 
-    if (payment.status === 'paid') {
+    if (payment.status === 'paid' || payment.status === 'refunded') {
       return {
         bookingId: booking.id,
         payment: toPaymentResponse(payment),
@@ -475,7 +487,9 @@ export const paymentsService = {
     }
 
     if (event === 'payment.failed' || entity.status === 'failed') {
-      if (payment.status !== 'paid') {
+      // A late failure event for an attempt on a payment that later went
+      // through (or was refunded) says nothing about it now.
+      if (payment.status !== 'paid' && payment.status !== 'refunded') {
         await paymentsRepository.markFailed(payment.bookingId)
         log.warn({ event, bookingId: payment.bookingId, paymentId: entity.id }, 'webhook:payment_failed')
       }

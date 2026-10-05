@@ -22,6 +22,8 @@ interface ApiEarnings {
     bookingType: string
     amount: number
     settled: boolean
+    /** Absent from servers older than no-show earnings. */
+    kind?: 'job' | 'customer_no_show'
   }[]
 }
 
@@ -70,6 +72,7 @@ export async function getEarningsData(
         type: job.bookingType as EarningsJob['type'],
         amount: job.amount,
         settled: job.settled,
+        kind: job.kind ?? 'job',
       })),
     }
   } catch {

@@ -5,6 +5,7 @@ import {
   keptMoney,
   summariseAcceptTime,
   summarisePilot,
+  summariseRefunds,
   wasAccepted,
   type PilotAcceptRow,
   type PilotBookingRow,
@@ -296,5 +297,55 @@ describe('summariseAcceptTime', () => {
       accept({ acceptedAt: null }),
     ]
     expect(summariseAcceptTime(rows, since)).toEqual({ medianAcceptMins: null, acceptSamples: 2 })
+  })
+})
+
+describe('refunds in the revenue', () => {
+  test('kept money is what was paid less what went back', () => {
+    // A completed job with a part of its bill refunded by hand.
+    const stats = summarisePilot([], [
+      row({ status: 'completed', paymentAmount: '499.00', chargesPaid: '1000.00', chargesRefunded: '200.00' }),
+    ])
+    expect(stats.revenue).toBe(1299)
+  })
+
+  test('a refunded cancellation was never revenue, and stays out', () => {
+    const stats = summarisePilot([], [
+      row({
+        status: 'cancelled',
+        cancelledBy: 'admin',
+        cancelledOnBehalfOf: 'detlio',
+        paymentStatus: 'refunded',
+        paymentRefunded: '499.00',
+      }),
+    ])
+    expect(stats.revenue).toBe(0)
+  })
+
+  test('a customer no-show keeps the payment in revenue', () => {
+    const stats = summarisePilot([], [
+      row({ status: 'cancelled', cancelledBy: 'admin', cancelledOnBehalfOf: 'detlio', noShow: 'customer' }),
+    ])
+    expect(stats.revenue).toBe(499)
+  })
+})
+
+describe('summariseRefunds', () => {
+  test('counts and adds up what is owed and what was refunded', () => {
+    expect(
+      summariseRefunds(
+        [{ amountOwed: '499.00' }, { amountOwed: '0.10' }],
+        [{ refundedAmount: '299.00' }, { refundedAmount: '0.20' }, { refundedAmount: null }]
+      )
+    ).toEqual({ refundsOwed: 2, refundsOwedAmount: 499.1, refunded: 3, refundedAmount: 299.2 })
+  })
+
+  test('nothing owed, nothing refunded', () => {
+    expect(summariseRefunds([], [])).toEqual({
+      refundsOwed: 0,
+      refundsOwedAmount: 0,
+      refunded: 0,
+      refundedAmount: 0,
+    })
   })
 })

@@ -448,6 +448,20 @@ export const adminRepository = {
     return row?.id ?? null
   },
 
+  /**
+   * Which of these bookings the customer moved to a new time. A moved
+   * booking is cancelled with its payment still 'paid', but the payment went
+   * with the move, so it owes no refund.
+   */
+  async findMovedBookingIds(ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set()
+    const rows = await db
+      .select({ id: bookings.rescheduledFromId })
+      .from(bookings)
+      .where(inArray(bookings.rescheduledFromId, ids))
+    return new Set(rows.flatMap((row) => (row.id ? [row.id] : [])))
+  },
+
   /** Names for a handful of user ids (who accepted, who completed). */
   async findUserNames(ids: string[]): Promise<Map<string, string>> {
     if (ids.length === 0) return new Map()
@@ -558,9 +572,17 @@ export const adminRepository = {
         noShow: bookings.noShow,
         paymentStatus: payments.status,
         paymentAmount: payments.amount,
-        // Final bills paid in the app on this booking, added up.
+        paymentRefunded: payments.refundedAmount,
+        // Final bills paid in the app on this booking, added up, and what has
+        // been refunded of them.
         chargesPaid: sql<string | null>`(
           select sum(${bookingCharges.amountDue})::text
+            from ${bookingCharges}
+           where ${bookingCharges.bookingId} = ${bookings.id}
+             and ${bookingCharges.status} = 'paid'
+        )`,
+        chargesRefunded: sql<string | null>`(
+          select sum(${bookingCharges.refundedAmount})::text
             from ${bookingCharges}
            where ${bookingCharges.bookingId} = ${bookings.id}
              and ${bookingCharges.status} = 'paid'

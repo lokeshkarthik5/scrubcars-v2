@@ -29,7 +29,13 @@ import {
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
 import { APP_TIMEZONE } from '@repo/core/utils'
-import { BillDueBadge, NoShowBadge, WaitingBadge } from '@/components/booking-badges'
+import {
+  BillDueBadge,
+  NoShowBadge,
+  RefundedBadge,
+  RefundOwedBadge,
+  WaitingBadge,
+} from '@/components/booking-badges'
 import { CopyButton } from '@/components/copy-button'
 import { PhoneLink } from '@/components/phone-link'
 import {
@@ -103,6 +109,11 @@ function BookingRow({
           {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
           {b.noShow && <NoShowBadge party={b.noShow} />}
           {b.billDue && <BillDueBadge amount={b.billDue} />}
+          {b.refundOwed ? (
+            <RefundOwedBadge amount={b.refundOwed} />
+          ) : (
+            b.refunded && <RefundedBadge />
+          )}
           {b.notesCount > 0 && (
             <ScBadge variant="muted">
               <IconNotes size={11} aria-hidden className="mr-1" />

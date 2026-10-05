@@ -34,3 +34,20 @@ export function BillDueBadge({ amount }: { amount: string }) {
     </ScBadge>
   )
 }
+
+/**
+ * Money still to give back on a booking. Amber: it is a refund someone has
+ * to do in Razorpay and then mark done on the Refunds page.
+ */
+export function RefundOwedBadge({ amount }: { amount: string }) {
+  return (
+    <ScBadge variant="danger">
+      Refund owed&nbsp;<span className="font-numeric">{formatRupees(amount)}</span>
+    </ScBadge>
+  )
+}
+
+/** All the money owed back on a booking has gone back. */
+export function RefundedBadge() {
+  return <ScBadge variant="muted">Refunded</ScBadge>
+}

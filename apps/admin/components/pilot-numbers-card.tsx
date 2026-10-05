@@ -88,11 +88,13 @@ function Body({ stats }: { stats: PilotStats }) {
           value={rupees(stats.revenue)}
           hint="After refunds owed, with final bills paid in the app"
         />
+        {/* Counts every one in the window, refunded or not, so it says
+            nothing about what is left to do: that is "Refunds owed" below,
+            which carries the amber instead. */}
         <Figure
           label="Paid, no booking"
           value={stats.paidNoBooking}
-          hint="Each one is a refund to do"
-          tone={stats.paidNoBooking > 0 ? 'warn' : undefined}
+          hint="Payments that became no booking; what's still to refund is below"
         />
         <Figure
           label="No-shows"
@@ -105,6 +107,25 @@ function Body({ stats }: { stats: PilotStats }) {
           hint={`Customer ${stats.cancelledByCustomer} · Garage ${stats.cancelledByGarage} · Detlio ${stats.cancelledByDetlio}`}
         />
       </div>
+
+      {/* Refunds: the to-do list (whenever each became owed, not just this
+          window) and what was given back in the window. Absent from an
+          older server. */}
+      {stats.refundsOwed !== undefined && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Figure
+            label="Refunds owed"
+            value={stats.refundsOwed}
+            hint={`${rupees(stats.refundsOwedAmount ?? 0)} to give back, any date`}
+            tone={stats.refundsOwed > 0 ? 'warn' : undefined}
+          />
+          <Figure
+            label="Refunded"
+            value={stats.refunded ?? 0}
+            hint={`${rupees(stats.refundedAmount ?? 0)} in this window`}
+          />
+        </div>
+      )}
 
       <div>
         <p className="pb-2 text-[10px] font-medium uppercase tracking-wide text-text-muted">

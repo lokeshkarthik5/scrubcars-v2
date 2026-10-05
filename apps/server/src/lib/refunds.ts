@@ -1,0 +1,421 @@
+/**
+ * Refunds, as pure rules: what Detlio owes back, how much of it is left, and
+ * what recording a refund does to the figures.
+ *
+ * The owner's decisions, in short:
+ *
+ *   - Refunds stay manual in the Razorpay dashboard for the pilot. Ops does
+ *     the refund there and records it here (the refund id, the amount, who),
+ *     so "who still needs refunding?" has an answer.
+ *   - When a paid booking is cancelled — by the customer in time, by the
+ *     garage, or by Detlio — or the garage doesn't turn up, the customer gets
+ *     their money back. A customer who doesn't turn up does not: the garage
+ *     held the slot, and that is the published no-show policy.
+ *   - A checkout whose payment was captured but became no booking (a failed
+ *     booking intent) is refunded, and so is money paid on a final bill that
+ *     no longer stands.
+ *
+ * Money is carried as decimal strings and worked in paise, like the rest of
+ * the API (see final-bill.ts). Clock-free: nothing here reads the time.
+ */
+
+/** Where the money to give back was taken. */
+export type RefundKind = 'booking' | 'checkout' | 'bill'
+
+/**
+ * Where a refund stands: something still to give back, all of it given back,
+ * or nothing to give back at all.
+ */
+export type RefundState = 'owed' | 'refunded' | 'none'
+
+function toPaise(amount: string | number | null | undefined): number {
+  const value = Number(amount ?? 0)
+  return Number.isFinite(value) ? Math.round(value * 100) : 0
+}
+
+function fromPaise(paise: number): string {
+  return (paise / 100).toFixed(2)
+}
+
+/** What is still to give back: paid less refunded so far, never below zero. */
+export function amountOwed(paid: string, refunded: string | null | undefined): string {
+  return fromPaise(Math.max(0, toPaise(paid) - toPaise(refunded)))
+}
+
+// ─── What is owed ────────────────────────────────────────────────────────────
+
+/** A booking, with what decides whether its money goes back. */
+export interface BookingForRefund {
+  status: string
+  noShow: 'customer' | 'garage' | null
+  /**
+   * The customer moved it to a new time. A reschedule cancels the old row
+   * and copies its payment, still 'paid', onto the new one: the money went
+   * with the move, so the old row owes nothing.
+   */
+  moved: boolean
+}
+
+/** A booking's own payment, as the payments row holds it. */
+export interface PaymentForRefund {
+  status: string
+  amount: string
+  refundedAmount?: string | null
+}
+
+/**
+ * Whether a booking's own payment is money to give back, refunded yet or
+ * not: the booking is off (cancelled by anyone, or a garage no-show), the
+ * money arrived, and neither of the two exceptions applies — a customer
+ * no-show keeps the payment, and a moved booking's payment went with it.
+ *
+ * 'refunded' counts as well as 'paid': a refunded payment was refundable,
+ * which is how it shows on the done list.
+ */
+export function isBookingPaymentRefundable(
+  booking: BookingForRefund,
+  payment: Pick<PaymentForRefund, 'status'> | null | undefined
+): boolean {
+  if (!payment || (payment.status !== 'paid' && payment.status !== 'refunded')) return false
+  if (booking.status !== 'cancelled') return false
+  if (booking.moved) return false
+  return booking.noShow !== 'customer'
+}
+
+/** What is still owed on a booking's own payment. '0.00' when nothing is. */
+export function bookingPaymentOwed(
+  booking: BookingForRefund,
+  payment: PaymentForRefund | null | undefined
+): string {
+  if (!payment || !isBookingPaymentRefundable(booking, payment)) return '0.00'
+  if (payment.status === 'refunded') return '0.00'
+  return amountOwed(payment.amount, payment.refundedAmount)
+}
+
+/** A checkout (booking intent), as the row holds it. */
+export interface CheckoutForRefund {
+  status: string
+  /** The captured Razorpay payment, set only when the checkout failed. */
+  paymentRef: string | null
+  amount: string
+  refundedAmount?: string | null
+}
+
+/**
+ * A failed checkout with a payment on it: money captured, no booking. A
+ * checkout that never got a payment has nothing to give back.
+ */
+export function isCheckoutRefundable(checkout: Pick<CheckoutForRefund, 'status' | 'paymentRef'>): boolean {
+  return checkout.status === 'failed' && Boolean(checkout.paymentRef)
+}
+
+export function checkoutOwed(checkout: CheckoutForRefund): string {
+  if (!isCheckoutRefundable(checkout)) return '0.00'
+  return amountOwed(checkout.amount, checkout.refundedAmount)
+}
+
+/** A final bill, as the booking_charges row holds it. */
+export interface BillForRefund {
+  status: string
+  gatewayPaymentId: string | null
+  amountDue: string
+  refundedAmount?: string | null
+}
+
+/**
+ * A payment that landed on a bill that no longer stood: the garage had
+ * replaced it, or ops had cancelled the booking and so withdrawn it. The
+ * bill stays cancelled with the payment id on it (see
+ * recordPaymentOnReplacedBill), which is how it is found. Always given back,
+ * whatever happened to the booking: it paid for nothing.
+ */
+export function isStrayBillPayment(bill: Pick<BillForRefund, 'status' | 'gatewayPaymentId'>): boolean {
+  return bill.status === 'cancelled' && Boolean(bill.gatewayPaymentId)
+}
+
+/**
+ * Whether money paid on a bill goes back: a stray payment always does, and
+ * a paid bill does when its booking was then cancelled — unless that
+ * cancellation was a customer no-show, where the customer's money stays.
+ *
+ * A second payment on an already-paid bill is not here: it is recorded only
+ * as a booking note, with nothing on a row to find it by.
+ */
+export function isBillRefundable(
+  bill: Pick<BillForRefund, 'status' | 'gatewayPaymentId'>,
+  booking: Pick<BookingForRefund, 'status' | 'noShow'>
+): boolean {
+  if (isStrayBillPayment(bill)) return true
+  return bill.status === 'paid' && booking.status === 'cancelled' && booking.noShow !== 'customer'
+}
+
+export function billOwed(
+  bill: BillForRefund,
+  booking: Pick<BookingForRefund, 'status' | 'noShow'>
+): string {
+  if (!isBillRefundable(bill, booking)) return '0.00'
+  return amountOwed(bill.amountDue, bill.refundedAmount)
+}
+
+/** Where a refund stands, from what is owed and what was refunded so far. */
+export function refundState(owed: string, refunded: string | null | undefined): RefundState {
+  if (toPaise(owed) > 0) return 'owed'
+  if (toPaise(refunded) > 0) return 'refunded'
+  return 'none'
+}
+
+// ─── Recording a refund ──────────────────────────────────────────────────────
+
+/**
+ * What recording `amount` would do, before anything is written.
+ *
+ * - `ok`: it fits in what is still owed.
+ * - `not_due`: this money is not to be given back (a customer no-show, a
+ *   booking still on, a checkout that took no payment).
+ * - `already_refunded`: all of it has been given back already.
+ * - `too_much`: more than is still owed, or not a positive amount.
+ */
+export type RefundCheck = 'ok' | 'not_due' | 'already_refunded' | 'too_much'
+
+export function checkRefund(input: {
+  refundable: boolean
+  paid: string
+  refunded: string | null | undefined
+  amount: string | number
+}): RefundCheck {
+  if (!input.refundable) return 'not_due'
+  const owed = toPaise(amountOwed(input.paid, input.refunded))
+  if (owed === 0) return 'already_refunded'
+  const amount = toPaise(input.amount)
+  if (amount <= 0 || amount > owed) return 'too_much'
+  return 'ok'
+}
+
+/**
+ * The running total a refund write is made conditional on. The dialog sends
+ * what had been refunded when ops opened it; when that no longer matches
+ * what is on the row, null: the figures moved (someone else recorded one, or
+ * this same request already went through and its answer was lost), and the
+ * refund must not be added on top. A caller that sends nothing gets the
+ * total just read.
+ */
+export function refundBase(seen: string | number | undefined, read: string | null | undefined): string | null {
+  if (seen === undefined) return fromPaise(toPaise(read))
+  return toPaise(seen) === toPaise(read) ? fromPaise(toPaise(seen)) : null
+}
+
+/**
+ * The figures after recording `amount`: the new running total, and whether
+ * that is now everything that was paid (which moves a booking's payment to
+ * 'refunded'). Partial refunds add up; each one is checked against what is
+ * left (checkRefund), so the total never passes what was paid.
+ */
+export function afterRefund(
+  paid: string,
+  refundedSoFar: string | null | undefined,
+  amount: string | number
+): { refundedAmount: string; full: boolean } {
+  const total = toPaise(refundedSoFar) + toPaise(amount)
+  return { refundedAmount: fromPaise(total), full: total >= toPaise(paid) }
+}
+
+/**
+ * A Razorpay refund id: "rfnd_" and letters and digits (Razorpay's are 14 of
+ * them). Checked so a payment id ("pay_…") or a half-pasted value is caught
+ * before it becomes the record ops reconciles against.
+ */
+const RAZORPAY_REFUND_ID = /^rfnd_[A-Za-z0-9]{1,59}$/
+
+export function isRazorpayRefundId(value: string): boolean {
+  return RAZORPAY_REFUND_ID.test(value)
+}
+
+/**
+ * What goes in `refund_note`: how the money went back when it was not
+ * through Razorpay, then anything else ops wrote. Null when there is neither.
+ */
+export function storedRefundNote(input: {
+  outsideRazorpayNote?: string | null
+  note?: string | null
+}): string | null {
+  const outside = input.outsideRazorpayNote?.trim()
+  const note = input.note?.trim()
+  const parts = [outside ? `Refunded outside Razorpay: ${outside}` : null, note || null]
+  const text = parts.filter((part): part is string => Boolean(part)).join('\n')
+  return text || null
+}
+
+function rupees(amount: string): string {
+  const value = Number(amount)
+  return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+}
+
+/**
+ * The booking note a recorded refund leaves behind, so the notes stay a
+ * complete history of the money (and of every part refund, where the row
+ * only keeps the latest).
+ */
+export function refundBookingNote(input: {
+  /** What was refunded: "the booking payment", "the final bill payment". */
+  what: string
+  amount: string
+  full: boolean
+  refundRef: string | null
+  outsideRazorpayNote?: string | null
+  note?: string | null
+}): string {
+  const how = input.refundRef
+    ? `in Razorpay (${input.refundRef})`
+    : `outside Razorpay: ${input.outsideRazorpayNote?.trim() ?? ''}`
+  const head = `Refunded ${rupees(input.amount)} of ${input.what} ${how}.`
+  const scope = input.full ? null : 'Part refund; the rest is still owed.'
+  const extra = input.note?.trim() || null
+  return [head, scope, extra].filter((line): line is string => Boolean(line)).join('\n')
+}
+
+// ─── Why, and since when ─────────────────────────────────────────────────────
+
+const ON_BEHALF_OF = {
+  customer: "Cancelled by Detlio at the customer's request",
+  garage: "Cancelled by Detlio at the garage's request",
+  detlio: 'Cancelled by Detlio',
+} as const
+
+/**
+ * Why a booking's payment is owed, in the words the admin bookings screens
+ * use for who cancelled it.
+ */
+export function bookingRefundReason(booking: {
+  noShow: 'customer' | 'garage' | null
+  cancelledBy: 'user' | 'vendor' | 'admin' | null
+  cancelledOnBehalfOf: 'customer' | 'garage' | 'detlio' | null
+}): string {
+  if (booking.noShow === 'garage') return 'Garage no-show'
+  if (booking.noShow === 'customer') return 'Customer no-show'
+  switch (booking.cancelledBy) {
+    case 'user':
+      return 'Cancelled by the customer'
+    case 'vendor':
+      return 'Declined by the garage'
+    case 'admin':
+      return ON_BEHALF_OF[booking.cancelledOnBehalfOf ?? 'detlio']
+    default:
+      return 'Cancelled'
+  }
+}
+
+/** Why money paid on a bill is owed. */
+export function billRefundReason(bill: Pick<BillForRefund, 'status' | 'gatewayPaymentId'>): string {
+  return isStrayBillPayment(bill)
+    ? 'Final bill paid after it was replaced or withdrawn'
+    : 'Final bill paid on a booking that was then cancelled'
+}
+
+/**
+ * When money became owed: the later of when it was paid and when what made
+ * it owed happened. A payment can land after the cancellation (a late
+ * webhook on a booking the garage could no longer take), and then it was not
+ * owed before it arrived.
+ */
+export function owedSince(...moments: Array<Date | null | undefined>): Date | null {
+  return latestOf(moments)
+}
+
+function latestOf(moments: Array<Date | null | undefined>): Date | null {
+  const times = moments
+    .filter((moment): moment is Date => moment instanceof Date)
+    .map((moment) => moment.getTime())
+  return times.length > 0 ? new Date(Math.max(...times)) : null
+}
+
+// ─── One booking's refunds ───────────────────────────────────────────────────
+
+type Refunded = { refundedAt?: Date | null }
+
+/** A booking with its payment and its bills, as the booking reads load it. */
+export type BookingWithMoney = BookingForRefund & {
+  payment?: (PaymentForRefund & Refunded) | null
+  charges?: Array<BillForRefund & Refunded> | null
+}
+
+/**
+ * Everything to give back on one booking, added up: its own payment and money
+ * paid on its bills. `paid` is what those came to, `owed` what is still to go
+ * back, `refunded` what has, and `refundedAt` the latest refund recorded.
+ * What the admin bookings list flags, and what the customer is told.
+ */
+export function bookingRefundTotals(booking: BookingWithMoney): {
+  paid: string
+  owed: string
+  refunded: string
+  refundedAt: Date | null
+} {
+  const pieces: Array<{ paid: string; refunded: string | null | undefined; owed: string; refundedAt: Date | null | undefined }> = []
+
+  const payment = booking.payment
+  if (payment && isBookingPaymentRefundable(booking, payment)) {
+    pieces.push({
+      paid: payment.amount,
+      // A payment marked refunded by hand before 0029 has no amount on it:
+      // all of it went back.
+      refunded: payment.status === 'refunded' ? (payment.refundedAmount ?? payment.amount) : payment.refundedAmount,
+      owed: bookingPaymentOwed(booking, payment),
+      refundedAt: payment.refundedAt,
+    })
+  }
+  for (const bill of booking.charges ?? []) {
+    if (!isBillRefundable(bill, booking)) continue
+    pieces.push({
+      paid: bill.amountDue,
+      refunded: bill.refundedAmount,
+      owed: billOwed(bill, booking),
+      refundedAt: bill.refundedAt,
+    })
+  }
+
+  const sum = (read: (piece: (typeof pieces)[number]) => string | null | undefined) =>
+    fromPaise(pieces.reduce((total, piece) => total + toPaise(read(piece)), 0))
+
+  return {
+    paid: sum((piece) => piece.paid),
+    owed: sum((piece) => piece.owed),
+    refunded: sum((piece) => piece.refunded),
+    refundedAt: latestOf(pieces.map((piece) => piece.refundedAt)),
+  }
+}
+
+// ─── What the customer is told ───────────────────────────────────────────────
+
+/**
+ * A booking's refunds, as its customer sees them: whether money is owed back
+ * or has been, how much in all, how much has gone back, and when the latest
+ * refund was recorded. No refund ids, notes or names of who did it — those
+ * are the team's.
+ *
+ * It covers the booking's own payment and money paid on its final bills.
+ * A customer no-show reads 'none' whatever is on the rows: the customer is
+ * told plainly that the payment isn't refunded, and nothing here may
+ * contradict that.
+ */
+export interface CustomerRefund {
+  status: RefundState
+  /** Everything that is being or has been given back. */
+  amount: string
+  amountRefunded: string
+  /** When the latest refund was recorded, as ISO. */
+  refundedAt: string | null
+}
+
+export function customerRefund(booking: BookingWithMoney): CustomerRefund {
+  if (booking.noShow === 'customer') {
+    return { status: 'none', amount: '0.00', amountRefunded: '0.00', refundedAt: null }
+  }
+  const totals = bookingRefundTotals(booking)
+  const status = refundState(totals.owed, totals.refunded)
+  return {
+    status,
+    amount: status === 'none' ? '0.00' : totals.paid,
+    amountRefunded: totals.refunded,
+    refundedAt: totals.refundedAt?.toISOString() ?? null,
+  }
+}

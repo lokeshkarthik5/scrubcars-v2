@@ -61,7 +61,14 @@ export default function BookingsListPage() {
                       <p className="text-[13px] font-semibold text-text-primary">{booking.serviceSummary}</p>
                       <p className="text-[11px] text-text-secondary">{booking.vendorName}</p>
                     </div>
-                    <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {/* Said on the list too, so a customer checking on
+                          their money doesn't have to open each booking. */}
+                      {booking.status === 'cancelled' && booking.refund.status === 'refunded' && (
+                        <ScBadge variant="muted">Refunded</ScBadge>
+                      )}
+                      <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
+                    </span>
                   </div>
                   {/* When and how much are figures, in the brand's numeric
                       face. */}

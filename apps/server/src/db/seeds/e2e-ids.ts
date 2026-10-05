@@ -162,6 +162,13 @@ export const CUSTOMERS = {
    */
   billWebhook: { id: id(134), phone: '9000000034', name: 'Webhook Payer Vimala', vehicleId: id(743) },
   /**
+   * Owns the refunds journey's bookings and its failed checkout, all at
+   * VENDORS.refunds (BOOKINGS.refund*, BOOKING_INTENTS.refundOwed). Its own
+   * customer so the refunds lists and the customer's pages read only rows
+   * that journey controls.
+   */
+  refunds: { id: id(135), phone: '9000000035', name: 'Refund Revathi', vehicleId: id(744) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -212,6 +219,11 @@ export const STAFF = {
    * has one company and nothing another spec books.
    */
   inspectOwner: { id: id(206), phone: '9000001007', name: 'Inspect Ilango' },
+  /**
+   * Owns VENDORS.refunds only, so the refunds journey reads that garage's
+   * earnings with nothing any other spec books on it.
+   */
+  refundsOwner: { id: id(207), phone: '9000001008', name: 'Refunds Ramesh' },
 } as const
 
 export const VENDORS = {
@@ -252,6 +264,12 @@ export const VENDORS = {
    * journey's. Nobody books it through checkout.
    */
   inspect: { id: id(310), name: 'Inspection Test Garage' },
+  /**
+   * Refunds and the no-show money rules. Every booking on it is the refunds
+   * journey's, so its earnings are exactly what that journey seeded: one
+   * customer no-show, paid as if the job happened, and nothing else.
+   */
+  refunds: { id: id(311), name: 'Refunds Test Garage' },
 } as const
 
 /** Filler garages so listing, sorting and infinite scroll have real volume. */
@@ -295,6 +313,8 @@ export const SERVICES = {
    * What makes its bookings eligible for a final bill.
    */
   inspectFee: { id: id(415), name: 'Dent Inspection', price: '299.00', durationMins: 60 },
+  /** On REFUNDS: every refunds-journey booking is one ₹499 wash. */
+  refundsWash: { id: id(416), name: 'Refunds Wash', price: '499.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -395,6 +415,28 @@ export const BOOKINGS = {
   jobRecords: refId('b111d0e3'),
   /** in_progress + paid ₹299 at INSPECT: a bill paid through the webhook only. */
   billWebhook: refId('b111d0e4'),
+  /**
+   * The refunds journey's bookings, all CUSTOMERS.refunds at REFUNDS, each a
+   * paid ₹499 wash.
+   *
+   * Cancelled by Detlio three days ago: owed, and late. Ops marks it
+   * refunded in full; the customer's page then says so.
+   */
+  refundDetlio: refId('5efd0001'),
+  /** Cancelled by Detlio an hour ago and left owed: the customer's page says
+   *  the team will refund it within 5–7 working days. */
+  refundDetlioStays: refId('5efd0002'),
+  /** A customer no-show: never owed, and earns the garage its payout. */
+  refundCustomerNoShow: refId('5efd0003'),
+  /** A garage no-show: owed in full, and earns the garage nothing. */
+  refundGarageNoShow: refId('5efd0004'),
+  /**
+   * Moved by the customer to refundMovedTo: cancelled with its payment still
+   * 'paid', as a reschedule leaves it, but the money went with the move, so
+   * it is never owed.
+   */
+  refundMovedFrom: refId('5efd0005'),
+  refundMovedTo: refId('5efd0006'),
 } as const
 
 export const VEHICLES = {
@@ -430,9 +472,11 @@ export const REVIEWS = { existing: id(801) } as const
 
 /**
  * Checkouts. `failed` is CUSTOMERS.intents' paid-but-no-booking checkout:
- * failed so its status read carries the refund message too.
+ * failed so its status read carries the refund message too. `refundOwed` is
+ * CUSTOMERS.refunds' one at REFUNDS, which the refunds journey finds on the
+ * Owed list.
  */
-export const BOOKING_INTENTS = { failed: id(1001) } as const
+export const BOOKING_INTENTS = { failed: id(1001), refundOwed: id(1002) } as const
 
 /** Admin panel credentials, matching ADMIN_USERNAME / ADMIN_PASSWORD in .env.e2e. */
 export const ADMIN = { username: 'admin', password: 'admin' } as const

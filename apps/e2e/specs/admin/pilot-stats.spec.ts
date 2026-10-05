@@ -35,6 +35,10 @@ test.describe('pilot numbers @p0', () => {
         'garageNoShows',
         'revenue',
         'acceptSamples',
+        'refundsOwed',
+        'refundsOwedAmount',
+        'refunded',
+        'refundedAmount',
       ]) {
         expect(typeof data[key], key).toBe('number')
       }
@@ -46,6 +50,11 @@ test.describe('pilot numbers @p0', () => {
       // The seed's failed checkout (BOOKING_INTENTS.failed) was opened today.
       expect(data.paidNoBooking).toBeGreaterThanOrEqual(1)
       expect(data.checkoutsStarted).toBeGreaterThanOrEqual(data.paid + data.paidNoBooking)
+      // Owed refunds are a to-do list, not a window: the seed leaves several
+      // (BOOKINGS.refundDetlioStays, refundGarageNoShow, the failed checkouts)
+      // whatever else has been recorded by the time this runs.
+      expect(data.refundsOwed).toBeGreaterThanOrEqual(2)
+      expect(data.refundsOwedAmount).toBeGreaterThan(0)
       expect(Array.isArray(data.topGarages)).toBe(true)
       expect(data.topGarages.length).toBeLessThanOrEqual(5)
     }
@@ -82,6 +91,9 @@ test.describe('pilot numbers @p0', () => {
     await page.getByRole('radio', { name: '30 days' }).click()
     await expect(page.getByRole('radio', { name: '30 days' })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByText('Paid, no booking')).toBeVisible()
+    // Exact: the Revenue hint ("After refunds owed, …") holds the same words,
+    // and a loose match would find both.
+    await expect(page.getByText('Refunds owed', { exact: true })).toBeVisible()
     // The accept time is a figure now, not a note saying it can't be shown.
     await expect(page.getByText('Payment to accept')).toBeVisible()
   })
