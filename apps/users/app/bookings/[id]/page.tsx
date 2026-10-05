@@ -10,6 +10,7 @@ import {
   IconMapPin,
   IconNavigation,
   IconReceipt,
+  IconRepeat,
 } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge, customerBookingStatusBadge } from '@repo/ui/sc/badge'
@@ -33,6 +34,7 @@ import {
   FALLBACK_REFUND_MESSAGE,
   realClock,
 } from '@repo/core/payment-confirmation'
+import { bookAgainPath, canBookAgain } from '@repo/core/book-again'
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records'
 import { customerRefundLine, withoutRefundPromise } from '@repo/core/refunds'
 import { formatBookingAmount } from '@repo/core/pricing'
@@ -916,6 +918,23 @@ export default function BookingDetailPage({
             </>
           )}
         </ScCard>
+      )}
+
+      {/* Once the booking is over: checkout at the same garage with the same
+          services and mode, for a new time. Secondary, never red — on a
+          finished job the page's own action (a review, a bill) comes first,
+          and Help is always beside it. Checkout leaves out anything the
+          garage has stopped offering and says so. */}
+      {canBookAgain(booking) && (
+        <ScButtonLink
+          href={bookAgainPath(booking)}
+          variant="secondary"
+          fullWidth
+          className="gap-2"
+        >
+          <IconRepeat size={18} aria-hidden />
+          Book again
+        </ScButtonLink>
       )}
 
       {gettingThere && (

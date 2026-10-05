@@ -62,7 +62,7 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
 
   // ── 1. unverified means invisible ────────────────────────────────────────
   await customer.goto('/search')
-  await customer.getByPlaceholder('Search garages, services...').fill(name)
+  await customer.getByRole('searchbox', { name: 'Search garages or services' }).fill(name)
   await expect(customer.getByText(name)).toHaveCount(0)
 
   // ── 2. ops lets it in ────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
 
   // ── 4. a customer finds it and books it ──────────────────────────────────
   await customer.goto('/search')
-  await customer.getByPlaceholder('Search garages, services...').fill(name)
+  await customer.getByRole('searchbox', { name: 'Search garages or services' }).fill(name)
   await expect(customer.getByText(name).first()).toBeVisible()
 
   const garagePage = new GaragePage(customer)

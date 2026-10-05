@@ -352,6 +352,10 @@ function toBookingResponse(booking: BookingWithRelations, moved = false) {
     receiptAvailable:
       receiptAvailability({ status: booking.status, moved, payment: booking.payment }) ===
       'available',
+    // Whether the customer moved this booking to a new time. A move cancels
+    // the old row, and the customer's list leaves it out: the booking they
+    // have is the new one, which carries the payment.
+    moved,
     // The customer sees the job's photos once the work has started, next to
     // the step that says so (see customerSeesPhotos).
     ...(booking.photos !== undefined && {
@@ -402,6 +406,10 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     refund: _refund,
     // So is the customer's receipt.
     receiptAvailable: _receiptAvailable,
+    // Never worked out for the garage (always false here), so not sent rather
+    // than sent wrong. The garage's card says a job was moved from the new
+    // booking's `rescheduledFromId`.
+    moved: _moved,
     ...vendorView
   } = toBookingResponse(booking)
 

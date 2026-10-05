@@ -3,7 +3,6 @@ import {
   adminCancellationNote,
   bookingReference,
   checkNoShow,
-  containsPattern,
   isAdminCancellable,
   isCalendarDate,
   istDateRange,
@@ -67,13 +66,6 @@ describe('parseBookingSearch', () => {
       idPrefix: '98765432',
       phoneDigits: '98765432',
     })
-  })
-})
-
-describe('containsPattern', () => {
-  test("makes the searcher's own wildcards literal", () => {
-    expect(containsPattern('50%_off\\')).toBe('%50\\%\\_off\\\\%')
-    expect(containsPattern('Priya')).toBe('%Priya%')
   })
 })
 

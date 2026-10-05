@@ -201,7 +201,8 @@ test.describe('refunds @p0', () => {
         /^Refunded ₹499 on \d{1,2} [A-Z][a-z]{2,3} \d{4}\. It can take 5–7 working days to show in your account\.$/
       )
     ).toBeVisible()
-    await customer.page.goto('/bookings')
+    // A cancelled booking is under Past.
+    await customer.page.goto('/bookings?tab=past')
     await expect(customer.page.getByText('Refunded', { exact: true })).toBeVisible()
     await customer.ctx.close()
   })

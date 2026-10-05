@@ -5,8 +5,23 @@
  * that writes.
  */
 import { test, expect, asRole } from '../../support/fixtures'
+import { API } from '../../support/auth'
 import { GaragePage } from '../../pages/garage.page'
 import { SERVICES, VENDORS } from '../../support/seed-ids'
+
+type ListedGarage = { id: string; matchedService: string | null }
+
+/** GET /vendors?q=, as the search screen calls it. */
+async function search(
+  request: import('@playwright/test').APIRequestContext,
+  q: string
+): Promise<ListedGarage[]> {
+  const response = await request.get(`${API}/api/v1/vendors`, { params: { q } })
+  expect(response.status()).toBe(200)
+  const body = await response.json()
+  expect(body.success).toBe(true)
+  return body.data.items as ListedGarage[]
+}
 
 test.use({ storageState: asRole('customer-browse') })
 
@@ -20,7 +35,7 @@ test.describe('discovery', () => {
 
   test('search finds a garage by name', async ({ page }) => {
     await page.goto('/search')
-    await page.getByPlaceholder('Search garages, services...').fill('Narrow')
+    await page.getByRole('searchbox', { name: 'Search garages or services' }).fill('Narrow')
 
     await expect(page.getByText(VENDORS.narrow.name).first()).toBeVisible()
     await expect(page.getByText(VENDORS.main.name)).toHaveCount(0)
@@ -28,10 +43,54 @@ test.describe('discovery', () => {
 
   test('a search with no matches says so rather than showing everything', async ({ page }) => {
     await page.goto('/search')
-    await page.getByPlaceholder('Search garages, services...').fill('zzzznotagarage')
+    await page.getByRole('searchbox', { name: 'Search garages or services' }).fill('zzzznotagarage')
 
     await expect(page.getByText(VENDORS.main.name)).toHaveCount(0)
     await expect(page.getByText(VENDORS.narrow.name)).toHaveCount(0)
+  })
+
+  test.describe('search by service @p0', () => {
+    test("finds a garage by a service it sells, and says which", async ({ page }) => {
+      await page.goto('/search')
+      // "Interior Detail" is on MAIN's menu and nowhere in its name.
+      await page
+        .getByRole('searchbox', { name: 'Search garages or services' })
+        .fill(SERVICES.tiered.name)
+
+      await expect(page.getByText(VENDORS.main.name).first()).toBeVisible()
+      await expect(page.getByText(`Offers ${SERVICES.tiered.name}`)).toBeVisible()
+      // Every filler sells a "Standard Wash" and nothing called that.
+      await expect(page.getByText('Filler Garage 01')).toHaveCount(0)
+    })
+
+    test('the API lists it, labelled; a name match needs no label', async ({ request }) => {
+      const byService = await search(request, SERVICES.tiered.name)
+      expect(byService.find((g) => g.id === VENDORS.main.id)).toMatchObject({
+        matchedService: SERVICES.tiered.name,
+      })
+      // A package is a service like any other here.
+      expect((await search(request, SERVICES.packageDeal.name)).map((g) => g.id)).toContain(
+        VENDORS.main.id
+      )
+
+      const byName = await search(request, VENDORS.main.name)
+      expect(byName.find((g) => g.id === VENDORS.main.id)).toMatchObject({ matchedService: null })
+    })
+
+    test('a withdrawn service finds nothing', async ({ request }) => {
+      // On MAIN, but isActive false: it is not on sale, so it is no reason to
+      // list the garage.
+      expect((await search(request, SERVICES.inactive.name)).map((g) => g.id)).not.toContain(
+        VENDORS.main.id
+      )
+    })
+
+    test("the searcher's % and _ are characters, not wildcards", async ({ request }) => {
+      // Unescaped, either one alone matched every garage on the list.
+      expect(await search(request, '%')).toEqual([])
+      expect(await search(request, '_')).toEqual([])
+      expect(await search(request, 'Express%Wash')).toEqual([])
+    })
   })
 
   test('a garage page shows services, photos and reviews', async ({ page }) => {

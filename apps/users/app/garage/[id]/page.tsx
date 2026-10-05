@@ -9,8 +9,6 @@ import {
   IconBuildingStore,
   IconCheck,
   IconClock,
-  IconHeart,
-  IconHeartFilled,
   IconHome,
   IconMapPin,
   IconPlus,
@@ -24,6 +22,7 @@ import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ScSheet } from '@repo/ui/sc/modal'
+import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
 import { getVendorReviews } from '@repo/core/api/reviews'
@@ -140,7 +139,12 @@ export default function GaragePage({
   // the choice into the URL with replaceState, and on Back from checkout the
   // prop still holds the payload cached before that write, while the router's
   // URL — what this reads — has the choice.
-  const modeParam = useSearchParams().get('mode')
+  const searchParams = useSearchParams()
+  const modeParam = searchParams.get('mode')
+  // Set by checkout when it was sent here because every service on the link
+  // (Book again on an old booking, usually) has been withdrawn. Said on the
+  // page, so it is still there once the page has loaded.
+  const servicesWithdrawn = searchParams.get('withdrawn') === '1'
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   // Named to avoid shadowing the DOM's global `location`.
@@ -161,7 +165,6 @@ export default function GaragePage({
     parseBookingType(modeParam)
   )
   const [query, setQuery] = useState('')
-  const [favourite, setFavourite] = useState(false)
   // Several services can go into one booking. Order matters: it is the order
   // they were added, and it is what the summary, the receipt and the vendor's
   // job list all show.
@@ -342,7 +345,9 @@ export default function GaragePage({
     <AppShell
       className={cn('px-0', selected.length > 0 || paused ? 'pb-28' : 'pb-6')}
     >
-      {/* Hero — full-bleed cover with the back/favourite controls floated on top. */}
+      {/* Hero — full-bleed cover with the back control floated on top. There is
+          no favourite heart beside it: one that is not saved anywhere resets
+          on reload and tells the customer something that isn't true. */}
       <div className="relative h-[210px] w-full shrink-0 bg-surface-elevated">
         {hero ? (
           <Image
@@ -366,20 +371,6 @@ export default function GaragePage({
           className="absolute left-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-brand-white backdrop-blur-sm"
         >
           <IconArrowLeft size={20} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setFavourite((f) => !f)}
-          aria-label={favourite ? 'Remove from favourites' : 'Save to favourites'}
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 backdrop-blur-sm"
-        >
-          {favourite ? (
-            // White when saved: a state, not a thing to press, and red on
-            // this page belongs to Add and Book Now.
-            <IconHeartFilled size={20} className="text-brand-white" />
-          ) : (
-            <IconHeart size={20} className="text-brand-white" />
-          )}
         </button>
         {vendor.logoUrl && (
           <div className="absolute bottom-3 left-4 h-14 w-14 overflow-hidden rounded-[14px] border border-white/70 bg-surface shadow-md">
@@ -467,6 +458,17 @@ export default function GaragePage({
               },
             ]}
           />
+        )}
+
+        {servicesWithdrawn && (
+          <Notice
+            role="status"
+            tone="neutral"
+            className="mt-1"
+            title="The services you picked are no longer offered here."
+          >
+            Choose from what this garage offers now.
+          </Notice>
         )}
       </div>
 

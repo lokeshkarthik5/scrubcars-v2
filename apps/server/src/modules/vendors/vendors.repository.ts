@@ -16,6 +16,7 @@ import {
   vendorServiceAreas,
   vendorWorkingHours,
 } from '../../db/schema.js'
+import { containsPattern } from '../../lib/search.js'
 import type {
   serviceCategoryEnum,
   servicePricingTypeEnum,
@@ -132,8 +133,21 @@ export const vendorsRepository = {
     ]
 
     if (q) {
-      const term = `%${q}%`
-      conditions.push(sql`(v.business_name ILIKE ${term} OR v.city ILIKE ${term})`)
+      // A garage is found by its name, its city, or the name of any service it
+      // has on sale — the same active services its page lists, packages
+      // included, since a package books like any other service. One clause for
+      // every caller, so the list, the map and both segments agree on what a
+      // search matches. The searcher's own % and _ are literal: "100%" is
+      // text, and a lone "%" must not match every garage.
+      const term = containsPattern(q)
+      conditions.push(sql`(
+        v.business_name ILIKE ${term}
+        OR v.city ILIKE ${term}
+        OR EXISTS (
+          SELECT 1 FROM services s
+           WHERE s.vendor_id = v.id AND s.is_active = true AND s.name ILIKE ${term}
+        )
+      )`)
     }
 
     if (category) {

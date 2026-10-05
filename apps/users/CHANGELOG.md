@@ -17,6 +17,42 @@ reconstructing every change in them.
 
 ### Added
 
+- **My bookings: Upcoming and Past.** Two tabs: Upcoming (requested,
+  confirmed, in progress) soonest first, and Past (completed, cancelled,
+  declined, no-shows) most recent first, both by the real start time. The
+  tab is in the URL (`/bookings?tab=past`), so Back from a booking returns to
+  it. The old half of a reschedule is in neither: the new booking carries the
+  payment. Each tab says when it is empty ("No upcoming bookings" with Find
+  garages; "No past bookings yet"), the list shows a placeholder until it has
+  loaded instead of "No bookings yet", and a failed load says so with Retry.
+  The cards, the Refunded badge and the struck price are as before. Which tab
+  a status goes in is one exhaustive switch in `@repo/core/my-bookings`,
+  unit-tested.
+- **Book again.** A booking that is over has a "Book again" button on its
+  page (secondary, not red) and a small "Book again" link on its card under
+  Past. It opens checkout at the same garage with the same services, in the
+  same order, and the same At garage / Doorstep choice; nothing else carries
+  over. A service the garage has stopped offering is left out and checkout
+  says "Some services are no longer offered"; if none are left, the garage
+  page opens to pick from and says why on the page. If the garage no longer
+  offers the old booking's mode (a doorstep job at a garage that has stopped
+  travelling), checkout says so up top ("Doorstep isn't offered here now")
+  rather than quietly booking the other. The card is no longer one big link:
+  its own link is stretched over it, so Book again is not a link inside a
+  link; its name starts "Book again", as on screen.
+- **Search by service.** Search finds a garage by any service it sells, not
+  just its name or area, and the card says which ("Offers Ceramic Coating")
+  when the name did not match. The box is labelled "Search garages or
+  services" for screen readers as well as in the placeholder.
+- **App icon, manifest and share image.** A "D." monogram (the wordmark's
+  white D and red period, on graphite) as the favicon, the app icon and the
+  iPhone home-screen icon; a web app manifest (`/manifest.webmanifest`: Detlio, opens on
+  `/home`, standalone, graphite, 192 and 512 icons plus a maskable one); and
+  a 1200×630 share image (the wordmark over "Care without compromise.") for
+  WhatsApp and other link previews, with `metadataBase` set to detlio.com so
+  its URL is absolute. The homepage's share image is now this one rather than
+  the car photo.
+
 - **Payment receipts.** A booking whose payment went through has a "View
   receipt" button on its page (secondary, not red). The receipt
   (`/bookings/[id]/receipt`) is a white, A4-friendly page that reads the same
@@ -128,6 +164,14 @@ reconstructing every change in them.
   start time, with what it means for the money), and internal notes.
 
 ### Changed
+
+- **Checkout** says "Not taking bookings right now" (with the garage's
+  reason, in grey like the garage page's notice) at the top for a paused
+  garage, instead of only once a date is picked, and "This garage isn't taking bookings on Detlio." for one that is
+  no longer listed, instead of an empty page. A link whose services are all
+  withdrawn no longer books the garage's first service in their place.
+- **The garage page's favourite heart is gone.** It was not saved anywhere,
+  so it reset on reload.
 
 - **Garage onboarding** asks "How do customers get serviced?" — at the
   garage, or also at the customer's up to a distance (1–30 km) — instead of

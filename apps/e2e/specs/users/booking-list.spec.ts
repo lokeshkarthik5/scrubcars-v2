@@ -11,7 +11,8 @@ test.use({ storageState: asRole('customer-review') })
 
 test.describe('bookings list', () => {
   test('past jobs are listed with their garage and service', async ({ page }) => {
-    await page.goto('/bookings')
+    // Both are completed, so they are under Past; the list opens on Upcoming.
+    await page.goto('/bookings?tab=past')
 
     await expect(page.getByText(VENDORS.main.name).first()).toBeVisible()
     await expect(page.getByText(SERVICES.wash.name).first()).toBeVisible()

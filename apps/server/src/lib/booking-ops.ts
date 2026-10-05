@@ -62,11 +62,6 @@ export function parseBookingSearch(
   return { text, idPrefix, phoneDigits }
 }
 
-/** A LIKE pattern that matches `text` anywhere, with its own wildcards made literal. */
-export function containsPattern(text: string): string {
-  return `%${text.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
-}
-
 /**
  * Where the next page of the bookings list starts: just after the last row
  * the previous page ended on, in the list's own order (scheduled time, then

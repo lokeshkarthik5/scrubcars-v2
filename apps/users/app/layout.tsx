@@ -22,9 +22,36 @@ const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
 })
 
+const TITLE = 'Detlio'
+const DESCRIPTION = 'Book car wash & detailing'
+
+/**
+ * Every page's defaults; a page can say more (the homepage does).
+ *
+ * The icons, the manifest and the share image are files beside this one
+ * (favicon.ico, icon.png, apple-icon.png, manifest.ts, opengraph-image.png,
+ * twitter-image.png), which Next links from every page by itself.
+ * `metadataBase` is what turns the share image's path into the absolute URL
+ * WhatsApp and the rest need: the production customer site, as the homepage
+ * already names it for its canonical link. Preview builds share links that
+ * point at production's image, which is the same picture.
+ */
 export const metadata: Metadata = {
-  title: 'Detlio',
-  description: 'Book car wash & detailing',
+  metadataBase: new URL('https://detlio.com'),
+  title: TITLE,
+  description: DESCRIPTION,
+  applicationName: 'Detlio',
+  openGraph: {
+    type: 'website',
+    siteName: 'Detlio',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 }
 
 export const viewport: Viewport = {

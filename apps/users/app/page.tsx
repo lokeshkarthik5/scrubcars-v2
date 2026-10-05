@@ -36,8 +36,11 @@ import {
 
 const { title: TITLE, description: DESCRIPTION } = META
 
+// The share image is the site's own (app/opengraph-image.png and
+// twitter-image.png, 1200×630). Next ranks those files above any `images`
+// set here, so naming one here would be a setting that does nothing.
+// `metadataBase` comes from the root layout.
 export const metadata: Metadata = {
-  metadataBase: new URL('https://detlio.com'),
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: '/' },
@@ -47,15 +50,11 @@ export const metadata: Metadata = {
     siteName: 'Detlio',
     title: TITLE,
     description: DESCRIPTION,
-    images: [
-      { url: '/onboarding-car.jpg', width: 1170, height: 910, alt: 'Detlio' },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: TITLE,
     description: DESCRIPTION,
-    images: ['/onboarding-car.jpg'],
   },
 }
 

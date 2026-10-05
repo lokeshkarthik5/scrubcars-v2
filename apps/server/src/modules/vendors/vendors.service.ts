@@ -33,6 +33,7 @@ import { categoryLabel } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
+import { matchedServiceName } from '../../lib/search.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -182,6 +183,12 @@ export type VendorListItemResponse = {
    * say "Closed today" on one rather than reading the weekly hours alone.
    */
   closures: string[]
+  /**
+   * On a search (`q`), the service the garage was found by when its name and
+   * city did not match, so the card can say why it is listed. Null otherwise.
+   * See matchedServiceName.
+   */
+  matchedService: string | null
 }
 
 export type VendorListResponse = {
@@ -855,6 +862,9 @@ export const vendorsService = {
         lng: vendor.lng,
         workingHours: vendor.workingHours.map(toOpeningHoursResponse),
         closures: closuresByVendor.get(vendor.id) ?? [],
+        // From the active services loaded above, the same set the search
+        // clause reads.
+        matchedService: query.q ? matchedServiceName(query.q, vendor) : null,
       }
     })
 

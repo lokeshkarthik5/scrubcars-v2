@@ -134,6 +134,16 @@ export function VendorCard({
               </>
             )}
           </div>
+
+          {/* Only on a search that found the garage by one of its services:
+              without it, "ceramic" listing a garage called "Marina Auto" reads
+              like a wrong result. */}
+          {vendor.matchedService && (
+            <p className="truncate text-[12px] text-text-secondary">
+              Offers{' '}
+              <span className="font-medium text-text-primary">{vendor.matchedService}</span>
+            </p>
+          )}
         </div>
       </article>
     </Link>
