@@ -6,8 +6,9 @@
  * to do something the database will refuse.
  */
 import { test, expect, asRole } from '../../support/fixtures'
+import { API } from '../../support/auth'
 import { sql } from '../../support/db'
-import { BOOKINGS, VENDORS } from '../../support/seed-ids'
+import { BOOKINGS, CUSTOMERS, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('customer-review') })
 
@@ -35,6 +36,24 @@ test.describe('reviews', () => {
     // The seeded review is shown instead of an empty rating control.
     await expect(page.getByText('Solid work, seeded.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Rate 5 stars' })).toHaveCount(0)
+  })
+
+  test('the public review feed names the reviewer, and nothing that reaches them @p0', async ({ page }) => {
+    // No sign-in needed for this feed, so it must carry nothing private. Asked
+    // of the API itself: the apps call it directly here, not via their proxy.
+    const response = await page.request.get(`${API}/api/v1/reviews/vendors/${VENDORS.main.id}`)
+    expect(response.ok()).toBe(true)
+    const body = await response.text()
+
+    expect(body).not.toContain(CUSTOMERS.review.phone)
+    expect(body).not.toContain(CUSTOMERS.review.id)
+    expect(body).not.toContain(BOOKINGS.alreadyReviewed)
+    expect(body).not.toContain('phone')
+
+    const seeded = (JSON.parse(body).data as { comment: string; user: { name: string } | null }[])
+      .find((review) => review.comment === 'Solid work, seeded.')
+    // "Reviewing Ravi" in the seed: first name and an initial.
+    expect(seeded?.user).toEqual({ name: 'Reviewing R.' })
   })
 
   test('the review reaches the garage page', async ({ page }) => {

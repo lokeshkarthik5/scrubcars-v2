@@ -1,6 +1,6 @@
 import { apiClient } from './client'
 import { mapReview } from './mappers'
-import type { ApiReview } from './types'
+import type { ApiPublicReview, ApiReview } from './types'
 import type { Review } from '@repo/core/types'
 
 export interface SubmitReviewPayload {
@@ -11,7 +11,7 @@ export interface SubmitReviewPayload {
 
 /** GET /reviews/vendors/:vendorId */
 export async function getVendorReviews(vendorId: string): Promise<Review[]> {
-  const reviews = await apiClient<ApiReview[]>(`/reviews/vendors/${vendorId}`, {
+  const reviews = await apiClient<ApiPublicReview[]>(`/reviews/vendors/${vendorId}`, {
     auth: false,
   })
   return reviews.map(mapReview)

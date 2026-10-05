@@ -1,5 +1,6 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
+import { toPublicReviewResponse } from './reviews.public.js'
 import { reviewsRepository } from './reviews.repository.js'
 
 const log = logger.child({ module: 'reviews' })
@@ -116,7 +117,8 @@ export const reviewsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
+    // Public: anyone can load this without signing in.
     const reviews = await reviewsRepository.listReviewsForVendor(vendorId)
-    return reviews.map(toReviewResponse)
+    return reviews.map(toPublicReviewResponse)
   },
 }
