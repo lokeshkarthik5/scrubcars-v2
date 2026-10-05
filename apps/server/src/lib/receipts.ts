@@ -33,11 +33,13 @@ import { isRazorpayRefundId } from './refunds.js'
  * payment receipt and is deliberately not stored here. A GST tax invoice will
  * need the name and GSTIN exactly as on the GST registration: the CA's call.
  *
- * `address` is still to come. The Consumer Protection (General) Rules, 2020
- * (rule 5) expect a seller's name and address on a receipt, so the owner is
- * choosing the business address to publish (the same one Razorpay and the
- * website's contact page show). `supportEmail` waits for an inbox someone
- * reads. While either is null the receipt simply leaves that line out.
+ * `address` is the business address, printed because the Consumer Protection
+ * (General) Rules, 2020 (rule 5) expect a seller's name and address on a
+ * receipt. It must stay the same as the address on the business's Razorpay
+ * account and the website's contact page; change all three together.
+ * `supportEmail` is the inbox the owner reads today (a Gmail address until
+ * Detlio has its own). Either may be null, and the receipt then leaves that
+ * line out.
  *
  * No GSTIN goes here until GST is set up: this is a payment receipt, not a
  * tax invoice.
@@ -46,13 +48,14 @@ export const RECEIPT_ISSUER = {
   name: 'Detlio',
   // The business that runs Detlio (a sole proprietorship's trade name).
   tradeName: 'ScrubCars' as string | null,
-  // Still to come — the business address the owner publishes (see above).
-  address: null as string | null,
+  // The business address (see above), as the owner gave it.
+  address:
+    'No. 47, Radha Nagar Main Road, Chromepet, Chengalpattu, Tamil Nadu 600044' as string | null,
   // The same line as SUPPORT_PHONE_DISPLAY in packages/core/src/support.ts,
   // which the server cannot import. Change both together.
   supportPhone: '+91 93444 34474',
-  // Not set yet — a support inbox someone reads, when there is one.
-  supportEmail: null as string | null,
+  // The support inbox for now; to move to a detlio.com address later.
+  supportEmail: 'contact.scrubcars@gmail.com' as string | null,
   website: 'detlio.com',
 }
 
