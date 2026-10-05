@@ -15,6 +15,9 @@ import {
 } from '@repo/ui/features/location-picker'
 import { CoverageEditor } from '@repo/ui/features/coverage-editor'
 import { ScInput } from '@repo/ui/sc/input'
+import { SectionHeader } from '@repo/ui/sc/section-header'
+import { Skeleton } from '@repo/ui/sc/skeleton'
+import { ScSwitch } from '@repo/ui/sc/switch'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
 import { SupportCard } from '@repo/ui/features/support-card'
@@ -40,6 +43,7 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import { cn } from '@repo/core/utils'
+import { ActiveGarage } from '@/components/active-garage'
 import { HolidaysSection, PauseSection } from './time-off-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -78,6 +82,44 @@ type WorkingHoursForm = {
   closeTime: string
   isClosed: boolean
 }
+
+/**
+ * A row that opens another screen — Garage photos, Team — drawn as the
+ * customer's profile draws its rows: a graphite icon tile, a title and a line
+ * under it, and a chevron. The tiles were red, which on a settings screen put
+ * a red square beside every link and none of them was the thing to press.
+ */
+function LinkRow({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string
+  icon: React.ReactNode
+  title: string
+  description: string
+}) {
+  return (
+    <Link href={href} className="press block">
+      <ScCard className="flex items-center gap-3 transition-colors hover:border-text-muted">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-surface-elevated text-text-primary">
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-text-primary">{title}</p>
+          <p className="text-[11px] text-text-secondary">{description}</p>
+        </div>
+        <IconChevronRight size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
+      </ScCard>
+    </Link>
+  )
+}
+
+// The time fields of the hours editor: full-height, figures in the numeric
+// face, and the same edge and focus as every other field.
+const TIME_INPUT =
+  'min-h-11 min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary disabled:opacity-40'
 
 function normalizeTimeForInput(time: string) {
   return time.slice(0, 5)
@@ -353,15 +395,32 @@ function VendorSettings() {
 
   if (loading) {
     return (
-      <AppShell showNav navType="vendor" className="gap-5 py-4">
+      <AppShell
+        showNav
+        navType="vendor"
+        showBrand
+        brandRight={<ActiveGarage />}
+        className="gap-5 py-4"
+      >
         <TopBar title="Settings" />
-        <p className="text-[13px] text-text-secondary">Loading settings...</p>
+        {/* The tab strip, then a form's worth of card. */}
+        <div role="status" aria-busy="true" className="flex flex-col gap-4">
+          <span className="sr-only">Loading</span>
+          <Skeleton className="h-11 rounded-[12px]" />
+          <Skeleton className="h-80" />
+        </div>
       </AppShell>
     )
   }
 
   return (
-    <AppShell showNav navType="vendor" className="gap-5 py-4">
+    <AppShell
+      showNav
+      navType="vendor"
+      showBrand
+      brandRight={<ActiveGarage />}
+      className="gap-5 py-4"
+    >
       <TopBar title="Settings" />
 
       {/* Tabs rather than one long scroll. Grouped by the question being
@@ -378,15 +437,17 @@ function VendorSettings() {
         </TabsList>
 
         <TabsContent value="profile">
-          <section>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Profile</h2>
-              {vendor && (
-                <ScBadge variant={vendor.isVerified ? 'success' : 'pending'}>
-                  {vendor.isVerified ? 'Verified' : 'Under review'}
-                </ScBadge>
-              )}
-            </div>
+          <section className="flex flex-col gap-3">
+            <SectionHeader
+              title="Profile"
+              action={
+                vendor && (
+                  <ScBadge variant={vendor.isVerified ? 'success' : 'pending'}>
+                    {vendor.isVerified ? 'Verified' : 'Under review'}
+                  </ScBadge>
+                )
+              }
+            />
             <ScCard className="flex flex-col gap-3">
               <ScInput
                 id="settings-business-name"
@@ -399,6 +460,8 @@ function VendorSettings() {
               <ScInput
                 id="settings-phone"
                 label="Phone"
+                inputMode="numeric"
+                className="font-numeric"
                 value={profileForm.phone}
                 onChange={(e) =>
                   setProfileForm({
@@ -429,6 +492,7 @@ function VendorSettings() {
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="600001"
+                className="font-numeric"
                 value={profileForm.pincode}
                 onChange={(e) =>
                   setProfileForm({ ...profileForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })
@@ -440,31 +504,26 @@ function VendorSettings() {
             </ScCard>
           </section>
 
-          <Link href="/photos">
-            <ScCard className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
-                <IconPhoto size={18} className="text-brand-red" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-text-primary">Garage photos</p>
-                <p className="text-[11px] text-text-secondary">Add photos customers see on your listing</p>
-              </div>
-              <IconChevronRight size={18} className="text-text-muted" />
-            </ScCard>
-          </Link>
+          <LinkRow
+            href="/photos"
+            icon={<IconPhoto size={18} aria-hidden="true" />}
+            title="Garage photos"
+            description="Add photos customers see on your listing"
+          />
         </TabsContent>
 
         <TabsContent value="location">
-          <section>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Garage location</h2>
-              {vendor && vendor.lat === null && (
-                <ScBadge variant="pending">Not set</ScBadge>
-              )}
-            </div>
+          <section className="flex flex-col gap-3">
+            <SectionHeader
+              title="Garage location"
+              action={
+                vendor &&
+                vendor.lat === null && <ScBadge variant="danger">Not set</ScBadge>
+              }
+            />
             <ScCard className="flex flex-col gap-3">
               {vendor?.lat === null && (
-                <p className="text-[12px] text-warning">
+                <p role="status" className="text-[12px] text-warning">
                   Customers can&apos;t find you until your garage is pinned on the
                   map, and we can&apos;t verify you without it.
                 </p>
@@ -478,6 +537,7 @@ function VendorSettings() {
                 label="Doorstep travel radius (km)"
                 inputMode="decimal"
                 placeholder="e.g. 8"
+                className="font-numeric"
                 value={doorstepRadiusKm}
                 onChange={(e) =>
                   setDoorstepRadiusKm(e.target.value.replace(/[^\d.]/g, ''))
@@ -503,8 +563,8 @@ function VendorSettings() {
               in particular is not useful, and the map would open on a default city
               centre rather than on the garage. */}
           {vendor?.lat != null && (
-            <section>
-              <h2 className="mb-2 text-sm font-semibold">Doorstep coverage area</h2>
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="Doorstep coverage area" />
               <ScCard className="flex flex-col gap-3">
                 <p className="text-[12px] text-text-secondary">
                   Optional. Draw the exact area you&apos;ll travel to — useful when a
@@ -521,15 +581,19 @@ function VendorSettings() {
 
         <TabsContent value="hours">
 
-          <section>
-            <h2 className="mb-2 text-sm font-semibold">Working hours</h2>
+          <section className="flex flex-col gap-3">
+            <SectionHeader title="Working hours" />
             <div className="flex flex-col gap-2">
               {workingHours.map((day) => (
-                <ScCard
-                  key={day.dayOfWeek}
-                  className={cn('flex items-center gap-2', day.isClosed && 'opacity-50')}
-                >
-                  <span className="w-8 text-[12px] font-medium">{DAYS[day.dayOfWeek]}</span>
+                <ScCard key={day.dayOfWeek} className="flex items-center gap-2 py-2">
+                  <span
+                    className={cn(
+                      'w-9 shrink-0 text-[13px] font-medium',
+                      day.isClosed ? 'text-text-muted' : 'text-text-primary'
+                    )}
+                  >
+                    {DAYS[day.dayOfWeek]}
+                  </span>
                   <input
                     type="time"
                     aria-label={`${DAYS[day.dayOfWeek]} opening time`}
@@ -543,7 +607,7 @@ function VendorSettings() {
                         )
                       )
                     }
-                    className="flex-1 rounded-md border border-border bg-surface px-2 py-1 text-[12px]"
+                    className={TIME_INPUT}
                     disabled={day.isClosed}
                   />
                   <input
@@ -559,9 +623,12 @@ function VendorSettings() {
                         )
                       )
                     }
-                    className="flex-1 rounded-md border border-border bg-surface px-2 py-1 text-[12px]"
+                    className={TIME_INPUT}
                     disabled={day.isClosed}
                   />
+                  {/* Says what the day is, and is pressed when it is closed.
+                      A closed day is raised onto graphite, as a chosen option
+                      is — it used to turn red, the colour of the Save below. */}
                   <button
                     type="button"
                     aria-label={`${DAYS[day.dayOfWeek]} closed all day`}
@@ -576,8 +643,10 @@ function VendorSettings() {
                       )
                     }
                     className={cn(
-                      'text-[10px] font-medium',
-                      day.isClosed ? 'text-brand-red' : 'text-text-secondary'
+                      'min-h-11 w-[68px] shrink-0 rounded-[10px] border text-[12px] font-medium transition-colors',
+                      day.isClosed
+                        ? 'border-text-secondary bg-surface-elevated text-text-primary'
+                        : 'border-border text-text-secondary hover:text-text-primary'
                     )}
                   >
                     {day.isClosed ? 'Closed' : 'Open'}
@@ -594,8 +663,11 @@ function VendorSettings() {
           </section>
 
           {vendor && (
-            <section>
-              <h2 className="mb-2 text-sm font-semibold">Slot interval</h2>
+            <section className="flex flex-col gap-3">
+              <SectionHeader
+                title="Slot interval"
+                subtitle="How far apart the start times customers can pick are."
+              />
               <ScCard>
                 <div className="flex gap-2">
                   {SLOT_INTERVALS.map((interval) => (
@@ -613,8 +685,8 @@ function VendorSettings() {
           )}
 
           {vendor && (
-            <section>
-              <h2 className="mb-2 text-sm font-semibold">Capacity</h2>
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="Capacity" />
               <ScCard className="flex flex-col gap-3">
                 <ScInput
                   id="settings-bays"
@@ -644,7 +716,7 @@ function VendorSettings() {
                   more car. Leave the daily limit blank for no limit.
                 </p>
                 {capacityError && (
-                  <p className="text-[12px] text-warning">{capacityError}</p>
+                  <p role="alert" className="text-[12px] text-warning">{capacityError}</p>
                 )}
                 {/* Secondary: "Save working hours" above is this tab's main
                     action, and red is kept for one per screen. */}
@@ -660,8 +732,8 @@ function VendorSettings() {
           )}
 
           {vendor && (
-            <section>
-              <h2 className="mb-2 text-sm font-semibold">Job types</h2>
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="Job types" />
               <ScCard className="flex flex-col gap-3">
                 {(
                   [
@@ -673,28 +745,20 @@ function VendorSettings() {
                   const key = `job-type-${field}`
                   return (
                     <Fragment key={field}>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-[13px] font-medium text-text-primary">{label}</p>
                           <p className="text-[11px] text-text-secondary">{description}</p>
                         </div>
-                        <button
-                          type="button"
+                        {/* Saves the moment it is tapped, as it always has.
+                            Now a named switch, so it is read out as "Drop In,
+                            on" rather than as an unlabelled button. */}
+                        <ScSwitch
+                          label={label}
+                          checked={enabled}
                           disabled={saving === key}
-                          onClick={() => saveJobType(field, !enabled)}
-                          className={cn(
-                            'relative h-6 w-11 rounded-full transition-colors',
-                            enabled ? 'bg-brand-red' : 'bg-surface border border-border',
-                            saving === key && 'opacity-50'
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              'absolute top-0.5 h-5 w-5 rounded-full bg-brand-white shadow transition-transform',
-                              enabled ? 'left-[22px]' : 'left-0.5'
-                            )}
-                          />
-                        </button>
+                          onChange={(next) => saveJobType(field, next)}
+                        />
                       </div>
                       {field === 'doorstepEnabled' && doorstepPrompt !== null && (
                         <div className="flex flex-col gap-2">
@@ -755,27 +819,21 @@ function VendorSettings() {
           {/* Team management arrived on main while this branch was tabbing the
               screen. It lives under Account rather than Profile: it is about who
               can act on the garage, not about the garage itself. */}
-          <Link href="/settings/members">
-            <ScCard className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-muted">
-                <IconUsers size={18} className="text-brand-red" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-semibold text-text-primary">Team</p>
-                <p className="text-[11px] text-text-secondary">Add admins and operators, and set what they can do</p>
-              </div>
-              <IconChevronRight size={18} className="text-text-muted" />
-            </ScCard>
-          </Link>
+          <LinkRow
+            href="/settings/members"
+            icon={<IconUsers size={18} aria-hidden="true" />}
+            title="Team"
+            description="Add admins and operators, and set what they can do"
+          />
 
-          <section>
-            <h2 className="mb-2 text-sm font-semibold">Support</h2>
+          <section className="flex flex-col gap-3">
+            <SectionHeader title="Support" />
             <SupportCard />
           </section>
 
           <ScButton variant="secondary" onClick={handleLogout} className="mb-4">
             <span className="flex items-center justify-center gap-2">
-              <IconLogout size={18} />
+              <IconLogout size={18} aria-hidden="true" />
               Log out
             </span>
           </ScButton>

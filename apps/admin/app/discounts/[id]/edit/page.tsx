@@ -3,8 +3,9 @@
 import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { DiscountForm } from '@repo/ui/features/discount-form'
-import { ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { ErrorState } from '@repo/ui/sc/empty-state'
+import { PageHeader } from '@repo/ui/sc/page-header'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
   errorMessage,
   useAdminDiscount,
@@ -22,18 +23,16 @@ export default function EditDiscountPage({
   const update = useUpdateDiscount(id)
 
   return (
-    <>
-      <TopBar showBack title="Edit discount" />
+    // The same 640px column as Add discount and the vendor forms.
+    <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5">
+      <PageHeader showBack title="Edit discount" />
       {error ? (
         <ErrorState
           message={errorMessage(error, 'Failed to load the discount')}
           onRetry={() => void refetch()}
         />
       ) : isPending || !discount ? (
-        <div className="flex flex-col gap-2">
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
+        <SkeletonList count={3} itemClassName="h-40" />
       ) : (
         <DiscountForm
           // Remount when the loaded discount changes so the form's initial
@@ -54,6 +53,6 @@ export default function EditDiscountPage({
           }
         />
       )}
-    </>
+    </div>
   )
 }

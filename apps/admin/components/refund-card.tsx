@@ -8,18 +8,10 @@ import type { AdminRefund } from '@repo/core/api/admin'
 import { refundOwedAge } from '@repo/core/refunds'
 import { cn } from '@repo/core/utils'
 import { CopyButton } from '@/components/copy-button'
+import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import { formatRupees, formatWhen } from '@/lib/bookings'
 import { REFUND_KIND_LABEL } from '@/lib/refunds'
-
-function Meta({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
-      <div className="text-[12px] text-text-secondary">{children}</div>
-    </div>
-  )
-}
 
 /** A Razorpay id ops pastes into the dashboard, with a copy button. */
 function GatewayId({ value, label }: { value: string; label: string }) {

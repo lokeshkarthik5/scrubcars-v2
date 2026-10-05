@@ -1,14 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Image from 'next/image'
-import { IconPhotoPlus, IconTrash } from '@tabler/icons-react'
+import { IconPackage } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { Chip } from '@repo/ui/sc/chip'
+import { EmptyState } from '@repo/ui/sc/empty-state'
+import { Figures } from '@repo/ui/sc/figures'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { Reveal } from '@repo/ui/sc/reveal'
+import { SectionHeader } from '@repo/ui/sc/section-header'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
   createPackage,
   deletePackage,
@@ -20,7 +24,7 @@ import {
 import { MAX_IMAGES_PER_SERVICE, toggleServiceActive } from '@repo/core/api/services'
 import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
 import type { PricingType, Service, ServicePackage } from '@repo/core/types'
-import { cn } from '@repo/core/utils'
+import { CatalogueImages, RowAction } from './catalogue-row'
 
 type PackageForm = {
   name: string
@@ -242,16 +246,16 @@ export function PackagesPanel({ services }: { services: Service[] }) {
     })
 
   if (loading) {
-    return <p className="text-[13px] text-text-secondary">Loading...</p>
+    return <SkeletonList count={2} itemClassName="h-28" />
   }
 
   if (selectableServices.length < 2) {
     return (
-      <ScCard>
-        <p className="text-[13px] text-text-secondary">
-          Add at least 2 active services before building a package.
-        </p>
-      </ScCard>
+      <EmptyState
+        icon={<IconPackage size={28} stroke={1.5} />}
+        title="Packages need two services"
+        subtitle="Add at least 2 active services before building a package."
+      />
     )
   }
 
@@ -271,259 +275,236 @@ export function PackagesPanel({ services }: { services: Service[] }) {
         onChange={(e) => handleImageFile(e.target.files)}
       />
 
-      <ScCard className="flex flex-col gap-3">
-        {editingId && (
-          <button
-            type="button"
-            onClick={resetForm}
-            className="self-end text-[12px] text-brand-red"
-          >
-            Cancel edit
-          </button>
-        )}
-
-        <ScInput
-          label="Package name"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <ScTextarea
-          label="Description (optional)"
-          rows={2}
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-        />
-
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-text-secondary">
-            Services included ({form.serviceIds.length} selected · minimum 2)
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {selectableServices.map((svc) => (
-              <Chip
-                key={svc.id}
-                label={`${svc.name} · ₹${svc.price}`}
-                selected={form.serviceIds.includes(svc.id)}
-                onClick={() => toggleItem(svc.id)}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
-          <div className="flex flex-wrap gap-2">
-            {PRICING_TYPES.map((pt) => (
-              <Chip
-                key={pt.value}
-                label={pt.label}
-                selected={form.pricingType === pt.value}
-                onClick={() => setForm({ ...form, pricingType: pt.value })}
-              />
-            ))}
-          </div>
-          <p className="mt-1.5 text-[11px] text-text-muted">
-            {PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint}
-          </p>
-        </div>
-
-        {(form.pricingType === 'flat' || form.pricingType === 'on_inspection') && (
-          <ScInput
-            label={
-              form.pricingType === 'on_inspection'
-                ? 'Inspection fee (₹)'
-                : 'Package price (₹)'
-            }
-            type="number"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-          />
-        )}
-
-        {form.pricingType === 'per_vehicle' && (
-          <div className="grid grid-cols-3 gap-2">
-            <ScInput
-              label="Hatchback (₹)"
-              type="number"
-              value={form.priceHatchback}
-              onChange={(e) => setForm({ ...form, priceHatchback: e.target.value })}
-            />
-            <ScInput
-              label="Sedan (₹)"
-              type="number"
-              value={form.priceSedan}
-              onChange={(e) => setForm({ ...form, priceSedan: e.target.value })}
-            />
-            <ScInput
-              label="SUV (₹)"
-              type="number"
-              value={form.priceSuv}
-              onChange={(e) => setForm({ ...form, priceSuv: e.target.value })}
-            />
-          </div>
-        )}
-
-        <div>
-          <ScInput
-            label="Duration (mins)"
-            type="number"
-            value={form.durationMins}
-            onChange={(e) => setForm({ ...form, durationMins: e.target.value })}
-          />
-          {suggestedDuration > 0 &&
-            Number(form.durationMins) !== suggestedDuration && (
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title={editingId ? 'Edit package' : 'Build a package'}
+          action={
+            editingId ? (
               <button
                 type="button"
-                onClick={() =>
-                  setForm({ ...form, durationMins: String(suggestedDuration) })
-                }
-                className="mt-1.5 text-[11px] text-brand-red"
+                onClick={resetForm}
+                className="-my-2 min-h-11 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
               >
-                Services add up to {suggestedDuration} min — use that
+                Cancel edit
               </button>
-            )}
-        </div>
+            ) : undefined
+          }
+        />
+        <ScCard className="flex flex-col gap-3">
+          <ScInput
+            label="Package name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <ScTextarea
+            label="Description (optional)"
+            rows={2}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
 
-        {selected.length > 0 && (
-          <div className="rounded-[12px] bg-surface p-3">
-            <p className="text-[11px] text-text-secondary">
-              Bought separately: ₹{itemsTotal}
+          <div>
+            <p className="mb-2 text-[11px] font-medium text-text-secondary">
+              Services included (<span className="font-numeric">{form.serviceIds.length}</span>{' '}
+              selected · minimum <span className="font-numeric">2</span>)
             </p>
-            {previewSavings > 0 ? (
-              <p className="text-[12px] font-medium text-brand-red">
-                Customers save ₹{previewSavings}
+            <div className="flex flex-wrap gap-2">
+              {selectableServices.map((svc) => (
+                <Chip
+                  key={svc.id}
+                  label={`${svc.name} · ₹${svc.price}`}
+                  selected={form.serviceIds.includes(svc.id)}
+                  onClick={() => toggleItem(svc.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
+            <div className="flex flex-wrap gap-2">
+              {PRICING_TYPES.map((pt) => (
+                <Chip
+                  key={pt.value}
+                  label={pt.label}
+                  selected={form.pricingType === pt.value}
+                  onClick={() => setForm({ ...form, pricingType: pt.value })}
+                />
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-text-muted">
+              {PRICING_TYPES.find((pt) => pt.value === form.pricingType)?.hint}
+            </p>
+          </div>
+
+          {(form.pricingType === 'flat' || form.pricingType === 'on_inspection') && (
+            <ScInput
+              label={
+                form.pricingType === 'on_inspection'
+                  ? 'Inspection fee (₹)'
+                  : 'Package price (₹)'
+              }
+              type="number"
+              className="font-numeric"
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+            />
+          )}
+
+          {form.pricingType === 'per_vehicle' && (
+            <div className="grid grid-cols-3 gap-2">
+              <ScInput
+                label="Hatchback (₹)"
+                type="number"
+                className="font-numeric"
+                value={form.priceHatchback}
+                onChange={(e) => setForm({ ...form, priceHatchback: e.target.value })}
+              />
+              <ScInput
+                label="Sedan (₹)"
+                type="number"
+                className="font-numeric"
+                value={form.priceSedan}
+                onChange={(e) => setForm({ ...form, priceSedan: e.target.value })}
+              />
+              <ScInput
+                label="SUV (₹)"
+                type="number"
+                className="font-numeric"
+                value={form.priceSuv}
+                onChange={(e) => setForm({ ...form, priceSuv: e.target.value })}
+              />
+            </div>
+          )}
+
+          <div>
+            <ScInput
+              label="Duration (mins)"
+              type="number"
+              className="font-numeric"
+              value={form.durationMins}
+              onChange={(e) => setForm({ ...form, durationMins: e.target.value })}
+            />
+            {suggestedDuration > 0 &&
+              Number(form.durationMins) !== suggestedDuration && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({ ...form, durationMins: String(suggestedDuration) })
+                  }
+                  className="mt-1 min-h-11 text-[12px] font-medium text-text-primary underline underline-offset-2"
+                >
+                  Services add up to <span className="font-numeric">{suggestedDuration}</span> min — use that
+                </button>
+              )}
+          </div>
+
+          {selected.length > 0 && (
+            // Raised onto graphite: it is a preview of what the customer sees,
+            // not part of the form. Savings in green, as the customer's own
+            // discount line is.
+            <div className="rounded-[12px] bg-surface-elevated p-3">
+              <p className="text-[11px] text-text-secondary">
+                Bought separately: <span className="font-numeric">₹{itemsTotal}</span>
               </p>
-            ) : (
-              <p className="text-[11px] text-text-muted">
-                Price the package below ₹{itemsTotal} to show a savings badge.
-              </p>
-            )}
+              {previewSavings > 0 ? (
+                <p className="text-[12px] font-medium text-success">
+                  Customers save <span className="font-numeric">₹{previewSavings}</span>
+                </p>
+              ) : (
+                <p className="text-[11px] text-text-muted">
+                  Price the package below <span className="font-numeric">₹{itemsTotal}</span> to show a savings badge.
+                </p>
+              )}
+            </div>
+          )}
+
+          <ScButton disabled={!canSubmit || saving === 'package'} onClick={submit}>
+            {saving === 'package'
+              ? 'Saving...'
+              : editingId
+                ? 'Update package'
+                : 'Create package'}
+          </ScButton>
+        </ScCard>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Your packages"
+          action={
+            packages.length > 0 ? (
+              <span className="font-numeric text-[12px] text-text-muted">{packages.length}</span>
+            ) : undefined
+          }
+        />
+        {packages.length === 0 ? (
+          <EmptyState
+            icon={<IconPackage size={28} stroke={1.5} />}
+            title="No packages yet"
+            subtitle="Bundle 2 or more services to create one."
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {packages.map((pkg, i) => (
+              <Reveal key={pkg.id} index={i}>
+                <ScCard className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-text-primary">{pkg.name}</p>
+                      {pkg.description && (
+                        <p className="line-clamp-2 text-[11px] text-text-muted">
+                          {pkg.description}
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-[12px] text-text-secondary">
+                        <Figures text={formatServicePrice(pkg)} /> ·{' '}
+                        <span className="font-numeric">{pkg.durationMins}</span> min
+                      </p>
+                      <p className="mt-1 text-[11px] text-text-muted">
+                        {pkg.items.map((item) => item.name).join(' + ')}
+                      </p>
+                      {pkg.savings !== null && (
+                        <p className="mt-1 text-[11px] font-medium text-success">
+                          Saves <span className="font-numeric">₹{pkg.savings}</span> vs{' '}
+                          <span className="font-numeric">₹{pkg.itemsTotal}</span> separately
+                        </p>
+                      )}
+                      {/* Amber: a problem to fix, not a button. */}
+                      {pkg.hasInactiveItems && (
+                        <p className="mt-1 text-[11px] text-warning">
+                          Contains a disabled service — customers still see it listed.
+                        </p>
+                      )}
+                    </div>
+                    <ScBadge variant={pkg.isActive ? 'success' : 'muted'} className="shrink-0">
+                      {pkg.isActive ? 'Active' : 'Inactive'}
+                    </ScBadge>
+                  </div>
+
+                  {/* Images — shown to customers in the package details popup. */}
+                  <CatalogueImages
+                    name={pkg.name}
+                    images={pkg.images}
+                    max={MAX_IMAGES_PER_SERVICE}
+                    busy={imageBusyId === pkg.id}
+                    onAdd={() => pickImage(pkg.id)}
+                    onRemove={(imageId) => removeImage(pkg.id, imageId)}
+                  />
+
+                  <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                    <RowAction onClick={() => startEdit(pkg)}>Edit</RowAction>
+                    <RowAction onClick={() => setPackageActive(pkg.id, !pkg.isActive)}>
+                      {pkg.isActive ? 'Disable' : 'Enable'}
+                    </RowAction>
+                    <RowAction onClick={() => remove(pkg.id)}>Delete</RowAction>
+                  </div>
+                </ScCard>
+              </Reveal>
+            ))}
           </div>
         )}
-
-        <ScButton disabled={!canSubmit || saving === 'package'} onClick={submit}>
-          {saving === 'package'
-            ? 'Saving...'
-            : editingId
-              ? 'Update package'
-              : 'Create package'}
-        </ScButton>
-      </ScCard>
-
-      <div className="flex flex-col gap-2">
-        {packages.length === 0 ? (
-          <ScCard>
-            <p className="text-[13px] text-text-secondary">
-              No packages yet. Bundle 2 or more services to create one.
-            </p>
-          </ScCard>
-        ) : (
-          packages.map((pkg) => (
-            <ScCard key={pkg.id} className="flex flex-col gap-2">
-              <div className="flex items-start justify-between">
-                <div className="min-w-0 pr-2">
-                  <p className="text-[13px] font-medium">{pkg.name}</p>
-                  {pkg.description && (
-                    <p className="text-[11px] text-text-muted line-clamp-2">
-                      {pkg.description}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-text-secondary">
-                    {formatServicePrice(pkg)} · {pkg.durationMins} min
-                  </p>
-                  <p className="mt-1 text-[11px] text-text-muted">
-                    {pkg.items.map((item) => item.name).join(' + ')}
-                  </p>
-                  {pkg.savings !== null && (
-                    <p className="mt-1 text-[11px] font-medium text-brand-red">
-                      Saves ₹{pkg.savings} vs ₹{pkg.itemsTotal} separately
-                    </p>
-                  )}
-                  {pkg.hasInactiveItems && (
-                    <p className="mt-1 text-[11px] text-brand-red">
-                      Contains a disabled service — customers still see it listed.
-                    </p>
-                  )}
-                </div>
-                <ScBadge variant={pkg.isActive ? 'success' : 'muted'}>
-                  {pkg.isActive ? 'Active' : 'Inactive'}
-                </ScBadge>
-              </div>
-              {/* Images — shown to customers in the package details popup. */}
-              <div className="flex items-center gap-2">
-                {pkg.images.map((image) => (
-                  <div
-                    key={image.id}
-                    className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[8px] bg-surface"
-                  >
-                    <Image
-                      src={image.url}
-                      alt={pkg.name}
-                      fill
-                      sizes="56px"
-                      className="object-cover"
-                    />
-                    <button
-                      type="button"
-                      disabled={imageBusyId === pkg.id}
-                      onClick={() => removeImage(pkg.id, image.id)}
-                      title="Remove image"
-                      className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
-                    >
-                      <IconTrash size={11} />
-                    </button>
-                  </div>
-                ))}
-
-                {pkg.images.length < MAX_IMAGES_PER_SERVICE && (
-                  <button
-                    type="button"
-                    disabled={imageBusyId === pkg.id}
-                    onClick={() => pickImage(pkg.id)}
-                    className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-dashed border-border text-text-muted disabled:opacity-50"
-                  >
-                    <IconPhotoPlus size={16} />
-                    <span className="text-[9px]">
-                      {imageBusyId === pkg.id ? '…' : 'Add'}
-                    </span>
-                  </button>
-                )}
-
-                <p className="text-[10px] text-text-muted">
-                  {pkg.images.length}/{MAX_IMAGES_PER_SERVICE} images
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => startEdit(pkg)}
-                  className="text-[11px] text-brand-red"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPackageActive(pkg.id, !pkg.isActive)}
-                  className={cn(
-                    'text-[11px]',
-                    pkg.isActive ? 'text-text-secondary' : 'text-brand-red'
-                  )}
-                >
-                  {pkg.isActive ? 'Disable' : 'Enable'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(pkg.id)}
-                  className="text-[11px] text-text-muted"
-                >
-                  Delete
-                </button>
-              </div>
-            </ScCard>
-          ))
-        )}
-      </div>
+      </section>
     </div>
   )
 }

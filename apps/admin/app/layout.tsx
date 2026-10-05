@@ -30,6 +30,8 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  // The browser's own chrome in the canvas colour, as in the other two apps.
+  themeColor: '#0A0A0B',
 }
 
 export default function RootLayout({

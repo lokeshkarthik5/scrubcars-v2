@@ -1,7 +1,7 @@
 import { cn } from '@repo/core/utils'
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'cta'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'cta'
 
 interface ScButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
@@ -19,18 +19,36 @@ const variantStyles: Record<ButtonVariant, string> = {
   cta: 'rounded-full py-4 text-[15px] bg-brand-red text-brand-white hover:bg-brand-red-hover disabled:bg-surface-elevated disabled:text-text-secondary disabled:hover:bg-surface-elevated',
 }
 
+/**
+ * The classes an ScButton is drawn with, for the one thing that has to look
+ * like a button without being one: a link that navigates (ScButtonLink). A
+ * <button> inside an <a> is two controls in one place to a screen reader, and
+ * invalid HTML besides.
+ */
+export function scButtonClass({
+  variant = 'primary',
+  fullWidth = true,
+  className,
+}: {
+  variant?: ButtonVariant
+  fullWidth?: boolean
+  className?: string
+} = {}) {
+  return cn(
+    // `press` dips the button on tap; it is inert when disabled and under
+    // reduced motion (see globals.css).
+    'press rounded-[10px] py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed',
+    fullWidth && 'w-full',
+    variantStyles[variant],
+    className
+  )
+}
+
 export const ScButton = forwardRef<HTMLButtonElement, ScButtonProps>(
   ({ className, variant = 'primary', fullWidth = true, children, ...props }, ref) => (
     <button
       ref={ref}
-      className={cn(
-        // `press` dips the button on tap; it is inert when disabled and under
-        // reduced motion (see globals.css).
-        'press rounded-[10px] py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed',
-        fullWidth && 'w-full',
-        variantStyles[variant],
-        className
-      )}
+      className={scButtonClass({ variant, fullWidth, className })}
       {...props}
     >
       {children}

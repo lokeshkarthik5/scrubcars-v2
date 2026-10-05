@@ -1,14 +1,19 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { IconPhotoPlus, IconTrash } from '@tabler/icons-react'
+import { IconTool } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { EmptyState } from '@repo/ui/sc/empty-state'
+import { Figures } from '@repo/ui/sc/figures'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { Reveal } from '@repo/ui/sc/reveal'
+import { SectionHeader } from '@repo/ui/sc/section-header'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
@@ -25,9 +30,10 @@ import {
 import { toast } from 'react-toastify'
 import type { PricingType, Service, ServiceCategory } from '@repo/core/types'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
+import { ActiveGarage } from '@/components/active-garage'
+import { CatalogueImages, RowAction } from './catalogue-row'
 import { PackagesPanel } from './packages-panel'
 import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
-import { cn } from '@repo/core/utils'
 
 const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
@@ -226,40 +232,28 @@ export default function VendorServicesPage() {
 
   if (loading) {
     return (
-      <AppShell showNav navType="vendor" className="gap-5 py-4">
+      <AppShell
+        showNav
+        navType="vendor"
+        showBrand
+        brandRight={<ActiveGarage />}
+        className="gap-5 py-4"
+      >
         <TopBar title="Services" />
-        <p className="text-[13px] text-text-secondary">Loading...</p>
+        <SkeletonList count={3} itemClassName="h-28" />
       </AppShell>
     )
   }
 
   return (
-    <AppShell showNav navType="vendor" className="gap-5 py-4">
-      <div className="flex items-center justify-between">
-        <TopBar title="Services" />
-        {tab === 'services' && editingServiceId && (
-          <button
-            type="button"
-            onClick={resetServiceForm}
-            className="text-[12px] text-brand-red"
-          >
-            Cancel edit
-          </button>
-        )}
-      </div>
-
-      <div className="flex gap-2">
-        <Chip
-          label="Services"
-          selected={tab === 'services'}
-          onClick={() => setTab('services')}
-        />
-        <Chip
-          label="Packages"
-          selected={tab === 'packages'}
-          onClick={() => setTab('packages')}
-        />
-      </div>
+    <AppShell
+      showNav
+      navType="vendor"
+      showBrand
+      brandRight={<ActiveGarage />}
+      className="gap-5 py-4"
+    >
+      <TopBar title="Services" />
 
       <input
         ref={imageInputRef}
@@ -269,207 +263,204 @@ export default function VendorServicesPage() {
         onChange={(e) => handleImageFile(e.target.files)}
       />
 
-      {tab === 'packages' ? (
-        <PackagesPanel services={services} />
-      ) : (
-        <>
-      <ScCard className="flex flex-col gap-3">
-        <ScInput
-          id="service-name"
-          label="Service name"
-          value={serviceForm.name}
-          onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
-        />
-        <ScTextarea
-          label="Description (optional)"
-          rows={2}
-          value={serviceForm.description}
-          onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
-        />
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-text-secondary">Category</p>
-          <div className="flex flex-wrap gap-2">
-            {SERVICE_CATEGORIES.map((cat) => (
-              <Chip
-                key={cat.value}
-                label={cat.label}
-                selected={serviceForm.category === cat.value}
-                onClick={() => setServiceForm({ ...serviceForm, category: cat.value })}
+      {/* Real tabs, as in Settings: each is its own panel, and only the open
+          one is mounted, so Packages still loads when it is opened. */}
+      <Tabs value={tab} onValueChange={(value) => setTab(value as 'services' | 'packages')}>
+        <TabsList>
+          <TabsTrigger value="services">Services</TabsTrigger>
+          <TabsTrigger value="packages">Packages</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="packages">
+          <PackagesPanel services={services} />
+        </TabsContent>
+
+        <TabsContent value="services">
+          <section className="flex flex-col gap-3">
+            <SectionHeader
+              title={editingServiceId ? 'Edit service' : 'Add a service'}
+              action={
+                editingServiceId ? (
+                  <button
+                    type="button"
+                    onClick={resetServiceForm}
+                    className="-my-2 min-h-11 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                  >
+                    Cancel edit
+                  </button>
+                ) : undefined
+              }
+            />
+            <ScCard className="flex flex-col gap-3">
+              <ScInput
+                id="service-name"
+                label="Service name"
+                value={serviceForm.name}
+                onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
               />
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
-          <div className="flex flex-wrap gap-2">
-            {PRICING_TYPES.map((pt) => (
-              <Chip
-                key={pt.value}
-                label={pt.label}
-                selected={serviceForm.pricingType === pt.value}
-                onClick={() => setServiceForm({ ...serviceForm, pricingType: pt.value })}
+              <ScTextarea
+                label="Description (optional)"
+                rows={2}
+                value={serviceForm.description}
+                onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
               />
-            ))}
-          </div>
-          <p className="mt-1.5 text-[11px] text-text-muted">
-            {PRICING_TYPES.find((pt) => pt.value === serviceForm.pricingType)?.hint}
-          </p>
-        </div>
-
-        {(serviceForm.pricingType === 'flat' ||
-          serviceForm.pricingType === 'on_inspection') && (
-          <ScInput
-            id="service-price"
-            label={
-              serviceForm.pricingType === 'on_inspection'
-                ? 'Inspection fee (₹)'
-                : 'Price (₹)'
-            }
-            type="number"
-            value={serviceForm.price}
-            onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}
-          />
-        )}
-
-        {serviceForm.pricingType === 'per_vehicle' && (
-          <div className="grid grid-cols-3 gap-2">
-            <ScInput
-              label="Hatchback (₹)"
-              type="number"
-              value={serviceForm.priceHatchback}
-              onChange={(e) => setServiceForm({ ...serviceForm, priceHatchback: e.target.value })}
-            />
-            <ScInput
-              label="Sedan (₹)"
-              type="number"
-              value={serviceForm.priceSedan}
-              onChange={(e) => setServiceForm({ ...serviceForm, priceSedan: e.target.value })}
-            />
-            <ScInput
-              label="SUV (₹)"
-              type="number"
-              value={serviceForm.priceSuv}
-              onChange={(e) => setServiceForm({ ...serviceForm, priceSuv: e.target.value })}
-            />
-          </div>
-        )}
-
-        <ScInput
-          id="service-duration"
-          label="Duration (mins)"
-          type="number"
-          value={serviceForm.durationMins}
-          onChange={(e) => setServiceForm({ ...serviceForm, durationMins: e.target.value })}
-        />
-        <ScButton
-          disabled={!serviceForm.name || !hasValidPricing(serviceForm) || saving === 'service'}
-          onClick={submitService}
-        >
-          {saving === 'service'
-            ? 'Saving...'
-            : editingServiceId
-              ? 'Update service'
-              : 'Add service'}
-        </ScButton>
-      </ScCard>
-
-      <div className="flex flex-col gap-2">
-        {services.length === 0 ? (
-          <ScCard>
-            <p className="text-[13px] text-text-secondary">No services added yet.</p>
-          </ScCard>
-        ) : (
-          services.map((svc) => (
-            <ScCard key={svc.id} className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 pr-2">
-                  <p className="text-[13px] font-medium">{svc.name}</p>
-                  {svc.description && (
-                    <p className="text-[11px] text-text-muted line-clamp-2">{svc.description}</p>
-                  )}
-                  <p className="text-[11px] text-text-secondary">
-                    {formatServicePrice(svc)} · {svc.durationMins} min
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => startEditService(svc)}
-                    className="text-[11px] text-brand-red"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setServiceActive(svc.id, !svc.isActive)}
-                    className={cn('text-[11px]', svc.isActive ? 'text-text-secondary' : 'text-brand-red')}
-                  >
-                    {svc.isActive ? 'Disable' : 'Enable'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeService(svc.id)}
-                    className="text-[11px] text-text-muted"
-                  >
-                    Delete
-                  </button>
-                  <ScBadge variant={svc.isActive ? 'success' : 'muted'}>
-                    {svc.isActive ? 'Active' : 'Inactive'}
-                  </ScBadge>
+              <div>
+                <p className="mb-2 text-[11px] font-medium text-text-secondary">Category</p>
+                <div className="flex flex-wrap gap-2">
+                  {SERVICE_CATEGORIES.map((cat) => (
+                    <Chip
+                      key={cat.value}
+                      label={cat.label}
+                      selected={serviceForm.category === cat.value}
+                      onClick={() => setServiceForm({ ...serviceForm, category: cat.value })}
+                    />
+                  ))}
                 </div>
               </div>
-
-              {/* Images — up to MAX_IMAGES_PER_SERVICE, shown to customers in
-                  the service details popup. */}
-              <div className="flex items-center gap-2">
-                {svc.images.map((image) => (
-                  <div
-                    key={image.id}
-                    className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[8px] bg-surface"
-                  >
-                    <Image
-                      src={image.url}
-                      alt={svc.name}
-                      fill
-                      sizes="56px"
-                      className="object-cover"
+              <div>
+                <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
+                <div className="flex flex-wrap gap-2">
+                  {PRICING_TYPES.map((pt) => (
+                    <Chip
+                      key={pt.value}
+                      label={pt.label}
+                      selected={serviceForm.pricingType === pt.value}
+                      onClick={() => setServiceForm({ ...serviceForm, pricingType: pt.value })}
                     />
-                    <button
-                      type="button"
-                      disabled={imageBusyId === svc.id}
-                      onClick={() => removeImage(svc.id, image.id)}
-                      title="Remove image"
-                      className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
-                    >
-                      <IconTrash size={11} />
-                    </button>
-                  </div>
-                ))}
-
-                {svc.images.length < MAX_IMAGES_PER_SERVICE && (
-                  <button
-                    type="button"
-                    disabled={imageBusyId === svc.id}
-                    onClick={() => pickImage(svc.id)}
-                    className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-dashed border-border text-text-muted disabled:opacity-50"
-                  >
-                    <IconPhotoPlus size={16} />
-                    <span className="text-[9px]">
-                      {imageBusyId === svc.id ? '…' : 'Add'}
-                    </span>
-                  </button>
-                )}
-
-                <p className="text-[10px] text-text-muted">
-                  {svc.images.length}/{MAX_IMAGES_PER_SERVICE} images
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-muted">
+                  {PRICING_TYPES.find((pt) => pt.value === serviceForm.pricingType)?.hint}
                 </p>
               </div>
+
+              {(serviceForm.pricingType === 'flat' ||
+                serviceForm.pricingType === 'on_inspection') && (
+                <ScInput
+                  id="service-price"
+                  label={
+                    serviceForm.pricingType === 'on_inspection'
+                      ? 'Inspection fee (₹)'
+                      : 'Price (₹)'
+                  }
+                  type="number"
+                  className="font-numeric"
+                  value={serviceForm.price}
+                  onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}
+                />
+              )}
+
+              {serviceForm.pricingType === 'per_vehicle' && (
+                <div className="grid grid-cols-3 gap-2">
+                  <ScInput
+                    label="Hatchback (₹)"
+                    type="number"
+                    className="font-numeric"
+                    value={serviceForm.priceHatchback}
+                    onChange={(e) => setServiceForm({ ...serviceForm, priceHatchback: e.target.value })}
+                  />
+                  <ScInput
+                    label="Sedan (₹)"
+                    type="number"
+                    className="font-numeric"
+                    value={serviceForm.priceSedan}
+                    onChange={(e) => setServiceForm({ ...serviceForm, priceSedan: e.target.value })}
+                  />
+                  <ScInput
+                    label="SUV (₹)"
+                    type="number"
+                    className="font-numeric"
+                    value={serviceForm.priceSuv}
+                    onChange={(e) => setServiceForm({ ...serviceForm, priceSuv: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <ScInput
+                id="service-duration"
+                label="Duration (mins)"
+                type="number"
+                className="font-numeric"
+                value={serviceForm.durationMins}
+                onChange={(e) => setServiceForm({ ...serviceForm, durationMins: e.target.value })}
+              />
+              <ScButton
+                disabled={!serviceForm.name || !hasValidPricing(serviceForm) || saving === 'service'}
+                onClick={submitService}
+              >
+                {saving === 'service'
+                  ? 'Saving...'
+                  : editingServiceId
+                    ? 'Update service'
+                    : 'Add service'}
+              </ScButton>
             </ScCard>
-          ))
-        )}
-      </div>
-        </>
-      )}
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <SectionHeader
+              title="Your services"
+              action={
+                services.length > 0 ? (
+                  <span className="font-numeric text-[12px] text-text-muted">{services.length}</span>
+                ) : undefined
+              }
+            />
+            {services.length === 0 ? (
+              <EmptyState
+                icon={<IconTool size={28} stroke={1.5} />}
+                title="No services yet"
+                subtitle="Add what you offer above. Customers can book a service once it is active."
+              />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {services.map((svc, i) => (
+                  <Reveal key={svc.id} index={i}>
+                    <ScCard className="flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-text-primary">{svc.name}</p>
+                          {svc.description && (
+                            <p className="line-clamp-2 text-[11px] text-text-muted">{svc.description}</p>
+                          )}
+                          <p className="mt-0.5 text-[12px] text-text-secondary">
+                            <Figures text={formatServicePrice(svc)} /> ·{' '}
+                            <span className="font-numeric">{svc.durationMins}</span> min
+                          </p>
+                        </div>
+                        <ScBadge variant={svc.isActive ? 'success' : 'muted'} className="shrink-0">
+                          {svc.isActive ? 'Active' : 'Inactive'}
+                        </ScBadge>
+                      </div>
+
+                      {/* Images — up to MAX_IMAGES_PER_SERVICE, shown to customers
+                          in the service details popup. */}
+                      <CatalogueImages
+                        name={svc.name}
+                        images={svc.images}
+                        max={MAX_IMAGES_PER_SERVICE}
+                        busy={imageBusyId === svc.id}
+                        onAdd={() => pickImage(svc.id)}
+                        onRemove={(imageId) => removeImage(svc.id, imageId)}
+                      />
+
+                      {/* Quiet outlines, all three: none of them is what this
+                          screen is for, and its red is the form's Add service. */}
+                      <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                        <RowAction onClick={() => startEditService(svc)}>Edit</RowAction>
+                        <RowAction onClick={() => setServiceActive(svc.id, !svc.isActive)}>
+                          {svc.isActive ? 'Disable' : 'Enable'}
+                        </RowAction>
+                        <RowAction onClick={() => removeService(svc.id)}>Delete</RowAction>
+                      </div>
+                    </ScCard>
+                  </Reveal>
+                ))}
+              </div>
+            )}
+          </section>
+        </TabsContent>
+      </Tabs>
     </AppShell>
   )
 }

@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@repo/ui/sc/app-shell'
+import { IconAlertCircle, IconCircleCheck } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
 import { Chip } from '@repo/ui/sc/chip'
-import { ProgressBar } from '@repo/ui/sc/progress-bar'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { SectionHeader } from '@repo/ui/sc/section-header'
 import { createService } from '@repo/core/api/services'
 import { updateVendorSettings } from '@repo/core/api/vendors'
 import { useAuthStore } from '@repo/core/stores/auth-store'
@@ -16,6 +17,7 @@ import type { PricingType, ServiceCategory } from '@repo/core/types'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import { PRICING_TYPES } from '@repo/core/pricing'
 import { VEHICLE_TIERS, VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
+import { OnboardingHeader } from '@/components/onboarding-header'
 
 const CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
@@ -124,14 +126,18 @@ export default function VendorOnboardingStep4() {
 
   return (
     <AppShell className="gap-5 py-4">
-      <TopBar showBack backHref="/onboarding/step-3" />
-      <ProgressBar progress={100} />
-      <p className="text-[11px] text-text-secondary">Step 4 of 4 — Services &amp; vehicles</p>
+      <OnboardingHeader
+        step={4}
+        title="Services & vehicles"
+        subtitle="Add what you sell. You can add more, and packages, in Services later."
+        backHref="/onboarding/step-3"
+      />
 
-      <section>
-        <label className="mb-2 block text-[11px] font-medium text-text-secondary">
-          Quick add a common service
-        </label>
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Quick add a common service"
+          subtitle="Tap a preset or type a custom name below, then set price & duration."
+        />
         <div className="flex flex-wrap gap-2">
           {SERVICE_PRESETS.map((preset) => (
             <Chip
@@ -142,97 +148,101 @@ export default function VendorOnboardingStep4() {
             />
           ))}
         </div>
-        <p className="mt-1.5 text-[11px] text-text-muted">
-          Tap a preset or type a custom name below, then set price &amp; duration.
-        </p>
       </section>
 
-      <ScInput label="Service name" value={name} onChange={(e) => setName(e.target.value)} />
+      <ScCard className="flex flex-col gap-4">
+        <ScInput label="Service name" value={name} onChange={(e) => setName(e.target.value)} />
 
-      <section>
-        <label className="mb-2 block text-[11px] font-medium text-text-secondary">Category</label>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => (
-            <Chip
-              key={c.value}
-              label={c.label}
-              selected={category === c.value}
-              onClick={() => setCategory(c.value)}
-            />
-          ))}
-        </div>
-      </section>
+        <section>
+          <p className="mb-2 text-[11px] font-medium text-text-secondary">Category</p>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => (
+              <Chip
+                key={c.value}
+                label={c.label}
+                selected={category === c.value}
+                onClick={() => setCategory(c.value)}
+              />
+            ))}
+          </div>
+        </section>
 
-      <section>
-        <label className="mb-2 block text-[11px] font-medium text-text-secondary">
-          Pricing
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {PRICING_TYPES.map((pt) => (
-            <Chip
-              key={pt.value}
-              label={pt.label}
-              selected={pricingType === pt.value}
-              onClick={() => setPricingType(pt.value)}
-            />
-          ))}
-        </div>
-        <p className="mt-1.5 text-[11px] text-text-muted">
-          {PRICING_TYPES.find((pt) => pt.value === pricingType)?.hint}
-        </p>
-      </section>
+        <section>
+          <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
+          <div className="flex flex-wrap gap-2">
+            {PRICING_TYPES.map((pt) => (
+              <Chip
+                key={pt.value}
+                label={pt.label}
+                selected={pricingType === pt.value}
+                onClick={() => setPricingType(pt.value)}
+              />
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-text-muted">
+            {PRICING_TYPES.find((pt) => pt.value === pricingType)?.hint}
+          </p>
+        </section>
 
-      {pricingType === 'per_vehicle' ? (
-        <div className="grid grid-cols-3 gap-2">
-          {VEHICLE_TIERS.map(({ value, label }) => (
-            <ScInput
-              key={value}
-              label={`${label} (₹)`}
-              type="number"
-              value={tiers[value]}
-              onChange={(e) =>
-                setTiers((prev) => ({ ...prev, [value]: e.target.value }))
-              }
-            />
-          ))}
-        </div>
-      ) : (
-        <ScInput
-          label={
-            pricingType === 'on_inspection' ? 'Inspection fee (₹)' : 'Price (₹)'
-          }
-          type="number"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
+        {pricingType === 'per_vehicle' ? (
+          <div className="grid grid-cols-3 gap-2">
+            {VEHICLE_TIERS.map(({ value, label }) => (
+              <ScInput
+                key={value}
+                label={`${label} (₹)`}
+                type="number"
+                className="font-numeric"
+                value={tiers[value]}
+                onChange={(e) =>
+                  setTiers((prev) => ({ ...prev, [value]: e.target.value }))
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <ScInput
+            label={
+              pricingType === 'on_inspection' ? 'Inspection fee (₹)' : 'Price (₹)'
+            }
+            type="number"
+            className="font-numeric"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+        )}
+
+        <section>
+          <p className="mb-2 text-[11px] font-medium text-text-secondary">Duration</p>
+          <div className="flex flex-wrap gap-2">
+            {DURATIONS.map((d) => (
+              <Chip key={d} label={`${d} min`} selected={duration === d} onClick={() => setDuration(d)} />
+            ))}
+          </div>
+        </section>
+
+        {/* One red at a time: adding a service is the step's main action
+            until one is added, and then Go to dashboard is. */}
+        <ScButton
+          variant={addedCount === 0 ? 'primary' : 'secondary'}
+          disabled={!name || !pricingComplete || loading}
+          onClick={handleAddService}
+        >
+          {loading ? 'Adding...' : 'Add service'}
+        </ScButton>
+
+        {addedCount > 0 && (
+          <p role="status" className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+            <IconCircleCheck size={14} aria-hidden="true" className="shrink-0 text-success" />
+            {addedCount} service{addedCount === 1 ? '' : 's'} added.
+          </p>
+        )}
+      </ScCard>
+
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Vehicle types handled"
+          subtitle="These are the vehicle types customers can book for, and the tiers you price against when a service uses per-vehicle pricing."
         />
-      )}
-
-      <section>
-        <label className="mb-2 block text-[11px] font-medium text-text-secondary">Duration</label>
-        <div className="flex flex-wrap gap-2">
-          {DURATIONS.map((d) => (
-            <Chip key={d} label={`${d} min`} selected={duration === d} onClick={() => setDuration(d)} />
-          ))}
-        </div>
-      </section>
-
-      <ScButton
-        disabled={!name || !pricingComplete || loading}
-        onClick={handleAddService}
-      >
-        {loading ? 'Adding...' : 'Add service'}
-      </ScButton>
-
-      {addedCount > 0 && (
-        <p className="text-[12px] text-text-secondary">
-          {addedCount} service{addedCount === 1 ? '' : 's'} added.
-        </p>
-      )}
-
-      <section>
-        <label className="mb-2 block text-[11px] font-medium text-text-secondary">
-          Vehicle types handled
-        </label>
         <div className="flex flex-wrap gap-2">
           {VENDOR_VEHICLE_TYPE_OPTIONS.map((type) => (
             <Chip
@@ -243,16 +253,22 @@ export default function VendorOnboardingStep4() {
             />
           ))}
         </div>
-        <p className="mt-1.5 text-[11px] text-text-muted">
-          These are the vehicle types customers can book for, and the tiers you
-          price against when a service uses per-vehicle pricing.
-        </p>
       </section>
 
-      {error && <p className="text-[12px] text-brand-red">{error}</p>}
+      {/* Amber, as errors are: red on this step is its main button. */}
+      {error && (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-error">
+          <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      )}
 
       <div className="mt-auto flex flex-col gap-2 pb-4">
-        <ScButton disabled={finishing} onClick={handleFinish}>
+        <ScButton
+          variant={addedCount === 0 ? 'secondary' : 'primary'}
+          disabled={finishing}
+          onClick={handleFinish}
+        >
           {finishing ? 'Opening dashboard...' : 'Go to dashboard'}
         </ScButton>
       </div>

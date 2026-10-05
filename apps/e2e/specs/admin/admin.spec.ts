@@ -9,6 +9,24 @@ import { test, expect, asRole } from '../../support/fixtures'
 import { sql } from '../../support/db'
 import { DISCOUNTS, VENDORS } from '../../support/seed-ids'
 
+test.describe('admin login @p0', () => {
+  test('is the glass stage, with the team sign-in form', async ({ page }) => {
+    await page.goto('/login')
+
+    await expect(page.getByRole('heading', { name: 'Detlio admin' })).toBeVisible()
+    await expect(page.getByText('Team sign-in')).toBeVisible()
+    // The staging photo behind the card, as on the other two apps' sign-in.
+    await expect(page.locator('img[src*="onboarding-car"]')).toHaveCount(1)
+    // Sign in waits for both fields.
+    const signIn = page.getByRole('button', { name: 'Sign in' })
+    await expect(signIn).toBeDisabled()
+    await page.getByLabel('Username').fill('admin')
+    await expect(signIn).toBeDisabled()
+    await page.getByLabel('Password').fill('anything')
+    await expect(signIn).toBeEnabled()
+  })
+})
+
 test.describe('admin auth', () => {
   test('bad credentials are refused', async ({ page }) => {
     await page.goto('/login')

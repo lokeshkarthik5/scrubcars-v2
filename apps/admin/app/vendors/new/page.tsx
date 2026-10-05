@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { IconPlus } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
 import {
@@ -12,8 +13,8 @@ import { Chip } from '@repo/ui/sc/chip'
 import { ScField, ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScSection } from '@repo/ui/sc/section'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
+import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSelect } from '@repo/ui/sc/select'
-import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
 import { createAdminVendor } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
@@ -227,7 +228,7 @@ export default function NewVendorPage() {
 
   return (
     <div className="mx-auto w-full max-w-[640px] space-y-5">
-      <TopBar title="Add vendor" showBack backHref="/vendors" />
+      <PageHeader title="Add vendor" backHref="/vendors" />
 
       <div className="space-y-4">
         {/* Mirrors the edit screen's tabs, which mirror the vendor settings
@@ -348,8 +349,8 @@ export default function NewVendorPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <ScField label="Opening time" value={form.openTime} onChange={set('openTime')} type="time" />
-              <ScField label="Closing time" value={form.closeTime} onChange={set('closeTime')} type="time" />
+              <ScField label="Opening time" value={form.openTime} onChange={set('openTime')} type="time" className="font-numeric" />
+              <ScField label="Closing time" value={form.closeTime} onChange={set('closeTime')} type="time" className="font-numeric" />
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -392,24 +393,31 @@ export default function NewVendorPage() {
             ) : (
               <div className="space-y-3">
                 {services.map((s, i) => (
-                  <div key={i} className="space-y-2 rounded-[10px] border border-border p-3">
+                  <div key={i} className="space-y-2 rounded-[12px] border border-border p-3">
                     <div className="flex items-end gap-2">
-                      <ScInput
-                        value={s.name}
-                        placeholder="Service name (e.g. Foam wash)"
-                        onChange={(e) => updateService(i, { name: e.target.value })}
-                        className="flex-1"
-                      />
+                      {/* The wrapper takes the row's width: ScInput's className
+                          styles the field inside, not the box around it. */}
+                      <div className="min-w-0 flex-1">
+                        <ScInput
+                          value={s.name}
+                          aria-label={`Service ${i + 1} name`}
+                          placeholder="Service name (e.g. Foam wash)"
+                          onChange={(e) => updateService(i, { name: e.target.value })}
+                        />
+                      </div>
+                      {/* Quiet: removing a row is not the form's main action. */}
                       <button
                         type="button"
                         onClick={() => removeService(i)}
-                        className="rounded-[8px] px-2 py-2.5 text-[12px] text-brand-red transition-colors hover:bg-accent-muted"
+                        aria-label={`Remove service ${i + 1}`}
+                        className="min-h-11 rounded-[10px] px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
                       >
                         Remove
                       </button>
                     </div>
                     <ScTextarea
                       value={s.description}
+                      aria-label={`Service ${i + 1} description`}
                       placeholder="Description (optional)"
                       rows={2}
                       onChange={(e) => updateService(i, { description: e.target.value })}
@@ -417,6 +425,7 @@ export default function NewVendorPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <ScSelect
                         value={s.category}
+                        aria-label={`Service ${i + 1} category`}
                         onChange={(e) => updateService(i, { category: e.target.value as ServiceCategory })}
                       >
                         {SERVICE_CATEGORIES.map((c) => (
@@ -427,6 +436,7 @@ export default function NewVendorPage() {
                       </ScSelect>
                       <ScSelect
                         value={s.pricingType}
+                        aria-label={`Service ${i + 1} pricing`}
                         onChange={(e) => updateService(i, { pricingType: e.target.value as PricingType })}
                       >
                         {PRICING_TYPES.map((p) => (
@@ -447,6 +457,8 @@ export default function NewVendorPage() {
                             ? 'Inspection fee ₹'
                             : 'Price ₹'
                         }
+                        aria-label={`Service ${i + 1} price in rupees`}
+                        className="font-numeric"
                         onChange={(e) => updateService(i, { price: e.target.value })}
                       />
                     )}
@@ -455,11 +467,14 @@ export default function NewVendorPage() {
                         value={s.durationValue}
                         type="number"
                         min={0}
+                        aria-label={`Service ${i + 1} duration`}
+                        className="font-numeric"
                         placeholder="Duration (optional)"
                         onChange={(e) => updateService(i, { durationValue: e.target.value })}
                       />
                       <ScSelect
                         value={s.durationUnit}
+                        aria-label={`Service ${i + 1} duration unit`}
                         onChange={(e) => updateService(i, { durationUnit: e.target.value as DurationUnit })}
                       >
                         {DURATION_UNITS.map((u) => (
@@ -475,6 +490,8 @@ export default function NewVendorPage() {
                           value={s.priceHatchback}
                           type="number"
                           min={0}
+                          aria-label={`Service ${i + 1} hatchback price in rupees`}
+                          className="font-numeric"
                           placeholder="Hatch ₹"
                           onChange={(e) => updateService(i, { priceHatchback: e.target.value })}
                         />
@@ -482,6 +499,8 @@ export default function NewVendorPage() {
                           value={s.priceSedan}
                           type="number"
                           min={0}
+                          aria-label={`Service ${i + 1} sedan price in rupees`}
+                          className="font-numeric"
                           placeholder="Sedan ₹"
                           onChange={(e) => updateService(i, { priceSedan: e.target.value })}
                         />
@@ -489,6 +508,8 @@ export default function NewVendorPage() {
                           value={s.priceSuv}
                           type="number"
                           min={0}
+                          aria-label={`Service ${i + 1} SUV price in rupees`}
+                          className="font-numeric"
                           placeholder="SUV ₹"
                           onChange={(e) => updateService(i, { priceSuv: e.target.value })}
                         />
@@ -502,9 +523,9 @@ export default function NewVendorPage() {
               fullWidth={false}
               variant="secondary"
               onClick={() => setServices((prev) => [...prev, emptyService()])}
-              className="px-3 py-2 text-[12px]"
+              className="flex min-h-11 items-center gap-1.5 px-3.5 py-2 text-[12px]"
             >
-              + Add service
+              <IconPlus size={14} aria-hidden="true" /> Add service
             </ScButton>
             <p className="text-[11px] text-text-muted">
               Each service needs a name and price to be saved. Duration is optional —
@@ -514,7 +535,12 @@ export default function NewVendorPage() {
         </TabsContent>
       </Tabs>
 
-      {error && <p className="text-[13px] text-brand-red">{error}</p>}
+      {/* Amber, as errors are: red on this page is Create vendor. */}
+      {error && (
+        <p role="alert" className="text-[13px] text-error">
+          {error}
+        </p>
+      )}
 
         <ScButton disabled={!isValid || loading} onClick={handleSubmit}>
           {loading ? 'Creating…' : 'Create vendor'}

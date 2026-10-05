@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { IconLock, IconTrash } from '@tabler/icons-react'
+import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScField } from '@repo/ui/sc/input'
 import { ScSection } from '@repo/ui/sc/section'
 import { ScSelect } from '@repo/ui/sc/select'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
   addAdminVendorMember,
   listAdminVendorMembers,
@@ -96,39 +98,43 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
         account yet gets access the next time it logs in.
       </p>
 
-      {error && <p className="text-[12px] text-brand-red">{error}</p>}
+      {/* Amber, as errors are: red on this page is Save changes. */}
+      {error && (
+        <p role="alert" className="text-[12px] text-error">
+          {error}
+        </p>
+      )}
 
       {loading ? (
-        <p className="text-[12px] text-text-muted">Loading team…</p>
+        <SkeletonList count={2} itemClassName="h-14 rounded-[10px]" />
       ) : (
         <div className="space-y-2">
           {members.map((member) => (
             <div
               key={member.id}
-              className="flex flex-wrap items-center gap-2 rounded-[10px] bg-surface px-3 py-2"
+              className="flex flex-wrap items-center gap-2 rounded-[12px] bg-surface px-3 py-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-text-primary">
-                  {member.name}
+                <p className="flex items-center gap-2 truncate text-[13px] font-medium text-text-primary">
+                  <span className="truncate">{member.name}</span>
                   {member.status === 'suspended' && (
-                    <span className="ml-2 text-[11px] text-warning">
-                      Suspended
-                    </span>
+                    <ScBadge variant="danger">Suspended</ScBadge>
                   )}
                 </p>
-                <p className="text-[11px] text-text-muted">{member.phone}</p>
+                <p className="font-numeric text-[12px] text-text-muted">{member.phone}</p>
               </div>
 
               {member.isOwner ? (
                 <span className="flex items-center gap-1 text-[11px] text-text-muted">
-                  <IconLock size={13} stroke={1.5} /> Owner — locked
+                  <IconLock size={13} stroke={1.5} aria-hidden="true" /> Owner — locked
                 </span>
               ) : (
                 <>
                   <ScSelect
+                    aria-label={`Role for ${member.name}`}
                     value={member.role}
                     disabled={busyId === member.id}
-                    className="w-auto py-1.5 text-[12px]"
+                    className="min-h-11 w-auto py-1.5 text-[12px]"
                     onChange={(e) =>
                       run(member.id, () =>
                         updateAdminVendorMember(vendorId, member.id, {
@@ -148,7 +154,7 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
                     fullWidth={false}
                     variant="secondary"
                     disabled={busyId === member.id}
-                    className="px-3 py-2 text-[12px]"
+                    className="min-h-11 px-3.5 py-2 text-[12px]"
                     onClick={() =>
                       run(member.id, () =>
                         updateAdminVendorMember(vendorId, member.id, {
@@ -169,10 +175,12 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
                         removeAdminVendorMember(vendorId, member.id)
                       )
                     }
-                    className="text-brand-red disabled:opacity-50"
+                    // Grey until hovered, then amber, as the panel's other
+                    // removals are; red on this page is Save changes.
+                    className="inline-flex size-11 items-center justify-center rounded-[10px] text-text-muted transition-colors hover:bg-error-muted hover:text-error disabled:opacity-50"
                     aria-label={`Remove ${member.name}`}
                   >
-                    <IconTrash size={16} stroke={1.5} />
+                    <IconTrash size={16} stroke={1.5} aria-hidden="true" />
                   </button>
                 </>
               )}
@@ -184,6 +192,8 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
       <div className="grid grid-cols-2 gap-3">
         <ScField
           label="Phone"
+          inputMode="numeric"
+          className="font-numeric"
           value={phone}
           onChange={(value) => setPhone(value.replace(/\D/g, '').slice(0, 10))}
           placeholder="10 digits"
@@ -207,10 +217,13 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
             </option>
           ))}
         </ScSelect>
+        {/* Secondary: Save changes at the foot of the page is its one red,
+            and this saves on its own the moment it is pressed. */}
         <ScButton
           fullWidth={false}
+          variant="secondary"
           disabled={busyId === 'add'}
-          className="px-4 py-2.5 text-[12px]"
+          className="min-h-11 px-4 py-2.5 text-[12px]"
           onClick={handleAdd}
         >
           {busyId === 'add' ? 'Adding…' : 'Add member'}

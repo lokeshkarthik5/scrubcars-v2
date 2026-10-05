@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { TopBar } from '@repo/ui/sc/top-bar'
 
 interface AuthStageProps {
@@ -72,6 +73,29 @@ export function AuthStage({
         </div>
         {footer}
       </div>
+    </div>
+  )
+}
+
+/**
+ * The top of a sign-in card: the wordmark, the screen's one heading and a
+ * line under it. Shared by every entry point — the customer app, the garage
+ * portal and the admin panel — so the three doors look like one house.
+ */
+export function AuthHeading({
+  title,
+  subtitle,
+}: {
+  title: string
+  subtitle: string
+}) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <BrandMark height={36} priority />
+      <h1 className="mt-6 text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
+        {title}
+      </h1>
+      <p className="mt-2 text-balance text-base leading-6 text-text-secondary">{subtitle}</p>
     </div>
   )
 }

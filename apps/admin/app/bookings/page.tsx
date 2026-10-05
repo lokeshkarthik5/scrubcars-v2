@@ -16,10 +16,12 @@ import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
-import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
+import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { ScInput } from '@repo/ui/sc/input'
+import { PageHeader } from '@repo/ui/sc/page-header'
+import { Reveal } from '@repo/ui/sc/reveal'
 import { ScSelect } from '@repo/ui/sc/select'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminBooking } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import {
@@ -37,6 +39,7 @@ import {
   WaitingBadge,
 } from '@/components/booking-badges'
 import { CopyButton } from '@/components/copy-button'
+import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import {
   bookingsCsv,
@@ -60,23 +63,6 @@ type StatusFilter = (typeof STATUSES)[number]
 
 function isStatusFilter(value: string | null): value is StatusFilter {
   return (STATUSES as readonly (string | null)[]).includes(value)
-}
-
-function Meta({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
-        {label}
-      </p>
-      <div className="text-[12px] text-text-secondary">{children}</div>
-    </div>
-  )
 }
 
 function BookingRow({
@@ -358,9 +344,9 @@ function BookingsList() {
 
   return (
     <>
-      <TopBar
+      <PageHeader
         title="Bookings"
-        right={
+        actions={
           <ScButton
             variant="secondary"
             fullWidth={false}
@@ -482,11 +468,7 @@ function BookingsList() {
       </div>
 
       {isPending ? (
-        <div className="flex flex-col gap-2">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
+        <SkeletonList count={3} itemClassName="h-44" />
       ) : error && bookings.length === 0 ? (
         <ErrorState
           message={errorMessage(error, 'Failed to load bookings')}
@@ -504,8 +486,10 @@ function BookingsList() {
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {bookings.map((b) => (
-            <BookingRow key={b.id} booking={b} listQuery={listQuery} />
+          {bookings.map((b, i) => (
+            <Reveal key={b.id} index={i}>
+              <BookingRow booking={b} listQuery={listQuery} />
+            </Reveal>
           ))}
 
           {hasNextPage && (
@@ -528,14 +512,7 @@ export default function AdminBookingsPage() {
   // useSearchParams needs a Suspense boundary, or Next.js refuses to
   // prerender the page.
   return (
-    <Suspense
-      fallback={
-        <div className="flex flex-col gap-2">
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      }
-    >
+    <Suspense fallback={<SkeletonList count={2} itemClassName="h-44" />}>
       <BookingsList />
     </Suspense>
   )

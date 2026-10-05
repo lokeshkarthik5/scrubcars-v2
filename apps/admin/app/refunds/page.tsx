@@ -3,9 +3,11 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { IconReceiptRefund } from '@tabler/icons-react'
-import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
+import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
+import { PageHeader } from '@repo/ui/sc/page-header'
+import { Reveal } from '@repo/ui/sc/reveal'
 import { ScSegmented } from '@repo/ui/sc/segmented'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminRefund } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminRefunds } from '@repo/core/api/hooks/use-admin-refunds'
@@ -52,7 +54,14 @@ function RefundsList() {
 
   return (
     <>
-      <TopBar title="Refunds" />
+      <PageHeader
+        title="Refunds"
+        subtitle={
+          tab === 'owed'
+            ? 'Refund each one in the Razorpay dashboard, then mark it refunded here. Oldest first.'
+            : 'Refunds recorded, newest first.'
+        }
+      />
 
       <div ref={summaryRef} tabIndex={-1} className="flex flex-col gap-3 focus:outline-none">
         <ScSegmented
@@ -69,12 +78,6 @@ function RefundsList() {
             { value: 'done', label: 'Done' },
           ]}
         />
-
-        <p className="text-[12px] text-text-secondary">
-          {tab === 'owed'
-            ? 'Refund each one in the Razorpay dashboard, then mark it refunded here. Oldest first.'
-            : 'Refunds recorded, newest first.'}
-        </p>
 
         {refreshFailed && (
           <p role="status" className="text-[12px] text-error">
@@ -93,10 +96,7 @@ function RefundsList() {
       </div>
 
       {isPending ? (
-        <div className="flex flex-col gap-2">
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
+        <SkeletonList count={2} itemClassName="h-48" />
       ) : error && refunds.length === 0 ? (
         <ErrorState
           message={errorMessage(error, 'Failed to load refunds')}
@@ -114,10 +114,10 @@ function RefundsList() {
         />
       ) : (
         <ul className="flex flex-col gap-2" aria-label={tab === 'owed' ? 'Refunds owed' : 'Refunds done'}>
-          {refunds.map((refund) => (
-            <li key={`${refund.kind}-${refund.id}`}>
+          {refunds.map((refund, i) => (
+            <Reveal as="li" key={`${refund.kind}-${refund.id}`} index={i}>
               <RefundCard refund={refund} now={now} onMark={setMarking} />
-            </li>
+            </Reveal>
           ))}
         </ul>
       )}
@@ -141,14 +141,7 @@ export default function AdminRefundsPage() {
   // useSearchParams needs a Suspense boundary, or Next.js refuses to
   // prerender the page.
   return (
-    <Suspense
-      fallback={
-        <div className="flex flex-col gap-2">
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      }
-    >
+    <Suspense fallback={<SkeletonList count={2} itemClassName="h-48" />}>
       <RefundsList />
     </Suspense>
   )

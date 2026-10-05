@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { DiscountForm } from '@repo/ui/features/discount-form'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { PageHeader } from '@repo/ui/sc/page-header'
 import {
   errorMessage,
   useCreateDiscount,
@@ -13,8 +13,10 @@ export default function NewDiscountPage() {
   const create = useCreateDiscount()
 
   return (
-    <>
-      <TopBar showBack title="Add discount" />
+    // The same 640px column as the vendor forms: a form this narrow reads
+    // down one line, where the full 1100px workspace spread it thin.
+    <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5">
+      <PageHeader showBack title="Add discount" />
       <DiscountForm
         isPending={create.isPending}
         error={
@@ -31,6 +33,6 @@ export default function NewDiscountPage() {
           })
         }
       />
-    </>
+    </div>
   )
 }

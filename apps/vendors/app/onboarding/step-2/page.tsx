@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScCard } from '@repo/ui/sc/card'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
-import { ProgressBar } from '@repo/ui/sc/progress-bar'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { SectionHeader } from '@repo/ui/sc/section-header'
 import {
   LocationPicker,
   type PickedLocation,
@@ -14,6 +14,7 @@ import {
 import { submitVendorOnboarding } from '@repo/core/api/vendors'
 import { toast } from 'react-toastify'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
+import { OnboardingHeader } from '@/components/onboarding-header'
 
 export default function VendorOnboardingStep2() {
   const router = useRouter()
@@ -87,55 +88,52 @@ export default function VendorOnboardingStep2() {
 
   return (
     <AppShell className="gap-5 py-4">
-      <TopBar showBack backHref="/onboarding/step-1" />
-      <ProgressBar progress={50} />
-      <p className="text-[11px] text-text-secondary">Step 2 of 4 — Your garage location</p>
+      <OnboardingHeader step={2} title="Your garage location" backHref="/onboarding/step-1" />
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium text-text-secondary">
-          Pin your garage
-        </span>
-        <p className="text-[11px] text-text-muted">
-          This is how customers find you and how we work out who is nearby, so
-          place it exactly at your gate.
-        </p>
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Pin your garage"
+          subtitle="This is how customers find you and how we work out who is nearby, so place it exactly at your gate."
+        />
         <LocationPicker
           value={pin ? { lat: pin.lat, lng: pin.lng } : null}
           onChange={handlePick}
           expectedCity={city}
-          className="mt-1"
         />
-      </div>
+      </section>
 
-      <ScTextarea
-        label="Full address"
-        rows={3}
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
-      />
+      <ScCard className="flex flex-col gap-4">
+        <ScTextarea
+          label="Full address"
+          rows={3}
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
 
-      <ScInput
-        label="City"
-        value={city}
-        onChange={(e) => setCity(e.target.value)}
-      />
+        <ScInput
+          label="City"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+        />
 
-      <ScInput
-        label="Pincode"
-        inputMode="numeric"
-        maxLength={6}
-        placeholder="600001"
-        value={pincode}
-        onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-      />
+        <ScInput
+          label="Pincode"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="600001"
+          className="font-numeric"
+          value={pincode}
+          onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+        />
 
-      <ScInput
-        label="Google Maps link (optional)"
-        inputMode="url"
-        placeholder="https://maps.app.goo.gl/…"
-        value={mapsUrl}
-        onChange={(e) => setMapsUrl(e.target.value)}
-      />
+        <ScInput
+          label="Google Maps link (optional)"
+          inputMode="url"
+          placeholder="https://maps.app.goo.gl/…"
+          value={mapsUrl}
+          onChange={(e) => setMapsUrl(e.target.value)}
+        />
+      </ScCard>
 
       <ScButton
         className="mt-auto mb-4"

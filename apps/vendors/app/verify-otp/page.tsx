@@ -9,6 +9,8 @@ export default function VendorVerifyOtpPage() {
       backHref="/login"
       registerPurpose="vendor_onboard"
       registerName="Vendor"
+      // The same staging as the login screen before it.
+      backdrop="/onboarding-car.jpg"
       resolveDestination={(result, next) =>
         result.isNewUser ? '/onboarding/step-1' : next || '/home'
       }

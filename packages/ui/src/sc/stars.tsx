@@ -22,6 +22,28 @@ export function Stars({
 }: StarsProps) {
   const display = interactive ? (value ?? 0) : rating
 
+  // A display-only row is drawn without buttons. Five disabled buttons were
+  // invalid inside a link (the garage home's rating tile is one), and a tap
+  // that landed on a disabled button was swallowed instead of following it.
+  // Same icons, same gap, so it looks exactly as before.
+  if (!interactive) {
+    return (
+      <div aria-hidden="true" className="flex items-center gap-0.5">
+        {Array.from({ length: max }).map((_, i) => {
+          const Icon = i < Math.floor(display) ? IconStarFilled : IconStar
+          return (
+            <span key={i}>
+              <Icon
+                size={size}
+                className={i < Math.floor(display) ? 'text-warning' : 'text-text-muted'}
+              />
+            </span>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: max }).map((_, i) => {

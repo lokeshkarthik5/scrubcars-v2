@@ -4,8 +4,8 @@
 @theme inline {
   --font-sans: var(--font-inter);
   /* Space Grotesk is the brand face for figures only — prices, durations,
-     dates and times — never for UI text. An app loads it with next/font as
-     --font-space-grotesk; one that does not (the vendor portal, admin) falls
+     dates and times — never for UI text. Each app loads it with next/font as
+     --font-space-grotesk in its root layout; an app that did not would fall
      back to Inter here rather than to the browser default. */
   --font-numeric: var(--font-space-grotesk, var(--font-inter));
   /* Brand red is for things to press — primary buttons and a single focal

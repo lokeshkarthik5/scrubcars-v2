@@ -32,6 +32,11 @@ const MAX_STAGGER_STEPS = 6
  * Each element is unobserved once revealed — the animation is an arrival, not
  * a scroll-linked effect, so re-triggering it on the way back up would turn
  * ordinary scrolling into a flicker.
+ *
+ * Do not wrap anything that renders an ScSheet or ScModal. The rise is a
+ * transform, which makes this element the containing block for every
+ * `position: fixed` child, so an overlay inside would open within the
+ * wrapper instead of over the screen.
  */
 export function Reveal({
   children,

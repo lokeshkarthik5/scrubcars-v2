@@ -167,7 +167,7 @@ export function DiscountForm({
   return (
     <div className="flex flex-col gap-4 pb-8">
       <ScCard className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold text-text-primary">Code</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">Code</h2>
         <ScField
           id="code"
           label="Code the customer types"
@@ -187,7 +187,7 @@ export function DiscountForm({
       </ScCard>
 
       <ScCard className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold text-text-primary">Discount</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">Discount</h2>
         <ScSelect
           id="discountType"
           label="Type"
@@ -236,7 +236,7 @@ export function DiscountForm({
       </ScCard>
 
       <ScCard className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold text-text-primary">
+        <h2 className="text-[15px] font-semibold text-text-primary">
           Conditions
         </h2>
         <ScField
@@ -308,7 +308,7 @@ export function DiscountForm({
       </ScCard>
 
       <ScCard className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold text-text-primary">Funding</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">Funding</h2>
         <ScSelect
           id="fundedBy"
           label="Who absorbs this discount"

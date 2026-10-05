@@ -1,12 +1,25 @@
 import { cn } from '@repo/core/utils'
 import { type InputHTMLAttributes, forwardRef, useId } from 'react'
 
+type FieldTone = 'solid' | 'glass'
+
 interface ScInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
+  /**
+   * 'glass' on the frosted sign-in card (AuthStage), matching ScPhoneInput's
+   * glass field: a solid field there reads as a hole in the glass. It is also
+   * a 16px field, the size below which iOS Safari zooms into a focused input.
+   */
+  tone?: FieldTone
+}
+
+const FIELD_TONES: Record<FieldTone, string> = {
+  solid: 'rounded-[10px] border-border bg-surface px-3 py-2.5 text-[13px]',
+  glass: 'rounded-[12px] border-white/15 bg-white/[0.06] px-3.5 py-3.5 text-[16px]',
 }
 
 export const ScInput = forwardRef<HTMLInputElement, ScInputProps>(
-  ({ className, label, id, ...props }, ref) => {
+  ({ className, label, id, tone = 'solid', ...props }, ref) => {
     // Callers almost never pass an id, and a <label htmlFor={undefined}> is
     // decorative: clicking it does not focus the field, and a screen reader
     // announces an unlabelled input. Generating one here fixes every form at
@@ -27,7 +40,8 @@ export const ScInput = forwardRef<HTMLInputElement, ScInputProps>(
         ref={ref}
         id={inputId}
         className={cn(
-          'w-full rounded-[10px] border border-border bg-surface px-3 py-2.5 text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary',
+          'w-full border text-text-primary outline-none transition-colors focus:border-text-secondary',
+          FIELD_TONES[tone],
           className
         )}
         {...props}

@@ -7,9 +7,10 @@ import { IconMapPin } from '@tabler/icons-react'
 import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
-import { ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
+import { ErrorState } from '@repo/ui/sc/empty-state'
+import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSection } from '@repo/ui/sc/section'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminBookingDetail } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
@@ -25,6 +26,7 @@ import {
 } from '@/components/booking-badges'
 import { FinalBillSection, JobPhotosSection } from './job-records'
 import { CopyButton } from '@/components/copy-button'
+import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import {
   bookingsListHref,
@@ -40,6 +42,7 @@ import { CancelBookingDialog, NoShowDialog } from './booking-actions'
 import { NotesSection } from './notes-section'
 import { RefundSection } from './refund-section'
 
+/** A labelled value on this page, a size up from the lists' — see Meta. */
 function Field({
   label,
   children,
@@ -48,12 +51,9 @@ function Field({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
-        {label}
-      </p>
-      <div className="text-[13px] text-text-primary">{children}</div>
-    </div>
+    <Meta label={label} size="md">
+      {children}
+    </Meta>
   )
 }
 
@@ -239,11 +239,10 @@ function BookingDetail({
 
   return (
     <>
-      <TopBar
-        showBack
+      <PageHeader
         backHref={backHref}
         title={`Booking #${b.reference}`}
-        right={<ScBadge variant={badge.variant}>{badge.label}</ScBadge>}
+        actions={<ScBadge variant={badge.variant}>{badge.label}</ScBadge>}
       />
 
       {staleSince !== null && (
@@ -255,8 +254,8 @@ function BookingDetail({
 
       <div className="grid gap-4 md:grid-cols-[3fr_2fr] md:items-start">
         <div className="flex flex-col gap-4">
-          <ScCard className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-1.5">
+          <ScCard className="flex flex-col gap-2 px-4 py-4">
+            <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
               {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
               {b.noShow && <NoShowBadge party={b.noShow} />}
               {b.billDue && <BillDueBadge amount={b.billDue} />}
@@ -266,7 +265,7 @@ function BookingDetail({
                 b.refunded && <RefundedBadge />
               )}
             </div>
-            <p className="font-numeric text-[20px] font-semibold text-text-primary">
+            <p className="font-numeric text-[20px] font-bold tracking-tight text-text-primary">
               {formatWhen(b.scheduledAt)}
             </p>
             <p className="text-[13px] text-text-secondary">
@@ -487,12 +486,9 @@ export default function AdminBookingDetailPage({
   if (!booking) {
     return (
       <>
-        <TopBar showBack backHref={backHref} title="Booking" />
+        <PageHeader backHref={backHref} title="Booking" />
         {isPending ? (
-          <div className="flex flex-col gap-2">
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
+          <SkeletonList count={3} itemClassName="h-36" />
         ) : (
           <ErrorState
             message={errorMessage(error, 'Failed to load this booking')}

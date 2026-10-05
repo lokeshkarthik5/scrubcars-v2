@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { IconAlertCircle } from '@tabler/icons-react'
+import { ScCard } from '@repo/ui/sc/card'
+import { PageHeader } from '@repo/ui/sc/page-header'
+import { Reveal } from '@repo/ui/sc/reveal'
+import { SectionHeader } from '@repo/ui/sc/section-header'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { getDemandSupply, type DemandSupplyCell } from '@repo/core/api/admin'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME } from '@repo/core/map'
 import { cn } from '@repo/core/utils'
@@ -21,7 +27,8 @@ import { cn } from '@repo/core/utils'
 
 const Map = dynamic(() => import('@repo/ui/sc/map').then((m) => m.Map), {
   ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-surface" />,
+  // The same shimmer as every other placeholder in the product.
+  loading: () => <div className="h-full w-full shimmer" />,
 })
 const MapMarker = dynamic(
   () => import('@repo/ui/sc/map').then((m) => m.MapMarker),
@@ -56,20 +63,23 @@ export default function AdminCoveragePage() {
     : DEFAULT_CENTER
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div>
-        <h1 className="text-lg font-semibold text-text-primary">
-          Coverage &amp; demand
-        </h1>
-        <p className="mt-1 text-[12px] text-text-secondary">
-          Roughly 1 km cells. Red means doorstep bookings with no garage in the
-          cell — where to recruit next.
+    // No padding of its own: the panel's shell already sets the page's edge,
+    // and this page used to add a second one inside it.
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Coverage & demand"
+        subtitle="Roughly 1 km cells, garages / doorstep bookings in each. Amber means more doorstep bookings than garages in the cell — where to recruit next."
+      />
+
+      {/* Amber, as errors are everywhere. */}
+      {error && (
+        <p role="alert" className="flex items-start gap-1.5 text-[13px] text-error">
+          <IconAlertCircle size={16} className="mt-px shrink-0" aria-hidden="true" />
+          {error}
         </p>
-      </div>
+      )}
 
-      {error && <p className="text-[13px] text-brand-red">{error}</p>}
-
-      <div className="h-[420px] overflow-hidden rounded-[12px] border border-border">
+      <div className="h-[420px] overflow-hidden rounded-[14px] border border-border">
         <Map
           className="h-full w-full"
           styles={MAP_STYLES}
@@ -85,11 +95,13 @@ export default function AdminCoveragePage() {
               longitude={cell.lng}
             >
               <MarkerContent>
+                {/* A gap is amber — a problem to act on — not red, which
+                    is kept for things to press. */}
                 <span
                   className={cn(
-                    'block rounded-[4px] px-1.5 py-0.5 text-[10px] font-semibold shadow',
+                    'block rounded-[4px] px-1.5 py-0.5 font-numeric text-[10px] font-semibold shadow',
                     cell.gap > 0
-                      ? 'bg-brand-red text-brand-white'
+                      ? 'bg-warning text-brand-black'
                       : cell.vendorCount > 0
                         ? 'bg-success text-brand-black'
                         : 'bg-surface-elevated text-text-secondary'
@@ -104,32 +116,36 @@ export default function AdminCoveragePage() {
         </Map>
       </div>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">
-          Biggest gaps
-        </h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Biggest gaps" />
         {loading ? (
-          <p className="text-[13px] text-text-secondary">Loading…</p>
+          <SkeletonList count={3} itemClassName="h-12 rounded-[12px]" />
         ) : gaps.length === 0 ? (
-          <p className="text-[13px] text-text-secondary">
-            No cell has more doorstep bookings than garages yet. This fills in as
-            booking volume arrives.
-          </p>
+          <ScCard>
+            <p className="text-[13px] text-text-secondary">
+              No cell has more doorstep bookings than garages yet. This fills in as
+              booking volume arrives.
+            </p>
+          </ScCard>
         ) : (
           <ul className="flex flex-col gap-2">
-            {gaps.slice(0, 20).map((cell) => (
-              <li
+            {gaps.slice(0, 20).map((cell, i) => (
+              <Reveal
+                as="li"
                 key={`${cell.lat}-${cell.lng}`}
-                className="flex items-center justify-between rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px]"
+                index={i}
+                className="flex items-center justify-between gap-3 rounded-[12px] border border-border bg-surface px-3.5 py-3 text-[13px]"
               >
-                <span className="text-text-primary">
+                <span className="font-numeric text-text-primary">
                   {cell.lat.toFixed(2)}, {cell.lng.toFixed(2)}
                 </span>
                 <span className="text-text-secondary">
-                  {cell.bookingCount} booking{cell.bookingCount === 1 ? '' : 's'} ·{' '}
-                  {cell.vendorCount} garage{cell.vendorCount === 1 ? '' : 's'}
+                  <span className="font-numeric">{cell.bookingCount}</span> booking
+                  {cell.bookingCount === 1 ? '' : 's'} ·{' '}
+                  <span className="font-numeric">{cell.vendorCount}</span> garage
+                  {cell.vendorCount === 1 ? '' : 's'}
                 </span>
-              </li>
+              </Reveal>
             ))}
           </ul>
         )}
