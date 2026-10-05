@@ -14,6 +14,7 @@ import {
   text,
   time,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -1211,6 +1212,60 @@ export const refundRecords = pgTable(
     check('refund_records_amount_check', sql`${table.amount} > 0`),
   ]
 )
+
+// The customer's receipt numbers: "DTL/26-27/000123", consecutive within each
+// Indian financial year (see formatReceiptSerial in lib/receipts.ts). The
+// consumer rules ask for a consecutive serial unique for the year, so a number
+// is issued once and kept for good: never reused, never renumbered, even if
+// the booking is later cancelled or refunded (the receipt then shows that).
+//
+// One per reschedule chain, keyed by the chain's first booking: a reschedule
+// carries the same payment to a new booking, and the receipt (on whichever
+// booking is current) is still for that one payment. `issued_at` is when the
+// payment first went through; its financial year is the number's.
+//
+// Issued by allocateReceiptNumber (bookings.repository.ts) in the same
+// transaction as the payment going through, from receipt_counters below. A
+// final bill paid later is on the same receipt and takes no number of its
+// own. 0030 numbered the receipts that already existed.
+export const receiptNumbers = pgTable(
+  'receipt_numbers',
+  {
+    rootBookingId: uuid('root_booking_id')
+      .primaryKey()
+      .references(() => bookings.id),
+    financialYear: text('financial_year').notNull(),
+    seq: integer('seq').notNull(),
+    number: text('number').notNull().unique(),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('receipt_numbers_financial_year_seq_key').on(
+      table.financialYear,
+      table.seq
+    ),
+    check('receipt_numbers_seq_check', sql`${table.seq} > 0`),
+    // Sixteen characters is the most the consumer rules allow.
+    check(
+      'receipt_numbers_number_length_check',
+      sql`char_length(${table.number}) <= 16`
+    ),
+  ]
+)
+
+// The last serial issued in each financial year. A counter row rather than a
+// Postgres SEQUENCE because a sequence never gives a number back: a rolled-back
+// payment would leave a gap in the series. Bumped with UPDATE … RETURNING
+// inside the payment's transaction, so a rollback returns the number too; the
+// row lock that takes is the last lock in every transaction (see the lock
+// order in bookings.repository.ts).
+export const receiptCounters = pgTable('receipt_counters', {
+  financialYear: text('financial_year').primaryKey(),
+  lastSeq: integer('last_seq').notNull(),
+})
 
 // The same lines as booking_items, held against an unpaid intent. Copied
 // verbatim into booking_items by `consumeIntent`, so what the customer saw in

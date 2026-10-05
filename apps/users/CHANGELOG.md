@@ -59,11 +59,16 @@ reconstructing every change in them.
   on a phone: the booking, the services and amounts, any discount, the
   Razorpay payment id, a paid final bill, refunds as minus lines, the net paid,
   and "This is a payment receipt, not a tax invoice." with the support number.
-  "Download PDF" opens the print screen, with a line on how to save a PDF on
-  Android and on iPhone, and an amber notice when an in-app browser opens no
-  print screen. "Share" sends the page link (or copies it); the link only
-  opens for the signed-in customer, which the page says. Printing shows only
-  the receipt, black on white with A4 margins.
+  Its number reads `DTL/26-27/000123` (consecutive within the financial
+  year); the saved PDF is named "Detlio receipt DTL-26-27-000123", since a
+  file name cannot hold a slash. "Download PDF" opens the print screen, with
+  a line on how to save a PDF on Android and on iPhone, and an amber notice
+  when an in-app browser opens no print screen. "Share" sends the page link
+  (or copies it); the link only opens for the signed-in customer, which the
+  page says. Printing shows only the receipt, black on white with A4 margins.
+  If the receipt's number cannot be issued yet, the page says so in the
+  server's words with a "Try again" button, rather than suggesting the
+  receipt is not the customer's.
 - **Refunds owed and done (admin).** A Refunds page (Owed / Done): each refund
   with the amount owed, how long it has been owed (amber after two days), the
   customer with tap-to-call, the Razorpay payment id with copy, and why; "Mark

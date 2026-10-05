@@ -9,7 +9,11 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
 import { getBookingReceipt } from '@repo/core/api/bookings'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
-import { RECEIPT_NOT_TAX_INVOICE, formatReceiptAmount } from '@repo/core/receipts'
+import {
+  RECEIPT_NOT_TAX_INVOICE,
+  formatReceiptAmount,
+  receiptFileTitle,
+} from '@repo/core/receipts'
 import type { BookingReceipt } from '@repo/core/types'
 
 /**
@@ -35,6 +39,11 @@ type LoadState =
   | { kind: 'ready'; receipt: BookingReceipt }
   /** No payment through yet, or the booking was moved: the server says which. */
   | { kind: 'unavailable'; message: string }
+  /**
+   * Paid, but its receipt number could not be issued yet (the server has
+   * told ops). Worth trying again, so the page offers to.
+   */
+  | { kind: 'pending'; message: string }
   | { kind: 'error' }
 
 /**
@@ -47,6 +56,8 @@ const PRINT_OPEN_WAIT_MS = 1000
 export default function BookingReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
+  // Bumped by "Try again" to load the receipt once more.
+  const [attempt, setAttempt] = useState(0)
   // Set when Download PDF opened no print screen: see downloadPdf.
   const [printBlocked, setPrintBlocked] = useState(false)
 
@@ -58,6 +69,8 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
         if (!live) return
         if (error instanceof ApiError && error.code === 'RECEIPT_NOT_AVAILABLE') {
           setState({ kind: 'unavailable', message: error.message })
+        } else if (error instanceof ApiError && error.code === 'RECEIPT_NUMBER_PENDING') {
+          setState({ kind: 'pending', message: error.message })
         } else {
           setState({ kind: 'error' })
         }
@@ -65,15 +78,17 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
     return () => {
       live = false
     }
-  }, [id])
+  }, [id, attempt])
 
   // The browser names a saved PDF after the page title, so "Save as PDF"
-  // suggests "Detlio receipt DTL-…" rather than "Detlio".
+  // suggests "Detlio receipt DTL-26-27-000123" rather than "Detlio". Only
+  // the title swaps the number's slashes for hyphens (receiptFileTitle);
+  // everywhere the customer reads it, the number is printed as issued.
   const receiptNumberForTitle = state.kind === 'ready' ? state.receipt.receiptNumber : null
   useEffect(() => {
     if (!receiptNumberForTitle) return
     const previous = document.title
-    document.title = `Detlio receipt ${receiptNumberForTitle}`
+    document.title = receiptFileTitle(receiptNumberForTitle)
     return () => {
       document.title = previous
     }
@@ -132,10 +147,22 @@ export default function BookingReceiptPage({ params }: { params: Promise<{ id: s
         ) : (
           <div className="flex flex-col gap-4 pt-4">
             <p className="text-[13px] text-text-secondary">
-              {state.kind === 'unavailable'
+              {state.kind === 'unavailable' || state.kind === 'pending'
                 ? state.message
                 : 'Could not load this receipt. It may have been removed or you may not have access.'}
             </p>
+            {state.kind === 'pending' && (
+              <ScButton
+                variant="secondary"
+                onClick={() => {
+                  setState({ kind: 'loading' })
+                  setAttempt((n) => n + 1)
+                }}
+                className="min-h-11"
+              >
+                Try again
+              </ScButton>
+            )}
             <Link
               href={`/bookings/${id}`}
               className="flex min-h-11 items-center justify-center rounded-[10px] border border-border text-sm font-semibold text-text-primary"
@@ -301,8 +328,10 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
 
       <Section title="Booking">
         <Row label="Booking" value={`#${booking.reference}`} />
-        {/* A moved booking's receipt number ends in the first booking's
-            reference, so the receipt names it rather than leave a mismatch. */}
+        {/* A moved booking's receipt is numbered by the first booking of
+            its chain (receipt_numbers.root_booking_id), so the receipt names
+            that booking too: it is the one the number was issued on, and the
+            one ops' receipt-number search leads back to. */}
         {booking.originalReference && (
           <Row label="First booked as" value={`#${booking.originalReference}`} />
         )}

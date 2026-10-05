@@ -365,7 +365,7 @@ function BookingsList() {
           id="booking-search"
           type="search"
           aria-label="Search bookings"
-          placeholder="Reference, phone, customer or garage"
+          placeholder="Reference, receipt no., phone, customer or garage"
           autoComplete="off"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -480,7 +480,7 @@ function BookingsList() {
           title="No bookings found"
           subtitle={
             isFiltered
-              ? 'Nothing matches these filters. Try a reference, a phone number or a name.'
+              ? 'Nothing matches these filters. Try a reference, a receipt number, a phone number or a name.'
               : 'Bookings will appear here once customers start booking.'
           }
         />

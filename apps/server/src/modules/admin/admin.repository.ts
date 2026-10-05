@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  exists,
   gte,
   ilike,
   inArray,
@@ -32,6 +33,7 @@ import {
   cancelledOnBehalfOfEnum,
   noShowPartyEnum,
   payments,
+  receiptNumbers,
   serviceImages,
   services,
   users,
@@ -374,7 +376,7 @@ export const adminRepository = {
     }
 
     if (filters.search) {
-      const { text, idPrefix, phoneDigits } = filters.search
+      const { text, idPrefix, phoneDigits, receiptNumber } = filters.search
       const matches: SQL[] = [
         ilike(users.name, containsPattern(text)),
         ilike(vendors.businessName, containsPattern(text)),
@@ -383,6 +385,28 @@ export const adminRepository = {
       // compared as plain text.
       if (idPrefix) matches.push(sql`${bookings.id}::text like ${`${idPrefix}%`}`)
       if (phoneDigits) matches.push(like(users.phone, containsPattern(phoneDigits)))
+      // A receipt number belongs to the first booking of a reschedule chain,
+      // so it finds every booking of the chain: the one the customer holds now
+      // and the ones it was moved from. Compared exactly: the parser has
+      // already rebuilt it in the stored shape, whatever was typed.
+      if (receiptNumber) {
+        matches.push(
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(receiptNumbers)
+              .where(
+                and(
+                  eq(receiptNumbers.number, receiptNumber),
+                  eq(
+                    receiptNumbers.rootBookingId,
+                    sql`coalesce(${bookings.originalBookingId}, ${bookings.id})`
+                  )
+                )
+              )
+          )
+        )
+      }
       conditions.push(or(...matches)!)
     }
 

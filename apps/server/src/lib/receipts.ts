@@ -14,7 +14,7 @@
  * still get one: the customer paid, and the refunds (or the lack of them) are
  * on it. A booking the customer moved to a new time does not: its payment
  * went with the move, and the receipt is on the new booking, under the same
- * receipt number (see receiptNumber).
+ * receipt number (see formatReceiptSerial).
  *
  * Money is carried as decimal strings and added in paise, like the rest of
  * the API. Dates are shown in IST whatever the server's own timezone is, so
@@ -134,24 +134,61 @@ export function istSlotLabel(date: Date): string {
   return `${WEEKDAYS[istParts(date).weekday]}, ${istDateTimeLabel(date)}`
 }
 
+// ─── Receipt numbers ─────────────────────────────────────────────────────────
+
 /**
- * The receipt's number: "DTL-261003-3F2A9C1B", the IST date of the first
- * payment (yymmdd) and a booking's reference. Deterministic, so opening the
- * receipt twice never gives two numbers, and support can find the booking
- * from the number alone.
+ * The Indian financial year a moment falls in, as a receipt number writes
+ * it: "26-27" is 1 April 2026 to 31 March 2027. Decided in IST, so a payment
+ * at 00:10 on 1 April in Chennai (still 31 March in UTC) is in the new year,
+ * as it is on the customer's phone.
  *
- * The caller passes the root of the reschedule chain, not the booking in
- * hand: a reschedule carries the payment (same pay_ id, same paid_at) to the
- * new booking, so numbering by the root keeps one payment on one number
- * however often the customer moves it, and a saved PDF's number still leads
- * support to the booking.
+ * The same rule is in drizzle/0030_receipt_numbers.sql, which numbered the
+ * receipts that already existed; change both together.
  */
-export function receiptNumber(bookingId: string, firstPaidAt: Date): string {
-  const p = istParts(firstPaidAt)
-  const yymmdd = [p.year % 100, p.month + 1, p.day]
-    .map((part) => String(part).padStart(2, '0'))
-    .join('')
-  return `DTL-${yymmdd}-${bookingReference(bookingId)}`
+export function financialYearOf(date: Date): string {
+  const p = istParts(date)
+  // January to March belong to the year that began the April before.
+  const startYear = p.month >= 3 ? p.year : p.year - 1
+  const yy = (year: number) => String(year % 100).padStart(2, '0')
+  return `${yy(startYear)}-${yy(startYear + 1)}`
+}
+
+/** The highest serial a financial year can hold in six digits. */
+export const RECEIPT_SERIAL_MAX = 999_999
+
+/**
+ * The receipt's number: "DTL/26-27/000123", the 123rd receipt of the
+ * financial year 2026-27. Always 16 characters.
+ *
+ * The Consumer Protection (General) Rules, 2020 (rule 5(1)(b)) ask for a
+ * consecutive serial number of at most sixteen characters, unique for a
+ * financial year; GST invoices will need the same once Detlio registers. So
+ * the serial counts up from 000001 each financial year with no gaps, and the
+ * number is issued once, when the booking's own payment first goes through,
+ * and stored (receipt_numbers, see allocateReceiptNumber): this only writes it
+ * out. A seventh digit would make it 17 characters, so a serial past 999999
+ * is refused rather than written.
+ */
+export function formatReceiptSerial(financialYear: string, seq: number): string {
+  if (!/^\d{2}-\d{2}$/.test(financialYear)) {
+    throw new Error(`Not a financial year: ${financialYear}`)
+  }
+  if (!Number.isInteger(seq) || seq < 1 || seq > RECEIPT_SERIAL_MAX) {
+    throw new Error(`Receipt serial ${seq} is outside 1..${RECEIPT_SERIAL_MAX} for ${financialYear}`)
+  }
+  return `DTL/${financialYear}/${String(seq).padStart(6, '0')}`
+}
+
+/**
+ * When a receipt was issued: when its payment first went through. A
+ * reschedule copies paid_at onto the new booking's payment, so this is the
+ * same moment on every booking of a chain, and it is what decides the
+ * financial year the number belongs to. A payment that went through with no
+ * paid_at (rows from before it was always written) falls back to when the
+ * row was made.
+ */
+export function receiptIssuedAt(payment: { paidAt: Date | null; createdAt: Date }): Date {
+  return payment.paidAt ?? payment.createdAt
 }
 
 /**
@@ -263,6 +300,7 @@ export interface ReceiptRefundLine {
 }
 
 export interface Receipt {
+  /** "DTL/26-27/000123": issued once for the chain and stored (formatReceiptSerial). */
   receiptNumber: string
   /** When the first payment went through: the receipt's date. */
   issuedAt: string
@@ -415,15 +453,22 @@ function refundLinesFor(
  * booking's payment and of its paid final bill are on the receipt: a payment
  * that landed on a bill the garage had replaced paid for nothing on this
  * booking, so neither it nor its refund belongs in these totals.
+ *
+ * `receiptNumber` is the number stored for the booking's reschedule chain
+ * (receipt_numbers, keyed by the chain's first booking). It is passed in, not
+ * worked out here, because a consecutive number depends on every other
+ * receipt issued that year; a final bill paid later is on this same receipt
+ * under this same number.
  */
 export function buildReceipt(
   booking: ReceiptBooking,
-  refundRecords: ReceiptRefundRecord[]
+  refundRecords: ReceiptRefundRecord[],
+  receiptNumber: string
 ): Receipt {
   const payment = booking.payment
   if (!payment) throw new Error(`Booking ${booking.id} has no payment to make a receipt from`)
 
-  const firstPaidAt = payment.paidAt ?? payment.createdAt
+  const firstPaidAt = receiptIssuedAt(payment)
   const subtotal = booking.subtotalAmount ?? booking.amount
   const discountPaise = toPaise(booking.discountAmount)
   const discountCode = booking.discountCode ?? null
@@ -484,7 +529,7 @@ export function buildReceipt(
       : street || city
 
   return {
-    receiptNumber: receiptNumber(booking.originalBookingId ?? booking.id, firstPaidAt),
+    receiptNumber,
     issuedAt: firstPaidAt.toISOString(),
     issuedOn: istDateLabel(firstPaidAt),
     issuer: { ...RECEIPT_ISSUER },

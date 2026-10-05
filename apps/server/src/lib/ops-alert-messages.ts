@@ -116,6 +116,15 @@ export type OpsAlert =
       /** How long further failures stay quiet, so the message can say so. */
       quietMinutes: number
     }
+  | {
+      kind: 'receipt_number_failed'
+      /** The booking whose payment went through, or whose receipt was opened. */
+      bookingId: string
+      /** What the database said, as it said it. */
+      errorMessage: string
+      /** How long further failures stay quiet, so the message can say so. */
+      quietMinutes: number
+    }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
 export interface DigestBooking {
@@ -334,6 +343,20 @@ export function formatOpsAlert(alert: OpsAlert): string {
         quoted('Provider said', alert.providerMessage),
         'Check the SMS account (balance, sender approval) and its status page.',
         `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`
+      )
+
+    case 'receipt_number_failed':
+      // The money is recorded; only the number is missing. But the causes
+      // that outlast a retry (a counter set behind the numbers by hand, a
+      // migration not applied) do not fix themselves, and until they are
+      // fixed the customer's receipt will not open.
+      return lines(
+        `🧾 Receipt number not issued #${reference(alert.bookingId)}`,
+        "The payment is recorded. The customer's receipt won't open until it has a number.",
+        quoted('Database said', alert.errorMessage),
+        'Check that migration 0030 is applied, and that receipt_counters is not behind the highest seq in receipt_numbers for this financial year.',
+        `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`,
+        adminBookingUrl(alert.bookingId)
       )
   }
 }

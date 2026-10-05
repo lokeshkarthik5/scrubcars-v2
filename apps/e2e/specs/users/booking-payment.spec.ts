@@ -15,6 +15,7 @@ import {
   getBooking,
   getBookingItems,
   getPayment,
+  getReceiptNumber,
   countRedemptions,
 } from '../../support/db'
 import { CUSTOMERS, DISCOUNTS, SERVICES, VENDORS } from '../../support/seed-ids'
@@ -64,6 +65,10 @@ test.describe('payment @p0', () => {
     const payment = await getPayment(created.id)
     expect(payment.status).toBe('paid')
     expect(payment.amount).toBe('2298.00')
+
+    // Its receipt number, issued in the same transaction as the payment: a
+    // new booking is its own reschedule chain, so the number is keyed by it.
+    expect((await getReceiptNumber(created.id))?.number).toMatch(/^DTL\/\d{2}-\d{2}\/\d{6}$/)
 
     // Exactly one redemption — a second would let the code be spent twice.
     expect(await countRedemptions(created.id)).toBe(1)
