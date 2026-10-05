@@ -3,7 +3,10 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { createRazorpayOrder } from '../../lib/razorpay.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
-import { resolveBookingDraft } from '../bookings/bookings.service.js'
+import {
+  logReceiptNumberFailure,
+  resolveBookingDraft,
+} from '../bookings/bookings.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
@@ -187,6 +190,7 @@ async function handleConsumeResult(
         },
         'booking_intent:consumed'
       )
+      logReceiptNumberFailure(result.receipt, result.bookingId)
       // Exactly once per booking: the browser callback and the webhook race to
       // consume the intent, and only the winner lands here ('already' is the
       // loser). The booking is read after the response, and only if alerts

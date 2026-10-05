@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatReceiptAmount } from './receipts'
+import { formatReceiptAmount, receiptFileTitle } from './receipts'
 
 describe('formatReceiptAmount', () => {
   test('always shows paise', () => {
@@ -19,5 +19,11 @@ describe('formatReceiptAmount', () => {
 
   test('something that is not a number reads as nothing, not NaN', () => {
     expect(formatReceiptAmount('not a number')).toBe('₹0.00')
+  })
+})
+
+describe('receiptFileTitle', () => {
+  test('names the saved PDF after the number, with hyphens for slashes', () => {
+    expect(receiptFileTitle('DTL/26-27/000123')).toBe('Detlio receipt DTL-26-27-000123')
   })
 })

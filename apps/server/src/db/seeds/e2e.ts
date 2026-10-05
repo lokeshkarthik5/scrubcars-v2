@@ -547,6 +547,12 @@ type BookingSpec = {
 /**
  * Writes a booking plus its line items, and optionally its payment row.
  *
+ * A paid payment is written directly, as a row written by hand would be, and
+ * gets no receipt number: nothing reads one until a receipt is opened, and
+ * the receipt read issues the missing number then (its safety net), which is
+ * the path receipts.spec exercises. Issuing them here instead would number
+ * forty-odd bookings no spec looks at, and leave the safety net untested.
+ *
  * `amount` is derived the way the API derives it — subtotal minus discount —
  * rather than being stated separately, so a fixture can never disagree with
  * the invariant the specs assert.
@@ -857,9 +863,10 @@ async function seedBookingRows() {
     status: 'pending', rescheduledFromId: BOOKINGS.refundMovedFrom, rescheduleCount: 1,
     payment: { status: 'paid', txnId: 'pay_seed_refund_moved' } })
 
-  // The receipt spec's bookings at MAIN, all read-only. A completed one with
-  // two services and a promo code, and one the garage declined that ops then
-  // refunded in full, both CUSTOMERS.receipts'. The third is the stranger's,
+  // The receipt spec's bookings at MAIN. A completed one with two services
+  // and a promo code, and one the garage declined that ops then refunded in
+  // full, both CUSTOMERS.receipts'. Like every seed, neither has a receipt
+  // number: the spec's first open issues it. The third is the stranger's,
   // with nothing paid, so it has no receipt to give.
   const receiptsCustomer = { userId: CUSTOMERS.receipts.id, vehicleId: CUSTOMERS.receipts.vehicleId }
   await insertBooking({ id: BOOKINGS.receiptPaid, ...receiptsCustomer, scheduledAt: daysAgo(1),

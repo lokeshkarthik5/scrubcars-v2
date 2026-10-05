@@ -145,6 +145,33 @@ export const getPayment = async (bookingId: string) =>
       from payments where booking_id = ${bookingId}
   `)[0]
 
+/**
+ * The receipt number issued for a reschedule chain (receipt_numbers, keyed by
+ * the chain's first booking), or null while none has been.
+ */
+export const getReceiptNumber = async (rootBookingId: string) =>
+  (await sql<{ number: string; financial_year: string; seq: number }[]>`
+    select number, financial_year, seq
+      from receipt_numbers where root_booking_id = ${rootBookingId}
+  `)[0] ?? null
+
+/**
+ * Each financial year's receipt counter beside the numbers issued in it. One
+ * statement, so one snapshot: specs in other files issue receipts at the same
+ * time, and two separate reads could straddle one of them.
+ */
+export const receiptCounters = async () =>
+  sql<{ financial_year: string; last_seq: number | null; issued: number; max_seq: number }[]>`
+    select financial_year,
+           c.last_seq,
+           coalesce(n.issued, 0) as issued,
+           coalesce(n.max_seq, 0) as max_seq
+      from (select financial_year, count(*)::int as issued, max(seq)::int as max_seq
+              from receipt_numbers group by financial_year) n
+      full join receipt_counters c using (financial_year)
+     order by financial_year
+  `
+
 /** A checkout's status and what has been refunded on it. */
 export const getIntent = async (intentId: string) =>
   (await sql<{
