@@ -13,8 +13,10 @@ import { APP_TIMEZONE } from '@repo/core/utils'
  * Banks take this long to show a refund, which is what the customer is
  * actually waiting for once Detlio has sent it. Said, not promised: Detlio
  * does the refund, the bank decides when it appears.
+ *
+ * Exported for the Cancellation & Refund Policy, which quotes it.
  */
-const BANK_DAYS = '5–7 working days'
+export const BANK_DAYS = '5–7 working days'
 
 const DATE = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',

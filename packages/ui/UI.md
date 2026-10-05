@@ -145,8 +145,17 @@ Tagline:     "Car care at your doorstep", 13px/400, #9A9A9A
 Label:       "Mobile number", 11px/500, #9A9A9A
 Input:       +91 prefix locked, number entry, focus border #E33402
 CTA:         "Send OTP" — primary button
-T&C note:    "By continuing you agree to our Terms & Privacy Policy"
+T&C note:    "By continuing, you agree to our Terms.
+             Our Privacy Policy explains how we use your data."
              11px, #555555, centered, bottom of screen
+             Real links, from PhoneLogin's `termsHref` and `privacyHref`
+             props (customer app: /terms and /privacy). The Terms are
+             agreed to; the Privacy Policy is a notice, not bundled into
+             that agreement. With only `privacyHref` (the partner portal
+             passes https://detlio.com/privacy) the line reads "How we use
+             your data is set out in our Privacy Policy". With neither, no
+             line. Every link opens in a new tab, so the number already
+             typed survives.
 ```
 
 **Behaviour**:

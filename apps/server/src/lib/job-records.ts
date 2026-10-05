@@ -12,10 +12,16 @@
 
 export type JobPhotoStage = 'before' | 'after'
 
-/** Enough to show a car from every side; more is a gallery, not a record. */
+/**
+ * Enough to show a car from every side; more is a gallery, not a record.
+ * Mirrored in packages/core/src/job-records.ts MAX_JOB_PHOTOS_PER_STAGE.
+ */
 export const MAX_PHOTOS_PER_STAGE = 6
 
-/** How long after completion photos can still be added or removed. */
+/**
+ * How long after completion photos can still be added or removed. Mirrored
+ * in packages/core/src/job-records.ts (the legal pages print it).
+ */
 export const PHOTO_EDIT_WINDOW_DAYS = 7
 
 const DAY_MS = 24 * 60 * 60 * 1000

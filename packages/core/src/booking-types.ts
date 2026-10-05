@@ -48,6 +48,22 @@ export function noticeSentence(type: BookingType): string {
 export const CONFIRMED_CHANGE_CUTOFF_MINS = 120
 
 /**
+ * How many times a booking can be moved, across its whole reschedule chain.
+ * Mirrors MAX_RESCHEDULES in apps/server/src/modules/bookings/bookings.service.ts,
+ * which enforces it — change both together.
+ */
+export const MAX_RESCHEDULES = 2
+
+/** How many days, today included, the slot picker offers. */
+export const BOOKING_DAYS_AHEAD = 7
+
+/**
+ * How long a checkout lasts before it expires, in minutes. Mirrors
+ * INTENT_TTL_MS in apps/server/src/modules/booking-intents/booking-intents.service.ts.
+ */
+export const CHECKOUT_MINUTES = 30
+
+/**
  * The `?mode=` a link should carry for a choice, or null when there is nothing
  * to carry.
  *

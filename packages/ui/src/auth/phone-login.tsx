@@ -45,6 +45,34 @@ interface PhoneLoginProps {
    * setting up a garage.
    */
   newNumberNote?: string
+  /**
+   * Where the legal line at the bottom links. The customer app passes its
+   * Terms and Privacy Policy ("By continuing, you agree to our Terms. Our
+   * Privacy Policy explains how we use your data."): the Terms are agreed
+   * to, the Privacy Policy is a notice, not something bundled into that
+   * agreement. The garage portal passes only the Privacy Policy, as an
+   * absolute detlio.com URL: the customer Terms are not a garage's agreement,
+   * so it gets a line that only points to how data is used. Both open in a
+   * new tab, so the number already typed is still there on return. Without
+   * either, no line is shown — never words that look like links but are not.
+   */
+  termsHref?: string
+  privacyHref?: string
+}
+
+const LEGAL_LINK =
+  'underline underline-offset-2 transition-colors hover:text-text-primary rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-white'
+
+/**
+ * A link to a legal page, always in a new tab: the number typed so far lives
+ * only in this screen's state, and leaving the tab would lose it.
+ */
+function LegalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={LEGAL_LINK}>
+      {children}
+    </a>
+  )
 }
 
 /**
@@ -60,6 +88,8 @@ export function PhoneLogin({
   title = 'Welcome to Detlio',
   subtitle = 'Log in or sign up with your mobile number.',
   newNumberNote = 'New to Detlio? Your account is created when you verify your number.',
+  termsHref,
+  privacyHref,
 }: PhoneLoginProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -177,14 +207,21 @@ export function PhoneLogin({
     </form>
   )
 
-  const terms = (
-    <p className="pb-2 text-center text-[12px] text-text-muted">
-      By continuing, you agree to our
-      <br />
-      <span className="underline">Terms</span> &amp;{' '}
-      <span className="underline">Privacy Policy</span>
-    </p>
-  )
+  const terms =
+    termsHref && privacyHref ? (
+      <p className="pb-2 text-center text-[12px] text-text-muted">
+        By continuing, you agree to our <LegalLink href={termsHref}>Terms</LegalLink>.
+        <br />
+        Our <LegalLink href={privacyHref}>Privacy Policy</LegalLink> explains how we use
+        your data.
+      </p>
+    ) : privacyHref ? (
+      <p className="pb-2 text-center text-[12px] text-text-muted">
+        How we use your data is set out in our
+        <br />
+        <LegalLink href={privacyHref}>Privacy Policy</LegalLink>
+      </p>
+    ) : null
 
   if (backdrop) {
     return (

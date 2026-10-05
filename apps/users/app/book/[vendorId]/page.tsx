@@ -17,6 +17,7 @@ import {
 import { toast } from 'react-toastify'
 import { useQueryClient } from '@tanstack/react-query'
 import { AddAddressSheet } from '@/components/add-address-sheet'
+import { LEGAL_PATHS } from '@/lib/legal/routes'
 import {
   PaymentReceivedPanel,
   paymentReceivedText,
@@ -639,7 +640,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         // replaces, so the page leaves it more room to scroll clear of.
         paid && paid.phase !== 'confirming'
           ? 'pb-[calc(12rem_+_env(safe-area-inset-bottom))]'
-          : 'pb-[calc(8rem_+_env(safe-area-inset-bottom))]'
+          : 'pb-[calc(9.5rem_+_env(safe-area-inset-bottom))]'
       )}
     >
       {/* Sticky, not fixed: it keeps its place in the flow so the content
@@ -1149,9 +1150,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </p>
       </ScSheet>
 
-      {/* Height here (~104px: py-3 + the py-4 button + the helper line) is what
-          the page's bottom padding above must clear, plus the iOS home
-          indicator inset added to both. */}
+      {/* Height here (~124px: py-3 + the py-4 button + the helper line + the
+          terms line) is what the page's bottom padding above must clear,
+          plus the iOS home indicator inset added to both. */}
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
         {/* Says each step after payment out loud. On the page from the first
             render and only its text changes: a live region that mounts with
@@ -1235,6 +1236,31 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     : // Paying sends the request; the garage's accept is what
                       // confirms it, so the footer does not promise more.
                       'You pay now. Your booking is confirmed once the garage accepts it.'}
+            </p>
+            {/* Beside Pay, as Razorpay and the E-Commerce Rules expect: the
+                terms and the refund policy a payment accepts. New tabs, so
+                the slot, car and promo picked here are still here when the
+                customer comes back — this page keeps them only in memory. */}
+            <p className="mt-1 text-center text-[11px] text-text-muted">
+              By paying you agree to the{' '}
+              <a
+                href={LEGAL_PATHS.terms}
+                target="_blank"
+                rel="noopener"
+                className="underline underline-offset-2 hover:text-text-primary"
+              >
+                Terms
+              </a>{' '}
+              and the{' '}
+              <a
+                href={LEGAL_PATHS.refunds}
+                target="_blank"
+                rel="noopener"
+                className="underline underline-offset-2 hover:text-text-primary"
+              >
+                Cancellation &amp; Refund Policy
+              </a>
+              .
             </p>
           </>
         )}

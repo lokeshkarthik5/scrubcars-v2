@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { IconCamera, IconCar, IconLogout, IconMapPin, IconPlus, IconTrash } from '@tabler/icons-react'
+import {
+  IconCamera,
+  IconCar,
+  IconChevronRight,
+  IconLogout,
+  IconMapPin,
+  IconPlus,
+  IconTrash,
+} from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -33,6 +41,7 @@ import {
   refillFromPin,
   type PinText,
 } from '@/components/pin-autofill'
+import { LEGAL_LINKS } from '@/lib/legal/routes'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
 
@@ -569,6 +578,30 @@ export default function ProfilePage() {
       <section>
         <h2 className="mb-2 text-sm font-semibold">Support</h2>
         <SupportCard />
+      </section>
+
+      {/* The five legal pages, one tap from the account they govern. Plain
+          links in one card, like My bookings above: nothing here is an
+          action, so nothing is red. */}
+      <section aria-labelledby="profile-legal">
+        <h2 id="profile-legal" className="mb-2 text-sm font-semibold">
+          Legal
+        </h2>
+        <ScCard className="px-0 py-1">
+          <ul className="divide-y divide-border">
+            {LEGAL_LINKS.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="flex items-center justify-between px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
+                >
+                  {link.label}
+                  <IconChevronRight size={16} className="text-text-muted" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </ScCard>
       </section>
 
       <ScButton variant="secondary" onClick={handleLogout}>

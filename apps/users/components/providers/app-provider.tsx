@@ -8,6 +8,7 @@ import { APP_VERSION } from '@repo/core/version'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
+import { LEGAL_ROUTES } from '@/lib/legal/routes'
 import { SIGNED_IN_HINT_KEY } from './signed-in-landing'
 
 /**
@@ -19,7 +20,7 @@ import { SIGNED_IN_HINT_KEY } from './signed-in-landing'
  * deployment on its own domain, and bouncing them off this one would make the
  * two accounts they actually have impossible to use at the same time.
  */
-type RouteAccess = 'marketing' | 'public' | 'guest' | 'customer'
+type RouteAccess = 'marketing' | 'document' | 'public' | 'guest' | 'customer'
 
 /**
  * The marketing homepage. Unlike every other route it renders before the
@@ -30,6 +31,14 @@ type RouteAccess = 'marketing' | 'public' | 'guest' | 'customer'
  * resolves if the hint was missing (see signed-in-landing.ts).
  */
 const MARKETING_ROUTES = ['/']
+/**
+ * The legal pages (Terms, Privacy Policy…). Like the homepage they render
+ * before the session resolves — they are static documents that must load for
+ * anyone, signed in or not, from a link at login, checkout or in the footer —
+ * but unlike it they never redirect: a signed-in customer who opens the Terms
+ * reads the Terms.
+ */
+const DOCUMENT_ROUTES = LEGAL_ROUTES
 const GUEST_ROUTES = ['/login', '/verify-otp']
 const CUSTOMER_ROUTES = ['/book', '/profile-setup']
 
@@ -42,6 +51,7 @@ function matchesRoute(pathname: string, routes: string[]) {
 function getRouteAccess(pathname: string): RouteAccess {
   // Exact match: matchesRoute would treat every path as under '/'.
   if (MARKETING_ROUTES.includes(pathname)) return 'marketing'
+  if (DOCUMENT_ROUTES.includes(pathname)) return 'document'
   if (matchesRoute(pathname, GUEST_ROUTES)) return 'guest'
   if (matchesRoute(pathname, CUSTOMER_ROUTES)) return 'customer'
   return 'public'
@@ -100,7 +110,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   if (isHydrated && isSessionReady) {
     if (routeAccess === 'marketing' || routeAccess === 'guest') {
       redirectPath = user ? signedInLanding : null
-    } else if (routeAccess === 'public') {
+    } else if (routeAccess === 'public' || routeAccess === 'document') {
       redirectPath = null
     } else if (!user) {
       redirectPath = '/login'
@@ -137,8 +147,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Never gated: the homepage is server-rendered for every visitor. A
   // signed-in one keeps seeing it, rather than a blank screen, for the moment
-  // the redirect takes.
-  if (routeAccess === 'marketing') return <>{children}</>
+  // the redirect takes. The legal pages likewise, with no redirect at all.
+  if (routeAccess === 'marketing' || routeAccess === 'document') return <>{children}</>
 
   if (
     !isHydrated ||

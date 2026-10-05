@@ -255,3 +255,138 @@ html:has(main[data-marketing-home]) {
     opacity: 1;
   }
 }
+
+/* ─── Legal pages (/terms, /privacy, …) ─────────────────────────────────────
+ *
+ * components/legal/legal-page.tsx. Plain CSS for the three things utilities
+ * say badly: a table that becomes stacked cards on a phone, the
+ * "[to be confirmed: …]" marker, and the printed copy.
+ */
+
+/* An unconfirmed detail: impossible to miss, on screen and on paper. */
+.legal-tbc {
+  border-radius: 4px;
+  background: rgb(245 165 36 / 0.16);
+  color: --theme(--color-warning);
+  font-weight: 600;
+  padding: 0 0.25em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Below 640px each row is a card, each cell labelled with its column, so a
+   four-column table never makes the page scroll sideways. */
+@media (max-width: 639.98px) {
+  .legal-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .legal-table,
+  .legal-table tbody,
+  .legal-table tr,
+  .legal-table td {
+    display: block;
+  }
+
+  .legal-table caption {
+    display: block;
+  }
+
+  .legal-table tr {
+    margin-bottom: 0.75rem;
+    border: 1px solid --theme(--color-border);
+    border-radius: 12px;
+    padding: 0.5rem 0;
+  }
+
+  .legal-table td {
+    padding: 0.375rem 1rem;
+  }
+
+  /* The label is visual only (the "/ ''" alt text): the cell already has its
+     column header, and screen readers would otherwise say it twice. */
+  .legal-table td::before {
+    content: attr(data-label);
+    content: attr(data-label) / '';
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: --theme(--color-text-muted);
+  }
+}
+
+/* Long words (URLs, IDs) wrap rather than widen the page. */
+.legal-doc main {
+  overflow-wrap: anywhere;
+}
+
+html:has(.legal-doc) {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.legal-doc) {
+    scroll-behavior: auto;
+  }
+}
+
+/* Black on white for paper, draft banner kept (a lawyer marks up the
+   printout; reviewer notes print too under `next dev`, the only place they
+   render); the header and footer are left off. */
+@media print {
+  html:has(.legal-doc),
+  html:has(.legal-doc) body,
+  .legal-doc {
+    background: #fff !important;
+  }
+
+  .legal-doc,
+  .legal-doc * {
+    color: #000 !important;
+  }
+
+  .legal-doc .legal-chrome {
+    display: none !important;
+  }
+
+  .legal-doc main {
+    max-width: none;
+    padding: 0;
+    font-size: 11pt;
+  }
+
+  .legal-doc a {
+    text-decoration: underline;
+  }
+
+  .legal-doc .legal-draft,
+  .legal-doc .legal-note,
+  .legal-doc .legal-callout,
+  .legal-doc .legal-toc,
+  .legal-doc .legal-table tr {
+    background: #fff !important;
+    border-color: #999 !important;
+  }
+
+  .legal-doc .legal-tbc {
+    background: #fff !important;
+    outline: 1px solid #000;
+  }
+
+  .legal-doc h2,
+  .legal-doc h3 {
+    break-after: avoid;
+  }
+
+  .legal-doc tr,
+  .legal-doc .legal-note {
+    break-inside: avoid;
+  }
+}
