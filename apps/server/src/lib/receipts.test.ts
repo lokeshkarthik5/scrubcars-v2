@@ -164,6 +164,7 @@ describe('buildReceipt: a plain paid booking', () => {
 
   test('names the platform, the customer (masked) and the garage', () => {
     expect(receipt.issuer.name).toBe('Detlio')
+    expect(receipt.issuer.tradeName).toBe('ScrubCars')
     expect(receipt.issuer.supportPhone).toBe(RECEIPT_ISSUER.supportPhone)
     expect(receipt.customer).toEqual({ name: 'Kavya Raman', phone: '+91 ******4321' })
     expect(receipt.garage).toEqual({ name: 'Adyar Car Spa', address: '12, LB Road, Adyar, Chennai' })
