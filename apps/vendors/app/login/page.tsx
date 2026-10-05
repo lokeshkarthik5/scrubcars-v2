@@ -14,7 +14,7 @@ export default function VendorLoginPage() {
         verifyHref="/verify-otp"
         showBack={false}
         backdrop="/onboarding-car.jpg"
-        title="Detlio for garages"
+        title="Detlio for Partners"
         subtitle="Log in with the number registered for your garage."
         newNumberNote="New to Detlio? You can set up your garage once your number is verified."
       />
