@@ -6,7 +6,7 @@ import type {
   ApiFinalBill,
   ApiPackage,
   ApiPublicVendor,
-  ApiReview,
+  ApiPublicReview,
   ApiService,
   ApiTierBreakdownEntry,
   ApiUserProfile,
@@ -370,7 +370,8 @@ export function mapBooking(booking: ApiBooking): Booking {
   }
 }
 
-export function mapReview(review: ApiReview): Review {
+// Takes the public shape, which the signed-in ApiReview extends.
+export function mapReview(review: ApiPublicReview): Review {
   return {
     id: review.id,
     userName: review.user?.name ?? 'Customer',
