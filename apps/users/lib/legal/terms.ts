@@ -288,7 +288,7 @@ export const TERMS: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Blocker: review privacy.** On this branch the public review feed still returns the reviewer\'s full name and phone number. "First name + initial, never your phone number" is only true once the fix on `fix/public-review-privacy` (commit b967dec) is merged. It is a separate PR, not merged into this branch; it must land first, and these pages must not ship ahead of it. Note also: there is no tool for the team to remove a review; it would have to be done in the database.',
+          text: '**Removing reviews.** The public feed shows only first name and initial (#18, now merged). There is no tool for the team to remove a review; today it would have to be done in the database. Please confirm the right to remove reviews can stay in the terms on that basis.',
         },
       ],
     },

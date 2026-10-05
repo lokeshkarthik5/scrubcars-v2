@@ -232,7 +232,7 @@ export const PRIVACY: LegalDoc = {
             },
             {
               kind: 'note',
-              text: '**Blocker: review privacy.** On this branch the public review feed still returns the reviewer\'s full name and phone number. The first bullet is true only once `fix/public-review-privacy` (b967dec) is merged; it is a separate PR and must land before these pages ship (with it, the feed returns exactly what the bullet lists: first name and initial, date, services, rating, comment). **Photos:** recommend moving to private storage with signed, expiring links before launch, which would let the second bullet go.',
+              text: '**Photos at public links.** The review feed shows only first name and initial (#18, now merged). Garage and job photos, though, are served from public links: unguessable, but anyone holding a link can open the photo. Recommend moving to private storage with signed, expiring links before launch, which would let the second bullet go.',
             },
           ],
         },
