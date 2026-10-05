@@ -267,6 +267,21 @@ export function mapBooking(booking: ApiBooking): Booking {
     scheduledAt: formatScheduledAt(booking.scheduledAt),
     scheduledAtIso: booking.scheduledAt,
     customerName: booking.user?.name,
+    customerPhone: booking.user?.phone || undefined,
+    jobLocation:
+      booking.bookingType === 'doorstep' && booking.address
+        ? { address: booking.address, lat: booking.lat, lng: booking.lng }
+        : undefined,
+    garage: booking.vendor
+      ? {
+          phone: booking.vendor.phone || undefined,
+          whatsapp: booking.vendor.whatsapp || undefined,
+          address: booking.vendor.address || undefined,
+          city: booking.vendor.city || undefined,
+          lat: booking.vendor.lat ?? null,
+          lng: booking.vendor.lng ?? null,
+        }
+      : undefined,
     vehicle: booking.vehicle
       ? {
           id: booking.vehicle.id,

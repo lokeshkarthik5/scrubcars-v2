@@ -201,6 +201,15 @@ export interface Booking {
   scheduledAt: string
   scheduledAtIso: string
   customerName?: string
+  /** The customer's mobile, for the garage to call or WhatsApp. */
+  customerPhone?: string
+  /**
+   * Where a doorstep job happens: the address the customer booked to, with its
+   * map pin when it has one. Absent for a job at the garage.
+   */
+  jobLocation?: JobLocation
+  /** Where the garage is and how to reach it. */
+  garage?: GarageContact
   vehicle?: Vehicle
   paymentMethod: PaymentMethod
   paymentStatus: 'pending' | 'paid' | 'collected' | 'failed' | 'refunded'
@@ -209,6 +218,21 @@ export interface Booking {
   rescheduleCount: number
   remainingReschedules: number
   review?: Review
+}
+
+export interface JobLocation {
+  address: string
+  lat: number | null
+  lng: number | null
+}
+
+export interface GarageContact {
+  phone?: string
+  whatsapp?: string
+  address?: string
+  city?: string
+  lat: number | null
+  lng: number | null
 }
 
 export interface VendorStats {

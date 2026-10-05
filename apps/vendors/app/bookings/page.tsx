@@ -11,6 +11,7 @@ import { ScInput } from '@repo/ui/sc/input'
 import { StarRating } from '@repo/ui/sc/stars'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
+import { JobContact } from '@/components/job-contact'
 import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
 
@@ -136,6 +137,8 @@ export default function VendorBookingsPage() {
                   {b.vehicle.make} {b.vehicle.model} · {b.vehicle.plate}
                 </p>
               )}
+
+              <JobContact booking={b} />
 
               {tab === 'incoming' && rejectId !== b.id && (
                 <div className="grid grid-cols-2 gap-2">

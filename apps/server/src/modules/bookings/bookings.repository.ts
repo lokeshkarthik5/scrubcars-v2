@@ -285,6 +285,9 @@ export const bookingsRepository = {
       where: and(...conditions),
       with: {
         user: true,
+        // The garage's own row: its job cards name it in the WhatsApp they
+        // start with the customer, and use its city for unpinned addresses.
+        vendor: true,
         service: true,
         items: BOOKING_ITEMS,
         vehicle: true,
