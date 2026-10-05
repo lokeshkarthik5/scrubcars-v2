@@ -1,8 +1,8 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { IconLogout, IconPhoto, IconChevronRight, IconUsers } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
@@ -111,7 +111,17 @@ function mapWorkingHours(hours: ApiWorkingHours[]): WorkingHoursForm[] {
   })
 }
 
+// useSearchParams needs a Suspense boundary for the page to prerender.
 export default function VendorSettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <VendorSettings />
+    </Suspense>
+  )
+}
+
+function VendorSettings() {
+  const searchParams = useSearchParams()
   const [vendor, setVendor] = useState<ApiVendorProfile | null>(null)
   const [profileForm, setProfileForm] = useState({
     businessName: '',
@@ -129,13 +139,12 @@ export default function VendorSettingsPage() {
   const [closures, setClosures] = useState<ApiVendorClosure[]>([])
   const [closuresFailed, setClosuresFailed] = useState(false)
   // The tab a link asked for, e.g. /settings?tab=time-off from Home's
-  // "paused" banner. Read once rather than through useSearchParams, which
-  // would need a Suspense boundary around the page for one string; the tabs
-  // only render after settings load, on the client, so there is no server
-  // render to disagree with.
+  // "paused" banner. From the router rather than window.location: on a
+  // client-side navigation the page first renders before the address bar
+  // has changed, so window.location still showed /home and the link always
+  // landed on Profile.
   const [tab, setTab] = useState<SettingsTab>(() => {
-    if (typeof window === 'undefined') return 'profile'
-    const requested = new URLSearchParams(window.location.search).get('tab')
+    const requested = searchParams.get('tab')
     return TABS.includes(requested as SettingsTab) ? (requested as SettingsTab) : 'profile'
   })
   // Shown under the doorstep switch when turning it on needs a radius first,
