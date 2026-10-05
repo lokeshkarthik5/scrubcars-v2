@@ -27,25 +27,31 @@ import { isRazorpayRefundId } from './refunds.js'
 /**
  * Who issues the receipt: Detlio, the platform the customer paid.
  *
- * OWNER MUST FILL IN `legalName` and `address` (and `supportEmail`, if there
- * is a monitored inbox) before receipts are shown to customers. They are the
- * registered business name and address exactly as the CA has them; nobody
- * else can supply them, so they are left empty rather than guessed. While
- * they are null the receipt simply leaves those lines out.
+ * Detlio is run by ScrubCars, a sole proprietorship, so `tradeName` is that
+ * trade name and the receipt prints "Operated by ScrubCars". A
+ * proprietorship's own legal name is the proprietor's; it is not needed on a
+ * payment receipt and is deliberately not stored here. A GST tax invoice will
+ * need the name and GSTIN exactly as on the GST registration: the CA's call.
+ *
+ * `address` is still to come. The Consumer Protection (General) Rules, 2020
+ * (rule 5) expect a seller's name and address on a receipt, so the owner is
+ * choosing the business address to publish (the same one Razorpay and the
+ * website's contact page show). `supportEmail` waits for an inbox someone
+ * reads. While either is null the receipt simply leaves that line out.
  *
  * No GSTIN goes here until GST is set up: this is a payment receipt, not a
  * tax invoice.
  */
 export const RECEIPT_ISSUER = {
   name: 'Detlio',
-  // PLACEHOLDER — the registered legal entity name. Owner to fill in.
-  legalName: null as string | null,
-  // PLACEHOLDER — the registered business address. Owner to fill in.
+  // The business that runs Detlio (a sole proprietorship's trade name).
+  tradeName: 'ScrubCars' as string | null,
+  // Still to come — the business address the owner publishes (see above).
   address: null as string | null,
   // The same line as SUPPORT_PHONE_DISPLAY in packages/core/src/support.ts,
   // which the server cannot import. Change both together.
   supportPhone: '+91 93444 34474',
-  // PLACEHOLDER — a support inbox someone reads. Owner to fill in.
+  // Not set yet — a support inbox someone reads, when there is one.
   supportEmail: null as string | null,
   website: 'detlio.com',
 }

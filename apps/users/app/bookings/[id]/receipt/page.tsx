@@ -263,7 +263,11 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
               .
             </span>
           </p>
-          {issuer.legalName && <p className="mt-2 text-[12px]">{issuer.legalName}</p>}
+          {/* The business behind the brand, so the customer knows who they
+              paid; "Detlio" alone is a brand, not a business. */}
+          {issuer.tradeName && (
+            <p className="mt-2 text-[12px]">Operated by {issuer.tradeName}</p>
+          )}
           {issuer.address && <p className="text-[12px] text-neutral-600">{issuer.address}</p>}
           <p className="mt-1 text-[12px] text-neutral-600">{issuer.website}</p>
         </div>
@@ -412,7 +416,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
         <p className="font-medium text-brand-rich">{RECEIPT_NOT_TAX_INVOICE}</p>
         <p className="mt-1">
           Questions about this receipt? Call Detlio support on{' '}
-          <span className="font-numeric">{issuer.supportPhone}</span>
+          <span className="whitespace-nowrap font-numeric">{issuer.supportPhone}</span>
           {issuer.supportEmail && <> or write to {issuer.supportEmail}</>}, quoting{' '}
           <span className="font-numeric">{receipt.receiptNumber}</span>.
         </p>

@@ -335,8 +335,12 @@ export interface BookingReceipt {
   issuedOn: string
   issuer: {
     name: string
-    /** Null until the owner fills in the registered name (server config). */
-    legalName: string | null
+    /**
+     * The trade name of the business that runs Detlio (ScrubCars), printed as
+     * "Operated by …". Never the proprietor's personal name. Null leaves the
+     * line out.
+     */
+    tradeName: string | null
     address: string | null
     supportPhone: string
     supportEmail: string | null
