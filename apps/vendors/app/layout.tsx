@@ -25,7 +25,7 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: 'Detlio for garages',
+  title: 'Detlio for Partners',
   description: 'Manage your garage on Detlio',
 }
 

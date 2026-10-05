@@ -12,7 +12,7 @@ test.describe('garage portal login @p0', () => {
   test('is the glass stage, worded for garages', async ({ page }) => {
     await page.goto('/login')
 
-    await expect(page.getByRole('heading', { name: 'Detlio for garages' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Detlio for Partners' })).toBeVisible()
     await expect(
       page.getByText('Log in with the number registered for your garage.')
     ).toBeVisible()
