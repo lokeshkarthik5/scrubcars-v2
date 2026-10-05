@@ -68,6 +68,8 @@ test.describe('receipts @p0', () => {
       await expect(receipt).toContainText('Net amount paid₹2,298.00')
 
       await expect(receipt.getByText('Operated by ScrubCars')).toBeVisible()
+      await expect(receipt.getByText(/Radha Nagar Main Road, Chromepet/)).toBeVisible()
+      await expect(receipt).toContainText('or write to contact.scrubcars@gmail.com')
       await expect(receipt.getByText('This is a payment receipt, not a tax invoice.')).toBeVisible()
       // Receipt now, GST later: nothing on it may claim to be a tax document.
       await expect(receipt).not.toContainText('GSTIN')

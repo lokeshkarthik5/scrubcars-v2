@@ -253,7 +253,9 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
       aria-label={`Payment receipt ${receipt.receiptNumber}`}
       className="receipt-doc mt-4 flex flex-col gap-5 rounded-2xl bg-white px-5 py-6 text-brand-rich sm:px-10 sm:py-10 print:mt-0 print:rounded-none print:p-0"
     >
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      {/* Stacked on a phone, where the address needs the full width; side by
+          side from sm up, which includes the printed page. */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {/* The wordmark in type: the logo artwork is white, for the app's
               dark screens, and would vanish on paper. */}
@@ -271,7 +273,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
           {issuer.address && <p className="text-[12px] text-neutral-600">{issuer.address}</p>}
           <p className="mt-1 text-[12px] text-neutral-600">{issuer.website}</p>
         </div>
-        <div className="text-right">
+        <div className="sm:shrink-0 sm:text-right">
           <h1 className="text-[15px] font-semibold">Payment receipt</h1>
           <p className="mt-1 font-numeric text-[13px] font-medium">{receipt.receiptNumber}</p>
           <p className="text-[12px] text-neutral-600">
@@ -418,7 +420,7 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
           Questions about this receipt? Call Detlio support on{' '}
           <span className="whitespace-nowrap font-numeric">{issuer.supportPhone}</span>
           {issuer.supportEmail && <> or write to {issuer.supportEmail}</>}, quoting{' '}
-          <span className="font-numeric">{receipt.receiptNumber}</span>.
+          <span className="whitespace-nowrap font-numeric">{receipt.receiptNumber}</span>.
         </p>
       </footer>
     </article>

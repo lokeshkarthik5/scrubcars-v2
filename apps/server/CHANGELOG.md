@@ -33,10 +33,10 @@ reconstructing every change in them.
   until the CA confirms the GST setup. Customer booking payloads gain
   `receiptAvailable`; `toVendorBookingResponse` drops it.
 - **Who issues the receipt** is `RECEIPT_ISSUER` in `lib/receipts.ts`: Detlio,
-  "Operated by ScrubCars" (the sole proprietorship that runs it). The
-  business address (expected on receipts by the consumer rules) and a support
-  email are still null, waiting on the owner; the receipt leaves those lines
-  out until they are set.
+  "Operated by ScrubCars" (the sole proprietorship that runs it), with its
+  business address (expected on receipts by the consumer rules; keep it the
+  same as the Razorpay account's) and the support inbox,
+  contact.scrubcars@gmail.com for now.
 - **Recording refunds** (migration `0029_record_refunds`, which must be
   applied before deploying). Refunds stay manual in the Razorpay dashboard;
   ops now records each one. `payments`, `booking_intents` and
