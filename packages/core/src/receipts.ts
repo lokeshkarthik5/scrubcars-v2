@@ -25,3 +25,14 @@ export function formatReceiptAmount(amount: string | number, negative = false): 
   })
   return `${negative && rupees > 0 ? '−' : ''}₹${text}`
 }
+
+/**
+ * The page title while a receipt is open, which browsers use as a saved PDF's
+ * file name: "Detlio receipt DTL-26-27-000123". The receipt number's slashes
+ * become hyphens here only, because a file name cannot hold a slash and
+ * browsers swap it for something less readable. Everywhere the customer reads
+ * the number, it is printed as issued ("DTL/26-27/000123").
+ */
+export function receiptFileTitle(receiptNumber: string): string {
+  return `Detlio receipt ${receiptNumber.replace(/\//g, '-')}`
+}

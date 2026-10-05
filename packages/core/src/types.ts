@@ -319,6 +319,11 @@ export interface BookingRefund {
  * every phone whatever its timezone.
  */
 export interface BookingReceipt {
+  /**
+   * "DTL/26-27/000123": consecutive within the Indian financial year, issued
+   * once for the booking's reschedule chain and never changed. Printed as it
+   * is; only a saved PDF's file name swaps the slashes for hyphens.
+   */
   receiptNumber: string
   issuedAt: string
   issuedOn: string

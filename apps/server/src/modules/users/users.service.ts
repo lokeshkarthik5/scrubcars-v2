@@ -210,6 +210,19 @@ export const usersService = {
 
   async deleteAccount(userId: string) {
     await getActiveUser(userId)
+
+    // Deleting a user deletes their bookings with it. A receipt number is
+    // never reused or renumbered, so the bookings one was issued on have to
+    // stay (receipt_numbers' foreign key would refuse the cascade anyway, as
+    // a bare 500). Closing such an account is a person's job for now.
+    if (await usersRepository.hasReceiptNumbers(userId)) {
+      throw new AppError(
+        409,
+        "Your account has bookings with payment receipts, so it can't be deleted from the app. Please call Detlio support to close it.",
+        'ACCOUNT_HAS_RECEIPTS'
+      )
+    }
+
     await usersRepository.deleteUser(userId)
   },
 

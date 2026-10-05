@@ -18,12 +18,11 @@ reconstructing every change in them.
 
 ### Added
 
-- **Payment receipts** (no migration). `GET /bookings/:id/receipt` gives the
-  customer a receipt for a booking whose payment went through (paid,
-  collected, or refunded since), built by the pure `lib/receipts.ts` from rows
-  the server already has: a receipt number `DTL-<IST yymmdd of the first
-  payment>-<reference of the first booking in the reschedule chain>`, the
-  services as sold, the discount, the booking payment with its Razorpay
+- **Payment receipts** (migration `0030_receipt_numbers`, which must be
+  applied before deploying). `GET /bookings/:id/receipt` gives the customer a
+  receipt for a booking whose payment went through (paid, collected, or
+  refunded since), built by the pure `lib/receipts.ts`: the receipt number,
+  the services as sold, the discount, the booking payment with its Razorpay
   payment id, a paid final bill as its own section, each refund as its own
   line, and the net paid. Only the booking's customer can read it; anyone else
   gets 404 `BOOKING_NOT_FOUND`. A booking with nothing paid, or one the
@@ -32,6 +31,42 @@ reconstructing every change in them.
   one. It is a payment receipt, not a tax invoice: no GSTIN and no tax lines
   until the CA confirms the GST setup. Customer booking payloads gain
   `receiptAvailable`; `toVendorBookingResponse` drops it.
+- **Receipt numbers** are consecutive per Indian financial year, as the
+  Consumer Protection (General) Rules, 2020 (rule 5(1)(b)) ask:
+  `DTL/<FY>/<serial>`, e.g. `DTL/26-27/000123` (16 characters; the FY runs
+  1 April to 31 March in IST; the serial starts at 000001 each year and a
+  serial past 999999 is refused rather than written as 17 characters). One
+  number per reschedule chain, keyed by its first booking, issued once and
+  never changed: in the same transaction as the booking's own payment going
+  through (`settlePayment` for verify and the webhook, `consumeIntent`, and
+  cash collected on completion, now `markCashCollected`), from a gapless
+  counter row per year (`receipt_counters`, bumped with `UPDATE … RETURNING`,
+  so a rolled-back payment gives its number back; not a SEQUENCE). Its row
+  lock is the last lock in every transaction: `allocateReceiptNumber` takes
+  KEY SHARE on the chain's first booking before it (the lock the
+  `receipt_numbers` foreign key would otherwise take after it), and
+  `settlePayment` now locks the booking it settles before the vendor-day
+  lock, as a reschedule does, so the two cannot deadlock. Reschedules and
+  final bills take no number of their own. Numbering runs in a savepoint: if
+  it fails (even before 0030 is applied) only the numbering is rolled back,
+  the payment still stands, and it is logged (`receipt:number_failed`) and
+  alerted to ops (`receipt_number_failed`, at most once per 10 minutes per
+  instance). The receipt read issues a number the first time it finds one
+  missing, logging `receipt:number_issued_late`; two first views at once
+  still get one number. If it cannot, the read answers 503
+  `RECEIPT_NUMBER_PENDING` ("Your receipt isn't ready yet…") rather than a
+  500. 0030 creates `receipt_numbers` and `receipt_counters` and numbers
+  every receipt that already exists, in the order the payments went through;
+  it is safe to re-run. The unused `paymentsRepository.markPaid` and the
+  generic `bookingsRepository.updatePaymentStatus` are gone, so nothing marks
+  a payment paid without a number. Admin booking search also matches a whole
+  receipt number, however its separators are written (`DTL/26-27/000123`,
+  the PDF file name's `DTL-26-27-000123`, or with spaces), and finds every
+  booking of its chain.
+- **Deleting an account that has a receipt number** (`DELETE /users/me`) is
+  refused with 409 `ACCOUNT_HAS_RECEIPTS`: a number is never reused or
+  renumbered, so the bookings it was issued on are kept. It used to cascade
+  into those bookings and fail on the `receipt_numbers` foreign key as a 500.
 - **Who issues the receipt** is `RECEIPT_ISSUER` in `lib/receipts.ts`: Detlio,
   "Operated by ScrubCars" (the sole proprietorship that runs it), with its
   business address (expected on receipts by the consumer rules; keep it the

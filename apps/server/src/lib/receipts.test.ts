@@ -2,13 +2,16 @@ import { describe, expect, test } from 'bun:test'
 import {
   REFUND_METHODS,
   RECEIPT_ISSUER,
+  RECEIPT_SERIAL_MAX,
   buildReceipt,
+  financialYearOf,
+  formatReceiptSerial,
   istDateLabel,
   istDateTimeLabel,
   istSlotLabel,
   maskPhone,
   receiptAvailability,
-  receiptNumber,
+  receiptIssuedAt,
   receiptStatusLabel,
   type ReceiptBill,
   type ReceiptBooking,
@@ -20,6 +23,9 @@ const BOOKING_ID = '3f2a9c1b-0000-4000-8000-000000000001'
 const PAID_AT = new Date('2026-10-03T03:35:00Z')
 // Sat 3 Oct 2026, 10:00 IST.
 const SLOT = new Date('2026-10-03T04:30:00Z')
+// The number stored for the booking's chain (receipt_numbers): buildReceipt
+// prints the one it is given.
+const NUMBER = 'DTL/26-27/000123'
 
 const booking = (overrides: Partial<ReceiptBooking> = {}): ReceiptBooking => ({
   id: BOOKING_ID,
@@ -50,6 +56,10 @@ const booking = (overrides: Partial<ReceiptBooking> = {}): ReceiptBooking => ({
   ...overrides,
 })
 
+/** The receipt for a booking under the chain's stored number. */
+const receiptOf = (b: ReceiptBooking, records: ReceiptRefundRecord[]) =>
+  buildReceipt(b, records, NUMBER)
+
 const record = (overrides: Partial<ReceiptRefundRecord> = {}): ReceiptRefundRecord => ({
   kind: 'booking',
   targetId: BOOKING_ID,
@@ -78,31 +88,80 @@ const bill = (overrides: Partial<ReceiptBill> = {}): ReceiptBill => ({
   ...overrides,
 })
 
-describe('receiptNumber', () => {
-  test('is DTL, the IST date of the first payment and the booking reference', () => {
-    expect(receiptNumber(BOOKING_ID, PAID_AT)).toBe('DTL-261003-3F2A9C1B')
+describe('financialYearOf', () => {
+  test('1 April to 31 March, written yy-yy', () => {
+    expect(financialYearOf(PAID_AT)).toBe('26-27')
+    expect(financialYearOf(new Date('2026-04-01T06:30:00Z'))).toBe('26-27')
+    expect(financialYearOf(new Date('2027-02-15T06:30:00Z'))).toBe('26-27')
+    expect(financialYearOf(new Date('2026-03-15T06:30:00Z'))).toBe('25-26')
   })
 
-  test('uses the IST date, not the UTC one, either side of midnight', () => {
-    // 2 Oct 23:59 IST is still the 2nd; 3 Oct 00:00 IST is the 3rd, while UTC
-    // still says the 2nd for both.
-    expect(receiptNumber(BOOKING_ID, new Date('2026-10-02T18:29:59Z'))).toBe('DTL-261002-3F2A9C1B')
-    expect(receiptNumber(BOOKING_ID, new Date('2026-10-02T18:30:00Z'))).toBe('DTL-261003-3F2A9C1B')
+  test('the year turns at midnight IST, not UTC', () => {
+    // 31 Mar 2027 23:59:59 IST is 18:29:59 UTC: still 2026-27.
+    expect(financialYearOf(new Date('2027-03-31T18:29:59Z'))).toBe('26-27')
+    // 1 Apr 2027 00:00 IST is 31 Mar 18:30 UTC: already 2027-28.
+    expect(financialYearOf(new Date('2027-03-31T18:30:00Z'))).toBe('27-28')
   })
 
-  test('is the same every time for the same booking', () => {
-    expect(buildReceipt(booking(), []).receiptNumber).toBe(buildReceipt(booking(), []).receiptNumber)
+  test('across a century turn, both halves keep two digits', () => {
+    expect(financialYearOf(new Date('2099-06-01T06:30:00Z'))).toBe('99-00')
+    expect(financialYearOf(new Date('2100-03-31T18:29:59Z'))).toBe('99-00')
+    expect(financialYearOf(new Date('2100-03-31T18:30:00Z'))).toBe('00-01')
+    expect(financialYearOf(new Date('2009-12-31T06:30:00Z'))).toBe('09-10')
+  })
+})
+
+describe('formatReceiptSerial', () => {
+  test('DTL, the financial year and a six-digit serial', () => {
+    expect(formatReceiptSerial('26-27', 1)).toBe('DTL/26-27/000001')
+    expect(formatReceiptSerial('26-27', 123)).toBe('DTL/26-27/000123')
+    expect(formatReceiptSerial('99-00', RECEIPT_SERIAL_MAX)).toBe('DTL/99-00/999999')
   })
 
-  test('a moved booking keeps the number its payment had before the move', () => {
+  test('is never more than sixteen characters', () => {
+    for (const seq of [1, 9, 10, 99_999, 100_000, RECEIPT_SERIAL_MAX]) {
+      expect(formatReceiptSerial('26-27', seq).length).toBeLessThanOrEqual(16)
+    }
+    expect(formatReceiptSerial('26-27', 42)).toMatch(/^DTL\/\d{2}-\d{2}\/\d{6}$/)
+  })
+
+  test('refuses a serial it cannot write in six digits, rather than a 17th character', () => {
+    expect(() => formatReceiptSerial('26-27', RECEIPT_SERIAL_MAX + 1)).toThrow()
+    expect(() => formatReceiptSerial('26-27', 0)).toThrow()
+    expect(() => formatReceiptSerial('26-27', -1)).toThrow()
+    expect(() => formatReceiptSerial('26-27', 1.5)).toThrow()
+  })
+
+  test('refuses anything that is not a financial year', () => {
+    expect(() => formatReceiptSerial('2026-27', 1)).toThrow()
+    expect(() => formatReceiptSerial('', 1)).toThrow()
+  })
+})
+
+describe('receiptIssuedAt', () => {
+  test('is when the payment went through, else when its row was made', () => {
+    const createdAt = new Date('2026-10-03T03:30:00Z')
+    expect(receiptIssuedAt({ paidAt: PAID_AT, createdAt })).toBe(PAID_AT)
+    expect(receiptIssuedAt({ paidAt: null, createdAt })).toBe(createdAt)
+  })
+})
+
+describe('buildReceipt: the number', () => {
+  test('prints the number it is given', () => {
+    expect(receiptOf(booking(), []).receiptNumber).toBe(NUMBER)
+    expect(buildReceipt(booking(), [], 'DTL/27-28/000001').receiptNumber).toBe('DTL/27-28/000001')
+  })
+
+  test('a moved booking is printed under its chain\'s number, and says where it began', () => {
     // A reschedule copies the payment (same pay_ id, same paid_at) to the new
-    // booking, which points at the first one of its chain.
-    const moved = buildReceipt(
+    // booking, which points at the first one of its chain; the caller passes
+    // the number stored for that first booking.
+    const moved = receiptOf(
       booking({ id: 'a7b8c9d0-0000-4000-8000-000000000002', originalBookingId: BOOKING_ID }),
       []
     )
-    expect(moved.receiptNumber).toBe(buildReceipt(booking(), []).receiptNumber)
-    expect(moved.receiptNumber).toBe('DTL-261003-3F2A9C1B')
+    expect(moved.receiptNumber).toBe(NUMBER)
+    expect(moved.issuedAt).toBe(PAID_AT.toISOString())
     // The booking row is still the booking in hand, with where it began.
     expect(moved.booking).toMatchObject({ reference: 'A7B8C9D0', originalReference: '3F2A9C1B' })
   })
@@ -160,7 +219,7 @@ describe('receiptAvailability', () => {
 })
 
 describe('buildReceipt: a plain paid booking', () => {
-  const receipt = buildReceipt(booking(), [])
+  const receipt = receiptOf(booking(), [])
 
   test('names the platform, the customer (masked) and the garage', () => {
     expect(receipt.issuer.name).toBe('Detlio')
@@ -174,7 +233,7 @@ describe('buildReceipt: a plain paid booking', () => {
 
   test("adds the garage's city only when its address does not already name it", () => {
     const vendor = { businessName: 'Adyar Car Spa', address: '12, LB Road, Adyar, Chennai 600020', city: 'Chennai' }
-    expect(buildReceipt(booking({ vendor }), []).garage.address).toBe('12, LB Road, Adyar, Chennai 600020')
+    expect(receiptOf(booking({ vendor }), []).garage.address).toBe('12, LB Road, Adyar, Chennai 600020')
   })
 
   test('is dated by the first payment', () => {
@@ -213,27 +272,27 @@ describe('buildReceipt: a plain paid booking', () => {
 
   test('never shows a Razorpay order id as the payment id', () => {
     const payment = { ...booking().payment!, gatewayTxnId: 'order_N1a2B3c4D5e6F7' }
-    expect(buildReceipt(booking({ payment }), []).bookingPayment.paymentId).toBeNull()
+    expect(receiptOf(booking({ payment }), []).bookingPayment.paymentId).toBeNull()
   })
 
   test('a booking from before booking_items is one line: its service at the subtotal', () => {
-    const receipt = buildReceipt(booking({ items: [] }), [])
+    const receipt = receiptOf(booking({ items: [] }), [])
     expect(receipt.items).toEqual([{ name: 'Express Wash', amount: '499.00' }])
   })
 
   test('an old cash booking says cash and has no payment id', () => {
     const payment = { ...booking().payment!, status: 'collected', gatewayTxnId: null }
-    const receipt = buildReceipt(booking({ paymentMethod: 'cash', payment }), [])
+    const receipt = receiptOf(booking({ paymentMethod: 'cash', payment }), [])
     expect(receipt.bookingPayment).toMatchObject({ method: 'Cash', paymentId: null })
   })
 
   test('refuses a booking with no payment at all', () => {
-    expect(() => buildReceipt(booking({ payment: null }), [])).toThrow()
+    expect(() => receiptOf(booking({ payment: null }), [])).toThrow()
   })
 })
 
 describe('buildReceipt: a discount', () => {
-  const receipt = buildReceipt(
+  const receipt = receiptOf(
     booking({
       amount: '2298.00',
       subtotalAmount: '2498.00',
@@ -269,7 +328,7 @@ describe('buildReceipt: a final bill', () => {
   }
 
   test('a paid bill is its own section: lines, total, what the booking covered, the balance', () => {
-    const receipt = buildReceipt(booking({ ...inspection, charges: [bill()] }), [])
+    const receipt = receiptOf(booking({ ...inspection, charges: [bill()] }), [])
     expect(receipt.finalBill).toEqual({
       lines: [
         { description: 'Dent inspection', amount: '299.00' },
@@ -288,7 +347,7 @@ describe('buildReceipt: a final bill', () => {
   })
 
   test('with a promo code at checkout, the saving stays off the total', () => {
-    const receipt = buildReceipt(
+    const receipt = receiptOf(
       booking({
         ...inspection,
         amount: '249.00',
@@ -303,7 +362,7 @@ describe('buildReceipt: a final bill', () => {
   })
 
   test('with a promo code, the credit is split: what was paid at booking, then the discount', () => {
-    const receipt = buildReceipt(
+    const receipt = receiptOf(
       booking({
         ...inspection,
         amount: '249.00',
@@ -328,7 +387,7 @@ describe('buildReceipt: a final bill', () => {
   test('a bill not yet paid, not needed, or replaced took no money and is not shown', () => {
     for (const status of ['due', 'not_needed', 'cancelled']) {
       const charges = [bill({ status, paidAt: null, gatewayPaymentId: null })]
-      const receipt = buildReceipt(booking({ ...inspection, charges }), [])
+      const receipt = receiptOf(booking({ ...inspection, charges }), [])
       expect(receipt.finalBill).toBeNull()
       expect(receipt.totalPaid).toBe('299.00')
     }
@@ -336,7 +395,7 @@ describe('buildReceipt: a final bill', () => {
 
   test('a payment on a replaced bill, and its refund, stay off this receipt', () => {
     const stray = bill({ id: 'b111d0e1-0000-4000-8000-000000000009', status: 'cancelled' })
-    const receipt = buildReceipt(booking({ ...inspection, charges: [stray, bill()] }), [
+    const receipt = receiptOf(booking({ ...inspection, charges: [stray, bill()] }), [
       record({ kind: 'bill', targetId: stray.id, amount: '2201.00' }),
     ])
     expect(receipt.refunds).toEqual([])
@@ -344,7 +403,7 @@ describe('buildReceipt: a final bill', () => {
   })
 
   test("a refund of the bill's balance is a line of its own", () => {
-    const receipt = buildReceipt(
+    const receipt = receiptOf(
       booking({ ...inspection, status: 'cancelled', charges: [bill({ refundedAmount: '2201.00' })] }),
       [record({ kind: 'bill', targetId: bill().id, amount: '2201.00' })]
     )
@@ -360,7 +419,7 @@ describe('buildReceipt: refunds', () => {
 
   test('a part refund is a negative line, and the rest stays paid', () => {
     const payment = { ...booking().payment!, refundedAmount: '200.00', refundRef: 'rfnd_Q1w2E3r4T5y6U7' }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [record({ amount: '200.00' })])
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [record({ amount: '200.00' })])
     expect(receipt.refunds).toEqual([
       {
         against: 'booking',
@@ -382,7 +441,7 @@ describe('buildReceipt: refunds', () => {
       refundRef: 'rfnd_Q1w2E3r4T5y6U7',
       refundedAt: new Date('2026-10-04T06:00:00Z'),
     }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [record()])
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [record()])
     expect(receipt.booking.statusLabel).toBe('Cancelled')
     expect(receipt.refunds).toHaveLength(1)
     expect(receipt).toMatchObject({ totalPaid: '499.00', totalRefunded: '499.00', netPaid: '0.00' })
@@ -390,7 +449,7 @@ describe('buildReceipt: refunds', () => {
 
   test('two part refunds are two lines, oldest first', () => {
     const payment = { ...booking().payment!, status: 'refunded', refundedAmount: '499.00' }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [
       record({ amount: '299.00', refundRef: 'rfnd_Second0000002', recordedAt: new Date('2026-10-05T06:00:00Z') }),
       record({ amount: '200.00', refundRef: 'rfnd_First00000001', recordedAt: new Date('2026-10-04T06:00:00Z') }),
     ])
@@ -403,14 +462,14 @@ describe('buildReceipt: refunds', () => {
 
   test('a refund made outside Razorpay shows no reference, and never the team’s note', () => {
     const payment = { ...booking().payment!, refundedAmount: '499.00', status: 'refunded' }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [record({ refundRef: null })])
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [record({ refundRef: null })])
     expect(receipt.refunds[0].reference).toBeNull()
     expect(JSON.stringify(receipt)).not.toContain('note')
   })
 
   test('a refund made outside Razorpay does not claim it went to the original payment method', () => {
     const payment = { ...booking().payment!, refundedAmount: '499.00', status: 'refunded' }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [record({ refundRef: null })])
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [record({ refundRef: null })])
     expect(receipt.refunds).toEqual([
       expect.objectContaining({ amount: '499.00', method: 'Refunded directly by Detlio', reference: null }),
     ])
@@ -424,7 +483,7 @@ describe('buildReceipt: refunds', () => {
       refundRef: null,
       refundedAt: new Date('2026-09-20T06:00:00Z'),
     }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [])
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [])
     expect(receipt.refunds).toEqual([
       expect.objectContaining({ amount: '499.00', method: 'Refunded', reference: null }),
     ])
@@ -438,7 +497,7 @@ describe('buildReceipt: refunds', () => {
       refundRef: 'rfnd_Legacy0000001',
       refundedAt: new Date('2026-09-20T06:00:00Z'),
     }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [])
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [])
     expect(receipt.refunds).toEqual([
       expect.objectContaining({
         amount: '499.00',
@@ -453,7 +512,7 @@ describe('buildReceipt: refunds', () => {
 
   test('a refund on the row that the records do not cover is added, not lost', () => {
     const payment = { ...booking().payment!, status: 'refunded', refundedAmount: '499.00' }
-    const receipt = buildReceipt(booking({ ...cancelled, payment }), [record({ amount: '200.00' })])
+    const receipt = receiptOf(booking({ ...cancelled, payment }), [record({ amount: '200.00' })])
     expect(receipt.refunds.map((refund) => refund.amount).sort()).toEqual(['200.00', '299.00'])
     expect(receipt.totalRefunded).toBe('499.00')
     // The record's line has its Razorpay id; the remainder's route is unknown.
@@ -462,14 +521,14 @@ describe('buildReceipt: refunds', () => {
   })
 
   test("another booking's refunds are not this one's", () => {
-    const receipt = buildReceipt(booking(), [record({ targetId: 'someone-else' })])
+    const receipt = receiptOf(booking(), [record({ targetId: 'someone-else' })])
     expect(receipt.refunds).toEqual([])
   })
 })
 
 describe('buildReceipt: no-shows', () => {
   test('a customer no-show has a receipt for the money it kept', () => {
-    const receipt = buildReceipt(booking({ status: 'cancelled', noShow: 'customer' }), [])
+    const receipt = receiptOf(booking({ status: 'cancelled', noShow: 'customer' }), [])
     expect(receipt.booking.statusLabel).toBe('No-show')
     expect(receipt.refunds).toEqual([])
     expect(receipt).toMatchObject({ totalPaid: '499.00', netPaid: '499.00' })

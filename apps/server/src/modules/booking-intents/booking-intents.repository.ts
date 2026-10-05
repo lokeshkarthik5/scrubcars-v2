@@ -10,11 +10,13 @@ import {
   payments,
 } from '../../db/schema.js'
 import {
+  allocateReceiptNumber,
   checkGarageCanTake,
   countHeldRedemptions,
   findOverlappingVehicleBooking,
   lockDiscount,
   lockVehicle,
+  type ReceiptNumberAllocation,
 } from '../bookings/bookings.repository.js'
 
 export type BookingIntentRecord = typeof bookingIntents.$inferSelect
@@ -33,8 +35,10 @@ export interface BookingIntentItemInput {
 // booking exists for money that may already have been captured, so the service
 // layer decides which of those are the customer's problem (expired, not found)
 // and which are ours to refund (clash, the garage refusing, discount_exhausted).
+//
+// 'created' carries the receipt number issued with the booking's payment.
 export type ConsumeIntentResult =
-  | { kind: 'created'; bookingId: string }
+  | { kind: 'created'; bookingId: string; receipt: ReceiptNumberAllocation }
   | { kind: 'already'; bookingId: string }
   | { kind: 'not_found' }
   | { kind: 'expired' }
@@ -271,13 +275,14 @@ export const bookingIntentsRepository = {
       )
 
       // `paid` from the outset — this row only exists because the money landed.
+      const paidAt = new Date()
       await tx.insert(payments).values({
         bookingId: booking.id,
         gateway: 'razorpay',
         gatewayTxnId: params.razorpayPaymentId,
         amount: intent.amount,
         status: 'paid',
-        paidAt: new Date(),
+        paidAt,
       })
 
       if (intent.discountId && intent.discountCode) {
@@ -299,7 +304,12 @@ export const bookingIntentsRepository = {
         })
         .where(eq(bookingIntents.id, intent.id))
 
-      return { kind: 'created', bookingId: booking.id }
+      // The receipt number, last: its counter lock is held until this
+      // transaction commits and comes after every other lock (see the lock
+      // order in bookings.repository.ts). A new booking is its own chain.
+      const receipt = await allocateReceiptNumber(tx, booking.id, paidAt)
+
+      return { kind: 'created', bookingId: booking.id, receipt }
     })
   },
 }

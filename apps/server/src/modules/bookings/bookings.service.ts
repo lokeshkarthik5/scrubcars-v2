@@ -1,6 +1,7 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
+import { createThrottle } from '../../lib/throttle.js'
 import {
   computeAvailableSlots,
   dayStatus,
@@ -21,7 +22,7 @@ import {
   type FinalBillRecord,
 } from '../../lib/final-bill.js'
 import { customerRefund } from '../../lib/refunds.js'
-import { buildReceipt, receiptAvailability } from '../../lib/receipts.js'
+import { buildReceipt, receiptAvailability, receiptIssuedAt } from '../../lib/receipts.js'
 import {
   customerSeesPhotos,
   toJobPhotoView,
@@ -30,7 +31,11 @@ import {
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
-import type { BookingDiscount, GarageRefusal } from './bookings.repository.js'
+import type {
+  BookingDiscount,
+  GarageRefusal,
+  ReceiptNumberAllocation,
+} from './bookings.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
@@ -99,6 +104,47 @@ function stateChanged() {
     'This booking was just updated by someone else. Refresh to see its latest status.',
     'BOOKING_STATE_CHANGED'
   )
+}
+
+// A numbering failure that outlasts a retry (a counter set behind the numbers
+// by hand, a migration not applied) fails every payment and every receipt
+// view the same way, so the first alert says everything the rest would.
+const RECEIPT_ALERT_QUIET_MINUTES = 10
+const receiptAlertDue = createThrottle(RECEIPT_ALERT_QUIET_MINUTES * 60_000)
+
+/**
+ * Says so, loudly, when a receipt number could not be issued (see
+ * allocateReceiptNumber): logged, and sent to ops, because the receipt page
+ * cannot open without a number and the causes that outlast a retry need a
+ * person to fix them. The payment stands either way.
+ *
+ * Shared by every path a booking's payment goes through on, and by the
+ * receipt read when its own try fails.
+ */
+export function logReceiptNumberFailure(
+  receipt: ReceiptNumberAllocation | null | undefined,
+  bookingId: string
+) {
+  if (receipt?.kind !== 'failed') return
+  log.error({ err: receipt.error, bookingId }, 'receipt:number_failed')
+
+  if (receiptAlertDue()) {
+    alertOps({
+      kind: 'receipt_number_failed',
+      bookingId,
+      errorMessage: databaseErrorMessage(receipt.error),
+      quietMinutes: RECEIPT_ALERT_QUIET_MINUTES,
+    })
+  }
+}
+
+/**
+ * Postgres's own words for a failed query. Drizzle wraps them in "Failed
+ * query: <the SQL> params: …", which is longer and says less.
+ */
+function databaseErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+  return error.cause instanceof Error ? error.cause.message : error.message
 }
 
 // Once the garage has accepted, customers must cancel or reschedule at least
@@ -979,7 +1025,8 @@ export const bookingsService = {
    * The customer's payment receipt for one of their bookings. Anyone else
    * gets the same 404 as for a booking that does not exist; a booking with
    * no payment through yet, or one moved to a new time, gets
-   * RECEIPT_NOT_AVAILABLE.
+   * RECEIPT_NOT_AVAILABLE. A paid one whose receipt number cannot be issued
+   * right now gets 503 RECEIPT_NUMBER_PENDING, and ops is alerted.
    */
   async getReceipt(userId: string, bookingId: string) {
     const booking = await getBookingForCustomer(userId, bookingId)
@@ -1005,8 +1052,47 @@ export const bookingsService = {
       )
     }
 
+    // The number belongs to the first booking of the reschedule chain, and is
+    // issued when the payment goes through. A receipt that reaches here with
+    // none (a payment path that missed it, a row written by hand) gets it now,
+    // dated by its payment like any other, rather than going out unnumbered.
+    // Two first views at once still get one number (allocateReceiptNumber).
+    //
+    // If that fails, the answer is not the 500 a raw database error would be,
+    // which the page could only read as "not yours or removed": the customer
+    // paid and the booking is theirs. Ops is told, and a try later may well
+    // work (a lock timeout, a deploy that ran ahead of its migration).
+    const notReadyYet = (error: unknown) => {
+      logReceiptNumberFailure({ kind: 'failed', error }, booking.id)
+      return new AppError(
+        503,
+        "Your receipt isn't ready yet. Please try again in a few minutes, or call Detlio support.",
+        'RECEIPT_NUMBER_PENDING'
+      )
+    }
+    const rootBookingId = booking.originalBookingId ?? booking.id
+    let receiptNumber = await bookingsRepository
+      .findReceiptNumber(rootBookingId)
+      .catch((error: unknown) => {
+        throw notReadyYet(error)
+      })
+    if (!receiptNumber) {
+      const issued = await bookingsRepository.issueReceiptNumber(
+        rootBookingId,
+        receiptIssuedAt(booking.payment!)
+      )
+      if (issued.kind === 'failed') throw notReadyYet(issued.error)
+      if (issued.kind === 'issued') {
+        log.warn(
+          { bookingId: booking.id, rootBookingId, receiptNumber: issued.number },
+          'receipt:number_issued_late'
+        )
+      }
+      receiptNumber = issued.number
+    }
+
     const refundRecords = await bookingsRepository.listRefundRecordsForBooking(booking.id)
-    return buildReceipt(booking, refundRecords)
+    return buildReceipt(booking, refundRecords, receiptNumber)
   },
 
   async createBooking(userId: string, input: CreateBookingInput) {
@@ -1473,7 +1559,12 @@ export const bookingsService = {
     if (!completed) throw stateChanged()
 
     if (booking.paymentMethod === 'cash') {
-      await bookingsRepository.updatePaymentStatus(bookingId, 'collected', new Date())
+      const { receipt } = await bookingsRepository.markCashCollected({
+        bookingId,
+        rootBookingId: booking.originalBookingId ?? booking.id,
+        collectedAt: new Date(),
+      })
+      logReceiptNumberFailure(receipt, bookingId)
     }
 
     log.info({ bookingId, vendorId, actorId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')

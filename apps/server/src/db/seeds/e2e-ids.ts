@@ -170,8 +170,9 @@ export const CUSTOMERS = {
   refunds: { id: id(135), phone: '9000000035', name: 'Refund Revathi', vehicleId: id(744) },
   /**
    * Owns the receipt spec's two paid bookings at MAIN (BOOKINGS.receiptPaid,
-   * receiptRefunded), which it only reads. Its own customer so nothing else
-   * changes what those receipts say.
+   * receiptRefunded), which it only reads (the first read issues each one's
+   * receipt number). Its own customer so nothing else changes what those
+   * receipts say.
    */
   receipts: { id: id(136), phone: '9000000036', name: 'Receipt Rekha', vehicleId: id(745) },
   /**
@@ -451,7 +452,8 @@ export const BOOKINGS = {
   refundMovedFrom: refId('5efd0005'),
   refundMovedTo: refId('5efd0006'),
   /**
-   * The receipt spec's bookings at MAIN, read-only.
+   * The receipt spec's bookings at MAIN. Seeded without receipt numbers; the
+   * spec's first open of each issues one, and nothing else changes them.
    *
    * completed, two services with SAVE20 (₹2,498 less ₹200), paid ₹2,298 two
    * days ago: the receipt with a discount.
