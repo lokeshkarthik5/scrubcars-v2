@@ -430,7 +430,7 @@ export const TERMS: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Seat of jurisdiction.** Chromepet is in Chengalpattu district (Tambaram), outside Chennai city. An exclusive-jurisdiction clause can only choose among courts that already have jurisdiction (Swastik Gases v. IOC, (2013) 9 SCC 32 — citation not verified). Please pick the seat; it is a placeholder in `details.ts` (GOVERNING_COURTS).',
+          text: '**Seat of jurisdiction.** Chromepet is in Chengalpattu district (Tambaram), outside Chennai city. An exclusive-jurisdiction clause can only choose among courts that already have jurisdiction (Swastik Gases v. IOC, (2013) 9 SCC 32 — citation not verified). The owner chose Chennai (`details.ts` GOVERNING_COURTS); please confirm Chennai courts can be named for a business whose address is in Chengalpattu district, or say which seat to use.',
         },
       ],
     },
