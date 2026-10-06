@@ -88,7 +88,7 @@ describe('formatOpsAlert', () => {
       previousScheduledAt: booking.scheduledAt,
     })
     expect(text).toContain('Sun 4 Oct, 3:30 pm → Mon 5 Oct, 11:00 am')
-    expect(text).toContain('Check the garage can do the new time.')
+    expect(text).toContain('Back to Requested: waiting for the garage to accept the new time.')
   })
 
   test('a payment with no booking gives the payment id and the reason in words', () => {
@@ -119,5 +119,41 @@ describe('formatOpsAlert', () => {
     expect(failed).toContain('Amount unknown · Razorpay payment pay_X')
     expect(failed).toContain('Why: something_new')
     expect(failed).not.toContain('undefined')
+  })
+})
+
+describe('pending digest', () => {
+  const now = new Date('2026-10-04T07:15:00Z') // 12:45 pm IST
+  const waitingRow = {
+    id: '3f2a9c1b-0000-4000-8000-000000000001',
+    scheduledAt: new Date('2026-10-04T10:00:00Z'),
+    bookingType: 'dropin',
+    waitingSince: new Date('2026-10-04T06:30:00Z'),
+    garageName: 'Marina Auto Spa',
+    garagePhone: '9876500011',
+  }
+
+  test('lists who to call and how long each customer has waited', () => {
+    const text = formatOpsAlert({ kind: 'pending_digest', now, waiting: [waitingRow], missed: [] })
+    expect(text).toContain('⏰ 1 paid booking waiting for the garage to accept')
+    expect(text).toContain('#3F2A9C1B · Marina Auto Spa · +91 98765 00011')
+    expect(text).toContain('Sun 4 Oct, 3:30 pm · At garage · waiting 45 min')
+    expect(text).toContain('Call the garage to accept or decline.')
+    expect(text).not.toContain('🚫')
+  })
+
+  test('flags bookings that reached their time unaccepted as refund due', () => {
+    const missedRow = { ...waitingRow, id: 'aa11bb22-0000-4000-8000-000000000002', scheduledAt: new Date('2026-10-04T07:00:00Z') }
+    const text = formatOpsAlert({ kind: 'pending_digest', now, waiting: [], missed: [missedRow] })
+    expect(text).toContain('🚫 1 booking reached its time without the garage accepting · refund due')
+    expect(text).toContain('#AA11BB22 · Marina Auto Spa')
+  })
+
+  test('caps a long list so the message stays within Telegram\'s limit', () => {
+    const many = Array.from({ length: 14 }, (_, i) => ({ ...waitingRow, id: `${String(i).padStart(8, '0')}-x` }))
+    const text = formatOpsAlert({ kind: 'pending_digest', now, waiting: many, missed: [] })
+    expect(text).toContain('⏰ 14 paid bookings waiting')
+    expect(text).toContain('…and 4 more')
+    expect(text.length).toBeLessThan(4096)
   })
 })

@@ -217,6 +217,8 @@ export interface Booking {
   cancellationReason?: string
   rescheduleCount: number
   remainingReschedules: number
+  /** Set when the customer moved an earlier booking to this new time. */
+  rescheduledFromId?: string
   review?: Review
 }
 

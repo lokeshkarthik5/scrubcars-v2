@@ -102,3 +102,53 @@ export function getDayOfWeekFromDate(date: string): number {
   const [year, month, day] = date.split('-').map(Number)
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
 }
+
+// ─── Minimum notice ─────────────────────────────────────────────────────────
+// How far ahead a booking must start: time for the garage to see and accept
+// it, and for a doorstep crew to get there. Mirrored for the customer app in
+// packages/core/src/booking-types.ts (MIN_NOTICE_MINS) — change both together.
+
+const HOUR_MS = 60 * 60 * 1000
+
+export type NoticeBookingType = 'dropin' | 'doorstep'
+
+export const MIN_NOTICE_MS: Record<NoticeBookingType, number> = {
+  dropin: 1 * HOUR_MS,
+  doorstep: 3 * HOUR_MS,
+}
+
+/** The earliest a booking of this type may start, seen from `now`. */
+export function earliestStartFor(type: NoticeBookingType, now: number = Date.now()): number {
+  return now + MIN_NOTICE_MS[type]
+}
+
+/** Whether a start time gives enough notice. Exactly on the line counts. */
+export function meetsMinNotice(
+  scheduledAt: Date,
+  type: NoticeBookingType,
+  now: number = Date.now()
+): boolean {
+  return scheduledAt.getTime() >= earliestStartFor(type, now)
+}
+
+/**
+ * Drops the slots that start too soon. Kept apart from computeAvailableSlots
+ * on purpose: an empty list from that means "the job does not fit this day",
+ * and a list emptied by notice must not be mistaken for it.
+ */
+export function filterByMinNotice(
+  slots: string[],
+  type: NoticeBookingType,
+  now: number = Date.now()
+): string[] {
+  return slots.filter((slot) => meetsMinNotice(new Date(slot), type, now))
+}
+
+/** "Doorstep visits need at least 3 hours' notice." — for refusals. */
+export function minNoticeMessage(type: NoticeBookingType): string {
+  const hours = MIN_NOTICE_MS[type] / HOUR_MS
+  const notice = hours === 1 ? "1 hour's notice" : `${hours} hours' notice`
+  return type === 'doorstep'
+    ? `Doorstep visits need at least ${notice}. Please pick a later time.`
+    : `At-garage bookings need at least ${notice}. Please pick a later time.`
+}

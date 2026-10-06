@@ -78,6 +78,9 @@ function tomorrowAt(hour: number): Date {
 /** Inside the 2-hour cutoff. The only way to reach the WINDOW_PASSED branches. */
 const insideCutoff = () => new Date(now.getTime() + 1 * HOUR)
 
+/** Already started: a pending job here can no longer be accepted. */
+const anHourAgo = () => new Date(now.getTime() - 1 * HOUR)
+
 const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * HOUR)
 
 // ─── people ─────────────────────────────────────────────────────────────────
@@ -128,6 +131,7 @@ async function seedPeople() {
     ...[CUSTOMERS.cancel, CUSTOMERS.reschedule, CUSTOMERS.review, CUSTOMERS.payLater,
         CUSTOMERS.coupons, CUSTOMERS.browse, CUSTOMERS.journey,
         CUSTOMERS.vendorJob, CUSTOMERS.vendorReject, CUSTOMERS.vendorDoorstep,
+        CUSTOMERS.vendorLate,
         CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.doorstep,
         CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c, i) => ({
       id: c.vehicleId as string,
@@ -525,6 +529,20 @@ async function seedBookingRows() {
   await insertBooking({ id: BOOKINGS.vendorRejectable, userId: CUSTOMERS.vendorReject.id,
     vehicleId: CUSTOMERS.vendorReject.vehicleId, scheduledAt: tomorrowAt(17), status: 'pending',
     items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_rejectable' } })
+
+  // Pending, so the 2-hour cutoff does not apply: only an accepted booking is
+  // held to it.
+  await insertBooking({ id: BOOKINGS.cancelPendingSoon, userId: CUSTOMERS.cancel.id,
+    vehicleId: CUSTOMERS.cancel.vehicleId, scheduledAt: insideCutoff(), status: 'pending',
+    items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_pending_soon' } })
+
+  await insertBooking({ id: BOOKINGS.reschedulePendingSoon, userId: CUSTOMERS.reschedule.id,
+    vehicleId: CUSTOMERS.reschedule.vehicleId, scheduledAt: insideCutoff(), status: 'pending',
+    items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_move_soon' } })
+
+  await insertBooking({ id: BOOKINGS.vendorStarted, userId: CUSTOMERS.vendorLate.id,
+    vehicleId: CUSTOMERS.vendorLate.vehicleId, scheduledAt: anHourAgo(), status: 'pending',
+    items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_started' } })
 
   await insertBooking({ id: BOOKINGS.vendorDoorstep, userId: CUSTOMERS.vendorDoorstep.id,
     vehicleId: CUSTOMERS.vendorDoorstep.vehicleId, scheduledAt: tomorrowAt(18), status: 'pending',

@@ -1,0 +1,113 @@
+import { describe, expect, test } from 'bun:test'
+import { planPendingDigest, type PendingBookingRow } from './pending-digest.js'
+
+const IST = (time: string, date = '2026-10-05') => new Date(`${date}T${time}+05:30`)
+const MIN = 60_000
+
+function row(waitingSince: Date, scheduledAt: Date, id = 'b1'): PendingBookingRow {
+  return {
+    id,
+    scheduledAt,
+    waitingSince,
+    bookingType: 'dropin',
+    amount: '799.00',
+    garageName: 'Marina Auto Spa',
+    garagePhone: '9876500011',
+  }
+}
+
+describe('planPendingDigest', () => {
+  const start = IST('16:00:00')
+
+  test('nudges on the run where a booking reaches 30 minutes of waiting', () => {
+    const paid = IST('11:05:00')
+    const rows = [row(paid, start)]
+    // Due at 11:35, so the 11:40 run is the first to see it.
+    expect(planPendingDigest(IST('11:30:00').getTime(), rows).post).toBe(false)
+    const due = planPendingDigest(IST('11:40:02').getTime(), rows)
+    expect(due).toMatchObject({ post: true, reason: 'new_waiting' })
+    expect(due.waiting.map((r) => r.id)).toEqual(['b1'])
+    // The next run stays quiet: nothing new.
+    expect(planPendingDigest(IST('11:50:00').getTime(), rows)).toMatchObject({
+      post: false,
+      reason: 'nothing_new',
+    })
+  })
+
+  test('29 minutes is not yet a nudge, 30 is', () => {
+    const at = IST('12:00:00').getTime()
+    expect(planPendingDigest(at, [row(new Date(at - 29 * MIN), start)]).waiting).toHaveLength(0)
+    expect(planPendingDigest(at, [row(new Date(at - 30 * MIN), start)])).toMatchObject({
+      post: true,
+      reason: 'new_waiting',
+    })
+  })
+
+  test('reminds on the hour while a booking is still waiting', () => {
+    const rows = [row(IST('11:05:00'), start)]
+    expect(planPendingDigest(IST('12:00:00').getTime(), rows)).toMatchObject({
+      post: true,
+      reason: 'hourly',
+    })
+  })
+
+  test('flags a booking whose time passed with nobody accepting', () => {
+    const rows = [row(IST('09:00:00'), IST('12:30:00'))]
+    const plan = planPendingDigest(IST('12:30:00').getTime(), rows)
+    expect(plan).toMatchObject({ post: true, reason: 'new_missed' })
+    expect(plan.missed.map((r) => r.id)).toEqual(['b1'])
+    expect(plan.waiting).toHaveLength(0)
+  })
+
+  test('stays quiet at night and rolls everything up at 7 am', () => {
+    const rows = [row(IST('21:40:00', '2026-10-04'), IST('10:00:00'))]
+    expect(planPendingDigest(IST('22:10:00', '2026-10-04').getTime(), rows)).toMatchObject({
+      post: false,
+      reason: 'quiet_hours',
+    })
+    expect(planPendingDigest(IST('06:50:00').getTime(), rows).reason).toBe('quiet_hours')
+    expect(planPendingDigest(IST('07:00:00').getTime(), rows)).toMatchObject({
+      post: true,
+      reason: 'morning',
+    })
+  })
+
+  test('says nothing when nothing is waiting', () => {
+    expect(planPendingDigest(IST('12:00:00').getTime(), [])).toMatchObject({
+      post: false,
+      reason: 'empty',
+    })
+  })
+
+  test('a refund-due booking whose crossing run failed comes back at the next hour', () => {
+    const rows = [row(IST('09:00:00'), IST('15:00:00'))]
+    // Suppose the 15:00 run failed or never came: 15:10 has nothing new...
+    expect(planPendingDigest(IST('15:10:00').getTime(), rows)).toMatchObject({
+      post: false,
+      reason: 'nothing_new',
+    })
+    // ...and 16:00 lists it again, with nothing else waiting.
+    const plan = planPendingDigest(IST('16:00:00').getTime(), rows)
+    expect(plan).toMatchObject({ post: true, reason: 'hourly' })
+    expect(plan.missed.map((r) => r.id)).toEqual(['b1'])
+  })
+
+  test('a failed 7 am roll-up is covered at 8', () => {
+    const rows = [row(IST('21:40:00', '2026-10-04'), IST('10:00:00'))]
+    expect(planPendingDigest(IST('08:00:00').getTime(), rows)).toMatchObject({
+      post: true,
+      reason: 'hourly',
+    })
+  })
+
+  test('a booking that reaches 30 minutes at night waits for the 7 am roll-up', () => {
+    const rows = [row(IST('21:25:00'), IST('12:00:00', '2026-10-06'))]
+    expect(planPendingDigest(IST('21:50:00').getTime(), rows).post).toBe(false)
+    expect(planPendingDigest(IST('22:00:00').getTime(), rows).reason).toBe('quiet_hours')
+    expect(planPendingDigest(IST('07:00:00', '2026-10-06').getTime(), rows)).toMatchObject({
+      post: true,
+      reason: 'morning',
+    })
+  })
+})
+

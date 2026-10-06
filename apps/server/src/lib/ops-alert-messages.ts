@@ -30,6 +30,12 @@ export type OpsAlert =
   | { kind: 'customer_cancelled'; booking: AlertBooking; reason?: string | null }
   | { kind: 'rescheduled'; booking: AlertBooking; previousScheduledAt: Date }
   | {
+      kind: 'pending_digest'
+      now: Date
+      waiting: DigestBooking[]
+      missed: DigestBooking[]
+    }
+  | {
       kind: 'paid_no_booking'
       paymentId: string
       reason: string
@@ -37,6 +43,19 @@ export type OpsAlert =
       garageName?: string
       scheduledAt?: Date
     }
+
+/** A paid booking still waiting for its garage, as the digest lists it. */
+export interface DigestBooking {
+  id: string
+  scheduledAt: Date
+  bookingType: string
+  waitingSince: Date
+  garageName: string
+  garagePhone: string
+}
+
+/** Rows per section: Telegram caps a message at 4096 characters. */
+const DIGEST_MAX_ROWS = 10
 
 /** The message text for an alert. Plain text, one fact per line. */
 export function formatOpsAlert(alert: OpsAlert): string {
@@ -90,11 +109,36 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `🔁 Rescheduled #${reference(b.id)}`,
         garageLine(b),
         `${when(alert.previousScheduledAt)} → ${when(b.scheduledAt)}`,
-        // A reschedule carries the old booking's status, so a confirmed job
-        // moves without the garage agreeing to the new time.
-        'Check the garage can do the new time.',
+        // A moved booking goes back to pending: the garage has to accept the
+        // new time, and the 30-minute nudge covers it like any new booking.
+        'Back to Requested: waiting for the garage to accept the new time.',
         ADMIN_BOOKINGS_URL
       )
+    }
+
+    case 'pending_digest': {
+      const sections: string[] = []
+      if (alert.waiting.length > 0) {
+        sections.push(
+          lines(
+            `⏰ ${plural(alert.waiting.length, 'paid booking')} waiting for the garage to accept`,
+            ...digestRows(alert.waiting, (b) =>
+              `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)} · waiting ${duration(alert.now.getTime() - b.waitingSince.getTime())}`
+            ),
+            'Call the garage to accept or decline.'
+          )
+        )
+      }
+      if (alert.missed.length > 0) {
+        sections.push(
+          lines(
+            `🚫 ${plural(alert.missed.length, 'booking')} reached its time without the garage accepting · refund due`,
+            ...digestRows(alert.missed, (b) => `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`),
+            "The garage can't accept these now. Ask it to decline, or the customer to cancel, then refund in Razorpay."
+          )
+        )
+      }
+      return lines(sections.join('\n\n'), ADMIN_BOOKINGS_URL)
     }
 
     case 'paid_no_booking':
@@ -137,6 +181,28 @@ export function quoted(label: string, text: string | null | undefined): string {
   if (!clean) return `${label}: no reason given.`
   const short = clean.length > QUOTE_MAX ? `${clean.slice(0, QUOTE_MAX - 1).trimEnd()}…` : clean
   return `${label}: "${short.replace(/"/g, "'")}"`
+}
+
+function digestRows(rows: DigestBooking[], detail: (b: DigestBooking) => string): string[] {
+  const shown = rows.slice(0, DIGEST_MAX_ROWS).flatMap((b) => [
+    `#${reference(b.id)} · ${b.garageName} · ${phone(b.garagePhone)}`,
+    `   ${detail(b)}`,
+  ])
+  const more = rows.length - DIGEST_MAX_ROWS
+  return more > 0 ? [...shown, `…and ${more} more`] : shown
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
+/** "45 min", "1 h 20 min", "3 h". */
+function duration(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 60_000))
+  const hours = Math.floor(total / 60)
+  const mins = total % 60
+  if (hours === 0) return `${mins} min`
+  return mins === 0 ? `${hours} h` : `${hours} h ${mins} min`
 }
 
 function lines(...parts: Array<string | null | undefined>): string {

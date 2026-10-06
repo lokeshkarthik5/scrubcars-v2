@@ -76,6 +76,8 @@ export type BookingRow = {
   reschedule_count: number
   original_booking_id: string | null
   rescheduled_from_id: string | null
+  /** Who at the garage accepted it; null until someone does (and after a move). */
+  accepted_by: string | null
   vehicle_id: string
   scheduled_at: Date
   booking_type: string

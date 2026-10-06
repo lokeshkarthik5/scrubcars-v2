@@ -11,6 +11,8 @@ import { ScInput } from '@repo/ui/sc/input'
 import { StarRating } from '@repo/ui/sc/stars'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
+import { useNow } from '@repo/core/hooks/use-now'
+import { toast } from 'react-toastify'
 import { JobContact } from '@/components/job-contact'
 import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
@@ -55,14 +57,32 @@ export default function VendorBookingsPage() {
     return { filtered: result, incomingCount: incoming, upcomingCount: upcoming, completedCount: completed, cancelledCount: cancelled }
   }, [vendorBookings, tab])
 
+  // A pending job whose time passes while this page is open loses its Accept.
+  const now = useNow(30_000)
+
+  // A refusal (the slot has started, the customer cancelled a moment ago)
+  // is shown, and the list re-read so the card stops offering it.
+  const refused = (error: unknown, fallback: string) => {
+    toast.error(error instanceof Error ? error.message : fallback)
+    void fetchVendorBookings()
+  }
+
   const handleStatus = async (id: string, status: Booking['status']) => {
-    await updateStatus(id, status)
+    try {
+      await updateStatus(id, status)
+    } catch (error) {
+      refused(error, 'Could not update this booking')
+    }
   }
 
   const handleReject = async (id: string) => {
-    await updateStatus(id, 'cancelled', rejectReason.trim() || undefined)
-    setRejectId(null)
-    setRejectReason('')
+    try {
+      await updateStatus(id, 'cancelled', rejectReason.trim() || undefined)
+      setRejectId(null)
+      setRejectReason('')
+    } catch (error) {
+      refused(error, 'Could not reject this booking')
+    }
   }
 
   const tabs: { key: Tab; label: string; count: number }[] = [
@@ -140,7 +160,31 @@ export default function VendorBookingsPage() {
 
               <JobContact booking={b} />
 
-              {tab === 'incoming' && rejectId !== b.id && (
+              {b.status === 'pending' && b.rescheduledFromId && !slotPassed(b, now) && (
+                <p className="text-[12px] text-text-secondary">
+                  The customer moved this booking to a new time. Accept it if you can do it.
+                </p>
+              )}
+
+              {tab === 'incoming' && rejectId !== b.id && slotPassed(b, now) && (
+                // Accepting is refused once the time has passed: the customer
+                // waited and nobody answered. Declining frees the refund.
+                <div className="flex flex-col gap-2">
+                  <p className="text-[12px] text-text-secondary">
+                    This slot&apos;s time has passed without being accepted. Reject it so the
+                    customer can be refunded, or call them to rebook.
+                  </p>
+                  <ScButton
+                    variant="secondary"
+                    aria-label={`Reject booking for ${b.customerName}`}
+                    onClick={() => { setRejectId(b.id); setRejectReason('') }}
+                  >
+                    Reject
+                  </ScButton>
+                </div>
+              )}
+
+              {tab === 'incoming' && rejectId !== b.id && !slotPassed(b, now) && (
                 <div className="grid grid-cols-2 gap-2">
                   {/* A list of identical "Accept" buttons announces as a list of
                       identical "Accept" buttons; the name has to say whose job
@@ -221,4 +265,9 @@ export default function VendorBookingsPage() {
       </div>
     </AppShell>
   )
+}
+
+/** A pending job whose start time has come and gone: it can only be rejected. */
+function slotPassed(b: Booking, now: number): boolean {
+  return b.status === 'pending' && new Date(b.scheduledAtIso).getTime() <= now
 }

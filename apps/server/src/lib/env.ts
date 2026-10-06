@@ -91,6 +91,12 @@ export const env = {
   // deliberate local test.
   vercelEnv: process.env.VERCEL_ENV,
   opsAlertsForced: process.env.OPS_ALERTS === 'on',
+  // Shared secret an outside scheduler sends (Authorization: Bearer …) to run
+  // timed jobs like the pending-booking nudge. Under 32 characters counts as
+  // unset, which switches the endpoint off (404). Named as Vercel Cron names
+  // it, so moving to Vercel's own cron later needs no change.
+  cronSecret:
+    (process.env.CRON_SECRET?.length ?? 0) >= 32 ? process.env.CRON_SECRET : undefined,
   adminUsername: process.env.ADMIN_USERNAME ?? 'admin',
   adminPassword:
     process.env.ADMIN_PASSWORD ??

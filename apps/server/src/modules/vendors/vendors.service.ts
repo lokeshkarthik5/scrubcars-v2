@@ -3,7 +3,9 @@ import type { GeoSource } from '../../lib/geo/index.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import {
+  MIN_NOTICE_MS,
   computeAvailableSlots,
+  filterByMinNotice,
   getDayOfWeekFromDate,
 } from '../../lib/slots.js'
 import {
@@ -1523,6 +1525,8 @@ export const vendorsService = {
       dayOfWeek
     )
 
+    const minNoticeMins = MIN_NOTICE_MS[query.bookingType] / 60_000
+
     if (!hours || hours.isClosed) {
       return {
         date: query.date,
@@ -1530,13 +1534,15 @@ export const vendorsService = {
         durationMins,
         slotIntervalMins: vendor.slotIntervalMins,
         isClosed: true,
+        fitsInDay: true,
+        minNoticeMins,
         slots: [] as string[],
       }
     }
 
     // Existing bookings are not consulted: capacity is unlimited, so every slot
     // within working hours is offered no matter how many bookings it already has.
-    const slots = computeAvailableSlots({
+    const allDay = computeAvailableSlots({
       date: query.date,
       openTime: hours.openTime,
       closeTime: hours.closeTime,
@@ -1544,18 +1550,23 @@ export const vendorsService = {
       isClosed: hours.isClosed,
       serviceDurationMins: durationMins,
     })
+    // Past times and times too soon for the garage to accept (2h at the
+    // garage, 3h doorstep) are not offered at all.
+    const slots = filterByMinNotice(allDay, query.bookingType)
 
-    log.debug({ vendorId: vendor.id, date: query.date, serviceIds: query.serviceIds, durationMins, count: slots.length }, 'slots:computed')
+    log.debug({ vendorId: vendor.id, date: query.date, serviceIds: query.serviceIds, durationMins, bookingType: query.bookingType, count: slots.length }, 'slots:computed')
 
-    // An empty list on an open day means the combined duration does not fit
-    // between opening and closing — the client says so rather than showing an
-    // empty picker the customer can retry all afternoon.
+    // `fitsInDay` is judged before the notice filter: an empty list because
+    // the job is longer than the garage's day ("pick fewer services") is a
+    // different message from an evening with no time left ("pick another day").
     return {
       date: query.date,
       serviceIds: query.serviceIds,
       durationMins,
       slotIntervalMins: vendor.slotIntervalMins,
       isClosed: false,
+      fitsInDay: allDay.length > 0,
+      minNoticeMins,
       slots,
     }
   },

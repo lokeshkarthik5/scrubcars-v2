@@ -12,6 +12,7 @@
  *     repriced or withdrawn since must not change or block the move
  */
 import { test, expect, asRole } from '../../support/fixtures'
+import { API } from '../../support/auth'
 import { BookingPage } from '../../pages/booking.page'
 import { CheckoutPage } from '../../pages/checkout.page'
 import {
@@ -53,6 +54,10 @@ test.describe('reschedule @p0', () => {
     // whole chain rather than resetting each time.
     expect(moved?.original_booking_id).toBe(BOOKINGS.reschedulable)
     expect(moved?.reschedule_count).toBe(1)
+    // The garage agreed to the old time, not this one: the move goes back to
+    // it as a request.
+    expect(moved?.status).toBe('pending')
+    await expect(page.getByText('Awaiting garage')).toBeVisible()
 
     // Money is unchanged and already settled — the customer is not asked again.
     expect(moved?.amount).toBe(original?.amount)
@@ -97,19 +102,60 @@ test.describe('reschedule @p0', () => {
     expect(row?.reschedule_count).toBe(2)
   })
 
-  test('rescheduling inside the 2-hour cutoff is refused', async ({ page }) => {
+  test('a new time without enough notice is refused', async ({ page }) => {
+    // Any slot: the notice is checked before the garage's hours or grid.
+    const soon = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    const response = await page.request.patch(
+      `${API}/api/v1/bookings/${BOOKINGS.reschedulePendingSoon}/reschedule`,
+      { data: { scheduledAt: soon } }
+    )
+    expect(response.status()).toBe(400)
+    const body = await response.json()
+    expect(body.code).toBe('SLOT_TOO_SOON')
+    expect(body.message).toMatch(/1 hour's notice/)
+    expect((await getBooking(BOOKINGS.reschedulePendingSoon))?.reschedule_count).toBe(0)
+  })
+
+  test('a booking the garage has not accepted can be moved even inside 2 hours', async ({ page }) => {
     const booking = new BookingPage(page)
     const checkout = new CheckoutPage(page)
-    await booking.goto(BOOKINGS.rescheduleTooLate)
+    await booking.goto(BOOKINGS.reschedulePendingSoon)
 
+    // Seeded pending at now + 1h: the cutoff only binds an accepted booking.
+    await expect(page.getByRole('button', { name: 'Too close to your slot to move' })).toHaveCount(0)
     await booking.openReschedule()
     await checkout.pickTomorrow()
-    await checkout.slots().last().click()
+    // The first slot: this customer's car already has a late-evening job
+    // tomorrow from the first test, and the last slot would clash with it.
+    await checkout.slots().first().click()
     await booking.confirmReschedule()
 
-    await expect(
-      page.getByText(/at least 2 hours before the scheduled time/i).first()
-    ).toBeVisible()
+    await page.waitForURL((url) => !url.pathname.includes(BOOKINGS.reschedulePendingSoon))
+    const moved = await getBooking(booking.currentId())
+    expect(moved?.rescheduled_from_id).toBe(BOOKINGS.reschedulePendingSoon)
+    expect(moved?.status).toBe('pending')
+    expect(moved?.reschedule_count).toBe(1)
+  })
+
+  test('an accepted booking inside the 2-hour cutoff cannot be moved', async ({ page }) => {
+    const booking = new BookingPage(page)
+    await booking.goto(BOOKINGS.rescheduleTooLate)
+
+    // Seeded confirmed at now + 1h: like the cap, the cutoff is shown, not
+    // left for the server to refuse after the customer has picked a time.
+    await expect(page.getByRole('button', { name: 'Too close to your slot to move' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Reschedule', exact: true })).toHaveCount(0)
+
+    // The server refuses a direct request too.
+    const tomorrow = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString()
+    const response = await page.request.patch(
+      `${API}/api/v1/bookings/${BOOKINGS.rescheduleTooLate}/reschedule`,
+      { data: { scheduledAt: tomorrow } }
+    )
+    expect(response.status()).toBe(400)
+    const body = await response.json()
+    expect(body.code).toBe('RESCHEDULE_WINDOW_PASSED')
+    expect(body.message).toMatch(/at least 2 hours before the scheduled time/i)
 
     const row = await getBooking(BOOKINGS.rescheduleTooLate)
     expect(row?.reschedule_count).toBe(0)

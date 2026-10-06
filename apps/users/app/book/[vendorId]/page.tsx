@@ -13,6 +13,7 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
+import { useQueryClient } from '@tanstack/react-query'
 import { AddAddressSheet } from '@/components/add-address-sheet'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
 import {
@@ -25,6 +26,7 @@ import { ScCard } from '@repo/ui/sc/card'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SlotPicker } from '@repo/ui/sc/slot-picker'
+import { slotKeys } from '@repo/core/api/hooks/use-slots'
 import { ScToggle } from '@repo/ui/sc/toggle'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import type { AppliedDiscount } from '@repo/core/api/discounts'
@@ -44,6 +46,7 @@ import {
   BOOKING_TYPE_LABELS,
   parseBookingType,
   resolveBookingType,
+  noticeSentence,
 } from '@repo/core/booking-types'
 import type { BookingType, Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
@@ -81,6 +84,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const queryClient = useQueryClient()
   const [pickedVehicle, setPickedVehicle] = useState<string | null>(null)
   const [pickedAddress, setPickedAddress] = useState<string | null>(null)
   // Set while an address saved without a pin is being given one, inline.
@@ -298,6 +302,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
     target.focus({ preventScroll: true })
   }
 
+  // The picker let go of the chosen time (it ran out of notice, or the
+  // customer switched to doorstep, which needs more): say so and go back to it.
+  const handleSlotLapse = (scheduledAt: string) => {
+    const label = new Date(scheduledAt).toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata',
+    })
+    toast.info(`${label} is now too soon to book. ${noticeSentence(bookingType)} Pick another time.`)
+    goToStep('slot')
+  }
+
   // The pre-discount total. Summed in paise so the arithmetic never runs
   // through a float — the same rule the server applies.
   const subtotal = unpricedForVehicle
@@ -451,6 +468,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
       if (error instanceof ApiError && error.code?.startsWith('DISCOUNT_')) {
         setAppliedPromo(null)
         toast.error(error.message)
+      } else if (
+        error instanceof ApiError &&
+        (error.code === 'SLOT_TOO_SOON' || error.code === 'INVALID_SCHEDULED_AT')
+      ) {
+        // The chosen time ran out of notice before Pay (nothing was charged:
+        // the server refuses before any payment order exists). Clear it, fetch
+        // fresh times, and take the customer back to choose again.
+        setSelectedSlot(null)
+        void queryClient.invalidateQueries({ queryKey: slotKeys.all })
+        toast.error(error.message)
+        goToStep('slot')
       } else if (!(error instanceof RazorpayReportedError) && error instanceof Error) {
         // Anything the sheet already reported — a dismissal, a declined card —
         // has been shown once already.
@@ -533,6 +561,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           serviceIds={serviceIds}
           value={selectedSlot}
           onChange={setSelectedSlot}
+          bookingType={bookingType}
+          onLapse={handleSlotLapse}
         />
       </section>
 
@@ -841,15 +871,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
             </ScCard>
 
             {/* Mirrors what the server actually enforces: CANCELLATION_CUTOFF_MS
-                and MAX_RESCHEDULES in bookings.service.ts. Deliberately silent
-                on refunds — there is no refund path in the code yet, so
-                promising one here would be a claim the product can't keep. */}
+                (confirmed bookings only) and MAX_RESCHEDULES in
+                bookings.service.ts. Deliberately silent on refunds — there is
+                no refund path in the code yet, so promising one here would be
+                a claim the product can't keep. */}
             <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
               <span className="font-medium text-text-secondary">
                 Cancellation policy:
               </span>{' '}
-              Cancel or reschedule up to 2 hours before your slot. A booking can
-              be rescheduled up to 2 times.
+              Cancel any time until the garage accepts. Once it has, cancel or
+              reschedule up to 2 hours before your slot. You can reschedule up
+              to 2 times; each new time goes back to the garage to accept, and
+              if it can&apos;t take it, the booking is cancelled.
             </p>
           </div>
         </Reveal>

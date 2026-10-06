@@ -86,6 +86,8 @@ export const CUSTOMERS = {
   /** Owns MAIN's doorstep job — the one the vendor card shows an address and a
    *  map link for. Nothing changes its booking, so any spec can read it. */
   vendorDoorstep: { id: id(118), phone: '9000000018', name: 'Vendor Doorstep Divya', vehicleId: id(728) },
+  /** Owns MAIN's job whose time passed with nobody accepting (BOOKINGS.vendorStarted). */
+  vendorLate: { id: id(119), phone: '9000000019', name: 'Vendor Late Latha', vehicleId: id(729) },
   /**
    * Customers whose *session* is the thing under test.
    *
@@ -207,6 +209,14 @@ export const BOOKINGS = {
   vendorRejectable: id(613),
   /** pending doorstep job at MAIN, at a pinned address. Read-only. */
   vendorDoorstep: id(615),
+  /** pending + paid, an hour out: inside the 2-hour cutoff, but the garage has
+   *  not accepted, so the customer can still cancel it. */
+  cancelPendingSoon: id(616),
+  /** pending + paid at MAIN, started an hour ago: can only be declined now. */
+  vendorStarted: id(617),
+  /** pending + paid, an hour out, CUSTOMERS.reschedule: not accepted yet, so
+   *  it can still be moved inside 2 hours (to a time with enough notice). */
+  reschedulePendingSoon: id(618),
   /** confirmed at SECOND — must never appear while MAIN is the active tenant. */
   secondTenant: id(611),
   /** completed, naming VEHICLES.booked. Its only job is to make that car
