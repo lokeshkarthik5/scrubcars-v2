@@ -10,6 +10,7 @@
     "migrate": "bash scripts/migrate.sh migrate",
     "migrate:status": "bash scripts/migrate.sh status",
     "migrate:check": "bash scripts/migrate.sh check",
+    "migrate:lint": "bash scripts/migrate.sh lint",
     "seed": "bash scripts/seed.sh",
     "seed:users": "bash scripts/seed.sh --users",
     "seed:vendors": "bash scripts/seed.sh --vendors",

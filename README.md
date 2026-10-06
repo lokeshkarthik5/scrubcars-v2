@@ -65,7 +65,7 @@ specific code belongs in its app; `packages/*` is for what two or more apps use.
 bun run build          # turbo run build
 bun run typecheck      # tsc --noEmit everywhere
 bun run lint
-bun run migrate:status # read-only; migrations are run by hand, see AGENTS.md
+bun run migrate:status # read-only; production is migrated by CI, see Deploying
 ```
 
 ## Deploying
@@ -85,3 +85,38 @@ redeploy the others.
 
 `apps/server` keeps `framework: null` and an empty build command — see
 `apps/server/vercel.json`. Do not set a framework preset on it.
+
+### Releasing the API
+
+The API is not deployed by Vercel's Git integration on `main`
+(`git.deploymentEnabled.main: false` in `apps/server/vercel.json`); preview
+deployments are unaffected, and the frontends still deploy from Git. Instead
+`.github/workflows/release-api.yml` runs after E2E passes on `main`:
+
+1. **Gate** — E2E passed on a push, and the commit is still `main`'s tip.
+2. **Migrate** — `migrate.sh check`, then `migrate`. Each migration applies
+   atomically; a failure stops the release before anything is deployed.
+3. **Build and deploy** — `vercel build` in CI, then `vercel deploy --prebuilt
+   --prod`.
+
+So the schema always lands before the code that needs it. That covers additive
+changes only: to drop or rename something the running code uses, ship a release
+that stops using it first, then one that drops it.
+
+Needs these repository secrets (Settings → Secrets and variables → Actions):
+`DIRECT_URL` (the Supabase **session pooler** URL — the direct
+`db.*.supabase.co` host is IPv6-only and unreachable from GitHub runners),
+`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. They are repository
+rather than environment secrets because the repo is private on GitHub Free,
+where environment secrets and required reviewers are unavailable; any workflow
+in the repo can read them, so treat new workflows as having production access.
+
+To re-run a release — after fixing a failed migration, say — run the workflow
+manually on `main`.
+
+Migration files are linted on every pull request that touches them
+(`migrations-lint.yml`; locally `bun run --filter server migrate:lint`):
+numbers run `0000`, `0001`, … with no gaps or duplicates, the journal matches
+the files, and nothing breaks the per-file transaction (no `BEGIN`/`COMMIT`,
+`CONCURRENTLY` or `VACUUM`). Each migration waits at most 5s for a table lock
+(`MIGRATE_LOCK_TIMEOUT`) and rolls back rather than stall live traffic.
