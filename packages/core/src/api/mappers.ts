@@ -295,6 +295,8 @@ export function mapBooking(booking: ApiBooking): Booking {
     paymentStatus: (booking.payment?.status ?? 'pending') as Booking['paymentStatus'],
     cancelledBy: booking.cancelledBy ?? undefined,
     cancellationReason: booking.cancellationReason ?? undefined,
+    cancelledOnBehalfOf: booking.cancelledOnBehalfOf ?? undefined,
+    noShow: booking.noShow ?? undefined,
     rescheduleCount: booking.rescheduleCount ?? 0,
     remainingReschedules: booking.remainingReschedules ?? 0,
     rescheduledFromId: booking.rescheduledFromId ?? undefined,

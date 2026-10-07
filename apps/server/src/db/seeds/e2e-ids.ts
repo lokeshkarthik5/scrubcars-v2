@@ -16,6 +16,15 @@ const id = (n: number): string =>
   `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
 /**
+ * A UUID whose first eight characters are chosen. A booking's reference — the
+ * "#3F2A9C1B" customers read out to ops — is the first eight characters of
+ * its id, and every `id()` above starts "e2e00000", so every fixture booking
+ * shares one reference. The admin search spec finds a booking by reference,
+ * so its bookings need references of their own. `prefix` must be 8 hex digits.
+ */
+const refId = (prefix: string): string => `${prefix}-0000-4000-8000-000000000000`
+
+/**
  * CUSTOMERS.vehicles' car that a fixture booking names. Declared ahead of
  * CUSTOMERS because that customer's `vehicleId` is this one — the booking is
  * the whole point of the fixture.
@@ -88,6 +97,12 @@ export const CUSTOMERS = {
   vendorDoorstep: { id: id(118), phone: '9000000018', name: 'Vendor Doorstep Divya', vehicleId: id(728) },
   /** Owns MAIN's job whose time passed with nobody accepting (BOOKINGS.vendorStarted). */
   vendorLate: { id: id(119), phone: '9000000019', name: 'Vendor Late Latha', vehicleId: id(729) },
+  /**
+   * Owns the admin booking-ops fixtures (BOOKINGS.adminOps*), which ops
+   * searches for, annotates, cancels and marks as no-shows. Its session is
+   * what proves the ops team's notes never reach the customer's payload.
+   */
+  adminOps: { id: id(120), phone: '9000000020', name: 'Admin Ops Anand', vehicleId: id(730) },
   /**
    * Customers whose *session* is the thing under test.
    *
@@ -222,6 +237,22 @@ export const BOOKINGS = {
   /** completed, naming VEHICLES.booked. Its only job is to make that car
    *  undeletable by the old code path — the regression this pins. */
   vehicleArchive: id(614),
+  /**
+   * The admin booking-ops fixtures, all CUSTOMERS.adminOps at MAIN, each with
+   * its own reference (see refId).
+   *
+   * pending + paid, booked 45 minutes ago: the row the list search finds, and
+   * long enough waiting for the amber "Waiting" badge. Read-only.
+   */
+  adminOpsWaiting: refId('ad5ea7c1'),
+  /** confirmed + paid, tomorrow: the one ops adds a note to. */
+  adminOpsNotes: refId('ad407e01'),
+  /** confirmed + paid, tomorrow: cancelled by ops on the garage's behalf. */
+  adminOpsCancel: refId('adca9ce1'),
+  /** confirmed + paid, started two hours ago: marked as a customer no-show. */
+  adminOpsNoShow: refId('ad905401'),
+  /** confirmed + paid, tomorrow: too early for a no-show, so one is refused. */
+  adminOpsTooEarly: refId('ad905402'),
 } as const
 
 export const VEHICLES = {

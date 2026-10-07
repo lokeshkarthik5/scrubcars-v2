@@ -213,8 +213,16 @@ export interface Booking {
   vehicle?: Vehicle
   paymentMethod: PaymentMethod
   paymentStatus: 'pending' | 'paid' | 'collected' | 'failed' | 'refunded'
-  cancelledBy?: 'user' | 'vendor'
+  /** 'admin' is the Detlio ops team; `cancelledOnBehalfOf` says whose call it was. */
+  cancelledBy?: 'user' | 'vendor' | 'admin'
   cancellationReason?: string
+  /** Only on a Detlio cancellation. */
+  cancelledOnBehalfOf?: 'customer' | 'garage' | 'detlio'
+  /**
+   * Who didn't turn up for an accepted booking. A customer no-show keeps the
+   * payment; a garage no-show is refunded.
+   */
+  noShow?: 'customer' | 'garage'
   rescheduleCount: number
   remainingReschedules: number
   /** Set when the customer moved an earlier booking to this new time. */

@@ -15,6 +15,16 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+### Added
+
+- **Admin bookings.** Search by reference, phone or name; filter by status,
+  garage and dates; refreshes every 30 seconds; a "Waiting" badge on pending
+  bookings, amber from 30 minutes; tap-to-call for the garage and customer;
+  copy the Razorpay payment id; export the rows on screen as CSV. Each booking
+  opens a detail page with a timeline, Cancel booking (on behalf of the
+  customer, the garage or Detlio, with a reason), Mark no-show (after the
+  start time, with what it means for the money), and internal notes.
+
 ### Changed
 
 - **Booking timing rules.** Slots need an hour's notice at the garage and 3 for
@@ -31,6 +41,11 @@ reconstructing every change in them.
 - **Garage portal.** A pending job whose time has passed shows Decline only,
   with why; a moved job says the customer chose a new time; refused actions
   show the server's message and refresh the list.
+- **Cancellations by Detlio and no-shows.** The customer's booking page says
+  "Cancelled by Detlio" (and at whose request), or explains a no-show: a
+  customer no-show isn't refunded, a garage no-show is. The garage's cancelled
+  tab names both. Checkout's cancellation policy and the FAQ now say that a
+  missed accepted booking isn't refunded.
 
 ## [0.3.0] — 2026-08-28
 

@@ -81,6 +81,9 @@ const insideCutoff = () => new Date(now.getTime() + 1 * HOUR)
 /** Already started: a pending job here can no longer be accepted. */
 const anHourAgo = () => new Date(now.getTime() - 1 * HOUR)
 
+/** Well past its start: an accepted job here can be marked as a no-show. */
+const twoHoursAgo = () => new Date(now.getTime() - 2 * HOUR)
+
 const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * HOUR)
 
 // ─── people ─────────────────────────────────────────────────────────────────
@@ -133,7 +136,7 @@ async function seedPeople() {
         CUSTOMERS.vendorJob, CUSTOMERS.vendorReject, CUSTOMERS.vendorDoorstep,
         CUSTOMERS.vendorLate,
         CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.doorstep,
-        CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c, i) => ({
+        CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove, CUSTOMERS.adminOps].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -384,6 +387,8 @@ type BookingSpec = {
   discount?: { id: string; code: string; amount: string; fundedBy: 'platform' | 'vendor' }
   payment?: { status: 'pending' | 'paid'; txnId?: string }
   rescheduleCount?: number
+  /** Defaults to now. Set it back to make a booking that has been waiting. */
+  createdAt?: Date
   /** Defaults to an at-garage job. A doorstep one carries where to go. */
   doorstep?: { address: string; lat: number; lng: number }
 }
@@ -420,6 +425,7 @@ async function insertBooking(spec: BookingSpec) {
     discountFundedBy: spec.discount?.fundedBy ?? null,
     paymentMethod: 'online',
     rescheduleCount: spec.rescheduleCount ?? 0,
+    ...(spec.createdAt && { createdAt: spec.createdAt }),
   })
 
   await db.insert(bookingItems).values(
@@ -556,6 +562,24 @@ async function seedBookingRows() {
     items: [{ id: SERVICES.secondOnly.id, name: SERVICES.secondOnly.name,
       amount: SERVICES.secondOnly.price, durationMins: SERVICES.secondOnly.durationMins }],
     payment: { status: 'paid', txnId: 'pay_seed_second' } })
+
+  // Admin booking ops. One customer for the lot, since one spec file drives
+  // them all in order; each booking has a reference of its own so the search
+  // spec can find exactly one.
+  const opsCustomer = { userId: CUSTOMERS.adminOps.id, vehicleId: CUSTOMERS.adminOps.vehicleId }
+  // Paid a day before it was booked, as insertBooking dates every payment:
+  // the wait is counted from the later of the two, so from the booking here.
+  await insertBooking({ id: BOOKINGS.adminOpsWaiting, ...opsCustomer, scheduledAt: tomorrowAt(9),
+    status: 'pending', items: [washItem], createdAt: new Date(now.getTime() - 45 * MINUTE),
+    payment: { status: 'paid', txnId: 'pay_seed_ops_waiting' } })
+  await insertBooking({ id: BOOKINGS.adminOpsNotes, ...opsCustomer, scheduledAt: tomorrowAt(11),
+    status: 'confirmed', items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_ops_notes' } })
+  await insertBooking({ id: BOOKINGS.adminOpsCancel, ...opsCustomer, scheduledAt: tomorrowAt(12),
+    status: 'confirmed', items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_ops_cancel' } })
+  await insertBooking({ id: BOOKINGS.adminOpsNoShow, ...opsCustomer, scheduledAt: twoHoursAgo(),
+    status: 'confirmed', items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_ops_noshow' } })
+  await insertBooking({ id: BOOKINGS.adminOpsTooEarly, ...opsCustomer, scheduledAt: tomorrowAt(13),
+    status: 'confirmed', items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_ops_early' } })
 
   // The chain behind rescheduleExhausted. rescheduleCount is denormalised onto
   // the booking, but booking_reschedules is the source of truth, so both have

@@ -287,9 +287,12 @@ export interface ApiBooking {
   lat: number | null
   lng: number | null
   address: string | null
-  cancelledBy: 'user' | 'vendor' | null
+  cancelledBy: 'user' | 'vendor' | 'admin' | null
   cancellationReason: string | null
   cancelledAt: string | null
+  // Optional: a server older than admin cancellations does not send these.
+  cancelledOnBehalfOf?: 'customer' | 'garage' | 'detlio' | null
+  noShow?: 'customer' | 'garage' | null
   originalBookingId: string | null
   rescheduledFromId: string | null
   rescheduleCount: number

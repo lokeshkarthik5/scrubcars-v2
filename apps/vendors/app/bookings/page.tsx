@@ -247,11 +247,7 @@ export default function VendorBookingsPage() {
               {tab === 'cancelled' && (
                 <div className="border-t border-border pt-2">
                   <p className="text-[12px] font-medium text-text-primary">
-                    {b.cancelledBy === 'vendor'
-                      ? 'Rejected by you'
-                      : b.cancelledBy === 'user'
-                        ? 'Cancelled by customer'
-                        : 'Cancelled'}
+                    {cancelledLabel(b)}
                   </p>
                   {b.cancellationReason && (
                     <p className="mt-1 text-[12px] text-text-secondary">{b.cancellationReason}</p>
@@ -265,6 +261,30 @@ export default function VendorBookingsPage() {
       </div>
     </AppShell>
   )
+}
+
+/**
+ * Who called a job off, as the garage reads it. A Detlio cancellation says
+ * whose request it was, and a no-show names who didn't turn up — the garage
+ * sees its own no-shows too, since they are on its record.
+ */
+function cancelledLabel(b: Booking): string {
+  if (b.noShow === 'customer') return 'Customer no-show'
+  if (b.noShow === 'garage') return 'Marked as garage no-show'
+  switch (b.cancelledBy) {
+    case 'vendor':
+      return 'Rejected by you'
+    case 'user':
+      return 'Cancelled by customer'
+    case 'admin':
+      return b.cancelledOnBehalfOf === 'customer'
+        ? "Cancelled by Detlio at the customer's request"
+        : b.cancelledOnBehalfOf === 'garage'
+          ? 'Cancelled by Detlio at your request'
+          : 'Cancelled by Detlio'
+    default:
+      return 'Cancelled'
+  }
 }
 
 /** A pending job whose start time has come and gone: it can only be rejected. */

@@ -5,12 +5,12 @@ import {
   archiveAdminVendor,
   deleteAdminVendor,
   getAdminVendor,
-  listAdminBookings,
   listAdminVendors,
   unarchiveAdminVendor,
   verifyAdminVendor,
   type AdminVendor,
 } from '@repo/core/api/admin'
+import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
 
 /**
  * Hierarchical keys so a single `invalidateQueries({ queryKey: keys.all })`
@@ -26,12 +26,6 @@ export const adminVendorKeys = {
   detail: (id: string) => [...adminVendorKeys.details(), id] as const,
 }
 
-export const adminBookingKeys = {
-  all: ['admin-bookings'] as const,
-  lists: () => [...adminBookingKeys.all, 'list'] as const,
-  list: (status: string) => [...adminBookingKeys.lists(), status] as const,
-}
-
 export function useAdminVendors() {
   return useQuery({
     queryKey: adminVendorKeys.list(),
@@ -44,18 +38,6 @@ export function useAdminVendor(id: string) {
     queryKey: adminVendorKeys.detail(id),
     queryFn: () => getAdminVendor(id),
     enabled: Boolean(id),
-  })
-}
-
-/**
- * `status` is the UI's filter value, where 'all' means unfiltered. Kept in the
- * key rather than filtered client-side so switching tabs serves a cached list
- * instantly and refetches in the background.
- */
-export function useAdminBookings(status: string) {
-  return useQuery({
-    queryKey: adminBookingKeys.list(status),
-    queryFn: () => listAdminBookings(status === 'all' ? undefined : status),
   })
 }
 

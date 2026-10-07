@@ -91,6 +91,41 @@ describe('formatOpsAlert', () => {
     expect(text).toContain('Back to Requested: waiting for the garage to accept the new time.')
   })
 
+  test('a paid booking Detlio cancelled says whose call it was and that a refund is due', () => {
+    const text = formatOpsAlert({
+      kind: 'admin_cancelled',
+      booking,
+      onBehalfOf: 'garage',
+      reason: 'Garage called: power cut, call me on 98765 43210',
+    })
+    expect(text).toContain('🛑 Detlio cancelled #3F2A9C1B · refund due')
+    expect(text).toContain('Marina Auto Spa · +91 98765 00011')
+    expect(text).toContain('On behalf of the garage.')
+    expect(text).toContain('₹1,299 was paid. Refund it in Razorpay.')
+    // The reason is typed by ops but still quoted and scrubbed like any other.
+    expect(text).toContain('Reason: "Garage called: power cut, call me on [number]"')
+  })
+
+  test("Detlio's own cancellation of an unpaid booking has nothing to refund", () => {
+    const text = formatOpsAlert({
+      kind: 'admin_cancelled',
+      booking: { ...booking, payment: { status: 'pending' } },
+      onBehalfOf: 'detlio',
+      reason: 'Duplicate booking',
+    })
+    expect(text).toContain('🛑 Detlio cancelled #3F2A9C1B')
+    expect(text).not.toContain('refund due')
+    expect(text).toContain("Detlio's own decision.")
+    expect(text).toContain('nothing to refund')
+  })
+
+  test('a garage no-show asks for a full refund', () => {
+    const text = formatOpsAlert({ kind: 'garage_no_show', booking })
+    expect(text).toContain('🚫 Garage no-show #3F2A9C1B · refund due')
+    expect(text).toContain('Sun 4 Oct, 3:30 pm · At garage')
+    expect(text).toContain('₹1,299 was paid. Refund the customer in full in Razorpay.')
+  })
+
   test('a payment with no booking gives the payment id and the reason in words', () => {
     const text = formatOpsAlert({
       kind: 'paid_no_booking',

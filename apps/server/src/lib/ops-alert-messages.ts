@@ -30,6 +30,13 @@ export type OpsAlert =
   | { kind: 'customer_cancelled'; booking: AlertBooking; reason?: string | null }
   | { kind: 'rescheduled'; booking: AlertBooking; previousScheduledAt: Date }
   | {
+      kind: 'admin_cancelled'
+      booking: AlertBooking
+      onBehalfOf: 'customer' | 'garage' | 'detlio'
+      reason: string
+    }
+  | { kind: 'garage_no_show'; booking: AlertBooking }
+  | {
       kind: 'pending_digest'
       now: Date
       waiting: DigestBooking[]
@@ -103,6 +110,40 @@ export function formatOpsAlert(alert: OpsAlert): string {
       )
     }
 
+    case 'admin_cancelled': {
+      // Sent by ops' own action, so it is a to-do rather than news: whoever
+      // cancelled may not be the one who does the refund.
+      const b = alert.booking
+      const paid = isPaid(b)
+      return lines(
+        `🛑 Detlio cancelled #${reference(b.id)}${paid ? ' · refund due' : ''}`,
+        garageLine(b),
+        `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
+        ON_BEHALF_OF[alert.onBehalfOf],
+        paid
+          ? `${rupees(b.amount)} was paid. Refund it in Razorpay.`
+          : 'Not paid online, so nothing to refund.',
+        quoted('Reason', alert.reason),
+        ADMIN_BOOKINGS_URL
+      )
+    }
+
+    case 'garage_no_show': {
+      // The policy: when the garage doesn't turn up, the customer always gets
+      // their money back in full.
+      const b = alert.booking
+      const paid = isPaid(b)
+      return lines(
+        `🚫 Garage no-show #${reference(b.id)}${paid ? ' · refund due' : ''}`,
+        garageLine(b),
+        `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
+        paid
+          ? `${rupees(b.amount)} was paid. Refund the customer in full in Razorpay.`
+          : 'Not paid online, so nothing to refund.',
+        ADMIN_BOOKINGS_URL
+      )
+    }
+
     case 'rescheduled': {
       const b = alert.booking
       return lines(
@@ -151,6 +192,13 @@ export function formatOpsAlert(alert: OpsAlert): string {
         'Refund this payment in Razorpay. The customer was told it would be refunded.'
       )
   }
+}
+
+/** Whose call an admin cancellation was, as one line. */
+const ON_BEHALF_OF: Record<'customer' | 'garage' | 'detlio', string> = {
+  customer: 'On behalf of the customer.',
+  garage: 'On behalf of the garage.',
+  detlio: "Detlio's own decision.",
 }
 
 /** The reasons failIntent records, as the team would say them. */

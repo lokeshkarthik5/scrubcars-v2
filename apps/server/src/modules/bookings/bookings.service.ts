@@ -66,6 +66,8 @@ type BookingWithRelations = {
   cancelledBy?: string | null
   cancellationReason?: string | null
   cancelledAt?: Date | null
+  cancelledOnBehalfOf?: string | null
+  noShow?: string | null
   originalBookingId?: string | null
   rescheduledFromId?: string | null
   rescheduleCount?: number | null
@@ -161,6 +163,12 @@ function toBookingResponse(booking: BookingWithRelations) {
     cancelledBy: booking.cancelledBy ?? null,
     cancellationReason: booking.cancellationReason ?? null,
     cancelledAt: booking.cancelledAt?.toISOString() ?? null,
+    // Set only when Detlio cancelled it ('admin'): whose call it was, and
+    // whether it was a no-show. Both decide what the customer and the garage
+    // are told — a customer no-show keeps the payment, a garage no-show is
+    // refunded. The ops team's internal notes are never part of this payload.
+    cancelledOnBehalfOf: booking.cancelledOnBehalfOf ?? null,
+    noShow: booking.noShow ?? null,
     originalBookingId: booking.originalBookingId ?? null,
     rescheduledFromId: booking.rescheduledFromId ?? null,
     rescheduleCount: booking.rescheduleCount ?? 0,

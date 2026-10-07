@@ -101,6 +101,35 @@ function useOverlayBehaviour(
   }, [active, dismissible])
 }
 
+/**
+ * Keyboard focus for a dialog: into it on open, back to what opened it on
+ * close.
+ *
+ * Without this, focus stays on the button behind the overlay: Tab walks the
+ * page underneath before it reaches the dialog, and a screen reader keeps
+ * reading the background. A child that took focus itself (autoFocus) keeps
+ * it. The opener only gets focus back while it is still on the page — an
+ * action that succeeds often removes the button that started it, and the
+ * caller then decides where focus goes.
+ */
+function useDialogFocus(
+  open: boolean,
+  panelRef: React.RefObject<HTMLDivElement | null>
+) {
+  useEffect(() => {
+    if (!open) return
+    const panel = panelRef.current
+    const active = document.activeElement
+    const opener =
+      active instanceof HTMLElement && !panel?.contains(active) ? active : null
+    if (panel && !panel.contains(active)) panel.focus()
+
+    return () => {
+      if (opener?.isConnected) opener.focus()
+    }
+  }, [open, panelRef])
+}
+
 /** Centred dialog — scales up from slightly small and low. */
 export function ScModal({
   open,
@@ -112,6 +141,8 @@ export function ScModal({
 }: OverlayProps) {
   const { visible, handleAnimationEnd } = useOverlayPresence(open)
   useOverlayBehaviour(visible, dismissible, onClose)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(open, panelRef)
 
   if (!visible) return null
 
@@ -127,8 +158,12 @@ export function ScModal({
       aria-label={ariaLabel}
     >
       <div
+        ref={panelRef}
+        // Focusable from script only, so the dialog itself can take focus
+        // when it opens; Tab still goes to its controls.
+        tabIndex={-1}
         className={cn(
-          'max-h-[80vh] w-full max-w-[360px] overflow-y-auto rounded-[20px] border border-border bg-brand-black px-4 pb-5 pt-4',
+          'max-h-[80vh] w-full max-w-[360px] overflow-y-auto rounded-[20px] border border-border bg-brand-black px-4 pb-5 pt-4 focus:outline-none',
           open ? 'dialog-in' : 'dialog-out',
           className
         )}

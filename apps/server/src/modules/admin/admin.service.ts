@@ -3,6 +3,17 @@ import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import { signAdminToken } from '../../lib/jwt.js'
 import { logger } from '../../lib/logger.js'
+import {
+  adminCancellationNote,
+  bookingReference,
+  checkNoShow,
+  isAdminCancellable,
+  istDateRange,
+  noShowNote,
+  parseBookingSearch,
+  waitingMinutes,
+} from '../../lib/booking-ops.js'
+import { alertOps } from '../../lib/ops-alerts.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
 import {
   createPresignedUpload,
@@ -13,9 +24,12 @@ import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { adminRepository } from './admin.repository.js'
 import type {
+  AdminCancelBookingInput,
+  CreateBookingNoteInput,
   CreateVendorInput,
   GrantSuperAdminInput,
   ListBookingsQuery,
+  MarkNoShowInput,
   LoginInput,
   MediaUrlInput,
   UpdateVendorInput,
@@ -106,6 +120,179 @@ function assertPinnedBeforeVerifying(vendor: {
       'VENDOR_LOCATION_REQUIRED'
     )
   }
+}
+
+// ─── Bookings ────────────────────────────────────────────────────────────────
+
+/** The subject of the env-credential break-glass login; see auth.middleware. */
+const BREAK_GLASS_SUBJECT = 'admin'
+
+type AdminBookingRecord = NonNullable<
+  Awaited<ReturnType<typeof adminRepository.findBookingById>>
+>
+type BookingNoteRecord = NonNullable<
+  Awaited<ReturnType<typeof adminRepository.findBookingDetail>>
+>['notes'][number]
+
+/** Someone else changed the booking between our read and our write. */
+function stateChanged() {
+  return new AppError(
+    409,
+    // The panel refetches the booking when an action is refused, so by the
+    // time this is read the page already shows what changed.
+    'This booking was just updated by someone else. Its latest status is shown now.',
+    'BOOKING_STATE_CHANGED'
+  )
+}
+
+function bookingNotFound() {
+  return new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
+}
+
+function toBookingNoteResponse(note: BookingNoteRecord) {
+  return {
+    id: note.id,
+    author: note.author,
+    body: note.body,
+    createdAt: note.createdAt.toISOString(),
+  }
+}
+
+/**
+ * One row of the admin bookings list: everything ops needs to answer a call
+ * about a booking without opening it.
+ *
+ * The last three keys are the shape the panel read before this one existed.
+ * The API and the panel deploy separately, so they stay until every deployed
+ * panel reads `garage`, `customer` and `items` instead.
+ */
+function toAdminBookingRow(booking: AdminBookingRecord, notesCount: number, now: number) {
+  return {
+    id: booking.id,
+    reference: bookingReference(booking.id),
+    status: booking.status,
+    bookingType: booking.bookingType,
+    scheduledAt: booking.scheduledAt.toISOString(),
+    createdAt: booking.createdAt.toISOString(),
+    waitingMins: waitingMinutes(
+      {
+        status: booking.status,
+        createdAt: booking.createdAt,
+        paidAt: booking.payment?.paidAt,
+      },
+      now
+    ),
+    durationMins: booking.durationMins,
+    amount: booking.amount,
+    subtotalAmount: booking.subtotalAmount,
+    discountAmount: booking.discountAmount,
+    discountCode: booking.discountCode,
+    discountFundedBy: booking.discountFundedBy,
+    paymentMethod: booking.paymentMethod,
+    payment: booking.payment
+      ? {
+          status: booking.payment.status,
+          // The Razorpay payment id ops searches for in the dashboard to refund.
+          gatewayTxnId: booking.payment.gatewayTxnId,
+          paidAt: booking.payment.paidAt?.toISOString() ?? null,
+        }
+      : null,
+    garage: booking.vendor
+      ? {
+          id: booking.vendor.id,
+          name: booking.vendor.businessName,
+          phone: booking.vendor.phone,
+        }
+      : null,
+    customer: booking.user
+      ? { id: booking.user.id, name: booking.user.name, phone: booking.user.phone }
+      : null,
+    // Only a doorstep job has a place to go; a drop-in happens at the garage.
+    address: booking.bookingType === 'doorstep' ? booking.address : null,
+    vehicle: booking.vehicle
+      ? {
+          id: booking.vehicle.id,
+          make: booking.vehicle.make,
+          model: booking.vehicle.model,
+          plate: booking.vehicle.licensePlate,
+        }
+      : null,
+    items: booking.items.map((item) => ({
+      id: item.id,
+      serviceId: item.serviceId,
+      name: item.name,
+      amount: item.amount,
+      durationMins: item.durationMins,
+    })),
+    cancelledBy: booking.cancelledBy,
+    cancelledOnBehalfOf: booking.cancelledOnBehalfOf,
+    cancellationReason: booking.cancellationReason,
+    cancelledAt: booking.cancelledAt?.toISOString() ?? null,
+    noShow: booking.noShow,
+    noShowMarkedAt: booking.noShowMarkedAt?.toISOString() ?? null,
+    notesCount,
+    rescheduledFromId: booking.rescheduledFromId,
+    // Deprecated — see above.
+    vendor: booking.vendor
+      ? {
+          id: booking.vendor.id,
+          businessName: booking.vendor.businessName,
+          phone: booking.vendor.phone,
+        }
+      : null,
+    user: booking.user
+      ? { id: booking.user.id, name: booking.user.name, phone: booking.user.phone }
+      : null,
+    service: booking.service
+      ? {
+          id: booking.service.id,
+          name: booking.service.name,
+          pricingType: booking.service.pricingType,
+        }
+      : null,
+  }
+}
+
+async function loadBookingDetail(id: string, now: number) {
+  const booking = await adminRepository.findBookingDetail(id)
+  if (!booking) throw bookingNotFound()
+
+  const staffIds = [booking.acceptedBy, booking.completedBy].filter(
+    (staffId): staffId is string => staffId !== null
+  )
+  const [rescheduledToId, names] = await Promise.all([
+    adminRepository.findRescheduledToId(id),
+    adminRepository.findUserNames(staffIds),
+  ])
+
+  const { notes, ...row } = booking
+  return {
+    ...toAdminBookingRow(row, notes.length, now),
+    lat: booking.lat,
+    lng: booking.lng,
+    garageAddress: booking.vendor
+      ? `${booking.vendor.address}, ${booking.vendor.city}`
+      : null,
+    // Who at the garage moved the job on. Null on bookings from before the
+    // team model, and on any the garage never touched.
+    acceptedByName: booking.acceptedBy ? (names.get(booking.acceptedBy) ?? null) : null,
+    completedByName: booking.completedBy ? (names.get(booking.completedBy) ?? null) : null,
+    originalBookingId: booking.originalBookingId,
+    rescheduledToId,
+    rescheduleCount: booking.rescheduleCount,
+    notes: notes.map(toBookingNoteResponse),
+  }
+}
+
+/**
+ * Who wrote a note, as a name. The break-glass login is the shared admin
+ * account and has no users row, so it signs as 'admin'; a named super-admin
+ * signs as themselves.
+ */
+async function resolveNoteAuthor(sub: string): Promise<string> {
+  if (sub === BREAK_GLASS_SUBJECT) return 'admin'
+  const user = await adminRepository.findUserById(sub)
+  return (user?.name.trim() || user?.phone || sub).slice(0, 100)
 }
 
 export const adminService = {
@@ -476,8 +663,160 @@ export const adminService = {
     return vendor
   },
 
-  async listBookings(query: ListBookingsQuery) {
-    return adminRepository.listBookings(query.status)
+  async listBookings(query: ListBookingsQuery, now = Date.now()) {
+    const { start, end } = istDateRange(query.from, query.to)
+    const ids = await adminRepository.searchBookingIds({
+      status: query.status,
+      vendorId: query.vendorId,
+      search: parseBookingSearch(query.q),
+      start,
+      end,
+      after: query.cursor ?? null,
+      limit: query.limit,
+      offset: query.cursor ? 0 : (query.page - 1) * query.limit,
+    })
+
+    const [rows, notesCounts] = await Promise.all([
+      adminRepository.findBookingsByIds(ids),
+      adminRepository.countNotesByBooking(ids),
+    ])
+
+    // The rows come back unordered; the id query decided the order.
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    return ids.flatMap((id) => {
+      const booking = byId.get(id)
+      return booking ? [toAdminBookingRow(booking, notesCounts.get(id) ?? 0, now)] : []
+    })
+  },
+
+  async getBooking(id: string, now = Date.now()) {
+    return loadBookingDetail(id, now)
+  },
+
+  /**
+   * Cancels a booking as Detlio, on behalf of whoever's call it was.
+   *
+   * Allowed from any state the booking is still live in — unlike the
+   * customer's cancel, there is no 2-hour cutoff: ops cancels because
+   * something has already gone wrong, often at the last minute. The money is
+   * not touched here; refunds are done by hand in Razorpay, and the alert
+   * below is what puts a paid one on the team's list.
+   */
+  async cancelBooking(id: string, sub: string, input: AdminCancelBookingInput) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+
+    if (!isAdminCancellable(booking.status)) {
+      throw new AppError(
+        400,
+        'Only pending, confirmed or in-progress bookings can be cancelled',
+        'INVALID_BOOKING_STATUS'
+      )
+    }
+
+    const author = await resolveNoteAuthor(sub)
+    const cancelled = await adminRepository.cancelBookingAsAdmin(
+      id,
+      booking.status,
+      {
+        onBehalfOf: input.onBehalfOf,
+        reason: input.reason,
+        noShow: null,
+        at: new Date(),
+      },
+      { author, body: adminCancellationNote(input.onBehalfOf, input.reason) }
+    )
+    if (!cancelled) throw stateChanged()
+
+    log.info(
+      { bookingId: id, from: booking.status, onBehalfOf: input.onBehalfOf, author },
+      'admin:booking-cancelled'
+    )
+
+    // Only a paid booking leaves anything to do: an unpaid one has no money
+    // to return.
+    if (booking.payment?.status === 'paid') {
+      const updated = await adminRepository.findBookingById(id)
+      alertOps({
+        kind: 'admin_cancelled',
+        booking: updated!,
+        onBehalfOf: input.onBehalfOf,
+        reason: input.reason,
+      })
+    }
+
+    return loadBookingDetail(id, Date.now())
+  },
+
+  /**
+   * Records who didn't turn up for an accepted booking, and cancels it.
+   *
+   * The party decides the money, per the published policy: a customer
+   * no-show keeps the payment (the garage held the slot), so the payment row
+   * is deliberately left as it is; a garage no-show is always refunded in
+   * full, which is a manual Razorpay refund the alert asks for.
+   */
+  async markNoShow(id: string, sub: string, input: MarkNoShowInput, now = Date.now()) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+
+    const check = checkNoShow(booking, now)
+    if (check === 'wrong_status') {
+      throw new AppError(
+        400,
+        'Only an accepted booking (confirmed or in progress) can be marked as a no-show',
+        'INVALID_BOOKING_STATUS'
+      )
+    }
+    if (check === 'too_early') {
+      throw new AppError(
+        400,
+        "A no-show can only be marked once the booking's start time has passed",
+        'NO_SHOW_TOO_EARLY'
+      )
+    }
+
+    const author = await resolveNoteAuthor(sub)
+    const cancelled = await adminRepository.cancelBookingAsAdmin(
+      id,
+      booking.status,
+      {
+        // Ops is recording what happened, not passing on anyone's request.
+        onBehalfOf: 'detlio',
+        reason: null,
+        noShow: input.party,
+        at: new Date(now),
+      },
+      { author, body: noShowNote(input.party, input.note) }
+    )
+    if (!cancelled) throw stateChanged()
+
+    log.info(
+      { bookingId: id, from: booking.status, party: input.party, author },
+      'admin:booking-no-show'
+    )
+
+    if (input.party === 'garage') {
+      const updated = await adminRepository.findBookingById(id)
+      alertOps({ kind: 'garage_no_show', booking: updated! })
+    }
+
+    return loadBookingDetail(id, now)
+  },
+
+  async addBookingNote(id: string, sub: string, input: CreateBookingNoteInput) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+
+    const author = await resolveNoteAuthor(sub)
+    const [note] = await adminRepository.createBookingNote({
+      bookingId: id,
+      author,
+      body: input.body,
+    })
+
+    log.info({ bookingId: id, noteId: note.id, author }, 'admin:booking-note-added')
+    return toBookingNoteResponse(note)
   },
 
   // ─── Media ─────────────────────────────────────────────────────────────────
