@@ -27,8 +27,13 @@ authRoutes.post(
   zValidator('json', verifyOtpSchema),
   (c) => authController.verifyOtp(c, c.req.valid('json'))
 )
- 
-authRoutes.post('/refresh', rateLimiter, authController.refresh)
+
+// Refresh sits behind the global limiter only. It is not a guessing surface —
+// it needs a valid HttpOnly cookie — and every open tab calls it whenever its
+// access token lapses, so a household on one IP with a few tabs open could
+// spend the strict 10-a-minute auth budget on refreshes alone and be logged
+// out by its own browsers.
+authRoutes.post('/refresh', authController.refresh)
 authRoutes.post('/logout', rateLimiter, authController.logout)
 
 authRoutes.get('/me', authMiddleware, authController.getMe)

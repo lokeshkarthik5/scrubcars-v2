@@ -10,10 +10,21 @@ import { OtpInput } from '@repo/ui/sc/otp-input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { resendOtp } from '@repo/core/api/auth'
 import type { AuthAudience, OtpPurpose } from '@repo/core/api/types'
-import { ApiError } from '@repo/core/api/client'
+import { useNow } from '@repo/core/hooks/use-now'
+import {
+  formatCountdown,
+  otpDeadlines,
+  otpErrorMessage,
+  retryAt as retryMoment,
+  secondsUntil,
+} from '@repo/core/otp'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 
-const RESEND_SECONDS = 300
+/** A stored epoch-ms moment, or null when absent or unreadable. */
+function readMoment(key: string): number | null {
+  const value = Number(sessionStorage.getItem(key))
+  return Number.isFinite(value) && value > 0 ? value : null
+}
 
 function formatPhone(phone: string) {
   if (phone.length !== 10) return `+91 ${phone}`
@@ -53,7 +64,11 @@ export function PhoneVerify({
   const [purpose, setPurpose] = useState<OtpPurpose>('login')
   const [audience, setAudience] = useState<AuthAudience>(fallbackAudience)
   const [next, setNext] = useState('')
-  const [timer, setTimer] = useState(RESEND_SECONDS)
+  // Two clocks, both set by the send that brought the customer here (see
+  // @repo/core/otp): when the code stops working, and when Resend opens.
+  const [expiresAt, setExpiresAt] = useState<number | null>(null)
+  const [resendAt, setResendAt] = useState<number | null>(null)
+  const now = useNow(1000)
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
@@ -66,16 +81,14 @@ export function PhoneVerify({
       (sessionStorage.getItem('auth_audience') as AuthAudience) ?? fallbackAudience
     )
     setNext(sessionStorage.getItem('auth_next') ?? '')
+    // Missing only on a direct visit with no send behind it: the code's
+    // expiry is then unknown, and Resend is open straight away.
+    setExpiresAt(readMoment('auth_expires_at'))
+    setResendAt(readMoment('auth_resend_at'))
   }, [fallbackAudience])
 
-  useEffect(() => {
-    if (timer <= 0) return
-    const interval = setInterval(() => setTimer((t) => t - 1), 1000)
-    return () => clearInterval(interval)
-  }, [timer])
-
-  const mins = String(Math.floor(timer / 60)).padStart(2, '0')
-  const secs = String(timer % 60).padStart(2, '0')
+  const expirySeconds = expiresAt ? secondsUntil(expiresAt, now) : null
+  const resendSeconds = resendAt ? secondsUntil(resendAt, now) : 0
 
   const handleVerify = async (code: string) => {
     if (!phone) return
@@ -92,22 +105,33 @@ export function PhoneVerify({
       sessionStorage.removeItem('auth_next')
       router.push(resolveDestination(result, next))
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Verification failed')
+      setError(otpErrorMessage(err, 'Verification failed'))
     } finally {
       setLoading(false)
     }
   }
 
-  // Only restart the countdown once the resend actually succeeds — otherwise a
+  // Only restart the clocks once the resend actually succeeds — otherwise a
   // failed send would look identical to a successful one.
   const handleResend = async () => {
+    if (resending || resendSeconds > 0) return
     setResending(true)
     setError('')
     try {
-      await resendOtp(phone, audience, purpose)
-      setTimer(RESEND_SECONDS)
+      const sent = await resendOtp(phone, audience, purpose)
+      const deadlines = otpDeadlines(Date.now(), sent.expiresInSeconds)
+      setExpiresAt(deadlines.expiresAt)
+      setResendAt(deadlines.resendAt)
+      sessionStorage.setItem('auth_expires_at', String(deadlines.expiresAt))
+      sessionStorage.setItem('auth_resend_at', String(deadlines.resendAt))
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to resend OTP')
+      setError(otpErrorMessage(err, 'Failed to resend OTP'))
+      // Refused for timing: Resend counts down to when the server will say yes.
+      const at = retryMoment(err, Date.now())
+      if (at) {
+        setResendAt(at)
+        sessionStorage.setItem('auth_resend_at', String(at))
+      }
     } finally {
       setResending(false)
     }
@@ -143,20 +167,46 @@ export function PhoneVerify({
         </p>
       )}
 
-      <p className="pt-6 text-[12px] text-text-secondary">
-        Expires in{' '}
-        <span className="font-numeric font-medium text-text-primary">
-          {mins}:{secs}
-        </span>
-      </p>
+      {/* The countdown itself is plain text: in a live region every tick
+          would be read out. The expiry is announced by the status below,
+          which is on the page from the first render — a live region that
+          mounts with its text already in it is usually not announced at
+          all — and only its text changes, once, when the code runs out. */}
+      {expirySeconds !== null && (
+        <p className="pt-6 text-[12px] text-text-secondary">
+          {expirySeconds > 0 ? (
+            <>
+              Code expires in{' '}
+              <span className="font-numeric font-medium text-text-primary">
+                {formatCountdown(expirySeconds)}
+              </span>
+            </>
+          ) : (
+            // Read out by the status below; hidden here so it isn't heard twice.
+            <span aria-hidden="true">Code expired — resend</span>
+          )}
+        </p>
+      )}
+      <span role="status" className="sr-only">
+        {expirySeconds === 0 ? 'Code expired — resend' : ''}
+      </span>
 
       <button
         type="button"
-        disabled={timer > 0 || resending}
+        disabled={resendSeconds > 0 || resending}
         onClick={handleResend}
-        className="pt-3 text-[13px] font-semibold text-text-primary underline disabled:text-text-muted disabled:no-underline"
+        className="mt-2 min-h-11 px-3 text-[13px] font-semibold text-text-primary underline disabled:text-text-muted disabled:no-underline"
       >
-        {resending ? 'Sending...' : 'Resend OTP'}
+        {resending ? (
+          'Sending...'
+        ) : resendSeconds > 0 ? (
+          <>
+            Resend OTP in{' '}
+            <span className="font-numeric">{formatCountdown(resendSeconds)}</span>
+          </>
+        ) : (
+          'Resend OTP'
+        )}
       </button>
     </>
   )

@@ -17,6 +17,24 @@ reconstructing every change in them.
 
 ### Added
 
+- **Pilot numbers** on the admin landing page (Vendors): checkouts started,
+  paid, accepted, completed and the rates between them; revenue; paid with no
+  booking (refunds to do); cancellations by whose call; no-shows; the top five
+  garages by paid bookings — for the last 7 or 30 days. Below the page title
+  and Add vendor, with a full-size 7 / 30 day switch. Time from payment to
+  the garage accepting is not shown: bookings do not record when they were
+  accepted yet.
+- **Crash screens** in all three apps (`error.tsx`, `global-error.tsx`,
+  `not-found.tsx`): a plain message, Try again, a way home, and in the
+  customer app Call / WhatsApp for support. They report to Sentry when it is
+  on.
+- **Crash reporting with Sentry** (`@sentry/nextjs`), off unless
+  `NEXT_PUBLIC_SENTRY_DSN` is set for the build. No traces, no user details,
+  cookies, headers or bodies, and phone numbers and 6-digit codes scrubbed from
+  everything sent. No auth token or source-map upload: builds never call
+  Sentry. Setup in `apps/*/lib/monitoring.ts` and `instrumentation*.ts`;
+  shared settings in `@repo/core/monitoring`.
+
 - **Admin bookings.** Search by reference, phone or name; filter by status,
   garage and dates; refreshes every 30 seconds; a "Waiting" badge on pending
   bookings, amber from 30 minutes; tap-to-call for the garage and customer;
@@ -26,6 +44,36 @@ reconstructing every change in them.
   start time, with what it means for the money), and internal notes.
 
 ### Changed
+
+- **No double payments.** Once Razorpay reports a payment, checkout and the
+  booking page's Pay Now switch to "Payment received — confirming your
+  booking…" and never offer Pay for it again. A confirm lost to the network
+  or a server error is retried (after 1, 3 and 6 seconds); after that the page
+  watches for up to a minute for the booking the Razorpay webhook writes. If
+  it still cannot say, it shows the payment id with WhatsApp and My bookings
+  instead of a Pay button; if the payment could not become a booking, the
+  refund message. The waiting state is graphite with a spinner, not a red
+  button; each step is announced to screen readers and focus moves to the
+  panel. The WhatsApp message fits the case (missing booking, booking not yet
+  shown as paid, or refund), and the Pay Now page drops the panel once the
+  booking shows as paid. Rules in `@repo/core/payment-confirmation`,
+  unit-tested.
+- **Login code screen.** Counts down to the code's real expiry from the
+  server (3 minutes; it showed 5), then says "Code expired — resend". Resend
+  opens after 30 seconds instead of only after expiry. When the server says to
+  wait, the login and verify screens count down to the moment on the Send /
+  Resend button, and the amber message is said once rather than re-read to
+  screen readers every second; when the SMS
+  provider fails, the customer is told to try again in a minute or WhatsApp
+  support. A refused send no longer falls through to the sign-up path (which
+  answered a rate limit with "already registered").
+- **Garages that fail to load** on home and search now say "Couldn't load
+  garages. Check your connection." with Retry, instead of "No garages found
+  nearby". The garage page says "Couldn't load this garage. Check your
+  connection." with Retry instead of "Loading…" for ever, and says when a
+  garage is not listed.
+- **Admin loads Space Grotesk**, so `font-numeric` figures there use the
+  brand's numeric face instead of falling back to Inter.
 
 - **Booking timing rules.** Slots need an hour's notice at the garage and 3 for
   doorstep: the picker says so, drops times that run out while it is open, and

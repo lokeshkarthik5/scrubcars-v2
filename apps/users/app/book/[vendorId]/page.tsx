@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconAlertCircle,
   IconChevronRight,
+  IconLoader2,
   IconMapPin,
   IconPercentage,
   IconPlus,
@@ -15,6 +16,10 @@ import {
 import { toast } from 'react-toastify'
 import { useQueryClient } from '@tanstack/react-query'
 import { AddAddressSheet } from '@/components/add-address-sheet'
+import {
+  PaymentReceivedPanel,
+  paymentReceivedText,
+} from '@/components/payment-received-panel'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
 import {
   LocationPicker,
@@ -34,7 +39,16 @@ import {
   errorMessage,
   useValidateDiscount,
 } from '@repo/core/api/hooks/use-discounts'
-import { createBookingIntent, verifyPayment } from '@repo/core/api/payments'
+import {
+  createBookingIntent,
+  getBookingIntentStatus,
+  verifyPayment,
+} from '@repo/core/api/payments'
+import {
+  confirmPayment,
+  intentPollResult,
+  realClock,
+} from '@repo/core/payment-confirmation'
 import { updateAddress } from '@repo/core/api/users'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorServices } from '@repo/core/api/services'
@@ -94,6 +108,17 @@ function BookContent({ vendorId }: { vendorId: string }) {
   )
   const [loading, setLoading] = useState(false)
   const bookingLockRef = useRef(false)
+  // Set the moment Razorpay reports the money taken, and never cleared: from
+  // then on this screen confirms that payment and cannot start another. The
+  // ref is what the Pay handler checks, so no render timing can let a second
+  // tap through; the state is what the footer draws.
+  const paidRef = useRef(false)
+  const [paid, setPaid] = useState<{
+    paymentId: string
+    /** confirming → (booked, and gone) | unconfirmed | failed */
+    phase: 'confirming' | 'unconfirmed' | 'failed'
+    refundMessage?: string
+  } | null>(null)
 
   // Where the bottom button takes the customer when a step is still missing.
   // Headings rather than whole sections, so focus lands on something with a
@@ -413,7 +438,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   }
 
   const handleConfirm = async () => {
-    if (bookingLockRef.current || loading) return
+    if (paidRef.current || bookingLockRef.current || loading) return
     if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle) return
     if (!doorstepReady) return
     bookingLockRef.current = true
@@ -445,15 +470,33 @@ function BookContent({ vendorId }: { vendorId: string }) {
           phone: profile?.phone,
         },
         onSuccess: async (response) => {
-          const { bookingId } = await verifyPayment({
-            intentId: order.intentId,
-            razorpayOrderId: response.razorpay_order_id,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpaySignature: response.razorpay_signature,
+          const paymentId = response.razorpay_payment_id
+          paidRef.current = true
+          setPaid({ paymentId, phase: 'confirming' })
+
+          // Retries a dropped confirm, then watches for the booking the
+          // webhook writes on its own. Never throws, and never ends in Pay.
+          const outcome = await confirmPayment({
+            verify: () =>
+              verifyPayment({
+                intentId: order.intentId,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: paymentId,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            poll: async () => intentPollResult(await getBookingIntentStatus(order.intentId)),
+            ...realClock,
           })
-          // ?celebrate=1 triggers the success burst on arrival; the booking
-          // page strips it once played.
-          router.push(`/bookings/${bookingId}?celebrate=1`)
+
+          if (outcome.kind === 'booked') {
+            // ?celebrate=1 triggers the success burst on arrival; the booking
+            // page strips it once played.
+            router.push(`/bookings/${outcome.bookingId}?celebrate=1`)
+          } else if (outcome.kind === 'failed') {
+            setPaid({ paymentId, phase: 'failed', refundMessage: outcome.message })
+          } else {
+            setPaid({ paymentId, phase: 'unconfirmed' })
+          }
         },
         onDismiss: () => {
           toast.info('Payment cancelled. Nothing was booked.')
@@ -491,7 +534,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
   }
 
   return (
-    <AppShell className="gap-7 pb-[calc(8rem_+_env(safe-area-inset-bottom))] pt-0">
+    <AppShell
+      className={cn(
+        'gap-7 pt-0',
+        // The payment-received panel stands taller than the button it
+        // replaces, so the page leaves it more room to scroll clear of.
+        paid && paid.phase !== 'confirming'
+          ? 'pb-[calc(12rem_+_env(safe-area-inset-bottom))]'
+          : 'pb-[calc(8rem_+_env(safe-area-inset-bottom))]'
+      )}
+    >
       {/* Sticky, not fixed: it keeps its place in the flow so the content
           below needs no compensating offset. Full-bleed via -mx-4 against
           AppShell's px-4, and opaque so rows scroll under it cleanly. */}
@@ -959,55 +1011,91 @@ function BookContent({ vendorId }: { vendorId: string }) {
           the page's bottom padding above must clear, plus the iOS home
           indicator inset added to both. */}
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
-        <ScButton
-          // Disabled only while a payment is opening. Before that it is never
-          // a dead end: it names what is missing and tapping it goes there.
-          disabled={loading}
-          aria-describedby="checkout-cta-hint"
-          onClick={nextStep ? () => goToStep(nextStep) : handleConfirm}
-          className={cn(
-            'rounded-full py-4 text-[15px]',
-            // Graphite until the booking is ready, so red only ever means
-            // "this pays". The disabled red at 40% it replaces read as pink
-            // and broken rather than as "not yet".
-            nextStep &&
-              'bg-surface-elevated text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated',
-            loading && 'disabled:cursor-wait disabled:opacity-100'
-          )}
-        >
-          {loading
-            ? 'Processing payment...'
-            : nextStep
-              ? stepLabels[nextStep]
-              : payableAmount == null
-                ? 'Confirm booking'
-                : (
-                    <>
-                      Pay{' '}
-                      <span className="font-numeric font-bold">
-                        ₹{payableAmount.toLocaleString('en-IN')}
-                      </span>
-                    </>
-                  )}
-        </ScButton>
-        <p
-          id="checkout-cta-hint"
-          className="mt-2 text-center text-[11px] text-text-muted"
-        >
-          {nextStep === 'address'
-            ? addresses.length === 0
-              ? 'Add the address we should come to.'
-              : 'Pick the address we should come to.'
-            : nextStep === 'pin'
-              ? 'We need the exact spot to check this garage travels to you.'
-              : nextStep === 'unpriced'
-                ? `${unpricedLines
-                    .map((line) => line.service.name)
-                    .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
-                : // Paying sends the request; the garage's accept is what
-                  // confirms it, so the footer does not promise more.
-                  'You pay now. Your booking is confirmed once the garage accepts it.'}
+        {/* Says each step after payment out loud. On the page from the first
+            render and only its text changes: a live region that mounts with
+            its words already in it is usually not announced, and the Pay
+            button that had focus is gone by the time any of this happens. */}
+        <p role="status" className="sr-only">
+          {paid?.phase === 'confirming'
+            ? 'Payment received. Confirming your booking.'
+            : paid
+              ? paymentReceivedText(
+                  paid.paymentId,
+                  paid.phase === 'failed' ? paid.refundMessage : undefined
+                )
+              : ''}
         </p>
+        {paid && paid.phase !== 'confirming' ? (
+          // Paid, and no booking to show yet (or one that could not be
+          // made). Pay is gone from this screen for good.
+          <PaymentReceivedPanel
+            paymentId={paid.paymentId}
+            refundMessage={paid.phase === 'failed' ? paid.refundMessage : undefined}
+          />
+        ) : paid ? (
+          // Graphite with a spinner, not the red pill: red means "this pays",
+          // and a full-strength red button that does nothing gets tapped
+          // again and again on a phone, where nothing shows it is disabled.
+          <ScButton
+            disabled
+            className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-[15px] text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+          >
+            <IconLoader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+            Payment received — confirming your booking…
+          </ScButton>
+        ) : (
+          <>
+            <ScButton
+              // Disabled only while a payment is opening. Before that it is never
+              // a dead end: it names what is missing and tapping it goes there.
+              disabled={loading}
+              aria-describedby="checkout-cta-hint"
+              onClick={nextStep ? () => goToStep(nextStep) : handleConfirm}
+              className={cn(
+                'rounded-full py-4 text-[15px]',
+                // Graphite until the booking is ready, so red only ever means
+                // "this pays". The disabled red at 40% it replaces read as pink
+                // and broken rather than as "not yet".
+                nextStep &&
+                  'bg-surface-elevated text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated',
+                loading && 'disabled:cursor-wait disabled:opacity-100'
+              )}
+            >
+              {loading
+                ? 'Processing payment...'
+                : nextStep
+                  ? stepLabels[nextStep]
+                  : payableAmount == null
+                    ? 'Confirm booking'
+                    : (
+                        <>
+                          Pay{' '}
+                          <span className="font-numeric font-bold">
+                            ₹{payableAmount.toLocaleString('en-IN')}
+                          </span>
+                        </>
+                      )}
+            </ScButton>
+            <p
+              id="checkout-cta-hint"
+              className="mt-2 text-center text-[11px] text-text-muted"
+            >
+              {nextStep === 'address'
+                ? addresses.length === 0
+                  ? 'Add the address we should come to.'
+                  : 'Pick the address we should come to.'
+                : nextStep === 'pin'
+                  ? 'We need the exact spot to check this garage travels to you.'
+                  : nextStep === 'unpriced'
+                    ? `${unpricedLines
+                        .map((line) => line.service.name)
+                        .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
+                    : // Paying sends the request; the garage's accept is what
+                      // confirms it, so the footer does not promise more.
+                      'You pay now. Your booking is confirmed once the garage accepts it.'}
+            </p>
+          </>
+        )}
       </div>
     </AppShell>
   )

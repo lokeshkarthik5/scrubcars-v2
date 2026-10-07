@@ -20,6 +20,7 @@ import {
   sortLabel,
   type SortKey,
 } from '@repo/ui/sc/sort-sheet'
+import { ErrorState } from '@repo/ui/sc/empty-state'
 import { Toast } from '@repo/ui/sc/toast'
 import { VendorCard } from '@repo/ui/features/vendor-card'
 import { Reveal } from '@repo/ui/sc/reveal'
@@ -93,6 +94,8 @@ function HomeContent() {
     isLoading,
     isRefreshing,
     isFetchingMore,
+    isError,
+    retry,
     loadMore,
   } = useVendorSearch(
     {
@@ -282,6 +285,13 @@ function HomeContent() {
             <p className="py-8 text-center text-[13px] text-text-secondary">
               Finding garages…
             </p>
+          ) : isError ? (
+            // Not "No garages found": that is a fact about the area, and
+            // saying it when the request failed sends people away for good.
+            <ErrorState
+              message="Couldn't load garages. Check your connection."
+              onRetry={retry}
+            />
           ) : vendors.length === 0 ? (
             <p className="py-8 text-center text-[13px] text-text-secondary">
               {serviceMode === 'doorstep' && location

@@ -6,6 +6,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { env } from './lib/env.js'
 import { AppError } from './lib/errors.js'
 import { logger } from './lib/logger.js'
+import { initMonitoring, reportError } from './lib/monitoring.js'
 import { APP_VERSION } from './lib/version.js'
 import { globalRateLimiter } from './middleware/rate-limit.middleware.js'
 import { SUPPORT_SESSION_HEADER } from './middleware/tenant.middleware.js'
@@ -20,8 +21,12 @@ import { adminRoutes } from './modules/admin/admin.routes.js'
 import { opsRoutes } from './modules/ops/ops.routes.js'
 import { discountsRoutes } from './modules/discounts/discounts.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
+import { healthRoutes } from './modules/health/health.routes.js'
 
 console.log(`[BOOT] app.ts loading (v${APP_VERSION})`)
+
+// Crash reporting. Does nothing unless SENTRY_DSN is set.
+initMonitoring()
 
 export const app = new Hono()
 
@@ -73,8 +78,20 @@ app.onError((err, c) => {
     } else {
       logger.warn(ctx, err.message)
     }
+    // A refusal that is only about timing says when to come back, both as
+    // the standard header and in the body, where the apps can read it.
+    if (err.retryAfterSeconds !== undefined) {
+      c.header('Retry-After', String(err.retryAfterSeconds))
+    }
     return c.json(
-      { success: false, message: err.message, code: err.code },
+      {
+        success: false,
+        message: err.message,
+        code: err.code,
+        ...(err.retryAfterSeconds !== undefined
+          ? { retryAfterSeconds: err.retryAfterSeconds }
+          : {}),
+      },
       err.statusCode as ContentfulStatusCode
     )
   }
@@ -86,10 +103,16 @@ app.onError((err, c) => {
 
   if (err instanceof Error && err.name === 'TimeoutError') {
     logger.error({ err, method: c.req.method, path: c.req.path }, 'upstream timeout')
+    reportError(err, { method: c.req.method, path: c.req.path })
     return c.json({ success: false, message: 'Upstream service timed out', code: 'UPSTREAM_TIMEOUT' }, 504)
   }
 
   logger.error({ err, method: c.req.method, path: c.req.path }, 'unhandled error')
+  // Reported, like the timeout above, because nobody planned for it. An
+  // AppError (even a 5xx one, like the SMS provider refusing) is the API
+  // answering as designed and an HTTPException is a malformed request:
+  // reporting those would bury the real bugs.
+  reportError(err, { method: c.req.method, path: c.req.path })
   return c.json({ success: false, message: 'Internal server error' }, 500)
 })
 
@@ -106,6 +129,7 @@ app.route('/api/v1/discounts', discountsRoutes)
 app.route('/api/v1/geo', geoRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)
+app.route('/api/v1/health', healthRoutes)
 
 console.log('[BOOT] app.ts ready')
 

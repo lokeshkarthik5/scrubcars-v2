@@ -1,8 +1,10 @@
 /**
  * Direct database access for tests.
  *
- * Used for two things only:
+ * Used for three things only:
  *   - reading the OTP a login just wrote, since there is no test inbox
+ *   - forgetting a phone's earlier codes, so a spec may send it another (see
+ *     forgetOtps)
  *   - asserting persisted state the UI does not show (payment rows, redemption
  *     counts, cancelledBy, the reschedule chain)
  *
@@ -61,6 +63,20 @@ export async function latestOtp(phone: string, timeoutMs = 5000): Promise<string
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
 }
+
+/**
+ * Forgets every login code a phone has been sent, so a spec can send it
+ * another straight away.
+ *
+ * The API allows one code per phone every 30 seconds and five an hour
+ * (apps/server/src/lib/otp.ts), counted from these rows. Right for people; a
+ * wall for a suite that logs a fixture in during global setup and then again
+ * in a spec a few seconds later, or is re-run locally within the hour. Specs
+ * that test the limit itself call this first, for the opposite reason: to
+ * start from a clean count.
+ */
+export const forgetOtps = (phone: string) =>
+  sql`delete from otp_verifications where phone = ${phone}`
 
 export type BookingRow = {
   id: string

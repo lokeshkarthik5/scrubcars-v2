@@ -1,14 +1,20 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
+import { alertOps } from '../../lib/ops-alerts.js'
 import {
+  checkOtpSendLimit,
   generateOtpCode,
   getOtpExpiryDate,
+  getOtpSendWindowStart,
   getOtpVerifyWindowStart,
   MAX_OTP_VERIFY_ATTEMPTS,
   OTP_EXPIRY_SECONDS,
   OTP_VERIFY_WINDOW_MINUTES,
+  otpAttemptCap,
+  otpSendLimitMessage,
 } from '../../lib/otp.js'
-import { sendOtpSms } from '../../lib/sms.js'
+import { sendOtpSms, SmsSendError } from '../../lib/sms.js'
+import { createThrottle } from '../../lib/throttle.js'
 import {
   generateRefreshToken,
   getRefreshTokenExpiryDate,
@@ -130,6 +136,59 @@ async function listSessionVendors(
 async function canOpenVendorApp(user: UserRecord): Promise<boolean> {
   return (
     (await membersRepository.hasActiveVendorSeat(user.id)) || user.isVendorOwner
+  )
+}
+
+/**
+ * The per-phone send limits (lib/otp.ts), counted from the codes already in
+ * otp_verifications. Checked after the account rules, so a number with no
+ * account still hears "no account" rather than "wait".
+ */
+async function assertOtpSendAllowed(phone: string) {
+  const now = new Date()
+  const sent = await authRepository.listOtpSendTimes(phone, getOtpSendWindowStart(now))
+  const refusal = checkOtpSendLimit(
+    sent.map((row) => row.createdAt),
+    now
+  )
+
+  if (refusal) {
+    log.warn(
+      { phone: maskPhone(phone), reason: refusal.reason, retryAfterSeconds: refusal.retryAfterSeconds },
+      'otp:send_limited'
+    )
+    throw new AppError(429, otpSendLimitMessage(refusal.retryAfterSeconds), 'OTP_RATE_LIMITED', {
+      retryAfterSeconds: refusal.retryAfterSeconds,
+    })
+  }
+}
+
+// When the SMS provider is failing it fails for everyone, so the first
+// failure tells the team everything and the rest would only bury it.
+const SMS_ALERT_QUIET_MINUTES = 10
+const smsAlertDue = createThrottle(SMS_ALERT_QUIET_MINUTES * 60_000)
+
+/**
+ * The customer's half of an SMS failure. Their message says nothing about the
+ * provider — the apps add how to reach us — and the code stays
+ * SMS_SEND_FAILED so the apps can tell it from every other refusal.
+ */
+function smsFailed(phone: string, providerMessage: string): AppError {
+  log.error({ phone: maskPhone(phone), providerMessage }, 'otp:sms_failed')
+
+  if (smsAlertDue()) {
+    alertOps({
+      kind: 'sms_failed',
+      phone,
+      providerMessage,
+      quietMinutes: SMS_ALERT_QUIET_MINUTES,
+    })
+  }
+
+  return new AppError(
+    502,
+    "We couldn't send the code right now. Try again in a minute.",
+    'SMS_SEND_FAILED'
   )
 }
 
@@ -310,17 +369,34 @@ export const authService = {
       }
     }
 
+    await assertOtpSendAllowed(input.phone)
+
     const otpCode = generateOtpCode()
     const expiresAt = getOtpExpiryDate()
 
-    await authRepository.createOtpVerification({
+    const [otpRow] = await authRepository.createOtpVerification({
       phone: input.phone,
       otpCode,
       purpose: input.purpose,
       expiresAt,
     })
 
-    await sendOtpSms(input.phone, otpCode)
+    try {
+      await sendOtpSms(input.phone, otpCode)
+    } catch (err) {
+      if (!(err instanceof SmsSendError)) throw err
+      // A code the provider definitely refused is not one the customer used
+      // up: removing it keeps a provider outage from spending their sends for
+      // the hour. When we don't know — a timeout, a 5xx — the SMS may still
+      // arrive, so the code stays valid for them to type, and it stays
+      // counted, so a slow provider cannot be made to send this number a paid
+      // SMS on every request the per-IP limiter lets through.
+      if (err.delivered === 'no') {
+        await authRepository.deleteOtpVerification(otpRow.id)
+      }
+      throw smsFailed(input.phone, err.message)
+    }
+
     log.info({ phone: maskPhone(input.phone), purpose: input.purpose, audience: input.audience }, 'otp:sent')
 
     return {
@@ -364,13 +440,45 @@ export const authService = {
       throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP')
     }
 
+    // Every guess claims an attempt before it is compared — atomically, see
+    // claimOtpAttempt — so guesses sent in parallel all count, and the check
+    // above cannot be raced past. The right guess's attempt is handed back
+    // when the code is marked verified.
+    //
+    // The cap is worked out from the window's other codes only, read after
+    // this code was found. Those rows are history and cannot change under us;
+    // the total read above includes this code's own counter, which parallel
+    // guesses are moving, and a cap built from it would drift upwards.
+    const [{ value: otherAttempts }] = await authRepository.sumRecentOtpAttempts(
+      input.phone,
+      input.purpose,
+      windowStart,
+      otpRecord.id
+    )
+    const [claimed] = await authRepository.claimOtpAttempt(
+      otpRecord.id,
+      otpAttemptCap(Number(otherAttempts))
+    )
+
+    if (!claimed) {
+      log.warn({ phone: maskPhone(input.phone), purpose: input.purpose }, 'otp:rate_limit')
+      throw new AppError(
+        429,
+        `Too many OTP attempts. Try again in ${OTP_VERIFY_WINDOW_MINUTES} minutes.`,
+        'OTP_ATTEMPTS_EXCEEDED'
+      )
+    }
+
     if (otpRecord.otpCode !== input.otp) {
-      await authRepository.incrementOtpAttempts(otpRecord.id)
       log.warn({ phone: maskPhone(input.phone), purpose: input.purpose }, 'otp:invalid')
       throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP')
     }
 
-    await authRepository.markOtpVerified(otpRecord.id)
+    // Empty when a simultaneous request with the same code got there first.
+    const [used] = await authRepository.markOtpVerified(otpRecord.id)
+    if (!used) {
+      throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP')
+    }
 
     const user = await resolveUserAfterVerification(input)
     log.info({ userId: user.id, phone: maskPhone(input.phone), audience: input.audience, purpose: input.purpose }, 'otp:verified')

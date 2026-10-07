@@ -67,6 +67,41 @@ test.describe('payment @p0', () => {
     expect(await countRedemptions(created.id)).toBe(1)
   })
 
+  test('a confirm lost to the network is retried, and Pay is never offered again', async ({ page }) => {
+    const before = await countBookingsForUser(CUSTOMERS.book.id)
+
+    // The first confirm dies on the way, as on a train going into a tunnel;
+    // the retry a second later gets through.
+    let verifyCalls = 0
+    await page.route('**/api/v1/payments/verify', async (route) => {
+      verifyCalls++
+      if (verifyCalls === 1) return route.abort('failed')
+      return route.fallback()
+    })
+
+    const checkout = new CheckoutPage(page)
+    await checkout.goto(VENDORS.main.id, [SERVICES.wash.id])
+    await checkout.pickTomorrowSlot()
+    // Not the Swift: the first test books it at this same first slot, and a
+    // car cannot be in two bookings at once.
+    await checkout.pickVehicle(/Honda City/)
+    await checkout.pay()
+
+    // The money is taken, so the button says so and cannot be pressed.
+    await expect(checkout.cta()).toHaveText('Payment received — confirming your booking…')
+    await expect(checkout.cta()).toBeDisabled()
+
+    await page.waitForURL(/\/bookings\/[0-9a-f-]+/)
+    expect(verifyCalls).toBe(2)
+    // One sheet, one booking: the customer was never asked to pay twice.
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __e2ePayment: { openCount: number } }).__e2ePayment.openCount
+      )
+    ).toBe(1)
+    expect(await countBookingsForUser(CUSTOMERS.book.id)).toBe(before + 1)
+  })
+
   test('dismissing the sheet books nothing at all', async ({ page }) => {
     const before = await countBookingsForUser(CUSTOMERS.book.id)
 

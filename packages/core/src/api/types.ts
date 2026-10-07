@@ -8,6 +8,8 @@ export interface ApiErrorResponse {
   success: false
   message: string
   code?: string
+  /** On a refusal that is only about timing: seconds until a retry can work. */
+  retryAfterSeconds?: number
 }
 
 export type AuthAudience = 'customer' | 'vendor'

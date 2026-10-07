@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { ApiError, apiClient } from './client'
 import type {
   ApiAuthVendor,
   ApiSessionData,
@@ -29,43 +29,55 @@ export interface AuthResult {
   isNewUser: boolean
 }
 
-async function sendOtpRequest(options: SendOtpOptions): Promise<OtpPurpose> {
-  const purpose =
-    options.purpose ??
-    (options.audience === 'vendor' ? 'login' : 'login')
+/** What a send settled on, and how long the code it sent stays good. */
+export interface SentOtp {
+  purpose: OtpPurpose
+  /** From the server, so the screen counts down to the code's real expiry. */
+  expiresInSeconds: number
+}
+
+/**
+ * The refusals that mean "this number has no account of that kind yet", and
+ * so are a sign-up rather than a failure. Anything else — the per-phone send
+ * limit, the SMS provider being down, a suspended account — is the answer and
+ * must reach the customer as it is. Falling back on every error used to turn
+ * a rate limit into "already registered" from the second request.
+ */
+const SIGN_UP_CODES = new Set(['USER_NOT_FOUND', 'NOT_A_VENDOR'])
+
+async function postSendOtp(
+  phone: string,
+  purpose: OtpPurpose,
+  audience: AuthAudience
+): Promise<SentOtp> {
+  const data = await apiClient<{ expiresInSeconds: number }>('/auth/otp/send', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ phone, purpose, audience }),
+  })
+  return { purpose, expiresInSeconds: data.expiresInSeconds }
+}
+
+async function sendOtpRequest(options: SendOtpOptions): Promise<SentOtp> {
+  if (options.purpose) {
+    return postSendOtp(options.phone, options.purpose, options.audience)
+  }
 
   try {
-    await apiClient('/auth/otp/send', {
-      method: 'POST',
-      auth: false,
-      body: JSON.stringify({
-        phone: options.phone,
-        purpose,
-        audience: options.audience,
-      }),
-    })
-    return purpose
+    return await postSendOtp(options.phone, 'login', options.audience)
   } catch (error) {
-    if (options.purpose) throw error
+    if (!(error instanceof ApiError) || !SIGN_UP_CODES.has(error.code ?? '')) {
+      throw error
+    }
 
     const fallbackPurpose: OtpPurpose =
       options.audience === 'vendor' ? 'vendor_onboard' : 'register'
-
-    await apiClient('/auth/otp/send', {
-      method: 'POST',
-      auth: false,
-      body: JSON.stringify({
-        phone: options.phone,
-        purpose: fallbackPurpose,
-        audience: options.audience,
-      }),
-    })
-    return fallbackPurpose
+    return postSendOtp(options.phone, fallbackPurpose, options.audience)
   }
 }
 
 /** POST /auth/otp/send */
-export async function sendOtp(options: SendOtpOptions): Promise<OtpPurpose> {
+export async function sendOtp(options: SendOtpOptions): Promise<SentOtp> {
   return sendOtpRequest(options)
 }
 
@@ -96,8 +108,8 @@ export async function resendOtp(
   phone: string,
   audience: AuthAudience,
   purpose: OtpPurpose
-): Promise<void> {
-  await sendOtpRequest({ phone, audience, purpose })
+): Promise<SentOtp> {
+  return sendOtpRequest({ phone, audience, purpose })
 }
 
 /** POST /auth/refresh */

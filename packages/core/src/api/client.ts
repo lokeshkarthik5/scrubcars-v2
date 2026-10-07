@@ -82,7 +82,9 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
-    public code?: string
+    public code?: string,
+    /** Seconds until the same request can succeed, when the server says. */
+    public retryAfterSeconds?: number
   ) {
     super(message)
     this.name = 'ApiError'
@@ -99,7 +101,8 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(
     response.status,
     body?.message ?? response.statusText,
-    body?.code
+    body?.code,
+    typeof body?.retryAfterSeconds === 'number' ? body.retryAfterSeconds : undefined
   )
 }
 
