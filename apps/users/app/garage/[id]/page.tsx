@@ -38,7 +38,10 @@ import {
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time'
-import { useVendorWorkingHours } from '@repo/core/api/hooks/use-slots'
+import {
+  useVendorClosures,
+  useVendorWorkingHours,
+} from '@repo/core/api/hooks/use-slots'
 import type {
   BookingType,
   Review,
@@ -285,6 +288,8 @@ export default function GaragePage({
   // The same query checkout's slot picker uses to grey out closed days, so
   // the hours read here are already cached by the time Book Now is tapped.
   const workingHours = useVendorWorkingHours(id)
+  // Likewise its holidays: "Closed today" here, greyed days at checkout.
+  const closures = useVendorClosures(id)
 
   if (!vendor) {
     return (
@@ -328,9 +333,15 @@ export default function GaragePage({
   const hero = vendor.photos[0] ?? null
   const hasDistance = /\d/.test(vendor.distance)
   const bothModes = vendor.dropinEnabled && vendor.doorstepEnabled
+  // A paused garage's page still loads — someone may have it saved, or be
+  // checking on it — but nothing on it can be added to a booking, and the bar
+  // where Book Now would be says why.
+  const paused = vendor.bookingsPaused
 
   return (
-    <AppShell className={cn('px-0', selected.length > 0 ? 'pb-28' : 'pb-6')}>
+    <AppShell
+      className={cn('px-0', selected.length > 0 || paused ? 'pb-28' : 'pb-6')}
+    >
       {/* Hero — full-bleed cover with the back/favourite controls floated on top. */}
       <div className="relative h-[210px] w-full shrink-0 bg-surface-elevated">
         {hero ? (
@@ -389,7 +400,7 @@ export default function GaragePage({
           {/* From the garage's hours, read in IST — never from the account
               status, which is "active" at 2 AM too. Absent until the hours
               arrive, and for good if the garage has not set any. */}
-          <OpenStatus hours={workingHours.data} />
+          <OpenStatus hours={workingHours.data} closures={closures.data} />
         </div>
 
         {/* Score, distance and drive time are figures, in the brand's numeric
@@ -593,11 +604,13 @@ export default function GaragePage({
                             {formatDuration(pkg.durationMins)}
                           </span>
                         </span>
-                        <AddToBookingButton
-                          name={pkg.name}
-                          added={added}
-                          onToggle={() => toggle(pkg.id)}
-                        />
+                        {!paused && (
+                          <AddToBookingButton
+                            name={pkg.name}
+                            added={added}
+                            onToggle={() => toggle(pkg.id)}
+                          />
+                        )}
                       </div>
                     </ScCard>
                     </Reveal>
@@ -659,11 +672,13 @@ export default function GaragePage({
                           {formatDuration(svc.durationMins)}
                         </span>
                       </span>
-                      <AddToBookingButton
-                        name={svc.name}
-                        added={added}
-                        onToggle={() => toggle(svc.id)}
-                      />
+                      {!paused && (
+                        <AddToBookingButton
+                          name={svc.name}
+                          added={added}
+                          onToggle={() => toggle(svc.id)}
+                        />
+                      )}
                     </div>
                   </ScCard>
                   </Reveal>
@@ -738,7 +753,24 @@ export default function GaragePage({
           several services it carries the running count, total and combined
           time, because the time is what decides whether the booking will fit
           a slot at all. */}
-      {selectedServices.length > 0 && (
+      {paused ? (
+        // Where Book Now would be. Plain and specific: the garage has stopped
+        // taking bookings for now, in its own words when it gave any — not
+        // "unavailable", which reads like our fault, and no promise of when.
+        <div
+          role="status"
+          className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 py-3"
+        >
+          <p className="text-[15px] font-semibold text-text-primary">
+            Not taking bookings right now
+          </p>
+          <p className="mt-0.5 text-[13px] text-text-secondary">
+            {vendor.bookingsPausedReason
+              ? vendor.bookingsPausedReason
+              : 'This garage has paused new bookings. Check back later, or pick another garage.'}
+          </p>
+        </div>
+      ) : selectedServices.length > 0 && (
         <div className="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[428px] -translate-x-1/2 items-center gap-3 border-t border-border bg-brand-black px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] text-text-secondary">
@@ -924,19 +956,22 @@ export default function GaragePage({
             </div>
 
             {/* Red only while it adds: removing is the quieter action, the
-                same way the card's Added state is. */}
-            <ScButton
-              className="mt-5"
-              variant={selected.includes(details.id) ? 'secondary' : 'primary'}
-              onClick={() => {
-                toggle(details.id)
-                setDetailsOpen(false)
-              }}
-            >
-              {selected.includes(details.id)
-                ? 'Remove from booking'
-                : 'Add to booking'}
-            </ScButton>
+                same way the card's Added state is. Absent while the garage
+                is paused, like the card's own Add. */}
+            {!paused && (
+              <ScButton
+                className="mt-5"
+                variant={selected.includes(details.id) ? 'secondary' : 'primary'}
+                onClick={() => {
+                  toggle(details.id)
+                  setDetailsOpen(false)
+                }}
+              >
+                {selected.includes(details.id)
+                  ? 'Remove from booking'
+                  : 'Add to booking'}
+              </ScButton>
+            )}
           </>
         )}
       </ScSheet>

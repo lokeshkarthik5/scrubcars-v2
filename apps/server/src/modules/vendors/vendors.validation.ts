@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isCalendarDate } from '../../lib/booking-ops.js'
 import type { ServicePricingType } from '../../lib/pricing.js'
 
 const phoneSchema = z
@@ -9,6 +10,13 @@ const timeSchema = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/)
 
 export const vendorIdParamSchema = z.object({
   id: z.string().uuid(),
+})
+
+// A vendor and one of the customer's bookings there, for the reschedule
+// sheet's slot list.
+export const rescheduleSlotsParamSchema = z.object({
+  id: z.string().uuid(),
+  bookingId: z.string().uuid(),
 })
 
 export const resourceIdParamSchema = z.object({
@@ -69,8 +77,12 @@ const vendorProfileFields = {
   mapsUrl: z.string().trim().url().max(2048).optional(),
   pickup: pickupSchema.optional(),
   pickupRadiusKm: z.number().positive().optional(),
-  bays: z.number().int().min(0).optional(),
-  jobsPerDay: z.number().int().min(0).optional(),
+  // How many cars the garage can work on at once. The slot list and checkout
+  // both read it, so a garage claiming 0 would be a garage nobody can book —
+  // 1 is the floor, and 20 is past any single site we have seen.
+  bays: z.number().int().min(1).max(20).optional(),
+  // The most jobs in one day. Null clears it: no cap beyond the bays.
+  jobsPerDay: z.number().int().min(1).max(500).nullable().optional(),
   vehicleTypes: vehicleTypesSchema.optional(),
   notes: z.string().trim().max(5000).optional(),
 }
@@ -111,6 +123,10 @@ export const updateJobTypesSchema = z
   .object({
     dropinEnabled: z.boolean().optional(),
     doorstepEnabled: z.boolean().optional(),
+    // Sent with doorstepEnabled when the owner says how far they go in the
+    // same breath (onboarding does), so the two land together. A garage that
+    // goes to customers but nowhere in particular would match no address.
+    doorstepRadiusKm: z.number().min(1).max(30).optional(),
   })
   .refine((data) => data.dropinEnabled !== undefined || data.doorstepEnabled !== undefined, {
     message: 'At least one of dropinEnabled or doorstepEnabled must be provided',
@@ -464,6 +480,28 @@ export const updatePackageSchema = z
     }
     refinePricing(data, ctx)
   })
+
+// ─── Holidays and pausing ─────────────────────────────────────────────────────
+
+// A real calendar day, so "2026-02-30" is a 400 rather than an Invalid Date.
+// The window (today to a year ahead) is checked in the service, against the
+// clock, by closureDateProblem.
+export const createClosureSchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD')
+    .refine(isCalendarDate, 'That date does not exist'),
+  reason: z.string().trim().max(200).optional(),
+})
+
+// The reason is optional and public: the garage page shows it under "Not
+// taking bookings right now".
+export const pauseBookingsSchema = z.object({
+  reason: z.string().trim().max(200).optional(),
+})
+
+export type CreateClosureInput = z.infer<typeof createClosureSchema>
+export type PauseBookingsInput = z.infer<typeof pauseBookingsSchema>
 
 export type CreateVendorInput = z.infer<typeof createVendorSchema>
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>

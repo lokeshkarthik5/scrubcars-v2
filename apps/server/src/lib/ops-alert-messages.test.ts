@@ -148,6 +148,16 @@ describe('formatOpsAlert', () => {
     expect(text).toContain('Why: that car already had a booking at that time')
   })
 
+  test('a garage that filled up, closed or paused mid-payment is said in words', () => {
+    const why = (reason: string) =>
+      formatOpsAlert({ kind: 'paid_no_booking', paymentId: 'pay_X', reason })
+    expect(why('slot_full')).toContain(
+      'Why: the garage was booked up at that time before the payment went through'
+    )
+    expect(why('garage_closed')).toContain('Why: the garage marked that day as a holiday')
+    expect(why('garage_paused')).toContain('Why: the garage paused new bookings')
+  })
+
   test('missing facts read as unknown rather than breaking the message', () => {
     const text = formatOpsAlert({
       kind: 'booking_paid',

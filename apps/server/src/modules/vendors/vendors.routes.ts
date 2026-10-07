@@ -1,6 +1,9 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { authMiddleware } from '../../middleware/auth.middleware.js'
+import {
+  authMiddleware,
+  requireCustomer,
+} from '../../middleware/auth.middleware.js'
 import {
   requireVendorRole,
   resolveTenant,
@@ -9,6 +12,7 @@ import {
 import { membersRoutes } from '../members/members.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
+  createClosureSchema,
   createPhotoSchema,
   createPackageSchema,
   createServiceAreaSchema,
@@ -18,12 +22,14 @@ import {
   earningsQuerySchema,
   listPublicVendorsQuerySchema,
   logoUploadUrlSchema,
+  pauseBookingsSchema,
   photoUploadUrlSchema,
   reorderPhotosSchema,
   serviceImageParamSchema,
   serviceImageUploadUrlSchema,
   setLogoSchema,
   resourceIdParamSchema,
+  rescheduleSlotsParamSchema,
   setWorkingHoursSchema,
   slotsQuerySchema,
   toggleServiceActiveSchema,
@@ -119,6 +125,37 @@ vendorsRoutes.put(
   ...tenantMiddleware,
   zValidator('json', setWorkingHoursSchema),
   (c) => vendorsController.setWorkingHours(c, c.req.valid('json'))
+)
+
+// Holidays and pausing. Admin-only like every other setting: either one
+// changes what customers can book, which is an owner's call.
+vendorsRoutes.get(
+  '/me/closures',
+  ...tenantMiddleware,
+  vendorsController.listMyClosures
+)
+vendorsRoutes.post(
+  '/me/closures',
+  ...tenantMiddleware,
+  zValidator('json', createClosureSchema),
+  (c) => vendorsController.addClosure(c, c.req.valid('json'))
+)
+vendorsRoutes.delete(
+  '/me/closures/:id',
+  ...tenantMiddleware,
+  zValidator('param', resourceIdParamSchema),
+  (c) => vendorsController.removeClosure(c, c.req.valid('param').id)
+)
+vendorsRoutes.post(
+  '/me/pause',
+  ...tenantMiddleware,
+  zValidator('json', pauseBookingsSchema),
+  (c) => vendorsController.pauseBookings(c, c.req.valid('json'))
+)
+vendorsRoutes.post(
+  '/me/resume',
+  ...tenantMiddleware,
+  vendorsController.resumeBookings
 )
 
 // Drawn doorstep coverage. Overrides doorstepRadiusKm when set, because real
@@ -319,6 +356,23 @@ vendorsRoutes.get(
       c.req.valid('query')
     )
 )
+// The same list for moving a booking the customer already has, which must
+// not count against itself. Signed in, because it names a booking: the
+// service answers 404 unless it is the caller's own, at this garage.
+vendorsRoutes.get(
+  '/:id/slots/reschedule/:bookingId',
+  authMiddleware,
+  requireCustomer,
+  zValidator('query', slotsQuerySchema),
+  zValidator('param', rescheduleSlotsParamSchema),
+  (c) =>
+    vendorsController.getRescheduleSlots(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').bookingId,
+      c.req.valid('query')
+    )
+)
 vendorsRoutes.get(
   '/:id/services',
   zValidator('param', vendorIdParamSchema),
@@ -333,6 +387,14 @@ vendorsRoutes.get(
   '/:id/working-hours',
   zValidator('param', vendorIdParamSchema),
   (c) => vendorsController.getPublicWorkingHours(c, c.req.valid('param').id)
+)
+// Upcoming holidays, so the customer's picker greys them out up front. A
+// sibling of working-hours rather than a field on it: that one is an array
+// every client already reads as-is.
+vendorsRoutes.get(
+  '/:id/closures',
+  zValidator('param', vendorIdParamSchema),
+  (c) => vendorsController.getPublicClosures(c, c.req.valid('param').id)
 )
 vendorsRoutes.get('/:id', zValidator('param', vendorIdParamSchema), (c) =>
   vendorsController.getPublicVendor(c, c.req.valid('param').id)

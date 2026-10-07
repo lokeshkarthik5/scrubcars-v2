@@ -19,6 +19,8 @@ export interface AdminVendor {
   geoSource: 'unset' | 'gps' | 'map_pin' | 'geocoded' | 'admin'
   geoConfirmedAt: string | null
   status: string
+  /** Set while the garage takes no new bookings. */
+  bookingsPausedAt?: string | null
   createdAt: string
   serviceCount: number
   owner: {
@@ -63,18 +65,18 @@ export interface AdminVendorDetail {
   notes: string | null
   isVerified: boolean
   status: string
+  /** When the garage paused new bookings, and why. Null while it takes them. */
+  bookingsPausedAt: string | null
+  bookingsPausedReason: string | null
   createdAt: string
   owner: {
     id: string
     name: string
     phone: string
   } | null
-  workingHours: Array<{
-    dayOfWeek: number
-    openTime: string
-    closeTime: string
-    isClosed: boolean
-  }>
+  workingHours: AdminWorkingDay[]
+  /** Holidays from today on, soonest first. */
+  closures: Array<{ id: string; date: string; reason: string | null }>
   photos: AdminPhoto[]
   services: Array<{
     id: string
@@ -89,6 +91,14 @@ export interface AdminVendorDetail {
     durationMins: number
     images: AdminPhoto[]
   }>
+}
+
+/** One day of a garage's week, as stored. */
+export interface AdminWorkingDay {
+  dayOfWeek: number
+  openTime: string
+  closeTime: string
+  isClosed: boolean
 }
 
 /** A service in an admin vendor update: `id` present = edit, absent = create. */
@@ -135,6 +145,15 @@ export interface UpdateVendorInput {
   bays?: number | null
   jobsPerDay?: number | null
   vehicleTypes?: string[]
+  /**
+   * Per-day hours, set exactly as given. Send only when the admin changed the
+   * schedule: leaving it out keeps the garage's hours as they are.
+   */
+  workingHours?: AdminWorkingDay[]
+  /**
+   * Older shape: one schedule for every open day, which rewrites the whole
+   * week. Prefer `workingHours`.
+   */
   workingDays?: number[]
   openTime?: string
   closeTime?: string
@@ -401,7 +420,25 @@ export async function unarchiveAdminVendor(id: string) {
   })
 }
 
-/** DELETE /admin/vendors/:id — permanent hard delete */
+/** POST /admin/vendors/:id/pause — stop new bookings on the garage's behalf */
+export async function pauseAdminVendor(id: string, reason?: string) {
+  return apiClient<AdminVendor>(`/admin/vendors/${id}/pause`, {
+    method: 'POST',
+    body: JSON.stringify(reason ? { reason } : {}),
+  })
+}
+
+/** POST /admin/vendors/:id/resume */
+export async function resumeAdminVendor(id: string) {
+  return apiClient<AdminVendor>(`/admin/vendors/${id}/resume`, {
+    method: 'POST',
+  })
+}
+
+/**
+ * DELETE /admin/vendors/:id — permanent hard delete. Refused (409
+ * VENDOR_HAS_BOOKINGS) for a garage that has ever been booked; archive it.
+ */
 export async function deleteAdminVendor(id: string) {
   return apiClient<void>(`/admin/vendors/${id}`, {
     method: 'DELETE',

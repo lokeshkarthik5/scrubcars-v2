@@ -491,6 +491,7 @@ function MapVendorCard({
             nothing shows when the list did not carry them. */}
         <OpenStatus
           hours={vendor.openingHours}
+          closures={vendor.closures}
           variant="overlay"
           className={cn(
             'absolute left-2 top-2',

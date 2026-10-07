@@ -32,6 +32,7 @@ import {
   userMemberMapping,
   userVehicles,
   users,
+  vendorClosures,
   vendorPhotos,
   vendorServiceAreas,
   vendorWorkingHours,
@@ -89,6 +90,12 @@ const anHourAgo = () => new Date(now.getTime() - 1 * HOUR)
 const twoHoursAgo = () => new Date(now.getTime() - 2 * HOUR)
 
 const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * HOUR)
+
+/** An IST calendar date some days from now, as vendor_closures stores it. */
+const istDate = (offsetDays: number) =>
+  new Date(now.getTime() + offsetDays * 24 * HOUR).toLocaleDateString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+  })
 
 // ─── people ─────────────────────────────────────────────────────────────────
 
@@ -150,7 +157,9 @@ async function seedPeople() {
         CUSTOMERS.vendorLate,
         CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.doorstep,
         CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove, CUSTOMERS.adminOps,
-        CUSTOMERS.intents, CUSTOMERS.intentsStranger, CUSTOMERS.pilotStats].map((c, i) => ({
+        CUSTOMERS.intents, CUSTOMERS.intentsStranger, CUSTOMERS.pilotStats,
+        CUSTOMERS.capacityHolder, CUSTOMERS.scheduling,
+        CUSTOMERS.raceFirst, CUSTOMERS.raceSecond, CUSTOMERS.payLaterFull].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -201,7 +210,11 @@ async function seedVendorRows() {
       // Both modes on, so the Drop In / Doorstep toggle actually renders. A
       // vendor with one mode hides it entirely, which is its own test case.
       isVerified: true, doorstepEnabled: true, dropinEnabled: true,
-      slotIntervalMins: 30, status: 'active', bays: 2, jobsPerDay: 10,
+      // Room to spare on purpose. Many specs book tomorrow's first free slot
+      // here, and a dozen fixture bookings sit on tomorrow already: with a
+      // realistic bay count, the third spec to pick 06:00 would find it full.
+      // Capacity itself is tried on CAPACITY, which has one bay.
+      slotIntervalMins: 30, status: 'active', bays: 50, jobsPerDay: null,
       doorstepRadiusKm: 15,
     },
     {
@@ -220,6 +233,29 @@ async function seedVendorRows() {
       isVerified: true, doorstepEnabled: false, dropinEnabled: true,
       slotIntervalMins: 30, status: 'active',
     },
+    // The scheduling garages. Spread south-west, well past every filler, so
+    // they never come between MAIN and the fillers in a distance sort.
+    ...[
+      { id: VENDORS.capacity.id, name: VENDORS.capacity.name, ownerId: STAFF.scheduleOwner.id,
+        bays: 1 },
+      { id: VENDORS.holiday.id, name: VENDORS.holiday.name, ownerId: STAFF.scheduleOwner.id },
+      { id: VENDORS.paused.id, name: VENDORS.paused.name, ownerId: STAFF.scheduleOwner.id,
+        bookingsPausedAt: daysAgo(1), bookingsPausedReason: 'Closed for renovation' },
+      { id: VENDORS.timeOff.id, name: VENDORS.timeOff.name, ownerId: STAFF.scheduleOwner.id },
+      { id: VENDORS.opsEdit.id, name: VENDORS.opsEdit.name, ownerId: STAFF.narrowOwner.id },
+      { id: VENDORS.lastBay.id, name: VENDORS.lastBay.name, ownerId: STAFF.scheduleOwner.id,
+        bays: 1 },
+    ].map(({ name, ...garage }, i) => ({
+      ...garage,
+      businessName: name,
+      phone: `900003${String(i).padStart(4, '0')}`,
+      address: `${i + 1}, Schedule Street, Tambaram`, city: 'Chennai', pincode: '600045',
+      lat: ORIGIN.lat - 0.25 - i * 0.01, lng: ORIGIN.lng - 0.15,
+      geoSource: 'map_pin' as const, geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active' as const,
+    })),
     // Volume for listing, sorting and infinite scroll. Spread north-east so
     // distance ordering from ORIGIN is strictly increasing and therefore
     // assertable.
@@ -245,7 +281,20 @@ async function seedVendorRows() {
     ...hoursFor(VENDORS.narrow.id, '09:00:00', '11:00:00'),
     ...Array.from({ length: FILLER_VENDOR_COUNT }, (_, i) =>
       hoursFor(fillerVendorId(i), '09:00:00', '18:00:00')).flat(),
+    // As wide as MAIN's, so tomorrow at 10:00 is a real slot whenever the
+    // suite runs.
+    ...[VENDORS.capacity, VENDORS.holiday, VENDORS.paused, VENDORS.timeOff, VENDORS.lastBay]
+      .flatMap((v) => hoursFor(v.id, '06:00:00', '22:00:00')),
+    // Saturday ends at 13:00; the admin spec checks a save leaves it there.
+    ...hoursFor(VENDORS.opsEdit.id, '09:00:00', '18:00:00').map((day) =>
+      day.dayOfWeek === 6 ? { ...day, closeTime: '13:00:00' } : day),
   ])
+
+  // Tomorrow is a holiday at HOLIDAY, so a day its weekly hours call open
+  // offers nothing and refuses checkout.
+  await db.insert(vendorClosures).values({
+    vendorId: VENDORS.holiday.id, date: istDate(1), reason: 'Family function',
+  })
 
   await db.insert(vendorServiceAreas).values([
     { vendorId: VENDORS.main.id, areaName: 'Adyar', pincode: '600020' },
@@ -309,6 +358,18 @@ async function seedServiceRows() {
       category: 'detailing', pricingType: 'flat', price: SERVICES.narrowB.price,
       durationMins: SERVICES.narrowB.durationMins, isActive: true },
 
+    ...[
+      { service: SERVICES.capacityWash, vendorId: VENDORS.capacity.id },
+      { service: SERVICES.holidayWash, vendorId: VENDORS.holiday.id },
+      { service: SERVICES.pausedWash, vendorId: VENDORS.paused.id },
+      { service: SERVICES.timeOffWash, vendorId: VENDORS.timeOff.id },
+      { service: SERVICES.lastBayWash, vendorId: VENDORS.lastBay.id },
+    ].map(({ service, vendorId }) => ({
+      id: service.id, vendorId, name: service.name, category: 'car_wash' as const,
+      pricingType: 'flat' as const, price: service.price,
+      durationMins: service.durationMins, isActive: true,
+    })),
+
     // One service per filler garage, so they are bookable and not just names.
     ...Array.from({ length: FILLER_VENDOR_COUNT }, (_, i) => ({
       vendorId: fillerVendorId(i), name: 'Standard Wash', category: 'car_wash' as const,
@@ -332,6 +393,11 @@ async function seedMembership() {
     // An operator on MAIN only. The nav must hide earnings/services/settings
     // for this role, and direct navigation must be refused.
     { vendorId: VENDORS.main.id, userId: STAFF.operator.id, role: 'vendor_operator', status: 'active' },
+    ...[VENDORS.capacity, VENDORS.holiday, VENDORS.paused, VENDORS.timeOff, VENDORS.lastBay].map((v) => ({
+      vendorId: v.id, userId: STAFF.scheduleOwner.id, role: 'vendor_admin' as const,
+      status: 'active' as const,
+    })),
+    { vendorId: VENDORS.opsEdit.id, userId: STAFF.narrowOwner.id, role: 'vendor_admin', status: 'active' },
     // Platform scope: the CHECK constraint requires vendorId to be null here.
     { vendorId: null, userId: STAFF.superAdmin.id, role: 'super_admin', status: 'active' },
   ])
@@ -576,6 +642,24 @@ async function seedBookingRows() {
     items: [{ id: SERVICES.secondOnly.id, name: SERVICES.secondOnly.name,
       amount: SERVICES.secondOnly.price, durationMins: SERVICES.secondOnly.durationMins }],
     payment: { status: 'paid', txnId: 'pay_seed_second' } })
+
+  // The one job in CAPACITY's only bay tomorrow: 10:00–10:30. Paid, because
+  // only paid bookings hold capacity — the same ones the garage can see.
+  await insertBooking({ id: BOOKINGS.capacityHeld, userId: CUSTOMERS.capacityHolder.id,
+    vehicleId: CUSTOMERS.capacityHolder.vehicleId, vendorId: VENDORS.capacity.id,
+    scheduledAt: tomorrowAt(10), status: 'confirmed',
+    items: [{ id: SERVICES.capacityWash.id, name: SERVICES.capacityWash.name,
+      amount: SERVICES.capacityWash.price, durationMins: SERVICES.capacityWash.durationMins }],
+    payment: { status: 'paid', txnId: 'pay_seed_capacity_held' } })
+
+  // Booked the old way, unpaid, at the time capacityHeld fills. Holds nothing
+  // while unpaid — which is why paying for it has to be checked.
+  await insertBooking({ id: BOOKINGS.payLaterFull, userId: CUSTOMERS.payLaterFull.id,
+    vehicleId: CUSTOMERS.payLaterFull.vehicleId, vendorId: VENDORS.capacity.id,
+    scheduledAt: tomorrowAt(10), status: 'pending',
+    items: [{ id: SERVICES.capacityWash.id, name: SERVICES.capacityWash.name,
+      amount: SERVICES.capacityWash.price, durationMins: SERVICES.capacityWash.durationMins }],
+    payment: { status: 'pending' } })
 
   // Admin booking ops. One customer for the lot, since one spec file drives
   // them all in order; each booking has a reference of its own so the search

@@ -5,6 +5,7 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import { vendorsService } from './vendors.service.js'
 import type {
+  CreateClosureInput,
   CreatePhotoInput,
   CreatePackageInput,
   DoorstepAreaInput,
@@ -14,6 +15,7 @@ import type {
   CreateVendorInput,
   ListPublicVendorsQuery,
   LogoUploadUrlInput,
+  PauseBookingsInput,
   PhotoUploadUrlInput,
   ReorderPhotosInput,
   ServiceImageUploadUrlInput,
@@ -165,6 +167,66 @@ export async function setDoorstepArea(
   return c.json({
     success: true,
     data: area,
+  })
+}
+
+export async function listMyClosures(c: VendorsContext) {
+  const closures = await vendorsService.listMyClosures(getVendorId(c))
+
+  return c.json({
+    success: true,
+    data: closures,
+  })
+}
+
+export async function addClosure(c: VendorsContext, input: CreateClosureInput) {
+  const result = await vendorsService.addClosure(getVendorId(c), input)
+
+  return c.json(
+    {
+      success: true,
+      data: result,
+    },
+    201
+  )
+}
+
+export async function removeClosure(c: VendorsContext, closureId: string) {
+  const closure = await vendorsService.removeClosure(getVendorId(c), closureId)
+
+  return c.json({
+    success: true,
+    data: closure,
+  })
+}
+
+export async function pauseBookings(
+  c: VendorsContext,
+  input: PauseBookingsInput
+) {
+  const vendor = await vendorsService.pauseBookings(getVendorId(c), input)
+
+  return c.json({
+    success: true,
+    data: vendor,
+  })
+}
+
+export async function resumeBookings(c: VendorsContext) {
+  const vendor = await vendorsService.resumeBookings(getVendorId(c))
+
+  return c.json({
+    success: true,
+    data: vendor,
+  })
+}
+
+export async function getPublicClosures(c: VendorsContext, vendorId: string) {
+  const closures = await vendorsService.getPublicClosures(vendorId)
+
+  return c.json({
+    success: true,
+    data: closures,
   })
 }
 
@@ -421,6 +483,25 @@ export async function getAvailableSlots(
   query: SlotsQueryInput
 ) {
   const slots = await vendorsService.getAvailableSlots(vendorId, query)
+
+  return c.json({
+    success: true,
+    data: slots,
+  })
+}
+
+export async function getRescheduleSlots(
+  c: VendorsContext,
+  vendorId: string,
+  bookingId: string,
+  query: SlotsQueryInput
+) {
+  const slots = await vendorsService.getRescheduleSlots(
+    getActorId(c),
+    vendorId,
+    bookingId,
+    query
+  )
 
   return c.json({
     success: true,

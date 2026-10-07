@@ -2,6 +2,7 @@ import { relations, sql } from 'drizzle-orm'
 import {
   boolean,
   check,
+  date,
   decimal,
   doublePrecision,
   index,
@@ -356,6 +357,13 @@ export const vendors = pgTable(
     dropinEnabled: boolean('dropin_enabled').default(false).notNull(),
     slotIntervalMins: integer('slot_interval_mins').default(30).notNull(),
     status: vendorStatusEnum('status').default('pending').notNull(),
+    // Set while the garage has stopped taking new bookings — the owner (or
+    // Detlio ops) flipped "Pause new bookings". Distinct from `status`: a
+    // paused garage is still live, its page still loads and its existing
+    // bookings carry on; it just drops out of the lists and refuses checkout.
+    // Null is "taking bookings". See 0027.
+    bookingsPausedAt: timestamp('bookings_paused_at', { withTimezone: true }),
+    bookingsPausedReason: varchar('bookings_paused_reason', { length: 200 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -470,6 +478,35 @@ export const vendorWorkingHours = pgTable(
     uniqueIndex('vendor_working_hours_vendor_day_idx').on(
       table.vendorId,
       table.dayOfWeek
+    ),
+  ]
+)
+
+// Single days a garage is shut on top of its weekly off days: a festival, a
+// family function, a day the power is out. A date here offers no slots and
+// refuses checkout, exactly like a weekly closed day.
+//
+// `date` is the garage's calendar day in IST — the same day key the slot
+// picker and the booking checks use (see getDateKeyFromScheduledAt). Adding
+// one never touches bookings already on that day: the garage is shown them
+// and sorts them out with the customers.
+export const vendorClosures = pgTable(
+  'vendor_closures',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    date: date('date', { mode: 'string' }).notNull(),
+    reason: varchar('reason', { length: 200 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('vendor_closures_vendor_date_key').on(
+      table.vendorId,
+      table.date
     ),
   ]
 )
@@ -1105,6 +1142,7 @@ export const vendorsRelations = relations(vendors, ({ one, many }) => ({
   }),
   members: many(userMemberMapping),
   workingHours: many(vendorWorkingHours),
+  closures: many(vendorClosures),
   serviceAreas: many(vendorServiceAreas),
   photos: many(vendorPhotos),
   services: many(services),
@@ -1121,6 +1159,13 @@ export const vendorWorkingHoursRelations = relations(
     }),
   })
 )
+
+export const vendorClosuresRelations = relations(vendorClosures, ({ one }) => ({
+  vendor: one(vendors, {
+    fields: [vendorClosures.vendorId],
+    references: [vendors.id],
+  }),
+}))
 
 export const vendorServiceAreasRelations = relations(
   vendorServiceAreas,

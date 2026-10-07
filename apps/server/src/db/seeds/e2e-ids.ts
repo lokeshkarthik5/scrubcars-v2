@@ -123,6 +123,29 @@ export const CUSTOMERS = {
    */
   pilotStats: { id: id(124), phone: '9000000024', name: 'Pilot Prakash', vehicleId: id(733) },
   /**
+   * Owns BOOKINGS.capacityHeld, the one job that fills VENDORS.capacity's only
+   * bay tomorrow at 10:00. Nothing signs in as them; the booking is the point.
+   */
+  capacityHolder: { id: id(125), phone: '9000000025', name: 'Bay Holder Bala', vehicleId: id(734) },
+  /**
+   * The customer the scheduling spec books as: a full slot, a holiday and a
+   * paused garage, all of which must be refused. Nothing they try is ever
+   * written, so the file can run alongside anything.
+   */
+  scheduling: { id: id(126), phone: '9000000026', name: 'Scheduling Sangeetha', vehicleId: id(735) },
+  /**
+   * The two customers who pay for the same last bay at VENDORS.lastBay, one
+   * after the other: the first gets the booking, the second a refund. Their
+   * own numbers, because the spec signs in fresh as both.
+   */
+  raceFirst: { id: id(127), phone: '9000000027', name: 'First Payer Fathima', vehicleId: id(736) },
+  raceSecond: { id: id(128), phone: '9000000028', name: 'Second Payer Senthil', vehicleId: id(737) },
+  /**
+   * Owns BOOKINGS.payLaterFull, an unpaid booking at CAPACITY's already-full
+   * 10:00, which must not be payable. Signed in fresh by the scheduling spec.
+   */
+  payLaterFull: { id: id(129), phone: '9000000029', name: 'Late Payer Lakshmi', vehicleId: id(738) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -162,6 +185,12 @@ export const STAFF = {
   superAdmin: { id: id(203), phone: '9000001003', name: 'Super Sundar' },
   /** Owns NARROW only. Kept separate so tenancy specs have a clean negative case. */
   narrowOwner: { id: id(204), phone: '9000001004', name: 'Narrow Nandhini' },
+  /**
+   * Owns the scheduling garages (CAPACITY, HOLIDAY, PAUSED, TIME_OFF). Its own
+   * account so pausing and holidays are tried on garages no other spec books,
+   * and the owner's company switcher keeps its two companies.
+   */
+  scheduleOwner: { id: id(205), phone: '9000001006', name: 'Schedule Shalini' },
 } as const
 
 export const VENDORS = {
@@ -171,6 +200,31 @@ export const VENDORS = {
   second: { id: id(302), name: 'Second Test Garage' },
   /** Open 09:00–11:00 only: two long services cannot fit in the day. */
   narrow: { id: id(303), name: 'Narrow Hours Garage' },
+  /**
+   * One bay, no daily cap, open 06:00–22:00, with one paid job tomorrow at
+   * 10:00 (BOOKINGS.capacityHeld). So 10:00 is full, while 09:30 and 10:30 —
+   * back to back with it — are not. Capacity is tried here and only here:
+   * MAIN has 50 bays so the booking specs never fill a slot by accident.
+   */
+  capacity: { id: id(304), name: 'One Bay Garage' },
+  /** Open every day, but tomorrow is a holiday (seeded in vendor_closures). */
+  holiday: { id: id(305), name: 'Holiday Test Garage' },
+  /** Paused, with a reason. Out of the lists; its page still loads. */
+  paused: { id: id(306), name: 'Paused Test Garage' },
+  /** The garage the portal spec adds holidays to and pauses. Nobody books it. */
+  timeOff: { id: id(307), name: 'Time Off Test Garage' },
+  /**
+   * Shorter on Saturdays (09:00–13:00), which is what tells the admin edit
+   * form keeping per-day hours apart from it flattening them; the admin spec
+   * also pauses and resumes it. Owned by NARROW's owner, booked by nobody.
+   */
+  opsEdit: { id: id(308), name: 'Ops Edit Garage' },
+  /**
+   * One bay and nothing booked: two customers both open a checkout for the
+   * same time and both pay, and only the first may get the booking. Kept off
+   * CAPACITY, whose 09:30/10:00/10:30 the scheduling spec reads as fixed.
+   */
+  lastBay: { id: id(309), name: 'Last Bay Garage' },
 } as const
 
 /** Filler garages so listing, sorting and infinite scroll have real volume. */
@@ -203,6 +257,12 @@ export const SERVICES = {
   /** Two long services on NARROW: 90 + 90 cannot fit a 09:00–11:00 day. */
   narrowA: { id: id(408), name: 'Narrow Long Wash', price: '1200.00', durationMins: 90 },
   narrowB: { id: id(409), name: 'Narrow Long Polish', price: '1400.00', durationMins: 90 },
+  /** On CAPACITY. Booked by BOOKINGS.capacityHeld, so it cannot be deleted. */
+  capacityWash: { id: id(410), name: 'One Bay Wash', price: '500.00', durationMins: 30 },
+  holidayWash: { id: id(411), name: 'Holiday Wash', price: '450.00', durationMins: 30 },
+  pausedWash: { id: id(412), name: 'Paused Wash', price: '450.00', durationMins: 30 },
+  timeOffWash: { id: id(413), name: 'Time Off Wash', price: '450.00', durationMins: 30 },
+  lastBayWash: { id: id(414), name: 'Last Bay Wash', price: '450.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -264,6 +324,14 @@ export const BOOKINGS = {
   reschedulePendingSoon: id(618),
   /** confirmed at SECOND — must never appear while MAIN is the active tenant. */
   secondTenant: id(611),
+  /** confirmed + paid at CAPACITY tomorrow 10:00: fills its only bay. */
+  capacityHeld: id(619),
+  /**
+   * pending + unpaid at CAPACITY tomorrow 10:00, booked the old way before the
+   * bay filled. An unpaid booking holds no bay, so it is paying for it that
+   * must be refused — before the order, and again if money lands anyway.
+   */
+  payLaterFull: id(620),
   /** completed, naming VEHICLES.booked. Its only job is to make that car
    *  undeletable by the old code path — the regression this pins. */
   vehicleArchive: id(614),

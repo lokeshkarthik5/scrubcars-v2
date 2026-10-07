@@ -190,6 +190,13 @@
       "when": 1787834189704,
       "tag": "0026_admin_booking_ops",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787834189705,
+      "tag": "0027_vendor_closures_and_pause",
+      "breakpoints": true
     }
   ]
 }

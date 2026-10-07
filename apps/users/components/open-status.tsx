@@ -28,6 +28,8 @@ function useMinuteClock() {
 interface OpenStatusProps {
   /** The garage's weekly hours. Null or empty renders nothing. */
   hours: readonly OpeningDay[] | null | undefined
+  /** Its upcoming holidays as IST dates; today being one reads "Closed today". */
+  closures?: readonly string[]
   /** `line` sits in text; `overlay` is a pill that reads on top of a photo. */
   variant?: 'line' | 'overlay'
   className?: string
@@ -41,9 +43,14 @@ interface OpenStatusProps {
  * at 2 AM and on the weekly off day, and a customer who drives over on its word
  * learns not to trust the rest of the page either.
  */
-export function OpenStatus({ hours, variant = 'line', className }: OpenStatusProps) {
+export function OpenStatus({
+  hours,
+  closures,
+  variant = 'line',
+  className,
+}: OpenStatusProps) {
   const now = useMinuteClock()
-  const status = openStatus(hours, now)
+  const status = openStatus(hours, now, closures)
   if (!status) return null
 
   return (
@@ -66,7 +73,11 @@ export function OpenStatus({ hours, variant = 'line', className }: OpenStatusPro
       />
       <span className="truncate">
         <span className="font-medium text-text-primary">
-          {status.isOpen ? 'Open' : 'Closed'}
+          {status.isOpen
+            ? 'Open'
+            : status.closedToday
+              ? 'Closed today'
+              : 'Closed'}
         </span>
         {status.detail && ` · ${status.detail}`}
       </span>

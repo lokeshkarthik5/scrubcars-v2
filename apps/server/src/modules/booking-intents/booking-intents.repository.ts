@@ -10,6 +10,7 @@ import {
   payments,
 } from '../../db/schema.js'
 import {
+  checkGarageCanTake,
   countHeldRedemptions,
   findOverlappingVehicleBooking,
   lockDiscount,
@@ -31,7 +32,7 @@ export interface BookingIntentItemInput {
 // What `consumeIntent` did. Everything except 'created' and 'already' means no
 // booking exists for money that may already have been captured, so the service
 // layer decides which of those are the customer's problem (expired, not found)
-// and which are ours to refund (clash, discount_exhausted).
+// and which are ours to refund (clash, the garage refusing, discount_exhausted).
 export type ConsumeIntentResult =
   | { kind: 'created'; bookingId: string }
   | { kind: 'already'; bookingId: string }
@@ -39,6 +40,9 @@ export type ConsumeIntentResult =
   | { kind: 'expired' }
   | { kind: 'order_mismatch' }
   | { kind: 'vehicle_clash'; clashingBookingId: string }
+  | { kind: 'slot_full' }
+  | { kind: 'garage_closed' }
+  | { kind: 'garage_paused' }
   | { kind: 'discount_exhausted' }
   | { kind: 'previously_failed'; failureReason: string | null }
 
@@ -114,10 +118,12 @@ export const bookingIntentsRepository = {
    * created, rather than a duplicate. That row lock is taken before anything
    * else, so the two can never interleave.
    *
-   * The vehicle-overlap and discount-limit checks are re-run here rather than
-   * trusted from intent-creation time: minutes of Razorpay sheet can pass in
-   * between, and the intent deliberately holds no claim on either while it
-   * waits.
+   * The vehicle-overlap, garage and discount-limit checks are re-run here
+   * rather than trusted from intent-creation time: minutes of Razorpay sheet
+   * can pass in between, and the intent deliberately holds no claim on any of
+   * them while it waits. In particular it holds no bay, so the last one can
+   * go to whoever pays first — the garage's check runs under its vendor-day
+   * lock so only one of two racing payments gets it.
    */
   consumeIntent(params: {
     intentId: string
@@ -173,6 +179,18 @@ export const bookingIntentsRepository = {
       if (clash) {
         return { kind: 'vehicle_clash', clashingBookingId: clash.id }
       }
+
+      // After the vehicle lock and before the discount lock: the order every
+      // booking write takes them in (see bookings.repository.ts).
+      const garageRefusal = await checkGarageCanTake(tx, {
+        vendorId: intent.vendorId,
+        scheduledAt: intent.scheduledAt,
+        durationMins: intent.serviceDurationMins,
+      })
+
+      if (garageRefusal === 'slot_full') return { kind: 'slot_full' }
+      if (garageRefusal === 'closed') return { kind: 'garage_closed' }
+      if (garageRefusal === 'paused') return { kind: 'garage_paused' }
 
       // Limits are read live rather than snapshotted onto the intent: an admin
       // who tightens a code while a checkout is open means it to bite.
