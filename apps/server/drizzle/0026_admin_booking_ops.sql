@@ -13,8 +13,10 @@
 --   3. Notes are internal. They live in their own table so no customer or
 --      garage query can pick them up by selecting a booking row.
 --
--- Each file runs through `psql -f` without a wrapping transaction, so the new
--- enum value below is committed before the CHECK further down refers to it.
+-- The runner applies this file in one transaction, so the new 'admin' enum
+-- value is not committed when the CHECKs below are added, and Postgres refuses
+-- to parse it as a "cancelled_by" literal. The CHECKs compare
+-- "cancelled_by"::text instead, which never reads the uncommitted value.
 -- Every statement is safe to re-run.
 
 ALTER TYPE "cancelled_by" ADD VALUE IF NOT EXISTS 'admin';--> statement-breakpoint
@@ -46,7 +48,7 @@ ALTER TABLE "bookings"
 DO $$ BEGIN
   ALTER TABLE "bookings"
     ADD CONSTRAINT "bookings_cancelled_on_behalf_of_admin_check"
-    CHECK ("cancelled_on_behalf_of" IS NULL OR "cancelled_by" = 'admin');
+    CHECK ("cancelled_on_behalf_of" IS NULL OR "cancelled_by"::text = 'admin');
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -54,7 +56,7 @@ END $$;--> statement-breakpoint
 DO $$ BEGIN
   ALTER TABLE "bookings"
     ADD CONSTRAINT "bookings_no_show_admin_check"
-    CHECK ("no_show" IS NULL OR "cancelled_by" = 'admin');
+    CHECK ("no_show" IS NULL OR "cancelled_by"::text = 'admin');
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
