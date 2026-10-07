@@ -6,6 +6,7 @@
  * rather than only in the admin list.
  */
 import { test, expect, asRole } from '../../support/fixtures'
+import { API } from '../../support/auth'
 import { sql } from '../../support/db'
 import { STAFF, VENDORS } from '../../support/seed-ids'
 
@@ -93,6 +94,96 @@ test.describe('admin vendors', () => {
         return Number(rows[0].n)
       })
       .toBe(0)
+  })
+
+  test('a garage that has bookings cannot be deleted @p0', async ({ page }) => {
+    // CAPACITY has a paid booking. Deleting it would cascade through that
+    // booking and its payment, so the server refuses and says what to do.
+    const response = await page.request.delete(
+      `${API}/api/v1/admin/vendors/${VENDORS.capacity.id}`
+    )
+    expect(response.status()).toBe(409)
+    expect(await response.json()).toEqual({
+      success: false,
+      message: 'This garage has bookings. Archive it instead.',
+      code: 'VENDOR_HAS_BOOKINGS',
+    })
+
+    await page.goto('/vendors')
+    page.once('dialog', (dialog) => dialog.accept())
+    await page.getByRole('button', { name: `Delete ${VENDORS.capacity.name}` }).click()
+    await expect(page.getByText('This garage has bookings. Archive it instead.')).toBeVisible()
+
+    const [row] = await sql<{ n: string }[]>`
+      select count(*)::text as n from vendors where id = ${VENDORS.capacity.id}
+    `
+    expect(Number(row.n)).toBe(1)
+  })
+
+  test('saving another field leaves the per-day hours as they were @p0', async ({ page }) => {
+    // OPS_EDIT closes at 13:00 on Saturdays and 18:00 otherwise. The form used
+    // to send one schedule for the whole week with every save.
+    // Its own name back first, in case an earlier attempt stopped mid-rename.
+    await sql`
+      update vendors set business_name = ${VENDORS.opsEdit.name} where id = ${VENDORS.opsEdit.id}
+    `
+    await page.goto(`/vendors/${VENDORS.opsEdit.id}/edit`)
+
+    const businessName = page.getByLabel('Business name')
+    await expect(businessName).toHaveValue(VENDORS.opsEdit.name)
+
+    await page.getByRole('tab', { name: 'Operations' }).click()
+    await expect(page.getByLabel('Sat closing time')).toHaveValue('13:00')
+    await expect(page.getByLabel('Mon closing time')).toHaveValue('18:00')
+
+    await page.getByRole('tab', { name: 'Details' }).click()
+    await businessName.fill(`${VENDORS.opsEdit.name} Renamed`)
+    await page.getByRole('button', { name: /Save|Update/i }).first().click()
+
+    await expect
+      .poll(async () => {
+        const rows = await sql<{ business_name: string }[]>`
+          select business_name from vendors where id = ${VENDORS.opsEdit.id}
+        `
+        return rows[0]?.business_name
+      })
+      .toBe(`${VENDORS.opsEdit.name} Renamed`)
+
+    const hours = await sql<{ day_of_week: number; close_time: string }[]>`
+      select day_of_week, close_time from vendor_working_hours
+       where vendor_id = ${VENDORS.opsEdit.id} order by day_of_week
+    `
+    expect(hours.find((h) => h.day_of_week === 6)?.close_time).toBe('13:00:00')
+    expect(hours.filter((h) => h.close_time === '18:00:00')).toHaveLength(6)
+
+    await sql`
+      update vendors set business_name = ${VENDORS.opsEdit.name} where id = ${VENDORS.opsEdit.id}
+    `
+  })
+
+  test('ops can pause a garage and resume it @p0', async ({ page }) => {
+    // Running, whatever an earlier attempt left it as.
+    await sql`
+      update vendors set bookings_paused_at = null, bookings_paused_reason = null
+       where id = ${VENDORS.opsEdit.id}
+    `
+    await page.goto(`/vendors/${VENDORS.opsEdit.id}/edit`)
+    await page.getByRole('tab', { name: 'Operations' }).click()
+
+    const paused = async () => {
+      const [row] = await sql<{ paused: boolean }[]>`
+        select bookings_paused_at is not null as paused from vendors where id = ${VENDORS.opsEdit.id}
+      `
+      return row.paused
+    }
+
+    await page.getByRole('button', { name: 'Pause new bookings' }).click()
+    await expect(page.getByText(/Paused since/)).toBeVisible()
+    await expect.poll(paused).toBe(true)
+
+    await page.getByRole('button', { name: 'Resume bookings' }).click()
+    await expect(page.getByRole('button', { name: 'Pause new bookings' })).toBeVisible()
+    await expect.poll(paused).toBe(false)
   })
 
   test('the edit form loads a garage and saves a change', async ({ page }) => {

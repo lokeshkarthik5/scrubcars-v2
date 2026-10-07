@@ -6,6 +6,7 @@ import { IconCalendar, IconChevronLeft, IconChevronRight } from '@tabler/icons-r
 import { ScSheet } from '@repo/ui/sc/modal'
 import {
   useAvailableSlots,
+  useVendorClosures,
   useVendorWorkingHours,
 } from '@repo/core/api/hooks/use-slots'
 import { meetsNotice, noticeSentence } from '@repo/core/booking-types'
@@ -101,6 +102,13 @@ interface SlotPickerProps {
    * booking flow opts in so a first-time customer is asked one thing at a time.
    */
   progressive?: boolean
+  /**
+   * The booking being moved, when this picker is the reschedule sheet. Its own
+   * time does not count against the garage, so the times around it stay on
+   * offer, and the words for a paused garage fit a booking the customer
+   * already has rather than a new one.
+   */
+  rescheduleOf?: string
 }
 
 /**
@@ -116,6 +124,7 @@ export function SlotPicker({
   bookingType,
   onLapse,
   progressive = false,
+  rescheduleOf,
 }: SlotPickerProps) {
   // Ticks each minute: a picker left open keeps offering a slot only while it
   // still has enough notice.
@@ -133,7 +142,14 @@ export function SlotPicker({
     return { year: y, month: m - 1 }
   })
   const workingHours = useVendorWorkingHours(vendorId)
-  const slotsQuery = useAvailableSlots({ vendorId, serviceIds, date: selectedDate, bookingType })
+  const closures = useVendorClosures(vendorId)
+  const slotsQuery = useAvailableSlots({
+    vendorId,
+    serviceIds,
+    date: selectedDate,
+    bookingType,
+    rescheduleOf,
+  })
 
   const closedDays = useMemo(
     () =>
@@ -144,6 +160,12 @@ export function SlotPicker({
       ),
     [workingHours.data]
   )
+  // The garage's holidays, greyed out exactly like its weekly off days. A
+  // failed fetch leaves none greyed: the slot list for that day still says
+  // it is closed, so the worst case is one extra tap.
+  const holidays = useMemo(() => new Set(closures.data ?? []), [closures.data])
+  const isDayClosed = (date: string, dayOfWeek: number) =>
+    closedDays.has(dayOfWeek) || holidays.has(date)
 
   // The server already leaves out times without enough notice; filtering
   // again here drops the ones that run out while the picker sits open.
@@ -151,6 +173,11 @@ export function SlotPicker({
     meetsNotice(slot.time, bookingType, now)
   )
   const isClosedDay = slotsQuery.data?.isClosed ?? false
+  const isHoliday = slotsQuery.data?.closedReason === 'holiday'
+  const isPaused = slotsQuery.data?.paused ?? false
+  // Every time with enough notice is taken. Only said when that is the whole
+  // story: an evening emptied by the notice rule reads differently.
+  const allBooked = slotsQuery.data?.allBooked ?? false
 
   // A chosen time that no longer has enough notice — the clock moved on, or
   // the customer switched to doorstep, which needs more — is let go rather
@@ -164,12 +191,11 @@ export function SlotPicker({
 
   // An open day whose *whole* schedule offers nothing means the combined
   // duration does not fit between opening and closing — not that the day
-  // filled up. Capacity is unlimited, so "no slots left" is never the reason,
-  // and telling the customer to try again later would send them round a loop
-  // that cannot end. `fitsInDay` is checked before past times are filtered,
-  // so an evening with nothing left today does not trip it.
+  // filled up, and telling the customer to try again later would send them
+  // round a loop that cannot end. `fitsInDay` is checked before past and
+  // booked-up times are filtered, so neither trips it.
   const tooLongForTheDay =
-    !isClosedDay && slotsQuery.isSuccess && !slotsQuery.data.fitsInDay
+    !isClosedDay && !isPaused && slotsQuery.isSuccess && !slotsQuery.data.fitsInDay
 
   // Until the answer is in, say nothing. Rendering the empty state off an
   // empty-by-default array is what made the picker flash "No slots available"
@@ -189,10 +215,10 @@ export function SlotPicker({
         {/* Held back until the closed days are known: rendering the chips
             first means days pop from selectable to disabled under the
             customer's thumb. */}
-        {workingHours.isPending
+        {workingHours.isPending || closures.isPending
           ? dateOptions.map((d) => <DateChipSkeleton key={d.value} />)
           : dateOptions.map((d) => {
-          const closed = closedDays.has(d.dayOfWeek)
+          const closed = isDayClosed(d.value, d.dayOfWeek)
           return (
             <button
               key={d.value}
@@ -277,11 +303,19 @@ export function SlotPicker({
             <TimeGridSkeleton />
           ) : slots.length === 0 ? (
             <p className="text-[12px] text-text-secondary">
-              {isClosedDay
-                ? 'Vendor is closed on this day.'
-                : tooLongForTheDay
-                  ? "These services need more time than this garage's day allows. Remove one, or pick another day."
-                  : `No times left on this day. ${noticeSentence(bookingType)} Pick another day.`}
+              {isPaused
+                ? rescheduleOf
+                  ? "This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it."
+                  : "This garage isn't taking new bookings right now."
+                : isHoliday
+                  ? 'The garage is closed for a holiday on this day. Pick another day.'
+                  : isClosedDay
+                    ? 'Vendor is closed on this day.'
+                    : tooLongForTheDay
+                      ? "These services need more time than this garage's day allows. Remove one, or pick another day."
+                      : allBooked
+                        ? 'All times on this day are booked. Pick another day.'
+                        : `No times left on this day. ${noticeSentence(bookingType)} Pick another day.`}
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
@@ -368,7 +402,8 @@ export function SlotPicker({
           }).map((_, i) => {
             const day = i + 1
             const key = `${calMonth.year}-${String(calMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-            const disabled = key < calendarMin
+            const dayOfWeek = new Date(Date.UTC(calMonth.year, calMonth.month, day)).getUTCDay()
+            const disabled = key < calendarMin || isDayClosed(key, dayOfWeek)
             const selected = key === customDate
             return (
               <button

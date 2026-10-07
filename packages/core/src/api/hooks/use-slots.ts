@@ -2,15 +2,23 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { getAvailableSlots } from '@repo/core/api/bookings'
-import { getVendorWorkingHours } from '@repo/core/api/vendors'
+import { getVendorClosures, getVendorWorkingHours } from '@repo/core/api/vendors'
 import type { BookingType } from '@repo/core/types'
 
 export const slotKeys = {
   all: ['slots'] as const,
   workingHours: (vendorId: string) =>
     [...slotKeys.all, 'working-hours', vendorId] as const,
-  available: (vendorId: string, serviceIds: string[], date: string, bookingType: BookingType) =>
-    [...slotKeys.all, 'available', vendorId, serviceIds.join(','), date, bookingType] as const,
+  closures: (vendorId: string) =>
+    [...slotKeys.all, 'closures', vendorId] as const,
+  available: (
+    vendorId: string,
+    serviceIds: string[],
+    date: string,
+    bookingType: BookingType,
+    rescheduleOf: string | null = null
+  ) =>
+    [...slotKeys.all, 'available', vendorId, serviceIds.join(','), date, bookingType, rescheduleOf] as const,
 }
 
 /**
@@ -22,6 +30,19 @@ export function useVendorWorkingHours(vendorId: string) {
     queryKey: slotKeys.workingHours(vendorId),
     queryFn: () => getVendorWorkingHours(vendorId),
     staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * The garage's upcoming holidays (IST dates), greyed out alongside its weekly
+ * off days. Shorter stale time than the hours: an owner can mark a holiday at
+ * any moment, though the slot list is the real check either way.
+ */
+export function useVendorClosures(vendorId: string) {
+  return useQuery({
+    queryKey: slotKeys.closures(vendorId),
+    queryFn: () => getVendorClosures(vendorId),
+    staleTime: 60_000,
   })
 }
 
@@ -42,12 +63,15 @@ export function useAvailableSlots(params: {
   date: string | null
   /** In the key: doorstep and at-garage get different lists (3h vs 2h notice). */
   bookingType: BookingType
+  /** The booking being moved, for a reschedule: it does not count against itself. */
+  rescheduleOf?: string
 }) {
-  const { vendorId, serviceIds, date, bookingType } = params
+  const { vendorId, serviceIds, date, bookingType, rescheduleOf } = params
 
   return useQuery({
-    queryKey: slotKeys.available(vendorId, serviceIds, date ?? '', bookingType),
-    queryFn: () => getAvailableSlots({ vendorId, serviceIds, date: date!, bookingType }),
+    queryKey: slotKeys.available(vendorId, serviceIds, date ?? '', bookingType, rescheduleOf ?? null),
+    queryFn: () =>
+      getAvailableSlots({ vendorId, serviceIds, date: date!, bookingType, rescheduleOf }),
     enabled: serviceIds.length > 0 && Boolean(date),
     // Slots go stale as other customers book, so re-check on return to the tab.
     staleTime: 15_000,

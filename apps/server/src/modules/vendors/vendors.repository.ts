@@ -1,12 +1,16 @@
-import { and, asc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
+  bookingIntentItems,
+  bookingIntents,
+  bookingItems,
   bookings,
   reviews,
   serviceImages,
   servicePackageItems,
   services,
   users,
+  vendorClosures,
   vendorPhotos,
   vendors,
   vendorServiceAreas,
@@ -31,6 +35,7 @@ export type ServiceRecord = typeof services.$inferSelect
 export type ServiceImageRecord = typeof serviceImages.$inferSelect
 export type ServiceWithImages = ServiceRecord & { images: ServiceImageRecord[] }
 export type BookingRecord = typeof bookings.$inferSelect
+export type ClosureRecord = typeof vendorClosures.$inferSelect
 
 function normalizeTime(time: string): string {
   return time.length === 5 ? `${time}:00` : time
@@ -118,6 +123,11 @@ export const vendorsRepository = {
     const conditions = [
       sql`v.status = 'active'`,
       sql`v.is_verified = true`,
+      // A paused garage takes no new bookings, so it is left out of every
+      // list a customer browses — search and the map read this too. Its own
+      // page still loads (findPublicVendorById does not filter on it) and says
+      // why it cannot be booked.
+      sql`v.bookings_paused_at IS NULL`,
       unlocated ? sql`v.geo IS NULL` : sql`v.geo IS NOT NULL`,
     ]
 
@@ -403,6 +413,67 @@ export const vendorsRepository = {
 
       return results.sort((a, b) => a.dayOfWeek - b.dayOfWeek)
     })
+  },
+
+  // ─── Holidays ──────────────────────────────────────────────────────────────
+
+  /** The garage's holidays from `from` through `to` (inclusive), soonest first. */
+  listClosures(vendorId: string, from: string, to?: string) {
+    return db.query.vendorClosures.findMany({
+      where: and(
+        eq(vendorClosures.vendorId, vendorId),
+        gte(vendorClosures.date, from),
+        ...(to ? [lte(vendorClosures.date, to)] : [])
+      ),
+      orderBy: [asc(vendorClosures.date)],
+    })
+  },
+
+  /** The same for a page of garages at once, for the listing cards. */
+  listClosuresForVendors(vendorIds: string[], from: string, to: string) {
+    if (vendorIds.length === 0) return Promise.resolve([])
+
+    return db.query.vendorClosures.findMany({
+      columns: { vendorId: true, date: true },
+      where: and(
+        inArray(vendorClosures.vendorId, vendorIds),
+        gte(vendorClosures.date, from),
+        lte(vendorClosures.date, to)
+      ),
+      orderBy: [asc(vendorClosures.date)],
+    })
+  },
+
+  findClosureById(vendorId: string, closureId: string) {
+    return db.query.vendorClosures.findFirst({
+      where: and(
+        eq(vendorClosures.id, closureId),
+        eq(vendorClosures.vendorId, vendorId)
+      ),
+    })
+  },
+
+  /** Empty when the day is already a holiday — the unique key decides. */
+  createClosure(vendorId: string, data: { date: string; reason: string | null }) {
+    return db
+      .insert(vendorClosures)
+      .values({ vendorId, date: data.date, reason: data.reason })
+      .onConflictDoNothing({
+        target: [vendorClosures.vendorId, vendorClosures.date],
+      })
+      .returning()
+  },
+
+  deleteClosure(vendorId: string, closureId: string) {
+    return db
+      .delete(vendorClosures)
+      .where(
+        and(
+          eq(vendorClosures.id, closureId),
+          eq(vendorClosures.vendorId, vendorId)
+        )
+      )
+      .returning()
   },
 
   listServiceAreas(vendorId: string) {
@@ -759,6 +830,24 @@ export const vendorsRepository = {
       .set(data)
       .where(and(eq(services.id, serviceId), eq(services.vendorId, vendorId)))
       .returning()
+  },
+
+  /**
+   * Whether anything a customer paid for, or started paying for, names this
+   * service. All four columns hold a restrict FK, so deleting a service that
+   * any of them points at fails in the database — this is the check that
+   * turns that into a message instead of a 500.
+   */
+  async isServiceReferenced(serviceId: string): Promise<boolean> {
+    const rows = await db.execute<{ used: boolean }>(sql`
+      SELECT EXISTS (SELECT 1 FROM ${bookingItems} WHERE ${bookingItems.serviceId} = ${serviceId})
+          OR EXISTS (SELECT 1 FROM ${bookings} WHERE ${bookings.serviceId} = ${serviceId})
+          OR EXISTS (SELECT 1 FROM ${bookingIntentItems} WHERE ${bookingIntentItems.serviceId} = ${serviceId})
+          OR EXISTS (SELECT 1 FROM ${bookingIntents} WHERE ${bookingIntents.serviceId} = ${serviceId})
+          AS used
+    `)
+
+    return Array.from(rows)[0]?.used === true
   },
 
   deleteService(vendorId: string, serviceId: string) {

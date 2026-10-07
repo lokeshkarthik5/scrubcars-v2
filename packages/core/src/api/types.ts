@@ -119,6 +119,8 @@ export interface ApiVendorListItem {
    * shows no status rather than a guessed one.
    */
   workingHours?: Array<Omit<ApiWorkingHours, 'id'>>
+  /** Holidays in the coming week, as IST dates. Absent on older servers. */
+  closures?: string[]
 }
 
 export interface ApiVendorList {
@@ -152,6 +154,9 @@ export interface ApiPublicVendor {
   services: ApiService[]
   rating: number | null
   reviewCount: number
+  /** Set while the garage takes no new bookings. Optional for older servers. */
+  bookingsPausedAt?: string | null
+  bookingsPausedReason?: string | null
 }
 
 export interface VendorProfileExtras {
@@ -166,10 +171,25 @@ export interface VendorProfileExtras {
   geoSource: 'unset' | 'gps' | 'map_pin' | 'geocoded' | 'admin'
   /** Set when an admin confirmed the pin on a map. Null means nobody has. */
   geoConfirmedAt: string | null
+  /** Cars the garage works on at once. Null is read as one. */
   bays: number | null
+  /** The most jobs it takes in a day. Null is no limit. */
   jobsPerDay: number | null
   vehicleTypes: string[]
   notes: string | null
+  /** When the garage paused new bookings; null while it takes them. */
+  bookingsPausedAt: string | null
+  bookingsPausedReason: string | null
+}
+
+/** A day the garage marked as a holiday. */
+export interface ApiVendorClosure {
+  id: string
+  /** IST calendar day, YYYY-MM-DD. */
+  date: string
+  reason: string | null
+  /** Bookings still on that day — a holiday does not cancel them. */
+  activeBookingCount: number
 }
 
 export interface ApiVendorProfile extends VendorProfileExtras {
@@ -267,6 +287,15 @@ export interface ApiSlotsResponse {
   fitsInDay?: boolean
   /** The notice the list was filtered by, in minutes. */
   minNoticeMins?: number
+  /**
+   * Why a closed day is closed: a holiday the garage marked, or its weekly
+   * off day. Null on an open day.
+   */
+  closedReason?: 'holiday' | 'weekly_off' | null
+  /** The garage has paused new bookings: no day has times. */
+  paused?: boolean
+  /** Times that had enough notice but are already booked up. */
+  fullSlots?: number
   slots: string[]
 }
 

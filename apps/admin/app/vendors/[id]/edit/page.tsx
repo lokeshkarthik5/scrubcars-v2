@@ -27,11 +27,15 @@ import {
   deleteAdminVendorLogo,
   deleteAdminVendorPhoto,
   getAdminVendor,
+  pauseAdminVendor,
+  resumeAdminVendor,
   updateAdminVendor,
   uploadAdminServiceImage,
   uploadAdminVendorLogo,
   uploadAdminVendorPhoto,
   type AdminPhoto,
+  type AdminVendorDetail,
+  type AdminWorkingDay,
 } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import {
@@ -39,6 +43,7 @@ import {
   VENDOR_VEHICLE_TYPE_OPTIONS,
 } from '@repo/core/vehicles'
 import type { ServiceCategory } from '@repo/core/types'
+import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { VendorTeamSection } from './team-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -99,6 +104,37 @@ function minsToDuration(mins: number): { durationValue: string; durationUnit: Du
   if (mins > 0 && mins % 60 === 0)
     return { durationValue: String(mins / 60), durationUnit: 'hour' }
   return { durationValue: mins > 0 ? String(mins) : '', durationUnit: 'min' }
+}
+
+/**
+ * The garage's week as the form edits it: all seven days, times as HH:MM. A
+ * day with no stored row is shown closed — the slot generator reads it that
+ * way too — with placeholder times for when someone opens it.
+ */
+function toWeekForm(rows: AdminWorkingDay[]): AdminWorkingDay[] {
+  const byDay = new Map(rows.map((row) => [row.dayOfWeek, row]))
+  return DAYS.map((_, dayOfWeek) => {
+    const row = byDay.get(dayOfWeek)
+    return row
+      ? {
+          dayOfWeek,
+          openTime: row.openTime.slice(0, 5),
+          closeTime: row.closeTime.slice(0, 5),
+          isClosed: row.isClosed,
+        }
+      : { dayOfWeek, openTime: '09:00', closeTime: '18:00', isClosed: true }
+  })
+}
+
+/** "2026-10-20" → "Tue 20 Oct" — a calendar day, so read in UTC. */
+function formatDay(key: string) {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  })
 }
 
 interface ServiceRow {
@@ -169,8 +205,6 @@ export default function EditVendorPage({
     jobsPerDay: '',
     pickupRadiusKm: '',
     doorstepRadiusKm: '',
-    openTime: '09:00',
-    closeTime: '18:00',
     notes: '',
   })
   const [pickup, setPickup] = useState<'yes' | 'nearby' | 'no' | ''>('')
@@ -183,7 +217,16 @@ export default function EditVendorPage({
   const [dropinEnabled, setDropinEnabled] = useState(true)
   const [doorstepEnabled, setDoorstepEnabled] = useState(false)
   const [slotIntervalMins, setSlotIntervalMins] = useState<30 | 45 | 60>(30)
-  const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5, 6])
+  // The real per-day schedule. Sent back only once the admin has changed a
+  // day: saving any other field used to rewrite every day to one schedule,
+  // which wiped a garage's shorter Saturday without anyone touching it.
+  const [hours, setHours] = useState<AdminWorkingDay[]>(() => toWeekForm([]))
+  const [hoursChanged, setHoursChanged] = useState(false)
+  const [pausedAt, setPausedAt] = useState<string | null>(null)
+  const [pausedReason, setPausedReason] = useState<string | null>(null)
+  const [pauseReasonInput, setPauseReasonInput] = useState('')
+  const [pausing, setPausing] = useState(false)
+  const [closures, setClosures] = useState<AdminVendorDetail['closures']>([])
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([])
   const [status, setStatus] = useState<'pending' | 'active' | 'suspended' | 'archived'>('pending')
   const [isVerified, setIsVerified] = useState(false)
@@ -242,8 +285,6 @@ export default function EditVendorPage({
         pickupRadiusKm: v.pickupRadiusKm != null ? String(v.pickupRadiusKm) : '',
         doorstepRadiusKm:
           v.doorstepRadiusKm != null ? String(v.doorstepRadiusKm) : '',
-        openTime: '09:00',
-        closeTime: '18:00',
         notes: v.notes ?? '',
       })
       setPickup(v.pickup ?? '')
@@ -285,20 +326,10 @@ export default function EditVendorPage({
         }))
       )
 
-      // Derive the weekly schedule from stored working hours: open days and the
-      // shared open/close time (falls back to defaults when none are stored).
-      const openDays = v.workingHours.filter((h) => !h.isClosed)
-      if (v.workingHours.length > 0) {
-        setWorkingDays(openDays.map((h) => h.dayOfWeek).sort())
-      }
-      const sample = openDays[0]
-      if (sample) {
-        setForm((prev) => ({
-          ...prev,
-          openTime: sample.openTime.slice(0, 5),
-          closeTime: sample.closeTime.slice(0, 5),
-        }))
-      }
+      setHours(toWeekForm(v.workingHours))
+      setPausedAt(v.bookingsPausedAt ?? null)
+      setPausedReason(v.bookingsPausedReason ?? null)
+      setClosures(v.closures ?? [])
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         router.replace('/login')
@@ -422,6 +453,39 @@ export default function EditVendorPage({
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
 
+  const updateDay = (dayOfWeek: number, patch: Partial<AdminWorkingDay>) => {
+    setHours((week) =>
+      week.map((day) => (day.dayOfWeek === dayOfWeek ? { ...day, ...patch } : day))
+    )
+    setHoursChanged(true)
+  }
+
+  /**
+   * Pause or resume new bookings straight away, like confirming a pin: it
+   * changes what customers can do the moment it lands, so it does not wait
+   * for "Save changes" — and "Save changes" never touches it.
+   */
+  const setPaused = async (pause: boolean) => {
+    setPausing(true)
+    setError('')
+    try {
+      const updated = pause
+        ? await pauseAdminVendor(id, pauseReasonInput.trim() || undefined)
+        : await resumeAdminVendor(id)
+      setPausedAt(updated.bookingsPausedAt ?? null)
+      setPausedReason(pause ? pauseReasonInput.trim() || null : null)
+      setPauseReasonInput('')
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        router.replace('/login')
+        return
+      }
+      setError(err instanceof Error ? err.message : 'Could not change bookings')
+    } finally {
+      setPausing(false)
+    }
+  }
+
   const isValid =
     form.ownerName &&
     /^\d{10}$/.test(form.ownerPhone) &&
@@ -493,9 +557,14 @@ export default function EditVendorPage({
         bays: num(form.bays),
         jobsPerDay: num(form.jobsPerDay),
         vehicleTypes,
-        workingDays,
-        openTime: form.openTime,
-        closeTime: form.closeTime,
+        // Only when a day was actually changed; see `hoursChanged`.
+        ...(hoursChanged && {
+          workingHours: hours.map((day) => ({
+            ...day,
+            openTime: `${day.openTime}:00`,
+            closeTime: `${day.closeTime}:00`,
+          })),
+        }),
         status,
         isVerified,
         notes: form.notes.trim() || null,
@@ -775,21 +844,46 @@ export default function EditVendorPage({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-medium text-text-secondary">Working days</label>
-                <div className="flex flex-wrap gap-2">
-                  {DAYS.map((label, day) => (
-                    <Chip
-                      key={day}
-                      label={label}
-                      selected={workingDays.includes(day)}
-                      onClick={() => setWorkingDays((d) => toggle(d, day).sort())}
-                    />
+                <span className="text-[11px] font-medium text-text-secondary">Working hours</span>
+                {/* The garage's own week, day by day — the same rows the owner
+                    edits in their Settings. Left alone unless changed here. */}
+                <div className="flex flex-col gap-2">
+                  {hours.map((day) => (
+                    <div
+                      key={day.dayOfWeek}
+                      className={cn('flex items-center gap-2', day.isClosed && 'opacity-60')}
+                    >
+                      <span className="w-9 text-[12px] font-medium text-text-primary">
+                        {DAYS[day.dayOfWeek]}
+                      </span>
+                      <input
+                        type="time"
+                        aria-label={`${DAYS[day.dayOfWeek]} opening time`}
+                        value={day.openTime}
+                        disabled={day.isClosed}
+                        onChange={(e) => updateDay(day.dayOfWeek, { openTime: e.target.value })}
+                        className="min-h-11 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary"
+                      />
+                      <input
+                        type="time"
+                        aria-label={`${DAYS[day.dayOfWeek]} closing time`}
+                        value={day.closeTime}
+                        disabled={day.isClosed}
+                        onChange={(e) => updateDay(day.dayOfWeek, { closeTime: e.target.value })}
+                        className="min-h-11 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary"
+                      />
+                      <button
+                        type="button"
+                        aria-label={`${DAYS[day.dayOfWeek]} closed all day`}
+                        aria-pressed={day.isClosed}
+                        onClick={() => updateDay(day.dayOfWeek, { isClosed: !day.isClosed })}
+                        className="min-h-11 w-16 text-[12px] font-medium text-text-secondary hover:text-text-primary"
+                      >
+                        {day.isClosed ? 'Closed' : 'Open'}
+                      </button>
+                    </div>
                   ))}
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <ScField label="Opening time" value={form.openTime} onChange={set('openTime')} type="time" />
-                <ScField label="Closing time" value={form.closeTime} onChange={set('closeTime')} type="time" />
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -808,6 +902,81 @@ export default function EditVendorPage({
               <div className="grid grid-cols-2 gap-3">
                 <ScField label="Bays (optional)" value={form.bays} onChange={set('bays')} type="number" placeholder="e.g. 10" />
                 <ScField label="Jobs per day (optional)" value={form.jobsPerDay} onChange={set('jobsPerDay')} type="number" placeholder="e.g. 15" />
+              </div>
+            </ScSection>
+
+            <ScSection title="Bookings">
+              {/* Pausing works the moment it is pressed — see setPaused. */}
+              {pausedAt ? (
+                <>
+                  <p className="text-[12px] text-text-primary">
+                    Paused since{' '}
+                    <span className="font-numeric font-medium">
+                      {new Date(pausedAt).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        timeZone: APP_TIMEZONE,
+                      })}
+                    </span>
+                    . Hidden from customers; existing bookings carry on.
+                  </p>
+                  {pausedReason && (
+                    <p className="text-[12px] text-text-secondary">
+                      Customers see: “{pausedReason}”
+                    </p>
+                  )}
+                  <ScButton
+                    variant="secondary"
+                    disabled={pausing}
+                    onClick={() => setPaused(false)}
+                  >
+                    {pausing ? 'Working…' : 'Resume bookings'}
+                  </ScButton>
+                </>
+              ) : (
+                <>
+                  <p className="text-[12px] text-text-secondary">
+                    Taking bookings. Pausing hides the garage from customers and
+                    refuses checkout; bookings it already has are not touched.
+                  </p>
+                  <ScField
+                    label="Reason (optional, customers see this)"
+                    value={pauseReasonInput}
+                    onChange={setPauseReasonInput}
+                    maxLength={200}
+                  />
+                  <ScButton
+                    variant="secondary"
+                    disabled={pausing}
+                    onClick={() => setPaused(true)}
+                  >
+                    {pausing ? 'Working…' : 'Pause new bookings'}
+                  </ScButton>
+                </>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-medium text-text-secondary">
+                  Upcoming holidays
+                </span>
+                {closures.length === 0 ? (
+                  <p className="text-[12px] text-text-muted">None set.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1 text-[12px] text-text-primary">
+                    {closures.map((closure) => (
+                      <li key={closure.id}>
+                        <span className="font-numeric font-medium">{formatDay(closure.date)}</span>
+                        {closure.reason && (
+                          <span className="text-text-secondary"> · {closure.reason}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-[11px] text-text-muted">
+                  The garage sets these in its own Settings.
+                </p>
               </div>
             </ScSection>
 

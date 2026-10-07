@@ -102,6 +102,10 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     rating: item.rating ?? 0,
     reviewCount: item.reviewCount,
     openingHours: item.workingHours ?? null,
+    closures: item.closures ?? [],
+    // A paused garage is left out of every list, so a listed one never is.
+    bookingsPaused: false,
+    bookingsPausedReason: null,
     startingPrice: item.startingPrice ?? 0,
     dropinEnabled: item.dropinEnabled,
     doorstepEnabled: item.doorstepEnabled,
@@ -135,6 +139,11 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     // Not on the single-vendor response: the garage page reads them from
     // /vendors/:id/working-hours, the query checkout's slot picker shares.
     openingHours: null,
+    // Likewise read from /vendors/:id/closures by the page that needs them.
+    closures: [],
+    // Absent from a server older than pausing, which means "taking bookings".
+    bookingsPaused: vendor.bookingsPausedAt != null,
+    bookingsPausedReason: vendor.bookingsPausedReason ?? null,
     startingPrice: prices.length > 0 ? Math.min(...prices) : 0,
     dropinEnabled: vendor.dropinEnabled,
     doorstepEnabled: vendor.doorstepEnabled,
@@ -332,8 +341,8 @@ export function mapReview(review: ApiPublicReview): Review {
   }
 }
 
-// The server returns only bookable slots, and vendor capacity is unlimited, so
-// every slot that comes back is available — there is no "taken" state to render.
+// The server returns only bookable slots — full ones are already left out — so
+// every slot that comes back is available; there is no "taken" state to render.
 export function mapSlots(slots: string[]) {
   const now = Date.now()
   return slots

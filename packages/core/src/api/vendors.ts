@@ -1,17 +1,20 @@
 import { apiClient } from './client'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import {
+  mapBooking,
   mapPublicVendor,
   mapVendorListItem,
 } from './mappers'
 import type {
+  ApiBooking,
   ApiPublicVendor,
   ApiServiceArea,
+  ApiVendorClosure,
   ApiVendorList,
   ApiVendorProfile,
   ApiWorkingHours,
 } from './types'
-import type { BookingType, Vendor } from '@repo/core/types'
+import type { Booking, BookingType, Vendor } from '@repo/core/types'
 
 export type VendorSort =
   | 'distance'
@@ -114,8 +117,10 @@ export interface VendorProfileInput {
   doorstepRadiusKm?: number
   /** How the coordinates were arrived at. See plans/geo.md §4. */
   geoSource?: 'gps' | 'map_pin'
+  /** Cars at once, 1–20. */
   bays?: number
-  jobsPerDay?: number
+  /** The most jobs in a day; null clears it (no limit). */
+  jobsPerDay?: number | null
   vehicleTypes?: string[]
   notes?: string
 }
@@ -147,6 +152,11 @@ export async function getMyVendor(): Promise<ApiVendorProfile> {
 export async function updateVendorJobTypes(data: {
   dropinEnabled?: boolean
   doorstepEnabled?: boolean
+  /**
+   * How far the garage goes, sent with doorstepEnabled so the two land
+   * together. Switching doorstep on needs one (or a drawn area) on file.
+   */
+  doorstepRadiusKm?: number
 }): Promise<ApiVendorProfile> {
   return apiClient<ApiVendorProfile>('/vendors/me/job-types', {
     method: 'PATCH',
@@ -172,6 +182,55 @@ export async function getVendorWorkingHours(id: string): Promise<ApiWorkingHours
   return apiClient<ApiWorkingHours[]>(`/vendors/${id}/working-hours`, {
     auth: false,
   })
+}
+
+/** GET /vendors/:id/closures (public) — upcoming holidays as IST dates */
+export async function getVendorClosures(id: string): Promise<string[]> {
+  return apiClient<string[]>(`/vendors/${id}/closures`, { auth: false })
+}
+
+/** GET /vendors/me/closures — today's and later holidays */
+export async function getMyClosures(): Promise<ApiVendorClosure[]> {
+  return apiClient<ApiVendorClosure[]>('/vendors/me/closures')
+}
+
+/**
+ * POST /vendors/me/closures. Comes back with the bookings already on that
+ * day: marking a holiday leaves them in place, and the owner has to sort them
+ * out with the customers.
+ */
+export async function addClosure(data: {
+  date: string
+  reason?: string
+}): Promise<{ closure: ApiVendorClosure; bookings: Booking[] }> {
+  const result = await apiClient<{
+    closure: ApiVendorClosure
+    bookings: ApiBooking[]
+  }>('/vendors/me/closures', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return { closure: result.closure, bookings: result.bookings.map(mapBooking) }
+}
+
+/** DELETE /vendors/me/closures/:id */
+export async function removeClosure(id: string): Promise<ApiVendorClosure> {
+  return apiClient<ApiVendorClosure>(`/vendors/me/closures/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+/** POST /vendors/me/pause — stop taking new bookings */
+export async function pauseBookings(reason?: string): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me/pause', {
+    method: 'POST',
+    body: JSON.stringify(reason ? { reason } : {}),
+  })
+}
+
+/** POST /vendors/me/resume */
+export async function resumeBookings(): Promise<ApiVendorProfile> {
+  return apiClient<ApiVendorProfile>('/vendors/me/resume', { method: 'POST' })
 }
 
 /** PUT /vendors/me/working-hours */
@@ -376,18 +435,12 @@ export async function submitVendorOnboarding(
   }
 
   if (step === 3) {
-    const pickup = data.pickup as 'yes' | 'nearby' | 'no' | ''
-
     // Every field on this call is optional on the screen, so leaving them all
     // blank is a normal way to finish the step. PATCH /vendors/me rejects an
     // empty body ("At least one field must be provided"), which turned that
     // into a Bad Request the vendor could not get past — so only send it when
     // there is something to send.
     const settings = {
-      ...(pickup ? { pickup } : {}),
-      ...(data.pickupRadiusKm != null
-        ? { pickupRadiusKm: data.pickupRadiusKm as number }
-        : {}),
       ...(data.bays != null ? { bays: data.bays as number } : {}),
       ...(data.jobsPerDay != null
         ? { jobsPerDay: data.jobsPerDay as number }
@@ -398,9 +451,14 @@ export async function submitVendorOnboarding(
     }
 
     await Promise.all([
+      // Doorstep and its distance in one call, so the server never holds a
+      // garage that goes to customers with no "how far".
       updateVendorJobTypes({
         dropinEnabled: data.dropin as boolean,
         doorstepEnabled: data.doorstep as boolean,
+        ...(data.doorstep && data.doorstepRadiusKm != null
+          ? { doorstepRadiusKm: data.doorstepRadiusKm as number }
+          : {}),
       }),
       updateSlotInterval(data.slotInterval as 30 | 45 | 60),
       setWorkingHoursForDays(

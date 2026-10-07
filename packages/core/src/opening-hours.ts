@@ -17,6 +17,11 @@ export interface OpeningDay {
 export interface OpenStatus {
   isOpen: boolean
   /**
+   * Today is one of the garage's holidays, so it is shut all day whatever its
+   * weekly hours say: "Closed today" rather than a bare "Closed".
+   */
+  closedToday: boolean
+  /**
    * What follows "Open · " or "Closed · ": "closes 7 PM", "opens 9 AM
    * tomorrow". Null when there is nothing to add.
    */
@@ -47,7 +52,7 @@ function formatClock(time: string): string {
  * customer whose phone is set to another zone is still asking about a garage
  * in India.
  */
-function wallClock(now: Date): { day: number; minutes: number } {
+function wallClock(now: Date): { day: number; minutes: number; date: string } {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: APP_TIMEZONE,
     weekday: 'short',
@@ -61,7 +66,15 @@ function wallClock(now: Date): { day: number; minutes: number } {
   return {
     day: WEEKDAYS.indexOf(part('weekday') as (typeof WEEKDAYS)[number]),
     minutes: Number(part('hour')) * 60 + Number(part('minute')),
+    // en-CA renders YYYY-MM-DD, the same date key the holidays come in.
+    date: now.toLocaleDateString('en-CA', { timeZone: APP_TIMEZONE }),
   }
+}
+
+/** A YYYY-MM-DD key plus some days. UTC date arithmetic, so no DST edges. */
+function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
 /**
@@ -77,10 +90,15 @@ function wallClock(now: Date): { day: number; minutes: number } {
  * shift, or "00:00–00:00" meant as all day) is a shape nothing else in the
  * system understands either, so it makes the whole answer unknown rather than
  * a confident "Closed" that may be wrong.
+ *
+ * `closures` are the garage's holidays as IST dates ("2026-10-20"). A holiday
+ * is shut all day: today being one makes it "Closed today", and the search for
+ * the next opening steps over them.
  */
 export function openStatus(
   hours: readonly OpeningDay[] | null | undefined,
-  now: Date = new Date()
+  now: Date = new Date(),
+  closures: readonly string[] = []
 ): OpenStatus | null {
   if (!hours || hours.length === 0) return null
   if (
@@ -97,22 +115,32 @@ export function openStatus(
     return { open: toMinutes(row.openTime), close: toMinutes(row.closeTime), row }
   }
 
-  const { day: today, minutes } = wallClock(now)
+  const { day: today, minutes, date } = wallClock(now)
   // Unparseable clock (should not happen with a real Intl): say nothing.
   if (today < 0 || !Number.isFinite(minutes)) return null
 
-  const current = hoursOn(today)
+  const holidays = new Set(closures)
+  const closedToday = holidays.has(date)
+
+  const current = closedToday ? null : hoursOn(today)
   if (current && minutes >= current.open && minutes < current.close) {
-    return { isOpen: true, detail: `closes ${formatClock(current.row.closeTime)}` }
+    return {
+      isOpen: true,
+      closedToday: false,
+      detail: `closes ${formatClock(current.row.closeTime)}`,
+    }
   }
 
   // The next opening: later today, then each following day. Offset 7 is the
   // same weekday next week, reached only when today's opening has passed and
-  // no other day opens at all.
+  // no other day opens at all. A holiday is skipped like an off day; the
+  // search goes no further than a week, so a garage shut for longer says only
+  // "Closed".
   for (let offset = 0; offset <= 7; offset++) {
     const day = (today + offset) % 7
     const next = hoursOn(day)
     if (!next || (offset === 0 && next.open <= minutes)) continue
+    if (holidays.has(addDays(date, offset))) continue
 
     const at = formatClock(next.row.openTime)
     const detail =
@@ -125,9 +153,10 @@ export function openStatus(
               // on a Monday evening looks like this morning.
               `opens next ${WEEKDAYS[day]} ${at}`
             : `opens ${WEEKDAYS[day]} ${at}`
-    return { isOpen: false, detail }
+    return { isOpen: false, closedToday, detail }
   }
 
-  // Hours are set, and the garage has marked every day closed.
-  return { isOpen: false, detail: null }
+  // Hours are set, and the garage has marked every day closed — or every
+  // opening in the coming week falls on a holiday.
+  return { isOpen: false, closedToday, detail: null }
 }

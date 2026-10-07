@@ -10,9 +10,17 @@ import {
   services,
   userAddresses,
   userVehicles,
+  vendorClosures,
   vendors,
 } from '../../db/schema.js'
 import type { bookingStatusEnum, bookingTypeEnum } from '../../db/schema.js'
+import {
+  addDaysToDateKey,
+  getDateKeyFromScheduledAt,
+  hasCapacity,
+  istDayBounds,
+  type BusyInterval,
+} from '../../lib/slots.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 
 type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
@@ -53,11 +61,10 @@ const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   'in_progress',
 ]
 
-// Vendor capacity is unlimited, so nothing stops two customers — or the same
-// customer with two different cars — from taking the same time. What is still
-// impossible is one car being serviced in two places at once, so a vehicle may
-// not hold overlapping active bookings. This is the guard that replaces the old
-// vendor-wide slot conflict check, scoped to the vehicle rather than the slot.
+// One car cannot be serviced in two places at once, so a vehicle may not hold
+// overlapping active bookings — at any garage. This is separate from the
+// garage's own capacity (checkGarageCanTake below): that one is about how many
+// cars a garage can take, this one about where a single car can be.
 //
 // Runs inside the caller's transaction, after a lock on the vehicle, so two
 // concurrent requests can't both read "no overlap" and both insert.
@@ -103,9 +110,6 @@ export async function findOverlappingVehicleBooking(
   return existing ?? null
 }
 
-// Serialises concurrent bookings for one vehicle. Taken before the overlap
-// check in every path that creates a booking, and always acquired first so the
-// lock ordering is consistent and can't deadlock against the reschedule lock.
 // Shares DISCOUNT_HELD with discounts.repository.ts rather than restating it:
 // the pre-check and this in-transaction re-check must apply the same rule, and
 // two hand-copied predicates were one edit away from disagreeing.
@@ -145,6 +149,23 @@ export async function lockDiscount(
   )
 }
 
+// ─── Lock order ──────────────────────────────────────────────────────────────
+//
+// Every path that writes a booking takes its transaction-scoped advisory locks
+// in this one order, and skips the ones it does not need:
+//
+//   1. vehicle:<id>                  lockVehicle
+//   2. reschedule:<root booking id>  rescheduleBookingWithPayment only
+//   3. vendor-day:<vendor>:<date>    lockVendorDay, via checkGarageCanTake
+//   4. discount:<id>                 lockDiscount
+//
+// (consumeIntent locks its intent row FOR UPDATE before all of them.) Two
+// transactions that take locks in the same order can wait on each other but
+// never deadlock, so a new lock goes into this list rather than wherever it is
+// first needed.
+
+// Serialises concurrent bookings for one vehicle. Taken before the overlap
+// check in every path that creates a booking.
 export async function lockVehicle(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: PgTransaction<any, any, any>,
@@ -153,6 +174,140 @@ export async function lockVehicle(
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext(${`vehicle:${vehicleId}`})::bigint)`
   )
+}
+
+// Serialises bookings for one garage on one IST day, so two customers paying
+// for the last free bay at the same moment cannot both read "one left" and
+// both be written. Keyed on the day rather than the slot because the daily cap
+// and overlapping jobs of different lengths both make every slot of the day
+// depend on every other.
+export async function lockVendorDay(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  vendorId: string,
+  date: string
+) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`vendor-day:${vendorId}:${date}`})::bigint)`
+  )
+}
+
+// A booking holds a share of the garage while it is still on and has been
+// paid for — the same bookings the garage sees in its portal (see
+// listBookingsForVendor). An unpaid legacy row must not be able to squat a bay
+// the garage cannot even see. A function rather than a constant so every query
+// builds its own subquery.
+export function holdsCapacity() {
+  return and(
+    inArray(bookings.status, ACTIVE_BOOKING_STATUSES),
+    inArray(
+      bookings.id,
+      db
+        .select({ bookingId: payments.bookingId })
+        .from(payments)
+        .where(inArray(payments.status, ['paid', 'collected']))
+    )
+  )
+}
+
+/**
+ * The bookings that take up this garage's room on an IST day: every one
+ * starting that day, plus the day before's in case one runs past midnight.
+ * Read with whichever executor the caller is in — the slot list reads it
+ * outside a transaction, the booking write inside one.
+ */
+export async function listCapacityHolders(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  executor: PgTransaction<any, any, any> | typeof db,
+  params: { vendorId: string; date: string; excludeBookingId?: string }
+): Promise<BusyInterval[]> {
+  const from = istDayBounds(addDaysToDateKey(params.date, -1)).start
+  const to = istDayBounds(params.date).end
+
+  const rows = await executor
+    .select({ start: bookings.scheduledAt, durationMins: bookings.durationMins })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.vendorId, params.vendorId),
+        holdsCapacity(),
+        params.excludeBookingId
+          ? ne(bookings.id, params.excludeBookingId)
+          : undefined,
+        sql`${bookings.scheduledAt} >= ${from.toISOString()}::timestamptz`,
+        sql`${bookings.scheduledAt} < ${to.toISOString()}::timestamptz`
+      )
+    )
+
+  return rows
+}
+
+/** Why a garage would not take a booking at the moment it is written. */
+export type GarageRefusal = 'paused' | 'closed' | 'slot_full'
+
+/**
+ * The garage-side checks, re-run where the booking row is written.
+ *
+ * The service checked all of this before any payment, but minutes of Razorpay
+ * sheet can pass in between: the owner may pause, mark the day a holiday, or
+ * another customer may take the last bay. Done under the vendor-day lock, so
+ * two writes for the same garage and day queue up and the second one counts
+ * the first. `excludeBookingId` is the booking being moved by a reschedule,
+ * which still holds its old time until it is cancelled in the same
+ * transaction.
+ */
+export async function checkGarageCanTake(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  params: {
+    vendorId: string
+    scheduledAt: Date
+    durationMins: number
+    excludeBookingId?: string
+  }
+): Promise<GarageRefusal | null> {
+  const date = getDateKeyFromScheduledAt(params.scheduledAt)
+  await lockVendorDay(tx, params.vendorId, date)
+
+  const [vendor] = await tx
+    .select({
+      bays: vendors.bays,
+      jobsPerDay: vendors.jobsPerDay,
+      bookingsPausedAt: vendors.bookingsPausedAt,
+    })
+    .from(vendors)
+    .where(eq(vendors.id, params.vendorId))
+    .limit(1)
+
+  if (!vendor || vendor.bookingsPausedAt) return 'paused'
+
+  const [closure] = await tx
+    .select({ id: vendorClosures.id })
+    .from(vendorClosures)
+    .where(
+      and(
+        eq(vendorClosures.vendorId, params.vendorId),
+        eq(vendorClosures.date, date)
+      )
+    )
+    .limit(1)
+
+  if (closure) return 'closed'
+
+  const busy = await listCapacityHolders(tx, {
+    vendorId: params.vendorId,
+    date,
+    excludeBookingId: params.excludeBookingId,
+  })
+
+  return hasCapacity(params.scheduledAt, {
+    durationMins: params.durationMins,
+    busy,
+    bays: vendor.bays,
+    jobsPerDay: vendor.jobsPerDay,
+  })
+    ? null
+    : 'slot_full'
 }
 
 // Line items in the order the customer added them. Declared once because
@@ -321,8 +476,6 @@ export const bookingsRepository = {
     address?: string | null
     discount?: BookingDiscount | null
   }) {
-    // Capacity is unlimited, so there is no vendor-side slot contention to
-    // guard against — only the one-car-in-one-place rule below.
     return db.transaction(async (tx) => {
       await lockVehicle(tx, data.vehicleId)
 
@@ -337,6 +490,23 @@ export const bookingsRepository = {
           booking: null,
           payment: null,
           vehicleClash: clash,
+          garageRefusal: null,
+          discountUnavailable: false as const,
+        }
+      }
+
+      const garageRefusal = await checkGarageCanTake(tx, {
+        vendorId: data.vendorId,
+        scheduledAt: data.scheduledAt,
+        durationMins: data.durationMins,
+      })
+
+      if (garageRefusal) {
+        return {
+          booking: null,
+          payment: null,
+          vehicleClash: null,
+          garageRefusal,
           discountUnavailable: false as const,
         }
       }
@@ -358,6 +528,7 @@ export const bookingsRepository = {
               booking: null,
               payment: null,
               vehicleClash: null,
+              garageRefusal: null,
               discountUnavailable: true as const,
             }
           }
@@ -370,6 +541,7 @@ export const bookingsRepository = {
               booking: null,
               payment: null,
               vehicleClash: null,
+              garageRefusal: null,
               discountUnavailable: true as const,
             }
           }
@@ -434,6 +606,7 @@ export const bookingsRepository = {
         booking,
         payment,
         vehicleClash: null,
+        garageRefusal: null,
         discountUnavailable: false as const,
       }
     })
@@ -513,6 +686,7 @@ export const bookingsRepository = {
           payment: null,
           capReached: false as const,
           vehicleClash: null,
+          garageRefusal: null,
           stateChanged: true as const,
         }
       }
@@ -530,6 +704,7 @@ export const bookingsRepository = {
           payment: null,
           capReached: true as const,
           vehicleClash: null,
+          garageRefusal: null,
           stateChanged: false as const,
         }
       }
@@ -550,6 +725,30 @@ export const bookingsRepository = {
           payment: null,
           capReached: false as const,
           vehicleClash: clash,
+          garageRefusal: null,
+          stateChanged: false as const,
+        }
+      }
+
+      // The garage's side, under the vendor-day lock (after the chain lock —
+      // see the lock order above). The source booking is excluded for the same
+      // reason as in the vehicle check: it still holds the old time until it
+      // is cancelled below, and moving a job 30 minutes later must not be
+      // refused for clashing with itself.
+      const garageRefusal = await checkGarageCanTake(tx, {
+        vendorId: data.vendorId,
+        scheduledAt: data.newScheduledAt,
+        durationMins: data.durationMins,
+        excludeBookingId: data.sourceBookingId,
+      })
+
+      if (garageRefusal) {
+        return {
+          booking: null,
+          payment: null,
+          capReached: false as const,
+          vehicleClash: null,
+          garageRefusal,
           stateChanged: false as const,
         }
       }
@@ -647,6 +846,7 @@ export const bookingsRepository = {
         payment,
         capReached: false as const,
         vehicleClash: null,
+        garageRefusal: null,
         stateChanged: false as const,
       }
     })
@@ -745,6 +945,76 @@ export const bookingsRepository = {
         eq(vendors.isVerified, true)
       ),
     })
+  },
+
+  /** The garage's holiday on this IST date, if it marked one. */
+  findClosure(vendorId: string, date: string) {
+    return db.query.vendorClosures.findFirst({
+      where: and(
+        eq(vendorClosures.vendorId, vendorId),
+        eq(vendorClosures.date, date)
+      ),
+    })
+  },
+
+  /**
+   * The garage's bookings that are still on for an IST day, for the warning
+   * shown when it marks that day a holiday. Same rule as capacity: on and
+   * paid for, which is also what the garage's own job list shows.
+   */
+  listActiveBookingsForVendorOn(vendorId: string, date: string) {
+    const { start, end } = istDayBounds(date)
+
+    return db.query.bookings.findMany({
+      where: and(
+        eq(bookings.vendorId, vendorId),
+        holdsCapacity(),
+        sql`${bookings.scheduledAt} >= ${start.toISOString()}::timestamptz`,
+        sql`${bookings.scheduledAt} < ${end.toISOString()}::timestamptz`
+      ),
+      with: {
+        user: true,
+        vendor: true,
+        service: true,
+        items: BOOKING_ITEMS,
+        vehicle: true,
+        payment: true,
+      },
+      orderBy: [asc(bookings.scheduledAt)],
+    })
+  },
+
+  /**
+   * How many of those there are on each IST day in [from, to), keyed by date.
+   * Days with none are absent.
+   */
+  async countActiveBookingsByDate(vendorId: string, from: string, to: string) {
+    const rows = await db
+      .select({
+        date: sql<string>`to_char(${bookings.scheduledAt} at time zone 'Asia/Kolkata', 'YYYY-MM-DD')`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.vendorId, vendorId),
+          holdsCapacity(),
+          sql`${bookings.scheduledAt} >= ${istDayBounds(from).start.toISOString()}::timestamptz`,
+          sql`${bookings.scheduledAt} < ${istDayBounds(to).start.toISOString()}::timestamptz`
+        )
+      )
+      .groupBy(sql`1`)
+
+    return new Map(rows.map((row) => [row.date, row.count]))
+  },
+
+  /** See listCapacityHolders: the bookings taking up the garage's room that day. */
+  listCapacityHolders(params: {
+    vendorId: string
+    date: string
+    excludeBookingId?: string
+  }) {
+    return listCapacityHolders(db, params)
   },
 
   /**

@@ -3,8 +3,10 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import {
   computeAvailableSlots,
+  dayStatus,
   getDateKeyFromScheduledAt,
   getDayOfWeekFromDate,
+  hasCapacity,
   isScheduledAtAvailable,
   meetsMinNotice,
   minNoticeMessage,
@@ -14,7 +16,7 @@ import { computeVendorPayout } from '../../lib/discounts.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
-import type { BookingDiscount } from './bookings.repository.js'
+import type { BookingDiscount, GarageRefusal } from './bookings.repository.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
@@ -23,6 +25,56 @@ const log = logger.child({ module: 'bookings' })
 function assertMinNotice(scheduledAt: Date, bookingType: 'dropin' | 'doorstep') {
   if (!meetsMinNotice(scheduledAt, bookingType)) {
     throw new AppError(400, minNoticeMessage(bookingType), 'SLOT_TOO_SOON')
+  }
+}
+
+// The three ways a garage can turn a time down that are about the garage, not
+// the customer's request. Shared by the pre-payment checks and the refusals
+// that come back from the write transaction, so the customer reads the same
+// words whichever one caught it.
+function garagePaused() {
+  return new AppError(
+    409,
+    "This garage isn't taking new bookings right now. Please pick another garage.",
+    'GARAGE_PAUSED'
+  )
+}
+
+// The same refusal for a booking the customer already has. "Pick another
+// garage" is not something a reschedule can do, and their booking is not new:
+// what they can do is keep it as it is or cancel it.
+function garagePausedForChange() {
+  return new AppError(
+    409,
+    "This garage isn't taking changes right now. Your booking stays at its current time, or you can cancel it.",
+    'GARAGE_PAUSED'
+  )
+}
+
+function garageClosedThatDay() {
+  return new AppError(
+    400,
+    'This garage is closed on that day. Please pick another day.',
+    'GARAGE_CLOSED_THAT_DAY'
+  )
+}
+
+function slotFull() {
+  return new AppError(
+    409,
+    'That time has just been booked up at this garage. Please pick another time.',
+    'SLOT_FULL'
+  )
+}
+
+function garageRefusalError(refusal: GarageRefusal) {
+  switch (refusal) {
+    case 'paused':
+      return garagePaused()
+    case 'closed':
+      return garageClosedThatDay()
+    case 'slot_full':
+      return slotFull()
   }
 }
 
@@ -257,7 +309,7 @@ function toBookingResponse(booking: BookingWithRelations) {
  * `amount` and `paymentMethod` stay: a cash booking goes pending → collected at
  * completion, so whoever finishes the job has to know what to collect.
  */
-function toVendorBookingResponse(booking: BookingWithRelations) {
+export function toVendorBookingResponse(booking: BookingWithRelations) {
   const {
     vendorPayoutAmount: _payout,
     subtotalAmount: _subtotal,
@@ -284,36 +336,61 @@ async function getTenantVendor(vendorId: string) {
   return vendor
 }
 
+/**
+ * Whether the garage would still take an existing booking's time: not paused,
+ * not a holiday, and a bay free with that booking itself left out. For paying
+ * an unpaid booking later (payments.service createOrder), which is the moment
+ * that booking starts to hold a bay. Answers rather than throws, because the
+ * words for "you can't pay for this" are the caller's.
+ *
+ * The same reads checkGarageCanTake makes under its lock; this is the cheap
+ * look before any payment order is opened.
+ */
+export async function garageRefusalForBooking(booking: {
+  id: string
+  vendorId: string
+  scheduledAt: Date
+  durationMins: number
+}): Promise<GarageRefusal | null> {
+  const vendor = await bookingsRepository.findVendorById(booking.vendorId)
+  if (!vendor || vendor.bookingsPausedAt) return 'paused'
+
+  const date = getDateKeyFromScheduledAt(booking.scheduledAt)
+  const [closure, busy] = await Promise.all([
+    bookingsRepository.findClosure(booking.vendorId, date),
+    bookingsRepository.listCapacityHolders({
+      vendorId: booking.vendorId,
+      date,
+      excludeBookingId: booking.id,
+    }),
+  ])
+  if (closure) return 'closed'
+
+  return hasCapacity(booking.scheduledAt, {
+    durationMins: booking.durationMins,
+    busy,
+    bays: vendor.bays,
+    jobsPerDay: vendor.jobsPerDay,
+  })
+    ? null
+    : 'slot_full'
+}
+
 async function validateSlotAvailability(
   vendorId: string,
   serviceIds: string[],
   scheduledAt: Date,
   // The total across every service in the booking. A five-service cart needs a
   // block long enough for all of it, and may not fit the day at all.
-  durationMins: number
+  durationMins: number,
+  // The booking a reschedule is moving. It still holds its old time, so it
+  // must not count against the garage's room for the new one.
+  excludeBookingId?: string
 ) {
   const date = getDateKeyFromScheduledAt(scheduledAt)
   const dayOfWeek = getDayOfWeekFromDate(date)
   log.info({ vendorId, serviceIds, date, dayOfWeek, durationMins, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_check_start')
 
-  const hours = await vendorsRepository.findWorkingHoursForDay(
-    vendorId,
-    dayOfWeek
-  )
-
-  log.info({ vendorId, date, dayOfWeek, hours: hours ? { openTime: hours.openTime, closeTime: hours.closeTime, isClosed: hours.isClosed } : null }, 'booking:working_hours_fetched')
-
-  if (!hours || hours.isClosed) {
-    log.warn({ vendorId, date, dayOfWeek, hoursFound: !!hours, isClosed: hours?.isClosed }, 'booking:slot_unavailable_closed')
-    throw new AppError(
-      400,
-      'Selected slot is not available',
-      'SLOT_UNAVAILABLE'
-    )
-  }
-
-  // Capacity is unlimited, so existing bookings are irrelevant here: this only
-  // checks that the requested time lands on a real slot within working hours.
   const vendor = await bookingsRepository.findVendorById(vendorId)
 
   if (!vendor) {
@@ -321,12 +398,43 @@ async function validateSlotAvailability(
     throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
   }
 
+  const [hours, closure] = await Promise.all([
+    vendorsRepository.findWorkingHoursForDay(vendorId, dayOfWeek),
+    bookingsRepository.findClosure(vendorId, date),
+  ])
+
+  log.info({ vendorId, date, dayOfWeek, hours: hours ? { openTime: hours.openTime, closeTime: hours.closeTime, isClosed: hours.isClosed } : null, holiday: !!closure }, 'booking:working_hours_fetched')
+
+  const day = dayStatus({
+    pausedAt: vendor.bookingsPausedAt,
+    isHoliday: !!closure,
+    hours,
+  })
+
+  if (!day.open) {
+    log.warn({ vendorId, date, dayOfWeek, reason: day.reason }, 'booking:slot_unavailable_closed')
+    // `excludeBookingId` is only ever set by a reschedule, so it doubles as
+    // "the customer already has a booking here".
+    if (day.reason === 'paused') {
+      throw excludeBookingId ? garagePausedForChange() : garagePaused()
+    }
+    if (day.reason === 'holiday') throw garageClosedThatDay()
+    throw new AppError(
+      400,
+      'Selected slot is not available',
+      'SLOT_UNAVAILABLE'
+    )
+  }
+
+  // `hours` is known to be an open day from here on.
+  const openHours = hours!
+
   const availableSlots = computeAvailableSlots({
     date,
-    openTime: hours.openTime,
-    closeTime: hours.closeTime,
+    openTime: openHours.openTime,
+    closeTime: openHours.closeTime,
     intervalMins: vendor.slotIntervalMins,
-    isClosed: hours.isClosed,
+    isClosed: openHours.isClosed,
     serviceDurationMins: durationMins,
   })
 
@@ -351,6 +459,27 @@ async function validateSlotAvailability(
       'Selected slot is not available',
       'SLOT_UNAVAILABLE'
     )
+  }
+
+  // The garage's room at that time. Checked here so a full slot is refused
+  // before any payment order exists; the write re-checks it under a lock,
+  // because another customer can take the last bay in between.
+  const busy = await bookingsRepository.listCapacityHolders({
+    vendorId,
+    date,
+    excludeBookingId,
+  })
+
+  if (
+    !hasCapacity(scheduledAt, {
+      durationMins,
+      busy,
+      bays: vendor.bays,
+      jobsPerDay: vendor.jobsPerDay,
+    })
+  ) {
+    log.warn({ vendorId, date, scheduledAt: scheduledAt.toISOString(), durationMins, bays: vendor.bays, jobsPerDay: vendor.jobsPerDay, busy: busy.length }, 'booking:slot_full')
+    throw slotFull()
   }
 
   log.info({ vendorId, scheduledAt: scheduledAt.toISOString() }, 'booking:slot_available')
@@ -474,6 +603,13 @@ export async function resolveBookingDraft(
   if (!vendor) {
     log.warn({ userId, vendorId: input.vendorId }, 'booking:vendor_not_found')
     throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+  }
+
+  // Before anything about the cart or the address: whatever else is wrong,
+  // a paused garage is the thing the customer needs to hear.
+  if (vendor.bookingsPausedAt) {
+    log.warn({ userId, vendorId: vendor.id }, 'booking:garage_paused')
+    throw garagePaused()
   }
 
   if (input.bookingType === 'dropin' && !vendor.dropinEnabled) {
@@ -791,6 +927,20 @@ export const bookingsService = {
         )
       }
 
+      // Paused, a holiday or the last bay taken since the checks above.
+      if (result.garageRefusal) {
+        log.warn(
+          {
+            userId,
+            vendorId: vendor.id,
+            scheduledAt: scheduledAt.toISOString(),
+            refusal: result.garageRefusal,
+          },
+          'booking:garage_refused_at_write'
+        )
+        throw garageRefusalError(result.garageRefusal)
+      }
+
       // The limits were re-checked under a lock inside the transaction, so a
       // code that was free a moment ago can still be gone by the time we write.
       if (result.discountUnavailable) {
@@ -946,7 +1096,8 @@ export const bookingsService = {
       booking.vendorId,
       items.map((item) => item.serviceId),
       newScheduledAt,
-      durationMins
+      durationMins,
+      booking.id
     )
 
     const rootBookingId = booking.originalBookingId ?? booking.id
@@ -1000,6 +1151,22 @@ export const bookingsService = {
     }
 
     if (result.stateChanged) throw stateChanged()
+
+    if (result.garageRefusal) {
+      log.warn(
+        {
+          userId,
+          bookingId: booking.id,
+          vendorId: booking.vendorId,
+          newScheduledAt: newScheduledAt.toISOString(),
+          refusal: result.garageRefusal,
+        },
+        'booking:reschedule_garage_refused'
+      )
+      throw result.garageRefusal === 'paused'
+        ? garagePausedForChange()
+        : garageRefusalError(result.garageRefusal)
+    }
 
     if (result.vehicleClash) {
       log.warn(

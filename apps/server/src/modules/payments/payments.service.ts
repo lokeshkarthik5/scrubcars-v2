@@ -1,11 +1,18 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
+import { alertOps } from '../../lib/ops-alerts.js'
 import {
   createRazorpayOrder,
   verifyPaymentSignature,
   verifyWebhookSignature,
 } from '../../lib/razorpay.js'
-import { bookingIntentsService } from '../booking-intents/booking-intents.service.js'
+import {
+  bookingIntentsService,
+  failureMessage,
+} from '../booking-intents/booking-intents.service.js'
+import type { GarageRefusal } from '../bookings/bookings.repository.js'
+import { garageRefusalForBooking } from '../bookings/bookings.service.js'
+import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { paymentsRepository } from './payments.repository.js'
 import type { VerifyPaymentInput } from './payments.validation.js'
 
@@ -82,6 +89,43 @@ function toPaymentResponse(payment: {
   }
 }
 
+// The intent failure reason each garage refusal is recorded and alerted as,
+// so ops and the customer read the same words whichever path took the money.
+const REFUSAL_REASONS: Record<GarageRefusal, string> = {
+  slot_full: 'slot_full',
+  closed: 'garage_closed',
+  paused: 'garage_paused',
+}
+
+/**
+ * Why an unpaid booking can't be paid for now, before any money moves. Its
+ * time was fine when it was written, but an unpaid booking holds no bay, so
+ * the garage may have filled, paused or closed that day since. Nothing can be
+ * done about the booking from here but cancel it, so that is what it says.
+ */
+function payLaterRefused(refusal: GarageRefusal) {
+  switch (refusal) {
+    case 'paused':
+      return new AppError(
+        409,
+        "This garage isn't taking bookings right now, so this one can't be paid for. You can cancel it.",
+        'GARAGE_PAUSED'
+      )
+    case 'closed':
+      return new AppError(
+        400,
+        "The garage is closed on this booking's day, so it can't be paid for. You can cancel it.",
+        'GARAGE_CLOSED_THAT_DAY'
+      )
+    case 'slot_full':
+      return new AppError(
+        409,
+        "This time has been booked up at the garage, so this booking can't be paid for. You can cancel it.",
+        'SLOT_FULL'
+      )
+  }
+}
+
 async function markBookingPaid(
   bookingId: string,
   paymentTxnId: string,
@@ -101,13 +145,75 @@ async function markBookingPaid(
     throw new AppError(400, 'Order mismatch', 'PAYMENT_ORDER_MISMATCH')
   }
 
-  const [updated] = await paymentsRepository.markPaid(
+  // The garage's checks run again where the payment lands, under the
+  // vendor-day lock: this is the moment the booking starts holding a bay.
+  const result = await paymentsRepository.settlePayment({
     bookingId,
     paymentTxnId,
-    new Date()
-  )
+    paidAt: new Date(),
+    onRefusal: (refusal) => ({
+      cancellationReason: failureMessage(REFUSAL_REASONS[refusal]),
+      note: {
+        author: 'Detlio (automatic)',
+        body: `Payment ${paymentTxnId} landed after the garage stopped being able to take this booking (${REFUSAL_REASONS[refusal]}). Booking cancelled; refund the payment in Razorpay.`,
+      },
+    }),
+  })
 
-  return updated
+  switch (result.kind) {
+    case 'paid':
+      return result.payment
+
+    // A racing call settled it first. Re-read rather than guess which way it
+    // went: a refused booking is cancelled, and the caller must not report it
+    // as paid for.
+    case 'already':
+    case 'not_found': {
+      const settled = await paymentsRepository.findPaymentByBookingId(bookingId)
+      if (!settled) {
+        throw new AppError(404, 'Payment not found', 'PAYMENT_NOT_FOUND')
+      }
+      if (settled.booking.status === 'cancelled') {
+        throw new AppError(
+          409,
+          settled.booking.cancellationReason ?? failureMessage(null),
+          'BOOKING_CONFIRM_FAILED_REFUND_DUE'
+        )
+      }
+      return settled
+    }
+
+    // Money captured for a booking the garage can no longer take. Same
+    // handling as a refused intent (failIntent): logged loudly, one ops alert
+    // from the call that recorded it, and the 409 the app shows as "your
+    // payment will be refunded".
+    case 'refused': {
+      const reason = REFUSAL_REASONS[result.refusal]
+      log.error(
+        { bookingId, paymentId: paymentTxnId, reason },
+        'payment:settle_refused_refund_due'
+      )
+      alertOps(async () => {
+        const booking = await paymentsRepository.findBookingById(bookingId)
+        const vendor = booking
+          ? await vendorsRepository.findVendorById(booking.vendorId)
+          : null
+        return {
+          kind: 'paid_no_booking',
+          paymentId: paymentTxnId,
+          reason,
+          amount: booking?.amount,
+          garageName: vendor?.businessName,
+          scheduledAt: booking?.scheduledAt,
+        }
+      })
+      throw new AppError(
+        409,
+        failureMessage(reason),
+        'BOOKING_CONFIRM_FAILED_REFUND_DUE'
+      )
+    }
+  }
 }
 
 export const paymentsService = {
@@ -119,6 +225,16 @@ export const paymentsService = {
 
     if (payment.status === 'paid') {
       throw new AppError(400, 'Payment already completed', 'PAYMENT_ALREADY_PAID')
+    }
+
+    // Refused before the customer is charged, where it can still be said
+    // plainly. settlePayment checks again when the money lands. Only a
+    // booking that is still on has a time to check — the same rule there.
+    const active = ['pending', 'confirmed', 'in_progress'].includes(booking.status)
+    const refusal = active ? await garageRefusalForBooking(booking) : null
+    if (refusal) {
+      log.warn({ bookingId: booking.id, vendorId: booking.vendorId, refusal }, 'payment:order_refused_by_garage')
+      throw payLaterRefused(refusal)
     }
 
     const order = await createRazorpayOrder({
@@ -311,7 +427,22 @@ export const paymentsService = {
     }
 
     if (event === 'payment.captured' || entity.status === 'captured') {
-      await markBookingPaid(payment.bookingId, entity.id, entity.order_id)
+      try {
+        await markBookingPaid(payment.bookingId, entity.id, entity.order_id)
+      } catch (err) {
+        // A garage refusal (or an order mismatch) answers the same on every
+        // redelivery, and the refund is already recorded and alerted. Report
+        // handled so Razorpay stops retrying, as the intent branch above does.
+        if (err instanceof AppError) {
+          log.error(
+            { err, event, bookingId: payment.bookingId, paymentId: entity.id },
+            'webhook:payment_settle_failed'
+          )
+          return { handled: true, event }
+        }
+
+        throw err
+      }
       log.info({ event, bookingId: payment.bookingId, paymentId: entity.id }, 'webhook:payment_captured')
       return { handled: true, event }
     }

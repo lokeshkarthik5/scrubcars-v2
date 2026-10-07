@@ -244,6 +244,9 @@ const FAILURE_REASONS: Record<string, string> = {
   intent_expired: 'the checkout expired before the payment went through',
   vehicle_double_booked: 'that car already had a booking at that time',
   discount_exhausted: 'the promo code ran out before the payment went through',
+  slot_full: 'the garage was booked up at that time before the payment went through',
+  garage_closed: 'the garage marked that day as a holiday before the payment went through',
+  garage_paused: 'the garage paused new bookings before the payment went through',
 }
 
 /**

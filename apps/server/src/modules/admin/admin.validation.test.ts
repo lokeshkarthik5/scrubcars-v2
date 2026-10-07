@@ -4,7 +4,9 @@ import {
   createBookingNoteSchema,
   listBookingsQuerySchema,
   markNoShowSchema,
+  pauseVendorSchema,
   pilotStatsQuerySchema,
+  updateVendorSchema,
 } from './admin.validation.js'
 
 describe('listBookingsQuerySchema', () => {
@@ -149,5 +151,43 @@ describe('pilotStatsQuerySchema', () => {
   test('only the two windows the dashboard offers', () => {
     expect(pilotStatsQuerySchema.safeParse({ days: '14' }).success).toBe(false)
     expect(pilotStatsQuerySchema.safeParse({ days: '365' }).success).toBe(false)
+  })
+})
+
+describe('updateVendorSchema working hours', () => {
+  const day = (dayOfWeek: number, closeTime = '18:00:00') => ({
+    dayOfWeek,
+    openTime: '09:00:00',
+    closeTime,
+    isClosed: false,
+  })
+
+  test('a save that never touched the hours carries none, so none change', () => {
+    const parsed = updateVendorSchema.parse({ businessName: 'Renamed Garage' })
+    expect(parsed.workingHours).toBeUndefined()
+    expect(parsed.workingDays).toBeUndefined()
+  })
+
+  test('takes each day on its own, so a short Saturday stays short', () => {
+    const parsed = updateVendorSchema.parse({
+      workingHours: [day(1), day(6, '13:00:00')],
+    })
+    expect(parsed.workingHours?.[1]).toMatchObject({ dayOfWeek: 6, closeTime: '13:00:00' })
+  })
+
+  test('refuses the same day twice', () => {
+    expect(
+      updateVendorSchema.safeParse({ workingHours: [day(1), day(1, '13:00:00')] }).success
+    ).toBe(false)
+  })
+})
+
+describe('pauseVendorSchema', () => {
+  test('the reason is optional and capped', () => {
+    expect(pauseVendorSchema.parse({})).toEqual({})
+    expect(pauseVendorSchema.parse({ reason: '  Owner unwell  ' })).toEqual({
+      reason: 'Owner unwell',
+    })
+    expect(pauseVendorSchema.safeParse({ reason: 'x'.repeat(201) }).success).toBe(false)
   })
 })
