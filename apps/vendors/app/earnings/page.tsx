@@ -113,9 +113,15 @@ export default function VendorEarningsPage() {
           ) : (
             jobs.map((job) => (
               <ScCard key={job.id} className="flex items-center justify-between">
-                <div>
+                <div className="min-w-0">
                   <p className="text-[13px] font-medium">{job.serviceName}</p>
                   <p className="text-[11px] text-text-secondary">{job.customerName} · {job.date} · {job.type}</p>
+                  {/* Paid as if the job happened: the garage held the slot
+                      and the customer didn't come. Said, so the garage knows
+                      why a job it never did is on the list. */}
+                  {job.kind === 'customer_no_show' && (
+                    <ScBadge variant="muted" className="mt-1">Customer no-show</ScBadge>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className={cn('text-[13px] font-semibold', job.settled ? 'text-success' : 'text-warning')}>

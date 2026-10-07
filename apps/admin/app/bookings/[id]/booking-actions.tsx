@@ -166,8 +166,9 @@ export function CancelBookingDialog({
             <span className="font-numeric text-text-primary">
               {formatRupees(booking.amount)}
             </span>{' '}
-            was paid online. Refund it in Razorpay after cancelling; the team
-            also gets a Telegram reminder.
+            was paid online. Refund it in Razorpay after cancelling, then mark
+            it refunded on this booking or the Refunds page. The team also
+            gets a Telegram reminder.
           </>
         ) : (
           "Nothing was paid online, so there's nothing to refund."
@@ -277,14 +278,16 @@ export function NoShowDialog({
               <span className="font-numeric">
                 {formatRupees(booking.amount)}
               </span>{' '}
-              to the customer in full in Razorpay. The team also gets a Telegram
+              to the customer in full in Razorpay, then mark it refunded here.
+              The garage earns nothing for it. The team also gets a Telegram
               reminder.
             </>
           ) : party === 'garage' ? (
-            "Nothing was paid online, so there's nothing to refund."
+            "Nothing was paid online, so there's nothing to refund. The garage earns nothing for it."
           ) : (
-            // The published policy: the garage held the slot.
-            "The payment is kept. No refund: the customer didn't turn up for an accepted booking."
+            // The published policy: the garage held the slot, so it is paid
+            // its share (lib/earnings.ts) and the promo use stays spent.
+            "The payment is kept. No refund: the customer didn't turn up for an accepted booking. The garage is paid its share, as if the job happened."
           )}
         </p>
       )}

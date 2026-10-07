@@ -371,6 +371,16 @@ export interface ApiBooking {
   canRaiseFinalBill?: boolean
   /** What the booking already covers toward a final bill, as a decimal string. */
   paidAtBooking?: string
+  /**
+   * Customer payloads only: money owed back on this booking, or given back.
+   * Absent from garage payloads and from servers older than refunds.
+   */
+  refund?: {
+    status: 'owed' | 'refunded' | 'none'
+    amount: string
+    amountRefunded: string
+    refundedAt: string | null
+  }
   review: {
     id: string
     rating: number

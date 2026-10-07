@@ -380,6 +380,20 @@ export const bookingsRepository = {
     return Array.from(rows)[0]?.covered === true
   },
 
+  /**
+   * Which of these bookings the customer moved to a new time: the ones
+   * another booking was rescheduled from. A moved booking reads cancelled
+   * with its payment still 'paid', but that payment went with the move.
+   */
+  async findMovedBookingIds(ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set()
+    const rows = await db
+      .select({ id: bookings.rescheduledFromId })
+      .from(bookings)
+      .where(inArray(bookings.rescheduledFromId, ids))
+    return new Set(rows.flatMap((row) => (row.id ? [row.id] : [])))
+  },
+
   findBookingById(id: string) {
     return db.query.bookings.findFirst({
       where: eq(bookings.id, id),
@@ -437,6 +451,13 @@ export const bookingsRepository = {
    * `collected` counts alongside `paid` because markCompleted settles legacy
    * cash bookings to `collected`; DISCOUNT_REALIZED already treats both as
    * settled.
+   *
+   * `refunded` counts too: ops marking a full refund (0029) is the only thing
+   * that writes it, and only on a cancelled booking that was paid. Leaving it
+   * out would make a declined booking or the garage's own no-show vanish from
+   * its Cancelled tab the moment the customer got their money back. Nothing
+   * here can accept it or let it hold capacity — those checks still ask for
+   * `paid` themselves.
    */
   listBookingsForVendor(
     vendorId: string,
@@ -449,7 +470,7 @@ export const bookingsRepository = {
         db
           .select({ bookingId: payments.bookingId })
           .from(payments)
-          .where(inArray(payments.status, ['paid', 'collected']))
+          .where(inArray(payments.status, ['paid', 'collected', 'refunded']))
       ),
     ]
 

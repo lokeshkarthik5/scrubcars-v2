@@ -7,6 +7,7 @@
 
 const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
+const ADMIN_REFUNDS_URL = 'https://admin.detlio.com/refunds'
 
 /**
  * The booking's own page in admin. Whoever picks an alert up goes straight to
@@ -69,6 +70,28 @@ export type OpsAlert =
       booking: AlertBooking
       amount: string
       paymentId: string
+    }
+  | {
+      /**
+       * Ops recorded a refund it did in Razorpay (or by UPI or bank). Nothing
+       * to do: it keeps the group's history of the money complete, next to
+       * the alert that asked for the refund.
+       */
+      kind: 'refund_recorded'
+      what: 'booking' | 'checkout' | 'bill'
+      /** The booking it belongs to; null for a checkout that became none. */
+      bookingId: string | null
+      garageName: string | null
+      amount: string
+      /** What was paid, and what has gone back so far including this one. */
+      paid: string
+      refundedTotal: string
+      /** The Razorpay refund id; null when the money went back another way. */
+      refundRef: string | null
+      /** The Razorpay payment it refunds, to find it by. */
+      paymentId: string | null
+      /** Who recorded it, as their booking notes are signed. */
+      by: string
     }
   | {
       kind: 'pending_digest'
@@ -235,6 +258,22 @@ export function formatOpsAlert(alert: OpsAlert): string {
       )
     }
 
+    case 'refund_recorded': {
+      const full = Number(alert.refundedTotal) >= Number(alert.paid)
+      return lines(
+        `💸 Refund recorded${alert.bookingId ? ` #${reference(alert.bookingId)}` : ''} · ${rupees(alert.amount)}`,
+        [REFUND_WHAT[alert.what], alert.garageName].filter(Boolean).join(' · '),
+        alert.refundRef
+          ? `Razorpay refund ${alert.refundRef}${alert.paymentId ? ` for ${alert.paymentId}` : ''}`
+          : `Refunded outside Razorpay${alert.paymentId ? ` (payment ${alert.paymentId})` : ''}. How is in the note in admin.`,
+        full
+          ? 'Refunded in full.'
+          : `Part refund: ${rupees(alert.refundedTotal)} of ${rupees(alert.paid)} back so far. The rest is still owed.`,
+        `Recorded by ${alert.by}.`,
+        alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
+      )
+    }
+
     case 'rescheduled': {
       const b = alert.booking
       return lines(
@@ -279,8 +318,11 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `${alert.amount ? rupees(alert.amount) : 'Amount unknown'} · Razorpay payment ${alert.paymentId}`,
         alert.garageName ? `Garage: ${alert.garageName}` : null,
         alert.scheduledAt ? `Was for ${when(alert.scheduledAt)}` : null,
-        `Why: ${FAILURE_REASONS[alert.reason] ?? alert.reason}`,
-        'Refund this payment in Razorpay. The customer was told it would be refunded.'
+        `Why: ${failureReasonText(alert.reason)}`,
+        'Refund this payment in Razorpay, then mark it refunded on the Refunds page. The customer was told it would be refunded.',
+        // A checkout that became no booking has no booking page; the Refunds
+        // page is where it is found and marked done.
+        ADMIN_REFUNDS_URL
       )
 
     case 'sms_failed':
@@ -311,6 +353,22 @@ const ON_BEHALF_OF: Record<'customer' | 'garage' | 'detlio', string> = {
   customer: 'On behalf of the customer.',
   garage: 'On behalf of the garage.',
   detlio: "Detlio's own decision.",
+}
+
+/** What a refund was of, as one phrase. */
+const REFUND_WHAT: Record<'booking' | 'checkout' | 'bill', string> = {
+  booking: 'Booking payment',
+  checkout: 'Payment with no booking',
+  bill: 'Final bill payment',
+}
+
+/**
+ * Why a checkout's payment became no booking, in the team's words: the
+ * refunds list in admin says it the same way as this alert.
+ */
+export function failureReasonText(reason: string | null | undefined): string {
+  if (!reason) return 'the booking could not be written'
+  return FAILURE_REASONS[reason] ?? reason
 }
 
 /** The reasons failIntent records, as the team would say them. */

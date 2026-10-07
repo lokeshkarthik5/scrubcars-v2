@@ -32,6 +32,7 @@ import {
   realClock,
 } from '@repo/core/payment-confirmation'
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records'
+import { customerRefundLine, withoutRefundPromise } from '@repo/core/refunds'
 import { formatBookingAmount } from '@repo/core/pricing'
 import {
   BOOKING_TYPE_LABELS,
@@ -58,12 +59,16 @@ const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confi
 
 /**
  * What the customer is told about a cancelled booking: who cancelled it and,
- * for a no-show, what happens to their money.
+ * when money is coming back, that it is and when it went.
  *
  * A no-show is the one case where the money is the message. A customer
  * no-show keeps the payment (the published policy), so it says so plainly and
- * points at Help rather than leaving them to find out from their bank. A
- * garage no-show is always refunded, by the Detlio team in Razorpay.
+ * points at Help rather than leaving them to find out from their bank; the
+ * server never reports a refund owed on one. A garage no-show is always
+ * refunded, by the Detlio team. Every other cancellation of a paid booking is
+ * refunded too, and the refund line (customerRefundLine) says so: "will
+ * refund … within 5–7 working days" until the team records it, then
+ * "Refunded ₹X on <date>".
  */
 function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.noShow === 'customer') {
@@ -75,18 +80,31 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
     }
   }
 
+  const refund = customerRefundLine(booking.refund)
+
   if (booking.noShow === 'garage') {
     return {
       title: "The garage couldn't serve this booking",
       lines: [
-        booking.paymentStatus === 'refunded'
-          ? 'Your payment has been refunded.'
-          : booking.paymentStatus === 'paid'
-            ? 'Our team will refund your payment.'
-            : 'Nothing was charged online for it.',
+        refund ??
+          // A server older than refunds sends no refund, only the payment.
+          (booking.paymentStatus === 'refunded'
+            ? 'Your payment has been refunded.'
+            : booking.paymentStatus === 'paid'
+              ? 'Our team will refund your payment.'
+              : 'Nothing was charged online for it.'),
       ],
     }
   }
+
+  const withRefund = (lines: Array<string | null | undefined>) =>
+    [...lines, refund].filter((line): line is string => Boolean(line))
+
+  // The refund line is the one place the money is spoken about. A late
+  // payment the garage could no longer take was cancelled with "Your payment
+  // will be refunded." in its reason; next to the refund line that says it
+  // twice, and once the refund is recorded the two contradict each other.
+  const reason = refund ? withoutRefundPromise(booking.cancellationReason) : booking.cancellationReason
 
   if (booking.cancelledBy === 'admin') {
     const onBehalf =
@@ -97,22 +115,20 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
           : null
     return {
       title: 'Cancelled by Detlio',
-      lines: [onBehalf, booking.cancellationReason].filter(
-        (line): line is string => Boolean(line)
-      ),
+      lines: withRefund([onBehalf, reason]),
     }
   }
 
   if (booking.cancelledBy === 'vendor') {
     return {
       title: 'Rejected by vendor',
-      lines: [booking.cancellationReason ?? 'The vendor could not take this booking.'],
+      lines: withRefund([reason ?? 'The vendor could not take this booking.']),
     }
   }
 
   return {
     title: booking.cancelledBy === 'user' ? 'Cancelled by you' : 'Booking cancelled',
-    lines: [booking.cancellationReason ?? 'This booking was cancelled.'],
+    lines: withRefund([reason ?? 'This booking was cancelled.']),
   }
 }
 
@@ -675,6 +691,19 @@ export default function BookingDetailPage({
         </ScCard>
       )}
 
+      {/* Money coming back on a booking that is still on: a payment that
+          landed on a final bill the garage replaced. It names that bill, so
+          "your payment" isn't read as the booking's own. A cancelled booking
+          says it in the panel below instead. */}
+      {!cancelled && customerRefundLine(booking.refund, 'earlier_bill') && (
+        <ScCard>
+          <h2 className="mb-1 text-sm font-semibold text-text-primary">Refund</h2>
+          <p className="text-[13px] text-text-secondary">
+            {customerRefundLine(booking.refund, 'earlier_bill')}
+          </p>
+        </ScCard>
+      )}
+
       {cancelled && (
         <ScCard>
           <h2 className="mb-1 text-sm font-semibold text-text-primary">{cancelled.title}</h2>
@@ -800,7 +829,8 @@ export default function BookingDetailPage({
               />
               {booking.paymentMethod === 'online' && booking.paymentStatus === 'paid' && (
                 <p className="text-[12px] text-text-muted">
-                  Refunds for paid online bookings are not automatic yet.
+                  Our team will refund your payment to your original payment method within 5–7
+                  working days.
                 </p>
               )}
               <div className="flex gap-2">

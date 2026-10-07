@@ -197,6 +197,11 @@ export const bookingChargeStatusEnum = pgEnum('booking_charge_status', [
   'not_needed',
 ])
 
+// Where refunded money had been taken: a booking's own payment, a checkout
+// that became no booking, or a final bill. Names which table `target_id` in
+// refund_records points into. See 0029.
+export const refundKindEnum = pgEnum('refund_kind', ['booking', 'checkout', 'bill'])
+
 // The single role vocabulary for the whole product. Values are namespaced by
 // scope rather than by context, so a role name never means two different things
 // depending on which row you found it in — there is deliberately no bare
@@ -220,6 +225,27 @@ export const memberStatusEnum = pgEnum('member_status', [
 ])
 
 // ─── Tables ──────────────────────────────────────────────────────────────────
+
+/**
+ * What was given back on money Detlio took. The same five columns on every
+ * table money lands in — a booking's payment, a checkout that became no
+ * booking, a final bill — because the refunds list reads them all the same
+ * way (lib/refunds.ts). See 0029.
+ *
+ * `refundedAmount` adds up every refund recorded so far; the rest describe
+ * the latest one. `refundRef` is the Razorpay refund id (rfnd_…), or null
+ * when the money went back another way and `refundNote` says how.
+ * `refundedBy` is a name, like booking_notes.author: the break-glass admin
+ * login has no users row. A function, not a shared object, because drizzle
+ * binds a column builder to the one table it is first used in.
+ */
+const refundColumns = () => ({
+  refundedAmount: decimal('refunded_amount', { precision: 10, scale: 2 }),
+  refundRef: varchar('refund_ref', { length: 64 }),
+  refundedAt: timestamp('refunded_at', { withTimezone: true }),
+  refundedBy: varchar('refunded_by', { length: 100 }),
+  refundNote: text('refund_note'),
+})
 
 export const users = pgTable(
   'users',
@@ -742,6 +768,9 @@ export const bookings = pgTable(
     ),
     index('bookings_status_idx').on(table.status),
     index('bookings_original_booking_id_idx').on(table.originalBookingId),
+    // Finds the booking a cancelled one was moved to: a moved booking's payment
+    // went with it, so the refunds list must not count it as owed. See 0029.
+    index('bookings_rescheduled_from_id_idx').on(table.rescheduledFromId),
     index('bookings_discount_id_idx').on(table.discountId),
     // An on-behalf-of or a no-show without an admin cancellation would be a
     // record of something nobody did. See 0026 for why the comparison is on
@@ -860,6 +889,11 @@ export const bookingCharges = pgTable(
     gatewayOrderId: varchar('gateway_order_id', { length: 255 }).unique(),
     gatewayPaymentId: varchar('gateway_payment_id', { length: 255 }).unique(),
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    // Money given back on this bill: a paid bill on a booking that was then
+    // cancelled, or a payment that landed on a replaced or withdrawn bill.
+    // The bill's status is left as it is — it records what happened to the
+    // bill, and the refund is recorded beside it.
+    ...refundColumns(),
     createdBy: uuid('created_by').references(() => users.id, {
       onDelete: 'set null',
     }),
@@ -1045,6 +1079,10 @@ export const payments = pgTable(
     currency: varchar('currency', { length: 3 }).default('INR').notNull(),
     status: paymentStatusEnum('status').default('pending').notNull(),
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    // A full refund also moves `status` to 'refunded'; a part refund leaves
+    // it 'paid'. A reschedule copies the payment to the new booking but never
+    // these: a moved booking is not refunded, its payment goes with it.
+    ...refundColumns(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1116,6 +1154,9 @@ export const bookingIntents = pgTable(
     // refund, and why the booking could not be written.
     paymentRef: varchar('payment_ref', { length: 255 }),
     failureReason: varchar('failure_reason', { length: 255 }),
+    // The refund of that captured payment, once ops has done it. The intent
+    // stays 'failed': that is what happened to the checkout.
+    ...refundColumns(),
     // An unpaid intent past this point is dead. Nothing needs to collect them —
     // they hold no resource — so expiry is enforced on read, not by a job.
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1126,6 +1167,49 @@ export const bookingIntents = pgTable(
   (table) => [
     index('booking_intents_user_id_idx').on(table.userId),
     index('booking_intents_status_idx').on(table.status),
+  ]
+)
+
+// Every refund ops records, one row each. The refund columns on payments,
+// booking_intents and booking_charges carry the running total and the latest
+// refund, which is what the lists read; a later part refund overwrites the
+// latest one there. This keeps all of them, so a Razorpay refund id is
+// checked against every refund ever recorded, not only the latest on each
+// row — and the unique index makes that hold under two people at once.
+//
+// `target_id` is the booking's id for its payment, the checkout's, or the
+// bill's, as `kind` says (no FK: it points into one of three tables).
+// `refunded_before` is the running total this refund was recorded against.
+// One refund per starting total is what the conditional write on the money
+// row already guarantees; the second unique index holds it here too, so a
+// retried request can never leave two records of one refund.
+export const refundRecords = pgTable(
+  'refund_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: refundKindEnum('kind').notNull(),
+    targetId: uuid('target_id').notNull(),
+    // Null for a checkout: there is no booking.
+    bookingId: uuid('booking_id').references(() => bookings.id, {
+      onDelete: 'cascade',
+    }),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    refundedBefore: decimal('refunded_before', { precision: 10, scale: 2 }).notNull(),
+    refundRef: varchar('refund_ref', { length: 64 }),
+    refundNote: text('refund_note'),
+    recordedBy: varchar('recorded_by', { length: 100 }).notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('refund_records_refund_ref_key').on(table.refundRef),
+    uniqueIndex('refund_records_kind_target_before_key').on(
+      table.kind,
+      table.targetId,
+      table.refundedBefore
+    ),
+    check('refund_records_amount_check', sql`${table.amount} > 0`),
   ]
 )
 

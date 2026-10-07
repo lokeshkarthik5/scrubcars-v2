@@ -8,6 +8,7 @@ import { adminLogout, getAdminMe } from '@repo/core/api/admin'
 const NAV: PanelNavItem[] = [
   { href: '/vendors', label: 'Vendors' },
   { href: '/bookings', label: 'Bookings' },
+  { href: '/refunds', label: 'Refunds' },
   { href: '/discounts', label: 'Discounts' },
   { href: '/coverage', label: 'Coverage' },
 ]

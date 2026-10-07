@@ -28,10 +28,63 @@ function GatewayId({ label, value }: { label: string; value: string }) {
 }
 
 /**
+ * Where money paid on a bill stands, said from the same refund item the
+ * Refund section above shows (lib/refunds.ts on the server decides), so the
+ * two never disagree: owed and on the Refunds list, refunded, or kept
+ * because the customer didn't turn up. Null when there is nothing to say.
+ */
+function BillMoneyLine({
+  booking,
+  billId,
+  paidWhen,
+  keptOnNoShow = false,
+}: {
+  booking: AdminBookingDetail
+  billId: string
+  /** How the payment came to be owed, before the refund part. */
+  paidWhen: React.ReactNode
+  /**
+   * A bill that stood when it was paid is kept on a customer no-show. A
+   * payment on a replaced or withdrawn bill paid for nothing, and always
+   * goes back.
+   */
+  keptOnNoShow?: boolean
+}) {
+  const item = booking.refunds?.find((r) => r.kind === 'bill' && r.id === billId)
+
+  if (item && Number(item.amountOwed) > 0) {
+    return (
+      // Amber: money still to give back. The action is in the Refund section.
+      <p className="text-[12px] text-error">
+        {paidWhen} Refund owed: <span className="font-numeric">{formatRupees(item.amountOwed)}</span>,
+        see Refund above.
+      </p>
+    )
+  }
+  if (item && Number(item.amountRefunded) > 0) {
+    return (
+      <p className="text-[12px] text-text-secondary">
+        {paidWhen} Refunded{' '}
+        <span className="font-numeric">{formatRupees(item.amountRefunded)}</span>.
+      </p>
+    )
+  }
+  if (keptOnNoShow && booking.noShow === 'customer') {
+    return (
+      <p className="text-[12px] text-text-secondary">
+        {paidWhen} Kept: customer no-show.
+      </p>
+    )
+  }
+  return null
+}
+
+/**
  * The final bill of an inspection job: the lines the garage raised, what the
  * customer had already paid, the balance and where it stands, with the
  * Razorpay ids. Bills the garage replaced are listed under it; one with a
- * payment on it was paid after it was replaced, and is a refund to do.
+ * payment on it was paid after it was replaced, and is a refund (shown in
+ * the Refund section, and only pointed at here).
  */
 export function FinalBillSection({ booking }: { booking: AdminBookingDetail }) {
   const bill = booking.finalBill ?? null
@@ -80,12 +133,12 @@ export function FinalBillSection({ booking }: { booking: AdminBookingDetail }) {
             </li>
           </ul>
           {cancelled && bill.status === 'paid' && (
-            // Amber: the customer paid this bill, and the booking was then
-            // cancelled. Whether it goes back is a call for the team.
-            <p className="text-[12px] text-error">
-              The customer paid this bill before the booking was cancelled. Check whether it needs a
-              refund in Razorpay.
-            </p>
+            <BillMoneyLine
+              booking={booking}
+              billId={bill.id}
+              paidWhen="The customer paid this bill before the booking was cancelled."
+              keptOnNoShow
+            />
           )}
           {bill.note && (
             <p className="text-[12px] text-text-secondary">
@@ -126,12 +179,17 @@ export function FinalBillSection({ booking }: { booking: AdminBookingDetail }) {
             .filter((old) => old.gatewayPaymentId)
             .map((old) => (
               <div key={old.id} className="flex flex-col gap-1">
-                {/* Amber: money taken for a bill that no longer stands. */}
-                <p className="text-[12px] text-error">
-                  A payment of <span className="font-numeric">{formatRupees(old.amountDue)}</span>{' '}
-                  landed after this bill {cancelled ? 'no longer stood' : 'was replaced'}. Refund it in
-                  Razorpay.
-                </p>
+                <BillMoneyLine
+                  booking={booking}
+                  billId={old.id}
+                  paidWhen={
+                    <>
+                      A payment of{' '}
+                      <span className="font-numeric">{formatRupees(old.amountDue)}</span> landed
+                      after this bill {cancelled ? 'no longer stood' : 'was replaced'}.
+                    </>
+                  }
+                />
                 <GatewayId label="Razorpay payment id" value={old.gatewayPaymentId!} />
               </div>
             ))}

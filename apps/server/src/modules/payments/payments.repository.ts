@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray, notInArray } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookingNotes, bookings, payments } from '../../db/schema.js'
 import {
@@ -120,8 +120,13 @@ export const paymentsRepository = {
           gatewayTxnId: params.paymentTxnId,
           paidAt: params.paidAt,
         })
+        // Never from 'refunded' either: that payment was settled once, and
+        // ops has since given it back.
         .where(
-          and(eq(payments.bookingId, booking.id), ne(payments.status, 'paid'))
+          and(
+            eq(payments.bookingId, booking.id),
+            notInArray(payments.status, ['paid', 'refunded'])
+          )
         )
         .returning()
 

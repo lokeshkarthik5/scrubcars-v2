@@ -16,7 +16,13 @@ import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
 import { directionsHref } from '@repo/core/contact-links'
 import { useNow } from '@repo/core/hooks/use-now'
 import { formatDuration } from '@repo/core/utils'
-import { BillDueBadge, NoShowBadge, WaitingBadge } from '@/components/booking-badges'
+import {
+  BillDueBadge,
+  NoShowBadge,
+  RefundedBadge,
+  RefundOwedBadge,
+  WaitingBadge,
+} from '@/components/booking-badges'
 import { FinalBillSection, JobPhotosSection } from './job-records'
 import { CopyButton } from '@/components/copy-button'
 import { PhoneLink } from '@/components/phone-link'
@@ -32,6 +38,7 @@ import {
 } from '@/lib/bookings'
 import { CancelBookingDialog, NoShowDialog } from './booking-actions'
 import { NotesSection } from './notes-section'
+import { RefundSection } from './refund-section'
 
 function Field({
   label,
@@ -130,6 +137,23 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
           Moved to <BookingLink id={b.rescheduledToId} />
         </>
       ),
+    })
+  }
+
+  // Each refund recorded, at the latest time it was recorded. Part refunds
+  // before it are in the notes.
+  for (const refund of b.refunds ?? []) {
+    if (!refund.refundedAt || Number(refund.amountRefunded) <= 0) continue
+    steps.push({
+      label: (
+        <>
+          Refunded{' '}
+          <span className="font-numeric">{formatRupees(refund.amountRefunded)}</span>
+          {refund.kind === 'bill' ? ' of a final bill payment' : ''}
+        </>
+      ),
+      at: refund.refundedAt,
+      detail: refund.refundedBy ? `recorded by ${refund.refundedBy}` : null,
     })
   }
 
@@ -236,6 +260,11 @@ function BookingDetail({
               {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
               {b.noShow && <NoShowBadge party={b.noShow} />}
               {b.billDue && <BillDueBadge amount={b.billDue} />}
+              {b.refundOwed ? (
+                <RefundOwedBadge amount={b.refundOwed} />
+              ) : (
+                b.refunded && <RefundedBadge />
+              )}
             </div>
             <p className="font-numeric text-[20px] font-semibold text-text-primary">
               {formatWhen(b.scheduledAt)}
@@ -365,6 +394,8 @@ function BookingDetail({
               )}
             </div>
           </ScSection>
+
+          <RefundSection booking={b} now={now} />
 
           <FinalBillSection booking={b} />
 

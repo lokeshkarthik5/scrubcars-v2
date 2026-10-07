@@ -225,6 +225,13 @@ export interface AdminBooking {
   completedAt?: string | null
   /** The balance still to pay on a final bill ("Bill due ₹Z"); null when none. */
   billDue?: string | null
+  /**
+   * Money still owed back on the booking (its payment and any bills), for
+   * "Refund owed ₹X"; null when none. Optional for a server older than refunds.
+   */
+  refundOwed?: string | null
+  /** Money given back on it so far, for "Refunded"; null when none. */
+  refunded?: string | null
   notesCount: number
   rescheduledFromId: string | null
 }
@@ -275,6 +282,58 @@ export interface AdminBookingDetail extends AdminBooking {
   replacedFinalBills?: AdminFinalBill[]
   /** The garage's before/after photos, oldest first. */
   photos?: Array<{ id: string; stage: 'before' | 'after'; url: string; createdAt: string }>
+  /** Money owed back on this booking, or given back: its payment and any bills. */
+  refunds?: AdminRefund[]
+}
+
+/** Where the money to give back was taken. */
+export type RefundKind = 'booking' | 'checkout' | 'bill'
+
+/**
+ * One refund to do, or done (GET /admin/refunds). Money is decimal strings.
+ * See apps/server/src/lib/refunds.ts for what is owed and why.
+ */
+export interface AdminRefund {
+  kind: RefundKind
+  /** The booking's id for its payment, the checkout's id, or the bill's. */
+  id: string
+  bookingId: string | null
+  /** The booking's reference, or the checkout's own short id. */
+  reference: string
+  customer: { name: string; phone: string }
+  garageName: string
+  amountPaid: string
+  amountRefunded: string
+  amountOwed: string
+  /** The Razorpay payment to refund in the dashboard. */
+  razorpayPaymentId: string | null
+  /** Why it is owed: who cancelled, a no-show, or why a checkout failed. */
+  reason: string
+  /** When it became owed, as ISO. */
+  since: string | null
+  refundedAt: string | null
+  refundRef: string | null
+  refundedBy: string | null
+  refundNote: string | null
+  /** Refunded, but not through Razorpay: the note says how. */
+  outsideRazorpay: boolean
+}
+
+/** What POST /admin/refunds records. Exactly one of refundRef and outsideRazorpayNote. */
+export interface RecordRefundInput {
+  kind: RefundKind
+  id: string
+  /** Rupees, to the paisa. */
+  amount: number
+  refundRef?: string
+  outsideRazorpayNote?: string
+  note?: string
+  /**
+   * Rupees refunded already when the dialog opened. The server records only
+   * while that still holds, so a retry of a refund that went through (its
+   * answer lost) is refused with REFUND_STATE_CHANGED, not recorded twice.
+   */
+  expectedRefunded?: number
 }
 
 export interface AdminBookingFilters {
@@ -392,6 +451,14 @@ export interface PilotStats {
    */
   medianAcceptMins?: number | null
   acceptSamples?: number
+  /**
+   * Refunds still to do (whenever they became owed) and those recorded in
+   * the window. Absent from a server older than refunds.
+   */
+  refundsOwed?: number
+  refundsOwedAmount?: number
+  refunded?: number
+  refundedAmount?: number
   rates: {
     paidOfStarted: number | null
     acceptedOfPaid: number | null
@@ -630,6 +697,25 @@ export async function markAdminBookingNoShow(
   input: { party: BookingParty; note?: string }
 ) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/no-show`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** GET /admin/refunds?status=owed|done — owed oldest first, done newest first. */
+export async function listAdminRefunds(status: 'owed' | 'done') {
+  return apiClient<AdminRefund[]>('/admin/refunds', { params: { status } })
+}
+
+/**
+ * POST /admin/refunds — records a refund done in Razorpay (or outside it).
+ * 409 ALREADY_REFUNDED once nothing is left, 409 REFUND_STATE_CHANGED when
+ * a refund was recorded since `expectedRefunded` (someone else's, or this
+ * one on an earlier try), 409 REFUND_REF_USED for a refund id already
+ * recorded, 400 REFUND_TOO_MUCH above what is owed.
+ */
+export async function recordAdminRefund(input: RecordRefundInput) {
+  return apiClient<AdminRefund>('/admin/refunds', {
     method: 'POST',
     body: JSON.stringify(input),
   })

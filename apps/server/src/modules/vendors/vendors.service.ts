@@ -31,6 +31,7 @@ import {
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
 import { categoryLabel } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
+import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
@@ -310,6 +311,11 @@ export type EarningsJobResponse = {
   bookingType: string
   amount: number
   settled: boolean
+  /**
+   * What earned it: the job done, or a customer who didn't turn up (paid as
+   * if the job happened, see lib/earnings.ts). The screen labels the second.
+   */
+  kind: EarningKind
 }
 
 export type EarningsResponse = {
@@ -1919,10 +1925,15 @@ export const vendorsService = {
       reviewsRepository.listReviewsForVendor(vendorId),
     ])
 
-    const completed = bookings.filter(
-      (booking) => booking.status === 'completed'
-    )
-    const inPeriod = completed.filter((booking) =>
+    // Every booking that earns the garage its payout: finished jobs, and
+    // customer no-shows on a payment Detlio kept (the garage held the slot,
+    // so it is paid as if the job happened). Garage no-shows and other
+    // cancellations earn nothing. The rule is lib/earnings.ts.
+    const earning = bookings.flatMap((booking) => {
+      const kind = earningKind(booking)
+      return kind ? [{ ...booking, kind }] : []
+    })
+    const inPeriod = earning.filter((booking) =>
       period === 'week'
         ? isWithinDays(booking.scheduledAt, 7)
         : isWithinMonths(booking.scheduledAt, 1)
@@ -1944,18 +1955,19 @@ export const vendorsService = {
     return {
       summary: {
         totalEarned: sumPayouts(settled),
-        jobsDone: inPeriod.length,
+        // Jobs the garage did; a no-show is paid for but was not a job.
+        jobsDone: inPeriod.filter((booking) => booking.kind === 'job').length,
         pending: sumPayouts(unsettled),
         avgRating,
       },
       // The home dashboard's tile is always the trailing week, regardless of
       // the period the Earnings screen is showing.
       weekEarnings: sumPayouts(
-        completed
+        earning
           .filter((booking) => isWithinDays(booking.scheduledAt, 7))
           .filter((booking) => isSettledPayment(booking.payment?.status))
       ),
-      jobs: completed
+      jobs: earning
         .slice()
         .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())
         .slice(0, RECENT_EARNINGS_JOBS)
@@ -1968,6 +1980,7 @@ export const vendorsService = {
           bookingType: booking.bookingType,
           amount: payoutOf(booking),
           settled: isSettledPayment(booking.payment?.status),
+          kind: booking.kind,
         })),
     }
   },

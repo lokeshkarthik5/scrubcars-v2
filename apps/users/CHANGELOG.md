@@ -17,6 +17,36 @@ reconstructing every change in them.
 
 ### Added
 
+- **Refunds owed and done (admin).** A Refunds page (Owed / Done): each refund
+  with the amount owed, how long it has been owed (amber after two days), the
+  customer with tap-to-call, the Razorpay payment id with copy, and why; "Mark
+  refunded…" records it with the Razorpay refund id (checked to start
+  rfnd_), or as refunded outside Razorpay with how, the amount (all of it to
+  start with; less for a part refund) and a note. A booking's page has the
+  same in a Refund section, the bookings list flags "Refund owed ₹X" /
+  "Refunded", the CSV gains both, and the pilot card shows refunds owed and
+  refunded.
+- **Refunds, for the customer.** A cancelled paid booking says "Our team will
+  refund your payment to your original payment method within 5–7 working
+  days", then "Refunded ₹X on <date>. It can take 5–7 working days to show in
+  your account." once the team records it ("Refunded ₹X of ₹Y on <date>" for
+  a part refund, with no promise about the rest). Never on the customer's own
+  no-show. The bookings list tags a refunded booking "Refunded". A refund on a
+  booking that is still on (a payment on a final bill the garage replaced)
+  names the earlier final bill. A late payment's "Your payment will be
+  refunded." reason is dropped beside the refund line, and the cancel
+  confirmation now says the same 5–7 working days instead of "not automatic
+  yet".
+- **Admin refunds, smaller fixes.** Refunds is in the phone bottom nav. The
+  "Mark refunded…" dialog follows the latest figures after a refusal and says
+  when they moved; focus lands on the list after recording. The final bill
+  section says owed / refunded / kept from the same refund rules instead of
+  "Refund it in Razorpay". The no-show dialog says the garage is paid its share
+  on a customer no-show and earns nothing on its own.
+- **Garage earnings** list a customer no-show the garage is paid for, labelled
+  "Customer no-show".
+
+
 - **Final bill for inspection jobs.** After inspecting the car the garage
   raises the final bill on the job card ("Raise final bill": lines with
   amounts, a live total, what the customer already paid and the balance, and

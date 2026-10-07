@@ -190,6 +190,9 @@ export interface FinalBillRecord {
   paidAt: Date | null
   createdAt: Date
   updatedAt: Date
+  /** Money given back on this bill, once ops records it (0029). */
+  refundedAmount?: string | null
+  refundedAt?: Date | null
 }
 
 /**

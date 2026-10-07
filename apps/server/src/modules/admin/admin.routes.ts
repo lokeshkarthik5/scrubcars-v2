@@ -8,6 +8,7 @@ import {
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
+import { adminRefundRoutes } from '../refunds/refunds.routes.js'
 import {
   addMemberSchema,
   updateMemberSchema,
@@ -309,6 +310,10 @@ adminRoutes.delete(
 // admin session cookie is scoped to path=/api/v1/admin — anywhere else and the
 // browser never sends it.
 adminRoutes.route('/discounts', adminDiscountRoutes)
+
+// Refunds owed and done, and recording one. Nested here for the same cookie
+// reason as discounts.
+adminRoutes.route('/refunds', adminRefundRoutes)
 
 adminRoutes.get(
   '/bookings',

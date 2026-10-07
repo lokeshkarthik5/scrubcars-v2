@@ -29,11 +29,15 @@ export interface PilotBookingRow {
   noShow: 'customer' | 'garage' | null
   paymentStatus: string | null
   paymentAmount: string | null
+  /** What has been refunded of the booking's payment so far (0029). */
+  paymentRefunded?: string | null
   /**
    * Money paid in the app after checkout (final bills of inspection jobs),
    * summed. Null or '0.00' when there was none.
    */
   chargesPaid: string | null
+  /** What has been refunded of those bills so far. */
+  chargesRefunded?: string | null
 }
 
 export interface PilotGarage {
@@ -61,7 +65,8 @@ export interface PilotStats {
   /**
    * Rupees Detlio keeps: paid (or cash-collected) bookings that were not
    * cancelled, plus customer no-shows, where the policy keeps the payment,
-   * plus final bills paid in the app on bookings that were not cancelled.
+   * plus final bills paid in the app on bookings that were not cancelled —
+   * each less anything refunded on it.
    */
   revenue: number
   /** Ratios between 0 and 1, or null when there is nothing to divide by. */
@@ -127,11 +132,10 @@ export function cancelledBy(
 
 /**
  * Whether the money on this booking stays with us. Refunds are done by hand
- * in Razorpay and nothing marks the payment row 'refunded' afterwards, so a
- * declined or cancelled prepaid booking still reads 'paid' forever. The
- * booking's own status is what says the money is going back. A customer
- * no-show is the one cancellation that keeps the payment: the garage held
- * the slot.
+ * in Razorpay, and a cancelled prepaid booking reads 'paid' until ops records
+ * the refund (and 'paid' for good if nobody does), so the booking's own
+ * status is what says the money is going back. A customer no-show is the one
+ * cancellation that keeps the payment: the garage held the slot.
  */
 export function keptMoney(
   b: Pick<PilotBookingRow, 'status' | 'noShow' | 'paymentStatus'>
@@ -224,12 +228,19 @@ export function summarisePilot(intents: PilotIntentRow[], allBookings: PilotBook
     if (b.noShow) noShows[b.noShow]++
 
     // Final bills paid in the app are kept unless the booking was cancelled,
-    // when the team refunds them along with the rest.
-    const charges = b.status === 'cancelled' ? 0 : amount(b.chargesPaid)
+    // when the team refunds them along with the rest. Whatever was refunded
+    // of what is kept comes off: kept is paid less refunded.
+    const charges =
+      b.status === 'cancelled'
+        ? 0
+        : Math.max(0, amount(b.chargesPaid) - amount(b.chargesRefunded ?? null))
 
     const kept = keptMoney(b)
     if (kept || charges > 0) {
-      const money = (kept ? amount(b.paymentAmount) : 0) + charges
+      const payment = kept
+        ? Math.max(0, amount(b.paymentAmount) - amount(b.paymentRefunded ?? null))
+        : 0
+      const money = payment + charges
       revenue += money
 
       const garage = garages.get(b.vendorId) ?? {
@@ -276,4 +287,34 @@ export function summarisePilot(intents: PilotIntentRow[], allBookings: PilotBook
 // Paise, not floating-point dust: ₹499.00 + ₹0.10 must not read ₹499.0999….
 function round2(value: number): number {
   return Math.round(value * 100) / 100
+}
+
+/** What is still to refund, and what was refunded in the window. */
+export interface PilotRefunds {
+  /** Refunds still to do, whenever they became owed: a to-do list, not a window. */
+  refundsOwed: number
+  refundsOwedAmount: number
+  /** Refunds recorded in the window, and how much they came to. */
+  refunded: number
+  refundedAmount: number
+}
+
+/**
+ * The refunds figures for the pilot card. `owed` is every item still owed
+ * (from the refunds list, so the two always agree); `recorded` is every item
+ * whose latest refund was recorded in the window, with what has been refunded
+ * on it in all. An item refunded in parts across the window's edge counts
+ * all of it — at pilot volume a rare case, and an over- rather than an
+ * under-count.
+ */
+export function summariseRefunds(
+  owed: Array<{ amountOwed: string }>,
+  recorded: Array<{ refundedAmount: string | null }>
+): PilotRefunds {
+  return {
+    refundsOwed: owed.length,
+    refundsOwedAmount: round2(owed.reduce((total, item) => total + amount(item.amountOwed), 0)),
+    refunded: recorded.length,
+    refundedAmount: round2(recorded.reduce((total, row) => total + amount(row.refundedAmount), 0)),
+  }
 }

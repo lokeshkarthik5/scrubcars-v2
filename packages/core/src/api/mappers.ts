@@ -354,6 +354,14 @@ export function mapBooking(booking: ApiBooking): Booking {
     jobPhotos: booking.photos ?? [],
     finalBill: booking.finalBill ? mapFinalBill(booking.finalBill) : null,
     canRaiseFinalBill: booking.canRaiseFinalBill ?? false,
+    refund: booking.refund
+      ? {
+          status: booking.refund.status,
+          amount: Number(booking.refund.amount),
+          amountRefunded: Number(booking.refund.amountRefunded),
+          refundedAt: booking.refund.refundedAt ?? undefined,
+        }
+      : { status: 'none', amount: 0, amountRefunded: 0 },
   }
 }
 

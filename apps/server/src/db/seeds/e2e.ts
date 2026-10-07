@@ -161,7 +161,7 @@ async function seedPeople() {
         CUSTOMERS.capacityHolder, CUSTOMERS.scheduling,
         CUSTOMERS.raceFirst, CUSTOMERS.raceSecond, CUSTOMERS.payLaterFull,
         CUSTOMERS.billPayer, CUSTOMERS.billSmall, CUSTOMERS.billStranger,
-        CUSTOMERS.jobRecords, CUSTOMERS.billWebhook].map((c, i) => ({
+        CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -271,6 +271,17 @@ async function seedVendorRows() {
       isVerified: true, doorstepEnabled: false, dropinEnabled: true,
       slotIntervalMins: 30, status: 'active' as const, bays: 5,
     },
+    // Refunds and no-show money. Further south-west again, out of every
+    // distance sort that matters, and booked by nobody but the seed.
+    {
+      id: VENDORS.refunds.id, ownerId: STAFF.refundsOwner.id, businessName: VENDORS.refunds.name,
+      phone: '9000003200', address: '1, Refund Road, Pallavaram', city: 'Chennai',
+      pincode: '600043', lat: ORIGIN.lat - 0.45, lng: ORIGIN.lng - 0.15,
+      geoSource: 'map_pin' as const, geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active' as const, bays: 5,
+    },
     // Volume for listing, sorting and infinite scroll. Spread north-east so
     // distance ordering from ORIGIN is strictly increasing and therefore
     // assertable.
@@ -299,7 +310,7 @@ async function seedVendorRows() {
     // As wide as MAIN's, so tomorrow at 10:00 is a real slot whenever the
     // suite runs.
     ...[VENDORS.capacity, VENDORS.holiday, VENDORS.paused, VENDORS.timeOff, VENDORS.lastBay,
-        VENDORS.inspect]
+        VENDORS.inspect, VENDORS.refunds]
       .flatMap((v) => hoursFor(v.id, '06:00:00', '22:00:00')),
     // Saturday ends at 13:00; the admin spec checks a save leaves it there.
     ...hoursFor(VENDORS.opsEdit.id, '09:00:00', '18:00:00').map((day) =>
@@ -393,6 +404,10 @@ async function seedServiceRows() {
       pricingType: 'on_inspection', price: SERVICES.inspectFee.price,
       durationMins: SERVICES.inspectFee.durationMins, isActive: true },
 
+    { id: SERVICES.refundsWash.id, vendorId: VENDORS.refunds.id, name: SERVICES.refundsWash.name,
+      category: 'car_wash', pricingType: 'flat', price: SERVICES.refundsWash.price,
+      durationMins: SERVICES.refundsWash.durationMins, isActive: true },
+
     // One service per filler garage, so they are bookable and not just names.
     ...Array.from({ length: FILLER_VENDOR_COUNT }, (_, i) => ({
       vendorId: fillerVendorId(i), name: 'Standard Wash', category: 'car_wash' as const,
@@ -422,6 +437,7 @@ async function seedMembership() {
     })),
     { vendorId: VENDORS.opsEdit.id, userId: STAFF.narrowOwner.id, role: 'vendor_admin', status: 'active' },
     { vendorId: VENDORS.inspect.id, userId: STAFF.inspectOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.refunds.id, userId: STAFF.refundsOwner.id, role: 'vendor_admin', status: 'active' },
     // Platform scope: the CHECK constraint requires vendorId to be null here.
     { vendorId: null, userId: STAFF.superAdmin.id, role: 'super_admin', status: 'active' },
   ])
@@ -489,7 +505,8 @@ type BookingSpec = {
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
   items: Array<{ id: string; name: string; amount: string; durationMins: number }>
   discount?: { id: string; code: string; amount: string; fundedBy: 'platform' | 'vendor' }
-  payment?: { status: 'pending' | 'paid'; txnId?: string }
+  /** `paidAt` defaults to a day ago for a paid one. */
+  payment?: { status: 'pending' | 'paid'; txnId?: string; paidAt?: Date }
   rescheduleCount?: number
   /** Defaults to now. Set it back to make a booking that has been waiting. */
   createdAt?: Date
@@ -498,6 +515,20 @@ type BookingSpec = {
   /** When the garage accepted and started it, for a job already under way. */
   acceptedAt?: Date
   startedAt?: Date
+  /**
+   * How a cancelled booking ended, as the app's own writes leave it: who
+   * cancelled, whose call an admin one was, and a no-show. The database
+   * holds a no-show or an on-behalf-of to an admin cancellation (0026).
+   */
+  cancellation?: {
+    by: 'user' | 'vendor' | 'admin'
+    onBehalfOf?: 'customer' | 'garage' | 'detlio'
+    noShow?: 'customer' | 'garage'
+    reason?: string
+    at: Date
+  }
+  /** Written by a reschedule: the booking this one was moved from. */
+  rescheduledFromId?: string
 }
 
 /**
@@ -535,6 +566,18 @@ async function insertBooking(spec: BookingSpec) {
     ...(spec.createdAt && { createdAt: spec.createdAt }),
     acceptedAt: spec.acceptedAt ?? null,
     startedAt: spec.startedAt ?? null,
+    ...(spec.cancellation && {
+      cancelledBy: spec.cancellation.by,
+      cancelledOnBehalfOf: spec.cancellation.onBehalfOf ?? null,
+      cancellationReason: spec.cancellation.reason ?? null,
+      cancelledAt: spec.cancellation.at,
+      noShow: spec.cancellation.noShow ?? null,
+      noShowMarkedAt: spec.cancellation.noShow ? spec.cancellation.at : null,
+    }),
+    ...(spec.rescheduledFromId && {
+      rescheduledFromId: spec.rescheduledFromId,
+      originalBookingId: spec.rescheduledFromId,
+    }),
   })
 
   await db.insert(bookingItems).values(
@@ -556,7 +599,7 @@ async function insertBooking(spec: BookingSpec) {
       amount: (subtotal - discountAmount).toFixed(2),
       currency: 'INR',
       status: spec.payment.status,
-      paidAt: spec.payment.status === 'paid' ? daysAgo(1) : null,
+      paidAt: spec.payment.status === 'paid' ? (spec.payment.paidAt ?? daysAgo(1)) : null,
     })
   }
 
@@ -733,6 +776,48 @@ async function seedBookingRows() {
     scheduledAt: tomorrowAt(11), status: 'pending', items: [inspectItem],
     payment: { status: 'paid', txnId: 'pay_seed_job_records' } })
 
+  // The refunds journey's bookings at REFUNDS, each a paid ₹499 wash for
+  // CUSTOMERS.refunds. Cancelled the way the app itself cancels them, so the
+  // refunds list has to tell them apart by the same rules it uses in
+  // production.
+  const refundsCustomer = {
+    userId: CUSTOMERS.refunds.id, vehicleId: CUSTOMERS.refunds.vehicleId, vendorId: VENDORS.refunds.id,
+    items: [{ id: SERVICES.refundsWash.id, name: SERVICES.refundsWash.name,
+      amount: SERVICES.refundsWash.price, durationMins: SERVICES.refundsWash.durationMins }],
+  }
+  const detlioCancel = (at: Date) => ({
+    by: 'admin' as const, onBehalfOf: 'detlio' as const,
+    reason: 'Garage closed for the day', at,
+  })
+  // Paid four days ago and cancelled three days ago: owed, and late enough
+  // for the amber age on the Refunds page.
+  await insertBooking({ id: BOOKINGS.refundDetlio, ...refundsCustomer, scheduledAt: daysAgo(2),
+    status: 'cancelled', cancellation: detlioCancel(daysAgo(3)),
+    payment: { status: 'paid', txnId: 'pay_seed_refund_detlio', paidAt: daysAgo(4) } })
+  await insertBooking({ id: BOOKINGS.refundDetlioStays, ...refundsCustomer, scheduledAt: tomorrowAt(11),
+    status: 'cancelled', cancellation: detlioCancel(anHourAgo()),
+    payment: { status: 'paid', txnId: 'pay_seed_refund_stays', paidAt: daysAgo(1) } })
+  // Accepted and then not turned up for, by each side. Ops marks a no-show
+  // as an admin cancellation on Detlio's own account.
+  await insertBooking({ id: BOOKINGS.refundCustomerNoShow, ...refundsCustomer, scheduledAt: twoHoursAgo(),
+    status: 'cancelled', acceptedAt: daysAgo(1),
+    cancellation: { by: 'admin', onBehalfOf: 'detlio', noShow: 'customer', at: anHourAgo() },
+    payment: { status: 'paid', txnId: 'pay_seed_refund_cust_noshow' } })
+  await insertBooking({ id: BOOKINGS.refundGarageNoShow, ...refundsCustomer, scheduledAt: twoHoursAgo(),
+    status: 'cancelled', acceptedAt: daysAgo(1),
+    cancellation: { by: 'admin', onBehalfOf: 'detlio', noShow: 'garage', at: anHourAgo() },
+    payment: { status: 'paid', txnId: 'pay_seed_refund_garage_noshow' } })
+  // A move, as rescheduleBookingWithPayment leaves it: the old row cancelled
+  // by the customer with its payment still 'paid', and a new row carrying a
+  // copy of that payment.
+  await insertBooking({ id: BOOKINGS.refundMovedFrom, ...refundsCustomer, scheduledAt: tomorrowAt(12),
+    status: 'cancelled',
+    cancellation: { by: 'user', reason: 'Rescheduled to a new slot by the customer', at: anHourAgo() },
+    payment: { status: 'paid', txnId: 'pay_seed_refund_moved' } })
+  await insertBooking({ id: BOOKINGS.refundMovedTo, ...refundsCustomer, scheduledAt: tomorrowAt(14),
+    status: 'pending', rescheduledFromId: BOOKINGS.refundMovedFrom, rescheduleCount: 1,
+    payment: { status: 'paid', txnId: 'pay_seed_refund_moved' } })
+
   // The chain behind rescheduleExhausted. rescheduleCount is denormalised onto
   // the booking, but booking_reschedules is the source of truth, so both have
   // to agree or the cap test would pass for the wrong reason.
@@ -780,6 +865,35 @@ async function seedIntentRows() {
     name: SERVICES.wash.name,
     amount: SERVICES.wash.price,
     durationMins: SERVICES.wash.durationMins,
+    sortOrder: 0,
+  })
+
+  // The refunds journey's checkout: paid for a time REFUNDS had already
+  // filled, so no booking — a refund owed with no booking to hang it on.
+  await db.insert(bookingIntents).values({
+    id: BOOKING_INTENTS.refundOwed,
+    userId: CUSTOMERS.refunds.id,
+    vendorId: VENDORS.refunds.id,
+    serviceId: SERVICES.refundsWash.id,
+    vehicleId: CUSTOMERS.refunds.vehicleId,
+    bookingType: 'dropin',
+    scheduledAt: tomorrowAt(15),
+    serviceDurationMins: SERVICES.refundsWash.durationMins,
+    amount: SERVICES.refundsWash.price,
+    subtotalAmount: SERVICES.refundsWash.price,
+    paymentMethod: 'online',
+    gatewayTxnId: 'order_seed_refund_checkout',
+    status: 'failed',
+    paymentRef: 'pay_seed_refund_checkout',
+    failureReason: 'slot_full',
+    expiresAt: new Date(now.getTime() + 30 * MINUTE),
+  })
+  await db.insert(bookingIntentItems).values({
+    intentId: BOOKING_INTENTS.refundOwed,
+    serviceId: SERVICES.refundsWash.id,
+    name: SERVICES.refundsWash.name,
+    amount: SERVICES.refundsWash.price,
+    durationMins: SERVICES.refundsWash.durationMins,
     sortOrder: 0,
   })
 }
