@@ -14,6 +14,7 @@ import {
   waitingMinutes,
 } from '../../lib/booking-ops.js'
 import { alertOps } from '../../lib/ops-alerts.js'
+import { summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
 import {
   createPresignedUpload,
@@ -32,6 +33,7 @@ import type {
   MarkNoShowInput,
   LoginInput,
   MediaUrlInput,
+  PilotStatsQuery,
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
@@ -521,6 +523,29 @@ export const adminService = {
       // is not indistinguishable from one with 30 and 0.
       gap: cell.bookingCount - cell.vendorCount,
     }))
+  },
+
+  /**
+   * The pilot's numbers over the last 7 or 30 days, rolling from now: the
+   * checkout funnel, how bookings ended, the money and the busiest garages.
+   * Definitions live in lib/pilot-stats.ts.
+   *
+   * There is no "minutes from payment to the garage accepting": bookings
+   * record who accepted but not when, so it cannot be worked out from the
+   * data we have. It needs an accepted_at column first.
+   */
+  async getPilotStats(query: PilotStatsQuery, now = Date.now()) {
+    const since = new Date(now - query.days * 24 * 60 * 60 * 1000)
+    const [intents, bookingRows] = await Promise.all([
+      adminRepository.listIntentsCreatedSince(since),
+      adminRepository.listBookingsCreatedSince(since),
+    ])
+
+    return {
+      days: query.days,
+      since: since.toISOString(),
+      ...summarisePilot(intents, bookingRows),
+    }
   },
 
   async verifyVendor(id: string) {

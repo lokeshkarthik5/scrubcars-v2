@@ -11,6 +11,7 @@ import {
   sortLabel,
   type SortKey,
 } from '@repo/ui/sc/sort-sheet'
+import { ErrorState } from '@repo/ui/sc/empty-state'
 import { VendorCard } from '@repo/ui/features/vendor-card'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
@@ -47,6 +48,8 @@ function SearchContent() {
     isLoading,
     isRefreshing,
     isFetchingMore,
+    isError,
+    retry,
     loadMore,
   } = useVendorSearch(
     {
@@ -116,8 +119,9 @@ function SearchContent() {
       >
         <div className="flex items-center justify-between gap-3">
           {/* Held back until the first page is in: "0 garages found" above
-              "Searching…" was the page contradicting itself. */}
-          {!awaitingFirstAnswer && (
+              "Searching…" was the page contradicting itself. Likewise above
+              a failed load, where nothing was found or not found. */}
+          {!awaitingFirstAnswer && !isError && (
             <p className="text-[11px] text-text-secondary">
               {/* "20+" rather than "20": the count is what has been paged in so
                   far, not the size of the result set, and stating it flatly
@@ -138,6 +142,11 @@ function SearchContent() {
             <p className="py-6 text-center text-[13px] text-text-secondary">
               Searching…
             </p>
+          ) : isError ? (
+            <ErrorState
+              message="Couldn't load garages. Check your connection."
+              onRetry={retry}
+            />
           ) : vendors.length === 0 ? (
             <p className="py-6 text-center text-[13px] text-text-secondary">
               No garages match your search.

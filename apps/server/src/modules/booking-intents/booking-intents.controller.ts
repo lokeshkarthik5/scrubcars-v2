@@ -22,3 +22,15 @@ export async function createIntent(
     201
   )
 }
+
+export async function getIntentStatus(c: BookingIntentsContext, intentId: string) {
+  const status = await bookingIntentsService.getIntentStatus(
+    c.get('auth').sub,
+    intentId
+  )
+
+  return c.json({
+    success: true,
+    data: status,
+  })
+}

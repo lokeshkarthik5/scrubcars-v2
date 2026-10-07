@@ -5,7 +5,7 @@
  * one gated on a map pin. Runs signed out, so it does not use a storageState.
  */
 import { test, expect, asRole } from '../../support/fixtures'
-import { latestOtp, sql } from '../../support/db'
+import { forgetOtps, latestOtp, sql } from '../../support/db'
 import { UNREGISTERED_VENDOR_PHONE } from '../../support/seed-ids'
 
 test.describe.configure({ mode: 'serial' })
@@ -16,6 +16,8 @@ test('a new owner signs up and is taken through all four steps', async ({ page }
   // Repeatable: a previous run would have made this a returning owner.
   await sql`delete from vendors where owner_id in (select id from users where phone = ${phone})`
   await sql`delete from users where phone = ${phone}`
+  // And a run within the last 30 seconds would have this number waiting.
+  await forgetOtps(phone)
 
   await page.goto('/login')
   await page.locator('#sc-phone').fill(phone)

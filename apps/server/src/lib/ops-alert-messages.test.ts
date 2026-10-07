@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { formatOpsAlert, quoted, type AlertBooking } from './ops-alert-messages.js'
+import {
+  adminBookingUrl,
+  formatOpsAlert,
+  maskedPhone,
+  quoted,
+  type AlertBooking,
+  type OpsAlert,
+} from './ops-alert-messages.js'
 
 const booking: AlertBooking = {
   id: '3f2a9c1b-0000-4000-8000-000000000001',
@@ -154,6 +161,69 @@ describe('formatOpsAlert', () => {
     expect(failed).toContain('Amount unknown · Razorpay payment pay_X')
     expect(failed).toContain('Why: something_new')
     expect(failed).not.toContain('undefined')
+  })
+})
+
+describe('admin links', () => {
+  const BOOKING_URL = 'https://admin.detlio.com/bookings/3f2a9c1b-0000-4000-8000-000000000001'
+
+  test("a booking's alert links to that booking's own admin page", () => {
+    expect(adminBookingUrl(booking.id)).toBe(BOOKING_URL)
+
+    const alerts: OpsAlert[] = [
+      { kind: 'booking_paid', booking },
+      { kind: 'garage_declined', booking, reason: null },
+      { kind: 'customer_cancelled', booking, reason: null },
+      { kind: 'rescheduled', booking, previousScheduledAt: booking.scheduledAt },
+      { kind: 'admin_cancelled', booking, onBehalfOf: 'detlio', reason: 'Duplicate' },
+      { kind: 'garage_no_show', booking },
+    ]
+    for (const alert of alerts) {
+      const text = formatOpsAlert(alert)
+      // The last line, so it is the one Telegram turns into the tap target.
+      expect(text.split('\n').at(-1)).toBe(BOOKING_URL)
+    }
+  })
+
+  test('the digest, which is about many bookings, links to the list', () => {
+    const text = formatOpsAlert({
+      kind: 'pending_digest',
+      now: new Date('2026-10-04T07:15:00Z'),
+      waiting: [],
+      missed: [
+        {
+          id: booking.id,
+          scheduledAt: booking.scheduledAt,
+          bookingType: 'dropin',
+          waitingSince: booking.scheduledAt,
+          garageName: 'Marina Auto Spa',
+          garagePhone: '9876500011',
+        },
+      ],
+    })
+    expect(text.split('\n').at(-1)).toBe('https://admin.detlio.com/bookings')
+  })
+})
+
+describe('sms failure', () => {
+  test('masks the number to its last four digits', () => {
+    expect(maskedPhone('9876544321')).toBe('******4321')
+    expect(maskedPhone('+91 98765 44321')).toBe('******4321')
+    expect(maskedPhone('12')).toBe('******')
+  })
+
+  test("says what failed, for whom, what the provider said and that repeats stay quiet", () => {
+    const text = formatOpsAlert({
+      kind: 'sms_failed',
+      phone: '9876544321',
+      providerMessage: 'Insufficient balance',
+      quietMinutes: 10,
+    })
+    expect(text).toContain('📵 A login code failed to send')
+    expect(text).toContain('For ******4321.')
+    expect(text).not.toContain('9876544321')
+    expect(text).toContain('Provider said: "Insufficient balance"')
+    expect(text).toContain("Further failures in the next 10 minutes won't be alerted.")
   })
 })
 

@@ -11,6 +11,8 @@ dist/
 
 # apps/e2e ships a committed, secret-free env file for the test stack.
 !apps/e2e/.env.e2e
+# Every app's template is committed: placeholders only, never a real value.
+!.env.example
 apps/e2e/.auth/
 apps/e2e/test-results/
 apps/e2e/playwright-report/

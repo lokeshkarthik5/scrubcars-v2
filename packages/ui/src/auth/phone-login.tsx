@@ -10,8 +10,15 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScPhoneInput } from '@repo/ui/sc/phone-input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { sendOtp } from '@repo/core/api/auth'
-import { ApiError } from '@repo/core/api/client'
 import type { AuthAudience } from '@repo/core/api/types'
+import { useNow } from '@repo/core/hooks/use-now'
+import {
+  formatCountdown,
+  otpDeadlines,
+  otpErrorMessage,
+  retryAt as retryMoment,
+  secondsUntil,
+} from '@repo/core/otp'
 import { safeNextPath } from '@repo/core/redirect'
 
 interface PhoneLoginProps {
@@ -50,28 +57,48 @@ export function PhoneLogin({
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Set when the server refused a send for timing: this number may ask again
+  // at this moment. Per number, so typing another one clears it.
+  const [retryAt, setRetryAt] = useState<number | null>(null)
+  const now = useNow(1000)
+  const waitSeconds = retryAt ? secondsUntil(retryAt, now) : 0
+  // Once the wait is over the refusal no longer describes anything.
+  const shownError = retryAt && waitSeconds === 0 ? '' : error
 
   const isValid = /^\d{10}$/.test(phone)
+
+  const changePhone = (value: string) => {
+    setPhone(value)
+    if (retryAt) {
+      setRetryAt(null)
+      setError('')
+    }
+  }
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     // The keyboard's Go key submits too, so a second press while the first
     // send is in flight must not fire another OTP.
-    if (!isValid || loading) return
+    if (!isValid || loading || waitSeconds > 0) return
     setLoading(true)
     setError('')
     try {
-      const purpose = await sendOtp({ phone, audience })
+      const sent = await sendOtp({ phone, audience })
+      const { expiresAt, resendAt } = otpDeadlines(Date.now(), sent.expiresInSeconds)
       sessionStorage.setItem('auth_phone', phone)
       sessionStorage.setItem('auth_audience', audience)
-      sessionStorage.setItem('auth_purpose', purpose)
+      sessionStorage.setItem('auth_purpose', sent.purpose)
+      // The verify screen's two clocks, as moments so a reload keeps them.
+      sessionStorage.setItem('auth_expires_at', String(expiresAt))
+      sessionStorage.setItem('auth_resend_at', String(resendAt))
       // Every send records its own destination — a stale one from an
       // abandoned attempt must not steer a later sign-up.
       if (next) sessionStorage.setItem('auth_next', next)
       else sessionStorage.removeItem('auth_next')
       router.push(verifyHref)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to send OTP')
+      setError(otpErrorMessage(err, 'Failed to send OTP'))
+      setRetryAt(retryMoment(err, Date.now()))
     } finally {
       setLoading(false)
     }
@@ -96,33 +123,48 @@ export function PhoneLogin({
     <form noValidate onSubmit={handleSubmit} className="w-full space-y-4">
       <ScPhoneInput
         value={phone}
-        onChange={setPhone}
+        onChange={changePhone}
         tone={backdrop ? 'glass' : 'solid'}
         autoFocus
         enterKeyHint="go"
       />
 
       {/* Amber, never red: red on this screen is the Send OTP button. An
-          alert, so it is announced when it appears after a failed send. */}
-      {error && (
+          alert, so it is announced when it appears after a failed send.
+          Its text never changes while it is up: an alert re-reads itself on
+          every change, so a countdown in here would interrupt a screen
+          reader once a second. The ticking clock lives on the button. */}
+      {shownError && (
         <p role="alert" className="flex items-start gap-1.5 text-[12px] text-error">
           <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
-          {error}
+          {shownError}
         </p>
       )}
 
-      {/* The CTA sits muted until a full 10-digit number is entered. */}
+      {/* The CTA sits muted until a full 10-digit number is entered, and
+          while this number has to wait for another code. */}
       <ScButton
         type="submit"
         variant="cta"
-        disabled={!isValid || loading}
+        disabled={!isValid || loading || waitSeconds > 0}
         className={
           backdrop
             ? 'disabled:bg-white/10 disabled:hover:bg-white/10'
             : undefined
         }
       >
-        {loading ? 'Sending...' : 'Send OTP'}
+        {loading ? (
+          'Sending...'
+        ) : waitSeconds > 0 && waitSeconds < 60 ? (
+          // A short wait counts down where the customer will tap next, as
+          // the verify screen's Resend button does. The hourly wait is
+          // minutes long and is said once, in the alert above.
+          <>
+            Send OTP in <span className="font-numeric">{formatCountdown(waitSeconds)}</span>
+          </>
+        ) : (
+          'Send OTP'
+        )}
       </ScButton>
 
       {/* One screen signs in and signs up — the OTP flow registers a new

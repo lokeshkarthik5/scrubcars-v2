@@ -21,6 +21,7 @@ import {
   grantSuperAdminSchema,
   listBookingsQuerySchema,
   markNoShowSchema,
+  pilotStatsQuerySchema,
   superAdminIdParamSchema,
   loginSchema,
   mediaUrlSchema,
@@ -68,6 +69,13 @@ adminRoutes.get(
   '/demand-supply',
   ...adminMiddleware,
   adminController.getDemandSupply
+)
+// The pilot's numbers for the last 7 or 30 days (?days=7|30).
+adminRoutes.get(
+  '/stats/pilot',
+  ...adminMiddleware,
+  zValidator('query', pilotStatsQuerySchema),
+  (c) => adminController.getPilotStats(c, c.req.valid('query'))
 )
 adminRoutes.post(
   '/vendors',

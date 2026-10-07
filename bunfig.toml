@@ -3,8 +3,9 @@
 # which means it also picks up apps/e2e — Playwright specs that import
 # @playwright/test and cannot run under bun's runner.
 #
-# apps/server is the only package with bun tests today, so point the runner
-# straight at it. The monorepo entry point remains `bun run test` (turbo), which
-# runs each package's own test script; add a line here if another package gains
-# bun tests.
+# apps/server holds most of the bun tests, so a bare `bun test` at the root
+# points straight at it. packages/core has its own (the pure helpers the web
+# apps share) and runs them with `bun test` from its own directory. The
+# monorepo entry point remains `bun run test` (turbo), which runs each
+# package's own test script and so covers both.
 root = "apps/server"

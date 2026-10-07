@@ -4,6 +4,7 @@ import {
   createBookingNoteSchema,
   listBookingsQuerySchema,
   markNoShowSchema,
+  pilotStatsQuerySchema,
 } from './admin.validation.js'
 
 describe('listBookingsQuerySchema', () => {
@@ -136,5 +137,17 @@ describe('createBookingNoteSchema', () => {
     expect(
       createBookingNoteSchema.safeParse({ body: 'a'.repeat(2001) }).success
     ).toBe(false)
+  })
+})
+
+describe('pilotStatsQuerySchema', () => {
+  test('a week unless asked otherwise, as a number', () => {
+    expect(pilotStatsQuerySchema.parse({})).toEqual({ days: 7 })
+    expect(pilotStatsQuerySchema.parse({ days: '30' })).toEqual({ days: 30 })
+  })
+
+  test('only the two windows the dashboard offers', () => {
+    expect(pilotStatsQuerySchema.safeParse({ days: '14' }).success).toBe(false)
+    expect(pilotStatsQuerySchema.safeParse({ days: '365' }).success).toBe(false)
   })
 })

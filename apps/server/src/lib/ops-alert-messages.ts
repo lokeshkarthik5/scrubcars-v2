@@ -9,6 +9,14 @@ const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
 
 /**
+ * The booking's own page in admin. Whoever picks an alert up goes straight to
+ * the row it is about — the list made them search for the reference first.
+ */
+export function adminBookingUrl(id: string): string {
+  return `${ADMIN_BOOKINGS_URL}/${id}`
+}
+
+/**
  * What an alert needs from a booking. Every booking row the service reloads
  * after a change (findBookingById) already carries this shape.
  */
@@ -50,6 +58,15 @@ export type OpsAlert =
       garageName?: string
       scheduledAt?: Date
     }
+  | {
+      kind: 'sms_failed'
+      /** The number the code was for. Masked here, whatever it arrives as. */
+      phone: string
+      /** What the SMS provider said, as it said it. */
+      providerMessage: string
+      /** How long further failures stay quiet, so the message can say so. */
+      quietMinutes: number
+    }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
 export interface DigestBooking {
@@ -76,7 +93,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
         `${rupees(b.amount)} · Customer: ${firstName(b.user?.name)}`,
         'Waiting for the garage to accept.',
-        ADMIN_BOOKINGS_URL
+        adminBookingUrl(b.id)
       )
     }
 
@@ -91,7 +108,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
           ? `${rupees(b.amount)} was paid. Refund it in Razorpay, and offer the customer another garage.`
           : 'Not paid online, so nothing to refund.',
         quoted('Garage wrote', alert.reason),
-        ADMIN_BOOKINGS_URL
+        adminBookingUrl(b.id)
       )
     }
 
@@ -106,7 +123,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
           ? `${rupees(b.amount)} was paid. Refund it in Razorpay.`
           : 'Not paid online, so nothing to refund.',
         quoted('Customer wrote', alert.reason),
-        ADMIN_BOOKINGS_URL
+        adminBookingUrl(b.id)
       )
     }
 
@@ -124,7 +141,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
           ? `${rupees(b.amount)} was paid. Refund it in Razorpay.`
           : 'Not paid online, so nothing to refund.',
         quoted('Reason', alert.reason),
-        ADMIN_BOOKINGS_URL
+        adminBookingUrl(b.id)
       )
     }
 
@@ -140,7 +157,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
         paid
           ? `${rupees(b.amount)} was paid. Refund the customer in full in Razorpay.`
           : 'Not paid online, so nothing to refund.',
-        ADMIN_BOOKINGS_URL
+        adminBookingUrl(b.id)
       )
     }
 
@@ -153,7 +170,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
         // A moved booking goes back to pending: the garage has to accept the
         // new time, and the 30-minute nudge covers it like any new booking.
         'Back to Requested: waiting for the garage to accept the new time.',
-        ADMIN_BOOKINGS_URL
+        adminBookingUrl(b.id)
       )
     }
 
@@ -191,7 +208,28 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `Why: ${FAILURE_REASONS[alert.reason] ?? alert.reason}`,
         'Refund this payment in Razorpay. The customer was told it would be refunded.'
       )
+
+    case 'sms_failed':
+      // About the provider, not the customer: while it lasts nobody can log
+      // in, so the number is only there to tell one failure from another.
+      return lines(
+        `📵 A login code failed to send`,
+        `For ${maskedPhone(alert.phone)}. If this keeps happening, nobody can log in.`,
+        quoted('Provider said', alert.providerMessage),
+        'Check the SMS account (balance, sender approval) and its status page.',
+        `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`
+      )
   }
+}
+
+/**
+ * Only the last four digits: enough to match a customer who calls in, and
+ * nothing a group chat should keep. "******4321".
+ */
+export function maskedPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length < 4) return '******'
+  return `******${digits.slice(-4)}`
 }
 
 /** Whose call an admin cancellation was, as one line. */

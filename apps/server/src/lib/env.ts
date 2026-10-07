@@ -91,6 +91,11 @@ export const env = {
   // deliberate local test.
   vercelEnv: process.env.VERCEL_ENV,
   opsAlertsForced: process.env.OPS_ALERTS === 'on',
+  // ─── Crash reporting ───────────────────────────────────────────────────────
+  // Sentry's project key for this API. Unset — as in development, E2E and
+  // previews — and nothing is reported or even loaded (see lib/monitoring.ts).
+  // Set it in the Production environment only.
+  sentryDsn: process.env.SENTRY_DSN || undefined,
   // Shared secret an outside scheduler sends (Authorization: Bearer …) to run
   // timed jobs like the pending-booking nudge. Under 32 characters counts as
   // unset, which switches the endpoint off (404). Named as Vercel Cron names

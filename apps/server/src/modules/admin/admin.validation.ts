@@ -300,3 +300,14 @@ export type MarkNoShowInput = z.infer<typeof markNoShowSchema>
 export type CreateBookingNoteInput = z.infer<typeof createBookingNoteSchema>
 export type UploadUrlInput = z.infer<typeof uploadUrlSchema>
 export type MediaUrlInput = z.infer<typeof mediaUrlSchema>
+
+// The pilot dashboard's two windows. Anything else is refused rather than
+// clamped: a window nobody asked for would be a number nobody can compare.
+export const pilotStatsQuerySchema = z.object({
+  days: z
+    .enum(['7', '30'])
+    .default('7')
+    .transform((days) => Number(days) as 7 | 30),
+})
+
+export type PilotStatsQuery = z.infer<typeof pilotStatsQuerySchema>

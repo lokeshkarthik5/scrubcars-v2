@@ -7,7 +7,8 @@
  * failure needs a spec of its own to be legible.
  */
 import { test, expect, asRole } from '../../support/fixtures'
-import { latestOtp, sql } from '../../support/db'
+import { API } from '../../support/auth'
+import { forgetOtps, latestOtp, sql } from '../../support/db'
 import { CUSTOMERS, SERVICES, UNREGISTERED_PHONE, VENDORS } from '../../support/seed-ids'
 
 /**
@@ -41,6 +42,12 @@ async function enterOtp(page: import('@playwright/test').Page, code: string) {
 }
 
 test.describe('customer auth', () => {
+  // Every UI send below forgets the number's earlier codes first: global setup
+  // has just sent this one a code, and the API allows one every 30 seconds.
+  test.beforeEach(async () => {
+    await forgetOtps(CUSTOMERS.browse.phone)
+  })
+
   test('a returning customer signs in with the code they were sent', async ({ page }) => {
     await page.goto('/login')
 
@@ -48,6 +55,14 @@ test.describe('customer auth', () => {
     await page.getByRole('button', { name: /Send OTP/i }).click()
 
     await expect(page).toHaveURL(/\/verify-otp/)
+
+    // The code lasts three minutes, and the screen counts down from the
+    // server's own figure — it used to count five while the code died at
+    // three. Resend opens after 30 seconds, not once the code has expired.
+    await expect(page.getByText(/^Code expires in [23]:\d{2}$/)).toBeVisible()
+    const resend = page.getByRole('button', { name: /^Resend OTP in 0:\d{2}$/ })
+    await expect(resend).toBeDisabled()
+
     await enterOtp(page, await latestOtp(CUSTOMERS.browse.phone))
     await page.getByRole('button', { name: /^Verify/i }).click()
 
@@ -93,10 +108,34 @@ test.describe('customer auth', () => {
     await expect(page.getByRole('button', { name: /Send OTP/i })).toBeEnabled()
   })
 
+  test('asking for another code too soon says when to try again', async ({ page, request }) => {
+    // A code a moment ago, as from a second tab or a double tap.
+    const first = await request.post(`${API}/api/v1/auth/otp/send`, {
+      data: { phone: CUSTOMERS.browse.phone, purpose: 'login', audience: 'customer' },
+    })
+    expect(first.ok()).toBe(true)
+
+    await page.goto('/login')
+    await page.locator('#sc-phone').fill(CUSTOMERS.browse.phone)
+    await page.getByRole('button', { name: /Send OTP/i }).click()
+
+    // Said once in amber, and the customer stays put rather than being told
+    // the number is "already registered" — which is what the old fallback to
+    // sign-up turned every failed send into. The alert's text stays still so
+    // a screen reader hears it once; the countdown ticks on the button.
+    // The form's own alert: Next's route announcer is an alert too.
+    await expect(page.locator('form p[role="alert"]')).toHaveText(
+      /^Too many codes requested for this number\. Try again in \d+ seconds?\.$/
+    )
+    await expect(page.getByRole('button', { name: /^Send OTP in 0:\d{2}$/ })).toBeDisabled()
+    await expect(page).toHaveURL(/\/login/)
+  })
+
   test('a number nobody has used is asked only for a name', async ({ page }) => {
     // Cleaned first so the spec is repeatable: a previous run would have
-    // turned this into a returning customer.
+    // turned this into a returning customer, and would have sent it a code.
     await sql`delete from users where phone = ${UNREGISTERED_PHONE}`
+    await forgetOtps(UNREGISTERED_PHONE)
 
     await page.goto('/login')
     await page.locator('#sc-phone').fill(UNREGISTERED_PHONE)
@@ -132,9 +171,10 @@ test.describe('customer auth', () => {
   })
 
   test('a new customer who started a booking is handed back to it', async ({ page }) => {
-    // Same number as above, so cleaned the same way. Only failed codes count
-    // towards the per-phone verify cap, so a second sign-up here is safe.
+    // Same number as above, so cleaned the same way — codes included, since
+    // the test above sent this number one seconds ago.
     await sql`delete from users where phone = ${UNREGISTERED_PHONE}`
+    await forgetOtps(UNREGISTERED_PHONE)
 
     // Where Book Now on a garage page sends a guest.
     const bookPath = `/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`

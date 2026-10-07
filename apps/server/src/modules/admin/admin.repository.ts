@@ -14,6 +14,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
   containsPattern,
@@ -21,12 +22,14 @@ import {
   type BookingSearch,
 } from '../../lib/booking-ops.js'
 import {
+  bookingIntents,
   bookingItems,
   bookingNotes,
   bookings,
   bookingStatusEnum,
   cancelledOnBehalfOfEnum,
   noShowPartyEnum,
+  payments,
   serviceImages,
   services,
   users,
@@ -488,5 +491,47 @@ export const adminRepository = {
 
   createBookingNote(data: { bookingId: string; author: string; body: string }) {
     return db.insert(bookingNotes).values(data).returning()
+  },
+
+  // ─── Pilot numbers ─────────────────────────────────────────────────────────
+
+  /** Every checkout opened since `since`: one booking intent each. */
+  listIntentsCreatedSince(since: Date) {
+    return db
+      .select({ status: bookingIntents.status })
+      .from(bookingIntents)
+      .where(gte(bookingIntents.createdAt, since))
+  },
+
+  /**
+   * Every booking whose chain began since `since`, with its payment and
+   * garage. A reschedule writes a new row each time it moves the slot, so a
+   * chain is windowed on its first booking's created_at — the moved booking
+   * keeps the window of the checkout that paid for it, and the whole chain
+   * comes back together so lib/pilot-stats.ts can keep only its latest row.
+   */
+  listBookingsCreatedSince(since: Date) {
+    const root = alias(bookings, 'root_booking')
+    return db
+      .select({
+        id: bookings.id,
+        rescheduledFromId: bookings.rescheduledFromId,
+        vendorId: bookings.vendorId,
+        vendorName: vendors.businessName,
+        status: bookings.status,
+        acceptedBy: bookings.acceptedBy,
+        cancelledBy: bookings.cancelledBy,
+        cancelledOnBehalfOf: bookings.cancelledOnBehalfOf,
+        noShow: bookings.noShow,
+        paymentStatus: payments.status,
+        paymentAmount: payments.amount,
+      })
+      .from(bookings)
+      .innerJoin(vendors, eq(vendors.id, bookings.vendorId))
+      .leftJoin(payments, eq(payments.bookingId, bookings.id))
+      .leftJoin(root, eq(root.id, bookings.originalBookingId))
+      .where(
+        sql`coalesce(${root.createdAt}, ${bookings.createdAt}) >= ${since.toISOString()}::timestamptz`
+      )
   },
 }

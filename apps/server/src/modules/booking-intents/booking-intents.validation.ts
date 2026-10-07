@@ -7,3 +7,5 @@ import { createBookingSchema } from '../bookings/bookings.validation.js'
 export const createBookingIntentSchema = createBookingSchema
 
 export type CreateBookingIntentInput = z.infer<typeof createBookingIntentSchema>
+
+export const intentIdParamSchema = z.object({ id: z.string().uuid() })

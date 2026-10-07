@@ -1,8 +1,12 @@
 'use client'
 
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
-import { getVendors, type VendorListParams } from '@repo/core/api/vendors'
-import type { Vendor } from '@repo/core/types'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { ApiError } from '@repo/core/api/client'
+import { getVendorPackages } from '@repo/core/api/packages'
+import { getVendorServices } from '@repo/core/api/services'
+import { getPublicVendor, getVendors, type VendorListParams } from '@repo/core/api/vendors'
+import { mapPublicVendor } from '@repo/core/api/mappers'
+import type { Service, ServicePackage, Vendor } from '@repo/core/types'
 
 /**
  * The paginated garage listing, shared by the home feed, the search page and
@@ -16,6 +20,7 @@ import type { Vendor } from '@repo/core/types'
 export const vendorKeys = {
   all: ['vendors'] as const,
   list: (params: VendorListParams) => [...vendorKeys.all, 'list', params] as const,
+  garage: (id: string) => [...vendorKeys.all, 'garage', id] as const,
 }
 
 export interface VendorSearchResult {
@@ -34,7 +39,14 @@ export interface VendorSearchResult {
    */
   isRefreshing: boolean
   isFetchingMore: boolean
+  /**
+   * The list could not be fetched at all. Distinct from an empty answer: "no
+   * garages nearby" is a fact about the area, this is a fact about the
+   * connection, and showing the first for the second sends people away.
+   */
   isError: boolean
+  /** Try the failed fetch again. */
+  retry: () => void
   loadMore: () => void
 }
 
@@ -80,15 +92,56 @@ export function useVendorSearch(
     appliedRadiusKm: pages[0]?.appliedRadiusKm ?? null,
     hasMore,
     // Placeholder data counts as success, so this stays false through a
-    // refresh and the full loading state is kept for the very first load.
-    isLoading: query.isPending,
+    // refresh and the full loading state is kept for the very first load. A
+    // retry after a failure is a first load again, as far as the screen goes.
+    isLoading: query.isPending || (query.isError && query.isFetching && pages.length === 0),
     isRefreshing,
     isFetchingMore: query.isFetchingNextPage,
-    isError: query.isError,
+    // Only when nothing is on screen: a later page failing to load leaves the
+    // garages already shown where they are, and the sentinel tries again.
+    isError: query.isError && !query.isFetching && pages.length === 0,
+    retry: () => {
+      void query.refetch()
+    },
     loadMore: () => {
       if (hasMore && !query.isFetchingNextPage) {
         void query.fetchNextPage()
       }
     },
   }
+}
+
+/** A garage's page: the garage and everything it sells. */
+export interface GarageData {
+  vendor: Vendor
+  services: Service[]
+  packages: ServicePackage[]
+}
+
+/**
+ * Everything the garage page needs before it can show anything, as one query.
+ *
+ * One rather than three because the page is only useful with all of it: a
+ * garage with its services missing reads as a garage that offers nothing.
+ * A 404 is a real answer (the garage is not listed) and comes back as `null`
+ * data; anything else is an error the page offers to retry.
+ */
+export function useGarage(id: string) {
+  return useQuery({
+    queryKey: vendorKeys.garage(id),
+    queryFn: async (): Promise<GarageData | null> => {
+      try {
+        const [vendor, services, packages] = await Promise.all([
+          getPublicVendor(id),
+          getVendorServices(id),
+          getVendorPackages(id),
+        ])
+        return { vendor: mapPublicVendor(vendor), services, packages }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null
+        throw error
+      }
+    },
+    staleTime: 60_000,
+  })
 }

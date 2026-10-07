@@ -17,6 +17,7 @@ import type {
   MarkNoShowInput,
   LoginInput,
   MediaUrlInput,
+  PilotStatsQuery,
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
@@ -116,6 +117,11 @@ export async function deleteVendor(c: AdminContext, id: string) {
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {
   const vendor = await adminService.createVendor(input)
   return c.json({ success: true, data: vendor }, 201)
+}
+
+export async function getPilotStats(c: AdminContext, query: PilotStatsQuery) {
+  const stats = await adminService.getPilotStats(query)
+  return c.json({ success: true, data: stats })
 }
 
 export async function listBookings(c: AdminContext, query: ListBookingsQuery) {

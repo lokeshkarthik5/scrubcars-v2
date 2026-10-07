@@ -15,7 +15,7 @@ import { request, type APIRequestContext, type BrowserContext } from '@playwrigh
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { latestOtp } from './db'
+import { forgetOtps, latestOtp } from './db'
 import { ADMIN } from './seed-ids'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
@@ -40,7 +40,18 @@ export async function loginViaApi(
   phone: string,
   audience: Audience = 'customer'
 ): Promise<APIRequestContext> {
-  const ctx = await request.newContext({ baseURL: API })
+  // An explicitly empty jar: inside a test, a new request context inherits
+  // the project's storageState, and in the admin project that is the admin's
+  // cookie — scoped to /api/v1/admin, so it wins on exactly the admin routes
+  // a customer session must be shown not to reach.
+  const ctx = await request.newContext({
+    baseURL: API,
+    storageState: { cookies: [], origins: [] },
+  })
+
+  // A phone may only be sent a code every 30 seconds, and global setup has
+  // usually just sent this one its own. See forgetOtps.
+  await forgetOtps(phone)
 
   const send = await ctx.post('/api/v1/auth/otp/send', {
     data: { phone, purpose: 'login', audience },
@@ -72,7 +83,14 @@ export async function saveState(role: string, phone: string, audience: Audience 
 /** The admin panel uses username/password, not OTP — a separate token shape
  *  (`sub: 'admin'`) with its own 12-hour lifetime. */
 export async function saveAdminState(role = 'admin') {
-  const ctx = await request.newContext({ baseURL: API })
+  // An explicitly empty jar: inside a test, a new request context inherits
+  // the project's storageState, and in the admin project that is the admin's
+  // cookie — scoped to /api/v1/admin, so it wins on exactly the admin routes
+  // a customer session must be shown not to reach.
+  const ctx = await request.newContext({
+    baseURL: API,
+    storageState: { cookies: [], origins: [] },
+  })
   const res = await ctx.post('/api/v1/admin/login', {
     data: { username: ADMIN.username, password: ADMIN.password },
   })

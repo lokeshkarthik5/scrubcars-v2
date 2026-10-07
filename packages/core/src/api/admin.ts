@@ -308,6 +308,43 @@ export async function listAdminVendors() {
   return apiClient<AdminVendor[]>('/admin/vendors')
 }
 
+/** One garage on the pilot leaderboard. */
+export interface PilotGarage {
+  vendorId: string
+  name: string
+  paidBookings: number
+  revenue: number
+}
+
+/** GET /admin/stats/pilot — see apps/server/src/lib/pilot-stats.ts. */
+export interface PilotStats {
+  days: 7 | 30
+  /** ISO start of the rolling window. */
+  since: string
+  checkoutsStarted: number
+  paid: number
+  paidNoBooking: number
+  accepted: number
+  completed: number
+  cancelledByCustomer: number
+  cancelledByGarage: number
+  cancelledByDetlio: number
+  customerNoShows: number
+  garageNoShows: number
+  revenue: number
+  rates: {
+    paidOfStarted: number | null
+    acceptedOfPaid: number | null
+    completedOfAccepted: number | null
+  }
+  topGarages: PilotGarage[]
+}
+
+/** GET /admin/stats/pilot?days=7|30 */
+export async function getPilotStats(days: 7 | 30) {
+  return apiClient<PilotStats>('/admin/stats/pilot', { params: { days } })
+}
+
 export interface DemandSupplyCell {
   lat: number
   lng: number
