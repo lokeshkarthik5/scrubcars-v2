@@ -10,6 +10,7 @@ import { StarRating } from '@repo/ui/sc/stars'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { EMPTY_EARNINGS_SUMMARY, getEarningsData } from '@repo/core/api/earnings'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { formatRupees } from '@repo/core/job-records'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { EarningsJob, EarningsSummary } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
@@ -54,9 +55,9 @@ export default function VendorEarningsPage() {
   }, [period, vendor?.id, isVendorAdmin])
 
   const metrics = [
-    { label: 'Total earned', value: `₹${summary.totalEarned.toLocaleString('en-IN')}`, color: 'text-success' },
+    { label: 'Total earned', value: formatRupees(summary.totalEarned), color: 'text-success' },
     { label: 'Jobs done', value: summary.jobsDone, color: 'text-text-primary' },
-    { label: 'Pending', value: `₹${summary.pending.toLocaleString('en-IN')}`, color: 'text-warning' },
+    { label: 'Pending', value: formatRupees(summary.pending), color: 'text-warning' },
     { label: 'Avg rating', value: null, color: 'text-brand-red', stars: summary.avgRating },
   ]
 
@@ -118,7 +119,7 @@ export default function VendorEarningsPage() {
                 </div>
                 <div className="text-right">
                   <p className={cn('text-[13px] font-semibold', job.settled ? 'text-success' : 'text-warning')}>
-                    ₹{job.amount}
+                    {formatRupees(job.amount)}
                   </p>
                   {!job.settled && <ScBadge variant="pending">Pending</ScBadge>}
                 </div>

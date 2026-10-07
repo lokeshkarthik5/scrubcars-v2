@@ -34,9 +34,15 @@ test.describe('pilot numbers @p0', () => {
         'customerNoShows',
         'garageNoShows',
         'revenue',
+        'acceptSamples',
       ]) {
         expect(typeof data[key], key).toBe('number')
       }
+      // A median of accept times, or null while there are under three.
+      expect(
+        data.medianAcceptMins === null || typeof data.medianAcceptMins === 'number'
+      ).toBe(true)
+      if (data.acceptSamples < 3) expect(data.medianAcceptMins).toBeNull()
       // The seed's failed checkout (BOOKING_INTENTS.failed) was opened today.
       expect(data.paidNoBooking).toBeGreaterThanOrEqual(1)
       expect(data.checkoutsStarted).toBeGreaterThanOrEqual(data.paid + data.paidNoBooking)
@@ -76,5 +82,7 @@ test.describe('pilot numbers @p0', () => {
     await page.getByRole('radio', { name: '30 days' }).click()
     await expect(page.getByRole('radio', { name: '30 days' })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByText('Paid, no booking')).toBeVisible()
+    // The accept time is a figure now, not a note saying it can't be shown.
+    await expect(page.getByText('Payment to accept')).toBeVisible()
   })
 })

@@ -3,6 +3,7 @@ import type {
   ApiAddress,
   ApiAuthUser,
   ApiBooking,
+  ApiFinalBill,
   ApiPackage,
   ApiPublicVendor,
   ApiPublicReview,
@@ -15,6 +16,7 @@ import type {
 import type {
   Address,
   Booking,
+  FinalBill,
   Review,
   Service,
   ServicePackage,
@@ -230,6 +232,23 @@ export function mapAddress(address: ApiAddress): Address {
   }
 }
 
+export function mapFinalBill(bill: ApiFinalBill): FinalBill {
+  return {
+    id: bill.id,
+    status: bill.status,
+    lines: bill.lines.map((line) => ({
+      description: line.description,
+      amount: Number(line.amount),
+    })),
+    total: Number(bill.totalAmount),
+    paidBefore: Number(bill.paidBefore),
+    amountDue: Number(bill.amountDue),
+    note: bill.note,
+    paidAt: bill.paidAt,
+    createdAt: bill.createdAt,
+  }
+}
+
 export function mapBooking(booking: ApiBooking): Booking {
   // Older payloads (and any response cached before multi-service bookings) have
   // no `items`, so the deprecated single `service` stands in as one line.
@@ -239,6 +258,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     name: item.name,
     amount: Number(item.amount),
     durationMins: item.durationMins,
+    pricingType: item.pricingType ?? undefined,
   }))
 
   const fallbackItems =
@@ -318,6 +338,22 @@ export function mapBooking(booking: ApiBooking): Booking {
           date: formatReviewDate(booking.review.createdAt),
         }
       : undefined,
+    requestedAtIso: booking.createdAt,
+    acceptedAtIso: booking.acceptedAt ?? undefined,
+    startedAtIso: booking.startedAt ?? undefined,
+    completedAtIso: booking.completedAt ?? undefined,
+    // The server's figure when it sent one (it credits the pre-discount
+    // price, so a promo code is not charged back on the bill); otherwise
+    // what the payment says arrived.
+    paidAtBooking:
+      booking.paidAtBooking !== undefined
+        ? Number(booking.paidAtBooking)
+        : booking.payment && ['paid', 'collected'].includes(booking.payment.status)
+          ? Number(booking.subtotalAmount ?? booking.payment.amount)
+          : 0,
+    jobPhotos: booking.photos ?? [],
+    finalBill: booking.finalBill ? mapFinalBill(booking.finalBill) : null,
+    canRaiseFinalBill: booking.canRaiseFinalBill ?? false,
   }
 }
 

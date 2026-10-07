@@ -29,6 +29,11 @@ export interface PilotBookingRow {
   noShow: 'customer' | 'garage' | null
   paymentStatus: string | null
   paymentAmount: string | null
+  /**
+   * Money paid in the app after checkout (final bills of inspection jobs),
+   * summed. Null or '0.00' when there was none.
+   */
+  chargesPaid: string | null
 }
 
 export interface PilotGarage {
@@ -55,7 +60,8 @@ export interface PilotStats {
   garageNoShows: number
   /**
    * Rupees Detlio keeps: paid (or cash-collected) bookings that were not
-   * cancelled, plus customer no-shows, where the policy keeps the payment.
+   * cancelled, plus customer no-shows, where the policy keeps the payment,
+   * plus final bills paid in the app on bookings that were not cancelled.
    */
   revenue: number
   /** Ratios between 0 and 1, or null when there is nothing to divide by. */
@@ -70,6 +76,29 @@ export interface PilotStats {
 const ACCEPTED_STATUSES = new Set(['confirmed', 'in_progress', 'completed'])
 const MONEY_IN = new Set(['paid', 'collected'])
 const TOP_GARAGES = 5
+
+/** Fewer accepts than this and the median is reported as not enough data. */
+export const MIN_ACCEPT_SAMPLES = 3
+
+/** A booking a garage accepted, with what the accept time is measured from. */
+export interface PilotAcceptRow {
+  /** When the booking row was written. */
+  createdAt: Date
+  /** When its payment landed; null while unpaid. */
+  paidAt: Date | null
+  /** When the garage accepted it; null if it never did, or did before 0028. */
+  acceptedAt: Date | null
+}
+
+/**
+ * How fast garages accept: the median minutes from a booking reaching the
+ * garage to the garage accepting it, and how many accepts that is over. The
+ * median is null under MIN_ACCEPT_SAMPLES — a median of two is an anecdote.
+ */
+export interface PilotAcceptTime {
+  medianAcceptMins: number | null
+  acceptSamples: number
+}
 
 /**
  * Accepted means a garage said yes. `accepted_by` records that from the team
@@ -109,6 +138,46 @@ export function keptMoney(
 ): boolean {
   if (!b.paymentStatus || !MONEY_IN.has(b.paymentStatus)) return false
   return b.status !== 'cancelled' || b.noShow === 'customer'
+}
+
+/**
+ * Minutes from a booking reaching the garage to the garage accepting it.
+ *
+ * The clock starts at the later of payment and the booking's own creation:
+ * a booking paid at checkout is written the moment the money lands, an old
+ * pay-later one reaches the garage when it is paid, and a rescheduled one
+ * carries its original payment but only reaches the garage when it is
+ * written. Null when it was never accepted (or was before accepted_at
+ * existed), or never paid.
+ */
+export function acceptMinutes(b: PilotAcceptRow): number | null {
+  if (!b.acceptedAt || !b.paidAt) return null
+  const reached = Math.max(b.paidAt.getTime(), b.createdAt.getTime())
+  return Math.max(0, (b.acceptedAt.getTime() - reached) / 60_000)
+}
+
+/**
+ * The median accept time over bookings the garage accepted on or after
+ * `since`, rounded to the minute. The window is on the accept, not on when
+ * the booking was made: this measures how fast garages answer now. Every
+ * accept counts — a booking accepted and then moved by the customer still
+ * measured how fast its garage answered.
+ */
+export function summariseAcceptTime(rows: PilotAcceptRow[], since: Date): PilotAcceptTime {
+  const minutes = rows
+    .filter((b) => b.acceptedAt !== null && b.acceptedAt.getTime() >= since.getTime())
+    .map(acceptMinutes)
+    .filter((m): m is number => m !== null)
+    .sort((a, b) => a - b)
+
+  if (minutes.length < MIN_ACCEPT_SAMPLES) {
+    return { medianAcceptMins: null, acceptSamples: minutes.length }
+  }
+
+  const mid = Math.floor(minutes.length / 2)
+  const median =
+    minutes.length % 2 === 1 ? minutes[mid] : (minutes[mid - 1] + minutes[mid]) / 2
+  return { medianAcceptMins: Math.round(median), acceptSamples: minutes.length }
 }
 
 function ratio(part: number, whole: number): number | null {
@@ -154,8 +223,13 @@ export function summarisePilot(intents: PilotIntentRow[], allBookings: PilotBook
     if (by) cancelled[by]++
     if (b.noShow) noShows[b.noShow]++
 
-    if (keptMoney(b)) {
-      const money = amount(b.paymentAmount)
+    // Final bills paid in the app are kept unless the booking was cancelled,
+    // when the team refunds them along with the rest.
+    const charges = b.status === 'cancelled' ? 0 : amount(b.chargesPaid)
+
+    const kept = keptMoney(b)
+    if (kept || charges > 0) {
+      const money = (kept ? amount(b.paymentAmount) : 0) + charges
       revenue += money
 
       const garage = garages.get(b.vendorId) ?? {
@@ -164,7 +238,7 @@ export function summarisePilot(intents: PilotIntentRow[], allBookings: PilotBook
         paidBookings: 0,
         revenue: 0,
       }
-      garage.paidBookings++
+      if (kept) garage.paidBookings++
       garage.revenue += money
       garages.set(b.vendorId, garage)
     }

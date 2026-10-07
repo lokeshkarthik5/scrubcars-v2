@@ -9,6 +9,8 @@ import {
   resolveTenant,
   type TenantVariables,
 } from '../../middleware/tenant.middleware.js'
+import { vendorFinalBillRoutes } from '../booking-charges/booking-charges.routes.js'
+import { jobPhotosRoutes } from '../job-photos/job-photos.routes.js'
 import { membersRoutes } from '../members/members.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
@@ -50,7 +52,8 @@ export const vendorsRoutes = new Hono<{ Variables: TenantVariables }>()
 //
 // Default deny: the shared chain is vendor_admin-only, so a route added to this
 // file is never accidentally exposed to operators. Widening is deliberate, and
-// there is exactly one widened route below.
+// there is exactly one widened route below (plus the job records mounted under
+// /me/bookings, which widen in their own files).
 const tenantMiddleware = [
   authMiddleware,
   resolveTenant,
@@ -114,6 +117,13 @@ vendorsRoutes.get(
 // The team screen. Nested here so it inherits the /vendors/me prefix — the
 // company it acts on is the one resolveTenant produced, never a path parameter.
 vendorsRoutes.route('/me/members', membersRoutes)
+
+// A job's records: before/after photos and the final bill of an inspection
+// job. Nested here for the same reason as the team screen. Both are widened
+// to operators in their own files, deliberately — the people who do the work
+// take the photos and write the bill.
+vendorsRoutes.route('/me/bookings', jobPhotosRoutes)
+vendorsRoutes.route('/me/bookings', vendorFinalBillRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

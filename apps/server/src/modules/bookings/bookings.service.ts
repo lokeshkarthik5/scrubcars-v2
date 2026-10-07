@@ -13,6 +13,18 @@ import {
 } from '../../lib/slots.js'
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
+import {
+  creditAtBooking,
+  finalBillRefusal,
+  liveFinalBill,
+  toFinalBillView,
+  type FinalBillRecord,
+} from '../../lib/final-bill.js'
+import {
+  customerSeesPhotos,
+  toJobPhotoView,
+  type JobPhotoStage,
+} from '../../lib/job-records.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
@@ -123,6 +135,9 @@ type BookingWithRelations = {
   originalBookingId?: string | null
   rescheduledFromId?: string | null
   rescheduleCount?: number | null
+  acceptedAt?: Date | null
+  startedAt?: Date | null
+  completedAt?: Date | null
   createdAt: Date
   review?: {
     id: string
@@ -159,7 +174,14 @@ type BookingWithRelations = {
     amount: string
     durationMins: number
     sortOrder: number
+    // The service's pricing type, when the read joined it (BOOKING_ITEMS).
+    service?: { pricingType: string } | null
   }> | null
+  // Loaded only where one job is shown in full (JOB_RECORDS in the
+  // repository). Absent from lists, and then absent from the payload too —
+  // an empty list there would claim the job has none.
+  photos?: Array<{ id: string; stage: JobPhotoStage; url: string; createdAt: Date }>
+  charges?: FinalBillRecord[]
   vehicle?: {
     id: string
     make: string
@@ -185,6 +207,11 @@ function toPaymentResponse(payment: PaymentRecord | null | undefined) {
     paidAt: payment.paidAt?.toISOString() ?? null,
     createdAt: payment.createdAt.toISOString(),
   }
+}
+
+function finalBillOf(charges: FinalBillRecord[]) {
+  const bill = liveFinalBill(charges)
+  return bill ? toFinalBillView(bill) : null
 }
 
 function toBookingResponse(booking: BookingWithRelations) {
@@ -226,6 +253,11 @@ function toBookingResponse(booking: BookingWithRelations) {
     rescheduleCount: booking.rescheduleCount ?? 0,
     remainingReschedules: Math.max(0, MAX_RESCHEDULES - (booking.rescheduleCount ?? 0)),
     maxReschedules: MAX_RESCHEDULES,
+    // When each step happened. Null until it does, and on jobs from before
+    // these were recorded.
+    acceptedAt: booking.acceptedAt?.toISOString() ?? null,
+    startedAt: booking.startedAt?.toISOString() ?? null,
+    completedAt: booking.completedAt?.toISOString() ?? null,
     createdAt: booking.createdAt.toISOString(),
     review: booking.review
       ? {
@@ -266,6 +298,9 @@ function toBookingResponse(booking: BookingWithRelations) {
       name: item.name,
       amount: item.amount,
       durationMins: item.durationMins,
+      // How the service is priced today. An inspection job says what the
+      // customer prepaid was a fee, not the whole price.
+      pricingType: item.service?.pricingType ?? null,
     })),
     durationMins:
       booking.durationMins ??
@@ -292,7 +327,30 @@ function toBookingResponse(booking: BookingWithRelations) {
         }
       : null,
     payment: toPaymentResponse(booking.payment),
+    // The customer sees the job's photos once the work has started, next to
+    // the step that says so (see customerSeesPhotos).
+    ...(booking.photos !== undefined && {
+      photos: customerSeesPhotos(booking.status)
+        ? booking.photos.map(toJobPhotoView)
+        : [],
+    }),
+    // The final bill of an inspection job, if the garage has raised one: the
+    // one that stands, not any it replaced.
+    // `paidAtBooking` is what the booking already covers toward a bill (its
+    // pre-discount price once paid; see creditAtBooking): the garage's form
+    // shows it before there is a bill to read it from.
+    ...(booking.charges !== undefined && {
+      finalBill: finalBillOf(booking.charges),
+      paidAtBooking: creditAtBooking(booking),
+    }),
   }
+}
+
+/** The pricing types of a booking's services, as BOOKING_ITEMS reads them. */
+function pricingTypesOf(booking: BookingWithRelations): string[] {
+  return (booking.items ?? []).flatMap((item) =>
+    item.service?.pricingType ? [item.service.pricingType] : []
+  )
 }
 
 /**
@@ -318,7 +376,28 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     ...vendorView
   } = toBookingResponse(booking)
 
-  return vendorView
+  return {
+    ...vendorView,
+    // The garage took the photos, so it always sees all of them — the
+    // customer's view waits for the work to start.
+    ...(booking.photos !== undefined && {
+      photos: booking.photos.map(toJobPhotoView),
+    }),
+    // Whether the job card offers "Raise final bill" now. Worked out here so
+    // the portal never restates the rules (lib/final-bill.ts). The bill
+    // itself (`finalBill`) is not payout money: it is what the garage asked
+    // the customer for, and whoever raised it has to see where it stands.
+    ...(booking.charges !== undefined && {
+      canRaiseFinalBill:
+        finalBillRefusal({
+          status: booking.status,
+          pricingTypes: pricingTypesOf(booking),
+          completedAt: booking.completedAt ?? null,
+          scheduledAt: booking.scheduledAt,
+          now: Date.now(),
+        }) === null && liveFinalBill(booking.charges)?.status !== 'paid',
+    }),
+  }
 }
 
 /**
@@ -1254,6 +1333,7 @@ export const bookingsService = {
 
     const [accepted] = await bookingsRepository.updateBookingStatus(bookingId, 'confirmed', 'pending', {
       acceptedBy: actorId,
+      acceptedAt: new Date(),
     })
     if (!accepted) throw stateChanged()
     log.info({ bookingId, vendorId, actorId, status: 'confirmed' }, 'booking:status_updated')
@@ -1298,7 +1378,9 @@ export const bookingsService = {
       )
     }
 
-    const [started] = await bookingsRepository.updateBookingStatus(bookingId, 'in_progress', 'confirmed')
+    const [started] = await bookingsRepository.updateBookingStatus(bookingId, 'in_progress', 'confirmed', {
+      startedAt: new Date(),
+    })
     if (!started) throw stateChanged()
     log.info({ bookingId, vendorId, actorId, status: 'in_progress' }, 'booking:status_updated')
 
@@ -1319,6 +1401,7 @@ export const bookingsService = {
 
     const [completed] = await bookingsRepository.updateBookingStatus(bookingId, 'completed', 'in_progress', {
       completedBy: actorId,
+      completedAt: new Date(),
     })
     if (!completed) throw stateChanged()
 

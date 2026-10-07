@@ -23,14 +23,17 @@ export type JourneyActors = {
 export async function openActors(
   browser: Browser,
   customerRole: string,
-  vendorId: string
+  vendorId: string,
+  // The garage's session. MAIN's owner unless the journey has a garage of
+  // its own.
+  vendorRole = 'vendor-owner'
 ): Promise<JourneyActors> {
   const customerCtx = await browser.newContext({
     storageState: statePath(customerRole),
     baseURL: USERS_ORIGIN,
   })
   const vendorCtx = await browser.newContext({
-    storageState: statePath('vendor-owner'),
+    storageState: statePath(vendorRole),
     baseURL: VENDORS_ORIGIN,
   })
 

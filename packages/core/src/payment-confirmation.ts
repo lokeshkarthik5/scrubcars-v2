@@ -52,11 +52,14 @@ export function isRetryable(error: unknown): boolean {
 }
 
 /**
- * The 409 that means the payment landed but no booking could be written. It
- * carries the refund message the customer must see, and it is final.
+ * The 409s that mean the payment landed but cannot stand: no booking could be
+ * written for it, or the final bill it paid was replaced while the customer
+ * paid. They carry the refund message the customer must see, and are final.
  */
+const REFUND_DUE_CODES = new Set(['BOOKING_CONFIRM_FAILED_REFUND_DUE', 'FINAL_BILL_REFUND_DUE'])
+
 export function refundMessage(error: unknown): string | null {
-  return error instanceof ApiError && error.code === 'BOOKING_CONFIRM_FAILED_REFUND_DUE'
+  return error instanceof ApiError && error.code !== undefined && REFUND_DUE_CODES.has(error.code)
     ? error.message
     : null
 }
@@ -127,14 +130,58 @@ export function intentPollResult(intent: {
 }
 
 /**
+ * Said when a final bill's payment landed after the garage replaced the bill.
+ * The server says the same (FINAL_BILL_REFUND_DUE); this is for a poll that
+ * finds it out on its own.
+ */
+export const FINAL_BILL_REPLACED_MESSAGE =
+  'The garage changed this bill while you were paying, so this payment will be refunded. Please check the new bill.'
+
+/** The same, when Detlio cancelled the booking while the customer paid its bill. */
+export const FINAL_BILL_CANCELLED_MESSAGE =
+  'This booking was cancelled while you were paying, so this payment will be refunded.'
+
+/**
+ * One look at a final bill being paid, as confirmPayment reads it: the bill
+ * that now stands on the booking. Paid is done; a different bill (or none)
+ * standing in its place means the one paid for was replaced — or withdrawn,
+ * when the booking was cancelled.
+ */
+export function finalBillPollResult(
+  bookingId: string,
+  chargeId: string,
+  live: { id: string; status: string } | null,
+  bookingStatus?: string
+): PollResult {
+  if (!live || live.id !== chargeId) {
+    return {
+      kind: 'failed',
+      message:
+        bookingStatus === 'cancelled' ? FINAL_BILL_CANCELLED_MESSAGE : FINAL_BILL_REPLACED_MESSAGE,
+    }
+  }
+  if (live.status === 'paid') return { kind: 'booked', bookingId }
+  return { kind: 'pending' }
+}
+
+/**
  * Why the customer is writing to us, which decides what their pre-filled
  * WhatsApp message asks:
  * - `missing_booking`: paid at checkout, and no booking to show yet.
  * - `not_marked_paid`: paid for a booking they are looking at, which does not
  *   show the payment yet.
+ * - `bill_not_marked_paid`: paid a final bill, which does not show as paid yet.
  * - `refund`: paid, the booking could not be made, and we said it is refunded.
+ * - `bill_refund`: paid a final bill that could no longer take the payment
+ *   (replaced, already paid, or the booking cancelled), and we said it is
+ *   refunded. Not `refund`: there is no missing booking to look for.
  */
-export type PaymentHelpSituation = 'missing_booking' | 'not_marked_paid' | 'refund'
+export type PaymentHelpSituation =
+  | 'missing_booking'
+  | 'not_marked_paid'
+  | 'bill_not_marked_paid'
+  | 'refund'
+  | 'bill_refund'
 
 /**
  * The message a customer sends us about a payment we could not settle on
@@ -150,8 +197,12 @@ export function paymentHelpMessage(
   switch (situation) {
     case 'not_marked_paid':
       return `Hi Detlio, I paid for my booking but it doesn't show as paid yet. Payment ID: ${paymentId}`
+    case 'bill_not_marked_paid':
+      return `Hi Detlio, I paid the final bill for my booking but it doesn't show as paid yet. Payment ID: ${paymentId}`
     case 'refund':
       return `Hi Detlio, my payment couldn't be made into a booking and I was told it will be refunded. Can you tell me about the refund? Payment ID: ${paymentId}`
+    case 'bill_refund':
+      return `Hi Detlio, I paid the final bill for my booking and was told this payment will be refunded. Can you tell me about the refund? Payment ID: ${paymentId}`
     case 'missing_booking':
       return `Hi Detlio, I paid for a booking but it hasn't shown up yet. Payment ID: ${paymentId}`
   }

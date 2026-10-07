@@ -6,6 +6,18 @@ import { IconAlertCircle, IconBrandWhatsapp } from '@tabler/icons-react'
 import { paymentHelpMessage, type PaymentHelpSituation } from '@repo/core/payment-confirmation'
 import { supportWhatsAppHref } from '@repo/core/support'
 
+/** What a payment is waiting on; the refund cases come from `refundMessage`. */
+type WaitingOn = Exclude<PaymentHelpSituation, 'refund' | 'bill_refund'>
+
+/**
+ * The WhatsApp message's situation. A refund on a final bill is its own: the
+ * booking's refund message asks about a booking that was never made.
+ */
+function helpSituation(refundMessage: string | undefined, waitingOn: WaitingOn): PaymentHelpSituation {
+  if (!refundMessage) return waitingOn
+  return waitingOn === 'bill_not_marked_paid' ? 'bill_refund' : 'refund'
+}
+
 const SECONDARY =
   'flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-border bg-surface px-3 text-[13px] font-medium text-text-primary transition-colors'
 
@@ -21,18 +33,25 @@ interface PaymentReceivedPanelProps {
   /**
    * What the customer is waiting on, for the WhatsApp message they send us.
    * Checkout waits on a booking; the Pay Now page waits on an existing
-   * booking showing as paid. The refund case is taken from `refundMessage`.
+   * booking showing as paid; a final bill waits on the bill showing as paid.
+   * The refund case is taken from `refundMessage`.
    */
-  waitingOn?: Exclude<PaymentHelpSituation, 'refund'>
+  waitingOn?: WaitingOn
 }
 
 /**
  * What the panel says, as one sentence. Also what the page's status region
- * reads out when the panel appears, so the two can never disagree.
+ * reads out when the panel appears, so the two can never disagree. A final
+ * bill is confirmed against the bill on this page, not a booking to find.
  */
-export function paymentReceivedText(paymentId: string, refundMessage?: string): string {
-  return refundMessage
-    ? `${refundMessage} Payment ID ${paymentId}.`
+export function paymentReceivedText(
+  paymentId: string,
+  refundMessage?: string,
+  waitingOn: WaitingOn = 'missing_booking'
+): string {
+  if (refundMessage) return `${refundMessage} Payment ID ${paymentId}.`
+  return waitingOn === 'bill_not_marked_paid'
+    ? `We've received your payment (ID ${paymentId}). We're confirming it against your bill — it shows here as paid in a minute, or WhatsApp us with this payment ID.`
     : `We've received your payment (ID ${paymentId}). We're confirming your booking — check My bookings in a minute, or WhatsApp us with this payment ID.`
 }
 
@@ -61,7 +80,7 @@ export function PaymentReceivedPanel({
     ref.current?.focus()
   }, [])
 
-  const text = paymentReceivedText(paymentId, refundMessage)
+  const text = paymentReceivedText(paymentId, refundMessage, waitingOn)
 
   return (
     <div ref={ref} tabIndex={-1} className="flex flex-col gap-3 focus:outline-none">
@@ -77,7 +96,7 @@ export function PaymentReceivedPanel({
       <div className="flex gap-2">
         <a
           href={supportWhatsAppHref(
-            paymentHelpMessage(paymentId, refundMessage ? 'refund' : waitingOn)
+            paymentHelpMessage(paymentId, helpSituation(refundMessage, waitingOn))
           )}
           target="_blank"
           rel="noopener noreferrer"

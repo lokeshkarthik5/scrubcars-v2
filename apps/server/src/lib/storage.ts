@@ -168,3 +168,20 @@ export function keyFromPublicUrl(url: string): string | null {
   const key = url.slice(prefix.length)
   return key.length > 0 ? key : null
 }
+
+/**
+ * The public URL of an object this server let someone upload. For flows that
+ * register an upload by its key (job photos) rather than by the URL the
+ * client was handed, so the URL is always built here and never trusted from
+ * the request.
+ */
+export function publicUrlForKey(key: string): string {
+  if (!env.r2PublicBaseUrl) {
+    throw new AppError(
+      503,
+      'Photo storage is not configured',
+      'STORAGE_NOT_CONFIGURED'
+    )
+  }
+  return `${env.r2PublicBaseUrl}/${key}`
+}

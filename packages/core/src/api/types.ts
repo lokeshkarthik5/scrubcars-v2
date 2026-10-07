@@ -299,6 +299,31 @@ export interface ApiSlotsResponse {
   slots: string[]
 }
 
+/** A before/after photo of a job. */
+export interface ApiJobPhoto {
+  id: string
+  stage: 'before' | 'after'
+  url: string
+  createdAt: string
+}
+
+/**
+ * The final bill of an inspection job, as the customer and the garage see it.
+ * Money is decimal strings. `amountDue` is max(0, total − paidBefore); a bill
+ * with none is 'not_needed'.
+ */
+export interface ApiFinalBill {
+  id: string
+  status: 'due' | 'paid' | 'cancelled' | 'not_needed'
+  lines: Array<{ description: string; amount: string }>
+  totalAmount: string
+  paidBefore: string
+  amountDue: string
+  note: string | null
+  paidAt: string | null
+  createdAt: string
+}
+
 export interface ApiBooking {
   id: string
   status: string
@@ -329,7 +354,23 @@ export interface ApiBooking {
   rescheduleCount: number
   remainingReschedules: number
   maxReschedules: number
+  // When each step happened. Optional: a server older than job records does
+  // not send them, and a job from before they were kept has them null.
+  acceptedAt?: string | null
+  startedAt?: string | null
+  completedAt?: string | null
   createdAt: string
+  /**
+   * The job's photos. Only on the booking page and the garage's job list,
+   * and the customer's copy is empty until the work starts.
+   */
+  photos?: ApiJobPhoto[]
+  /** The final bill that stands, on payloads that carry job records. */
+  finalBill?: ApiFinalBill | null
+  /** Garage payloads only: whether "Raise final bill" applies now. */
+  canRaiseFinalBill?: boolean
+  /** What the booking already covers toward a final bill, as a decimal string. */
+  paidAtBooking?: string
   review: {
     id: string
     rating: number
@@ -356,6 +397,8 @@ export interface ApiBooking {
     name: string
     amount: string
     durationMins: number
+    /** Absent from older servers. */
+    pricingType?: 'flat' | 'per_vehicle' | 'on_inspection' | null
   }>
   /** The booking's total duration: the sum of its items. */
   durationMins: number

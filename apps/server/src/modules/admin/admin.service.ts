@@ -13,8 +13,10 @@ import {
   parseBookingSearch,
   waitingMinutes,
 } from '../../lib/booking-ops.js'
+import { liveFinalBill, type FinalBillRecord } from '../../lib/final-bill.js'
+import { toJobPhotoView } from '../../lib/job-records.js'
 import { alertOps } from '../../lib/ops-alerts.js'
-import { summarisePilot } from '../../lib/pilot-stats.js'
+import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
 import { todayDateKey } from '../../lib/slots.js'
 import {
@@ -172,6 +174,38 @@ function toBookingNoteResponse(note: BookingNoteRecord) {
  * The API and the panel deploy separately, so they stay until every deployed
  * panel reads `garage`, `customer` and `items` instead.
  */
+/**
+ * A final bill as ops sees it: everything the customer and the garage see,
+ * plus the Razorpay ids to find the payment by, and when it last changed.
+ */
+function toAdminFinalBill(bill: FinalBillRecord) {
+  return {
+    id: bill.id,
+    status: bill.status,
+    lines: bill.lines.map((line) => ({ description: line.description, amount: line.amount })),
+    totalAmount: bill.totalAmount,
+    paidBefore: bill.paidBefore,
+    amountDue: bill.amountDue,
+    note: bill.note,
+    gatewayOrderId: bill.gatewayOrderId,
+    gatewayPaymentId: bill.gatewayPaymentId,
+    paidAt: bill.paidAt?.toISOString() ?? null,
+    createdAt: bill.createdAt.toISOString(),
+    updatedAt: bill.updatedAt.toISOString(),
+  }
+}
+
+/**
+ * The balance a customer still has to pay on a final bill, for the list's
+ * "Bill due" flag. Null when there is none — no bill, nothing left to pay, or
+ * a booking that was cancelled (a cancelled job is not chased for money).
+ */
+function billDueOf(booking: AdminBookingRecord): string | null {
+  if (booking.status === 'cancelled') return null
+  const bill = liveFinalBill(booking.charges)
+  return bill?.status === 'due' ? bill.amountDue : null
+}
+
 function toAdminBookingRow(booking: AdminBookingRecord, notesCount: number, now: number) {
   return {
     id: booking.id,
@@ -236,6 +270,12 @@ function toAdminBookingRow(booking: AdminBookingRecord, notesCount: number, now:
     cancelledAt: booking.cancelledAt?.toISOString() ?? null,
     noShow: booking.noShow,
     noShowMarkedAt: booking.noShowMarkedAt?.toISOString() ?? null,
+    // When the garage moved the job on. Null on jobs from before these were
+    // recorded, even when the status says the step happened.
+    acceptedAt: booking.acceptedAt?.toISOString() ?? null,
+    startedAt: booking.startedAt?.toISOString() ?? null,
+    completedAt: booking.completedAt?.toISOString() ?? null,
+    billDue: billDueOf(booking),
     notesCount,
     rescheduledFromId: booking.rescheduledFromId,
     // Deprecated — see above.
@@ -271,9 +311,18 @@ async function loadBookingDetail(id: string, now: number) {
     adminRepository.findUserNames(staffIds),
   ])
 
-  const { notes, ...row } = booking
+  const { notes, photos, ...row } = booking
+  const finalBill = liveFinalBill(booking.charges)
   return {
     ...toAdminBookingRow(row, notes.length, now),
+    // The bill that stands, and the unpaid ones it replaced, newest first. A
+    // replaced bill with a payment id on it is money taken for a bill that no
+    // longer stands — a refund to do.
+    finalBill: finalBill ? toAdminFinalBill(finalBill) : null,
+    replacedFinalBills: booking.charges
+      .filter((charge) => charge.kind === 'final_bill' && charge.status === 'cancelled')
+      .map(toAdminFinalBill),
+    photos: photos.map(toJobPhotoView),
     lat: booking.lat,
     lng: booking.lng,
     garageAddress: booking.vendor
@@ -552,24 +601,27 @@ export const adminService = {
 
   /**
    * The pilot's numbers over the last 7 or 30 days, rolling from now: the
-   * checkout funnel, how bookings ended, the money and the busiest garages.
-   * Definitions live in lib/pilot-stats.ts.
+   * checkout funnel, how bookings ended, the money, the busiest garages, and
+   * the median minutes from payment to the garage accepting. Definitions live
+   * in lib/pilot-stats.ts.
    *
-   * There is no "minutes from payment to the garage accepting": bookings
-   * record who accepted but not when, so it cannot be worked out from the
-   * data we have. It needs an accepted_at column first.
+   * The accept time reads `accepted_at`, which only bookings accepted since
+   * migration 0028 have; under three accepts in the window it says so rather
+   * than showing a median of one or two.
    */
   async getPilotStats(query: PilotStatsQuery, now = Date.now()) {
     const since = new Date(now - query.days * 24 * 60 * 60 * 1000)
-    const [intents, bookingRows] = await Promise.all([
+    const [intents, bookingRows, accepts] = await Promise.all([
       adminRepository.listIntentsCreatedSince(since),
       adminRepository.listBookingsCreatedSince(since),
+      adminRepository.listAcceptsSince(since),
     ])
 
     return {
       days: query.days,
       since: since.toISOString(),
       ...summarisePilot(intents, bookingRows),
+      ...summariseAcceptTime(accepts, since),
     }
   },
 

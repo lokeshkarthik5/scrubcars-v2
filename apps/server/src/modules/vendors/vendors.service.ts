@@ -21,6 +21,7 @@ import {
 import {
   computeStartingPrice,
   resolveServicePricing,
+  sumAmounts,
   tiersOf,
   type VehicleTier,
 } from '../../lib/pricing.js'
@@ -30,6 +31,7 @@ import {
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
 import { categoryLabel } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
+import { paidChargesTotal } from '../../lib/final-bill.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -321,26 +323,35 @@ export type EarningsResponse = {
 // code the garage is still owed the full pre-discount price, so paying them what
 // the customer was charged would silently dock them for a campaign they did not
 // run. The rule lives in computeVendorPayout; this file just applies it.
-function payoutOf(booking: {
+//
+// A final bill the customer paid in the app is the garage's too — it is the
+// rest of the work's price — so it is added on top. Only once paid: a bill
+// still due is money nobody has collected yet.
+type EarningBooking = {
   amount: string
   subtotalAmount?: string | null
   discountFundedBy?: 'platform' | 'vendor' | null
-}) {
-  return computeVendorPayout({
-    amount: booking.amount,
-    subtotalAmount: booking.subtotalAmount ?? booking.amount,
-    discountFundedBy: booking.discountFundedBy ?? null,
-  })
+  charges?: Array<{ status: string; amountDue: string }> | null
 }
 
-function sumPayouts(
-  bookings: {
-    amount: string
-    subtotalAmount?: string | null
-    discountFundedBy?: 'platform' | 'vendor' | null
-  }[]
-) {
-  return bookings.reduce((sum, booking) => sum + Number(payoutOf(booking)), 0)
+// Added in paise and handed back in rupees: a bill can carry paise, and
+// 1099.9 + 250.2 in floating point is 1350.1000000000001, which the screen
+// would print as it stands.
+function payoutOf(booking: EarningBooking) {
+  return Number(
+    sumAmounts([
+      computeVendorPayout({
+        amount: booking.amount,
+        subtotalAmount: booking.subtotalAmount ?? booking.amount,
+        discountFundedBy: booking.discountFundedBy ?? null,
+      }),
+      paidChargesTotal(booking.charges),
+    ])
+  )
+}
+
+function sumPayouts(bookings: EarningBooking[]) {
+  return Number(sumAmounts(bookings.map((booking) => String(payoutOf(booking)))))
 }
 
 function isSettledPayment(status: string | undefined | null) {
@@ -1955,7 +1966,7 @@ export const vendorsService = {
           customerName: booking.user?.name ?? 'Customer',
           scheduledAt: booking.scheduledAt.toISOString(),
           bookingType: booking.bookingType,
-          amount: Number(payoutOf(booking)),
+          amount: payoutOf(booking),
           settled: isSettledPayment(booking.payment?.status),
         })),
     }

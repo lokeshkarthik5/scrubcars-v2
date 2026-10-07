@@ -13,7 +13,10 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useNow } from '@repo/core/hooks/use-now'
 import { toast } from 'react-toastify'
+import { FinalBillPanel } from '@/components/final-bill'
 import { JobContact } from '@/components/job-contact'
+import { JobPhotos } from '@/components/job-photos'
+import { jobStepTimes } from '@repo/core/job-records'
 import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
 
@@ -64,6 +67,12 @@ export default function VendorBookingsPage() {
   // is shown, and the list re-read so the card stops offering it.
   const refused = (error: unknown, fallback: string) => {
     toast.error(error instanceof Error ? error.message : fallback)
+    void fetchVendorBookings()
+  }
+
+  // After a photo or a bill changes, read the list again: the card shows
+  // what the server now holds.
+  const refresh = () => {
     void fetchVendorBookings()
   }
 
@@ -160,6 +169,13 @@ export default function VendorBookingsPage() {
 
               <JobContact booking={b} />
 
+              {/* When each step happened, as the garage recorded it. */}
+              {b.status !== 'pending' && jobStepTimes(b, now).length > 0 && (
+                <p className="font-numeric text-[11px] text-text-secondary">
+                  {jobStepTimes(b, now).join(' · ')}
+                </p>
+              )}
+
               {b.status === 'pending' && b.rescheduledFromId && !slotPassed(b, now) && (
                 <p className="text-[12px] text-text-secondary">
                   The customer moved this booking to a new time. Accept it if you can do it.
@@ -219,6 +235,21 @@ export default function VendorBookingsPage() {
                 </div>
               )}
 
+              {/* Photos are optional: nothing below waits on them. Before
+                  photos from acceptance, after photos once work starts. */}
+              {tab === 'upcoming' && (
+                <div className="flex flex-col gap-3 border-t border-border pt-2">
+                  <JobPhotos booking={b} stage="before" onChanged={refresh} />
+                  {b.status === 'in_progress' && (
+                    <JobPhotos booking={b} stage="after" onChanged={refresh} />
+                  )}
+                </div>
+              )}
+
+              {tab === 'upcoming' && b.status === 'in_progress' && (
+                <FinalBillPanel booking={b} onChanged={refresh} />
+              )}
+
               {tab === 'upcoming' && b.status === 'confirmed' && (
                 <ScButton
                   aria-label={`Mark booking for ${b.customerName} in progress`}
@@ -236,6 +267,25 @@ export default function VendorBookingsPage() {
                   Mark completed
                 </ScButton>
               )}
+
+              {tab === 'completed' && (
+                <div className="flex flex-col gap-3 border-t border-border pt-2">
+                  <JobPhotos
+                    booking={b}
+                    stage="before"
+                    onChanged={refresh}
+                    readOnly={!photosOpen(b, now)}
+                  />
+                  <JobPhotos
+                    booking={b}
+                    stage="after"
+                    onChanged={refresh}
+                    readOnly={!photosOpen(b, now)}
+                  />
+                </div>
+              )}
+
+              {tab === 'completed' && <FinalBillPanel booking={b} onChanged={refresh} />}
 
               {tab === 'completed' && b.review && (
                 <div className="border-t border-border pt-2">
@@ -285,6 +335,18 @@ function cancelledLabel(b: Booking): string {
     default:
       return 'Cancelled'
   }
+}
+
+/**
+ * Whether a finished job's photos can still change: for a week after it was
+ * completed (PHOTO_EDIT_WINDOW_DAYS on the server), counted from the slot on
+ * jobs finished before completion times were kept.
+ */
+const PHOTO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+function photosOpen(b: Booking, now: number): boolean {
+  const finished = new Date(b.completedAtIso ?? b.scheduledAtIso).getTime()
+  return now - finished <= PHOTO_WINDOW_MS
 }
 
 /** A pending job whose start time has come and gone: it can only be rejected. */

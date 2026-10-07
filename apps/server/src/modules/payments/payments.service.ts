@@ -10,6 +10,7 @@ import {
   bookingIntentsService,
   failureMessage,
 } from '../booking-intents/booking-intents.service.js'
+import { bookingChargesService } from '../booking-charges/booking-charges.service.js'
 import type { GarageRefusal } from '../bookings/bookings.repository.js'
 import { garageRefusalForBooking } from '../bookings/bookings.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
@@ -26,9 +27,12 @@ type RazorpayWebhookPayload = {
         id?: string
         order_id?: string
         status?: string
+        /** In paise. */
+        amount?: number
         notes?: {
           booking_id?: string
           intent_id?: string
+          charge_id?: string
         }
       }
     }
@@ -353,6 +357,29 @@ export const paymentsService = {
 
     if (!entity?.id) {
       return { handled: false }
+    }
+
+    // A final bill paid after the job. Checked first: its order notes carry
+    // the booking's id too, and the legacy branch below would otherwise try
+    // to settle the booking's own (long since paid) payment with it. The
+    // notes are on the order, not the payment, so a payment can arrive
+    // without them; then the bill is found by its order id, which is unique,
+    // as confirmIntentByOrderId does for a booking intent below.
+    const chargeId =
+      entity.notes?.charge_id ??
+      (entity.order_id ? await bookingChargesService.chargeIdForOrder(entity.order_id) : null)
+    if (chargeId) {
+      if (event === 'payment.captured' || entity.status === 'captured') {
+        await bookingChargesService.settleFromWebhook({
+          chargeId,
+          orderId: entity.order_id,
+          paymentId: entity.id,
+          amountPaise: entity.amount,
+        })
+      }
+      // A failed attempt changes nothing: the bill stays due and the
+      // customer can try again from their booking.
+      return { handled: true, event }
     }
 
     // An intent-backed order has no booking (and no payment row) until this

@@ -950,7 +950,8 @@ export default function GaragePage({
               )}
               {details.pricingType === 'on_inspection' && (
                 <p className="mt-1.5 text-[11px] text-text-muted">
-                  Final work is quoted after the inspection.
+                  You pay the inspection fee when you book. If the work costs more,
+                  the garage sends the final bill in the app and you pay the rest there.
                 </p>
               )}
             </div>

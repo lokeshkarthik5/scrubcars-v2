@@ -926,6 +926,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </div>
             </ScCard>
 
+            {/* An inspection fee is not the whole price, and the customer
+                should know before paying how the rest is charged: the garage
+                raises the final bill after the work and it is paid in the
+                app (booking-charges on the server). Nothing promised beyond
+                that — no refund of the fee is offered, because there is none. */}
+            {selectedServices.some((service) => service.pricingType === 'on_inspection') && (
+              <p className="mt-2 text-[12px] leading-relaxed text-text-secondary">
+                You pay the inspection fee now. If the work costs more, the
+                garage sends the final bill in the app and you pay the rest here.
+              </p>
+            )}
+
             {/* Mirrors what the server actually enforces: CANCELLATION_CUTOFF_MS
                 (confirmed bookings only) and MAX_RESCHEDULES in
                 bookings.service.ts. Deliberately silent on refunds in general —

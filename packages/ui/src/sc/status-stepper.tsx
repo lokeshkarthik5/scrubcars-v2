@@ -5,8 +5,11 @@ import { cn } from '@repo/core/utils'
 
 type StepState = 'done' | 'current' | 'upcoming'
 
+/** The steps a time can be given for, by key. */
+export type StepKey = 'requested' | 'confirmed' | 'in_progress' | 'completed'
+
 interface Step {
-  key: string
+  key: StepKey
   label: Partial<Record<StepState, string>> & { upcoming: string }
   caption: Record<StepState, string>
 }
@@ -75,7 +78,18 @@ const PROGRESS: Record<string, { doneThrough: number; current: number | null }> 
   completed: { doneThrough: 3, current: null },
 }
 
-export function StatusStepper({ status }: { status: string }) {
+export function StatusStepper({
+  status,
+  times,
+}: {
+  status: string
+  /**
+   * When each reached step happened, already formatted ("10:42 am"). Shown
+   * under its step; a step with no time recorded (an older booking) simply
+   * shows none, and a step not reached yet never shows one.
+   */
+  times?: Partial<Record<StepKey, string>>
+}) {
   const progress = PROGRESS[status] ?? PROGRESS.pending
 
   return (
@@ -137,6 +151,11 @@ export function StatusStepper({ status }: { status: string }) {
               >
                 {step.caption[state]}
               </p>
+              {active && times?.[step.key] && (
+                <p className="mt-0.5 font-numeric text-[11px] leading-tight text-text-muted">
+                  {times[step.key]}
+                </p>
+              )}
             </div>
           </li>
         )

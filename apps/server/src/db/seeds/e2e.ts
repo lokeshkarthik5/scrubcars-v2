@@ -159,7 +159,9 @@ async function seedPeople() {
         CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove, CUSTOMERS.adminOps,
         CUSTOMERS.intents, CUSTOMERS.intentsStranger, CUSTOMERS.pilotStats,
         CUSTOMERS.capacityHolder, CUSTOMERS.scheduling,
-        CUSTOMERS.raceFirst, CUSTOMERS.raceSecond, CUSTOMERS.payLaterFull].map((c, i) => ({
+        CUSTOMERS.raceFirst, CUSTOMERS.raceSecond, CUSTOMERS.payLaterFull,
+        CUSTOMERS.billPayer, CUSTOMERS.billSmall, CUSTOMERS.billStranger,
+        CUSTOMERS.jobRecords, CUSTOMERS.billWebhook].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -256,6 +258,19 @@ async function seedVendorRows() {
       isVerified: true, doorstepEnabled: false, dropinEnabled: true,
       slotIntervalMins: 30, status: 'active' as const,
     })),
+    // Inspection jobs and final bills. Further south-west than the
+    // scheduling garages, for the same reason: it never comes between MAIN
+    // and the fillers in a distance sort. A few bays, so its seeded jobs never
+    // look like a full garage.
+    {
+      id: VENDORS.inspect.id, ownerId: STAFF.inspectOwner.id, businessName: VENDORS.inspect.name,
+      phone: '9000003100', address: '1, Inspection Road, Chromepet', city: 'Chennai',
+      pincode: '600044', lat: ORIGIN.lat - 0.35, lng: ORIGIN.lng - 0.15,
+      geoSource: 'map_pin' as const, geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active' as const, bays: 5,
+    },
     // Volume for listing, sorting and infinite scroll. Spread north-east so
     // distance ordering from ORIGIN is strictly increasing and therefore
     // assertable.
@@ -283,7 +298,8 @@ async function seedVendorRows() {
       hoursFor(fillerVendorId(i), '09:00:00', '18:00:00')).flat(),
     // As wide as MAIN's, so tomorrow at 10:00 is a real slot whenever the
     // suite runs.
-    ...[VENDORS.capacity, VENDORS.holiday, VENDORS.paused, VENDORS.timeOff, VENDORS.lastBay]
+    ...[VENDORS.capacity, VENDORS.holiday, VENDORS.paused, VENDORS.timeOff, VENDORS.lastBay,
+        VENDORS.inspect]
       .flatMap((v) => hoursFor(v.id, '06:00:00', '22:00:00')),
     // Saturday ends at 13:00; the admin spec checks a save leaves it there.
     ...hoursFor(VENDORS.opsEdit.id, '09:00:00', '18:00:00').map((day) =>
@@ -370,6 +386,13 @@ async function seedServiceRows() {
       durationMins: service.durationMins, isActive: true,
     })),
 
+    // Priced on inspection: the ₹299 is the fee, and the work is billed
+    // after. Every booking on it can get a final bill.
+    { id: SERVICES.inspectFee.id, vendorId: VENDORS.inspect.id, name: SERVICES.inspectFee.name,
+      description: 'We look at the dent and quote the repair.', category: 'scratch_removal',
+      pricingType: 'on_inspection', price: SERVICES.inspectFee.price,
+      durationMins: SERVICES.inspectFee.durationMins, isActive: true },
+
     // One service per filler garage, so they are bookable and not just names.
     ...Array.from({ length: FILLER_VENDOR_COUNT }, (_, i) => ({
       vendorId: fillerVendorId(i), name: 'Standard Wash', category: 'car_wash' as const,
@@ -398,6 +421,7 @@ async function seedMembership() {
       status: 'active' as const,
     })),
     { vendorId: VENDORS.opsEdit.id, userId: STAFF.narrowOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.inspect.id, userId: STAFF.inspectOwner.id, role: 'vendor_admin', status: 'active' },
     // Platform scope: the CHECK constraint requires vendorId to be null here.
     { vendorId: null, userId: STAFF.superAdmin.id, role: 'super_admin', status: 'active' },
   ])
@@ -471,6 +495,9 @@ type BookingSpec = {
   createdAt?: Date
   /** Defaults to an at-garage job. A doorstep one carries where to go. */
   doorstep?: { address: string; lat: number; lng: number }
+  /** When the garage accepted and started it, for a job already under way. */
+  acceptedAt?: Date
+  startedAt?: Date
 }
 
 /**
@@ -506,6 +533,8 @@ async function insertBooking(spec: BookingSpec) {
     paymentMethod: 'online',
     rescheduleCount: spec.rescheduleCount ?? 0,
     ...(spec.createdAt && { createdAt: spec.createdAt }),
+    acceptedAt: spec.acceptedAt ?? null,
+    startedAt: spec.startedAt ?? null,
   })
 
   await db.insert(bookingItems).values(
@@ -678,6 +707,31 @@ async function seedBookingRows() {
     status: 'confirmed', items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_ops_noshow' } })
   await insertBooking({ id: BOOKINGS.adminOpsTooEarly, ...opsCustomer, scheduledAt: tomorrowAt(13),
     status: 'confirmed', items: [washItem], payment: { status: 'paid', txnId: 'pay_seed_ops_early' } })
+
+  // The job-records journey's four jobs at INSPECT, each paid ₹299 for the
+  // inspection. Three are under way, so the garage can bill them now; the
+  // fourth is waiting to be accepted, so its every step is the portal's.
+  const inspectItem = {
+    id: SERVICES.inspectFee.id, name: SERVICES.inspectFee.name,
+    amount: SERVICES.inspectFee.price, durationMins: SERVICES.inspectFee.durationMins,
+  }
+  const underWay = {
+    vendorId: VENDORS.inspect.id, scheduledAt: anHourAgo(), status: 'in_progress' as const,
+    items: [inspectItem], acceptedAt: twoHoursAgo(), startedAt: anHourAgo(),
+  }
+  await insertBooking({ id: BOOKINGS.billDue, userId: CUSTOMERS.billPayer.id,
+    vehicleId: CUSTOMERS.billPayer.vehicleId, ...underWay,
+    payment: { status: 'paid', txnId: 'pay_seed_bill_due' } })
+  await insertBooking({ id: BOOKINGS.billNone, userId: CUSTOMERS.billSmall.id,
+    vehicleId: CUSTOMERS.billSmall.vehicleId, ...underWay,
+    payment: { status: 'paid', txnId: 'pay_seed_bill_none' } })
+  await insertBooking({ id: BOOKINGS.billWebhook, userId: CUSTOMERS.billWebhook.id,
+    vehicleId: CUSTOMERS.billWebhook.vehicleId, ...underWay,
+    payment: { status: 'paid', txnId: 'pay_seed_bill_webhook' } })
+  await insertBooking({ id: BOOKINGS.jobRecords, userId: CUSTOMERS.jobRecords.id,
+    vehicleId: CUSTOMERS.jobRecords.vehicleId, vendorId: VENDORS.inspect.id,
+    scheduledAt: tomorrowAt(11), status: 'pending', items: [inspectItem],
+    payment: { status: 'paid', txnId: 'pay_seed_job_records' } })
 
   // The chain behind rescheduleExhausted. rescheduleCount is denormalised onto
   // the booking, but booking_reschedules is the source of truth, so both have

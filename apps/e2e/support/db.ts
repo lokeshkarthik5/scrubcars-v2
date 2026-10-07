@@ -99,6 +99,10 @@ export type BookingRow = {
   rescheduled_from_id: string | null
   /** Who at the garage accepted it; null until someone does (and after a move). */
   accepted_by: string | null
+  /** When each job step happened, stamped by the garage's own action. */
+  accepted_at: Date | null
+  started_at: Date | null
+  completed_at: Date | null
   vehicle_id: string
   scheduled_at: Date
   booking_type: string
@@ -192,3 +196,30 @@ export const countSupportAccessLogs = async (userId: string): Promise<number> =>
   )
 
 export const closeDb = () => sql.end({ timeout: 5 })
+
+export type FinalBillRow = {
+  id: string
+  status: 'due' | 'paid' | 'cancelled' | 'not_needed'
+  total_amount: string
+  paid_before: string
+  amount_due: string
+  lines: Array<{ description: string; amount: string }>
+  gateway_order_id: string | null
+  gateway_payment_id: string | null
+  paid_at: Date | null
+}
+
+/** A booking's final bills, newest first — the live one and any it replaced. */
+export const getFinalBills = async (bookingId: string) =>
+  sql<FinalBillRow[]>`
+    select id, status, total_amount, paid_before, amount_due, lines,
+           gateway_order_id, gateway_payment_id, paid_at
+      from booking_charges where booking_id = ${bookingId} order by created_at desc
+  `
+
+/** A job's photos, oldest first. */
+export const getJobPhotos = async (bookingId: string) =>
+  sql<{ id: string; stage: 'before' | 'after'; url: string; storage_key: string }[]>`
+    select id, stage, url, storage_key
+      from job_photos where booking_id = ${bookingId} order by created_at
+  `

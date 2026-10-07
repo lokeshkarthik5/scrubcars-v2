@@ -22,6 +22,14 @@ function percent(rate: number | null): string {
   return rate === null ? '–' : `${Math.round(rate * 100)}%`
 }
 
+/** What the accept-time median was taken over, or why there is none. */
+function acceptHint(samples: number): string {
+  if (samples >= 3) return `Median over ${samples} accepted bookings`
+  return samples === 0
+    ? 'No bookings accepted in this window yet'
+    : `Only ${samples} accepted in this window; the median needs 3`
+}
+
 function Figure({
   label,
   value,
@@ -75,7 +83,11 @@ function Body({ stats }: { stats: PilotStats }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Figure label="Revenue" value={rupees(stats.revenue)} hint="After refunds owed" />
+        <Figure
+          label="Revenue"
+          value={rupees(stats.revenue)}
+          hint="After refunds owed, with final bills paid in the app"
+        />
         <Figure
           label="Paid, no booking"
           value={stats.paidNoBooking}
@@ -116,10 +128,20 @@ function Body({ stats }: { stats: PilotStats }) {
         )}
       </div>
 
-      {/* Said rather than left out silently: someone will look for it. */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Figure
+          label="Payment to accept"
+          value={
+            stats.medianAcceptMins == null ? 'Not enough data' : `${stats.medianAcceptMins} min`
+          }
+          hint={acceptHint(stats.acceptSamples ?? 0)}
+        />
+      </div>
+
+      {/* Said rather than left out silently: someone will look for older ones. */}
       <p className="text-[11px] text-text-muted">
-        Time from payment to the garage accepting isn&apos;t shown yet: bookings
-        record who accepted, not when.
+        Accept times are recorded from this release on, so bookings accepted
+        before it aren&apos;t in the median.
       </p>
     </div>
   )

@@ -2,10 +2,12 @@ import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
+  bookingCharges,
   bookingItems,
   bookingReschedules,
   bookings,
   discountRedemptions,
+  jobPhotos,
   payments,
   services,
   userAddresses,
@@ -159,10 +161,11 @@ export async function lockDiscount(
 //   3. vendor-day:<vendor>:<date>    lockVendorDay, via checkGarageCanTake
 //   4. discount:<id>                 lockDiscount
 //
-// (consumeIntent locks its intent row FOR UPDATE before all of them.) Two
-// transactions that take locks in the same order can wait on each other but
-// never deadlock, so a new lock goes into this list rather than wherever it is
-// first needed.
+// (consumeIntent locks its intent row FOR UPDATE before all of them. The
+// job-photos:<booking> lock and the final bill's row lock are only ever taken
+// on their own, never alongside these.) Two transactions that take locks in
+// the same order can wait on each other but never deadlock, so a new lock goes
+// into this list rather than wherever it is first needed.
 
 // Serialises concurrent bookings for one vehicle. Taken before the overlap
 // check in every path that creates a booking.
@@ -313,8 +316,22 @@ export async function checkGarageCanTake(
 // Line items in the order the customer added them. Declared once because
 // every booking read needs the same shape — a list that came back ordered
 // differently in one place would show a different "first service" there.
+//
+// Each line also carries its service's pricing type, read from the service
+// row: whether a final bill can be raised depends on it (see
+// lib/final-bill.ts), and the garage's job card has to know before it offers
+// one.
 const BOOKING_ITEMS = {
   orderBy: [asc(bookingItems.sortOrder)],
+  with: { service: { columns: { pricingType: true as const } } },
+}
+
+// The job's photos, oldest first within each stage, and its bills, newest
+// first so the live one is found before any it replaced. Loaded where a
+// single job is shown in full: the booking page and the garage's job list.
+const JOB_RECORDS = {
+  photos: { orderBy: [asc(jobPhotos.createdAt), asc(jobPhotos.id)] },
+  charges: { orderBy: [desc(bookingCharges.createdAt)] },
 }
 
 export const bookingsRepository = {
@@ -376,6 +393,7 @@ export const bookingsRepository = {
         vehicle: true,
         payment: true,
         review: true,
+        ...JOB_RECORDS,
       },
     })
   },
@@ -451,6 +469,7 @@ export const bookingsRepository = {
         vehicle: true,
         payment: true,
         review: true,
+        ...JOB_RECORDS,
       },
       orderBy: [desc(bookings.scheduledAt)],
     })
@@ -861,11 +880,21 @@ export const bookingsRepository = {
    * customer cancels — would otherwise both succeed, the second overwriting
    * the first. An empty result means someone else got there first.
    */
+  //
+  // `step` stamps when it happened (accepted_at, started_at, completed_at) in
+  // the same conditional write, so a time is only ever recorded for the move
+  // that actually won.
   updateBookingStatus(
     bookingId: string,
     status: BookingStatus,
     from: BookingStatus,
-    actor?: { acceptedBy?: string; completedBy?: string }
+    actor?: {
+      acceptedBy?: string
+      completedBy?: string
+      acceptedAt?: Date
+      startedAt?: Date
+      completedAt?: Date
+    }
   ) {
     return db
       .update(bookings)

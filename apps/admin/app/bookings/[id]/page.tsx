@@ -16,7 +16,8 @@ import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
 import { directionsHref } from '@repo/core/contact-links'
 import { useNow } from '@repo/core/hooks/use-now'
 import { formatDuration } from '@repo/core/utils'
-import { NoShowBadge, WaitingBadge } from '@/components/booking-badges'
+import { BillDueBadge, NoShowBadge, WaitingBadge } from '@/components/booking-badges'
+import { FinalBillSection, JobPhotosSection } from './job-records'
 import { CopyButton } from '@/components/copy-button'
 import { PhoneLink } from '@/components/phone-link'
 import {
@@ -68,8 +69,9 @@ interface TimelineStep {
 }
 
 /**
- * What happened to the booking, in order. Accepting and starting record who
- * but not when, so those steps show no time rather than a made-up one.
+ * What happened to the booking, in order. Each step shows when it happened
+ * where that was recorded; jobs from before accept/start/complete times were
+ * kept show those steps with no time rather than a made-up one.
  */
 function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
   const steps: TimelineStep[] = [{ label: 'Booked', at: b.createdAt }]
@@ -94,17 +96,22 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
   if (accepted) {
     steps.push({
       label: 'Accepted by the garage',
+      at: b.acceptedAt,
       detail: b.acceptedByName ? `by ${b.acceptedByName}` : null,
     })
   }
-  if (b.status === 'in_progress' || b.status === 'completed') {
-    steps.push({ label: 'Started' })
+  if (b.startedAt || b.status === 'in_progress' || b.status === 'completed') {
+    steps.push({ label: 'Started', at: b.startedAt })
   }
-  if (b.status === 'completed') {
+  if (b.completedAt || b.status === 'completed') {
     steps.push({
       label: 'Completed',
+      at: b.completedAt,
       detail: b.completedByName ? `by ${b.completedByName}` : null,
     })
+  }
+  if (b.finalBill?.status === 'paid' && b.finalBill.paidAt) {
+    steps.push({ label: 'Final bill paid in the app', at: b.finalBill.paidAt })
   }
 
   const cancelled = cancellationLabel(b)
@@ -228,6 +235,7 @@ function BookingDetail({
             <div className="flex flex-wrap items-center gap-1.5">
               {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
               {b.noShow && <NoShowBadge party={b.noShow} />}
+              {b.billDue && <BillDueBadge amount={b.billDue} />}
             </div>
             <p className="font-numeric text-[20px] font-semibold text-text-primary">
               {formatWhen(b.scheduledAt)}
@@ -358,9 +366,13 @@ function BookingDetail({
             </div>
           </ScSection>
 
+          <FinalBillSection booking={b} />
+
           <ScSection title="Timeline">
             <Timeline booking={b} />
           </ScSection>
+
+          <JobPhotosSection booking={b} />
         </div>
 
         <div className="flex flex-col gap-4">
