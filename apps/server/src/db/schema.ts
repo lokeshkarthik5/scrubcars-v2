@@ -744,14 +744,15 @@ export const bookings = pgTable(
     index('bookings_original_booking_id_idx').on(table.originalBookingId),
     index('bookings_discount_id_idx').on(table.discountId),
     // An on-behalf-of or a no-show without an admin cancellation would be a
-    // record of something nobody did. See 0026.
+    // record of something nobody did. See 0026 for why the comparison is on
+    // ::text.
     check(
       'bookings_cancelled_on_behalf_of_admin_check',
-      sql`${table.cancelledOnBehalfOf} is null or ${table.cancelledBy} = 'admin'`
+      sql`${table.cancelledOnBehalfOf} is null or ${table.cancelledBy}::text = 'admin'`
     ),
     check(
       'bookings_no_show_admin_check',
-      sql`${table.noShow} is null or ${table.cancelledBy} = 'admin'`
+      sql`${table.noShow} is null or ${table.cancelledBy}::text = 'admin'`
     ),
   ]
 )

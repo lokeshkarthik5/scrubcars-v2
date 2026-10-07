@@ -1,0 +1,24 @@
+# Lints migration files on pull requests — naming, gap-free numbering, journal,
+# transaction safety — so a numbering collision fails the PR instead of the
+# release. Needs no database and no secrets. Applying migrations happens in
+# release-api.yml.
+name: Migrations lint
+
+on:
+  pull_request:
+    paths:
+      - 'apps/server/drizzle/**'
+      - 'apps/server/scripts/migrate.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint migrations
+        run: bash apps/server/scripts/migrate.sh lint

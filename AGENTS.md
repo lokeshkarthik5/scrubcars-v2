@@ -45,6 +45,10 @@ packages/ui     @repo/ui            shared components + globals.css
 - Do NOT run migrations when making schema changes
 - Do NOT call `drizzle-kit push` or `drizzle-kit migrate`
 - Only modify schema files — the developer runs migrations manually
+- Production is migrated by `.github/workflows/release-api.yml` after E2E passes on `main`, before the API deploys. A new migration file must:
+  - take the next number with no gap (`0026_…` after `0025_…`) and have a matching entry in `drizzle/meta/_journal.json`
+  - run inside a single transaction — no `BEGIN`/`COMMIT`, `CONCURRENTLY` or `VACUUM`; a new enum value cannot be used in the same file that adds it
+  - be additive relative to the code currently in production; drops and renames go in a later release, once nothing reads the old shape
 
 ### Module structure
 
