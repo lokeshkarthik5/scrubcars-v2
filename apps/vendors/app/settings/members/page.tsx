@@ -9,7 +9,10 @@ import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
+import { Reveal } from '@repo/ui/sc/reveal'
+import { SectionHeader } from '@repo/ui/sc/section-header'
 import { ScSelect } from '@repo/ui/sc/select'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import {
   addMember,
@@ -124,16 +127,15 @@ export default function VendorMembersPage() {
     <AppShell showNav navType="vendor" className="gap-5 py-4">
       <TopBar title="Team" showBack backHref="/settings" />
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">
-          Add a team member
-        </h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Add a team member" />
         <ScCard className="flex flex-col gap-3">
           <ScInput
             id="member-phone"
             label="Phone"
             value={phone}
             inputMode="numeric"
+            className="font-numeric"
             onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
           />
           <ScInput
@@ -165,130 +167,147 @@ export default function VendorMembersPage() {
         </ScCard>
       </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-primary">Members</h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Members"
+          action={
+            !loading && members.length > 0 ? (
+              <span className="font-numeric text-[12px] text-text-muted">{members.length}</span>
+            ) : undefined
+          }
+        />
         {loading ? (
-          <p className="text-[13px] text-text-secondary">Loading team...</p>
+          <SkeletonList count={2} itemClassName="h-28" />
         ) : (
           <div className="flex flex-col gap-2">
-            {members.map((member) => (
-              <ScCard key={member.id} className="flex flex-col gap-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-text-primary">
-                      {member.name}
-                    </p>
-                    <p className="text-[11px] text-text-secondary">
-                      {member.phone}
-                    </p>
+            {members.map((member, i) => (
+              <Reveal key={member.id} index={i}>
+                <ScCard className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-text-primary">
+                        {member.name}
+                      </p>
+                      <p className="font-numeric text-[12px] text-text-secondary">
+                        {member.phone}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {member.status === 'suspended' && (
+                        <ScBadge variant="danger">Suspended</ScBadge>
+                      )}
+                      {member.isOwner ? (
+                        <ScBadge variant="success">Owner</ScBadge>
+                      ) : (
+                        <ScBadge variant="pending">{roleLabel(member.role)}</ScBadge>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {member.status === 'suspended' && (
-                      <ScBadge variant="danger">Suspended</ScBadge>
-                    )}
-                    {member.isOwner ? (
-                      <ScBadge variant="success">Owner</ScBadge>
-                    ) : (
-                      <ScBadge variant="pending">{roleLabel(member.role)}</ScBadge>
-                    )}
-                  </div>
-                </div>
 
-                {member.isOwner ? (
-                  // The owner's row is locked for everyone, including the owner.
-                  // It is what guarantees the company always has an admin.
-                  <p className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-                    <IconLock size={13} stroke={1.5} />
-                    The owner cannot be changed or removed. Transfer ownership
-                    first.
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <ScSelect
-                      value={member.role}
-                      disabled={busyId === member.id}
-                      onChange={(e) =>
-                        run(
-                          member.id,
-                          () =>
-                            updateMember(member.id, {
-                              role: e.target.value as VendorRole,
-                            }),
-                          'Role updated'
-                        )
-                      }
-                    >
-                      {ROLE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {roleLabel(option.value)}
-                        </option>
-                      ))}
-                    </ScSelect>
+                  {member.isOwner ? (
+                    // The owner's row is locked for everyone, including the owner.
+                    // It is what guarantees the company always has an admin.
+                    <p className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+                      <IconLock size={13} stroke={1.5} aria-hidden="true" className="shrink-0" />
+                      The owner cannot be changed or removed. Transfer ownership
+                      first.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                      <ScSelect
+                        aria-label={`Role for ${member.name}`}
+                        value={member.role}
+                        disabled={busyId === member.id}
+                        className="min-h-11 w-auto"
+                        onChange={(e) =>
+                          run(
+                            member.id,
+                            () =>
+                              updateMember(member.id, {
+                                role: e.target.value as VendorRole,
+                              }),
+                            'Role updated'
+                          )
+                        }
+                      >
+                        {ROLE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {roleLabel(option.value)}
+                          </option>
+                        ))}
+                      </ScSelect>
 
-                    <ScButton
-                      variant="secondary"
-                      disabled={busyId === member.id}
-                      onClick={() =>
-                        run(
-                          member.id,
-                          () =>
-                            updateMember(member.id, {
-                              status:
-                                member.status === 'active'
-                                  ? 'suspended'
-                                  : 'active',
-                            }),
-                          member.status === 'active'
-                            ? 'Member suspended'
-                            : 'Member restored'
-                        )
-                      }
-                    >
-                      {member.status === 'active' ? 'Suspend' : 'Restore'}
-                    </ScButton>
-
-                    <ScButton
-                      variant="secondary"
-                      disabled={busyId === member.id}
-                      onClick={() =>
-                        run(
-                          member.id,
-                          () => removeMember(member.id),
-                          'Member removed'
-                        )
-                      }
-                    >
-                      <IconTrash size={14} stroke={1.5} /> Remove
-                    </ScButton>
-
-                    {isOwner && member.status === 'active' && (
                       <ScButton
                         variant="secondary"
+                        fullWidth={false}
                         disabled={busyId === member.id}
-                        onClick={() => {
-                          if (
-                            !window.confirm(
-                              `Make ${member.name} the owner? You stay an admin, but you cannot undo this yourself.`
-                            )
-                          ) {
-                            return
-                          }
-                          void run(
+                        className="min-h-11 px-3.5 py-2 text-[12px]"
+                        onClick={() =>
+                          run(
                             member.id,
-                            async () => {
-                              await transferOwnership(member.userId)
-                              await useAuthStore.getState().refreshVendors()
-                            },
-                            'Ownership transferred'
+                            () =>
+                              updateMember(member.id, {
+                                status:
+                                  member.status === 'active'
+                                    ? 'suspended'
+                                    : 'active',
+                              }),
+                            member.status === 'active'
+                              ? 'Member suspended'
+                              : 'Member restored'
                           )
-                        }}
+                        }
                       >
-                        Make owner
+                        {member.status === 'active' ? 'Suspend' : 'Restore'}
                       </ScButton>
-                    )}
-                  </div>
-                )}
-              </ScCard>
+
+                      <ScButton
+                        variant="secondary"
+                        fullWidth={false}
+                        disabled={busyId === member.id}
+                        className="flex min-h-11 items-center gap-1.5 px-3.5 py-2 text-[12px]"
+                        onClick={() =>
+                          run(
+                            member.id,
+                            () => removeMember(member.id),
+                            'Member removed'
+                          )
+                        }
+                      >
+                        <IconTrash size={14} stroke={1.5} aria-hidden="true" /> Remove
+                      </ScButton>
+
+                      {isOwner && member.status === 'active' && (
+                        <ScButton
+                          variant="secondary"
+                          fullWidth={false}
+                          disabled={busyId === member.id}
+                          className="min-h-11 px-3.5 py-2 text-[12px]"
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                `Make ${member.name} the owner? You stay an admin, but you cannot undo this yourself.`
+                              )
+                            ) {
+                              return
+                            }
+                            void run(
+                              member.id,
+                              async () => {
+                                await transferOwnership(member.userId)
+                                await useAuthStore.getState().refreshVendors()
+                              },
+                              'Ownership transferred'
+                            )
+                          }}
+                        >
+                          Make owner
+                        </ScButton>
+                      )}
+                    </div>
+                  )}
+                </ScCard>
+              </Reveal>
             ))}
           </div>
         )}

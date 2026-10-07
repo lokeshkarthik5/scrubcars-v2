@@ -166,7 +166,7 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
           fullWidth={false}
           disabled={points.length === 0}
           onClick={() => setPoints((current) => current.slice(0, -1))}
-          className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12px]"
+          className="flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12px]"
         >
           Undo corner
         </ScButton>
@@ -175,14 +175,17 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
           fullWidth={false}
           disabled={points.length === 0}
           onClick={() => setPoints([])}
-          className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12px]"
+          className="flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12px]"
         >
-          <IconTrash size={14} />
+          <IconTrash size={14} aria-hidden="true" />
           Clear
         </ScButton>
       </div>
 
+      {/* Secondary: it sits under the Location tab's own Save location,
+          which is that tab's one red. */}
       <ScButton
+        variant="secondary"
         disabled={saving || loading || (points.length > 0 && points.length < 3)}
         onClick={save}
       >

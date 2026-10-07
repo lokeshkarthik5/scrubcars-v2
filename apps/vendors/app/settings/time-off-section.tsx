@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
+import { Notice } from '@repo/ui/sc/notice'
+import { SectionHeader } from '@repo/ui/sc/section-header'
+import { ScSwitch } from '@repo/ui/sc/switch'
 import {
   addClosure,
   pauseBookings,
@@ -12,7 +15,7 @@ import {
 } from '@repo/core/api/vendors'
 import type { ApiVendorClosure, ApiVendorProfile } from '@repo/core/api/types'
 import type { Booking } from '@repo/core/types'
-import { APP_TIMEZONE, cn } from '@repo/core/utils'
+import { APP_TIMEZONE } from '@repo/core/utils'
 import { toast } from 'react-toastify'
 
 // How far ahead a holiday can go, matching the server's rule.
@@ -91,8 +94,8 @@ export function PauseSection({
     paused ? run(resumeBookings, 'Taking bookings again') : pause()
 
   return (
-    <section>
-      <h2 className="mb-2 text-sm font-semibold">Pause new bookings</h2>
+    <section className="flex flex-col gap-3">
+      <SectionHeader title="Pause new bookings" />
       <ScCard className="flex flex-col gap-3">
         <p className="text-[11px] text-text-secondary">
           Customers can&apos;t book you while this is on. Bookings you already
@@ -108,32 +111,15 @@ export function PauseSection({
         />
         <div className="flex min-h-11 items-center justify-between gap-3">
           <p className="text-[13px] font-medium text-text-primary">Pause new bookings</p>
-          {/* A real switch, so it announces as on/off rather than as a button
-              whose state lives only in its colour. Amber when on: a paused
-              garage is a state to notice, not an action to take. */}
-          <button
-            type="button"
-            role="switch"
-            aria-checked={paused}
-            aria-label="Pause new bookings"
+          {/* Amber when on: a paused garage is a state to notice, not an
+              action to take. */}
+          <ScSwitch
+            label="Pause new bookings"
+            tone="warning"
+            checked={paused}
             disabled={busy}
-            onClick={toggle}
-            className="flex h-11 w-14 shrink-0 items-center justify-center disabled:opacity-50"
-          >
-            <span
-              className={cn(
-                'relative h-6 w-11 rounded-full transition-colors',
-                paused ? 'bg-warning' : 'border border-border bg-surface'
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute top-0.5 h-5 w-5 rounded-full bg-brand-white shadow transition-transform',
-                  paused ? 'left-[22px]' : 'left-0.5'
-                )}
-              />
-            </span>
-          </button>
+            onChange={toggle}
+          />
         </div>
 
         {paused && (
@@ -244,8 +230,8 @@ export function HolidaysSection({
   }
 
   return (
-    <section>
-      <h2 className="mb-2 text-sm font-semibold">Holidays</h2>
+    <section className="flex flex-col gap-3">
+      <SectionHeader title="Holidays" />
       <ScCard className="flex flex-col gap-3">
         <p className="text-[12px] text-text-secondary">
           Days you&apos;re closed on top of your weekly hours. Customers can&apos;t
@@ -276,24 +262,18 @@ export function HolidaysSection({
         </ScButton>
 
         {onThatDay && (
-          <div
-            role="status"
-            className="rounded-[10px] border-l-[3px] border-warning bg-warning-muted/30 px-3 py-2.5 text-[12px] text-text-primary"
-          >
-            <p>{bookingsSentence(onThatDay.bookings.length)}</p>
-            <ul className="mt-1 text-text-secondary">
-              {onThatDay.bookings.map((b) => (
-                <li key={b.id}>
-                  {b.customerName ?? 'Customer'} ·{' '}
-                  <span className="font-numeric">{b.scheduledAt}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <Notice role="status" title={bookingsSentence(onThatDay.bookings.length)}>
+            {onThatDay.bookings.map((b) => (
+              <span key={b.id} className="block">
+                {b.customerName ?? 'Customer'} ·{' '}
+                <span className="font-numeric">{b.scheduledAt}</span>
+              </span>
+            ))}
+          </Notice>
         )}
 
         {loadFailed && (
-          <p className="text-[12px] text-warning">
+          <p role="alert" className="text-[12px] text-warning">
             Couldn&apos;t load your holidays. Reload the page to see them.
           </p>
         )}

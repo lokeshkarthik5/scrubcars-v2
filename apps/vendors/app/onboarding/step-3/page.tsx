@@ -4,14 +4,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
 import { Chip } from '@repo/ui/sc/chip'
-import { ProgressBar } from '@repo/ui/sc/progress-bar'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { SectionHeader } from '@repo/ui/sc/section-header'
 import { submitVendorOnboarding } from '@repo/core/api/vendors'
 import { toast } from 'react-toastify'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import { cn } from '@repo/core/utils'
+import { OnboardingHeader } from '@/components/onboarding-header'
 
 const SLOT_INTERVALS = [30, 45, 60] as const
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -105,12 +106,18 @@ export default function VendorOnboardingStep3() {
 
   return (
     <AppShell className="gap-5 py-4">
-      <TopBar showBack backHref="/onboarding/step-2" />
-      <ProgressBar progress={75} />
-      <p className="text-[11px] text-text-secondary">Step 3 of 4 — Garage setup</p>
+      <OnboardingHeader
+        step={3}
+        title="Garage setup"
+        subtitle="When you work, and how many cars you can take."
+        backHref="/onboarding/step-2"
+      />
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Slot interval</h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Slot interval"
+          subtitle="How far apart the start times customers can pick are."
+        />
         <div className="flex gap-2">
           {SLOT_INTERVALS.map((mins) => (
             <Chip
@@ -123,8 +130,8 @@ export default function VendorOnboardingStep3() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Working days</h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Working days" />
         <div className="flex flex-wrap gap-2">
           {DAYS.map((label, day) => (
             <Chip
@@ -137,19 +144,19 @@ export default function VendorOnboardingStep3() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-1 text-sm font-semibold">Working hours</h2>
-        <p className="mb-2 text-[11px] text-text-secondary">Applied to every working day, customise later</p>
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Working hours"
+          subtitle="Applied to every working day. You can set each day in Settings later."
+        />
         <div className="grid grid-cols-2 gap-2">
-          <ScInput label="Open time" type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
-          <ScInput label="Close time" type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
+          <ScInput label="Open time" type="time" className="font-numeric" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
+          <ScInput label="Close time" type="time" className="font-numeric" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
         </div>
       </section>
 
-      <section>
-        <h2 id="service-mode-heading" className="mb-2 text-sm font-semibold">
-          How do customers get serviced?
-        </h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeader id="service-mode-heading" title="How do customers get serviced?" />
         {/* Two radios rather than chips: exactly one answer is always true,
             and the doorstep one carries its own distance. */}
         <div role="radiogroup" aria-labelledby="service-mode-heading" className="flex flex-col gap-2">
@@ -186,7 +193,7 @@ export default function VendorOnboardingStep3() {
           ))}
         </div>
         {doorstep && (
-          <div className="mt-2">
+          <div className="rise-in">
             <ScInput
               id="onboarding-doorstep-radius"
               label="Up to how many km from your garage?"
@@ -200,7 +207,7 @@ export default function VendorOnboardingStep3() {
               onChange={(e) => setRadiusKm(e.target.value)}
             />
             {radiusError && radiusKm.trim() !== '' && (
-              <p className="mt-1 text-[12px] text-warning">{radiusError}</p>
+              <p role="alert" className="mt-1 text-[12px] text-warning">{radiusError}</p>
             )}
             <p className="mt-1 text-[11px] text-text-muted">
               Customers further away than this won&apos;t see you for doorstep jobs.
@@ -210,40 +217,43 @@ export default function VendorOnboardingStep3() {
         )}
       </section>
 
-      <section className="flex flex-col gap-2">
-        <ScInput
-          id="onboarding-bays"
-          label="How many cars can you work on at the same time?"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={MAX_BAYS}
-          placeholder="1"
-          className="font-numeric"
-          value={bays}
-          onChange={(e) => setBays(e.target.value)}
-        />
-        <ScInput
-          id="onboarding-jobs-per-day"
-          label="Most jobs in a day (optional)"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          placeholder="No limit"
-          className="font-numeric"
-          value={jobsPerDay}
-          onChange={(e) => setJobsPerDay(e.target.value)}
-        />
-        {(baysError || jobsError) && (
-          <p className="text-[12px] text-warning">{baysError ?? jobsError}</p>
-        )}
-        <p className="text-[11px] text-text-muted">
-          Customers are only offered times when you have room for one more car.
-        </p>
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Capacity" />
+        <ScCard className="flex flex-col gap-3">
+          <ScInput
+            id="onboarding-bays"
+            label="How many cars can you work on at the same time?"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={MAX_BAYS}
+            placeholder="1"
+            className="font-numeric"
+            value={bays}
+            onChange={(e) => setBays(e.target.value)}
+          />
+          <ScInput
+            id="onboarding-jobs-per-day"
+            label="Most jobs in a day (optional)"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            placeholder="No limit"
+            className="font-numeric"
+            value={jobsPerDay}
+            onChange={(e) => setJobsPerDay(e.target.value)}
+          />
+          {(baysError || jobsError) && (
+            <p role="alert" className="text-[12px] text-warning">{baysError ?? jobsError}</p>
+          )}
+          <p className="text-[11px] text-text-muted">
+            Customers are only offered times when you have room for one more car.
+          </p>
+        </ScCard>
       </section>
 
       <ScButton
-        className="mb-4"
+        className="mt-auto mb-4"
         disabled={loading || !!radiusError || !!baysError || !!jobsError}
         onClick={handleContinue}
       >

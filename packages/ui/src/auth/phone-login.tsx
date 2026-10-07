@@ -3,9 +3,8 @@
 import { type FormEvent, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { IconAlertCircle } from '@tabler/icons-react'
-import { AuthStage } from '@repo/ui/auth/auth-stage'
+import { AuthHeading, AuthStage } from '@repo/ui/auth/auth-stage'
 import { AppShell } from '@repo/ui/sc/app-shell'
-import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScPhoneInput } from '@repo/ui/sc/phone-input'
 import { TopBar } from '@repo/ui/sc/top-bar'
@@ -36,18 +35,31 @@ interface PhoneLoginProps {
    * over it (AuthStage). Without one, the plain layout.
    */
   backdrop?: string
+  /** The heading. The customer app's is the default. */
+  title?: string
+  /** The line under the heading. */
+  subtitle?: string
+  /**
+   * The line under the button about what happens to a number that is new
+   * here: the customer app creates an account, the garage portal starts
+   * setting up a garage.
+   */
+  newNumberNote?: string
 }
 
 /**
  * The OTP login screen, shared by the customer and vendor entry points. Both
- * routes render this so the two can't drift apart again — only the audience
- * and the verify destination differ.
+ * routes render this so the two can't drift apart again — only the audience,
+ * the verify destination and the words differ.
  */
 export function PhoneLogin({
   audience,
   verifyHref,
   showBack = true,
   backdrop,
+  title = 'Welcome to Detlio',
+  subtitle = 'Log in or sign up with your mobile number.',
+  newNumberNote = 'New to Detlio? Your account is created when you verify your number.',
 }: PhoneLoginProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -104,17 +116,7 @@ export function PhoneLogin({
     }
   }
 
-  const header = (
-    <div className="flex flex-col items-center text-center">
-      <BrandMark height={36} priority />
-      <h1 className="mt-6 text-[28px] font-bold leading-9 tracking-[-0.02em] text-text-primary">
-        Welcome to Detlio
-      </h1>
-      <p className="mt-2 text-balance text-base leading-6 text-text-secondary">
-        Log in or sign up with your mobile number.
-      </p>
-    </div>
-  )
+  const header = <AuthHeading title={title} subtitle={subtitle} />
 
   // A real form, so the keyboard's Go key submits — the CTA can sit under the
   // keyboard on a short phone. The number is the only thing on this screen, so
@@ -170,7 +172,7 @@ export function PhoneLogin({
       {/* One screen signs in and signs up — the OTP flow registers a new
           number — so say so, rather than offer a separate sign-up path. */}
       <p className="text-center text-[13px] leading-5 text-text-secondary">
-        New to Detlio? Your account is created when you verify your number.
+        {newNumberNote}
       </p>
     </form>
   )

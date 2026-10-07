@@ -1,19 +1,29 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { IconCheck } from '@tabler/icons-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  IconCalendarCheck,
+  IconCalendarX,
+  IconCheck,
+  IconCircleCheck,
+  IconInbox,
+} from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
-import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
+import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ScInput } from '@repo/ui/sc/input'
-import { StarRating } from '@repo/ui/sc/stars'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
+import { Stars } from '@repo/ui/sc/stars'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useNow } from '@repo/core/hooks/use-now'
 import { toast } from 'react-toastify'
 import { FinalBillPanel } from '@/components/final-bill'
+import { ActiveGarage } from '@/components/active-garage'
+import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
 import { JobPhotos } from '@/components/job-photos'
 import { jobStepTimes } from '@repo/core/job-records'
@@ -22,6 +32,30 @@ import { formatDuration } from '@repo/core/utils'
 
 type Tab = 'incoming' | 'upcoming' | 'completed' | 'cancelled'
 
+/** What an empty tab says, in the garage's words. */
+const EMPTY: Record<Tab, { icon: React.ReactNode; title: string; subtitle: string }> = {
+  incoming: {
+    icon: <IconInbox size={28} stroke={1.5} />,
+    title: 'No new bookings',
+    subtitle: 'New requests from customers show up here for you to accept.',
+  },
+  upcoming: {
+    icon: <IconCalendarCheck size={28} stroke={1.5} />,
+    title: 'Nothing upcoming',
+    subtitle: 'Bookings you accept wait here until the job is done.',
+  },
+  completed: {
+    icon: <IconCircleCheck size={28} stroke={1.5} />,
+    title: 'No completed jobs yet',
+    subtitle: 'Jobs you mark completed are kept here.',
+  },
+  cancelled: {
+    icon: <IconCalendarX size={28} stroke={1.5} />,
+    title: 'No cancelled bookings',
+    subtitle: 'Bookings you reject, or that are cancelled, are kept here.',
+  },
+}
+
 export default function VendorBookingsPage() {
   const [tab, setTab] = useState<Tab>('incoming')
   const [rejectId, setRejectId] = useState<string | null>(null)
@@ -29,15 +63,33 @@ export default function VendorBookingsPage() {
   const vendorBookings = useBookingsStore((s) => s.vendorBookings)
   const fetchVendorBookings = useBookingsStore((s) => s.fetchVendorBookings)
   const updateStatus = useBookingsStore((s) => s.updateStatus)
+  // Placeholders until the first read settles. Only the first: the poll
+  // below re-reads every 10 seconds, and the list must not blink each time.
+  const [loaded, setLoaded] = useState(false)
+  // A failed read is not an empty list. Without this the Incoming tab would
+  // say "No new bookings" while paid requests wait for an Accept. Any later
+  // read that succeeds (the poll, or Retry) clears it.
+  const [loadFailed, setLoadFailed] = useState(false)
+
+  const load = useCallback(
+    () =>
+      fetchVendorBookings()
+        .then(() => setLoadFailed(false))
+        .catch(() => setLoadFailed(true))
+        .finally(() => setLoaded(true)),
+    [fetchVendorBookings]
+  )
 
   useEffect(() => {
-    void fetchVendorBookings()
+    void load()
     // Poll so vendors see new/updated bookings live (~10s).
     const interval = setInterval(() => {
       void fetchVendorBookings()
+        .then(() => setLoadFailed(false))
+        .catch(() => undefined)
     }, 10000)
     return () => clearInterval(interval)
-  }, [fetchVendorBookings])
+  }, [fetchVendorBookings, load])
 
   const { filtered, incomingCount, upcomingCount, completedCount, cancelledCount } = useMemo(() => {
     let incoming = 0, upcoming = 0, completed = 0, cancelled = 0
@@ -102,44 +154,63 @@ export default function VendorBookingsPage() {
   ]
 
   return (
-    <AppShell showNav navType="vendor" className="gap-4 py-4">
+    <AppShell
+      showNav
+      navType="vendor"
+      showBrand
+      brandRight={<ActiveGarage />}
+      className="gap-4 py-4"
+    >
       <TopBar
         title="Bookings"
         right={
           incomingCount > 0 ? (
-            <ScBadge variant="accent">{incomingCount} new</ScBadge>
+            <ScBadge variant="accent">
+              <span className="font-numeric">{incomingCount}</span>&nbsp;new
+            </ScBadge>
           ) : undefined
         }
       />
 
+      {/* The count sits beside each name in the numeric face, quieter than
+          the name. Its accessible name still starts with the name. */}
       <ScSegmented
         aria-label="Filter bookings by status"
         value={tab}
         onChange={setTab}
         options={tabs.map((t) => ({
           value: t.key,
-          label: `${t.label} (${t.count})`,
+          label: (
+            <>
+              {t.label}{' '}
+              <span className="font-numeric text-[12px] opacity-70">{t.count}</span>
+            </>
+          ),
         }))}
       />
 
       <div className="flex flex-col gap-2">
-        {filtered.length === 0 ? (
-          <ScCard>
-            <p className="text-[11px] capitalize text-text-secondary">{tab} bookings</p>
-            <p className="text-lg font-semibold text-text-primary">0</p>
-          </ScCard>
+        {!loaded && vendorBookings.length === 0 ? (
+          <SkeletonList count={3} itemClassName="h-36" />
+        ) : loadFailed && vendorBookings.length === 0 ? (
+          <ErrorState
+            message="Couldn't load your bookings. Check your connection."
+            onRetry={() => {
+              setLoaded(false)
+              void load()
+            }}
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState {...EMPTY[tab]} />
         ) : (
-          filtered.map((b) => {
-          const badge = bookingStatusBadge(b.status)
-          return (
-            <ScCard key={b.id} className="flex flex-col gap-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[13px] font-semibold">{b.customerName}</p>
-                  <p className="text-[11px] text-text-secondary">{b.serviceSummary} · {b.scheduledAt}</p>
-                </div>
-                <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
-              </div>
+          // No <Reveal> on these cards, unlike Home's: a job card hosts the
+          // Final bill sheet and the photo viewer, which draw themselves
+          // `position: fixed` in place. Reveal's transform would make the card
+          // their containing block, so the sheet would open inside the card
+          // instead of over the screen.
+          filtered.map((b) => (
+            <ScCard key={b.id} className="flex flex-col gap-3">
+              <JobCardHeader booking={b} />
 
               {/* The summary line above says "+2 more"; whoever does the work
                   needs the actual list, so a multi-service job spells it out.
@@ -151,10 +222,10 @@ export default function VendorBookingsPage() {
                       key={item.id}
                       className="flex items-center gap-1.5 text-[11px] text-text-secondary"
                     >
-                      <IconCheck size={12} className="shrink-0 text-brand-red" />
+                      <IconCheck size={12} aria-hidden="true" className="shrink-0 text-text-muted" />
                       {item.name}
                       <span className="text-text-muted">
-                        · {formatDuration(item.durationMins)}
+                        · <span className="font-numeric">{formatDuration(item.durationMins)}</span>
                       </span>
                     </li>
                   ))}
@@ -162,8 +233,9 @@ export default function VendorBookingsPage() {
               )}
 
               {b.vehicle && (
-                <p className="text-[11px] text-text-secondary">
-                  {b.vehicle.make} {b.vehicle.model} · {b.vehicle.plate}
+                <p className="text-[12px] text-text-secondary">
+                  {b.vehicle.make} {b.vehicle.model} ·{' '}
+                  <span className="font-numeric">{b.vehicle.plate}</span>
                 </p>
               )}
 
@@ -222,7 +294,7 @@ export default function VendorBookingsPage() {
               )}
 
               {tab === 'incoming' && rejectId === b.id && (
-                <div className="flex flex-col gap-2 border-t border-border pt-2">
+                <div className="rise-in flex flex-col gap-2 border-t border-border pt-3">
                   <ScInput
                     placeholder="Reason for rejecting (optional)"
                     value={rejectReason}
@@ -238,7 +310,7 @@ export default function VendorBookingsPage() {
               {/* Photos are optional: nothing below waits on them. Before
                   photos from acceptance, after photos once work starts. */}
               {tab === 'upcoming' && (
-                <div className="flex flex-col gap-3 border-t border-border pt-2">
+                <div className="flex flex-col gap-3 border-t border-border pt-3">
                   <JobPhotos booking={b} stage="before" onChanged={refresh} />
                   {b.status === 'in_progress' && (
                     <JobPhotos booking={b} stage="after" onChanged={refresh} />
@@ -269,7 +341,7 @@ export default function VendorBookingsPage() {
               )}
 
               {tab === 'completed' && (
-                <div className="flex flex-col gap-3 border-t border-border pt-2">
+                <div className="flex flex-col gap-3 border-t border-border pt-3">
                   <JobPhotos
                     booking={b}
                     stage="before"
@@ -288,14 +360,21 @@ export default function VendorBookingsPage() {
               {tab === 'completed' && <FinalBillPanel booking={b} onChanged={refresh} />}
 
               {tab === 'completed' && b.review && (
-                <div className="border-t border-border pt-2">
-                  <StarRating rating={b.review.rating} />
-                  <p className="mt-1 text-[12px] text-text-secondary">{b.review.comment}</p>
+                <div className="border-t border-border pt-3">
+                  <div className="flex items-center gap-1.5">
+                    <Stars rating={b.review.rating} size={12} />
+                    <span className="font-numeric text-[12px] font-medium text-text-primary">
+                      {b.review.rating}
+                    </span>
+                  </div>
+                  {b.review.comment && (
+                    <p className="mt-1 text-[12px] text-text-secondary">{b.review.comment}</p>
+                  )}
                 </div>
               )}
 
               {tab === 'cancelled' && (
-                <div className="border-t border-border pt-2">
+                <div className="border-t border-border pt-3">
                   <p className="text-[12px] font-medium text-text-primary">
                     {cancelledLabel(b)}
                   </p>
@@ -305,8 +384,7 @@ export default function VendorBookingsPage() {
                 </div>
               )}
             </ScCard>
-          )
-        })
+          ))
         )}
       </div>
     </AppShell>

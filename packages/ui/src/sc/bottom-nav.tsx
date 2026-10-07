@@ -6,7 +6,9 @@ import {
   IconBuildingStore,
   IconCalendar,
   IconChartBar,
+  IconDiscount2,
   IconHome,
+  IconMap,
   IconReceiptRefund,
   IconSearch,
   IconSettings,
@@ -34,13 +36,16 @@ const vendorItems = [
 ]
 
 // On a phone this is the admin's only menu (PanelShell hides the header nav
-// below md), so anything ops reaches from a phone during the pilot is here.
-// Refunds especially: a checkout that became no booking has no booking page,
-// so this is the only way to the place its refund is marked done.
+// below md), so every page the header offers is here too — Discounts and
+// Coverage were header-only, and so out of reach on a phone. Refunds
+// especially: a checkout that became no booking has no booking page, so this
+// is the only way to the place its refund is marked done.
 const adminItems = [
   { href: '/vendors', label: 'Vendors', icon: IconBuildingStore },
   { href: '/bookings', label: 'Bookings', icon: IconCalendar },
   { href: '/refunds', label: 'Refunds', icon: IconReceiptRefund },
+  { href: '/discounts', label: 'Discounts', icon: IconDiscount2 },
+  { href: '/coverage', label: 'Coverage', icon: IconMap },
 ]
 
 const itemsByType: Record<NavType, typeof customerItems> = {

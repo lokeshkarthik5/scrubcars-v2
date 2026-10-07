@@ -45,7 +45,7 @@ export function CompanySwitcher({ className }: { className?: string }) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex max-w-[190px] items-center gap-1.5 rounded-md bg-surface px-2 py-1.5"
+        className="flex min-h-11 max-w-[190px] items-center gap-1.5 rounded-[10px] border border-border bg-surface px-2.5"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -73,7 +73,7 @@ export function CompanySwitcher({ className }: { className?: string }) {
                   setActiveVendor(vendor.id)
                   setOpen(false)
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-muted"
+                className="flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-elevated"
               >
                 <CompanyLogo url={vendor.logoUrl} name={vendor.businessName} />
                 <span className="min-w-0 flex-1">
@@ -87,7 +87,9 @@ export function CompanySwitcher({ className }: { className?: string }) {
                   </span>
                 </span>
                 {isActive && (
-                  <IconCheck size={16} stroke={2} className="shrink-0 text-brand-red" />
+                  // White, as the chosen option is everywhere else: red is for
+                  // what to press.
+                  <IconCheck size={16} stroke={2} className="shrink-0 text-text-primary" />
                 )}
               </button>
             )
@@ -112,7 +114,7 @@ function CompanyLogo({ url, name }: { url?: string | null; name: string }) {
   }
 
   return (
-    <span className="flex size-5 shrink-0 items-center justify-center rounded bg-brand-red text-[10px] font-semibold text-brand-white">
+    <span className="flex size-5 shrink-0 items-center justify-center rounded bg-surface-elevated text-[10px] font-semibold text-text-primary">
       {name.charAt(0).toUpperCase()}
     </span>
   )

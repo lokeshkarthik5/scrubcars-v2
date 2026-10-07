@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   IconBuildingStore,
   IconPhotoPlus,
+  IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
@@ -15,12 +16,12 @@ import {
   type PickedLocation,
 } from '@repo/ui/features/location-picker'
 import { Chip } from '@repo/ui/sc/chip'
-import { SkeletonCard } from '@repo/ui/sc/empty-state'
 import { ScField, ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSection } from '@repo/ui/sc/section'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { ScSelect } from '@repo/ui/sc/select'
-import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
 import {
   deleteAdminServiceImage,
@@ -604,7 +605,7 @@ export default function EditVendorPage({
 
   return (
     <div className="mx-auto w-full max-w-[640px] space-y-5">
-      <TopBar title="Edit vendor" showBack backHref="/vendors" />
+      <PageHeader title="Edit vendor" backHref="/vendors" />
 
       <input
         ref={logoInputRef}
@@ -630,11 +631,7 @@ export default function EditVendorPage({
       />
 
       {loading ? (
-        <div className="flex flex-col gap-3">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
+        <SkeletonList count={3} itemClassName="h-40" />
       ) : (
         <div className="space-y-4">
           {/* Same four-tab shape as the vendor settings screen, so the admin
@@ -676,7 +673,7 @@ export default function EditVendorPage({
               </p>
 
               <div className="flex items-center gap-4">
-                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface">
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface-elevated">
                   {logoUrl ? (
                     <Image src={logoUrl} alt="Logo" fill sizes="64px" className="object-cover" />
                   ) : (
@@ -689,7 +686,7 @@ export default function EditVendorPage({
                     variant="secondary"
                     disabled={mediaBusy === 'logo'}
                     onClick={() => logoInputRef.current?.click()}
-                    className="px-3 py-2 text-[12px]"
+                    className="min-h-11 px-3.5 py-2 text-[12px]"
                   >
                     {mediaBusy === 'logo'
                       ? 'Working…'
@@ -698,11 +695,12 @@ export default function EditVendorPage({
                         : 'Add logo'}
                   </ScButton>
                   {logoUrl && (
+                    // A quiet text button: red on this page is Save changes.
                     <button
                       type="button"
                       disabled={mediaBusy === 'logo'}
                       onClick={handleRemoveLogo}
-                      className="text-left text-[12px] text-brand-red disabled:opacity-50"
+                      className="min-h-11 text-left text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline disabled:opacity-50"
                     >
                       Remove logo
                     </button>
@@ -727,10 +725,15 @@ export default function EditVendorPage({
                       type="button"
                       disabled={mediaBusy === `photo-${photo.id}`}
                       onClick={() => handleRemovePhoto(photo.id)}
+                      aria-label="Delete photo"
                       title="Delete photo"
-                      className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                      // A 44px target with the small disc drawn inside it, as
+                      // on the garage's own Photos page: deleting is immediate.
+                      className="absolute right-0 top-0 flex size-11 items-center justify-center text-white disabled:opacity-50"
                     >
-                      <IconTrash size={12} />
+                      <span className="flex size-7 items-center justify-center rounded-full bg-black/60 transition-colors hover:bg-black/80">
+                        <IconTrash size={13} aria-hidden="true" />
+                      </span>
                     </button>
                   </div>
                 ))}
@@ -738,7 +741,8 @@ export default function EditVendorPage({
                   type="button"
                   disabled={mediaBusy === 'photos'}
                   onClick={() => photoInputRef.current?.click()}
-                  className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-text-muted disabled:opacity-50"
+                  aria-label="Add photos"
+                  className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-text-muted transition-colors hover:border-text-secondary hover:text-text-secondary disabled:opacity-50"
                 >
                   <IconPhotoPlus size={18} />
                   <span className="text-[10px]">
@@ -849,11 +853,13 @@ export default function EditVendorPage({
                     edits in their Settings. Left alone unless changed here. */}
                 <div className="flex flex-col gap-2">
                   {hours.map((day) => (
-                    <div
-                      key={day.dayOfWeek}
-                      className={cn('flex items-center gap-2', day.isClosed && 'opacity-60')}
-                    >
-                      <span className="w-9 text-[12px] font-medium text-text-primary">
+                    <div key={day.dayOfWeek} className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'w-9 shrink-0 text-[13px] font-medium',
+                          day.isClosed ? 'text-text-muted' : 'text-text-primary'
+                        )}
+                      >
                         {DAYS[day.dayOfWeek]}
                       </span>
                       <input
@@ -862,7 +868,7 @@ export default function EditVendorPage({
                         value={day.openTime}
                         disabled={day.isClosed}
                         onChange={(e) => updateDay(day.dayOfWeek, { openTime: e.target.value })}
-                        className="min-h-11 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary"
+                        className="min-h-11 min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary disabled:opacity-40"
                       />
                       <input
                         type="time"
@@ -870,14 +876,21 @@ export default function EditVendorPage({
                         value={day.closeTime}
                         disabled={day.isClosed}
                         onChange={(e) => updateDay(day.dayOfWeek, { closeTime: e.target.value })}
-                        className="min-h-11 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary"
+                        className="min-h-11 min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary disabled:opacity-40"
                       />
+                      {/* The same pressed pill as the garage's own Settings: a
+                          closed day is raised onto graphite. */}
                       <button
                         type="button"
                         aria-label={`${DAYS[day.dayOfWeek]} closed all day`}
                         aria-pressed={day.isClosed}
                         onClick={() => updateDay(day.dayOfWeek, { isClosed: !day.isClosed })}
-                        className="min-h-11 w-16 text-[12px] font-medium text-text-secondary hover:text-text-primary"
+                        className={cn(
+                          'min-h-11 w-[68px] shrink-0 rounded-[10px] border text-[12px] font-medium transition-colors',
+                          day.isClosed
+                            ? 'border-text-secondary bg-surface-elevated text-text-primary'
+                            : 'border-border text-text-secondary hover:text-text-primary'
+                        )}
                       >
                         {day.isClosed ? 'Closed' : 'Open'}
                       </button>
@@ -1000,7 +1013,7 @@ export default function EditVendorPage({
                   ever price. Shown so they can be cleared, not offered again. */}
               {legacyVehicleTypes(vehicleTypes).length > 0 && (
                 <>
-                  <p className="text-[11px] text-brand-red">
+                  <p className="text-[11px] text-warning">
                     No longer offered — tap to remove:
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -1025,24 +1038,31 @@ export default function EditVendorPage({
               ) : (
                 <div className="space-y-3">
                   {services.map((s, i) => (
-                    <div key={s.id ?? `new-${i}`} className="space-y-2 rounded-[10px] border border-border p-3">
+                    <div key={s.id ?? `new-${i}`} className="space-y-2 rounded-[12px] border border-border p-3">
                       <div className="flex items-end gap-2">
-                        <ScInput
-                          value={s.name}
-                          placeholder="Service name (e.g. Foam wash)"
-                          onChange={(e) => updateService(i, { name: e.target.value })}
-                          className="flex-1"
-                        />
+                        {/* The wrapper takes the row's width: ScInput's className
+                            styles the field inside, not the box around it. */}
+                        <div className="min-w-0 flex-1">
+                          <ScInput
+                            value={s.name}
+                            aria-label={`Service ${i + 1} name`}
+                            placeholder="Service name (e.g. Foam wash)"
+                            onChange={(e) => updateService(i, { name: e.target.value })}
+                          />
+                        </div>
+                        {/* Quiet: removing a row is not the form's main action. */}
                         <button
                           type="button"
                           onClick={() => removeService(i)}
-                          className="rounded-[8px] px-2 py-2.5 text-[12px] text-brand-red transition-colors hover:bg-accent-muted"
+                          aria-label={`Remove service ${i + 1}`}
+                          className="min-h-11 rounded-[10px] px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
                         >
                           Remove
                         </button>
                       </div>
                       <ScTextarea
                         value={s.description}
+                        aria-label={`Service ${i + 1} description`}
                         placeholder="Description (optional)"
                         rows={2}
                         onChange={(e) => updateService(i, { description: e.target.value })}
@@ -1050,6 +1070,7 @@ export default function EditVendorPage({
                       <div className="grid grid-cols-2 gap-2">
                         <ScSelect
                           value={s.category}
+                          aria-label={`Service ${i + 1} category`}
                           onChange={(e) => updateService(i, { category: e.target.value as ServiceCategory })}
                         >
                           {SERVICE_CATEGORIES.map((c) => (
@@ -1060,6 +1081,7 @@ export default function EditVendorPage({
                         </ScSelect>
                         <ScSelect
                           value={s.pricingType}
+                          aria-label={`Service ${i + 1} pricing`}
                           onChange={(e) => updateService(i, { pricingType: e.target.value as PricingType })}
                         >
                           {PRICING_TYPES.map((p) => (
@@ -1080,6 +1102,8 @@ export default function EditVendorPage({
                               ? 'Inspection fee ₹'
                               : 'Price ₹'
                           }
+                          aria-label={`Service ${i + 1} price in rupees`}
+                          className="font-numeric"
                           onChange={(e) => updateService(i, { price: e.target.value })}
                         />
                       )}
@@ -1088,11 +1112,14 @@ export default function EditVendorPage({
                           value={s.durationValue}
                           type="number"
                           min={0}
+                          aria-label={`Service ${i + 1} duration`}
+                          className="font-numeric"
                           placeholder="Duration (optional)"
                           onChange={(e) => updateService(i, { durationValue: e.target.value })}
                         />
                         <ScSelect
                           value={s.durationUnit}
+                          aria-label={`Service ${i + 1} duration unit`}
                           onChange={(e) => updateService(i, { durationUnit: e.target.value as DurationUnit })}
                         >
                           {DURATION_UNITS.map((u) => (
@@ -1108,6 +1135,8 @@ export default function EditVendorPage({
                             value={s.priceHatchback}
                             type="number"
                             min={0}
+                            aria-label={`Service ${i + 1} hatchback price in rupees`}
+                            className="font-numeric"
                             placeholder="Hatch ₹"
                             onChange={(e) => updateService(i, { priceHatchback: e.target.value })}
                           />
@@ -1115,6 +1144,8 @@ export default function EditVendorPage({
                             value={s.priceSedan}
                             type="number"
                             min={0}
+                            aria-label={`Service ${i + 1} sedan price in rupees`}
+                            className="font-numeric"
                             placeholder="Sedan ₹"
                             onChange={(e) => updateService(i, { priceSedan: e.target.value })}
                           />
@@ -1122,6 +1153,8 @@ export default function EditVendorPage({
                             value={s.priceSuv}
                             type="number"
                             min={0}
+                            aria-label={`Service ${i + 1} SUV price in rupees`}
+                            className="font-numeric"
                             placeholder="SUV ₹"
                             onChange={(e) => updateService(i, { priceSuv: e.target.value })}
                           />
@@ -1133,27 +1166,32 @@ export default function EditVendorPage({
                       {s.id ? (
                         <div className="flex items-center gap-2">
                           {s.images.map((image) => (
-                            <div
-                              key={image.id}
-                              className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[8px] bg-surface"
-                            >
-                              <Image
-                                src={image.url}
-                                alt={s.name}
-                                fill
-                                sizes="56px"
-                                className="object-cover"
-                              />
+                            <div key={image.id} className="relative h-14 w-14 shrink-0">
+                              <div className="absolute inset-0 overflow-hidden rounded-[8px] bg-surface">
+                                <Image
+                                  src={image.url}
+                                  alt={s.name}
+                                  fill
+                                  sizes="56px"
+                                  className="object-cover"
+                                />
+                              </div>
+                              {/* A full 44px target hanging off the corner, as
+                                  on the garage's Services page, so it covers
+                                  less of a thumbnail this small. */}
                               <button
                                 type="button"
                                 disabled={mediaBusy === `service-${s.id}`}
                                 onClick={() =>
                                   handleRemoveServiceImage(s.id as string, image.id)
                                 }
+                                aria-label={`Remove image of ${s.name}`}
                                 title="Remove image"
-                                className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-1 text-white disabled:opacity-50"
+                                className="absolute -right-2.5 -top-2.5 flex size-11 items-center justify-center text-white disabled:opacity-50"
                               >
-                                <IconTrash size={11} />
+                                <span className="flex size-6 items-center justify-center rounded-full bg-black/70 transition-colors hover:bg-black/85">
+                                  <IconTrash size={12} aria-hidden="true" />
+                                </span>
                               </button>
                             </div>
                           ))}
@@ -1163,6 +1201,7 @@ export default function EditVendorPage({
                               type="button"
                               disabled={mediaBusy === `service-${s.id}`}
                               onClick={() => pickServiceImage(s.id as string)}
+                              aria-label={`Add an image of ${s.name}`}
                               className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-dashed border-border text-text-muted disabled:opacity-50"
                             >
                               <IconPhotoPlus size={16} />
@@ -1172,12 +1211,15 @@ export default function EditVendorPage({
                             </button>
                           )}
 
-                          <p className="text-[10px] text-text-muted">
-                            {s.images.length}/{MAX_IMAGES_PER_SERVICE} images
+                          <p className="text-[11px] text-text-muted">
+                            <span className="font-numeric">
+                              {s.images.length}/{MAX_IMAGES_PER_SERVICE}
+                            </span>{' '}
+                            images
                           </p>
                         </div>
                       ) : (
-                        <p className="text-[10px] text-text-muted">
+                        <p className="text-[11px] text-text-muted">
                           Save this vendor to add images to the service.
                         </p>
                       )}
@@ -1189,9 +1231,9 @@ export default function EditVendorPage({
                 fullWidth={false}
                 variant="secondary"
                 onClick={() => setServices((prev) => [...prev, emptyService()])}
-                className="px-3 py-2 text-[12px]"
+                className="flex min-h-11 items-center gap-1.5 px-3.5 py-2 text-[12px]"
               >
-                + Add service
+                <IconPlus size={14} aria-hidden="true" /> Add service
               </ScButton>
               <p className="text-[11px] text-text-muted">
                 Each service needs a name and price. Duration is optional — leave it
@@ -1202,7 +1244,12 @@ export default function EditVendorPage({
             </TabsContent>
           </Tabs>
 
-          {error && <p className="text-[13px] text-brand-red">{error}</p>}
+          {/* Amber, as errors are: red on this page is Save changes. */}
+          {error && (
+            <p role="alert" className="text-[13px] text-error">
+              {error}
+            </p>
+          )}
 
           <ScButton disabled={!isValid || saving} onClick={handleSubmit}>
             {saving ? 'Saving…' : 'Save changes'}

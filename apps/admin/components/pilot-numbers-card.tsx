@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSegmented } from '@repo/ui/sc/segmented'
+import { Skeleton } from '@repo/ui/sc/skeleton'
+import { StatTile } from '@repo/ui/sc/stat-tile'
 import { usePilotStats } from '@repo/core/api/hooks/use-pilot-stats'
 import type { PilotStats } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
@@ -30,6 +32,7 @@ function acceptHint(samples: number): string {
     : `Only ${samples} accepted in this window; the median needs 3`
 }
 
+/** One of the card's numbers: the shared StatTile, inside the card's own edge. */
 function Figure({
   label,
   value,
@@ -43,18 +46,13 @@ function Figure({
   tone?: 'warn'
 }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
-      <p
-        className={cn(
-          'font-numeric text-[22px] font-bold leading-7',
-          tone === 'warn' ? 'text-error' : 'text-text-primary'
-        )}
-      >
-        {value}
-      </p>
-      {hint && <p className="text-[11px] text-text-secondary">{hint}</p>}
-    </div>
+    <StatTile
+      variant="plain"
+      label={label}
+      value={value}
+      hint={hint}
+      tone={tone === 'warn' ? 'warning' : 'default'}
+    />
   )
 }
 
@@ -128,7 +126,7 @@ function Body({ stats }: { stats: PilotStats }) {
       )}
 
       <div>
-        <p className="pb-2 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+        <p className="pb-2 text-[11px] font-medium text-text-secondary">
           Top garages by paid bookings
         </p>
         {stats.topGarages.length === 0 ? (
@@ -203,7 +201,13 @@ export function PilotNumbersCard() {
       ) : stats.isError ? (
         <ErrorState message="Couldn't load the pilot numbers." onRetry={() => void stats.refetch()} />
       ) : (
-        <p className="py-6 text-center text-[13px] text-text-secondary">Counting…</p>
+        // The card's first rows of figures, as placeholders.
+        <div role="status" aria-busy="true" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <span className="sr-only">Loading</span>
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={i} className="h-[60px] rounded-[10px]" />
+          ))}
+        </div>
       )}
     </ScCard>
   )

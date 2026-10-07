@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   IconDiscount2,
@@ -11,11 +10,14 @@ import {
 } from '@tabler/icons-react'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { ScInput } from '@repo/ui/sc/input'
-import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
-import { TopBar } from '@repo/ui/sc/top-bar'
+import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
+import { PageHeader } from '@repo/ui/sc/page-header'
+import { Reveal } from '@repo/ui/sc/reveal'
+import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
   errorMessage,
   isAuthError,
@@ -24,6 +26,7 @@ import {
   useToggleDiscountActive,
 } from '@repo/core/api/hooks/use-discounts'
 import type { AdminDiscount } from '@repo/core/api/admin'
+import { Meta } from '@/components/meta'
 
 const rupees = (value: string | number) =>
   `₹${Number(value).toLocaleString('en-IN')}`
@@ -86,16 +89,8 @@ function stageBadge(discount: AdminDiscount) {
   return { stage: 'active' as const, label: 'Active', variant: 'success' as const }
 }
 
-function Meta({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
-        {label}
-      </p>
-      <div className="truncate text-[12px] text-text-secondary">{children}</div>
-    </div>
-  )
-}
+// The small actions on a code's card: outline, 44px tall, never red.
+const ROW_ACTION = 'flex min-h-11 items-center gap-1 px-3 py-1.5 text-[12px]'
 
 export default function AdminDiscountsPage() {
   const router = useRouter()
@@ -160,14 +155,27 @@ export default function AdminDiscountsPage() {
 
   return (
     <>
-      <TopBar
+      <PageHeader
         title="Discounts"
-        right={
-          <Link href="/discounts/new">
-            <ScButton fullWidth={false} className="flex items-center gap-1.5 px-4 py-2">
-              <IconPlus size={16} /> Add discount
-            </ScButton>
-          </Link>
+        subtitle={
+          !isPending && !error && discounts.length > 0 ? (
+            isFiltered ? (
+              <>
+                <span className="font-numeric">{visible.length}</span> of{' '}
+                <span className="font-numeric">{discounts.length}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-numeric">{discounts.length}</span> total
+              </>
+            )
+          ) : undefined
+        }
+        // The page's one red: adding a code is what it is for.
+        actions={
+          <ScButtonLink href="/discounts/new">
+            <IconPlus size={16} aria-hidden="true" /> Add discount
+          </ScButtonLink>
         }
       />
 
@@ -175,13 +183,16 @@ export default function AdminDiscountsPage() {
         <>
           <ScInput
             id="discount-search"
+            type="search"
+            aria-label="Search discounts"
             placeholder="Search code or note"
             autoComplete="off"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            className="min-h-11"
           />
 
-          <div className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label="Status" className="flex flex-wrap gap-1.5">
             {STAGES.map((option) => (
               <FilterChip
                 key={option}
@@ -191,21 +202,11 @@ export default function AdminDiscountsPage() {
               />
             ))}
           </div>
-
-          <p className="-mt-1 text-[11px] text-text-secondary">
-            {isFiltered
-              ? `${visible.length} of ${discounts.length}`
-              : `${discounts.length} total`}
-          </p>
         </>
       )}
 
       {isPending ? (
-        <div className="flex flex-col gap-2">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
+        <SkeletonList count={3} itemClassName="h-40" />
       ) : error ? (
         <ErrorState
           message={errorMessage(error, 'Failed to load discounts')}
@@ -232,100 +233,110 @@ export default function AdminDiscountsPage() {
         />
       ) : (
         <div className="flex flex-col gap-2">
+          {/* Amber, as errors are: red is the Add discount button's. */}
           {actionError && (
-            <p className="text-[12px] text-brand-red">{actionError}</p>
+            <p role="alert" className="text-[12px] text-error">{actionError}</p>
           )}
 
-          {visible.map((discount) => {
+          {visible.map((discount, i) => {
             // Named `badge`, not `stage`: the outer `stage` is the active filter.
             const badge = stageBadge(discount)
             return (
-              <ScCard key={discount.id} className="flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-mono text-[13px] font-semibold text-text-primary">
-                      {discount.code}
-                    </p>
-                    <p className="truncate text-[11px] text-text-secondary">
-                      {discount.description || effectLabel(discount)}
-                    </p>
+              <Reveal key={discount.id} index={i}>
+                <ScCard className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
+                    <div className="min-w-0">
+                      {/* A code is read out and typed in, like a booking
+                          reference, so it is set as references are. */}
+                      <p className="truncate font-numeric text-[14px] font-bold tracking-wide text-text-primary">
+                        {discount.code}
+                      </p>
+                      <p className="truncate text-[11px] text-text-secondary">
+                        {discount.description || effectLabel(discount)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
+                      {/* Neutral both ways: who pays is a fact, not an alert,
+                          and the red accent badge is kept for a new job. */}
+                      <ScBadge
+                        variant={
+                          discount.fundedBy === 'platform' ? 'pending' : 'muted'
+                        }
+                      >
+                        {discount.fundedBy === 'platform' ? 'Detlio pays' : 'Garage pays'}
+                      </ScBadge>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
-                    <ScBadge
-                      variant={
-                        discount.fundedBy === 'platform' ? 'accent' : 'muted'
-                      }
-                    >
-                      {discount.fundedBy === 'platform' ? 'Detlio pays' : 'Garage pays'}
-                    </ScBadge>
+
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                    <Meta label="Effect" truncate>{effectLabel(discount)}</Meta>
+                    <Meta label="Conditions" truncate>{conditionLabel(discount)}</Meta>
+                    <Meta label="Used" truncate>
+                      {discount.heldCount > 0 ? (
+                        <>
+                          {/* Held, not realized: this is the number the usage
+                              limit is checked against, so it must be the one an
+                              admin sees next to that limit. */}
+                          <span className="font-numeric">
+                            {discount.heldCount}
+                            {discount.totalUsageLimit
+                              ? ` / ${discount.totalUsageLimit}`
+                              : ''}
+                          </span>
+                          <span className="text-text-muted">
+                            {' '}
+                            · <span className="font-numeric">{rupees(discount.totalSaved)}</span> saved
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-text-muted">Never</span>
+                      )}
+                    </Meta>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-                  <Meta label="Effect">{effectLabel(discount)}</Meta>
-                  <Meta label="Conditions">{conditionLabel(discount)}</Meta>
-                  <Meta label="Used">
-                    {discount.heldCount > 0 ? (
-                      <>
-                        {/* Held, not realized: this is the number the usage
-                            limit is checked against, so it must be the one an
-                            admin sees next to that limit. */}
-                        {discount.heldCount}
-                        {discount.totalUsageLimit
-                          ? ` / ${discount.totalUsageLimit}`
-                          : ''}
-                        <span className="text-text-muted">
-                          {' '}
-                          · {rupees(discount.totalSaved)} saved
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-text-muted">Never</span>
-                    )}
-                  </Meta>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                  <ScButton
-                    fullWidth={false}
-                    variant="secondary"
-                    disabled={busyId === discount.id}
-                    onClick={() => {
-                      setActionError('')
-                      toggleActive.mutate({
-                        id: discount.id,
-                        isActive: !discount.isActive,
-                      })
-                    }}
-                    className="px-3 py-1.5 text-[12px]"
-                  >
-                    {discount.isActive ? 'Deactivate' : 'Activate'}
-                  </ScButton>
-                  <Link href={`/discounts/${discount.id}/edit`}>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                     <ScButton
                       fullWidth={false}
                       variant="secondary"
-                      className="flex items-center gap-1 px-3 py-1.5 text-[12px]"
-                    >
-                      <IconPencil size={14} /> Edit
-                    </ScButton>
-                  </Link>
-                  {/* Mirrors the API: a redeemed code can only be deactivated. */}
-                  {discount.redemptionCount === 0 && (
-                    <button
-                      type="button"
                       disabled={busyId === discount.id}
-                      onClick={() => handleDelete(discount)}
-                      title="Delete permanently"
-                      aria-label={`Delete ${discount.code}`}
-                      className="ml-auto inline-flex items-center rounded-[8px] p-1.5 text-brand-red transition-colors hover:bg-accent-muted disabled:opacity-50"
+                      onClick={() => {
+                        setActionError('')
+                        toggleActive.mutate({
+                          id: discount.id,
+                          isActive: !discount.isActive,
+                        })
+                      }}
+                      className={ROW_ACTION}
                     >
-                      <IconTrash size={16} />
-                    </button>
-                  )}
-                </div>
-              </ScCard>
+                      {discount.isActive ? 'Deactivate' : 'Activate'}
+                    </ScButton>
+                    <ScButtonLink
+                      href={`/discounts/${discount.id}/edit`}
+                      variant="secondary"
+                      aria-label={`Edit ${discount.code}`}
+                      className={ROW_ACTION}
+                    >
+                      <IconPencil size={14} aria-hidden="true" /> Edit
+                    </ScButtonLink>
+                    {/* Mirrors the API: a redeemed code can only be deactivated. */}
+                    {discount.redemptionCount === 0 && (
+                      <button
+                        type="button"
+                        disabled={busyId === discount.id}
+                        onClick={() => handleDelete(discount)}
+                        title="Delete permanently"
+                        aria-label={`Delete ${discount.code}`}
+                        // Grey until hovered, then amber: it asks first, and red
+                        // is the Add discount button's.
+                        className="ml-auto inline-flex size-11 items-center justify-center rounded-[10px] text-text-muted transition-colors hover:bg-error-muted hover:text-error disabled:opacity-50"
+                      >
+                        <IconTrash size={16} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                </ScCard>
+              </Reveal>
             )
           })}
         </div>

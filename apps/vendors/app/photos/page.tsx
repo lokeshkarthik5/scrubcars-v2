@@ -7,6 +7,10 @@ import { IconBuildingStore, IconPhoto, IconTrash, IconUpload } from '@tabler/ico
 import { toast } from 'react-toastify'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScCard } from '@repo/ui/sc/card'
+import { Reveal } from '@repo/ui/sc/reveal'
+import { SectionHeader } from '@repo/ui/sc/section-header'
+import { Skeleton } from '@repo/ui/sc/skeleton'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
@@ -151,90 +155,108 @@ export default function VendorPhotosPage() {
       />
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-text-primary">Logo</h2>
-        <div className="flex items-center gap-4">
-          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface">
+        <SectionHeader title="Logo" subtitle="Shown next to your garage in customer listings." />
+        <ScCard className="flex items-center gap-4">
+          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface-elevated">
             {logoUrl ? (
               <Image src={logoUrl} alt="Logo" fill sizes="64px" className="object-cover" />
             ) : (
               <IconBuildingStore size={26} className="text-text-muted" />
             )}
           </div>
-          <div className="flex flex-1 flex-col gap-2">
+          <div className="flex flex-1 flex-col items-start gap-1">
             <ScButton
               variant="secondary"
               disabled={logoBusy}
               onClick={() => logoRef.current?.click()}
-              className="py-2 text-[12px]"
+              className="min-h-11 py-2 text-[13px]"
             >
               {logoBusy ? 'Working…' : logoUrl ? 'Change logo' : 'Add logo'}
             </ScButton>
+            {/* A quiet text button: removing the logo is not what this
+                screen is for, and red is kept for Add photos below. */}
             {logoUrl && (
               <button
                 type="button"
                 disabled={logoBusy}
                 onClick={handleRemoveLogo}
-                className="text-left text-[12px] text-brand-red disabled:opacity-50"
+                className="min-h-11 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline disabled:opacity-50"
               >
                 Remove logo
               </button>
             )}
           </div>
-        </div>
-        <p className="text-[11px] text-text-secondary">
-          Shown next to your garage in customer listings.
-        </p>
+        </ScCard>
       </section>
 
-      <div className="h-px bg-border" />
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          title="Photos"
+          subtitle="JPEG, PNG or WebP · up to 5 MB each. These show on your public listing."
+          action={
+            photos.length > 0 ? (
+              <span className="font-numeric text-[12px] text-text-muted">{photos.length}</span>
+            ) : undefined
+          }
+        />
 
-      <h2 className="-mb-2 text-sm font-semibold text-text-primary">Photos</h2>
+        {/* The screen's one main action. */}
+        <ScButton
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          className="flex items-center justify-center gap-2"
+        >
+          <IconUpload size={18} aria-hidden="true" />
+          {uploading ? 'Uploading…' : 'Add photos'}
+        </ScButton>
 
-      <ScButton
-        disabled={uploading}
-        onClick={() => fileRef.current?.click()}
-        className="flex items-center justify-center gap-2"
-      >
-        <IconUpload size={18} />
-        {uploading ? 'Uploading…' : 'Add photos'}
-      </ScButton>
-      <p className="-mt-3 text-[11px] text-text-secondary">
-        JPEG, PNG or WebP · up to 5 MB each. These show on your public listing.
-      </p>
-
-      {loading ? (
-        <p className="text-[13px] text-text-secondary">Loading…</p>
-      ) : photos.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-border py-12 text-center">
-          <IconPhoto size={28} className="text-text-muted" />
-          <p className="text-[13px] text-text-secondary">No photos yet</p>
-          <p className="text-[11px] text-text-muted">Add photos of your garage and work</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {photos.map((photo) => (
-            <div key={photo.id} className="relative aspect-square overflow-hidden rounded-[10px] bg-surface">
-              <Image
-                src={photo.url}
-                alt="Garage photo"
-                fill
-                sizes="(max-width: 428px) 50vw, 200px"
-                className="object-cover"
-              />
-              <button
-                type="button"
-                disabled={deletingId === photo.id}
-                onClick={() => handleDelete(photo.id)}
-                aria-label="Delete photo"
-                title="Delete photo"
-                className="absolute right-1.5 top-1.5 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 disabled:opacity-50"
+        {loading ? (
+          <div role="status" aria-busy="true" className="grid grid-cols-2 gap-2">
+            <span className="sr-only">Loading</span>
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="aspect-square rounded-[12px]" />
+            ))}
+          </div>
+        ) : photos.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-border py-12 text-center">
+            <IconPhoto size={28} stroke={1.5} className="text-text-muted" />
+            <p className="text-sm font-semibold text-text-primary">No photos yet</p>
+            <p className="text-[12px] text-text-secondary">Add photos of your garage and work</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {photos.map((photo, i) => (
+              <Reveal
+                key={photo.id}
+                index={i}
+                className="relative aspect-square overflow-hidden rounded-[12px] bg-surface"
               >
-                <IconTrash size={15} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <Image
+                  src={photo.url}
+                  alt="Garage photo"
+                  fill
+                  sizes="(max-width: 428px) 50vw, 200px"
+                  className="object-cover"
+                />
+                {/* A full 44px target in the corner; the dark disc keeps it
+                    legible on any photo. */}
+                <button
+                  type="button"
+                  disabled={deletingId === photo.id}
+                  onClick={() => handleDelete(photo.id)}
+                  aria-label="Delete photo"
+                  title="Delete photo"
+                  className="absolute right-0 top-0 flex size-11 items-center justify-center text-white disabled:opacity-50"
+                >
+                  <span className="flex size-8 items-center justify-center rounded-full bg-black/60 transition-colors hover:bg-black/80">
+                    <IconTrash size={15} aria-hidden="true" />
+                  </span>
+                </button>
+              </Reveal>
+            ))}
+          </div>
+        )}
+      </section>
     </AppShell>
   )
 }
