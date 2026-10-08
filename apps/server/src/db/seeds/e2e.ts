@@ -163,7 +163,8 @@ async function seedPeople() {
         CUSTOMERS.raceFirst, CUSTOMERS.raceSecond, CUSTOMERS.payLaterFull,
         CUSTOMERS.billPayer, CUSTOMERS.billSmall, CUSTOMERS.billStranger,
         CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds,
-        CUSTOMERS.receipts, CUSTOMERS.receiptsStranger].map((c, i) => ({
+        CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
+        CUSTOMERS.bookAgain].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -178,7 +179,7 @@ async function seedPeople() {
      CUSTOMERS.payLater, CUSTOMERS.coupons, CUSTOMERS.browse,
      CUSTOMERS.journey, CUSTOMERS.vendorJob, CUSTOMERS.vendorReject,
      CUSTOMERS.logout, CUSTOMERS.session, CUSTOMERS.vehicles,
-     CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove].map((c) => ({
+     CUSTOMERS.journeyCancel, CUSTOMERS.journeyMove, CUSTOMERS.bookAgain].map((c) => ({
       userId: c.id, label: 'Home', address: '14, Gandhi Nagar, Adyar',
       city: 'Chennai', lat: ORIGIN.lat, lng: ORIGIN.lng, isDefault: true,
     })),
@@ -504,7 +505,8 @@ type BookingSpec = {
   /** Required: bookings.vehicle_id is NOT NULL. */
   vehicleId: string
   scheduledAt: Date
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+  /** 'rescheduled' is the old way a move retired a booking; a fixture keeps it. */
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
   items: Array<{ id: string; name: string; amount: string; durationMins: number }>
   discount?: { id: string; code: string; amount: string; fundedBy: 'platform' | 'vendor' }
   /**
@@ -659,6 +661,11 @@ const washItem = {
 const detailItem = {
   id: SERVICES.detail.id, name: SERVICES.detail.name,
   amount: SERVICES.detail.price, durationMins: SERVICES.detail.durationMins,
+}
+/** Sold before the garage withdrew it (isActive false): history only. */
+const retiredItem = {
+  id: SERVICES.inactive.id, name: SERVICES.inactive.name,
+  amount: SERVICES.inactive.price, durationMins: SERVICES.inactive.durationMins,
 }
 
 async function seedBookingRows() {
@@ -875,6 +882,59 @@ async function seedBookingRows() {
   await insertBooking({ id: BOOKINGS.receiptUnpaid, userId: CUSTOMERS.receiptsStranger.id,
     vehicleId: CUSTOMERS.receiptsStranger.vehicleId, scheduledAt: tomorrowAt(19), status: 'pending',
     items: [washItem], payment: { status: 'pending' } })
+
+  // My bookings, for CUSTOMERS.myBookings at MAIN. Each a different service,
+  // so the spec can read each tab's order off the cards. Nothing here is
+  // owed a refund: the cancelled ones were never paid, or were moved.
+  const history = { userId: CUSTOMERS.myBookings.id, vehicleId: CUSTOMERS.myBookings.vehicleId }
+  const tieredItem = {
+    id: SERVICES.tiered.id, name: SERVICES.tiered.name,
+    amount: SERVICES.tiered.priceHatchback, durationMins: SERVICES.tiered.durationMins,
+  }
+  const inspectionItem = {
+    id: SERVICES.inspect.id, name: SERVICES.inspect.name,
+    amount: SERVICES.inspect.price, durationMins: SERVICES.inspect.durationMins,
+  }
+  const packageItem = {
+    id: SERVICES.packageDeal.id, name: SERVICES.packageDeal.name,
+    amount: SERVICES.packageDeal.price, durationMins: SERVICES.packageDeal.durationMins,
+  }
+  await insertBooking({ id: BOOKINGS.historyUpcomingSoon, ...history, scheduledAt: tomorrowAt(8),
+    status: 'pending', items: [washItem], payment: { status: 'pending' } })
+  await insertBooking({ id: BOOKINGS.historyUpcomingLater, ...history, scheduledAt: tomorrowAt(15),
+    status: 'confirmed', items: [tieredItem],
+    payment: { status: 'paid', txnId: 'pay_seed_history_later' } })
+  // A move, as rescheduleBookingWithPayment leaves it (see refundMovedFrom).
+  await insertBooking({ id: BOOKINGS.historyMovedFrom, ...history, scheduledAt: tomorrowAt(10),
+    status: 'cancelled', items: [inspectionItem],
+    cancellation: { by: 'user', reason: 'Rescheduled to a new slot by the customer', at: anHourAgo() },
+    payment: { status: 'paid', txnId: 'pay_seed_history_moved' } })
+  await insertBooking({ id: BOOKINGS.historyMovedTo, ...history, scheduledAt: tomorrowAt(12),
+    status: 'pending', items: [inspectionItem], rescheduledFromId: BOOKINGS.historyMovedFrom,
+    rescheduleCount: 1, payment: { status: 'paid', txnId: 'pay_seed_history_moved' } })
+  await insertBooking({ id: BOOKINGS.historyDeclined, ...history, scheduledAt: daysAgo(1),
+    status: 'cancelled', items: [packageItem],
+    cancellation: { by: 'vendor', reason: 'Fully booked that day', at: daysAgo(2) },
+    payment: { status: 'pending' } })
+  await insertBooking({ id: BOOKINGS.historyCompleted, ...history, scheduledAt: daysAgo(3),
+    status: 'completed', items: [detailItem],
+    payment: { status: 'paid', txnId: 'pay_seed_history_completed' } })
+  await insertBooking({ id: BOOKINGS.historyLegacyMoved, ...history, scheduledAt: daysAgo(2),
+    status: 'rescheduled', items: [retiredItem], payment: { status: 'pending' } })
+
+  // Book again, for CUSTOMERS.bookAgain at MAIN. All over, none owed.
+  const rebook = { userId: CUSTOMERS.bookAgain.id, vehicleId: CUSTOMERS.bookAgain.vehicleId }
+  await insertBooking({ id: BOOKINGS.rebookDoorstep, ...rebook, scheduledAt: daysAgo(4),
+    status: 'completed', items: [detailItem, washItem],
+    doorstep: { address: '14, Gandhi Nagar, Adyar', lat: ORIGIN.lat, lng: ORIGIN.lng },
+    payment: { status: 'paid', txnId: 'pay_seed_rebook_doorstep' } })
+  await insertBooking({ id: BOOKINGS.rebookPartlyRetired, ...rebook, scheduledAt: daysAgo(2),
+    status: 'cancelled', items: [washItem, retiredItem],
+    cancellation: { by: 'user', reason: 'Plans changed', at: daysAgo(3) },
+    payment: { status: 'pending' } })
+  await insertBooking({ id: BOOKINGS.rebookAllRetired, ...rebook, scheduledAt: daysAgo(6),
+    status: 'completed', items: [retiredItem],
+    payment: { status: 'paid', txnId: 'pay_seed_rebook_retired' } })
 
   // The chain behind rescheduleExhausted. rescheduleCount is denormalised onto
   // the booking, but booking_reschedules is the source of truth, so both have

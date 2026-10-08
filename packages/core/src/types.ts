@@ -72,6 +72,11 @@ export interface Vendor {
   serviceTags: string[]
   isVerified: boolean
   photos: string[]
+  /**
+   * On a search result, the service the garage was found by when its name
+   * did not match ("Ceramic Coating"). Null everywhere else.
+   */
+  matchedService: string | null
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.
@@ -294,6 +299,12 @@ export interface Booking {
    * BookingReceipt). False on garage payloads and on older servers.
    */
   receiptAvailable: boolean
+  /**
+   * Customer only: moved to a new time by the customer. The move cancelled
+   * this booking and the new one carries its payment, so My bookings leaves
+   * it out (see bookingListTab). False on garage payloads and older servers.
+   */
+  moved: boolean
 }
 
 /**

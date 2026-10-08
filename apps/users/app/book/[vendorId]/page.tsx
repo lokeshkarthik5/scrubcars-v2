@@ -2,6 +2,7 @@
 
 import { use, useEffect, useRef, useState, Suspense } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconAlertCircle,
@@ -28,7 +29,9 @@ import {
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
+import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SlotPicker } from '@repo/ui/sc/slot-picker'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
@@ -52,12 +55,14 @@ import {
 import { updateAddress } from '@repo/core/api/users'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorServices } from '@repo/core/api/services'
+import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
 import {
   BOOKING_TYPE_LABELS,
+  bookingTypeParam,
   parseBookingType,
   resolveBookingType,
   noticeSentence,
@@ -97,6 +102,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
+  // Set when the link asked for services the garage no longer sells (Book
+  // again on an old booking, a tab left open), so the page can say why the
+  // cart is shorter than what was asked for.
+  const [servicesDropped, setServicesDropped] = useState(false)
+  // Why the garage's services could not be loaded: it is not listed any more
+  // (the API's 404), or the request failed. Either beats a checkout that sits
+  // empty with nothing to book.
+  const [loadProblem, setLoadProblem] = useState<'gone' | 'failed' | null>(null)
+  // Bumped by Retry to load the garage again.
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const [pickedVehicle, setPickedVehicle] = useState<string | null>(null)
@@ -151,7 +166,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const applyPromo = useValidateDiscount()
 
   useEffect(() => {
-    getVendor(vendorId).then((v) => setVendor(v ?? null))
+    // A run overtaken by the next one (the link changed, Retry, or Strict
+    // Mode's second pass in development) must not write its answer over the
+    // newer one, nor redirect the customer a second time.
+    let cancelled = false
+    getVendor(vendorId).then((v) => {
+      if (!cancelled) setVendor(v ?? null)
+    })
     // Packages are fetched alongside the plain services because a package is
     // a bookable line like any other, and `/services` deliberately excludes
     // them. Without this, a customer who added a package on the garage page
@@ -159,26 +180,58 @@ function BookContent({ vendorId }: { vendorId: string }) {
     Promise.all([
       getVendorServices(vendorId),
       getVendorPackages(vendorId),
-    ]).then(([svcs, pkgs]) => {
-      const catalogue: Service[] = [...svcs, ...pkgs]
+    ]).then(
+      ([svcs, pkgs]) => {
+        if (cancelled) return
+        const catalogue: Service[] = [...svcs, ...pkgs]
 
-      // Resolved in the order the ids arrived, not the order the catalogue
-      // came back in: that order is the customer's, and it is what the summary
-      // and the booking's line items preserve.
-      const ids = serviceIdsParam?.split(',').filter(Boolean) ?? []
-      const picked = ids
-        .map((id) => catalogue.find((s) => s.id === id))
-        .filter((s): s is Service => s != null)
+        // Resolved in the order the ids arrived, not the order the catalogue
+        // came back in: that order is the customer's, and it is what the
+        // summary and the booking's line items preserve. Only services the
+        // garage still sells: a withdrawn one is not in the catalogue.
+        const { requested, picked } = pickRequestedServices(serviceIdsParam, catalogue)
 
-      // Landing here with no service at all (a shared link, a stale tab) still
-      // has to book something, so the first service stands in — as it did when
-      // this screen only ever handled one.
-      setSelectedServices(picked.length > 0 ? picked : svcs.slice(0, 1))
-    })
+        // Everything asked for has been withdrawn. Standing another service
+        // in for it would book something the customer never chose, so they
+        // pick again from what the garage sells now. The garage page says why
+        // (`withdrawn`), on the page rather than in a toast that could close
+        // before the page it is about has even loaded.
+        if (requested.length > 0 && picked.length === 0) {
+          const next = new URLSearchParams({ withdrawn: '1' })
+          const mode = parseBookingType(modeParam)
+          const modeQuery = mode ? bookingTypeParam(mode) : null
+          if (modeQuery) next.set('mode', modeQuery)
+          router.replace(`/garage/${vendorId}?${next.toString()}`)
+          return
+        }
+
+        setServicesDropped(picked.length < requested.length)
+        // Landing here with no service at all (a shared link) still has to
+        // book something, so the first service stands in — as it did when
+        // this screen only ever handled one.
+        setSelectedServices(picked.length > 0 ? picked : svcs.slice(0, 1))
+      },
+      (error: unknown) => {
+        if (cancelled) return
+        setLoadProblem(error instanceof ApiError && error.status === 404 ? 'gone' : 'failed')
+      }
+    )
     void fetchVehicles()
     void fetchAddresses().catch(() => undefined)
     void fetchProfile()
-  }, [vendorId, serviceIdsParam, fetchVehicles, fetchAddresses, fetchProfile])
+    return () => {
+      cancelled = true
+    }
+  }, [
+    vendorId,
+    serviceIdsParam,
+    modeParam,
+    router,
+    loadAttempt,
+    fetchVehicles,
+    fetchAddresses,
+    fetchProfile,
+  ])
 
   // Auto-select only when there is nothing to choose between. With several
   // cars, preselecting one would make the order summary appear the instant a
@@ -196,6 +249,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // is: the choice carried in from the garage page stands unless this garage
   // cannot do it, and there is no render where the toggle shows the wrong one.
   const bookingType = resolveBookingType(chosenType, vendor)
+  // The mode the link asked for, when this garage no longer offers it: Book
+  // again on a doorstep job at a garage that has since stopped travelling.
+  // Checkout books the mode the garage does offer, and says so up top.
+  const modeWithdrawn = unofferedMode(parseBookingType(modeParam), vendor)
 
   // Doorstep only. Unlike the car, the default *is* preselected: the customer
   // chose it as "where I am" in their profile, so re-asking adds a step
@@ -537,6 +594,43 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }
 
+  // Checked after every hook above, which must run on every render.
+  if (loadProblem) {
+    return (
+      <AppShell className="gap-4 pt-0">
+        <TopBar
+          showBack
+          center
+          title="Pick a Slot"
+          className="sticky top-0 z-30 -mx-4 mb-1 border-b border-border bg-brand-black px-4"
+        />
+        {loadProblem === 'gone' ? (
+          // The garage page's own words for a garage that is not listed:
+          // unverified, archived, or never was.
+          <div className="flex flex-col items-center gap-3 py-12 text-center">
+            <p className="text-[13px] text-text-secondary">
+              This garage isn&apos;t taking bookings on Detlio.
+            </p>
+            <Link
+              href="/home"
+              className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline"
+            >
+              Find another garage
+            </Link>
+          </div>
+        ) : (
+          <ErrorState
+            message="Couldn't load this garage. Check your connection."
+            onRetry={() => {
+              setLoadProblem(null)
+              setLoadAttempt((n) => n + 1)
+            }}
+          />
+        )}
+      </AppShell>
+    )
+  }
+
   return (
     <AppShell
       className={cn(
@@ -557,6 +651,38 @@ function BookContent({ vendorId }: { vendorId: string }) {
         title="Pick a Slot"
         className="sticky top-0 z-30 -mx-4 mb-1 border-b border-border bg-brand-black px-4"
       />
+
+      {/* The garage page says this where Book Now would be; a customer can
+          still land here from Book again or an old link, so checkout says it
+          up front instead of only once a date is picked. The server refuses
+          the booking either way (GARAGE_PAUSED). */}
+      {/* Neutral, as on the garage page: there is nothing here for the
+          customer to fix, so it is news, not a warning. */}
+      {vendor?.bookingsPaused && (
+        <Notice role="status" tone="neutral" title="Not taking bookings right now">
+          {vendor.bookingsPausedReason ||
+            'This garage has paused new bookings. Check back later, or pick another garage.'}
+        </Notice>
+      )}
+
+      {modeWithdrawn && (
+        <Notice
+          role="status"
+          tone="neutral"
+          title={`${BOOKING_TYPE_LABELS[modeWithdrawn]} isn't offered here now`}
+        >
+          {modeWithdrawn === 'doorstep'
+            ? 'This booking will be at the garage.'
+            : 'This booking will be a doorstep visit.'}
+        </Notice>
+      )}
+
+      {servicesDropped && (
+        <Notice role="status" tone="neutral" title="Some services are no longer offered">
+          This garage has stopped offering some of the services you picked, so
+          they&apos;ve been left out.
+        </Notice>
+      )}
 
       {/* Identity only — what you're booking and where. Every rupee figure
           lives in the order summary at the bottom, after the choices that

@@ -208,7 +208,7 @@ function HomeContent() {
         className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 text-left"
       >
         <IconSearch size={17} className="text-text-secondary" />
-        <span className="text-[13px] text-text-muted">Search garages, services...</span>
+        <span className="text-[13px] text-text-muted">Search garages or services</span>
       </button>
 
       {/* The chosen category is a white chip, not a red one: red on this

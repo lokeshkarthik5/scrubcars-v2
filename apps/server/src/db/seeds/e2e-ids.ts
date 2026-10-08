@@ -183,6 +183,19 @@ export const CUSTOMERS = {
    */
   receiptsStranger: { id: id(137), phone: '9000000037', name: 'Stranger Shankar', vehicleId: id(746) },
   /**
+   * Owns the My bookings fixtures at MAIN (BOOKINGS.history*): three still to
+   * happen, two over, and two that must be listed under neither — the old
+   * half of a move and a booking retired as 'rescheduled'. Its own customer
+   * so the two tabs hold exactly these, in an order the spec can assert.
+   */
+  myBookings: { id: id(138), phone: '9000000038', name: 'History Hema', vehicleId: id(747) },
+  /**
+   * Owns the Book again fixtures at MAIN (BOOKINGS.rebook*), all over, which
+   * the spec only opens checkout from and never pays. A pinned address at
+   * ORIGIN, so the doorstep checkout Book again opens reaches its summary.
+   */
+  bookAgain: { id: id(139), phone: '9000000039', name: 'Rebook Renuka', vehicleId: id(748) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -463,6 +476,39 @@ export const BOOKINGS = {
   receiptRefunded: refId('2ec10002'),
   /** CUSTOMERS.receiptsStranger's, pending with nothing paid: no receipt yet. */
   receiptUnpaid: refId('2ec10003'),
+  /**
+   * CUSTOMERS.myBookings' list at MAIN, read-only. Upcoming, soonest first:
+   * an Express Wash tomorrow at 08:00 (pending, unpaid), the Dent Assessment
+   * moved to 12:00 (historyMovedTo), an Interior Detail at 15:00 (confirmed).
+   */
+  historyUpcomingSoon: id(621),
+  historyUpcomingLater: id(622),
+  /**
+   * A move, as a reschedule leaves it: the 10:00 Dent Assessment cancelled by
+   * the customer with its payment still paid, and the 12:00 one carrying it.
+   * The old one is in neither tab.
+   */
+  historyMovedFrom: id(623),
+  historyMovedTo: id(624),
+  /** Past, most recent first: a Weekend Package the garage declined a day
+   *  ago (nothing was paid), then a Full Body Detail completed three days ago. */
+  historyDeclined: id(626),
+  historyCompleted: id(625),
+  /** Retired the old way, as status 'rescheduled' (a Retired Polish): in
+   *  neither tab. */
+  historyLegacyMoved: id(627),
+  /**
+   * CUSTOMERS.bookAgain's, all at MAIN and over. A doorstep job, completed,
+   * for a Full Body Detail then an Express Wash: Book again must carry both,
+   * in that order, and the mode.
+   */
+  rebookDoorstep: id(628),
+  /** Cancelled, for an Express Wash and the since-withdrawn Retired Polish:
+   *  Book again keeps the wash and says the other is no longer offered. */
+  rebookPartlyRetired: id(629),
+  /** Completed, for the Retired Polish alone: nothing left to book again, so
+   *  it opens the garage page. */
+  rebookAllRetired: id(630),
 } as const
 
 export const VEHICLES = {

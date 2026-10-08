@@ -33,7 +33,7 @@ test.describe('admin vendors', () => {
     // Unverified garages are filtered out of the customer listing entirely.
     const customer = await context.newPage()
     await customer.goto('http://localhost:3000/search')
-    await customer.getByPlaceholder('Search garages, services...').fill(name)
+    await customer.getByRole('searchbox', { name: 'Search garages or services' }).fill(name)
     await expect(customer.getByText(name)).toHaveCount(0)
 
     await page.goto('/vendors')
@@ -49,7 +49,7 @@ test.describe('admin vendors', () => {
       .toBe(true)
 
     await customer.reload()
-    await customer.getByPlaceholder('Search garages, services...').fill(name)
+    await customer.getByRole('searchbox', { name: 'Search garages or services' }).fill(name)
     await expect(customer.getByText(name).first()).toBeVisible()
     await customer.close()
 

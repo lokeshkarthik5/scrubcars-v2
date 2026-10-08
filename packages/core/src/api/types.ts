@@ -121,6 +121,11 @@ export interface ApiVendorListItem {
   workingHours?: Array<Omit<ApiWorkingHours, 'id'>>
   /** Holidays in the coming week, as IST dates. Absent on older servers. */
   closures?: string[]
+  /**
+   * On a search, the service the garage was found by when its name and city
+   * did not match. Null otherwise; absent on older servers.
+   */
+  matchedService?: string | null
 }
 
 export interface ApiVendorList {
@@ -387,6 +392,12 @@ export interface ApiBooking {
    * garage payloads and from servers older than receipts.
    */
   receiptAvailable?: boolean
+  /**
+   * Customer only: the customer moved this booking to a new time, so it was
+   * cancelled and the new booking carries its payment. Absent from garage
+   * payloads and from older servers.
+   */
+  moved?: boolean
   review: {
     id: string
     rating: number

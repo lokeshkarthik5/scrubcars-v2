@@ -274,7 +274,7 @@ Bottom nav:  Home · Search · Bookings · Profile
 
 **Elements**:
 ```
-Search bar:   ti-search icon left, placeholder "Search garages, services..."
+Search bar:   ti-search icon left, placeholder "Search garages or services"
 Filters:      Distance · Rating · Price · Filter (ti-adjustments)
               active filter: bg accent-muted, text #E33402, border #E33402
               inactive: bg #151515, border #2A2A2A, text #9A9A9A
@@ -292,7 +292,7 @@ Vendor card:
 **Route**: `/garage/:id`
 
 **Layout**:
-- Back arrow + vendor name + heart icon in top bar
+- Back arrow + vendor name in top bar (no favourite heart: favourites are not saved anywhere, so a heart would reset on reload)
 - Photo strip (horizontal scroll, 80px height, bg #151515 placeholder)
 - Tabs: Services · Photos · Reviews
 - Content below tabs
@@ -699,7 +699,6 @@ ti-user              profile
 ti-search            search
 ti-adjustments       filters
 ti-home              home
-ti-heart             favourite
 ti-star              rating
 ti-edit              edit
 ti-trash             delete

@@ -18,6 +18,17 @@ reconstructing every change in them.
 
 ### Added
 
+- **Search by service** (no migration). `GET /vendors?q=` also matches the
+  name of any active service of the garage (packages included), alongside
+  its name and city, in the one clause the list, the map and both segments
+  share. The search text's `%`, `_` and `\` are literal now (`containsPattern`,
+  moved to `lib/search.ts`): a lone `%` matched every garage. Each list item
+  gains `matchedService`, the service a garage was found by when its name and
+  city did not match (null otherwise; `matchedServiceName`, unit-tested).
+- Customer booking payloads gain `moved`: the customer moved this booking to
+  a new time, so the app leaves it out of My bookings. `toVendorBookingResponse`
+  drops it.
+
 - **Payment receipts** (migration `0030_receipt_numbers`, which must be
   applied before deploying). `GET /bookings/:id/receipt` gives the customer a
   receipt for a booking whose payment went through (paid, collected, or

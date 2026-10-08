@@ -18,10 +18,10 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
-  containsPattern,
   type BookingListCursor,
   type BookingSearch,
 } from '../../lib/booking-ops.js'
+import { containsPattern } from '../../lib/search.js'
 import {
   bookingCharges,
   bookingIntents,

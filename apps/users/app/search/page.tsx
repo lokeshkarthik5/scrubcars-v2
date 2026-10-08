@@ -78,10 +78,14 @@ function SearchContent() {
   return (
     <AppShell showNav showBrand className="gap-4 py-4">
       <div className="flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2.5">
-        <IconSearch size={18} className="shrink-0 text-text-muted" />
+        <IconSearch size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
+        {/* A garage is found by its name, its area or any service it sells,
+            so the box says both. The label is its own attribute: a
+            placeholder disappears the moment someone types. */}
         <input
           type="search"
-          placeholder="Search garages, services..."
+          placeholder="Search garages or services"
+          aria-label="Search garages or services"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 bg-transparent text-[13px] text-text-primary outline-none"
@@ -149,7 +153,7 @@ function SearchContent() {
             />
           ) : vendors.length === 0 ? (
             <p className="py-6 text-center text-[13px] text-text-secondary">
-              No garages match your search.
+              No garages or services match your search.
             </p>
           ) : (
             <>

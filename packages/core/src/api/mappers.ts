@@ -114,6 +114,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     serviceTags: item.serviceTags,
     isVerified: item.isVerified,
     photos: item.photos,
+    matchedService: item.matchedService ?? null,
   }
 }
 
@@ -152,6 +153,8 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     serviceTags: categories.map(categoryLabel),
     isVerified: vendor.isVerified,
     photos: vendor.photos.map((p) => p.url),
+    // Not a search result, so nothing was matched.
+    matchedService: null,
   }
 }
 
@@ -363,6 +366,7 @@ export function mapBooking(booking: ApiBooking): Booking {
         }
       : { status: 'none', amount: 0, amountRefunded: 0 },
     receiptAvailable: booking.receiptAvailable ?? false,
+    moved: booking.moved ?? false,
   }
 }
 
