@@ -1,8 +1,9 @@
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookingIntents,
   bookings,
+  receiptNumbers,
   userAddresses,
   users,
   userVehicles,
@@ -38,6 +39,21 @@ export const usersRepository = {
 
   deleteUser(id: string) {
     return db.delete(users).where(eq(users.id, id)).returning()
+  },
+
+  /**
+   * Whether a receipt number was ever issued on one of the user's bookings.
+   * receipt_numbers is keyed by a reschedule chain's first booking, which is
+   * the same customer's as the rest of the chain.
+   */
+  async hasReceiptNumbers(userId: string) {
+    const [row] = await db
+      .select({ one: sql`1` })
+      .from(receiptNumbers)
+      .innerJoin(bookings, eq(bookings.id, receiptNumbers.rootBookingId))
+      .where(eq(bookings.userId, userId))
+      .limit(1)
+    return !!row
   },
 
   listAddresses(userId: string) {

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -9,6 +9,9 @@ import {
   discountRedemptions,
   jobPhotos,
   payments,
+  receiptCounters,
+  receiptNumbers,
+  refundRecords,
   services,
   userAddresses,
   userVehicles,
@@ -23,6 +26,7 @@ import {
   istDayBounds,
   type BusyInterval,
 } from '../../lib/slots.js'
+import { financialYearOf, formatReceiptSerial } from '../../lib/receipts.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 
 type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
@@ -153,19 +157,179 @@ export async function lockDiscount(
 
 // ─── Lock order ──────────────────────────────────────────────────────────────
 //
-// Every path that writes a booking takes its transaction-scoped advisory locks
-// in this one order, and skips the ones it does not need:
+// Every path that writes a booking takes its locks in this one order, and
+// skips the ones it does not need:
 //
 //   1. vehicle:<id>                  lockVehicle
 //   2. reschedule:<root booking id>  rescheduleBookingWithPayment only
-//   3. vendor-day:<vendor>:<date>    lockVendorDay, via checkGarageCanTake
-//   4. discount:<id>                 lockDiscount
+//   3. the booking's own row         FOR UPDATE on the booking being moved
+//                                    (rescheduleBookingWithPayment), FOR NO
+//                                    KEY UPDATE on the booking being paid for
+//                                    (settlePayment)
+//   4. vendor-day:<vendor>:<date>    lockVendorDay, via checkGarageCanTake
+//   5. discount:<id>                 lockDiscount
+//   6. chain root's row, KEY SHARE   allocateReceiptNumber
+//   7. receipt_counters row (<FY>)   allocateReceiptNumber, always last
 //
 // (consumeIntent locks its intent row FOR UPDATE before all of them. The
 // job-photos:<booking> lock and the final bill's row lock are only ever taken
 // on their own, never alongside these.) Two transactions that take locks in
 // the same order can wait on each other but never deadlock, so a new lock goes
 // into this list rather than wherever it is first needed.
+//
+// The two row locks at the end are there because of the receipt counter.
+// Every payment in the financial year queues on its row until the holder
+// commits, so it is taken at the very end, after every other write, and
+// nothing may be locked after it. But the receipt_numbers insert that follows
+// it checks its foreign key, which takes KEY SHARE on the chain's first
+// booking, and a reschedule holds the booking it moves FOR UPDATE while it
+// waits for the vendor-day lock. Left to the foreign key, that lock would
+// come after the counter and could close a cycle through vendor-day; so
+// allocateReceiptNumber takes it itself, before the counter (6). And
+// settlePayment locks the booking it is paying for (3) before vendor-day,
+// where the reschedule takes its own, so the two paths queue on that row
+// rather than each holding what the other wants. (KEY SHARE conflicts only
+// with FOR UPDATE, so the foreign key checks a reschedule's insert makes on
+// the chain after vendor-day wait on nobody that a payment holds.)
+
+// ─── Receipt numbers ─────────────────────────────────────────────────────────
+
+/** What allocateReceiptNumber did. */
+export type ReceiptNumberAllocation =
+  /** A new number, issued in this transaction. */
+  | { kind: 'issued'; number: string }
+  /** The chain already had one (a retry, a racing call): nothing was issued. */
+  | { kind: 'existing'; number: string }
+  /**
+   * Numbering failed and was rolled back on its own, leaving the caller's
+   * transaction as it was. The caller logs it; the receipt page tries again
+   * the first time it is opened.
+   */
+  | { kind: 'failed'; error: unknown }
+
+/** Thrown inside the savepoint to give back a number that lost a race. */
+class ReceiptNumberTaken extends Error {}
+
+/** The receipt number stored for a chain, read through the given connection. */
+async function findReceiptNumberIn(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  conn: PgTransaction<any, any, any>,
+  rootBookingId: string
+) {
+  const [row] = await conn
+    .select({ number: receiptNumbers.number })
+    .from(receiptNumbers)
+    .where(eq(receiptNumbers.rootBookingId, rootBookingId))
+    .limit(1)
+  return row?.number ?? null
+}
+
+/**
+ * Issues the receipt number of a reschedule chain, once, inside the caller's
+ * transaction: "DTL/26-27/000123" (see formatReceiptSerial).
+ *
+ * Called wherever a booking's own payment first goes through (settlePayment,
+ * consumeIntent, markCashCollected) and, as a safety net, by the receipt read
+ * (issueReceiptNumber). Not by a reschedule, which carries a payment that
+ * already has its number, and not by a final bill, which is printed on the
+ * booking's receipt under the booking's number.
+ *
+ * `rootBookingId` is the chain's first booking (originalBookingId ?? id), and
+ * `issuedAt` when its payment went through (receiptIssuedAt): its financial
+ * year is the number's.
+ *
+ * Gapless, which is why it is a counter row and not a SEQUENCE. The counter
+ * is bumped in the caller's transaction, so a payment that rolls back gives
+ * its number back. The UPDATE's row lock is held until commit, so this is the
+ * last thing a transaction does (see the lock order above).
+ *
+ * Everything here, the first read included, runs in a savepoint, and every
+ * error comes back as 'failed' rather than thrown, so that:
+ *
+ * - two first views of one receipt get one number: the second waits on the
+ *   counter, then finds the chain numbered at the insert, and its bump is
+ *   rolled back with the savepoint before the existing number is read;
+ * - anything else going wrong here (a counter out of step with the numbers
+ *   after a hand edit, a full year, the code deployed before migration 0030
+ *   made the tables) rolls back only the numbering. An error outside a
+ *   savepoint would abort the caller's whole transaction, and with it the
+ *   record of money that has just been taken. The payment stands; the
+ *   receipt page tries again later.
+ */
+export async function allocateReceiptNumber(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  rootBookingId: string,
+  issuedAt: Date
+): Promise<ReceiptNumberAllocation> {
+  try {
+    return await tx.transaction(async (savepoint): Promise<ReceiptNumberAllocation> => {
+      // Checked before the counter is touched, so a chain that has its number
+      // never queues behind other payments for nothing.
+      const existing = await findReceiptNumberIn(savepoint, rootBookingId)
+      if (existing) return { kind: 'existing', number: existing }
+
+      // Throws past 999999 below, and on a date that is not one here; both
+      // land in the catch.
+      const financialYear = financialYearOf(issuedAt)
+
+      // The lock the insert's foreign key check would take, taken now so it
+      // comes before the counter's (lock order, step 6). A reschedule may
+      // hold this row; we wait for it here, holding nothing every payment
+      // needs.
+      await savepoint
+        .select({ id: bookings.id })
+        .from(bookings)
+        .where(eq(bookings.id, rootBookingId))
+        .for('key share')
+
+      // The year's first receipt makes its counter row.
+      await savepoint
+        .insert(receiptCounters)
+        .values({ financialYear, lastSeq: 0 })
+        .onConflictDoNothing()
+
+      const [counter] = await savepoint
+        .update(receiptCounters)
+        .set({ lastSeq: sql`${receiptCounters.lastSeq} + 1` })
+        .where(eq(receiptCounters.financialYear, financialYear))
+        .returning({ lastSeq: receiptCounters.lastSeq })
+
+      // Throws past 999999, which rolls the bump back with the savepoint.
+      const formatted = formatReceiptSerial(financialYear, counter.lastSeq)
+
+      const [inserted] = await savepoint
+        .insert(receiptNumbers)
+        .values({
+          rootBookingId,
+          financialYear,
+          seq: counter.lastSeq,
+          number: formatted,
+          issuedAt,
+        })
+        .onConflictDoNothing({ target: receiptNumbers.rootBookingId })
+        .returning({ number: receiptNumbers.number })
+
+      // Someone numbered this chain while we waited on the counter. Throwing
+      // rolls our bump back, so the serial we were handed is not skipped.
+      if (!inserted) throw new ReceiptNumberTaken()
+      return { kind: 'issued', number: inserted.number }
+    })
+  } catch (error) {
+    if (!(error instanceof ReceiptNumberTaken)) return { kind: 'failed', error }
+    // The winner's number, read once the savepoint is rolled back. In a
+    // savepoint of its own, for the same reason as above.
+    try {
+      const winner = await tx.transaction((savepoint) =>
+        findReceiptNumberIn(savepoint, rootBookingId)
+      )
+      if (winner) return { kind: 'existing', number: winner }
+      return { kind: 'failed', error }
+    } catch (readError) {
+      return { kind: 'failed', error: readError }
+    }
+  }
+}
 
 // Serialises concurrent bookings for one vehicle. Taken before the overlap
 // check in every path that creates a booking.
@@ -410,6 +574,26 @@ export const bookingsRepository = {
         ...JOB_RECORDS,
       },
     })
+  },
+
+  /**
+   * Every refund recorded against a booking (its own payment and its bills),
+   * oldest first. For the customer's receipt, which lists each one; only the
+   * columns the receipt may show are read — never who recorded it or the
+   * team's note.
+   */
+  listRefundRecordsForBooking(bookingId: string) {
+    return db
+      .select({
+        kind: refundRecords.kind,
+        targetId: refundRecords.targetId,
+        amount: refundRecords.amount,
+        refundRef: refundRecords.refundRef,
+        recordedAt: refundRecords.recordedAt,
+      })
+      .from(refundRecords)
+      .where(eq(refundRecords.bookingId, bookingId))
+      .orderBy(asc(refundRecords.recordedAt), asc(refundRecords.id))
   },
 
   listBookingsForUser(
@@ -943,19 +1127,60 @@ export const bookingsRepository = {
       .returning()
   },
 
-  updatePaymentStatus(
-    bookingId: string,
-    status: 'pending' | 'paid' | 'failed' | 'refunded' | 'collected',
-    paidAt?: Date | null
-  ) {
-    return db
-      .update(payments)
-      .set({
-        status,
-        ...(paidAt !== undefined ? { paidAt } : {}),
-      })
-      .where(eq(payments.bookingId, bookingId))
-      .returning()
+  /**
+   * A cash booking's money, collected when the garage completes the job: the
+   * moment its payment goes through, so its receipt number is issued in the
+   * same transaction (allocateReceiptNumber). Never over a payment that has
+   * already gone through, whose number and paid_at are already on a receipt.
+   */
+  markCashCollected(params: {
+    bookingId: string
+    // The first booking of its reschedule chain, which the number belongs to.
+    rootBookingId: string
+    collectedAt: Date
+  }) {
+    return db.transaction(async (tx) => {
+      const [payment] = await tx
+        .update(payments)
+        .set({ status: 'collected', paidAt: params.collectedAt })
+        .where(
+          and(
+            eq(payments.bookingId, params.bookingId),
+            notInArray(payments.status, ['paid', 'collected', 'refunded'])
+          )
+        )
+        .returning()
+
+      if (!payment) return { payment: null, receipt: null }
+
+      const receipt = await allocateReceiptNumber(
+        tx,
+        params.rootBookingId,
+        params.collectedAt
+      )
+      return { payment, receipt }
+    })
+  },
+
+  /** The receipt number of a reschedule chain, if one has been issued. */
+  async findReceiptNumber(rootBookingId: string): Promise<string | null> {
+    const [row] = await db
+      .select({ number: receiptNumbers.number })
+      .from(receiptNumbers)
+      .where(eq(receiptNumbers.rootBookingId, rootBookingId))
+      .limit(1)
+    return row?.number ?? null
+  },
+
+  /**
+   * Issues a chain's receipt number on its own, for the receipt read when
+   * none was issued as the payment went through (a path that missed it, a
+   * row written by hand). Its own transaction, so the receipt number's two
+   * locks (the chain's first booking, then the counter) are the only ones it
+   * takes.
+   */
+  issueReceiptNumber(rootBookingId: string, issuedAt: Date) {
+    return db.transaction((tx) => allocateReceiptNumber(tx, rootBookingId, issuedAt))
   },
 
   // Archived cars are excluded: one the customer has removed from their garage

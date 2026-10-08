@@ -362,6 +362,7 @@ export function mapBooking(booking: ApiBooking): Booking {
           refundedAt: booking.refund.refundedAt ?? undefined,
         }
       : { status: 'none', amount: 0, amountRefunded: 0 },
+    receiptAvailable: booking.receiptAvailable ?? false,
   }
 }
 

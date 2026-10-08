@@ -66,7 +66,35 @@ describe('parseBookingSearch', () => {
       text: '98765432',
       idPrefix: '98765432',
       phoneDigits: '98765432',
+      receiptNumber: null,
     })
+  })
+
+  test('a whole receipt number matches, however it was typed', () => {
+    expect(parseBookingSearch('DTL/26-27/000123')?.receiptNumber).toBe('DTL/26-27/000123')
+    expect(parseBookingSearch(' dtl/26-27/000123 ')?.receiptNumber).toBe('DTL/26-27/000123')
+    // From the saved PDF's name, which has hyphens for slashes, alone or whole
+    // as WhatsApp shows it.
+    expect(parseBookingSearch('DTL-26-27-000123')?.receiptNumber).toBe('DTL/26-27/000123')
+    expect(
+      parseBookingSearch('Detlio receipt DTL-26-27-000123.pdf')?.receiptNumber
+    ).toBe('DTL/26-27/000123')
+    expect(
+      parseBookingSearch('Detlio receipt DTL-26-27-000123')?.receiptNumber
+    ).toBe('DTL/26-27/000123')
+    // Read out on a call and typed with spaces.
+    expect(parseBookingSearch('dtl 26-27 000123')?.receiptNumber).toBe('DTL/26-27/000123')
+    expect(parseBookingSearch('DTL 26 27 000123')?.receiptNumber).toBe('DTL/26-27/000123')
+  })
+
+  test('part of a receipt number, or the old format, is not one', () => {
+    expect(parseBookingSearch('DTL/26-27')?.receiptNumber).toBeNull()
+    expect(parseBookingSearch('000123')?.receiptNumber).toBeNull()
+    expect(parseBookingSearch('DTL/26-27/123')?.receiptNumber).toBeNull()
+    expect(parseBookingSearch('DTL-261003-3F2A9C1B')?.receiptNumber).toBeNull()
+    expect(parseBookingSearch('DTL-26-27')?.receiptNumber).toBeNull()
+    expect(parseBookingSearch('DTL/26-27/0001234')?.receiptNumber).toBeNull()
+    expect(parseBookingSearch('26-27/000123')?.receiptNumber).toBeNull()
   })
 })
 

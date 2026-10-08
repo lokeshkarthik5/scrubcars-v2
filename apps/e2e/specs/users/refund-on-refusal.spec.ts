@@ -15,7 +15,7 @@
 import type { APIRequestContext } from '@playwright/test'
 import { test, expect } from '../../support/fixtures'
 import { API, loginViaApi } from '../../support/auth'
-import { sql } from '../../support/db'
+import { getReceiptNumber, sql } from '../../support/db'
 import { BOOKINGS, CUSTOMERS, SERVICES, VENDORS } from '../../support/seed-ids'
 
 const tomorrow = () =>
@@ -189,5 +189,8 @@ test.describe('a payment for a time the garage can no longer take @p0', () => {
     // Paid, because the money was taken; cancelled, because the garage can't
     // do it. Ops refunds it from the alert.
     expect(row).toEqual({ status: 'cancelled', payment: 'paid' })
+    // And a receipt number: the customer paid, so their receipt shows the
+    // payment and, once ops has done it, the refund.
+    expect((await getReceiptNumber(BOOKINGS.payLaterFull))?.number).toMatch(/^DTL\/\d{2}-\d{2}\/\d{6}$/)
   })
 })

@@ -47,6 +47,15 @@ export async function getBookingDetail(c: BookingsContext, bookingId: string) {
   })
 }
 
+export async function getReceipt(c: BookingsContext, bookingId: string) {
+  const receipt = await bookingsService.getReceipt(getAuth(c).sub, bookingId)
+
+  return c.json({
+    success: true,
+    data: receipt,
+  })
+}
+
 export async function createBooking(
   c: BookingsContext,
   input: CreateBookingInput

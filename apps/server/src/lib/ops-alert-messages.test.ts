@@ -240,6 +240,25 @@ describe('sms failure', () => {
   })
 })
 
+describe('receipt number failure', () => {
+  test('names the booking, says the money is safe, quotes the database and links to the booking', () => {
+    const text = formatOpsAlert({
+      kind: 'receipt_number_failed',
+      bookingId: booking.id,
+      errorMessage:
+        'duplicate key value violates unique constraint "receipt_numbers_financial_year_seq_key"',
+      quietMinutes: 10,
+    })
+    expect(text).toContain('🧾 Receipt number not issued #3F2A9C1B')
+    expect(text).toContain('The payment is recorded.')
+    expect(text).toContain(
+      `Database said: "duplicate key value violates unique constraint 'receipt_numbers_financial_year_seq_key'"`
+    )
+    expect(text).toContain("Further failures in the next 10 minutes won't be alerted.")
+    expect(text.split('\n').at(-1)).toBe(adminBookingUrl(booking.id))
+  })
+})
+
 describe('pending digest', () => {
   const now = new Date('2026-10-04T07:15:00Z') // 12:45 pm IST
   const waitingRow = {

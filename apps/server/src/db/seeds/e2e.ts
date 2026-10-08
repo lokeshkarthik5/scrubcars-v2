@@ -25,6 +25,7 @@ import {
   discountRedemptions,
   discounts,
   payments,
+  refundRecords,
   reviews,
   servicePackageItems,
   services,
@@ -161,7 +162,8 @@ async function seedPeople() {
         CUSTOMERS.capacityHolder, CUSTOMERS.scheduling,
         CUSTOMERS.raceFirst, CUSTOMERS.raceSecond, CUSTOMERS.payLaterFull,
         CUSTOMERS.billPayer, CUSTOMERS.billSmall, CUSTOMERS.billStranger,
-        CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds].map((c, i) => ({
+        CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds,
+        CUSTOMERS.receipts, CUSTOMERS.receiptsStranger].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -505,8 +507,17 @@ type BookingSpec = {
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
   items: Array<{ id: string; name: string; amount: string; durationMins: number }>
   discount?: { id: string; code: string; amount: string; fundedBy: 'platform' | 'vendor' }
-  /** `paidAt` defaults to a day ago for a paid one. */
-  payment?: { status: 'pending' | 'paid'; txnId?: string; paidAt?: Date }
+  /**
+   * `paidAt` defaults to a day ago for a paid (or since refunded) one. A
+   * refunded one carries the refund as ops records it: the running total on
+   * the payment and a refund_records row (see 0029).
+   */
+  payment?: {
+    status: 'pending' | 'paid' | 'refunded'
+    txnId?: string
+    paidAt?: Date
+    refund?: { ref: string; at: Date }
+  }
   rescheduleCount?: number
   /** Defaults to now. Set it back to make a booking that has been waiting. */
   createdAt?: Date
@@ -533,6 +544,12 @@ type BookingSpec = {
 
 /**
  * Writes a booking plus its line items, and optionally its payment row.
+ *
+ * A paid payment is written directly, as a row written by hand would be, and
+ * gets no receipt number: nothing reads one until a receipt is opened, and
+ * the receipt read issues the missing number then (its safety net), which is
+ * the path receipts.spec exercises. Issuing them here instead would number
+ * forty-odd bookings no spec looks at, and leave the safety net untested.
  *
  * `amount` is derived the way the API derives it — subtotal minus discount —
  * rather than being stated separately, so a fixture can never disagree with
@@ -592,15 +609,36 @@ async function insertBooking(spec: BookingSpec) {
   )
 
   if (spec.payment) {
+    const paidAmount = (subtotal - discountAmount).toFixed(2)
+    const refund = spec.payment.refund
     await db.insert(payments).values({
       bookingId: spec.id,
       gateway: 'razorpay',
       gatewayTxnId: spec.payment.txnId ?? null,
-      amount: (subtotal - discountAmount).toFixed(2),
+      amount: paidAmount,
       currency: 'INR',
       status: spec.payment.status,
-      paidAt: spec.payment.status === 'paid' ? (spec.payment.paidAt ?? daysAgo(1)) : null,
+      paidAt: spec.payment.status === 'pending' ? null : (spec.payment.paidAt ?? daysAgo(1)),
+      // Only a full refund is seeded: it is what moves a payment to 'refunded'.
+      ...(refund && {
+        refundedAmount: paidAmount,
+        refundRef: refund.ref,
+        refundedAt: refund.at,
+        refundedBy: 'E2E seed',
+      }),
     })
+    if (refund) {
+      await db.insert(refundRecords).values({
+        kind: 'booking',
+        targetId: spec.id,
+        bookingId: spec.id,
+        amount: paidAmount,
+        refundedBefore: '0.00',
+        refundRef: refund.ref,
+        recordedBy: 'E2E seed',
+        recordedAt: refund.at,
+      })
+    }
   }
 
   if (spec.discount) {
@@ -817,6 +855,26 @@ async function seedBookingRows() {
   await insertBooking({ id: BOOKINGS.refundMovedTo, ...refundsCustomer, scheduledAt: tomorrowAt(14),
     status: 'pending', rescheduledFromId: BOOKINGS.refundMovedFrom, rescheduleCount: 1,
     payment: { status: 'paid', txnId: 'pay_seed_refund_moved' } })
+
+  // The receipt spec's bookings at MAIN. A completed one with two services
+  // and a promo code, and one the garage declined that ops then refunded in
+  // full, both CUSTOMERS.receipts'. Like every seed, neither has a receipt
+  // number: the spec's first open issues it. The third is the stranger's,
+  // with nothing paid, so it has no receipt to give.
+  const receiptsCustomer = { userId: CUSTOMERS.receipts.id, vehicleId: CUSTOMERS.receipts.vehicleId }
+  await insertBooking({ id: BOOKINGS.receiptPaid, ...receiptsCustomer, scheduledAt: daysAgo(1),
+    status: 'completed', items: [washItem, detailItem],
+    discount: { id: DISCOUNTS.percentCapped.id, code: DISCOUNTS.percentCapped.code,
+      amount: '200.00', fundedBy: 'platform' },
+    payment: { status: 'paid', txnId: 'pay_seed_receipt_paid', paidAt: daysAgo(2) } })
+  await insertBooking({ id: BOOKINGS.receiptRefunded, ...receiptsCustomer, scheduledAt: daysAgo(1),
+    status: 'cancelled', items: [washItem],
+    cancellation: { by: 'vendor', reason: 'Fully booked that day', at: daysAgo(2) },
+    payment: { status: 'refunded', txnId: 'pay_seed_receipt_refunded', paidAt: daysAgo(3),
+      refund: { ref: 'rfnd_E2ERECEIPT0001', at: daysAgo(1) } } })
+  await insertBooking({ id: BOOKINGS.receiptUnpaid, userId: CUSTOMERS.receiptsStranger.id,
+    vehicleId: CUSTOMERS.receiptsStranger.vehicleId, scheduledAt: tomorrowAt(19), status: 'pending',
+    items: [washItem], payment: { status: 'pending' } })
 
   // The chain behind rescheduleExhausted. rescheduleCount is denormalised onto
   // the booking, but booking_reschedules is the source of truth, so both have

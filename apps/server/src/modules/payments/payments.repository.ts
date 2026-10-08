@@ -2,22 +2,28 @@ import { and, eq, inArray, notInArray } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookingNotes, bookings, payments } from '../../db/schema.js'
 import {
+  allocateReceiptNumber,
   checkGarageCanTake,
   type GarageRefusal,
+  type ReceiptNumberAllocation,
 } from '../bookings/bookings.repository.js'
 
 export type PaymentRecord = typeof payments.$inferSelect
 
 // What settlePayment did with a captured payment for an existing booking.
+//
+// `receipt` is the receipt number issued with the payment: a refused booking
+// gets one too, because the money was taken and the customer's receipt shows
+// it and its refund.
 export type SettlePaymentResult =
-  | { kind: 'paid'; payment: PaymentRecord }
+  | { kind: 'paid'; payment: PaymentRecord; receipt: ReceiptNumberAllocation }
   /** Already paid — the browser callback and the webhook race to settle it. */
   | { kind: 'already' }
   /**
    * The garage would no longer take the booking, so it was cancelled and the
    * payment recorded for a refund. Only the call that wrote this gets it.
    */
-  | { kind: 'refused'; refusal: GarageRefusal }
+  | { kind: 'refused'; refusal: GarageRefusal; receipt: ReceiptNumberAllocation }
   | { kind: 'not_found' }
 
 export const paymentsRepository = {
@@ -47,18 +53,6 @@ export const paymentsRepository = {
       .returning()
   },
 
-  markPaid(bookingId: string, paymentTxnId: string, paidAt: Date) {
-    return db
-      .update(payments)
-      .set({
-        status: 'paid',
-        gatewayTxnId: paymentTxnId,
-        paidAt,
-      })
-      .where(eq(payments.bookingId, bookingId))
-      .returning()
-  },
-
   /**
    * Settle a captured payment for a booking that was written unpaid (the
    * older POST /bookings path, paid later from booking details).
@@ -67,13 +61,21 @@ export const paymentsRepository = {
    * was written say nothing about now: the last bay may have gone to someone
    * who paid first, or the garage may have paused or marked the day a
    * holiday. So they run again here, under the same vendor-day lock as every
-   * other booking write (the only lock this path takes, so the lock order in
-   * bookings.repository.ts holds). A refusal cancels the booking — it must
-   * not land in the garage's portal — and still records the payment as paid,
-   * because the money was taken and someone has to refund it.
+   * other booking write. A refusal cancels the booking — it must not land in
+   * the garage's portal — and still records the payment as paid, because the
+   * money was taken and someone has to refund it.
+   *
+   * Locks, in the order in bookings.repository.ts: the booking's own row,
+   * vendor-day, then the receipt number's two (the chain's first booking and
+   * the counter). The booking row comes first because a reschedule of this
+   * booking holds it FOR UPDATE while it waits for vendor-day; taking it
+   * after vendor-day (the refusal's cancel, the receipt number's foreign
+   * key) could deadlock with it.
    *
    * Each write is conditional on the state read, so of two racing calls only
-   * one settles; the other reads 'already'.
+   * one settles; the other reads 'already'. The one that settles issues the
+   * receipt number in the same transaction, as its last step (the counter
+   * lock comes last in the lock order).
    */
   settlePayment(params: {
     bookingId: string
@@ -94,10 +96,15 @@ export const paymentsRepository = {
           scheduledAt: bookings.scheduledAt,
           durationMins: bookings.durationMins,
           status: bookings.status,
+          originalBookingId: bookings.originalBookingId,
         })
         .from(bookings)
         .where(eq(bookings.id, params.bookingId))
         .limit(1)
+        // Before vendor-day (see above). NO KEY UPDATE, the lock the refusal's
+        // cancel would take: it waits for a reschedule of this booking to
+        // finish, and does not block the foreign key checks of other writes.
+        .for('no key update')
 
       if (!booking) return { kind: 'not_found' }
 
@@ -131,7 +138,15 @@ export const paymentsRepository = {
         .returning()
 
       if (!payment) return { kind: 'already' }
-      if (!refusal) return { kind: 'paid', payment }
+
+      // The number belongs to the chain's first booking: an unpaid booking
+      // can have been moved before it was paid for.
+      const rootBookingId = booking.originalBookingId ?? booking.id
+
+      if (!refusal) {
+        const receipt = await allocateReceiptNumber(tx, rootBookingId, params.paidAt)
+        return { kind: 'paid', payment, receipt }
+      }
 
       const words = params.onRefusal(refusal)
 
@@ -159,7 +174,8 @@ export const paymentsRepository = {
         body: words.note.body,
       })
 
-      return { kind: 'refused', refusal }
+      const receipt = await allocateReceiptNumber(tx, rootBookingId, params.paidAt)
+      return { kind: 'refused', refusal, receipt }
     })
   },
 

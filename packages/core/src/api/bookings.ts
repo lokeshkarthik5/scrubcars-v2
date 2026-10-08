@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 import { mapBooking, mapSlots } from './mappers'
 import type { ApiBooking, ApiSlotsResponse } from './types'
-import type { Booking, BookingType, PaymentMethod } from '@repo/core/types'
+import type { Booking, BookingReceipt, BookingType, PaymentMethod } from '@repo/core/types'
 
 export interface CreateBookingPayload {
   vendorId: string
@@ -127,6 +127,15 @@ export async function getBooking(id: string): Promise<Booking | undefined> {
   } catch {
     return undefined
   }
+}
+
+/**
+ * GET /bookings/:id/receipt — the customer's payment receipt. Throws the
+ * ApiError as it came: the page tells "no receipt yet"
+ * (RECEIPT_NOT_AVAILABLE) apart from "not found".
+ */
+export async function getBookingReceipt(id: string): Promise<BookingReceipt> {
+  return apiClient<BookingReceipt>(`/bookings/${id}/receipt`)
 }
 
 /** GET /bookings/vendor */

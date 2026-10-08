@@ -12,7 +12,10 @@ import {
 } from '../booking-intents/booking-intents.service.js'
 import { bookingChargesService } from '../booking-charges/booking-charges.service.js'
 import type { GarageRefusal } from '../bookings/bookings.repository.js'
-import { garageRefusalForBooking } from '../bookings/bookings.service.js'
+import {
+  garageRefusalForBooking,
+  logReceiptNumberFailure,
+} from '../bookings/bookings.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { paymentsRepository } from './payments.repository.js'
 import type { VerifyPaymentInput } from './payments.validation.js'
@@ -168,6 +171,7 @@ async function markBookingPaid(
 
   switch (result.kind) {
     case 'paid':
+      logReceiptNumberFailure(result.receipt, bookingId)
       return result.payment
 
     // A racing call settled it first. Re-read rather than guess which way it
@@ -194,6 +198,7 @@ async function markBookingPaid(
     // from the call that recorded it, and the 409 the app shows as "your
     // payment will be refunded".
     case 'refused': {
+      logReceiptNumberFailure(result.receipt, bookingId)
       const reason = REFUSAL_REASONS[result.refusal]
       log.error(
         { bookingId, paymentId: paymentTxnId, reason },

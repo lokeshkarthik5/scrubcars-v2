@@ -127,6 +127,17 @@ bookingsRoutes.patch(
   (c) => bookingsController.markCompleted(c, c.req.valid('param').id)
 )
 
+// The customer's payment receipt. Customer-only and owner-only: unlike
+// GET /:id, no garage member or support session reads it — it is the
+// customer's own record of what they paid.
+bookingsRoutes.get(
+  '/:id/receipt',
+  authMiddleware,
+  requireCustomer,
+  zValidator('param', bookingIdParamSchema),
+  (c) => bookingsController.getReceipt(c, c.req.valid('param').id)
+)
+
 bookingsRoutes.get(
   '/:id',
   authMiddleware,

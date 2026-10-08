@@ -27,15 +27,21 @@ export interface BookingSearch {
   idPrefix: string | null
   /** Digits to match a customer phone against, when the text looks like one. */
   phoneDigits: string | null
+  /**
+   * A receipt number in its stored shape ("DTL/26-27/000123"), when the text
+   * is exactly one, however it was written: a customer quotes it from their
+   * receipt, or sends the PDF named after it.
+   */
+  receiptNumber: string | null
 }
 
 /**
  * Reads a search box entry.
  *
  * Ops gets a booking reference read out as "hash three F two A…", a phone
- * number in whatever format the caller used, or a name — and has no way to
- * say which. So the text is matched every way it plausibly could be, and the
- * repository ORs them together.
+ * number in whatever format the caller used, a receipt number, or a name —
+ * and has no way to say which. So the text is matched every way it plausibly
+ * could be, and the repository ORs them together.
  *
  * Four characters is the shortest reference prefix accepted: shorter would
  * match a large slice of all bookings and is never what someone meant.
@@ -59,7 +65,23 @@ export function parseBookingSearch(
     phoneDigits = local.length >= 4 ? local : null
   }
 
-  return { text, idPrefix, phoneDigits }
+  // Whole numbers only: a part of one, like "26-27", would match a year's
+  // worth. The separators are not, because the number reaches ops in more
+  // than one shape. Printed it is "DTL/26-27/000123" (formatReceiptSerial,
+  // lib/receipts.ts), but a saved PDF is named "Detlio receipt
+  // DTL-26-27-000123" (a file name cannot hold a slash), and a customer
+  // usually sends that PDF on WhatsApp, which shows the file name. Read out
+  // on a call it gets typed with spaces. So any run of spaces, slashes or
+  // hyphens is accepted between the parts, and the number is rebuilt in the
+  // stored shape.
+  const receipt = text.match(
+    /^(?:detlio\s+receipt\s+)?DTL[\s/-]*(\d{2})[\s/-]*(\d{2})[\s/-]*(\d{6})(?:\.pdf)?$/i
+  )
+  const receiptNumber = receipt
+    ? `DTL/${receipt[1]}-${receipt[2]}/${receipt[3]}`
+    : null
+
+  return { text, idPrefix, phoneDigits, receiptNumber }
 }
 
 /** A LIKE pattern that matches `text` anywhere, with its own wildcards made literal. */

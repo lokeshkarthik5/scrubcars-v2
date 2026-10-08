@@ -9,10 +9,12 @@ import {
   IconLoader2,
   IconMapPin,
   IconNavigation,
+  IconReceipt,
 } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge, customerBookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
+import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScInput } from '@repo/ui/sc/input'
 import { SlotPicker } from '@repo/ui/sc/slot-picker'
@@ -670,6 +672,21 @@ export default function BookingDetailPage({
             Directions
           </ScButton>
         </ScCard>
+      )}
+
+      {/* Once a payment has gone through (refunded since or not). The server
+          decides: a booking moved to a new time has its receipt there. A
+          link, not the red button: the receipt is a record, not a next step. */}
+      {booking.receiptAvailable && (
+        <ScButtonLink
+          href={`/bookings/${booking.id}/receipt`}
+          variant="secondary"
+          fullWidth
+          className="gap-2"
+        >
+          <IconReceipt size={18} aria-hidden />
+          View receipt
+        </ScButtonLink>
       )}
 
       <ScButton
