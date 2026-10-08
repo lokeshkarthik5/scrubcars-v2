@@ -40,6 +40,9 @@ import {
 } from '@repo/core/support'
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
+import { OPERATED_BY } from '@/lib/legal/common'
+import { BUSINESS } from '@/lib/legal/details'
+import { LEGAL_LINKS } from '@/lib/legal/routes'
 import { BeforeAfter } from './before-after'
 import { Reel } from './reel'
 import {
@@ -1174,7 +1177,10 @@ export function FinalCta() {
 // ─── Footer ─────────────────────────────────────────────────────────────────
 
 export function SiteFooter() {
-  const { email, instagram } = FOOTER.contact
+  const { instagram } = FOOTER.contact
+  // The support inbox, from the legal pages' business details, so the
+  // footer, the Contact page and the receipt all name the same one.
+  const email = BUSINESS.email
   const contact = [
     { href: SUPPORT_TEL_HREF, label: SUPPORT_PHONE_DISPLAY, Icon: IconPhone },
     { href: SUPPORT_WHATSAPP_HREF, label: 'WhatsApp', Icon: IconBrandWhatsapp },
@@ -1218,6 +1224,20 @@ export function SiteFooter() {
             </Link>
           ))}
         </nav>
+        <nav aria-label="Legal" className="flex flex-col gap-3">
+          {LEGAL_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                'rounded-sm text-[14px] text-text-secondary transition-colors hover:text-brand-white',
+                FOCUS_RING
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
         {contact.length > 0 && (
           <ul className="flex flex-col gap-3">
             {contact.map(({ href, label, Icon }) => (
@@ -1240,10 +1260,16 @@ export function SiteFooter() {
       <div
         className={cn(
           CONTAINER,
-          'border-t border-white/[0.06] py-6 text-[13px] text-text-muted'
+          'flex flex-col gap-2 border-t border-white/[0.06] py-6 text-[13px] leading-relaxed text-text-muted'
         )}
       >
-        © {new Date().getFullYear()} Detlio. All rights reserved.
+        {/* Who runs Detlio and where, on every page that carries this
+            footer: the E-Commerce Rules (rule 4(2)) want the business's
+            legal name and address displayed prominently. The same words as
+            the legal pages (lib/legal/common.ts), so the proprietor's name
+            appears here as soon as it is filled in. */}
+        <p>{OPERATED_BY}</p>
+        <p>© {new Date().getFullYear()} Detlio. All rights reserved.</p>
       </div>
     </footer>
   )

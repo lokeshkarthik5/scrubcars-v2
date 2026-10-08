@@ -65,6 +65,12 @@ export function jobStepTimes(
 export const MAX_JOB_PHOTOS_PER_STAGE = 6
 
 /**
+ * How long after completion a garage can still add or remove job photos.
+ * Mirrors PHOTO_EDIT_WINDOW_DAYS in the server's lib/job-records.ts.
+ */
+export const PHOTO_EDIT_WINDOW_DAYS = 7
+
+/**
  * The figures a final bill shows while the garage types it: the total of the
  * lines so far, and what the customer would have left to pay. Added in paise,
  * like the server, so the live total and the saved one never differ by a

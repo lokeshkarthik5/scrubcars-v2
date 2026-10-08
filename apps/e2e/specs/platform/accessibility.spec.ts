@@ -105,6 +105,13 @@ test.describe('accessibility', () => {
     ['checkout', `/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`],
     ['bookings', '/bookings'],
     ['profile', '/profile'],
+    // The legal pages: long reading pages with tables, placeholders and
+    // reviewer notes — new colours and structures the screens above lack.
+    ['terms', '/terms'],
+    ['privacy policy', '/privacy'],
+    ['refund policy', '/refund-policy'],
+    ['service delivery', '/service-delivery'],
+    ['contact', '/contact'],
   ]
 
   for (const [name, path] of screens) {
@@ -204,7 +211,13 @@ test.describe('responsive', () => {
     await dismissLocationPrompt(context)
     const page = await context.newPage()
 
-    for (const path of ['/home', `/garage/${VENDORS.main.id}`, `/bookings/${BOOKINGS.reviewable}`]) {
+    for (const path of [
+      '/home',
+      `/garage/${VENDORS.main.id}`,
+      `/bookings/${BOOKINGS.reviewable}`,
+      // Its four-column table turns into stacked cards on a phone.
+      '/refund-policy',
+    ]) {
       await page.goto(path)
       await settle(page)
 

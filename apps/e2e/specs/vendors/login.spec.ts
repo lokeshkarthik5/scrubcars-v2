@@ -27,4 +27,14 @@ test.describe('garage portal login @p0', () => {
     await page.locator('#sc-phone').fill('9876543210')
     await expect(send).toBeEnabled()
   })
+
+  test('links only the Privacy Policy, on detlio.com', async ({ page }) => {
+    // Not the customer Terms: they are not a garage's agreement. Not followed
+    // either: it is the production site, which tests never reach.
+    await page.goto('/login')
+    const privacy = page.getByRole('link', { name: 'Privacy Policy', exact: true })
+    await expect(privacy).toHaveAttribute('href', 'https://detlio.com/privacy')
+    await expect(privacy).toHaveAttribute('target', '_blank')
+    await expect(page.getByRole('link', { name: 'Terms', exact: true })).toHaveCount(0)
+  })
 })

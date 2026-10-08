@@ -152,6 +152,7 @@ function databaseErrorMessage(error: unknown): string {
 // nobody has committed to the slot yet.
 const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // A booking may be rescheduled at most this many times across its chain.
+// Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
 import type { PaymentRecord } from './bookings.repository.js'
 import type {

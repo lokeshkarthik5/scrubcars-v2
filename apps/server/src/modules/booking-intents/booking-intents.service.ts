@@ -16,7 +16,9 @@ const log = logger.child({ module: 'booking-intents' })
 
 // How long a customer has to complete checkout. Generous, because an intent
 // costs nothing to leave lying around: it holds no slot, no promo code and no
-// vehicle. Enforced on read, so no cleanup job is needed.
+// vehicle. Enforced on read, so no cleanup job is needed. Mirrored in
+// packages/core/src/booking-types.ts CHECKOUT_MINUTES (the refund policy
+// prints it).
 const INTENT_TTL_MS = 30 * 60 * 1000
 
 /**

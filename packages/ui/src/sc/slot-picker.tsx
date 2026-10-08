@@ -9,14 +9,14 @@ import {
   useVendorClosures,
   useVendorWorkingHours,
 } from '@repo/core/api/hooks/use-slots'
-import { meetsNotice, noticeSentence } from '@repo/core/booking-types'
+import { BOOKING_DAYS_AHEAD, meetsNotice, noticeSentence } from '@repo/core/booking-types'
 import type { BookingType } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function buildDateOptions(count = 7) {
+function buildDateOptions(count = BOOKING_DAYS_AHEAD) {
   // Anchor "today" to IST so the calendar days match the server's slot dates,
   // regardless of the customer's device timezone. Date-only arithmetic in UTC
   // is safe (no DST) and getUTC* keeps the day-of-week aligned with the server.

@@ -17,6 +17,55 @@ reconstructing every change in them.
 
 ### Added
 
+- **Legal pages (drafts for legal review).** `/terms`, `/privacy`,
+  `/refund-policy`, `/service-delivery` and `/contact`: public, statically
+  rendered, readable at 390px (tables become stacked cards), printable black
+  on white, each with its own title, description and canonical URL on
+  detlio.com. The text is plain data in `lib/legal/<page>.ts`, rendered by
+  `components/legal/legal-page.tsx`; the format and its helpers
+  (placeholders, reviewer notes, Markdown export with lower-roman numbered
+  lists, as on the page) are `lib/legal/doc-format.ts`, unit-tested — in this
+  app until a second app (the Partner Terms) needs it. Every business detail (name, address,
+  phone, email, grievance officer, support hours, courts, retention, the
+  effective date) is in one file, `lib/legal/details.ts`; an unconfirmed one
+  is `null` and prints as a visible "[to be confirmed: …]". Every booking
+  figure the pages print (notice, the 2-hour cutoff, reschedules, days
+  ahead, checkout lifetime, job-photo limits, the final-bill window, the
+  refund wording, the receipt line) is imported from `@repo/core`; the ones
+  the server enforces on its own (`MAX_RESCHEDULES`, `CHECKOUT_MINUTES`,
+  `PHOTO_EDIT_WINDOW_DAYS`, new in core) are mirrors, commented on both
+  sides. The refund policy quotes the booking page's owed-refund line from
+  `customerRefundLine` itself, and a test checks every "section N"
+  reference reaches the section it means. `LEGAL_DRAFT` (true for now)
+  shows a "Draft for legal review — not yet in force" banner and sets robots
+  noindex; reviewer notes render only under `next dev`, never in a build
+  (they describe open product gaps), and are always in the Markdown export.
+  Do not merge to main while `LEGAL_DRAFT` is true.
+  `bun scripts/export-legal.ts <out.md>` writes all five pages, with every
+  placeholder and reviewer note listed up front, as one Markdown file for the
+  lawyer. The pages render for anyone, signed in or not, with no redirect
+  (`AppProvider`'s new `document` route access).
+- **Links to the legal pages.** The homepage footer has a Legal column with
+  all five and "Detlio is a brand of ScrubCars, a sole proprietorship of
+  <proprietor>, <address>" above the copyright (E-Commerce Rules rule 4(2)),
+  from the same source as the pages; its support email now comes from
+  `lib/legal/details.ts`. The sign-in screen reads "By continuing, you agree
+  to our Terms. Our Privacy Policy explains how we use your data." with real
+  links (they were plain text), opening in a new tab so the number typed is
+  kept. Checkout says "By paying you agree to the
+  Terms and the Cancellation & Refund Policy" under Pay, both opening in a new
+  tab so the slot, car and promo picked are kept. Profile has a Legal group
+  with the five links. The partner portal's sign-in links only the Privacy
+  Policy, on detlio.com: the customer Terms are not a garage's agreement.
+- **Tests.** `lib/legal/legal-docs.test.ts` (the app's first unit tests,
+  `bun test`) checks the five pages as data; the @p0 e2e spec
+  `specs/users/legal-pages.spec.ts` checks they load, carry the address and
+  email, the draft banner and noindex, do not scroll sideways at 390px, and
+  that the footer, sign-in, checkout and Profile links reach them, and that a
+  production build renders no reviewer note. The partner-portal privacy link
+  is checked in `specs/vendors/login.spec.ts`. The accessibility scan covers
+  the five pages.
+
 - **My bookings: Upcoming and Past.** Two tabs: Upcoming (requested,
   confirmed, in progress) soonest first, and Past (completed, cancelled,
   declined, no-shows) most recent first, both by the real start time. The

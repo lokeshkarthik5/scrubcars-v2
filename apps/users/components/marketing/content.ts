@@ -554,10 +554,10 @@ export const FOOTER = {
   ] satisfies Cta[],
   /**
    * Shown in the footer when filled in; leave empty to hide. The support
-   * phone and WhatsApp always show — they come from @repo/core/support.
+   * phone and WhatsApp always show — they come from @repo/core/support — and
+   * so does the support email, from lib/legal/details.ts (BUSINESS.email).
    */
   contact: {
-    email: '',
     instagram: 'detlioapp',
   },
 }
