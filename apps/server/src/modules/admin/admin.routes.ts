@@ -8,6 +8,7 @@ import {
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
+import { adminNoticeRoutes } from '../notices/notices.routes.js'
 import { adminRefundRoutes } from '../refunds/refunds.routes.js'
 import {
   addMemberSchema,
@@ -314,6 +315,10 @@ adminRoutes.route('/discounts', adminDiscountRoutes)
 // Refunds owed and done, and recording one. Nested here for the same cookie
 // reason as discounts.
 adminRoutes.route('/refunds', adminRefundRoutes)
+
+// Team notices on the customer Home and Updates. Nested here for the same
+// cookie reason as discounts.
+adminRoutes.route('/notices', adminNoticeRoutes)
 
 adminRoutes.get(
   '/bookings',

@@ -10,7 +10,9 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   real,
+  smallint,
   text,
   time,
   timestamp,
@@ -36,6 +38,21 @@ import {
 // what the admin endpoints do. Nothing needs the raw geometry client-side.
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
+
+/**
+ * Who sees an offer on Home (discounts.home_audience). A text column with a
+ * CHECK rather than a pgEnum; the rules for each are in lib/offers.ts.
+ */
+export const HOME_AUDIENCES = [
+  'everyone',
+  'new_customers',
+  'booked_this_garage',
+  'near_this_garage',
+  'wash_due',
+  'car_type',
+] as const
+
+export type HomeAudience = (typeof HOME_AUDIENCES)[number]
 
 export const userStatusEnum = pgEnum('user_status', ['active', 'suspended'])
 
@@ -203,6 +220,13 @@ export const bookingChargeStatusEnum = pgEnum('booking_charge_status', [
 // refund_records points into. See 0029.
 export const refundKindEnum = pgEnum('refund_kind', ['booking', 'checkout', 'bill'])
 
+// Who a team notice is for: every customer, or customers with a booking in a
+// time window (optionally at one garage). See 0031.
+export const noticeAudienceEnum = pgEnum('notice_audience', [
+  'all',
+  'with_booking_between',
+])
+
 // The single role vocabulary for the whole product. Values are namespaced by
 // scope rather than by context, so a role name never means two different things
 // depending on which row you found it in — there is deliberately no bare
@@ -267,6 +291,11 @@ export const users = pgTable(
     // Platform admin now comes from an active `super_admin` row in
     // user_member_mapping, or from the env-credential break-glass token.
     status: userStatusEnum('status').default('active').notNull(),
+    // When the customer last looked at Updates. Anything that happened after
+    // it is unread and lights the bell on Home; null reads as the account's
+    // own created_at. 0031 set it for every existing account, so the bell did
+    // not light up for everyone on launch day.
+    updatesSeenAt: timestamp('updates_seen_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -358,8 +387,18 @@ export const userVehicles = pgTable(
     // the customer's garage without touching what was already booked. A car
     // nothing references is still deleted outright.
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    // How often the customer wants this car washed, for the wash bar on Home:
+    // 7, 10, 14, 21 or 30 days. Null is the default (lib/wash-status.ts: 14
+    // days, 10 from 1 October to 31 December for the Chennai monsoon).
+    washIntervalDays: smallint('wash_interval_days'),
   },
-  (table) => [index('user_vehicles_user_id_idx').on(table.userId)]
+  (table) => [
+    index('user_vehicles_user_id_idx').on(table.userId),
+    check(
+      'user_vehicles_wash_interval_check',
+      sql`${table.washIntervalDays} is null or ${table.washIntervalDays} in (7, 10, 14, 21, 30)`
+    ),
+  ]
 )
 
 export const vendors = pgTable(
@@ -756,12 +795,23 @@ export const bookings = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    // The customer closed the "Rate your wash" card on Home without rating.
+    // Only hides the prompt: they can still review from the booking.
+    reviewPromptDismissedAt: timestamp('review_prompt_dismissed_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     index('bookings_user_id_idx').on(table.userId),
+    // Home and Updates read one customer's bookings, newest first, on every
+    // open.
+    index('bookings_user_scheduled_at_idx').on(
+      table.userId,
+      table.scheduledAt.desc()
+    ),
     index('bookings_vendor_id_idx').on(table.vendorId),
     index('bookings_vendor_scheduled_at_idx').on(
       table.vendorId,
@@ -1018,6 +1068,29 @@ export const discounts = pgTable(
     endsAt: timestamp('ends_at', { withTimezone: true }),
     // Off switch that preserves history — prefer it over delete.
     isActive: boolean('is_active').default(true).notNull(),
+    // ─── Offers on Home (0031) ───────────────────────────────────────────────
+    // An admin can show a code as an offer card on the customer Home. The
+    // card's title is `homeTitle`; everything else on it (cap, code, end
+    // date) is generated from the columns above, so it can never misstate a
+    // limit. Shown only with an end date. See lib/offers.ts.
+    showOnHome: boolean('show_on_home').default(false).notNull(),
+    homeTitle: varchar('home_title', { length: 40 }),
+    // 0 Normal, 1 High, 2 Top. Higher shows first.
+    homePriority: smallint('home_priority').default(0).notNull(),
+    // Who SEES the offer on Home — never who may use the code at checkout.
+    // Anything but 'everyone' is ignored, and refused on save, while the
+    // HOME_OFFER_TARGETING switch is off. Text with a CHECK, not an enum,
+    // so a new audience needs no ALTER TYPE.
+    homeAudience: text('home_audience')
+      .$type<HomeAudience>()
+      .default('everyone')
+      .notNull(),
+    // 'near_this_garage' only: how many km from the garage counts as near.
+    homeAudienceRadiusKm: smallint('home_audience_radius_km'),
+    // 'car_type' only: which car types see it.
+    homeAudienceVehicleTypes: text('home_audience_vehicle_types')
+      .array()
+      .$type<Array<'hatchback' | 'sedan' | 'suv'>>(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1028,6 +1101,28 @@ export const discounts = pgTable(
     // unique() to `code` — it would disagree with the database.
     index('discounts_is_active_idx').on(table.isActive),
     index('discounts_vendor_id_idx').on(table.vendorId),
+    index('discounts_on_home_idx')
+      .on(table.endsAt)
+      .where(sql`${table.showOnHome} and ${table.isActive}`),
+    check(
+      'discounts_home_fields_check',
+      sql`not ${table.showOnHome} or (char_length(btrim(coalesce(${table.homeTitle}, ''))) between 3 and 40 and ${table.endsAt} is not null)`
+    ),
+    check(
+      'discounts_home_priority_check',
+      sql`${table.homePriority} between 0 and 2`
+    ),
+    // The garage audiences need a garage; the radius belongs to
+    // 'near_this_garage' alone and the car types to 'car_type' alone.
+    check(
+      'discounts_home_audience_check',
+      sql`${table.homeAudience} in ('everyone', 'new_customers', 'booked_this_garage', 'near_this_garage', 'wash_due', 'car_type')
+        and (${table.homeAudience} not in ('booked_this_garage', 'near_this_garage') or ${table.vendorId} is not null)
+        and ((${table.homeAudience} = 'near_this_garage') = (${table.homeAudienceRadiusKm} is not null))
+        and (${table.homeAudienceRadiusKm} is null or ${table.homeAudienceRadiusKm} between 1 and 50)
+        and ((${table.homeAudience} = 'car_type') = (${table.homeAudienceVehicleTypes} is not null))
+        and (${table.homeAudienceVehicleTypes} is null or (cardinality(${table.homeAudienceVehicleTypes}) >= 1 and ${table.homeAudienceVehicleTypes} <@ array['hatchback', 'sedan', 'suv']::text[]))`
+    ),
   ]
 )
 
@@ -1205,6 +1300,8 @@ export const refundRecords = pgTable(
   },
   (table) => [
     uniqueIndex('refund_records_refund_ref_key').on(table.refundRef),
+    // A booking's refunds, for the Updates feed.
+    index('refund_records_booking_id_idx').on(table.bookingId),
     uniqueIndex('refund_records_kind_target_before_key').on(
       table.kind,
       table.targetId,
@@ -1321,6 +1418,107 @@ export const reviews = pgTable(
   (table) => [
     index('reviews_vendor_id_idx').on(table.vendorId),
     index('reviews_user_id_idx').on(table.userId),
+  ]
+)
+
+// A short message from the Detlio team on the customer's Home and Updates:
+// "Slot may move: rain". To every customer ('all'), or to customers with an
+// upcoming booking between `bookingFrom` and `bookingTo` (optionally at one
+// garage). Live while `isActive` and now is in [startsAt, endsAt). Never
+// deleted: "End now" sets `endsAt` on a live one and clears `isActive` on a
+// scheduled one (lib/notices.ts). Not the legal change-notice channel.
+//
+// `createdBy` is a name, like booking_notes.author: the break-glass admin
+// login has no users row. The CHECKs are in 0031_home_hub.sql.
+export const notices = pgTable(
+  'notices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: varchar('title', { length: 60 }).notNull(),
+    body: varchar('body', { length: 200 }).notNull(),
+    linkUrl: varchar('link_url', { length: 2048 }),
+    linkLabel: varchar('link_label', { length: 30 }),
+    audience: noticeAudienceEnum('audience').default('all').notNull(),
+    vendorId: uuid('vendor_id').references(() => vendors.id, {
+      onDelete: 'cascade',
+    }),
+    bookingFrom: timestamp('booking_from', { withTimezone: true }),
+    bookingTo: timestamp('booking_to', { withTimezone: true }),
+    startsAt: timestamp('starts_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdBy: varchar('created_by', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('notices_live_idx')
+      .on(table.startsAt, table.endsAt)
+      .where(sql`${table.isActive}`),
+    check('notices_window_check', sql`${table.endsAt} > ${table.startsAt}`),
+    check(
+      'notices_audience_check',
+      sql`(${table.audience} = 'all' and ${table.bookingFrom} is null and ${table.bookingTo} is null and ${table.vendorId} is null) or (${table.audience} = 'with_booking_between' and ${table.bookingFrom} is not null and ${table.bookingTo} is not null and ${table.bookingTo} > ${table.bookingFrom})`
+    ),
+    check(
+      'notices_link_pair_check',
+      sql`(${table.linkUrl} is null) = (${table.linkLabel} is null)`
+    ),
+    check(
+      'notices_link_url_check',
+      sql`${table.linkUrl} is null or (${table.linkUrl} ~ '^(https://[^/]|/([^/]|$))' and strpos(${table.linkUrl}, chr(92)) = 0 and ${table.linkUrl} !~ '[[:space:]]')`
+    ),
+  ]
+)
+
+// A customer's × on a notice, kept on the server so it holds on every device.
+export const noticeDismissals = pgTable(
+  'notice_dismissals',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    noticeId: uuid('notice_id')
+      .notNull()
+      .references(() => notices.id, { onDelete: 'cascade' }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'notice_dismissals_pkey',
+      columns: [table.userId, table.noticeId],
+    }),
+  ]
+)
+
+// A customer's × on an offer: hidden from their Home for good. The code itself
+// still works at checkout.
+export const offerDismissals = pgTable(
+  'offer_dismissals',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    discountId: uuid('discount_id')
+      .notNull()
+      .references(() => discounts.id, { onDelete: 'cascade' }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'offer_dismissals_pkey',
+      columns: [table.userId, table.discountId],
+    }),
   ]
 )
 
@@ -1547,6 +1745,7 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   notes: many(bookingNotes),
   photos: many(jobPhotos),
   charges: many(bookingCharges),
+  refundRecords: many(refundRecords),
 }))
 
 export const bookingNotesRelations = relations(bookingNotes, ({ one }) => ({
@@ -1632,3 +1831,46 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
     references: [vendors.id],
   }),
 }))
+
+export const refundRecordsRelations = relations(refundRecords, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [refundRecords.bookingId],
+    references: [bookings.id],
+  }),
+}))
+
+export const noticesRelations = relations(notices, ({ one, many }) => ({
+  vendor: one(vendors, {
+    fields: [notices.vendorId],
+    references: [vendors.id],
+  }),
+  dismissals: many(noticeDismissals),
+}))
+
+export const noticeDismissalsRelations = relations(
+  noticeDismissals,
+  ({ one }) => ({
+    notice: one(notices, {
+      fields: [noticeDismissals.noticeId],
+      references: [notices.id],
+    }),
+    user: one(users, {
+      fields: [noticeDismissals.userId],
+      references: [users.id],
+    }),
+  })
+)
+
+export const offerDismissalsRelations = relations(
+  offerDismissals,
+  ({ one }) => ({
+    discount: one(discounts, {
+      fields: [offerDismissals.discountId],
+      references: [discounts.id],
+    }),
+    user: one(users, {
+      fields: [offerDismissals.userId],
+      references: [users.id],
+    }),
+  })
+)

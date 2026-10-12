@@ -86,6 +86,30 @@ export const vendorsRepository = {
    * outside `public` and Supabase's pooler does not reliably carry a
    * session-level search_path in transaction mode.
    */
+  /**
+   * How many garages a customer could drive to near them, and the nearest
+   * one's distance, for the Nearby card on Home. The same public filters as
+   * the drop-in list (listPublicVendorPage with bookingType 'dropin'): live,
+   * verified, pinned, not paused, taking drop-ins.
+   */
+  async nearbySummary(origin: { lat: number; lng: number }, radiusM: number) {
+    const point = sql`gis.ST_SetSRID(gis.ST_MakePoint(${origin.lng}, ${origin.lat}), 4326)::gis.geography`
+    const [row] = await db.execute<{ count: number | string; closest_m: number | string | null }>(sql`
+      SELECT count(*) AS count, min(gis.ST_Distance(v.geo, ${point})) AS closest_m
+        FROM vendors v
+       WHERE v.status = 'active'
+         AND v.is_verified = true
+         AND v.bookings_paused_at IS NULL
+         AND v.geo IS NOT NULL
+         AND v.dropin_enabled = true
+         AND gis.ST_DWithin(v.geo, ${point}, ${radiusM}, false)
+    `)
+    return {
+      count: Number(row?.count ?? 0),
+      closestM: row?.closest_m === null || row?.closest_m === undefined ? null : Number(row.closest_m),
+    }
+  },
+
   async listPublicVendorPage(params: {
     origin?: { lat: number; lng: number }
     radiusM?: number

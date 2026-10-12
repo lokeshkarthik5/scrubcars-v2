@@ -56,6 +56,11 @@ export async function getReceipt(c: BookingsContext, bookingId: string) {
   })
 }
 
+export async function dismissReviewPrompt(c: BookingsContext, bookingId: string) {
+  await bookingsService.dismissReviewPrompt(getAuth(c).sub, bookingId)
+  return c.body(null, 204)
+}
+
 export async function createBooking(
   c: BookingsContext,
   input: CreateBookingInput

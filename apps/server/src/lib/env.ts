@@ -174,6 +174,26 @@ export const env = {
    */
   geoRequirePin: process.env.GEO_REQUIRE_PIN === 'true',
 
+  /**
+   * Whether offers on Home may be shown to a chosen audience (customers who
+   * booked a garage, live near it, have a wash due, own a car type, or have
+   * never booked) rather than to everyone.
+   *
+   * Off unless set to `on`. Choosing who sees an offer from booking history or
+   * location is a new use of personal data, and the privacy policy says
+   * location is only for finding garages and nothing is used for marketing.
+   * So while this is off, only 'everyone' offers reach Home, booking history
+   * and location are never read for offers, and the admin API refuses to save
+   * any other audience (409 TARGETING_DISABLED). Turn it on in the same
+   * release that updates the privacy policy. The E2E stack runs with it on.
+   *
+   * It only decides who sees an offer on Home. Anyone may still type the
+   * code at checkout.
+   */
+  homeOfferTargeting: ['on', 'true', '1'].includes(
+    (process.env.HOME_OFFER_TARGETING ?? '').trim().toLowerCase()
+  ),
+
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;
   // they are configurable because a test suite runs every request from a single

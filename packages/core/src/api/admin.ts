@@ -737,6 +737,49 @@ export async function addAdminBookingNote(id: string, body: string) {
 export type DiscountType = 'percentage' | 'fixed'
 export type DiscountFundedBy = 'platform' | 'vendor'
 
+/** Who sees an offer on Home, as the server lists them (HOME_AUDIENCES). */
+export type HomeAudience =
+  | 'everyone'
+  | 'new_customers'
+  | 'booked_this_garage'
+  | 'near_this_garage'
+  | 'wash_due'
+  | 'car_type'
+
+/** 0 Normal, 1 High, 2 Top. */
+export type HomePriority = 0 | 1 | 2
+
+export type HomeCarType = 'hatchback' | 'sedan' | 'suv'
+
+/** GET /admin/discounts/home-config: what the Show on Home section offers. */
+export interface HomeConfig {
+  /** HOME_OFFER_TARGETING: false means only "Everyone" can be saved. */
+  targetingEnabled: boolean
+  /** Shown under the audiences while targeting is off; null when on. */
+  targetingNote: string | null
+  maxOffersOnHome: number
+  priorities: { value: HomePriority; label: string }[]
+  audiences: { value: HomeAudience; label: string; enabled: boolean }[]
+  defaultNearRadiusKm: number
+  maxNearRadiusKm: number
+}
+
+/** GET /admin/discounts/home-reach: "Estimated reach" for unsaved settings. */
+export interface HomeReach {
+  count: number
+  /** Null for a Detlio-wide code; false when the garage is not live, so nobody sees it. */
+  garagePublic: boolean | null
+  /** "Near this garage" is counted from saved addresses, not live location. */
+  measuredFrom: 'saved_addresses' | null
+}
+
+export interface HomeReachParams {
+  audience: HomeAudience
+  vendorId?: string
+  radiusKm?: number
+  vehicleTypes?: HomeCarType[]
+}
+
 export interface AdminDiscount {
   id: string
   code: string
@@ -755,6 +798,17 @@ export interface AdminDiscount {
   startsAt: string | null
   endsAt: string | null
   isActive: boolean
+  /** Shown as a card on the customer's Home while live (0031). */
+  showOnHome: boolean
+  /** The card's title; required (3–60) while shown. */
+  homeTitle: string | null
+  homePriority: HomePriority
+  /** Who sees the card. Display only: never who may use the code. */
+  homeAudience: HomeAudience
+  /** "Near this garage" only. */
+  homeAudienceRadiusKm: number | null
+  /** "By car type" only. */
+  homeAudienceVehicleTypes: HomeCarType[] | null
   createdAt: string
   /** Audit rows — any at all blocks deletion. */
   redemptionCount: number
@@ -782,6 +836,12 @@ export interface DiscountInput {
   startsAt?: string | null
   endsAt?: string | null
   isActive: boolean
+  showOnHome?: boolean
+  homeTitle?: string | null
+  homePriority?: HomePriority
+  homeAudience?: HomeAudience
+  homeAudienceRadiusKm?: number | null
+  homeAudienceVehicleTypes?: HomeCarType[] | null
 }
 
 export interface DiscountVendorOption {
@@ -838,6 +898,139 @@ export async function listDiscountVendorOptions(): Promise<
   DiscountVendorOption[]
 > {
   return apiClient<DiscountVendorOption[]>('/admin/discounts/vendors')
+}
+
+/** GET /admin/discounts/home-config */
+export async function getDiscountHomeConfig(): Promise<HomeConfig> {
+  return apiClient<HomeConfig>('/admin/discounts/home-config')
+}
+
+/**
+ * GET /admin/discounts/home-reach — 409 TARGETING_DISABLED for a targeted
+ * audience while targeting is off, as a save would be.
+ */
+export async function getDiscountHomeReach(
+  params: HomeReachParams
+): Promise<HomeReach> {
+  return apiClient<HomeReach>('/admin/discounts/home-reach', {
+    params: {
+      audience: params.audience,
+      vendorId: params.vendorId || undefined,
+      radiusKm: params.radiusKm,
+      vehicleTypes: params.vehicleTypes?.length
+        ? params.vehicleTypes.join(',')
+        : undefined,
+    },
+  })
+}
+
+// ─── Notices ─────────────────────────────────────────────────────────────────
+//
+// Team messages on the customer's Home and in Updates. Under /admin/* for the
+// cookie, like discounts. There is no delete: a notice is ended, and kept.
+
+export type NoticeAudience = 'all' | 'with_booking_between'
+export type NoticeState = 'scheduled' | 'live' | 'ended'
+
+export interface AdminNotice {
+  id: string
+  title: string
+  body: string
+  linkUrl: string | null
+  linkLabel: string | null
+  audience: NoticeAudience
+  /** Booking-window notices only, and optional there. */
+  vendorId: string | null
+  vendorName: string | null
+  bookingFrom: string | null
+  bookingTo: string | null
+  startsAt: string
+  endsAt: string
+  isActive: boolean
+  /** Worked out by the server at read time. */
+  state: NoticeState
+  /** How many customers closed it with ×. */
+  dismissals: number
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NoticeInput {
+  title: string
+  body: string
+  linkUrl?: string | null
+  linkLabel?: string | null
+  audience: NoticeAudience
+  vendorId?: string | null
+  bookingFrom?: string | null
+  bookingTo?: string | null
+  /** Absent on create = now. */
+  startsAt?: string
+  endsAt: string
+  isActive: boolean
+}
+
+export interface NoticeAudienceParams {
+  audience: NoticeAudience
+  vendorId?: string
+  bookingFrom?: string
+  bookingTo?: string
+}
+
+/** GET /admin/notices — newest first; optionally one state. */
+export async function listAdminNotices(
+  status?: NoticeState
+): Promise<AdminNotice[]> {
+  return apiClient<AdminNotice[]>('/admin/notices', { params: { status } })
+}
+
+/** GET /admin/notices/:id */
+export async function getAdminNotice(id: string): Promise<AdminNotice> {
+  return apiClient<AdminNotice>(`/admin/notices/${id}`)
+}
+
+/** POST /admin/notices */
+export async function createAdminNotice(
+  input: NoticeInput
+): Promise<AdminNotice> {
+  return apiClient<AdminNotice>('/admin/notices', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** PATCH /admin/notices/:id */
+export async function updateAdminNotice(
+  id: string,
+  input: Partial<NoticeInput>
+): Promise<AdminNotice> {
+  return apiClient<AdminNotice>(`/admin/notices/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST /admin/notices/:id/end — "End now": a live notice ends at this
+ * moment, a scheduled one is switched off.
+ */
+export async function endAdminNotice(id: string): Promise<AdminNotice> {
+  return apiClient<AdminNotice>(`/admin/notices/${id}/end`, { method: 'POST' })
+}
+
+/** GET /admin/notices/audience-count — "Reaches 14 customers". */
+export async function getNoticeAudienceCount(
+  params: NoticeAudienceParams
+): Promise<{ count: number }> {
+  return apiClient<{ count: number }>('/admin/notices/audience-count', {
+    params: {
+      audience: params.audience,
+      vendorId: params.vendorId || undefined,
+      bookingFrom: params.bookingFrom,
+      bookingTo: params.bookingTo,
+    },
+  })
 }
 
 // ─── Vendor team ─────────────────────────────────────────────────────────────

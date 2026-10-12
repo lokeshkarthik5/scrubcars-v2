@@ -26,6 +26,7 @@ import {
   useToggleDiscountActive,
 } from '@repo/core/api/hooks/use-discounts'
 import type { AdminDiscount } from '@repo/core/api/admin'
+import { DiscountsTabs } from '@/components/discounts-tabs'
 import { Meta } from '@/components/meta'
 
 const rupees = (value: string | number) =>
@@ -179,6 +180,8 @@ export default function AdminDiscountsPage() {
         }
       />
 
+      <DiscountsTabs />
+
       {!isPending && !error && discounts.length > 0 && (
         <>
           <ScInput
@@ -257,6 +260,11 @@ export default function AdminDiscountsPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
+                      {/* Marked for Home, whether or not the code is live
+                          now: the badge says what the admin set. */}
+                      {discount.showOnHome && (
+                        <ScBadge variant="pending">On Home</ScBadge>
+                      )}
                       {/* Neutral both ways: who pays is a fact, not an alert,
                           and the red accent badge is kept for a new job. */}
                       <ScBadge

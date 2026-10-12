@@ -220,6 +220,7 @@ export function mapVehicle(vehicle: ApiVehicle): Vehicle {
     plate: vehicle.licensePlate ?? '',
     vehicleType: vehicle.vehicleType as Vehicle['vehicleType'],
     isDefault: vehicle.isDefault,
+    washIntervalDays: vehicle.washIntervalDays ?? null,
   }
 }
 

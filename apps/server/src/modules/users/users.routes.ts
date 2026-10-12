@@ -5,6 +5,7 @@ import {
   requireCustomer,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
+import { homeRoutes } from '../home/home.routes.js'
 import * as usersController from './users.controller.js'
 import {
   avatarUploadUrlSchema,
@@ -20,6 +21,11 @@ import {
 export const usersRoutes = new Hono<{ Variables: AuthVariables }>()
 
 usersRoutes.use('*', authMiddleware, requireCustomer)
+
+// Home hub and Updates: /me/home, /me/updates, /me/notices/:id/dismiss and
+// /me/offers/:id/dismiss. Mounted after the middleware above, so they get
+// the same signed-in-customer check.
+usersRoutes.route('/me', homeRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

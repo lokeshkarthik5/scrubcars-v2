@@ -64,6 +64,17 @@ export const createVehicleSchema = z.object({
   isDefault: z.boolean().optional(),
 })
 
+// How often the customer wants this car washed, for the wash bar on Home.
+// Only the five intervals the app offers (lib/wash-status.ts); null goes back
+// to the default (14 days, 10 in October to December).
+export const washIntervalDaysSchema = z.union([
+  z.literal(7),
+  z.literal(10),
+  z.literal(14),
+  z.literal(21),
+  z.literal(30),
+])
+
 export const updateVehicleSchema = z
   .object({
     make: z.string().trim().min(1).max(100).optional(),
@@ -72,6 +83,7 @@ export const updateVehicleSchema = z
     licensePlate: z.string().trim().min(1).max(20).nullable().optional(),
     vehicleType: vehicleTypeSchema.optional(),
     isDefault: z.boolean().optional(),
+    washIntervalDays: washIntervalDaysSchema.nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided',
