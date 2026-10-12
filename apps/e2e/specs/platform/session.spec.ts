@@ -83,7 +83,8 @@ test.describe('error handling', () => {
       route.fulfill({ status: 500, body: '{"success":false,"message":"boom"}' })
     )
 
-    await page.goto('/home')
+    // The garage list, which reads /vendors.
+    await page.goto('/garages')
     await expect(page.locator('body')).not.toHaveText('')
   })
 })
