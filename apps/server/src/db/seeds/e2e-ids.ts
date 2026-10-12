@@ -229,6 +229,24 @@ export const CUSTOMERS = {
   /** A paid booking at HOME_PROMO on its holiday: "Garage closed" must-act card. */
   homeClosed: { id: id(146), phone: '9000000046', name: 'Hub Closed Charles', vehicleId: id(755) },
   /**
+   * The Home screen's own customers (specs/users/home.spec.ts and
+   * updates.spec.ts), for what the screen changes: the wash interval, the
+   * read marker, the ×s. Kept apart from the API spec's customers above,
+   * which reset and change the same things while both files run in parallel.
+   *
+   * Two cars on a 10-day interval, washed 8 and 13 days ago, like homeWash.
+   * VEHICLES.homeScreenWashSecond is the second.
+   */
+  homeScreenWash: { id: id(147), phone: '9000000047', name: 'Hub Meter Meena', vehicleId: id(756) },
+  /** A job finished a day ago, with Updates last opened before it: the bell's dot. */
+  homeBell: { id: id(148), phone: '9000000048', name: 'Hub Bell Bala', vehicleId: id(758) },
+  /**
+   * A paid booking at HOME_PROMO in four days, which NOTICES.homeTileNote is
+   * about: the line on its Next booking tile, the first Updates row, and the
+   * ×s on that notice and on the HUBBOOKED offer.
+   */
+  homeTile: { id: id(149), phone: '9000000049', name: 'Hub Tile Tara', vehicleId: id(759) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -572,6 +590,11 @@ export const BOOKINGS = {
   homeUpdatesDone: id(635),
   homeNoticeUpcoming: id(636),
   homeClosedUpcoming: id(637),
+  /** The Home screen's bookings, also at HOME_PROMO; see CUSTOMERS.homeScreenWash on. */
+  homeScreenWashFirst: id(638),
+  homeScreenWashSecond: id(639),
+  homeBellDone: id(640),
+  homeTileUpcoming: id(641),
 } as const
 
 export const VEHICLES = {
@@ -589,6 +612,8 @@ export const VEHICLES = {
   spare: id(705),
   /** CUSTOMERS.homeWash's second car, 13 days since its wash. */
   homeWashSecond: id(752),
+  /** CUSTOMERS.homeScreenWash's second car, 13 days since its wash. */
+  homeScreenWashSecond: id(757),
 } as const
 
 /**
@@ -617,10 +642,15 @@ export const BOOKING_INTENTS = { failed: id(1001), refundOwed: id(1002) } as con
 
 /**
  * Team notices. `homeRain` is about bookings at HOME_PROMO around
- * CUSTOMERS.homeNotice's slot, and nobody else's: never an 'all' notice,
+ * CUSTOMERS.homeNotice's slot, and nobody else's (the admin notices spec
+ * counts exactly one customer in its window): never an 'all' notice,
  * which would reach every customer's Home in every parallel spec.
  */
-export const NOTICES = { homeRain: id(1101) } as const
+export const NOTICES = {
+  homeRain: id(1101),
+  /** About CUSTOMERS.homeTile's slot only, a day after homeRain's window. */
+  homeTileNote: id(1102),
+} as const
 
 /** A final bill. `homeBill` is CUSTOMERS.homeBill's, ₹800 still to pay. */
 export const CHARGES = { homeBill: id(1201) } as const

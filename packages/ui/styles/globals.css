@@ -52,6 +52,26 @@
   --color-error: #F5A524;
   --color-error-muted: rgba(245, 165, 36, 0.12);
   --color-info: #3B82F6;
+  /* The Home hub's surfaces (packages/ui "hub-card", apps/users Home and
+     Updates): a card is a soft graphite gradient, top to bottom, with a
+     hairline edge and a 28px radius; pills are fully round. Used only by
+     screens behind NEXT_PUBLIC_HOME_HUB, so with the flag off nothing draws
+     with them. */
+  --color-card-top: #1A1A1E;
+  --color-card-bot: #141417;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-stroke: #2A2A2E;
+  --color-dim: #8A8A93;
+  --radius-card: 28px;
+  --radius-tile: 22px;
+  --radius-pill: 999px;
+}
+
+/* The red call to action's gradient (owner decision D12). The stops are
+   CTA_GRADIENT in packages/core/src/cta.ts, whose test checks white text
+   against the lightest one and that this line matches it, stop for stop. */
+:root {
+  --gradient-cta: linear-gradient(100deg, #E4002B 0%, #DA0029 30%, #CA0026 66%, #B80022 100%);
 }
 
 /* react-toastify brings its own palette as :root variables in
@@ -442,6 +462,96 @@
     }
     .offer-carousel__track {
       scroll-behavior: auto;
+    }
+  }
+}
+
+/* ─── Home hub: cards and the red call to action ───────────────────────────
+ *
+ * `hub-card` is the one card surface of Home and Updates. `cta-hero` is the
+ * ScButton "hero" variant: the gradient pill, the one red action on a screen
+ * (Book a wash, or Pay ₹X while a bill is due, or Add car).
+ *
+ * Its shine is the owner's "Subtle, intro" choice (D4): a soft band of light
+ * crosses the label twice when the screen opens — a 1.6s sweep and a 1.8s
+ * rest, 0.6s in, so it is over by about 7.4s — then stops for good, and plays
+ * again on the next visit. Twice and done, because motion that runs past 5s
+ * with no way to pause it fails WCAG 2.2.2. Only `transform` is animated, so
+ * it never repaints. The label sits above the band. Under reduced motion the
+ * band is not drawn at all and the button is the approved static one; a
+ * disabled button never shines.
+ *
+ * The brand kit says "no decorative motion"; this is a conscious exception,
+ * one element per screen. Contrast under the band's peak dips below 4.5:1 for
+ * about 0.3s per sweep (see packages/core/src/cta.ts).
+ */
+@layer components {
+  .hub-card {
+    border: 1px solid --theme(--color-line);
+    border-radius: --theme(--radius-card);
+    background: linear-gradient(180deg, --theme(--color-card-top) 0%, --theme(--color-card-bot) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .cta-hero {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--gradient-cta);
+    color: #FFFFFF;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+      0 10px 22px -12px rgba(228, 0, 43, 0.6);
+  }
+  .cta-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+  .cta-hero::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: 0;
+    z-index: 0;
+    width: 30%;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.42) 30%,
+      rgba(255, 255, 255, 0.9) 50%,
+      rgba(255, 255, 255, 0.42) 70%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    opacity: 0.36;
+    transform: translateX(-170%) skewX(-20deg);
+    /* Fill "both" parks the band off the right edge, unseen, once it ends. */
+    animation: cta-shine-intro 3.4s 0.6s 2 both;
+  }
+  .cta-hero:disabled {
+    opacity: 0.4;
+  }
+  .cta-hero:disabled::after {
+    display: none;
+  }
+
+  @keyframes cta-shine-intro {
+    0% {
+      transform: translateX(-170%) skewX(-20deg);
+      animation-timing-function: cubic-bezier(0.4, 0, 0.25, 1);
+    }
+    47.06%,
+    100% {
+      transform: translateX(450%) skewX(-20deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cta-hero::after {
+      display: none;
+      animation: none;
     }
   }
 }

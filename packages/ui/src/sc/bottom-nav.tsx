@@ -29,10 +29,11 @@ type NavItem = {
 }
 
 const customerItems: NavItem[] = [
-  // The garage list moved to /garages but is still what Home shows, so a
-  // customer sent there ("Find another garage", the map's List) sees the same
-  // tab lit as on /home, and tapping it there stays on /garages (see below).
-  // Drop it once the new Home gives the list its own way in.
+  // The garage list moved to /garages but is still what Home shows while the
+  // new Home is off, so a customer sent there ("Find another garage", the
+  // map's List) sees the same tab lit as on /home, and tapping it there stays
+  // on /garages (see below). With the hub on, Home is the hub and the list is
+  // reached from it, so the tab goes back to /home (`garagesUnderHome`).
   { href: '/home', label: 'Home', icon: IconHome, alsoActiveOn: ['/garages'] },
   { href: '/search', label: 'Search', icon: IconSearch },
   { href: '/bookings', label: 'Bookings', icon: IconCalendar },
@@ -66,7 +67,14 @@ const itemsByType: Record<NavType, NavItem[]> = {
   admin: adminItems,
 }
 
-export function BottomNav({ type = 'customer' }: { type?: NavType }) {
+export function BottomNav({
+  type = 'customer',
+  garagesUnderHome = true,
+}: {
+  type?: NavType
+  /** The customer Home tab also stands for /garages (the old Home). */
+  garagesUnderHome?: boolean
+}) {
   const pathname = usePathname()
   const isVendorAdmin = useIsVendorAdmin()
   // An operator's nav is Home and Bookings — jobs, which is their whole job.
@@ -80,10 +88,15 @@ export function BottomNav({ type = 'customer' }: { type?: NavType }) {
     '/settings',
   ]
 
-  const items =
+  const items = (
     type === 'vendor' && !isVendorAdmin
       ? vendorItems.filter((item) => !OPERATOR_HIDDEN.includes(item.href))
       : itemsByType[type]
+  ).map((item) =>
+    type === 'customer' && !garagesUnderHome && item.href === '/home'
+      ? { ...item, alsoActiveOn: [] }
+      : item
+  )
 
   return (
     <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-surface">

@@ -145,6 +145,9 @@ export default function GaragePage({
   // (Book again on an old booking, usually) has been withdrawn. Said on the
   // page, so it is still there once the page has loaded.
   const servicesWithdrawn = searchParams.get('withdrawn') === '1'
+  // An offer code from Home (this garage's own offer). Passed on to checkout,
+  // which applies it once the services and the car are chosen.
+  const offerCode = searchParams.get('code')?.trim() || null
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   // Named to avoid shadowing the DOM's global `location`.
@@ -275,7 +278,7 @@ export default function GaragePage({
     const modeQuery = bookingTypeParam(mode)
     const bookPath = `/book/${id}?service=${selected.join(',')}${
       modeQuery ? `&mode=${modeQuery}` : ''
-    }`
+    }${offerCode ? `&code=${encodeURIComponent(offerCode)}` : ''}`
     router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
   }
 

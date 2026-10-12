@@ -1,10 +1,13 @@
 /**
- * The garage list at /garages, and /home while the new Home is off.
+ * The garage list at /garages.
  *
  * The list moved from /home to /garages with no change a customer can see, and
- * every link that means "the list of garages" now opens /garages. /home keeps
- * rendering the same list until the new Home ships behind NEXT_PUBLIC_HOME_HUB,
- * which apps/e2e/.env.e2e (and CI's build) keep off.
+ * every link that means "the list of garages" now opens /garages. With the new
+ * Home on (NEXT_PUBLIC_HOME_HUB, on in apps/e2e/.env.e2e and CI's build), /home
+ * is the hub and the list is only here; the Home tab goes back to the hub.
+ * With the flag off, /home renders this same list (one component for both
+ * routes, app/home/page.tsx), which the suite cannot see: the flag is baked
+ * into the build.
  *
  * Read-only throughout, so it shares the browse customer with discovery.
  */
@@ -32,10 +35,11 @@ async function expectGarageList(page: Page) {
   await expect(
     page.getByRole('heading', { name: VENDORS.main.name }).first()
   ).toBeVisible()
-  // The list is still what Home shows, so the Home tab stays lit on both.
-  await expect(
-    page.getByRole('link', { name: 'Home', exact: true })
-  ).toHaveAttribute('aria-current', 'page')
+  // Home is the hub now, so the list is not under the Home tab: no tab is
+  // lit, and Home goes back to the hub.
+  const home = page.getByRole('link', { name: 'Home', exact: true })
+  await expect(home).not.toHaveAttribute('aria-current', 'page')
+  await expect(home).toHaveAttribute('href', '/home')
 }
 
 test.describe('garage list @p0', () => {
@@ -62,31 +66,13 @@ test.describe('garage list @p0', () => {
     )
   })
 
-  test('the lit Home tab on /garages keeps the customer on the list', async ({
-    page,
-  }) => {
-    await page.goto('/garages')
-    await expectGarageList(page)
-
-    const doorstep = page.getByRole('radio', { name: 'Doorstep' })
-    const detailing = page.getByRole('button', {
-      name: 'Detailing',
-      exact: true,
-    })
-    await doorstep.click()
-    await detailing.click()
-    await expect(doorstep).toHaveAttribute('aria-checked', 'true')
-    await expect(detailing).toHaveAttribute('aria-pressed', 'true')
-
-    // On /home the lit tab was a tap that went nowhere; on /garages it must
-    // be the same, or the customer's mode and category would reset.
-    const home = page.getByRole('link', { name: 'Home', exact: true })
-    await expect(home).toHaveAttribute('href', '/garages')
-    await home.click()
-    await expect(page).toHaveURL(/\/garages$/)
-    await expect(page).toHaveTitle('Garages · Detlio')
-    await expect(doorstep).toHaveAttribute('aria-checked', 'true')
-    await expect(detailing).toHaveAttribute('aria-pressed', 'true')
+  test('a link can open the list on Doorstep', async ({ page }) => {
+    // Home's Book a wash, for a car last washed at the door.
+    await page.goto('/garages?mode=doorstep')
+    await expect(page.getByRole('radio', { name: 'Doorstep' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
   })
 
   test('"Find another garage" opens the garage list', async ({ page }) => {
@@ -103,15 +89,15 @@ test.describe('garage list @p0', () => {
   test.describe('signed in', () => {
     test.use({ storageState: asRole('customer-browse') })
 
-    test('/home shows the same list while the new Home is off', async ({
-      page,
-    }) => {
+    test('the Home tab on /garages goes back to the hub', async ({ page }) => {
       await page.goto('/garages')
       await expectGarageList(page)
 
-      await page.goto('/home')
+      await page.getByRole('link', { name: 'Home', exact: true }).click()
       await expect(page).toHaveURL(/\/home$/)
-      await expectGarageList(page)
+      await expect(
+        page.getByRole('region', { name: 'Your car', exact: true })
+      ).toBeVisible()
       // Home keeps the app's own title; only /garages has a page title.
       await expect(page).toHaveTitle('Detlio')
     })

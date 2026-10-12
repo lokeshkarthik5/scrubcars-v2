@@ -61,6 +61,15 @@ import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
+import { useAuthStore } from '@repo/core/stores/auth-store'
+import {
+  isLastingRefusal,
+  livePendingCheckout,
+  pendingCodeFor,
+  usePendingCheckoutStore,
+} from '@repo/core/stores/pending-checkout-store'
+import { invalidateHome } from '@repo/core/api/hooks/use-home'
+import { useNow } from '@repo/core/hooks/use-now'
 import {
   BOOKING_TYPE_LABELS,
   bookingTypeParam,
@@ -94,6 +103,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // At garage or Doorstep, as chosen on home or the garage page. Absent means
   // no choice was made, which checkout takes as At garage.
   const modeParam = searchParams.get('mode')
+  // An offer code from Home: a garage's own offer rides in the link
+  // (/garage/:id?code= passes it on); a Detlio-wide one, and the car picked
+  // on Home, come from the pending-checkout store.
+  const codeParam = searchParams.get('code')?.trim().toUpperCase() || null
   const vehicles = useUserStore((s) => s.vehicles)
   const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
@@ -165,6 +178,31 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // above is ours, because "which code did the customer commit to" is client
   // state, not a server response.
   const applyPromo = useValidateDiscount()
+
+  // What Home handed over (@repo/core/stores/pending-checkout-store): only
+  // this account's, only while the offer still runs, and only a code that can
+  // work at this garage. Read, never trusted: the code is validated like a
+  // typed one.
+  const userId = useAuthStore((s) => s.user?.id)
+  const pending = usePendingCheckoutStore((s) => s.pending)
+  const forgetPendingCode = usePendingCheckoutStore((s) => s.forgetCode)
+  const clearPending = usePendingCheckoutStore((s) => s.clear)
+  const now = useNow()
+  const livePending = livePendingCheckout(pending, { userId, now })
+  // Set by Remove, or by the customer applying a code of their own: from then
+  // on Home's code stays out of this checkout.
+  const [offerDropped, setOfferDropped] = useState(false)
+  // A code from the store that the server refused for good (expired, used
+  // up): forgotten there, so the next garage's checkout does not bring it
+  // back, but still named here until the customer removes it, so the reason
+  // stays on the page rather than vanishing with the store's copy.
+  const [refusedOffer, setRefusedOffer] = useState<string | null>(null)
+  const offerCode = offerDropped
+    ? null
+    : (codeParam ?? pendingCodeFor(livePending, vendorId) ?? refusedOffer)
+  // The cart, car and code Home's code was last checked against, so it is
+  // checked once per change and never twice for the same one.
+  const offerCheckedFor = useRef<string | null>(null)
 
   useEffect(() => {
     // A run overtaken by the next one (the link changed, Retry, or Strict
@@ -243,8 +281,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // `appliedDiscount` below is: with one car there is no render where the
   // selection is still empty, and nothing has to re-fire when the car list
   // arrives.
+  //
+  // The car the customer was looking at on Home when they tapped Book a wash
+  // or an offer is a choice already made, so it is preselected — if it is
+  // still one of their saved cars (it may have been removed since).
+  const homeVehicle = vehicles.some((v) => v.id === livePending?.vehicleId)
+    ? livePending!.vehicleId
+    : null
   const selectedVehicle =
-    pickedVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
+    pickedVehicle ?? homeVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
 
   // Derived rather than set when the garage loads, for the same reason the car
   // is: the choice carried in from the garage page stands unless this garage
@@ -435,11 +480,48 @@ function BookContent({ vendorId }: { vendorId: string }) {
         onSuccess: (applied) => {
           setAppliedPromo({ discount: applied, serviceKey, vehicleId })
           setPromoOpen(false)
+          // The customer's own code replaces the one Home brought.
+          if (offerCode && applied.code !== offerCode) setOfferDropped(true)
         },
         onError: () => setAppliedPromo(null),
       }
     )
   }
+
+  // Home's offer code applies itself once there is a cart and a car to price
+  // it against, and is checked again whenever either changes, until the
+  // customer taps Remove. A code checked against one basket says nothing
+  // about another (a minimum order, a garage's own code), so it is never
+  // carried over unchecked; and when the server refuses it, the coupon row
+  // says why (`offerProblem` below) rather than the saving quietly vanishing.
+  const offerCheckKey =
+    offerCode && selectedServices.length > 0 && selectedVehicle && !unpricedForVehicle
+      ? `${offerCode}|${serviceKey}|${selectedVehicle}`
+      : null
+  useEffect(() => {
+    if (!offerCode || !offerCheckKey || !selectedVehicle) return
+    if (offerCheckedFor.current === offerCheckKey) return
+    offerCheckedFor.current = offerCheckKey
+    const vehicleId = selectedVehicle
+    const key = serviceIds.join(',')
+    const code = offerCode
+    applyPromo.mutate(
+      { code, vendorId, serviceIds, vehicleId },
+      {
+        onSuccess: (applied) => setAppliedPromo({ discount: applied, serviceKey: key, vehicleId }),
+        onError: (error) => {
+          setAppliedPromo(null)
+          if (error instanceof ApiError && isLastingRefusal(error.code)) {
+            setRefusedOffer(code)
+            forgetPendingCode()
+          }
+        },
+      }
+    )
+    // `serviceIds` and `applyPromo` change identity every render; the key
+    // already says everything that matters about them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offerCheckKey, offerCode, selectedVehicle, vendorId])
 
   // Removing a line from the summary rather than going back a screen. The last
   // one cannot be removed: an empty booking is not a state this page has.
@@ -452,6 +534,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
   }
 
   const handleRemovePromo = () => {
+    // A code from Home goes for good: not re-applied on the next change here,
+    // nor at the next garage.
+    if (offerCode) {
+      setOfferDropped(true)
+      forgetPendingCode()
+      // And off the link, so a reload or a shared link does not bring it back.
+      if (codeParam) {
+        const next = new URLSearchParams(searchParams.toString())
+        next.delete('code')
+        router.replace(`/book/${vendorId}?${next.toString()}`, { scroll: false })
+      }
+    }
     setAppliedPromo(null)
     setPromoInput('')
     applyPromo.reset()
@@ -470,6 +564,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
     applyPromo.variables?.serviceIds.join(',') === serviceKey &&
     applyPromo.variables?.vehicleId === selectedVehicle
       ? errorMessage(applyPromo.error, "This code isn't valid.")
+      : ''
+
+  // Home's code, refused for this cart and car: said on the coupon row itself,
+  // with the server's own reason, since the customer never typed it and the
+  // sheet that shows typed codes' errors is closed.
+  const offerChecking =
+    !!offerCode && applyPromo.isPending && applyPromo.variables?.code === offerCode
+  const offerProblem =
+    offerCode && !appliedDiscount && !offerChecking && applyPromo.variables?.code === offerCode
+      ? promoError
       : ''
 
   // An address saved without a pin is normal — only doorstep needs one. Rather
@@ -546,7 +650,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
             ...realClock,
           })
 
+          // Home's bill, tiles and bell all move with a new booking.
+          void invalidateHome(queryClient)
           if (outcome.kind === 'booked') {
+            // The offer and car Home handed over have done their job.
+            clearPending()
             // ?celebrate=1 triggers the success burst on arrival; the booking
             // page strips it once played.
             router.push(`/bookings/${outcome.bookingId}?celebrate=1`)
@@ -951,11 +1059,35 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-text-primary">
-                    Apply
+                    {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
                     <IconChevronRight size={14} />
                   </span>
                 </button>
-
+                {/* Amber, like the sheet's own errors: the code from Home did
+                    not survive a change of car or services, and the customer
+                    is told so in the server's words, not left to notice the
+                    saving gone. */}
+                {/* Remove beside it, as on an applied code: the customer never
+                    typed this one, so it is theirs to let go, here and at the
+                    next garage, without having to find another code that works. */}
+                {offerProblem && (
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <p role="status" className="flex items-start gap-1.5 text-[12px] text-error">
+                      <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
+                      <span>
+                        {offerCode} doesn&apos;t apply to this booking. {offerProblem}
+                      </span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRemovePromo}
+                      aria-label={`Remove ${offerCode}`}
+                      className="-mr-2 min-h-11 shrink-0 px-2 text-[12px] font-medium text-text-primary"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </ScCard>

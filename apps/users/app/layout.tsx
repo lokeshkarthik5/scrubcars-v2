@@ -7,9 +7,14 @@ import { QueryProvider } from '@repo/ui/providers/query-provider'
 import 'react-toastify/dist/ReactToastify.css'
 import './globals.css'
 
+// With its optical-size axis: the browser then draws large text (Home's 22pt
+// offer titles, the 34pt car name) with the display cut's tighter spacing,
+// so titles wrap where the approved mockups wrap them. Small text is
+// unchanged.
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
+  axes: ['opsz'],
 })
 
 // The brand's face for figures — prices, durations, dates and times — exposed

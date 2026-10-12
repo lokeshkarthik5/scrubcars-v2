@@ -35,6 +35,9 @@ import {
   type PickedLocation,
 } from '@repo/ui/features/location-picker'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
+import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
+import { invalidateHome } from '@repo/core/api/hooks/use-home'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   NO_PIN_TEXT,
@@ -72,6 +75,9 @@ export default function ProfilePage() {
   const logout = useAuthStore((s) => s.logout)
   const profile = useUserStore((s) => s.profile)
   const vehicles = useUserStore((s) => s.vehicles)
+  // Home's car hero follows the saved cars: a car added, removed or made the
+  // default here shows there on the next look, not up to 30 seconds later.
+  const queryClient = useQueryClient()
   const addresses = useUserStore((s) => s.addresses)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
@@ -118,6 +124,8 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     await logout()
     resetUser()
+    // Home's pending offer code and car are this account's, not the next one's.
+    usePendingCheckoutStore.getState().clear()
     window.location.href = '/login'
   }
 
@@ -164,6 +172,7 @@ export default function ProfilePage() {
         isDefault: vehicles.length === 0,
       })
       useUserStore.setState((s) => ({ vehicles: [...s.vehicles, created] }))
+      void invalidateHome(queryClient)
       setVehicleForm(emptyVehicleForm)
       setShowVehicleForm(false)
       toast.success('Vehicle added')
@@ -216,6 +225,7 @@ export default function ProfilePage() {
       useUserStore.setState((s) => ({
         vehicles: s.vehicles.map((v) => ({ ...v, isDefault: v.id === id })),
       }))
+      void invalidateHome(queryClient)
       toast.success('Default vehicle updated')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to set default vehicle')
@@ -244,6 +254,7 @@ export default function ProfilePage() {
     try {
       await deleteVehicle(id)
       useUserStore.setState((s) => ({ vehicles: s.vehicles.filter((v) => v.id !== id) }))
+      void invalidateHome(queryClient)
       toast.success('Vehicle removed')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove vehicle')
@@ -326,7 +337,8 @@ export default function ProfilePage() {
         <ScCard className="text-[13px] text-text-primary">My bookings</ScCard>
       </Link>
 
-      <section>
+      {/* #vehicles: Home's pencil on the car opens here. */}
+      <section id="vehicles" className="scroll-mt-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text-primary">Vehicles</h2>
           <button

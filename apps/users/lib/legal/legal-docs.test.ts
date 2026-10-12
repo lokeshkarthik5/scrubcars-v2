@@ -17,6 +17,8 @@ import {
 } from './doc-format'
 import { customerRefundLine } from '@repo/core/refunds'
 import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
+import { PENDING_CHECKOUT_STORAGE_KEY } from '@repo/core/stores/pending-checkout-store'
+import { TIP_HIDDEN_KEY } from '../home-hub'
 import { RULES } from './common'
 import { BUSINESS, LEGAL_DRAFT } from './details'
 import { LEGAL_DOCS } from './index'
@@ -102,6 +104,33 @@ describe('business details', () => {
       markdownOf(doc).split('\n').filter((line) => line.startsWith('> **Reviewer note:**'))
     )
     expect(notes.length).toBeGreaterThan(10)
+  })
+})
+
+describe('what the Home hub keeps', () => {
+  const privacy = () => markdownOf(LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.privacy)!)
+
+  test('the read state and the dismissals are declared, and go with the account', () => {
+    const text = privacy()
+    expect(text).toContain('When you last opened Updates')
+    expect(text).toContain('"Rate your wash"')
+    expect(text).toContain('deleted with your account')
+    expect(text).toContain('How often you want each car washed')
+  })
+
+  test('the storage table names the keys the app writes', () => {
+    const text = privacy()
+    expect(text).toContain(PENDING_CHECKOUT_STORAGE_KEY)
+    expect(text).toContain(TIP_HIDDEN_KEY)
+  })
+
+  // Offers are shown to everyone alike until the policy says otherwise; the
+  // release that turns targeting on must change this test with the policy.
+  test('offers are not chosen from personal data', () => {
+    expect(privacy()).toContain('**Offers on Home are not targeted.**')
+    // The one thing that does change what is shown: no saved car, no garage
+    // offers. Said plainly, so the note does not claim cars play no part.
+    expect(privacy()).toContain('garage offers are hidden until a car is saved')
   })
 })
 

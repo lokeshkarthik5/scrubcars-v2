@@ -45,6 +45,7 @@ import {
 } from '@repo/core/booking-types'
 import { ApiError } from '@repo/core/api/client'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
+import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time'
@@ -153,7 +154,22 @@ export default function BookingDetailPage({
   const rescheduleBooking = useBookingsStore((s) => s.rescheduleBooking)
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loadError, setLoadError] = useState(false)
-  const [rating, setRating] = useState(0)
+  // Where Home sent the customer, read once like ?celebrate below: ?then=pay
+  // (a final bill), reschedule (the garage is shut that day) or help, and
+  // ?rate=N (a star tapped on "Rate your wash", so the form opens with it
+  // chosen; the review is only sent from here, with Submit).
+  const [arrival] = useState(() => {
+    if (typeof window === 'undefined') return { then: null, rate: 0 }
+    const query = new URLSearchParams(window.location.search)
+    const then = query.get('then')
+    const rate = Number(query.get('rate'))
+    return {
+      then: then === 'pay' || then === 'reschedule' || then === 'help' ? then : null,
+      rate: Number.isInteger(rate) && rate >= 1 && rate <= 5 ? rate : 0,
+    }
+  })
+  const arrivalHandled = useRef(false)
+  const [rating, setRating] = useState(arrival.rate)
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [paying, setPaying] = useState(false)
@@ -175,12 +191,16 @@ export default function BookingDetailPage({
   const [cancelling, setCancelling] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
-  const [showReschedule, setShowReschedule] = useState(false)
+  // Opened on arrival when Home's "Change time" sent the customer here; the
+  // sheet itself only shows while the booking can still be moved (below), so
+  // a stale link opens nothing.
+  const [showReschedule, setShowReschedule] = useState(arrival.then === 'reschedule')
   const [rescheduleSlot, setRescheduleSlot] = useState<string | null>(null)
   const [rescheduling, setRescheduling] = useState(false)
   const [submittedReview, setSubmittedReview] = useState<Review | null>(null)
   const [showDirections, setShowDirections] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
+  // Home's "Get help" opens the help sheet straight away.
+  const [showHelp, setShowHelp] = useState(arrival.then === 'help')
   // A drive time on the Getting there card only when the customer has just
   // shared their GPS: the page never asks for location by being opened, and a
   // fix from last week at home is not "from you" today.
@@ -212,6 +232,29 @@ export default function BookingDetailPage({
       }
     })
   }, [id])
+
+  // Once the booking is here, scroll to what Home asked for — only if it
+  // still applies (a bill still due, a finished job), so a stale link does
+  // nothing.
+  useEffect(() => {
+    if (!booking || arrivalHandled.current) return
+    arrivalHandled.current = true
+    const scrollTo = (elementId: string) =>
+      requestAnimationFrame(() =>
+        document.getElementById(elementId)?.scrollIntoView({ block: 'start' })
+      )
+    if (arrival.then === 'pay' && booking.finalBill?.status === 'due') scrollTo('final-bill')
+    if (arrival.rate > 0 && booking.status === 'completed') scrollTo('rate')
+    // Then off the URL, as ?celebrate is: handled once, so Back or a reload
+    // does not open the reschedule or help sheet again unasked, nor put back
+    // a rating the customer has since changed.
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('then') || url.searchParams.has('rate')) {
+      url.searchParams.delete('then')
+      url.searchParams.delete('rate')
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+  }, [booking, arrival])
 
   // Poll for live status updates (e.g. vendor accepts/rejects) every 5s.
   // Stop once the booking reaches a terminal state — except a completed
@@ -299,6 +342,7 @@ export default function BookingDetailPage({
             const updated = await getBooking(booking.id)
             if (updated) setBooking(updated)
             setPaid({ paymentId, phase: 'booked' })
+            void invalidateHome(queryClient)
             toast.success('Payment successful')
           } else {
             setPaid({
@@ -332,6 +376,7 @@ export default function BookingDetailPage({
       setBooking(updated)
       setShowCancelConfirm(false)
       setCancelReason('')
+      void invalidateHome(queryClient)
       toast.success('Booking cancelled')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to cancel booking')
@@ -348,6 +393,7 @@ export default function BookingDetailPage({
       const created = await rescheduleBooking(booking.id, rescheduleSlot)
       setShowReschedule(false)
       setRescheduleSlot(null)
+      void invalidateHome(queryClient)
       // A move goes back to the garage: say so, rather than "rescheduled",
       // which reads as done.
       toast.success(`New time sent to ${booking.vendorName}. Waiting for them to accept.`)
@@ -387,6 +433,8 @@ export default function BookingDetailPage({
     try {
       const review = await submitReview({ bookingId: id, rating, comment })
       setSubmittedReview(review)
+      // Home's "Rate your wash" is answered.
+      void invalidateHome(queryClient)
       toast.success('Review submitted. Thanks!')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to submit review')
@@ -620,7 +668,11 @@ export default function BookingDetailPage({
             bill={booking.finalBill}
             payment={billPayments[booking.finalBill.id]}
             onPayment={recordBillPayment}
-            onUpdated={setBooking}
+            onUpdated={(updated) => {
+              setBooking(updated)
+              // The bill card on Home, and Book a wash back to red.
+              void invalidateHome(queryClient)
+            }}
             customer={{ name: profile?.name, phone: profile?.phone }}
           />
         )}
@@ -883,7 +935,8 @@ export default function BookingDetailPage({
       )}
 
       {booking.status === 'completed' && (
-        <ScCard>
+        // #rate: Home's "Rate your wash" stars land here, the rating chosen.
+        <ScCard id="rate" className="scroll-mt-4">
           <h2 className="mb-3 text-sm font-semibold text-text-primary">Rate your experience</h2>
           {submittedReview ? (
             <div className="flex flex-col gap-2">
@@ -949,7 +1002,14 @@ export default function BookingDetailPage({
       {/* dismissible=false while the reschedule is in flight, so a stray tap on
           the backdrop can't close the sheet mid-request. */}
       <ScSheet
-        open={showReschedule}
+        // Only while the booking can be moved: the same rules as the
+        // Reschedule button, so a stale ?then=reschedule opens nothing.
+        open={
+          showReschedule &&
+          (booking.status === 'pending' || booking.status === 'confirmed') &&
+          booking.remainingReschedules > 0 &&
+          !lockedIn
+        }
         onClose={() => setShowReschedule(false)}
         dismissible={!rescheduling}
         aria-label="Reschedule booking"

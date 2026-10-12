@@ -26,5 +26,16 @@ test.describe('harness smoke @p0', () => {
       // Signed out, app-provider would bounce this route to /login.
       await expect(page).toHaveURL(/\/bookings/)
     })
+
+    // The Home hub is on in the suite (NEXT_PUBLIC_HOME_HUB in .env.e2e).
+    test('Home is the hub, and its bell opens Updates', async ({ page }) => {
+      await page.goto('/home')
+      await expect(page.getByRole('region', { name: 'Your car', exact: true })).toBeVisible()
+      await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible()
+
+      await page.getByRole('link', { name: /^Updates/ }).click()
+      await expect(page).toHaveURL(/\/updates$/)
+      await expect(page.getByRole('heading', { level: 1, name: 'Updates' })).toBeVisible()
+    })
   })
 })

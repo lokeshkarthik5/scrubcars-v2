@@ -1048,12 +1048,13 @@ async function exhaustDiscounts() {
 }
 
 /**
- * The Home hub's fixtures (specs/users/home-api.spec.ts and the admin
- * notices and discount specs): a garage of their own far from ORIGIN, two
- * codes shown on Home only to customers who booked it or stand near it, one
- * booking-window notice about one customer's slot, and one customer per
- * state of Home. Nothing here reaches any other customer's Home: there is no
- * 'everyone' offer and no 'all' notice.
+ * The Home hub's fixtures (specs/users/home-api.spec.ts, the Home screen's
+ * home.spec.ts and updates.spec.ts, and the admin notices and discount
+ * specs): a garage of their own far from ORIGIN, two codes shown on Home
+ * only to customers who booked it or stand near it, booking-window notices
+ * each about one customer's slot, and one customer per state of Home.
+ * Nothing here reaches any other customer's Home: there is no 'everyone'
+ * offer and no 'all' notice.
  */
 async function seedHomeHubRows() {
   const garage = VENDORS.homePromo.id
@@ -1080,7 +1081,7 @@ async function seedHomeHubRows() {
   // interval so the October–December default never decides the assertion.
   await db.insert(userVehicles).values([
     ...[CUSTOMERS.homeOffer, CUSTOMERS.homeBill, CUSTOMERS.homeUpdates, CUSTOMERS.homeNotice,
-        CUSTOMERS.homeClosed].map((c, i) => ({
+        CUSTOMERS.homeClosed, CUSTOMERS.homeBell, CUSTOMERS.homeTile].map((c, i) => ({
       id: c.vehicleId as string, userId: c.id, make: 'Maruti', model: 'Baleno', color: 'Grey',
       licensePlate: `TN23HH${String(i).padStart(4, '0')}`, vehicleType: 'hatchback' as const,
       isDefault: true,
@@ -1091,6 +1092,12 @@ async function seedHomeHubRows() {
     { id: VEHICLES.homeWashSecond, userId: CUSTOMERS.homeWash.id, make: 'Tata', model: 'Nexon',
       color: 'Blue', licensePlate: 'TN23HW0002', vehicleType: 'suv', isDefault: false,
       washIntervalDays: 10 },
+    { id: CUSTOMERS.homeScreenWash.vehicleId, userId: CUSTOMERS.homeScreenWash.id, make: 'Honda',
+      model: 'Amaze', color: 'White', licensePlate: 'TN23HW0003', vehicleType: 'sedan',
+      isDefault: true, washIntervalDays: 10 },
+    { id: VEHICLES.homeScreenWashSecond, userId: CUSTOMERS.homeScreenWash.id, make: 'Tata',
+      model: 'Nexon', color: 'Blue', licensePlate: 'TN23HW0004', vehicleType: 'suv',
+      isDefault: false, washIntervalDays: 10 },
   ])
 
   // Ends at midnight IST thirty days out, so the card reads "Till <the day before>".
@@ -1180,6 +1187,40 @@ async function seedHomeHubRows() {
     vendorId: garage,
     date: closedSlot.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
     reason: 'Pongal',
+  })
+
+  // The Home screen's own customers (specs/users/home.spec.ts,
+  // updates.spec.ts): the same states as above, on rows the API spec never
+  // resets or changes.
+  await insertBooking({ ...at, id: BOOKINGS.homeScreenWashFirst, userId: CUSTOMERS.homeScreenWash.id,
+    vehicleId: CUSTOMERS.homeScreenWash.vehicleId, scheduledAt: daysAgo(8), createdAt: daysAgo(9),
+    status: 'completed', completedAt: daysAgo(8),
+    payment: { status: 'paid', txnId: 'pay_seed_home_screen_wash_1', paidAt: daysAgo(9) } })
+  await insertBooking({ ...at, id: BOOKINGS.homeScreenWashSecond, userId: CUSTOMERS.homeScreenWash.id,
+    vehicleId: VEHICLES.homeScreenWashSecond, scheduledAt: daysAgo(13), createdAt: daysAgo(14),
+    status: 'completed', completedAt: daysAgo(13),
+    payment: { status: 'paid', txnId: 'pay_seed_home_screen_wash_2', paidAt: daysAgo(14) } })
+
+  // Done a day ago; Updates last opened before it was accepted.
+  await insertBooking({ ...at, id: BOOKINGS.homeBellDone, userId: CUSTOMERS.homeBell.id,
+    vehicleId: CUSTOMERS.homeBell.vehicleId, scheduledAt: hoursAgo(27), createdAt: daysAgo(3),
+    status: 'completed', acceptedAt: daysAgo(2), startedAt: hoursAgo(27), completedAt: hoursAgo(26),
+    payment: { status: 'paid', txnId: 'pay_seed_home_bell', paidAt: daysAgo(3) } })
+  await db.update(users).set({ updatesSeenAt: daysAgo(2.5) }).where(eq(users.id, CUSTOMERS.homeBell.id))
+
+  // A day after homeRain's window, so that notice's audience stays one
+  // customer, and clear of the holiday above.
+  const tileSlot = daysAheadAt(4, 15)
+  await insertBooking({ ...at, id: BOOKINGS.homeTileUpcoming, userId: CUSTOMERS.homeTile.id,
+    vehicleId: CUSTOMERS.homeTile.vehicleId, scheduledAt: tileSlot, createdAt: daysAgo(1),
+    status: 'confirmed', acceptedAt: hoursAgo(1),
+    payment: { status: 'paid', txnId: 'pay_seed_home_tile', paidAt: daysAgo(1) } })
+  await db.insert(notices).values({
+    id: NOTICES.homeTileNote, title: 'Water cut: slot may move',
+    body: 'The garage has a water cut that day. It may call you to move your time.',
+    audience: 'with_booking_between', vendorId: garage,
+    bookingFrom: new Date(tileSlot.getTime() - HOUR), bookingTo: new Date(tileSlot.getTime() + HOUR),
+    startsAt: hoursAgo(1), endsAt: new Date(now.getTime() + 5 * 24 * HOUR), createdBy: 'E2E seed',
   })
 }
 
