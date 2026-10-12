@@ -1074,7 +1074,7 @@ export const discounts = pgTable(
     // date) is generated from the columns above, so it can never misstate a
     // limit. Shown only with an end date. See lib/offers.ts.
     showOnHome: boolean('show_on_home').default(false).notNull(),
-    homeTitle: varchar('home_title', { length: 60 }),
+    homeTitle: varchar('home_title', { length: 40 }),
     // 0 Normal, 1 High, 2 Top. Higher shows first.
     homePriority: smallint('home_priority').default(0).notNull(),
     // Who SEES the offer on Home — never who may use the code at checkout.
@@ -1106,7 +1106,7 @@ export const discounts = pgTable(
       .where(sql`${table.showOnHome} and ${table.isActive}`),
     check(
       'discounts_home_fields_check',
-      sql`not ${table.showOnHome} or (char_length(btrim(coalesce(${table.homeTitle}, ''))) between 3 and 60 and ${table.endsAt} is not null)`
+      sql`not ${table.showOnHome} or (char_length(btrim(coalesce(${table.homeTitle}, ''))) between 3 and 40 and ${table.endsAt} is not null)`
     ),
     check(
       'discounts_home_priority_check',
