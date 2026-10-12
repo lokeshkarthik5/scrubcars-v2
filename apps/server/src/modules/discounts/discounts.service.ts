@@ -1,11 +1,27 @@
-import { AppError } from '../../lib/errors.js'
+import { AppError, hasPgCode } from '../../lib/errors.js'
 import {
   assertRuleApplies,
   computeDiscount,
   type DiscountFundedBy,
   type DiscountRule,
 } from '../../lib/discounts.js'
+import { bannedPhraseIn } from '../../lib/copy-rules.js'
+import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
+import {
+  DEFAULT_NEAR_RADIUS_KM,
+  HOME_AUDIENCE_LABELS,
+  HOME_AUDIENCES,
+  HOME_FIELD_KEYS,
+  HOME_PRIORITIES,
+  homeFieldsProblem,
+  MAX_HOME_OFFERS,
+  MAX_NEAR_RADIUS_KM,
+  mergeHomeFields,
+  TARGETING_DISABLED_NOTE,
+  targetingRefused,
+  type HomeFields,
+} from '../../lib/offers.js'
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { discountsRepository } from './discounts.repository.js'
 import type {
@@ -27,6 +43,23 @@ export interface ResolvedDiscount {
   // without a second read.
   perUserLimit: number | null
   totalUsageLimit: number | null
+}
+
+/**
+ * Postgres check_violation: a row 0031's Home CHECKs (or an older one)
+ * refuse. The service checks the merged row first, so reaching this means the
+ * two disagree; it is still the admin's input, so a 400 rather than a 500.
+ */
+function isCheckViolation(err: unknown): boolean {
+  return hasPgCode(err, '23514')
+}
+
+function checkViolation() {
+  return new AppError(
+    400,
+    "These settings don't fit together. Check the Show on Home fields and the dates.",
+    'DISCOUNT_INVALID'
+  )
 }
 
 /** Postgres unique_violation — the case-insensitive index on lower(code). */
@@ -132,6 +165,12 @@ function toDiscountResponse(
     startsAt: Date | null
     endsAt: Date | null
     isActive: boolean
+    showOnHome: boolean
+    homeTitle: string | null
+    homePriority: number
+    homeAudience: string
+    homeAudienceRadiusKm: number | null
+    homeAudienceVehicleTypes: string[] | null
     createdAt: Date
     vendor?: { id: string; businessName: string } | null
   },
@@ -159,6 +198,12 @@ function toDiscountResponse(
     startsAt: discount.startsAt?.toISOString() ?? null,
     endsAt: discount.endsAt?.toISOString() ?? null,
     isActive: discount.isActive,
+    showOnHome: discount.showOnHome,
+    homeTitle: discount.homeTitle,
+    homePriority: discount.homePriority,
+    homeAudience: discount.homeAudience,
+    homeAudienceRadiusKm: discount.homeAudienceRadiusKm,
+    homeAudienceVehicleTypes: discount.homeAudienceVehicleTypes,
     createdAt: discount.createdAt.toISOString(),
     redemptionCount: usage?.redemptionCount ?? 0,
     heldCount: usage?.heldCount ?? 0,
@@ -191,8 +236,56 @@ function toRowValues(input: UpdateDiscountInput) {
   if ('startsAt' in input) values.startsAt = toDate(input.startsAt)
   if ('endsAt' in input) values.endsAt = toDate(input.endsAt)
   if ('isActive' in input) values.isActive = input.isActive
+  if ('showOnHome' in input) values.showOnHome = input.showOnHome
+  if ('homeTitle' in input) values.homeTitle = input.homeTitle?.trim() || null
+  if ('homePriority' in input) values.homePriority = input.homePriority
+  if ('homeAudience' in input) values.homeAudience = input.homeAudience
+  if ('homeAudienceRadiusKm' in input) {
+    values.homeAudienceRadiusKm = input.homeAudienceRadiusKm ?? null
+  }
+  if ('homeAudienceVehicleTypes' in input) {
+    values.homeAudienceVehicleTypes = input.homeAudienceVehicleTypes ?? null
+  }
 
   return values
+}
+
+/**
+ * Checks a code's Home fields as a whole and writes the merged values back
+ * into `values`. Throws the first problem as a 400, a non-everyone audience
+ * while targeting is off as a 409, and banned words in the title as a 400.
+ */
+function applyHomeFields(
+  stored: Partial<HomeFields>,
+  values: Record<string, unknown>,
+  input: UpdateDiscountInput
+) {
+  if (targetingRefused(input.homeAudience, env.homeOfferTargeting, stored.homeAudience)) {
+    throw new AppError(409, TARGETING_DISABLED_NOTE, 'TARGETING_DISABLED')
+  }
+
+  const patch = Object.fromEntries(
+    HOME_FIELD_KEYS.filter((key) => key in values).map((key) => [key, values[key]])
+  ) as Partial<HomeFields>
+  const merged = mergeHomeFields(stored, patch)
+  const problem = homeFieldsProblem(merged)
+  if (problem) {
+    throw new AppError(400, problem.message, 'DISCOUNT_HOME_INVALID')
+  }
+
+  if (merged.homeTitle) {
+    const banned = bannedPhraseIn(merged.homeTitle)
+    if (banned) {
+      throw new AppError(
+        400,
+        `Offer titles can't say "${banned}". Describe what the code gives, plainly.`,
+        'COPY_NOT_ALLOWED'
+      )
+    }
+  }
+
+  values.homeAudienceRadiusKm = merged.homeAudienceRadiusKm
+  values.homeAudienceVehicleTypes = merged.homeAudienceVehicleTypes
 }
 
 // Switching a code's effect must not leave the old effect's columns behind:
@@ -314,6 +407,7 @@ export const discountsService = {
 
     const values = toRowValues(input)
     clearOppositeEffect(values, input.discountType)
+    applyHomeFields({}, values, input)
 
     try {
       const created = await discountsRepository.createDiscount(
@@ -322,6 +416,7 @@ export const discountsService = {
       log.info({ discountId: created.id, code: created.code }, 'discount:created')
       return toDiscountResponse(created)
     } catch (err) {
+      if (isCheckViolation(err)) throw checkViolation()
       if (isUniqueViolation(err)) {
         throw new AppError(
           409,
@@ -370,12 +465,16 @@ export const discountsService = {
 
     const values = toRowValues(input)
     clearOppositeEffect(values, effectiveType)
+    // Judged on the merged row: a PATCH that only clears `endsAt` on a code
+    // shown on Home is refused here, not by the database.
+    applyHomeFields(existing, values, input)
 
     try {
       const updated = await discountsRepository.updateDiscount(id, values)
       log.info({ discountId: id }, 'discount:updated')
       return toDiscountResponse(updated)
     } catch (err) {
+      if (isCheckViolation(err)) throw checkViolation()
       if (isUniqueViolation(err)) {
         throw new AppError(
           409,
@@ -414,5 +513,27 @@ export const discountsService = {
 
   listVendorOptions() {
     return discountsRepository.listVendorOptions()
+  },
+
+  /**
+   * What the admin form needs for "Show on Home": the priorities, the
+   * audiences, and whether audiences other than 'everyone' can be saved
+   * (HOME_OFFER_TARGETING). While they cannot, the form shows them disabled
+   * with `targetingNote`.
+   */
+  homeConfig() {
+    return {
+      targetingEnabled: env.homeOfferTargeting,
+      targetingNote: env.homeOfferTargeting ? null : TARGETING_DISABLED_NOTE,
+      maxOffersOnHome: MAX_HOME_OFFERS,
+      priorities: HOME_PRIORITIES,
+      audiences: HOME_AUDIENCES.map((value) => ({
+        value,
+        label: HOME_AUDIENCE_LABELS[value],
+        enabled: value === 'everyone' || env.homeOfferTargeting,
+      })),
+      defaultNearRadiusKm: DEFAULT_NEAR_RADIUS_KM,
+      maxNearRadiusKm: MAX_NEAR_RADIUS_KM,
+    }
   },
 }

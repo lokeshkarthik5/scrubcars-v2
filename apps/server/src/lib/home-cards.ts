@@ -1,0 +1,450 @@
+/**
+ * The cards on the customer's Home, decided from what the Home read loaded.
+ * Pure, with the clock passed in.
+ *
+ * Owner decisions on order (top to bottom):
+ *
+ *   1. A must-act card, only when one applies: a bill to pay, or the garage
+ *      is shut on the day of a booking. Bill first. One at most.
+ *   2. The offers (lib/offers.ts).
+ *   3. "Rate your wash", a soft card, only when there is no must-act card.
+ *      So at most two cards ever sit above the car.
+ *   4. The car, with its wash bar and one tile: the next booking (carrying a
+ *      team notice about it as one short line), before & after photos, Book
+ *      again, or nothing booked.
+ *
+ * A notice about the customer's own booking is never a card above the car:
+ * it rides on the Next booking tile and leads the Updates feed.
+ */
+import { computeServiceAmount, sumAmounts, type PricingColumns, type VehicleTier } from './pricing.js'
+import { dayStatus, getDayOfWeekFromDate } from './slots.js'
+import { istDateKey } from './ist.js'
+import { isPaid, type HubBooking } from './home-updates.js'
+import { noticeMatchesBooking, type NoticeRow } from './notices.js'
+import { washStatus, type WashStatus } from './wash-status.js'
+
+const HOUR_MS = 60 * 60 * 1000
+
+/** "Rate your wash" shows for this long after the job is finished. */
+export const RATE_PROMPT_HOURS = 72
+/** Before & after photos stay on the tile for a week after the job. */
+export const PHOTOS_TILE_DAYS = 7
+/**
+ * Same rules as rescheduleBooking (bookings.service.ts): an accepted booking
+ * can be moved only this far ahead, and a chain only so many times.
+ */
+export const CHANGE_CUTOFF_MS = 2 * HOUR_MS
+export const MAX_RESCHEDULES = 2
+
+const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'in_progress'])
+
+// ─── Must-act and soft cards ─────────────────────────────────────────────────
+
+export type ActionCard =
+  | {
+      kind: 'bill_due'
+      bookingId: string
+      chargeId: string
+      vendorName: string
+      serviceName: string
+      amountDue: string
+      raisedAt: string
+      /** Further bills due beyond this one: "+1 more" links to Updates. */
+      moreDue: number
+    }
+  | {
+      kind: 'garage_closed'
+      bookingId: string
+      vendorId: string
+      vendorName: string
+      scheduledAt: string
+      reason: 'holiday' | 'weekly_off'
+      canChangeTime: boolean
+    }
+  | {
+      kind: 'rate'
+      bookingId: string
+      vehicleName: string
+      vendorName: string
+      completedAt: string
+    }
+
+/** The garages' closed days, as the Home read loads them for upcoming bookings. */
+export interface GarageDays {
+  /** IST dates ("YYYY-MM-DD") in vendor_closures, by garage. */
+  closures: Map<string, Set<string>>
+  /** Weekly hours rows, by garage then day of week (0 = Sunday). */
+  hours: Map<string, Map<number, { isClosed: boolean }>>
+}
+
+/**
+ * Whether the customer can still move a booking themselves, by the same
+ * rules rescheduleBooking enforces: pending or accepted, an accepted one at
+ * least 2 hours ahead, and moves left in its chain.
+ */
+export function canChangeTime(
+  booking: Pick<HubBooking, 'status' | 'scheduledAt' | 'rescheduleCount'>,
+  now: Date
+): boolean {
+  if (booking.status !== 'pending' && booking.status !== 'confirmed') return false
+  if (booking.rescheduleCount >= MAX_RESCHEDULES) return false
+  if (booking.status === 'confirmed') {
+    return booking.scheduledAt.getTime() - now.getTime() >= CHANGE_CUTOFF_MS
+  }
+  return true
+}
+
+/** Every bill waiting to be paid, oldest first. */
+export function billDueCards(bookings: HubBooking[]): Array<Extract<ActionCard, { kind: 'bill_due' }>> {
+  const due = bookings
+    .flatMap((booking) =>
+      booking.charges.filter((c) => c.status === 'due').map((charge) => ({ booking, charge }))
+    )
+    .sort((a, b) => a.charge.createdAt.getTime() - b.charge.createdAt.getTime())
+
+  return due.map(({ booking, charge }) => ({
+    kind: 'bill_due',
+    bookingId: booking.id,
+    chargeId: charge.id,
+    vendorName: booking.vendorName,
+    serviceName: booking.serviceLabel,
+    amountDue: charge.amountDue,
+    raisedAt: charge.createdAt.toISOString(),
+    moreDue: due.length - 1,
+  }))
+}
+
+/**
+ * Upcoming bookings on a day their garage is shut, soonest first: a holiday,
+ * or a weekly day off — only where an hours row exists and says closed. A
+ * missing row is a gap in the garage's data, not a closure, so it never
+ * raises this card. A pause is ignored here: it never touches existing
+ * bookings. Changed hours on the day are not checked.
+ */
+export function garageClosedCards(
+  bookings: HubBooking[],
+  days: GarageDays,
+  now: Date
+): Array<Extract<ActionCard, { kind: 'garage_closed' }>> {
+  return bookings
+    .filter((b) => (b.status === 'pending' || b.status === 'confirmed') && b.scheduledAt > now)
+    .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+    .flatMap((booking) => {
+      const date = istDateKey(booking.scheduledAt)
+      const isHoliday = days.closures.get(booking.vendorId)?.has(date) ?? false
+      const hours = days.hours.get(booking.vendorId)?.get(getDayOfWeekFromDate(date))
+      if (!isHoliday && !hours) return []
+      const status = dayStatus({ pausedAt: null, isHoliday, hours })
+      if (status.open || status.reason === 'paused') return []
+      return [{
+        kind: 'garage_closed' as const,
+        bookingId: booking.id,
+        vendorId: booking.vendorId,
+        vendorName: booking.vendorName,
+        scheduledAt: booking.scheduledAt.toISOString(),
+        reason: status.reason,
+        // A paused garage refuses every reschedule (409 GARAGE_PAUSED), so
+        // the card must not offer one: Get help is the way out instead.
+        canChangeTime: !booking.vendorPausedAt && canChangeTime(booking, now),
+      }]
+    })
+}
+
+/**
+ * Finished jobs to ask a rating for, newest first: done within the last 72
+ * hours, not reviewed, and not closed with ×.
+ */
+export function rateCards(bookings: HubBooking[], now: Date): Array<Extract<ActionCard, { kind: 'rate' }>> {
+  return bookings
+    .filter(
+      (b) =>
+        b.status === 'completed' &&
+        b.completedAt !== null &&
+        !b.hasReview &&
+        !b.reviewPromptDismissedAt &&
+        now.getTime() - b.completedAt.getTime() <= RATE_PROMPT_HOURS * HOUR_MS &&
+        b.completedAt <= now
+    )
+    .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())
+    .map((b) => ({
+      kind: 'rate' as const,
+      bookingId: b.id,
+      vehicleName: b.vehicleName,
+      vendorName: b.vendorName,
+      completedAt: b.completedAt!.toISOString(),
+    }))
+}
+
+/**
+ * The cards above the car: one must-act card (bill before closed day), and
+ * a soft "Rate your wash" card only when there is none. `todo` is all of
+ * them, for the To do list on /updates.
+ */
+export function pickActionCards(bookings: HubBooking[], days: GarageDays, now: Date): {
+  mustAct: ActionCard | null
+  softCard: ActionCard | null
+  todo: ActionCard[]
+} {
+  const bills = billDueCards(bookings)
+  const closed = garageClosedCards(bookings, days, now)
+  const rate = rateCards(bookings, now)
+  const mustAct = bills[0] ?? closed[0] ?? null
+  return {
+    mustAct,
+    softCard: mustAct ? null : (rate[0] ?? null),
+    todo: [...bills, ...closed, ...rate],
+  }
+}
+
+// ─── The car and its tile ────────────────────────────────────────────────────
+
+export interface HubCar {
+  id: string
+  make: string
+  model: string
+  color: string | null
+  licensePlate: string | null
+  vehicleType: VehicleTier
+  isDefault: boolean
+  washIntervalDays: number | null
+}
+
+/** A car's most recent finished job of any kind and age, for Book again. */
+export interface LastJob {
+  bookingId: string
+  vehicleId: string
+  vendorId: string
+  vendorName: string
+  /** The garage's state now, to judge whether it can take this job again. */
+  garage: {
+    active: boolean
+    verified: boolean
+    /** Has a map pin (vendors.geo). */
+    pinned: boolean
+    dropinEnabled: boolean
+    doorstepEnabled: boolean
+  }
+  /** Set while the garage has stopped taking new bookings. */
+  vendorPausedAt: Date | null
+  bookingType: 'dropin' | 'doorstep'
+  /** The services as sold, in order, with their live state and prices. */
+  services: Array<PricingColumns & { id: string; name: string; isActive: boolean }>
+}
+
+/**
+ * Whether the garage can take this job again now: the rule its own page
+ * books by (findPublicVendorById: active and verified), not paused, and still
+ * offering this kind of booking. A map pin is needed only for doorstep, which
+ * measures the customer's distance from it. Most garages predate the map
+ * picker and lost their pins in 0019; they still take drop-ins, so a missing
+ * pin must not tell their customers they "aren't taking bookings". (Offers
+ * and Nearby keep the pin rule: they are about where a garage is.)
+ */
+export function garageTakesJobAgain(job: Pick<LastJob, 'garage' | 'vendorPausedAt' | 'bookingType'>): boolean {
+  const { garage } = job
+  if (!garage.active || !garage.verified || job.vendorPausedAt) return false
+  if (job.bookingType === 'doorstep') return garage.doorstepEnabled && garage.pinned
+  return garage.dropinEnabled
+}
+
+export type RightTile =
+  | {
+      kind: 'next_booking'
+      bookingId: string
+      status: string
+      /** 'unpaid' is a pay-later booking: it holds no slot until paid. */
+      paymentStatus: 'paid' | 'collected' | 'unpaid'
+      scheduledAt: string
+      bookingType: 'dropin' | 'doorstep'
+      vendorId: string
+      vendorName: string
+      /** May be an archived car's: Home never hides a booking. */
+      vehicleId: string
+      /** A team notice about this booking, as one short line. */
+      notice: { noticeId: string; title: string; linkUrl: string | null; linkLabel: string | null } | null
+    }
+  /**
+   * Raised only when the garage took at least one after photo, so the tile
+   * never promises an "after" that does not exist; `before` may be 0.
+   */
+  | { kind: 'photos'; bookingId: string; before: number; after: number; vendorName: string; at: string }
+  | {
+      kind: 'book_again'
+      bookingId: string
+      vendorId: string
+      vendorName: string
+      bookingType: 'dropin' | 'doorstep'
+      /** Still on sale, in the order first booked. The client builds the link. */
+      serviceIds: string[]
+      /** "Exterior Wash", or "Exterior Wash + 1 more". */
+      serviceLabel: string
+      /** For this car's type; null when any line has no price for it. */
+      price: string | null
+      /**
+       * Some line is priced on inspection: `price` then includes only its
+       * inspection fee, not the job. The tile must say so ("Inspection fee
+       * ₹299"), never show it as the price of the work.
+       */
+      pricedOnInspection: boolean
+      available: boolean
+    }
+  /** The garage it last used isn't taking bookings: "See other garages". */
+  | { kind: 'garage_unavailable'; vendorId: string; vendorName: string }
+  | { kind: 'nothing_booked' }
+
+export interface HomeCar extends HubCar {
+  wash: WashStatus
+  rightTile: RightTile
+}
+
+/** "Express Wash", "Express Wash + 1 more". */
+export function serviceLabelOf(names: string[]): string {
+  if (names.length === 0) return 'Service'
+  return names.length === 1 ? names[0] : `${names[0]} + ${names.length - 1} more`
+}
+
+function bookAgainTile(job: LastJob, car: HubCar): RightTile {
+  if (!garageTakesJobAgain(job)) {
+    return { kind: 'garage_unavailable', vendorId: job.vendorId, vendorName: job.vendorName }
+  }
+  const onSale = job.services.filter((service) => service.isActive)
+  const prices = onSale.map((service) => computeServiceAmount(service, car.vehicleType))
+  return {
+    kind: 'book_again',
+    bookingId: job.bookingId,
+    vendorId: job.vendorId,
+    vendorName: job.vendorName,
+    bookingType: job.bookingType,
+    serviceIds: onSale.map((service) => service.id),
+    serviceLabel: serviceLabelOf(onSale.map((service) => service.name)),
+    price: onSale.length > 0 && prices.every((p) => p !== null) ? sumAmounts(prices as string[]) : null,
+    pricedOnInspection: onSale.some((service) => service.pricingType === 'on_inspection'),
+    available: onSale.length > 0,
+  }
+}
+
+/**
+ * Each saved car with its wash bar and tile, default car first.
+ *
+ * A live booking for a car the customer has since removed is shown on the
+ * default car's tile, so Home never hides a booking.
+ */
+export function buildCars(input: {
+  cars: HubCar[]
+  bookings: HubBooking[]
+  /** When each car was last washed (lib/wash-status.ts washedAt). */
+  lastWashAt: Map<string, Date>
+  lastJobs: Map<string, LastJob>
+  /** Live, undismissed booking-window notices. */
+  notices: NoticeRow[]
+  now: Date
+}): HomeCar[] {
+  const { now } = input
+  const cars = [...input.cars].sort(
+    (a, b) => Number(b.isDefault) - Number(a.isDefault) || `${a.make} ${a.model}`.localeCompare(`${b.make} ${b.model}`)
+  )
+  const carIds = new Set(cars.map((car) => car.id))
+  const active = input.bookings
+    .filter((b) => ACTIVE_STATUSES.has(b.status))
+    .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+
+  return cars.map((car, index) => {
+    const own = active.filter((b) => b.vehicleId === car.id)
+    const shown = index === 0 ? active.filter((b) => b.vehicleId === car.id || !carIds.has(b.vehicleId)) : own
+    // Being washed right now counts as booked, as does a paid slot ahead.
+    const paidAhead = own.find(
+      (b) => isPaid(b.payment) && (b.status === 'in_progress' || b.scheduledAt > now)
+    )
+
+    const wash = washStatus({
+      intervalDays: car.washIntervalDays,
+      lastWashAt: input.lastWashAt.get(car.id) ?? null,
+      bookedFor: paidAhead ? { bookingId: paidAhead.id, scheduledAt: paidAhead.scheduledAt } : null,
+      now,
+    })
+
+    return { ...car, wash, rightTile: rightTileFor(car, shown, input, now) }
+  })
+}
+
+export type NextBookingTile = Extract<RightTile, { kind: 'next_booking' }>
+
+function nextBookingTile(next: HubBooking, notices: NoticeRow[]): NextBookingTile {
+  const notice = notices
+    .filter((n) => noticeMatchesBooking(n, next))
+    .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime())[0]
+  return {
+    kind: 'next_booking',
+    bookingId: next.id,
+    status: next.status,
+    paymentStatus:
+      next.payment?.status === 'paid' || next.payment?.status === 'collected'
+        ? next.payment.status
+        : 'unpaid',
+    scheduledAt: next.scheduledAt.toISOString(),
+    bookingType: next.bookingType,
+    vendorId: next.vendorId,
+    vendorName: next.vendorName,
+    vehicleId: next.vehicleId,
+    notice: notice
+      ? { noticeId: notice.id, title: notice.title, linkUrl: notice.linkUrl, linkLabel: notice.linkLabel }
+      : null,
+  }
+}
+
+/**
+ * The next live booking when the customer has no saved car left: they
+ * booked for their only car, then removed it (it is archived, since a
+ * booking points at it). There is no car to hang the tile on, so Home shows
+ * this on its own beside "Add your car". Null whenever a car exists, because
+ * then buildCars puts the booking on the default car's tile.
+ */
+export function nextBookingWithoutCar(input: {
+  cars: HubCar[]
+  bookings: HubBooking[]
+  notices: NoticeRow[]
+}): NextBookingTile | null {
+  if (input.cars.length > 0) return null
+  const next = input.bookings
+    .filter((b) => ACTIVE_STATUSES.has(b.status))
+    .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())[0]
+  return next ? nextBookingTile(next, input.notices) : null
+}
+
+function rightTileFor(
+  car: HubCar,
+  active: HubBooking[],
+  input: { bookings: HubBooking[]; lastJobs: Map<string, LastJob>; notices: NoticeRow[] },
+  now: Date
+): RightTile {
+  const next = active[0]
+  if (next) return nextBookingTile(next, input.notices)
+
+  // "Before & after" needs an after photo: a garage that only photographed
+  // the car at check-in has nothing to show as the result.
+  const withPhotos = input.bookings
+    .filter(
+      (b) =>
+        b.vehicleId === car.id &&
+        b.status === 'completed' &&
+        b.completedAt !== null &&
+        b.photos.after > 0 &&
+        now.getTime() - b.completedAt.getTime() <= PHOTOS_TILE_DAYS * 24 * HOUR_MS
+    )
+    .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())[0]
+  if (withPhotos) {
+    return {
+      kind: 'photos',
+      bookingId: withPhotos.id,
+      before: withPhotos.photos.before,
+      after: withPhotos.photos.after,
+      vendorName: withPhotos.vendorName,
+      at: withPhotos.completedAt!.toISOString(),
+    }
+  }
+
+  const job = input.lastJobs.get(car.id)
+  if (job) return bookAgainTile(job, car)
+
+  return { kind: 'nothing_booked' }
+}

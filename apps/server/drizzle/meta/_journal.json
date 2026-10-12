@@ -218,6 +218,13 @@
       "when": 1787834189708,
       "tag": "0030_receipt_numbers",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787834189709,
+      "tag": "0031_home_hub",
+      "breakpoints": true
     }
   ]
 }

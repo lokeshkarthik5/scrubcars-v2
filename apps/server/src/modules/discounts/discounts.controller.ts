@@ -60,3 +60,8 @@ export async function listVendorOptions(c: DiscountContext) {
   const data = await discountsService.listVendorOptions()
   return c.json({ success: true, data })
 }
+
+export async function getHomeConfig(c: DiscountContext) {
+  const data = discountsService.homeConfig()
+  return c.json({ success: true, data })
+}

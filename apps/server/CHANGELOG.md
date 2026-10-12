@@ -18,6 +18,64 @@ reconstructing every change in them.
 
 ### Added
 
+- **Home hub data** (migration `0031_home_hub`, purely additive; apply it
+  before deploying). PR 1 of 6 of the customer Home hub; the screens come
+  later, behind their own flag.
+  - `GET /users/me/home?lat=&lng=`: one read for Home — header (first name,
+    avatar, unread bell), one must-act card (a bill to pay, then the garage
+    shut on a booking's day), up to 3 offers, "Rate your wash" only when
+    there is no must-act card, each saved car with its wash bar and one tile
+    (next booking with any team notice about it as one line, before & after
+    photos once the garage took an after photo, Book again priced for the
+    car's type with `pricedOnInspection` when the price is only an
+    inspection fee, garage not taking bookings, or nothing booked), the
+    newest Updates rows under the pinned notice, nearby garages within
+    10 km, and the car-care tip of the day. `nextBooking` carries a live
+    booking when the customer has no saved car left. Book again judges the
+    garage the way its page books (active, verified, not paused, still
+    offering drop-in or doorstep; a map pin only for doorstep), so a garage
+    without a pin still takes its drop-in customers back. Empty `lat`/`lng`
+    are no location. Optional parts fail on their own and come back null.
+  - `GET /users/me/updates` (To do, pinned notice, last 30 days, read
+    marker, and the server's `now` for the app to send back) and
+    `POST /users/me/updates/seen` (moves the marker forward only, never
+    past the server clock; 204). Rows are derived from the bookings' own
+    timestamps: accepted, reminder (18:00 IST the day before; skipped for a
+    booking made after it or accepted on the day itself), started, done,
+    photos, bills, receipt, declined or cancelled (with "Refund due" only
+    when `lib/refunds.ts` says money is owed), refunded (the bank's timing
+    hedged as on the booking page, and only for a Razorpay refund), moved,
+    garage paused, and team notices about the customer's own booking first
+    (for as long as they are live, dated no earlier than the booking).
+  - `POST /users/me/notices/:id/dismiss`, `POST /users/me/offers/:id/dismiss`,
+    `POST /bookings/:id/review-prompt/dismiss` (owner only; 404 otherwise):
+    204, and repeating them changes nothing. An offer since taken off Home
+    can still be closed; only an unknown id is a 404.
+  - Offers on Home: discount codes gain `showOnHome`, `homeTitle`,
+    `homePriority` (Normal/High/Top), `homeAudience`,
+    `homeAudienceRadiusKm` and `homeAudienceVehicleTypes`, checked on the
+    merged row of a PATCH (400 `DISCOUNT_HOME_INVALID`; a CHECK violation is
+    a 400 `DISCOUNT_INVALID`, not a 500), and banned words in a title are a
+    400 `COPY_NOT_ALLOWED`. The audience is display targeting only — it
+    never changes who may use the code at checkout — and every audience but
+    `everyone` is switched off by `HOME_OFFER_TARGETING` (off by default):
+    such offers are not shown, booking history and location are not read
+    for offers, and setting one is a 409 `TARGETING_DISABLED`.
+    `GET /admin/discounts/home-config` gives the form the settings and the
+    switch's state.
+  - Team notices: `GET/POST /admin/notices`, `GET/PATCH /admin/notices/:id`,
+    `POST /admin/notices/:id/end` (a live one ends now; a scheduled one is
+    switched off) and `GET /admin/notices/audience-count`. No delete. A link
+    is `https://…` or an app path, never `//host`, a backslash or
+    whitespace (the CHECK holds the same rule); the link's label passes the
+    copy rules like the title and body.
+  - `PATCH /users/me/vehicles/:id` takes `washIntervalDays` (7, 10, 14, 21,
+    30, or null for the default); vehicle payloads gain it.
+  - Pure, unit-tested rules: `lib/wash-status.ts`, `lib/home-updates.ts`,
+    `lib/home-cards.ts`, `lib/offers.ts`, `lib/notices.ts`,
+    `lib/car-tips.ts`, `lib/copy-rules.ts` (twinned in `@repo/core`, with a
+    parity test) and `lib/ist.ts`.
+
 - **Search by service** (no migration). `GET /vendors?q=` also matches the
   name of any active service of the garage (packages included), alongside
   its name and city, in the one clause the list, the map and both segments

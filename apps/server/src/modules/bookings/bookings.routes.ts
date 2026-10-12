@@ -138,6 +138,16 @@ bookingsRoutes.get(
   (c) => bookingsController.getReceipt(c, c.req.valid('param').id)
 )
 
+// × on Home's "Rate your wash" card. Owner-only: anyone else's booking is a
+// 404, as for receipts and bills.
+bookingsRoutes.post(
+  '/:id/review-prompt/dismiss',
+  authMiddleware,
+  requireCustomer,
+  zValidator('param', bookingIdParamSchema),
+  (c) => bookingsController.dismissReviewPrompt(c, c.req.valid('param').id)
+)
+
 bookingsRoutes.get(
   '/:id',
   authMiddleware,

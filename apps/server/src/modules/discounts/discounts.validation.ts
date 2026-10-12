@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { HOME_AUDIENCES } from '../../db/schema.js'
+import { MAX_NEAR_RADIUS_KM } from '../../lib/offers.js'
 
 // Codes are stored as the admin typed them but matched case-insensitively, so
 // the shape is all that is constrained here: no spaces (a customer pasting
@@ -68,6 +70,24 @@ const discountBaseSchema = z.object({
   startsAt: isoDateSchema.nullable().optional(),
   endsAt: isoDateSchema.nullable().optional(),
   isActive: z.boolean(),
+  // ─── Show on Home ──────────────────────────────────────────────────────────
+  // The rules that need the whole row (a title and an end date while shown,
+  // a garage for the garage audiences) are checked on the merged row in
+  // discountsService, so a PATCH of one field is judged with the rest.
+  showOnHome: z.boolean().optional(),
+  homeTitle: z.string().trim().min(3).max(60).nullable().optional(),
+  // 0 Normal, 1 High, 2 Top.
+  homePriority: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  // Who sees the card on Home. Display only: it never limits who may use the
+  // code. Anything but 'everyone' is refused while HOME_OFFER_TARGETING is off.
+  homeAudience: z.enum(HOME_AUDIENCES).optional(),
+  homeAudienceRadiusKm: z.number().int().min(1).max(MAX_NEAR_RADIUS_KM).nullable().optional(),
+  homeAudienceVehicleTypes: z
+    .array(z.enum(['hatchback', 'sedan', 'suv']))
+    .min(1)
+    .max(3)
+    .nullable()
+    .optional(),
 })
 
 type DiscountBase = z.infer<typeof discountBaseSchema>

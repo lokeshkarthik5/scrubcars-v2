@@ -15,8 +15,10 @@
  *      clock, so a fixed timestamp would decay into a different test overnight.
  */
 import 'dotenv/config'
+import { eq } from 'drizzle-orm'
 import { db } from '../index.js'
 import {
+  bookingCharges,
   bookingIntentItems,
   bookingIntents,
   bookingItems,
@@ -24,6 +26,7 @@ import {
   bookings,
   discountRedemptions,
   discounts,
+  notices,
   payments,
   refundRecords,
   reviews,
@@ -42,10 +45,13 @@ import {
 import {
   BOOKING_INTENTS,
   BOOKINGS,
+  CHARGES,
   CUSTOMERS,
   DISCOUNTS,
   FILLER_VENDOR_COUNT,
   DOORSTEP_JOB_PIN,
+  HOME_PROMO_PIN,
+  NOTICES,
   ORIGIN,
   OTP_LIMITED_CUSTOMER,
   REVIEWS,
@@ -81,6 +87,14 @@ function tomorrowAt(hour: number): Date {
   return d
 }
 
+/** Some days from now at an IST hour, built the way tomorrowAt is. */
+function daysAheadAt(days: number, hour: number): Date {
+  const d = new Date(now)
+  d.setDate(d.getDate() + days)
+  d.setUTCHours(hour - 6, 30, 0, 0)
+  return d
+}
+
 /** Inside the 2-hour cutoff. The only way to reach the WINDOW_PASSED branches. */
 const insideCutoff = () => new Date(now.getTime() + 1 * HOUR)
 
@@ -91,6 +105,7 @@ const anHourAgo = () => new Date(now.getTime() - 1 * HOUR)
 const twoHoursAgo = () => new Date(now.getTime() - 2 * HOUR)
 
 const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * HOUR)
+const hoursAgo = (n: number) => new Date(now.getTime() - n * HOUR)
 
 /** An IST calendar date some days from now, as vendor_closures stores it. */
 const istDate = (offsetDays: number) =>
@@ -528,6 +543,8 @@ type BookingSpec = {
   /** When the garage accepted and started it, for a job already under way. */
   acceptedAt?: Date
   startedAt?: Date
+  /** When it was finished. Left null, as on a job from before 0028, unless set. */
+  completedAt?: Date
   /**
    * How a cancelled booking ended, as the app's own writes leave it: who
    * cancelled, whose call an admin one was, and a no-show. The database
@@ -585,6 +602,7 @@ async function insertBooking(spec: BookingSpec) {
     ...(spec.createdAt && { createdAt: spec.createdAt }),
     acceptedAt: spec.acceptedAt ?? null,
     startedAt: spec.startedAt ?? null,
+    completedAt: spec.completedAt ?? null,
     ...(spec.cancellation && {
       cancelledBy: spec.cancellation.by,
       cancelledOnBehalfOf: spec.cancellation.onBehalfOf ?? null,
@@ -1029,6 +1047,142 @@ async function exhaustDiscounts() {
   ])
 }
 
+/**
+ * The Home hub's fixtures (specs/users/home-api.spec.ts and the admin
+ * notices and discount specs): a garage of their own far from ORIGIN, two
+ * codes shown on Home only to customers who booked it or stand near it, one
+ * booking-window notice about one customer's slot, and one customer per
+ * state of Home. Nothing here reaches any other customer's Home: there is no
+ * 'everyone' offer and no 'all' notice.
+ */
+async function seedHomeHubRows() {
+  const garage = VENDORS.homePromo.id
+
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.homePromo.name,
+    phone: '9000003300', address: '1, Hub Road, Katpadi', city: 'Vellore', pincode: '632007',
+    lat: HOME_PROMO_PIN.lat, lng: HOME_PROMO_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'active', bays: 5,
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values([
+    { id: SERVICES.homePromoWash.id, vendorId: garage, name: SERVICES.homePromoWash.name,
+      category: 'car_wash', pricingType: 'flat', price: SERVICES.homePromoWash.price,
+      durationMins: SERVICES.homePromoWash.durationMins, isActive: true },
+    { id: SERVICES.homePromoInspect.id, vendorId: garage, name: SERVICES.homePromoInspect.name,
+      category: 'scratch_removal', pricingType: 'on_inspection', price: SERVICES.homePromoInspect.price,
+      durationMins: SERVICES.homePromoInspect.durationMins, isActive: true },
+  ])
+
+  // One car each; CUSTOMERS.homeWash has two, both on an explicit 10-day
+  // interval so the October–December default never decides the assertion.
+  await db.insert(userVehicles).values([
+    ...[CUSTOMERS.homeOffer, CUSTOMERS.homeBill, CUSTOMERS.homeUpdates, CUSTOMERS.homeNotice,
+        CUSTOMERS.homeClosed].map((c, i) => ({
+      id: c.vehicleId as string, userId: c.id, make: 'Maruti', model: 'Baleno', color: 'Grey',
+      licensePlate: `TN23HH${String(i).padStart(4, '0')}`, vehicleType: 'hatchback' as const,
+      isDefault: true,
+    })),
+    { id: CUSTOMERS.homeWash.vehicleId, userId: CUSTOMERS.homeWash.id, make: 'Honda', model: 'Amaze',
+      color: 'White', licensePlate: 'TN23HW0001', vehicleType: 'sedan', isDefault: true,
+      washIntervalDays: 10 },
+    { id: VEHICLES.homeWashSecond, userId: CUSTOMERS.homeWash.id, make: 'Tata', model: 'Nexon',
+      color: 'Blue', licensePlate: 'TN23HW0002', vehicleType: 'suv', isDefault: false,
+      washIntervalDays: 10 },
+  ])
+
+  // Ends at midnight IST thirty days out, so the card reads "Till <the day before>".
+  const endKey = new Date(now.getTime() + 30 * 24 * HOUR).toLocaleDateString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+  })
+  const endsAt = new Date(`${endKey}T00:00:00+05:30`)
+  await db.insert(discounts).values([
+    { id: DISCOUNTS.homeBooked.id, code: DISCOUNTS.homeBooked.code,
+      description: 'Home hub fixture: customers who booked Hub Promo', discountType: 'percentage',
+      percentOff: '25.00', maxDiscountAmount: '150.00', vendorId: garage, fundedBy: 'platform',
+      startsAt: daysAgo(1), endsAt, isActive: true,
+      showOnHome: true, homeTitle: DISCOUNTS.homeBooked.homeTitle, homePriority: 2,
+      homeAudience: 'booked_this_garage' },
+    { id: DISCOUNTS.homeNear.id, code: DISCOUNTS.homeNear.code,
+      description: 'Home hub fixture: customers near Hub Promo', discountType: 'fixed',
+      amountOff: '75.00', vendorId: garage, fundedBy: 'vendor',
+      startsAt: daysAgo(1), endsAt, isActive: true,
+      showOnHome: true, homeTitle: DISCOUNTS.homeNear.homeTitle, homePriority: 0,
+      homeAudience: 'near_this_garage', homeAudienceRadiusKm: 10 },
+  ])
+
+  const wash = {
+    id: SERVICES.homePromoWash.id, name: SERVICES.homePromoWash.name,
+    amount: SERVICES.homePromoWash.price, durationMins: SERVICES.homePromoWash.durationMins,
+  }
+  const at = { vendorId: garage, items: [wash] }
+
+  await insertBooking({ ...at, id: BOOKINGS.homeOfferDone, userId: CUSTOMERS.homeOffer.id,
+    vehicleId: CUSTOMERS.homeOffer.vehicleId, scheduledAt: daysAgo(3), createdAt: daysAgo(5),
+    status: 'completed', acceptedAt: daysAgo(4), startedAt: daysAgo(3), completedAt: daysAgo(3),
+    payment: { status: 'paid', txnId: 'pay_seed_home_offer', paidAt: daysAgo(5) } })
+
+  // Finished five hours ago, with ₹800 of the final bill still to pay: the
+  // bill card wins over "Rate your wash", which would otherwise show.
+  await insertBooking({ id: BOOKINGS.homeBillJob, userId: CUSTOMERS.homeBill.id,
+    vehicleId: CUSTOMERS.homeBill.vehicleId, vendorId: garage, scheduledAt: hoursAgo(8),
+    createdAt: daysAgo(2), status: 'completed', acceptedAt: daysAgo(1), startedAt: hoursAgo(8),
+    completedAt: hoursAgo(5),
+    items: [{ id: SERVICES.homePromoInspect.id, name: SERVICES.homePromoInspect.name,
+      amount: SERVICES.homePromoInspect.price, durationMins: SERVICES.homePromoInspect.durationMins }],
+    payment: { status: 'paid', txnId: 'pay_seed_home_bill', paidAt: daysAgo(2) } })
+  await db.insert(bookingCharges).values({
+    id: CHARGES.homeBill, bookingId: BOOKINGS.homeBillJob, kind: 'final_bill',
+    totalAmount: '1099.00', paidBefore: '299.00', amountDue: '800.00',
+    lines: [{ description: 'Dent repair, front door', amount: '1099.00' }],
+    status: 'due', createdAt: hoursAgo(4), updatedAt: hoursAgo(4),
+  })
+
+  await insertBooking({ ...at, id: BOOKINGS.homeWashFirst, userId: CUSTOMERS.homeWash.id,
+    vehicleId: CUSTOMERS.homeWash.vehicleId, scheduledAt: daysAgo(8), createdAt: daysAgo(9),
+    status: 'completed', completedAt: daysAgo(8),
+    payment: { status: 'paid', txnId: 'pay_seed_home_wash_1', paidAt: daysAgo(9) } })
+  await insertBooking({ ...at, id: BOOKINGS.homeWashSecond, userId: CUSTOMERS.homeWash.id,
+    vehicleId: VEHICLES.homeWashSecond, scheduledAt: daysAgo(13), createdAt: daysAgo(14),
+    status: 'completed', completedAt: daysAgo(13),
+    payment: { status: 'paid', txnId: 'pay_seed_home_wash_2', paidAt: daysAgo(14) } })
+
+  // Done ten hours ago; Updates last opened before it was accepted.
+  await insertBooking({ ...at, id: BOOKINGS.homeUpdatesDone, userId: CUSTOMERS.homeUpdates.id,
+    vehicleId: CUSTOMERS.homeUpdates.vehicleId, scheduledAt: hoursAgo(11), createdAt: daysAgo(3),
+    status: 'completed', acceptedAt: daysAgo(2), startedAt: hoursAgo(11), completedAt: hoursAgo(10),
+    payment: { status: 'paid', txnId: 'pay_seed_home_updates', paidAt: daysAgo(3) } })
+  await db.update(users).set({ updatesSeenAt: daysAgo(2.5) }).where(eq(users.id, CUSTOMERS.homeUpdates.id))
+
+  const noticeSlot = daysAheadAt(2, 10)
+  await insertBooking({ ...at, id: BOOKINGS.homeNoticeUpcoming, userId: CUSTOMERS.homeNotice.id,
+    vehicleId: CUSTOMERS.homeNotice.vehicleId, scheduledAt: noticeSlot, createdAt: daysAgo(1),
+    status: 'confirmed', acceptedAt: hoursAgo(1),
+    payment: { status: 'paid', txnId: 'pay_seed_home_notice', paidAt: daysAgo(1) } })
+  await db.insert(notices).values({
+    id: NOTICES.homeRain, title: 'Slot may move: rain',
+    body: 'Heavy rain is forecast. The garage may call you to move your time.',
+    audience: 'with_booking_between', vendorId: garage,
+    bookingFrom: new Date(noticeSlot.getTime() - HOUR), bookingTo: new Date(noticeSlot.getTime() + HOUR),
+    startsAt: hoursAgo(1), endsAt: new Date(now.getTime() + 3 * 24 * HOUR), createdBy: 'E2E seed',
+  })
+
+  // A holiday on the very IST day of this booking, read off the booking
+  // itself so a run near midnight cannot put the two on different days.
+  const closedSlot = daysAheadAt(3, 10)
+  await insertBooking({ ...at, id: BOOKINGS.homeClosedUpcoming, userId: CUSTOMERS.homeClosed.id,
+    vehicleId: CUSTOMERS.homeClosed.vehicleId, scheduledAt: closedSlot, createdAt: daysAgo(1),
+    status: 'confirmed', acceptedAt: hoursAgo(2),
+    payment: { status: 'paid', txnId: 'pay_seed_home_closed', paidAt: daysAgo(1) } })
+  await db.insert(vendorClosures).values({
+    vendorId: garage,
+    date: closedSlot.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+    reason: 'Pongal',
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1046,6 +1200,8 @@ async function main() {
   await seedBookingRows()
   await seedIntentRows()
   await exhaustDiscounts()
+  console.log('[e2e-seed] home hub…')
+  await seedHomeHubRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

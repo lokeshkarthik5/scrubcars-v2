@@ -199,6 +199,7 @@ export const usersRepository = {
       licensePlate: string | null
       vehicleType: VehicleType
       isDefault: boolean
+      washIntervalDays: number | null
     }>
   ) {
     return db

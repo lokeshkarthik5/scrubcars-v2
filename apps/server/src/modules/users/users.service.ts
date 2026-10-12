@@ -63,6 +63,8 @@ export type VehicleResponse = {
   licensePlate: string | null
   vehicleType: string
   isDefault: boolean
+  /** The customer's wash interval in days; null is the default. */
+  washIntervalDays: number | null
 }
 
 function toProfileResponse(user: UserRecord): UserProfileResponse {
@@ -103,6 +105,7 @@ function toVehicleResponse(vehicle: VehicleRecord): VehicleResponse {
     licensePlate: vehicle.licensePlate,
     vehicleType: vehicle.vehicleType,
     isDefault: vehicle.isDefault,
+    washIntervalDays: vehicle.washIntervalDays,
   }
 }
 
@@ -368,6 +371,9 @@ export const usersService = {
         ? { vehicleType: input.vehicleType }
         : {}),
       ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
+      ...(input.washIntervalDays !== undefined
+        ? { washIntervalDays: input.washIntervalDays }
+        : {}),
     })
 
     return toVehicleResponse(updated)

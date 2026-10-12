@@ -92,6 +92,11 @@ export interface ApiVehicle {
   licensePlate: string | null
   vehicleType: string
   isDefault: boolean
+  /**
+   * How often the customer wants this car washed (7, 10, 14, 21 or 30
+   * days); null is the default. Absent from an API older than 0031.
+   */
+  washIntervalDays?: number | null
 }
 
 export interface ApiVendorListItem {
