@@ -75,7 +75,7 @@ const discountBaseSchema = z.object({
   // a garage for the garage audiences) are checked on the merged row in
   // discountsService, so a PATCH of one field is judged with the rest.
   showOnHome: z.boolean().optional(),
-  homeTitle: z.string().trim().min(3).max(60).nullable().optional(),
+  homeTitle: z.string().trim().min(3).max(40).nullable().optional(),
   // 0 Normal, 1 High, 2 Top.
   homePriority: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
   // Who sees the card on Home. Display only: it never limits who may use the

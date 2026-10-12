@@ -83,14 +83,8 @@ interface FormState {
 const DEFAULT_RADIUS_KM = 10
 const MAX_RADIUS_KM = 50
 
-/** The column's limit: 0031's varchar(60). */
-const HOME_TITLE_MAX = 60
-/**
- * About what fits in the coupon's two title lines on a phone (OfferCoupon's
- * own note says 40). Past it the counter turns amber; the preview shows
- * where Home cuts it.
- */
-const HOME_TITLE_FITS = 40
+/** The column's limit: 0031's varchar(40), what the coupon card shows on two lines. */
+const HOME_TITLE_MAX = 40
 
 const EMPTY: FormState = {
   code: '',
@@ -698,12 +692,7 @@ export function DiscountForm({
                       </label>
                       <span
                         aria-hidden="true"
-                        className={cn(
-                          'font-numeric text-[11px]',
-                          form.homeTitle.length > HOME_TITLE_FITS
-                            ? 'text-warning'
-                            : 'text-text-muted'
-                        )}
+                        className="font-numeric text-[11px] text-text-muted"
                       >
                         {form.homeTitle.length} / {HOME_TITLE_MAX}
                       </span>
@@ -758,8 +747,8 @@ export function DiscountForm({
                     The small print under the title is written from the code
                     itself: the cap, the minimum, the code and the end date
                     (&ldquo;Ends Sun&rdquo; in its last 3 days). A title takes two
-                    lines at most on Home, about {HOME_TITLE_FITS} characters, and
-                    is cut short past that, so check it in the preview. Top shows
+                    lines at most on Home, which is why it stops at{' '}
+                    {HOME_TITLE_MAX} characters. Top shows
                     first, then High, then Normal; at the same priority, the
                     one ending soonest, then the newest. Up to {maxOnHome}{' '}
                     offers show on Home.

@@ -32,7 +32,7 @@ ALTER TABLE "discounts"
   ADD COLUMN IF NOT EXISTS "show_on_home" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 
 ALTER TABLE "discounts"
-  ADD COLUMN IF NOT EXISTS "home_title" varchar(60);--> statement-breakpoint
+  ADD COLUMN IF NOT EXISTS "home_title" varchar(40);--> statement-breakpoint
 
 ALTER TABLE "discounts"
   ADD COLUMN IF NOT EXISTS "home_priority" smallint DEFAULT 0 NOT NULL;--> statement-breakpoint
@@ -56,7 +56,7 @@ DO $$ BEGIN
     ADD CONSTRAINT "discounts_home_fields_check"
     CHECK (
       NOT "show_on_home"
-      OR (char_length(btrim(coalesce("home_title", ''))) BETWEEN 3 AND 60
+      OR (char_length(btrim(coalesce("home_title", ''))) BETWEEN 3 AND 40
           AND "ends_at" IS NOT NULL)
     );
 EXCEPTION
