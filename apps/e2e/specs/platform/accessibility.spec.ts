@@ -100,6 +100,7 @@ test.describe('accessibility', () => {
 
   const screens: Array<[string, string]> = [
     ['home', '/home'],
+    ['garages', '/garages'],
     ['search', '/search'],
     ['garage', `/garage/${VENDORS.main.id}`],
     ['checkout', `/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`],
@@ -213,6 +214,7 @@ test.describe('responsive', () => {
 
     for (const path of [
       '/home',
+      '/garages',
       `/garage/${VENDORS.main.id}`,
       `/bookings/${BOOKINGS.reviewable}`,
       // Its four-column table turns into stacked cards on a phone.

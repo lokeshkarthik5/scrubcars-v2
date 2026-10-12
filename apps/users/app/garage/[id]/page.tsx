@@ -310,7 +310,7 @@ export default function GaragePage({
               This garage isn&apos;t taking bookings on Detlio.
             </p>
             <Link
-              href="/home"
+              href="/garages"
               className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline"
             >
               Find another garage

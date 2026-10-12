@@ -17,6 +17,27 @@ reconstructing every change in them.
 
 ### Added
 
+- **The garage list at `/garages`.** The list that has been Home (mode
+  switch, search, category chips, sort, the infinite list) now also lives at
+  `/garages`, with its own title ("Garages · Detlio"), description and
+  canonical URL. Nothing about it looks or works differently. `/home` renders
+  the same component (`components/garages/garage-list-screen.tsx`), so the
+  two cannot drift while the new Home is built; the Home tab stays lit on
+  both, and tapping it on `/garages` stays on `/garages` (a lit tab links to
+  the route that lit it), so a customer's mode, category and sort survive the
+  tap as they did on `/home`. `/garages` names the site's share image in its
+  own `openGraph` and `twitter` (with the large card): a page's own objects
+  replace the root's, and the image files only attach at the root, so a
+  shared `/garages` link would otherwise show no picture. `lib/home-hub.ts`
+  adds `isHomeHubEnabled()`, true only when `NEXT_PUBLIC_HOME_HUB` is exactly
+  `on`; nothing reads it yet, and it is off in production, in
+  `apps/e2e/.env.e2e` and in CI's build (declared in `turbo.json` so a change
+  rebuilds). Unit-tested in `lib/home-hub.test.ts`; the @p0 spec
+  `specs/users/garages.spec.ts` checks a guest can browse `/garages` (share
+  image and large card included), "Find another garage" opens it, the lit
+  Home tab there keeps the customer on `/garages`, and `/home` still shows the
+  same list with the flag off. The accessibility scan, the narrow-phone check
+  and the smoke spec cover `/garages`.
 - **Legal pages (drafts for legal review).** `/terms`, `/privacy`,
   `/refund-policy`, `/service-delivery` and `/contact`: public, statically
   rendered, readable at 390px (tables become stacked cards), printable black
@@ -219,6 +240,15 @@ reconstructing every change in them.
 
 ### Changed
 
+- **Links to the garage list open `/garages`.** The map's List, "Find
+  another garage" on the garage page and checkout, the legal pages' "Book a
+  service", and the homepage's "Book a service", "See all garages" and "Book
+  on the web today". What still opens `/home`: the Home tab, signing in and
+  profile setup (`?welcome=1`), the signed-in hint on the homepage, the app's
+  `start_url` and the end of the welcome slides — those mean "the app",
+  not "the list". `/search` is unchanged. The specs that looked at the list
+  on `/home` (discovery, the stale-hint test, the failing-API test) now look
+  at `/garages`.
 - **Checkout** says "Not taking bookings right now" (with the garage's
   reason, in grey like the garage page's notice) at the top for a paused
   garage, instead of only once a date is picked, and "This garage isn't taking bookings on Detlio." for one that is

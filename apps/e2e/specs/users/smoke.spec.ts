@@ -12,6 +12,12 @@ test.describe('harness smoke @p0', () => {
     await expect(page.getByText(SERVICES.inactive.name)).toHaveCount(0)
   })
 
+  test('a guest can open the garage list', async ({ page }) => {
+    await page.goto('/garages')
+
+    await expect(page.getByText(VENDORS.main.name).first()).toBeVisible()
+  })
+
   test.describe('signed in', () => {
     test.use({ storageState: asRole('customer-book') })
 
