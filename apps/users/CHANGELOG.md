@@ -79,8 +79,7 @@ reconstructing every change in them.
   exactly those stops. Inter now loads its optical-size axis, so large titles
   wrap as in the approved mockups. The privacy draft lists the Updates read
   marker and the ×s (deleted with the account), the wash interval, and the
-  two new local-storage keys, with a reviewer note that offers are not
-  targeted (`legal-docs.test.ts` checks all three).
+  two new local-storage keys (`legal-docs.test.ts` checks all three).
 - Tests: `packages/core` `home-display.test.ts` (greeting, offer small print,
   wash line and bar, IST times and grouping), `pending-checkout-store.test.ts`,
   `car-images.test.ts`, `cta.test.ts`, `book-again.test.ts`
@@ -321,6 +320,67 @@ reconstructing every change in them.
 
 ### Changed
 
+- **Home's car is a picture of its body type.** `carImageFor` in
+  `@repo/core/car-images` now gives a hatchback, a sedan and an SUV each its
+  own picture (`public/cars/car-<type>-1200.webp` and `-2400.webp`); "SUV /
+  MUV" is one tier, so MUV owners see the SUV. An unknown or missing type
+  (and `constructor`) still gets the owner's own picture, `car-default.webp`,
+  as does "Add your car". The three are free Pexels photos with badges,
+  wheel logos and plates removed, recoloured and cut out to match; where each
+  came from, its licence and the edits are in `public/cars/SOURCES.md`, which
+  also says a brand or model name must never be shown with them. The owner
+  is still reviewing them: `CAR_PICTURES_BY_TYPE = false` in
+  `packages/core/src/car-images.ts` puts the single picture back on every
+  car, drawn exactly as before. The new pictures are a plain `<img>` with a
+  1200/2400 `srcset` and a `sizes` that matches the hero (94% of the card,
+  352px at most, so a phone fetches the 1200), with their width and height
+  so nothing moves when they load. They share one canvas with the tyres on
+  one line, and the hero places them by that line (`.car-hero__car--body-type`
+  in `globals.css`), so every type, the taller SUV included, stands where the
+  approved car stands (217pt down the hero, 201pt when short). A picture that
+  fails to load falls back to the owner's, and then to an empty stage. Tests:
+  `car-images.test.ts` (each tier, the srcset and sizes, the fallback for
+  unknown types, the switch off, every file present); @p0 `home.spec.ts`
+  reads the switch from `car-images.ts` and, with it on, checks the sedan and
+  SUV files themselves are what loaded (not the fallback) and stand on the
+  same line, measured inside the card's border; with it off, that both cars
+  show the owner's picture. The six pictures and `SOURCES.md` are new files:
+  commit the whole `public/cars/` folder with this change.
+- **Privacy Policy draft: the Meta Pixel and matched offers.** Says what the
+  Meta Pixel (`components/meta-pixel.tsx`, on every page through
+  `app/layout.tsx`) does: Meta's code on every customer page, signed in or
+  not, a page view on each page and each in-app navigation, sending the page
+  address (which, on checkout, names the garage, the services picked, a
+  doorstep visit and a code, and on a booking's pages its id and whether it
+  was just paid, has a bill to pay or the star tapped on Home), the previous
+  page, IP address, browser and device details and Meta's cookies to Meta
+  Platforms, outside India, to measure and improve Detlio's ads; the `_fbp`
+  and `_fbc` cookies in the storage table (`_fbc` after any Facebook or
+  Instagram link carrying Meta's click ID, not only our ads); Meta in the
+  data table, where data goes and retention. Every sentence that said Detlio
+  uses no advertising or analytics trackers, or that nothing is used for
+  marketing, is gone. New section 2 subsection "Offers on Home" lists what
+  `HOME_OFFER_TARGETING` can match on (no bookings yet, booked that garage,
+  near it by the location Home is sent, wash due or overdue from bookings and
+  the car's interval, car size), that it only decides who sees an offer, that
+  it starts only when this text takes effect (until then offers are not
+  matched, though a car, a × or a used-up code still hides some), and that a
+  customer can ask us for general offers only. The car, wash-interval,
+  bookings and location rows say the same; the "Rate your wash" × is kept
+  with its booking. Reviewer notes: consent before the pixel loads and Meta's
+  role (processor or its own fiduciary); loading it only on public pages (not
+  done here), with `?celebrate=1`, `?then=pay` and `?rate=N` as what it sends
+  today; Meta's notice requirement, now met; Events Manager's automatic
+  advanced matching; the lawful basis for matching; and that there is no
+  per-customer opt-out yet. Terms section 16 and the privacy text say how
+  Home orders offers, including that, once matching is on, Detlio's own codes
+  come after booked and nearby garages' but before every other garage's
+  (`offerTier`). Last updated 12 October 2026; `LEGAL_DRAFT` stays true.
+  `legal-docs.test.ts` checks the pixel is still mounted and sends only page
+  views as the policy says, that its cookies, every audience and the
+  questions are declared, that the page address is spelled out (services,
+  doorstep, just paid, rating), that both pages give the whole offer order,
+  and that no page claims no tracking.
 - **Links to the garage list open `/garages`.** The map's List, "Find
   another garage" on the garage page and checkout, the legal pages' "Book a
   service", and the homepage's "Book a service", "See all garages" and "Book

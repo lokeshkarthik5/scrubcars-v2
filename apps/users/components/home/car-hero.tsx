@@ -6,11 +6,8 @@ import Link from 'next/link'
 import { IconArrowUpRight, IconMapPin, IconPencil, IconPlus } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import type { HomeCar } from '@repo/core/api/home'
-import { CAR_DEFAULT_IMAGE, carImageFor } from '@repo/core/car-images'
+import { CAR_DEFAULT_PICTURE, carImageFor, type CarPicture as Picture } from '@repo/core/car-images'
 import { cn } from '@repo/core/utils'
-
-/** next/image's hint: the picture is 92% of a phone column, 400px at most. */
-const CAR_SIZES = '(max-width: 428px) 92vw, 400px'
 
 interface CarHeroProps {
   cars: HomeCar[]
@@ -64,7 +61,7 @@ export function CarHero({
             </p>
           </div>
         </div>
-        <CarPicture src={CAR_DEFAULT_IMAGE} ghost />
+        <CarPicture picture={CAR_DEFAULT_PICTURE} ghost />
         <div className="car-hero__cta">
           {quiet ? (
             <button type="button" onClick={onAddCar} className="car-hero__outline">
@@ -119,7 +116,7 @@ export function CarHero({
                   )}
                 </div>
               </div>
-              <CarPicture src={carImageFor(each.vehicleType)} priority={i === 0} />
+              <CarPicture picture={carImageFor(each.vehicleType)} priority={i === 0} />
             </div>
           ))}
         </div>
@@ -158,25 +155,58 @@ export function CarHero({
 }
 
 /**
- * The cut-out on the hero's dark stage, with its soft contact shadow. If the
- * picture fails to load, the stage is left empty rather than showing a
- * broken image.
+ * The cut-out on the hero's dark stage, with its soft contact shadow.
+ *
+ * A body-type picture is a plain <img> with its own two widths (srcSet):
+ * next/image cannot take a srcSet, and these are already encoded at the
+ * sizes a phone needs. The owner's picture keeps next/image, exactly as Home
+ * launched. Both carry their width and height, so the space is held before
+ * the file arrives and nothing moves when it does. If a body-type picture
+ * fails to load, the owner's picture takes its place; if that fails too, the
+ * stage is left empty rather than showing a broken image.
  */
-function CarPicture({ src, ghost = false, priority = false }: { src: string; ghost?: boolean; priority?: boolean }) {
-  const [failed, setFailed] = useState(false)
+function CarPicture({
+  picture,
+  ghost = false,
+  priority = false,
+}: {
+  picture: Picture
+  ghost?: boolean
+  priority?: boolean
+}) {
+  const [failed, setFailed] = useState<string | null>(null)
+  const shown = failed === null ? picture : failed === CAR_DEFAULT_PICTURE.src ? null : CAR_DEFAULT_PICTURE
+  const onError = () => setFailed(shown?.src ?? null)
+
   return (
     <>
       <div aria-hidden className="car-hero__shadow" />
-      {!failed && (
-        <Image
-          src={src}
+      {shown?.kind === 'body-type' && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={shown.src}
+          srcSet={shown.srcSet ?? undefined}
+          sizes={shown.sizes}
           alt=""
-          width={898}
-          height={262}
-          sizes={CAR_SIZES}
+          width={shown.width}
+          height={shown.height}
+          decoding="async"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : undefined}
+          onError={onError}
+          className="car-hero__car car-hero__car--body-type"
+        />
+      )}
+      {shown?.kind === 'default' && (
+        <Image
+          src={shown.src}
+          alt=""
+          width={shown.width}
+          height={shown.height}
+          sizes={shown.sizes}
           priority={priority}
           fetchPriority={priority ? 'high' : undefined}
-          onError={() => setFailed(true)}
+          onError={onError}
           className={cn('car-hero__car', ghost && 'car-hero__car--ghost')}
         />
       )}

@@ -365,6 +365,14 @@ export const TERMS: LegalDoc = {
           kind: 'p',
           text: 'You can instead sort by distance, by rating, or by starting price (low to high, or high to low); the sort you choose applies within each of the two groups. Garages cannot pay to be shown higher, and there are no sponsored listings. If that ever changes, sponsored listings will be clearly labelled.',
         },
+        {
+          kind: 'p',
+          text: '**Offers on the Home screen** are promo codes our team chooses to show there, up to three at a time. The ones our team marks as most important come first, then the one ending soonest, then the newest. Once offers are matched to you (section 2 of our Privacy Policy), offers of the same importance are shown in this order: offers from garages you have booked, then from garages near you, then Detlio\'s own offers, then other garages\' offers.',
+        },
+        {
+          kind: 'note',
+          text: '**Offers on Home and ranking.** Added because Home now shows garages\' promo codes in an order (apps/server/src/lib/offers.ts rankOffers: the team\'s priority, then, only once matching is on, the customer\'s tie to the garage, with Detlio\'s own codes after booked and nearby garages but before every other garage\'s, then the soonest end, then the newest). Detlio ranking its own offers above other garages\' is disclosed here because it is a ranking parameter; if the owner would rather not rank them first, offerTier can give Detlio-wide and other garages\' offers the same tier and this paragraph changes with it. Please confirm that no garage pays for an offer\'s place on Home; if one ever does, the offer must be labelled as sponsored, as the paragraph above promises for listings, and this paragraph must say so.',
+        },
       ],
     },
     {
