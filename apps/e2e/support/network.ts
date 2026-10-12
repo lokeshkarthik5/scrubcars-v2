@@ -11,6 +11,8 @@ import type { BrowserContext, Page } from '@playwright/test'
  * Razorpay is on the list because `window.Razorpay` is stubbed before any
  * script loads, so a request to it means the stub failed to install and the
  * test should fail loudly rather than open a real checkout.
+ * Facebook is on the list because the customer app loads the Meta Pixel;
+ * a test must not depend on it being up.
  */
 const BLOCKED_HOSTS = [
   'checkout.razorpay.com',
@@ -20,6 +22,8 @@ const BLOCKED_HOSTS = [
   'api.olamaps.io',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
+  'connect.facebook.net',
+  'www.facebook.com',
 ]
 
 export async function blockThirdParties(context: BrowserContext) {

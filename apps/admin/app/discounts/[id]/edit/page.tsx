@@ -23,8 +23,8 @@ export default function EditDiscountPage({
   const update = useUpdateDiscount(id)
 
   return (
-    // The same 640px column as Add discount and the vendor forms.
-    <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5">
+    // The whole workspace, as Add discount: the form and its preview column.
+    <div className="flex w-full flex-col gap-5">
       <PageHeader showBack title="Edit discount" />
       {error ? (
         <ErrorState
@@ -40,11 +40,7 @@ export default function EditDiscountPage({
           key={discount.id}
           discount={discount}
           isPending={update.isPending}
-          error={
-            update.error
-              ? errorMessage(update.error, 'Failed to save the discount')
-              : undefined
-          }
+          error={update.error ?? undefined}
           onCancel={() => router.push('/discounts')}
           onSubmit={(input) =>
             update.mutate(input, {

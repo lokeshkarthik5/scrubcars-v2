@@ -318,8 +318,8 @@ export interface HomeFieldsProblem {
 export function homeFieldsProblem(row: HomeFields): HomeFieldsProblem | null {
   if (row.showOnHome) {
     const title = (row.homeTitle ?? '').trim()
-    if (title.length < 3 || title.length > 60) {
-      return { field: 'homeTitle', message: 'An offer on Home needs a title of 3 to 60 characters.' }
+    if (title.length < 3 || title.length > 40) {
+      return { field: 'homeTitle', message: 'An offer on Home needs a title of 3 to 40 characters.' }
     }
     if (!row.endsAt) {
       return { field: 'endsAt', message: 'An offer on Home needs an end date, so the card can say when it ends.' }
