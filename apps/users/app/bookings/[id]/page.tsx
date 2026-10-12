@@ -12,7 +12,7 @@ import {
   IconReceipt,
   IconRepeat,
 } from '@tabler/icons-react'
-import { AppShell } from '@repo/ui/sc/app-shell'
+import { CustomerShell } from '@/components/customer-shell'
 import { ScBadge, customerBookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
@@ -461,20 +461,20 @@ export default function BookingDetailPage({
 
   if (loadError) {
     return (
-      <AppShell showNav className="py-4">
+      <CustomerShell showNav className="py-4">
         <TopBar showBack title="Booking" />
         <p className="px-4 pt-4 text-[13px] text-text-secondary">
           Could not load this booking. It may have been removed or you may not have access.
         </p>
-      </AppShell>
+      </CustomerShell>
     )
   }
 
   if (!booking) {
     return (
-      <AppShell showNav className="py-4">
+      <CustomerShell showNav className="py-4">
         <TopBar showBack title="Loading..." />
-      </AppShell>
+      </CustomerShell>
     )
   }
 
@@ -500,7 +500,7 @@ export default function BookingDetailPage({
   const stepTime = (iso: string | undefined) => (iso ? formatStepTime(iso, now) : undefined)
 
   return (
-    <AppShell showNav className="gap-4 py-4">
+    <CustomerShell showNav className="gap-4 py-4">
       {celebrating && (
         <SuccessBurst
           title={awaitingGarage ? 'Booking requested' : 'Booking confirmed'}
@@ -1051,6 +1051,6 @@ export default function BookingDetailPage({
             </div>
           </div>
       </ScSheet>
-    </AppShell>
+    </CustomerShell>
   )
 }

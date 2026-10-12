@@ -35,11 +35,25 @@ async function expectGarageList(page: Page) {
   await expect(
     page.getByRole('heading', { name: VENDORS.main.name }).first()
   ).toBeVisible()
-  // Home is the hub now, so the list is not under the Home tab: no tab is
-  // lit, and Home goes back to the hub.
+  // Home is the hub now, so the Home tab goes back to the hub. The + is an
+  // action, never lit (lib/hub-nav.ts). Whether Home is lit here depends on
+  // who is looking: see expectHomeLit.
   const home = page.getByRole('link', { name: 'Home', exact: true })
-  await expect(home).not.toHaveAttribute('aria-current', 'page')
   await expect(home).toHaveAttribute('href', '/home')
+  await expect(page.getByRole('link', { name: 'New booking' })).not.toHaveAttribute(
+    'aria-current',
+    'page'
+  )
+}
+
+/**
+ * The list lights Home for a visitor, whom /home sends here, so it is their
+ * Home; and nothing for a signed-in customer, whose Home is the hub.
+ */
+async function expectHomeLit(page: Page, lit: boolean) {
+  const home = page.getByRole('link', { name: 'Home', exact: true })
+  if (lit) await expect(home).toHaveAttribute('aria-current', 'page')
+  else await expect(home).not.toHaveAttribute('aria-current', 'page')
 }
 
 test.describe('garage list @p0', () => {
@@ -48,6 +62,7 @@ test.describe('garage list @p0', () => {
 
     await expect(page).toHaveURL(/\/garages$/)
     await expectGarageList(page)
+    await expectHomeLit(page, true)
     await expect(page).toHaveTitle('Garages · Detlio')
     // This is the URL the homepage's CTAs open, so the one people share: it
     // must carry the site's picture and the large card, which a page's own
@@ -92,6 +107,7 @@ test.describe('garage list @p0', () => {
     test('the Home tab on /garages goes back to the hub', async ({ page }) => {
       await page.goto('/garages')
       await expectGarageList(page)
+      await expectHomeLit(page, false)
 
       await page.getByRole('link', { name: 'Home', exact: true }).click()
       await expect(page).toHaveURL(/\/home$/)
