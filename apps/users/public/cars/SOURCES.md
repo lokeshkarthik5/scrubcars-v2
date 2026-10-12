@@ -19,28 +19,33 @@ the customer's car, not the car in the picture.
   is optional).
 - Must not imply endorsement by the people or brands shown. All brand marks
   are removed in the shipped files.
-- Downloaded on **12 October 2026**, after the owner approved the three photos.
-  The files are the original-size downloads from `images.pexels.com` (no width
-  parameters). Their sizes were checked against the CDN the same day and
-  matched byte for byte.
+- The sedan and SUV were downloaded on **12 October 2026**, after the owner
+  approved the photos. The files are the original-size downloads from
+  `images.pexels.com` (no width parameters). Their sizes were checked against
+  the CDN the same day and matched byte for byte.
+- The hatchback was downloaded from Pexels by the owner on **12 October 2026**
+  and chosen by the owner the same day.
 
 ## Files
 
 | File | Body type | Source |
 |---|---|---|
-| `car-hatchback-1200.webp`, `car-hatchback-2400.webp` | Hatchback | Pexels photo 18517130 |
+| `car-hatchback-1200.webp`, `car-hatchback-2400.webp` | Hatchback | Pexels photo 9050493 |
 | `car-sedan-1200.webp`, `car-sedan-2400.webp` | Sedan | Pexels photo 21431027 |
 | `car-suv-1200.webp`, `car-suv-2400.webp` | SUV (also shown for "SUV / MUV") | Pexels photo 12163946 |
 | `car-default.webp`, `car-default.png` | Fallback for any other type, and for every car when `CAR_PICTURES_BY_TYPE` is off | The owner's own sports-car photo, not from Pexels |
 
 ### Hatchback
 
-- Page: <https://www.pexels.com/photo/vehicle-on-a-road-18517130/>
-- File: <https://images.pexels.com/photos/18517130/pexels-photo-18517130.jpeg>
-- Photographer: Luke Miller / Pexels
-- Original: 4557 × 6835 px, 1,340,296 bytes, SHA-1 `efcafdfac1716502e4267196fa4afa8738886cdf`
-- Original scene: a black hatchback, pure side view, nose left, outdoors on an
-  overcast road.
+- Page: <https://www.pexels.com/photo/9050493/>
+- File: <https://images.pexels.com/photos/9050493/pexels-photo-9050493.jpeg>
+- Photographer: Jarne Aerts / Pexels (the name in the download's file name,
+  `pexels-jarne-aerts-3175149-9050493.jpg`)
+- Original: 3456 × 5184 px, 1,830,227 bytes, SHA-1 `bf4264becf362317d4d49e309df935ea7b4ba0ff`
+- Original scene: a silver three-door hatchback, front three-quarter view, nose
+  right, parked in light rain on wet paving in front of a building.
+- It replaces Pexels photo 18517130 (a black hatchback, side view), which the
+  first version of this picture used; the owner asked for a different car.
 
 ### Sedan
 
@@ -70,7 +75,8 @@ view) and never downloaded.
 
 ## Edits made to the three Pexels photos
 
-The same for each, so the three match:
+The same for each, so the three match (the hatchback's differences follow the
+list):
 
 1. Badges, wheel-centre logos and the number plate removed.
 2. Recoloured to grey tones, so the three sit together.
@@ -83,12 +89,31 @@ The same for each, so the three match:
    (`.car-hero__car--body-type` in `apps/users/app/globals.css`).
 5. Saved as WebP with transparency.
 
+The hatchback is a front three-quarter view, not a side view, so:
+
+- It is **mirrored** (nose left, like the other two), done after every piece
+  of lettering was removed. Its badges were the bonnet roundel, the badge on
+  the front wing, the wheel centre caps, the brake-caliper logo and the
+  lettering inside the front wheel's rim. The number plate is gone, with the
+  bumper continued across it.
+- Its **nearest (front) tyre** is on the shared line and it is centred on the
+  canvas; the rear tyre stands higher in the picture, as it does in the photo.
+  It is sized to look about as big as the sedan, not to the other two's exact
+  scale, and its contact shadow follows the car's footprint.
+- The background, and the wet ground's reflection of the car, are cut away.
+  The glass is a plain dark tint, so nothing seen through or reflected in it
+  remains. The glass roof is painted over in the roof's colour, so the
+  roofline reads as one piece on the dark card. Rain spots and reflections on
+  the bonnet and rear panels are smoothed.
+- Scale: the 2400 px file is 0.575× the photo's pixels and the 1200 px file
+  0.287×, so neither is enlarged.
+
 Shipped files (SHA-1):
 
 | File | Size | SHA-1 |
 |---|---|---|
-| `car-hatchback-1200.webp` | 1200 × 432 | `4e4af4c794bbc8d5d1951aa0105473428e65d248` |
-| `car-hatchback-2400.webp` | 2400 × 864 | `50dc79d0311804fd9e5029054c6e23f57abde0d3` |
+| `car-hatchback-1200.webp` | 1200 × 432 | `e9b02aba76986ec9d64d44d56832194a6043c2f9` |
+| `car-hatchback-2400.webp` | 2400 × 864 | `d3b5db918dcecb2fc0d5c03639059c0dae042a8f` |
 | `car-sedan-1200.webp` | 1200 × 432 | `58a3c799812cf71cceba694ef86ffb6250e6475d` |
 | `car-sedan-2400.webp` | 2400 × 864 | `0faa1e0b7bfd1125c48bee19e17a08f628ddceb5` |
 | `car-suv-1200.webp` | 1200 × 432 | `75dc4189f6fd06897c521225bc11eba3d1f48bcd` |

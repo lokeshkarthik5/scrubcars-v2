@@ -387,8 +387,11 @@ reconstructing every change in them.
   as does "Add your car". The three are free Pexels photos with badges,
   wheel logos and plates removed, recoloured and cut out to match; where each
   came from, its licence and the edits are in `public/cars/SOURCES.md`, which
-  also says a brand or model name must never be shown with them. The owner
-  is still reviewing them: `CAR_PICTURES_BY_TYPE = false` in
+  also says a brand or model name must never be shown with them. The sedan
+  and SUV are side views; the hatchback, which the owner chose, is a front
+  three-quarter view, mirrored to face the same way, with its front tyre on
+  the shared line. The owner approved all three on 12 October 2026, and
+  `CAR_PICTURES_BY_TYPE = false` in
   `packages/core/src/car-images.ts` puts the single picture back on every
   car, drawn exactly as before. The new pictures are a plain `<img>` with a
   1200/2400 `srcset` and a `sizes` that matches the hero (94% of the card,

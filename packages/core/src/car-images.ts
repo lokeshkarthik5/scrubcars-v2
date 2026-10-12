@@ -11,9 +11,9 @@ import type { VehicleType } from '@repo/core/types'
  * pricing tier, so an MUV owner sees the SUV. An unknown or missing type gets
  * the owner's own sports-car picture, the one Home launched with.
  *
- * The owner is still reviewing the three pictures. To go back to the single
- * picture for every car, set CAR_PICTURES_BY_TYPE to false: nothing else
- * changes, and the hero draws it exactly as before. The Home e2e spec reads
+ * The owner approved the three pictures on 12 October 2026. To go back to
+ * the single picture for every car, set CAR_PICTURES_BY_TYPE to false:
+ * nothing else changes, and the hero draws it exactly as before. The Home e2e spec reads
  * this line from the file and checks whichever setting it finds, so keep it
  * as one `export const … = true|false` line.
  */
@@ -31,7 +31,8 @@ export interface CarPicture {
   height: number
   /**
    * How the hero places it. 'body-type' pictures share one canvas with the
-   * tyres on one line, so they are placed by that line; the default is
+   * tyres on one line (the hatchback, a three-quarter view, has its front
+   * tyre on it), so they are placed by that line; the default is
    * cropped tight to the car and placed by its top.
    */
   kind: 'body-type' | 'default'

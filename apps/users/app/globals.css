@@ -86,7 +86,8 @@
 }
 /* The body-type pictures (packages/core car-images.ts) share one 1200 × 432
    canvas: the three cars at one scale, the tyres on one line 90.7% of the way
-   down, and the SUV standing taller than the others. So they are placed by
+   down (the hatchback is a three-quarter view: its front tyre is on the line),
+   and the SUV standing taller than the others. So they are placed by
    that line, not by their top: translateY(-90.7%) lifts the picture by its
    own height above `top`, which leaves the tyres at 217pt, where the approved
    car's stand at 390pt (201pt when short), whatever the type and the width.
