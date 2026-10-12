@@ -139,10 +139,21 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
 
 export default function BookingDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { id } = use(params)
+  // The query this page was opened with. Read from Next's searchParams, not
+  // window.location: on a client-side navigation (a Link from Home) the new
+  // page renders before the browser's URL changes, so window.location still
+  // shows the page the customer came from.
+  const query = use(searchParams)
+  const queryValue = (key: string) => {
+    const value = query[key]
+    return Array.isArray(value) ? value[0] : value
+  }
   const router = useRouter()
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
@@ -159,10 +170,8 @@ export default function BookingDetailPage({
   // ?rate=N (a star tapped on "Rate your wash", so the form opens with it
   // chosen; the review is only sent from here, with Submit).
   const [arrival] = useState(() => {
-    if (typeof window === 'undefined') return { then: null, rate: 0 }
-    const query = new URLSearchParams(window.location.search)
-    const then = query.get('then')
-    const rate = Number(query.get('rate'))
+    const then = queryValue('then')
+    const rate = Number(queryValue('rate'))
     return {
       then: then === 'pay' || then === 'reschedule' || then === 'help' ? then : null,
       rate: Number.isInteger(rate) && rate >= 1 && rate <= 5 ? rate : 0,
@@ -210,11 +219,7 @@ export default function BookingDetailPage({
   // The booking flow lands here with ?celebrate=1 straight after payment.
   // Read once into state rather than watching the URL, so the burst plays a
   // single time and a refresh doesn't replay it (the param is stripped below).
-  const [celebrating, setCelebrating] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('celebrate') === '1'
-  )
+  const [celebrating, setCelebrating] = useState(() => queryValue('celebrate') === '1')
 
   useEffect(() => {
     getBooking(id).then((b) => {
