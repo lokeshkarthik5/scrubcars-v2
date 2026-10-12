@@ -11,7 +11,8 @@ import {
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
-import { AppShell } from '@repo/ui/sc/app-shell'
+import { CustomerShell } from '@/components/customer-shell'
+import { isHomeHubEnabled } from '@/lib/home-hub'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -110,14 +111,14 @@ export default function ProfilePage() {
 
   if (!authUser) {
     return (
-      <AppShell showNav showBrand className="gap-4 py-4">
-        <TopBar title="Profile" />
+      <CustomerShell showNav showBrand className="gap-4 py-4">
+        <TopBar title="Profile" large={isHomeHubEnabled()} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-[15px] font-semibold text-text-primary">Login to view your profile</p>
           <p className="text-[13px] text-text-secondary">Sign in to manage your vehicles and addresses</p>
           <ScButton className="mt-2 w-auto px-8" onClick={() => (window.location.href = '/login')}>Login</ScButton>
         </div>
-      </AppShell>
+      </CustomerShell>
     )
   }
 
@@ -277,8 +278,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <AppShell showNav showBrand className="gap-4 py-4">
-      <TopBar title="Profile" />
+    <CustomerShell showNav showBrand className="gap-4 py-4">
+      <TopBar title="Profile" large={isHomeHubEnabled()} />
 
       <ScCard className="flex items-center gap-3">
         <input
@@ -622,6 +623,6 @@ export default function ProfilePage() {
           Log out
         </span>
       </ScButton>
-    </AppShell>
+    </CustomerShell>
   )
 }

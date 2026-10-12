@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
+import { useHeroShine } from '@repo/ui/sc/hero-shine'
 import { Chip } from '@repo/ui/sc/chip'
 import { ScInput } from '@repo/ui/sc/input'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -24,6 +25,12 @@ interface AddCarSheetProps {
   onClose: () => void
   /** The saved car, so the caller can select it straight away. */
   onAdded?: (vehicle: Vehicle) => void
+  /**
+   * Draws Save car, the sheet's one main action, as the Home hub's red pill
+   * (ScButton "hero"). The customer app passes it while NEXT_PUBLIC_HOME_HUB
+   * is on; unset, the button is the plain primary it has always been.
+   */
+  hero?: boolean
 }
 
 /**
@@ -37,9 +44,10 @@ interface AddCarSheetProps {
  * is pushed there on success; the mutation is only here for the request
  * lifecycle.
  */
-export function AddCarSheet({ open, onClose, onAdded }: AddCarSheetProps) {
+export function AddCarSheet({ open, onClose, onAdded, hero = false }: AddCarSheetProps) {
   const [form, setForm] = useState(EMPTY)
   const vehicles = useUserStore((s) => s.vehicles)
+  const { attach: attachShine, className: shineClassName } = useHeroShine<HTMLButtonElement>(hero)
 
   const save = useMutation({
     mutationFn: () =>
@@ -134,12 +142,31 @@ export function AddCarSheet({ open, onClose, onAdded }: AddCarSheetProps) {
         </div>
 
         <div className="mt-1 flex gap-2">
-          <ScButton
-            disabled={!isValid || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? 'Saving…' : 'Save car'}
-          </ScButton>
+          {hero ? (
+            // The label as an element of its own, so it sits above the
+            // shine's band. The shine waits for the form to be complete, on
+            // purpose: a disabled hero never shines, so it plays when Save
+            // car first becomes something to press. Once only — clearing a
+            // field and typing it again does not replay it (useHeroShine).
+            // The sheet draws a new button each time it opens, so opening it
+            // again is a new visit.
+            <ScButton
+              ref={attachShine}
+              variant="hero"
+              className={shineClassName}
+              disabled={!isValid || save.isPending}
+              onClick={() => save.mutate()}
+            >
+              <span>{save.isPending ? 'Saving…' : 'Save car'}</span>
+            </ScButton>
+          ) : (
+            <ScButton
+              disabled={!isValid || save.isPending}
+              onClick={() => save.mutate()}
+            >
+              {save.isPending ? 'Saving…' : 'Save car'}
+            </ScButton>
+          )}
           <ScButton variant="secondary" disabled={save.isPending} onClick={close}>
             Cancel
           </ScButton>

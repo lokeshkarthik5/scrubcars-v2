@@ -15,6 +15,8 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- The red button's shine now finishes within 5 seconds (two 1.3 s sweeps, 0.4 s in; the animation ends at 4.8 s), inside WCAG 2.2.2's limit for moving content.
+
 ### Added
 
 - **The new Home hub and Updates (behind `NEXT_PUBLIC_HOME_HUB`).** With the
@@ -46,12 +48,69 @@ reconstructing every change in them.
   all); nearby garages (the location prompt only when no location was sent;
   hidden when the count failed); the car-care tip, last, hidden until
   tomorrow on this phone. The floating pill
-  nav (Home, Map, +, Bookings, Profile) is on Home only for now; + opens
+  nav (Home, Map, +, Bookings, Profile), app-wide (next entry); + opens
   `/garages`. A signed-out visitor on the hub goes to `/garages`; the
   `?welcome=1` toast stays. A change of location keeps the Home on screen
   while the new one loads. The booking page reads Home's `?then=` and
   `?rate=` once and takes them off the URL, so Back or a reload does not
   reopen a sheet.
+- **The hub's look on the rest of the app (behind `NEXT_PUBLIC_HOME_HUB`).**
+  With the flag off nothing below is drawn and every screen is exactly as
+  before (unit-tested: `components/customer-shell.test.tsx`,
+  `components/main-action.test.tsx`).
+  - **The floating pill nav on every customer screen with a nav** —
+    Bookings and a booking, Profile, `/garages`, `/search`, Home — and on the
+    map, which had none: Home, Map, the white + (New booking, to
+    `/garages`), Bookings, Profile. The customer screens render
+    `CustomerShell` (`components/customer-shell.tsx`), which hands AppShell
+    the pill (`floatingNav`, new in `@repo/ui`) and pads the page by
+    `FLOATING_NAV_CLEARANCE` (112pt plus the home indicator) so the last
+    control scrolls clear of it; the pill's scrim fades content out beneath
+    it (not on the map, where it would only hide streets, and the map's
+    cards sit above the pill). Vendor and admin bars are untouched. Each item
+    is a 44pt target with `aria-current` when lit. Which one is lit is
+    `lib/hub-nav.ts`: each tab on its own route and the screens under it (a
+    booking lights Bookings). On `/garages`, the spec's "none or Home"
+    depends on who is looking: nothing for a signed-in customer, whose Home is
+    the hub (a lit Home there would point a screen reader at the wrong page),
+    and Home for a visitor, whom `/home` sends to the list, so it is their
+    Home and the tab they tapped lights. The + is an action and never lights.
+    On `/search` nothing is lit (a step off the list, not a place of its own,
+    owner decision D9). This settles the open question of `/garages` having
+    no lit tab. The flat bar's `garagesUnderHome` switch is gone: with the hub
+    on, customers never see that bar.
+  - **The red hero pill on a screen's one main action**, with its two-sweep
+    shine (none under reduced motion or while disabled): the garage page's
+    Book Now, checkout's Pay ₹X (or Confirm booking) once nothing is left to
+    pick — while a step is missing it stays graphite, so the shine plays
+    when Pay first appears — a final bill's Pay ₹X on the booking page,
+    Save car in the add-car sheet (`hero`, new on `AddCarSheet`) and Save
+    address in checkout's add-address sheet, its sibling. One component,
+    `components/main-action.tsx`: the hero pill with the ↗ when the flag is
+    on, the old ScButton with the old classes when it is off. The shine plays
+    once per visit (`useHeroShine`, new in `@repo/ui`, and
+    `.cta-hero-rested`): Pay enabled again after a closed payment sheet,
+    Save car once the form is valid again, or Pay coming back after a step
+    was reopened does not sweep again. Secondary actions stay outlined, and
+    the garage page's Add buttons are a graphite outline, so Book Now is the
+    page's only red.
+  - **The hub's large light titles** (34pt Inter 300, `HUB_TITLE_CLASS` and
+    `TopBar large` in `@repo/ui`, which Updates now uses too) on Bookings and
+    Profile. The map has no title; everything else keeps its own.
+  - Tests: `lib/hub-nav.test.ts`, the two component tests above, and
+    `cta.test.ts` now also pins the pill's white label, the shine's two
+    finite sweeps, that it is off under reduced motion and when disabled,
+    and that a spent shine stays spent. @p0 `specs/users/hub-look.spec.ts`:
+    the pill on `/bookings`, a booking, `/profile` and `/map` with the right
+    item lit and none on `/garages` and `/search` for a customer (Home for a
+    visitor on `/garages`, `garages.spec.ts`), + to `/garages`, 44pt items,
+    the page clearing the pill, the 34pt titles; exactly one hero on the
+    garage page and at checkout (none before a service or a time is picked),
+    the Add buttons not red, Save car and Save address, the shine not
+    replaying when Save car is enabled again, off under reduced motion, and
+    the final bill's Pay. The accessibility suite's brand-red debt check now
+    opens a service's details first, since the Add buttons it measured are
+    no longer red with the flag on.
 - **`/updates`** (the bell): To do (bills, closed days, ratings), the team's
   pinned notice, then Today, This week and Earlier with unread dots, in IST
   whatever the phone's zone. Opening it moves the read marker to the server's

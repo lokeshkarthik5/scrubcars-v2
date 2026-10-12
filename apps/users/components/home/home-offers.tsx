@@ -102,6 +102,8 @@ export function HomeOffers({ offers, userId, vehicleId, hasCar, muted }: HomeOff
           void invalidateHome(queryClient)
           if (offer) go(offer, vehicle.id)
         }}
+        // Home is only ever drawn with the hub on.
+        hero
       />
     </>
   )

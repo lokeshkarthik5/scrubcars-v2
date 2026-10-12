@@ -14,6 +14,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { createAddress } from '@repo/core/api/users'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Address } from '@repo/core/types'
+import { MainAction } from './main-action'
 import { NO_PIN_TEXT, refillFromPin, type PinText } from './pin-autofill'
 
 const LABELS = ['Home', 'Office', 'Other'] as const
@@ -150,12 +151,16 @@ export function AddAddressSheet({ open, onClose, onAdded }: AddAddressSheetProps
         />
 
         <div className="mt-1 flex gap-2">
-          <ScButton
+          {/* The sheet's one main action: the red pill behind the Home hub
+              flag, as Save car is in its sibling sheet at checkout; off,
+              today's button exactly. Like Save car, it shines once, when
+              the form first becomes complete. */}
+          <MainAction
             disabled={!isValid || save.isPending}
             onClick={() => form.pin && save.mutate(form.pin)}
           >
             {save.isPending ? 'Saving…' : 'Save address'}
-          </ScButton>
+          </MainAction>
           <ScButton variant="secondary" disabled={save.isPending} onClick={close}>
             Cancel
           </ScButton>

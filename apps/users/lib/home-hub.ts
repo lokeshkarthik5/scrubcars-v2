@@ -8,8 +8,12 @@
  * quietly flipped to an unfinished screen is the mistake worth guarding
  * against. It stays off in production until the owner signs off the new look.
  *
- * Read by /home (the hub, or the garage list as before) and the garage list's
- * own nav (whether its Home tab stands for the list).
+ * Read by /home (the hub, or the garage list as before) and by the hub look
+ * elsewhere: CustomerShell's floating nav on every customer screen with a nav
+ * and on the map, MainAction (the red pill on a screen's one main action,
+ * including the add-address sheet's Save address), the add-car sheet's Save
+ * car, the garage page's graphite Add buttons, and the large titles on
+ * Bookings and Profile.
  */
 export function isHomeHubEnabled(
   value: string | undefined = process.env.NEXT_PUBLIC_HOME_HUB

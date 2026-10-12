@@ -473,13 +473,17 @@
  * (Book a wash, or Pay ₹X while a bill is due, or Add car).
  *
  * Its shine is the owner's "Subtle, intro" choice (D4): a soft band of light
- * crosses the label twice when the screen opens — a 1.6s sweep and a 1.8s
- * rest, 0.6s in, so it is over by about 7.4s — then stops for good, and plays
+ * crosses the label twice when the screen opens — a 1.3s sweep and a 0.9s
+ * rest, 0.4s in, so the band has stopped by about 3.9s and the animation ends
+ * at 4.8s, inside WCAG 2.2.2's 5s — then stops for good, and plays
  * again on the next visit. Twice and done, because motion that runs past 5s
  * with no way to pause it fails WCAG 2.2.2. Only `transform` is animated, so
  * it never repaints. The label sits above the band. Under reduced motion the
  * band is not drawn at all and the button is the approved static one; a
- * disabled button never shines.
+ * disabled button never shines. A button that is disabled and enabled again
+ * (Pay after a closed payment sheet) would start the band over, so a button
+ * that can be uses useHeroShine (sc/hero-shine.tsx) and `.cta-hero-rested`
+ * keeps its spent shine from replaying.
  *
  * The brand kit says "no decorative motion"; this is a conscious exception,
  * one element per screen. Contrast under the band's peak dips below 4.5:1 for
@@ -528,7 +532,7 @@
     opacity: 0.36;
     transform: translateX(-170%) skewX(-20deg);
     /* Fill "both" parks the band off the right edge, unseen, once it ends. */
-    animation: cta-shine-intro 3.4s 0.6s 2 both;
+    animation: cta-shine-intro 2.2s 0.4s 2 both;
   }
   .cta-hero:disabled {
     opacity: 0.4;
@@ -536,13 +540,19 @@
   .cta-hero:disabled::after {
     display: none;
   }
+  /* Its two sweeps are spent (useHeroShine in sc/hero-shine.tsx). Without
+     this, enabling the button again would start the band over. */
+  .cta-hero-rested::after {
+    display: none;
+    animation: none;
+  }
 
   @keyframes cta-shine-intro {
     0% {
       transform: translateX(-170%) skewX(-20deg);
       animation-timing-function: cubic-bezier(0.4, 0, 0.25, 1);
     }
-    47.06%,
+    59.09%,
     100% {
       transform: translateX(450%) skewX(-20deg);
     }

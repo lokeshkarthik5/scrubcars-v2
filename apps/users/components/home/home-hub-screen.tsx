@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { AppShell } from '@repo/ui/sc/app-shell'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { Toast } from '@repo/ui/sc/toast'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
@@ -15,19 +14,16 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { useUserStore } from '@repo/core/stores/user-store'
+import { CustomerShell } from '@/components/customer-shell'
 import { BillDueCard, GarageClosedCard, RateWashCard } from './action-cards'
 import { CarHero } from './car-hero'
 import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
-import { HubNav } from './hub-nav'
 import { NearbyCard } from './nearby-card'
 import { RightTile } from './right-tile'
 import { TipCard } from './tip-card'
 import { UpdatesBlock } from './updates-block'
 import { WashStatusTile } from './wash-status-tile'
-
-/** Clears the floating nav (60pt, 20pt off the bottom) with room to spare. */
-const NAV_CLEARANCE = 'calc(112px + env(safe-area-inset-bottom))'
 
 function HomeHubContent() {
   const router = useRouter()
@@ -89,8 +85,10 @@ function HomeHubContent() {
   }
 
   return (
-    <AppShell className="pt-3">
-      <div style={{ paddingBottom: NAV_CLEARANCE }} className="flex flex-col gap-3">
+    // The floating nav and the padding that keeps the tip clear of it, as on
+    // every customer screen with the hub on (CustomerShell).
+    <CustomerShell showNav className="pt-3">
+      <div className="flex flex-col gap-3">
         <h1 className="sr-only">Home</h1>
         <Toast
           message={`Welcome, ${firstName || 'there'}! Find your first car wash.`}
@@ -180,9 +178,9 @@ function HomeHubContent() {
         open={addCarOpen}
         onClose={() => setAddCarOpen(false)}
         onAdded={() => void invalidateHome(queryClient)}
+        hero
       />
-      <HubNav />
-    </AppShell>
+    </CustomerShell>
   )
 }
 

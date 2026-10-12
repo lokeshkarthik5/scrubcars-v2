@@ -13,6 +13,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { devices } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
 import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
+import { GaragePage } from '../../pages/garage.page'
 import { BOOKINGS, VENDORS, SERVICES } from '../../support/seed-ids'
 
 /**
@@ -76,8 +77,10 @@ const scan = (page: import('@playwright/test').Page) =>
  * One pairing remains:
  *
  *   white on brand red #EF3240    3.87:1 (#FAFAFA) to 4.0:1 (#FFF) — ScButton's
- *                                 primary style and the garage page's Add
- *                                 buttons, so every primary action
+ *                                 primary style and (Home hub look off) the
+ *                                 garage page's Add buttons, so every primary
+ *                                 action the hub's gradient pill has not
+ *                                 replaced
  *
  * It is not a page-level mistake and cannot be fixed where it appears: white
  * on #EF3240 cannot reach 4.5:1 at all without changing the red.
@@ -178,7 +181,10 @@ test.describe('accessibility', () => {
  * Measured on the garage page, not home: home no longer has red text at all
  * (its selected chip, mode switch and nav item are white), so scanning it
  * would pass for the wrong reason. The garage page carries the pairing that
- * is still open — white on red, on every Add button.
+ * is still open — white on red, on the details popup's "Add to booking"
+ * (ScButton's primary). With the Home hub look on, as in this suite, the
+ * cards' own Add buttons are graphite, so the popup is opened first: scanning
+ * the page alone would pass for the wrong reason too.
  */
 test.describe('accessibility debt', () => {
   test.use({ storageState: asRole('customer-browse') })
@@ -186,7 +192,10 @@ test.describe('accessibility debt', () => {
   test('brand red should meet AA at small text sizes', async ({ page }) => {
     test.fail()
 
-    await page.goto(`/garage/${VENDORS.main.id}`)
+    const garage = new GaragePage(page)
+    await garage.goto(VENDORS.main.id)
+    await garage.openDetails(SERVICES.wash.name)
+    await expect(garage.detailsCta()).toHaveText('Add to booking')
     await settle(page)
 
     const results = await scan(page)
