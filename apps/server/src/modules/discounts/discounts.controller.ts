@@ -3,6 +3,7 @@ import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { discountsService } from './discounts.service.js'
 import type {
   CreateDiscountInput,
+  HomeReachQuery,
   ListDiscountsQuery,
   UpdateDiscountInput,
   ValidateDiscountInput,
@@ -63,5 +64,10 @@ export async function listVendorOptions(c: DiscountContext) {
 
 export async function getHomeConfig(c: DiscountContext) {
   const data = discountsService.homeConfig()
+  return c.json({ success: true, data })
+}
+
+export async function getHomeReach(c: DiscountContext, query: HomeReachQuery) {
+  const data = await discountsService.homeReach(query)
   return c.json({ success: true, data })
 }

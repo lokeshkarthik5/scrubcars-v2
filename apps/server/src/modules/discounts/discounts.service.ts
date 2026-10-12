@@ -22,10 +22,13 @@ import {
   targetingRefused,
   type HomeFields,
 } from '../../lib/offers.js'
+import { countReach, reachSettings, type ReachCustomer } from '../../lib/offer-reach.js'
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
+import { isWashDue, washStatus } from '../../lib/wash-status.js'
 import { discountsRepository } from './discounts.repository.js'
 import type {
   CreateDiscountInput,
+  HomeReachQuery,
   ListDiscountsQuery,
   UpdateDiscountInput,
   ValidateDiscountInput,
@@ -534,6 +537,78 @@ export const discountsService = {
       })),
       defaultNearRadiusKm: DEFAULT_NEAR_RADIUS_KM,
       maxNearRadiusKm: MAX_NEAR_RADIUS_KM,
+    }
+  },
+
+  /**
+   * "Estimated reach" on the form: how many customers the Show on Home
+   * settings would reach today, counted by Home's own rule (lib/offer-reach.ts).
+   * Refused as a save would be: a targeted audience while targeting is off
+   * (409), settings that do not fit together (400). Only the facts the
+   * audience reads are loaded, so "Everyone" reads no booking history or
+   * location.
+   */
+  async homeReach(query: HomeReachQuery, now = new Date()) {
+    const targeting = env.homeOfferTargeting
+    const fields = reachSettings(query, targeting)
+
+    let vendorPublic = true
+    if (fields.vendorId) {
+      const isPublic = await discountsRepository.vendorIsPublic(fields.vendorId)
+      if (isPublic === null) {
+        throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+      }
+      vendorPublic = isPublic
+    }
+
+    const base = await discountsRepository.listReachCustomers()
+    const booked =
+      fields.homeAudience === 'new_customers' || fields.homeAudience === 'booked_this_garage'
+        ? await discountsRepository.paidBookingGarages()
+        : null
+    const distances =
+      fields.homeAudience === 'near_this_garage' && fields.vendorId
+        ? await discountsRepository.nearestAddressKm(fields.vendorId)
+        : null
+    let washDueUsers: Set<string> | null = null
+    if (fields.homeAudience === 'wash_due') {
+      washDueUsers = new Set()
+      for (const car of await discountsRepository.carWashFacts(now)) {
+        const status = washStatus({
+          intervalDays: car.intervalDays,
+          lastWashAt: car.lastWashAt,
+          // Only whether one exists matters here: a booked car is never due.
+          bookedFor: car.booked ? { bookingId: 'booked', scheduledAt: now } : null,
+          now,
+        })
+        if (isWashDue(status)) washDueUsers.add(car.userId)
+      }
+    }
+
+    const customers: ReachCustomer[] = base.map((row) => ({
+      userId: row.userId,
+      carTypes: row.carTypes,
+      bookedVendorIds: booked?.get(row.userId) ?? new Set(),
+      washDue: washDueUsers?.has(row.userId) ?? false,
+      distanceKm: distances?.get(row.userId) ?? null,
+    }))
+
+    return {
+      count: countReach(
+        {
+          audience: fields.homeAudience,
+          vendorId: fields.vendorId,
+          radiusKm: fields.homeAudienceRadiusKm,
+          vehicleTypes: fields.homeAudienceVehicleTypes,
+          vendorPublic,
+        },
+        customers,
+        { now, targetingEnabled: targeting }
+      ),
+      /** Null for a Detlio-wide code; false means the card shows to nobody. */
+      garagePublic: fields.vendorId ? vendorPublic : null,
+      /** "Near this garage" is measured from saved addresses, not live location. */
+      measuredFrom: fields.homeAudience === 'near_this_garage' ? 'saved_addresses' : null,
     }
   },
 }
