@@ -5,6 +5,8 @@
  * pages in a browser in apps/e2e/specs/users/legal-pages.spec.ts.
  */
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   duplicateIds,
   inlineToPlain,
@@ -124,13 +126,102 @@ describe('what the Home hub keeps', () => {
     expect(text).toContain(TIP_HIDDEN_KEY)
   })
 
-  // Offers are shown to everyone alike until the policy says otherwise; the
-  // release that turns targeting on must change this test with the policy.
-  test('offers are not chosen from personal data', () => {
-    expect(privacy()).toContain('**Offers on Home are not targeted.**')
-    // The one thing that does change what is shown: no saved car, no garage
-    // offers. Said plainly, so the note does not claim cars play no part.
-    expect(privacy()).toContain('garage offers are hidden until a car is saved')
+  // Matching is declared ahead of the switch: the policy says what it would
+  // use, and that it starts only when this text takes effect. The release
+  // that turns HOME_OFFER_TARGETING on publishes this text.
+  test('matched offers: every audience the server knows is declared, and when it starts', () => {
+    const text = privacy()
+    expect(text).toContain('### Offers on Home')
+    // One line per audience in apps/server/src/lib/offers.ts (HOME_AUDIENCE_LABELS).
+    expect(text).toContain('have not paid for a booking on Detlio yet') // new_customers
+    expect(text).toContain('have paid for a booking with that garage before') // booked_this_garage
+    expect(text).toContain('are near the garage') // near_this_garage
+    expect(text).toContain('have a wash due within the next 2 days, or overdue') // wash_due
+    expect(text).toContain('own a particular size of car') // car_type
+    // Home sends a rounded location and keeps none of it.
+    expect(text).toContain('Home does not save it')
+    // What it is for, and what it is not.
+    expect(text).toContain('This only decides which offers you see on Home')
+    expect(text).toContain('**Matching starts only when this version of the policy takes effect.**')
+    // Without a car, garages' codes stay hidden whatever the switch says.
+    expect(text).toContain('Offers from a single garage are hidden until you save a car')
+    // How to ask for general offers only; there is no setting in the app.
+    expect(text).toContain('If you would rather see only the offers shown to everyone, tell us (section 9).')
+    expect(text).toContain('There is no setting for this in the app.')
+    // Even with matching off, offers are not the same for everyone: no car,
+    // closed with ×, or used up all hide one (offerSkipReason).
+    expect(text).not.toContain('every signed-in customer sees the same offers')
+    expect(text).toContain('apart from garages\' offers until you save a car, and any you have closed or used up')
+  })
+
+  // The ranking is a disclosure under the E-Commerce Rules, so both pages
+  // name the whole order offerTier uses, Detlio's own codes included.
+  test('both pages give the whole matched order, with Detlio\'s own offers in their place', () => {
+    const order =
+      'offers from garages you have booked, then from garages near you, then Detlio\'s own offers, then other garages\' offers'
+    expect(privacy()).toContain(order)
+    expect(markdownOf(LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.terms)!)).toContain(order)
+  })
+})
+
+describe('the Meta Pixel', () => {
+  const layout = readFileSync(join(import.meta.dir, '../../app/layout.tsx'), 'utf8')
+  const pixel = readFileSync(join(import.meta.dir, '../../components/meta-pixel.tsx'), 'utf8')
+  const privacy = () => markdownOf(LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.privacy)!)
+
+  // If the pixel is ever moved off some pages, or removed, the policy's
+  // section 4 has to change with it: this fails until it does.
+  test('is mounted on every customer page and sends only page views, as the policy says', () => {
+    expect(layout).toContain('<MetaPixel />')
+    const events = [...pixel.matchAll(/fbq\??\.?\(\s*'track',\s*'(\w+)'/g)].map((match) => match[1])
+    expect(new Set(events)).toEqual(new Set(['PageView']))
+    const text = privacy()
+    expect(text).toContain('### Meta (Facebook and Instagram), for our ads')
+    expect(text).toContain('Every page of detlio.com loads the **Meta Pixel**')
+    expect(text).toContain('including moving from screen to screen inside the app')
+    expect(text).toContain('on its servers outside India')
+  })
+
+  test('the pages it sends and the cookies it sets are declared', () => {
+    const text = privacy()
+    expect(text).toContain('The pages you open on detlio.com, with your IP address')
+    expect(text).toContain('| _fbp (cookie, set by Meta\'s pixel) |')
+    expect(text).toContain('| _fbc (cookie, set by Meta\'s pixel) |')
+    // Meta adds its click ID to most links out of Facebook and Instagram,
+    // not only to ads, so the row cannot say "only our ads".
+    expect(text).toContain('set when you arrive from a link on Facebook or Instagram (including our ads)')
+    expect(text).not.toContain('set only when you arrive by tapping one of our ads')
+    expect(text).toContain('_fbp, and _fbc if it is set')
+  })
+
+  // The address Meta gets is the whole URL, query included. These are the
+  // parameters the app itself puts there (garage page and book-again for
+  // checkout; the booking page reads then, rate and celebrate).
+  test('what the page address carries is spelled out, and nothing says booking details stay out', () => {
+    const text = privacy()
+    expect(text).toContain('the services you picked (by reference number) and whether the visit is at your door')
+    expect(text).toContain('that you have just paid for it, that you have a bill to pay, or the star rating you tapped on Home')
+    expect(text).toContain('Apart from what the page address shows, we have not set it up to send your name, mobile number or car.')
+    expect(text).not.toContain('or what you booked')
+    expect(text).toContain('?celebrate=1')
+    expect(text).toContain('?rate=N')
+  })
+
+  test("the lawyer's questions are on the page while it is a draft", () => {
+    const text = privacy()
+    expect(text).toContain('**Consent before the pixel loads (DPDP).**')
+    expect(text).toContain('**Which pages the pixel runs on.**')
+    expect(text).toContain('**Meta requires this notice.**')
+  })
+
+  test('nothing says Detlio does no tracking, advertising or analytics', () => {
+    for (const doc of LEGAL_DOCS) {
+      const text = inlineToPlain(markdownOf(doc)).toLowerCase()
+      expect(text).not.toMatch(/\bno (advertising|analytics|tracking)\b/)
+      expect(text).not.toMatch(/\b(do|does) not (use )?(advertising|analytics|track)/)
+      expect(text).not.toMatch(/track you across/)
+      expect(text).not.toMatch(/nothing is used for marketing/)
+    }
   })
 })
 
@@ -184,8 +275,10 @@ describe('section references', () => {
     '/privacy#2': 'what-we-collect',
     '/privacy#3': 'what-we-dont',
     '/privacy#4': 'sharing',
+    '/privacy#5': 'storage',
     '/privacy#7': 'retention',
     '/privacy#8': 'security',
+    '/privacy#9': 'rights',
     '/privacy#13': 'changes',
     '/privacy#14': 'contact',
     '/refund-policy#1': 'every-case',

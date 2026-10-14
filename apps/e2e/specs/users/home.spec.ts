@@ -12,6 +12,9 @@
  * file changes (an interval, an ×) belongs to a customer of its own, and is
  * reset at the start of its test so a retry starts from the seed.
  */
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
 import { sql } from '../../support/db'
@@ -28,6 +31,18 @@ import {
 } from '../../support/seed-ids'
 
 const OFFER_CODE = DISCOUNTS.homeBooked.code
+
+/**
+ * The owner's switch for the car pictures, read from the source rather than
+ * imported (@repo/e2e does not depend on @repo/core), so that flipping the
+ * one line in packages/core/src/car-images.ts flips this spec with it.
+ */
+const CAR_PICTURES_BY_TYPE = /^export const CAR_PICTURES_BY_TYPE = true\b/m.test(
+  readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '../../../../packages/core/src/car-images.ts'),
+    'utf8'
+  )
+)
 
 /** The coupon for one code: its whole-ticket button names the code. */
 const offerButton = (page: Page, code = OFFER_CODE) =>
@@ -250,6 +265,62 @@ test.describe('Home hub @p0', () => {
       await sheet.getByRole('button', { name: 'Every 21 days' }).click()
       await expect(sheet).toBeHidden()
       await expect(tile).toContainText(`Due in ${days(21 - second)}`)
+    })
+
+    // Only reads. Follows CAR_PICTURES_BY_TYPE (read from car-images.ts
+    // above), so the owner's one-line switch back to the single picture
+    // needs no change here.
+    test("each car shows its body type's picture, standing on the approved line", async ({ page }) => {
+      await page.goto('/home')
+      const cars = page.getByRole('region', { name: 'Your cars' })
+      const picture = (n: number) =>
+        cars.getByRole('group', { name: `Car ${n} of 2` }).locator('img.car-hero__car')
+      // What the browser actually drew, not what the markup asked for: if a
+      // body-type file fails, the hero swaps in car-default under the same
+      // class, so only currentSrc tells the two apart.
+      const drawn = (n: number) =>
+        picture(n).evaluate((img: HTMLImageElement) =>
+          img.complete && img.naturalWidth > 0 ? img.currentSrc : ''
+        )
+
+      // As seeded: the Honda Amaze is a sedan, the Tata Nexon an SUV / MUV.
+      await expect(cars.getByRole('heading', { name: 'Honda Amaze' })).toBeVisible()
+
+      if (!CAR_PICTURES_BY_TYPE) {
+        // One picture for every car, through next/image as Home launched.
+        for (const n of [1, 2]) {
+          if (n === 2) await cars.evaluate((track) => track.scrollTo({ left: track.clientWidth }))
+          await expect(picture(n)).not.toHaveClass(/car-hero__car--body-type/)
+          await expect.poll(() => drawn(n)).toContain('car-default.webp')
+        }
+        return
+      }
+
+      await expect(picture(1)).toHaveAttribute('src', '/cars/car-sedan-1200.webp')
+      await expect(picture(1)).toHaveAttribute(
+        'srcset',
+        '/cars/car-sedan-1200.webp 1200w, /cars/car-sedan-2400.webp 2400w'
+      )
+      await expect(picture(2)).toHaveAttribute('src', '/cars/car-suv-1200.webp')
+
+      // Loaded and still the body-type file (the second is lazy until
+      // swiped to), so a missing or broken file cannot pass as the fallback.
+      await expect.poll(() => drawn(1)).toContain('/cars/car-sedan-')
+      await cars.evaluate((track) => track.scrollTo({ left: track.clientWidth }))
+      await expect.poll(() => drawn(2)).toContain('/cars/car-suv-')
+      for (const n of [1, 2]) await expect(picture(n)).toHaveClass(/car-hero__car--body-type/)
+
+      // Placed by the tyres, not the top: they stand 217pt down the hero
+      // (201pt when a must-act card makes it short), the SUV as the sedan.
+      // Measured from the track, which sits inside the card's 1px border,
+      // as the CSS `top` is.
+      const short = await carHero(page).evaluate((el) => el.classList.contains('car-hero--short'))
+      const line = short ? 201 : 217
+      const trackBox = (await cars.boundingBox())!
+      for (const n of [1, 2]) {
+        const box = (await picture(n).boundingBox())!
+        expect(Math.abs(box.y + box.height * 0.907 - (trackBox.y + line))).toBeLessThan(0.75)
+      }
     })
   })
 
