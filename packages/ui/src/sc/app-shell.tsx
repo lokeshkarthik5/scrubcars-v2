@@ -12,6 +12,8 @@ interface AppShellProps {
   /** Content for the right of the brand row. Requires showBrand. */
   brandRight?: React.ReactNode
   className?: string
+  /** Passed to the customer BottomNav: whether its Home tab also lights on /garages. */
+  garagesUnderHome?: boolean
 }
 
 export function AppShell({
@@ -21,6 +23,7 @@ export function AppShell({
   showBrand = false,
   brandRight,
   className,
+  garagesUnderHome,
 }: AppShellProps) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[428px] flex-col bg-brand-black">
@@ -37,7 +40,7 @@ export function AppShell({
         )}
         {children}
       </main>
-      {showNav && <BottomNav type={navType} />}
+      {showNav && <BottomNav type={navType} garagesUnderHome={garagesUnderHome} />}
     </div>
   )
 }

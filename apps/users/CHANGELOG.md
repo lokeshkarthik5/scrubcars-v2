@@ -17,6 +17,87 @@ reconstructing every change in them.
 
 ### Added
 
+- **The new Home hub and Updates (behind `NEXT_PUBLIC_HOME_HUB`).** With the
+  flag `on`, `/home` is the hub (`components/home/`); with it off, as in
+  production until the owner signs off a preview on live data, `/home` is the
+  garage list exactly as before. One read, `GET /users/me/home` (TanStack
+  Query, 30 s fresh, refetched on focus, `@repo/core/api/hooks/use-home`),
+  top to bottom: "Hey 👋" and the first name (the first word longer than one
+  letter not ending in "." — "R. Karthik" is Karthik), the avatar initial and
+  a bell whose red dot is also in its name ("Updates, new"); one must-act
+  card when one applies (a final bill to pay, with Pay ₹X as the screen's one
+  red button and Book a wash outlined; or the garage shut on a booking's day,
+  with Change time only while the booking can still be moved and the garage
+  is not paused, and Get help); the offers, up to three V2 coupons
+  (`@repo/ui/home/offer-coupon`) in a swipeable carousel with ×; "Rate your
+  wash" below them only when nothing is must-act (a star opens the booking's
+  own rating form with that many chosen, × hides it for good); the car hero
+  (several cars swipe with dots and the tiles follow, pencil to the profile's
+  cars, `carImageFor` gives every type the approved cut-out for now, "Add
+  your car" with no car) and the red Book a wash with its intro shine (two
+  sweeps, then still; none under reduced motion); the wash tile (one step a
+  day up to 14, then one per two or three days so a 21- or 30-day bar stays
+  readable, "8 days ago", due/overdue/booked from the server, a tap picks 7, 10,
+  14, 21 or 30 days); the tile beside it (Next booking with a team notice
+  about it as one line, "Pay to hold your slot" for an unpaid booking,
+  Before & after, Book again priced for the car and preselecting that car at
+  checkout, "Pick a service" when the garage no longer sells the last job's,
+  or nothing booked); Updates (the pinned notice, the newest two rows, See
+  all); nearby garages (the location prompt only when no location was sent;
+  hidden when the count failed); the car-care tip, last, hidden until
+  tomorrow on this phone. The floating pill
+  nav (Home, Map, +, Bookings, Profile) is on Home only for now; + opens
+  `/garages`. A signed-out visitor on the hub goes to `/garages`; the
+  `?welcome=1` toast stays. A change of location keeps the Home on screen
+  while the new one loads. The booking page reads Home's `?then=` and
+  `?rate=` once and takes them off the URL, so Back or a reload does not
+  reopen a sheet.
+- **`/updates`** (the bell): To do (bills, closed days, ratings), the team's
+  pinned notice, then Today, This week and Earlier with unread dots, in IST
+  whatever the phone's zone. Opening it moves the read marker to the server's
+  own `now`, so the bell goes quiet; Mark all read takes the dots off. 404
+  with the flag off; customers only.
+- **Offers apply themselves at checkout.** Tapping an offer remembers the code
+  and the car on screen (`@repo/core/stores/pending-checkout-store`: this
+  account's only, for a day at most, never past the offer's end; cleared on a
+  booking, on Remove and on sign-out). A garage's own offer opens its page
+  with `?code=`, which the page passes on to checkout; a Detlio-wide one opens
+  `/garages`. A customer with no car adds one first, in place. Checkout
+  preselects the car picked on Home (if still saved), applies the code once
+  the services and car are known, checks it again whenever either changes,
+  and if it no longer applies says so on the coupon row in the server's words
+  rather than dropping it quietly, with Remove beside the message. Remove is
+  for good, off the link too. A code the server refuses for good (expired,
+  used up, already used) is also forgotten on the device, so the next
+  garage's checkout does not bring it back.
+  Home, Updates and the bell are refreshed after a booking, a payment, a bill
+  paid, a cancellation, a reschedule, a review and car changes on the profile.
+- `ScButton` variant `hero` and the `hub-card` surface in `@repo/ui`
+  (`globals.css`, with the card tokens and `--gradient-cta`); the gradient's
+  stops are `CTA_GRADIENT` in `@repo/core/cta`, whose test checks white text
+  clears 4.5:1 on the lightest stop (#E4002B) and that the stylesheet uses
+  exactly those stops. Inter now loads its optical-size axis, so large titles
+  wrap as in the approved mockups. The privacy draft lists the Updates read
+  marker and the ×s (deleted with the account), the wash interval, and the
+  two new local-storage keys, with a reviewer note that offers are not
+  targeted (`legal-docs.test.ts` checks all three).
+- Tests: `packages/core` `home-display.test.ts` (greeting, offer small print,
+  wash line and bar, IST times and grouping), `pending-checkout-store.test.ts`,
+  `car-images.test.ts`, `cta.test.ts`, `book-again.test.ts`
+  (`bookAgainPathFor`). @p0 `specs/users/home.spec.ts` (offer first; offer to
+  checkout with the code applied, re-checked after a change, gone after
+  Remove; bill above the offer with Pay the one red button; Change time;
+  wash due and overdue per car and the interval sheet; a new customer's Add
+  your car; a booking notice on the tile and leading Updates; notice and
+  offer ×s that hold; Book again; signed out to `/garages`; the welcome
+  toast; a Home code that no longer fits the cart, said and removable) and
+  `updates.spec.ts` (bell to Updates and back with no dot; Mark all read;
+  Rate your wash ×), on three new seed customers of their own
+  (`homeScreenWash`, `homeBell`, `homeTile`) beside home-api's. The flag is
+  `on` in `apps/e2e/.env.e2e` and CI's build; `garages.spec.ts`,
+  `homepage.spec.ts`, `auth.spec.ts`, `smoke.spec.ts` and the accessibility
+  scan (now `/home` and `/updates` too, waiting for their data rather than
+  the skeleton) follow.
 - **The garage list at `/garages`.** The list that has been Home (mode
   switch, search, category chips, sort, the infinite list) now also lives at
   `/garages`, with its own title ("Garages · Detlio"), description and

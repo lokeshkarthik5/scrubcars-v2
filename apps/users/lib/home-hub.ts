@@ -8,11 +8,18 @@
  * quietly flipped to an unfinished screen is the mistake worth guarding
  * against. It stays off in production until the owner signs off the new look.
  *
- * Nothing reads it yet. /home renders the garage list either way until the
- * hub itself lands.
+ * Read by /home (the hub, or the garage list as before) and the garage list's
+ * own nav (whether its Home tab stands for the list).
  */
 export function isHomeHubEnabled(
   value: string | undefined = process.env.NEXT_PUBLIC_HOME_HUB
 ): boolean {
   return value === 'on'
 }
+
+/**
+ * Where the car-care tip's × is kept on the phone: the IST day it was closed
+ * on, so the tip is back the next day. The privacy policy's storage table
+ * names this key (lib/legal/privacy.ts, checked by legal-docs.test.ts).
+ */
+export const TIP_HIDDEN_KEY = 'detlio:tip-hidden-on'

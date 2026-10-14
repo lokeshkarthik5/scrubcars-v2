@@ -43,8 +43,9 @@ test.describe('homepage @p0', () => {
 
     await page.goto('/')
     // The hint only ever points at /home, which is public — never at a
-    // guarded route that would strand a signed-out visitor on /login.
-    await expect(page).toHaveURL(/\/home/)
+    // guarded route that would strand a signed-out visitor on /login. The
+    // hub sends a signed-out visitor on to the list of garages.
+    await expect(page).toHaveURL(/\/(home|garages)$/)
     await expect
       .poll(() =>
         page.evaluate(

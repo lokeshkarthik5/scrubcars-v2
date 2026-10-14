@@ -35,8 +35,9 @@ import {
 } from '@repo/core/stores/location-store'
 import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
-import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
+import { BOOKING_TYPE_LABELS, parseBookingType } from '@repo/core/booking-types'
 import { cn } from '@repo/core/utils'
+import { isHomeHubEnabled } from '@/lib/home-hub'
 
 type ServiceMode = 'dropin' | 'doorstep'
 
@@ -51,7 +52,11 @@ function GarageListContent() {
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
-  const [serviceMode, setServiceMode] = useState<ServiceMode>('dropin')
+  // Opens on the mode a link asked for (Home's Book a wash for a car last
+  // done at the door), and At garage otherwise.
+  const [serviceMode, setServiceMode] = useState<ServiceMode>(
+    () => parseBookingType(searchParams.get('mode')) ?? 'dropin'
+  )
   const [category, setCategory] = useState<CategoryKey>('all')
   // `null` means "the customer has not chosen", which is what lets the default
   // follow whether we know where they are. Derived rather than set from an
@@ -144,6 +149,7 @@ function GarageListContent() {
     <AppShell
       showNav
       showBrand
+      garagesUnderHome={!isHomeHubEnabled()}
       className="gap-4 py-4"
       brandRight={
         // Prompted on intent, never on first paint: a cold permission request
@@ -350,10 +356,10 @@ function GarageListContent() {
  * The customer's garage list: mode switch, search, category chips, sort and
  * an infinite list of garages.
  *
- * Served at /garages, and for now at /home as well. Both routes render this
- * one component so they cannot drift apart while Home is being rebuilt; once
- * the new Home ships behind NEXT_PUBLIC_HOME_HUB (lib/home-hub.ts), /home
- * stops rendering it and /garages is the list's only home.
+ * Served at /garages, and at /home too while the new Home is off. Both routes
+ * render this one component so they cannot drift apart; with
+ * NEXT_PUBLIC_HOME_HUB on (lib/home-hub.ts), /home is the hub and /garages is
+ * the list's only home.
  */
 export function GarageListScreen() {
   return (

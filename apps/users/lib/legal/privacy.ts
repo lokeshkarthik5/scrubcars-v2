@@ -114,6 +114,16 @@ export const PRIVACY: LegalDoc = {
               'Pricing by car size; telling the garage which car to expect',
             ],
             [
+              'How often you want each car washed (if you choose)',
+              'You',
+              'The wash reminder on your Home screen. Without a choice we use 14 days, or 10 from October to December.',
+            ],
+            [
+              'When you last opened Updates, and the offers, team notices and "Rate your wash" prompts you closed',
+              'You, when you open Updates or tap × on Home',
+              'Showing which updates are new, and keeping what you closed hidden on every device you use. Not used for anything else, and deleted with your account.',
+            ],
+            [
               'Bookings: garage, services, time, amounts, promo code, status and history',
               'You and the garage',
               'Running the booking, your booking history, receipts, support and our accounts',
@@ -158,6 +168,10 @@ export const PRIVACY: LegalDoc = {
         {
           kind: 'p',
           text: 'You do not have to give us any of this, but without your mobile number we cannot create an account, and without the booking details we cannot make a booking. Location is always optional: you can search or pick on the map instead.',
+        },
+        {
+          kind: 'note',
+          text: '**Offers on Home are not targeted.** The same offers go to every signed-in customer, except that garage offers are hidden until a car is saved (they are priced per car). Booking history and location are not used to choose them (the server switch HOME_OFFER_TARGETING is off). Turning targeting on needs new rows here saying so, a lawful basis (likely s.6 consent), and the lawyer\'s view first.',
         },
         {
           kind: 'note',
@@ -357,6 +371,8 @@ export const PRIVACY: LegalDoc = {
             ['auth_phone and related items (session storage)', 'Remember the number and timers between the sign-in and code screens', 'Until you close the tab'],
             ['detlio:signed-in (local storage)', 'Remembers that this browser is signed in, to skip the homepage', 'Until you log out'],
             ['detlio-location (local storage)', 'Your last location and place name, if you shared it, so the app can show nearby garages', 'Until you clear it in your browser'],
+            ['detlio-pending-checkout (local storage)', 'The offer code and car you picked on Home, so checkout can apply the code', 'Cleared when you book, remove the code or log out; ignored after a day, or once the offer ends'],
+            ['detlio:tip-hidden-on (local storage)', 'The day you hid the car care tip on Home', 'Until you clear it in your browser; the tip comes back the next day'],
           ],
         },
         {

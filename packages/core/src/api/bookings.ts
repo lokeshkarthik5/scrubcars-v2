@@ -194,3 +194,12 @@ export async function rescheduleBooking(
   })
   return mapBooking(booking)
 }
+
+/**
+ * POST /bookings/:id/review-prompt/dismiss — the × on Home's "Rate your
+ * wash". Only the booking's customer can; anyone else gets the booking's 404.
+ * The review itself can still be left from the booking's page.
+ */
+export async function dismissReviewPrompt(bookingId: string): Promise<void> {
+  await apiClient(`/bookings/${bookingId}/review-prompt/dismiss`, { method: 'POST' })
+}

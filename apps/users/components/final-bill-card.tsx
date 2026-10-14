@@ -152,7 +152,8 @@ export function FinalBillCard({
       : 0
 
   return (
-    <ScCard className="flex flex-col gap-3 px-4 py-4">
+    // #final-bill: Home's "Pay ₹X" lands here (/bookings/:id?then=pay).
+    <ScCard id="final-bill" className="flex scroll-mt-4 flex-col gap-3 px-4 py-4">
       <h2 className="text-sm font-semibold text-text-primary">Final bill</h2>
       <p className="-mt-2 text-[12px] text-text-secondary">
         From {booking.vendorName}, after inspecting your car.

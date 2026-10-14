@@ -66,9 +66,10 @@ test.describe('customer auth', () => {
     await enterOtp(page, await latestOtp(CUSTOMERS.browse.phone))
     await page.getByRole('button', { name: /^Verify/i }).click()
 
-    // A known customer skips profile setup and lands in the app.
+    // A known customer skips profile setup and lands in the app: Home, with
+    // their car.
     await expect(page).toHaveURL(/\/home/)
-    await expect(page.getByText(VENDORS.main.name).first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Your car', exact: true })).toBeVisible()
   })
 
   test('a wrong code is refused and the customer stays put', async ({ page }) => {

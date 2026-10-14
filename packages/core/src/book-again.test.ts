@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { bookAgainPath, canBookAgain, pickRequestedServices, unofferedMode } from './book-again'
+import {
+  bookAgainPath,
+  bookAgainPathFor,
+  canBookAgain,
+  pickRequestedServices,
+  unofferedMode,
+  withdrawnPathFor,
+} from './book-again'
 import type { BookingItem } from './types'
 
 const GARAGE = 'e2e00000-0000-4000-8000-000000000301'
@@ -53,6 +60,31 @@ describe('bookAgainPath', () => {
     expect(
       bookAgainPath({ vendorId: GARAGE, bookingType: 'doorstep', items: [item('')] })
     ).toBe(`/garage/${GARAGE}?mode=doorstep`)
+  })
+})
+
+describe('bookAgainPathFor', () => {
+  // Home's Book again tile has the last job's ids, not a booking.
+  test('the same link from bare ids as from the booking', () => {
+    expect(
+      bookAgainPathFor({ vendorId: GARAGE, bookingType: 'doorstep', serviceIds: ['s2', 's1', 's2'] })
+    ).toBe(
+      bookAgainPath({ vendorId: GARAGE, bookingType: 'doorstep', items: [item('s2'), item('s1')] })
+    )
+    expect(bookAgainPathFor({ vendorId: GARAGE, bookingType: 'dropin', serviceIds: [] })).toBe(
+      `/garage/${GARAGE}`
+    )
+  })
+})
+
+describe('withdrawnPathFor', () => {
+  // Home's tile when the garage sells none of the last job's services: the
+  // garage page with its explanation, as checkout's own redirect builds it.
+  test('the garage page, saying why, in the old mode', () => {
+    expect(withdrawnPathFor({ vendorId: GARAGE, bookingType: 'dropin' })).toBe(`/garage/${GARAGE}?withdrawn=1`)
+    expect(withdrawnPathFor({ vendorId: GARAGE, bookingType: 'doorstep' })).toBe(
+      `/garage/${GARAGE}?withdrawn=1&mode=doorstep`
+    )
   })
 })
 
