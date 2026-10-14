@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ErrorState } from '@repo/ui/sc/empty-state'
+import { HUB_TITLE_CLASS } from '@repo/ui/sc/top-bar'
 import {
   useDismissNotice,
   useDismissReviewPrompt,
@@ -13,6 +14,7 @@ import {
 } from '@repo/core/api/hooks/use-home'
 import type { HomeActionCard } from '@repo/core/api/home'
 import { groupUpdates } from '@repo/core/home-display'
+import { cn } from '@repo/core/utils'
 import { BillDueCard, GarageClosedCard, RateWashCard } from './action-cards'
 import { UpdateList, UpdateRow } from './update-row'
 
@@ -96,9 +98,7 @@ export function UpdatesScreen() {
           Mark all read
         </button>
       </div>
-      <h1 className="px-1 pt-1 text-[34px] leading-[1.08] font-light tracking-[-0.03em] text-text-primary">
-        Updates
-      </h1>
+      <h1 className={cn('px-1 pt-1', HUB_TITLE_CLASS)}>Updates</h1>
 
       {updates.isPending ? (
         <div className="mt-6 flex flex-col gap-3">

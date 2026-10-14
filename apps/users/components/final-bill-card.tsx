@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { IconCircleCheck, IconLoader2 } from '@tabler/icons-react'
+import { IconArrowUpRight, IconCircleCheck, IconLoader2 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -12,6 +12,7 @@ import { confirmPayment, finalBillPollResult, realClock } from '@repo/core/payme
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import type { Booking, FinalBill } from '@repo/core/types'
 import { APP_TIMEZONE } from '@repo/core/utils'
+import { MainAction } from '@/components/main-action'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 
 function paidOn(iso: string): string {
@@ -244,10 +245,13 @@ export function FinalBillCard({
           waitingOn="bill_not_marked_paid"
         />
       ) : booking.status === 'cancelled' ? null : (
-        <ScButton
+        // The booking page's one main action while the bill is due (the page
+        // steps everything else down): the red pill behind the Home hub flag.
+        <MainAction
           disabled={opening}
           onClick={handlePay}
           className="rounded-full py-4 text-[15px]"
+          heroIcon={!opening && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />}
         >
           {opening ? (
             'Opening payment...'
@@ -256,7 +260,7 @@ export function FinalBillCard({
               Pay <span className="font-numeric font-bold">{formatRupees(bill.amountDue)}</span>
             </>
           )}
-        </ScButton>
+        </MainAction>
       )}
     </ScCard>
   )

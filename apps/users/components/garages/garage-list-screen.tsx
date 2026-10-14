@@ -12,7 +12,7 @@ import {
   IconMapPin,
   IconSearch,
 } from '@tabler/icons-react'
-import { AppShell } from '@repo/ui/sc/app-shell'
+import { CustomerShell } from '@/components/customer-shell'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import {
   SortSheet,
@@ -37,7 +37,6 @@ import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
 import { BOOKING_TYPE_LABELS, parseBookingType } from '@repo/core/booking-types'
 import { cn } from '@repo/core/utils'
-import { isHomeHubEnabled } from '@/lib/home-hub'
 
 type ServiceMode = 'dropin' | 'doorstep'
 
@@ -146,10 +145,9 @@ function GarageListContent() {
 
 
   return (
-    <AppShell
+    <CustomerShell
       showNav
       showBrand
-      garagesUnderHome={!isHomeHubEnabled()}
       className="gap-4 py-4"
       brandRight={
         // Prompted on intent, never on first paint: a cold permission request
@@ -348,7 +346,7 @@ function GarageListContent() {
         // No "Top Rated" until a listed garage has a review to rank by.
         ratingAvailable={canSortByRating(vendors, sort, hasMore)}
       />
-    </AppShell>
+    </CustomerShell>
   )
 }
 

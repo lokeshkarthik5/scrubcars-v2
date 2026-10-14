@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconAlertCircle,
+  IconArrowUpRight,
   IconChevronRight,
   IconLoader2,
   IconMapPin,
@@ -17,6 +18,8 @@ import {
 import { toast } from 'react-toastify'
 import { useQueryClient } from '@tanstack/react-query'
 import { AddAddressSheet } from '@/components/add-address-sheet'
+import { MainAction } from '@/components/main-action'
+import { isHomeHubEnabled } from '@/lib/home-hub'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
 import {
   PaymentReceivedPanel,
@@ -1225,6 +1228,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         open={addCarOpen}
         onClose={() => setAddCarOpen(false)}
         onAdded={(vehicle) => setPickedVehicle(vehicle.id)}
+        hero={isHomeHubEnabled()}
       />
 
       <AddAddressSheet
@@ -1320,7 +1324,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </ScButton>
         ) : (
           <>
-            <ScButton
+            <MainAction
               // Disabled only while a payment is opening. Before that it is never
               // a dead end: it names what is missing and tapping it goes there.
               disabled={loading}
@@ -1335,6 +1339,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   'bg-surface-elevated text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated',
                 loading && 'disabled:cursor-wait disabled:opacity-100'
               )}
+              // Behind the Home hub flag, the red pill once there is nothing
+              // left to pick, so its shine plays when Pay first appears. Full
+              // strength while the payment opens, as today.
+              hero={!nextStep}
+              heroClassName={cn(loading && 'disabled:cursor-wait disabled:opacity-100')}
+              heroIcon={!loading && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />}
             >
               {loading
                 ? 'Processing payment...'
@@ -1350,7 +1360,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           </span>
                         </>
                       )}
-            </ScButton>
+            </MainAction>
             <p
               id="checkout-cta-hint"
               className="mt-2 text-center text-[11px] text-text-muted"

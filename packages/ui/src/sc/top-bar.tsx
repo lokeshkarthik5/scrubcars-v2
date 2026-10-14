@@ -12,15 +12,30 @@ interface TopBarProps {
   right?: React.ReactNode
   /** Centers the title between the back button and the right slot. */
   center?: boolean
+  /**
+   * The Home hub's large light title (HUB_TITLE_CLASS) instead of the bold
+   * 18px one: the customer app's top-level screens while NEXT_PUBLIC_HOME_HUB
+   * is on. Not with `center`.
+   */
+  large?: boolean
   className?: string
 }
+
+/**
+ * The Home hub's page title: 34pt Inter Light, set tight, as on the approved
+ * Updates screen. Large type does the work bold does at 18px, so the screen
+ * reads calm rather than loud. Never truncated: at a line height of 1.08 a
+ * clipped box would shave the tail off a "g".
+ */
+export const HUB_TITLE_CLASS =
+  'text-[34px] leading-[1.08] font-light tracking-[-0.03em] text-text-primary'
 
 // A 44px touch target around a 22px arrow. The negative margin gives back
 // the extra size, so the bar's height and the title's position don't move.
 const BACK_CLASS =
   '-m-[11px] flex size-11 shrink-0 items-center justify-center text-text-primary'
 
-export function TopBar({ title, showBack, backHref, right, center, className }: TopBarProps) {
+export function TopBar({ title, showBack, backHref, right, center, large, className }: TopBarProps) {
   const router = useRouter()
   return (
     <header
@@ -46,7 +61,9 @@ export function TopBar({ title, showBack, backHref, right, center, className }: 
             </button>
           ))}
         {title && !center && (
-          <h1 className="truncate text-lg font-semibold text-text-primary">{title}</h1>
+          <h1 className={large ? HUB_TITLE_CLASS : 'truncate text-lg font-semibold text-text-primary'}>
+            {title}
+          </h1>
         )}
       </div>
       {/* Centered variant: absolutely positioned so an odd-width right slot

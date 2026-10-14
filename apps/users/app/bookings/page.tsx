@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { IconRepeat } from '@tabler/icons-react'
-import { AppShell } from '@repo/ui/sc/app-shell'
+import { CustomerShell } from '@/components/customer-shell'
+import { isHomeHubEnabled } from '@/lib/home-hub'
 import { customerBookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -143,14 +144,14 @@ function BookingsContent() {
 
   if (!user) {
     return (
-      <AppShell showNav showBrand className="gap-4 py-4">
-        <TopBar title="Bookings" />
+      <CustomerShell showNav showBrand className="gap-4 py-4">
+        <TopBar title="Bookings" large={isHomeHubEnabled()} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-[15px] font-semibold text-text-primary">Login to view your bookings</p>
           <p className="text-[13px] text-text-secondary">Sign in to see your booking history</p>
           <ScButton className="mt-2 w-auto px-8" onClick={() => router.push('/login')}>Login</ScButton>
         </div>
-      </AppShell>
+      </CustomerShell>
     )
   }
 
@@ -209,8 +210,8 @@ function BookingsContent() {
   }
 
   return (
-    <AppShell showNav showBrand className="gap-4 py-4">
-      <TopBar title="Bookings" />
+    <CustomerShell showNav showBrand className="gap-4 py-4">
+      <TopBar title="Bookings" large={isHomeHubEnabled()} />
 
       {/* Real tabs, not the segmented control: each has its own list and its
           own empty state, so there is a panel for each to name. */}
@@ -226,7 +227,7 @@ function BookingsContent() {
         <TabsContent value="upcoming">{panel('upcoming')}</TabsContent>
         <TabsContent value="past">{panel('past')}</TabsContent>
       </Tabs>
-    </AppShell>
+    </CustomerShell>
   )
 }
 
