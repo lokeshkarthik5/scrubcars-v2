@@ -544,6 +544,14 @@ export const bookingsRepository = {
     return Array.from(rows)[0]?.covered === true
   },
 
+  /** Hides Home's "Rate your wash" prompt for a booking; the first time stands. */
+  async dismissReviewPrompt(bookingId: string) {
+    await db
+      .update(bookings)
+      .set({ reviewPromptDismissedAt: sql`coalesce(${bookings.reviewPromptDismissedAt}, now())` })
+      .where(eq(bookings.id, bookingId))
+  },
+
   /**
    * Which of these bookings the customer moved to a new time: the ones
    * another booking was rescheduled from. A moved booking reads cancelled

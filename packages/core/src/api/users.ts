@@ -188,6 +188,26 @@ export async function deleteAddress(id: string): Promise<void> {
   await apiClient(`/users/me/addresses/${id}`, { method: 'DELETE' })
 }
 
+/** The wash intervals a customer can pick, in days. Null is the default. */
+export type WashIntervalDays = 7 | 10 | 14 | 21 | 30
+
+/**
+ * PATCH /users/me/vehicles/:id
+ *
+ * Today only the wash interval is edited from the app (the Home wash bar's
+ * sheet); null goes back to the default.
+ */
+export async function updateVehicle(
+  id: string,
+  payload: { washIntervalDays?: WashIntervalDays | null }
+): Promise<Vehicle> {
+  const vehicle = await apiClient<ApiVehicle>(`/users/me/vehicles/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  return mapVehicle(vehicle)
+}
+
 /** PATCH /users/me/vehicles/:id/default */
 export async function setDefaultVehicle(id: string): Promise<Vehicle> {
   const vehicle = await apiClient<ApiVehicle>(

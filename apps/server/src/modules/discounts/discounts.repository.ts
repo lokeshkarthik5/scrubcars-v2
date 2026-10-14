@@ -56,6 +56,34 @@ export const discountsRepository = {
     return row?.value ?? 0
   },
 
+  /**
+   * `countHeld` for many codes at once, for the offers on Home: one grouped
+   * pass giving each code's uses in total and this customer's own. Counted
+   * with DISCOUNT_HELD, exactly as resolveDiscount counts them, so a code the
+   * customer could no longer use never shows as an offer.
+   */
+  async countHeldMany(
+    discountIds: string[],
+    userId: string
+  ): Promise<Map<string, { total: number; byUser: number }>> {
+    if (discountIds.length === 0) return new Map()
+    const rows = await db
+      .select({
+        discountId: discountRedemptions.discountId,
+        total: count(),
+        byUser: sql<number>`count(*) filter (where ${discountRedemptions.userId} = ${userId})`,
+      })
+      .from(discountRedemptions)
+      .innerJoin(bookings, eq(bookings.id, discountRedemptions.bookingId))
+      .innerJoin(payments, eq(payments.bookingId, bookings.id))
+      .where(and(inArray(discountRedemptions.discountId, discountIds), DISCOUNT_HELD))
+      .groupBy(discountRedemptions.discountId)
+
+    return new Map(
+      rows.map((row) => [row.discountId, { total: Number(row.total), byUser: Number(row.byUser) }])
+    )
+  },
+
   /** Whether any redemption row exists at all — the delete gate. */
   async hasRedemptions(discountId: string): Promise<boolean> {
     const [row] = await db

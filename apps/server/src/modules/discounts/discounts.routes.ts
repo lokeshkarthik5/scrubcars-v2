@@ -50,6 +50,14 @@ adminDiscountRoutes.get(
   discountsController.listVendorOptions
 )
 
+// The "Show on Home" settings for the form, including whether targeted
+// audiences can be saved yet. Also registered before '/:id'.
+adminDiscountRoutes.get(
+  '/home-config',
+  ...adminMiddleware,
+  discountsController.getHomeConfig
+)
+
 adminDiscountRoutes.post(
   '/',
   ...adminMiddleware,

@@ -149,6 +149,12 @@ export interface Vehicle {
   plate: string
   vehicleType?: VehicleType
   isDefault: boolean
+  /**
+   * The customer's wash interval in days (7, 10, 14, 21 or 30), for the wash
+   * bar on Home. Null is the default: 14 days, 10 from October to December.
+   * Absent where a payload carries a booking's car rather than the garage's.
+   */
+  washIntervalDays?: number | null
 }
 
 export interface Address {
