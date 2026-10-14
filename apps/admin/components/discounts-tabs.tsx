@@ -1,0 +1,44 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { cn } from '@repo/core/utils'
+
+const TABS = [
+  { href: '/discounts', label: 'Codes' },
+  { href: '/discounts/notices', label: 'Notices' },
+] as const
+
+/**
+ * "Codes · Notices": team notices live under Discounts (owner decision D8)
+ * rather than as a sixth item in the panel's menu. Two pages, so links
+ * (with aria-current), not Radix tabs, which promise panels on one page.
+ * Drawn as the header menu is, so it reads as the same kind of control.
+ */
+export function DiscountsTabs() {
+  const pathname = usePathname()
+  const current = pathname.startsWith('/discounts/notices') ? '/discounts/notices' : '/discounts'
+
+  return (
+    <nav
+      aria-label="Discounts sections"
+      className="flex w-full gap-0.5 rounded-[12px] bg-surface p-1 sm:w-fit"
+    >
+      {TABS.map((tab) => (
+        <Link
+          key={tab.href}
+          href={tab.href}
+          aria-current={current === tab.href ? 'page' : undefined}
+          className={cn(
+            'flex min-h-11 flex-1 items-center justify-center rounded-[9px] px-5 text-[13px] font-medium transition-colors sm:flex-none',
+            current === tab.href
+              ? 'bg-surface-elevated text-text-primary shadow-sm'
+              : 'text-text-secondary hover:text-text-primary'
+          )}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </nav>
+  )
+}

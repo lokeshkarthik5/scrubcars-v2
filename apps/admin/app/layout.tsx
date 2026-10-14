@@ -6,9 +6,14 @@ import { AdminScope } from '@/components/admin-scope'
 import 'react-toastify/dist/ReactToastify.css'
 import './globals.css'
 
+// With the optical-size axis: the shared offer coupon (Preview on Home) was
+// tuned with it, and at the coupon's 22px title Inter's tighter display cut
+// is what keeps a title on the lines the approved design gives it. Text at
+// the panel's 11–15px stays on the text cut (the axis follows the size).
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
+  axes: ['opsz'],
 })
 
 // The brand's face for figures, behind `font-numeric`. The panel has always

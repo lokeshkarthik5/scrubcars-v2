@@ -18,6 +18,28 @@ reconstructing every change in them.
 
 ### Added
 
+- **Estimated reach for offers on Home** (no migration). PR 2 of 6 of the
+  Home hub (the admin screens). `GET /admin/discounts/home-reach?audience=&vendorId=&radiusKm=&vehicleTypes=`
+  counts how many signed-in customers the discount form's Show on Home
+  settings would reach today, before they are saved, by asking Home's own
+  `offerSkipReason` of each customer (`lib/offer-reach.ts`, unit-tested):
+  a garage's offer needs a car, a garage that is not live for customers
+  reaches nobody (`garagePublic: false`), and with `HOME_OFFER_TARGETING`
+  off every audience but `everyone` is refused, 409 `TARGETING_DISABLED`,
+  as a save is. Only the facts the chosen audience reads are loaded, so
+  `everyone` reads no booking history or location. "Near this garage" is
+  measured from each customer's nearest saved address (`measuredFrom:
+  'saved_addresses'`), since Home's live location is never stored; usage
+  limits and dismissals are left out. Settings that don't fit together are
+  a 400 `DISCOUNT_HOME_INVALID`, by the same rule as a save. Both refusals
+  are decided by `reachSettings` in `lib/offer-reach.ts` before any customer
+  data is read, and unit-tested with targeting off; the API spec covers
+  every audience's query, `wash_due` and `car_type` included.
+- Parity tests for the admin's twins in `@repo/core`: the offer card's small
+  print (`offer-preview.ts` against `offerMetaLine`, `tillLabel`,
+  `endsSoonLabel`) and the notice link rule (`notice-link.ts` against
+  `isAllowedNoticeLink`).
+
 - **Home hub data** (migration `0031_home_hub`, purely additive; apply it
   before deploying). PR 1 of 6 of the customer Home hub; the screens come
   later, behind their own flag.

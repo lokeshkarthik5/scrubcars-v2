@@ -284,7 +284,7 @@ function MapBrowseContent() {
               the other, rather than spreading three controls evenly. */}
           <div className="flex items-center gap-2">
             <Link
-              href="/home"
+              href="/garages"
               className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
             >
               <IconList size={15} />

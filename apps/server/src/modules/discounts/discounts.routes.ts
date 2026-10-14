@@ -11,6 +11,7 @@ import * as discountsController from './discounts.controller.js'
 import {
   createDiscountSchema,
   discountIdParamSchema,
+  homeReachQuerySchema,
   listDiscountsQuerySchema,
   updateDiscountSchema,
   validateDiscountSchema,
@@ -56,6 +57,15 @@ adminDiscountRoutes.get(
   '/home-config',
   ...adminMiddleware,
   discountsController.getHomeConfig
+)
+
+// "Estimated reach": how many customers the form's Show on Home settings
+// would reach today, before they are saved. Also registered before '/:id'.
+adminDiscountRoutes.get(
+  '/home-reach',
+  ...adminMiddleware,
+  zValidator('query', homeReachQuerySchema),
+  (c) => discountsController.getHomeReach(c, c.req.valid('query'))
 )
 
 adminDiscountRoutes.post(

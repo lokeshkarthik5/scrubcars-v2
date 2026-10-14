@@ -24,7 +24,7 @@ import type { HomeOfferRow } from '../../lib/offers.js'
 const ACTIVE = ['pending', 'confirmed', 'in_progress'] as const
 
 /** Categories that wash the car, for the wash bar's "last wash". */
-const WASH_CATEGORIES = ['car_wash', 'detailing', 'package'] as const
+export const WASH_CATEGORIES = ['car_wash', 'detailing', 'package'] as const
 
 export const homeRepository = {
   findUser(userId: string) {
