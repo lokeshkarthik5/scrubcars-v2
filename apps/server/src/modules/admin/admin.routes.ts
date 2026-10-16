@@ -12,6 +12,7 @@ import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
 import { adminRefundRoutes } from '../refunds/refunds.routes.js'
+import { adminVendorBinRoutes } from '../vendor-bin/vendor-bin.routes.js'
 import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
 import {
@@ -122,12 +123,12 @@ adminRoutes.patch(
   zValidator('param', vendorIdParamSchema),
   (c) => adminController.unarchiveVendor(c, c.req.valid('param').id)
 )
-adminRoutes.delete(
-  '/vendors/:id',
-  ...adminMiddleware,
-  zValidator('param', vendorIdParamSchema),
-  (c) => adminController.deleteVendor(c, c.req.valid('param').id)
-)
+// The Bin: GET /vendors/:id/bin-preview, POST /vendors/:id/bin and
+// /restore, GET /vendors/:id/delete-preview, and DELETE /vendors/:id (delete
+// forever, only from the Bin). Their own module; mounted at the root for the
+// cookie's sake, like the media routes below.
+adminRoutes.route('/', adminVendorBinRoutes)
+
 // Pause / resume new bookings on a garage's behalf. POST rather than the
 // PATCH of verify/archive: these are actions with a body (the reason), not a
 // flip of a column the list already shows.

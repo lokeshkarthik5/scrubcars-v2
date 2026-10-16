@@ -19,6 +19,22 @@ reconstructing every change in them.
 
 ### Added
 
+- **Admin: the garage Bin.** The garage list's chips end with Bin (n);
+  garages in the Bin are in no other chip or count ("Bin = off the app.
+  Restore it, or delete it forever."). A card's ⋯ holds Archive and Move to
+  Bin (the trash button is gone). Move to bin opens a sheet that says what
+  happens (off the app for customers and its team; upcoming bookings
+  cancelled by Detlio, paid ones owed on Refunds; everything else kept),
+  lists the bookings it will cancel and which are paid, and takes an
+  optional reason and your name. A Bin card shows when it was binned, by
+  whom and why, "N bookings will be deleted with it" in amber, and Restore
+  and Delete forever. Delete forever is a sheet listing what goes (bookings;
+  logo, photos and service pictures; services, prices, hours and team
+  logins) and what is kept for the accounts (payments, refunds and receipt
+  numbers, real money only), with your name and the garage's name typed out
+  before its red-outlined button wakes. A binned garage's edit page opens
+  read-only with a banner and Restore. The Bookings garage filter leaves the
+  Bin out.
 - **Admin: garage list filters with counts, and a "what's missing"
   checklist per garage.** The list (now titled Garages, "Add garage") has one
   row of chips that scrolls sideways on a phone: All · Live · Active ·

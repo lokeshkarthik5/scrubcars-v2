@@ -29,6 +29,7 @@ import {
   useAdminBookings,
 } from '@repo/core/api/hooks/use-admin-bookings'
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
+import { isInBin } from '@/lib/vendor-list'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
 import {
@@ -268,10 +269,15 @@ function BookingsList() {
   const listQuery = listQueryForDetail(params)
 
   const { data: vendors = [] } = useAdminVendors()
+  // Garages in the Bin are left out of the filter, as of every other picker:
+  // they are on their way out. One already chosen (a link from before it
+  // went there) stays, so the filter never shows a blank.
   const garages = useMemo(
     () =>
-      [...vendors].sort((a, b) => a.businessName.localeCompare(b.businessName)),
-    [vendors]
+      vendors
+        .filter((v) => !isInBin(v) || v.id === vendorId)
+        .sort((a, b) => a.businessName.localeCompare(b.businessName)),
+    [vendors, vendorId]
   )
 
   // A dead admin session is a redirect, not an error message.
@@ -399,7 +405,7 @@ function BookingsList() {
               <option value="">All garages</option>
               {garages.map((garage) => (
                 <option key={garage.id} value={garage.id}>
-                  {garage.businessName}
+                  {isInBin(garage) ? `${garage.businessName} (in the Bin)` : garage.businessName}
                 </option>
               ))}
             </ScSelect>

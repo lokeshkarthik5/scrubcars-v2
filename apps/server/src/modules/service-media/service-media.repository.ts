@@ -14,6 +14,9 @@ export const serviceMediaRepository = {
     return db.query.services.findFirst({
       where: eq(services.id, serviceId),
       columns: { id: true, vendorId: true, name: true, category: true },
+      // Whether its garage is in the Bin or deleted forever: admin may not
+      // change such a garage's media.
+      with: { vendor: { columns: { deletedAt: true, purgedAt: true } } },
     })
   },
 

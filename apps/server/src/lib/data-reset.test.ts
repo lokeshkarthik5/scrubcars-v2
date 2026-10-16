@@ -467,7 +467,7 @@ describe('checkouts with no booking', () => {
     expect(plan.overCap.checkouts).toBe(5)
   })
 
-  test('only a cutoff run takes them', () => {
+  test('only a cutoff run and a garage delete take them', () => {
     const plan = planReset(input({ scope: { kind: 'marked_test' }, intents: [intent(1)] }))
     expect(plan.checkouts).toEqual([])
   })
@@ -479,6 +479,56 @@ describe('checkouts with no booking', () => {
     expect(plan.selectedIntentIds).toEqual([own.id])
     expect(plan.checkouts).toEqual([])
     expect(plan.confirmPhrase).toBe('DELETE 1 BOOKING')
+  })
+})
+
+describe('a garage deleted forever', () => {
+  const GARAGE = uuid(900)
+  const garage = { kind: 'garage' as const, vendorId: GARAGE }
+  const checkout = (n: number, overrides: Partial<ResetIntent> = {}): ResetIntent => ({
+    id: uuid(n),
+    bookingId: null,
+    status: 'pending',
+    createdAt: after(1),
+    expiresAt: after(1),
+    amount: '499.00',
+    gatewayTxnId: `order_X${n}`,
+    paymentRef: null,
+    gatewayMode: 'test',
+    refundedAmount: null,
+    userId: uuid(800),
+    customerName: 'Team Phone',
+    garageName: 'Test Garage',
+    ...overrides,
+  })
+
+  test('every chain of the garage, whenever made and marked or not; only money keeps one', () => {
+    const old = booking(1, { createdAt: before(30) })
+    const recent = booking(2, { createdAt: after(1) })
+    const live = booking(3, {
+      payment: { status: 'paid', gatewayTxnId: 'pay_L3', gatewayMode: 'live', amount: '499.00', refundedAmount: null },
+    })
+    const plan = planReset(input({ now: after(5), scope: garage, bookings: [old, recent, live] }))
+    expect(plan.chains.map((c) => [c.rootId, c.kept, c.selected])).toEqual([
+      [old.id, null, true],
+      [live.id, 'live', false],
+      [recent.id, null, true],
+    ])
+  })
+
+  test("a chain at another garage is not this garage's to take", () => {
+    const elsewhere = booking(1, { vendorId: uuid(901) })
+    expect(planReset(input({ scope: garage, bookings: [elsewhere] })).chains).toEqual([])
+  })
+
+  test('its abandoned checkouts go with it, whenever opened; one that can still be paid stays', () => {
+    const abandoned = checkout(1)
+    const open = checkout(2, { expiresAt: after(30) })
+    const plan = planReset(input({ now: after(5), scope: garage, intents: [abandoned, open] }))
+    expect(plan.checkouts.map((c) => [c.id, c.kept, c.selected])).toEqual([
+      [abandoned.id, null, true],
+      [open.id, 'still_open', false],
+    ])
   })
 })
 

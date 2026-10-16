@@ -186,7 +186,8 @@ async function seedPeople() {
         CUSTOMERS.billPayer, CUSTOMERS.billSmall, CUSTOMERS.billStranger,
         CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds,
         CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
-        CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi].map((c, i) => ({
+        CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi,
+        CUSTOMERS.binPaid, CUSTOMERS.binHard, CUSTOMERS.binTomb, CUSTOMERS.binBrowse].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -1517,6 +1518,123 @@ async function seedServiceMediaRows() {
   )
 }
 
+/**
+ * The garage Bin's fixtures (specs/admin/garage-bin.spec.ts); see VENDORS.bin*
+ * for what each garage is for. All far south-west, past every other
+ * single-purpose garage, and every booking older than the pilot card's 30
+ * days except the two still to come, so nothing here moves another spec's
+ * numbers.
+ */
+async function seedGarageBinRows() {
+  const pin = (n: number) => ({
+    lat: ORIGIN.lat - 0.75 - n * 0.01, lng: ORIGIN.lng - 0.15,
+    geoSource: 'map_pin' as const, geoConfirmedAt: now,
+  })
+  const garage = {
+    city: 'Chennai', pincode: '600116', vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    doorstepEnabled: false, dropinEnabled: true, slotIntervalMins: 30,
+  }
+  // Seeded in the Bin, as moving it there leaves a garage.
+  const binned = {
+    deletedAt: daysAgo(1), deletedByName: 'E2E seed', deletedReason: 'Test garage from setup',
+  }
+  await db.insert(vendors).values([
+    { ...garage, ...pin(0), id: VENDORS.binTeam.id, ownerId: STAFF.binOwner.id,
+      businessName: VENDORS.binTeam.name, phone: '9000004000', address: '1, Bin Road, Porur',
+      isVerified: true, status: 'active' },
+    { ...garage, ...pin(1), id: VENDORS.binOwnerLive.id, ownerId: STAFF.binOwner.id,
+      businessName: VENDORS.binOwnerLive.name, phone: '9000004100', address: '2, Bin Road, Porur',
+      isVerified: false, status: 'pending' },
+    { ...garage, ...pin(2), id: VENDORS.binPaid.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.binPaid.name, phone: '9000004200', address: '3, Bin Road, Porur',
+      isVerified: false, status: 'pending' },
+    { ...garage, ...pin(3), ...binned, id: VENDORS.binHard.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.binHard.name, phone: '9000004300', address: '4, Bin Road, Porur',
+      isVerified: false, status: 'pending' },
+    { ...garage, ...pin(4), ...binned, id: VENDORS.binTomb.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.binTomb.name, phone: '9000004400', address: '5, Bin Road, Porur',
+      email: 'tomb@example.com', isVerified: false, status: 'pending' },
+  ])
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(VENDORS.binTeam.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.binPaid.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.binTomb.id, '09:00:00', '18:00:00'),
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: VENDORS.binTeam.id, userId: STAFF.binOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.binOwnerLive.id, userId: STAFF.binOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.binTeam.id, userId: STAFF.binOperator.id, role: 'vendor_operator', status: 'active' },
+    ...[VENDORS.binPaid, VENDORS.binHard, VENDORS.binTomb].map((v) => ({
+      vendorId: v.id, userId: STAFF.narrowOwner.id, role: 'vendor_admin' as const, status: 'active' as const,
+    })),
+  ])
+  const flat = (service: { id: string; name: string; price: string; durationMins: number }, vendorId: string) => ({
+    id: service.id, vendorId, name: service.name, category: 'car_wash' as const,
+    pricingType: 'flat' as const, price: service.price, durationMins: service.durationMins,
+    isActive: true,
+  })
+  await db.insert(services).values([
+    flat(SERVICES.binTeamWash, VENDORS.binTeam.id),
+    flat(SERVICES.binPaidWash, VENDORS.binPaid.id),
+    flat(SERVICES.binHardWash, VENDORS.binHard.id),
+    { ...flat(SERVICES.binHardPackage, VENDORS.binHard.id), category: 'package' as const },
+    flat(SERVICES.binTombWash, VENDORS.binTomb.id),
+  ])
+  // The package's member is ON DELETE RESTRICT: what made a garage with a
+  // package undeletable before.
+  await db.insert(servicePackageItems).values({
+    packageId: SERVICES.binHardPackage.id, serviceId: SERVICES.binHardWash.id, sortOrder: 0,
+  })
+  await db.insert(vendorPhotos).values({
+    vendorId: VENDORS.binHard.id, sortOrder: 0,
+    url: `http://localhost:9000/detlio-e2e/vendors/${VENDORS.binHard.id}/photos/seed.jpg`,
+    storageKey: `vendors/${VENDORS.binHard.id}/photos/seed.jpg`,
+  })
+
+  const item = (service: { id: string; name: string; price: string; durationMins: number }) => ({
+    id: service.id, name: service.name, amount: service.price, durationMins: service.durationMins,
+  })
+  await insertBooking({ id: BOOKINGS.binPaidUpcoming, userId: CUSTOMERS.binPaid.id,
+    vehicleId: CUSTOMERS.binPaid.vehicleId, vendorId: VENDORS.binPaid.id,
+    scheduledAt: daysAheadAt(3, 10), createdAt: daysAgo(40), status: 'confirmed',
+    acceptedAt: daysAgo(40), items: [item(SERVICES.binPaidWash)],
+    payment: { status: 'paid', txnId: 'pay_e2e_bin_paid', paidAt: daysAgo(40), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.binUnpaidUpcoming, userId: CUSTOMERS.binPaid.id,
+    vehicleId: CUSTOMERS.binPaid.vehicleId, vendorId: VENDORS.binPaid.id,
+    scheduledAt: daysAheadAt(4, 10), createdAt: daysAgo(40), status: 'pending',
+    items: [item(SERVICES.binPaidWash)], payment: { status: 'pending' } })
+  await insertBooking({ id: BOOKINGS.binHardTest, userId: CUSTOMERS.binHard.id,
+    vehicleId: CUSTOMERS.binHard.vehicleId, vendorId: VENDORS.binHard.id,
+    scheduledAt: daysAgo(44), createdAt: daysAgo(45), status: 'completed',
+    items: [item(SERVICES.binHardWash)],
+    payment: { status: 'paid', txnId: 'pay_e2e_bin_hard', paidAt: daysAgo(45), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.binTombLive, userId: CUSTOMERS.binTomb.id,
+    vehicleId: CUSTOMERS.binTomb.vehicleId, vendorId: VENDORS.binTomb.id,
+    scheduledAt: daysAgo(44), createdAt: daysAgo(45), status: 'completed',
+    items: [item(SERVICES.binTombWash)],
+    payment: { status: 'paid', txnId: 'pay_LiveBinK1', paidAt: daysAgo(45), gatewayMode: 'live' } })
+  await insertBooking({ id: BOOKINGS.binTombTest, userId: CUSTOMERS.binTomb.id,
+    vehicleId: CUSTOMERS.binTomb.vehicleId, vendorId: VENDORS.binTomb.id,
+    scheduledAt: daysAgo(42), createdAt: daysAgo(43), status: 'completed',
+    items: [item(SERVICES.binTombWash)],
+    payment: { status: 'paid', txnId: 'pay_e2e_bin_tomb', paidAt: daysAgo(43), gatewayMode: 'fake' } })
+
+  // Abandoned unpaid, test mode, long expired: nothing could still land on it.
+  await db.insert(bookingIntents).values({
+    id: BOOKING_INTENTS.binAbandoned, userId: CUSTOMERS.binHard.id, vendorId: VENDORS.binHard.id,
+    serviceId: SERVICES.binHardWash.id, vehicleId: CUSTOMERS.binHard.vehicleId,
+    bookingType: 'dropin', serviceDurationMins: SERVICES.binHardWash.durationMins,
+    amount: SERVICES.binHardWash.price, subtotalAmount: SERVICES.binHardWash.price,
+    paymentMethod: 'online', gatewayMode: 'test', gatewayTxnId: 'order_TestBinG1',
+    status: 'pending', scheduledAt: daysAgo(40), createdAt: daysAgo(41), expiresAt: daysAgo(41),
+  })
+  await db.insert(bookingIntentItems).values({
+    intentId: BOOKING_INTENTS.binAbandoned, serviceId: SERVICES.binHardWash.id,
+    name: SERVICES.binHardWash.name, amount: SERVICES.binHardWash.price,
+    durationMins: SERVICES.binHardWash.durationMins, sortOrder: 0,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1542,6 +1660,8 @@ async function main() {
   await seedDataResetRows()
   console.log('[e2e-seed] service media…')
   await seedServiceMediaRows()
+  console.log('[e2e-seed] garage bin…')
+  await seedGarageBinRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

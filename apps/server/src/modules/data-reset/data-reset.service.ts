@@ -21,7 +21,11 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { lookupRazorpayMode, razorpayKeyMode } from '../../lib/razorpay.js'
 import { deleteObject, isStorageConfigured } from '../../lib/storage.js'
-import { dataResetRepository, type DataResetReads } from './data-reset.repository.js'
+import {
+  dataResetRepository,
+  type DataResetReads,
+  type DataResetWrites,
+} from './data-reset.repository.js'
 import type { ExecuteInput, PreviewInput } from './data-reset.validation.js'
 
 const log = logger.child({ module: 'data-reset' })
@@ -98,6 +102,20 @@ function toScope(scope: PreviewInput['scope'], now: Date): ResetScope {
   }
 }
 
+/** The chains a scope names, by their first booking's id. */
+function chainKeysOf(repo: DataResetReads, scope: ResetScope): Promise<string[]> {
+  switch (scope.kind) {
+    case 'before_cutoff':
+      return repo.chainKeysCreatedBefore(scope.cutoff)
+    case 'marked_test':
+      return repo.chainKeysMarkedTest()
+    case 'chains':
+      return repo.chainKeysOfBookings(scope.bookingIds)
+    case 'garage':
+      return repo.chainKeysOfGarage(scope.vendorId)
+  }
+}
+
 /**
  * Every row the planner needs for a scope, read through `repo` (the plain
  * connection for a dry run, the delete's transaction for the delete).
@@ -106,7 +124,7 @@ function toScope(scope: PreviewInput['scope'], now: Date): ResetScope {
  * dry run, its CSV and the audit row list every row in scope, the kept and
  * the unticked with them, and say why each one stays.
  */
-async function loadPlanInput(
+export async function loadPlanInput(
   repo: DataResetReads,
   scope: ResetScope,
   only: PreviewInput['only'],
@@ -114,19 +132,18 @@ async function loadPlanInput(
   lookupsUnavailable: boolean,
   now: Date
 ): Promise<PlanInput> {
-  const keys =
-    scope.kind === 'before_cutoff'
-      ? await repo.chainKeysCreatedBefore(scope.cutoff)
-      : scope.kind === 'marked_test'
-        ? await repo.chainKeysMarkedTest()
-        : await repo.chainKeysOfBookings(scope.bookingIds)
+  const keys = await chainKeysOf(repo, scope)
 
   const bookings = await repo.chainBookings(keys)
   const bookingIds = bookings.map((b) => b.id)
   const charges = await repo.charges(bookingIds)
   const ownIntents = await repo.intentsOfBookings(bookingIds)
   const orphanCheckouts =
-    scope.kind === 'before_cutoff' ? await repo.checkoutsWithoutBooking(scope.cutoff) : []
+    scope.kind === 'before_cutoff'
+      ? await repo.checkoutsWithoutBooking(scope.cutoff)
+      : scope.kind === 'garage'
+        ? await repo.checkoutsWithoutBookingAt(scope.vendorId)
+        : []
   const intents = [...ownIntents, ...orphanCheckouts]
 
   const bookingChildCounts = await repo.bookingChildCounts(bookingIds)
@@ -167,7 +184,7 @@ async function loadPlanInput(
  * ticked (`only` absent, as from a booking's page), everything in scope.
  * The lock order is checkouts, then bookings, each in id order.
  */
-function rowsToLock(seen: PlanInput, only: PreviewInput['only']) {
+export function rowsToLock(seen: PlanInput, only: PreviewInput['only']) {
   const tickedChains = only ? new Set(only.chainIds) : null
   const tickedCheckouts = only ? new Set(only.checkoutIds) : null
   const bookingIds = seen.bookings
@@ -253,6 +270,8 @@ function scopeView(scope: ResetScope) {
       return { kind: scope.kind }
     case 'chains':
       return { kind: scope.kind, bookingIds: scope.bookingIds }
+    case 'garage':
+      return { kind: scope.kind, vendorId: scope.vendorId }
   }
 }
 
@@ -289,6 +308,61 @@ function busy() {
 // lock_not_available (lock_timeout), deadlock_detected, query_canceled
 // (statement_timeout).
 const BUSY_CODES = ['55P03', '40P01', '57014']
+
+/** A row was busy or the run took too long, and Postgres rolled it all back. */
+export function isBusyError(error: unknown): boolean {
+  return BUSY_CODES.some((code) => hasPgCode(error, code))
+}
+
+/**
+ * Steps 5 and 6 of the delete (see execute): the deleted chains' receipt
+ * numbers (voided, or gone with a restarting year), the checkouts' refund
+ * records, the checkouts, then the bookings with everything that cascades
+ * from them. Returns the job photos' storage keys, to remove after the
+ * commit, and the restarting years, whose counters the caller locks and
+ * deletes last of all (finishRestarts), after anything else it deletes.
+ *
+ * Shared with deleting a garage forever (modules/vendor-bin), so the two can
+ * never treat receipts or money differently.
+ */
+export async function deletePlannedRows(
+  repo: DataResetReads & DataResetWrites,
+  plan: ResetPlan,
+  auditId: string,
+  voidReason: string
+): Promise<{ photoKeys: string[]; restartYears: string[] }> {
+  const receiptRoots = plan.chains.filter((chain) => chain.selected).map((chain) => chain.rootId)
+  for (const year of plan.receiptPlan) {
+    if (year.mode === 'void') {
+      await repo.voidReceipts(receiptRoots, year.financialYear, auditId, voidReason)
+    }
+  }
+  await repo.deleteReceipts(receiptRoots)
+  const restartYears = plan.receiptPlan
+    .filter((year) => year.mode === 'restart')
+    .map((year) => year.financialYear)
+  for (const year of restartYears) await repo.deleteVoids(year)
+
+  await repo.deleteCheckoutRefunds(plan.selectedIntentIds)
+  const photoKeys = await repo.photoKeys(plan.selectedBookingIds)
+  await repo.deleteIntents(plan.selectedIntentIds)
+  await repo.deleteBookings(plan.selectedBookingIds)
+  return { photoKeys, restartYears }
+}
+
+/**
+ * Step 7: a restarting year's counter row, FOR UPDATE, last of all; checked
+ * to have no receipt left in the year (a payment numbered one meanwhile:
+ * 409, all rolled back), then deleted.
+ */
+export async function finishRestarts(
+  repo: DataResetReads & DataResetWrites,
+  restartYears: string[]
+): Promise<void> {
+  await repo.lockCounters(restartYears)
+  if ((await repo.countReceiptsIn(restartYears)) > 0) throw previewStale()
+  await repo.deleteCounters(restartYears)
+}
 
 /** The job photos' files in storage, once the rows are gone. Best effort. */
 function removePhotoFiles(keys: string[]) {
@@ -485,33 +559,16 @@ export const dataResetService = {
           },
         })
 
-        const receiptRoots = new Set(selected.map((chain) => chain.rootId))
-        for (const year of plan.receiptPlan) {
-          if (year.mode === 'void') {
-            await repo.voidReceipts([...receiptRoots], year.financialYear, audit.id, VOID_REASON)
-          }
-        }
-        await repo.deleteReceipts([...receiptRoots])
-        const restartYears = plan.receiptPlan
-          .filter((year) => year.mode === 'restart')
-          .map((year) => year.financialYear)
-        for (const year of restartYears) await repo.deleteVoids(year)
-
-        await repo.deleteCheckoutRefunds(plan.selectedIntentIds)
-        const photoKeys = await repo.photoKeys(plan.selectedBookingIds)
-        await repo.deleteIntents(plan.selectedIntentIds)
-        await repo.deleteBookings(plan.selectedBookingIds)
+        const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, VOID_REASON)
 
         // The counter's lock is the last one any transaction takes.
-        await repo.lockCounters(restartYears)
-        if ((await repo.countReceiptsIn(restartYears)) > 0) throw previewStale()
-        await repo.deleteCounters(restartYears)
+        await finishRestarts(repo, restartYears)
 
         return { plan, auditId: audit.id, at: audit.createdAt, photoKeys }
       })
     } catch (error) {
       if (error instanceof AppError) throw error
-      if (BUSY_CODES.some((code) => hasPgCode(error, code))) {
+      if (isBusyError(error)) {
         log.warn({ err: error }, 'data_reset:busy')
         throw busy()
       }

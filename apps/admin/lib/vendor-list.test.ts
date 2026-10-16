@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import type { ReadinessItem } from '@repo/core/api/admin'
 import {
+  binDeleteLine,
   bookingParts,
   bookingsLine,
   editHref,
+  isInBin,
   isLive,
   listHref,
   matchesShow,
@@ -37,8 +39,9 @@ describe('the chips', () => {
   test('?show= is an allow-list, and the list opens on Live', () => {
     expect(parseShow('pending')).toBe('pending')
     expect(parseShow('archived')).toBe('archived')
+    expect(parseShow('bin')).toBe('bin')
     expect(parseShow(null)).toBe('live')
-    expect(parseShow('bin')).toBe('live')
+    expect(parseShow('trash')).toBe('live')
     expect(parseShow('ALL')).toBe('live')
   })
 
@@ -76,8 +79,20 @@ describe('the chips', () => {
       garage({ live: false, status: 'archived' }),
     ]
     const counts = showCounts(list)
-    expect(counts).toEqual({ all: 5, live: 2, active: 3, pending: 1, suspended: 0, archived: 1 })
+    expect(counts).toEqual({ all: 5, live: 2, active: 3, pending: 1, suspended: 0, archived: 1, bin: 0 })
     expect(counts.active + counts.pending + counts.suspended + counts.archived).toBe(counts.all)
+  })
+
+  test('a garage in the Bin is under Bin alone, whatever its stage, and in no other count', () => {
+    const binned = garage({ live: false, deletedAt: '2026-10-14T12:42:00Z' })
+    const binnedArchived = garage({ live: false, status: 'archived', deletedAt: '2026-10-14T12:42:00Z' })
+    expect(isInBin(binned)).toBe(true)
+    expect(SHOW_FILTERS.filter((show) => matchesShow(binned, show))).toEqual(['bin'])
+    expect(SHOW_FILTERS.filter((show) => matchesShow(binnedArchived, show))).toEqual(['bin'])
+    // An older server sends no `live`: the stand-in leaves the Bin out too.
+    expect(isLive(garage({ live: undefined, deletedAt: '2026-10-14T12:42:00Z' }))).toBe(false)
+    const counts = showCounts([garage(), binned, binnedArchived])
+    expect(counts).toEqual({ all: 1, live: 1, active: 1, pending: 0, suspended: 0, archived: 0, bin: 2 })
   })
 
   test('the hint says what the chosen chip means, Live and Active apart', () => {
@@ -89,6 +104,9 @@ describe('the chips', () => {
     expect(showHints('active')).toEqual(showHints('live'))
     expect(showHints('pending')).toEqual([
       { term: 'Pending', meaning: 'added, not shown to customers yet' },
+    ])
+    expect(showHints('bin')).toEqual([
+      { term: 'Bin', meaning: 'off the app. Restore it, or delete it forever.' },
     ])
   })
 })
@@ -103,6 +121,12 @@ describe('the card', () => {
     expect(
       stateWord(garage({ live: false, isVerified: false, bookingsPausedAt: '2026-10-10T04:30:00Z' }))
     ).toBe('Paused · not verified')
+  })
+
+  test('a Bin card says how many bookings go with it, in amber', () => {
+    expect(binDeleteLine(12)).toBe('12 bookings will be deleted with it')
+    expect(binDeleteLine(1)).toBe('1 booking will be deleted with it')
+    expect(binDeleteLine(0)).toBeNull()
   })
 
   test('bookings, quietly', () => {

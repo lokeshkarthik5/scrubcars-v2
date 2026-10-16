@@ -30,6 +30,7 @@ import {
 } from '../../lib/job-records.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
+import { isInBin } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import type {
   BookingDiscount,
@@ -516,7 +517,9 @@ export async function garageRefusalForBooking(booking: {
   durationMins: number
 }): Promise<GarageRefusal | null> {
   const vendor = await bookingsRepository.findVendorById(booking.vendorId)
-  if (!vendor || vendor.bookingsPausedAt) return 'paused'
+  // A garage in the Bin is refused like a paused one, as checkGarageCanTake
+  // refuses it under the lock.
+  if (!vendor || vendor.bookingsPausedAt || isInBin(vendor)) return 'paused'
 
   const date = getDateKeyFromScheduledAt(booking.scheduledAt)
   const [closure, busy] = await Promise.all([
@@ -558,6 +561,13 @@ async function validateSlotAvailability(
 
   if (!vendor) {
     log.error({ vendorId }, 'booking:vendor_missing_in_slot_check')
+    throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
+  }
+
+  // A reschedule reads the garage by id alone, so the Bin is checked here:
+  // a garage off the app is as unknown to a customer as one that never was.
+  if (isInBin(vendor)) {
+    log.warn({ vendorId }, 'booking:vendor_in_bin')
     throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
   }
 

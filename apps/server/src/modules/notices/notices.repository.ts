@@ -1,6 +1,7 @@
 import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookings, noticeDismissals, notices, users, vendors } from '../../db/schema.js'
+import { vendorNotInBin } from '../vendors/vendors.predicates.js'
 
 export type NoticeRecord = typeof notices.$inferSelect
 export type NoticeInsert = typeof notices.$inferInsert
@@ -57,9 +58,10 @@ export const noticesRepository = {
     return row
   },
 
+  /** A garage a notice can be about: one that exists and is not in the Bin. */
   async vendorExists(vendorId: string): Promise<boolean> {
     const row = await db.query.vendors.findFirst({
-      where: eq(vendors.id, vendorId),
+      where: and(eq(vendors.id, vendorId), vendorNotInBin()),
       columns: { id: true },
     })
     return Boolean(row)

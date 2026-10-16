@@ -14,6 +14,7 @@ import {
   vendorWorkingHours,
 } from '../../db/schema.js'
 import type { HomeOfferRow } from '../../lib/offers.js'
+import { LISTED_TO_CUSTOMERS, NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 
 // Every read here runs on the API's single database connection (db/index.ts,
 // max: 1), so they run one after another however they are called. Home makes
@@ -212,7 +213,9 @@ export const homeRepository = {
              b.vehicle_id,
              b.vendor_id,
              v.business_name AS vendor_name,
-             (v.status = 'active') AS vendor_active,
+             -- Active and not in the Bin: a binned garage is no more
+             -- bookable again than one that was suspended.
+             (v.status = 'active' AND ${NOT_IN_BIN}) AS vendor_active,
              v.is_verified AS vendor_verified,
              (v.geo IS NOT NULL) AS vendor_pinned,
              v.dropin_enabled AS vendor_dropin_enabled,
@@ -391,8 +394,7 @@ export const homeRepository = {
              d.discount_type, d.percent_off, d.amount_off, d.max_discount_amount,
              d.min_order_amount, d.per_user_limit, d.total_usage_limit,
              d.vendor_id, v.business_name AS vendor_name,
-             (v.status = 'active' AND v.is_verified AND v.geo IS NOT NULL
-               AND v.bookings_paused_at IS NULL) AS vendor_public,
+             (${LISTED_TO_CUSTOMERS} AND v.geo IS NOT NULL) AS vendor_public,
              ${distanceKm} AS vendor_distance_km,
              d.show_on_home, d.is_active, d.starts_at, d.ends_at, d.created_at,
              EXISTS (

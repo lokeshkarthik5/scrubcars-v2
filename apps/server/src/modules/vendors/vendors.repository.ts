@@ -17,7 +17,7 @@ import {
   vendorWorkingHours,
 } from '../../db/schema.js'
 import { containsPattern } from '../../lib/search.js'
-import { LISTED_TO_CUSTOMERS } from './vendors.predicates.js'
+import { LISTED_TO_CUSTOMERS, vendorPageOpen } from './vendors.predicates.js'
 import type {
   serviceCategoryEnum,
   servicePricingTypeEnum,
@@ -64,13 +64,14 @@ export const vendorsRepository = {
     })
   },
 
+  /**
+   * A garage whose page customers may open: Active, verified and not in the
+   * Bin (vendorPageOpen). Pause is not checked, so a paused garage's page
+   * still loads and says why it can't be booked.
+   */
   findPublicVendorById(id: string) {
     return db.query.vendors.findFirst({
-      where: and(
-        eq(vendors.id, id),
-        eq(vendors.status, 'active'),
-        eq(vendors.isVerified, true)
-      ),
+      where: vendorPageOpen(id),
     })
   },
 

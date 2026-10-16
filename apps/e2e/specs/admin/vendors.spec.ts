@@ -64,7 +64,10 @@ test.describe('admin vendors', () => {
     await sql`update vendors set is_verified = true where id = ${id}`
 
     await page.goto('/vendors?show=all')
-    await page.getByRole('button', { name: `Archive ${name}` }).click()
+    // Archive sits in the card's ⋯, beside Move to Bin.
+    const card = page.getByRole('group', { name, exact: true })
+    await card.getByRole('button', { name: `More for ${name}` }).click()
+    await card.getByRole('button', { name: `Archive ${name}` }).click()
 
     await expect
       .poll(async () => {
@@ -78,77 +81,62 @@ test.describe('admin vendors', () => {
     await sql`delete from vendors where id = ${id}`
   })
 
-  test('a garage can be deleted outright', async ({ page }) => {
-    const name = `E2E Delete ${Date.now().toString().slice(-5)}`
+  test('a card offers Move to Bin, and no outright delete', async ({ page }) => {
+    const name = `E2E Bin Menu ${Date.now().toString().slice(-5)}`
     const id = await makeGarage(name)
 
     await page.goto('/vendors?show=all')
 
     // Never booked, so its card says nothing about bookings.
     const card = page.getByRole('group', { name, exact: true })
-    await expect(card.getByRole('button', { name: `Delete ${name}` })).toBeVisible()
     await expect(card.getByText(/^Has \d+ bookings?$/)).toHaveCount(0)
+    // Deleting is only from the Bin now: the card has no delete of its own.
+    await expect(card.getByRole('button', { name: `Delete ${name}` })).toHaveCount(0)
 
-    // Destructive, so it asks first.
-    page.once('dialog', (dialog) => dialog.accept())
-    await card.getByRole('button', { name: `Delete ${name}` }).click()
+    const more = card.getByRole('button', { name: `More for ${name}` })
+    await more.click()
+    await expect(more).toHaveAttribute('aria-expanded', 'true')
+    await expect(card.getByRole('button', { name: `Move ${name} to the Bin` })).toBeVisible()
+    // Escape closes it, and nothing was done.
+    await page.keyboard.press('Escape')
+    await expect(more).toHaveAttribute('aria-expanded', 'false')
 
-    await expect
-      .poll(async () => {
-        const rows = await sql<{ n: string }[]>`
-          select count(*)::text as n from vendors where id = ${id}
-        `
-        return Number(rows[0].n)
-      })
-      .toBe(0)
+    await sql`delete from vendors where id = ${id}`
   })
 
-  test('a garage that has bookings cannot be deleted @p0', async ({ page }) => {
-    // CAPACITY has a paid booking. Deleting it would cascade through that
-    // booking and its payment, so the server refuses and says what to do.
+  test('delete forever is only for a garage in the Bin @p0', async ({ page }) => {
+    // CAPACITY has a paid booking and is not in the Bin: the server refuses
+    // before it looks at anything else, and says what to do.
     const response = await page.request.delete(
-      `${API}/api/v1/admin/vendors/${VENDORS.capacity.id}`
+      `${API}/api/v1/admin/vendors/${VENDORS.capacity.id}`,
+      {
+        data: {
+          actorName: 'E2E Admin',
+          confirmName: VENDORS.capacity.name,
+          selectionHash: 'a'.repeat(64),
+        },
+      }
     )
     expect(response.status()).toBe(409)
     expect(await response.json()).toEqual({
       success: false,
-      message: 'This garage has bookings. Archive it instead.',
-      code: 'VENDOR_HAS_BOOKINGS',
+      message: 'Only a garage in the Bin can be deleted forever. Move it to the Bin first.',
+      code: 'VENDOR_NOT_IN_BIN',
     })
 
-    // The list says how many before anyone presses delete: the same count
-    // the refusal is decided on.
+    // The list still says how many bookings a garage has had.
     const list = await page.request.get(`${API}/api/v1/admin/vendors`)
     expect(list.status()).toBe(200)
     const { data: vendors } = (await list.json()) as {
-      data: Array<{ id: string; bookingCount: number }>
+      data: Array<{ id: string; bookingCount: number; deletedAt: string | null }>
     }
     const capacity = vendors.find((v) => v.id === VENDORS.capacity.id)
     expect(capacity?.bookingCount).toBeGreaterThan(0)
+    expect(capacity?.deletedAt).toBeNull()
 
     await page.goto('/vendors')
     const card = page.getByRole('group', { name: VENDORS.capacity.name, exact: true })
     await expect(card.getByText(/^Has \d+ bookings?$/)).toBeVisible()
-
-    // The list already knows it will be refused, so it does not ask to confirm
-    // an irreversible delete; it says why, on the card that was pressed,
-    // announced and in view — not one line above the first card, which for an
-    // older garage is off-screen.
-    let asked = false
-    const onDialog = (dialog: { dismiss: () => Promise<void> }) => {
-      asked = true
-      void dialog.dismiss()
-    }
-    page.on('dialog', onDialog)
-    await card.getByRole('button', { name: `Delete ${VENDORS.capacity.name}` }).click()
-
-    const refusal = card.getByRole('alert')
-    await expect(refusal).toHaveText(
-      "This garage has bookings, so it can't be deleted yet. Archive it to hide it from customers; its bookings are kept."
-    )
-    await expect(refusal).toBeInViewport()
-    page.off('dialog', onDialog)
-    expect(asked).toBe(false)
 
     const [row] = await sql<{ n: string }[]>`
       select count(*)::text as n from vendors where id = ${VENDORS.capacity.id}
@@ -273,14 +261,15 @@ test.describe('admin garage list: chips and checklist', () => {
     await expect(page.getByRole('group', { name: VENDORS.main.name, exact: true })).toBeVisible()
     await expect(page.getByRole('group', { name: LIST.name, exact: true })).toHaveCount(0)
 
-    for (const label of ['All', 'Live', 'Active', 'Pending', 'Suspended', 'Archived']) {
+    for (const label of ['All', 'Live', 'Active', 'Pending', 'Suspended', 'Archived', 'Bin']) {
       await chip(page, label).click()
       await expect(chip(page, label)).toHaveAttribute('aria-pressed', 'true')
       await expect(cards(page)).toHaveCount(await countOf(page, label))
     }
-    await expect(page).toHaveURL(/\/vendors\?show=archived$/)
+    await expect(page).toHaveURL(/\/vendors\?show=bin$/)
+    await expect(page.getByText('Bin = off the app. Restore it, or delete it forever.')).toBeVisible()
 
-    // All is every garage, so the stages add up to it.
+    // All is every garage not in the Bin, so the stages add up to it.
     const stages = await Promise.all(
       ['Active', 'Pending', 'Suspended', 'Archived'].map((label) => countOf(page, label))
     )

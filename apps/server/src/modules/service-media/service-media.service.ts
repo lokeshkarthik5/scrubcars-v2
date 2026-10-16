@@ -37,6 +37,8 @@ import {
 } from '../../lib/storage.js'
 import { createVideoUpload, deleteVideo, getVideo, isStreamEnabled, videoUrls } from '../../lib/stream.js'
 import { createKeyedLimit } from '../../lib/throttle.js'
+import { vendorInBin } from '../../lib/vendor-bin.js'
+import { isInBin } from '../vendors/vendors.predicates.js'
 import { serviceMediaRepository, type ServiceMediaRecord } from './service-media.repository.js'
 import type {
   AddPhotoInput,
@@ -94,10 +96,13 @@ function photoLimitReached() {
  * The service the actor may change. A garage asking about another company's
  * service gets the same 404 as a service that does not exist.
  */
-async function resolveService(actor: MediaActor, serviceId: string) {
+async function resolveService(actor: MediaActor, serviceId: string, change = true) {
   const service = await serviceMediaRepository.findService(serviceId)
-  if (!service) throw serviceNotFound()
+  if (!service || service.vendor.purgedAt) throw serviceNotFound()
   if (actor.kind === 'garage' && service.vendorId !== actor.vendorId) throw serviceNotFound()
+  // A garage's team cannot reach a garage in the Bin at all (resolveTenant);
+  // admin can see it but not change it until it is restored.
+  if (change && actor.kind === 'admin' && isInBin(service.vendor)) throw vendorInBin()
   return service
 }
 
@@ -114,7 +119,9 @@ async function uploaderName(actor: MediaActor): Promise<string> {
  * Stream video for a video. After the commit and best effort, so a storage
  * hiccup never undoes a change the garage already sees.
  */
-export function removeMediaFiles(rows: readonly ServiceMediaRecord[]) {
+export function removeMediaFiles(
+  rows: ReadonlyArray<Pick<ServiceMediaRecord, 'kind' | 'videoUid' | 'storageKey' | 'url'>>
+) {
   if (rows.length === 0) return
   runInBackground('service-media:remove-files', async () => {
     for (const row of rows) {
@@ -314,7 +321,9 @@ export const serviceMediaService = {
    * "Ready" by one poll.
    */
   async getMedia(actor: MediaActor, serviceId: string, mediaId: string) {
-    const service = await resolveService(actor, serviceId)
+    // A read: an upload block polling a video keeps working on a garage
+    // just moved to the Bin.
+    const service = await resolveService(actor, serviceId, false)
     const row = await serviceMediaRepository.findMedia(service.id, mediaId)
     if (!row) throw mediaNotFound()
 

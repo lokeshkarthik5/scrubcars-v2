@@ -18,6 +18,66 @@ reconstructing every change in them.
 
 ### Added
 
+- **The garage Bin: move to bin, restore, delete forever** (migration
+  `0034_garage_bin`, additive: `vendors.deleted_at`, `deleted_by_name`,
+  `deleted_reason`, `purged_at`, a CHECK that only a garage in the Bin is
+  purged, and a partial index on `deleted_at`; no data step). Owner
+  decisions, 16 Oct 2026: Archive stays as it is; the Bin is for garages
+  being deleted.
+  - One rule, "in the Bin" = `deleted_at IS NOT NULL`, in
+    `modules/vendors/vendors.predicates.ts` (`NOT_IN_BIN`, `vendorNotInBin`,
+    `isInBin`, `vendorPageOpen`). `LISTED_TO_CUSTOMERS` / `isListedToCustomers`
+    gain it (the list, search, map, Home Nearby, offers, offer reach), and so
+    does every customer read that skips the list: the garage page and its
+    services, packages, slots, hours and holidays, public reviews, checkout,
+    `checkGarageCanTake` and `garageRefusalForBooking` (a binned garage is
+    refused as a paused one), and Home's Book again.
+  - Its team is locked out: the seat reads (`listActiveVendorSeats`,
+    `findActiveVendorSeat`, `hasActiveVendorSeat`, `countActiveVendorSeats`)
+    join the garage and leave the Bin out, `resolveTenant`'s support-session
+    path answers 404 for a binned (or unknown) garage before writing its
+    access record, and every seat holder's `is_vendor_owner` is re-synced on
+    bin, restore and delete, so the owner of a binned garage no longer passes
+    the vendor login unless they still have a live one.
+  - `GET /admin/vendors/:id/bin-preview` (bookings still to come, which are
+    paid), `POST /admin/vendors/:id/bin { actorName, reason? }`,
+    `POST /admin/vendors/:id/restore { actorName }`,
+    `GET /admin/vendors/:id/delete-preview`, and
+    `DELETE /admin/vendors/:id { actorName, confirmName, selectionHash }`,
+    in `modules/vendor-bin`, super-admin only, each writing `admin_audit_log`
+    (`garage_binned`, `garage_restored`, `garage_deleted`) with the typed
+    name. Binning cancels the garage's pending, confirmed and in-progress
+    bookings through the admin cancel ("Garage removed", Detlio's own
+    decision), so a paid one is a refund owed as today; nothing is refunded
+    automatically. Delete forever is only for a garage in the Bin, with its
+    name typed: the test-data reset's planner and deletes
+    (`lib/data-reset.ts`, new `garage` scope; `deletePlannedRows`,
+    `finishRestarts`) take every booking chain and checkout of the garage,
+    keeping real money (live, cash, unconfirmed, may still arrive) and voiding
+    or restarting receipt numbers as the reset does. With nothing kept the
+    garage row goes, in an order the RESTRICT foreign keys allow (package
+    contents, the checkouts and bookings, services, then the garage); with
+    something kept it stays as a tombstone (`purged_at`; name, address, city
+    and pincode kept for receipts; contact fields cleared; photos, media,
+    hours, team seats and unreferenced services removed, the rest off sale).
+    The garage's R2 files and Stream videos are removed after the commit, best
+    effort, and the team gets a Telegram alert, "Garage deleted by <name>:
+    <garage>, N bookings". Lib rules in `lib/vendor-bin.ts`, unit-tested.
+  - Any other admin write on a binned garage (edit, verify, archive, pause,
+    services, media, team, service photos and videos) is 409
+    `VENDOR_IN_BIN`. `GET /admin/vendors` carries `deletedAt`,
+    `deletedByName`, `deletedReason` and leaves tombstones out; a tombstone's
+    detail is a 404. Discount and notice pickers and their garage checks, and
+    the demand/supply grid, leave binned garages out.
+- E2E fixtures: `VENDORS.binTeam`, `binOwnerLive`, `binPaid`, `binHard`,
+  `binTomb`, `STAFF.binOwner`, `STAFF.binOperator`, `CUSTOMERS.bin*` and
+  their bookings and checkout, for `specs/admin/garage-bin.spec.ts`.
+
+### Removed
+
+- The old outright `DELETE /admin/vendors/:id` and its 409
+  `VENDOR_HAS_BOOKINGS`: a garage is deleted from the Bin now.
+
 - **Live and a "what's missing" checklist on the admin garage list** (no
   migration). `GET /admin/vendors` still returns every garage as one array
   (the Bookings garage filter and other pickers read it), and each now also

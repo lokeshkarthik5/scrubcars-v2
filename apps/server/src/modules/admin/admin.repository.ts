@@ -24,6 +24,7 @@ import {
   type BookingSearch,
 } from '../../lib/booking-ops.js'
 import { containsPattern } from '../../lib/search.js'
+import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 import {
   bookingCharges,
   bookingIntents,
@@ -87,8 +88,13 @@ const ADMIN_BOOKING_RELATIONS = {
 }
 
 export const adminRepository = {
+  /**
+   * Every garage, the Bin included (its card shows when, by whom and why),
+   * and none deleted forever: a tombstone is only there for its receipts.
+   */
   listVendors() {
     return db.query.vendors.findMany({
+      where: isNull(vendors.purgedAt),
       with: {
         owner: true,
         // Active plain services, with just what the list counts and the
@@ -225,6 +231,8 @@ export const adminRepository = {
          WHERE v.lat IS NOT NULL
            AND v.status = 'active'
            AND v.is_verified = true
+           -- A garage in the Bin serves nobody, so it is no supply.
+           AND ${NOT_IN_BIN}
 
         UNION ALL
 
@@ -285,15 +293,6 @@ export const adminRepository = {
       .returning()
   },
 
-  /** Every booking the garage has ever had, in any state. */
-  async countBookingsForVendor(vendorId: string): Promise<number> {
-    const [row] = await db
-      .select({ value: count() })
-      .from(bookings)
-      .where(eq(bookings.vendorId, vendorId))
-    return row?.value ?? 0
-  },
-
   /**
    * Every booking each garage has ever had, in any state, as one grouped
    * query for the whole list. Garages with none have no row.
@@ -303,13 +302,6 @@ export const adminRepository = {
       .select({ vendorId: bookings.vendorId, value: count() })
       .from(bookings)
       .groupBy(bookings.vendorId)
-  },
-
-  // Hard delete. FK cascades remove the vendor's services, photos, working
-  // hours, service areas, bookings, payments and reviews. The owner user row
-  // is preserved. Refused by the service for any garage with bookings.
-  deleteVendor(id: string) {
-    return db.delete(vendors).where(eq(vendors.id, id)).returning()
   },
 
   findUserByPhone(phone: string) {

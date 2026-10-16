@@ -140,6 +140,23 @@ export type OpsAlert =
       receipts: string[]
       auditId: string
     }
+  | {
+      /**
+       * A garage was deleted forever from the admin Bin. Nothing to do; the
+       * team should know it happened, who did it, and whether bookings with
+       * real money were kept (the garage then stays as a tombstone).
+       */
+      kind: 'garage_deleted'
+      /** The name the person typed. */
+      by: string
+      garage: string
+      /** Bookings deleted with it, one per reschedule chain. */
+      bookings: number
+      /** Bookings kept for their real money. */
+      keptBookings: number
+      outcome: 'hard_delete' | 'tombstone' | 'partial'
+      auditId: string
+    }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
 export interface DigestBooking {
@@ -381,6 +398,18 @@ export function formatOpsAlert(alert: OpsAlert): string {
           ? `${alert.checkouts} ${alert.checkouts === 1 ? 'checkout' : 'checkouts'} with it, refunds and photos included.`
           : null,
         ...alert.receipts,
+        `Audit record ${alert.auditId}.`
+      )
+
+    case 'garage_deleted':
+      return lines(
+        `🗑️ Garage deleted by ${alert.by}: ${alert.garage}, ${alert.bookings} ${alert.bookings === 1 ? 'booking' : 'bookings'}`,
+        alert.keptBookings > 0
+          ? `${alert.keptBookings} ${alert.keptBookings === 1 ? 'booking' : 'bookings'} with real money kept for the accounts, with the garage's name and address.`
+          : null,
+        alert.outcome === 'partial'
+          ? 'More bookings than one run deletes: the garage is still in the Bin, and Delete forever must be pressed again.'
+          : null,
         `Audit record ${alert.auditId}.`
       )
   }

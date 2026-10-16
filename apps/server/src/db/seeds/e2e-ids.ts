@@ -267,6 +267,18 @@ export const CUSTOMERS = {
    */
   dataResetUi: { id: id(151), phone: '9000000051', name: 'Reset Usha', vehicleId: id(761) },
   /**
+   * The garage Bin's customers (specs/admin/garage-bin.spec.ts), one per
+   * garage it moves or deletes, so nothing another spec reads goes with it.
+   * binPaid owns an upcoming paid booking (and an unpaid one) at
+   * VENDORS.binPaid, which moving it to the Bin cancels; binHard and binTomb
+   * own the bookings and checkout deleted forever with VENDORS.binHard and
+   * VENDORS.binTomb; binBrowse only tries to book at VENDORS.binTeam.
+   */
+  binPaid: { id: id(153), phone: '9000000053', name: 'Bin Refund Bindu', vehicleId: id(762) },
+  binHard: { id: id(154), phone: '9000000054', name: 'Bin Gone Gopal', vehicleId: id(763) },
+  binTomb: { id: id(155), phone: '9000000055', name: 'Bin Kept Kamala', vehicleId: id(764) },
+  binBrowse: { id: id(156), phone: '9000000056', name: 'Bin Browse Bala', vehicleId: id(765) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -327,6 +339,14 @@ export const STAFF = {
    * media of a garage nobody else reads, with one company in the switcher.
    */
   mediaOwner: { id: id(208), phone: '9000001009', name: 'Media Meena' },
+  /**
+   * Owns VENDORS.binTeam, which the Bin spec moves to the Bin and back, and
+   * VENDORS.binOwnerLive, which stays on the app: the proof that the Bin
+   * locks a team out of the binned garage only, never out of a live one.
+   */
+  binOwner: { id: id(209), phone: '9000001010', name: 'Bin Owner Bhuvana' },
+  /** vendor_operator on VENDORS.binTeam alone: no company at all while it is in the Bin. */
+  binOperator: { id: id(210), phone: '9000001011', name: 'Bin Operator Oscar' },
 } as const
 
 export const VENDORS = {
@@ -422,6 +442,27 @@ export const VENDORS = {
    * Nobody books it. Each spec owns one of its services (SERVICES.media*).
    */
   media: { id: id(318), name: 'Media Test Garage' },
+  /**
+   * The garage Bin (specs/admin/garage-bin.spec.ts). binTeam is live (Active,
+   * verified, pinned far south-west like the other single-purpose garages,
+   * one service, open every day), so moving it to the Bin can be seen to
+   * take it out of everything customers read, and Restore to bring it back;
+   * its team is STAFF.binOwner and STAFF.binOperator. binOwnerLive is
+   * binOwner's other garage, pending, which must stay reachable. Nobody books
+   * either.
+   */
+  binTeam: { id: id(340), name: 'Bin Team Test Garage' },
+  binOwnerLive: { id: id(341), name: 'Bin Owner Live Garage' },
+  /** Pending; CUSTOMERS.binPaid's two upcoming bookings, cancelled by moving it to the Bin. */
+  binPaid: { id: id(342), name: 'Bin Refund Test Garage' },
+  /**
+   * Seeded in the Bin, for Delete forever with nothing kept: a package (whose
+   * member is ON DELETE RESTRICT), an abandoned checkout, a test booking and
+   * a gallery photo. The garage row goes too.
+   */
+  binHard: { id: id(343), name: 'Bin Hard Delete Garage' },
+  /** Seeded in the Bin with a live-money booking: Delete forever keeps a tombstone. */
+  binTomb: { id: id(344), name: 'Bin Tombstone Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -501,6 +542,12 @@ export const SERVICES = {
   mediaRefused: { id: id(429), name: 'Media Polish', price: '899.00', durationMins: 60 },
   /** On MEDIA, filed under others: the drawn bike sample, "No photos from this garage yet". */
   mediaBike: { id: id(430), name: 'Media Bike Wash', price: '200.00', durationMins: 45 },
+  /** One ₹499 wash on each Bin garage; binHardPackage bundles binHardWash. */
+  binTeamWash: { id: id(431), name: 'Bin Team Wash', price: '499.00', durationMins: 30 },
+  binPaidWash: { id: id(432), name: 'Bin Refund Wash', price: '499.00', durationMins: 30 },
+  binHardWash: { id: id(433), name: 'Bin Gone Wash', price: '499.00', durationMins: 30 },
+  binHardPackage: { id: id(434), name: 'Bin Gone Combo', price: '899.00', durationMins: 60 },
+  binTombWash: { id: id(435), name: 'Bin Kept Wash', price: '499.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -730,6 +777,20 @@ export const BOOKINGS = {
   resetUiSingle: refId('da7a0008'),
   resetUiMarked: refId('da7a0009'),
   resetUiKeep: refId('da7a000b'),
+  /**
+   * The garage Bin's (CUSTOMERS.bin*). binPaidUpcoming is confirmed and paid
+   * (E2E money) in three days at VENDORS.binPaid, and binUnpaidUpcoming
+   * pending and unpaid: moving the garage to the Bin cancels both, and only
+   * the paid one is then a refund owed. binHardTest is a finished job paid in
+   * E2E money at VENDORS.binHard, deleted forever with it; at VENDORS.binTomb,
+   * binTombLive was paid in Razorpay live mode (kept, with the garage as a
+   * tombstone) and binTombTest in E2E money (deleted).
+   */
+  binPaidUpcoming: refId('b1a00001'),
+  binUnpaidUpcoming: refId('b1a00002'),
+  binHardTest: refId('b1a00003'),
+  binTombLive: refId('b1a00004'),
+  binTombTest: refId('b1a00005'),
 } as const
 
 export const VEHICLES = {
@@ -785,6 +846,8 @@ export const BOOKING_INTENTS = {
    */
   resetFailed: id(1004),
   resetAbandoned: id(1005),
+  /** CUSTOMERS.binHard's checkout at VENDORS.binHard, abandoned unpaid (test mode) days ago. */
+  binAbandoned: id(1006),
 } as const
 
 /**

@@ -4,14 +4,19 @@ import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   archiveAdminVendor,
-  deleteAdminVendor,
+  binAdminVendor,
+  deleteAdminVendorForever,
   getAdminVendor,
+  getAdminVendorBinPreview,
+  getAdminVendorDeletePreview,
   listAdminVendors,
+  restoreAdminVendor,
   unarchiveAdminVendor,
   verifyAdminVendor,
   type AdminVendor,
 } from '@repo/core/api/admin'
 import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
+import { adminRefundKeys } from '@repo/core/api/hooks/use-admin-refunds'
 
 /**
  * Hierarchical keys so a single `invalidateQueries({ queryKey: keys.all })`
@@ -25,6 +30,9 @@ export const adminVendorKeys = {
   list: () => [...adminVendorKeys.lists()] as const,
   details: () => [...adminVendorKeys.all, 'detail'] as const,
   detail: (id: string) => [...adminVendorKeys.details(), id] as const,
+  /** The Bin's two previews, per garage: what binning cancels, what deleting removes. */
+  binPreview: (id: string) => [...adminVendorKeys.all, 'bin-preview', id] as const,
+  deletePreview: (id: string) => [...adminVendorKeys.all, 'delete-preview', id] as const,
 }
 
 export function useAdminVendors() {
@@ -110,20 +118,92 @@ export function useArchiveAdminVendor() {
   )
 }
 
-/**
- * Deletion cascades to the vendor's bookings, so the booking lists are
- * invalidated too — otherwise the panel keeps showing rows whose vendor is
- * gone until something else happens to refetch them.
- */
-export function useDeleteAdminVendor() {
-  const queryClient = useQueryClient()
+// ─── The Bin ─────────────────────────────────────────────────────────────────
 
+/**
+ * What moving the garage to the Bin would cancel. Read as the dialog opens
+ * and never cached: it is about this moment.
+ */
+export function useAdminVendorBinPreview(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: adminVendorKeys.binPreview(id),
+    queryFn: () => getAdminVendorBinPreview(id),
+    enabled: enabled && Boolean(id),
+    gcTime: 0,
+    staleTime: 0,
+    retry: false,
+  })
+}
+
+/**
+ * What Delete forever would remove and keep. The Bin card reads it for its
+ * "N bookings will be deleted with it" line and the sheet for everything
+ * else, so the two share one copy; the sheet reads it afresh on opening.
+ */
+export function useAdminVendorDeletePreview(id: string, options: { fresh?: boolean } = {}) {
+  return useQuery({
+    queryKey: adminVendorKeys.deletePreview(id),
+    queryFn: () => getAdminVendorDeletePreview(id),
+    enabled: Boolean(id),
+    // The sheet reads it again as it opens, whatever the card already has:
+    // its fingerprint is what the delete must match.
+    refetchOnMount: options.fresh ? 'always' : true,
+    retry: false,
+  })
+}
+
+/**
+ * Bin, Restore and Delete forever all change what the list, the bookings and
+ * the refunds show: binning cancels bookings (a paid one is a refund owed),
+ * and deleting removes them. So each refreshes all three; the garage's own
+ * detail and previews are under the garages' key.
+ */
+function useInvalidateAfterBin() {
+  const queryClient = useQueryClient()
+  return useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: adminVendorKeys.all })
+    void queryClient.invalidateQueries({ queryKey: adminBookingKeys.all })
+    void queryClient.invalidateQueries({ queryKey: adminRefundKeys.all })
+  }, [queryClient])
+}
+
+export function useBinAdminVendor() {
+  const invalidate = useInvalidateAfterBin()
   return useMutation({
-    mutationFn: (id: string) => deleteAdminVendor(id),
-    onSuccess: (_data, id) => {
-      queryClient.removeQueries({ queryKey: adminVendorKeys.detail(id) })
-      void queryClient.invalidateQueries({ queryKey: adminVendorKeys.lists() })
-      void queryClient.invalidateQueries({ queryKey: adminBookingKeys.all })
+    mutationFn: ({ id, ...input }: { id: string; actorName: string; reason?: string }) =>
+      binAdminVendor(id, input),
+    onSuccess: () => invalidate(),
+  })
+}
+
+export function useRestoreAdminVendor() {
+  const invalidate = useInvalidateAfterBin()
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; actorName: string }) =>
+      restoreAdminVendor(id, input),
+    onSuccess: () => invalidate(),
+  })
+}
+
+export function useDeleteAdminVendorForever() {
+  const queryClient = useQueryClient()
+  const invalidate = useInvalidateAfterBin()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      id: string
+      actorName: string
+      confirmName: string
+      selectionHash: string
+    }) => deleteAdminVendorForever(id, input),
+    onSuccess: (result, { id }) => {
+      // Gone, unless a run had more to do: its detail must not linger.
+      if (result.outcome !== 'partial') {
+        queryClient.removeQueries({ queryKey: adminVendorKeys.detail(id) })
+      }
+      invalidate()
     },
   })
 }

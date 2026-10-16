@@ -34,11 +34,20 @@ export interface AdminVendor {
   /** The garage drew its own doorstep area, which then replaces the radius. */
   hasDoorstepArea?: boolean
   /**
-   * Customers can find it: Active, verified and not paused — the customer
-   * lists' own rule, decided on the server so the two never disagree. Absent
-   * from a server older than this field.
+   * Customers can find it: Active, verified, not paused and not in the Bin —
+   * the customer lists' own rule, decided on the server so the two never
+   * disagree. Absent from a server older than this field.
    */
   live?: boolean
+  /**
+   * In the Bin since then (see AdminVendorBin), or null. A garage in the Bin
+   * is off the app for customers and its team until restored or deleted
+   * forever. Absent from a server older than the Bin.
+   */
+  deletedAt?: string | null
+  /** The name typed by whoever moved it to the Bin, and why, if they said. */
+  deletedByName?: string | null
+  deletedReason?: string | null
   /** What the garage still needs, blocking first (see ReadinessItem). */
   readiness?: ReadinessItem[]
   owner: {
@@ -112,6 +121,10 @@ export interface AdminVendorDetail {
   /** When the garage paused new bookings, and why. Null while it takes them. */
   bookingsPausedAt: string | null
   bookingsPausedReason: string | null
+  /** In the Bin since then, by whom and why: the edit page opens read-only. */
+  deletedAt?: string | null
+  deletedByName?: string | null
+  deletedReason?: string | null
   createdAt: string
   owner: {
     id: string
@@ -609,13 +622,139 @@ export async function resumeAdminVendor(id: string) {
   })
 }
 
+// ─── The Bin ─────────────────────────────────────────────────────────────────
+//
+// A garage being deleted goes to the Bin first: off the app for customers and
+// for its team, with its bookings still to come cancelled by Detlio ("Garage
+// removed"; a paid one becomes a refund owed). From the Bin it is restored as
+// it was, or deleted forever. Every one of these writes is recorded with the
+// name typed in the dialog.
+
+/** A booking still to happen, which moving its garage to the Bin cancels. */
+export interface AdminBinUpcomingBooking {
+  id: string
+  reference: string
+  status: string
+  scheduledAt: string
+  amount: string
+  customerName: string | null
+  /** Paid: cancelling it makes a refund owed (Refunds page). */
+  paid: boolean
+}
+
+/** The garage as the Bin's answers describe it. */
+export interface AdminBinGarage {
+  id: string
+  businessName: string
+  deletedAt: string | null
+  deletedByName: string | null
+  deletedReason: string | null
+}
+
+/** GET /admin/vendors/:id/bin-preview: what moving it to the Bin would cancel. */
+export interface AdminVendorBinPreview {
+  garage: AdminBinGarage
+  inBin: boolean
+  upcomingCount: number
+  paidCount: number
+  upcoming: AdminBinUpcomingBooking[]
+}
+
+/** POST /admin/vendors/:id/bin: what was done. */
+export interface AdminVendorBinResult {
+  garage: AdminBinGarage
+  auditId: string
+  cancelled: Array<{ id: string; reference: string; paid: boolean }>
+  /** Cancelled bookings that were paid: each is a refund owed now. */
+  refundsOwed: number
+  /** Bookings that could not be cancelled (changed meanwhile): cancel them from their page. */
+  notCancelled: Array<{ id: string; reference: string; message: string }>
+}
+
 /**
- * DELETE /admin/vendors/:id — permanent hard delete. Refused (409
- * VENDOR_HAS_BOOKINGS) for a garage that has ever been booked; archive it.
+ * GET /admin/vendors/:id/delete-preview: what Delete forever would do now.
+ * `hard_delete`: the garage goes entirely. `tombstone`: bookings with real
+ * money are kept, and the garage's name and address with them, for their
+ * receipts. `partial`: more bookings than one run deletes; it stays in the
+ * Bin and Delete forever is pressed again.
  */
-export async function deleteAdminVendor(id: string) {
-  return apiClient<void>(`/admin/vendors/${id}`, {
+export interface AdminVendorDeletePreview {
+  garage: AdminBinGarage
+  inBin: boolean
+  outcome: 'hard_delete' | 'tombstone' | 'partial'
+  /** Customer bookings (one per reschedule chain): deleted, and kept for their money. */
+  bookings: { deleted: number; kept: number }
+  /** Checkouts that never became a booking. */
+  checkouts: { deleted: number; kept: number }
+  assets: {
+    /** Logo and gallery photos. */
+    photos: number
+    servicePictures: number
+    videos: number
+    services: number
+    teamLogins: number
+  }
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  kept: Array<{
+    kind: 'booking' | 'checkout'
+    id: string
+    reference: string
+    moneyLabel: string
+    label: string
+    detail: string
+  }>
+  overCap: { chains: number; checkouts: number }
+  selectionHash: string
+}
+
+export interface AdminVendorDeleteResult {
+  garage: { id: string; businessName: string }
+  outcome: AdminVendorDeletePreview['outcome']
+  auditId: string
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  keptBookings: number
+  keptCheckouts: number
+  remaining: { chains: number; checkouts: number }
+}
+
+export async function getAdminVendorBinPreview(id: string) {
+  return apiClient<AdminVendorBinPreview>(`/admin/vendors/${id}/bin-preview`)
+}
+
+/** POST /admin/vendors/:id/bin */
+export async function binAdminVendor(id: string, input: { actorName: string; reason?: string }) {
+  return apiClient<AdminVendorBinResult>(`/admin/vendors/${id}/bin`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** POST /admin/vendors/:id/restore — back as it was, team access included. */
+export async function restoreAdminVendor(id: string, input: { actorName: string }) {
+  return apiClient<{ garage: AdminBinGarage; auditId: string }>(`/admin/vendors/${id}/restore`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function getAdminVendorDeletePreview(id: string) {
+  return apiClient<AdminVendorDeletePreview>(`/admin/vendors/${id}/delete-preview`)
+}
+
+/**
+ * DELETE /admin/vendors/:id — delete forever, only for a garage in the Bin,
+ * with its name typed out and the preview's fingerprint (409 PREVIEW_STALE
+ * if anything moved since).
+ */
+export async function deleteAdminVendorForever(
+  id: string,
+  input: { actorName: string; confirmName: string; selectionHash: string }
+) {
+  return apiClient<AdminVendorDeleteResult>(`/admin/vendors/${id}`, {
     method: 'DELETE',
+    body: JSON.stringify(input),
   })
 }
 

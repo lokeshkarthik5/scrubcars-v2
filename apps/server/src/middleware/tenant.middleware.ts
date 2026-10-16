@@ -116,6 +116,13 @@ export const resolveTenant = createMiddleware<{ Variables: TenantVariables }>(
 
     if (platformRow?.role !== 'super_admin') notFound()
 
+    // The company has to exist and be out of the Bin. A garage in the Bin is
+    // closed to everyone but the admin panel, support sessions included, and
+    // its team's seats no longer match above, so a staffer who also holds a
+    // seat there lands here too. Checked before the audit row, so a refused
+    // id leaves no access record for a company nobody entered.
+    if (!(await membersRepository.findVendorForSupport(header))) notFound()
+
     c.set('tenant', {
       vendorId: header,
       // Deliberate, and the widest grant in the system: support sessions act

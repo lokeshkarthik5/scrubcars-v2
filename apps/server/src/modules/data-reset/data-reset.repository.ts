@@ -25,7 +25,7 @@ import type {
   ResetReceipt,
 } from '../../lib/data-reset.js'
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Conn = typeof db | Tx
 
 /**
@@ -48,8 +48,12 @@ const CHAIN_KEY = sql<string>`coalesce(${bookings.originalBookingId}, ${bookings
 const countOf = (table: string, column = 'booking_id') =>
   sql<number>`(select count(*)::int from ${sql.identifier(table)} where ${sql.identifier(table)}.${sql.identifier(column)} = ${bookings.id})`
 
-/** Reads, through the given connection: the plain one, or the delete's transaction. */
-function reads(conn: Conn) {
+/**
+ * Reads, through the given connection: the plain one, or the delete's
+ * transaction. Exported for deleting a garage forever (modules/vendor-bin),
+ * which plans its bookings with these same reads inside its own transaction.
+ */
+export function dataResetReads(conn: Conn) {
   return {
     /** The chains a scope names, by their first booking's id. */
     async chainKeys(where: SQL): Promise<string[]> {
@@ -70,6 +74,11 @@ function reads(conn: Conn) {
 
     chainKeysOfBookings(ids: string[]) {
       return this.chainKeys(inArray(bookings.id, ids))
+    },
+
+    /** Every chain at one garage, whenever made. */
+    chainKeysOfGarage(vendorId: string) {
+      return this.chainKeys(eq(bookings.vendorId, vendorId))
     },
 
     /** Every booking of these chains, with its payment, customer and garage. */
@@ -193,6 +202,11 @@ function reads(conn: Conn) {
     /** Checkouts that never became a booking (or whose booking is gone), opened before the cutoff. */
     checkoutsWithoutBooking(cutoff: Date) {
       return this.intents(and(isNull(bookingIntents.bookingId), lt(bookingIntents.createdAt, cutoff))!)
+    },
+
+    /** Checkouts at one garage that never became a booking (or whose booking is gone). */
+    checkoutsWithoutBookingAt(vendorId: string) {
+      return this.intents(and(isNull(bookingIntents.bookingId), eq(bookingIntents.vendorId, vendorId))!)
     },
 
     async bookingChildCounts(bookingIds: string[]): Promise<Map<string, BookingChildCounts>> {
@@ -328,7 +342,7 @@ function reads(conn: Conn) {
   }
 }
 
-export type DataResetReads = ReturnType<typeof reads>
+export type DataResetReads = ReturnType<typeof dataResetReads>
 
 /** A row the reset deletes is written down here first, in the same transaction. */
 export interface AuditEntry {
@@ -342,9 +356,9 @@ export interface AuditEntry {
 /**
  * The delete's own statements, inside its transaction. Each one is a single
  * step of the order in data-reset.service (executeReset); none decides
- * anything.
+ * anything. Exported for deleting a garage forever, like the reads.
  */
-function writes(tx: Tx) {
+export function dataResetWrites(tx: Tx) {
   return {
     /**
      * Waits for a row lock at most 5 seconds, and lets no statement run past
@@ -505,10 +519,10 @@ function writes(tx: Tx) {
   }
 }
 
-export type DataResetWrites = ReturnType<typeof writes>
+export type DataResetWrites = ReturnType<typeof dataResetWrites>
 
 export const dataResetRepository = {
-  ...reads(db),
+  ...dataResetReads(db),
 
   /**
    * Remembers what Razorpay said about old money (gateway_mode was null), on
@@ -548,6 +562,6 @@ export const dataResetRepository = {
    * bound to that transaction. Everything rolls back together on any throw.
    */
   transaction<T>(work: (repo: DataResetReads & DataResetWrites) => Promise<T>): Promise<T> {
-    return db.transaction((tx) => work({ ...reads(tx), ...writes(tx) }))
+    return db.transaction((tx) => work({ ...dataResetReads(tx), ...dataResetWrites(tx) }))
   },
 }

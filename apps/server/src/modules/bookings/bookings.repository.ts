@@ -28,6 +28,7 @@ import {
 } from '../../lib/slots.js'
 import { financialYearOf, formatReceiptSerial } from '../../lib/receipts.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
+import { isInBin, vendorPageOpen } from '../vendors/vendors.predicates.js'
 
 type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
 
@@ -444,12 +445,16 @@ export async function checkGarageCanTake(
       bays: vendors.bays,
       jobsPerDay: vendors.jobsPerDay,
       bookingsPausedAt: vendors.bookingsPausedAt,
+      deletedAt: vendors.deletedAt,
     })
     .from(vendors)
     .where(eq(vendors.id, params.vendorId))
     .limit(1)
 
-  if (!vendor || vendor.bookingsPausedAt) return 'paused'
+  // A garage in the Bin is refused as a paused one is: it takes nothing new,
+  // and money that lands for it anyway becomes the same refund-due failure
+  // (garage_paused) rather than a booking nobody will do.
+  if (!vendor || vendor.bookingsPausedAt || isInBin(vendor)) return 'paused'
 
   const [closure] = await tx
     .select({ id: vendorClosures.id })
@@ -1231,13 +1236,10 @@ export const bookingsRepository = {
     })
   },
 
+  /** The garage page's own rule (vendorPageOpen): a garage in the Bin takes no booking. */
   findPublicVendorById(id: string) {
     return db.query.vendors.findFirst({
-      where: and(
-        eq(vendors.id, id),
-        eq(vendors.status, 'active'),
-        eq(vendors.isVerified, true)
-      ),
+      where: vendorPageOpen(id),
     })
   },
 

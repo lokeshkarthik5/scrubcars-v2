@@ -425,3 +425,42 @@ describe('test data cleared', () => {
     expect(text).toBe('🧹 Test data cleared by admin: 1 booking\nAudit record a.')
   })
 })
+
+describe('garage_deleted', () => {
+  test('one line says who, which garage and how many bookings', () => {
+    const text = formatOpsAlert({
+      kind: 'garage_deleted',
+      by: 'Mathew',
+      garage: 'Detlio (test garage)',
+      bookings: 12,
+      keptBookings: 0,
+      outcome: 'hard_delete',
+      auditId: 'a',
+    })
+    expect(text).toBe('🗑️ Garage deleted by Mathew: Detlio (test garage), 12 bookings\nAudit record a.')
+  })
+
+  test('says what was kept for the accounts, and when it must be pressed again', () => {
+    const kept = formatOpsAlert({
+      kind: 'garage_deleted',
+      by: 'admin',
+      garage: 'Sparkle Wash',
+      bookings: 1,
+      keptBookings: 2,
+      outcome: 'tombstone',
+      auditId: 'b',
+    })
+    expect(kept.split('\n')[0]).toBe('🗑️ Garage deleted by admin: Sparkle Wash, 1 booking')
+    expect(kept).toContain('2 bookings with real money kept for the accounts')
+    const partial = formatOpsAlert({
+      kind: 'garage_deleted',
+      by: 'admin',
+      garage: 'Sparkle Wash',
+      bookings: 300,
+      keptBookings: 0,
+      outcome: 'partial',
+      auditId: 'c',
+    })
+    expect(partial).toContain('Delete forever must be pressed again')
+  })
+})

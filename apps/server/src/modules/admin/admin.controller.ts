@@ -112,11 +112,6 @@ export async function unarchiveVendor(c: AdminContext, id: string) {
   return c.json({ success: true, data: vendor })
 }
 
-export async function deleteVendor(c: AdminContext, id: string) {
-  await adminService.deleteVendor(id)
-  return c.json({ success: true })
-}
-
 export async function pauseVendor(
   c: AdminContext,
   id: string,
@@ -326,12 +321,15 @@ export async function listVendorMembers(c: AdminContext, vendorId: string) {
   return c.json({ success: true, data: members })
 }
 
+// The three team writes go through adminService, which refuses a garage in
+// the Bin (409 VENDOR_IN_BIN) before handing over to membersService.
+
 export async function addVendorMember(
   c: AdminContext,
   vendorId: string,
   input: AddMemberInput
 ) {
-  const member = await membersService.addMember(
+  const member = await adminService.addVendorMember(
     vendorId,
     getAdminActorId(c),
     input
@@ -345,7 +343,7 @@ export async function updateVendorMember(
   membershipId: string,
   input: UpdateMemberInput
 ) {
-  const member = await membersService.updateMember(
+  const member = await adminService.updateVendorMember(
     vendorId,
     getAdminActorId(c),
     membershipId,
@@ -359,6 +357,6 @@ export async function removeVendorMember(
   vendorId: string,
   membershipId: string
 ) {
-  await membersService.removeMember(vendorId, getAdminActorId(c), membershipId)
+  await adminService.removeVendorMember(vendorId, getAdminActorId(c), membershipId)
   return c.json({ success: true })
 }

@@ -165,11 +165,15 @@ export interface IntentChildCounts {
  * - `marked_test`: every chain ops marked "Test".
  * - `chains`: the chains of these bookings (any booking of a chain names it),
  *   for deleting one test booking from its page. They must be marked "Test".
+ * - `garage`: every chain and every checkout of one garage, whenever made,
+ *   for deleting a garage forever from the admin Bin (modules/vendor-bin).
+ *   Marked or not: the garage is going, so only money keeps a row.
  */
 export type ResetScope =
   | { kind: 'before_cutoff'; cutoff: Date }
   | { kind: 'marked_test' }
   | { kind: 'chains'; bookingIds: string[] }
+  | { kind: 'garage'; vendorId: string }
 
 export interface PlanInput {
   /** The time the plan is made at: only an open checkout depends on it. */
@@ -188,7 +192,8 @@ export interface PlanInput {
   charges: ResetCharge[]
   /**
    * Checkouts of candidate bookings (consumed), and checkouts with no booking
-   * that the scope may take (before_cutoff only).
+   * that the scope may take (before_cutoff: opened before the cutoff, at any
+   * garage; garage: every one at that garage, as the caller reads them).
    */
   intents: ResetIntent[]
   bookingChildCounts: Map<string, BookingChildCounts>
@@ -685,6 +690,9 @@ function chainInScope(rootId: string, chain: ResetBooking[], scope: ResetScope):
       return chain.some((b) => b.markedTestAt !== null)
     case 'chains':
       return chain.some((b) => scope.bookingIds.includes(b.id)) || scope.bookingIds.includes(rootId)
+    case 'garage':
+      // A reschedule stays at its garage, so a chain is one garage's whole.
+      return chain.some((b) => b.vendorId === scope.vendorId)
   }
 }
 
@@ -901,10 +909,14 @@ export function planReset(input: PlanInput): ResetPlan {
   }
 
   // ── Checkouts that never became a booking ──
+  // A cutoff run takes those opened before the cutoff; a garage's delete
+  // takes every one it was given, which are that garage's. The other scopes
+  // are about bookings alone.
   const checkouts: CheckoutPlan[] = []
-  if (scope.kind === 'before_cutoff') {
+  if (scope.kind === 'before_cutoff' || scope.kind === 'garage') {
     for (const intent of input.intents) {
-      if (intent.bookingId !== null || intent.createdAt >= scope.cutoff) continue
+      if (intent.bookingId !== null) continue
+      if (scope.kind === 'before_cutoff' && intent.createdAt >= scope.cutoff) continue
       const money = worst(checkoutMoneyItems(intent).map((item) => classOf(item, input)))
       // A checkout that can still be paid is never deleted: the money would
       // land with nothing left to record it against. Nor is one whose live

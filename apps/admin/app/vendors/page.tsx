@@ -1,10 +1,11 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconAlertCircle,
+  IconAlertTriangle,
   IconArchive,
   IconArchiveOff,
   IconBuildingStore,
@@ -13,8 +14,10 @@ import {
   IconChevronRight,
   IconCircle,
   IconCircleDashed,
+  IconDots,
   IconPencil,
   IconPlus,
+  IconRestore,
   IconTrash,
 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
@@ -27,14 +30,22 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { PilotNumbersCard } from '@/components/pilot-numbers-card'
+import {
+  DeleteForeverSheet,
+  MoveToBinDialog,
+  RestoreDialog,
+} from '@/components/vendor-bin-dialogs'
+import { formatWhen } from '@/lib/bookings'
 import { EDIT_TAB_LABELS } from '@/lib/garage-edit'
-import { deleteConfirm, deleteRefusal } from '@/lib/vendor-delete'
+import { binDoneMessage, deleteDoneMessage } from '@/lib/vendor-bin'
 import {
   SHOW_FILTERS,
   SHOW_LABELS,
+  binDeleteLine,
   bookingParts,
   bookingsLine,
   editHref,
+  isInBin,
   isLive,
   listHref,
   matchesShow,
@@ -47,12 +58,11 @@ import {
   type ShowFilter,
 } from '@/lib/vendor-list'
 import { type AdminVendor, type ReadinessItem } from '@repo/core/api/admin'
-import { ApiError } from '@repo/core/api/client'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import {
+  useAdminVendorDeletePreview,
   useAdminVendors,
   useArchiveAdminVendor,
-  useDeleteAdminVendor,
   useVerifyAdminVendor,
 } from '@repo/core/api/hooks/use-admin-vendors'
 import { cn } from '@repo/core/utils'
@@ -92,7 +102,14 @@ function VendorsList() {
 
   const verify = useVerifyAdminVendor()
   const archive = useArchiveAdminVendor()
-  const remove = useDeleteAdminVendor()
+  // The Bin's dialog that is open, and for which garage. Mounted only while
+  // open, so each reads its preview at that moment.
+  const [dialog, setDialog] = useState<{
+    kind: 'bin' | 'restore' | 'delete'
+    vendor: AdminVendor
+  } | null>(null)
+  // What the last Bin action did, read out politely above the list.
+  const [notice, setNotice] = useState('')
 
   const error = loadError ? errorMessage(loadError, 'Failed to load vendors') : ''
 
@@ -152,11 +169,7 @@ function VendorsList() {
   }
 
   const verifyingId = verify.isPending ? verify.variables : null
-  const busyId = archive.isPending
-    ? archive.variables?.id
-    : remove.isPending
-      ? remove.variables
-      : null
+  const busyId = archive.isPending ? archive.variables?.id : null
 
   const handleVerify = (id: string) => {
     clearRowError(id)
@@ -177,28 +190,10 @@ function VendorsList() {
     )
   }
 
-  const handleDelete = (v: AdminVendor) => {
+  const openDialog = (kind: 'bin' | 'restore' | 'delete', v: AdminVendor) => {
     clearRowError(v.id)
-    // Known before the click: a garage that has been booked is refused by the
-    // server, so say so on the card rather than ask the admin to confirm an
-    // irreversible delete that cannot happen.
-    if ((v.bookingCount ?? 0) > 0) {
-      showRowError(v.id, deleteRefusal(v.status))
-      return
-    }
-    if (!window.confirm(deleteConfirm(v.businessName))) return
-    remove.mutate(v.id, {
-      // A booking made since the list loaded gets the same refusal, in words
-      // that fit the garage's status rather than the server's "Archive it
-      // instead", which is a loop for one already archived.
-      onError: (err) =>
-        showRowError(
-          v.id,
-          err instanceof ApiError && err.code === 'VENDOR_HAS_BOOKINGS'
-            ? deleteRefusal(v.status)
-            : errorMessage(err, 'Failed to delete vendor')
-        ),
-    })
+    setNotice('')
+    setDialog({ kind, vendor: v })
   }
 
   return (
@@ -272,34 +267,173 @@ function VendorsList() {
 
           {/* A failed refetch, with the last list still on screen. */}
           {error && <p role="alert" className="text-[12px] text-error">{error}</p>}
+          {notice && (
+            <p role="status" className="text-[13px] text-text-primary">
+              <Figures text={notice} />
+            </p>
+          )}
 
           {shown.length === 0 ? (
             <p className="py-6 text-center text-[13px] text-text-muted">
-              No {SHOW_LABELS[show].toLowerCase()} garages.
+              {show === 'bin' ? 'Nothing in the Bin.' : `No ${SHOW_LABELS[show].toLowerCase()} garages.`}
             </p>
           ) : (
             <div className="flex flex-col gap-2.5">
               {shown.map((v, i) => (
                 <Reveal key={v.id} index={i}>
-                  <GarageCard
-                    v={v}
-                    back={back}
-                    checklistOpen={openChecklists.has(v.id)}
-                    onToggleChecklist={() => toggleChecklist(v.id)}
-                    verifying={verifyingId === v.id}
-                    busy={busyId === v.id}
-                    rowError={rowErrors[v.id]}
-                    onVerify={() => handleVerify(v.id)}
-                    onArchiveToggle={() => handleArchiveToggle(v)}
-                    onDelete={() => handleDelete(v)}
-                  />
+                  {isInBin(v) ? (
+                    <BinCard
+                      v={v}
+                      onRestore={() => openDialog('restore', v)}
+                      onDelete={() => openDialog('delete', v)}
+                    />
+                  ) : (
+                    <GarageCard
+                      v={v}
+                      back={back}
+                      checklistOpen={openChecklists.has(v.id)}
+                      onToggleChecklist={() => toggleChecklist(v.id)}
+                      verifying={verifyingId === v.id}
+                      busy={busyId === v.id}
+                      rowError={rowErrors[v.id]}
+                      onVerify={() => handleVerify(v.id)}
+                      onArchiveToggle={() => handleArchiveToggle(v)}
+                      onMoveToBin={() => openDialog('bin', v)}
+                    />
+                  )}
                 </Reveal>
               ))}
             </div>
           )}
+          {show === 'bin' && (
+            <p className="pt-4 text-center text-[13px] text-text-muted">
+              Nothing in the Bin is deleted on its own.
+            </p>
+          )}
         </div>
       )}
+
+      {dialog?.kind === 'bin' && (
+        <MoveToBinDialog
+          vendor={dialog.vendor}
+          onClose={() => setDialog(null)}
+          onDone={(result) => {
+            setDialog(null)
+            setNotice(binDoneMessage(result))
+          }}
+        />
+      )}
+      {dialog?.kind === 'restore' && (
+        <RestoreDialog
+          vendor={dialog.vendor}
+          onClose={() => setDialog(null)}
+          onDone={() => {
+            setDialog(null)
+            setNotice(`${dialog.vendor.businessName} is back, as it was before the Bin.`)
+          }}
+        />
+      )}
+      {dialog?.kind === 'delete' && (
+        <DeleteForeverSheet
+          vendor={dialog.vendor}
+          onClose={() => setDialog(null)}
+          onDone={(result) => {
+            setDialog(null)
+            setNotice(deleteDoneMessage(result))
+          }}
+        />
+      )}
     </>
+  )
+}
+
+/**
+ * A garage in the Bin, as in the approved mockup: when it went there, who
+ * moved it and why, how many bookings would be deleted with it (in amber,
+ * from the same preview Delete forever shows), and its two ways out.
+ */
+function BinCard({
+  v,
+  onRestore,
+  onDelete,
+}: {
+  v: AdminVendor
+  onRestore: () => void
+  onDelete: () => void
+}) {
+  const preview = useAdminVendorDeletePreview(v.id)
+  const deleteLine = preview.data ? binDeleteLine(preview.data.bookings.deleted) : null
+  const meta = [{ text: v.city }, ...bookingParts(v)]
+  const rows: Array<[string, string]> = [
+    ['Binned', v.deletedAt ? formatWhen(v.deletedAt) : ''],
+    ...(v.deletedByName ? ([['By', v.deletedByName]] as Array<[string, string]>) : []),
+    ...(v.deletedReason ? ([['Reason', v.deletedReason]] as Array<[string, string]>) : []),
+  ]
+
+  return (
+    <ScCard
+      role="group"
+      aria-labelledby={`vendor-${v.id}-name`}
+      className="flex flex-col px-4 pb-0 pt-3.5"
+    >
+      <p
+        id={`vendor-${v.id}-name`}
+        className="truncate text-[15px] font-semibold tracking-[-0.01em] text-text-primary"
+      >
+        {v.businessName}
+      </p>
+      <p className="mt-0.5 truncate text-[12px] leading-[17px] text-text-secondary">
+        {meta.map((part, i) => (
+          <span key={i}>
+            {i > 0 && (
+              <span aria-hidden="true" className="mx-1.5 text-text-muted/60">
+                ·
+              </span>
+            )}
+            {part.text && <Figures text={part.text} />}
+            {part.text && part.quiet && ' '}
+            {part.quiet && <span className="text-text-muted">{part.quiet}</span>}
+          </span>
+        ))}
+      </p>
+
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-xl border border-border bg-brand-black px-3.5 py-3 text-[13px]">
+        {rows.map(([term, value]) => (
+          <div key={term} className="contents">
+            <dt className="text-text-muted">{term}</dt>
+            <dd className="min-w-0 break-words text-text-primary">
+              <Figures text={value} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {deleteLine && (
+        <p className="mt-3 flex items-center gap-2 text-[13px] text-warning">
+          <IconAlertTriangle size={16} stroke={1.7} aria-hidden="true" className="shrink-0" />
+          <Figures text={deleteLine} />
+        </p>
+      )}
+
+      <div className="-mx-4 mt-3 grid grid-cols-2 gap-2 border-t border-border px-4 py-3">
+        <ScButton
+          variant="secondary"
+          onClick={onRestore}
+          aria-label={`Restore ${v.businessName}`}
+          className="flex min-h-11 items-center justify-center gap-1.5 text-[13px]"
+        >
+          <IconRestore size={16} aria-hidden="true" /> Restore
+        </ScButton>
+        <ScButton
+          variant="secondary"
+          onClick={onDelete}
+          aria-label={`Delete ${v.businessName} forever`}
+          className="flex min-h-11 items-center justify-center gap-1.5 text-[13px]"
+        >
+          <IconTrash size={16} aria-hidden="true" /> Delete forever
+        </ScButton>
+      </div>
+    </ScCard>
   )
 }
 
@@ -319,7 +453,7 @@ function GarageCard({
   rowError,
   onVerify,
   onArchiveToggle,
-  onDelete,
+  onMoveToBin,
 }: {
   v: AdminVendor
   back: string
@@ -330,7 +464,7 @@ function GarageCard({
   rowError?: string
   onVerify: () => void
   onArchiveToggle: () => void
-  onDelete: () => void
+  onMoveToBin: () => void
 }) {
   const state = stateWord(v)
   const live = isLive(v)
@@ -440,51 +574,23 @@ function GarageCard({
         >
           <IconPencil size={14} aria-hidden="true" /> Edit
         </ScButtonLink>
-        <ScButton
-          fullWidth={false}
-          variant="secondary"
-          disabled={busy}
-          aria-label={
-            v.status === 'archived' ? `Restore ${v.businessName}` : `Archive ${v.businessName}`
-          }
-          onClick={onArchiveToggle}
-          className={ROW_ACTION}
-        >
-          {v.status === 'archived' ? (
-            <>
-              <IconArchiveOff size={14} aria-hidden="true" /> Restore
-            </>
-          ) : (
-            <>
-              <IconArchive size={14} aria-hidden="true" /> Archive
-            </>
-          )}
-        </ScButton>
-        {/* The count and the bin wrap as one, right-aligned, so the bin never
-            lands alone under Verify, away from the count that explains it. */}
+        {/* The count and the ⋯ wrap as one, right-aligned. A live garage
+            says its bookings by its name already; one customers can't find
+            has its state there, so it says them here. */}
         <div className="ml-auto flex items-center gap-2">
-          {/* Said before anyone presses delete: a garage that has been booked
-              cannot be deleted, so the count is the reason in advance. A live
-              garage says it by its name already; one customers can't find
-              has its state there, so it says it here. */}
           {!live && bookingCount > 0 && (
             <span id={bookingsId} className="text-[12px] text-text-muted">
               <Figures text={bookingsLine(bookingCount)} />
             </span>
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onDelete}
-            title="Delete permanently"
-            aria-label={`Delete ${v.businessName}`}
-            aria-describedby={bookingCount > 0 ? bookingsId : undefined}
-            // Grey until hovered, then amber: destructive, but not the thing
-            // to press — it asks first, and red is Add garage's.
-            className="inline-flex size-11 items-center justify-center rounded-[10px] text-text-muted transition-colors hover:bg-error-muted hover:text-error disabled:opacity-50"
-          >
-            <IconTrash size={16} aria-hidden="true" />
-          </button>
+          <CardMenu
+            name={v.businessName}
+            menuId={`vendor-${v.id}-menu`}
+            busy={busy}
+            archived={v.status === 'archived'}
+            onArchiveToggle={onArchiveToggle}
+            onMoveToBin={onMoveToBin}
+          />
         </div>
       </div>
 
@@ -495,6 +601,105 @@ function GarageCard({
         </p>
       )}
     </ScCard>
+  )
+}
+
+/**
+ * The card's ⋯: Archive (or take it out of the archive) and Move to bin.
+ * A disclosure, not an ARIA menu: two plain buttons that open under it,
+ * closed by Escape, by a tap outside or by choosing one. Move to bin asks
+ * first, in its own sheet; nothing here deletes.
+ */
+function CardMenu({
+  name,
+  menuId,
+  busy,
+  archived,
+  onArchiveToggle,
+  onMoveToBin,
+}: {
+  name: string
+  menuId: string
+  busy: boolean
+  archived: boolean
+  onArchiveToggle: () => void
+  onMoveToBin: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      buttonRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const choose = (action: () => void) => {
+    setOpen(false)
+    action()
+  }
+  const item =
+    'flex min-h-11 w-full items-center gap-2.5 px-3.5 text-left text-[14px] text-text-primary transition-colors hover:bg-surface disabled:opacity-50'
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={`More for ${name}`}
+        onClick={() => setOpen((value) => !value)}
+        className="flex size-11 items-center justify-center rounded-[10px] text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+      >
+        <IconDots size={19} stroke={1.5} aria-hidden="true" />
+      </button>
+      {/* Opens upward: each card animates in on its own layer (Reveal), so
+          a panel hanging below would sit under the next card. */}
+      {open && (
+        <div
+          id={menuId}
+          className="absolute bottom-full right-0 z-20 mb-1 w-48 overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 shadow-lg"
+        >
+          <button
+            type="button"
+            disabled={busy}
+            aria-label={archived ? `Restore ${name} from the archive` : `Archive ${name}`}
+            onClick={() => choose(onArchiveToggle)}
+            className={item}
+          >
+            {archived ? (
+              <IconArchiveOff size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+            ) : (
+              <IconArchive size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+            )}
+            {archived ? 'Unarchive' : 'Archive'}
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${name} to the Bin`}
+            onClick={() => choose(onMoveToBin)}
+            className={cn(item, 'border-t border-border')}
+          >
+            <IconTrash size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+            Move to Bin
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

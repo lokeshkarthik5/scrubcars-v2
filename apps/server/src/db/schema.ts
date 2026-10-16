@@ -471,6 +471,20 @@ export const vendors = pgTable(
     // Null is "taking bookings". See 0027.
     bookingsPausedAt: timestamp('bookings_paused_at', { withTimezone: true }),
     bookingsPausedReason: varchar('bookings_paused_reason', { length: 200 }),
+    // The Bin (0034). Set when admin moved the garage there: off the app for
+    // customers and for its own team, everything else about it untouched, so
+    // Restore brings back exactly what was there. "In the Bin" is
+    // `deletedAt IS NOT NULL`, read through vendors.predicates.ts. Distinct
+    // from status 'archived', which only hides it from customers.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    // The name typed by whoever moved it (the shared admin login cannot say),
+    // and why, if they said. The full record is in admin_audit_log.
+    deletedByName: varchar('deleted_by_name', { length: 100 }),
+    deletedReason: varchar('deleted_reason', { length: 200 }),
+    // Set when it was deleted forever but kept as a tombstone, because real
+    // money on it is kept: only its name and address remain, for receipts.
+    // A garage with nothing kept is deleted outright instead.
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -478,6 +492,14 @@ export const vendors = pgTable(
   (table) => [
     index('vendors_owner_id_idx').on(table.ownerId),
     index('vendors_status_idx').on(table.status),
+    index('vendors_deleted_at_idx')
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} is not null`),
+    // Only a garage in the Bin can be deleted forever.
+    check(
+      'vendors_purged_in_bin_check',
+      sql`${table.purgedAt} is null or ${table.deletedAt} is not null`
+    ),
     // The GiST indexes on `geo` live in drizzle/0019_add_geo.sql alongside the
     // column itself; see the note at the top of this file.
   ]

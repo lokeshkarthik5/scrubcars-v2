@@ -2,35 +2,68 @@ import { describe, expect, test } from 'bun:test'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import {
   LISTED_TO_CUSTOMERS,
+  NOT_IN_BIN,
+  isInBin,
   isListedToCustomers,
+  vendorPageOpen,
   type ListedRow,
 } from './vendors.predicates.js'
 
 const STATUSES = ['pending', 'active', 'suspended', 'archived'] as const
 
-/** Every garage the three facts can describe. */
+const BINNED_AT = new Date('2026-10-14T12:42:00Z')
+
+/** Every garage the four facts can describe. */
 const everyRow = (): ListedRow[] =>
   STATUSES.flatMap((status) =>
     [true, false].flatMap((isVerified) =>
-      [null, new Date('2026-10-01T04:30:00Z')].map((bookingsPausedAt) => ({
-        status,
-        isVerified,
-        bookingsPausedAt,
-      }))
+      [null, new Date('2026-10-01T04:30:00Z')].flatMap((bookingsPausedAt) =>
+        [null, BINNED_AT].map((deletedAt) => ({
+          status,
+          isVerified,
+          bookingsPausedAt,
+          deletedAt,
+        }))
+      )
     )
   )
 
 describe('isListedToCustomers', () => {
-  test('only an Active, verified garage that is not paused is listed', () => {
+  test('only an Active, verified garage that is not paused and not in the Bin is listed', () => {
     const listed = everyRow().filter(isListedToCustomers)
-    expect(listed).toEqual([{ status: 'active', isVerified: true, bookingsPausedAt: null }])
+    expect(listed).toEqual([
+      { status: 'active', isVerified: true, bookingsPausedAt: null, deletedAt: null },
+    ])
   })
 
-  test('Active is not enough: unverified or paused garages are not listed', () => {
-    expect(isListedToCustomers({ status: 'active', isVerified: false, bookingsPausedAt: null })).toBe(false)
-    expect(
-      isListedToCustomers({ status: 'active', isVerified: true, bookingsPausedAt: '2026-10-01T04:30:00Z' })
-    ).toBe(false)
+  test('Active is not enough: unverified, paused or binned garages are not listed', () => {
+    const live = { status: 'active', isVerified: true, bookingsPausedAt: null, deletedAt: null }
+    expect(isListedToCustomers({ ...live, isVerified: false })).toBe(false)
+    expect(isListedToCustomers({ ...live, bookingsPausedAt: '2026-10-01T04:30:00Z' })).toBe(false)
+    // The Bin wins over everything else being right, as it arrives from the
+    // API (a string) or from the database (a Date).
+    expect(isListedToCustomers({ ...live, deletedAt: BINNED_AT })).toBe(false)
+    expect(isListedToCustomers({ ...live, deletedAt: BINNED_AT.toISOString() })).toBe(false)
+  })
+})
+
+describe('the Bin', () => {
+  test('in the Bin is deleted_at set, whatever the stage', () => {
+    for (const row of everyRow()) {
+      expect(isInBin(row)).toBe(row.deletedAt !== null)
+    }
+  })
+
+  test('the raw SQL and the Drizzle condition say the same thing', () => {
+    const dialect = new PgDialect()
+    expect(dialect.sqlToQuery(NOT_IN_BIN).sql).toBe('v.deleted_at IS NULL')
+    // The garage page's lookup: the page rule, so pause is not in it, and
+    // the Bin is.
+    const page = dialect.sqlToQuery(vendorPageOpen('e2e00000-0000-4000-8000-000000000301'))
+    expect(page.sql).toBe(
+      '("vendors"."id" = $1 and "vendors"."status" = $2 and "vendors"."is_verified" = $3 and "vendors"."deleted_at" is null)'
+    )
+    expect(page.params).toEqual(['e2e00000-0000-4000-8000-000000000301', 'active', true])
   })
 })
 
@@ -39,15 +72,15 @@ describe('the SQL the customer lists run', () => {
 
   // The twin above is what the tests can run; the SQL is what the lists run.
   // Pinned word for word, so neither can gain or lose a condition alone.
-  test('is the same three conditions as the twin', () => {
+  test('is the same four conditions as the twin', () => {
     expect(sql).toBe(
-      "(v.status = 'active' AND v.is_verified = true AND v.bookings_paused_at IS NULL)"
+      "(v.status = 'active' AND v.is_verified = true AND v.bookings_paused_at IS NULL AND v.deleted_at IS NULL)"
     )
     expect(params).toEqual([])
   })
 
   test('evaluated as the twin reads it, it agrees on every garage', () => {
-    // A tiny reading of exactly the three clauses above, so a row the SQL
+    // A tiny reading of exactly the four clauses above, so a row the SQL
     // would list is a row the twin calls listed, and no other.
     const clauses = sql.slice(1, -1).split(' AND ')
     const sqlListed = (row: ListedRow) =>
@@ -55,6 +88,7 @@ describe('the SQL the customer lists run', () => {
         if (clause === "v.status = 'active'") return row.status === 'active'
         if (clause === 'v.is_verified = true') return row.isVerified === true
         if (clause === 'v.bookings_paused_at IS NULL') return row.bookingsPausedAt === null
+        if (clause === 'v.deleted_at IS NULL') return row.deletedAt === null
         throw new Error(`a condition the twin does not know: ${clause}`)
       })
     for (const row of everyRow()) {
