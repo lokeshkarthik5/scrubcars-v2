@@ -22,7 +22,6 @@ import { Reveal } from '@repo/ui/sc/reveal'
 import { SectionHeader } from '@repo/ui/sc/section-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Meta } from '@/components/meta'
-import { PilotNumbersCard } from '@/components/pilot-numbers-card'
 import { type AdminVendor } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import {
@@ -122,12 +121,6 @@ export default function AdminVendorsPage() {
           </ScButtonLink>
         }
       />
-
-      {/* The panel's landing page, so the pilot's numbers sit near the top of
-          what ops sees after signing in — below the page's own title and its
-          Add vendor button, so the heading order and the main action stay
-          first, and above the list. */}
-      <PilotNumbersCard />
 
       <SectionHeader title="Garages" />
 

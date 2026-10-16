@@ -259,6 +259,12 @@ export const CUSTOMERS = {
    */
   dataResetUi: { id: id(151), phone: '9000000051', name: 'Reset Usha', vehicleId: id(761) },
   /**
+   * Owns every booking at VENDORS.stats (see STATS), so the Statistics spec
+   * can assert exact figures for that garage. Signed in fresh by that spec
+   * to be refused the admin-only figures.
+   */
+  stats: { id: id(152), phone: '9000000052', name: 'Stats Sathya', vehicleId: id(762) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -373,6 +379,11 @@ export const VENDORS = {
    * list; every booking on it belongs to the reset specs, which delete them.
    */
   reset: { id: id(313), name: 'Reset Test Garage' },
+  /**
+   * The Statistics garage. Not verified, so it is in no customer list; every
+   * booking on it is a STATS fixture, so its figures are exact.
+   */
+  stats: { id: id(314), name: 'Stats Test Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -427,6 +438,10 @@ export const SERVICES = {
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
   /** On RESET: every reset-spec booking is one ₹499 wash. */
   resetWash: { id: id(419), name: 'Reset Wash', price: '499.00', durationMins: 30 },
+  /** On STATS: a car wash (8%), a detailing job (5%) and an inspection (5%). */
+  statsWash: { id: id(420), name: 'Stats Wash', price: '500.00', durationMins: 30 },
+  statsDetail: { id: id(421), name: 'Stats Detail', price: '2000.00', durationMins: 90 },
+  statsInspect: { id: id(422), name: 'Stats Scratch Check', price: '300.00', durationMins: 60 },
 } as const
 
 export const DISCOUNTS = {
@@ -748,3 +763,60 @@ export const ORIGIN = { lat: 13.0827, lng: 80.2707 } as const
  * character for character.
  */
 export const DOORSTEP_JOB_PIN = { lat: 13.09375, lng: 80.28125 } as const
+
+/**
+ * The Statistics fixtures (specs/admin/statistics-api.spec.ts), all
+ * CUSTOMERS.stats's at VENDORS.stats, made at 11:00 IST on the days named.
+ *
+ * Before the spec's range (it runs from a day before `received(23)` to today):
+ *
+ * - received(1–20): one a day, 61 to 42 days ago, ₹500 washes, completed —
+ *   except 3 and 7 (declined by the garage, refunded) and 12 (cancelled by
+ *   the customer, refunded), which still use up a free place.
+ * - received(21), received(22): completed washes 20 and 18 days ago, in the
+ *   period the range is compared with: 2 bookings, ₹1,000.
+ * - testOld: a completed wash marked Test, 50 days ago: no place in the queue.
+ * - unpaidOld: an old pay-later booking cancelled before it was paid, 45 days
+ *   ago: the garage never received it.
+ *
+ * In the range, one a day from 12 days ago, each slot the next day at 10:00:
+ *
+ * - received(23–25): completed washes, the last of the free 25.
+ * - received(26): a completed wash: ₹40 (8% of ₹500).
+ * - received(27): completed detailing with STATSPROMO, ₹200 off paid by
+ *   Detlio: ₹100 (5% of the full ₹2,000); ₹1,800 collected.
+ * - received(28): completed detailing with STATSGARAGE, ₹400 off paid by the
+ *   garage: ₹80 (5% of ₹1,600).
+ * - received(29): a completed scratch check (₹300) with a ₹1,200 final bill
+ *   paid: ₹75 (5% of ₹1,500). Also a stray ₹1,300 paid on the bill it
+ *   replaced, refunded: in no figure, its refund included.
+ * - received(30): a customer no-show on a wash: ₹40, and its ₹500 kept.
+ * - received(31): declined by the garage and refunded: no commission, ₹0.
+ * - received(32) → movedTo: a wash moved by the customer to a slot after
+ *   the range (two days on, so never today in India): one booking, not
+ *   done yet, ₹500 collected.
+ * - testInRange: a completed wash marked Test: in no figure.
+ * - unpaidInRange: a pay-later booking cancelled unpaid: a checkout started.
+ * - abandonedCheckout, failedCheckout (paid, no booking, refunded): two more.
+ *
+ * So, over the range: 10 bookings, ₹7,900 collected, ₹335 commission, 13
+ * checkouts started, 1 cancellation, 7 completed, 1 no-show, 1 not done yet;
+ * 7 slots at 10:00 in the busy hours; rated 4.5 over 2 reviews.
+ */
+export const STATS = {
+  /** The garage's n-th received booking, 1-based, in the order made. */
+  received: (n: number): string => id(1400 + n),
+  testOld: id(1450),
+  unpaidOld: id(1451),
+  testInRange: id(1452),
+  unpaidInRange: id(1453),
+  movedTo: id(1454),
+  abandonedCheckout: id(1460),
+  failedCheckout: id(1461),
+  reviews: [id(1470), id(1471)],
+  bill: id(1480),
+  strayBill: id(1481),
+  /** Ended codes at VENDORS.stats, so nobody can use them at checkout. */
+  promo: { id: id(511), code: 'STATSPROMO' },
+  garageDiscount: { id: id(512), code: 'STATSGARAGE' },
+} as const

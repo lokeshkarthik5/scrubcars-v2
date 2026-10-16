@@ -12,11 +12,12 @@ const NAV: PanelNavItem[] = [
   { href: '/refunds', label: 'Refunds' },
   { href: '/discounts', label: 'Discounts' },
   { href: '/coverage', label: 'Coverage' },
+  { href: '/statistics', label: 'Statistics' },
 ]
 
 // Only while the API has it switched on (ADMIN_DATA_RESET); otherwise the
 // API answers 404 and the item is not there. On a phone the bottom bar has
-// no room for a sixth tab, so the Bookings page links to it instead.
+// no room for a seventh tab, so the Bookings page links to it instead.
 const RESET_NAV: PanelNavItem = { href: '/data-reset', label: 'Start pilot clean' }
 
 export function AdminScope({ children }: { children: React.ReactNode }) {

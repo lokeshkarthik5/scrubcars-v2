@@ -81,10 +81,14 @@ function Body({ stats }: { stats: PilotStats }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {/* Not "Revenue": every rupee is owed to a garage. And named apart
+            from the Overview's "Collected after refunds" just above, which
+            takes off only refunds already recorded; this takes off those
+            still owed too, so the two differ. */}
         <Figure
-          label="Revenue"
+          label="Collected, less refunds owed"
           value={rupees(stats.revenue)}
-          hint="After refunds owed, with final bills paid in the app"
+          hint="Final bills included; takes off refunds owed too, unlike Collected after refunds"
         />
         {/* Counts every one in the window, refunded or not, so it says
             nothing about what is left to do: that is "Refunds owed" below,
@@ -170,7 +174,8 @@ function Body({ stats }: { stats: PilotStats }) {
  * How the pilot is going, over the last 7 or 30 days: the checkout funnel,
  * how bookings ended, the money, and the busiest garages. Counts are worked
  * out on the server (GET /admin/stats/pilot); the definitions are in
- * apps/server/src/lib/pilot-stats.ts.
+ * apps/server/src/lib/pilot-stats.ts. Shown under the Statistics page's
+ * Overview, with its own windows; it used to head the Vendors page.
  */
 export function PilotNumbersCard() {
   const [days, setDays] = useState<'7' | '30'>('7')
@@ -179,7 +184,15 @@ export function PilotNumbersCard() {
   return (
     <ScCard className="flex flex-col gap-4 px-4 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold text-text-primary">Pilot numbers</h2>
+        {/* It sits under the Statistics filters but follows none of them:
+            said here, so its figures are not read as the filtered ones. */}
+        <div>
+          <h2 className="text-[15px] font-semibold text-text-primary">Pilot numbers</h2>
+          <p className="mt-0.5 text-[12px] text-text-secondary">
+            All garages · the last {days} days to now, not the filters above · counted
+            as before, so its figures can differ from the tiles
+          </p>
+        </div>
         {/* Full size, not `sm`: it is the card's only control and is used on
             a phone, so each option gets a 44px touch target. */}
         <ScSegmented

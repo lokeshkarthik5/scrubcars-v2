@@ -18,6 +18,31 @@ reconstructing every change in them.
 
 ### Added
 
+- **Statistics and Detlio commission** (no migration). Super-admin only:
+  `GET /admin/stats/overview?from&to&vendorId&compare=1` (bookings, collected
+  after refunds, commission, average booking, checkout → paid, cancellations,
+  bookings per day and collected per week, with the period before),
+  `GET /admin/stats/breakdown` (funnel from checkout to completed, garages
+  with ratings, service types, busy hours by slot) and
+  `GET /admin/stats/commission` (the rule, the period's commission, garages
+  paying it and those in their free 25). IST dates, both included, at most
+  366 days (400 otherwise); each read in a read-only transaction with a 10 s
+  statement timeout (503 `STATS_TIMEOUT`). Definitions in `lib/stats.ts`: a
+  reschedule chain counts once, dated by its first booking; collected after
+  refunds is payments and paid final bills less `refund_records` on them
+  (a stray payment on a replaced bill, and its refund, count for nothing);
+  bookings marked Test and their checkouts are left out everywhere.
+  - Commission is reporting only (`lib/commission.ts`; payouts, earnings and
+    receipts are unchanged): 8% on car wash, packages and others, 5% on
+    detailing, coating and scratch removal, per booking item on the full
+    price (before a Detlio-funded promo, after a garage-funded discount),
+    plus a paid final bill at the main service's rate, on bookings that earn
+    the garage a payout from its 26th received booking on. The first 25
+    count every booking the garage received, cancelled ones included.
+  - E2E fixtures: `VENDORS.stats` and `CUSTOMERS.stats` with 37 booking rows,
+    two checkouts, two reviews and two final bills, one of them a refunded
+    stray payment (`STATS` in `e2e-ids.ts`).
+
 - **Start pilot clean: deleting test data** (migration `0032_test_data_reset`,
   purely additive; apply it before deploying). Behind `ADMIN_DATA_RESET=on`,
   off by default: every `/admin/data-reset` route is then a 404. Runbook in

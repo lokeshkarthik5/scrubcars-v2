@@ -19,6 +19,28 @@ reconstructing every change in them.
 
 ### Added
 
+- **Admin: Statistics** (`/statistics`, a sixth tab in the menu and the phone's
+  bottom bar). Filters in one row: Last 7 / 30 / 90 days, This month, Last
+  month (Last 30 days by default), every garage or one, and on Overview
+  "Compare with previous 30 days" (on by default). Overview: six tiles with
+  how each moved (Bookings, Collected after refunds, Detlio commission,
+  Average booking, Checkout → paid, Cancellations; amber when it moved the
+  wrong way, grey for commission and cancellations while the period runs to
+  today, as its latest jobs have not played out), "Bookings per day" against
+  the period before and "Collected per week" (part weeks dimmer; past seven
+  bars only the first, last and highest carry an amount), then the Pilot
+  numbers card, moved here from Vendors, with its "Revenue" now "Collected,
+  less refunds owed" and a line saying it covers every garage over its own 7
+  or 30 days, not the filters. Breakdown: the funnel with where people
+  dropped off (paid bookings not yet marked done are "not marked done yet",
+  not "upcoming"), garages by money collected (top 5, "Show all"), service
+  types, busiest hours by slot, and "Download CSV". Commission: the rule in
+  plain words (reporting only: payouts are unchanged), the month's
+  commission, and garages "Commission active" or in their free period ("18
+  of 25 free bookings used"). A "too long" timeout is shown at once, never
+  retried. Each tab ends with "How we count". Charts are recharts 3.10.1
+  (admin only, loaded with the first chart), each with a text summary for
+  screen readers.
 - **Admin: Start pilot clean** (`/data-reset`), shown in the menu (and linked
   from Bookings on a phone) only while the API has `ADMIN_DATA_RESET` on.
   Three steps: Scope (everything before a cutoff in India time, or only
