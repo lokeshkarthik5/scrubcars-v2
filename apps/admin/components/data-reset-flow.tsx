@@ -303,8 +303,14 @@ export function ConfirmDelete({
 }) {
   const execute = useExecuteDataReset()
   const pending = execute.isPending
+  // The end is told from the cleanup, so the caller hears it even when this
+  // form is gone by then: the delete's answer (onDone) lands before the
+  // mutation's own state, and the caller swaps this form for the result in
+  // that same render, so it never renders again with `pending` false.
   useEffect(() => {
-    onPendingChange?.(pending)
+    if (!pending) return
+    onPendingChange?.(true)
+    return () => onPendingChange?.(false)
   }, [pending, onPendingChange])
   const [name, setName] = useState('')
   const [backup, setBackup] = useState(false)
