@@ -218,18 +218,26 @@ export const env = {
 
   // ─── AI (OpenAI) ───────────────────────────────────────────────────────────
   // Every AI feature in Detlio goes through OpenAI with this one key: service
-  // descriptions in the admin editor now, pictures later. Unset — as in
-  // development, E2E and previews — and the features are off: the admin
-  // panel hides their buttons (GET /admin/ai/config). The key lives in the
-  // Vercel environment only, never in code or git.
+  // descriptions in the admin editor, and reading a garage's poster, photo or
+  // PDF on Add garage. Unset — as in development, E2E and previews — and the
+  // features are off: the admin panel hides their buttons (GET
+  // /admin/ai/config); the Tally CSV import needs no AI and stays on. The key
+  // lives in the Vercel environment only, never in code or git.
   openaiApiKey: process.env.OPENAI_API_KEY || undefined,
   // Which model writes the text. An env value so it can be changed without a
   // release.
   aiTextModel: process.env.AI_TEXT_MODEL?.trim() || 'gpt-5.5',
+  // Which model reads photos and PDFs for the garage import. Must take image
+  // and PDF input and structured output. Same reason for an env value.
+  aiVisionModel: process.env.AI_VISION_MODEL?.trim() || 'gpt-5.5',
   aiFake: readFakeAiFlag(),
   // "Write with AI" calls per admin per hour. Each one is a paid request, and
   // the editor's "Fill all empty descriptions" makes one per service.
   aiDescribeRateLimit: Number(process.env.AI_DESCRIBE_RATE_LIMIT ?? '60'),
+  // Garage imports per admin per hour (photos, PDFs and Tally files alike).
+  // A photo read is the dearest AI request Detlio makes; onboarding a
+  // handful of garages an hour is far below this.
+  aiImportRateLimit: Number(process.env.AI_IMPORT_RATE_LIMIT ?? '30'),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;

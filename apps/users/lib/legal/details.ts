@@ -29,7 +29,7 @@ export const LEGAL_DRAFT = true
 export const SITE_ORIGIN = 'https://detlio.com'
 
 /** The date the current text was last changed. */
-export const LAST_UPDATED = '12 October 2026'
+export const LAST_UPDATED = '16 October 2026'
 
 /** The date the current text takes effect. Null until it is published. */
 export const EFFECTIVE_DATE: string | null = null

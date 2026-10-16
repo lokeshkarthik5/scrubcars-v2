@@ -69,7 +69,9 @@ const refineServicePricing = (data: ServiceBase, ctx: z.RefinementCtx) => {
   }
 }
 
-const serviceInputSchema = serviceBaseSchema.superRefine(refineServicePricing)
+// Exported for the garage import, which checks each service it read against
+// exactly what Create will accept (modules/vendor-imports).
+export const serviceInputSchema = serviceBaseSchema.superRefine(refineServicePricing)
 
 // Update variant: an optional `id` marks an existing row to edit in place;
 // rows without an `id` are inserted. Existing services omitted from the array
