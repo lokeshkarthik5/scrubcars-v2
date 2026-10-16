@@ -423,7 +423,10 @@ export const adminService = {
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
-    return vendor
+    // So the editor's "How customers book" can say a drawn area, not the
+    // radius, is what covers doorstep customers.
+    const hasDoorstepArea = await adminRepository.hasDoorstepArea(id)
+    return { ...vendor, hasDoorstepArea }
   },
 
   async updateVendor(id: string, input: UpdateVendorInput) {

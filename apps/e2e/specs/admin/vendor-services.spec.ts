@@ -51,17 +51,27 @@ test.describe('admin garage services', () => {
     const suv = page.getByLabel(/SUV price in rupees/)
     await expect(suv).toHaveAttribute('aria-invalid', 'true')
 
+    // Nothing changed yet, so there is no save bar; the row itself says
+    // what it needs.
     const save = page.getByRole('button', { name: 'Save changes' })
-    await expect(save).toBeDisabled()
-    await expect(page.getByText('1 service needs a price — see the Services tab.')).toBeVisible()
+    await expect(save).toHaveCount(0)
 
     // Switching Flat to Per vehicle fills each size with the flat price, and
-    // back again takes the cheapest — nothing to retype either way. Services
-    // load sorted by name, so the foam wash is the first row.
+    // back again takes the cheapest — nothing to retype either way. The foam
+    // wash is the first row (Wash and standard comes before Detailing), and
+    // its pricing is behind its ⋯.
+    await page.getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` }).click()
     await page.getByLabel('Service 1 pricing').selectOption('per_vehicle')
     await expect(page.getByLabel('Service 1 hatchback price in rupees')).toHaveValue('450')
     await expect(page.getByLabel('Service 1 sedan price in rupees')).toHaveValue('450')
     await expect(page.getByLabel('Service 1 SUV price in rupees')).toHaveValue('450')
+
+    // A change to save, and a row that holds it: the bar says why.
+    await expect(save).toBeDisabled()
+    await expect(page.getByRole('status').filter({ hasText: 'needs a price' })).toHaveText(
+      '1 service needs a price (Services)'
+    )
+
     await page.getByLabel('Service 1 sedan price in rupees').fill('400')
     await page.getByLabel('Service 1 pricing').selectOption('flat')
     await expect(page.getByLabel('Service 1 price in rupees')).toHaveValue('400')
@@ -72,10 +82,12 @@ test.describe('admin garage services', () => {
     await expect(save).toBeEnabled()
     await save.click()
 
-    // Saved, and still on sale.
+    // Saved, still on sale, and still on this page.
     await expect
       .poll(() => service(SERVICES.adminTiered.id))
       .toEqual({ is_active: true, price_suv: '900.00' })
+    await expect(save).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Services' })).toHaveAttribute('aria-selected', 'true')
     expect((await service(SERVICES.adminFlat.id)).is_active).toBe(true)
 
     await resetServices()
@@ -144,8 +156,8 @@ test.describe('admin garage services', () => {
     // Back in the editor too, so the next save keeps it on sale.
     const hideRestored = page.getByRole('button', { name: `Hide ${SERVICES.adminHidden.name}` })
     await expect(hideRestored).toBeVisible()
-    // Focus follows it to its new row (it is priced for every size, so onto
-    // its Hide button), and the change is said, not only seen.
+    // Focus follows it to its new row, opened (it is priced for every size,
+    // so onto its Hide button), and the change is said, not only seen.
     await expect(hideRestored).toBeFocused()
     await expect(page.getByRole('status').filter({ hasText: 'is back on the garage page' }))
       .toHaveText(`“${SERVICES.adminHidden.name}” is back on the garage page.`)
@@ -153,6 +165,8 @@ test.describe('admin garage services', () => {
 
     // Inside a package: refused, and said on that row. Scoped to the row's
     // group: page-wide, getByRole('alert') also finds Next's route announcer.
+    // Hide is behind the row's ⋯.
+    await page.getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` }).click()
     page.once('dialog', (dialog) => dialog.accept())
     await page.getByRole('button', { name: `Hide ${SERVICES.adminFlat.name}` }).click()
     const flatRow = page.getByRole('group', { name: SERVICES.adminFlat.name, exact: true })

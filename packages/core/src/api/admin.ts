@@ -56,6 +56,11 @@ export interface AdminVendorDetail {
   pickup: 'yes' | 'nearby' | 'no' | null
   pickupRadiusKm: number | null
   doorstepRadiusKm: number | null
+  /**
+   * The garage drew its own doorstep area in the garage app. Where it did,
+   * the area decides who is covered and `doorstepRadiusKm` is not read.
+   */
+  hasDoorstepArea: boolean
   /** Null until someone pins the garage. A vendor cannot be verified without it. */
   lat: number | null
   lng: number | null
@@ -588,6 +593,42 @@ export async function setAdminServiceActive(
     `/admin/vendors/${vendorId}/services/${serviceId}/active`,
     { method: 'PATCH', body: JSON.stringify({ isActive }) }
   )
+}
+
+// ─── AI helpers ──────────────────────────────────────────────────────────────
+
+/** Which AI helpers the API has switched on. All off without an OpenAI key. */
+export interface AdminAiConfig {
+  describe: boolean
+}
+
+/** GET /admin/ai/config */
+export async function getAdminAiConfig() {
+  return apiClient<AdminAiConfig>('/admin/ai/config')
+}
+
+/**
+ * What "Write with AI" is told about a service: the facts the garage page
+ * shows and the garage's business name, never anything about a person.
+ */
+export interface DescribeServiceInput {
+  name: string
+  category: Exclude<ServiceCategory, 'package'>
+  pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
+  durationMins?: number
+  garageName?: string
+}
+
+/**
+ * POST /admin/services/describe — a draft description for the form field.
+ * Nothing is saved. 503 AI_UNAVAILABLE when OpenAI can't be reached (or no
+ * key is set), 422 AI_NO_DESCRIPTION when no answer passed the copy rules.
+ */
+export async function describeAdminService(input: DescribeServiceInput) {
+  return apiClient<{ description: string }>('/admin/services/describe', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────

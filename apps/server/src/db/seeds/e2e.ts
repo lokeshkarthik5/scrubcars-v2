@@ -1227,10 +1227,10 @@ async function seedHomeHubRows() {
 // ─── admin fixtures ─────────────────────────────────────────────────────────
 
 /**
- * Two garages no customer can find (pending, unverified, unpinned): one owned
- * by a customer account, which DELETE /users/me must refuse to cascade into,
- * and the admin services editor's, with the rows its spec needs (see
- * VENDORS.adminServices).
+ * Three garages no customer can find (pending, unverified, unpinned): one
+ * owned by a customer account, which DELETE /users/me must refuse to cascade
+ * into, and the admin editor's two, with the rows their specs need (see
+ * VENDORS.adminServices and VENDORS.adminEditor).
  */
 async function seedAdminFixtureRows() {
   await db.insert(vendors).values([
@@ -1249,6 +1249,14 @@ async function seedAdminFixtureRows() {
       vehicleTypes: ['hatchback', 'sedan', 'suv'],
       isVerified: false, doorstepEnabled: false, dropinEnabled: true,
       slotIntervalMins: 30, status: 'pending',
+    },
+    {
+      id: VENDORS.adminEditor.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.adminEditor.name, phone: '9000003600',
+      address: '2, Editor Street, Nungambakkam', city: 'Chennai', pincode: '600034',
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+      doorstepRadiusKm: null, slotIntervalMins: 30, status: 'pending',
     },
   ])
 
@@ -1279,6 +1287,19 @@ async function seedAdminFixtureRows() {
   await db.insert(servicePackageItems).values({
     packageId: SERVICES.adminPackage.id, serviceId: SERVICES.adminFlat.id, sortOrder: 0,
   })
+
+  await db.insert(services).values([
+    { id: SERVICES.editorFoam.id, vendorId: VENDORS.adminEditor.id, name: SERVICES.editorFoam.name,
+      category: 'car_wash', pricingType: 'per_vehicle',
+      price: SERVICES.editorFoam.priceHatchback,
+      priceHatchback: SERVICES.editorFoam.priceHatchback,
+      priceSedan: SERVICES.editorFoam.priceSedan,
+      priceSuv: SERVICES.editorFoam.priceSuv,
+      durationMins: SERVICES.editorFoam.durationMins, isActive: true },
+    { id: SERVICES.editorPolish.id, vendorId: VENDORS.adminEditor.id, name: SERVICES.editorPolish.name,
+      category: 'detailing', pricingType: 'flat', price: SERVICES.editorPolish.price,
+      durationMins: SERVICES.editorPolish.durationMins, isActive: true },
+  ])
 }
 
 async function main() {

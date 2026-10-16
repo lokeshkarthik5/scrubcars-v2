@@ -7,6 +7,7 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
+import { adminAiRoutes } from '../ai/ai.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
 import { adminRefundRoutes } from '../refunds/refunds.routes.js'
@@ -350,6 +351,11 @@ adminRoutes.route('/refunds', adminRefundRoutes)
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.
 adminRoutes.route('/notices', adminNoticeRoutes)
+
+// AI helpers: GET /ai/config and POST /services/describe. Mounted at the root
+// rather than under a prefix because the describe route sits with the other
+// /services ones; it has no :serviceId, so it never meets the image routes.
+adminRoutes.route('/', adminAiRoutes)
 
 adminRoutes.get(
   '/bookings',
