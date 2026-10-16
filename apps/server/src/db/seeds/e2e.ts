@@ -464,7 +464,6 @@ async function seedMembership() {
     { vendorId: VENDORS.opsEdit.id, userId: STAFF.narrowOwner.id, role: 'vendor_admin', status: 'active' },
     { vendorId: VENDORS.inspect.id, userId: STAFF.inspectOwner.id, role: 'vendor_admin', status: 'active' },
     { vendorId: VENDORS.refunds.id, userId: STAFF.refundsOwner.id, role: 'vendor_admin', status: 'active' },
-    { vendorId: VENDORS.media.id, userId: STAFF.mediaOwner.id, role: 'vendor_admin', status: 'active' },
     // Platform scope: the CHECK constraint requires vendorId to be null here.
     { vendorId: null, userId: STAFF.superAdmin.id, role: 'super_admin', status: 'active' },
   ])
@@ -1501,6 +1500,11 @@ async function seedServiceMediaRows() {
     vehicleTypes: ['hatchback', 'sedan', 'suv'],
     isVerified: true, doorstepEnabled: false, dropinEnabled: true,
     slotIntervalMins: 30, status: 'active',
+  })
+  // The owner's seat is written here, after the garage row it points at:
+  // seedMembership runs long before this garage exists.
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.mediaOwner.id, role: 'vendor_admin', status: 'active',
   })
   await db.insert(vendorWorkingHours).values(hoursFor(garage, '09:00:00', '18:00:00'))
   await db.insert(services).values(
