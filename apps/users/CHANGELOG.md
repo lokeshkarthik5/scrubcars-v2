@@ -19,6 +19,26 @@ reconstructing every change in them.
 
 ### Added
 
+- **Garages outside Chennai say so** (owner decision, 2026-10-16), from the
+  API's new `outsideServiceCity` (set past 50 km from the Chennai centre).
+  Calm, not alarming: a graphite chip with an amber map pin, never red, and
+  plain words from `@repo/core/service-city` (unit-tested), drawn by
+  `@repo/ui/features/outside-city`. The garage card on the list, Home's list,
+  search and the homepage's garage strip: "Outside Chennai · Sivakasi" (just
+  "Outside Chennai" when the garage's city field says Chennai). The map's card
+  strip: the same chip in place of the town (city mode already leaves such
+  garages off; the map now reads its centre and reach from the shared
+  `SERVICE_CITY`, and `DEFAULT_CENTER` is that centre). The garage page, under
+  the town: "This garage is in Sivakasi, about 485 km from Chennai." ("This
+  garage is in Sivakasi." for an unpinned garage, which has no distance; "This
+  garage is outside Chennai." when its city field says Chennai, so the page
+  never sets a figure against its own "Chennai" label). Checkout, right above
+  Pay: "This garage is in Sivakasi, not Chennai.", and Pay's accessible
+  description starts with it, so a screen reader that jumps to the button
+  hears it too. It never blocks: Pay and every step work as for any garage.
+  Admin's garage list shows the chip under the garage's name with "485 km out"
+  (no km when unpinned), which also gives away a Chennai garage pinned in the
+  wrong place.
 - **The new Home hub and Updates (behind `NEXT_PUBLIC_HOME_HUB`).** With the
   flag `on`, `/home` is the hub (`components/home/`); with it off, as in
   production until the owner signs off a preview on live data, `/home` is the

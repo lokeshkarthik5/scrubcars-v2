@@ -1,3 +1,5 @@
+import { SERVICE_CITY } from './service-city'
+
 /**
  * Basemap configuration.
  *
@@ -35,9 +37,14 @@ export const MAP_THEME = 'dark' as const
 
 /**
  * Fallback map centre. Only ever used before we know anything about the user —
- * it decides where an empty map opens, never what gets searched.
+ * it decides where an empty map opens, never what gets searched. The service
+ * city's centre, so the map's city view and the "Outside Chennai" sign measure
+ * from the same point.
  */
-export const DEFAULT_CENTER: [number, number] = [80.2707, 13.0827]
+export const DEFAULT_CENTER: [number, number] = [
+  SERVICE_CITY.centre.lng,
+  SERVICE_CITY.centre.lat,
+]
 
 /** Close enough to recognise your own street, wide enough to get your bearings. */
 export const PICKER_ZOOM = 16

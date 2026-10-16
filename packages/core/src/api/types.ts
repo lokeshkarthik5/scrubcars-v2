@@ -1,3 +1,5 @@
+import type { OutsideServiceCity } from '@repo/core/service-city'
+
 export interface ApiSuccessResponse<T> {
   success: true
   data: T
@@ -131,6 +133,12 @@ export interface ApiVendorListItem {
    * did not match. Null otherwise; absent on older servers.
    */
   matchedService?: string | null
+  /**
+   * Set when the garage is pinned more than 50 km from the Chennai centre, or
+   * is unpinned and its city field names another town; null in the city.
+   * Absent on older servers.
+   */
+  outsideServiceCity?: OutsideServiceCity | null
 }
 
 export interface ApiVendorList {
@@ -174,6 +182,8 @@ export interface ApiPublicVendor {
   /** Set while the garage takes no new bookings. Optional for older servers. */
   bookingsPausedAt?: string | null
   bookingsPausedReason?: string | null
+  /** As on a list item: set only outside Chennai. Absent on older servers. */
+  outsideServiceCity?: OutsideServiceCity | null
 }
 
 export interface VendorProfileExtras {

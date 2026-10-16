@@ -18,6 +18,25 @@ reconstructing every change in them.
 
 ### Added
 
+- **An "Outside Chennai" sign on garages in other towns** (owner decision,
+  2026-10-16; no migration). Garages in other towns stay in the pilot, but
+  each says it is not in Chennai. `GET /vendors` items, `GET /vendors/:id` and
+  `GET /admin/vendors` rows gain `outsideServiceCity: { town, km } | null`:
+  set when the garage's pin is more than 50 km (`LIST_RADIUS_KM`) from the
+  Chennai centre (13.0827, 80.2707), straight-line, judged before rounding
+  (exactly 50 km is in). `town` is the garage's own city field, tidied
+  (all-capitals or all-lowercase put in title case), or null when it says
+  Chennai (or Madras) or is empty; `km` is a whole number. A garage with no
+  pin is still listed (after the pinned ones, even near a Chennai customer),
+  so its own city field decides: a town other than Chennai gives
+  `{ town, km: null }`, unless its pincode is a Chennai one (600xxx: a suburb
+  such as Tambaram typed as its own town); Chennai or empty gives null
+  (unknown). Null for a garage in the city. A sign only: nothing is hidden or
+  refused. The rule is `lib/service-city.ts` (`SERVICE_CITY`, the
+  one service-city constant, and `outsideServiceCity`, unit-tested); a parity
+  test keeps its centre, reach and distance formula equal to the customer
+  map's (`DEFAULT_CENTER`, `straightLineKm`) and to `@repo/core/service-city`.
+
 - **Estimated reach for offers on Home** (no migration). PR 2 of 6 of the
   Home hub (the admin screens). `GET /admin/discounts/home-reach?audience=&vendorId=&radiusKm=&vehicleTypes=`
   counts how many signed-in customers the discount form's Show on Home

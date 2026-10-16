@@ -17,6 +17,7 @@ import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
+import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import {
   DEFAULT_CENTER,
   MAP_STYLES,
@@ -24,6 +25,7 @@ import {
   formatDistance,
   straightLineKm,
 } from '@repo/core/map'
+import { SERVICE_CITY } from '@repo/core/service-city'
 import { cn } from '@repo/core/utils'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
@@ -74,12 +76,14 @@ const GaragePins = dynamic(
 const PAGE_LIMIT = 50
 
 /**
- * City mode's reach from DEFAULT_CENTER: the same 50 km as the list's radius
+ * City mode's reach from the centre: the same 50 km as the list's radius
  * from a customer (LIST_RADIUS_KM in the server's lib/discovery.ts), so a
- * customer with no location sees what one standing in the centre would.
+ * customer with no location sees what one standing in the centre would. The
+ * service city's own numbers, so a garage this leaves off is exactly one
+ * that carries the "Outside Chennai" sign.
  */
-const CITY_RADIUS_KM = 50
-const CITY_CENTRE = { lat: DEFAULT_CENTER[1], lng: DEFAULT_CENTER[0] }
+const CITY_RADIUS_KM = SERVICE_CITY.radiusKm
+const CITY_CENTRE = SERVICE_CITY.centre
 
 /**
  * The opening zoom, before any fit: about a city across on a phone. Chennai
@@ -674,16 +678,28 @@ function MapVendorCard({
           </p>
         )}
 
-        <p className="truncate text-[12px] text-text-secondary">
-          <Figures
-            text={[
-              vendor.area,
-              vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          />
-        </p>
+        {/* A garage in another town (the strip can hold one in nearby and
+            "this area" modes) carries the sign in place of its town, which
+            the sign already names. */}
+        {vendor.outsideServiceCity ? (
+          <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
+            <OutsideCityChip outside={vendor.outsideServiceCity} className="min-w-0 bg-surface" />
+            {vendor.distanceKm !== null && (
+              <span className="shrink-0 font-numeric">{formatDistance(vendor.distanceKm)}</span>
+            )}
+          </p>
+        ) : (
+          <p className="truncate text-[12px] text-text-secondary">
+            <Figures
+              text={[
+                vendor.area,
+                vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            />
+          </p>
+        )}
 
         {vendor.startingPrice > 0 && (
           <p className="mt-0.5 text-[13px] text-text-secondary">

@@ -34,6 +34,10 @@ import { computeVendorPayout } from '../../lib/discounts.js'
 import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
 import { listScope } from '../../lib/discovery.js'
+import {
+  outsideServiceCity,
+  type OutsideServiceCity,
+} from '../../lib/service-city.js'
 import { matchedServiceName } from '../../lib/search.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
@@ -147,6 +151,13 @@ export type PublicVendorResponse = Omit<VendorResponse, 'ownerId'> & {
   // null when the vendor has no reviews yet — distinct from a rating of 0.
   rating: number | null
   reviewCount: number
+  /**
+   * Set when the garage is pinned more than 50 km from the Chennai centre, or
+   * is unpinned and its own city names another town (km null), so its page
+   * and checkout can say where it is (lib/service-city.ts). Null when it is
+   * in the city, and when it has no pin and says Chennai (unknown).
+   */
+  outsideServiceCity: OutsideServiceCity | null
 }
 
 export type VendorListItemResponse = {
@@ -193,6 +204,11 @@ export type VendorListItemResponse = {
    * See matchedServiceName.
    */
   matchedService: string | null
+  /**
+   * Set when the garage is outside Chennai, for the card's "Outside Chennai ·
+   * Sivakasi" chip. The same rule as the garage page; see outsideServiceCity.
+   */
+  outsideServiceCity: OutsideServiceCity | null
 }
 
 export type VendorListResponse = {
@@ -829,6 +845,7 @@ export const vendorsService = {
         // From the active services loaded above, the same set the search
         // clause reads.
         matchedService: query.q ? matchedServiceName(query.q, vendor) : null,
+        outsideServiceCity: outsideServiceCity(vendor),
       }
     })
 
@@ -866,6 +883,7 @@ export const vendorsService = {
       services: services.map((service) => toServiceResponse(service)),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
       reviewCount: rating?.count ?? 0,
+      outsideServiceCity: outsideServiceCity(vendor),
     }
   },
 
