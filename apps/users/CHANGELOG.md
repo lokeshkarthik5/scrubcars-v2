@@ -379,6 +379,14 @@ reconstructing every change in them.
 
 ### Changed
 
+- **Legal pages: the owner's details of 16 Oct 2026.** The Grievance Officer
+  is Raga, Operations Manager; support hours read "6 am to 1 am IST, every
+  day"; and the proprietor's name is no longer printed (the owner's choice):
+  the pages say "a sole proprietorship" with no name and no placeholder,
+  behind `BUSINESS.printProprietorName` in `lib/legal/details.ts`, which the
+  lawyer can turn back on. `LAST_UPDATED` is 16 October 2026. The pages stay
+  in draft (`LEGAL_DRAFT`) until the lawyer signs off.
+
 - **Home's car is a picture of its body type.** `carImageFor` in
   `@repo/core/car-images` now gives a hatchback, a sedan and an SUV each its
   own picture (`public/cars/car-<type>-1200.webp` and `-2400.webp`); "SUV /
