@@ -13,7 +13,7 @@ import {
   IconStarFilled,
 } from '@tabler/icons-react'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
-import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
@@ -122,7 +122,8 @@ function MapBrowseContent() {
   /** Suppresses the scroll→select feedback loop while we scroll programmatically. */
   const scrollingProgrammatically = useRef(false)
 
-  const origin = location ? coarse(location) : undefined
+  const origin =
+    isCitywide(location) || !location ? undefined : coarse(location)
 
   const { vendors, isLoading } = useVendorSearch(
     {
