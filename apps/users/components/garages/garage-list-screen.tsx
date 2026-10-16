@@ -30,6 +30,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import {
   coarse,
+  isCitywide,
   shouldOfferLocationPrompt,
   useLocationStore,
 } from '@repo/core/stores/location-store'
@@ -75,18 +76,18 @@ function GarageListContent() {
   const permission = useLocationStore((s) => s.permission)
   const locating = useLocationStore((s) => s.locating)
   const promptDismissedAt = useLocationStore((s) => s.promptDismissedAt)
-  const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
   const refreshPermission = useLocationStore((s) => s.refreshPermission)
   const [locationSheetOpen, setLocationSheetOpen] = useState(false)
 
   const user = profile ?? authUser
 
-  // Coordinates are rounded to ~110 m before they leave the device — finer
-  // than any sort needs, and enough to keep the server's geocode cache warm.
-  const origin = location ? coarse(location) : undefined
+  // "All of Chennai" sends no origin: the list is the whole city, not a
+  // distance from a downtown pin the customer never chose. A phone fix is
+  // rounded to ~110 m before it leaves the device.
+  const citywide = isCitywide(location)
+  const origin = citywide || !location ? undefined : coarse(location)
 
-  // Distance is the most useful default once we know where the customer is,
-  // and impossible before then.
+  // Distance is the default once we know where the customer is.
   const sort: SortKey = chosenSort ?? (origin ? 'distance' : 'relevance')
 
   // Sorting, filtering and paging are all the server's job: the client holds
@@ -162,26 +163,25 @@ function GarageListContent() {
           // Opens our explainer first. Going straight to the browser prompt
           // spends the one ask we get, and a denial cannot be reopened from
           // here — see LocationPromptSheet.
-          onClick={() =>
-            location ? void requestGpsLocation() : setLocationSheetOpen(true)
-          }
+          onClick={() => setLocationSheetOpen(true)}
           disabled={locating}
+          aria-label="Choose location"
           className="min-w-0 text-right"
         >
           <div className="flex items-center justify-end gap-1.5">
             <IconMapPin size={15} className="shrink-0 text-text-primary" />
             <span className="text-[14px] font-semibold text-text-primary">
-              {location ? location.label : 'Set location'}
+              {location && !citywide ? location.label : 'Chennai'}
             </span>
           </div>
           <p className="truncate text-[12px] text-text-secondary">
             {locating
               ? 'Finding you…'
-              : location
-                ? (user?.area ?? 'Showing garages near you')
-                : permission === 'denied'
-                  ? 'Location blocked — enable in browser settings'
-                  : 'Tap to sort garages by distance'}
+              : citywide
+                ? permission === 'denied'
+                  ? 'Location blocked — all of Chennai'
+                  : 'All of Chennai'
+                : (user?.area ?? 'Showing garages near you')}
           </p>
         </button>
       }
@@ -312,7 +312,7 @@ function GarageListContent() {
             />
           ) : vendors.length === 0 ? (
             <p className="py-8 text-center text-[13px] text-text-secondary">
-              {serviceMode === 'doorstep' && location
+              {serviceMode === 'doorstep' && !citywide
                 ? 'No garages travel to your area yet.'
                 : origin && radiusKm !== null
                   ? (
@@ -363,7 +363,7 @@ function GarageListContent() {
         value={sort}
         onChange={setChosenSort}
         onClose={() => setSortOpen(false)}
-        locationUnavailable={!location}
+        locationUnavailable={citywide}
         // No "Top Rated" until a listed garage has a review to rank by.
         ratingAvailable={canSortByRating(vendors, sort, hasMore)}
       />
