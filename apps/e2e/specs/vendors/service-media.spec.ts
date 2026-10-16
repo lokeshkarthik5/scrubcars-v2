@@ -45,7 +45,7 @@ test.describe('service photos and video', () => {
     const addPhoto = media.getByRole('button', { name: `Add a photo of ${name}` }).first()
     await expect(addPhoto).toBeDisabled()
     // The tick is a styled box over a visually hidden input: tap its label, as a person does.
-    await media.getByText('Before adding:').click()
+    await media.getByText('Before adding:', { exact: true }).click()
     await expect(media.getByRole('checkbox', { name: /Before adding/ })).toBeChecked()
     await expect(addPhoto).toBeEnabled()
 
@@ -90,7 +90,7 @@ test.describe('service photos and video', () => {
     const media = block(page, name)
 
     // The tick is a styled box over a visually hidden input: tap its label, as a person does.
-    await media.getByText('Before adding:').click()
+    await media.getByText('Before adding:', { exact: true }).click()
     await expect(media.getByRole('checkbox', { name: /Before adding/ })).toBeChecked()
     await media.getByLabel(`Video file for ${name}`).setInputFiles(CLIP_45)
     await expect(media.getByText('Processing…')).toBeVisible()
@@ -194,7 +194,7 @@ test.describe('service photos and video', () => {
     const media = block(page, name)
 
     // The tick is a styled box over a visually hidden input: tap its label, as a person does.
-    await media.getByText('Before adding:').click()
+    await media.getByText('Before adding:', { exact: true }).click()
     await expect(media.getByRole('checkbox', { name: /Before adding/ })).toBeChecked()
     await media.getByLabel(`Video file for ${name}`).setInputFiles(CLIP_72)
 
