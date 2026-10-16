@@ -247,6 +247,14 @@ export const CUSTOMERS = {
    */
   homeTile: { id: id(149), phone: '9000000049', name: 'Hub Tile Tara', vehicleId: id(759) },
   /**
+   * A customer account that is also the named owner of a garage
+   * (VENDORS.ownerAccount). Deleting the account would cascade into that
+   * garage through vendors.owner_id, so DELETE /users/me must refuse it. No
+   * car and no bookings, so owning the garage is the only reason. Signed in
+   * fresh by its spec (a saved token can expire mid-run).
+   */
+  garageOwner: { id: id(150), phone: '9000000050', name: 'Owner Customer Oviyan', vehicleId: null },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -356,6 +364,19 @@ export const VENDORS = {
    * Booked only by the CUSTOMERS.home* fixtures.
    */
   homePromo: { id: id(312), name: 'Hub Promo Test Garage' },
+  /**
+   * Owned by CUSTOMERS.garageOwner, a customer account: what makes deleting
+   * that account a cascade into a garage. Pending and unpinned, so no
+   * customer list ever shows it; nothing else reads it.
+   */
+  ownerAccount: { id: id(313), name: 'Customer Owned Test Garage' },
+  /**
+   * The admin services editor's garage (specs/admin/vendor-services.spec.ts):
+   * a flat service inside a package, a per-vehicle one with no SUV price (the
+   * row the old editor dropped on save, hiding it), and a hidden one to show
+   * again. Pending and unpinned, so no customer sees it; nobody books it.
+   */
+  adminServices: { id: id(314), name: 'Admin Services Test Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -408,6 +429,16 @@ export const SERVICES = {
   homePromoWash: { id: id(417), name: 'Hub Foam Wash', price: '450.00', durationMins: 30 },
   /** On HOME_PROMO, priced on inspection: CUSTOMERS.homeBill's billed job. */
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
+  /** On ADMIN_SERVICES, inside adminPackage: hiding it must be refused. */
+  adminFlat: { id: id(419), name: 'Admin Foam Wash', price: '450.00', durationMins: 30 },
+  /** On ADMIN_SERVICES, per vehicle with no SUV price: flagged, never dropped. */
+  adminTiered: { id: id(420), name: 'Admin Interior Clean', durationMins: 60,
+    priceHatchback: '600.00', priceSedan: '700.00', priceSuv: null },
+  /** On ADMIN_SERVICES, hidden: listed under Hidden services, to show again. */
+  adminHidden: { id: id(421), name: 'Admin Ceramic Coat', durationMins: 120,
+    priceHatchback: '2000.00', priceSedan: '2500.00', priceSuv: '3000.00' },
+  /** On ADMIN_SERVICES, a package of adminFlat. */
+  adminPackage: { id: id(422), name: 'Admin Wash Combo', price: '800.00', durationMins: 60 },
 } as const
 
 export const DISCOUNTS = {
