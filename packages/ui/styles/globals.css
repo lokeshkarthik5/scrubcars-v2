@@ -52,6 +52,26 @@
   --color-error: #F5A524;
   --color-error-muted: rgba(245, 165, 36, 0.12);
   --color-info: #3B82F6;
+  /* The Home hub's surfaces (packages/ui "hub-card", apps/users Home and
+     Updates): a card is a soft graphite gradient, top to bottom, with a
+     hairline edge and a 28px radius; pills are fully round. Used only by
+     screens behind NEXT_PUBLIC_HOME_HUB, so with the flag off nothing draws
+     with them. */
+  --color-card-top: #1A1A1E;
+  --color-card-bot: #141417;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-stroke: #2A2A2E;
+  --color-dim: #8A8A93;
+  --radius-card: 28px;
+  --radius-tile: 22px;
+  --radius-pill: 999px;
+}
+
+/* The red call to action's gradient (owner decision D12). The stops are
+   CTA_GRADIENT in packages/core/src/cta.ts, whose test checks white text
+   against the lightest one and that this line matches it, stop for stop. */
+:root {
+  --gradient-cta: linear-gradient(100deg, #E4002B 0%, #DA0029 30%, #CA0026 66%, #B80022 100%);
 }
 
 /* react-toastify brings its own palette as :root variables in
@@ -111,6 +131,438 @@
   }
   .maplibregl-ctrl-attrib-button {
     @apply bg-transparent! invert;
+  }
+}
+
+/* ─── Offer coupon (V2) ─────────────────────────────────────────────────────
+ *
+ * The white ticket on the customer's Home and in the admin's "Preview on
+ * Home" (packages/ui/src/home/offer-coupon.tsx). It is the one light surface
+ * on a dark screen, so it carries its own ink rather than the theme's text
+ * tokens. Contrast is measured on #F1F1EE, the darkest stop of the pearl:
+ * ink #0B0B0D 17:1 · meta #4A4A52 7.8:1 · eyebrow #62626A 5.3:1 ·
+ * figure #C4002A on the stub's #EEEDE8 5.2:1.
+ *
+ * Plain CSS rather than utilities because of the notches (a two-gradient
+ * mask), the perforation (a pseudo-element) and the pressed state (the hit
+ * target scales the whole ticket through :has).
+ *
+ * Geometry: a fixed 104px stub on the right, the left part flexes, so a
+ * 320pt phone and the admin preview keep the same stub. 124px tall at rest
+ * (16 + eyebrow 20 + 8 + title 26 + 4 + meta 2×17 + 16); a two-line title
+ * grows it to 150px and the stub stretches with it.
+ */
+@layer components {
+  .offer-coupon {
+    --oc-ink: #0B0B0D;
+    --oc-ink2: #4A4A52;
+    --oc-ink3: #62626A;
+    --oc-red: #C4002A;
+    --oc-stub: 104px;
+    --oc-nr: 10px;
+    position: relative;
+    /* The mask clips box-shadows, so the drop shadow sits on this wrapper. */
+    filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.55));
+    color: var(--oc-ink);
+  }
+
+  /* Bill due: the bill above it carries the one filled red button, so the
+     ticket steps back a little — a shallower shadow and a quieter arrow. */
+  .offer-coupon[data-muted='true'] {
+    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.4));
+  }
+
+  .offer-coupon__ticket {
+    position: relative;
+    border-radius: 28px;
+    transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
+    -webkit-mask:
+      radial-gradient(circle var(--oc-nr) at calc(100% - var(--oc-stub)) 0, #0000 calc(var(--oc-nr) - 0.5px), #000 var(--oc-nr)),
+      radial-gradient(circle var(--oc-nr) at calc(100% - var(--oc-stub)) 100%, #0000 calc(var(--oc-nr) - 0.5px), #000 var(--oc-nr));
+    -webkit-mask-composite: source-in;
+    mask:
+      radial-gradient(circle var(--oc-nr) at calc(100% - var(--oc-stub)) 0, #0000 calc(var(--oc-nr) - 0.5px), #000 var(--oc-nr)),
+      radial-gradient(circle var(--oc-nr) at calc(100% - var(--oc-stub)) 100%, #0000 calc(var(--oc-nr) - 0.5px), #000 var(--oc-nr));
+    mask-composite: intersect;
+  }
+
+  /* The whole ticket is one tap target; the × sits above it. */
+  .offer-coupon__hit {
+    display: flex;
+    width: 100%;
+    min-height: 124px;
+    border-radius: inherit;
+    text-align: left;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F7F7F5 46%, #F1F1EE 100%);
+    box-shadow: inset 0 1px 0 #FFFFFF, inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Inset, because the mask would clip a ring drawn outside the ticket. */
+  .offer-coupon__hit:focus-visible {
+    outline: 2px solid var(--oc-ink);
+    outline-offset: -4px;
+  }
+
+  /* Pressed, built for white: a step darker and 0.98 — the dark cards'
+     lighten-on-press would not show here. */
+  .offer-coupon__ticket:has(.offer-coupon__hit:active) {
+    transform: scale(0.98);
+  }
+  .offer-coupon__hit:active {
+    background: #ECECE8;
+  }
+  .offer-coupon__hit:active .offer-coupon__stub {
+    background: #E4E3DE;
+  }
+
+  .offer-coupon__main {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 16px 12px 16px 20px;
+  }
+
+  .offer-coupon__eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    font-size: 13px;
+    letter-spacing: 0.005em;
+    color: var(--oc-ink3);
+  }
+  .offer-coupon__eyebrow > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Up to 40 characters: two lines at most, and the ticket grows one line. */
+  .offer-coupon__title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    margin-top: 8px;
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 26px;
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+    color: var(--oc-ink);
+  }
+
+  .offer-coupon__meta {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 17px;
+    letter-spacing: 0.005em;
+    color: var(--oc-ink2);
+  }
+  .offer-coupon__meta > span {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .offer-coupon__stub {
+    position: relative;
+    flex: none;
+    width: var(--oc-stub);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #F8F7F4 0%, #EEEDE8 100%);
+  }
+
+  /* The perforation, from just below the top notch to just above the bottom. */
+  .offer-coupon__stub::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: calc(var(--oc-nr) + 5px);
+    bottom: calc(var(--oc-nr) + 5px);
+    width: 1.5px;
+    background: repeating-linear-gradient(180deg, #C9C8C2 0 4px, transparent 4px 8px);
+  }
+
+  /* 18px down from centre, so the × never touches it. */
+  .offer-coupon__figure {
+    display: block;
+    margin-top: 18px;
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: -0.045em;
+    white-space: nowrap;
+    color: var(--oc-red);
+    font-feature-settings: "tnum" 0, "cv11", "ss03";
+  }
+  .offer-coupon__figure small {
+    position: relative;
+    vertical-align: top;
+  }
+  .offer-coupon__figure[data-size='percent'] { font-size: 40px; }
+  .offer-coupon__figure[data-size='percent'] small {
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    margin-left: 1px;
+    top: 4px;
+  }
+  .offer-coupon__figure[data-size='amount'] { font-size: 34px; }
+  .offer-coupon__figure[data-size='amount'] small {
+    font-size: 20px;
+    letter-spacing: 0;
+    margin-right: 1px;
+    top: 3px;
+  }
+  .offer-coupon__figure[data-size='amount-sm'] {
+    font-size: 26px;
+    letter-spacing: -0.04em;
+  }
+  .offer-coupon__figure[data-size='amount-sm'] small {
+    font-size: 16px;
+    letter-spacing: 0;
+    margin-right: 1px;
+    top: 2px;
+  }
+  .offer-coupon__figure[data-size='amount-xs'] {
+    font-size: 20px;
+    letter-spacing: -0.04em;
+  }
+  .offer-coupon__figure[data-size='amount-xs'] small {
+    font-size: 13px;
+    letter-spacing: 0;
+    margin-right: 1px;
+    top: 1px;
+  }
+  .offer-coupon__figure[data-size='free'] {
+    font-size: 26px;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+
+  .offer-coupon__code {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    max-width: calc(var(--oc-stub) - 12px);
+    margin-top: 9px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--oc-ink);
+  }
+  .offer-coupon__code > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .offer-coupon__code svg {
+    flex: none;
+  }
+  .offer-coupon[data-muted='true'] .offer-coupon__code svg {
+    color: var(--oc-ink3);
+  }
+
+  /* 40px hit area, 4px in from the stub's corner. */
+  .offer-coupon__dismiss {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--oc-ink3);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .offer-coupon__dismiss:focus-visible {
+    outline: 2px solid var(--oc-ink);
+    outline-offset: -4px;
+  }
+
+  /* Carousel: the next card peeks 8px into the screen gutter at 58%. */
+  .offer-carousel__track {
+    display: flex;
+    gap: 8px;
+    width: calc(100% + 16px);
+    margin-right: -16px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    /* Room for the tickets' drop shadow inside the scroller's clip. */
+    padding-bottom: 24px;
+    margin-bottom: -24px;
+  }
+  .offer-carousel__track::-webkit-scrollbar {
+    display: none;
+  }
+  /* A trailing spacer (gap + 8px) so the last card can snap to the start
+     like the others; end padding on a flex scroller is not honoured
+     everywhere. */
+  .offer-carousel__track::after {
+    content: '';
+    flex: none;
+    width: 8px;
+  }
+  /* The track is the column plus the 16px gutter; a slide is the column. */
+  .offer-carousel__slide {
+    flex: none;
+    width: calc(100% - 16px);
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    transition: opacity 0.2s ease-out;
+  }
+  .offer-carousel__slide[data-active='false'] {
+    opacity: 0.58;
+  }
+  .offer-carousel__slide[data-active='false'] .offer-coupon {
+    filter: none;
+  }
+
+  .offer-carousel__dots {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    height: 5px;
+    margin-top: 8px;
+  }
+  .offer-carousel__dots > i {
+    width: 5px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.22);
+    transition: width 0.2s ease-out, background-color 0.2s ease-out;
+  }
+  .offer-carousel__dots > i[data-on='true'] {
+    width: 16px;
+    background: #F5F5F6;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .offer-coupon__ticket,
+    .offer-carousel__slide,
+    .offer-carousel__dots > i {
+      transition: none;
+    }
+    .offer-coupon__ticket:has(.offer-coupon__hit:active) {
+      transform: none;
+    }
+    .offer-carousel__track {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/* ─── Home hub: cards and the red call to action ───────────────────────────
+ *
+ * `hub-card` is the one card surface of Home and Updates. `cta-hero` is the
+ * ScButton "hero" variant: the gradient pill, the one red action on a screen
+ * (Book a wash, or Pay ₹X while a bill is due, or Add car).
+ *
+ * Its shine is the owner's "Subtle, intro" choice (D4): a soft band of light
+ * crosses the label twice when the screen opens — a 1.3s sweep and a 0.9s
+ * rest, 0.4s in, so the band has stopped by about 3.9s and the animation ends
+ * at 4.8s, inside WCAG 2.2.2's 5s — then stops for good, and plays
+ * again on the next visit. Twice and done, because motion that runs past 5s
+ * with no way to pause it fails WCAG 2.2.2. Only `transform` is animated, so
+ * it never repaints. The label sits above the band. Under reduced motion the
+ * band is not drawn at all and the button is the approved static one; a
+ * disabled button never shines. A button that is disabled and enabled again
+ * (Pay after a closed payment sheet) would start the band over, so a button
+ * that can be uses useHeroShine (sc/hero-shine.tsx) and `.cta-hero-rested`
+ * keeps its spent shine from replaying.
+ *
+ * The brand kit says "no decorative motion"; this is a conscious exception,
+ * one element per screen. Contrast under the band's peak dips below 4.5:1 for
+ * about 0.3s per sweep (see packages/core/src/cta.ts).
+ */
+@layer components {
+  .hub-card {
+    border: 1px solid --theme(--color-line);
+    border-radius: --theme(--radius-card);
+    background: linear-gradient(180deg, --theme(--color-card-top) 0%, --theme(--color-card-bot) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .cta-hero {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--gradient-cta);
+    color: #FFFFFF;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+      0 10px 22px -12px rgba(228, 0, 43, 0.6);
+  }
+  .cta-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+  .cta-hero::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: 0;
+    z-index: 0;
+    width: 30%;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.42) 30%,
+      rgba(255, 255, 255, 0.9) 50%,
+      rgba(255, 255, 255, 0.42) 70%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    opacity: 0.36;
+    transform: translateX(-170%) skewX(-20deg);
+    /* Fill "both" parks the band off the right edge, unseen, once it ends. */
+    animation: cta-shine-intro 2.2s 0.4s 2 both;
+  }
+  .cta-hero:disabled {
+    opacity: 0.4;
+  }
+  .cta-hero:disabled::after {
+    display: none;
+  }
+  /* Its two sweeps are spent (useHeroShine in sc/hero-shine.tsx). Without
+     this, enabling the button again would start the band over. */
+  .cta-hero-rested::after {
+    display: none;
+    animation: none;
+  }
+
+  @keyframes cta-shine-intro {
+    0% {
+      transform: translateX(-170%) skewX(-20deg);
+      animation-timing-function: cubic-bezier(0.4, 0, 0.25, 1);
+    }
+    59.09%,
+    100% {
+      transform: translateX(450%) skewX(-20deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cta-hero::after {
+      display: none;
+      animation: none;
+    }
   }
 }
 

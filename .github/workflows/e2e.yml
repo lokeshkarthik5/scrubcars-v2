@@ -122,6 +122,9 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
           NEXT_PUBLIC_RAZORPAY_KEY_ID: rzp_test_e2e
+          # Matches apps/e2e/.env.e2e, which the build does not read. On, so
+          # the Home hub's @p0 specs run against it; production stays off.
+          NEXT_PUBLIC_HOME_HUB: 'on'
 
       - name: E2E
         # On a pull request only the @p0 specs run, so feedback stays quick;

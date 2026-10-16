@@ -14,6 +14,196 @@
   --color-brand-graphite: #272730;
 }
 
+/* ─── Home hub (behind NEXT_PUBLIC_HOME_HUB) ────────────────────────────────
+ *
+ * The car hero and the wash bar of the new Home (components/home). Plain CSS
+ * for what utilities say badly: the hero's dark stage with its soft light,
+ * the absolutely placed car and its contact shadow, and the swipe track.
+ * Geometry is the approved mockup's, at 390pt: a 314pt stage (294pt when a
+ * must-act card sits above the offers, so Book a wash stays above the fold),
+ * the car 92% wide from 124pt down, the CTA 12pt in from the edges.
+ */
+.car-hero {
+  position: relative;
+  height: 314px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1E1F24 0%, #131418 55%, #0C0D10 100%);
+}
+.car-hero::before {
+  content: '';
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: 92px;
+  height: 180px;
+  background: radial-gradient(42% 48% at 50% 56%, rgba(200, 210, 235, 0.15), rgba(200, 210, 235, 0.04) 55%, transparent 75%);
+  pointer-events: none;
+}
+.car-hero__track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.car-hero__track::-webkit-scrollbar {
+  display: none;
+}
+.car-hero__track:focus-visible {
+  outline: 2px solid #FAFAFA;
+  outline-offset: -4px;
+  border-radius: inherit;
+}
+.car-hero__slide {
+  position: relative;
+  flex: none;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+}
+.car-hero__head {
+  position: relative;
+  z-index: 2;
+  padding: 20px 64px 0 20px;
+}
+.car-hero__title {
+  margin: 6px 0 8px;
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: #F5F5F6;
+}
+.car-hero__car {
+  position: absolute;
+  top: 124px;
+  left: 4%;
+  z-index: 1;
+  width: 92%;
+  height: auto;
+}
+/* The body-type pictures (packages/core car-images.ts) share one 1200 × 432
+   canvas: the three cars at one scale, the tyres on one line 90.7% of the way
+   down (the hatchback is a three-quarter view: its front tyre is on the line),
+   and the SUV standing taller than the others. So they are placed by
+   that line, not by their top: translateY(-90.7%) lifts the picture by its
+   own height above `top`, which leaves the tyres at 217pt, where the approved
+   car's stand at 390pt (201pt when short), whatever the type and the width.
+   94% wide and capped at 352px, which keeps the SUV's roof clear of the place
+   line on the widest phones. The sizes hint in car-images.ts follows these. */
+.car-hero__car--body-type {
+  top: 217px;
+  left: 50%;
+  width: min(94%, 352px);
+  transform: translate(-50%, -90.7%);
+}
+.car-hero__shadow {
+  position: absolute;
+  top: 212px;
+  left: 12%;
+  right: 12%;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.65), transparent);
+  pointer-events: none;
+}
+.car-hero__cta {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+}
+.car-hero__outline {
+  display: flex;
+  width: 100%;
+  height: 44px;
+  margin-bottom: 4px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #2A2A2E;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.015);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: #F5F5F6;
+}
+.car-hero--short {
+  height: 294px;
+}
+.car-hero--short .car-hero__car {
+  top: 118px;
+  left: 9%;
+  width: 82%;
+}
+.car-hero--short .car-hero__car--body-type {
+  top: 201px;
+  left: 50%;
+  width: min(84%, 316px);
+}
+.car-hero--short .car-hero__shadow {
+  top: 196px;
+  left: 16%;
+  right: 16%;
+}
+.car-hero--short::before {
+  top: 84px;
+  height: 160px;
+}
+/* No car yet: the stand-in drawn as a dim silhouette, a little lower. */
+.car-hero--empty .car-hero__car {
+  top: 150px;
+}
+.car-hero--empty .car-hero__car--ghost {
+  filter: brightness(0.32) contrast(1.15) saturate(0);
+  opacity: 0.95;
+}
+.car-hero--empty .car-hero__shadow {
+  top: 236px;
+}
+.car-hero--empty::before {
+  opacity: 0.55;
+}
+
+/* The wash bar: one step per day of the interval. Overdue is amber, as every
+   caution is; red is kept for what to press. */
+.wash-meter {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+}
+.wash-meter > i {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.wash-meter > i[data-on='true'] {
+  background: #F5F5F6;
+}
+.wash-meter[data-over='true'] > i {
+  background: --theme(--color-warning);
+}
+
+/* Updates rows: a hairline between rows, starting past the icon disc. */
+.update-list > li + li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 70px;
+  right: 18px;
+  border-top: 1px solid --theme(--color-line);
+}
+
+/* Nearby: the line map fades in from the right, behind the words. */
+.nearby-map {
+  -webkit-mask-image: linear-gradient(90deg, transparent 22%, #000 62%);
+  mask-image: linear-gradient(90deg, transparent 22%, #000 62%);
+}
+
 /* ─── Marketing homepage ───────────────────────────────────────────────────── */
 
 /* The homepage's header is fixed, so anything scrolled into view — an anchor

@@ -20,14 +20,27 @@ import { cn } from '@repo/core/utils'
 
 export type NavType = 'customer' | 'vendor' | 'admin'
 
-const customerItems = [
-  { href: '/home', label: 'Home', icon: IconHome },
+type NavItem = {
+  href: string
+  label: string
+  icon: typeof IconHome
+  /** Other routes this tab stands for, so it stays lit on them too. */
+  alsoActiveOn?: string[]
+}
+
+const customerItems: NavItem[] = [
+  // The garage list moved to /garages but is still what Home shows while the
+  // new Home is off, so a customer sent there ("Find another garage", the
+  // map's List) sees the same tab lit as on /home, and tapping it there stays
+  // on /garages (see below). With the hub on, customers never see this bar:
+  // the app draws its floating nav instead (apps/users CustomerShell).
+  { href: '/home', label: 'Home', icon: IconHome, alsoActiveOn: ['/garages'] },
   { href: '/search', label: 'Search', icon: IconSearch },
   { href: '/bookings', label: 'Bookings', icon: IconCalendar },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
-const vendorItems = [
+const vendorItems: NavItem[] = [
   { href: '/home', label: 'Home', icon: IconHome },
   { href: '/bookings', label: 'Bookings', icon: IconCalendar },
   { href: '/services', label: 'Services', icon: IconTool },
@@ -40,7 +53,7 @@ const vendorItems = [
 // Coverage were header-only, and so out of reach on a phone. Refunds
 // especially: a checkout that became no booking has no booking page, so this
 // is the only way to the place its refund is marked done.
-const adminItems = [
+const adminItems: NavItem[] = [
   { href: '/vendors', label: 'Vendors', icon: IconBuildingStore },
   { href: '/bookings', label: 'Bookings', icon: IconCalendar },
   { href: '/refunds', label: 'Refunds', icon: IconReceiptRefund },
@@ -48,7 +61,7 @@ const adminItems = [
   { href: '/coverage', label: 'Coverage', icon: IconMap },
 ]
 
-const itemsByType: Record<NavType, typeof customerItems> = {
+const itemsByType: Record<NavType, NavItem[]> = {
   customer: customerItems,
   vendor: vendorItems,
   admin: adminItems,
@@ -76,12 +89,19 @@ export function BottomNav({ type = 'customer' }: { type?: NavType }) {
   return (
     <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-surface">
       <div className="flex items-center justify-around px-2 py-2 pb-[max(8px,env(safe-area-inset-bottom))]">
-        {items.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`)
+        {items.map(({ href, label, icon: Icon, alsoActiveOn = [] }) => {
+          // A lit tab links to the route that lit it. Tapping the current
+          // tab should leave the customer where they are; sending /garages to
+          // /home would remount the list and drop their mode, category and
+          // sort, and "current page" would be untrue for a screen reader.
+          const matched = [href, ...alsoActiveOn].find(
+            (route) => pathname === route || pathname.startsWith(`${route}/`)
+          )
+          const active = matched !== undefined
           return (
             <Link
               key={href}
-              href={href}
+              href={matched ?? href}
               // The colour change alone says nothing to a screen reader.
               aria-current={active ? 'page' : undefined}
               className="relative flex flex-1 flex-col items-center gap-0.5 py-1"

@@ -15,12 +15,15 @@ import {
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
+import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, formatDistance } from '@repo/core/map'
 import { cn } from '@repo/core/utils'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { OpenStatus } from '@/components/open-status'
+import { HubNav } from '@/components/home/hub-nav'
+import { isHomeHubEnabled } from '@/lib/home-hub'
 
 /**
  * Airbnb-style map browse: the map is the filter.
@@ -90,6 +93,9 @@ function hasMovedMeaningfully(
 
 function MapBrowseContent() {
   const router = useRouter()
+  // Read at build time (lib/home-hub.ts): the hub's floating nav, or none as
+  // before.
+  const hub = isHomeHubEnabled()
   const searchParams = useSearchParams()
   const location = useLocationStore((s) => s.location)
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
@@ -285,7 +291,7 @@ function MapBrowseContent() {
               the other, rather than spreading three controls evenly. */}
           <div className="flex items-center gap-2">
             <Link
-              href="/home"
+              href="/garages"
               className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
             >
               <IconList size={15} />
@@ -327,7 +333,12 @@ function MapBrowseContent() {
         )}
 
         {/* ─── Results ───────────────────────────────────────────────────── */}
-        <div className="mt-auto flex flex-col gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {/* With the Home hub on, Map is a tab of the floating nav, so the
+            cards sit above the pill rather than under it. */}
+        <div
+          className="mt-auto flex flex-col gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          style={hub ? { paddingBottom: FLOATING_NAV_CLEARANCE } : undefined}
+        >
           {isLoading ? (
             <p className="px-4 text-center text-[12px] text-text-secondary">
               Looking in this area…
@@ -373,6 +384,10 @@ function MapBrowseContent() {
           )}
         </div>
       </div>
+
+      {/* No scrim: nothing scrolls under the pill here, and a dark band
+          would only hide the streets. */}
+      {hub && <HubNav scrim={false} />}
     </div>
   )
 }

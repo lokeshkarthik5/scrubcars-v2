@@ -1,16 +1,24 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiError } from '@repo/core/api/client'
 import {
   createAdminDiscount,
   deleteAdminDiscount,
   getAdminDiscount,
+  getDiscountHomeConfig,
+  getDiscountHomeReach,
   listAdminDiscounts,
   listDiscountVendorOptions,
   updateAdminDiscount,
   type AdminDiscount,
   type DiscountInput,
+  type HomeReachParams,
 } from '@repo/core/api/admin'
 import { validateDiscount, type AppliedDiscount } from '@repo/core/api/discounts'
 
@@ -27,6 +35,9 @@ export const discountKeys = {
   details: () => [...discountKeys.all, 'detail'] as const,
   detail: (id: string) => [...discountKeys.details(), id] as const,
   vendorOptions: () => [...discountKeys.all, 'vendor-options'] as const,
+  homeConfig: () => [...discountKeys.all, 'home-config'] as const,
+  homeReach: (params: HomeReachParams) =>
+    [...discountKeys.all, 'home-reach', params] as const,
 }
 
 /** The message to show a user, from whatever the API threw. */
@@ -64,6 +75,38 @@ export function useDiscountVendorOptions() {
     queryKey: discountKeys.vendorOptions(),
     queryFn: listDiscountVendorOptions,
     staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * The Show on Home settings: audiences, priorities, and whether targeted
+ * audiences can be saved. A server setting, so it changes only on a deploy.
+ */
+export function useDiscountHomeConfig() {
+  return useQuery({
+    queryKey: discountKeys.homeConfig(),
+    queryFn: getDiscountHomeConfig,
+    staleTime: 10 * 60_000,
+  })
+}
+
+/**
+ * "Estimated reach" for the form's settings as they stand. The previous
+ * count stays on screen while a new one loads, so the number does not blink
+ * as the admin changes the audience; `params: null` asks nothing (the
+ * settings cannot be counted yet).
+ */
+export function useDiscountHomeReach(params: HomeReachParams | null) {
+  return useQuery({
+    queryKey: discountKeys.homeReach(
+      params ?? { audience: 'everyone' }
+    ),
+    queryFn: () => getDiscountHomeReach(params!),
+    enabled: params !== null,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    // A 409/400 here is the settings, not the network: show it, don't retry.
+    retry: false,
   })
 }
 

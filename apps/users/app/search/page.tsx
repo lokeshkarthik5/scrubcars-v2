@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { IconAdjustments, IconSearch } from '@tabler/icons-react'
-import { AppShell } from '@repo/ui/sc/app-shell'
+import { CustomerShell } from '@/components/customer-shell'
 import { FilterChip } from '@repo/ui/sc/chip'
 import {
   SortSheet,
@@ -76,7 +76,7 @@ function SearchContent() {
   )
 
   return (
-    <AppShell showNav showBrand className="gap-4 py-4">
+    <CustomerShell showNav showBrand className="gap-4 py-4">
       <div className="flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2.5">
         <IconSearch size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
         {/* A garage is found by its name, its area or any service it sells,
@@ -180,7 +180,7 @@ function SearchContent() {
         locationUnavailable={citywide}
         ratingAvailable={ratingAvailable}
       />
-    </AppShell>
+    </CustomerShell>
   )
 }
 

@@ -13,6 +13,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { devices } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
 import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
+import { GaragePage } from '../../pages/garage.page'
 import { BOOKINGS, VENDORS, SERVICES } from '../../support/seed-ids'
 
 /**
@@ -42,6 +43,29 @@ async function settle(page: import('@playwright/test').Page) {
   )
 }
 
+/**
+ * What says a screen has its data, for the screens whose <main> appears while
+ * their query is still in flight. `settle` alone returns on the skeleton
+ * there (only the endless shimmer is moving), and scanning that passes for
+ * the wrong reason. The hub's red button also shines twice on arrival, which
+ * is close to settle's whole timeout, so these screens are loaded with
+ * reduced motion, where the shine is off and the button is at rest.
+ */
+const READY: Partial<Record<string, (page: import('@playwright/test').Page) => import('@playwright/test').Locator>> = {
+  '/home': (page) => page.getByRole('region', { name: 'Your car', exact: true }),
+  '/updates': (page) => page.getByText('The last 30 days.').or(page.getByText(/^Nothing yet\./)),
+}
+
+async function open(page: import('@playwright/test').Page, path: string) {
+  const ready = READY[path]
+  // Set or cleared each time: the narrow-phone check walks several screens
+  // on one page, and only these need it.
+  await page.emulateMedia({ reducedMotion: ready ? 'reduce' : null })
+  await page.goto(path)
+  if (ready) await expect(ready(page)).toBeVisible()
+  await settle(page)
+}
+
 const scan = (page: import('@playwright/test').Page) =>
   new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa'])
@@ -53,8 +77,10 @@ const scan = (page: import('@playwright/test').Page) =>
  * One pairing remains:
  *
  *   white on brand red #EF3240    3.87:1 (#FAFAFA) to 4.0:1 (#FFF) — ScButton's
- *                                 primary style and the garage page's Add
- *                                 buttons, so every primary action
+ *                                 primary style and (Home hub look off) the
+ *                                 garage page's Add buttons, so every primary
+ *                                 action the hub's gradient pill has not
+ *                                 replaced
  *
  * It is not a page-level mistake and cannot be fixed where it appears: white
  * on #EF3240 cannot reach 4.5:1 at all without changing the red.
@@ -99,7 +125,10 @@ test.describe('accessibility', () => {
   test.use({ storageState: asRole('customer-browse') })
 
   const screens: Array<[string, string]> = [
+    // The Home hub (NEXT_PUBLIC_HOME_HUB is on in the suite) and its Updates.
     ['home', '/home'],
+    ['updates', '/updates'],
+    ['garages', '/garages'],
     ['search', '/search'],
     ['garage', `/garage/${VENDORS.main.id}`],
     ['checkout', `/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`],
@@ -116,10 +145,9 @@ test.describe('accessibility', () => {
 
   for (const [name, path] of screens) {
     test(`${name} has no serious violations`, async ({ page }) => {
-      await page.goto(path)
       // Content, not `load`: app-provider renders null until the session
       // resolves, and scanning an empty tree passes for the wrong reason.
-      await settle(page)
+      await open(page, path)
 
       const violations = serious(await scan(page))
 
@@ -153,7 +181,10 @@ test.describe('accessibility', () => {
  * Measured on the garage page, not home: home no longer has red text at all
  * (its selected chip, mode switch and nav item are white), so scanning it
  * would pass for the wrong reason. The garage page carries the pairing that
- * is still open — white on red, on every Add button.
+ * is still open — white on red, on the details popup's "Add to booking"
+ * (ScButton's primary). With the Home hub look on, as in this suite, the
+ * cards' own Add buttons are graphite, so the popup is opened first: scanning
+ * the page alone would pass for the wrong reason too.
  */
 test.describe('accessibility debt', () => {
   test.use({ storageState: asRole('customer-browse') })
@@ -161,7 +192,10 @@ test.describe('accessibility debt', () => {
   test('brand red should meet AA at small text sizes', async ({ page }) => {
     test.fail()
 
-    await page.goto(`/garage/${VENDORS.main.id}`)
+    const garage = new GaragePage(page)
+    await garage.goto(VENDORS.main.id)
+    await garage.openDetails(SERVICES.wash.name)
+    await expect(garage.detailsCta()).toHaveText('Add to booking')
     await settle(page)
 
     const results = await scan(page)
@@ -213,13 +247,14 @@ test.describe('responsive', () => {
 
     for (const path of [
       '/home',
+      '/updates',
+      '/garages',
       `/garage/${VENDORS.main.id}`,
       `/bookings/${BOOKINGS.reviewable}`,
       // Its four-column table turns into stacked cards on a phone.
       '/refund-policy',
     ]) {
-      await page.goto(path)
-      await settle(page)
+      await open(page, path)
 
       // Guards the assumption above. If mobile emulation is ever lost, the
       // layout width silently shrinks by the width of a scrollbar and the

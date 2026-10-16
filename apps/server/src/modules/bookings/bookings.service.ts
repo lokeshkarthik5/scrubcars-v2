@@ -1104,6 +1104,17 @@ export const bookingsService = {
     return buildReceipt(booking, refundRecords, receiptNumber)
   },
 
+  /**
+   * × on Home's "Rate your wash" card: the prompt is not shown for this
+   * booking again. The customer can still review it from the booking. Only
+   * the booking's own customer; anyone else gets the same 404 as for a
+   * booking that does not exist. Repeating it changes nothing.
+   */
+  async dismissReviewPrompt(userId: string, bookingId: string) {
+    const booking = await getBookingForCustomer(userId, bookingId)
+    await bookingsRepository.dismissReviewPrompt(booking.id)
+  },
+
   async createBooking(userId: string, input: CreateBookingInput) {
     log.info({
       userId,

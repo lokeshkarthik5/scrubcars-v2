@@ -215,7 +215,7 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
             <BrandMark height={26} priority />
           </Link>
           <Link
-            href="/home"
+            href="/garages"
             className={cn(
               'inline-flex h-10 items-center whitespace-nowrap rounded-lg border border-white/20 px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06]',
               FOCUS_RING

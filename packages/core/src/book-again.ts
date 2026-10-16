@@ -26,14 +26,43 @@ export function canBookAgain(booking: Pick<Booking, 'status' | 'moved'>): boolea
 export function bookAgainPath(
   booking: Pick<Booking, 'vendorId' | 'bookingType' | 'items'>
 ): string {
-  const ids = [...new Set(booking.items.map((item) => item.serviceId).filter(Boolean))]
-  const mode = bookingTypeParam(booking.bookingType)
+  return bookAgainPathFor({
+    vendorId: booking.vendorId,
+    bookingType: booking.bookingType,
+    serviceIds: booking.items.map((item) => item.serviceId),
+  })
+}
+
+/**
+ * bookAgainPath from the bare ids, as Home's Book again tile has them (the
+ * server sends the last job's garage, mode and services, not a booking).
+ */
+export function bookAgainPathFor(job: {
+  vendorId: string
+  bookingType: BookingType
+  serviceIds: string[]
+}): string {
+  const ids = [...new Set(job.serviceIds.filter(Boolean))]
+  const mode = bookingTypeParam(job.bookingType)
   const modeQuery = mode ? `mode=${mode}` : ''
 
   if (ids.length === 0) {
-    return `/garage/${booking.vendorId}${modeQuery ? `?${modeQuery}` : ''}`
+    return `/garage/${job.vendorId}${modeQuery ? `?${modeQuery}` : ''}`
   }
-  return `/book/${booking.vendorId}?service=${ids.join(',')}${modeQuery ? `&${modeQuery}` : ''}`
+  return `/book/${job.vendorId}?service=${ids.join(',')}${modeQuery ? `&${modeQuery}` : ''}`
+}
+
+/**
+ * Where Book again goes when the garage sells none of the last job's
+ * services any more: its page, saying so (`withdrawn`), in the old mode. The
+ * same link checkout's own redirect builds when every requested service is
+ * gone, so the customer reads one explanation whichever way they came.
+ */
+export function withdrawnPathFor(job: { vendorId: string; bookingType: BookingType }): string {
+  const next = new URLSearchParams({ withdrawn: '1' })
+  const mode = bookingTypeParam(job.bookingType)
+  if (mode) next.set('mode', mode)
+  return `/garage/${job.vendorId}?${next.toString()}`
 }
 
 /**

@@ -14,20 +14,25 @@ test.describe('homepage @p0', () => {
     // builds only; a production build must never show one.
     await expect(page.getByText('Sample', { exact: true })).toHaveCount(0)
 
+    // "Book a service" means the list of garages, which lives at /garages.
     await page
       .getByRole('link', { name: /Book a service/ })
       .first()
       .click()
-    await expect(page).toHaveURL(/\/home/)
+    await expect(page).toHaveURL(/\/garages$/)
+    await expect(
+      page.getByRole('heading', { name: 'Nearby Garages' })
+    ).toBeVisible()
   })
 
   test('a stale signed-in hint costs a guest one detour, then clears', async ({
     page,
   }) => {
     // Any page will do to reach the origin's storage. Wait for it to render:
-    // AppProvider renders /home only once the session has resolved, and the
-    // hint write must land after its own clear, not race it.
-    await page.goto('/home')
+    // AppProvider renders /garages only once the session has resolved, and
+    // the hint write must land after its own clear, not race it. /garages
+    // rather than /home, whose content is about to change.
+    await page.goto('/garages')
     await expect(
       page.getByRole('heading', { name: 'Nearby Garages' })
     ).toBeVisible()
@@ -38,8 +43,9 @@ test.describe('homepage @p0', () => {
 
     await page.goto('/')
     // The hint only ever points at /home, which is public — never at a
-    // guarded route that would strand a signed-out visitor on /login.
-    await expect(page).toHaveURL(/\/home/)
+    // guarded route that would strand a signed-out visitor on /login. The
+    // hub sends a signed-out visitor on to the list of garages.
+    await expect(page).toHaveURL(/\/(home|garages)$/)
     await expect
       .poll(() =>
         page.evaluate(

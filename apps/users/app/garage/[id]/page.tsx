@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconArrowLeft,
+  IconArrowUpRight,
   IconBuildingStore,
   IconCheck,
   IconClock,
@@ -53,6 +54,8 @@ import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration } from '@repo/core/utils'
 import { OpenStatus } from '@/components/open-status'
+import { MainAction } from '@/components/main-action'
+import { isHomeHubEnabled } from '@/lib/home-hub'
 
 type Tab = 'services' | 'photos' | 'reviews'
 
@@ -92,6 +95,12 @@ const CARD_DETAILS_TRIGGER = cn(
  * settles to a graphite outline with a check, so a page with several picks is
  * not a column of bright pills competing with Book Now. `relative z-10` lifts
  * it above the card's stretched details layer, keeping it a separate target.
+ *
+ * Behind the Home hub flag Add is never red: Book Now is the hub's gradient
+ * pill there, and flat #EF3240 pills beside it would be two reds and several
+ * red controls on one screen, where the brand allows one. Add is then a
+ * graphite outline on the canvas and Added the same outline filled, told
+ * apart by their icon and word as well as the fill. Off, today's red exactly.
  */
 function AddToBookingButton({
   name,
@@ -116,7 +125,9 @@ function AddToBookingButton({
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
         added
           ? 'border-text-primary/40 bg-surface-elevated text-text-primary hover:border-text-primary/60'
-          : 'border-transparent bg-brand-red text-white hover:bg-brand-red-hover active:bg-brand-red-hover'
+          : isHomeHubEnabled()
+            ? 'border-text-primary/40 bg-transparent text-text-primary hover:border-text-primary/60 hover:bg-surface-elevated'
+            : 'border-transparent bg-brand-red text-white hover:bg-brand-red-hover active:bg-brand-red-hover'
       )}
     >
       {added ? (
@@ -145,6 +156,9 @@ export default function GaragePage({
   // (Book again on an old booking, usually) has been withdrawn. Said on the
   // page, so it is still there once the page has loaded.
   const servicesWithdrawn = searchParams.get('withdrawn') === '1'
+  // An offer code from Home (this garage's own offer). Passed on to checkout,
+  // which applies it once the services and the car are chosen.
+  const offerCode = searchParams.get('code')?.trim() || null
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   // Named to avoid shadowing the DOM's global `location`.
@@ -275,7 +289,7 @@ export default function GaragePage({
     const modeQuery = bookingTypeParam(mode)
     const bookPath = `/book/${id}?service=${selected.join(',')}${
       modeQuery ? `&mode=${modeQuery}` : ''
-    }`
+    }${offerCode ? `&code=${encodeURIComponent(offerCode)}` : ''}`
     router.push(user ? bookPath : `/login?next=${encodeURIComponent(bookPath)}`)
   }
 
@@ -310,7 +324,7 @@ export default function GaragePage({
               This garage isn&apos;t taking bookings on Detlio.
             </p>
             <Link
-              href="/home"
+              href="/garages"
               className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline"
             >
               Find another garage
@@ -799,9 +813,19 @@ export default function GaragePage({
               />
             </p>
           </div>
-          <ScButton fullWidth={false} className="px-8" onClick={handleBook}>
+          {/* The page's one main action. Behind the Home hub flag it is the
+              red pill with its shine; off, today's button exactly. The Add
+              buttons above stay as they are: a redesign of the cards is a
+              later PR. */}
+          <MainAction
+            fullWidth={false}
+            className="px-8"
+            heroClassName="shrink-0 px-6"
+            heroIcon={<IconArrowUpRight size={17} stroke={1.5} aria-hidden />}
+            onClick={handleBook}
+          >
             Book Now
-          </ScButton>
+          </MainAction>
         </div>
       )}
 

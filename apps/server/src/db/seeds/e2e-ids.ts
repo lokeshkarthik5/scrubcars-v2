@@ -196,6 +196,57 @@ export const CUSTOMERS = {
    */
   bookAgain: { id: id(139), phone: '9000000039', name: 'Rebook Renuka', vehicleId: id(748) },
   /**
+   * The Home hub's customers (specs/users/home-api.spec.ts), one per state,
+   * all on VENDORS.homePromo, a garage nobody else books and far from
+   * ORIGIN, so none of this shows on any other customer's Home.
+   *
+   * Has a completed, paid job at HOME_PROMO: sees the HUBBOOKED offer
+   * (booked_this_garage) and a Book again tile. Reads only.
+   */
+  homeOffer: { id: id(140), phone: '9000000040', name: 'Hub Offer Oviya', vehicleId: id(749) },
+  /** A finished inspection job with a final bill still to pay: the must-act card. */
+  homeBill: { id: id(141), phone: '9000000041', name: 'Hub Bill Bharath', vehicleId: id(750) },
+  /**
+   * Two cars, both on an explicit 10-day interval (so the October–December
+   * default never matters): one washed 8 days ago (due in 2 days), the other
+   * 13 days ago (overdue by 3). VEHICLES.homeWashSecond is the second.
+   */
+  homeWash: { id: id(142), phone: '9000000042', name: 'Hub Wash Wahida', vehicleId: id(751) },
+  /** No car and no bookings: "Add your car", and no garage offers. */
+  homeNew: { id: id(143), phone: '9000000043', name: 'Hub New Nila', vehicleId: null },
+  /**
+   * A job finished 10 hours ago, with Updates last opened before it: unread
+   * rows, then read; and the "Rate your wash" card, then closed. The initial
+   * in the name is what Home's "Hey Uday" skips.
+   */
+  homeUpdates: { id: id(144), phone: '9000000044', name: 'R. Uday', vehicleId: id(753) },
+  /**
+   * A paid booking at HOME_PROMO in two days, which NOTICES.homeRain is about
+   * (its tile line and first Updates row), and which closes both the notice
+   * and the HUBBOOKED offer.
+   */
+  homeNotice: { id: id(145), phone: '9000000045', name: 'Hub Notice Nandini', vehicleId: id(754) },
+  /** A paid booking at HOME_PROMO on its holiday: "Garage closed" must-act card. */
+  homeClosed: { id: id(146), phone: '9000000046', name: 'Hub Closed Charles', vehicleId: id(755) },
+  /**
+   * The Home screen's own customers (specs/users/home.spec.ts and
+   * updates.spec.ts), for what the screen changes: the wash interval, the
+   * read marker, the ×s. Kept apart from the API spec's customers above,
+   * which reset and change the same things while both files run in parallel.
+   *
+   * Two cars on a 10-day interval, washed 8 and 13 days ago, like homeWash.
+   * VEHICLES.homeScreenWashSecond is the second.
+   */
+  homeScreenWash: { id: id(147), phone: '9000000047', name: 'Hub Meter Meena', vehicleId: id(756) },
+  /** A job finished a day ago, with Updates last opened before it: the bell's dot. */
+  homeBell: { id: id(148), phone: '9000000048', name: 'Hub Bell Bala', vehicleId: id(758) },
+  /**
+   * A paid booking at HOME_PROMO in four days, which NOTICES.homeTileNote is
+   * about: the line on its Next booking tile, the first Updates row, and the
+   * ×s on that notice and on the HUBBOOKED offer.
+   */
+  homeTile: { id: id(149), phone: '9000000049', name: 'Hub Tile Tara', vehicleId: id(759) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -297,7 +348,18 @@ export const VENDORS = {
    * customer no-show, paid as if the job happened, and nothing else.
    */
   refunds: { id: id(311), name: 'Refunds Test Garage' },
+  /**
+   * The Home hub's garage. Its Show-on-Home codes (DISCOUNTS.homeBooked,
+   * homeNear) only reach customers who booked it or stand near it, and it
+   * sits ~130 km from ORIGIN (in Vellore), so no other customer ever sees
+   * them, and it never comes between MAIN and the fillers in a distance sort.
+   * Booked only by the CUSTOMERS.home* fixtures.
+   */
+  homePromo: { id: id(312), name: 'Hub Promo Test Garage' },
 } as const
+
+/** Where VENDORS.homePromo is, and where "near it" is asked from. */
+export const HOME_PROMO_PIN = { lat: 12.9165, lng: 79.1325 } as const
 
 /** Filler garages so listing, sorting and infinite scroll have real volume. */
 export const FILLER_VENDOR_COUNT = 12
@@ -342,6 +404,10 @@ export const SERVICES = {
   inspectFee: { id: id(415), name: 'Dent Inspection', price: '299.00', durationMins: 60 },
   /** On REFUNDS: every refunds-journey booking is one ₹499 wash. */
   refundsWash: { id: id(416), name: 'Refunds Wash', price: '499.00', durationMins: 30 },
+  /** On HOME_PROMO, a car wash: what the Home wash bar counts. */
+  homePromoWash: { id: id(417), name: 'Hub Foam Wash', price: '450.00', durationMins: 30 },
+  /** On HOME_PROMO, priced on inspection: CUSTOMERS.homeBill's billed job. */
+  homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
 } as const
 
 export const DISCOUNTS = {
@@ -361,6 +427,13 @@ export const DISCOUNTS = {
   vendorFunded: { id: id(507), code: 'VENDORPAYS', percentOff: '10.00' },
   /** Deactivated by the admin spec, then asserted to fail on the customer side. */
   toDeactivate: { id: id(508), code: 'KILLME' },
+  /**
+   * Shown on Home, Top priority, to customers who booked HOME_PROMO
+   * (targeting is on in .env.e2e). CUSTOMERS.homeNotice closes it.
+   */
+  homeBooked: { id: id(509), code: 'HUBBOOKED', homeTitle: '25% off a wash at Hub Promo' },
+  /** Shown on Home to customers within 10 km of HOME_PROMO_PIN. */
+  homeNear: { id: id(510), code: 'HUBNEAR', homeTitle: '₹75 off near Hub Promo' },
 } as const
 
 export const BOOKINGS = {
@@ -509,6 +582,19 @@ export const BOOKINGS = {
   /** Completed, for the Retired Polish alone: nothing left to book again, so
    *  it opens the garage page. */
   rebookAllRetired: id(630),
+  /** The Home hub's bookings, all at HOME_PROMO; see CUSTOMERS.home*. */
+  homeOfferDone: id(631),
+  homeBillJob: id(632),
+  homeWashFirst: id(633),
+  homeWashSecond: id(634),
+  homeUpdatesDone: id(635),
+  homeNoticeUpcoming: id(636),
+  homeClosedUpcoming: id(637),
+  /** The Home screen's bookings, also at HOME_PROMO; see CUSTOMERS.homeScreenWash on. */
+  homeScreenWashFirst: id(638),
+  homeScreenWashSecond: id(639),
+  homeBellDone: id(640),
+  homeTileUpcoming: id(641),
 } as const
 
 export const VEHICLES = {
@@ -524,6 +610,10 @@ export const VEHICLES = {
    *  take the row with it — archiving everything would fill the table with
    *  tombstones for cars added by mistake. */
   spare: id(705),
+  /** CUSTOMERS.homeWash's second car, 13 days since its wash. */
+  homeWashSecond: id(752),
+  /** CUSTOMERS.homeScreenWash's second car, 13 days since its wash. */
+  homeScreenWashSecond: id(757),
 } as const
 
 /**
@@ -549,6 +639,21 @@ export const REVIEWS = { existing: id(801) } as const
  * Owed list.
  */
 export const BOOKING_INTENTS = { failed: id(1001), refundOwed: id(1002) } as const
+
+/**
+ * Team notices. `homeRain` is about bookings at HOME_PROMO around
+ * CUSTOMERS.homeNotice's slot, and nobody else's (the admin notices spec
+ * counts exactly one customer in its window): never an 'all' notice,
+ * which would reach every customer's Home in every parallel spec.
+ */
+export const NOTICES = {
+  homeRain: id(1101),
+  /** About CUSTOMERS.homeTile's slot only, a day after homeRain's window. */
+  homeTileNote: id(1102),
+} as const
+
+/** A final bill. `homeBill` is CUSTOMERS.homeBill's, ₹800 still to pay. */
+export const CHARGES = { homeBill: id(1201) } as const
 
 /** Admin panel credentials, matching ADMIN_USERNAME / ADMIN_PASSWORD in .env.e2e. */
 export const ADMIN = { username: 'admin', password: 'admin' } as const

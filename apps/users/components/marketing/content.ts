@@ -59,7 +59,7 @@ export const HERO = {
   /** Two lines, rendered large; the brand's red period follows the second. */
   title: ['All your car care needs,', 'in one app'] as const,
   body: 'Premium car care from verified specialists, with clear prices, live updates and a team on your side for every booking.',
-  primaryCta: { label: 'Book a service', href: '/home' } satisfies Cta,
+  primaryCta: { label: 'Book a service', href: '/garages' } satisfies Cta,
   secondaryCta: { label: 'How it works', href: '#how-it-works' } satisfies Cta,
   image: {
     src: '/onboarding-car.jpg',
@@ -87,10 +87,11 @@ export const OFFER_TAG = {
  * link to a live listing, and neither Apple's logo nor Google Play's may be
  * used outside them. Switch to the official badges, linked, at launch.
  *
- * The screenshot is the customer app as it runs today (apps/users /home at
- * 390×844, 2×), so the phone shows the real product. No readable number
- * plates or faces (brand ch. 09) — blur them. Retake it when the home screen,
- * or a pictured garage's listing or price, changes.
+ * The screenshot is the customer app as it runs today (the garage list, now
+ * at apps/users /garages and still at /home, at 390×844, 2×), so the phone
+ * shows the real product. No readable number plates or faces (brand ch. 09) —
+ * blur them. Retake it when the new Home ships, or when a pictured garage's
+ * listing or price changes.
  */
 export const APPS = {
   kicker: 'The Detlio app',
@@ -101,7 +102,7 @@ export const APPS = {
     { key: 'app-store', name: 'the App Store' },
     { key: 'google-play', name: 'Google Play' },
   ] as const,
-  web: { label: 'Book on the web today', href: '/home' } satisfies Cta,
+  web: { label: 'Book on the web today', href: '/garages' } satisfies Cta,
   screenshot: {
     src: '/marketing/app-home.jpg',
     alt: 'The Detlio home screen, listing garages near you with prices',
@@ -480,7 +481,7 @@ export const GARAGES_INTRO = {
   kicker: 'On Detlio',
   title: 'We know the garages. You know the price.',
   body: 'Every garage is reviewed and verified by our team before it is listed. Book any of them in the same app.',
-  cta: { label: 'See all garages', href: '/home' } satisfies Cta,
+  cta: { label: 'See all garages', href: '/garages' } satisfies Cta,
 }
 
 // ─── FAQ ────────────────────────────────────────────────────────────────────
@@ -541,14 +542,14 @@ export const FINAL_CTA = {
   /** Rendered with the brand's red terminal period. */
   title: 'Care without compromise',
   body: 'At the garage or at your door today. Pickup & drop coming soon. And a team that knows every garage, on your side.',
-  cta: { label: 'Book a service', href: '/home' } satisfies Cta,
+  cta: { label: 'Book a service', href: '/garages' } satisfies Cta,
 }
 
 export const FOOTER = {
   tagline:
     'One app for all your car care. At the garage, at your door, and soon, pickup & drop.',
   links: [
-    { label: 'Book a service', href: '/home' },
+    { label: 'Book a service', href: '/garages' },
     { label: 'Find on a map', href: '/map' },
     { label: 'Sign in', href: '/login' },
   ] satisfies Cta[],

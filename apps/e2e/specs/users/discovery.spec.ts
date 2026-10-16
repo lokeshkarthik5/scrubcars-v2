@@ -26,8 +26,8 @@ async function search(
 test.use({ storageState: asRole('customer-browse') })
 
 test.describe('discovery', () => {
-  test('the home list shows verified garages', async ({ page }) => {
-    await page.goto('/home')
+  test('the garage list shows verified garages', async ({ page }) => {
+    await page.goto('/garages')
     await expect(page.getByText(VENDORS.main.name).first()).toBeVisible()
     // Starting price is the cheapest active service: the express wash at 499.
     await expect(page.getByText('₹499').first()).toBeVisible()

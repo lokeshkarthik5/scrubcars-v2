@@ -7,6 +7,7 @@ import { setUnauthorizedHandler } from '@repo/core/api/client'
 import { APP_VERSION } from '@repo/core/version'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
+import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { LEGAL_ROUTES } from '@/lib/legal/routes'
 import { SIGNED_IN_HINT_KEY } from './signed-in-landing'
@@ -40,7 +41,8 @@ const MARKETING_ROUTES = ['/']
  */
 const DOCUMENT_ROUTES = LEGAL_ROUTES
 const GUEST_ROUTES = ['/login', '/verify-otp']
-const CUSTOMER_ROUTES = ['/book', '/profile-setup']
+// /updates is one customer's own feed; signed out, there is nothing to show.
+const CUSTOMER_ROUTES = ['/book', '/profile-setup', '/updates']
 
 function matchesRoute(pathname: string, routes: string[]) {
   return routes.some(
@@ -87,6 +89,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       useUserStore.getState().reset()
       useBookingsStore.getState().reset()
+      // An offer code or car picked on Home belongs to the account that
+      // picked it, not to the next person to sign in on this phone.
+      usePendingCheckoutStore.getState().clear()
 
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         window.location.href = '/login'

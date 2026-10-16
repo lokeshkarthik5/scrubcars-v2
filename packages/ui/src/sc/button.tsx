@@ -1,7 +1,7 @@
 import { cn } from '@repo/core/utils'
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'cta'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'cta' | 'hero'
 
 interface ScButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
@@ -17,6 +17,10 @@ const variantStyles: Record<ButtonVariant, string> = {
   // Login/auth call-to-action: sits muted until the form is valid, then fills
   // with brand red. Opt-in so ordinary primary buttons keep their own look.
   cta: 'rounded-full py-4 text-[15px] bg-brand-red text-brand-white hover:bg-brand-red-hover disabled:bg-surface-elevated disabled:text-text-secondary disabled:hover:bg-surface-elevated',
+  // The Home hub's one red action: the gradient pill with its intro shine
+  // (`cta-hero` in globals.css). Wrap the label in an element, so it sits
+  // above the band of light. One per screen; behind NEXT_PUBLIC_HOME_HUB.
+  hero: 'cta-hero flex h-[52px] items-center justify-center gap-2 rounded-full py-0 text-[15px] font-medium tracking-[-0.005em]',
 }
 
 /**

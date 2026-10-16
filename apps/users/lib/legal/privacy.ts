@@ -6,6 +6,9 @@
  * applies today: the IT Act s.43A and the SPDI Rules 2011. Every statement
  * about what is collected and where it goes was checked against the code; if
  * the code changes what it collects or who receives it, change this page.
+ * That includes the Meta Pixel (components/meta-pixel.tsx, mounted on every
+ * page by app/layout.tsx) and the server switch HOME_OFFER_TARGETING, which
+ * stays off until this text is in force (section 2, "Offers on Home").
  */
 import { type LegalDoc, orTbc, tbc } from './doc-format'
 import {
@@ -49,7 +52,7 @@ export const PRIVACY: LegalDoc = {
     },
     {
       kind: 'callout',
-      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, number, car and (for doorstep) address. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data, show you ads or track you across other sites.',
+      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, number, car and (for doorstep) address. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data or show ads in Detlio. Our website does load Meta\'s pixel, which tells Meta (Facebook and Instagram) which of our pages you open, so we can measure our ads there (section 4).',
     },
   ],
   sections: [
@@ -101,7 +104,7 @@ export const PRIVACY: LegalDoc = {
             [
               'Approximate location while browsing (if you allow it)',
               'Your device',
-              'Showing garages near you, distances and travel times. Kept on your device; only a rounded position (to about 100 metres) is sent to us.',
+              'Showing garages near you, distances and travel times, and how many garages are near you on Home. Kept on your device; only a rounded position (to about 100 metres) is sent to us, and Home does not save it. Once matched offers are switched on, also choosing offers from garages near you (see "Offers on Home" below).',
             ],
             [
               'Address searches and map pins you drop',
@@ -111,12 +114,22 @@ export const PRIVACY: LegalDoc = {
             [
               'Car details: make, model, size, and number plate if you add it',
               'You',
-              'Pricing by car size; telling the garage which car to expect',
+              'Pricing by car size; telling the garage which car to expect; the picture on Home, which is of a car the same size as yours, not your own car. Once matched offers are switched on, also offers for your size of car.',
+            ],
+            [
+              'How often you want each car washed (if you choose)',
+              'You',
+              'The wash reminder on your Home screen, counted from your last completed wash. Without a choice we use 14 days, or 10 from October to December. Once matched offers are switched on, also offers for customers whose wash is due.',
+            ],
+            [
+              'When you last opened Updates, and the offers, team notices and "Rate your wash" prompts you closed',
+              'You, when you open Updates or tap × on Home',
+              'Showing which updates are new, and keeping what you closed hidden on every device you use. Not used for anything else, including choosing offers, and deleted with your account (the mark that you closed "Rate your wash" is kept with that booking\'s record).',
             ],
             [
               'Bookings: garage, services, time, amounts, promo code, status and history',
               'You and the garage',
-              'Running the booking, your booking history, receipts, support and our accounts',
+              'Running the booking, your booking history, receipts, support and our accounts; on Home, your last wash, next booking and Book again. Once matched offers are switched on, also whether, and with which garages, you have booked, to choose offers.',
             ],
             [
               'A reason you type when cancelling (optional)',
@@ -149,6 +162,11 @@ export const PRIVACY: LegalDoc = {
               'Helping you and dealing with complaints. Our internal notes are not shown to garages.',
             ],
             [
+              'The pages you open on detlio.com, with your IP address and details of your browser and device',
+              'Your browser sends them to Meta, through Meta\'s pixel (section 4)',
+              'Measuring and improving our ads on Facebook and Instagram. Sent straight to Meta; we do not receive or keep it.',
+            ],
+            [
               'Technical data: sign-in cookies, server logs (including the web addresses requested, which can contain address searches, map coordinates and, when our team looks up your booking, your name or mobile number, and your IP address), and error reports',
               'Your browser and our systems',
               'Keeping you signed in, security, preventing abuse, and fixing faults',
@@ -161,11 +179,57 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Lawful basis.** DPDP Act s.7(a) lets data the customer volunteers for a booking be used for it without separate consent; other uses need consent (s.6). Please mark which basis covers each row (the table could gain a fourth column). Nothing is used for marketing today, so no marketing consent is collected.',
+          text: '**Lawful basis.** DPDP Act s.7(a) lets data the customer volunteers for a booking be used for it without separate consent; other uses need consent (s.6). Please mark which basis covers each row (the table could gain a fourth column). Two uses are marketing and are not needed for a booking: matched offers on Home ("Offers on Home" below; off until this text is in force) and Meta\'s pixel (section 4; live on every page today). Neither has a consent step yet; see the notes on each.',
         },
         {
           kind: 'note',
           text: '**Profile photos keep their metadata.** Customer profile photos are uploaded as-is, so a photo taken on a phone can carry its GPS location in its metadata at a public link. Garage job photos are re-encoded, which strips it. The row now says so. Recommend re-encoding avatars in the browser before upload (reuse `resizeForUpload` from apps/vendors/lib/resize-image.ts, moved to a shared package) and then dropping that sentence.',
+        },
+      ],
+      subsections: [
+        {
+          id: 'home-offers',
+          heading: 'Offers on Home',
+          blocks: [
+            {
+              kind: 'p',
+              text: 'The Home screen shows up to three offers: promo codes our team chooses to put there. Offers from a single garage are hidden until you save a car, because they are priced by car size. Other than that, some offers are for everyone, and others can be matched to you, so that the offers you see are ones that are relevant to you. Each matched offer is for one of these groups, customers who:',
+            },
+            {
+              kind: 'list',
+              items: [
+                'have not paid for a booking on Detlio yet;',
+                'have paid for a booking with that garage before (even if it was later refunded);',
+                'are near the garage, within a distance our team sets for each offer (10 km unless the team picks another, at most 50 km). This is measured from the rounded location the app sends when you open Home: your device\'s location if you shared it, or the saved address or area you picked. Home does not save it;',
+                'have a wash due within the next 2 days, or overdue, on one of their cars, worked out from their last completed wash on Detlio and the reminder interval chosen for that car;',
+                'own a particular size of car (hatchback, sedan, or SUV / MUV).',
+              ],
+            },
+            {
+              kind: 'p',
+              text: 'When offers are matched, offers our team has marked as equally important are shown in this order: offers from garages you have booked, then from garages near you, then Detlio\'s own offers, then other garages\' offers.',
+            },
+            {
+              kind: 'p',
+              text: 'This only decides which offers you see on Home. It does not change any price or who may use a code: anyone who has a code can use it at checkout, whether or not it was shown to them. Garages do not see who was shown their offer. When our team sets up an offer, it sees only an estimate of how many customers it would reach, counted from the same facts (with distance measured from saved addresses), never who they are. Nothing is sent to you by SMS, WhatsApp or email because of it.',
+            },
+            {
+              kind: 'p',
+              text: '**Matching starts only when this version of the policy takes effect.** Before then, offers are not matched to you: you see the offers shown to everyone, apart from garages\' offers until you save a car, and any you have closed or used up.',
+            },
+            {
+              kind: 'p',
+              text: 'If you would rather see only the offers shown to everyone, tell us (section 9). There is no setting for this in the app.',
+            },
+            {
+              kind: 'note',
+              text: '**Matched offers are off until this text is approved.** The server switch HOME_OFFER_TARGETING is off in production. While it is off, only offers for everyone are shown, none of the facts above are read to choose offers, and our team cannot save an offer for any other audience. It is to be turned on only in the release that publishes this version. Please confirm the lawful basis: choosing offers is not needed for a booking, so this is likely s.6 consent rather than s.7(a). If consent is needed, the product needs a consent step before the switch goes on.',
+            },
+            {
+              kind: 'note',
+              text: '**Opting out of matched offers.** There is no setting in the app, and today there is no per-customer switch in the system either: the team could honour "show me only general offers" only by switching matching off for everyone. Before matching is switched on, either build a per-customer opt-out (a flag that the Home read checks, ideally with a toggle in Profile, so that withdrawing is as easy as agreeing: DPDP Rules rule 3(c)(i)), or change the sentence above. Is an in-app opt-out needed?',
+            },
+          ],
         },
       ],
     },
@@ -179,8 +243,8 @@ export const PRIVACY: LegalDoc = {
             'We never see or store your card number, CVV, UPI PIN or net-banking password. You enter them on Razorpay\'s checkout, and Razorpay tells us only whether the payment went through and its reference IDs.',
             'There are no passwords: you sign in with a one-time code.',
             'We do not collect Aadhaar, PAN or other government ID numbers, health information or biometrics.',
-            'We do not use advertising or analytics trackers, and we do not track you across other websites.',
-            'We do not sell your personal data, and we do not send you marketing messages.',
+            'We use one advertising tool, Meta\'s pixel (section 4), and no other advertising or analytics trackers. We do not show ads in Detlio.',
+            'We do not sell your personal data, and we do not send you marketing messages by SMS, WhatsApp or email. Offers appear only inside the app, on Home (section 2).',
           ],
         },
       ],
@@ -308,6 +372,49 @@ export const PRIVACY: LegalDoc = {
           ],
         },
         {
+          id: 'meta',
+          heading: 'Meta (Facebook and Instagram), for our ads',
+          blocks: [
+            {
+              kind: 'p',
+              text: 'Every page of detlio.com loads the **Meta Pixel**, a small piece of code from Meta Platforms, the company behind Facebook and Instagram. We use it to measure and improve our ads on Facebook and Instagram: for example, to count how many people open Detlio after seeing one of our ads.',
+            },
+            {
+              kind: 'p',
+              text: 'It runs on every page of the customer website, whether or not you are signed in: the homepage, sign-in, garage pages, checkout, your bookings and receipts, your profile, Home and these policies. It is not on the partner portal garages use. Each time you open a page, including moving from screen to screen inside the app, your browser sends Meta a "page view" with:',
+            },
+            {
+              kind: 'list',
+              items: [
+                'the web address (URL) of the page. On checkout (and on sign-in, when you sign in on the way to checkout) it names the garage, the services you picked (by reference number) and whether the visit is at your door, and can include a promo code. On a booking\'s pages it carries the booking\'s reference number and can show that you have just paid for it, that you have a bill to pay, or the star rating you tapped on Home before writing a review;',
+                'the address of the page you came from;',
+                'your IP address, and details of your browser and device, such as its type and screen size;',
+                'the IDs in Meta\'s cookies on detlio.com (_fbp, and _fbc if it is set; section 5), and, if you use Facebook or Instagram in the same browser and it allows it, Meta\'s own cookies, which let Meta link the visit to your Facebook or Instagram account.',
+              ],
+            },
+            {
+              kind: 'p',
+              text: 'Apart from what the page address shows, we have not set it up to send your name, mobile number or car. Meta receives this directly from your browser, on its servers outside India, and also uses it for its own purposes under [Meta\'s Privacy Policy](https://www.facebook.com/privacy/policy/), for example to choose which ads to show you. Your browser can limit it (blocking third-party cookies, or its tracking protection), and your Facebook and Instagram settings let you see and disconnect activity that websites share with Meta.',
+            },
+            {
+              kind: 'note',
+              text: '**Consent before the pixel loads (DPDP).** The pixel loads on every page as soon as it opens, before any choice is offered (components/meta-pixel.tsx, mounted in app/layout.tsx), and nothing in the app turns it off. Measuring ads is not needed for a booking and is not a s.7 "legitimate use", so it likely needs s.6 consent: a banner or opt-in, with the pixel not loading until the customer agrees, and a way to withdraw that is as easy. Please advise. Also: is Meta a Data Processor for Detlio, or a separate Data Fiduciary for what it does with the data for itself? Meta\'s Business Tools Terms treat it partly as each. That decides whether Meta belongs in the provider table above (processors only) or, as drafted, here on its own.',
+            },
+            {
+              kind: 'note',
+              text: '**Which pages the pixel runs on.** Recommendation, not done in this release: load the pixel only on the public marketing pages (the homepage, garage pages, these policies), not on signed-in pages, whose web addresses carry booking ids (/bookings/<id>, /bookings/<id>/receipt) and checkout choices (/book/<garage>?service=…&mode=doorstep&code=…, also inside /login?next=… on the way there). Every page view sends that address to Meta, as soon as the page opens: the booking page removes ?celebrate=1 (just paid), ?then=pay (a final bill to pay) and ?rate=N (the star tapped on Home\'s "Rate your wash") with replaceState, but only after the first page view has gone. If the pixel stays on these pages, at least strip those parameters before it loads, or send Meta only the path without the query. The list above describes what is sent today. The code is unchanged here; if the pages change, the second paragraph above changes with them.',
+            },
+            {
+              kind: 'note',
+              text: '**Meta requires this notice.** Meta\'s Business Tools Terms require a site using the pixel to tell visitors, clearly and prominently, that Meta and others collect information through cookies and similar tools, how they can opt out, and to obtain consent where the law requires it. This section and the cookie rows in section 5 are that notice, now added. The opt-out offered is only the browser\'s and Meta\'s own settings until there is a consent choice.',
+            },
+            {
+              kind: 'note',
+              text: '**Settings in Meta\'s Events Manager.** "Apart from what the page address shows, we have not set it up to send your name, mobile number or car" holds only while "Automatic advanced matching" and automatic event tracking (button clicks and page metadata) are off for pixel 891710590692874. With automatic advanced matching on, the pixel itself reads form fields, such as the mobile number on the sign-in screen, and sends them hashed. Please have the team confirm both are off, or change the sentence. The code sends only page views.',
+            },
+          ],
+        },
+        {
           id: 'team',
           heading: 'Our team',
           blocks: [
@@ -345,7 +452,7 @@ export const PRIVACY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: 'We use only what is needed to make Detlio work. There are no advertising or analytics cookies.',
+          text: 'Most of what we store is needed to make Detlio work. The exception is Meta\'s pixel (section 4), which sets advertising cookies on detlio.com.',
         },
         {
           kind: 'table',
@@ -357,11 +464,15 @@ export const PRIVACY: LegalDoc = {
             ['auth_phone and related items (session storage)', 'Remember the number and timers between the sign-in and code screens', 'Until you close the tab'],
             ['detlio:signed-in (local storage)', 'Remembers that this browser is signed in, to skip the homepage', 'Until you log out'],
             ['detlio-location (local storage)', 'Your last location and place name, if you shared it, so the app can show nearby garages', 'Until you clear it in your browser'],
+            ['detlio-pending-checkout (local storage)', 'The offer code and car you picked on Home, so checkout can apply the code', 'Cleared when you book, remove the code or log out; ignored after a day, or once the offer ends'],
+            ['detlio:tip-hidden-on (local storage)', 'The day you hid the car care tip on Home', 'Until you clear it in your browser; the tip comes back the next day'],
+            ['_fbp (cookie, set by Meta\'s pixel)', 'Advertising: a random ID that lets Meta recognise this browser on each visit to detlio.com, to measure our ads', '90 days, renewed on each visit'],
+            ['_fbc (cookie, set by Meta\'s pixel)', 'Advertising: set when you arrive from a link on Facebook or Instagram (including our ads) that carries Meta\'s click ID, to record which click brought you', '90 days'],
           ],
         },
         {
           kind: 'p',
-          text: 'Razorpay\'s checkout may set its own cookies when you pay; see Razorpay\'s privacy policy. You can clear cookies and storage in your browser settings at any time, which signs you out.',
+          text: 'Razorpay\'s checkout may set its own cookies when you pay; see Razorpay\'s privacy policy. Meta\'s pixel loads code from Meta\'s servers, and your browser may also send Meta its own cookies if you use Facebook or Instagram in the same browser; see Meta\'s Privacy Policy. You can clear cookies and storage in your browser settings at any time, which signs you out of Detlio.',
         },
       ],
     },
@@ -371,7 +482,7 @@ export const PRIVACY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: `Our main database is hosted in ${DATABASE}. Some of our providers (such as Vercel, Cloudflare, Sentry and Telegram) may process data on servers outside India. Indian law allows this except to countries the Government restricts, and we only use providers that protect data to a reasonable standard.`,
+          text: `Our main database is hosted in ${DATABASE}. Some of our providers (such as Vercel, Cloudflare, Sentry and Telegram) may process data on servers outside India, and Meta receives what its pixel sends (section 4) on its servers outside India. Indian law allows this except to countries the Government restricts, and we only use providers that protect data to a reasonable standard.`,
         },
         {
           kind: 'note',
@@ -394,6 +505,7 @@ export const PRIVACY: LegalDoc = {
             ['Reviews', 'Shown while the garage is listed, unless removed under our Terms or at your request; kept with the booking record after that'],
             ['Sign-in codes and session records', `Codes stop working after 3 minutes. Records of codes sent and of sign-in sessions are kept for ${LOGS}`],
             ['Server logs and error reports', LOGS],
+            ['What Meta\'s pixel sends (section 4)', 'We do not receive or keep it. Meta keeps it under its own policy; the _fbp cookie on your device lasts 90 days from your last visit.'],
             ['After you close your account', `${AFTER_CLOSURE}, except records we must keep by law, as above`],
           ],
         },
@@ -441,7 +553,7 @@ export const PRIVACY: LegalDoc = {
             '**Access.** Ask for a summary of the personal data we hold about you, what we do with it, and who we have shared it with.',
             '**Correction and updating.** You can change your cars, saved addresses and profile photo in the app (Profile). For your name or anything else, ask us.',
             '**Erasure and closing your account.** Ask us to delete your data or close your account. We will delete what we no longer need, except records the law requires us to keep (section 7), and tell you what we kept and why.',
-            '**Withdrawing consent.** You can stop sharing your location at any time in your browser\'s settings, and withdraw consent for anything else by asking us. Withdrawing does not affect what was done before, but we may not be able to provide a booking without the data it needs.',
+            '**Withdrawing consent.** You can stop sharing your location at any time in your browser\'s settings, limit Meta\'s pixel with your browser\'s cookie settings (section 4), ask us to show you only the offers shown to everyone (section 2), and withdraw consent for anything else by asking us. Withdrawing does not affect what was done before, but we may not be able to provide a booking without the data it needs.',
             '**Grievance.** Complain to our Grievance Officer about how we handle your data (section 14).',
             '**Nominating someone.** You can name a person to use these rights for you if you die or are unable to.',
           ],
