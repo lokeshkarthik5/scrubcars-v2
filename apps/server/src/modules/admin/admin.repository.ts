@@ -8,6 +8,8 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
+  isNull,
   like,
   lt,
   ne,
@@ -59,6 +61,8 @@ export interface BookingListFilters {
   start: Date | null
   /** Scheduled before. */
   end: Date | null
+  /** Marked "Test" only, or every booking but those. */
+  test?: 'only' | 'hide'
   /** Continue after this row; the panel pages this way. */
   after: BookingListCursor | null
   limit: number
@@ -410,6 +414,8 @@ export const adminRepository = {
     if (filters.vendorId) conditions.push(eq(bookings.vendorId, filters.vendorId))
     if (filters.start) conditions.push(gte(bookings.scheduledAt, filters.start))
     if (filters.end) conditions.push(lt(bookings.scheduledAt, filters.end))
+    if (filters.test === 'only') conditions.push(isNotNull(bookings.markedTestAt))
+    if (filters.test === 'hide') conditions.push(isNull(bookings.markedTestAt))
     // A row comparison in the same order as the ORDER BY below, so "after the
     // cursor" means exactly "further down the list".
     if (filters.after) {
@@ -607,14 +613,47 @@ export const adminRepository = {
     return db.insert(bookingNotes).values(data).returning()
   },
 
+  /**
+   * Marks a whole reschedule chain "Test", or clears the mark, with a note
+   * on the booking ops acted on, in one transaction. Only rows whose mark
+   * actually changes are written, so marking twice leaves one note. Null
+   * when nothing changed.
+   */
+  setChainTestMark(
+    rootBookingId: string,
+    mark: { at: Date; by: string } | null,
+    note: { bookingId: string; author: string; body: string }
+  ) {
+    return db.transaction(async (tx) => {
+      const changed = await tx
+        .update(bookings)
+        .set({ markedTestAt: mark?.at ?? null, markedTestBy: mark?.by ?? null })
+        .where(
+          and(
+            sql`coalesce(${bookings.originalBookingId}, ${bookings.id}) = ${rootBookingId}`,
+            mark ? isNull(bookings.markedTestAt) : isNotNull(bookings.markedTestAt)
+          )
+        )
+        .returning({ id: bookings.id })
+      if (changed.length === 0) return null
+
+      await tx.insert(bookingNotes).values(note)
+      return changed
+    })
+  },
+
   // ─── Pilot numbers ─────────────────────────────────────────────────────────
 
-  /** Every checkout opened since `since`: one booking intent each. */
+  /**
+   * Every checkout opened since `since`: one booking intent each. A checkout
+   * that became a booking ops marked "Test" is left out, like the booking.
+   */
   listIntentsCreatedSince(since: Date) {
     return db
       .select({ status: bookingIntents.status })
       .from(bookingIntents)
-      .where(gte(bookingIntents.createdAt, since))
+      .leftJoin(bookings, eq(bookings.id, bookingIntents.bookingId))
+      .where(and(gte(bookingIntents.createdAt, since), isNull(bookings.markedTestAt)))
   },
 
   /**
@@ -660,7 +699,11 @@ export const adminRepository = {
       .leftJoin(payments, eq(payments.bookingId, bookings.id))
       .leftJoin(root, eq(root.id, bookings.originalBookingId))
       .where(
-        sql`coalesce(${root.createdAt}, ${bookings.createdAt}) >= ${since.toISOString()}::timestamptz`
+        and(
+          sql`coalesce(${root.createdAt}, ${bookings.createdAt}) >= ${since.toISOString()}::timestamptz`,
+          // Bookings ops marked "Test" are not the pilot's (0032).
+          isNull(bookings.markedTestAt)
+        )
       )
   },
 
@@ -678,6 +721,6 @@ export const adminRepository = {
       })
       .from(bookings)
       .leftJoin(payments, eq(payments.bookingId, bookings.id))
-      .where(gte(bookings.acceptedAt, since))
+      .where(and(gte(bookings.acceptedAt, since), isNull(bookings.markedTestAt)))
   },
 }

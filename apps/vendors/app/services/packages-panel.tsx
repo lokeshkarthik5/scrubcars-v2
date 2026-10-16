@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { IconPackage } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScBadge } from '@repo/ui/sc/badge'
@@ -16,15 +16,16 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
   createPackage,
   deletePackage,
-  deletePackageImage,
   getMyPackages,
   updatePackage,
-  uploadPackageImage,
 } from '@repo/core/api/packages'
-import { MAX_IMAGES_PER_SERVICE, toggleServiceActive } from '@repo/core/api/services'
+import { toggleServiceActive } from '@repo/core/api/services'
+import { garageMediaApi, type MediaConfig } from '@repo/core/api/service-media'
+import { withMedia } from '@repo/core/service-media'
+import { ServiceMediaEditor } from '@repo/ui/features/service-media-editor'
 import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
-import type { PricingType, Service, ServicePackage } from '@repo/core/types'
-import { CatalogueImages, RowAction } from './catalogue-row'
+import type { PricingType, Service, ServiceMedia, ServicePackage } from '@repo/core/types'
+import { RowAction } from './catalogue-row'
 
 type PackageForm = {
   name: string
@@ -50,9 +51,6 @@ const emptyPackageForm: PackageForm = {
   serviceIds: [],
 }
 
-const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
-
 function hasValidPricing(form: PackageForm): boolean {
   if (form.pricingType === 'per_vehicle') {
     // Every tier, matching the server — see hasValidPricing in ./page.tsx.
@@ -63,17 +61,19 @@ function hasValidPricing(form: PackageForm): boolean {
   return Number(form.price) > 0
 }
 
-export function PackagesPanel({ services }: { services: Service[] }) {
+export function PackagesPanel({
+  services,
+  mediaConfig,
+}: {
+  services: Service[]
+  /** The photo-and-video block's config, fetched once by the page. */
+  mediaConfig: MediaConfig | null
+}) {
   const [packages, setPackages] = useState<ServicePackage[]>([])
   const [form, setForm] = useState<PackageForm>(emptyPackageForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
-  // One hidden file input serves every row; this holds the package the next
-  // pick belongs to.
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
-  const [imageBusyId, setImageBusyId] = useState<string | null>(null)
 
   // Only active services can be bundled — the server enforces this too, so
   // showing inactive ones as pickable would just produce a rejected save.
@@ -190,53 +190,12 @@ export function PackagesPanel({ services }: { services: Service[] }) {
       )
     })
 
-  const replacePackage = (updated: ServicePackage) =>
+  // A package is a services row, so it shares the services' photo and video
+  // routes.
+  const setPackageMedia = (packageId: string, media: ServiceMedia[]) =>
     setPackages((current) =>
-      current.map((p) => (p.id === updated.id ? updated : p))
+      current.map((p) => (p.id === packageId ? withMedia(p, media) : p))
     )
-
-  const pickImage = (packageId: string) => {
-    setImageTargetId(packageId)
-    imageInputRef.current?.click()
-  }
-
-  const handleImageFile = async (files: FileList | null) => {
-    const file = files?.[0]
-    const packageId = imageTargetId
-    // Clear the input first so picking the same file twice still fires change.
-    if (imageInputRef.current) imageInputRef.current.value = ''
-    if (!file || !packageId) return
-
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      toast.error('Unsupported type (use JPEG, PNG or WebP)')
-      return
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      toast.error('Image too large (max 5 MB)')
-      return
-    }
-
-    setImageBusyId(packageId)
-    try {
-      replacePackage(await uploadPackageImage(packageId, file))
-      toast.success('Image added')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setImageBusyId(null)
-    }
-  }
-
-  const removeImage = async (packageId: string, imageId: string) => {
-    setImageBusyId(packageId)
-    try {
-      replacePackage(await deletePackageImage(packageId, imageId))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove image')
-    } finally {
-      setImageBusyId(null)
-    }
-  }
 
   const remove = (id: string) =>
     runAction(`package-delete-${id}`, async () => {
@@ -267,14 +226,6 @@ export function PackagesPanel({ services }: { services: Service[] }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept={ACCEPTED_IMAGE_TYPES}
-        hidden
-        onChange={(e) => handleImageFile(e.target.files)}
-      />
-
       <section className="flex flex-col gap-3">
         <SectionHeader
           title={editingId ? 'Edit package' : 'Build a package'}
@@ -482,15 +433,18 @@ export function PackagesPanel({ services }: { services: Service[] }) {
                     </ScBadge>
                   </div>
 
-                  {/* Images — shown to customers in the package details popup. */}
-                  <CatalogueImages
-                    name={pkg.name}
-                    images={pkg.images}
-                    max={MAX_IMAGES_PER_SERVICE}
-                    busy={imageBusyId === pkg.id}
-                    onAdd={() => pickImage(pkg.id)}
-                    onRemove={(imageId) => removeImage(pkg.id, imageId)}
-                  />
+                  {/* Photos and video — shown to customers in the package
+                      details sheet, the same block as a service's. */}
+                  <div className="border-t border-border pt-3">
+                    <ServiceMediaEditor
+                      serviceId={pkg.id}
+                      serviceName={pkg.name}
+                      media={pkg.media}
+                      onMediaChange={(media) => setPackageMedia(pkg.id, media)}
+                      api={garageMediaApi}
+                      config={mediaConfig}
+                    />
+                  </div>
 
                   <div className="flex flex-wrap gap-2 border-t border-border pt-3">
                     <RowAction onClick={() => startEdit(pkg)}>Edit</RowAction>

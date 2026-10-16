@@ -95,7 +95,7 @@ export const bookingIntentsService = {
       intentId: intent.id,
     })
 
-    await bookingIntentsRepository.setGatewayTxnId(intent.id, order.orderId)
+    await bookingIntentsRepository.setGatewayTxnId(intent.id, order.orderId, order.gatewayMode)
 
     log.info(
       {

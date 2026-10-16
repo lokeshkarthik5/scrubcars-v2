@@ -225,6 +225,20 @@
       "when": 1787834189709,
       "tag": "0031_home_hub",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787834189710,
+      "tag": "0032_test_data_reset",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787834189711,
+      "tag": "0033_service_media",
+      "breakpoints": true
     }
   ]
 }

@@ -77,7 +77,6 @@ import type {
   DoorstepAreaInput,
   CreatePhotoInput,
   CreateServiceAreaInput,
-  CreateServiceImageInput,
   CreateServiceInput,
   CreateVendorInput,
   ListPublicVendorsQuery,
@@ -96,6 +95,17 @@ import type {
   UpdateSlotIntervalInput,
   UpdateVendorInput,
 } from './vendors.validation.js'
+import type { AddPhotoInput } from '../service-media/service-media.validation.js'
+import {
+  removeMediaFiles,
+  serviceMediaService,
+} from '../service-media/service-media.service.js'
+import {
+  toManagedMedia,
+  toPublicMedia,
+  type ManagedServiceMedia,
+  type PublicServiceMedia,
+} from '../../lib/service-media.js'
 
 export type VendorResponse = {
   id: string
@@ -263,7 +273,14 @@ export type ServiceResponse = {
   priceSuv: string | null
   durationMins: number
   isActive: boolean
+  /** Photos only, as before videos existed. Kept for older clients. */
   images: ServiceImageResponse[]
+  /**
+   * Photos and the video. Customers get the public view (a video only once
+   * it is ready, nothing about who added it or the privacy tick); the
+   * garage's own app gets every row with its state.
+   */
+  media: PublicServiceMedia[] | ManagedServiceMedia[]
 }
 
 export type PackageItemResponse = {
@@ -482,14 +499,22 @@ function toServiceImageResponse(
   }
 }
 
+/**
+ * Who a service response is for. 'public' is the garage page (customers);
+ * 'manage' the garage's own app. Only the media differ.
+ */
+type ServiceView = 'public' | 'manage'
+
 // `images` is optional on the record because the write paths return a bare row
 // from `returning()`. Callers that mutate images pass the fresh list explicitly.
 function toServiceResponse(
   service: ServiceRecord & { images?: ServiceImageRecord[] },
-  images: ServiceImageRecord[] = service.images ?? []
+  images: ServiceImageRecord[] = service.images ?? [],
+  view: ServiceView = 'manage'
 ): ServiceResponse {
   return {
-    images: images.map(toServiceImageResponse),
+    images: images.filter((image) => image.kind === 'image').map(toServiceImageResponse),
+    media: view === 'public' ? toPublicMedia(images) : toManagedMedia(images),
     id: service.id,
     name: service.name,
     description: service.description,
@@ -509,7 +534,10 @@ type PackageWithItems = ServiceRecord & {
   packageItems: Array<{ sortOrder: number; service: ServiceRecord }>
 }
 
-function toPackageResponse(pkg: PackageWithItems): PackageResponse {
+function toPackageResponse(
+  pkg: PackageWithItems,
+  view: ServiceView = 'manage'
+): PackageResponse {
   const items = pkg.packageItems.map(({ service }) => ({
     serviceId: service.id,
     name: service.name,
@@ -568,7 +596,7 @@ function toPackageResponse(pkg: PackageWithItems): PackageResponse {
       : null
 
   return {
-    ...toServiceResponse(pkg),
+    ...toServiceResponse(pkg, pkg.images ?? [], view),
     items,
     itemsTotal: itemsTotal.toFixed(2),
     savings: headlineSavings,
@@ -898,7 +926,7 @@ export const vendorsService = {
     return {
       ...publicVendor,
       photos: photos.map(toPhotoResponse),
-      services: services.map((service) => toServiceResponse(service)),
+      services: services.map((service) => toServiceResponse(service, service.images, 'public')),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
       reviewCount: rating?.count ?? 0,
     }
@@ -1351,7 +1379,7 @@ export const vendorsService = {
     }
 
     const services = await vendorsRepository.listServices(vendor.id, true)
-    return services.map((service) => toServiceResponse(service))
+    return services.map((service) => toServiceResponse(service, service.images, 'public'))
   },
 
   async listMyServices(vendorId: string) {
@@ -1490,24 +1518,22 @@ export const vendorsService = {
       serviceId
     )
 
-    // The rows cascade with the service; the objects behind them don't, so
-    // clear them here or the bucket keeps paying for orphans.
-    for (const image of existing.images) {
-      const key = image.storageKey ?? keyFromPublicUrl(image.url)
-      if (key) {
-        await deleteObject(key)
-      }
-    }
+    // The rows cascade with the service; the files behind them (R2 photos,
+    // Stream videos) don't, so clear them here or storage keeps paying for
+    // orphans.
+    removeMediaFiles(existing.images)
 
     return toServiceResponse(deleted, existing.images)
   },
 
-  // ─── Service images ────────────────────────────────────────────────────────
+  // ─── Service photos and video ──────────────────────────────────────────────
   //
-  // Scoped by service, but resolved through findAnyServiceById so a package can
-  // carry images too — a package is a services row, and its details popup wants
-  // the same treatment. Each mutation returns the whole service so the client
-  // can swap one object into its list rather than reconciling a sub-array.
+  // Scoped by service, but valid for a package too — a package is a services
+  // row, and its details popup wants the same treatment. The rules (the
+  // privacy tick, the limits, AI samples giving way to a real photo) are
+  // serviceMediaService's, shared with admin; these wrap them for the
+  // garage's app. Each mutation returns the whole service so the client can
+  // swap one object into its list rather than reconciling a sub-array.
 
   async createServiceImageUploadUrl(
     vendorId: string,
@@ -1515,122 +1541,30 @@ export const vendorsService = {
     input: ServiceImageUploadUrlInput
   ) {
     const vendor = await getTenantVendor(vendorId)
-    const service = await vendorsRepository.findAnyServiceById(
-      vendor.id,
-      serviceId
+    return serviceMediaService.createPhotoUploadUrl(
+      { kind: 'garage', vendorId: vendor.id },
+      serviceId,
+      input
     )
-
-    if (!service) {
-      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
-    }
-
-    const [{ count }] = await vendorsRepository.countServiceImages(serviceId)
-    if (count >= env.r2MaxImagesPerService) {
-      throw new AppError(
-        409,
-        `You can add at most ${env.r2MaxImagesPerService} images per service`,
-        'SERVICE_IMAGE_LIMIT_REACHED'
-      )
-    }
-
-    const { uploadUrl, publicUrl } = await createPresignedUpload(
-      vendor.id,
-      input.contentType,
-      `services/${serviceId}`
-    )
-    return { uploadUrl, publicUrl }
   },
 
-  async addServiceImage(
-    vendorId: string,
-    serviceId: string,
-    input: CreateServiceImageInput
-  ) {
+  async addServiceImage(vendorId: string, serviceId: string, input: AddPhotoInput) {
     const vendor = await getTenantVendor(vendorId)
-    const service = await vendorsRepository.findAnyServiceById(
-      vendor.id,
-      serviceId
-    )
-
-    if (!service) {
-      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
-    }
-
-    // Only accept URLs that actually point at our bucket.
-    const storageKey = keyFromPublicUrl(input.url)
-    if (!storageKey) {
-      throw new AppError(400, 'Invalid image URL', 'INVALID_SERVICE_IMAGE_URL')
-    }
-
-    // Re-check the cap here, not just at presign time: the presigned URL is
-    // reusable within its TTL, so this is the check that actually holds.
-    const [{ count }] = await vendorsRepository.countServiceImages(serviceId)
-    if (count >= env.r2MaxImagesPerService) {
-      throw new AppError(
-        409,
-        `You can add at most ${env.r2MaxImagesPerService} images per service`,
-        'SERVICE_IMAGE_LIMIT_REACHED'
-      )
-    }
-
-    const [{ maxOrder }] =
-      await vendorsRepository.getNextServiceImageSortOrder(serviceId)
-    const [created] = await vendorsRepository.createServiceImage(serviceId, {
-      url: input.url,
-      storageKey,
-      sortOrder: maxOrder + 1,
-    })
-
-    log.info(
-      { vendorId: vendor.id, serviceId, imageId: created.id },
-      'service:image-added'
-    )
-
+    await serviceMediaService.addPhoto({ kind: 'garage', vendorId: vendor.id }, serviceId, input)
     return readServiceOrPackage(vendor.id, serviceId)
   },
 
-  async deleteServiceImage(
-    vendorId: string,
-    serviceId: string,
-    imageId: string
-  ) {
+  /** Removes a photo or the video. */
+  async deleteServiceImage(vendorId: string, serviceId: string, imageId: string) {
     const vendor = await getTenantVendor(vendorId)
-    const service = await vendorsRepository.findAnyServiceById(
-      vendor.id,
-      serviceId
-    )
-
-    if (!service) {
-      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
-    }
-
-    const image = await vendorsRepository.findServiceImageById(
-      serviceId,
-      imageId
-    )
-
-    if (!image) {
-      throw new AppError(404, 'Image not found', 'SERVICE_IMAGE_NOT_FOUND')
-    }
-
-    const [deleted] = await vendorsRepository.deleteServiceImage(
-      serviceId,
-      imageId
-    )
-
-    // Best-effort remove the underlying object so storage doesn't leak.
-    const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
-    if (key) {
-      await deleteObject(key)
-    }
-
+    await serviceMediaService.deleteMedia({ kind: 'garage', vendorId: vendor.id }, serviceId, imageId)
     return readServiceOrPackage(vendor.id, serviceId)
   },
 
   async listMyPackages(vendorId: string): Promise<PackageResponse[]> {
     const vendor = await getTenantVendor(vendorId)
     const packages = await vendorsRepository.listPackages(vendor.id)
-    return packages.map(toPackageResponse)
+    return packages.map((pkg) => toPackageResponse(pkg))
   },
 
   async listPublicPackages(vendorId: string): Promise<PackageResponse[]> {
@@ -1641,7 +1575,7 @@ export const vendorsService = {
     }
 
     const packages = await vendorsRepository.listPackages(vendor.id, true)
-    return packages.map(toPackageResponse)
+    return packages.map((pkg) => toPackageResponse(pkg, 'public'))
   },
 
   async createPackage(vendorId: string, input: CreatePackageInput) {
@@ -1737,6 +1671,12 @@ export const vendorsService = {
       vendor.id,
       packageId
     )
+
+    // A package has its own photos and video, like a service. The rows
+    // cascade; the R2 photos and Stream video behind them don't, so clear
+    // them here as deleteService does, or Stream keeps billing for a video
+    // nothing points at.
+    removeMediaFiles(existing.images)
 
     return toServiceResponse(deleted)
   },

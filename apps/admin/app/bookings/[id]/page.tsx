@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'react-toastify'
 import { IconMapPin } from '@tabler/icons-react'
 import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -11,9 +12,14 @@ import { ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSection } from '@repo/ui/sc/section'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
+import { ScSwitch } from '@repo/ui/sc/switch'
 import type { AdminBookingDetail } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
+import {
+  useDataResetConfig,
+  useSetAdminBookingTestMark,
+} from '@repo/core/api/hooks/use-admin-data-reset'
 import { directionsHref } from '@repo/core/contact-links'
 import { useNow } from '@repo/core/hooks/use-now'
 import { formatDuration } from '@repo/core/utils'
@@ -22,8 +28,11 @@ import {
   NoShowBadge,
   RefundedBadge,
   RefundOwedBadge,
+  TestBadge,
+  TestModePaymentBadge,
   WaitingBadge,
 } from '@/components/booking-badges'
+import { DeleteTestBookingDialog } from '@/components/delete-test-booking-dialog'
 import { FinalBillSection, JobPhotosSection } from './job-records'
 import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
@@ -194,6 +203,59 @@ function Timeline({ booking }: { booking: AdminBookingDetail }) {
   )
 }
 
+/**
+ * The "Test" mark, and deleting a marked booking while Start pilot clean is
+ * switched on. The mark only takes the booking out of the pilot numbers;
+ * slots, refunds and receipts never read it.
+ */
+function TestBookingSection({
+  booking: b,
+  onDelete,
+}: {
+  booking: AdminBookingDetail
+  onDelete: () => void
+}) {
+  const setMark = useSetAdminBookingTestMark()
+  const { data: resetConfig } = useDataResetConfig()
+  const marked = Boolean(b.markedTest)
+
+  const change = (next: boolean) =>
+    setMark.mutate(
+      { id: b.id, marked: next },
+      {
+        onSuccess: () =>
+          toast.success(next ? `#${b.reference} marked as a test booking` : 'Test mark removed'),
+        onError: (err) => toast.error(errorMessage(err, "Couldn't change the test mark")),
+      }
+    )
+
+  return (
+    <ScSection title="Test booking">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 text-[13px]">
+          <p className="text-text-primary">Mark as test</p>
+          <p className="text-[12px] text-text-secondary">
+            {marked
+              ? `Left out of the pilot numbers${b.markedTest?.by ? `. Marked by ${b.markedTest.by}` : ''}.`
+              : 'Turn on for a booking the team made to try things out. It is then left out of the pilot numbers.'}
+          </p>
+        </div>
+        <ScSwitch
+          label="Mark as test"
+          checked={marked}
+          disabled={setMark.isPending}
+          onChange={change}
+        />
+      </div>
+      {marked && resetConfig?.enabled && (
+        <ScButton variant="secondary" onClick={onDelete} className="min-h-11">
+          Delete test booking…
+        </ScButton>
+      )}
+    </ScSection>
+  )
+}
+
 function BookingDetail({
   booking: b,
   backHref,
@@ -207,7 +269,8 @@ function BookingDetail({
   // Re-evaluated every 30 seconds, so "Mark no-show" appears on its own once
   // the start time passes with the page open.
   const now = useNow(30_000)
-  const [dialog, setDialog] = useState<'cancel' | 'no-show' | null>(null)
+  const [dialog, setDialog] = useState<'cancel' | 'no-show' | 'delete-test' | null>(null)
+  const router = useRouter()
 
   // After a cancel or no-show the button that opened the dialog is gone, so
   // focus would fall to the top of the page. It goes to the line saying what
@@ -256,6 +319,10 @@ function BookingDetail({
         <div className="flex flex-col gap-4">
           <ScCard className="flex flex-col gap-2 px-4 py-4">
             <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
+              {b.markedTest && <TestBadge />}
+              {(b.payment?.gatewayMode === 'test' || b.payment?.gatewayMode === 'fake') && (
+                <TestModePaymentBadge />
+              )}
               {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
               {b.noShow && <NoShowBadge party={b.noShow} />}
               {b.billDue && <BillDueBadge amount={b.billDue} />}
@@ -437,9 +504,23 @@ function BookingDetail({
             </ScSection>
           )}
 
+          <TestBookingSection booking={b} onDelete={() => setDialog('delete-test')} />
+
           <NotesSection bookingId={b.id} notes={b.notes} />
         </div>
       </div>
+
+      {dialog === 'delete-test' && (
+        <DeleteTestBookingDialog
+          booking={b}
+          open
+          onClose={() => setDialog(null)}
+          onDeleted={() => {
+            toast.success(`Test booking #${b.reference} deleted`)
+            router.replace('/bookings')
+          }}
+        />
+      )}
 
       <CancelBookingDialog
         booking={b}

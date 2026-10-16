@@ -21,6 +21,7 @@ import {
   getBooking,
   getBookingItems,
   getPayment,
+  gatewayModes,
 } from '../../support/db'
 import { BOOKINGS, CUSTOMERS, DISCOUNTS, SERVICES, VENDORS } from '../../support/seed-ids'
 
@@ -67,6 +68,16 @@ test.describe('reschedule @p0', () => {
     const payment = await getPayment(movedId)
     expect(payment?.status).toBe('paid')
     expect(payment?.amount).toBe(original?.amount)
+
+    // The payment's Razorpay mode and the chain's Test mark come across too:
+    // the test-data reset reads both, and a move that dropped either would
+    // make a test payment look unconfirmed (kept for good) or put a test
+    // booking back in the pilot numbers.
+    expect((await gatewayModes(movedId))?.payment).toBe('test')
+    const marks = (row: typeof moved) =>
+      row as unknown as { marked_test_at: Date | null; marked_test_by: string | null }
+    expect(marks(moved).marked_test_at).toEqual(marks(original).marked_test_at)
+    expect(marks(moved).marked_test_by).toBe('E2E seed')
 
     // The redemption is moved onto the new booking rather than copied: it
     // follows the money. What must hold is that the code is still spent

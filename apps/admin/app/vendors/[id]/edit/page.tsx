@@ -27,7 +27,6 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { ApiError } from '@repo/core/api/client'
 import {
-  deleteAdminServiceImage,
   deleteAdminVendorLogo,
   deleteAdminVendorPhoto,
   getAdminVendor,
@@ -36,7 +35,6 @@ import {
   resumeAdminVendor,
   setAdminServiceActive,
   updateAdminVendor,
-  uploadAdminServiceImage,
   uploadAdminVendorLogo,
   uploadAdminVendorPhoto,
   type AdminPhoto,
@@ -49,6 +47,7 @@ import {
   legacyVehicleTypes,
   VENDOR_VEHICLE_TYPE_OPTIONS,
 } from '@repo/core/vehicles'
+import type { ServiceMedia } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
 import { SaveBar } from '@/components/save-bar'
@@ -94,8 +93,6 @@ const STATUS_OPTIONS = [
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
-// Mirrors R2_MAX_IMAGES_PER_SERVICE on the server, which is the real cap.
-const MAX_IMAGES_PER_SERVICE = 3
 
 // Shared guard for every media picker on this page.
 function rejectFile(file: File): string | null {
@@ -350,8 +347,6 @@ export default function EditVendorPage({
   const [mediaBusy, setMediaBusy] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
-  const serviceImageInputRef = useRef<HTMLInputElement>(null)
-  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
 
   const toLogin = useCallback(() => router.replace('/login'), [router])
 
@@ -559,35 +554,12 @@ export default function EditVendorPage({
       setPhotos((prev) => prev.filter((p) => p.id !== photoId))
     })
 
-  const pickServiceImage = (serviceId: string) => {
-    setImageTargetId(serviceId)
-    serviceImageInputRef.current?.click()
+  // "Photos and video" in a service's ⋯ (ServiceMediaPanel) saves as it
+  // goes and hands back the service's new list.
+  const setServiceMedia = (serviceId: string, media: ServiceMedia[]) => {
+    applyToBoth((rows) => rows.map((s) => (s.id === serviceId ? { ...s, media } : s)))
+    markListStale()
   }
-
-  const setServiceImages = (serviceId: string, images: AdminPhoto[]) =>
-    applyToBoth((rows) => rows.map((s) => (s.id === serviceId ? { ...s, images } : s)))
-
-  const handleServiceImageFile = async (files: FileList | null) => {
-    const file = files?.[0]
-    const serviceId = imageTargetId
-    if (serviceImageInputRef.current) serviceImageInputRef.current.value = ''
-    if (!file || !serviceId) return
-
-    const rejection = rejectFile(file)
-    if (rejection) {
-      setError(rejection)
-      return
-    }
-
-    await runMedia(`service-${serviceId}`, async () => {
-      setServiceImages(serviceId, await uploadAdminServiceImage(serviceId, file))
-    })
-  }
-
-  const handleRemoveServiceImage = (serviceId: string, imageId: string) =>
-    runMedia(`service-${serviceId}`, async () => {
-      setServiceImages(serviceId, await deleteAdminServiceImage(serviceId, imageId))
-    })
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -851,13 +823,6 @@ export default function EditVendorPage({
         multiple
         hidden
         onChange={(e) => handlePhotoFiles(e.target.files)}
-      />
-      <input
-        ref={serviceImageInputRef}
-        type="file"
-        accept={ACCEPTED_IMAGE_TYPES}
-        hidden
-        onChange={(e) => handleServiceImageFile(e.target.files)}
       />
 
       {loading || !draft || !bookingMode ? (
@@ -1328,12 +1293,7 @@ export default function EditVendorPage({
                     : 'No services yet. Add one, or start from a template above.'
                 }
                 saving={saving}
-                photos={{
-                  busyKey: mediaBusy,
-                  max: MAX_IMAGES_PER_SERVICE,
-                  onAdd: pickServiceImage,
-                  onRemove: (serviceId, imageId) => void handleRemoveServiceImage(serviceId, imageId),
-                }}
+                media={{ onChange: setServiceMedia }}
                 hide={{
                   onHide: hideService,
                   busyId: serviceBusyId,

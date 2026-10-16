@@ -18,7 +18,7 @@ import {
   vendorClosures,
   vendors,
 } from '../../db/schema.js'
-import type { bookingStatusEnum, bookingTypeEnum } from '../../db/schema.js'
+import type { bookingStatusEnum, bookingTypeEnum, GatewayMode } from '../../db/schema.js'
 import {
   addDaysToDateKey,
   getDateKeyFromScheduledAt,
@@ -173,7 +173,10 @@ export async function lockDiscount(
 //
 // (consumeIntent locks its intent row FOR UPDATE before all of them. The
 // job-photos:<booking> lock and the final bill's row lock are only ever taken
-// on their own, never alongside these.) Two transactions that take locks in
+// on their own, never alongside these. The test-data reset, which deletes
+// whole chains, keeps the same order: checkout rows, then booking rows (3),
+// both FOR UPDATE in id order, then a restarting year's counter row (7),
+// last; see data-reset.service.) Two transactions that take locks in
 // the same order can wait on each other but never deadlock, so a new lock goes
 // into this list rather than wherever it is first needed.
 //
@@ -876,6 +879,7 @@ export const bookingsRepository = {
     sourcePayment: {
       gateway: 'razorpay'
       gatewayTxnId: string | null
+      gatewayMode: GatewayMode | null
       amount: string
       currency: string
       status: 'pending' | 'paid' | 'failed' | 'refunded' | 'collected'
@@ -883,6 +887,10 @@ export const bookingsRepository = {
     } | null
     reason: string | null
     maxReschedules: number
+    // The chain's "Test" mark (0032), carried to the new booking so the
+    // chain stays marked as a whole.
+    markedTestAt?: Date | null
+    markedTestBy?: string | null
   }) {
     return db.transaction(async (tx) => {
       // Vehicle lock first, matching the order used when creating a booking, so
@@ -1011,6 +1019,8 @@ export const bookingsRepository = {
           originalBookingId: data.rootBookingId,
           rescheduledFromId: data.sourceBookingId,
           rescheduleCount: existing + 1,
+          markedTestAt: data.markedTestAt ?? null,
+          markedTestBy: data.markedTestBy ?? null,
         })
         .returning()
 
@@ -1032,6 +1042,7 @@ export const bookingsRepository = {
           bookingId: booking.id,
           gateway: data.sourcePayment?.gateway ?? 'razorpay',
           gatewayTxnId: data.sourcePayment?.gatewayTxnId ?? null,
+          gatewayMode: data.sourcePayment?.gatewayMode ?? null,
           amount: data.sourcePayment?.amount ?? data.amount,
           currency: data.sourcePayment?.currency ?? 'INR',
           status: data.sourcePayment?.status ?? 'pending',

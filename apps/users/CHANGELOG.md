@@ -79,7 +79,7 @@ reconstructing every change in them.
   compact row per service, grouped "Wash and standard" and "Detailing": name,
   a duration pill (30/45/60/90/120 min or Other…), Hatch/Sedan/SUV prices, or
   one price for "Same for all cars" and the fee for "After inspection"; the ⋯
-  opens description, category, pricing, photos and Hide service. New rows are
+  opens description, category, pricing, "Photos and video" and Hide service. New rows are
   priced by car type. A category change that moves a row to the other group
   follows it there and says so. "Add from template" offers ten ready-made
   services the garage doesn't have yet (Foam wash, Body wash, Full wash,
@@ -112,6 +112,46 @@ reconstructing every change in them.
   A garage with every service hidden says so instead of "No services added
   yet." and opens the hidden list. Admin runs `bun test` now
   (`apps/admin/lib/service-rows.test.ts`, `vendor-delete.test.ts`).
+
+- **Service photos and videos.** On the garage page each service card has a
+  64px picture: the video's poster with its length ("▶ 0:45"), else the
+  first photo, else a drawn sample tagged "Sample". The details sheet opens
+  with the video (poster first, plays only on tap, no autoplay; HLS, with
+  hls.js loaded on the first Play where the browser needs it; progress,
+  pause, sound and full screen) or the first photo at 16:9, then the photos;
+  tapping a photo opens it full screen (swipe, "2 / 4", the garage and the
+  service). The garage's own media are tagged "From <garage>", AI pictures
+  and the drawn samples "Sample image" ("No photos from this garage yet").
+  The description is held to two lines with "More".
+- **Garage app: "Photos and video"** on every service and package, replacing
+  the old image row: the privacy tick first ("Before adding: no number plates
+  or faces can be read, or the owner agreed"), three photo slots and one video
+  slot ("up to 60 sec", checked on the phone before uploading), the upload's
+  progress, "Processing…", Ready with Replace / Remove, or a plain error.
+- **Admin: the same block** in each saved service's ⋯ in the garage
+  editor's compact services editor (`components/service-media-panel.tsx`),
+  in place of its old photo row, so a service's photos and video are in one
+  place, plus "Make a picture with AI": describe it, pick one of
+  two ("Generate again · ₹8"), "Use this picture".
+
+- **Admin: Start pilot clean** (`/data-reset`), shown in the menu (and linked
+  from Bookings on a phone) only while the API has `ADMIN_DATA_RESET` on.
+  Three steps: Scope (everything before a cutoff in India time, or only
+  bookings marked Test, as a list with a box per booking; real money is
+  greyed out with "Real payment — kept"), Dry run (the counts in plain words,
+  the receipt plan, and a required "Download list (CSV)"), Confirm (your
+  name, "I have a database backup from today", the typed phrase, and the one
+  red button), then what was done. Old payments are checked with Razorpay
+  as the dry run pages through them. A tap anywhere on a row ticks it; "Load
+  again" keeps what was unticked; "Tick all" stops at what one run deletes
+  and says how many wait; the CSV lists every row in scope, deleted, kept or
+  unticked. Back and closing the dialog are held while the delete runs.
+- **Admin: the "Test" mark on a booking.** A "Mark as test" switch on the
+  booking page, a "Test" badge and a "Test bookings" filter on the list, and
+  a "Test-mode payment" badge where the payment's mode is recorded. While the
+  reset is on, a marked booking's page offers "Delete test booking…", the
+  same dry run and confirmation for that booking alone.
+
 - **The new Home hub and Updates (behind `NEXT_PUBLIC_HOME_HUB`).** With the
   flag `on`, `/home` is the hub (`components/home/`); with it off, as in
   production until the owner signs off a preview on live data, `/home` is the

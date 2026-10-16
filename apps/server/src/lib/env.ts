@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { isDataResetEnabled } from './data-reset.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -37,22 +38,17 @@ function readFakePaymentsFlag(): boolean {
 }
 
 /**
- * Whether "Write with AI" answers with a fixed description instead of calling
- * OpenAI. The E2E stack sets it, so the admin specs exercise the whole path
- * without a key and without a network call (lib/ai.ts).
- *
- * Refused in production for the same reason as E2E_FAKE_PAYMENTS: a value
- * leaked into a deploy should stop the boot, not quietly put the same
- * sentence on every garage's services.
+ * A test-only switch that stands in for an outside service (STREAM_FAKE,
+ * AI_FAKE). Refused in production for the same reason as E2E_FAKE_PAYMENTS:
+ * a leaked value in a deploy environment must fail the boot, not quietly
+ * stop videos reaching Stream, put the same sentence on every garage's
+ * services or hand every admin the same test picture.
  */
-function readFakeAiFlag(): boolean {
-  const enabled = process.env.AI_FAKE === '1'
+function readTestFake(name: string, what: string): boolean {
+  const enabled = process.env[name] === '1'
 
   if (enabled && process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'AI_FAKE is set in production. It replaces every AI answer with a ' +
-        'fixed test sentence and must never be enabled outside tests.'
-    )
+    throw new Error(`${name} is set in production. It ${what} and must never be enabled outside tests.`)
   }
 
   return enabled
@@ -152,6 +148,53 @@ export const env = {
   // shows them in a single row.
   r2MaxImagesPerService: Number(process.env.R2_MAX_IMAGES_PER_SERVICE ?? '3'),
   r2UploadUrlTtlSeconds: Number(process.env.R2_UPLOAD_URL_TTL_SECONDS ?? '120'),
+  // ─── Service videos (Cloudflare Stream) ────────────────────────────────────
+  // Garages and admin add a 60-second video per service; Stream stores it,
+  // encodes it for adaptive playback up to Full HD and calls our webhook when
+  // it is ready (lib/stream.ts, docs/service-media.md). Video is off — the
+  // slot is hidden and its routes are 404 — unless all four are set. The
+  // token needs Stream:Edit on the account and nothing else. Production (and
+  // Preview, if previews should take videos) only; never in git.
+  cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID || undefined,
+  cloudflareStreamApiToken: process.env.CLOUDFLARE_STREAM_API_TOKEN || undefined,
+  // The `<code>` in https://customer-<code>.cloudflarestream.com, where
+  // Stream serves posters and playback.
+  cloudflareStreamCustomerCode: process.env.CLOUDFLARE_STREAM_CUSTOMER_CODE || undefined,
+  // The secret Stream returns when the webhook is registered; it signs every
+  // webhook (Webhook-Signature) and nothing unsigned is believed.
+  cloudflareStreamWebhookSecret: process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET || undefined,
+  // E2E only: uploads land on this API's own fake endpoint and nothing ever
+  // reaches Cloudflare. A spec fires the webhook itself, signed with the
+  // secret above (apps/e2e/support/stream.ts).
+  streamFake: readTestFake('STREAM_FAKE', 'sends video uploads to a fake endpoint instead of Cloudflare Stream'),
+  // Where the fake endpoint is reached from the browser. E2E only.
+  streamFakeBaseUrl: (process.env.STREAM_FAKE_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, ''),
+
+  // ─── AI (OpenAI) ───────────────────────────────────────────────────────────
+  // Every AI feature in Detlio goes through OpenAI with this one key: service
+  // descriptions ("Write with AI", lib/ai.ts) and sample pictures for a
+  // service with no real photo (lib/ai-images.ts), both admin only. Unset — as
+  // in development, E2E and previews — and the features are off: the admin
+  // panel hides their buttons (GET /admin/ai/config says { describe: false,
+  // pictures: false }) and the picture routes are 404. The key lives in the
+  // Vercel environment only, never in code or git.
+  openaiApiKey: process.env.OPENAI_API_KEY || undefined,
+  // Which model writes the text. An env value so it can be changed without a
+  // release.
+  aiTextModel: process.env.AI_TEXT_MODEL?.trim() || 'gpt-5.5',
+  // "Write with AI" calls per admin per hour. Each one is a paid request, and
+  // the editor's "Fill all empty descriptions" makes one per service.
+  aiDescribeRateLimit: Number(process.env.AI_DESCRIBE_RATE_LIMIT ?? '60'),
+  // OpenAI's alias for the ChatGPT image model. Lokesh can pin a dated model
+  // here without a deploy of new code.
+  aiImageModel: process.env.AI_IMAGE_MODEL || 'chatgpt-image-latest',
+  // Pictures cost money per call (about ₹4 each, two per press), so each
+  // admin gets this many presses an hour.
+  aiPicturesPerHour: Number(process.env.AI_PICTURES_PER_HOUR ?? '20'),
+  // E2E only: "Write with AI" answers with a fixed sentence (FAKE_AI_TEXT),
+  // every picture is the same small PNG, and OpenAI is never called.
+  aiFake: readTestFake('AI_FAKE', 'replaces OpenAI with a fixed test sentence and picture'),
+
   // ─── Geocoding ─────────────────────────────────────────────────────────────
   // Which adapter in lib/geo backs address search. Ola Maps has the best data
   // for Indian addresses; the adapter exists so this is a config change rather
@@ -216,20 +259,16 @@ export const env = {
     (process.env.HOME_OFFER_TARGETING ?? '').trim().toLowerCase()
   ),
 
-  // ─── AI (OpenAI) ───────────────────────────────────────────────────────────
-  // Every AI feature in Detlio goes through OpenAI with this one key: service
-  // descriptions in the admin editor now, pictures later. Unset — as in
-  // development, E2E and previews — and the features are off: the admin
-  // panel hides their buttons (GET /admin/ai/config). The key lives in the
-  // Vercel environment only, never in code or git.
-  openaiApiKey: process.env.OPENAI_API_KEY || undefined,
-  // Which model writes the text. An env value so it can be changed without a
-  // release.
-  aiTextModel: process.env.AI_TEXT_MODEL?.trim() || 'gpt-5.5',
-  aiFake: readFakeAiFlag(),
-  // "Write with AI" calls per admin per hour. Each one is a paid request, and
-  // the editor's "Fill all empty descriptions" makes one per service.
-  aiDescribeRateLimit: Number(process.env.AI_DESCRIBE_RATE_LIMIT ?? '60'),
+  /**
+   * Whether the admin "Start pilot clean" tool exists: ADMIN_DATA_RESET=on.
+   *
+   * Off unless set to `on`, and while off every /admin/data-reset route is a
+   * 404 and the admin nav hides the page. It deletes test bookings, refunds
+   * and checkouts for good, so it is switched on in Production only for the
+   * reset itself (after a backup) and removed again straight after; see
+   * docs/test-data-reset.md. The "Test" mark on a booking works either way.
+   */
+  adminDataReset: isDataResetEnabled(process.env.ADMIN_DATA_RESET),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;

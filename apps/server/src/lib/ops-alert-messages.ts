@@ -125,6 +125,21 @@ export type OpsAlert =
       /** How long further failures stay quiet, so the message can say so. */
       quietMinutes: number
     }
+  | {
+      /**
+       * The owner ran "Start pilot clean" in admin: test bookings and
+       * checkouts were deleted for good. Nothing to do; the team should
+       * know it happened, and who did it.
+       */
+      kind: 'test_data_cleared'
+      /** The name the person typed to confirm. */
+      by: string
+      bookings: number
+      checkouts: number
+      /** The receipt plan, a year a line, in the dry run's words. */
+      receipts: string[]
+      auditId: string
+    }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
 export interface DigestBooking {
@@ -357,6 +372,16 @@ export function formatOpsAlert(alert: OpsAlert): string {
         'Check that migration 0030 is applied, and that receipt_counters is not behind the highest seq in receipt_numbers for this financial year.',
         `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`,
         adminBookingUrl(alert.bookingId)
+      )
+
+    case 'test_data_cleared':
+      return lines(
+        `🧹 Test data cleared by ${alert.by}: ${alert.bookings} ${alert.bookings === 1 ? 'booking' : 'bookings'}`,
+        alert.checkouts > 0
+          ? `${alert.checkouts} ${alert.checkouts === 1 ? 'checkout' : 'checkouts'} with it, refunds and photos included.`
+          : null,
+        ...alert.receipts,
+        `Audit record ${alert.auditId}.`
       )
   }
 }

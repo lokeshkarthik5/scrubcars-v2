@@ -12,13 +12,13 @@ import {
 import { vendorFinalBillRoutes } from '../booking-charges/booking-charges.routes.js'
 import { jobPhotosRoutes } from '../job-photos/job-photos.routes.js'
 import { membersRoutes } from '../members/members.routes.js'
+import { garageMediaRoutes } from '../service-media/service-media.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
   createPhotoSchema,
   createPackageSchema,
   createServiceAreaSchema,
-  createServiceImageSchema,
   createServiceSchema,
   createVendorSchema,
   earningsQuerySchema,
@@ -43,6 +43,7 @@ import {
   vendorIdParamSchema,
   doorstepAreaSchema,
 } from './vendors.validation.js'
+import { addPhotoSchema } from '../service-media/service-media.validation.js'
 
 export const vendorsRoutes = new Hono<{ Variables: TenantVariables }>()
 
@@ -124,6 +125,11 @@ vendorsRoutes.route('/me/members', membersRoutes)
 // take the photos and write the bill.
 vendorsRoutes.route('/me/bookings', jobPhotosRoutes)
 vendorsRoutes.route('/me/bookings', vendorFinalBillRoutes)
+
+// A service's video and the photo-and-video block's config. vendor_admin only
+// in its own file, like the service image routes below. Photos keep their
+// /me/services/:id/images routes, which share the same rules.
+vendorsRoutes.route('/me', garageMediaRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',
@@ -287,8 +293,9 @@ vendorsRoutes.delete(
   (c) => vendorsController.deleteService(c, c.req.valid('param').id)
 )
 
-// Service images. Registered after the plain service routes above; the extra
-// path segment keeps them from colliding with /me/services/:id.
+// Service photos. Registered after the plain service routes above; the extra
+// path segment keeps them from colliding with /me/services/:id. Adding one
+// needs the privacy tick (`consent: true`); the delete removes a video too.
 vendorsRoutes.post(
   '/me/services/:id/images/upload-url',
   ...tenantMiddleware,
@@ -305,7 +312,7 @@ vendorsRoutes.post(
   '/me/services/:id/images',
   ...tenantMiddleware,
   zValidator('param', resourceIdParamSchema),
-  zValidator('json', createServiceImageSchema),
+  zValidator('json', addPhotoSchema),
   (c) =>
     vendorsController.addServiceImage(
       c,

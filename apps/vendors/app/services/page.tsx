@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconTool } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
@@ -20,25 +20,23 @@ import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import {
   createService,
   deleteService,
-  deleteServiceImage,
   getMyServices,
   toggleServiceActive,
   updateService,
-  uploadServiceImage,
-  MAX_IMAGES_PER_SERVICE,
 } from '@repo/core/api/services'
+import { garageMediaApi, type MediaConfig } from '@repo/core/api/service-media'
+import { withMedia } from '@repo/core/service-media'
+import type { ServiceMedia } from '@repo/core/types'
+import { ServiceMediaEditor } from '@repo/ui/features/service-media-editor'
 import { toast } from 'react-toastify'
 import type { PricingType, Service, ServiceCategory } from '@repo/core/types'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import { ActiveGarage } from '@/components/active-garage'
-import { CatalogueImages, RowAction } from './catalogue-row'
+import { RowAction } from './catalogue-row'
 import { PackagesPanel } from './packages-panel'
 import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
 
 const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
-
-const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
 
 type ServiceForm = {
   name: string
@@ -92,17 +90,19 @@ export default function VendorServicesPage() {
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
-  // One hidden file input serves every row; this holds the service the next
-  // pick belongs to.
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
-  const [imageBusyId, setImageBusyId] = useState<string | null>(null)
+  // What the photo-and-video block may offer (video only once Stream is set
+  // up on the server). Shared by every service and package on the screen.
+  const [mediaConfig, setMediaConfig] = useState<MediaConfig | null>(null)
 
   useEffect(() => {
     getMyServices()
       .then(setServices)
       .catch(() => toast.error('Failed to load services'))
       .finally(() => setLoading(false))
+    garageMediaApi
+      .config()
+      .then(setMediaConfig)
+      .catch(() => undefined)
   }, [])
 
   const runAction = async (key: string, action: () => Promise<void>) => {
@@ -176,53 +176,10 @@ export default function VendorServicesPage() {
       )
     })
 
-  const replaceService = (updated: Service) =>
+  const setServiceMedia = (serviceId: string, media: ServiceMedia[]) =>
     setServices((current) =>
-      current.map((svc) => (svc.id === updated.id ? updated : svc))
+      current.map((svc) => (svc.id === serviceId ? withMedia(svc, media) : svc))
     )
-
-  const pickImage = (serviceId: string) => {
-    setImageTargetId(serviceId)
-    imageInputRef.current?.click()
-  }
-
-  const handleImageFile = async (files: FileList | null) => {
-    const file = files?.[0]
-    const serviceId = imageTargetId
-    // Clear the input first so picking the same file twice still fires change.
-    if (imageInputRef.current) imageInputRef.current.value = ''
-    if (!file || !serviceId) return
-
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      toast.error('Unsupported type (use JPEG, PNG or WebP)')
-      return
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      toast.error('Image too large (max 5 MB)')
-      return
-    }
-
-    setImageBusyId(serviceId)
-    try {
-      replaceService(await uploadServiceImage(serviceId, file))
-      toast.success('Image added')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setImageBusyId(null)
-    }
-  }
-
-  const removeImage = async (serviceId: string, imageId: string) => {
-    setImageBusyId(serviceId)
-    try {
-      replaceService(await deleteServiceImage(serviceId, imageId))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove image')
-    } finally {
-      setImageBusyId(null)
-    }
-  }
 
   const removeService = (id: string) =>
     runAction(`service-delete-${id}`, async () => {
@@ -255,14 +212,6 @@ export default function VendorServicesPage() {
     >
       <TopBar title="Services" />
 
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept={ACCEPTED_IMAGE_TYPES}
-        hidden
-        onChange={(e) => handleImageFile(e.target.files)}
-      />
-
       {/* Real tabs, as in Settings: each is its own panel, and only the open
           one is mounted, so Packages still loads when it is opened. */}
       <Tabs value={tab} onValueChange={(value) => setTab(value as 'services' | 'packages')}>
@@ -272,7 +221,7 @@ export default function VendorServicesPage() {
         </TabsList>
 
         <TabsContent value="packages">
-          <PackagesPanel services={services} />
+          <PackagesPanel services={services} mediaConfig={mediaConfig} />
         </TabsContent>
 
         <TabsContent value="services">
@@ -433,16 +382,18 @@ export default function VendorServicesPage() {
                         </ScBadge>
                       </div>
 
-                      {/* Images — up to MAX_IMAGES_PER_SERVICE, shown to customers
-                          in the service details popup. */}
-                      <CatalogueImages
-                        name={svc.name}
-                        images={svc.images}
-                        max={MAX_IMAGES_PER_SERVICE}
-                        busy={imageBusyId === svc.id}
-                        onAdd={() => pickImage(svc.id)}
-                        onRemove={(imageId) => removeImage(svc.id, imageId)}
-                      />
+                      {/* Photos and video, shown to customers on the garage
+                          page: the card's thumbnail and the details sheet. */}
+                      <div className="border-t border-border pt-3">
+                        <ServiceMediaEditor
+                          serviceId={svc.id}
+                          serviceName={svc.name}
+                          media={svc.media}
+                          onMediaChange={(media) => setServiceMedia(svc.id, media)}
+                          api={garageMediaApi}
+                          config={mediaConfig}
+                        />
+                      </div>
 
                       {/* Quiet outlines, all three: none of them is what this
                           screen is for, and its red is the form's Add service. */}

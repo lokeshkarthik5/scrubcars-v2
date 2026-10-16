@@ -12,6 +12,7 @@ import { setPaymentMode, lastPaymentOptions } from '../../support/network'
 import {
   bookingsForUser,
   countBookingsForUser,
+  gatewayModes,
   getBooking,
   getBookingItems,
   getPayment,
@@ -65,6 +66,11 @@ test.describe('payment @p0', () => {
     const payment = await getPayment(created.id)
     expect(payment.status).toBe('paid')
     expect(payment.amount).toBe('2298.00')
+
+    // The order's mode is recorded on the checkout when it is opened and
+    // copied onto the payment when the booking is written: this is what the
+    // test-data reset reads to tell test money from real money.
+    expect(await gatewayModes(created.id)).toEqual({ payment: 'fake', intent: 'fake' })
 
     // Its receipt number, issued in the same transaction as the payment: a
     // new booking is its own reschedule chain, so the number is keyed by it.

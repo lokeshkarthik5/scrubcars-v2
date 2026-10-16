@@ -1,0 +1,63 @@
+import { z } from 'zod'
+import { MAX_TICKED_IDS } from '../../lib/data-reset.js'
+
+/**
+ * Which bookings a run is about (see ResetScope in lib/data-reset.ts). The
+ * cutoff is an instant with its offset, as the admin page sends the IST time
+ * the owner picked ("2026-10-01T09:00:00+05:30").
+ */
+const scopeSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('before_cutoff'),
+    cutoff: z.string().datetime({ offset: true }),
+  }),
+  z.object({ kind: z.literal('marked_test') }),
+  // One booking from its page. A few, at most: this is not the bulk path.
+  z.object({
+    kind: z.literal('chains'),
+    bookingIds: z.array(z.string().uuid()).min(1).max(20),
+  }),
+])
+
+/**
+ * The dry run.
+ *
+ * `only` is the ticked rows once the owner has reviewed the list; without
+ * it every deletable row in scope is ticked. More ticked than one run takes
+ * is not refused: the planner takes the oldest up to its cap and reports
+ * the rest (`overCap`), so the owner can run it again for them. `unknownIds` are the Razorpay
+ * ids an earlier call of the same dry run could not get an answer for: they
+ * stay unknown (kept) and are not asked about again, so the checking moves on.
+ */
+export const previewSchema = z.object({
+  scope: scopeSchema,
+  only: z
+    .object({
+      chainIds: z.array(z.string().uuid()).max(MAX_TICKED_IDS),
+      checkoutIds: z.array(z.string().uuid()).max(MAX_TICKED_IDS),
+    })
+    .optional(),
+  unknownIds: z.array(z.string().max(64)).max(5000).default([]),
+})
+
+/**
+ * The delete: the same request as the dry run it follows, its fingerprint,
+ * and the three things the person confirms. The typed phrase is checked
+ * against the plan in the service, where the plan is.
+ */
+export const executeSchema = previewSchema.extend({
+  selectionHash: z.string().regex(/^[0-9a-f]{64}$/, 'Run the dry run first'),
+  confirmText: z.string().max(100),
+  actorName: z
+    .string()
+    .trim()
+    .min(2, 'Type your name')
+    .max(100),
+  // Said out loud, not inferred: nothing here can check a backup exists.
+  backupConfirmed: z.literal(true, {
+    error: 'Confirm you have a database backup from today',
+  }),
+})
+
+export type PreviewInput = z.infer<typeof previewSchema>
+export type ExecuteInput = z.infer<typeof executeSchema>

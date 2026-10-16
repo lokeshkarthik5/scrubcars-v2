@@ -278,6 +278,8 @@ export const listBookingsQuerySchema = z
     vendorId: z.string().uuid().optional(),
     from: istDateSchema.optional(),
     to: istDateSchema.optional(),
+    // Bookings ops marked "Test": only those, or all but those.
+    test: z.enum(['only', 'hide']).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(100),
     page: z.coerce.number().int().min(1).max(1000).default(1),
     cursor: z

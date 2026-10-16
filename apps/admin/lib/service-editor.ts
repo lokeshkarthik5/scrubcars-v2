@@ -7,9 +7,9 @@
  * this file is how a row is built, shown and sent. Pure, so it is tested
  * here rather than in a page.
  */
-import type { AdminPhoto, AdminVendorDetail, UpdateVendorServiceInput } from '@repo/core/api/admin'
+import type { AdminVendorDetail, UpdateVendorServiceInput } from '@repo/core/api/admin'
 import type { ServiceTemplate } from '@repo/core/service-templates'
-import type { ServiceCategory } from '@repo/core/types'
+import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
 import type { PricingType, ServiceRowFields } from './service-rows'
 
 export type DurationUnit = 'min' | 'hour' | 'day'
@@ -25,9 +25,11 @@ export interface ServiceRow extends ServiceRowFields {
   key: string
   category: PlainCategory
   durationUnit: DurationUnit
-  // Images are stored per service row, so they exist only once the service
-  // itself does — a row that has never been saved has nowhere to attach them.
-  images: AdminPhoto[]
+  // Photos and the video are stored per service row, so they exist only once
+  // the service itself does — a row never saved has nowhere to attach them.
+  // Saved the moment they change (the ⋯'s "Photos and video"), never by the
+  // page's Save changes.
+  media: ServiceMedia[]
 }
 
 const DURATION_FACTOR: Record<DurationUnit, number> = { min: 1, hour: 60, day: 1440 }
@@ -129,7 +131,7 @@ export const newRowKey = () => `new-${++nextNewKey}`
 export function emptyServiceRow(): ServiceRow {
   return {
     key: newRowKey(),
-    images: [],
+    media: [],
     name: '',
     description: '',
     category: 'car_wash',
@@ -166,7 +168,7 @@ export function toServiceRow(s: AdminVendorDetail['services'][number]): ServiceR
   return {
     key: s.id,
     id: s.id,
-    images: s.images ?? [],
+    media: s.media ?? [],
     name: s.name,
     description: s.description ?? '',
     // Admin never loads packages (the API leaves them out), so a stored

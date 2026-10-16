@@ -9,14 +9,12 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import Image from 'next/image'
 import { useQuery } from '@tanstack/react-query'
 import {
   IconAlertCircle,
   IconChevronDown,
   IconDots,
   IconEyeOff,
-  IconPhotoPlus,
   IconPlus,
   IconSparkles,
   IconTrash,
@@ -27,7 +25,9 @@ import { ApiError } from '@repo/core/api/client'
 import { describeAdminService, getAdminAiConfig } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import { templatesNotIn, type ServiceTemplate } from '@repo/core/service-templates'
+import type { ServiceMedia } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
+import { ServiceMediaPanel } from '@/components/service-media-panel'
 import {
   DURATION_PRESETS,
   DURATION_UNITS,
@@ -56,13 +56,13 @@ const PILL_BUTTON =
 const FIELD =
   'min-h-11 w-full min-w-0 rounded-[10px] border bg-surface px-3 text-text-primary outline-none transition-colors focus:border-text-secondary placeholder:text-text-muted'
 
-/** The edit page's photo controls; the add page has none (no ids yet). */
-export interface ServicePhotoControls {
-  /** `service-<id>` while that service's upload or delete is running. */
-  busyKey: string | null
-  max: number
-  onAdd: (serviceId: string) => void
-  onRemove: (serviceId: string, imageId: string) => void
+/**
+ * The edit page's "Photos and video" (ServiceMediaPanel: the privacy tick,
+ * photos, the video and "Make a picture with AI"); the add page has none (no
+ * ids yet). Saved the moment they change, so the page only takes the new list.
+ */
+export interface ServiceMediaControls {
+  onChange: (serviceId: string, media: ServiceMedia[]) => void
 }
 
 /** The edit page's Hide: saved straight away, see the page. */
@@ -85,7 +85,7 @@ interface ServicesEditorProps {
   emptyText: string
   /** While the page saves, nothing in the list changes under it. */
   saving?: boolean
-  photos?: ServicePhotoControls
+  media?: ServiceMediaControls
   hide?: ServiceHideControls
   /** A refusal about one saved row (a Hide the API turned down), by id. */
   rowErrors?: Record<string, string>
@@ -121,7 +121,7 @@ export function ServicesEditor({
   otherNames = [],
   emptyText,
   saving = false,
-  photos,
+  media,
   hide,
   rowErrors = {},
   footnote,
@@ -446,7 +446,7 @@ export function ServicesEditor({
                   }}
                   onCategory={(category) => changeCategory(row, category)}
                   rowError={row.id ? rowErrors[row.id] : undefined}
-                  photos={photos}
+                  media={media}
                   hide={hide}
                   saving={saving}
                   onRemove={() => removeRow(row.key)}
@@ -480,7 +480,7 @@ function ServiceRowItem({
   onDescription,
   onCategory,
   rowError,
-  photos,
+  media,
   hide,
   saving,
   onRemove,
@@ -502,7 +502,7 @@ function ServiceRowItem({
   onDescription: (description: string) => void
   onCategory: (category: PlainCategory) => void
   rowError?: string
-  photos?: ServicePhotoControls
+  media?: ServiceMediaControls
   hide?: ServiceHideControls
   saving: boolean
   onRemove: () => void
@@ -776,60 +776,25 @@ function ServiceRowItem({
             </ScSelect>
           </div>
 
-          {photos && (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] font-medium text-text-secondary">Photos</span>
-                {row.id && (
-                  <span className="text-[12px] text-text-muted">
-                    <span className="font-numeric">{row.images.length}</span> of{' '}
-                    <span className="font-numeric">{photos.max}</span>
-                  </span>
-                )}
+          {/* One place for a service's photos and video. They attach to a
+              saved service, so a new row gets the hint instead. */}
+          {media &&
+            (row.id ? (
+              <ServiceMediaPanel
+                serviceId={row.id}
+                serviceName={name}
+                category={row.category}
+                media={row.media}
+                onMediaChange={(next) => media.onChange(row.id as string, next)}
+              />
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-medium text-text-secondary">Photos and video</span>
+                <p className="text-[12px] text-text-muted">
+                  Save changes first, then add photos and a video here.
+                </p>
               </div>
-              {/* Images attach to a saved service, so a new row gets the hint
-                  instead of a picker. */}
-              {row.id ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {row.images.map((image) => (
-                    <div key={image.id} className="relative size-16 shrink-0">
-                      <div className="absolute inset-0 overflow-hidden rounded-[10px] border border-line bg-surface">
-                        <Image src={image.url} alt={row.name} fill sizes="64px" className="object-cover" />
-                      </div>
-                      {/* A full 44px target hanging off the corner, so it
-                          covers less of a thumbnail this small. */}
-                      <button
-                        type="button"
-                        disabled={photos.busyKey === `service-${row.id}`}
-                        onClick={() => photos.onRemove(row.id as string, image.id)}
-                        aria-label={`Remove image of ${name}`}
-                        title="Remove image"
-                        className="absolute -right-2.5 -top-2.5 flex size-11 items-center justify-center text-white disabled:opacity-50"
-                      >
-                        <span className="flex size-6 items-center justify-center rounded-full bg-black/70 transition-colors hover:bg-black/85">
-                          <IconTrash size={12} aria-hidden="true" />
-                        </span>
-                      </button>
-                    </div>
-                  ))}
-                  {row.images.length < photos.max && (
-                    <button
-                      type="button"
-                      disabled={photos.busyKey === `service-${row.id}`}
-                      onClick={() => photos.onAdd(row.id as string)}
-                      aria-label={`Add an image of ${name}`}
-                      className="flex size-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[10px] border border-dashed border-border text-[11px] text-text-muted transition-colors hover:border-text-secondary disabled:opacity-50"
-                    >
-                      <IconPhotoPlus size={18} stroke={1.5} aria-hidden="true" />
-                      {photos.busyKey === `service-${row.id}` ? '…' : 'Add'}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <p className="text-[12px] text-text-muted">Save changes first, then add photos here.</p>
-              )}
-            </div>
-          )}
+            ))}
 
           <div className="flex min-h-6 items-center justify-between gap-3">
             {/* Quiet: neither is the page's main action. A saved service is

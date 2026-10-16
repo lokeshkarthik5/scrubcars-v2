@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { PanelShell, type PanelNavItem } from '@repo/ui/sc/panel-shell'
 import { adminLogout, getAdminMe } from '@repo/core/api/admin'
+import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 
 const NAV: PanelNavItem[] = [
   { href: '/vendors', label: 'Vendors' },
@@ -12,6 +13,11 @@ const NAV: PanelNavItem[] = [
   { href: '/discounts', label: 'Discounts' },
   { href: '/coverage', label: 'Coverage' },
 ]
+
+// Only while the API has it switched on (ADMIN_DATA_RESET); otherwise the
+// API answers 404 and the item is not there. On a phone the bottom bar has
+// no room for a sixth tab, so the Bookings page links to it instead.
+const RESET_NAV: PanelNavItem = { href: '/data-reset', label: 'Start pilot clean' }
 
 export function AdminScope({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -26,6 +32,7 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   // missing or invalid. Hold the UI back until the session check resolves so
   // the chrome/content never flashes for signed-out visitors.
   const [authed, setAuthed] = useState(false)
+  const { data: resetConfig } = useDataResetConfig(authed)
 
   useEffect(() => {
     if (isLogin) return
@@ -63,7 +70,7 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   return (
     <PanelShell
       brandLabel="Admin"
-      navItems={NAV}
+      navItems={resetConfig?.enabled ? [...NAV, RESET_NAV] : NAV}
       navType="admin"
       onLogout={handleLogout}
       className="gap-5"

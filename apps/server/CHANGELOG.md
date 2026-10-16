@@ -48,9 +48,10 @@ reconstructing every change in them.
   `POST /admin/services/describe { name, category, pricingType,
   durationMins?, garageName? }` returns `{ description }`: a draft for the
   admin editor's field, never saved by the call. `GET /admin/ai/config` says
-  `{ describe }`, false while `OPENAI_API_KEY` is unset, which is how the
-  panel knows to hide the buttons. Both super-admin only. The one AI wrapper
-  is `lib/ai.ts` (the official `openai` SDK, pinned at 7.30.1; Responses API,
+  `{ describe, pictures }` (pictures: the AI sample pictures below), each
+  false while `OPENAI_API_KEY` is unset, which is how the panel knows to
+  hide the buttons; one route for every AI helper. Both super-admin only. The one AI wrapper
+  is `lib/ai.ts` (the official `openai` SDK, pinned at 7.34.0; Responses API,
   20 s timeout, one SDK retry); the model is `AI_TEXT_MODEL`, default
   `gpt-5.5`. Every answer is checked by `lib/service-description.ts`: 1–2
   plain sentences, at most 200 characters, ending in a full stop, no price,
@@ -91,6 +92,99 @@ reconstructing every change in them.
   It is the count `DELETE /admin/vendors/:id` refuses on (409
   `VENDOR_HAS_BOOKINGS`, unchanged), so the admin list can say so before
   anyone presses delete.
+
+- **Service photos and videos** (migration `0033_service_media`, purely
+  additive; applied by CI on merge). `service_images` gains `kind`
+  (`image`/`video`), `source` (`upload`/`ai`), `consent_confirmed_at`,
+  `uploaded_by`, and for videos `video_uid`, `video_status`
+  (`processing`/`ready`/`error`), `video_error`, `duration_secs` and
+  `poster_url`. Up to `R2_MAX_IMAGES_PER_SERVICE` (3) photos and one video
+  per service, checked under a per-service advisory lock. Rules in
+  `lib/service-media.ts`, routes in `modules/service-media`; setup for Lokesh
+  in `docs/service-media.md`.
+  - **The privacy tick.** `POST …/images` (garage and admin) and the new
+    `POST …/videos` need `consent: true`, or answer 400
+    `MEDIA_CONSENT_REQUIRED`. A photo URL must sit in its own service's
+    folder. A real photo, or a video once it is ready, removes any AI sample
+    of that service.
+  - **Video through Cloudflare Stream** (`lib/stream.ts`, plain fetch): a
+    one-time direct creator upload (≤ 200 MB) or a tus upload (larger),
+    `maxDurationSeconds` 60. `POST /vendors/me/services/:id/videos` and
+    `POST /admin/services/:serviceId/videos` (`sizeBytes`, `durationSecs`,
+    `replaces`) answer with the row and where to send the file;
+    `GET …/media/:mediaId` is the upload block's poll and asks Stream about a
+    still-processing video. `POST /api/v1/webhooks/cloudflare-stream` takes
+    Stream's webhook, signed (`Webhook-Signature`, HMAC-SHA256 of
+    `time.body`, five minutes' tolerance). Off — routes 404, slot hidden —
+    unless `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_STREAM_API_TOKEN`,
+    `CLOUDFLARE_STREAM_CUSTOMER_CODE` and `CLOUDFLARE_STREAM_WEBHOOK_SECRET`
+    are all set. A replaced video stays on the garage page until the new one
+    is ready, and stays for good if the new one fails or is removed; only then
+    is it deleted. Removing or replacing a video deletes it from Stream after
+    the commit, best effort.
+  - **AI sample pictures (admin).** `POST /admin/services/:serviceId/ai-pictures`
+    (`prompt`) makes two options with OpenAI's image model (`openai` SDK,
+    `AI_IMAGE_MODEL`, default `chatgpt-image-latest`; 1536×1024, medium, WebP,
+    `n: 2`) and leaves them under `ai-temp/<serviceId>/` in R2;
+    `POST …/ai-pictures/use` copies the chosen one into the service's folder
+    as a `source: 'ai'` photo and removes the options. Only for a service with
+    no real photo or video (409 `AI_PICTURE_NOT_NEEDED`); 20 presses an hour
+    per admin (`AI_PICTURES_PER_HOUR`, 429 `AI_PICTURE_LIMIT`); OpenAI
+    failures are 503 `AI_UNAVAILABLE`. Email addresses, phone numbers and
+    number plates are stripped from the prompt, and a fixed style ("no
+    people, no text, no logos, no number plates") is always added. Off while
+    `OPENAI_API_KEY` is unset: `GET /admin/ai/config` says
+    `pictures: false` (beside "Write with AI"'s `describe`) and the routes
+    are 404. Its SDK calls live in `lib/ai-images.ts`, on the same pinned
+    `openai` as `lib/ai.ts`.
+  - `GET /vendors/me/media-config` and `GET /admin/media-config` tell the
+    upload block whether video is on.
+  - Service responses carry `media`: on the garage page (public) only a
+    photo's or a ready video's `kind`, `url`, `posterUrl`, `durationSecs` and
+    `source` — never who added it or the tick; in the garage's own app and
+    admin every row with its state. `images` stays, photos only.
+  - Test fakes, refused in production like `E2E_FAKE_PAYMENTS`:
+    `STREAM_FAKE=1` (uploads land on `/api/v1/fake-stream`, a spec fires the
+    signed webhook) and `AI_FAKE=1` (a fixed PNG, OpenAI never called).
+
+- **Start pilot clean: deleting test data** (migration `0032_test_data_reset`,
+  purely additive; apply it before deploying). Behind `ADMIN_DATA_RESET=on`,
+  off by default: every `/admin/data-reset` route is then a 404. Runbook in
+  `docs/test-data-reset.md`, which replaces the PR #21 "TRUNCATE + re-run
+  0030" reset.
+  - `GET /admin/data-reset/config`, `POST /admin/data-reset/preview` (the dry
+    run) and `POST /admin/data-reset/execute`, super-admin only. Scope:
+    everything before a cutoff, the chains marked Test, or one marked chain.
+    A booking goes with its whole reschedule chain and everything attached
+    (items, payment, notes, job photos and their R2 files after the commit,
+    final bills, reschedules, promo uses, refunds, reviews, its checkout);
+    a cutoff run also takes checkouts that never became a booking, with their
+    refund records. The rules are pure, in `lib/data-reset.ts`, unit-tested.
+  - Real money is never deleted: live, cash and unconfirmed payments keep the
+    chain, shown as "Real payment — kept". `gateway_mode` (`live` / `test` /
+    `fake`) is now recorded on payments, checkouts and final bills from the
+    key id the order was opened with; older rows are checked with Razorpay
+    in the dry run, a slice per call inside a time budget, and the answer is
+    written back. Unknown is always kept. An unpaid order that may be live
+    and could still be captured (a booking still on, a bill still due, or
+    within a day of the cancel or the checkout closing) keeps its chain or
+    checkout too: "Payment may still arrive — kept".
+  - The dry run lists the whole scope whatever is ticked, so its CSV and the
+    audit row include the kept rows (with the reason) and the unticked ones.
+    More ticked than a run's cap (300 bookings, 1,000 checkouts) is no
+    longer a 400: the oldest are taken and `overCap` says how many wait.
+  - Receipt numbers are never renumbered: a financial year whose receipts
+    are all test data restarts at 000001; any other year keeps its counter
+    and records the deleted numbers in `receipt_number_voids`.
+  - The delete re-checks the dry run's `selectionHash` (409 `PREVIEW_STALE`)
+    and the typed phrase (400 `CONFIRM_PHRASE_MISMATCH`) under row locks, in
+    one transaction with `lock_timeout`/`statement_timeout`, in the lock
+    order; writes an append-only `admin_audit_log` row; and posts "Test data
+    cleared by <name>: N bookings" to Telegram.
+  - `POST`/`DELETE /admin/bookings/:id/mark-test`: the "Test" mark on a whole
+    chain, with a note. Marked bookings are left out of the pilot numbers,
+    `GET /admin/bookings?test=only|hide` filters on it, and the booking rows
+    carry `markedTest` and `payment.gatewayMode`. A reschedule keeps the mark.
 
 - **Estimated reach for offers on Home** (no migration). PR 2 of 6 of the
   Home hub (the admin screens). `GET /admin/discounts/home-reach?audience=&vendorId=&radiusKm=&vehicleTypes=`
