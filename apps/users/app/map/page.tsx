@@ -13,7 +13,7 @@ import {
   IconStarFilled,
 } from '@tabler/icons-react'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
-import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
@@ -141,7 +141,10 @@ function MapBrowseContent() {
     searchParams.get('bookingType') === 'doorstep' ? 'doorstep' : 'dropin'
   const category = searchParams.get('category') ?? undefined
 
-  const origin = location ? coarse(location) : undefined
+  // Browsing all of Chennai (the header's citywide choice) behaves like
+  // having no location: city mode below shows every pinned garage.
+  const origin =
+    !location || isCitywide(location) ? undefined : coarse(location)
   const hasOrigin = origin !== undefined
 
   /**

@@ -300,7 +300,7 @@ export default function GaragePage({
   // loading early-return with the other hooks — the query is disabled until
   // both endpoints are known, so it costs nothing while the vendor loads.
   const travel = useTravelTime(
-    activeLocation ? coarse(activeLocation) : null,
+    activeLocation?.source === 'gps' ? coarse(activeLocation) : null,
     vendor ? { lat: vendor.lat, lng: vendor.lng } : null
   )
 
