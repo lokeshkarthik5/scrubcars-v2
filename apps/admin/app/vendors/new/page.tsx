@@ -18,6 +18,7 @@ import { ScSelect } from '@repo/ui/sc/select'
 import { ApiError } from '@repo/core/api/client'
 import { createAdminVendor } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
+import { DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import type { ServiceCategory } from '@repo/core/types'
 
@@ -326,7 +327,7 @@ export default function NewVendorPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <ScField label="Pickup radius km (optional)" value={form.pickupRadiusKm} onChange={set('pickupRadiusKm')} type="number" placeholder="e.g. 5" />
-              <ScField label="Doorstep travel radius km" value={form.doorstepRadiusKm} onChange={set('doorstepRadiusKm')} type="number" placeholder="e.g. 8" />
+              <ScField label="Doorstep travel radius km (optional)" value={form.doorstepRadiusKm} onChange={set('doorstepRadiusKm')} type="number" placeholder={DOORSTEP_RADIUS_PLACEHOLDER} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex items-end gap-4 pb-1">

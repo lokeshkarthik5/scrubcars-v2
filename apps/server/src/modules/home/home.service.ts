@@ -21,6 +21,7 @@ import {
   type PausedGarage,
   type UpdateItem,
 } from '../../lib/home-updates.js'
+import { LIST_RADIUS_KM } from '../../lib/discovery.js'
 import { istDateKey } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
 import { reportError } from '../../lib/monitoring.js'
@@ -38,8 +39,11 @@ const log = logger.child({ module: 'home' })
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** "N garages to drive to within 10 km". */
-export const NEARBY_RADIUS_KM = 10
+/**
+ * "N garages within 50 km": the garage list's own radius (lib/discovery.ts),
+ * so the count on Home matches the pinned part of the drop-in list.
+ */
+export const NEARBY_RADIUS_KM = LIST_RADIUS_KM
 
 /** Home's Updates block: the pinned notice, then this many newest rows. */
 const HOME_UPDATE_ROWS = 2
