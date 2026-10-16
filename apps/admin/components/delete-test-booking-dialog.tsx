@@ -72,7 +72,8 @@ export function DeleteTestBookingDialog({
     setAttempt((n) => n + 1)
   }
 
-  const busy = preview.isFetching || deleting
+  // Once the delete has answered there is nothing left to wait for.
+  const busy = !result && (preview.isFetching || deleting)
   const close = () => {
     if (busy) return
     if (result) onDeleted(result)

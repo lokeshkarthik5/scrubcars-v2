@@ -1,17 +1,23 @@
 import { and, asc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
+import type { PgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
   adminAuditLog,
   bookingCharges,
+  bookingIntentItems,
   bookingIntents,
+  bookingItems,
+  bookingNotes,
   bookingReschedules,
   bookings,
+  discountRedemptions,
   jobPhotos,
   payments,
   receiptCounters,
   receiptNumbers,
   receiptNumberVoids,
   refundRecords,
+  reviews,
   users,
   vendors,
 } from '../../db/schema.js'
@@ -44,9 +50,29 @@ function batches<T>(rows: T[]): T[][] {
 /** A chain's key: its first booking's id. */
 const CHAIN_KEY = sql<string>`coalesce(${bookings.originalBookingId}, ${bookings.id})`
 
-/** A booking's child rows, counted, as the dry run reports them. */
-const countOf = (table: string, column = 'booking_id') =>
-  sql<number>`(select count(*)::int from ${sql.identifier(table)} where ${sql.identifier(table)}.${sql.identifier(column)} = ${bookings.id})`
+/**
+ * A child table's rows per parent id, for these ids (an id with none is
+ * absent), grouped on the child's own key column. Not a correlated subquery
+ * in a select list: there Drizzle prints the outer column bare ("id"), which
+ * inside the subquery is the child's own id, so every count came back 0.
+ */
+async function countBy(
+  conn: Conn,
+  key: PgColumn,
+  ids: string[],
+  also?: SQL
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  for (const slice of batches(ids)) {
+    const rows = await conn
+      .select({ key: sql<string>`${key}`, n: sql<number>`count(*)::int` })
+      .from(key.table)
+      .where(and(inArray(key, slice), also))
+      .groupBy(key)
+    for (const row of rows) out.set(row.key, row.n)
+  }
+  return out
+}
 
 /** Reads, through the given connection: the plain one, or the delete's transaction. */
 function reads(conn: Conn) {
@@ -196,23 +222,26 @@ function reads(conn: Conn) {
     },
 
     async bookingChildCounts(bookingIds: string[]): Promise<Map<string, BookingChildCounts>> {
-      const out = new Map<string, BookingChildCounts>()
-      for (const slice of batches(bookingIds)) {
-        const rows = await conn
-          .select({
-            id: bookings.id,
-            items: countOf('booking_items'),
-            notes: countOf('booking_notes'),
-            photos: countOf('job_photos'),
-            reviews: countOf('reviews'),
-            promoUses: countOf('discount_redemptions'),
-            refundRecords: countOf('refund_records'),
-          })
-          .from(bookings)
-          .where(inArray(bookings.id, slice))
-        for (const { id, ...counts } of rows) out.set(id, counts)
-      }
-      return out
+      const items = await countBy(conn, bookingItems.bookingId, bookingIds)
+      const notes = await countBy(conn, bookingNotes.bookingId, bookingIds)
+      const photos = await countBy(conn, jobPhotos.bookingId, bookingIds)
+      const reviewRows = await countBy(conn, reviews.bookingId, bookingIds)
+      const promoUses = await countBy(conn, discountRedemptions.bookingId, bookingIds)
+      // Booking and bill refunds: a checkout's carries no booking_id.
+      const refunds = await countBy(conn, refundRecords.bookingId, bookingIds)
+      return new Map(
+        bookingIds.map((id) => [
+          id,
+          {
+            items: items.get(id) ?? 0,
+            notes: notes.get(id) ?? 0,
+            photos: photos.get(id) ?? 0,
+            reviews: reviewRows.get(id) ?? 0,
+            promoUses: promoUses.get(id) ?? 0,
+            refundRecords: refunds.get(id) ?? 0,
+          },
+        ])
+      )
     },
 
     /** booking_reschedules rows by chain (each names its chain's first booking). */
@@ -233,19 +262,19 @@ function reads(conn: Conn) {
     },
 
     async intentChildCounts(intentIds: string[]): Promise<Map<string, IntentChildCounts>> {
-      const out = new Map<string, IntentChildCounts>()
-      for (const slice of batches(intentIds)) {
-        const rows = await conn
-          .select({
-            id: bookingIntents.id,
-            items: sql<number>`(select count(*)::int from booking_intent_items where booking_intent_items.intent_id = ${bookingIntents.id})`,
-            refundRecords: sql<number>`(select count(*)::int from refund_records where refund_records.kind = 'checkout' and refund_records.target_id = ${bookingIntents.id})`,
-          })
-          .from(bookingIntents)
-          .where(inArray(bookingIntents.id, slice))
-        for (const { id, ...counts } of rows) out.set(id, counts)
-      }
-      return out
+      const items = await countBy(conn, bookingIntentItems.intentId, intentIds)
+      const refunds = await countBy(
+        conn,
+        refundRecords.targetId,
+        intentIds,
+        eq(refundRecords.kind, 'checkout')
+      )
+      return new Map(
+        intentIds.map((id) => [
+          id,
+          { items: items.get(id) ?? 0, refundRecords: refunds.get(id) ?? 0 },
+        ])
+      )
     },
 
     async receipts(keys: string[]): Promise<ResetReceipt[]> {
