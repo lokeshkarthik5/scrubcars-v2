@@ -43,6 +43,9 @@ import type {
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
+import type { AddPhotoInput } from '../service-media/service-media.validation.js'
+import { serviceMediaService } from '../service-media/service-media.service.js'
+import { toManagedMedia } from '../../lib/service-media.js'
 
 const log = logger.child({ module: 'admin' })
 
@@ -89,17 +92,6 @@ async function assertPhotoCapacity(vendorId: string) {
       409,
       `This garage can have at most ${env.r2MaxPhotosPerVendor} photos`,
       'PHOTO_LIMIT_REACHED'
-    )
-  }
-}
-
-async function assertServiceImageCapacity(serviceId: string) {
-  const [{ count }] = await vendorsRepository.countServiceImages(serviceId)
-  if (count >= env.r2MaxImagesPerService) {
-    throw new AppError(
-      409,
-      `A service can have at most ${env.r2MaxImagesPerService} images`,
-      'SERVICE_IMAGE_LIMIT_REACHED'
     )
   }
 }
@@ -418,7 +410,16 @@ export const adminService = {
     if (!vendor) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
-    return vendor
+    // `images` stays the photo rows the editor always read; `media` is the
+    // photo-and-video block's view of the same rows.
+    return {
+      ...vendor,
+      services: vendor.services.map(({ images, ...service }) => ({
+        ...service,
+        images: images.filter((image) => image.kind === 'image'),
+        media: toManagedMedia(images),
+      })),
+    }
   },
 
   async updateVendor(id: string, input: UpdateVendorInput) {
@@ -1142,66 +1143,24 @@ export const adminService = {
     return deleted
   },
 
-  async createServiceImageUploadUrl(serviceId: string, input: UploadUrlInput) {
-    const service = await assertService(serviceId)
-    await assertServiceImageCapacity(service.id)
+  // Service photos and video. The rules (the privacy tick, the limits, AI
+  // samples giving way to a real photo, removing the files) are
+  // serviceMediaService's, shared with the garage's app. Each mutation
+  // answers with the service's media, as the upload block shows it.
 
-    // Keyed under the owning vendor, so a service's images sit beside the rest
-    // of that vendor's objects regardless of who uploaded them.
-    const { uploadUrl, publicUrl } = await createPresignedUpload(
-      service.vendorId,
-      input.contentType,
-      `services/${service.id}`
-    )
-    return { uploadUrl, publicUrl }
+  async createServiceImageUploadUrl(sub: string, serviceId: string, input: UploadUrlInput) {
+    return serviceMediaService.createPhotoUploadUrl({ kind: 'admin', sub }, serviceId, input)
   },
 
-  async addServiceImage(serviceId: string, input: MediaUrlInput) {
-    const service = await assertService(serviceId)
-    const storageKey = assertOwnBucketUrl(
-      input.url,
-      'INVALID_SERVICE_IMAGE_URL'
-    )
-
-    await assertServiceImageCapacity(service.id)
-
-    const [{ maxOrder }] =
-      await vendorsRepository.getNextServiceImageSortOrder(service.id)
-    await vendorsRepository.createServiceImage(service.id, {
-      url: input.url,
-      storageKey,
-      sortOrder: maxOrder + 1,
-    })
-
-    log.info(
-      { vendorId: service.vendorId, serviceId },
-      'admin:service-image-added'
-    )
-    return vendorsRepository.listServiceImages(service.id)
+  async addServiceImage(sub: string, serviceId: string, input: AddPhotoInput) {
+    const service = await serviceMediaService.addPhoto({ kind: 'admin', sub }, serviceId, input)
+    return serviceMediaService.listManaged(service.id)
   },
 
-  async deleteServiceImage(serviceId: string, imageId: string) {
-    const service = await assertService(serviceId)
-    const image = await vendorsRepository.findServiceImageById(
-      service.id,
-      imageId
-    )
-
-    if (!image) {
-      throw new AppError(404, 'Image not found', 'SERVICE_IMAGE_NOT_FOUND')
-    }
-
-    const [deleted] = await vendorsRepository.deleteServiceImage(
-      service.id,
-      imageId
-    )
-
-    const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
-    if (key) {
-      await deleteObject(key)
-    }
-
-    return vendorsRepository.listServiceImages(service.id)
+  /** Removes a photo or the video. */
+  async deleteServiceImage(sub: string, serviceId: string, imageId: string) {
+    const service = await serviceMediaService.deleteMedia({ kind: 'admin', sub }, serviceId, imageId)
+    return serviceMediaService.listManaged(service.id)
   },
 
   // ─── Platform admins ───────────────────────────────────────────────────────

@@ -19,6 +19,26 @@ reconstructing every change in them.
 
 ### Added
 
+- **Service photos and videos.** On the garage page each service card has a
+  64px picture: the video's poster with its length ("▶ 0:45"), else the
+  first photo, else a drawn sample tagged "Sample". The details sheet opens
+  with the video (poster first, plays only on tap, no autoplay; HLS, with
+  hls.js loaded on the first Play where the browser needs it; progress,
+  pause, sound and full screen) or the first photo at 16:9, then the photos;
+  tapping a photo opens it full screen (swipe, "2 / 4", the garage and the
+  service). The garage's own media are tagged "From <garage>", AI pictures
+  and the drawn samples "Sample image" ("No photos from this garage yet").
+  The description is held to two lines with "More".
+- **Garage app: "Photos and video"** on every service and package, replacing
+  the old image row: the privacy tick first ("Before adding: no number plates
+  or faces can be read, or the owner agreed"), three photo slots and one video
+  slot ("up to 60 sec", checked on the phone before uploading), the upload's
+  progress, "Processing…", Ready with Replace / Remove, or a plain error.
+- **Admin: the same block** on the garage editor's services
+  (`components/service-media-panel.tsx`, self-contained so it can move into
+  the new editor), plus "Make a picture with AI": describe it, pick one of
+  two ("Generate again · ₹8"), "Use this picture".
+
 - **Admin: Start pilot clean** (`/data-reset`), shown in the menu (and linked
   from Bookings on a phone) only while the API has `ADMIN_DATA_RESET` on.
   Three steps: Scope (everything before a cutoff in India time, or only

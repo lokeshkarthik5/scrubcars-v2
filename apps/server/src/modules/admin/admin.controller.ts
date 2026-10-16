@@ -22,6 +22,7 @@ import type {
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
+import type { AddPhotoInput } from '../service-media/service-media.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
 
@@ -241,17 +242,17 @@ export async function createServiceImageUploadUrl(
   serviceId: string,
   input: UploadUrlInput
 ) {
-  const data = await adminService.createServiceImageUploadUrl(serviceId, input)
+  const data = await adminService.createServiceImageUploadUrl(c.get('auth').sub, serviceId, input)
   return c.json({ success: true, data })
 }
 
 export async function addServiceImage(
   c: AdminContext,
   serviceId: string,
-  input: MediaUrlInput
+  input: AddPhotoInput
 ) {
-  const images = await adminService.addServiceImage(serviceId, input)
-  return c.json({ success: true, data: images }, 201)
+  const media = await adminService.addServiceImage(c.get('auth').sub, serviceId, input)
+  return c.json({ success: true, data: media }, 201)
 }
 
 export async function deleteServiceImage(
@@ -259,8 +260,8 @@ export async function deleteServiceImage(
   serviceId: string,
   imageId: string
 ) {
-  const images = await adminService.deleteServiceImage(serviceId, imageId)
-  return c.json({ success: true, data: images })
+  const media = await adminService.deleteServiceImage(c.get('auth').sub, serviceId, imageId)
+  return c.json({ success: true, data: media })
 }
 
 // ─── Platform admins ─────────────────────────────────────────────────────────

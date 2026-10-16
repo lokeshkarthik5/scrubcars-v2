@@ -314,6 +314,11 @@ export const STAFF = {
    * earnings with nothing any other spec books on it.
    */
   refundsOwner: { id: id(207), phone: '9000001008', name: 'Refunds Ramesh' },
+  /**
+   * Owns VENDORS.media only, so the service photo and video specs change the
+   * media of a garage nobody else reads, with one company in the switcher.
+   */
+  mediaOwner: { id: id(208), phone: '9000001009', name: 'Media Meena' },
 } as const
 
 export const VENDORS = {
@@ -373,6 +378,14 @@ export const VENDORS = {
    * list; every booking on it belongs to the reset specs, which delete them.
    */
   reset: { id: id(313), name: 'Reset Test Garage' },
+  /**
+   * Service photos and videos (specs/vendors/service-media.spec.ts,
+   * specs/admin/service-media.spec.ts). Verified, so its garage page shows
+   * customers what was added; far south-west like the other single-purpose
+   * garages, so it never comes between MAIN and the fillers in a sort.
+   * Nobody books it. Each spec owns one of its services (SERVICES.media*).
+   */
+  media: { id: id(314), name: 'Media Test Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -427,6 +440,16 @@ export const SERVICES = {
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
   /** On RESET: every reset-spec booking is one ₹499 wash. */
   resetWash: { id: id(419), name: 'Reset Wash', price: '499.00', durationMins: 30 },
+  /** On MEDIA: the garage adds a photo to it. */
+  mediaPhoto: { id: id(420), name: 'Media Foam Wash', price: '499.00', durationMins: 30 },
+  /** On MEDIA: the garage adds a video to it (Stream faked). */
+  mediaVideo: { id: id(421), name: 'Media Full Wash', price: '599.00', durationMins: 45 },
+  /** On MEDIA, a coating: admin makes it an AI sample picture (AI faked). */
+  mediaAi: { id: id(422), name: 'Media Ceramic Coat', price: '2999.00', durationMins: 120 },
+  /** On MEDIA: the refusals (no privacy tick, a clip over 60 seconds). Never gets media. */
+  mediaRefused: { id: id(423), name: 'Media Polish', price: '899.00', durationMins: 60 },
+  /** On MEDIA, filed under others: the drawn bike sample, "No photos from this garage yet". */
+  mediaBike: { id: id(424), name: 'Media Bike Wash', price: '200.00', durationMins: 45 },
 } as const
 
 export const DISCOUNTS = {

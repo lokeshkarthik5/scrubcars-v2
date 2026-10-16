@@ -56,6 +56,9 @@ import { cn, formatDuration } from '@repo/core/utils'
 import { OpenStatus } from '@/components/open-status'
 import { MainAction } from '@/components/main-action'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { ServiceMediaArea } from '@/components/service-media/service-media-area'
+import { ServiceThumb } from '@/components/service-media/service-thumb'
+import { ClampedText } from '@/components/service-media/clamped-text'
 
 type Tab = 'services' | 'photos' | 'reviews'
 
@@ -665,23 +668,28 @@ export default function GaragePage({
                       type="button"
                       onClick={() => openDetails(svc)}
                       aria-label={`View details for ${svc.name}`}
-                      className={CARD_DETAILS_TRIGGER}
+                      className={cn(CARD_DETAILS_TRIGGER, 'flex items-start gap-3')}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
-                          {svc.name}
-                        </p>
-                        <span className="shrink-0 text-[14px] font-bold text-text-primary">
-                          <Figures text={formatServicePrice(svc)} />
-                        </span>
+                      {/* The video's poster, the first photo, or the drawn
+                          sample, so a customer can see the work at a glance. */}
+                      <ServiceThumb service={svc} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 flex-1 text-[14px] font-semibold text-text-primary">
+                            {svc.name}
+                          </p>
+                          <span className="shrink-0 text-[14px] font-bold text-text-primary">
+                            <Figures text={formatServicePrice(svc)} />
+                          </span>
+                        </div>
+                        {svc.description && (
+                          <p className="mt-1 line-clamp-2 text-[12px] text-text-secondary">
+                            {svc.description}
+                          </p>
+                        )}
                       </div>
-                      {svc.description && (
-                        <p className="mt-1 line-clamp-2 text-[12px] text-text-secondary">
-                          {svc.description}
-                        </p>
-                      )}
                     </button>
-                    <div className="mt-3 flex items-center justify-between">
+                    <div className="mt-3 flex items-center justify-between pl-[76px]">
                       <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
                         <IconClock size={13} />
                         <span className="font-numeric font-medium">
@@ -843,39 +851,14 @@ export default function GaragePage({
           <>
             {/* No close button: the sheet's own handle, backdrop tap and
                 Escape all dismiss it, and the primary action sits at the
-                bottom within thumb reach. */}
-            <h2 className="text-[17px] font-semibold text-text-primary">
+                bottom within thumb reach. The media come first, as in the
+                approved design: the video (or first photo) at 16:9, then
+                the photos; a drawn sample when the garage has added none. */}
+            <ServiceMediaArea service={details} garageName={vendor.name} />
+
+            <h2 className="mt-4 text-[17px] font-semibold text-text-primary">
               {details.name}
             </h2>
-
-            {/* Up to three service photos, capped server-side. One fills the
-                width; two or three share a row so the popup stays short. */}
-            {details.images.length > 0 && (
-              <div
-                className={cn(
-                  'mt-3 grid gap-1.5',
-                  details.images.length === 1 ? 'grid-cols-1' : 'grid-cols-3'
-                )}
-              >
-                {details.images.map((image, i) => (
-                  <div
-                    key={image.id}
-                    className={cn(
-                      'relative overflow-hidden rounded-[10px] bg-surface',
-                      details.images.length === 1 ? 'aspect-[16/10]' : 'aspect-square'
-                    )}
-                  >
-                    <Image
-                      src={image.url}
-                      alt={`${details.name} ${i + 1}`}
-                      fill
-                      sizes="(max-width: 428px) 33vw, 120px"
-                      className="object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <ScBadge variant="muted">{categoryLabel(details.category)}</ScBadge>
@@ -887,12 +870,16 @@ export default function GaragePage({
               </span>
             </div>
 
-            <p className="mt-3 whitespace-pre-line text-[13px] text-text-secondary">
-              {details.description ||
+            <ClampedText
+              key={details.id}
+              className="mt-3 text-[13px] text-text-secondary"
+              text={
+                details.description ||
                 (isPackage(details)
                   ? 'No description available for this package.'
-                  : 'No description available for this service.')}
-            </p>
+                  : 'No description available for this service.')
+              }
+            />
 
             {/* What the bundle contains, priced against the members' current
                 prices — the same numbers the card badges. */}

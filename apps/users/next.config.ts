@@ -40,6 +40,15 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '**',
       },
+      // Cloudflare Stream, where service video posters are served. Covered by
+      // the pattern above today; named so it stays allowed if that is ever
+      // narrowed. Posters are drawn unoptimized (Stream sizes them itself),
+      // so this matters only for a caller that does optimise one.
+      {
+        protocol: 'https',
+        hostname: 'customer-*.cloudflarestream.com',
+        pathname: '/*/thumbnails/**',
+      },
       // Local object storage only. The E2E stack (and anyone running MinIO
       // locally) serves uploads over plain http on localhost, which the https
       // pattern above rejects — next/image then throws and takes the page with

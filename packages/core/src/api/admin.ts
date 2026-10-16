@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
-import type { ServiceCategory } from '@repo/core/types'
+import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
 
 export interface AdminVendor {
   id: string
@@ -90,6 +90,8 @@ export interface AdminVendorDetail {
     priceSuv: string | null
     durationMins: number
     images: AdminPhoto[]
+    /** Photos and the video, with each video's state. */
+    media: ServiceMedia[]
   }>
 }
 
@@ -639,34 +641,8 @@ export async function deleteAdminVendorPhoto(
   )
 }
 
-/** Upload one service image. Returns that service's full image list. */
-export async function uploadAdminServiceImage(serviceId: string, file: File) {
-  const { uploadUrl, publicUrl } = await apiClient<{
-    uploadUrl: string
-    publicUrl: string
-  }>(`/admin/services/${serviceId}/images/upload-url`, {
-    method: 'POST',
-    body: JSON.stringify({ contentType: file.type as UploadContentType }),
-  })
-
-  await putToR2(uploadUrl, file)
-
-  return apiClient<AdminPhoto[]>(`/admin/services/${serviceId}/images`, {
-    method: 'POST',
-    body: JSON.stringify({ url: publicUrl }),
-  })
-}
-
-/** DELETE /admin/services/:serviceId/images/:imageId */
-export async function deleteAdminServiceImage(
-  serviceId: string,
-  imageId: string
-) {
-  return apiClient<AdminPhoto[]>(
-    `/admin/services/${serviceId}/images/${imageId}`,
-    { method: 'DELETE' }
-  )
-}
+// Service photos and video: adminMediaApi in @repo/core/api/service-media,
+// shared with the garage's app.
 
 /** GET /admin/bookings — one page, newest scheduled first. */
 export async function listAdminBookings(filters: AdminBookingFilters = {}) {

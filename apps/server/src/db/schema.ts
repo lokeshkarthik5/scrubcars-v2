@@ -679,11 +679,28 @@ export const services = pgTable(
   ]
 )
 
-// Photos of the work a service produces, shown in the service details popup on
-// the garage page. Capped per service in the service layer (see
-// MAX_IMAGES_PER_SERVICE) rather than by a constraint, so the limit can move
-// without a migration. Cascade-deleted with the service; the underlying R2
-// objects are removed best-effort alongside.
+// Photos and videos of the work a service produces, shown on the garage page
+// (a thumbnail on the service card, the media area in its details sheet).
+// Named for what it first held; since 0033 a row is a photo (`kind = 'image'`,
+// an R2 object) or a video (`kind = 'video'`, a Cloudflare Stream upload).
+// At most R2_MAX_IMAGES_PER_SERVICE photos and one video per service, checked
+// in the service layer under a row lock on the service (lib/service-media.ts,
+// modules/service-media) rather than by a constraint, so the limits can move
+// without a migration. Cascade-deleted with the service; the R2 objects and
+// Stream videos behind the rows are removed best-effort alongside.
+//
+// `source = 'ai'` is a picture made with AI by admin: customers see it tagged
+// "Sample image". `consent_confirmed_at` is when the privacy tick ("no number
+// plates or faces can be read, or the owner agreed") was given, and
+// `uploaded_by` who added it (an admin's name, or 'garage'). Neither is ever
+// in a customer-facing response.
+export const SERVICE_MEDIA_KINDS = ['image', 'video'] as const
+export type ServiceMediaKind = (typeof SERVICE_MEDIA_KINDS)[number]
+export const SERVICE_MEDIA_SOURCES = ['upload', 'ai'] as const
+export type ServiceMediaSource = (typeof SERVICE_MEDIA_SOURCES)[number]
+export const VIDEO_STATUSES = ['processing', 'ready', 'error'] as const
+export type VideoStatus = (typeof VIDEO_STATUSES)[number]
+
 export const serviceImages = pgTable(
   'service_images',
   {
@@ -691,14 +708,35 @@ export const serviceImages = pgTable(
     serviceId: uuid('service_id')
       .notNull()
       .references(() => services.id, { onDelete: 'cascade' }),
+    // A photo's public R2 URL; a video's HLS manifest on Stream.
     url: varchar('url', { length: 2048 }).notNull(),
     storageKey: varchar('storage_key', { length: 1024 }),
     sortOrder: integer('sort_order').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
+    kind: text('kind').$type<ServiceMediaKind>().default('image').notNull(),
+    source: text('source').$type<ServiceMediaSource>().default('upload').notNull(),
+    consentConfirmedAt: timestamp('consent_confirmed_at', { withTimezone: true }),
+    uploadedBy: varchar('uploaded_by', { length: 100 }),
+    videoUid: varchar('video_uid', { length: 64 }),
+    videoStatus: text('video_status').$type<VideoStatus>(),
+    videoError: varchar('video_error', { length: 200 }),
+    durationSecs: integer('duration_secs'),
+    posterUrl: varchar('poster_url', { length: 2048 }),
   },
-  (table) => [index('service_images_service_id_idx').on(table.serviceId)]
+  (table) => [
+    index('service_images_service_id_idx').on(table.serviceId),
+    uniqueIndex('service_images_video_uid_idx')
+      .on(table.videoUid)
+      .where(sql`${table.videoUid} IS NOT NULL`),
+    check('service_images_kind_check', sql`${table.kind} in ('image', 'video')`),
+    check('service_images_source_check', sql`${table.source} in ('upload', 'ai')`),
+    check(
+      'service_images_video_status_check',
+      sql`${table.videoStatus} in ('processing', 'ready', 'error')`
+    ),
+  ]
 )
 
 // Composition of a package. `packageId` is a services row with

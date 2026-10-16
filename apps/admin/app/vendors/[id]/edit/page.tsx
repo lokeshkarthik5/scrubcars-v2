@@ -24,14 +24,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { ScSelect } from '@repo/ui/sc/select'
 import { ApiError } from '@repo/core/api/client'
 import {
-  deleteAdminServiceImage,
   deleteAdminVendorLogo,
   deleteAdminVendorPhoto,
   getAdminVendor,
   pauseAdminVendor,
   resumeAdminVendor,
   updateAdminVendor,
-  uploadAdminServiceImage,
   uploadAdminVendorLogo,
   uploadAdminVendorPhoto,
   type AdminPhoto,
@@ -43,8 +41,9 @@ import {
   legacyVehicleTypes,
   VENDOR_VEHICLE_TYPE_OPTIONS,
 } from '@repo/core/vehicles'
-import type { ServiceCategory } from '@repo/core/types'
+import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
+import { ServiceMediaPanel } from '@/components/service-media-panel'
 import { VendorTeamSection } from './team-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -65,8 +64,6 @@ const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
-// Mirrors R2_MAX_IMAGES_PER_SERVICE on the server, which is the real cap.
-const MAX_IMAGES_PER_SERVICE = 3
 
 // Shared guard for every media picker on this page.
 function rejectFile(file: File): string | null {
@@ -150,13 +147,13 @@ interface ServiceRow {
   priceSuv: string
   durationValue: string
   durationUnit: DurationUnit
-  // Images are stored per service row, so they exist only once the service
-  // itself does — a row that has never been saved has nowhere to attach them.
-  images: AdminPhoto[]
+  // Photos and the video are stored per service row, so they exist only once
+  // the service itself does — a row never saved has nowhere to attach them.
+  media: ServiceMedia[]
 }
 
 const emptyService = (): ServiceRow => ({
-  images: [],
+  media: [],
   name: '',
   description: '',
   category: 'car_wash',
@@ -244,8 +241,6 @@ export default function EditVendorPage({
   const [mediaBusy, setMediaBusy] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
-  const serviceImageInputRef = useRef<HTMLInputElement>(null)
-  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
 
   const set = (key: keyof typeof form) => (v: string) =>
     setForm((prev) => ({ ...prev, [key]: v }))
@@ -314,7 +309,7 @@ export default function EditVendorPage({
       setServices(
         v.services.map((s) => ({
           id: s.id,
-          images: s.images ?? [],
+          media: s.media ?? [],
           name: s.name,
           description: s.description ?? '',
           category: s.category,
@@ -416,40 +411,8 @@ export default function EditVendorPage({
       setPhotos((prev) => prev.filter((p) => p.id !== photoId))
     })
 
-  const pickServiceImage = (serviceId: string) => {
-    setImageTargetId(serviceId)
-    serviceImageInputRef.current?.click()
-  }
-
-  const setServiceImages = (serviceId: string, images: AdminPhoto[]) =>
-    setServices((prev) =>
-      prev.map((s) => (s.id === serviceId ? { ...s, images } : s))
-    )
-
-  const handleServiceImageFile = async (files: FileList | null) => {
-    const file = files?.[0]
-    const serviceId = imageTargetId
-    if (serviceImageInputRef.current) serviceImageInputRef.current.value = ''
-    if (!file || !serviceId) return
-
-    const rejection = rejectFile(file)
-    if (rejection) {
-      setError(rejection)
-      return
-    }
-
-    await runMedia(`service-${serviceId}`, async () => {
-      setServiceImages(serviceId, await uploadAdminServiceImage(serviceId, file))
-    })
-  }
-
-  const handleRemoveServiceImage = (serviceId: string, imageId: string) =>
-    runMedia(`service-${serviceId}`, async () => {
-      setServiceImages(
-        serviceId,
-        await deleteAdminServiceImage(serviceId, imageId)
-      )
-    })
+  const setServiceMedia = (serviceId: string, media: ServiceMedia[]) =>
+    setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, media } : s)))
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -621,13 +584,6 @@ export default function EditVendorPage({
         multiple
         hidden
         onChange={(e) => handlePhotoFiles(e.target.files)}
-      />
-      <input
-        ref={serviceImageInputRef}
-        type="file"
-        accept={ACCEPTED_IMAGE_TYPES}
-        hidden
-        onChange={(e) => handleServiceImageFile(e.target.files)}
       />
 
       {loading ? (
@@ -1161,66 +1117,21 @@ export default function EditVendorPage({
                         </div>
                       )}
 
-                      {/* Images attach to a saved service row, so a brand-new row
-                          gets the hint instead of a picker. */}
+                      {/* Photos and video attach to a saved service row, so a
+                          brand-new row gets the hint instead of the block. The
+                          block is self-contained so it can move into the new
+                          services editor as it is. */}
                       {s.id ? (
-                        <div className="flex items-center gap-2">
-                          {s.images.map((image) => (
-                            <div key={image.id} className="relative h-14 w-14 shrink-0">
-                              <div className="absolute inset-0 overflow-hidden rounded-[8px] bg-surface">
-                                <Image
-                                  src={image.url}
-                                  alt={s.name}
-                                  fill
-                                  sizes="56px"
-                                  className="object-cover"
-                                />
-                              </div>
-                              {/* A full 44px target hanging off the corner, as
-                                  on the garage's Services page, so it covers
-                                  less of a thumbnail this small. */}
-                              <button
-                                type="button"
-                                disabled={mediaBusy === `service-${s.id}`}
-                                onClick={() =>
-                                  handleRemoveServiceImage(s.id as string, image.id)
-                                }
-                                aria-label={`Remove image of ${s.name}`}
-                                title="Remove image"
-                                className="absolute -right-2.5 -top-2.5 flex size-11 items-center justify-center text-white disabled:opacity-50"
-                              >
-                                <span className="flex size-6 items-center justify-center rounded-full bg-black/70 transition-colors hover:bg-black/85">
-                                  <IconTrash size={12} aria-hidden="true" />
-                                </span>
-                              </button>
-                            </div>
-                          ))}
-
-                          {s.images.length < MAX_IMAGES_PER_SERVICE && (
-                            <button
-                              type="button"
-                              disabled={mediaBusy === `service-${s.id}`}
-                              onClick={() => pickServiceImage(s.id as string)}
-                              aria-label={`Add an image of ${s.name}`}
-                              className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border border-dashed border-border text-text-muted disabled:opacity-50"
-                            >
-                              <IconPhotoPlus size={16} />
-                              <span className="text-[9px]">
-                                {mediaBusy === `service-${s.id}` ? '…' : 'Add'}
-                              </span>
-                            </button>
-                          )}
-
-                          <p className="text-[11px] text-text-muted">
-                            <span className="font-numeric">
-                              {s.images.length}/{MAX_IMAGES_PER_SERVICE}
-                            </span>{' '}
-                            images
-                          </p>
-                        </div>
+                        <ServiceMediaPanel
+                          serviceId={s.id}
+                          serviceName={s.name}
+                          category={s.category}
+                          media={s.media}
+                          onMediaChange={(media) => setServiceMedia(s.id as string, media)}
+                        />
                       ) : (
                         <p className="text-[11px] text-text-muted">
-                          Save this vendor to add images to the service.
+                          Save this vendor to add photos and a video to the service.
                         </p>
                       )}
                     </div>

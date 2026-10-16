@@ -1,3 +1,5 @@
+import type { ServiceMedia } from '@repo/core/types'
+
 export interface ApiSuccessResponse<T> {
   success: true
   data: T
@@ -255,6 +257,8 @@ export interface ApiService {
   durationMins: number
   isActive: boolean
   images: ApiServiceImage[]
+  /** Absent from responses older than service videos. */
+  media?: ServiceMedia[]
 }
 
 export interface ApiPackageItem {

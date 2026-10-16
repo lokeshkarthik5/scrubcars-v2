@@ -37,6 +37,22 @@ function readFakePaymentsFlag(): boolean {
   return enabled
 }
 
+/**
+ * A test-only switch that stands in for an outside service (STREAM_FAKE,
+ * AI_FAKE). Refused in production for the same reason as E2E_FAKE_PAYMENTS:
+ * a leaked value in a deploy environment must fail the boot, not quietly
+ * stop videos reaching Stream or hand every admin the same test picture.
+ */
+function readTestFake(name: string, what: string): boolean {
+  const enabled = process.env[name] === '1'
+
+  if (enabled && process.env.NODE_ENV === 'production') {
+    throw new Error(`${name} is set in production. It ${what} and must never be enabled outside tests.`)
+  }
+
+  return enabled
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   databaseUrl: requireEnv('DATABASE_URL'),
@@ -131,6 +147,43 @@ export const env = {
   // shows them in a single row.
   r2MaxImagesPerService: Number(process.env.R2_MAX_IMAGES_PER_SERVICE ?? '3'),
   r2UploadUrlTtlSeconds: Number(process.env.R2_UPLOAD_URL_TTL_SECONDS ?? '120'),
+  // ─── Service videos (Cloudflare Stream) ────────────────────────────────────
+  // Garages and admin add a 60-second video per service; Stream stores it,
+  // encodes it for adaptive playback up to Full HD and calls our webhook when
+  // it is ready (lib/stream.ts, docs/service-media.md). Video is off — the
+  // slot is hidden and its routes are 404 — unless all four are set. The
+  // token needs Stream:Edit on the account and nothing else. Production (and
+  // Preview, if previews should take videos) only; never in git.
+  cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID || undefined,
+  cloudflareStreamApiToken: process.env.CLOUDFLARE_STREAM_API_TOKEN || undefined,
+  // The `<code>` in https://customer-<code>.cloudflarestream.com, where
+  // Stream serves posters and playback.
+  cloudflareStreamCustomerCode: process.env.CLOUDFLARE_STREAM_CUSTOMER_CODE || undefined,
+  // The secret Stream returns when the webhook is registered; it signs every
+  // webhook (Webhook-Signature) and nothing unsigned is believed.
+  cloudflareStreamWebhookSecret: process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET || undefined,
+  // E2E only: uploads land on this API's own fake endpoint and nothing ever
+  // reaches Cloudflare. A spec fires the webhook itself, signed with the
+  // secret above (apps/e2e/support/stream.ts).
+  streamFake: readTestFake('STREAM_FAKE', 'sends video uploads to a fake endpoint instead of Cloudflare Stream'),
+  // Where the fake endpoint is reached from the browser. E2E only.
+  streamFakeBaseUrl: (process.env.STREAM_FAKE_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, ''),
+
+  // ─── AI sample pictures (OpenAI) ───────────────────────────────────────────
+  // Admin can make a sample picture for a service with no real photo. Off —
+  // GET /admin/ai/config says { pictures: false } and the routes are 404 —
+  // while the key is unset. Production only; never in git.
+  openaiApiKey: process.env.OPENAI_API_KEY || undefined,
+  // OpenAI's alias for the ChatGPT image model. Lokesh can pin a dated model
+  // here without a deploy of new code.
+  aiImageModel: process.env.AI_IMAGE_MODEL || 'chatgpt-image-latest',
+  // Pictures cost money per call (about ₹4 each, two per press), so each
+  // admin gets this many presses an hour.
+  aiPicturesPerHour: Number(process.env.AI_PICTURES_PER_HOUR ?? '20'),
+  // E2E only: every generation returns the same small PNG and OpenAI is
+  // never called.
+  aiFake: readTestFake('AI_FAKE', 'replaces OpenAI with a fixed test picture'),
+
   // ─── Geocoding ─────────────────────────────────────────────────────────────
   // Which adapter in lib/geo backs address search. Ola Maps has the best data
   // for Indian addresses; the adapter exists so this is a config change rather

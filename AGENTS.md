@@ -10,7 +10,7 @@
 - **ORM**: Drizzle ORM
 - **Auth**: OTP (SMS) + Google OAuth, JWT access tokens + refresh tokens (HttpOnly cookies)
 - **Payments**: Razorpay (online), cash on service
-- **Storage**: Cloudflare R2 (S3 API, `lib/storage.ts`) for vendor, service and job photos
+- **Storage**: Cloudflare R2 (S3 API, `lib/storage.ts`) for vendor, service and job photos; Cloudflare Stream (`lib/stream.ts`) for service videos
 
 ---
 
@@ -99,6 +99,15 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
   - The booking path MUST NOT exclude packages — a package occupies a slot like any other service
   - Packages are created only via `/vendors/me/packages`; `POST /vendors/me/services` rejects `category: 'package'` because a package with no members is invalid
 - Category labels live in `apps/server/src/lib/categories.ts` and `packages/core/src/categories.ts`, both keyed exhaustively on the category union — add new categories there or the build fails
+
+### Service photos and videos (0033)
+
+- `service_images` holds a service's (or package's) photos **and** its video: `kind` `image`/`video`, `source` `upload`/`ai` (text + CHECK). At most `R2_MAX_IMAGES_PER_SERVICE` (3) photos and **one** video, checked in `serviceMediaService` (`modules/service-media`) by `insertMediaUnderLimit` under a per-service `pg_advisory_xact_lock('service-media:<id>')`, taken on its own and never alongside the booking-write locks (outside their order, like job photos'). Pure rules in `lib/service-media.ts`; garage photo routes stay `/vendors/me/services/:id/images…` (vendor_admin, `resolveTenant`) and admin's `/admin/services/:serviceId/images…`, both calling the shared service
+- **The privacy tick**: every upload (photo or video, garage or admin) needs `consent: true` — "no number plates or faces can be read, or the owner agreed" — else 400 `MEDIA_CONSENT_REQUIRED`; `consent_confirmed_at` records it, `uploaded_by` names the admin or `'garage'`. A photo URL must sit in its own service's folder (`vendors/<vendorId>/services/<serviceId>/`)
+- **Video** goes through Cloudflare Stream (`lib/stream.ts`, plain fetch, no SDK): a direct creator upload ≤ 200 MB or a tus upload above, `maxDurationSeconds` 60. The row is `video_status = 'processing'` until `POST /api/v1/webhooks/cloudflare-stream` (signed: `Webhook-Signature`, HMAC-SHA256 of `time.body`, 5 min tolerance) or the upload block's poll (`GET …/media/:mediaId`, which asks Stream) settles it to `ready` (`duration_secs`, `poster_url`) or `error` (`video_error`, plain words, never Stream's text); `settleVideo` only moves a processing row. **Replacing never loses the old video**: a ready video stays (customers keep seeing it) while its replacement uploads and processes, and is deleted only by `settleVideo` when the new one is ready, in the same transaction and lock (AI samples likewise go only then); if the new one fails or is removed, the old one stays. So a service may briefly hold a ready video plus one not-ready replacement, never more (`videoCountsOnStart`, `removedOnVideoStart`, `removedWhenVideoReady`). Off — slot hidden, routes 404 — unless all four `CLOUDFLARE_*` env vars are set. Removing or replacing deletes the Stream video (and a photo's R2 object) after the commit, best effort (`removeMediaFiles`)
+- **AI sample pictures** (admin only, `OPENAI_API_KEY`, else `GET /admin/ai/config` → `{ pictures: false }` and 404s): two options from the official `openai` SDK (`AI_IMAGE_MODEL`), parked under `ai-temp/<serviceId>/` in R2 (a 1-day lifecycle rule clears leftovers), the chosen one copied into the service's folder as `source = 'ai'`. Only while the service has no real photo or video; a real photo, or a video once ready, removes the AI samples in the same transaction. The prompt is the admin's text cleaned of emails, phone numbers and plates, plus a fixed style — never personal data
+- **Customers** get `toPublicMedia`: photos and *ready* videos only, `kind`/`url`/`posterUrl`/`durationSecs`/`source` — never `consent_confirmed_at`, `uploaded_by`, status or uid. Anything AI-made or drawn (the `packages/ui` sample art, chosen by `sampleArtFor`) is tagged "Sample"/"Sample image"; garage uploads "From <garage>". Videos play on tap only (`preload="none"`, hls.js loaded on the first Play)
+- **Tests never call Cloudflare or OpenAI**: `STREAM_FAKE=1` (uploads land on `/api/v1/fake-stream`; `apps/e2e/support/stream.ts` fires the signed webhook) and `AI_FAKE=1` (a fixed PNG). Both are refused at boot in production, like `E2E_FAKE_PAYMENTS`. Setup for production: `apps/server/docs/service-media.md`
 
 ### Transaction tables
 

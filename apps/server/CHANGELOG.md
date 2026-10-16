@@ -18,6 +18,58 @@ reconstructing every change in them.
 
 ### Added
 
+- **Service photos and videos** (migration `0033_service_media`, purely
+  additive; applied by CI on merge). `service_images` gains `kind`
+  (`image`/`video`), `source` (`upload`/`ai`), `consent_confirmed_at`,
+  `uploaded_by`, and for videos `video_uid`, `video_status`
+  (`processing`/`ready`/`error`), `video_error`, `duration_secs` and
+  `poster_url`. Up to `R2_MAX_IMAGES_PER_SERVICE` (3) photos and one video
+  per service, checked under a per-service advisory lock. Rules in
+  `lib/service-media.ts`, routes in `modules/service-media`; setup for Lokesh
+  in `docs/service-media.md`.
+  - **The privacy tick.** `POST …/images` (garage and admin) and the new
+    `POST …/videos` need `consent: true`, or answer 400
+    `MEDIA_CONSENT_REQUIRED`. A photo URL must sit in its own service's
+    folder. A real photo, or a video once it is ready, removes any AI sample
+    of that service.
+  - **Video through Cloudflare Stream** (`lib/stream.ts`, plain fetch): a
+    one-time direct creator upload (≤ 200 MB) or a tus upload (larger),
+    `maxDurationSeconds` 60. `POST /vendors/me/services/:id/videos` and
+    `POST /admin/services/:serviceId/videos` (`sizeBytes`, `durationSecs`,
+    `replaces`) answer with the row and where to send the file;
+    `GET …/media/:mediaId` is the upload block's poll and asks Stream about a
+    still-processing video. `POST /api/v1/webhooks/cloudflare-stream` takes
+    Stream's webhook, signed (`Webhook-Signature`, HMAC-SHA256 of
+    `time.body`, five minutes' tolerance). Off — routes 404, slot hidden —
+    unless `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_STREAM_API_TOKEN`,
+    `CLOUDFLARE_STREAM_CUSTOMER_CODE` and `CLOUDFLARE_STREAM_WEBHOOK_SECRET`
+    are all set. A replaced video stays on the garage page until the new one
+    is ready, and stays for good if the new one fails or is removed; only then
+    is it deleted. Removing or replacing a video deletes it from Stream after
+    the commit, best effort.
+  - **AI sample pictures (admin).** `POST /admin/services/:serviceId/ai-pictures`
+    (`prompt`) makes two options with OpenAI's image model (`openai` SDK,
+    `AI_IMAGE_MODEL`, default `chatgpt-image-latest`; 1536×1024, medium, WebP,
+    `n: 2`) and leaves them under `ai-temp/<serviceId>/` in R2;
+    `POST …/ai-pictures/use` copies the chosen one into the service's folder
+    as a `source: 'ai'` photo and removes the options. Only for a service with
+    no real photo or video (409 `AI_PICTURE_NOT_NEEDED`); 20 presses an hour
+    per admin (`AI_PICTURES_PER_HOUR`, 429 `AI_PICTURE_LIMIT`); OpenAI
+    failures are 503 `AI_UNAVAILABLE`. Email addresses, phone numbers and
+    number plates are stripped from the prompt, and a fixed style ("no
+    people, no text, no logos, no number plates") is always added. Off while
+    `OPENAI_API_KEY` is unset: `GET /admin/ai/config` says
+    `{ pictures: false }` and the routes are 404.
+  - `GET /vendors/me/media-config` and `GET /admin/media-config` tell the
+    upload block whether video is on.
+  - Service responses carry `media`: on the garage page (public) only a
+    photo's or a ready video's `kind`, `url`, `posterUrl`, `durationSecs` and
+    `source` — never who added it or the tick; in the garage's own app and
+    admin every row with its state. `images` stays, photos only.
+  - Test fakes, refused in production like `E2E_FAKE_PAYMENTS`:
+    `STREAM_FAKE=1` (uploads land on `/api/v1/fake-stream`, a spec fires the
+    signed webhook) and `AI_FAKE=1` (a fixed PNG, OpenAI never called).
+
 - **Start pilot clean: deleting test data** (migration `0032_test_data_reset`,
   purely additive; apply it before deploying). Behind `ADMIN_DATA_RESET=on`,
   off by default: every `/admin/data-reset` route is then a 404. Runbook in

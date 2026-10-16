@@ -895,62 +895,6 @@ export const vendorsRepository = {
       .returning()
   },
 
-  listServiceImages(serviceId: string) {
-    return db.query.serviceImages.findMany({
-      where: eq(serviceImages.serviceId, serviceId),
-      orderBy: [asc(serviceImages.sortOrder), asc(serviceImages.createdAt)],
-    })
-  },
-
-  countServiceImages(serviceId: string) {
-    return db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(serviceImages)
-      .where(eq(serviceImages.serviceId, serviceId))
-  },
-
-  getNextServiceImageSortOrder(serviceId: string) {
-    return db
-      .select({
-        maxOrder: sql<number>`coalesce(max(${serviceImages.sortOrder}), -1)`,
-      })
-      .from(serviceImages)
-      .where(eq(serviceImages.serviceId, serviceId))
-  },
-
-  createServiceImage(
-    serviceId: string,
-    data: { url: string; sortOrder: number; storageKey?: string | null }
-  ) {
-    return db
-      .insert(serviceImages)
-      .values({
-        serviceId,
-        url: data.url,
-        storageKey: data.storageKey ?? null,
-        sortOrder: data.sortOrder,
-      })
-      .returning()
-  },
-
-  findServiceImageById(serviceId: string, imageId: string) {
-    return db.query.serviceImages.findFirst({
-      where: and(
-        eq(serviceImages.id, imageId),
-        eq(serviceImages.serviceId, serviceId)
-      ),
-    })
-  },
-
-  deleteServiceImage(serviceId: string, imageId: string) {
-    return db
-      .delete(serviceImages)
-      .where(
-        and(
-          eq(serviceImages.id, imageId),
-          eq(serviceImages.serviceId, serviceId)
-        )
-      )
-      .returning()
-  },
+  // A service's photos and video are written by modules/service-media,
+  // which holds their limits and the lock that keeps them.
 }

@@ -463,6 +463,7 @@ async function seedMembership() {
     { vendorId: VENDORS.opsEdit.id, userId: STAFF.narrowOwner.id, role: 'vendor_admin', status: 'active' },
     { vendorId: VENDORS.inspect.id, userId: STAFF.inspectOwner.id, role: 'vendor_admin', status: 'active' },
     { vendorId: VENDORS.refunds.id, userId: STAFF.refundsOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.media.id, userId: STAFF.mediaOwner.id, role: 'vendor_admin', status: 'active' },
     // Platform scope: the CHECK constraint requires vendorId to be null here.
     { vendorId: null, userId: STAFF.superAdmin.id, role: 'super_admin', status: 'active' },
   ])
@@ -1395,6 +1396,36 @@ async function seedDataResetRows() {
   })
 }
 
+/**
+ * The service photo and video specs' garage: VENDORS.media and its services,
+ * with no media at all, so each spec adds exactly what it asserts on.
+ */
+async function seedServiceMediaRows() {
+  const garage = VENDORS.media.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.mediaOwner.id, businessName: VENDORS.media.name,
+    phone: '9000003500', address: '1, Media Road, Porur', city: 'Chennai', pincode: '600116',
+    lat: ORIGIN.lat - 0.65, lng: ORIGIN.lng - 0.15, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '09:00:00', '18:00:00'))
+  await db.insert(services).values(
+    ([
+      [SERVICES.mediaPhoto, 'car_wash'],
+      [SERVICES.mediaVideo, 'car_wash'],
+      [SERVICES.mediaAi, 'coating'],
+      [SERVICES.mediaRefused, 'detailing'],
+      [SERVICES.mediaBike, 'others'],
+    ] as const).map(([service, category]) => ({
+      id: service.id, vendorId: garage, name: service.name, category,
+      pricingType: 'flat' as const, price: service.price,
+      durationMins: service.durationMins, isActive: true,
+    }))
+  )
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1416,6 +1447,8 @@ async function main() {
   await seedHomeHubRows()
   console.log('[e2e-seed] test-data reset…')
   await seedDataResetRows()
+  console.log('[e2e-seed] service media…')
+  await seedServiceMediaRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
