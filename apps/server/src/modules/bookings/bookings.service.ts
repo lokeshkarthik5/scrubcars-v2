@@ -1067,6 +1067,13 @@ export const bookingsService = {
     // dated by its payment like any other, rather than going out unnumbered.
     // Two first views at once still get one number (allocateReceiptNumber).
     //
+    // After the test-data reset restarts a financial year (0032), nothing
+    // kept in that year can still be waiting here for a number: a year with
+    // a kept receipt, numbered or owed one, is never restarted but has its
+    // test numbers voided instead (planReceipts in lib/data-reset.ts). So the
+    // first number issued in a restarted year, here or by a payment, is a
+    // real 000001, and no earlier receipt is numbered after it.
+    //
     // If that fails, the answer is not the 500 a raw database error would be,
     // which the page could only read as "not yours or removed": the customer
     // paid and the booking is theirs. Ops is told, and a try later may well
@@ -1384,6 +1391,7 @@ export const bookingsService = {
         ? {
             gateway: booking.payment.gateway,
             gatewayTxnId: booking.payment.gatewayTxnId,
+            gatewayMode: booking.payment.gatewayMode,
             amount: booking.payment.amount,
             currency: booking.payment.currency,
             status: booking.payment.status,
@@ -1392,6 +1400,8 @@ export const bookingsService = {
         : null,
       reason: reason ?? null,
       maxReschedules: MAX_RESCHEDULES,
+      markedTestAt: booking.markedTestAt,
+      markedTestBy: booking.markedTestBy,
     })
 
     if (result.capReached) {

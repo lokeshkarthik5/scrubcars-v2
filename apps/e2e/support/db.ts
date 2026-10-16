@@ -159,6 +159,10 @@ export const getReceiptNumber = async (rootBookingId: string) =>
  * Each financial year's receipt counter beside the numbers issued in it. One
  * statement, so one snapshot: specs in other files issue receipts at the same
  * time, and two separate reads could straddle one of them.
+ *
+ * A number the test-data reset voided (receipt_number_voids, 0032) was
+ * issued too: it stays on record and is never given out again, so it counts
+ * toward the year's series like any other.
  */
 export const receiptCounters = async () =>
   sql<{ financial_year: string; last_seq: number | null; issued: number; max_seq: number }[]>`
@@ -167,10 +171,26 @@ export const receiptCounters = async () =>
            coalesce(n.issued, 0) as issued,
            coalesce(n.max_seq, 0) as max_seq
       from (select financial_year, count(*)::int as issued, max(seq)::int as max_seq
-              from receipt_numbers group by financial_year) n
+              from (select financial_year, seq from receipt_numbers
+                    union all
+                    select financial_year, seq from receipt_number_voids) issued
+             group by financial_year) n
       full join receipt_counters c using (financial_year)
      order by financial_year
   `
+
+/**
+ * The Razorpay mode (gateway_mode, 0032) recorded on a booking's payment and
+ * on the checkout it was made from, if any. The test-data reset tells test
+ * money from real money by it, so every path that opens an order or copies a
+ * payment has to carry it; null is what a missed copy looks like.
+ */
+export const gatewayModes = async (bookingId: string) =>
+  (await sql<{ payment: string | null; intent: string | null }[]>`
+    select p.gateway_mode as payment,
+           (select i.gateway_mode from booking_intents i where i.booking_id = p.booking_id) as intent
+      from payments p where p.booking_id = ${bookingId}
+  `)[0]
 
 /** A checkout's status and what has been refunded on it. */
 export const getIntent = async (intentId: string) =>

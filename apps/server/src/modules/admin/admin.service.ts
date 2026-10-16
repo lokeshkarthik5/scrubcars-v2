@@ -261,8 +261,15 @@ function toAdminBookingRow(
           status: booking.payment.status,
           // The Razorpay payment id ops searches for in the dashboard to refund.
           gatewayTxnId: booking.payment.gatewayTxnId,
+          // Which Razorpay mode it was taken in; null on payments from
+          // before 0032 recorded it.
+          gatewayMode: booking.payment.gatewayMode,
           paidAt: booking.payment.paidAt?.toISOString() ?? null,
         }
+      : null,
+    // Marked "Test" by ops: left out of the pilot numbers.
+    markedTest: booking.markedTestAt
+      ? { at: booking.markedTestAt.toISOString(), by: booking.markedTestBy }
       : null,
     garage: booking.vendor
       ? {
@@ -845,6 +852,7 @@ export const adminService = {
       search: parseBookingSearch(query.q),
       start,
       end,
+      test: query.test,
       after: query.cursor ?? null,
       limit: query.limit,
       offset: query.cursor ? 0 : (query.page - 1) * query.limit,
@@ -978,6 +986,37 @@ export const adminService = {
       alertOps({ kind: 'garage_no_show', booking: updated! })
     }
 
+    return loadBookingDetail(id, now)
+  },
+
+  /**
+   * Marks a booking "Test", or takes the mark off: the whole reschedule
+   * chain, since a chain is one customer booking. A marked booking is left
+   * out of the pilot numbers and, while the test-data reset is switched on,
+   * can be deleted from its page. The mark changes nothing else: slots,
+   * refunds and receipts read it nowhere. Leaves a note either way; marking
+   * what is already marked changes nothing and answers with the booking.
+   */
+  async setTestMark(id: string, sub: string, marked: boolean, now = Date.now()) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+
+    const author = await resolveNoteAuthor(sub)
+    const changed = await adminRepository.setChainTestMark(
+      booking.originalBookingId ?? booking.id,
+      marked ? { at: new Date(now), by: author } : null,
+      {
+        bookingId: id,
+        author,
+        body: marked
+          ? 'Marked as a test booking. It is left out of the pilot numbers.'
+          : 'Test mark removed. It counts in the pilot numbers again.',
+      }
+    )
+
+    if (changed) {
+      log.info({ bookingId: id, marked, rows: changed.length, author }, 'admin:booking-test-mark')
+    }
     return loadBookingDetail(id, now)
   },
 

@@ -51,3 +51,20 @@ export function RefundOwedBadge({ amount }: { amount: string }) {
 export function RefundedBadge() {
   return <ScBadge variant="muted">Refunded</ScBadge>
 }
+
+/**
+ * Marked "Test" by the team: left out of the pilot numbers. Neutral: a fact
+ * about the booking, not a problem.
+ */
+export function TestBadge() {
+  return <ScBadge variant="pending">Test</ScBadge>
+}
+
+/**
+ * The payment went through Razorpay's test mode (or E2E's stand-in): no real
+ * money moved. Only shown when the mode was recorded; older payments have
+ * none.
+ */
+export function TestModePaymentBadge() {
+  return <ScBadge variant="muted">Test-mode payment</ScBadge>
+}

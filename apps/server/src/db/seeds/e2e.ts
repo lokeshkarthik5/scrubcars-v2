@@ -18,16 +18,22 @@ import 'dotenv/config'
 import { eq } from 'drizzle-orm'
 import { db } from '../index.js'
 import {
+  adminAuditLog,
   bookingCharges,
   bookingIntentItems,
   bookingIntents,
   bookingItems,
+  bookingNotes,
   bookingReschedules,
   bookings,
   discountRedemptions,
   discounts,
+  jobPhotos,
   notices,
   payments,
+  receiptCounters,
+  receiptNumbers,
+  receiptNumberVoids,
   refundRecords,
   reviews,
   servicePackageItems,
@@ -47,6 +53,7 @@ import {
   BOOKINGS,
   CHARGES,
   CUSTOMERS,
+  DATA_RESET,
   DISCOUNTS,
   FILLER_VENDOR_COUNT,
   DOORSTEP_JOB_PIN,
@@ -179,7 +186,7 @@ async function seedPeople() {
         CUSTOMERS.billPayer, CUSTOMERS.billSmall, CUSTOMERS.billStranger,
         CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds,
         CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
-        CUSTOMERS.bookAgain].map((c, i) => ({
+        CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -534,7 +541,11 @@ type BookingSpec = {
     txnId?: string
     paidAt?: Date
     refund?: { ref: string; at: Date }
+    /** The Razorpay mode (0032); left null, as on a payment from before it. */
+    gatewayMode?: 'live' | 'test' | 'fake'
   }
+  /** Marked "Test" by ops (0032), at this time. */
+  markedTestAt?: Date
   rescheduleCount?: number
   /** Defaults to now. Set it back to make a booking that has been waiting. */
   createdAt?: Date
@@ -615,6 +626,7 @@ async function insertBooking(spec: BookingSpec) {
       rescheduledFromId: spec.rescheduledFromId,
       originalBookingId: spec.rescheduledFromId,
     }),
+    ...(spec.markedTestAt && { markedTestAt: spec.markedTestAt, markedTestBy: 'E2E seed' }),
   })
 
   await db.insert(bookingItems).values(
@@ -635,6 +647,7 @@ async function insertBooking(spec: BookingSpec) {
       bookingId: spec.id,
       gateway: 'razorpay',
       gatewayTxnId: spec.payment.txnId ?? null,
+      gatewayMode: spec.payment.gatewayMode ?? null,
       amount: paidAmount,
       currency: 'INR',
       status: spec.payment.status,
@@ -719,7 +732,9 @@ async function seedBookingRows() {
     scheduledAt: tomorrowAt(11), status: 'confirmed', items: [washItem, detailItem],
     discount: { id: DISCOUNTS.percentCapped.id, code: DISCOUNTS.percentCapped.code,
       amount: '200.00', fundedBy: 'platform' },
-    payment: { status: 'paid', txnId: 'pay_seed_reschedulable' } })
+    // Test mode and marked Test, so the spec can see a move carry both.
+    markedTestAt: daysAgo(1),
+    payment: { status: 'paid', txnId: 'pay_seed_reschedulable', gatewayMode: 'test' } })
 
   await insertBooking({ id: BOOKINGS.rescheduleExhausted, userId: CUSTOMERS.reschedule.id, vehicleId: CUSTOMERS.reschedule.vehicleId,
     scheduledAt: tomorrowAt(13), status: 'confirmed', items: [washItem],
@@ -1224,6 +1239,162 @@ async function seedHomeHubRows() {
   })
 }
 
+/**
+ * The test-data reset's fixtures (specs/admin/data-reset-api.spec.ts and
+ * data-reset.spec.ts): see BOOKINGS.reset* for what each is for. All at
+ * VENDORS.reset, which no customer list shows and nobody else books, and
+ * the receipt numbers in 22-23 and 23-24, years nothing else numbers in.
+ */
+async function seedDataResetRows() {
+  const garage = VENDORS.reset.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.reset.name,
+    phone: '9000003400', address: '1, Reset Road, Guindy', city: 'Chennai', pincode: '600032',
+    lat: ORIGIN.lat - 0.55, lng: ORIGIN.lng - 0.15, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    // Not verified: in no list a customer sees.
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending',
+  })
+  await db.insert(services).values({
+    id: SERVICES.resetWash.id, vendorId: garage, name: SERVICES.resetWash.name,
+    category: 'car_wash', pricingType: 'flat', price: SERVICES.resetWash.price,
+    durationMins: SERVICES.resetWash.durationMins, isActive: true,
+  })
+
+  const wash = {
+    id: SERVICES.resetWash.id, name: SERVICES.resetWash.name,
+    amount: SERVICES.resetWash.price, durationMins: SERVICES.resetWash.durationMins,
+  }
+  const api = { userId: CUSTOMERS.dataReset.id, vehicleId: CUSTOMERS.dataReset.vehicleId, vendorId: garage }
+  const ui = { userId: CUSTOMERS.dataResetUi.id, vehicleId: CUSTOMERS.dataResetUi.vehicleId, vendorId: garage }
+  // Financial years 2022-23 and 2023-24, in IST mid-morning.
+  const fy2223 = new Date('2022-06-10T05:00:00.000Z')
+  const fy2324 = new Date('2023-06-10T05:00:00.000Z')
+
+  // 22-23: declined, refunded in full, numbered, with its checkout, a note
+  // and a photo.
+  await insertBooking({ id: BOOKINGS.resetRefunded, ...api, scheduledAt: fy2223, createdAt: fy2223,
+    status: 'cancelled', items: [wash],
+    cancellation: { by: 'vendor', reason: 'Fully booked that day', at: fy2223 },
+    payment: { status: 'refunded', txnId: 'pay_TestResetA1', paidAt: fy2223, gatewayMode: 'test',
+      refund: { ref: 'rfnd_E2ERESET0001', at: fy2223 } } })
+  await db.insert(bookingNotes).values({
+    bookingId: BOOKINGS.resetRefunded, author: 'E2E seed', body: 'Team test booking.',
+  })
+  await db.insert(jobPhotos).values({
+    bookingId: BOOKINGS.resetRefunded, stage: 'before',
+    storageKey: `vendors/${garage}/job-photos/${BOOKINGS.resetRefunded}/seed.jpg`,
+    url: `http://localhost:9000/detlio-e2e/vendors/${garage}/job-photos/${BOOKINGS.resetRefunded}/seed.jpg`,
+  })
+
+  // 23-24: a reschedule chain (test), a live payment, and a live payment
+  // with no number yet.
+  await insertBooking({ id: BOOKINGS.resetMovedFrom, ...api, scheduledAt: fy2324, createdAt: fy2324,
+    status: 'cancelled', items: [wash],
+    cancellation: { by: 'user', reason: 'Rescheduled to a new slot by the customer', at: fy2324 },
+    payment: { status: 'paid', txnId: 'pay_TestResetB1', paidAt: fy2324, gatewayMode: 'test' } })
+  await insertBooking({ id: BOOKINGS.resetMovedTo, ...api, scheduledAt: fy2324,
+    createdAt: new Date(fy2324.getTime() + HOUR), status: 'completed', items: [wash],
+    rescheduledFromId: BOOKINGS.resetMovedFrom, rescheduleCount: 1,
+    payment: { status: 'paid', txnId: 'pay_TestResetB1', paidAt: fy2324, gatewayMode: 'test' } })
+  await db.insert(bookingReschedules).values({
+    originalBookingId: BOOKINGS.resetMovedFrom, fromBookingId: BOOKINGS.resetMovedFrom,
+    toBookingId: BOOKINGS.resetMovedTo, userId: CUSTOMERS.dataReset.id, reason: 'seed',
+  })
+  await insertBooking({ id: BOOKINGS.resetLive, ...api, scheduledAt: fy2324,
+    createdAt: new Date(fy2324.getTime() - HOUR), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_LiveResetC1', paidAt: new Date(fy2324.getTime() - HOUR),
+      gatewayMode: 'live' } })
+  await insertBooking({ id: BOOKINGS.resetNextReceipt, ...api, scheduledAt: fy2324,
+    createdAt: new Date(fy2324.getTime() + 2 * HOUR), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_LiveResetE1', paidAt: new Date(fy2324.getTime() + 2 * HOUR),
+      gatewayMode: 'live' } })
+
+  // Paid before gateway_mode, with an id Razorpay is never asked about here.
+  // The rest are older than the pilot card's 30 days, so they never move
+  // its numbers while the specs delete them.
+  await insertBooking({ id: BOOKINGS.resetUnknown, ...api, scheduledAt: daysAgo(44),
+    createdAt: daysAgo(45), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_OldResetD1', paidAt: daysAgo(45) } })
+  await insertBooking({ id: BOOKINGS.resetSingle, ...api, scheduledAt: daysAgo(49),
+    createdAt: daysAgo(50), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_e2e_reset_single', paidAt: daysAgo(50), gatewayMode: 'fake' } })
+  // Never paid, but its live order is open and the booking still on: a
+  // late capture could land, so it is kept whatever is ticked.
+  await insertBooking({ id: BOOKINGS.resetOpenOrder, ...api, scheduledAt: daysAgo(45),
+    createdAt: daysAgo(46), status: 'pending', items: [wash],
+    payment: { status: 'pending', txnId: 'order_LiveResetH1', gatewayMode: 'live' } })
+
+  await insertBooking({ id: BOOKINGS.resetUiSingle, ...ui, scheduledAt: daysAgo(49),
+    createdAt: daysAgo(50), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_e2e_reset_ui_single', paidAt: daysAgo(50), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.resetUiMarked, ...ui, scheduledAt: daysAgo(48),
+    createdAt: daysAgo(49), status: 'cancelled', items: [wash], markedTestAt: daysAgo(48),
+    cancellation: { by: 'user', reason: 'Plans changed', at: daysAgo(48) },
+    payment: { status: 'pending' } })
+  await insertBooking({ id: BOOKINGS.resetUiKeep, ...ui, scheduledAt: daysAgo(47),
+    createdAt: daysAgo(48), status: 'completed', items: [wash], markedTestAt: daysAgo(47),
+    payment: { status: 'paid', txnId: 'pay_e2e_reset_ui_keep', paidAt: daysAgo(48), gatewayMode: 'fake' } })
+
+  // Receipt numbers, as the app issues them: one per chain, on its first
+  // booking. 22-23 holds resetRefunded's alone, plus a void from an earlier
+  // run; 23-24 the live one's and the reschedule chain's.
+  await db.insert(receiptNumbers).values([
+    { rootBookingId: BOOKINGS.resetRefunded, financialYear: '22-23', seq: 1,
+      number: 'DTL/22-23/000001', issuedAt: fy2223 },
+    { rootBookingId: BOOKINGS.resetLive, financialYear: '23-24', seq: 1,
+      number: 'DTL/23-24/000001', issuedAt: new Date(fy2324.getTime() - HOUR) },
+    { rootBookingId: BOOKINGS.resetMovedFrom, financialYear: '23-24', seq: 2,
+      number: 'DTL/23-24/000002', issuedAt: fy2324 },
+  ])
+  await db.insert(receiptCounters).values([
+    { financialYear: '22-23', lastSeq: 2 },
+    { financialYear: '23-24', lastSeq: 2 },
+  ])
+  await db.insert(adminAuditLog).values({
+    id: DATA_RESET.earlierAudit, action: 'test_data_reset', actorSub: 'admin',
+    actorName: 'E2E seed', summary: {}, detail: {},
+  })
+  await db.insert(receiptNumberVoids).values({
+    financialYear: '22-23', seq: 2, number: 'DTL/22-23/000002', issuedAt: fy2223,
+    rootBookingId: '00000000-0000-4000-8000-00000000dead', reason: 'Seeded earlier run',
+    auditId: DATA_RESET.earlierAudit,
+  })
+
+  // Checkouts: resetRefunded's own, and two that never became a booking.
+  const intent = {
+    userId: CUSTOMERS.dataReset.id, vendorId: garage, serviceId: SERVICES.resetWash.id,
+    vehicleId: CUSTOMERS.dataReset.vehicleId, bookingType: 'dropin' as const,
+    serviceDurationMins: SERVICES.resetWash.durationMins, amount: SERVICES.resetWash.price,
+    subtotalAmount: SERVICES.resetWash.price, paymentMethod: 'online' as const,
+    gatewayMode: 'test' as const,
+  }
+  await db.insert(bookingIntents).values([
+    { ...intent, id: BOOKING_INTENTS.resetOwn, scheduledAt: fy2223, createdAt: fy2223,
+      expiresAt: fy2223, gatewayTxnId: 'order_TestResetA1', status: 'consumed',
+      bookingId: BOOKINGS.resetRefunded },
+    { ...intent, id: BOOKING_INTENTS.resetFailed, scheduledAt: fy2324, createdAt: fy2324,
+      expiresAt: fy2324, gatewayTxnId: 'order_TestResetF1', status: 'failed',
+      paymentRef: 'pay_TestResetF1', failureReason: 'slot_full',
+      refundedAmount: SERVICES.resetWash.price, refundRef: 'rfnd_E2ERESET0002',
+      refundedAt: fy2324, refundedBy: 'E2E seed' },
+    { ...intent, id: BOOKING_INTENTS.resetAbandoned, scheduledAt: fy2324, createdAt: fy2324,
+      expiresAt: fy2324, gatewayTxnId: 'order_TestResetG1', status: 'pending' },
+  ])
+  await db.insert(bookingIntentItems).values(
+    [BOOKING_INTENTS.resetOwn, BOOKING_INTENTS.resetFailed, BOOKING_INTENTS.resetAbandoned].map(
+      (intentId) => ({ intentId, ...{ serviceId: wash.id, name: wash.name, amount: wash.amount,
+        durationMins: wash.durationMins }, sortOrder: 0 })
+    )
+  )
+  await db.insert(refundRecords).values({
+    kind: 'checkout', targetId: BOOKING_INTENTS.resetFailed, bookingId: null,
+    amount: SERVICES.resetWash.price, refundedBefore: '0.00', refundRef: 'rfnd_E2ERESET0002',
+    recordedBy: 'E2E seed', recordedAt: fy2324,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1243,6 +1414,8 @@ async function main() {
   await exhaustDiscounts()
   console.log('[e2e-seed] home hub…')
   await seedHomeHubRows()
+  console.log('[e2e-seed] test-data reset…')
+  await seedDataResetRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

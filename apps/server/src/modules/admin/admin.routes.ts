@@ -7,6 +7,7 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
+import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
 import { adminRefundRoutes } from '../refunds/refunds.routes.js'
@@ -320,6 +321,10 @@ adminRoutes.route('/refunds', adminRefundRoutes)
 // cookie reason as discounts.
 adminRoutes.route('/notices', adminNoticeRoutes)
 
+// "Start pilot clean": the test-data reset. Nested here for the same cookie
+// reason; every route is a 404 unless ADMIN_DATA_RESET is on.
+adminRoutes.route('/data-reset', adminDataResetRoutes)
+
 adminRoutes.get(
   '/bookings',
   ...adminMiddleware,
@@ -354,6 +359,20 @@ adminRoutes.post(
       c.req.valid('param').id,
       c.req.valid('json')
     )
+)
+// The "Test" mark: on the whole reschedule chain, with a note. Works whether
+// or not the test-data reset is switched on; only deleting needs that.
+adminRoutes.post(
+  '/bookings/:id/mark-test',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => adminController.setBookingTestMark(c, c.req.valid('param').id, true)
+)
+adminRoutes.delete(
+  '/bookings/:id/mark-test',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => adminController.setBookingTestMark(c, c.req.valid('param').id, false)
 )
 adminRoutes.post(
   '/bookings/:id/notes',

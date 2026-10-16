@@ -170,6 +170,11 @@ export async function markBookingNoShow(
   return c.json({ success: true, data: booking })
 }
 
+export async function setBookingTestMark(c: AdminContext, id: string, marked: boolean) {
+  const booking = await adminService.setTestMark(id, c.get('auth').sub, marked)
+  return c.json({ success: true, data: booking })
+}
+
 export async function addBookingNote(
   c: AdminContext,
   id: string,

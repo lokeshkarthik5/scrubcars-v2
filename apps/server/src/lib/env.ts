@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { isDataResetEnabled } from './data-reset.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -193,6 +194,17 @@ export const env = {
   homeOfferTargeting: ['on', 'true', '1'].includes(
     (process.env.HOME_OFFER_TARGETING ?? '').trim().toLowerCase()
   ),
+
+  /**
+   * Whether the admin "Start pilot clean" tool exists: ADMIN_DATA_RESET=on.
+   *
+   * Off unless set to `on`, and while off every /admin/data-reset route is a
+   * 404 and the admin nav hides the page. It deletes test bookings, refunds
+   * and checkouts for good, so it is switched on in Production only for the
+   * reset itself (after a backup) and removed again straight after; see
+   * docs/test-data-reset.md. The "Test" mark on a booking works either way.
+   */
+  adminDataReset: isDataResetEnabled(process.env.ADMIN_DATA_RESET),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;

@@ -194,8 +194,18 @@ export interface AdminBooking {
     status: string
     /** The Razorpay payment id — what ops searches the dashboard for to refund. */
     gatewayTxnId: string | null
+    /**
+     * Which Razorpay mode the money was taken in. Null on payments from
+     * before it was recorded; optional for an older server.
+     */
+    gatewayMode?: 'live' | 'test' | 'fake' | null
     paidAt: string | null
   } | null
+  /**
+   * Marked "Test" by ops: left out of the pilot numbers, and deletable from
+   * its page while the test-data reset is on. Optional for an older server.
+   */
+  markedTest?: { at: string; by: string | null } | null
   garage: { id: string; name: string; phone: string } | null
   customer: { id: string; name: string; phone: string } | null
   /** Where a doorstep job happens. Null for a job at the garage. */
@@ -344,6 +354,8 @@ export interface AdminBookingFilters {
   /** IST calendar dates (YYYY-MM-DD) on the scheduled time, both inclusive. */
   from?: string
   to?: string
+  /** Bookings marked "Test": only those, or all but those. */
+  test?: 'only' | 'hide'
   limit?: number
   /** Older paging; the panel uses `cursor`. */
   page?: number
@@ -665,6 +677,7 @@ export async function listAdminBookings(filters: AdminBookingFilters = {}) {
       vendorId: filters.vendorId || undefined,
       from: filters.from || undefined,
       to: filters.to || undefined,
+      test: filters.test || undefined,
       limit: filters.limit,
       page: filters.page,
       cursor: filters.cursor,
@@ -716,6 +729,193 @@ export async function listAdminRefunds(status: 'owed' | 'done') {
  */
 export async function recordAdminRefund(input: RecordRefundInput) {
   return apiClient<AdminRefund>('/admin/refunds', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST (mark) or DELETE (unmark) /admin/bookings/:id/mark-test — the whole
+ * reschedule chain, with a note. Returns the updated booking.
+ */
+export async function setAdminBookingTestMark(id: string, marked: boolean) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/mark-test`, {
+    method: marked ? 'POST' : 'DELETE',
+  })
+}
+
+// ─── Start pilot clean (the test-data reset) ─────────────────────────────────
+//
+// Behind ADMIN_DATA_RESET on the API: while it is off every route is a 404,
+// which is how the panel knows to hide it. See
+// apps/server/src/lib/data-reset.ts for the rules.
+
+export interface DataResetConfig {
+  enabled: boolean
+  /** The Razorpay keys the API holds, which decides what a check can tell. */
+  keyMode: 'live' | 'test' | 'fake' | 'none'
+  maxChainsPerRun: number
+  maxCheckoutsPerRun: number
+  /** The server's clock, ISO: the default cutoff. */
+  now: string
+}
+
+export type DataResetScope =
+  | { kind: 'before_cutoff'; cutoff: string }
+  | { kind: 'marked_test' }
+  | { kind: 'chains'; bookingIds: string[] }
+
+export type DataResetMoney =
+  | 'live'
+  | 'cash'
+  | 'unknown'
+  | 'unchecked'
+  | 'test'
+  | 'fake'
+  | 'no_money'
+
+/** Why a row is kept whatever is ticked. */
+export interface DataResetKept {
+  code: string
+  /** "Real payment — kept". */
+  label: string
+  detail: string
+}
+
+/** One customer booking (a reschedule chain) in the dry run. */
+export interface DataResetChain {
+  rootId: string
+  reference: string
+  bookingIds: string[]
+  createdAt: string
+  scheduledAt: string
+  status: string
+  garage: { id: string; name: string }
+  customer: { id: string; name: string; phone: string | null }
+  amount: string
+  paymentStatus: string | null
+  razorpayIds: string[]
+  money: DataResetMoney
+  moneyLabel: string
+  receiptNumber: string | null
+  refunded: string
+  markedTest: boolean
+  kept: DataResetKept | null
+  selected: boolean
+}
+
+/** A checkout that never became a booking, in the dry run. */
+export interface DataResetCheckout {
+  id: string
+  reference: string
+  createdAt: string
+  status: string
+  customer: { id: string; name: string }
+  garageName: string
+  amount: string
+  paymentRef: string | null
+  money: DataResetMoney
+  moneyLabel: string
+  refunded: string
+  kept: DataResetKept | null
+  selected: boolean
+}
+
+export interface DataResetCounts {
+  bookings: number
+  bookingRows: number
+  bookingItems: number
+  payments: number
+  finalBills: number
+  refundRecords: number
+  photos: number
+  notes: number
+  reviews: number
+  promoUses: number
+  reschedules: number
+  checkouts: number
+  checkoutItems: number
+  receiptNumbers: number
+}
+
+export interface DataResetReceiptYear {
+  financialYear: string
+  mode: 'restart' | 'void'
+  numbers: string[]
+  nextNumber: string
+  voidsCleared: number
+  /** "Numbering restarts at DTL/26-27/000001". */
+  words: string
+}
+
+export interface DataResetPreview {
+  scope: { kind: DataResetScope['kind']; cutoff?: string; bookingIds?: string[] }
+  generatedAt: string
+  chains: DataResetChain[]
+  checkouts: DataResetCheckout[]
+  counts: DataResetCounts
+  /** The counts in plain words, zeros left out. */
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  /** Deletable rows left unticked because the run is over its cap. */
+  overCap: { chains: number; checkouts: number }
+  /** What to type: "DELETE 143 BOOKINGS". */
+  confirmPhrase: string
+  selectionHash: string
+  lookups: {
+    keyMode: DataResetConfig['keyMode']
+    checkedNow: number
+    /** Old payments still to check with Razorpay; call again until 0. */
+    remaining: number
+    /** Send back on the next call: Razorpay could not answer for these. */
+    unknownIds: string[]
+  }
+}
+
+export interface DataResetPreviewInput {
+  scope: DataResetScope
+  /** The ticked rows; leave out on the first look to tick everything deletable. */
+  only?: { chainIds: string[]; checkoutIds: string[] }
+  unknownIds?: string[]
+}
+
+export interface DataResetExecuteInput extends DataResetPreviewInput {
+  selectionHash: string
+  confirmText: string
+  actorName: string
+  backupConfirmed: true
+}
+
+export interface DataResetResult {
+  auditId: string
+  at: string
+  by: string
+  counts: DataResetCounts
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  photosRemoved: number
+}
+
+/** GET /admin/data-reset/config — 404 while the reset is switched off. */
+export async function getDataResetConfig() {
+  return apiClient<DataResetConfig>('/admin/data-reset/config')
+}
+
+/** POST /admin/data-reset/preview — the dry run. Deletes nothing. */
+export async function previewDataReset(input: DataResetPreviewInput) {
+  return apiClient<DataResetPreview>('/admin/data-reset/preview', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST /admin/data-reset/execute — 409 PREVIEW_STALE when anything moved
+ * since the dry run, 400 CONFIRM_PHRASE_MISMATCH for a wrong phrase, 503
+ * RESET_BUSY when a row was busy. Nothing is deleted on any of them.
+ */
+export async function executeDataReset(input: DataResetExecuteInput) {
+  return apiClient<DataResetResult>('/admin/data-reset/execute', {
     method: 'POST',
     body: JSON.stringify(input),
   })

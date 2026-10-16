@@ -1,6 +1,6 @@
 import { and, eq, inArray, notInArray } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { bookingNotes, bookings, payments } from '../../db/schema.js'
+import { bookingNotes, bookings, payments, type GatewayMode } from '../../db/schema.js'
 import {
   allocateReceiptNumber,
   checkGarageCanTake,
@@ -45,10 +45,11 @@ export const paymentsRepository = {
     })
   },
 
-  setGatewayTxnId(bookingId: string, gatewayTxnId: string) {
+  // With the order's Razorpay mode (0032); see bookingIntentsRepository.
+  setGatewayTxnId(bookingId: string, gatewayTxnId: string, gatewayMode: GatewayMode) {
     return db
       .update(payments)
-      .set({ gatewayTxnId })
+      .set({ gatewayTxnId, gatewayMode })
       .where(eq(payments.bookingId, bookingId))
       .returning()
   },

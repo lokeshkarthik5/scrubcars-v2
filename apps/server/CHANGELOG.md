@@ -18,6 +18,45 @@ reconstructing every change in them.
 
 ### Added
 
+- **Start pilot clean: deleting test data** (migration `0032_test_data_reset`,
+  purely additive; apply it before deploying). Behind `ADMIN_DATA_RESET=on`,
+  off by default: every `/admin/data-reset` route is then a 404. Runbook in
+  `docs/test-data-reset.md`, which replaces the PR #21 "TRUNCATE + re-run
+  0030" reset.
+  - `GET /admin/data-reset/config`, `POST /admin/data-reset/preview` (the dry
+    run) and `POST /admin/data-reset/execute`, super-admin only. Scope:
+    everything before a cutoff, the chains marked Test, or one marked chain.
+    A booking goes with its whole reschedule chain and everything attached
+    (items, payment, notes, job photos and their R2 files after the commit,
+    final bills, reschedules, promo uses, refunds, reviews, its checkout);
+    a cutoff run also takes checkouts that never became a booking, with their
+    refund records. The rules are pure, in `lib/data-reset.ts`, unit-tested.
+  - Real money is never deleted: live, cash and unconfirmed payments keep the
+    chain, shown as "Real payment — kept". `gateway_mode` (`live` / `test` /
+    `fake`) is now recorded on payments, checkouts and final bills from the
+    key id the order was opened with; older rows are checked with Razorpay
+    in the dry run, a slice per call inside a time budget, and the answer is
+    written back. Unknown is always kept. An unpaid order that may be live
+    and could still be captured (a booking still on, a bill still due, or
+    within a day of the cancel or the checkout closing) keeps its chain or
+    checkout too: "Payment may still arrive — kept".
+  - The dry run lists the whole scope whatever is ticked, so its CSV and the
+    audit row include the kept rows (with the reason) and the unticked ones.
+    More ticked than a run's cap (300 bookings, 1,000 checkouts) is no
+    longer a 400: the oldest are taken and `overCap` says how many wait.
+  - Receipt numbers are never renumbered: a financial year whose receipts
+    are all test data restarts at 000001; any other year keeps its counter
+    and records the deleted numbers in `receipt_number_voids`.
+  - The delete re-checks the dry run's `selectionHash` (409 `PREVIEW_STALE`)
+    and the typed phrase (400 `CONFIRM_PHRASE_MISMATCH`) under row locks, in
+    one transaction with `lock_timeout`/`statement_timeout`, in the lock
+    order; writes an append-only `admin_audit_log` row; and posts "Test data
+    cleared by <name>: N bookings" to Telegram.
+  - `POST`/`DELETE /admin/bookings/:id/mark-test`: the "Test" mark on a whole
+    chain, with a note. Marked bookings are left out of the pilot numbers,
+    `GET /admin/bookings?test=only|hide` filters on it, and the booking rows
+    carry `markedTest` and `payment.gatewayMode`. A reschedule keeps the mark.
+
 - **Estimated reach for offers on Home** (no migration). PR 2 of 6 of the
   Home hub (the admin screens). `GET /admin/discounts/home-reach?audience=&vendorId=&radiusKm=&vehicleTypes=`
   counts how many signed-in customers the discount form's Show on Home

@@ -19,6 +19,24 @@ reconstructing every change in them.
 
 ### Added
 
+- **Admin: Start pilot clean** (`/data-reset`), shown in the menu (and linked
+  from Bookings on a phone) only while the API has `ADMIN_DATA_RESET` on.
+  Three steps: Scope (everything before a cutoff in India time, or only
+  bookings marked Test, as a list with a box per booking; real money is
+  greyed out with "Real payment — kept"), Dry run (the counts in plain words,
+  the receipt plan, and a required "Download list (CSV)"), Confirm (your
+  name, "I have a database backup from today", the typed phrase, and the one
+  red button), then what was done. Old payments are checked with Razorpay
+  as the dry run pages through them. A tap anywhere on a row ticks it; "Load
+  again" keeps what was unticked; "Tick all" stops at what one run deletes
+  and says how many wait; the CSV lists every row in scope, deleted, kept or
+  unticked. Back and closing the dialog are held while the delete runs.
+- **Admin: the "Test" mark on a booking.** A "Mark as test" switch on the
+  booking page, a "Test" badge and a "Test bookings" filter on the list, and
+  a "Test-mode payment" badge where the payment's mode is recorded. While the
+  reset is on, a marked booking's page offers "Delete test booking…", the
+  same dry run and confirmation for that booking alone.
+
 - **The new Home hub and Updates (behind `NEXT_PUBLIC_HOME_HUB`).** With the
   flag `on`, `/home` is the hub (`components/home/`); with it off, as in
   production until the owner signs off a preview on live data, `/home` is the

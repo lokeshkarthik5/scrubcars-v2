@@ -58,7 +58,7 @@ export function formatRupees(amount: string | number): string {
 }
 
 /** The list's own URL params: its search and filters, and nothing else. */
-const LIST_PARAMS = ['q', 'status', 'garage', 'from', 'to'] as const
+const LIST_PARAMS = ['q', 'status', 'garage', 'from', 'to', 'test'] as const
 
 /**
  * The list's search and filters as a query string, to carry to a booking and
@@ -158,7 +158,7 @@ export function paymentStatusLabel(status: string | undefined): string {
  * with an apostrophe: reasons and notes are typed by customers and garages,
  * and a spreadsheet would otherwise run one that starts with "=" as a formula.
  */
-function csvCell(value: string | number | null | undefined): string {
+export function csvCell(value: string | number | null | undefined): string {
   let text = value === null || value === undefined ? '' : String(value)
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
@@ -223,4 +223,29 @@ export function bookingsCsv(rows: AdminBooking[]): string {
   ]
   // CRLF is what RFC 4180 and Excel expect.
   return `${lines.join('\r\n')}\r\n`
+}
+
+/**
+ * Saves text as a CSV file. The link is attached to the page while it is
+ * clicked and the URL revoked only later: Safari on iOS reads the blob after
+ * the click returns, and fails the download if it is already gone.
+ */
+export function downloadCsv(text: string, filename: string) {
+  // The byte-order mark makes Excel read the file as UTF-8, so ₹ and Tamil
+  // names survive the round trip.
+  const blob = new Blob(['\uFEFF', text], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.hidden = true
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+}
+
+/** Today in Chennai as YYYY-MM-DD, for an export's filename. */
+export function todayIst(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: APP_TIMEZONE })
 }

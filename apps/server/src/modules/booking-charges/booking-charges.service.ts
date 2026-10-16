@@ -421,7 +421,11 @@ export const bookingChargesService = {
       chargeId: charge.id,
     })
 
-    const [saved] = await bookingChargesRepository.setGatewayOrderId(charge.id, order.orderId)
+    const [saved] = await bookingChargesRepository.setGatewayOrderId(
+      charge.id,
+      order.orderId,
+      order.gatewayMode
+    )
     if (saved) {
       log.info({ chargeId: charge.id, bookingId: booking.id, orderId: order.orderId }, 'final_bill:order_created')
       return orderFor(saved, order.orderId)

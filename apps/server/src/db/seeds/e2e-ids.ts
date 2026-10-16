@@ -247,6 +247,18 @@ export const CUSTOMERS = {
    */
   homeTile: { id: id(149), phone: '9000000049', name: 'Hub Tile Tara', vehicleId: id(759) },
   /**
+   * Owns the test-data reset API spec's bookings at VENDORS.reset
+   * (BOOKINGS.reset*, BOOKING_INTENTS.reset*), which the spec deletes. Its
+   * own customer, at a garage nobody else books, so a reset run touches
+   * nothing another spec reads.
+   */
+  dataReset: { id: id(150), phone: '9000000050', name: 'Reset Ramesh', vehicleId: id(760) },
+  /**
+   * Owns the test-data reset screens' bookings (BOOKINGS.resetUi*), deleted
+   * from a booking's page and from Start pilot clean.
+   */
+  dataResetUi: { id: id(151), phone: '9000000051', name: 'Reset Usha', vehicleId: id(761) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -356,6 +368,11 @@ export const VENDORS = {
    * Booked only by the CUSTOMERS.home* fixtures.
    */
   homePromo: { id: id(312), name: 'Hub Promo Test Garage' },
+  /**
+   * The test-data reset's garage. Not verified, so it is in no customer
+   * list; every booking on it belongs to the reset specs, which delete them.
+   */
+  reset: { id: id(313), name: 'Reset Test Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -408,6 +425,8 @@ export const SERVICES = {
   homePromoWash: { id: id(417), name: 'Hub Foam Wash', price: '450.00', durationMins: 30 },
   /** On HOME_PROMO, priced on inspection: CUSTOMERS.homeBill's billed job. */
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
+  /** On RESET: every reset-spec booking is one ₹499 wash. */
+  resetWash: { id: id(419), name: 'Reset Wash', price: '499.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -595,6 +614,48 @@ export const BOOKINGS = {
   homeScreenWashSecond: id(639),
   homeBellDone: id(640),
   homeTileUpcoming: id(641),
+  /**
+   * The test-data reset API spec's chains, CUSTOMERS.dataReset's at RESET,
+   * in two old financial years so its receipt numbers are the only ones
+   * there. Deletable (Razorpay test mode):
+   *
+   * - resetRefunded: declined and refunded in full, receipt DTL/22-23/000001,
+   *   the only receipt of 22-23 (which also has a void left by an earlier
+   *   run), with its checkout, a note and a job photo. Deleting it restarts
+   *   22-23.
+   * - resetMovedFrom → resetMovedTo: a reschedule chain, receipt
+   *   DTL/23-24/000002 on its first booking.
+   *
+   * Kept whatever is ticked:
+   *
+   * - resetLive: paid in Razorpay live mode, receipt DTL/23-24/000001. So
+   *   23-24 keeps its series and 000002 becomes void.
+   * - resetUnknown: paid before gateway_mode was recorded, an id Razorpay is
+   *   never asked about in E2E: unknown, so kept.
+   * - resetNextReceipt: paid live in 23-24 with no number yet; opened after
+   *   the run, its receipt is DTL/23-24/000003.
+   * - resetOpenOrder: never paid, with a live Razorpay order still open on
+   *   a booking that is still on: "Payment may still arrive — kept".
+   *
+   * resetSingle: test mode, not marked: deleted on its own once marked.
+   */
+  resetRefunded: refId('da7a0001'),
+  resetMovedFrom: refId('da7a0002'),
+  resetMovedTo: refId('da7a0003'),
+  resetLive: refId('da7a0004'),
+  resetUnknown: refId('da7a0005'),
+  resetNextReceipt: refId('da7a0006'),
+  resetSingle: refId('da7a0007'),
+  resetOpenOrder: refId('da7a000a'),
+  /**
+   * CUSTOMERS.dataResetUi's, test mode. resetUiSingle is marked Test and
+   * deleted from its page; resetUiMarked is seeded marked and deleted from
+   * Start pilot clean; resetUiKeep is seeded marked and unticked there, so
+   * it must survive the run and stay unticked through "Load again".
+   */
+  resetUiSingle: refId('da7a0008'),
+  resetUiMarked: refId('da7a0009'),
+  resetUiKeep: refId('da7a000b'),
 } as const
 
 export const VEHICLES = {
@@ -638,7 +699,25 @@ export const REVIEWS = { existing: id(801) } as const
  * CUSTOMERS.refunds' one at REFUNDS, which the refunds journey finds on the
  * Owed list.
  */
-export const BOOKING_INTENTS = { failed: id(1001), refundOwed: id(1002) } as const
+export const BOOKING_INTENTS = {
+  failed: id(1001),
+  refundOwed: id(1002),
+  /** BOOKINGS.resetRefunded's own checkout, consumed: goes with it. */
+  resetOwn: id(1003),
+  /**
+   * CUSTOMERS.dataReset's checkouts that never became a booking: one paid
+   * in test mode, failed and refunded (a checkout refund record), and one
+   * abandoned unpaid. Both opened in 23-24, so long expired.
+   */
+  resetFailed: id(1004),
+  resetAbandoned: id(1005),
+} as const
+
+/**
+ * An earlier reset's audit row, which RESET_VOID (DTL/22-23/000002) points
+ * at: the void a restart of 22-23 clears.
+ */
+export const DATA_RESET = { earlierAudit: id(1301) } as const
 
 /**
  * Team notices. `homeRain` is about bookings at HOME_PROMO around
