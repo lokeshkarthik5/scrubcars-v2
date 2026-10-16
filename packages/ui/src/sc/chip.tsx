@@ -40,24 +40,44 @@ export function FilterChip({
   label,
   active,
   onClick,
+  count,
+  className,
 }: {
   label: string
   active?: boolean
   onClick?: () => void
+  /** How many the filter shows, set after the label in the numeric face. */
+  count?: number
+  className?: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active ?? false}
+      // "Live 12", spaced: read from the content it would run together as
+      // "Live12", since the gap between the two is only layout.
+      aria-label={count !== undefined ? `${label} ${count}` : undefined}
       className={cn(
         'shrink-0 rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors',
         active
           ? 'border-brand-white bg-brand-white text-brand-black'
-          : 'border-border bg-surface text-text-secondary'
+          : 'border-border bg-surface text-text-secondary',
+        count !== undefined && 'inline-flex items-center gap-1.5 whitespace-nowrap',
+        className
       )}
     >
       {label}
+      {count !== undefined && (
+        <span
+          className={cn(
+            'font-numeric',
+            active ? 'text-brand-black/55' : count === 0 ? 'text-text-muted/70' : 'text-text-muted'
+          )}
+        >
+          {count}
+        </span>
+      )}
     </button>
   )
 }

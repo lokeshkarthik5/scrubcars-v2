@@ -53,7 +53,7 @@ test.describe('admin panel', () => {
   test.use({ storageState: asRole('admin') })
 
   test('every seeded garage is listed', async ({ page }) => {
-    await page.goto('/vendors')
+    await page.goto('/vendors?show=all')
 
     await expect(page.getByText(VENDORS.main.name).first()).toBeVisible()
     await expect(page.getByText(VENDORS.second.name).first()).toBeVisible()

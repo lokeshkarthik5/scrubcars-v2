@@ -20,6 +20,7 @@ import { alertOps } from '../../lib/ops-alerts.js'
 import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
 import { todayDateKey } from '../../lib/slots.js'
+import { vendorReadiness } from '../../lib/vendor-readiness.js'
 import {
   createPresignedUpload,
   deleteObject,
@@ -27,6 +28,7 @@ import {
 } from '../../lib/storage.js'
 import { membersRepository } from '../members/members.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
 import { adminRepository } from './admin.repository.js'
@@ -409,12 +411,29 @@ export const adminService = {
         row.value,
       ])
     )
-    // Flatten the active-services relation into a plain count for the list table.
-    return vendors.map(({ services, ...vendor }) => ({
-      ...vendor,
-      serviceCount: services.length,
-      bookingCount: bookingCounts.get(vendor.id) ?? 0,
-    }))
+    const drawnAreas = new Set(await adminRepository.listVendorIdsWithDoorstepArea())
+    // Still the full array, every stage included: the Bookings garage filter
+    // and other pickers read this list too. The panel's chips filter and
+    // count it on the client.
+    return vendors.map(({ services, photos, workingHours, ...vendor }) => {
+      const hasDoorstepArea = drawnAreas.has(vendor.id)
+      return {
+        ...vendor,
+        serviceCount: services.length,
+        bookingCount: bookingCounts.get(vendor.id) ?? 0,
+        hasDoorstepArea,
+        // The customer lists' own rule (vendors.predicates.ts), so "Live" in
+        // the panel is exactly the garages customers can find.
+        live: isListedToCustomers(vendor),
+        readiness: vendorReadiness({
+          ...vendor,
+          hasDoorstepArea,
+          photoCount: photos.length,
+          services,
+          workingHours,
+        }),
+      }
+    })
   },
 
   async getVendor(id: string) {

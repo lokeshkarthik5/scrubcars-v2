@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { ApiError } from '@repo/core/api/client'
 import { createAdminVendor } from '@repo/core/api/admin'
+import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import { BookingModeCard } from '@/components/booking-mode-card'
 import { ServicesEditor } from '@/components/services-editor'
@@ -25,6 +26,7 @@ import {
 } from '@/lib/garage-edit'
 import { toServicePayload, type ServiceRow } from '@/lib/service-editor'
 import { rowsToSave, servicesSaveBlock } from '@/lib/service-rows'
+import { listHref } from '@/lib/vendor-list'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PICKUP_OPTIONS = [
@@ -41,6 +43,7 @@ const STATUS_OPTIONS = [
 
 export default function NewVendorPage() {
   const router = useRouter()
+  const markListStale = useInvalidateAdminVendors()
   const [form, setForm] = useState({
     ownerName: '',
     ownerPhone: '',
@@ -147,7 +150,10 @@ export default function NewVendorPage() {
           ? servicesToSave.map(toServicePayload)
           : undefined,
       })
-      router.replace('/vendors')
+      markListStale()
+      // To every garage, not the Live default: a new garage is usually not
+      // live yet, and it is the first card there, newest first.
+      router.replace(listHref('all'))
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         router.replace('/login')

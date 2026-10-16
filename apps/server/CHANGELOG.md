@@ -18,6 +18,32 @@ reconstructing every change in them.
 
 ### Added
 
+- **Live and a "what's missing" checklist on the admin garage list** (no
+  migration). `GET /admin/vendors` still returns every garage as one array
+  (the Bookings garage filter and other pickers read it), and each now also
+  carries `live`, `readiness`, `hasDoorstepArea` (the full row already had
+  `dropinEnabled`, `doorstepEnabled`, `doorstepRadiusKm`). `live` is
+  `isListedToCustomers` in `modules/vendors/vendors.predicates.ts`: Active,
+  verified and not paused. Its SQL twin, `LISTED_TO_CUSTOMERS`, is now what
+  the customer lists (`listPublicVendorPage`) and Home's Nearby count run,
+  so the panel's Live and what customers can find can't disagree; a test
+  pins the two together. `readiness` is `lib/vendor-readiness.ts` (pure,
+  unit-tested): items `{ key, severity, label, detail?, short, tab }`,
+  blocking first. Blocking: no active services; neither drop-in nor
+  doorstep on; no opening hours (no rows, or closed every day). Fix: no map
+  pin, or a pin not confirmed; services without a description (counted);
+  car types empty or holding a retired one ("Luxury / Premium",
+  "Electric (EV)", "Commercial / Van"; compared without case or spaces, so
+  the seeds' "hatchback", "suv" pass); bays empty or 0. Optional: no logo;
+  no photos; doorstep on with no travel radius and no drawn area ("Default
+  10 km used"). Distance from Chennai is not checked. Packages are left out
+  of the services rules, as everywhere in admin. The list reads services'
+  descriptions, photo ids and weekly rows in the same relational query, and
+  the drawn areas in one more (`doorstep_area` is not in the Drizzle
+  schema): three queries for the whole list, none per garage.
+- E2E fixture: `VENDORS.adminList` ("Admin List Test Garage"), pending and
+  set up but for its services, for the list's checklist specs.
+
 - **"Write with AI" for service descriptions, on OpenAI** (no migration).
   `POST /admin/services/describe { name, category, pricingType,
   durationMins?, garageName? }` returns `{ description }`: a draft for the

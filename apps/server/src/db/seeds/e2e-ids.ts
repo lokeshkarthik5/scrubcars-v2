@@ -385,6 +385,13 @@ export const VENDORS = {
    * unpinned, so no customer sees it; nobody books it.
    */
   adminEditor: { id: id(315), name: 'Admin Editor Test Garage' },
+  /**
+   * The garage list's checklist (specs/admin/vendors.spec.ts): open every
+   * day, at the garage, pinned and confirmed, with bays and car types set,
+   * but no services, so "No services" is its one blocking item and nothing
+   * is to fix. Pending, so no customer sees it; nobody books it.
+   */
+  adminList: { id: id(316), name: 'Admin List Test Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */

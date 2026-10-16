@@ -241,6 +241,7 @@ export function LiveBookingModeCard({
   paused,
   live,
   onAuthError,
+  onSaved,
 }: {
   vendorId: string
   /** As loaded. Read once: from then on the card holds the garage's state. */
@@ -251,6 +252,8 @@ export function LiveBookingModeCard({
   paused: boolean
   live: boolean
   onAuthError: () => void
+  /** Each change the server accepted, so the page can mark the garage list stale. */
+  onSaved?: () => void
 }) {
   const [mode, setMode] = useState<BookingMode | null>(() =>
     bookingModeOf(dropinEnabled, doorstepEnabled)
@@ -304,6 +307,7 @@ export function LiveBookingModeCard({
       try {
         await updateAdminVendor(vendorId, patch)
         onAccepted(seq === latest.current[field])
+        onSaved?.()
         // A later change landing means an earlier refusal no longer
         // describes the garage.
         setError(null)

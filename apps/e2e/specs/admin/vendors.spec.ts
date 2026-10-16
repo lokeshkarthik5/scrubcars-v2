@@ -5,6 +5,7 @@
  * to find it, so each state change here is checked on the customer's side too
  * rather than only in the admin list.
  */
+import type { Page } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
 import { sql } from '../../support/db'
@@ -36,7 +37,8 @@ test.describe('admin vendors', () => {
     await customer.getByRole('searchbox', { name: 'Search garages or services' }).fill(name)
     await expect(customer.getByText(name)).toHaveCount(0)
 
-    await page.goto('/vendors')
+    // Active but unverified: not Live, so under the Active chip.
+    await page.goto('/vendors?show=active')
     await page.getByRole('button', { name: `Verify ${name}` }).click()
 
     await expect
@@ -61,7 +63,7 @@ test.describe('admin vendors', () => {
     const id = await makeGarage(name)
     await sql`update vendors set is_verified = true where id = ${id}`
 
-    await page.goto('/vendors')
+    await page.goto('/vendors?show=all')
     await page.getByRole('button', { name: `Archive ${name}` }).click()
 
     await expect
@@ -80,7 +82,7 @@ test.describe('admin vendors', () => {
     const name = `E2E Delete ${Date.now().toString().slice(-5)}`
     const id = await makeGarage(name)
 
-    await page.goto('/vendors')
+    await page.goto('/vendors?show=all')
 
     // Never booked, so its card says nothing about bookings.
     const card = page.getByRole('group', { name, exact: true })
@@ -242,5 +244,137 @@ test.describe('admin vendors', () => {
     await sql`
       update vendors set business_name = ${VENDORS.narrow.name} where id = ${VENDORS.narrow.id}
     `
+  })
+})
+
+test.describe('admin garage list: chips and checklist', () => {
+  const LIST = VENDORS.adminList
+  /** Every garage card on the page; the chips' row is a group too, but not a garage's. */
+  const cards = (page: Page) =>
+    page.locator('[role="group"][aria-labelledby^="vendor-"]')
+  const chip = (page: Page, label: string) =>
+    page.getByRole('group', { name: 'Show' }).getByRole('button', { name: new RegExp(`^${label} \\d+$`) })
+  const countOf = async (page: Page, label: string) =>
+    Number((await chip(page, label).getAttribute('aria-label'))!.replace(/\D/g, ''))
+
+  /** The checklist garage as seeded: set up but for its services. */
+  async function resetListGarage() {
+    await sql`update vendors set bays = 2 where id = ${LIST.id}`
+  }
+
+  test('the list opens on Live, and each chip shows as many garages as it says @p0', async ({ page }) => {
+    await resetListGarage()
+    await page.goto('/vendors')
+
+    await expect(chip(page, 'Live')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByText('Live = customers can find it')).toBeVisible()
+    await expect(page.getByText('Active = approved by Detlio, even if paused')).toBeVisible()
+    // Live is what customers can find: MAIN is, the pending checklist garage isn't.
+    await expect(page.getByRole('group', { name: VENDORS.main.name, exact: true })).toBeVisible()
+    await expect(page.getByRole('group', { name: LIST.name, exact: true })).toHaveCount(0)
+
+    for (const label of ['All', 'Live', 'Active', 'Pending', 'Suspended', 'Archived']) {
+      await chip(page, label).click()
+      await expect(chip(page, label)).toHaveAttribute('aria-pressed', 'true')
+      await expect(cards(page)).toHaveCount(await countOf(page, label))
+    }
+    await expect(page).toHaveURL(/\/vendors\?show=archived$/)
+
+    // All is every garage, so the stages add up to it.
+    const stages = await Promise.all(
+      ['Active', 'Pending', 'Suspended', 'Archived'].map((label) => countOf(page, label))
+    )
+    expect(stages.reduce((a, b) => a + b, 0)).toBe(await countOf(page, 'All'))
+
+    await chip(page, 'Pending').click()
+    await expect(page).toHaveURL(/\/vendors\?show=pending$/)
+    await expect(page.getByText('Pending = added, not shown to customers yet')).toBeVisible()
+    await expect(page.getByRole('group', { name: LIST.name, exact: true })).toBeVisible()
+  })
+
+  test('the list API says what is live and what each garage still needs @p0', async ({ page }) => {
+    await resetListGarage()
+    const response = await page.request.get(`${API}/api/v1/admin/vendors`)
+    expect(response.status()).toBe(200)
+    const body = (await response.json()) as {
+      success: boolean
+      data: Array<{
+        id: string
+        live: boolean
+        readiness: Array<{ key: string; severity: string; tab: string }>
+      }>
+    }
+    expect(body.success).toBe(true)
+
+    const listGarage = body.data.find((v) => v.id === LIST.id)
+    expect(listGarage?.live).toBe(false)
+    expect(listGarage?.readiness.map(({ key, severity, tab }) => ({ key, severity, tab }))).toEqual([
+      { key: 'no_services', severity: 'blocking', tab: 'services' },
+      { key: 'no_logo', severity: 'optional', tab: 'details' },
+      { key: 'no_photos', severity: 'optional', tab: 'details' },
+    ])
+    // The customer lists' own rule: active, verified, not paused.
+    expect(body.data.find((v) => v.id === VENDORS.main.id)?.live).toBe(true)
+    expect(body.data.find((v) => v.id === VENDORS.paused.id)?.live).toBe(false)
+  })
+
+  test('a garage with no services is "1 blocking", and its row opens Services; Back keeps the chip @p0', async ({ page }) => {
+    await resetListGarage()
+    await page.goto('/vendors?show=pending')
+
+    const card = page.getByRole('group', { name: LIST.name, exact: true })
+    const line = card.getByRole('button', { name: /^1 blocking/ })
+    // Optional items trail in grey and never count as needing fixing.
+    await expect(line).toHaveText('1 blocking · 2 optional')
+    await expect(line).toHaveAttribute('aria-expanded', 'false')
+    await line.click()
+    await expect(line).toHaveAttribute('aria-expanded', 'true')
+    await expect(card.getByText('Blocking', { exact: true })).toBeVisible()
+    await expect(card.getByText('Optional', { exact: true })).toBeVisible()
+
+    await card.getByRole('link', { name: /No services/ }).click()
+    await expect(page).toHaveURL(
+      `/vendors/${LIST.id}/edit?tab=services&back=${encodeURIComponent('/vendors?show=pending')}`
+    )
+    await expect(page.getByRole('tab', { name: 'Services' })).toHaveAttribute('aria-selected', 'true')
+
+    await page.getByRole('link', { name: 'Go back' }).click()
+    await expect(page).toHaveURL(/\/vendors\?show=pending$/)
+    await expect(chip(page, 'Pending')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('group', { name: LIST.name, exact: true })).toBeVisible()
+  })
+
+  test('after a save, Back shows the list as it is now @p0', async ({ page }) => {
+    // Bays not set: one more thing to fix.
+    await sql`update vendors set bays = null where id = ${LIST.id}`
+    await page.goto('/vendors?show=pending')
+
+    const card = page.getByRole('group', { name: LIST.name, exact: true })
+    const line = card.getByRole('button', { name: /^1 blocking/ })
+    await expect(line).toHaveText('1 blocking · 1 to fix · 2 optional')
+    await line.click()
+    await card.getByRole('link', { name: /Bays not set/ }).click()
+    await expect(page.getByRole('tab', { name: 'Operations' })).toHaveAttribute('aria-selected', 'true')
+
+    await page.getByLabel('Bays (optional)').fill('2')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect
+      .poll(async () => {
+        const [row] = await sql<{ bays: number | null }[]>`
+          select bays from vendors where id = ${LIST.id}
+        `
+        return row.bays
+      })
+      .toBe(2)
+
+    // The list was loaded seconds ago, well inside its cache time: only the
+    // save marking it stale makes Back show the bays as set.
+    await page.getByRole('link', { name: 'Go back' }).click()
+    await expect(page).toHaveURL(/\/vendors\?show=pending$/)
+    await expect(
+      page.getByRole('group', { name: LIST.name, exact: true }).getByRole('button', { name: /^1 blocking/ })
+    ).toHaveText('1 blocking · 2 optional')
+
+    await resetListGarage()
   })
 })
