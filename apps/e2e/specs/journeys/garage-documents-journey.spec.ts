@@ -193,7 +193,7 @@ test.describe.serial('garage documents @p0', () => {
       await group.getByRole('button', { name: 'Approve' }).click()
       await expect(group.getByText('Approved', { exact: true })).toBeVisible()
     }
-    await expect(panel.getByText('Documents verified')).toBeVisible()
+    await expect(panel.getByText('Documents verified', { exact: true })).toBeVisible()
 
     const [row] = await sql<{ n: number }[]>`
       select count(*)::int as n from vendor_documents
