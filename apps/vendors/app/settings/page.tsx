@@ -35,7 +35,10 @@ import type {
   ApiVendorProfile,
   ApiWorkingHours,
 } from '@repo/core/api/types'
-import { ApiError } from '@repo/core/api/client'
+import {
+  DEFAULT_DOORSTEP_RADIUS_KM,
+  DOORSTEP_RADIUS_PLACEHOLDER,
+} from '@repo/core/doorstep'
 import { toast } from 'react-toastify'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
@@ -50,9 +53,6 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 // The tabs a ?tab= link can open on. Anything else lands on Profile.
 const TABS = ['profile', 'location', 'hours', 'time-off', 'account'] as const
 type SettingsTab = (typeof TABS)[number]
-// The radius the server accepts for doorstep jobs, as onboarding asks it.
-const MIN_DOORSTEP_KM = 1
-const MAX_DOORSTEP_KM = 30
 const SLOT_INTERVALS = [30, 45, 60] as const
 // The server's bounds for bays; jobs per day is 1–500 or blank.
 const MAX_BAYS = 20
@@ -189,9 +189,6 @@ function VendorSettings() {
     const requested = searchParams.get('tab')
     return TABS.includes(requested as SettingsTab) ? (requested as SettingsTab) : 'profile'
   })
-  // Shown under the doorstep switch when turning it on needs a radius first,
-  // so the owner can give one here instead of hunting for the Location tab.
-  const [doorstepPrompt, setDoorstepPrompt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const logout = useAuthStore((s) => s.logout)
@@ -309,11 +306,19 @@ function VendorSettings() {
         lat: pin.lat,
         lng: pin.lng,
         geoSource: pin.source,
-        doorstepRadiusKm: doorstepRadiusKm
+        // Empty sends null, which clears a saved radius: the hint promises
+        // "Leave empty to use 10 km", and leaving the old number in place
+        // would keep refusing customers between it and the default.
+        doorstepRadiusKm: doorstepRadiusKm.trim()
           ? Number(doorstepRadiusKm)
-          : undefined,
+          : null,
       })
       setVendor(updated)
+      // Show what the server kept, so the field never claims a radius (or
+      // an empty one) that is not on file.
+      setDoorstepRadiusKm(
+        updated.doorstepRadiusKm != null ? String(updated.doorstepRadiusKm) : ''
+      )
     })
 
   const capacityError = capacityProblem(capacity.bays, capacity.jobsPerDay)
@@ -335,43 +340,25 @@ function VendorSettings() {
       setVendor(updated)
     })
 
+  // Doorstep turns on without asking how far first: the radius is optional,
+  // and a garage that leaves it empty covers the default 10 km from its pin
+  // (set or changed under Location).
   const saveJobType = async (
     field: 'dropinEnabled' | 'doorstepEnabled',
-    value: boolean,
-    doorstepRadius?: number
+    value: boolean
   ) => {
     const key = `job-type-${field}`
     setSaving(key)
     try {
-      const updated = await updateVendorJobTypes({
-        [field]: value,
-        ...(doorstepRadius !== undefined && { doorstepRadiusKm: doorstepRadius }),
-      })
+      const updated = await updateVendorJobTypes({ [field]: value })
       setVendor(updated)
-      if (updated.doorstepRadiusKm != null) {
-        setDoorstepRadiusKm(String(updated.doorstepRadiusKm))
-      }
-      setDoorstepPrompt(null)
       toast.success('Saved successfully')
     } catch (err) {
-      // Doorstep needs a "how far" first. Ask for it right here, next to the
-      // switch, rather than leave the owner to find the Location tab.
-      if (err instanceof ApiError && err.code === 'DOORSTEP_RADIUS_REQUIRED') {
-        setDoorstepPrompt('')
-        return
-      }
       toast.error(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setSaving(null)
     }
   }
-
-  const promptRadius = Number(doorstepPrompt)
-  const promptRadiusValid =
-    doorstepPrompt !== null &&
-    doorstepPrompt.trim() !== '' &&
-    promptRadius >= MIN_DOORSTEP_KM &&
-    promptRadius <= MAX_DOORSTEP_KM
 
   const saveWorkingHours = () =>
     runAction('working-hours', async () => {
@@ -536,7 +523,7 @@ function VendorSettings() {
               <ScInput
                 label="Doorstep travel radius (km)"
                 inputMode="decimal"
-                placeholder="e.g. 8"
+                placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
                 className="font-numeric"
                 value={doorstepRadiusKm}
                 onChange={(e) =>
@@ -545,11 +532,21 @@ function VendorSettings() {
               />
               {/* This is the garage's own number, not a radius the customer picks:
                   a doorstep search asks "who will come to me", so only the garage
-                  can answer it. Leaving it empty means doorstep jobs are declined. */}
+                  can answer it. Optional: left empty, doorstep jobs reach the
+                  default (the server's lib/doorstep.ts), and whether the
+                  garage travels at all is the Doorstep switch under Hours. */}
               <p className="text-[11px] text-text-muted">
-                How far you&apos;ll travel for doorstep jobs. Leave empty if you
-                don&apos;t travel.
+                How far you&apos;ll travel for doorstep jobs. Leave empty to use{' '}
+                <span className="font-numeric">{DEFAULT_DOORSTEP_RADIUS_KM}</span> km.
               </p>
+              {/* The same line as under the Doorstep switch: the radius is
+                  measured from the pin, so it does nothing until there is one. */}
+              {vendor?.doorstepEnabled && vendor.lat === null && (
+                <p className="text-[12px] text-warning">
+                  Customers can&apos;t find you for doorstep jobs until your
+                  garage is pinned.
+                </p>
+              )}
               <ScButton
                 disabled={!pin || saving === 'location'}
                 onClick={saveLocation}
@@ -760,41 +757,23 @@ function VendorSettings() {
                           onChange={(next) => saveJobType(field, next)}
                         />
                       </div>
-                      {field === 'doorstepEnabled' && doorstepPrompt !== null && (
-                        <div className="flex flex-col gap-2">
-                          <ScInput
-                            id="settings-doorstep-radius-inline"
-                            label="How far will you travel? (km)"
-                            inputMode="numeric"
-                            className="font-numeric"
-                            placeholder="e.g. 8"
-                            value={doorstepPrompt}
-                            onChange={(e) =>
-                              setDoorstepPrompt(e.target.value.replace(/\D/g, '').slice(0, 2))
-                            }
-                          />
-                          <p className="text-[11px] text-text-muted">
-                            Doorstep needs a distance from {MIN_DOORSTEP_KM} to{' '}
-                            {MAX_DOORSTEP_KM} km, so customers within it can book you.
-                            You can change it later under Location.
+                      {/* Doorstep is measured from the garage's pin, so an
+                          unpinned garage is left off the Doorstep list and
+                          cannot be booked there. Saying so here stops the
+                          switch reading as "you take doorstep jobs now". */}
+                      {field === 'doorstepEnabled' && enabled && vendor.lat === null && (
+                        <div className="flex flex-col items-start">
+                          <p role="status" className="text-[12px] text-warning">
+                            Customers can&apos;t find you for doorstep jobs until
+                            your garage is pinned.
                           </p>
-                          <div className="flex gap-2">
-                            <ScButton
-                              variant="secondary"
-                              className="flex-1"
-                              onClick={() => setDoorstepPrompt(null)}
-                            >
-                              Not now
-                            </ScButton>
-                            <ScButton
-                              variant="secondary"
-                              className="flex-1"
-                              disabled={!promptRadiusValid || saving === key}
-                              onClick={() => saveJobType('doorstepEnabled', true, promptRadius)}
-                            >
-                              {saving === key ? 'Saving...' : 'Turn on doorstep'}
-                            </ScButton>
-                          </div>
+                          <button
+                            type="button"
+                            className="min-h-11 text-[12px] font-medium text-text-primary underline underline-offset-2"
+                            onClick={() => setTab('location')}
+                          >
+                            Pin it under Location
+                          </button>
                         </div>
                       )}
                     </Fragment>

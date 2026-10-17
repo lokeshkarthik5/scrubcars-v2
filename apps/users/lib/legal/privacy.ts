@@ -363,6 +363,11 @@ export const PRIVACY: LegalDoc = {
                   'Checking the site is up',
                   'No personal data',
                 ],
+                [
+                  'OpenAI',
+                  'Reading the forms, posters and price lists a garage gives us when it joins, to fill in its listing for our team to check (section 12)',
+                  'Those documents, which can include the garage owner\'s name, phone number and address. Never customers\' data. Its servers are outside India.',
+                ],
               ],
             },
             {
@@ -482,7 +487,7 @@ export const PRIVACY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: `Our main database is hosted in ${DATABASE}. Some of our providers (such as Vercel, Cloudflare, Sentry and Telegram) may process data on servers outside India, and Meta receives what its pixel sends (section 4) on its servers outside India. Indian law allows this except to countries the Government restricts, and we only use providers that protect data to a reasonable standard.`,
+          text: `Our main database is hosted in ${DATABASE}. Some of our providers (such as Vercel, Cloudflare, Sentry, Telegram and OpenAI) may process data on servers outside India, and Meta receives what its pixel sends (section 4) on its servers outside India. Indian law allows this except to countries the Government restricts, and we only use providers that protect data to a reasonable standard.`,
         },
         {
           kind: 'note',
@@ -599,6 +604,14 @@ export const PRIVACY: LegalDoc = {
         {
           kind: 'p',
           text: `Garage owners and staff sign in to the Detlio partner portal with their mobile number in the same way. We keep their name and number, their role at the garage, which bookings they accepted or completed, the photos and bills they add, and a log of when our team accesses a garage's portal to help it. A garage's business details (its name, area, map location, photos, opening hours and rating) are shown publicly on Detlio, and its address, phone and WhatsApp are shown to customers who book it. The rest of this policy, including your rights, applies to you too, and your garage's agreement with Detlio covers anything specific to garages.`,
+        },
+        {
+          kind: 'p',
+          text: 'When a garage joins, it may give us an onboarding form, a poster, a price list or photos of them. To set up its listing, these documents may be processed by our service providers, including an AI provider outside India (OpenAI, section 4), which reads them and fills in our form. Our team checks everything before the garage is added, and it is not shown to customers until our team has verified it. Detlio does not keep the files. Our AI provider may keep them for a short period under its own terms, and does not use them to train its models.',
+        },
+        {
+          kind: 'note',
+          text: '**Garage documents read by AI.** Owner decision: the admin panel\'s "Import from a form or poster" sends the photos or PDFs a garage gave us to OpenAI (the one AI provider Detlio uses, servers outside India) to fill in the new-garage form. They can carry the owner\'s name, mobile number and address, and anything else the garage wrote on them; the instructions tell the model not to copy ID or bank numbers, but the file itself is sent whole. The files are held in memory for that one request and never stored by Detlio, and the request asks OpenAI not to keep the response (`store: false`; otherwise it keeps it for at least 30 days). OpenAI\'s API terms say it does not train on API data by default but may still keep inputs for a limited period for abuse monitoring, which is why section 12 says "may keep them for a short period under its own terms" rather than that the files are not stored at all. Please confirm the current terms, that the wording of that sentence is right, and that a data-processing agreement is in place (DPDP s.8(2)). A Tally CSV is read by our own code and is not sent to OpenAI. Please advise: (1) whether s.7 covers this as part of the garage asking to join, or whether the Tally form and the onboarding call should ask for consent, and the line we should add to the Tally form and the poster brief; (2) whether a transfer outside India needs anything beyond this notice (s.16 restricts only countries the government lists).',
         },
       ],
     },

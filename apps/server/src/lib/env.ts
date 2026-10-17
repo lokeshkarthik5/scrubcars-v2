@@ -182,9 +182,16 @@ export const env = {
   // Which model writes the text. An env value so it can be changed without a
   // release.
   aiTextModel: process.env.AI_TEXT_MODEL?.trim() || 'gpt-5.5',
+  // Which model reads photos and PDFs for the garage import. Must take image
+  // and PDF input and structured output. Same reason for an env value.
+  aiVisionModel: process.env.AI_VISION_MODEL?.trim() || 'gpt-5.5',
   // "Write with AI" calls per admin per hour. Each one is a paid request, and
   // the editor's "Fill all empty descriptions" makes one per service.
   aiDescribeRateLimit: Number(process.env.AI_DESCRIBE_RATE_LIMIT ?? '60'),
+  // Garage imports per admin per hour (photos, PDFs and Tally files alike).
+  // A photo read is the dearest AI request Detlio makes; onboarding a
+  // handful of garages an hour is far below this.
+  aiImportRateLimit: Number(process.env.AI_IMPORT_RATE_LIMIT ?? '30'),
   // OpenAI's alias for the ChatGPT image model. Lokesh can pin a dated model
   // here without a deploy of new code.
   aiImageModel: process.env.AI_IMAGE_MODEL || 'chatgpt-image-latest',

@@ -74,6 +74,7 @@
         "DIRECT_URL",
         "E2E_FAKE_PAYMENTS",
         "GLOBAL_RATE_LIMIT",
+        "PG_POOL_MAX",
         "R2_ENDPOINT"
       ]
     }
