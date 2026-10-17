@@ -19,6 +19,24 @@ reconstructing every change in them.
 
 ### Added
 
+- **Complaints with a number and a 24-hour clock.** Customer app: a
+  booking's Help sheet ends with "Make a complaint · Raise a complaint",
+  which opens a short sheet (what it is about, as chips; what happened;
+  Submit) with the booking and garage attached; the Contact page has the
+  same entry for complaints not about a booking (signed out, a "Sign in to
+  raise a complaint" link beside the phone, WhatsApp and email). Once sent:
+  "Complaint C-000123 received — we'll get back to you within 24 hours."
+  Profile has My complaints: number, status (Received, Being looked into,
+  Resolved, Closed), date, what it was about, their words, and "Our answer"
+  once resolved. The legal pages' 24 hours and 7 days now come from
+  `@repo/core/complaints`, the clock's own numbers. Admin: a Complaints tab
+  (header and phone bar) with Open · Overdue · Resolved · All chips and
+  counts, overdue cards in amber with which promise was missed, and a
+  detail page with the customer, booking link, garage, their words, the
+  two due times, Acknowledge, Resolve (with the note the customer reads),
+  Close (optionally saying why) and an internal note. Start pilot clean
+  lists a cutoff run's complaints as one ticked row, and its CSV says what
+  happened to them.
 - **Admin: the garage Bin.** The garage list's chips end with Bin (n);
   garages in the Bin are in no other chip or count ("Bin = off the app.
   Restore it, or delete it forever."). A card's ⋯ holds Archive and Move to

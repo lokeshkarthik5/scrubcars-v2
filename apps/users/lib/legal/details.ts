@@ -11,6 +11,7 @@
  * account: change all three together. The phone itself comes from
  * @repo/core/support, which every screen already reads.
  */
+import { COMPLAINT_ACKNOWLEDGE_HOURS, COMPLAINT_RESOLVE_DAYS } from '@repo/core/complaints'
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support'
 
 /**
@@ -74,12 +75,15 @@ export const GRIEVANCE_OFFICER = {
  * Complaint timelines, as published. The strictest that may apply are used
  * (IT Rules as amended in 2026, for a platform relying on intermediary
  * status), with the Consumer Protection outer limit kept beside them — see the
- * reviewer note on the Contact page. Words, not numbers, because they are
- * printed as they stand.
+ * reviewer note on the Contact page. Words, because they are printed as they
+ * stand. The first two are the complaint clock's own numbers
+ * (packages/core/src/complaints.ts), which admin counts down and the app
+ * quotes when a complaint is raised, so the page can never promise one thing
+ * and the clock run to another.
  */
 export const GRIEVANCE_TIMELINES = {
-  acknowledge: '24 hours',
-  resolve: '7 days',
+  acknowledge: `${COMPLAINT_ACKNOWLEDGE_HOURS} hours`,
+  resolve: `${COMPLAINT_RESOLVE_DAYS} days`,
   contentRemoval: '36 hours',
   urgentContentRemoval: '2 hours',
   outerLimit: 'one month',

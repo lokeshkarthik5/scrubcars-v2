@@ -188,6 +188,54 @@ export function CheckoutRow({
 }
 
 /**
+ * A cutoff run's complaints made before the cutoff, as one row with one
+ * tick: "3 complaints made before the cutoff · C-000001 to C-000003". They
+ * hang off no booking's chain and carry no money, so they go or stay
+ * together.
+ */
+export function ComplaintsRow({
+  complaints,
+  checked,
+  onToggle,
+}: {
+  complaints: DataResetPreview['complaints']
+  checked: boolean
+  onToggle?: (checked: boolean) => void
+}) {
+  if (complaints.count === 0) return null
+  const range =
+    complaints.firstNumber === complaints.lastNumber
+      ? complaints.firstNumber
+      : `${complaints.firstNumber} to ${complaints.lastNumber}`
+  return (
+    <ListRow
+      kept={false}
+      checkbox={
+        onToggle ? (
+          <input
+            type="checkbox"
+            aria-label="Delete the complaints made before the cutoff"
+            checked={checked}
+            onChange={(e) => onToggle(e.target.checked)}
+            className={BOX}
+          />
+        ) : null
+      }
+    >
+      <div className="min-w-0 flex-1 text-[12px]">
+        <p className="text-[13px] font-semibold text-text-primary">
+          {plural(complaints.count, 'complaint', 'complaints')} made before the cutoff
+        </p>
+        <p className="mt-0.5 text-text-secondary">
+          <span className="font-numeric">{range}</span> · with their notes. Numbering carries on
+          from the last one.
+        </p>
+      </div>
+    </ListRow>
+  )
+}
+
+/**
  * What the dry run will delete, in plain words, and what happens to the
  * receipt numbering, with the list to download. The caller decides whether
  * the download is required before going on (`downloaded` is its record).

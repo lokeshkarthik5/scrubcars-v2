@@ -10,6 +10,7 @@ import {
   bookingNotes,
   bookingReschedules,
   bookings,
+  complaints,
   discountRedemptions,
   jobPhotos,
   payments,
@@ -27,6 +28,7 @@ import type {
   IntentChildCounts,
   ResetBooking,
   ResetCharge,
+  ResetComplaint,
   ResetIntent,
   ResetReceipt,
 } from '../../lib/data-reset.js'
@@ -356,6 +358,15 @@ export function dataResetReads(conn: Conn) {
       return new Map(rows.map((row) => [row.financialYear, row.lastSeq]))
     },
 
+    /** Customer complaints made before the cutoff (0035), oldest first. */
+    async complaintsMadeBefore(cutoff: Date): Promise<ResetComplaint[]> {
+      return conn
+        .select({ id: complaints.id, number: complaints.number, createdAt: complaints.createdAt })
+        .from(complaints)
+        .where(lt(complaints.createdAt, cutoff))
+        .orderBy(asc(complaints.number))
+    },
+
     async voidsByYear(years: string[]): Promise<Map<string, number>> {
       if (years.length === 0) return new Map()
       const rows = await conn
@@ -505,6 +516,19 @@ export function dataResetWrites(tx: Tx) {
      * notes, photos, final bills, reschedules, promo uses, booking and bill
      * refunds, reviews.
      */
+    /** Complaints by id. Nothing hangs off one. */
+    async deleteComplaints(ids: string[]) {
+      let n = 0
+      for (const slice of batches(ids)) {
+        const rows = await tx
+          .delete(complaints)
+          .where(inArray(complaints.id, slice))
+          .returning({ id: complaints.id })
+        n += rows.length
+      }
+      return n
+    },
+
     async deleteBookings(ids: string[]) {
       let n = 0
       for (const slice of batches(ids)) {

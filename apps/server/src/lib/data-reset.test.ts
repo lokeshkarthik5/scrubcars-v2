@@ -702,3 +702,68 @@ describe('the fingerprint', () => {
     expect(planReset(input({ bookings: withLive })).selectionHash).toBe(base)
   })
 })
+
+describe('complaints made before the cutoff', () => {
+  const complaint = (n: number, createdAt: Date) => ({ id: uuid(500 + n), number: n, createdAt })
+  const complaints = [complaint(2, before(3)), complaint(1, before(4)), complaint(3, after(1))]
+
+  test('a cutoff run takes those made before it, all ticked on the first look', () => {
+    const plan = planReset(input({ complaints }))
+    expect(plan.complaints).toEqual({
+      ids: [uuid(501), uuid(502)],
+      first: 1,
+      last: 2,
+      selected: true,
+    })
+    expect(plan.selectedComplaintIds).toEqual([uuid(501), uuid(502)])
+    expect(plan.counts.complaints).toBe(2)
+    expect(countLines(plan.counts)).toEqual(['2 complaints'])
+    // Nothing else in the run, so the phrase names them.
+    expect(plan.confirmPhrase).toBe('DELETE 2 COMPLAINTS')
+  })
+
+  test('once the list is reviewed, only when their one tick says so', () => {
+    const unticked = planReset(input({ complaints, only: { chainIds: [], checkoutIds: [] } }))
+    expect(unticked.selectedComplaintIds).toEqual([])
+    expect(unticked.complaints.selected).toBe(false)
+    expect(unticked.counts.complaints).toBe(0)
+
+    const ticked = planReset(
+      input({ complaints, only: { chainIds: [], checkoutIds: [], complaints: true } })
+    )
+    expect(ticked.selectedComplaintIds).toEqual([uuid(501), uuid(502)])
+  })
+
+  test('bookings still name the phrase when there are both', () => {
+    const plan = planReset(input({ bookings: [booking(1)], complaints }))
+    expect(plan.confirmPhrase).toBe('DELETE 1 BOOKING')
+    expect(countLines(plan.counts)).toContain('2 complaints')
+  })
+
+  test('no other scope takes complaints', () => {
+    for (const scope of [
+      { kind: 'marked_test' as const },
+      { kind: 'chains' as const, bookingIds: [uuid(1)] },
+      { kind: 'garage' as const, vendorId: uuid(900) },
+    ]) {
+      const plan = planReset(input({ scope, complaints }))
+      expect(plan.selectedComplaintIds).toEqual([])
+      expect(plan.counts.complaints).toBe(0)
+    }
+  })
+
+  test('the fingerprint moves with them, and is unchanged by a run with none', () => {
+    const none = planReset(input({ bookings: [booking(1)] })).selectionHash
+    expect(planReset(input({ bookings: [booking(1)], complaints: [] })).selectionHash).toBe(none)
+    const some = planReset(input({ bookings: [booking(1)], complaints })).selectionHash
+    expect(some).not.toBe(none)
+    const fewer = planReset(input({ bookings: [booking(1)], complaints: complaints.slice(1) })).selectionHash
+    expect(fewer).not.toBe(some)
+  })
+
+  test('the phrase for a run of complaints alone', () => {
+    expect(confirmPhraseFor({ bookings: 0, checkouts: 0, complaints: 1 }, 0)).toBe('DELETE 1 COMPLAINT')
+    // Checkouts are named before complaints.
+    expect(confirmPhraseFor({ bookings: 0, checkouts: 2, complaints: 3 }, 2)).toBe('DELETE 2 CHECKOUTS')
+  })
+})

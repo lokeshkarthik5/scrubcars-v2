@@ -279,6 +279,13 @@ export const CUSTOMERS = {
   binTomb: { id: id(155), phone: '9000000055', name: 'Bin Kept Kamala', vehicleId: id(764) },
   binBrowse: { id: id(156), phone: '9000000056', name: 'Bin Browse Bala', vehicleId: id(765) },
   /**
+   * Raises a complaint about BOOKINGS.complaintDone (a finished job at MAIN)
+   * in the complaint journey, and is refused one about someone else's
+   * booking. Its own customer, so the per-customer limits and My
+   * complaints hold only this spec's complaints.
+   */
+  complaints: { id: id(157), phone: '9000000057', name: 'Complaint Kavitha', vehicleId: id(766) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -791,6 +798,8 @@ export const BOOKINGS = {
   binHardTest: refId('b1a00003'),
   binTombLive: refId('b1a00004'),
   binTombTest: refId('b1a00005'),
+  /** CUSTOMERS.complaints', completed and paid (E2E money) at MAIN two days ago. */
+  complaintDone: refId('c0a10001'),
 } as const
 
 export const VEHICLES = {

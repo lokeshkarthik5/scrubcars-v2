@@ -2,6 +2,7 @@ import { apiClient } from './client'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
+import type { ComplaintCategory, ComplaintStatus } from '@repo/core/complaints'
 
 export interface AdminVendor {
   id: string
@@ -1066,6 +1067,8 @@ export interface DataResetCounts {
   checkouts: number
   checkoutItems: number
   receiptNumbers: number
+  /** Customer complaints made before the cutoff. */
+  complaints: number
 }
 
 export interface DataResetReceiptYear {
@@ -1083,6 +1086,16 @@ export interface DataResetPreview {
   generatedAt: string
   chains: DataResetChain[]
   checkouts: DataResetCheckout[]
+  /**
+   * A cutoff run's complaints made before the cutoff, as one row with one
+   * tick. `count` 0 (and no row) in any other scope.
+   */
+  complaints: {
+    count: number
+    firstNumber: string | null
+    lastNumber: string | null
+    selected: boolean
+  }
   counts: DataResetCounts
   /** The counts in plain words, zeros left out. */
   countLines: string[]
@@ -1104,8 +1117,11 @@ export interface DataResetPreview {
 
 export interface DataResetPreviewInput {
   scope: DataResetScope
-  /** The ticked rows; leave out on the first look to tick everything deletable. */
-  only?: { chainIds: string[]; checkoutIds: string[] }
+  /**
+   * The ticked rows; leave out on the first look to tick everything
+   * deletable. `complaints` is the one tick for a cutoff run's complaints.
+   */
+  only?: { chainIds: string[]; checkoutIds: string[]; complaints?: boolean }
   unknownIds?: string[]
 }
 
@@ -1351,6 +1367,100 @@ export async function getDiscountHomeReach(
         ? params.vehicleTypes.join(',')
         : undefined,
     },
+  })
+}
+
+// ─── Complaints ──────────────────────────────────────────────────────────────
+//
+// Customers' complaints with their numbers and the clock: acknowledge within
+// 24 hours, resolve within 7 days (packages/core/src/complaints.ts). Mounted
+// under /admin for the session cookie, like notices.
+
+export type AdminComplaintFilter = 'open' | 'overdue' | 'resolved' | 'all'
+
+export interface AdminComplaint {
+  id: string
+  /** "C-000123". */
+  number: string
+  status: ComplaintStatus
+  category: ComplaintCategory
+  message: string
+  customer: {
+    /** Null once the account is deleted; name and phone are as they were. */
+    id: string | null
+    name: string
+    phone: string
+    accountDeleted: boolean
+  }
+  /** The booking it came from, if any. `id` is null once the booking itself is gone. */
+  booking: {
+    id: string | null
+    reference: string
+    scheduledAt: string | null
+    status: string | null
+  } | null
+  garage: { id: string | null; name: string } | null
+  /** What the customer reads, once resolved or closed. */
+  resolutionNote: string | null
+  /** The team's own note; never shown to the customer. */
+  adminNote: string | null
+  acknowledgedAt: string | null
+  acknowledgedBy: string | null
+  resolvedAt: string | null
+  resolvedBy: string | null
+  closedAt: string | null
+  closedBy: string | null
+  createdAt: string
+  updatedAt: string
+  acknowledgeBy: string
+  resolveBy: string
+  /** Which promise it has missed, as of the server's clock when read. */
+  overdue: 'acknowledge' | 'resolve' | null
+}
+
+export interface AdminComplaintList {
+  complaints: AdminComplaint[]
+  counts: Record<AdminComplaintFilter, number>
+  /** The server's clock when the list was read. */
+  now: string
+}
+
+/** GET /admin/complaints?show= */
+export async function listAdminComplaints(show: AdminComplaintFilter): Promise<AdminComplaintList> {
+  return apiClient<AdminComplaintList>('/admin/complaints', { params: { show } })
+}
+
+/** GET /admin/complaints/:id */
+export async function getAdminComplaint(id: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}`)
+}
+
+/** POST /admin/complaints/:id/acknowledge */
+export async function acknowledgeAdminComplaint(id: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/acknowledge`, { method: 'POST' })
+}
+
+/** POST /admin/complaints/:id/resolve — the note is what the customer reads. */
+export async function resolveAdminComplaint(id: string, resolutionNote: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ resolutionNote }),
+  })
+}
+
+/** POST /admin/complaints/:id/close — optionally saying why, to the customer. */
+export async function closeAdminComplaint(id: string, resolutionNote?: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/close`, {
+    method: 'POST',
+    body: JSON.stringify(resolutionNote ? { resolutionNote } : {}),
+  })
+}
+
+/** PUT /admin/complaints/:id/note — the team's own note; empty clears it. */
+export async function setAdminComplaintNote(id: string, adminNote: string): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>(`/admin/complaints/${id}/note`, {
+    method: 'PUT',
+    body: JSON.stringify({ adminNote }),
   })
 }
 

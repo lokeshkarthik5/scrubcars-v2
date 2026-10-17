@@ -464,3 +464,35 @@ describe('garage_deleted', () => {
     expect(partial).toContain('Delete forever must be pressed again')
   })
 })
+
+describe('complaint_received', () => {
+  const complaint = {
+    kind: 'complaint_received' as const,
+    complaintId: 'c0a10001-0000-4000-8000-000000000001',
+    number: 'C-000123',
+    category: 'Payment or refund',
+    bookingId: '3f2a9c1b-0000-4000-8000-000000000001',
+    garageName: 'Marina Auto Spa',
+    customerName: 'Priya Raman',
+    message: 'Paid twice for one wash. Call me on 98765 43210 please.',
+    // 04:30 UTC is 10:00 am in Chennai.
+    acknowledgeBy: new Date('2026-10-18T04:30:00Z'),
+  }
+
+  test('the number, the category, what it is about, the clock and the link', () => {
+    const text = formatOpsAlert(complaint)
+    expect(text.split('\n')).toEqual([
+      '📣 New complaint C-000123 · Payment or refund',
+      'Garage: Marina Auto Spa · booking #3F2A9C1B',
+      'Customer: Priya',
+      'Customer wrote: "Paid twice for one wash. Call me on [number] please."',
+      'Acknowledge by Sun 18 Oct, 10:00 am.',
+      'https://admin.detlio.com/complaints/c0a10001-0000-4000-8000-000000000001',
+    ])
+  })
+
+  test('one from the Contact page says it is not about a booking', () => {
+    const text = formatOpsAlert({ ...complaint, bookingId: null, garageName: null })
+    expect(text.split('\n')[1]).toBe('Not about a booking.')
+  })
+})

@@ -5,6 +5,7 @@ import {
   requireCustomer,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
+import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
 import * as usersController from './users.controller.js'
 import {
@@ -26,6 +27,9 @@ usersRoutes.use('*', authMiddleware, requireCustomer)
 // /me/offers/:id/dismiss. Mounted after the middleware above, so they get
 // the same signed-in-customer check.
 usersRoutes.route('/me', homeRoutes)
+
+// The customer's complaints: /me/complaints. Same mounting, same check.
+usersRoutes.route('/me', customerComplaintRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

@@ -139,6 +139,19 @@ export interface ResetReceipt {
   issuedAt: Date
 }
 
+/**
+ * A customer complaint made before the cutoff (0035). Complaints point at
+ * bookings only loosely (ON DELETE SET NULL), so they are not part of any
+ * chain: a cutoff run takes the ones made before the cutoff as a group of
+ * their own, with one tick for all of them.
+ */
+export interface ResetComplaint {
+  id: string
+  /** The sequence number, printed C-000123. */
+  number: number
+  createdAt: Date
+}
+
 /** The rows that hang off one booking and go with it (ON DELETE CASCADE). */
 export interface BookingChildCounts {
   items: number
@@ -186,7 +199,7 @@ export interface PlanInput {
    * scope is ticked. Either way every row in scope is in the plan, ticked
    * or not, so the dry run and its list say what happens to each.
    */
-  only?: { chainIds: string[]; checkoutIds: string[] } | null
+  only?: { chainIds: string[]; checkoutIds: string[]; complaints?: boolean } | null
   /** Every booking of every candidate chain, whole chains. */
   bookings: ResetBooking[]
   charges: ResetCharge[]
@@ -200,6 +213,12 @@ export interface PlanInput {
   /** booking_reschedules rows by chain (their original_booking_id). */
   reschedulesByChain: Map<string, number>
   intentChildCounts: Map<string, IntentChildCounts>
+  /**
+   * Complaints a cutoff run may take: those made before the cutoff. Ticked
+   * as one: on the first look (no `only`) they are, and after that only
+   * when `only.complaints` says so. Absent (other scopes) is none.
+   */
+  complaints?: ResetComplaint[]
   /** The receipt numbers of the candidate chains. */
   receipts: ResetReceipt[]
   /**
@@ -584,6 +603,8 @@ export interface ResetCounts {
   checkouts: number
   checkoutItems: number
   receiptNumbers: number
+  /** Customer complaints made before the cutoff (0035). */
+  complaints: number
 }
 
 export type ReceiptYearMode = 'restart' | 'void'
@@ -611,6 +632,13 @@ export interface ResetPlan {
   selectedCheckoutIds: string[]
   /** Deletable rows left unticked because the run was over its cap. */
   overCap: { chains: number; checkouts: number }
+  /**
+   * The complaints in scope (a cutoff run's, made before the cutoff), oldest
+   * first, and whether this run deletes them: all or none.
+   */
+  complaints: { ids: string[]; first: number | null; last: number | null; selected: boolean }
+  /** The complaints this run deletes: all of `complaints.ids`, or none. */
+  selectedComplaintIds: string[]
   counts: ResetCounts
   receiptPlan: ReceiptYearPlan[]
   confirmPhrase: string
@@ -770,11 +798,18 @@ export function planReceipts(input: {
 /**
  * The phrase the owner types to confirm: "DELETE 143 BOOKINGS". Bookings are
  * counted as customers think of them, one per chain; a run with only
- * checkouts names those instead.
+ * checkouts names those instead, and one with only complaints, those.
  */
-export function confirmPhraseFor(counts: { bookings: number; checkouts: number }, checkoutsOnly: number): string {
+export function confirmPhraseFor(
+  counts: { bookings: number; checkouts: number; complaints?: number },
+  checkoutsOnly: number
+): string {
   if (counts.bookings > 0) {
     return `DELETE ${counts.bookings} ${counts.bookings === 1 ? 'BOOKING' : 'BOOKINGS'}`
+  }
+  const complaints = counts.complaints ?? 0
+  if (checkoutsOnly === 0 && complaints > 0) {
+    return `DELETE ${complaints} ${complaints === 1 ? 'COMPLAINT' : 'COMPLAINTS'}`
   }
   return `DELETE ${checkoutsOnly} ${checkoutsOnly === 1 ? 'CHECKOUT' : 'CHECKOUTS'}`
 }
@@ -800,6 +835,8 @@ export function selectionHash(plan: {
   bookings: ResetBooking[]
   charges: ResetCharge[]
   receiptPlan: ReceiptYearPlan[]
+  /** Only when there are any, so a run with none hashes as it always did. */
+  complaintIds?: string[]
 }): string {
   const bookingsByRoot = groupChains(plan.bookings)
   const chargesByBooking = groupBy(plan.charges, (charge) => charge.bookingId)
@@ -829,9 +866,14 @@ export function selectionHash(plan: {
     .map((checkout) => [checkout.id, checkout.status, checkout.paymentRef, checkout.money, checkout.refunded])
     .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
   const receipts = plan.receiptPlan.map((year) => [year.financialYear, year.mode, year.numbers])
+  const complaints = [...(plan.complaintIds ?? [])].sort()
 
   return createHash('sha256')
-    .update(JSON.stringify({ chains, checkouts, receipts }))
+    .update(
+      JSON.stringify(
+        complaints.length > 0 ? { chains, checkouts, receipts, complaints } : { chains, checkouts, receipts }
+      )
+    )
     .digest('hex')
 }
 
@@ -843,7 +885,11 @@ export function selectionHash(plan: {
 export function planReset(input: PlanInput): ResetPlan {
   const { scope } = input
   const only = input.only
-    ? { chains: new Set(input.only.chainIds), checkouts: new Set(input.only.checkoutIds) }
+    ? {
+        chains: new Set(input.only.chainIds),
+        checkouts: new Set(input.only.checkoutIds),
+        complaints: input.only.complaints === true,
+      }
     : null
   const chargesByBooking = groupBy(input.charges, (charge) => charge.bookingId)
   const receiptByRoot = new Map(input.receipts.map((receipt) => [receipt.rootBookingId, receipt]))
@@ -960,6 +1006,21 @@ export function planReset(input: PlanInput): ResetPlan {
     tickedCheckouts += 1
   }
 
+  // ── Complaints made before the cutoff ──
+  // Not part of any chain (a complaint only points at its booking, and is
+  // kept with a null booking when the booking goes), so a cutoff run takes
+  // them as one group: all ticked on the first look, and after that only
+  // when the tick says so. No money and no receipts hang off them.
+  const complaintsInScope =
+    scope.kind === 'before_cutoff'
+      ? (input.complaints ?? [])
+          .filter((complaint) => complaint.createdAt < scope.cutoff)
+          .sort((a, b) => a.number - b.number)
+      : []
+  const complaintsTicked = only ? only.complaints : true
+  const selectedComplaintIds =
+    complaintsTicked ? complaintsInScope.map((complaint) => complaint.id) : []
+
   // ── What that deletes ──
   const selectedChainIds = chains.filter((c) => c.selected).map((c) => c.rootId)
   const selectedRoots = new Set(selectedChainIds)
@@ -986,6 +1047,7 @@ export function planReset(input: PlanInput): ResetPlan {
     checkouts: selectedIntentIds.length,
     checkoutItems: 0,
     receiptNumbers: 0,
+    complaints: selectedComplaintIds.length,
   }
   const bookingsById = new Map(input.bookings.map((b) => [b.id, b]))
   for (const id of selectedBookingIds) {
@@ -1025,6 +1087,13 @@ export function planReset(input: PlanInput): ResetPlan {
     selectedIntentIds,
     selectedCheckoutIds,
     overCap: { chains: overCapChains, checkouts: overCapCheckouts },
+    complaints: {
+      ids: complaintsInScope.map((complaint) => complaint.id),
+      first: complaintsInScope[0]?.number ?? null,
+      last: complaintsInScope[complaintsInScope.length - 1]?.number ?? null,
+      selected: complaintsTicked && complaintsInScope.length > 0,
+    },
+    selectedComplaintIds,
     counts,
     receiptPlan,
     confirmPhrase: confirmPhraseFor(counts, selectedCheckoutIds.length),
@@ -1034,6 +1103,7 @@ export function planReset(input: PlanInput): ResetPlan {
       bookings: input.bookings,
       charges: input.charges,
       receiptPlan,
+      complaintIds: selectedComplaintIds,
     }),
   }
 }
@@ -1056,6 +1126,7 @@ export function countLines(counts: ResetCounts): string[] {
     [counts.reschedules, plural(counts.reschedules, 'reschedule', 'reschedules')],
     [counts.checkouts, plural(counts.checkouts, 'checkout', 'checkouts')],
     [counts.receiptNumbers, plural(counts.receiptNumbers, 'receipt number', 'receipt numbers')],
+    [counts.complaints, plural(counts.complaints, 'complaint', 'complaints')],
   ]
   return lines.filter(([n]) => n > 0).map(([, text]) => text)
 }

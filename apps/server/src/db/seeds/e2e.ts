@@ -187,7 +187,8 @@ async function seedPeople() {
         CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds,
         CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
         CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi,
-        CUSTOMERS.binPaid, CUSTOMERS.binHard, CUSTOMERS.binTomb, CUSTOMERS.binBrowse].map((c, i) => ({
+        CUSTOMERS.binPaid, CUSTOMERS.binHard, CUSTOMERS.binTomb, CUSTOMERS.binBrowse,
+        CUSTOMERS.complaints].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -1639,6 +1640,21 @@ async function seedGarageBinRows() {
   })
 }
 
+// ─── complaints ─────────────────────────────────────────────────────────────
+
+/**
+ * The complaint journey's booking: a finished, paid job at MAIN, which
+ * CUSTOMERS.complaints raises a complaint about from its Help sheet. After
+ * the people, garages and services it names, like every booking.
+ */
+async function seedComplaintRows() {
+  await insertBooking({ id: BOOKINGS.complaintDone, userId: CUSTOMERS.complaints.id,
+    vehicleId: CUSTOMERS.complaints.vehicleId, scheduledAt: daysAgo(2), createdAt: daysAgo(3),
+    status: 'completed', acceptedAt: daysAgo(3), startedAt: daysAgo(2), completedAt: daysAgo(2),
+    items: [washItem],
+    payment: { status: 'paid', txnId: 'pay_e2e_complaint_done', paidAt: daysAgo(3), gatewayMode: 'fake' } })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1666,6 +1682,8 @@ async function main() {
   await seedServiceMediaRows()
   console.log('[e2e-seed] garage bin…')
   await seedGarageBinRows()
+  console.log('[e2e-seed] complaints…')
+  await seedComplaintRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

@@ -9,6 +9,7 @@ import {
   IconDiscount2,
   IconHome,
   IconMap,
+  IconMessageReport,
   IconReceiptRefund,
   IconSearch,
   IconSettings,
@@ -53,9 +54,14 @@ const vendorItems: NavItem[] = [
 // Coverage were header-only, and so out of reach on a phone. Refunds
 // especially: a checkout that became no booking has no booking page, so this
 // is the only way to the place its refund is marked done.
+//
+// Complaints too: a complaint has a 24-hour clock, and ops is often on a
+// phone when the Telegram alert arrives. Six tabs at 10px still fit a 360px
+// screen; the Start pilot clean link stays on the Bookings page.
 const adminItems: NavItem[] = [
   { href: '/vendors', label: 'Vendors', icon: IconBuildingStore },
   { href: '/bookings', label: 'Bookings', icon: IconCalendar },
+  { href: '/complaints', label: 'Complaints', icon: IconMessageReport },
   { href: '/refunds', label: 'Refunds', icon: IconReceiptRefund },
   { href: '/discounts', label: 'Discounts', icon: IconDiscount2 },
   { href: '/coverage', label: 'Coverage', icon: IconMap },

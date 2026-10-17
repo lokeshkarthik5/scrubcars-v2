@@ -202,7 +202,14 @@ function DraftBanner() {
   )
 }
 
-export function LegalPage({ doc }: { doc: LegalDoc }) {
+export function LegalPage({
+  doc,
+  afterIntro,
+}: {
+  doc: LegalDoc
+  /** Something live under the intro (the Contact page's complaint entry). Not in the Markdown copy. */
+  afterIntro?: React.ReactNode
+}) {
   const effective = orTbc(EFFECTIVE_DATE, 'date this takes effect')
 
   return (
@@ -247,6 +254,8 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
         {doc.intro.map((block, index) => (
           <Block key={index} block={block} />
         ))}
+
+        {afterIntro}
 
         {doc.toc && (
           <nav

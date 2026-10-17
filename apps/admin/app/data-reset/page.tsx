@@ -28,6 +28,7 @@ import {
   ChainRow,
   CheckingLine,
   CheckoutRow,
+  ComplaintsRow,
   ConfirmDelete,
   DryRunSummary,
   ResultSummary,
@@ -113,6 +114,10 @@ function StartPilotClean({
   const [tickedCheckouts, setTickedCheckouts] = useState<Set<string>>(new Set())
   const [untickedChains, setUntickedChains] = useState<Set<string>>(new Set())
   const [untickedCheckouts, setUntickedCheckouts] = useState<Set<string>>(new Set())
+  // A cutoff run's complaints are one row with one tick; `untickedComplaints`
+  // remembers the owner took it off, across "Load again", like the rows.
+  const [tickedComplaints, setTickedComplaints] = useState(false)
+  const [untickedComplaints, setUntickedComplaints] = useState(false)
 
   const [dryRun, setDryRun] = useState<DataResetPreview | null>(null)
   const [downloaded, setDownloaded] = useState(false)
@@ -131,8 +136,12 @@ function StartPilotClean({
   }, [mode, cutoffIso])
 
   const only = useMemo(
-    () => ({ chainIds: [...tickedChains], checkoutIds: [...tickedCheckouts] }),
-    [tickedChains, tickedCheckouts]
+    () => ({
+      chainIds: [...tickedChains],
+      checkoutIds: [...tickedCheckouts],
+      complaints: tickedComplaints,
+    }),
+    [tickedChains, tickedCheckouts, tickedComplaints]
   )
 
   // Each step's heading takes focus as it opens, so a screen reader hears
@@ -176,6 +185,7 @@ function StartPilotClean({
               untickedCheckouts
             )
           )
+          setTickedComplaints(data.complaints.selected && !untickedComplaints)
         },
         onError: (err) => {
           if (version === scopeVersion.current) {
@@ -229,7 +239,9 @@ function StartPilotClean({
   const keptCount = listing
     ? [...listing.chains, ...listing.checkouts].filter((row) => row.kept).length
     : 0
-  const nothingTicked = tickedChains.size === 0 && tickedCheckouts.size === 0
+  const hasComplaints = (listing?.complaints.count ?? 0) > 0
+  const nothingTicked =
+    tickedChains.size === 0 && tickedCheckouts.size === 0 && !(hasComplaints && tickedComplaints)
   // Ticked past what one run deletes: the run takes the oldest, the rest wait.
   const overCap =
     Math.max(0, tickedChains.size - maxChainsPerRun) +
@@ -342,6 +354,8 @@ function StartPilotClean({
                       setTickedCheckouts(tickAll(deletable.checkouts, maxCheckoutsPerRun).ticked)
                       setUntickedChains(new Set())
                       setUntickedCheckouts(new Set())
+                      setTickedComplaints(hasComplaints)
+                      setUntickedComplaints(false)
                     }}
                     className="min-h-11 px-2 font-medium text-text-primary underline-offset-2 hover:underline"
                   >
@@ -354,6 +368,8 @@ function StartPilotClean({
                       setTickedCheckouts(new Set())
                       setUntickedChains(new Set(deletable.chains))
                       setUntickedCheckouts(new Set(deletable.checkouts))
+                      setTickedComplaints(false)
+                      setUntickedComplaints(hasComplaints)
                     }}
                     className="min-h-11 px-2 font-medium text-text-primary underline-offset-2 hover:underline"
                   >
@@ -391,6 +407,24 @@ function StartPilotClean({
                         onToggle={(on) => tickCheckout(checkout.id, on)}
                       />
                     ))}
+                  </ul>
+                </>
+              )}
+
+              {hasComplaints && (
+                <>
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                    Customer complaints
+                  </p>
+                  <ul aria-label="Complaints in scope" className="flex flex-col gap-1.5">
+                    <ComplaintsRow
+                      complaints={listing.complaints}
+                      checked={tickedComplaints}
+                      onToggle={(on) => {
+                        setTickedComplaints(on)
+                        setUntickedComplaints(!on)
+                      }}
+                    />
                   </ul>
                 </>
               )}

@@ -18,6 +18,50 @@ reconstructing every change in them.
 
 ### Added
 
+- **Complaint reference numbers with a response clock** (migration
+  `0035_complaints`, additive: a `complaint_number_seq` sequence and a
+  `complaints` table; no data step). Owner decision, 17 Oct 2026: every
+  complaint gets a number and a visible clock, matching the Contact page's
+  promise to acknowledge within 24 hours and resolve within 7 days.
+  - `POST /users/me/complaints { category, message, bookingId? }` and
+    `GET /users/me/complaints` (signed-in customer; mounted inside the users
+    routes like Home). The booking must be the customer's own (anyone
+    else's is 404 `BOOKING_NOT_FOUND`) and brings its garage; the schema is
+    `.strict()`, so no garage, status or user id can be sent. Name, phone,
+    booking reference and garage name are snapshotted on the row, and every
+    foreign key is `ON DELETE SET NULL`, so `DELETE /users/me`, the
+    test-data reset and Delete forever from the Bin keep the complaint.
+  - The number (`C-000123`) comes from a sequence: concurrent complaints
+    never wait on each other, and a rolled-back insert leaves a gap (a
+    receipt number could not; a complaint number can).
+  - Limits per customer, read under a per-customer advisory lock taken on
+    its own (outside the booking-write lock order): at most 5 open or
+    acknowledged (409 `COMPLAINT_LIMIT_OPEN`) and 3 an hour (429
+    `COMPLAINT_RATE_LIMIT`).
+  - Admin (`modules/complaints`, super-admin, mounted at
+    `/admin/complaints`): `GET /?show=open|overdue|resolved|all` with every
+    filter's count, `GET /:id`, `POST /:id/acknowledge`, `POST /:id/resolve
+    { resolutionNote }` (required; the customer reads it), `POST /:id/close
+    { resolutionNote? }`, `PUT /:id/note { adminNote }` (never sent to the
+    customer). Each move is a conditional update from the statuses it may
+    start from (409 `COMPLAINT_STATUS_CHANGED` otherwise) and records who
+    did it by name. Resolving or closing an open complaint stamps the
+    acknowledgement at the same moment.
+  - The clock: `lib/complaints.ts` (pure, unit-tested), the twin of
+    `packages/core/src/complaints.ts` (parity test). Overdue is open past
+    24 hours, or not resolved or closed past 7 days; the admin list's SQL
+    compares against cutoffs worked out from the same constants.
+  - Telegram: `complaint_received` ("📣 New complaint C-000123 · Payment or
+    refund", the garage and booking, the customer's first name, their words
+    quoted and scrubbed, "Acknowledge by …" and the admin link), through
+    `alertOps`, so Production only.
+  - Start pilot clean: a cutoff run lists the complaints made before the
+    cutoff as one row with one tick (`only.complaints`; ticked on the first
+    look, unticked when `only` leaves it out), counts them (`complaints`,
+    "3 complaints"), deletes them before the bookings, puts their ids in
+    the fingerprint (only when there are any) and their ids in the audit
+    row. A run of complaints alone types `DELETE 3 COMPLAINTS`.
+
 - **The garage Bin: move to bin, restore, delete forever** (migration
   `0034_garage_bin`, additive: `vendors.deleted_at`, `deleted_by_name`,
   `deleted_reason`, `purged_at`, a CHECK that only a garage in the Bin is

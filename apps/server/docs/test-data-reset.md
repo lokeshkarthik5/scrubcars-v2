@@ -25,7 +25,14 @@ from):
 - its checkout (booking intent), and, in a cutoff run, every checkout opened
   before the cutoff that never became a booking (abandoned or failed), with
   its refund records;
-- the receipt numbers issued on those bookings (see below).
+- the receipt numbers issued on those bookings (see below);
+- in a cutoff run, every customer complaint made before the cutoff
+  (migration 0035), as one ticked row of the list: "4 complaints made before
+  the cutoff (C-000001 to C-000004)". Untick it to keep them. Complaints are
+  not part of any booking's chain: one about a booking that is deleted, but
+  made after the cutoff, stays, with its booking reference and no link. The
+  numbering does not restart: the next complaint carries on from the last
+  number issued.
 
 **Kept, always**: garages, services, photos and logos, offers and promo
 codes (their usage counts drop by themselves, because usage is counted from
