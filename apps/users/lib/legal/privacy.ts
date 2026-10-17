@@ -183,6 +183,10 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
+          text: '**Saved garages (new, Oct 2026).** Customers can now save garages with a heart; the list of which garages someone saved is kept on their account, shown only to them, and deleted with the account (or with the garage). It is personal data not yet in the table above: please say whether it needs a row (it would sit under "You", used for "Showing you the garages you saved") or is covered by the account row. Complaints our team logs from a call or WhatsApp are linked to the account with that phone number, so the customer sees them in the app; that is the existing "What you tell our team" row.',
+        },
+        {
+          kind: 'note',
           text: '**Profile photos keep their metadata.** Customer profile photos are uploaded as-is, so a photo taken on a phone can carry its GPS location in its metadata at a public link. Garage job photos are re-encoded, which strips it. The row now says so. Recommend re-encoding avatars in the browser before upload (reuse `resizeForUpload` from apps/vendors/lib/resize-image.ts, moved to a shared package) and then dropping that sentence.',
         },
       ],

@@ -70,6 +70,10 @@ export function UpdatesScreen() {
             onDismiss={() => dismissRate.mutate(card.bookingId)}
           />
         )
+      case 'complaint_resolved':
+        // Never under To do: an answer is not something to do. Its row is
+        // in the feed below.
+        return null
     }
   }
 

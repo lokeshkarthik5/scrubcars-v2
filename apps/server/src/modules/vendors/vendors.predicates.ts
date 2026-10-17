@@ -80,10 +80,18 @@ export function vendorNotInBin(): SQL {
  * write all look a garage up through this.
  */
 export function vendorPageOpen(id: string): SQL {
-  return and(
-    eq(vendors.id, id),
-    eq(vendors.status, 'active'),
-    eq(vendors.isVerified, true),
-    vendorNotInBin()
-  )!
+  return and(eq(vendors.id, id), ...pageOpenConditions())!
+}
+
+/**
+ * The same rule over every garage, for a read that joins `vendors` (the
+ * customer's Saved garages): Active, verified and not in the Bin, paused or
+ * not.
+ */
+export function vendorPagesOpen(): SQL {
+  return and(...pageOpenConditions())!
+}
+
+function pageOpenConditions(): SQL[] {
+  return [eq(vendors.status, 'active'), eq(vendors.isVerified, true), vendorNotInBin()]
 }

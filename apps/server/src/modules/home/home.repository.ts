@@ -3,6 +3,7 @@ import { db } from '../../db/index.js'
 import {
   bookingItems,
   bookings,
+  complaints,
   discounts,
   notices,
   noticeDismissals,
@@ -452,6 +453,39 @@ export const homeRepository = {
    * Moves the read marker forward to `at`, never past now and never back:
    * opening Updates on an old tab must not mark newer rows unread again.
    */
+  /**
+   * The customer's complaints the team moved on since `since` (acknowledged,
+   * resolved or closed), for Updates and Home's soft card. Only the times
+   * and whether there is an answer: never the team's note or names. Found
+   * by complaints_user_id_created_at_idx; a customer has a handful.
+   */
+  async listAnsweredComplaints(userId: string, since: Date) {
+    const rows = await db
+      .select({
+        id: complaints.id,
+        number: complaints.number,
+        status: complaints.status,
+        acknowledgedAt: complaints.acknowledgedAt,
+        resolvedAt: complaints.resolvedAt,
+        closedAt: complaints.closedAt,
+        hasAnswer: sql<boolean>`${complaints.resolutionNote} is not null`,
+      })
+      .from(complaints)
+      .where(
+        and(
+          eq(complaints.userId, userId),
+          or(
+            gte(complaints.acknowledgedAt, since),
+            gte(complaints.resolvedAt, since),
+            gte(complaints.closedAt, since)
+          )
+        )
+      )
+      .orderBy(desc(complaints.createdAt))
+      .limit(50)
+    return rows.map((row) => ({ ...row, hasAnswer: Boolean(row.hasAnswer) }))
+  },
+
   async markUpdatesSeen(userId: string, at: Date) {
     await db
       .update(users)

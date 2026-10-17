@@ -2,7 +2,12 @@ import { apiClient } from './client'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
-import type { ComplaintCategory, ComplaintStatus } from '@repo/core/complaints'
+import type {
+  ComplaintCategory,
+  ComplaintSource,
+  ComplaintStatus,
+  LoggedComplaintSource,
+} from '@repo/core/complaints'
 
 export interface AdminVendor {
   id: string
@@ -1676,7 +1681,10 @@ export interface AdminComplaint {
   category: ComplaintCategory
   message: string
   customer: {
-    /** Null once the account is deleted; name and phone are as they were. */
+    /**
+     * Null once the account is deleted, or for a logged complaint whose
+     * phone had no account; name and phone are as they were.
+     */
     id: string | null
     name: string
     phone: string
@@ -1700,6 +1708,13 @@ export interface AdminComplaint {
   resolvedBy: string | null
   closedAt: string | null
   closedBy: string | null
+  /** 'app' when the customer raised it; otherwise how the team heard it. */
+  source: ComplaintSource
+  /** Who in the team logged it (the name typed); null for 'app'. */
+  loggedBy: string | null
+  /** When Detlio received it: the clock runs from here. */
+  receivedAt: string
+  /** When the row was written (the same moment, for an app complaint). */
   createdAt: string
   updatedAt: string
   acknowledgeBy: string
@@ -1718,6 +1733,49 @@ export interface AdminComplaintList {
 /** GET /admin/complaints?show= */
 export async function listAdminComplaints(show: AdminComplaintFilter): Promise<AdminComplaintList> {
   return apiClient<AdminComplaintList>('/admin/complaints', { params: { show } })
+}
+
+/** What the team types to log a complaint that came by phone, WhatsApp, email or in person. */
+export interface LogComplaintInput {
+  /** Ten digits, or any way of writing them (+91, spaces). */
+  phone: string
+  /** Used only when no account has this phone. */
+  customerName?: string
+  source: LoggedComplaintSource
+  category: ComplaintCategory
+  message: string
+  /** The booking's 8-character reference, with or without #. */
+  bookingRef?: string
+  /** When Detlio received it (ISO); up to 7 days back. Left out, now. */
+  receivedAt?: string
+  /** The name of whoever is logging it. */
+  loggedBy: string
+}
+
+/** POST /admin/complaints — answers with the complaint as admin sees it. */
+export async function logAdminComplaint(input: LogComplaintInput): Promise<AdminComplaint> {
+  return apiClient<AdminComplaint>('/admin/complaints', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** What the log form's look-ups found. A key is absent when it was not asked. */
+export interface ComplaintLookup {
+  /** The account with this phone (its name only), or null when there is none. */
+  customer?: { name: string } | null
+  booking?:
+    | { found: true; reference: string; garageName: string | null; scheduledAt: string; status: string }
+    | { found: false; refusal: 'not_found' | 'not_theirs' | 'ambiguous' }
+    | null
+}
+
+/** GET /admin/complaints/lookup?phone=&bookingRef= */
+export async function lookupForComplaint(params: { phone?: string; bookingRef?: string }): Promise<ComplaintLookup> {
+  const query: Record<string, string> = {}
+  if (params.phone) query.phone = params.phone
+  if (params.bookingRef) query.bookingRef = params.bookingRef
+  return apiClient<ComplaintLookup>('/admin/complaints/lookup', { params: query })
 }
 
 /** GET /admin/complaints/:id */

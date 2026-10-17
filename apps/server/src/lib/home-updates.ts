@@ -22,6 +22,11 @@
  *     looked lights the bell.
  *   - Unread is anything after the moment the customer last opened Updates
  *     (users.updates_seen_at, or the account's creation when never opened).
+ *   - A complaint of theirs (raised in the app, or logged by the team for
+ *     their phone number) adds a row when the team acknowledges it, resolves
+ *     it or closes it, each opening My complaints, where the answer is.
+ *     Resolving or closing an open one stamps the acknowledgement at the same
+ *     moment; that is the answer, not a second step, so it is one row.
  *
  * No row promises a message: nothing is sent by push, SMS or WhatsApp yet,
  * so nothing here says "we'll notify you" (lib/copy-rules.ts).
@@ -32,6 +37,7 @@ import { receiptAvailability, REFUND_METHODS } from './receipts.js'
 import { bookingRefundTotals, isRazorpayRefundId } from './refunds.js'
 import { addDays, istDateKey, istMidnight, istSlotShortLabel, istTimeLabel, istWeekdayLabel } from './ist.js'
 import type { BookingType } from './booking-types.js'
+import { formatComplaintNumber, type ComplaintStatus } from './complaints.js'
 
 export const UPDATES_WINDOW_DAYS = 30
 export const MAX_UPDATES = 100
@@ -113,6 +119,9 @@ export type UpdateKind =
   | 'refunded'
   | 'moved'
   | 'garage_paused'
+  | 'complaint_acknowledged'
+  | 'complaint_resolved'
+  | 'complaint_closed'
 
 export interface UpdateItem {
   /** Stable across reads: kind plus what it is about. */
@@ -405,6 +414,71 @@ export interface PausedGarage {
   pausedAt: Date
 }
 
+/**
+ * One of the customer's complaints, as Updates and Home read it: only the
+ * times the team moved it, never the team's note or who handled it.
+ */
+export interface HubComplaint {
+  id: string
+  /** The sequence number; printed C-000123 (formatComplaintNumber). */
+  number: number
+  status: ComplaintStatus
+  acknowledgedAt: Date | null
+  resolvedAt: Date | null
+  closedAt: Date | null
+  /** Whether the team wrote the customer an answer (resolution_note). */
+  hasAnswer: boolean
+}
+
+/** Where a complaint row goes: Profile's My complaints, which shows the answer. */
+export const MY_COMPLAINTS_PATH = '/profile#my-complaints'
+
+/** The rows the team's answers to the customer's complaints make. */
+function complaintRows(complaints: HubComplaint[]): Draft[] {
+  const rows: Draft[] = []
+  for (const complaint of complaints) {
+    const number = formatComplaintNumber(complaint.number)
+    const about = { linkUrl: MY_COMPLAINTS_PATH }
+    const answeredAt = complaint.resolvedAt ?? complaint.closedAt
+    // Resolving or closing an open complaint stamps its acknowledgement at
+    // that same moment: one step, so one row.
+    const separateAck =
+      complaint.acknowledgedAt !== null &&
+      (answeredAt === null || complaint.acknowledgedAt.getTime() < answeredAt.getTime())
+    if (separateAck) {
+      rows.push(draft({
+        ...about,
+        id: `complaint_ack:${complaint.id}`,
+        kind: 'complaint_acknowledged',
+        at: complaint.acknowledgedAt!,
+        title: `We're looking into complaint ${number}`,
+      }))
+    }
+    if (complaint.resolvedAt) {
+      rows.push(draft({
+        ...about,
+        id: `complaint_resolved:${complaint.id}`,
+        kind: 'complaint_resolved',
+        at: complaint.resolvedAt,
+        title: `Complaint ${number} resolved — see our answer`,
+      }))
+    }
+    if (complaint.status === 'closed' && complaint.closedAt) {
+      // After a resolution its answer has a row already; closing one without
+      // resolving it may still carry a note ("A duplicate of C-000122").
+      const newNote = complaint.hasAnswer && !complaint.resolvedAt
+      rows.push(draft({
+        ...about,
+        id: `complaint_closed:${complaint.id}`,
+        kind: 'complaint_closed',
+        at: complaint.closedAt,
+        title: newNote ? `Complaint ${number} closed — see our note` : `Complaint ${number} closed`,
+      }))
+    }
+  }
+  return rows
+}
+
 /** Booking-window notices about the customer's own bookings, one row each. */
 function noticeRows(bookings: HubBooking[], notices: NoticeRow[]): Draft[] {
   const rows: Draft[] = []
@@ -445,6 +519,8 @@ export function deriveUpdates(input: {
    * be older than the window: "isn't taking new bookings", plainly.
    */
   pausedGarages?: PausedGarage[]
+  /** The customer's complaints the team has moved on (acknowledged, resolved or closed). */
+  complaints?: HubComplaint[]
   /** updates_seen_at, or the account's creation when never opened. */
   seenAt: Date
   now: Date
@@ -468,6 +544,7 @@ export function deriveUpdates(input: {
   const rest = [
     ...input.bookings.flatMap((booking) => bookingRows(booking, now)),
     ...pausedRows(input.bookings, input.pausedGarages ?? [], now),
+    ...complaintRows(input.complaints ?? []),
   ]
     .filter(inWindow)
     .sort(newestFirst)

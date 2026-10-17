@@ -6,6 +6,7 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
+import { favouritesRoutes } from '../favourites/favourites.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
 import * as usersController from './users.controller.js'
 import {
@@ -30,6 +31,9 @@ usersRoutes.route('/me', homeRoutes)
 
 // The customer's complaints: /me/complaints. Same mounting, same check.
 usersRoutes.route('/me', customerComplaintRoutes)
+
+// The customer's saved garages: /me/favourites. Same mounting, same check.
+usersRoutes.route('/me', favouritesRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

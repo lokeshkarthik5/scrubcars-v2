@@ -7,6 +7,7 @@ import type { CustomerComplaint } from '@repo/core/api/complaints'
 import { useMyComplaints } from '@repo/core/api/hooks/use-complaints'
 import {
   COMPLAINT_CATEGORY_LABELS,
+  COMPLAINT_SOURCE_CUSTOMER_LINES,
   COMPLAINT_STATUS_LABELS,
   formatComplaintDate,
   type ComplaintStatus,
@@ -38,7 +39,7 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
             {COMPLAINT_STATUS_LABELS[complaint.status]}
           </ScBadge>
           <span className="ml-auto font-numeric text-[11px] text-text-muted">
-            {formatComplaintDate(complaint.createdAt)}
+            {formatComplaintDate(complaint.receivedAt)}
           </span>
         </div>
         <p className="text-[12px] text-text-secondary">
@@ -51,6 +52,11 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
           )}
           {complaint.garageName && <> · {complaint.garageName}</>}
         </p>
+        {/* One the team logged from a call or a message: said, so a
+            complaint they never typed here makes sense. */}
+        {complaint.source !== 'app' && (
+          <p className="text-[12px] text-text-muted">{COMPLAINT_SOURCE_CUSTOMER_LINES[complaint.source]}</p>
+        )}
         {/* Their words as recorded: the copy of the complaint the rules ask
             them to be given. */}
         <p className="line-clamp-3 whitespace-pre-wrap break-words text-[12px] text-text-primary">

@@ -6,6 +6,7 @@ import {
   IconArrowUpRight,
   IconBuildingStore,
   IconCalendarOff,
+  IconMessageCheck,
   IconReceipt,
   IconStar,
   IconX,
@@ -19,6 +20,10 @@ import { cn } from '@repo/core/utils'
 type BillCard = Extract<HomeActionCard, { kind: 'bill_due' }>
 type ClosedCard = Extract<HomeActionCard, { kind: 'garage_closed' }>
 type RateCard = Extract<HomeActionCard, { kind: 'rate' }>
+type ComplaintCard = Extract<HomeActionCard, { kind: 'complaint_resolved' }>
+
+/** Profile's My complaints, where the team's answer is (lib/home-updates.ts MY_COMPLAINTS_PATH). */
+export const MY_COMPLAINTS_PATH = '/profile#my-complaints'
 
 /**
  * Where each card's buttons go: the booking's own page, which already does
@@ -202,6 +207,33 @@ export function RateWashCard({
             <IconStar size={24} stroke={1.3} aria-hidden />
           </button>
         ))}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * "Complaint C-000123 resolved": a soft card, in Rate your wash's place,
+ * only when that place is free (no must-act card, no rating to ask), for a
+ * week after the answer while it is unread in Updates. Opening Updates reads
+ * it and the card goes; the answer stays in My complaints. Outlined: the
+ * screen's red is still Book a wash.
+ */
+export function ComplaintAnswerCard({ card }: { card: ComplaintCard }) {
+  return (
+    <section aria-label={`Complaint ${card.number} resolved`} className="hub-card p-5">
+      <div className="flex h-5 items-center justify-between gap-3">
+        <span className="font-numeric text-[13px] text-dim">{card.number}</span>
+        <IconMessageCheck size={20} stroke={1.5} aria-hidden className="shrink-0 text-dim" />
+      </div>
+      <div className="mt-3.5 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[17px] font-medium tracking-[-0.012em] text-text-primary">Complaint resolved</p>
+          <p className="mt-1 truncate text-[13px] text-dim">We&apos;ve answered it.</p>
+        </div>
+        <OutlineLink href={MY_COMPLAINTS_PATH} className="shrink-0">
+          See our answer
+        </OutlineLink>
       </div>
     </section>
   )

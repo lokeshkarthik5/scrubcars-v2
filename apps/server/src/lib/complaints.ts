@@ -12,10 +12,10 @@
  * complaints.parity.test.ts. Change both together.
  */
 
-/** Acknowledge a complaint within this many hours of it being made. */
+/** Acknowledge a complaint within this many hours of Detlio receiving it. */
 export const COMPLAINT_ACKNOWLEDGE_HOURS = 24
 
-/** Resolve a complaint within this many days of it being made. */
+/** Resolve a complaint within this many days of Detlio receiving it. */
 export const COMPLAINT_RESOLVE_DAYS = 7
 
 const HOUR_MS = 60 * 60 * 1000
@@ -41,6 +41,58 @@ export const COMPLAINT_CATEGORY_LABELS: Record<ComplaintCategory, string> = {
   damage: 'Damage to my car',
   app_problem: 'Problem with the app',
   other: 'Something else',
+}
+
+/**
+ * Where a complaint came from (0039, text + CHECK). 'app' is a customer
+ * raising it in the app; the rest are how the team heard it before logging
+ * it on the Complaints tab.
+ */
+export const COMPLAINT_SOURCES = ['app', 'phone', 'whatsapp', 'email', 'in_person', 'other'] as const
+
+export type ComplaintSource = (typeof COMPLAINT_SOURCES)[number]
+
+/** What the team may pick when logging one: everything but the app itself. */
+export const LOGGED_COMPLAINT_SOURCES = ['phone', 'whatsapp', 'email', 'in_person', 'other'] as const satisfies readonly Exclude<ComplaintSource, 'app'>[]
+
+export type LoggedComplaintSource = (typeof LOGGED_COMPLAINT_SOURCES)[number]
+
+/** For the ops alert ("By phone"); the apps have their own copy in packages/core. */
+export const COMPLAINT_SOURCE_LABELS: Record<ComplaintSource, string> = {
+  app: 'In the app',
+  phone: 'By phone',
+  whatsapp: 'On WhatsApp',
+  email: 'By email',
+  in_person: 'In person',
+  other: 'Some other way',
+}
+
+/**
+ * How far back the team may date a complaint it logs: the clock starts when
+ * Detlio received it, not when someone got round to typing it in, and a
+ * week is as far back as anyone needs (the resolve promise is 7 days).
+ */
+export const MAX_RECEIVED_DAYS_BACK = 7
+
+/**
+ * A received time a little in the future is the admin's clock running fast,
+ * not a complaint from tomorrow: within this much it is taken as now.
+ */
+export const RECEIVED_AT_FUTURE_TOLERANCE_MS = 5 * 60 * 1000
+
+/**
+ * When a logged complaint was received, from what the team typed: now when
+ * left out; refused when more than 7 days back, or in the future beyond a
+ * fast clock's few minutes; otherwise as typed, never later than now.
+ */
+export function resolveReceivedAt(
+  typed: Date | null | undefined,
+  now: Date
+): { at: Date } | { refusal: 'too_old' | 'in_future' } {
+  if (!typed) return { at: now }
+  if (typed.getTime() > now.getTime() + RECEIVED_AT_FUTURE_TOLERANCE_MS) return { refusal: 'in_future' }
+  if (typed.getTime() < now.getTime() - MAX_RECEIVED_DAYS_BACK * DAY_MS) return { refusal: 'too_old' }
+  return { at: typed.getTime() > now.getTime() ? now : typed }
 }
 
 export const COMPLAINT_STATUSES = ['open', 'acknowledged', 'resolved', 'closed'] as const
@@ -71,10 +123,15 @@ export function isComplaintFinished(status: ComplaintStatus): boolean {
   return status === 'resolved' || status === 'closed'
 }
 
-export function complaintDueTimes(createdAt: Date): { acknowledgeBy: Date; resolveBy: Date } {
+/**
+ * When it must be acknowledged and resolved by. The clock runs from when
+ * Detlio received it (0039 `received_at`): the moment an app complaint was
+ * made, or the time the team gave when logging a call or a message.
+ */
+export function complaintDueTimes(receivedAt: Date): { acknowledgeBy: Date; resolveBy: Date } {
   return {
-    acknowledgeBy: new Date(createdAt.getTime() + COMPLAINT_ACKNOWLEDGE_HOURS * HOUR_MS),
-    resolveBy: new Date(createdAt.getTime() + COMPLAINT_RESOLVE_DAYS * DAY_MS),
+    acknowledgeBy: new Date(receivedAt.getTime() + COMPLAINT_ACKNOWLEDGE_HOURS * HOUR_MS),
+    resolveBy: new Date(receivedAt.getTime() + COMPLAINT_RESOLVE_DAYS * DAY_MS),
   }
 }
 
@@ -84,11 +141,11 @@ export function complaintDueTimes(createdAt: Date): { acknowledgeBy: Date; resol
  * its acknowledge-by while still open. Right on the moment is not late.
  */
 export function complaintOverdue(
-  complaint: { status: ComplaintStatus; createdAt: Date },
+  complaint: { status: ComplaintStatus; receivedAt: Date },
   now: Date
 ): 'acknowledge' | 'resolve' | null {
   if (isComplaintFinished(complaint.status)) return null
-  const due = complaintDueTimes(complaint.createdAt)
+  const due = complaintDueTimes(complaint.receivedAt)
   if (now.getTime() > due.resolveBy.getTime()) return 'resolve'
   if (complaint.status === 'open' && now.getTime() > due.acknowledgeBy.getTime()) {
     return 'acknowledge'
@@ -97,16 +154,16 @@ export function complaintOverdue(
 }
 
 /**
- * The same rule as complaintOverdue, as the two creation times the admin
+ * The same rule as complaintOverdue, as the two received times the admin
  * list's SQL compares against: a complaint is overdue when it is open and
- * was made before `openMadeBefore`, or is not finished and was made before
- * `unfinishedMadeBefore`. Worked out here so the SQL never restates the
- * hours.
+ * was received before `openReceivedBefore`, or is not finished and was
+ * received before `unfinishedReceivedBefore`. Worked out here so the SQL
+ * never restates the hours.
  */
-export function overdueCutoffs(now: Date): { openMadeBefore: Date; unfinishedMadeBefore: Date } {
+export function overdueCutoffs(now: Date): { openReceivedBefore: Date; unfinishedReceivedBefore: Date } {
   return {
-    openMadeBefore: new Date(now.getTime() - COMPLAINT_ACKNOWLEDGE_HOURS * HOUR_MS),
-    unfinishedMadeBefore: new Date(now.getTime() - COMPLAINT_RESOLVE_DAYS * DAY_MS),
+    openReceivedBefore: new Date(now.getTime() - COMPLAINT_ACKNOWLEDGE_HOURS * HOUR_MS),
+    unfinishedReceivedBefore: new Date(now.getTime() - COMPLAINT_RESOLVE_DAYS * DAY_MS),
   }
 }
 

@@ -6,10 +6,13 @@ import {
   closeAdminComplaint,
   getAdminComplaint,
   listAdminComplaints,
+  logAdminComplaint,
+  lookupForComplaint,
   resolveAdminComplaint,
   setAdminComplaintNote,
   type AdminComplaint,
   type AdminComplaintFilter,
+  type LogComplaintInput,
 } from '@repo/core/api/admin'
 
 /** Hierarchical, as noticeKeys: one invalidation refreshes lists and detail. */
@@ -73,4 +76,34 @@ export function useCloseComplaint(id: string) {
 
 export function useSetComplaintNote(id: string) {
   return useComplaintAction<string>(id, (note) => setAdminComplaintNote(id, note))
+}
+
+/**
+ * Log a complaint that came by phone, WhatsApp, email or in person. The
+ * lists are refreshed and the new one is cached, so its page opens at once.
+ */
+export function useLogComplaint() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: LogComplaintInput) => logAdminComplaint(input),
+    onSuccess: (created) => {
+      queryClient.setQueryData(adminComplaintKeys.detail(created.id), created)
+      void queryClient.invalidateQueries({ queryKey: adminComplaintKeys.lists() })
+    },
+  })
+}
+
+/**
+ * The log form's look-ups, as the team types: whose account a phone is and
+ * which booking a reference is. Only asked with a whole phone or reference
+ * (the caller passes undefined until then).
+ */
+export function useComplaintLookup(params: { phone?: string; bookingRef?: string }) {
+  return useQuery({
+    queryKey: [...adminComplaintKeys.all, 'lookup', params.phone ?? null, params.bookingRef ?? null] as const,
+    queryFn: () => lookupForComplaint(params),
+    enabled: Boolean(params.phone || params.bookingRef),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  })
 }
