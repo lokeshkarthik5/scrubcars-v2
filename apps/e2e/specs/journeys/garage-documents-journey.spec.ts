@@ -175,13 +175,16 @@ test.describe.serial('garage documents @p0', () => {
     const panel = page.getByRole('tabpanel', { name: 'Documents' })
     await expect(panel.getByText('0 of 4 required approved · 4 to review')).toBeVisible()
 
-    // A file opens in a new tab on its five-minute link.
+    // A file opens in a new tab on its five-minute link. The tab's request is
+    // what is checked: headless Chromium has no PDF viewer, so the PDF becomes
+    // a download and the tab itself stays on about:blank.
     const bank = panel.getByRole('group', { name: 'Bank proof', exact: true })
-    const [tab] = await Promise.all([
+    const [tab, signed] = await Promise.all([
       ctx.waitForEvent('page'),
+      ctx.waitForEvent('request', (request) => request.url().includes('X-Amz-Signature')),
       bank.getByRole('button', { name: 'Open Bank proof in a new tab' }).click(),
     ])
-    await expect.poll(() => tab.url()).toContain('X-Amz-Signature')
+    expect(signed.frame().page()).toBe(tab)
     await tab.close()
 
     await panel.getByLabel('Your name').fill('E2E Admin')
