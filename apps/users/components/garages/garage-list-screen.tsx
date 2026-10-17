@@ -31,6 +31,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import {
   coarse,
+  isCitywide,
   shouldOfferLocationPrompt,
   useLocationStore,
 } from '@repo/core/stores/location-store'
@@ -77,25 +78,25 @@ function GarageListContent() {
   const permission = useLocationStore((s) => s.permission)
   const locating = useLocationStore((s) => s.locating)
   const promptDismissedAt = useLocationStore((s) => s.promptDismissedAt)
-  const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
   const refreshPermission = useLocationStore((s) => s.refreshPermission)
   const [locationSheetOpen, setLocationSheetOpen] = useState(false)
 
   const user = profile ?? authUser
 
-  // Coordinates are rounded to ~110 m before they leave the device — finer
-  // than any sort needs, and enough to keep the server's geocode cache warm.
-  const origin = location ? coarse(location) : undefined
+  // "All of Chennai" sends no origin: the list is the whole city, not a
+  // distance from a downtown pin the customer never chose. A phone fix is
+  // rounded to ~110 m before it leaves the device.
+  const citywide = isCitywide(location)
+  const origin = citywide || !location ? undefined : coarse(location)
 
-  // Distance is the most useful default once we know where the customer is,
-  // and impossible before then.
+  // Distance is the default once we know where the customer is.
   const sort: SortKey = chosenSort ?? (origin ? 'distance' : 'relevance')
 
   // Sorting, filtering and paging are all the server's job: the client holds
   // one page at a time and cannot order a list it has not fully seen.
   const {
     vendors,
-    appliedRadiusKm,
+    radiusKm,
     hasMore,
     isLoading,
     isRefreshing,
@@ -117,11 +118,15 @@ function GarageListContent() {
   )
 
   // Where the located half ends. Only meaningful while an origin is known —
-  // without one nothing has a distance, so there is no boundary to mark.
-  const firstUnlocatedIndex =
-    origin && vendors.some((v) => v.distanceKm !== null)
-      ? vendors.findIndex((v) => v.distanceKm === null)
-      : -1
+  // without one nothing has a distance, so there is no boundary to mark. A
+  // list that is all unpinned garages starts with the boundary, so it is
+  // headed by the same line rather than left unexplained.
+  const firstUnlocatedIndex = origin
+    ? vendors.findIndex((v) => v.distanceKm === null)
+    : -1
+  // Located garages always come first, so the first card answers whether
+  // anything was found within the radius.
+  const hasNearby = vendors[0]?.distanceKm != null
 
   // Knowing the permission state lets the header say whether tapping it will
   // pop a browser prompt or silently do nothing because it was already refused.
@@ -165,10 +170,9 @@ function GarageListContent() {
           // Opens our explainer first. Going straight to the browser prompt
           // spends the one ask we get, and a denial cannot be reopened from
           // here — see LocationPromptSheet.
-          onClick={() =>
-            location ? void requestGpsLocation() : setLocationSheetOpen(true)
-          }
+          onClick={() => setLocationSheetOpen(true)}
           disabled={locating}
+          aria-label="Choose location"
           // max-w-full: a button sizes to its longest line, so without it the
           // one-line status ("Location blocked — enable in browser settings")
           // pushed the page 46px wider than a 360px phone instead of being
@@ -178,17 +182,17 @@ function GarageListContent() {
           <div className="flex items-center justify-end gap-1.5">
             <IconMapPin size={15} className="shrink-0 text-text-primary" />
             <span className="text-[14px] font-semibold text-text-primary">
-              {location ? location.label : 'Set location'}
+              {location && !citywide ? location.label : 'Chennai'}
             </span>
           </div>
           <p className="truncate text-[12px] text-text-secondary">
             {locating
               ? 'Finding you…'
-              : location
-                ? (user?.area ?? 'Showing garages near you')
-                : permission === 'denied'
-                  ? 'Location blocked — enable in browser settings'
-                  : 'Tap to sort garages by distance'}
+              : citywide
+                ? permission === 'denied'
+                  ? 'Location blocked — all of Chennai'
+                  : 'All of Chennai'
+                : (user?.area ?? 'Showing garages near you')}
           </p>
         </button>
       }
@@ -266,18 +270,28 @@ function GarageListContent() {
         {/* Pickup & drop is bounded by each garage's own reach from where the
             car is. Without a location the list cannot know that, so it says
             checkout will. */}
-        {serviceMode === 'pickup' && !location && vendors.length > 0 && (
+        {serviceMode === 'pickup' && !origin && vendors.length > 0 && (
           <p className="text-[11px] text-text-muted">
             Set your location to see only garages that collect from your area. Checkout checks your
             address either way.
           </p>
         )}
 
-        {/* Said out loud, because a widened search that looks like a normal one
-            makes a far garage read as nearby. */}
-        {appliedRadiusKm !== null && appliedRadiusKm > 10 && vendors.length > 0 && (
+        {/* How far the list reaches, said once above it. Without it a 45 km
+            garage high on a "Top Rated" list reads as a nearby one; and a list
+            of only unpinned garages needs to say none is within reach. */}
+        {origin && radiusKm !== null && vendors.length > 0 && (
           <p className="text-[11px] text-text-muted">
-            Nothing within 10 km — showing garages within {appliedRadiusKm} km.
+            {hasNearby ? (
+              <>
+                Garages within <span className="font-numeric">{radiusKm}</span> km of you
+                {sort === 'distance' && ', nearest first'}
+              </>
+            ) : (
+              <>
+                No garages within <span className="font-numeric">{radiusKm}</span> km of you yet.
+              </>
+            )}
           </p>
         )}
 
@@ -307,9 +321,16 @@ function GarageListContent() {
             <p className="py-8 text-center text-[13px] text-text-secondary">
               {serviceMode === 'pickup'
                 ? 'No garages pick up near you yet — try At garage or Doorstep.'
-                : serviceMode === 'doorstep' && location
+                : serviceMode === 'doorstep' && !citywide
                   ? 'No garages travel to your area yet.'
-                  : 'No garages found nearby.'}
+                  : origin && radiusKm !== null
+                    ? (
+                      <>
+                        No garages within <span className="font-numeric">{radiusKm}</span> km of
+                        you yet.
+                      </>
+                    )
+                    : 'No garages found.'}
             </p>
           ) : (
             <>
@@ -355,7 +376,7 @@ function GarageListContent() {
         value={sort}
         onChange={setChosenSort}
         onClose={() => setSortOpen(false)}
-        locationUnavailable={!location}
+        locationUnavailable={citywide}
         // No "Top Rated" until a listed garage has a review to rank by.
         ratingAvailable={canSortByRating(vendors, sort, hasMore)}
       />

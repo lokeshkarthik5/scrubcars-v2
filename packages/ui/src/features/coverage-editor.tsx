@@ -10,6 +10,7 @@ import {
   setDoorstepArea,
   type CoverageRing,
 } from '@repo/core/api/coverage'
+import { DEFAULT_DOORSTEP_RADIUS_KM } from '@repo/core/doorstep'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME } from '@repo/core/map'
 import { toast } from 'react-toastify'
 
@@ -111,7 +112,9 @@ export function CoverageEditor({ center, fallbackRadiusKm }: CoverageEditorProps
         {points.length === 0
           ? fallbackRadiusKm
             ? `Tap the map to draw the area you travel to. Until you do, your ${fallbackRadiusKm} km radius applies.`
-            : 'Tap the map to draw the area you travel to.'
+            : // No radius set: the default applies, the same one the server
+              // measures with, so the owner is not told they cover nowhere.
+              `Tap the map to draw the area you travel to. Until you do, the default ${DEFAULT_DOORSTEP_RADIUS_KM} km radius applies.`
           : points.length < 3
             ? `${points.length} of 3 corners — an area needs at least three.`
             : `${points.length} corners. Tap to add more, or save.`}

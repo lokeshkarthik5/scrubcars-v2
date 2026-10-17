@@ -11,6 +11,10 @@ import { SectionHeader } from '@repo/ui/sc/section-header'
 import { submitVendorOnboarding } from '@repo/core/api/vendors'
 import { toast } from 'react-toastify'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
+import {
+  DEFAULT_DOORSTEP_RADIUS_KM,
+  DOORSTEP_RADIUS_PLACEHOLDER,
+} from '@repo/core/doorstep'
 import { cn } from '@repo/core/utils'
 import { OnboardingHeader } from '@/components/onboarding-header'
 
@@ -32,8 +36,9 @@ export default function VendorOnboardingStep3() {
   const [closeTime, setCloseTime] = useState('18:00')
   const [workingDays, setWorkingDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
   // "How do customers get serviced?" This used to be a Pickup & drop
-  // question that switched doorstep on with no distance — a garage that goes
-  // to customers but nowhere in particular, which no address ever matched.
+  // question that switched doorstep on with no distance, which then matched
+  // no address. The distance is still asked for here, but it is optional: left
+  // empty, the garage covers the default 10 km from its pin.
   const [mode, setMode] = useState<ServiceMode>('garage')
   const [radiusKm, setRadiusKm] = useState('')
   const [bays, setBays] = useState('')
@@ -42,13 +47,11 @@ export default function VendorOnboardingStep3() {
 
   const doorstep = mode === 'doorstep'
   const radius = Number(radiusKm)
+  const radiusGiven = doorstep && radiusKm.trim() !== ''
   const radiusError =
-    doorstep &&
-    (radiusKm.trim() === '' ||
-      !Number.isFinite(radius) ||
-      radius < MIN_RADIUS_KM ||
-      radius > MAX_RADIUS_KM)
-      ? `Enter how far you'll go, from ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} km.`
+    radiusGiven &&
+    (!Number.isFinite(radius) || radius < MIN_RADIUS_KM || radius > MAX_RADIUS_KM)
+      ? `Enter how far you'll go, from ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} km, or leave it empty.`
       : null
   const bayCount = Number(bays)
   const baysError =
@@ -70,7 +73,7 @@ export default function VendorOnboardingStep3() {
     if (radiusError || baysError || jobsError) return
     setLoading(true)
     try {
-      const doorstepRadiusKm = doorstep ? radius : null
+      const doorstepRadiusKm = radiusGiven ? radius : null
 
       update({
         dropin: true,
@@ -201,17 +204,19 @@ export default function VendorOnboardingStep3() {
               inputMode="numeric"
               min={MIN_RADIUS_KM}
               max={MAX_RADIUS_KM}
-              placeholder="8"
+              placeholder={DOORSTEP_RADIUS_PLACEHOLDER}
               className="font-numeric"
               value={radiusKm}
               onChange={(e) => setRadiusKm(e.target.value)}
             />
-            {radiusError && radiusKm.trim() !== '' && (
+            {radiusError && (
               <p role="alert" className="mt-1 text-[12px] text-warning">{radiusError}</p>
             )}
             <p className="mt-1 text-[11px] text-text-muted">
-              Customers further away than this won&apos;t see you for doorstep jobs.
-              You can draw an exact area later in Settings.
+              Optional. Leave it empty to use{' '}
+              <span className="font-numeric">{DEFAULT_DOORSTEP_RADIUS_KM}</span> km. Customers
+              further away won&apos;t see you for doorstep jobs. You can draw an exact
+              area later in Settings.
             </p>
           </div>
         )}

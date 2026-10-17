@@ -40,6 +40,7 @@ import {
 } from '@repo/core/support'
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
+import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { OPERATED_BY } from '@/lib/legal/common'
 import { BUSINESS } from '@/lib/legal/details'
 import { LEGAL_LINKS } from '@/lib/legal/routes'
@@ -682,6 +683,14 @@ export function Garages({ garages }: { garages: ApiVendorListItem[] }) {
                       .filter(Boolean)
                       .join(' · ')}
                   </p>
+                  {/* The same sign as the app's cards: a garage in another
+                      town says it is not in Chennai before anyone opens it. */}
+                  {garage.outsideServiceCity && (
+                    <OutsideCityChip
+                      outside={garage.outsideServiceCity}
+                      className="mt-2"
+                    />
+                  )}
                   {garageTags(garage).length > 0 && (
                     <p className="mt-3 flex flex-wrap gap-1.5">
                       {garageTags(garage).map((tag) => (

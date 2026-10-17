@@ -13,7 +13,7 @@ import { bookingTypeParam } from '@repo/core/booking-types'
 import { firstNameOf } from '@repo/core/home-display'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useAuthStore } from '@repo/core/stores/auth-store'
-import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { CustomerShell } from '@/components/customer-shell'
@@ -48,8 +48,9 @@ function HomeHubContent() {
   const dismissRate = useDismissReviewPrompt()
 
   // Rounded to ~110 m before it leaves the phone: Nearby needs a
-  // neighbourhood, not a doorstep.
-  const origin = location ? coarse(location) : null
+  // neighbourhood, not a doorstep. "All of Chennai" is a city choice, not a
+  // place the customer stood, so it is not sent.
+  const origin = location && !isCitywide(location) ? coarse(location) : null
   const home = useHome(origin, { enabled: !!authUser })
   const clock = useNow()
 

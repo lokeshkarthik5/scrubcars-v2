@@ -24,11 +24,13 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
+import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
 import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { useSavedGarages, useToggleSavedGarage } from '@repo/core/api/hooks/use-favourites'
 import { categoryLabel } from '@repo/core/categories'
+import { outsideCityLine } from '@repo/core/service-city'
 import {
   bookingTypeParam,
   offeredBookingTypes,
@@ -338,7 +340,7 @@ export default function GaragePage({
   // loading early-return with the other hooks — the query is disabled until
   // both endpoints are known, so it costs nothing while the vendor loads.
   const travel = useTravelTime(
-    activeLocation ? coarse(activeLocation) : null,
+    activeLocation?.source === 'gps' ? coarse(activeLocation) : null,
     vendor ? { lat: vendor.lat, lng: vendor.lng } : null
   )
 
@@ -497,6 +499,13 @@ export default function GaragePage({
               {vendor.area}
             </span>
           </div>
+        )}
+
+        {/* Garages in other towns are part of the pilot; this says plainly
+            where one is before anything is picked, so nobody books it
+            thinking it is in Chennai. Information, not a warning. */}
+        {vendor.outsideServiceCity && (
+          <OutsideCityLine text={outsideCityLine(vendor.outsideServiceCity)} />
         )}
 
         {modes.length > 1 && (

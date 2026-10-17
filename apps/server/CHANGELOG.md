@@ -116,6 +116,10 @@ reconstructing every change in them.
     (`counts.analyticsEvents`, "N usage events"), deleted with the run, and
     not part of the fingerprint.
 
+- `GET /bookings/:id` (and the customer's list) carries the garage's own
+  `mapsUrl` on `vendor`, beside its phone, WhatsApp, address and pin, for the
+  booking page's Directions when the garage has no pin.
+
 - **Garage earnings and payouts** (migration `0038_garage_payouts`,
   additive: `vendor_payouts`, `vendor_payout_items` and
   `vendor_payout_accounts`; no data step). Customers pay Detlio; Detlio pays
@@ -170,6 +174,7 @@ reconstructing every change in them.
 - `GET /bookings/:id` (and the customer's list) carries the garage's own
   `mapsUrl` on `vendor`, beside its phone, WhatsApp, address and pin, for the
   booking page's Directions when the garage has no pin.
+
 
 - **Refunds through Razorpay from the app** (migration
   `0036_razorpay_refunds`: four columns on `refund_records`, its
@@ -412,6 +417,41 @@ reconstructing every change in them.
 - The old outright `DELETE /admin/vendors/:id` and its 409
   `VENDOR_HAS_BOOKINGS`: a garage is deleted from the Bin now.
 
+- **Add garage from a poster, photo, PDF or Tally export** (no migration).
+  `POST /admin/vendor-imports/extract` (super-admin, `AI_IMPORT_RATE_LIMIT`
+  per admin per hour, default 30) takes either `{ source: 'files', files }`
+  (1–5 JPEG/PNG/WebP/PDF as base64, about 3 MB in all so the request stays
+  under Vercel's 4.5 MB body cap; the panel shrinks photos to 2000 px first)
+  or `{ source: 'tally_csv', csv }`, and answers `{ garages: [{ label,
+  draft, fields }] }`: a draft shaped like the create-vendor input and, per
+  field, `sure` / `check` (with a short reason) / `missing`. Nothing is
+  saved and the files are never stored or logged (only counts, sizes and
+  timing), and every Responses call (the text client's too) now sends
+  `store: false`, since the API otherwise keeps the response for at least
+  30 days; the garage is created by the ordinary `POST /admin/vendors`.
+  Photos and PDFs go to OpenAI through `lib/ai.ts`'s new `DocumentClient`
+  (Responses API, `input_image` / `input_file`, strict JSON-schema output,
+  model `AI_VISION_MODEL`, default `gpt-5.5`; 50 s timeout and no retry,
+  under the function's 60 s, now set in `vercel.json`). The model only
+  copies what is written; every decision is plain code in
+  `lib/garage-import/` (unit-tested): phones to 10 digits, "Call" / "on
+  inspection" → On inspection with the fee missing, "from ₹X" → X to check,
+  more than three car sizes or combos kept in the description to check, a
+  missing time never guessed, the owner phone always to check (and, when
+  it was copied from a garage landline, said to be no use for signing in).
+  A Tally CSV
+  is parsed without AI (header → field table in `lib/garage-import/tally.ts`;
+  unknown columns ignored; one garage per row). Every draft is held to the
+  create endpoint's own zod schemas before it is returned. Errors: 503
+  `AI_UNAVAILABLE` (no key, or OpenAI not answering), 422
+  `IMPORT_UNREADABLE`, 413 `IMPORT_TOO_LARGE`. `GET /admin/ai/config` gains
+  `import` (false without `OPENAI_API_KEY`; the CSV import works either
+  way). `POST /admin/vendor-imports/owner-account { phone }` says whose
+  account an owner phone already belongs to (name, customer, garages
+  owned), so the form can say who Create will attach the garage to; a POST
+  so the number stays out of URLs and logs. With `AI_FAKE=1` every file
+  reads as one fixed poster (`FAKE_GARAGE_READING`), for E2E.
+
 - **Live and a "what's missing" checklist on the admin garage list** (no
   migration). `GET /admin/vendors` still returns every garage as one array
   (the Bookings garage filter and other pickers read it), and each now also
@@ -469,6 +509,24 @@ reconstructing every change in them.
   the Foam wash template) and `SERVICES.editorPolish` (no description), for
   `specs/admin/garage-editor.spec.ts`.
 
+- **An "Outside Chennai" sign on garages in other towns** (owner decision,
+  2026-10-16; no migration). Garages in other towns stay in the pilot, but
+  each says it is not in Chennai. `GET /vendors` items, `GET /vendors/:id` and
+  `GET /admin/vendors` rows gain `outsideServiceCity: { town, km } | null`:
+  set when the garage's pin is more than 50 km (`LIST_RADIUS_KM`) from the
+  Chennai centre (13.0827, 80.2707), straight-line, judged before rounding
+  (exactly 50 km is in). `town` is the garage's own city field, tidied
+  (all-capitals or all-lowercase put in title case), or null when it says
+  Chennai (or Madras) or is empty; `km` is a whole number. A garage with no
+  pin is still listed (after the pinned ones, even near a Chennai customer),
+  so its own city field decides: a town other than Chennai gives
+  `{ town, km: null }`, unless its pincode is a Chennai one (600xxx: a suburb
+  such as Tambaram typed as its own town); Chennai or empty gives null
+  (unknown). Null for a garage in the city. A sign only: nothing is hidden or
+  refused. The rule is `lib/service-city.ts` (`SERVICE_CITY`, the
+  one service-city constant, and `outsideServiceCity`, unit-tested); a parity
+  test keeps its centre, reach and distance formula equal to the customer
+  map's (`DEFAULT_CENTER`, `straightLineKm`) and to `@repo/core/service-city`.
 - **Hidden services, from admin** (no migration).
   `GET /admin/vendors/:id/services/hidden` lists a garage's switched-off
   plain services (packages left out, as everywhere in admin), and
@@ -855,6 +913,39 @@ reconstructing every change in them.
   cancelled booking, a no-show of either side or a moved booking. The ×
   (`POST /bookings/:id/review-prompt/dismiss`) is unchanged.
 
+- **Every garage within 50 km, nearest first** (owner decision, 2026-10-16;
+  no migration). `GET /vendors` with a location searches one radius,
+  `LIST_RADIUS_KM` = 50 (`lib/discovery.ts`, unit-tested), the same on every
+  page, in place of the 10 → 25 → 50 km ladder. The ladder stopped at the
+  first ring with anything in it, so one garage within 10 km hid every garage
+  11–50 km away, and page 2 restarted it at 10 km and could skip from page 1
+  straight to the unpinned tail. The response gains `radiusKm`, the bound
+  searched (set whenever a radius applied, even with no results; null with no
+  location, for doorstep, for the map's `bbox` and for a typed search).
+  `appliedRadiusKm` is **deprecated and always null**, so web bundles from
+  the ladder days print nothing rather than "Nothing within 10 km"; remove it
+  in a later release. An explicit `radiusKm` (at most 50) is still honoured.
+- **A typed search (`q`) has no radius**: a garage is found by its name
+  wherever it is, still nearest first when there is a location.
+- **Home's Nearby card counts within 50 km** (`NEARBY_RADIUS_KM` is now
+  `LIST_RADIUS_KM`), matching the pinned part of the list; `nearby.radiusKm`
+  reads 50.
+- **The doorstep travel radius is optional** (owner decision). A doorstep
+  garage with no radius and no drawn area covers `DEFAULT_DOORSTEP_RADIUS_KM`
+  = 10 km from its pin (`lib/doorstep.ts`, with a parity test against its
+  `@repo/core/doorstep` twin) in the Doorstep list *and* in the check when a
+  doorstep booking or checkout is made (`isWithinDoorstepRadius`), so a garage
+  listed for an address can be booked to it. Before, it covered 0 km and
+  vanished for every customer with a location. `PATCH /vendors/me/job-types`
+  no longer refuses turning doorstep on without a radius
+  (`DOORSTEP_RADIUS_REQUIRED` is no longer sent), and `PATCH /vendors/me`
+  takes `doorstepRadiusKm: null` to clear a saved radius, so the default
+  applies (the garage portal sends it when the field is emptied; before, an
+  emptied field kept the old number).
+- **Unpinned garages are no longer listed on the Doorstep tab**, with or
+  without a location: a doorstep booking checks coverage from the garage's
+  pin, so they could never be booked. Drop-in and browse lists still append
+  them after the located garages.
 - **`DELETE /users/me` refuses a garage owner's account**: 409
   `VENDOR_OWNER_ACCOUNT`, "This number owns a garage on Detlio, so the
   account can't be deleted here. Contact support to close it." Deleting the
@@ -1069,6 +1160,35 @@ reconstructing every change in them.
 - **Accept** is refused once the start time has passed (`BOOKING_START_PASSED`).
 - **Status changes are conditional** on the status read: a simultaneous accept
   and cancel can no longer both succeed (`BOOKING_STATE_CHANGED`, 409).
+
+### Security
+
+- **Login codes are stored as a keyed hash, and deleted after a day.**
+  `otp_verifications.otp_code` now holds ten base64url characters of
+  HMAC-SHA256 over purpose, phone and code (`lib/otp.ts`), keyed by
+  HMAC(`JWT_SECRET`, `'otp-v1'`), and is compared in constant time. No
+  migration and no new env var: the digest fits the existing varchar(10).
+  Codes written before the deploy (plain six digits) are still accepted for
+  their three minutes; that branch (`isPlainOtpRow`) can go in a later
+  release. Each code sent also deletes up to 500 codes that expired more than
+  24 hours ago (by `expires_at`, the indexed column), after the SMS and
+  best effort. BYPASS_PHONES unchanged. The E2E `latestOtp` helper now sets
+  the row to the hash of a code it chooses, since the texted code can no
+  longer be read back.
+- **Admin discount search** builds its pattern with `containsPattern`
+  (`lib/search.ts`) like the other searches; `escapeLike` is split out of it
+  and also used for the final-bill payment note lookup, whose Razorpay id
+  (`pay_…`) carries a LIKE wildcard.
+
+- **The admin's internal vendor notes no longer leave the admin API.**
+  `notes` (the "Notes (optional)" under Onboarding status) was on the vendor
+  response shape, so `GET /vendors/:id` showed it on every public garage page
+  and the garage's own `/vendors/me` payloads carried it too. It is dropped
+  from that shape; the admin vendor endpoints still return it. E2E asserts
+  the public page has no `notes`. Garages can no longer write it either:
+  `notes` is gone from `POST /vendors` and `PATCH /vendors/me` (a sent one is
+  dropped, unit-tested), so a garage cannot wipe the ops note or write one
+  that reads as if staff had.
 
 ## [0.3.0] — 2026-08-28
 

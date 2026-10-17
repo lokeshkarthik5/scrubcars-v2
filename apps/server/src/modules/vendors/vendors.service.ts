@@ -33,6 +33,11 @@ import { categoryLabel } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
+import { listScope } from '../../lib/discovery.js'
+import {
+  outsideServiceCity,
+  type OutsideServiceCity,
+} from '../../lib/service-city.js'
 import { matchedServiceName } from '../../lib/search.js'
 import { isPickupOffered, planPickupChange } from '../../lib/pickup.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
@@ -141,7 +146,10 @@ export type VendorResponse = {
   bays: number | null
   jobsPerDay: number | null
   vehicleTypes: string[]
-  notes: string | null
+  // No `notes`: that column is the admin's internal "Notes (optional)" under
+  // Onboarding status, read only through the admin API. It used to ride on
+  // this shape, which put it on the public garage page's payload
+  // (GET /vendors/:id) and on the garage's own portal.
   isVerified: boolean
   doorstepEnabled: boolean
   dropinEnabled: boolean
@@ -168,6 +176,13 @@ export type PublicVendorResponse = PublicVendorFields & {
   // null when the vendor has no reviews yet — distinct from a rating of 0.
   rating: number | null
   reviewCount: number
+  /**
+   * Set when the garage is pinned more than 50 km from the Chennai centre, or
+   * is unpinned and its own city names another town (km null), so its page
+   * and checkout can say where it is (lib/service-city.ts). Null when it is
+   * in the city, and when it has no pin and says Chennai (unknown).
+   */
+  outsideServiceCity: OutsideServiceCity | null
 }
 
 export type VendorListItemResponse = {
@@ -216,6 +231,11 @@ export type VendorListItemResponse = {
    * See matchedServiceName.
    */
   matchedService: string | null
+  /**
+   * Set when the garage is outside Chennai, for the card's "Outside Chennai ·
+   * Sivakasi" chip. The same rule as the garage page; see outsideServiceCity.
+   */
+  outsideServiceCity: OutsideServiceCity | null
 }
 
 export type VendorListResponse = {
@@ -227,12 +247,19 @@ export type VendorListResponse = {
    */
   nextCursor: string | null
   /**
-   * The radius that actually produced these results, in km. Differs from the
-   * requested one when the search auto-widened, and the UI must say so —
-   * silently returning 25 km results for a 10 km query makes a far garage look
-   * near, which is exactly the trust a distance figure is meant to build.
+   * How far from the customer the located garages were searched, in km: set
+   * whenever a radius applied (an origin, no bbox, not doorstep, no `q`), even
+   * when nothing was found within it, so the screen can say "No garages within
+   * 50 km of you yet." Null when no radius applied.
    */
-  appliedRadiusKm: number | null
+  radiusKm: number | null
+  /**
+   * Deprecated, always null; remove once no web bundle older than this reads
+   * it. It named the ring of the old auto-widening ladder, and bundles from
+   * then print "Nothing within 10 km — showing garages within N km" for any
+   * value over 10, which with one 50 km radius would be on every list.
+   */
+  appliedRadiusKm: null
 }
 
 export type WorkingHoursResponse = {
@@ -443,7 +470,6 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     bays: vendor.bays,
     jobsPerDay: vendor.jobsPerDay,
     vehicleTypes: vendor.vehicleTypes,
-    notes: vendor.notes,
     isVerified: vendor.isVerified,
     doorstepEnabled: vendor.doorstepEnabled,
     dropinEnabled: vendor.dropinEnabled,
@@ -696,23 +722,6 @@ async function getTenantVendor(vendorId: string): Promise<VendorRecord> {
   return vendor
 }
 
-/**
- * Drop-in default. Deliberately not 15 km: nobody drives across a city for a
- * car wash, and a padded list is a worse list. The ladder below handles the
- * small-town case where 10 km genuinely has nothing in it.
- */
-const DEFAULT_RADIUS_KM = 10
-
-/**
- * Tried in order until a page comes back non-empty. Widening is visible to the
- * caller via `appliedRadiusKm` — a silent widen would make a far garage look
- * near, which defeats the point of showing a distance at all.
- *
- * Only used when the caller did not pin a radius themselves; an explicit
- * `radiusKm` is taken as a real constraint, not a suggestion.
- */
-const RADIUS_LADDER_KM = [10, 25, 50]
-
 const DEFAULT_PAGE_SIZE = 20
 
 type Segment = 'located' | 'unlocated'
@@ -819,6 +828,7 @@ export async function vendorCardsFor(
       // From the active services loaded above, the same set the search
       // clause reads.
       matchedService: q ? matchedServiceName(q, vendor) : null,
+      outsideServiceCity: outsideServiceCity(vendor),
     }
   })
 }
@@ -838,70 +848,35 @@ export const vendorsService = {
     const limit = query.limit ?? DEFAULT_PAGE_SIZE
     const { segment: startSegment, offset } = decodeCursor(query.cursor)
 
-    // Doorstep and pickup & drop are bounded by each vendor's own radius, and
-    // the map view is bounded by the viewport. None takes a customer radius,
-    // so none has anything to widen.
-    const usesRadius =
-      origin !== undefined &&
-      query.bbox === undefined &&
-      query.bookingType !== 'doorstep' &&
-      query.bookingType !== 'pickup'
-
-    /**
-     * Whether to append garages that have no coordinates yet.
-     *
-     * On by default, because hiding them is the worse failure. Most garages are
-     * still unpinned, and a geo filter they cannot satisfy would empty the
-     * listing entirely — a customer would see "no garages" for a city full of
-     * them. They are appended after the located ones rather than mixed in,
-     * since there is no honest way to rank a garage whose distance is unknown
-     * against one whose distance is 800 m.
-     *
-     * The map view is the exception and passes false: a garage with no
-     * coordinates cannot be drawn on a map, so there is nothing to show.
-     */
-    //
-    // Pickup & drop is the other: its reach is measured from the garage's pin
-    // and the booking is refused without one (OUTSIDE_PICKUP_RADIUS), so an
-    // unpinned garage in that list could never be booked from it.
-    const includeUnlocated =
-      query.bbox || query.bookingType === 'pickup' ? false : (query.includeUnlocated ?? true)
-
-    const attempts = !usesRadius
-      ? [undefined]
-      : query.radiusKm !== undefined
-        ? [query.radiusKm]
-        : RADIUS_LADDER_KM
+    // The radius (the same on every page) and whether the unpinned tail
+    // follows: lib/discovery.ts, where the rules are unit-tested.
+    const { radiusKm, includeUnlocated } = listScope({
+      hasOrigin: origin !== undefined,
+      bbox: query.bbox,
+      bookingType: query.bookingType,
+      q: query.q,
+      radiusKm: query.radiusKm,
+      includeUnlocated: query.includeUnlocated,
+    })
 
     let page: Array<{ id: string; distanceM: number | null }> = []
-    let appliedRadiusKm: number | null = null
     let segment: Segment = startSegment
     let segmentOffset = offset
 
     // ── Located garages ──────────────────────────────────────────────────────
     if (segment === 'located') {
-      for (const radiusKm of attempts) {
-        page = await vendorsRepository.listPublicVendorPage({
-          origin,
-          radiusM: radiusKm === undefined ? undefined : radiusKm * 1000,
-          bbox: query.bbox,
-          bookingType: query.bookingType,
-          category: query.category,
-          q: query.q,
-          sort,
-          segment: 'located',
-          limit,
-          offset,
-        })
-        // Only claim a radius that actually produced something. Otherwise a
-        // page made entirely of unlocated garages would be labelled "showing
-        // garages within 50 km" — a statement about a radius that matched
-        // nothing, attached to results the radius never touched.
-        appliedRadiusKm = page.length > 0 ? (radiusKm ?? null) : null
-        // Widening only makes sense while looking at the first page. Past that,
-        // an empty page means the list ran out, not that the radius was too tight.
-        if (page.length > 0 || offset > 0) break
-      }
+      page = await vendorsRepository.listPublicVendorPage({
+        origin,
+        radiusM: radiusKm === null ? undefined : radiusKm * 1000,
+        bbox: query.bbox,
+        bookingType: query.bookingType,
+        category: query.category,
+        q: query.q,
+        sort,
+        segment: 'located',
+        limit,
+        offset,
+      })
 
       // The located half is exhausted, so this page continues into the tail.
       if (page.length < limit && includeUnlocated) {
@@ -943,7 +918,8 @@ export const vendorsService = {
       // too, which the segment switch above has already done.
       nextCursor:
         items.length === limit ? encodeCursor(segment, segmentOffset) : null,
-      appliedRadiusKm,
+      radiusKm,
+      appliedRadiusKm: null,
     }
   },
 
@@ -968,6 +944,7 @@ export const vendorsService = {
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
       rating: rating ? Number(rating.average.toFixed(2)) : null,
       reviewCount: rating?.count ?? 0,
+      outsideServiceCity: outsideServiceCity(vendor),
     }
   },
 
@@ -1103,25 +1080,10 @@ export const vendorsService = {
       }
     }
 
-    // Going to customers needs a "how far". Without a radius or a drawn area
-    // the doorstep search matches no address at all, so switching it on would
-    // tell the owner they take doorstep jobs while no customer could book one.
-    if (input.doorstepEnabled === true) {
-      const radius = input.doorstepRadiusKm ?? vendor.doorstepRadiusKm
-      const area =
-        radius == null ? await vendorsRepository.getDoorstepArea(vendor.id) : null
-
-      if (radius == null && !area) {
-        throw new AppError(
-          400,
-          // Names where the setting lives: the doorstep switch is on the
-          // Hours tab, the radius on Location.
-          "Set how far you'll travel for doorstep jobs first, in Settings → Location.",
-          'DOORSTEP_RADIUS_REQUIRED'
-        )
-      }
-    }
-
+    // No "set a radius first" refusal any more. The travel radius is optional
+    // (owner decision, 2026-10-16): a garage that turns doorstep on without
+    // one covers DEFAULT_DOORSTEP_RADIUS_KM from its pin (lib/doorstep.ts),
+    // in the Doorstep list and at booking alike, so it can be found and booked.
     const patch = {
       ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
       ...(input.doorstepEnabled !== undefined && { doorstepEnabled: input.doorstepEnabled }),
