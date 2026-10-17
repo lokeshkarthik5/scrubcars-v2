@@ -26,14 +26,30 @@ const BLOCKED_HOSTS = [
   'www.facebook.com',
 ]
 
+/**
+ * Matches a request to a blocked host, including a subdomain of one.
+ *
+ * The pattern is the filter Playwright uses to decide what to intercept.
+ * A catch-all route that then falls through sends every stylesheet, script
+ * and API call through the test process and back, which is a large part of
+ * how long a page load takes in this suite. Anything that does not match goes
+ * straight to the app.
+ *
+ * Every entry is a dotted hostname, so the only character a regex would treat
+ * specially is the dot. Escaping that here keeps a lookalike like
+ * notcheckout.razorpay.com from matching checkout.razorpay.com.
+ */
+const BLOCKED_URL = new RegExp(
+  '^https?://(?:[a-z0-9-]+\\.)*(?:' +
+    BLOCKED_HOSTS.map((host) => host.replaceAll('.', '\\.')).join('|') +
+    ')(?::\\d+)?(?:[/?#]|$)',
+  'i'
+)
+
+export const isBlockedThirdParty = (url: string) => BLOCKED_URL.test(url)
+
 export async function blockThirdParties(context: BrowserContext) {
-  await context.route('**/*', (route) => {
-    const host = new URL(route.request().url()).hostname
-    if (BLOCKED_HOSTS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`))) {
-      return route.abort('blockedbyclient')
-    }
-    return route.fallback()
-  })
+  await context.route(BLOCKED_URL, (route) => route.abort('blockedbyclient'))
 }
 
 /**
