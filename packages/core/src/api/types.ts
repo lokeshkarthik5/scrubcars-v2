@@ -138,10 +138,17 @@ export interface ApiVendorList {
   /** Opaque; pass back as `cursor`. Null when the list is exhausted. */
   nextCursor: string | null
   /**
-   * The radius that actually produced these results. Differs from the requested
-   * one when the search auto-widened, which the UI must say out loud.
+   * How far from the customer the list reached, in km: set whenever a radius
+   * applied (a location, not doorstep, not the map's viewport, not a typed
+   * search), even with nothing found. Null otherwise. Optional because an API
+   * deployed before the field existed does not send it.
    */
-  appliedRadiusKm: number | null
+  radiusKm?: number | null
+  /**
+   * Deprecated: the old auto-widening ladder's ring, always null from the API
+   * that sends `radiusKm`. Read only as the fallback for an older API.
+   */
+  appliedRadiusKm?: number | null
 }
 
 export interface ApiPublicVendor {
@@ -186,7 +193,6 @@ export interface VendorProfileExtras {
   /** The most jobs it takes in a day. Null is no limit. */
   jobsPerDay: number | null
   vehicleTypes: string[]
-  notes: string | null
   /** When the garage paused new bookings; null while it takes them. */
   bookingsPausedAt: string | null
   bookingsPausedReason: string | null

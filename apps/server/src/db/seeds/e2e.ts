@@ -57,6 +57,9 @@ import {
   REVIEWS,
   SERVICES,
   STAFF,
+  UNSET_RADIUS_COVERED,
+  UNSET_RADIUS_OUTSIDE,
+  UNSET_RADIUS_PIN,
   VEHICLES,
   ADDRESSES,
   VENDORS,
@@ -1224,6 +1227,50 @@ async function seedHomeHubRows() {
   })
 }
 
+/**
+ * The listing spec's doorstep fixture (specs/users/listing-radius.spec.ts): a
+ * doorstep-only garage that left its travel radius empty, so it covers the
+ * default 10 km, and a customer with one address inside that and one outside.
+ * Far from ORIGIN and taking no drop-ins, so no other spec's list sees it.
+ */
+async function seedDoorstepReachRows() {
+  const garage = VENDORS.unsetRadius.id
+
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.unsetRadius.name,
+    phone: '9000005100', address: '1, Beach Road, White Town', city: 'Puducherry',
+    pincode: '605001', lat: UNSET_RADIUS_PIN.lat, lng: UNSET_RADIUS_PIN.lng,
+    geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    // No doorstepRadiusKm and no drawn area: the default is the point.
+    isVerified: true, doorstepEnabled: true, dropinEnabled: false,
+    slotIntervalMins: 30, status: 'active', bays: 5,
+    notes: VENDORS.unsetRadius.notes,
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.unsetRadiusWash.id, vendorId: garage, name: SERVICES.unsetRadiusWash.name,
+    category: 'car_wash', pricingType: 'flat', price: SERVICES.unsetRadiusWash.price,
+    durationMins: SERVICES.unsetRadiusWash.durationMins, isActive: true,
+  })
+
+  const customer = CUSTOMERS.doorstepReach
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Hyundai', model: 'Venue', color: 'Black',
+    licensePlate: 'PY01RR0001', vehicleType: 'hatchback', isDefault: true,
+  })
+  await db.insert(userAddresses).values([
+    { id: ADDRESSES.reachCovered, userId: customer.id, label: 'Home',
+      address: '3, Lake Road, Kalapet', city: 'Puducherry',
+      lat: UNSET_RADIUS_COVERED.lat, lng: UNSET_RADIUS_COVERED.lng, geoSource: 'map_pin',
+      isDefault: true },
+    { id: ADDRESSES.reachOutside, userId: customer.id, label: 'Office',
+      address: '8, ECR, Marakkanam Road', city: 'Puducherry',
+      lat: UNSET_RADIUS_OUTSIDE.lat, lng: UNSET_RADIUS_OUTSIDE.lng, geoSource: 'map_pin',
+      isDefault: false },
+  ])
+}
+
 // ─── admin fixtures ─────────────────────────────────────────────────────────
 
 /**
@@ -1300,6 +1347,8 @@ async function main() {
   await exhaustDiscounts()
   console.log('[e2e-seed] home hub…')
   await seedHomeHubRows()
+  console.log('[e2e-seed] doorstep reach…')
+  await seedDoorstepReachRows()
   console.log('[e2e-seed] admin fixtures…')
   await seedAdminFixtureRows()
   console.log('[e2e-seed] done')

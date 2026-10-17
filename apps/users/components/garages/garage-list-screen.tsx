@@ -94,7 +94,7 @@ function GarageListContent() {
   // one page at a time and cannot order a list it has not fully seen.
   const {
     vendors,
-    appliedRadiusKm,
+    radiusKm,
     hasMore,
     isLoading,
     isRefreshing,
@@ -116,11 +116,15 @@ function GarageListContent() {
   )
 
   // Where the located half ends. Only meaningful while an origin is known —
-  // without one nothing has a distance, so there is no boundary to mark.
-  const firstUnlocatedIndex =
-    origin && vendors.some((v) => v.distanceKm !== null)
-      ? vendors.findIndex((v) => v.distanceKm === null)
-      : -1
+  // without one nothing has a distance, so there is no boundary to mark. A
+  // list that is all unpinned garages starts with the boundary, so it is
+  // headed by the same line rather than left unexplained.
+  const firstUnlocatedIndex = origin
+    ? vendors.findIndex((v) => v.distanceKm === null)
+    : -1
+  // Located garages always come first, so the first card answers whether
+  // anything was found within the radius.
+  const hasNearby = vendors[0]?.distanceKm != null
 
   // Knowing the permission state lets the header say whether tapping it will
   // pop a browser prompt or silently do nothing because it was already refused.
@@ -266,11 +270,21 @@ function GarageListContent() {
           </div>
         </div>
 
-        {/* Said out loud, because a widened search that looks like a normal one
-            makes a far garage read as nearby. */}
-        {appliedRadiusKm !== null && appliedRadiusKm > 10 && vendors.length > 0 && (
+        {/* How far the list reaches, said once above it. Without it a 45 km
+            garage high on a "Top Rated" list reads as a nearby one; and a list
+            of only unpinned garages needs to say none is within reach. */}
+        {origin && radiusKm !== null && vendors.length > 0 && (
           <p className="text-[11px] text-text-muted">
-            Nothing within 10 km — showing garages within {appliedRadiusKm} km.
+            {hasNearby ? (
+              <>
+                Garages within <span className="font-numeric">{radiusKm}</span> km of you
+                {sort === 'distance' && ', nearest first'}
+              </>
+            ) : (
+              <>
+                No garages within <span className="font-numeric">{radiusKm}</span> km of you yet.
+              </>
+            )}
           </p>
         )}
 
@@ -300,7 +314,14 @@ function GarageListContent() {
             <p className="py-8 text-center text-[13px] text-text-secondary">
               {serviceMode === 'doorstep' && !citywide
                 ? 'No garages travel to your area yet.'
-                : 'No garages found nearby.'}
+                : origin && radiusKm !== null
+                  ? (
+                    <>
+                      No garages within <span className="font-numeric">{radiusKm}</span> km of
+                      you yet.
+                    </>
+                  )
+                  : 'No garages found.'}
             </p>
           ) : (
             <>

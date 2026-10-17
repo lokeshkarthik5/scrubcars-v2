@@ -26,6 +26,7 @@ import {
   istDayBounds,
   type BusyInterval,
 } from '../../lib/slots.js'
+import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { financialYearOf, formatReceiptSerial } from '../../lib/receipts.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 
@@ -510,8 +511,10 @@ export const bookingsRepository = {
    *   1. A drawn polygon (`doorstep_area`), when the vendor set one. Real
    *      coverage is rarely circular — a river or a highway cuts it.
    *   2. Otherwise `doorstep_radius_km`, the simple default.
-   * A vendor with neither has not opted into travelling anywhere, which the
-   * COALESCE to 0 expresses precisely.
+   *   3. A garage that left the radius empty covers DEFAULT_DOORSTEP_RADIUS_KM
+   *      (lib/doorstep.ts). The radius is optional, and the Doorstep list
+   *      measures with the same default — a garage listed for an address
+   *      must not then refuse to book it.
    *
    * PostGIS calls are schema-qualified because the extension lives in `gis`;
    * see drizzle/0019_add_geo.sql.
@@ -531,7 +534,7 @@ export const bookingsRepository = {
                ELSE gis.ST_DWithin(
                       v.geo,
                       gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography,
-                      COALESCE(v.doorstep_radius_km, 0) * 1000,
+                      COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000,
                       false
                     )
              END AS covered

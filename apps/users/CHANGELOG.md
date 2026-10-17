@@ -397,6 +397,55 @@ reconstructing every change in them.
 
 ### Changed
 
+- **The garage list, Home and the map show every garage within 50 km**
+  (owner decision, 2026-10-16), nearest first, from the API's new `radiusKm`
+  (`appliedRadiusKm` is deprecated and only read as a fallback from an older
+  API). The list says so above the cards: "Garages within 50 km of you,
+  nearest first" (no ", nearest first" on another sort), or "No garages
+  within 50 km of you yet." when only garages without a pin are listed;
+  "Other garages — location not set yet" now heads a list of only those too.
+  Empty, with a location: "No garages within 50 km of you yet."; without one:
+  "No garages found." The "Nothing within 10 km — showing…" line is gone, and
+  the "Nearby Garages" heading stays. A typed search has no radius.
+- **Home's Nearby card**: "12 garages" / "Within 50 km · nearest 2.3 km"
+  (under 1 km in metres, "400 m"). With none: "No garages within 50 km yet" /
+  "See all garages", opening the garage list rather than an empty map.
+- **The map opens on the customer's whole 50 km.** With a location it lists
+  the nearest 50 within 50 km without waiting for the map ("nearby" mode, no
+  `bbox`), and frames the customer and every pin once per location, with
+  room for the controls on top and the card strip below (`fitPadding` in
+  `lib/map-view.ts`). Without a location ("city" mode) it shows every pinned
+  garage within 50 km of the city centre, nearest the centre first, and frames
+  them all once, so the suburbs are on the opening map; garages in other towns
+  are left off, as for a Chennai customer. "Search this area" (after a real pan) and
+  "Centre on my location" (back to nearby, framed again) work as before; the
+  app's own camera moves never offer "Search this area". Copy: "Showing the
+  nearest 50." and, with none, "No garages within 50 km of you yet." with
+  "See all garages".
+- **Clearer pins.** Each shows the garage's short name (14 characters) over
+  its starting price, white on the dark map, with a tail on the spot and a
+  44 px target; the chosen garage's pin turns red and sits above the rest.
+  Pins that would overlap become a count bubble that zooms in when tapped
+  (grouped in `lib/map-view.ts`, unit-tested, rather than with MapLibre's
+  GeoJSON clustering, which would make the pins wait on the tile server's
+  style). The overlap test is the widest pin (132 px), and the fit leaves
+  half a pin at each side, so no name runs off the screen edge. A bubble
+  whose garages are too close to split (one street, one complex) brings the
+  next one's card up on each tap instead of doing nothing. Tapping a pin
+  brings its card to the middle without moving the map; tapping a card at
+  the side picks it (its pin turns red), panning just far enough to show its
+  pin when that is off screen, and tapping the chosen card opens the garage.
+  The customer is drawn as "You", in "Search this area" too. Choosing a pin
+  keeps keyboard and screen-reader focus on it, and the controls and cards
+  come before the pins in focus order.
+- **Doorstep travel radius is optional** in the garage portal and admin: the
+  inputs read "Default 10 km", onboarding no longer insists on a distance
+  (one given must still be 1–30 km), and Settings turns doorstep on without
+  asking for one first. The coverage editor says the default 10 km applies
+  until an area is drawn. Emptying a saved radius in Settings now clears it
+  (the field shows what was saved), and a doorstep garage with no pin is
+  told, under the switch and by the radius, that customers can't find it for
+  doorstep jobs until it is pinned.
 - **Admin garage forms never leave a service out of a save.** A service with
   a name but no complete price used to be dropped from the save without a
   word, and on the edit screen the server then hid it from customers. Now

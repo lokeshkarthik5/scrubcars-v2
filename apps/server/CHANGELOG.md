@@ -261,6 +261,39 @@ reconstructing every change in them.
 
 ### Changed
 
+- **Every garage within 50 km, nearest first** (owner decision, 2026-10-16;
+  no migration). `GET /vendors` with a location searches one radius,
+  `LIST_RADIUS_KM` = 50 (`lib/discovery.ts`, unit-tested), the same on every
+  page, in place of the 10 → 25 → 50 km ladder. The ladder stopped at the
+  first ring with anything in it, so one garage within 10 km hid every garage
+  11–50 km away, and page 2 restarted it at 10 km and could skip from page 1
+  straight to the unpinned tail. The response gains `radiusKm`, the bound
+  searched (set whenever a radius applied, even with no results; null with no
+  location, for doorstep, for the map's `bbox` and for a typed search).
+  `appliedRadiusKm` is **deprecated and always null**, so web bundles from
+  the ladder days print nothing rather than "Nothing within 10 km"; remove it
+  in a later release. An explicit `radiusKm` (at most 50) is still honoured.
+- **A typed search (`q`) has no radius**: a garage is found by its name
+  wherever it is, still nearest first when there is a location.
+- **Home's Nearby card counts within 50 km** (`NEARBY_RADIUS_KM` is now
+  `LIST_RADIUS_KM`), matching the pinned part of the list; `nearby.radiusKm`
+  reads 50.
+- **The doorstep travel radius is optional** (owner decision). A doorstep
+  garage with no radius and no drawn area covers `DEFAULT_DOORSTEP_RADIUS_KM`
+  = 10 km from its pin (`lib/doorstep.ts`, with a parity test against its
+  `@repo/core/doorstep` twin) in the Doorstep list *and* in the check when a
+  doorstep booking or checkout is made (`isWithinDoorstepRadius`), so a garage
+  listed for an address can be booked to it. Before, it covered 0 km and
+  vanished for every customer with a location. `PATCH /vendors/me/job-types`
+  no longer refuses turning doorstep on without a radius
+  (`DOORSTEP_RADIUS_REQUIRED` is no longer sent), and `PATCH /vendors/me`
+  takes `doorstepRadiusKm: null` to clear a saved radius, so the default
+  applies (the garage portal sends it when the field is emptied; before, an
+  emptied field kept the old number).
+- **Unpinned garages are no longer listed on the Doorstep tab**, with or
+  without a location: a doorstep booking checks coverage from the garage's
+  pin, so they could never be booked. Drop-in and browse lists still append
+  them after the located garages.
 - **`DELETE /users/me` refuses a garage owner's account**: 409
   `VENDOR_OWNER_ACCOUNT`, "This number owns a garage on Detlio, so the
   account can't be deleted here. Contact support to close it." Deleting the
@@ -475,6 +508,18 @@ reconstructing every change in them.
 - **Accept** is refused once the start time has passed (`BOOKING_START_PASSED`).
 - **Status changes are conditional** on the status read: a simultaneous accept
   and cancel can no longer both succeed (`BOOKING_STATE_CHANGED`, 409).
+
+### Security
+
+- **The admin's internal vendor notes no longer leave the admin API.**
+  `notes` (the "Notes (optional)" under Onboarding status) was on the vendor
+  response shape, so `GET /vendors/:id` showed it on every public garage page
+  and the garage's own `/vendors/me` payloads carried it too. It is dropped
+  from that shape; the admin vendor endpoints still return it. E2E asserts
+  the public page has no `notes`. Garages can no longer write it either:
+  `notes` is gone from `POST /vendors` and `PATCH /vendors/me` (a sent one is
+  dropped, unit-tested), so a garage cannot wipe the ops note or write one
+  that reads as if staff had.
 
 ## [0.3.0] — 2026-08-28
 

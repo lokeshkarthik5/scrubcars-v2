@@ -43,6 +43,7 @@ import {
   type AdminWorkingDay,
 } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
+import { DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep'
 import {
   legacyVehicleTypes,
   VENDOR_VEHICLE_TYPE_OPTIONS,
@@ -970,7 +971,7 @@ export default function EditVendorPage({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <ScField label="Pickup radius km (optional)" value={form.pickupRadiusKm} onChange={set('pickupRadiusKm')} type="number" placeholder="e.g. 5" />
-                <ScField label="Doorstep travel radius km" value={form.doorstepRadiusKm} onChange={set('doorstepRadiusKm')} type="number" placeholder="e.g. 8" />
+                <ScField label="Doorstep travel radius km (optional)" value={form.doorstepRadiusKm} onChange={set('doorstepRadiusKm')} type="number" placeholder={DOORSTEP_RADIUS_PLACEHOLDER} />
                 <div className="flex items-end gap-4 pb-1">
                   <ScCheckbox label="Drop-in" checked={dropinEnabled} onChange={setDropinEnabled} />
                   <ScCheckbox label="Doorstep" checked={doorstepEnabled} onChange={setDoorstepEnabled} />
