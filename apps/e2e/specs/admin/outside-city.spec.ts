@@ -12,16 +12,8 @@ import { VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('admin') })
 
-/**
- * The name block at the top of a garage's card: name, phone and the sign.
- * Found from the card's name paragraph, since the pilot card on the same page
- * names garages too (in a span).
- */
-const nameBlock = (page: Page, name: string) =>
-  page
-    .locator('p')
-    .filter({ hasText: new RegExp(`^${name}$`) })
-    .locator('..')
+/** A garage's card on the list: a group named by the garage. */
+const card = (page: Page, name: string) => page.getByRole('group', { name, exact: true })
 
 test.describe('admin garage list @p0', () => {
   test('a garage outside Chennai carries the sign and its distance', async ({
@@ -29,11 +21,11 @@ test.describe('admin garage list @p0', () => {
   }) => {
     await page.goto('/vendors')
 
-    const vellore = nameBlock(page, VENDORS.homePromo.name)
+    const vellore = card(page, VENDORS.homePromo.name)
     await expect(vellore).toContainText('Outside Chennai · Vellore')
     await expect(vellore).toContainText('125 km out')
 
-    await expect(nameBlock(page, VENDORS.main.name)).not.toContainText(
+    await expect(card(page, VENDORS.main.name)).not.toContainText(
       'Outside Chennai'
     )
   })
