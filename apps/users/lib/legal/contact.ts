@@ -12,7 +12,7 @@ import {
   OFFICER_DESIGNATION,
   OFFICER_NAME,
   PHONE_LINK,
-  PROPRIETOR,
+  PROPRIETORSHIP,
   SUPPORT_HOURS,
   WHATSAPP_LINK,
 } from './common'
@@ -60,7 +60,7 @@ export const CONTACT: LegalDoc = {
           kind: 'list',
           items: [
             `**Brand:** ${BUSINESS.brand}`,
-            `**Operated by:** ${BUSINESS.tradeName}, a sole proprietorship of ${PROPRIETOR}`,
+            `**Operated by:** ${BUSINESS.tradeName}, ${PROPRIETORSHIP}`,
             `**Address:** ${BUSINESS.address}`,
             '**Branches:** none',
           ],

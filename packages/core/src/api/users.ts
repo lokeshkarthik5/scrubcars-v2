@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { stripImageMetadata } from '@repo/core/image-upload'
 import {
   mapAddress,
   mapUserProfile,
@@ -91,14 +92,18 @@ export async function deleteAvatar(): Promise<User> {
   return mapUserProfile(profile)
 }
 
-/** Full avatar upload flow: presign → PUT to R2 → save URL on the profile. */
+/**
+ * Full avatar upload flow: strip the photo's location metadata → presign →
+ * PUT to R2 → save URL on the profile.
+ */
 export async function uploadAvatar(file: File): Promise<User> {
-  const contentType = file.type as UploadContentType
+  const clean = await stripImageMetadata(file)
+  const contentType = clean.type as UploadContentType
   const { uploadUrl, publicUrl } = await getAvatarUploadUrl(contentType)
 
   const put = await fetch(uploadUrl, {
     method: 'PUT',
-    body: file,
+    body: clean,
     headers: { 'Content-Type': contentType },
   })
   if (!put.ok) {

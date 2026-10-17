@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { stripImageMetadata } from '@repo/core/image-upload'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import {
   mapBooking,
@@ -31,8 +32,9 @@ export interface VendorListParams {
   lat?: number
   lng?: number
   /**
-   * Drop-in only. Doorstep is bounded by each garage's own travel radius, since
-   * the question there is "who will come to me".
+   * Drop-in only, and at most 50. Left out, the server reaches 50 km. Doorstep
+   * is bounded by each garage's own travel radius, since the question there is
+   * "who will come to me", and a typed search (`q`) has no radius at all.
    */
   radiusKm?: number
   /** Viewport for the map view's "search as I move the map". */
@@ -55,10 +57,11 @@ export interface VendorListResult {
   vendors: Vendor[]
   nextCursor: string | null
   /**
-   * The radius these results actually came from. Worth surfacing: silently
-   * showing 25 km results for a 10 km search makes a far garage look near.
+   * How far from the customer the list reached, in km, or null when no radius
+   * applied. Set even when nothing was found within it, so a screen can say
+   * "No garages within 50 km of you yet." rather than a bare "none".
    */
-  appliedRadiusKm: number | null
+  radiusKm: number | null
 }
 
 /** GET /vendors */
@@ -85,7 +88,9 @@ export async function getVendors(
   return {
     vendors: result.items.map(mapVendorListItem),
     nextCursor: result.nextCursor,
-    appliedRadiusKm: result.appliedRadiusKm,
+    // An API from before `radiusKm` sends only the ladder's ring, which was
+    // null whenever nothing was found; close enough for the rare deploy gap.
+    radiusKm: result.radiusKm !== undefined ? result.radiusKm : (result.appliedRadiusKm ?? null),
   }
 }
 
@@ -113,8 +118,11 @@ export interface VendorProfileInput {
   mapsUrl?: string
   pickup?: 'yes' | 'nearby' | 'no'
   pickupRadiusKm?: number
-  /** How far this garage will travel for doorstep work. */
-  doorstepRadiusKm?: number
+  /**
+   * How far this garage will travel for doorstep work. Null clears it, and
+   * the garage then covers the default (DEFAULT_DOORSTEP_RADIUS_KM).
+   */
+  doorstepRadiusKm?: number | null
   /** How the coordinates were arrived at. See plans/geo.md §4. */
   geoSource?: 'gps' | 'map_pin'
   /** Cars at once, 1–20. */
@@ -122,7 +130,6 @@ export interface VendorProfileInput {
   /** The most jobs in a day; null clears it (no limit). */
   jobsPerDay?: number | null
   vehicleTypes?: string[]
-  notes?: string
 }
 
 /** POST /vendors */
@@ -154,7 +161,8 @@ export async function updateVendorJobTypes(data: {
   doorstepEnabled?: boolean
   /**
    * How far the garage goes, sent with doorstepEnabled so the two land
-   * together. Switching doorstep on needs one (or a drawn area) on file.
+   * together. Optional: without one (or a drawn area) the garage covers
+   * DEFAULT_DOORSTEP_RADIUS_KM from its pin.
    */
   doorstepRadiusKm?: number
 }): Promise<ApiVendorProfile> {
@@ -336,14 +344,18 @@ export async function deleteVendorLogo(): Promise<ApiVendorProfile> {
   return apiClient<ApiVendorProfile>('/vendors/me/logo', { method: 'DELETE' })
 }
 
-/** Full logo upload flow: presign → PUT to R2 → save URL on the vendor. */
+/**
+ * Full logo upload flow: strip the image's metadata → presign → PUT to R2 →
+ * save URL on the vendor.
+ */
 export async function uploadVendorLogo(file: File): Promise<ApiVendorProfile> {
-  const contentType = file.type as UploadContentType
+  const clean = await stripImageMetadata(file)
+  const contentType = clean.type as UploadContentType
   const { uploadUrl, publicUrl } = await getLogoUploadUrl(contentType)
 
   const put = await fetch(uploadUrl, {
     method: 'PUT',
-    body: file,
+    body: clean,
     headers: { 'Content-Type': contentType },
   })
   if (!put.ok) {
@@ -384,16 +396,18 @@ export async function deleteVendorPhoto(id: string): Promise<ApiVendorPhoto> {
 }
 
 /**
- * Full upload flow: get a presigned URL, PUT the file straight to R2, then
- * register the resulting public URL. Returns the created photo record.
+ * Full upload flow: strip the photo's location metadata, get a presigned URL,
+ * PUT the file straight to R2, then register the resulting public URL.
+ * Returns the created photo record.
  */
 export async function uploadVendorPhoto(file: File): Promise<ApiVendorPhoto> {
-  const contentType = file.type as UploadContentType
+  const clean = await stripImageMetadata(file)
+  const contentType = clean.type as UploadContentType
   const { uploadUrl, publicUrl } = await getPhotoUploadUrl(contentType)
 
   const put = await fetch(uploadUrl, {
     method: 'PUT',
-    body: file,
+    body: clean,
     headers: { 'Content-Type': contentType },
   })
   if (!put.ok) {
@@ -451,8 +465,9 @@ export async function submitVendorOnboarding(
     }
 
     await Promise.all([
-      // Doorstep and its distance in one call, so the server never holds a
-      // garage that goes to customers with no "how far".
+      // Doorstep and its distance in one call, so the two land together. The
+      // distance is optional: left out, the garage covers the default 10 km
+      // (DEFAULT_DOORSTEP_RADIUS_KM).
       updateVendorJobTypes({
         dropinEnabled: data.dropin as boolean,
         doorstepEnabled: data.doorstep as boolean,

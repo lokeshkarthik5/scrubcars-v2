@@ -1,4 +1,4 @@
-import { AiUnavailableError, type TextClient } from '../../lib/ai.js'
+import { AiUnavailableError, type DocumentClient, type TextClient } from '../../lib/ai.js'
 import { categoryLabel } from '../../lib/categories.js'
 import { AppError } from '../../lib/errors.js'
 import { writeServiceDescription } from '../../lib/service-description.js'
@@ -17,9 +17,13 @@ export interface AiLog {
   warn(details: Record<string, unknown>, message: string): void
 }
 
-/** Which AI helpers the admin panel may show. All off without a client. */
-export function aiConfigFor(client: TextClient | null) {
-  return { describe: client !== null }
+/**
+ * Which AI helpers the admin panel may show. All off without a client.
+ * `import` is reading photos and PDFs on Add garage; the Tally CSV import
+ * needs no AI and is always there.
+ */
+export function aiConfigFor(client: TextClient | null, reader: DocumentClient | null) {
+  return { describe: client !== null, import: reader !== null }
 }
 
 /**

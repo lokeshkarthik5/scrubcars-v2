@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { AiUnavailableError, FAKE_AI_TEXT, fakeTextClient, type TextClient } from '../../lib/ai.js'
+import {
+  AiUnavailableError,
+  FAKE_AI_TEXT,
+  fakeDocumentClient,
+  fakeTextClient,
+  type TextClient,
+} from '../../lib/ai.js'
 import { AppError } from '../../lib/errors.js'
 import { aiConfigFor, describeServiceWith, type AiLog } from './ai.describe.js'
 import type { DescribeServiceInput } from './ai.validation.js'
@@ -33,8 +39,8 @@ async function refusal(promise: Promise<unknown>): Promise<AppError> {
 
 describe('aiConfigFor', () => {
   test('on with a client, off without one (no OPENAI_API_KEY)', () => {
-    expect(aiConfigFor(fakeTextClient())).toEqual({ describe: true })
-    expect(aiConfigFor(null)).toEqual({ describe: false })
+    expect(aiConfigFor(fakeTextClient(), fakeDocumentClient('{}'))).toEqual({ describe: true, import: true })
+    expect(aiConfigFor(null, null)).toEqual({ describe: false, import: false })
   })
 })
 

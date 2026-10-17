@@ -331,6 +331,8 @@ export const otpVerifications = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     phone: varchar('phone', { length: 20 }).notNull(),
+    // A keyed hash of the code (otpDigest, lib/otp.ts), never the code
+    // itself; rows from before hashing hold the plain six digits.
     otpCode: varchar('otp_code', { length: 10 }).notNull(),
     purpose: otpPurposeEnum('purpose').notNull(),
     verified: boolean('verified').default(false).notNull(),
