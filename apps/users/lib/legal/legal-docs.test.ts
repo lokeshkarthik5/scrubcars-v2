@@ -92,8 +92,13 @@ describe('business details', () => {
   })
 
   test('an unconfirmed detail is a visible placeholder, never left blank', () => {
-    if (BUSINESS.proprietorName == null) {
+    if (BUSINESS.printProprietorName && BUSINESS.proprietorName == null) {
       expect(placeholdersIn(contact)).toContain("the proprietor's full name")
+    }
+    if (!BUSINESS.printProprietorName) {
+      // Not printed by the owner's choice: no name and no placeholder for it.
+      expect(placeholdersIn(contact)).not.toContain("the proprietor's full name")
+      expect(markdownOf(contact)).toContain('a sole proprietorship')
     }
     if (BUSINESS.supportHours == null) {
       expect(placeholdersIn(contact)).toContain('support hours')

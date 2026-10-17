@@ -2,6 +2,7 @@ import { apiClient } from './client'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
 import type { ServiceCategory } from '@repo/core/types'
+import type { OutsideServiceCity } from '@repo/core/service-city'
 
 export interface AdminVendor {
   id: string
@@ -46,6 +47,12 @@ export interface AdminVendor {
     name: string
     phone: string
   } | null
+  /**
+   * Set when the garage is pinned more than 50 km from the Chennai centre (or
+   * is unpinned and its city names another town, with km null), the sign
+   * customers see on it. Absent from an older API.
+   */
+  outsideServiceCity?: OutsideServiceCity | null
 }
 
 /** The edit page tab where a checklist item is fixed (its `?tab=`). */

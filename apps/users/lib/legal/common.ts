@@ -66,19 +66,23 @@ export const RULES = {
   receiptLine: RECEIPT_NOT_TAX_INVOICE,
 }
 
-/** "a sole proprietorship of [to be confirmed: …]" */
-export const PROPRIETOR = orTbc(BUSINESS.proprietorName, "the proprietor's full name")
+/**
+ * "a sole proprietorship", or "a sole proprietorship of <name>" when
+ * details.ts says to print the name (a "[to be confirmed: …]" marker until it
+ * is filled in).
+ */
+export const PROPRIETORSHIP = BUSINESS.printProprietorName
+  ? `a sole proprietorship of ${orTbc(BUSINESS.proprietorName, "the proprietor's full name")}`
+  : 'a sole proprietorship'
 
 /** One line naming the business behind Detlio. */
-export const WHO_WE_ARE = `Detlio is a brand of **${BUSINESS.tradeName}**, a sole proprietorship of ${PROPRIETOR}, with its place of business at ${BUSINESS.address}.`
+export const WHO_WE_ARE = `Detlio is a brand of **${BUSINESS.tradeName}**, ${PROPRIETORSHIP}, with its place of business at ${BUSINESS.address}.`
 
 /**
- * The same, as plain text for the site footer (E-Commerce Rules rule 4(2)):
- * the proprietor's name prints as "[to be confirmed: …]" until it is set in
- * details.ts, and then appears here with no other change.
+ * The same, as plain text for the site footer (E-Commerce Rules rule 4(2)).
  */
 export const OPERATED_BY = inlineToPlain(
-  `Detlio is a brand of ${BUSINESS.tradeName}, a sole proprietorship of ${PROPRIETOR}, ${BUSINESS.address}.`
+  `Detlio is a brand of ${BUSINESS.tradeName}, ${PROPRIETORSHIP}, ${BUSINESS.address}.`
 )
 
 export const SUPPORT_HOURS = orTbc(BUSINESS.supportHours, 'support hours')

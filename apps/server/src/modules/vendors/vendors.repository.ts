@@ -16,6 +16,7 @@ import {
   vendorServiceAreas,
   vendorWorkingHours,
 } from '../../db/schema.js'
+import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { containsPattern } from '../../lib/search.js'
 import { LISTED_TO_CUSTOMERS } from './vendors.predicates.js'
 import type {
@@ -75,19 +76,6 @@ export const vendorsRepository = {
   },
 
   /**
-   * One page of public vendor ids, already filtered, sorted and bounded.
-   *
-   * Filtering and sorting are in SQL rather than in JS over the whole table,
-   * because neither survives pagination: you cannot sort page 2 of a list the
-   * caller can only partly see. That is also why this returns ids rather than
-   * rows — the page is chosen here, and the payload for those ids is loaded
-   * with Drizzle's relational queries afterwards.
-   *
-   * All PostGIS calls are schema-qualified (`gis.`), since the extension lives
-   * outside `public` and Supabase's pooler does not reliably carry a
-   * session-level search_path in transaction mode.
-   */
-  /**
    * How many garages a customer could drive to near them, and the nearest
    * one's distance, for the Nearby card on Home. The same public filters as
    * the drop-in list (listPublicVendorPage with bookingType 'dropin'): live,
@@ -109,6 +97,19 @@ export const vendorsRepository = {
     }
   },
 
+  /**
+   * One page of public vendor ids, already filtered, sorted and bounded.
+   *
+   * Filtering and sorting are in SQL rather than in JS over the whole table,
+   * because neither survives pagination: you cannot sort page 2 of a list the
+   * caller can only partly see. That is also why this returns ids rather than
+   * rows — the page is chosen here, and the payload for those ids is loaded
+   * with Drizzle's relational queries afterwards.
+   *
+   * All PostGIS calls are schema-qualified (`gis.`), since the extension lives
+   * outside `public` and Supabase's pooler does not reliably carry a
+   * session-level search_path in transaction mode.
+   */
   async listPublicVendorPage(params: {
     origin?: { lat: number; lng: number }
     radiusM?: number
@@ -184,12 +185,14 @@ export const vendorsRepository = {
       // Doorstep asks "who will come to me", so the bound is the garage's own
       // willingness to travel — not a radius the customer picked. A drawn
       // polygon wins when there is one, since real coverage is rarely circular;
-      // otherwise the radius applies. A vendor with neither has not opted into
-      // travelling anywhere yet, which COALESCE to 0 expresses exactly.
+      // otherwise the radius applies, and a garage that left it empty covers
+      // the default (lib/doorstep.ts). The booking-time check
+      // (bookingsRepository.isWithinDoorstepRadius) reads the same rule, so a
+      // garage listed here for an address can be booked to it.
       if (point) {
         conditions.push(sql`CASE
           WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${point})
-          ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, 0) * 1000, false)
+          ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, ${DEFAULT_DOORSTEP_RADIUS_KM}) * 1000, false)
         END`)
       }
     } else if (point && params.radiusM) {
