@@ -686,6 +686,25 @@ reconstructing every change in them.
 - **Status changes are conditional** on the status read: a simultaneous accept
   and cancel can no longer both succeed (`BOOKING_STATE_CHANGED`, 409).
 
+### Security
+
+- **Login codes are stored as a keyed hash, and deleted after a day.**
+  `otp_verifications.otp_code` now holds ten base64url characters of
+  HMAC-SHA256 over purpose, phone and code (`lib/otp.ts`), keyed by
+  HMAC(`JWT_SECRET`, `'otp-v1'`), and is compared in constant time. No
+  migration and no new env var: the digest fits the existing varchar(10).
+  Codes written before the deploy (plain six digits) are still accepted for
+  their three minutes; that branch (`isPlainOtpRow`) can go in a later
+  release. Each code sent also deletes up to 500 codes that expired more than
+  24 hours ago (by `expires_at`, the indexed column), after the SMS and
+  best effort. BYPASS_PHONES unchanged. The E2E `latestOtp` helper now sets
+  the row to the hash of a code it chooses, since the texted code can no
+  longer be read back.
+- **Admin discount search** builds its pattern with `containsPattern`
+  (`lib/search.ts`) like the other searches; `escapeLike` is split out of it
+  and also used for the final-bill payment note lookup, whose Razorpay id
+  (`pay_…`) carries a LIKE wildcard.
+
 ## [0.3.0] — 2026-08-28
 
 Geolocation, end to end.

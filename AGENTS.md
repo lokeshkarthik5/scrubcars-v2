@@ -10,7 +10,7 @@
 - **ORM**: Drizzle ORM
 - **Auth**: OTP (SMS) + Google OAuth, JWT access tokens + refresh tokens (HttpOnly cookies)
 - **Payments**: Razorpay (online), cash on service
-- **Storage**: Cloudflare R2 (S3 API, `lib/storage.ts`) for vendor, service and job photos; Cloudflare Stream (`lib/stream.ts`) for service videos
+- **Storage**: Cloudflare R2 (S3 API, `lib/storage.ts`) for vendor, service and job photos; Cloudflare Stream (`lib/stream.ts`) for service videos. Photos go browser → R2 on a presigned URL, so the API never sees the bytes: every image upload re-encodes the file in the browser first (`stripImageMetadata`, `packages/core/src/image-upload.ts`) to drop EXIF/GPS. A new image upload path must do the same
 
 ---
 
@@ -83,7 +83,7 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
 
 - `users` — single table for all user types. Flags: `is_customer`, `is_vendor_owner`. There is deliberately no `is_admin`: platform admin comes from a `super_admin` row in `user_member_mapping` or the env-credential break-glass login, never from a column or a JWT claim
 - `user_member_mapping` — **the single role table for the whole product**: `(vendor_id, user_id, role, status)`. `role` is namespaced by scope — `user` / `super_admin` (both `vendor_id IS NULL`) and `vendor_admin` / `vendor_operator` (both `vendor_id NOT NULL`), enforced by a CHECK constraint. The absence of a row *is* the `user` role; baseline accounts are never materialized
-- `otp_verifications` — stateless OTP log. `purpose`: `login` / `register` / `vendor_onboard`
+- `otp_verifications` — stateless OTP log. `purpose`: `login` / `register` / `vendor_onboard`. `otp_code` holds a keyed hash of the code, never the code (`otpDigest` in `lib/otp.ts`: HMAC-SHA256 over purpose, phone and code, keyed from `JWT_SECRET`, cut to the column's 10 characters, compared with `otpMatches`). Each code sent deletes a batch of codes that expired over a day ago. Never log a code; the only print is `sendOtpSms`'s local-dev stand-in for the phone
 - `refresh_tokens` — one row per session. Store SHA-256 hash of raw token, never plaintext
 
 ### Customer tables

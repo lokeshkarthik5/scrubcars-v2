@@ -183,7 +183,7 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Profile photos keep their metadata.** Customer profile photos are uploaded as-is, so a photo taken on a phone can carry its GPS location in its metadata at a public link. Garage job photos are re-encoded, which strips it. The row now says so. Recommend re-encoding avatars in the browser before upload (reuse `resizeForUpload` from apps/vendors/lib/resize-image.ts, moved to a shared package) and then dropping that sentence.',
+          text: '**Profile photos and metadata.** Every photo upload (profile photos, garage logos and gallery, service photos, job photos, admin uploads) is now re-encoded in the browser before it leaves the device, which strips location and camera details (every current browser can for JPEG and PNG; Safari cannot write WebP, so a WebP picked in Safari, or a file the browser cannot read, still goes up as it is). Photos uploaded before that change were stored as-is and are not rewritten, so the profile-photo row\'s last sentence is still true of older photos. Suggested wording once the team is happy to drop it: "We remove location and camera details from the file before it is uploaded."',
         },
       ],
       subsections: [
@@ -511,7 +511,7 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Nothing is deleted automatically today.** The code purges nothing on a schedule: sign-in code records (stored in plain text, not hashed) and session records are never deleted, nor are abandoned checkouts, job photos or the maps cache. Periods to decide: booking/payment records (for the CA: e.g. Income-tax Rules rule 6F for a proprietorship, and CGST Act s.36 once GST-registered); logs (DPDP Rules rule 8(3): at least one year; CERT-In Directions 2022: ICT logs for 180 days in India; IT Rules 3(1)(h): registration data for 180 days after an account is closed). Once decided, the product needs purge jobs to match (at least `otp_verifications` and `refresh_tokens`) before any period is published — the policy must not promise deletion that does not happen. Removing a car archives it rather than deleting it when a booking points at it, and addresses are copied onto doorstep bookings; the account row now says so.',
+          text: '**Almost nothing is deleted automatically.** The code purges almost nothing: sign-in code records (stored as a keyed hash, never the code) are deleted a day after the code expires, but session records are never deleted, nor are abandoned checkouts, job photos or the maps cache. Periods to decide: booking/payment records (for the CA: e.g. Income-tax Rules rule 6F for a proprietorship, and CGST Act s.36 once GST-registered); logs (DPDP Rules rule 8(3): at least one year; CERT-In Directions 2022: ICT logs for 180 days in India; IT Rules 3(1)(h): registration data for 180 days after an account is closed). Once decided, the product needs purge jobs to match (at least `refresh_tokens`; `otp_verifications` already goes after a day, so the retention row\'s "Records of codes sent … are kept for" period could say a day) before any period is published — the policy must not promise deletion that does not happen. Removing a car archives it rather than deleting it when a booking points at it, and addresses are copied onto doorstep bookings; the account row now says so.',
         },
       ],
     },
@@ -539,7 +539,7 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Security facts to settle.** SPDI Rules rule 8 treats ISO 27001 or an approved code as "reasonable security practices"; Detlio has neither, so the list above describes measures only. Sign-in codes are stored in plain text (recommend hashing), and photos are at public links (section 4). CERT-In requires reporting incidents within 6 hours — an operational process to set up.',
+          text: '**Security facts to settle.** SPDI Rules rule 8 treats ISO 27001 or an approved code as "reasonable security practices"; Detlio has neither, so the list above describes measures only. Sign-in codes are stored as a keyed hash, not the code itself; photos are at public links (section 4). CERT-In requires reporting incidents within 6 hours — an operational process to set up.',
         },
       ],
     },

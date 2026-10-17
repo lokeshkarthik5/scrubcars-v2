@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { stripImageMetadata } from '@repo/core/image-upload'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import {
   mapBooking,
@@ -336,14 +337,18 @@ export async function deleteVendorLogo(): Promise<ApiVendorProfile> {
   return apiClient<ApiVendorProfile>('/vendors/me/logo', { method: 'DELETE' })
 }
 
-/** Full logo upload flow: presign → PUT to R2 → save URL on the vendor. */
+/**
+ * Full logo upload flow: strip the image's metadata → presign → PUT to R2 →
+ * save URL on the vendor.
+ */
 export async function uploadVendorLogo(file: File): Promise<ApiVendorProfile> {
-  const contentType = file.type as UploadContentType
+  const clean = await stripImageMetadata(file)
+  const contentType = clean.type as UploadContentType
   const { uploadUrl, publicUrl } = await getLogoUploadUrl(contentType)
 
   const put = await fetch(uploadUrl, {
     method: 'PUT',
-    body: file,
+    body: clean,
     headers: { 'Content-Type': contentType },
   })
   if (!put.ok) {
@@ -384,16 +389,18 @@ export async function deleteVendorPhoto(id: string): Promise<ApiVendorPhoto> {
 }
 
 /**
- * Full upload flow: get a presigned URL, PUT the file straight to R2, then
- * register the resulting public URL. Returns the created photo record.
+ * Full upload flow: strip the photo's location metadata, get a presigned URL,
+ * PUT the file straight to R2, then register the resulting public URL.
+ * Returns the created photo record.
  */
 export async function uploadVendorPhoto(file: File): Promise<ApiVendorPhoto> {
-  const contentType = file.type as UploadContentType
+  const clean = await stripImageMetadata(file)
+  const contentType = clean.type as UploadContentType
   const { uploadUrl, publicUrl } = await getPhotoUploadUrl(contentType)
 
   const put = await fetch(uploadUrl, {
     method: 'PUT',
-    body: file,
+    body: clean,
     headers: { 'Content-Type': contentType },
   })
   if (!put.ok) {
