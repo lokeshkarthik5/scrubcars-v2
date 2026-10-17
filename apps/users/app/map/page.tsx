@@ -19,7 +19,7 @@ import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
 import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, formatDistance } from '@repo/core/map'
 import { cn } from '@repo/core/utils'
-import { bookingTypeParam } from '@repo/core/booking-types'
+import { BOOKING_TYPE_LABELS, bookingTypeParam, parseBookingType } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { OpenStatus } from '@/components/open-status'
 import { HubNav } from '@/components/home/hub-nav'
@@ -101,8 +101,7 @@ function MapBrowseContent() {
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
   const locating = useLocationStore((s) => s.locating)
 
-  const bookingType =
-    searchParams.get('bookingType') === 'doorstep' ? 'doorstep' : 'dropin'
+  const bookingType = parseBookingType(searchParams.get('bookingType')) ?? 'dropin'
   const category = searchParams.get('category') ?? undefined
 
   /** The viewport the current results were fetched for. */
@@ -244,9 +243,11 @@ function MapBrowseContent() {
     : DEFAULT_CENTER
 
   const emptyMessage =
-    bookingType === 'doorstep'
-      ? 'No garages travel to this area yet.'
-      : 'No garages in this area. Try zooming out or moving the map.'
+    bookingType === 'pickup'
+      ? 'No garages pick up near you yet — try At garage or Doorstep.'
+      : bookingType === 'doorstep'
+        ? 'No garages travel to this area yet.'
+        : 'No garages in this area. Try zooming out or moving the map.'
 
   return (
     <div className="fixed inset-0 bg-surface">
@@ -289,8 +290,9 @@ function MapBrowseContent() {
           {/* Grouped so `justify-between` puts Back on one edge and this pair on
               the other, rather than spreading three controls evenly. */}
           <div className="flex items-center gap-2">
+            {/* Back to the list in the same mode the map was opened in. */}
             <Link
-              href="/garages"
+              href={bookingTypeParam(bookingType) ? `/garages?mode=${bookingTypeParam(bookingType)}` : '/garages'}
               className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
             >
               <IconList size={15} />
@@ -471,6 +473,14 @@ function MapVendorCard({
   mode: BookingType
 }) {
   const modeParam = bookingTypeParam(mode)
+  // Whether it comes to you: on a Pickup & drop map every garage collects,
+  // so that is the badge; otherwise Doorstep, as before.
+  const badge =
+    mode === 'pickup'
+      ? BOOKING_TYPE_LABELS.pickup
+      : vendor.doorstepEnabled
+        ? BOOKING_TYPE_LABELS.doorstep
+        : null
 
   return (
     <Link
@@ -510,13 +520,13 @@ function MapVendorCard({
           variant="overlay"
           className={cn(
             'absolute left-2 top-2',
-            vendor.doorstepEnabled ? 'max-w-[calc(100%-6rem)]' : 'max-w-[calc(100%-1rem)]'
+            badge ? 'max-w-[calc(100%-7.5rem)]' : 'max-w-[calc(100%-1rem)]'
           )}
         />
 
-        {vendor.doorstepEnabled && (
+        {badge && (
           <span className="absolute right-2 top-2 rounded-full bg-surface-elevated/90 px-2 py-0.5 text-[10px] font-semibold text-text-primary ring-1 ring-border">
-            Doorstep
+            {badge}
           </span>
         )}
       </div>

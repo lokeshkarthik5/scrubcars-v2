@@ -71,9 +71,14 @@ test.describe('Home hub API @p0', () => {
     expect(codes(home.offers)).not.toContain(DISCOUNTS.homeNear.code)
     expect(home.offers.length).toBeLessThanOrEqual(3)
 
-    // Nothing to act on; the job was three days ago, past the rating prompt.
+    // Nothing to act on. The job was three days ago and is not rated, so
+    // "How was your wash?" asks for it: the prompt lasts 14 days.
     expect(home.mustAct).toBeNull()
-    expect(home.softCard).toBeNull()
+    expect(home.softCard).toMatchObject({
+      kind: 'rate',
+      bookingId: BOOKINGS.homeOfferDone,
+      vendorName: VENDORS.homePromo.name,
+    })
     expect(home.header).toMatchObject({ firstName: 'Hub' })
 
     // No booking ahead: the tile offers the same job again, priced for the car.

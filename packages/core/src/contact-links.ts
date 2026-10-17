@@ -41,14 +41,42 @@ export function whatsAppHref(
   return `https://wa.me/${number}${message ? `?text=${encodeURIComponent(message)}` : ''}`
 }
 
+/** The hosts a garage's own Google Maps link may be on. */
+const GOOGLE_MAPS_HOSTS = new Set(['maps.app.goo.gl', 'maps.google.com', 'www.google.com', 'google.com', 'goo.gl'])
+
+/**
+ * A garage's own Google Maps link (vendors.maps_url), or null unless it is
+ * one: https, on a Google Maps host, and for google.com or goo.gl under
+ * /maps. The garage types it, so anything else gets no button rather than a
+ * link to wherever it points.
+ */
+export function googleMapsLink(url: string | null | undefined): string | null {
+  if (!url) return null
+  let parsed: URL
+  try {
+    parsed = new URL(url.trim())
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null
+  const host = parsed.hostname.toLowerCase()
+  if (!GOOGLE_MAPS_HOSTS.has(host)) return null
+  if ((host === 'www.google.com' || host === 'google.com' || host === 'goo.gl') && !parsed.pathname.startsWith('/maps')) {
+    return null
+  }
+  return parsed.toString()
+}
+
 /**
  * Google Maps driving directions to a place: to its pin when it has one,
- * otherwise to its address as text, which Maps geocodes for itself.
+ * then its own Google Maps link, otherwise to its address as text, which
+ * Maps geocodes for itself.
  */
 export function directionsHref(place: {
   lat: number | null
   lng: number | null
   address?: string
+  mapsUrl?: string
 }): string | null {
   const base = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='
   if (place.lat !== null && place.lng !== null) {
@@ -56,6 +84,10 @@ export function directionsHref(place: {
     // digits ("13.082699775695801") that only make the link longer.
     return `${base}${place.lat.toFixed(6)},${place.lng.toFixed(6)}`
   }
+  // The garage's own link points at its listing, which beats Maps guessing
+  // from the address text.
+  const own = googleMapsLink(place.mapsUrl)
+  if (own) return own
   if (place.address?.trim()) return `${base}${encodeURIComponent(place.address.trim())}`
   return null
 }

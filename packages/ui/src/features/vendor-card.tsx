@@ -29,7 +29,7 @@ export function VendorCard({
 }: {
   vendor: Vendor
   /**
-   * The At garage / Doorstep choice the list was filtered by. Carried into
+   * The At garage / Doorstep / Pickup & drop choice the list was filtered by. Carried into
    * the garage page so the customer is not asked again there or at checkout.
    */
   mode?: BookingType
@@ -100,11 +100,17 @@ export function VendorCard({
                 {vendor.dropinEnabled && (
                   <ModeBadge label={BOOKING_TYPE_LABELS.dropin} tone="garage" />
                 )}
-                {vendor.doorstepEnabled && (
+                {/* On a Pickup & drop list, Pickup & drop takes Doorstep's place:
+                    three badges would crowd the name on a 360px phone. Elsewhere
+                    the garage page says whether it collects. */}
+                {vendor.doorstepEnabled && mode !== 'pickup' && (
                   <ModeBadge
                     label={BOOKING_TYPE_LABELS.doorstep}
                     tone="doorstep"
                   />
+                )}
+                {mode === 'pickup' && vendor.pickupEnabled && (
+                  <ModeBadge label={BOOKING_TYPE_LABELS.pickup} tone="doorstep" />
                 )}
               </div>
             </div>

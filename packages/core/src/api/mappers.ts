@@ -154,6 +154,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     dropinEnabled: vendor.dropinEnabled,
     doorstepEnabled: vendor.doorstepEnabled,
     pickupEnabled: vendor.pickupEnabled ?? false,
+    pickupRadiusKm: vendor.pickupRadiusKm ?? null,
     serviceTags: categories.map(categoryLabel),
     isVerified: vendor.isVerified,
     photos: vendor.photos.map((p) => p.url),
@@ -335,6 +336,7 @@ export function mapBooking(booking: ApiBooking): Booking {
           city: booking.vendor.city || undefined,
           lat: booking.vendor.lat ?? null,
           lng: booking.vendor.lng ?? null,
+          mapsUrl: booking.vendor.mapsUrl || undefined,
         }
       : undefined,
     vehicle: booking.vehicle

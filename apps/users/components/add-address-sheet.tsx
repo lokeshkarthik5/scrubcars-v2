@@ -31,10 +31,12 @@ interface AddAddressSheetProps {
   onClose: () => void
   /** The saved address, so the caller can select it straight away. */
   onAdded?: (address: Address) => void
+  /** Pickup & drop: the garage collects the car from here, not visits it. */
+  pickup?: boolean
 }
 
 /**
- * Add a doorstep address without leaving checkout.
+ * Add a doorstep (or pickup & drop) address without leaving checkout.
  *
  * Same reasoning as AddCarSheet: the slot, the car and any applied code are
  * page state, and the old link out to /profile threw all of it away. It
@@ -46,7 +48,7 @@ interface AddAddressSheetProps {
  * coordinates (ADDRESS_LOCATION_REQUIRED); taking it here spares the customer
  * a separate "Pin the exact spot" step straight after saving.
  */
-export function AddAddressSheet({ open, onClose, onAdded }: AddAddressSheetProps) {
+export function AddAddressSheet({ open, onClose, onAdded, pickup = false }: AddAddressSheetProps) {
   const [form, setForm] = useState(EMPTY)
   // What the last pin wrote into the text fields — see refillFromPin.
   const pinText = useRef<PinText>(NO_PIN_TEXT)
@@ -102,8 +104,9 @@ export function AddAddressSheet({ open, onClose, onAdded }: AddAddressSheetProps
         Add an address
       </h2>
       <p className="mt-1 text-[13px] text-text-secondary">
-        Drop the pin where the car will be. We use it to check the garage
-        travels to you.
+        {pickup
+          ? 'Drop the pin where the car will be. We use it to check the garage collects from you, and the driver uses it to find your car.'
+          : 'Drop the pin where the car will be. We use it to check the garage travels to you.'}
       </p>
 
       <div className="mt-4 flex flex-col gap-3">

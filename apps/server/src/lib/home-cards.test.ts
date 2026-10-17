@@ -143,17 +143,45 @@ describe('Rate your wash', () => {
   const done = (overrides: Partial<HubBooking> = {}) =>
     booking({ status: 'completed', scheduledAt: ago(DAY), completedAt: ago(10 * HOUR), ...overrides })
 
-  test('within 72 hours of the job, not reviewed and not closed', () => {
+  test('within 14 days of the job, not reviewed and not closed', () => {
     expect(pickActionCards([done()], noDays, NOW).softCard).toMatchObject({
       kind: 'rate',
       vehicleName: 'Hyundai i20',
       vendorName: 'Next Level',
     })
-    expect(pickActionCards([done({ completedAt: ago(73 * HOUR) })], noDays, NOW).softCard).toBeNull()
+    // Past the old 72 hours, still asked; a day past 14, not.
+    expect(pickActionCards([done({ completedAt: ago(5 * DAY) })], noDays, NOW).softCard).toMatchObject({ kind: 'rate' })
+    expect(pickActionCards([done({ completedAt: ago(14 * DAY) })], noDays, NOW).softCard).toMatchObject({ kind: 'rate' })
+    expect(pickActionCards([done({ completedAt: ago(14 * DAY + 1) })], noDays, NOW).softCard).toBeNull()
     expect(pickActionCards([done({ hasReview: true })], noDays, NOW).softCard).toBeNull()
     expect(pickActionCards([done({ reviewPromptDismissedAt: ago(HOUR) })], noDays, NOW).softCard).toBeNull()
     // A job from before 0028 has no completion time to count from.
     expect(pickActionCards([done({ completedAt: null })], noDays, NOW).softCard).toBeNull()
+  })
+
+  test('only for a job that was done: never a cancelled booking or a no-show', () => {
+    const cancelled = booking({ status: 'cancelled', cancelledAt: ago(HOUR), cancelledBy: 'user', completedAt: null })
+    const customerNoShow = booking({
+      status: 'cancelled',
+      cancelledAt: ago(HOUR),
+      cancelledBy: 'admin',
+      cancelledOnBehalfOf: 'garage',
+      noShow: 'customer',
+    })
+    const garageNoShow = done({ noShow: 'garage' })
+    const { softCard, todo } = pickActionCards([cancelled, customerNoShow, garageNoShow], noDays, NOW)
+    expect(softCard).toBeNull()
+    expect(todo).toEqual([])
+  })
+
+  test('every unrated job is on To do, newest first; Home shows the newest', () => {
+    const { softCard, todo } = pickActionCards(
+      [done({ id: 'older', completedAt: ago(9 * DAY) }), done({ id: 'newer', completedAt: ago(2 * DAY) })],
+      noDays,
+      NOW
+    )
+    expect(softCard).toMatchObject({ bookingId: 'newer' })
+    expect(todo.map((card) => card.kind === 'rate' && card.bookingId)).toEqual(['newer', 'older'])
   })
 
   test('never with a must-act card: at most two cards above the car', () => {
@@ -241,6 +269,37 @@ describe('the car and its tile', () => {
     const [washing] = build({ bookings: [booking({ status: 'in_progress', scheduledAt: ago(HOUR) })] })
     expect(washing.rightTile).toMatchObject({ kind: 'next_booking', status: 'in_progress' })
     expect(washing.wash.state).toBe('booked')
+  })
+
+  test('a pickup & drop booking carries the step it has reached; others carry none', () => {
+    const [booked] = build({ bookings: [booking({ bookingType: 'pickup' })] })
+    expect(booked.rightTile).toMatchObject({ kind: 'next_booking', bookingType: 'pickup', pickupStage: 'booked' })
+
+    const [collected] = build({
+      bookings: [
+        booking({
+          bookingType: 'pickup',
+          pickup: { pickedUpAt: ago(HOUR), atGarageAt: null, outForDeliveryAt: null, deliveredAt: null },
+        }),
+      ],
+    })
+    expect(collected.rightTile).toMatchObject({ pickupStage: 'picked_up' })
+
+    const [returning] = build({
+      bookings: [
+        booking({
+          bookingType: 'pickup',
+          status: 'in_progress',
+          scheduledAt: ago(3 * HOUR),
+          startedAt: ago(2 * HOUR),
+          pickup: { pickedUpAt: ago(3 * HOUR), atGarageAt: ago(150 * 60_000), outForDeliveryAt: ago(10 * 60_000), deliveredAt: null },
+        }),
+      ],
+    })
+    expect(returning.rightTile).toMatchObject({ pickupStage: 'out_for_delivery' })
+
+    const [dropin] = build({ bookings: [booking()] })
+    expect(dropin.rightTile).toMatchObject({ kind: 'next_booking', pickupStage: null })
   })
 
   test("a removed car's live booking shows on the default car", () => {

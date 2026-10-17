@@ -58,6 +58,17 @@ reconstructing every change in them.
   payout CSVs. The garage edit page gains Payout details (account name,
   number, IFSC, UPI id), saved on their own. Start pilot clean's counts
   can say "N garage payouts". The CSV helpers moved to `@repo/core/csv`.
+- **Help centre (`/help`, draft).** A searchable page of short answers in
+  six groups: Booking, Payments & refunds, Pickup & drop, Doorstep, Account
+  & privacy, Complaints (32 questions), ending with "Still need help?":
+  call or WhatsApp the team, Contact us, Raise a complaint. Open to anyone,
+  signed in or not; each answer has an anchor (`/help#cancel`). Linked from
+  Profile (Support → Help centre), a booking's Help sheet ("Common
+  questions: Help centre") and the Contact page. All the words are in
+  `components/help/content.ts`, with the booking, pickup, refund and
+  complaint figures read from `@repo/core` so they follow the code. While
+  `HELP_DRAFT` is true (it is) the page says "Draft: these answers are
+  waiting for sign-off" and is not indexed.
 
 - **Refund now in admin.** Each row on Refunds owed (and a booking's Refund
   section) has "Refund now…" beside "Mark refunded…" when there is a
@@ -69,6 +80,31 @@ reconstructing every change in them.
   dashboard. Customer app: while such a refund is on its way, the booking
   page says "Refund of ₹X started on <date>. It reaches your account in 5–7
   working days."
+
+- **Pickup & drop, part 2 of 2 (customer app).** The garage list, the map
+  and a garage's page have a third mode, "Pickup & drop" (the 3-way switch
+  drops its icons below 400px wide so it fits a 360px phone), offered on a
+  garage's page only when that garage collects; an empty list says "No
+  garages pick up near you yet — try At garage or Doorstep." `?mode=pickup`
+  is now carried from Home, the list, the map and the garage page into
+  checkout. Checkout asks "Where should we collect your car?" from the
+  saved addresses (add one or pin one in place, as for doorstep), marks an
+  address outside the garage's pickup area and offers its other mode, and
+  takes the 3 hours' notice; the summary has "Pickup & drop · Free" with
+  the address and "The garage is responsible for your car from pickup
+  until it's returned." before Pay. Each refusal at Pay has its own line
+  and next step (garage stopped collecting, address needed, pin needed,
+  outside the area, too soon). The booking page shows "Collected from and
+  returned to" with the address, a timeline Booked → Picked up → At garage
+  → Being worked on → Out for delivery → Delivered with times, and a code
+  card: "Give this code to the garage when they collect your car:" with
+  the pickup code, then the delivery code until the car is back. Once the
+  car is collected, Reschedule and Cancel give way to "Your car is with the
+  garage" and Get help. Home's Next booking tile names the step ("Car
+  collected", "On its way back"); Updates has "<garage> collected your
+  car", "Your car is at <garage>", "Your car is on its way back" and "Your
+  car is back". My bookings shows "Pickup & drop · <step>"; Book again (and
+  doorstep's) keeps the mode and opens on the same saved address.
 
 - **Pickup & drop, part 1 of 2 (garage portal and admin).** Garage
   portal: Settings → Hours has a Pickup & drop switch; turning it on asks
@@ -639,6 +675,17 @@ reconstructing every change in them.
   start time, with what it means for the money), and internal notes.
 
 ### Changed
+
+- **Garage contact details only after booking.** The garage page's data
+  (`GET /vendors/:id`) no longer has the garage's phone, WhatsApp, email or
+  street address; the screens never showed them there. A booking's Help
+  sheet (Call / WhatsApp the garage) and Directions keep reading them from
+  the customer's own booking, as before. Directions now also opens the
+  garage's own Google Maps link when it has no pin (only a real Google
+  Maps link; anything else falls back to the address).
+- **"Rate your wash" asks "How was your wash at <garage>?"** with the car
+  and "Rate it" under it, for 14 days after the job (was 72 hours), on Home
+  and in Updates' To do. The stars and × work as before.
 
 - **Admin garage forms never leave a service out of a save.** A service with
   a name but no complete price used to be dropped from the save without a

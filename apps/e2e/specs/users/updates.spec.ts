@@ -74,6 +74,8 @@ test.describe('Updates @p0', () => {
 
     const card = page.getByRole('region', { name: 'Rate your wash' })
     await expect(card).toBeVisible()
+    await expect(card).toContainText(`How was your wash at ${VENDORS.homePromo.name}?`)
+    await expect(card).toContainText('Rate it')
     // A star opens the booking's own rating form with that many chosen; the
     // review is only sent from there.
     await expect(card.getByRole('button', { name: 'Rate 4 stars' })).toBeVisible()

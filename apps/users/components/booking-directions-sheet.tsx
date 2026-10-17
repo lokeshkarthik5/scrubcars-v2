@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { IconCircleX, IconNavigation } from '@tabler/icons-react'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { toMinutes, useTravelTime } from '@repo/core/api/hooks/use-travel-time'
-import { directionsHref } from '@repo/core/contact-links'
+import { directionsHref, googleMapsLink } from '@repo/core/contact-links'
 import { formatDistance, straightLineKm } from '@repo/core/map'
 import { coarse, useLocationStore, type ActiveLocation } from '@repo/core/stores/location-store'
 import type { Booking } from '@repo/core/types'
@@ -146,7 +146,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
   // The city alone is not a destination: without a street address there is
   // no text fallback, only the pin.
   const mapsHref = garage
-    ? directionsHref({ lat: garageLat, lng: garageLng, address: fullAddress })
+    ? directionsHref({ lat: garageLat, lng: garageLng, address: fullAddress, mapsUrl: garage.mapsUrl })
     : null
 
   return (
@@ -178,6 +178,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
       <TravelLine
         fix={fix}
         garagePoint={garagePoint}
+        ownMapsLink={!!googleMapsLink(garage?.mapsUrl)}
         travel={travel.data ?? null}
         routing={travel.isFetching}
       />
@@ -205,17 +206,22 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
 function TravelLine({
   fix,
   garagePoint,
+  ownMapsLink,
   travel,
   routing,
 }: {
   fix: Fix | null
   garagePoint: { lat: number; lng: number } | null
+  /** No pin, but the garage gave its own Google Maps link, which the button opens. */
+  ownMapsLink: boolean
   travel: { distanceM: number; durationS: number } | null
   routing: boolean
 }) {
   let line: React.ReactNode
   if (!garagePoint) {
-    line = 'This garage has not pinned its location yet. Google Maps will search by its address.'
+    line = ownMapsLink
+      ? 'This garage has not pinned its location yet. Google Maps opens its own listing.'
+      : 'This garage has not pinned its location yet. Google Maps will search by its address.'
   } else if (!fix) {
     line = 'Finding your location…'
   } else if (fix.state === 'denied') {

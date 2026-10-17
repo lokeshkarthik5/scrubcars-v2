@@ -149,12 +149,15 @@ export interface ApiVendorList {
   appliedRadiusKm: number | null
 }
 
+/**
+ * GET /vendors/:id, which anyone may read. No phone, WhatsApp, email, street
+ * address or maps link (owner decision, 17 Oct 2026): a customer gets those
+ * from their own booking (ApiBooking.vendor) once they have booked.
+ */
 export interface ApiPublicVendor {
   id: string
   businessName: string
   logoUrl: string | null
-  phone: string
-  address: string
   city: string
   pincode: string
   lat: number | null
@@ -164,6 +167,12 @@ export interface ApiPublicVendor {
   dropinEnabled: boolean
   /** Offers pickup & drop. Absent from older servers. */
   pickupEnabled?: boolean
+  /** How far it collects cars from; null is the 10 km default. */
+  pickupRadiusKm?: number | null
+  /** How far it travels for doorstep work; null is the default. Absent from older servers. */
+  doorstepRadiusKm?: number | null
+  /** As the garage wrote it ("5", "10+"). Absent from older servers. */
+  yearsInOperation?: string | null
   slotIntervalMins: number
   status: string
   createdAt: string
@@ -461,6 +470,8 @@ export interface ApiBooking {
     lat?: number | null
     lng?: number | null
     whatsapp?: string | null
+    /** The garage's own Google Maps link. Absent from older servers. */
+    mapsUrl?: string | null
   } | null
   /** Every service on the booking, priced and named as sold. */
   items: Array<{
