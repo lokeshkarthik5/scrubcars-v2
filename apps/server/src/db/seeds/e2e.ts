@@ -1238,7 +1238,7 @@ async function seedDoorstepReachRows() {
 
   await db.insert(vendors).values({
     id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.unsetRadius.name,
-    phone: '9000003400', address: '1, Beach Road, White Town', city: 'Puducherry',
+    phone: '9000005100', address: '1, Beach Road, White Town', city: 'Puducherry',
     pincode: '605001', lat: UNSET_RADIUS_PIN.lat, lng: UNSET_RADIUS_PIN.lng,
     geoSource: 'map_pin', geoConfirmedAt: now,
     vehicleTypes: ['hatchback', 'sedan', 'suv'],

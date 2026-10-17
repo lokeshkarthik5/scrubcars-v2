@@ -253,7 +253,7 @@ export const CUSTOMERS = {
    * Doorstep list and checkout agree on both. Nothing is ever written: the
    * checkout attempts stop before any payment order.
    */
-  doorstepReach: { id: id(150), phone: '9000000050', name: 'Reach Rathi', vehicleId: id(760) },
+  doorstepReach: { id: id(190), phone: '9000000090', name: 'Reach Rathi', vehicleId: id(795) },
   /**
    * Customers whose *session* is the thing under test.
    *
@@ -372,7 +372,7 @@ export const VENDORS = {
    * admin note that its public page must never show.
    */
   unsetRadius: {
-    id: id(313),
+    id: id(390),
     name: 'Unset Radius Garage',
     notes: 'Internal: owner prefers calls after 6 pm',
   },
@@ -438,7 +438,7 @@ export const SERVICES = {
   /** On HOME_PROMO, priced on inspection: CUSTOMERS.homeBill's billed job. */
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
   /** On UNSET_RADIUS, a doorstep wash on its half-hour grid. */
-  unsetRadiusWash: { id: id(419), name: 'Reach Doorstep Wash', price: '550.00', durationMins: 30 },
+  unsetRadiusWash: { id: id(490), name: 'Reach Doorstep Wash', price: '550.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -660,7 +660,7 @@ export const ADDRESSES = {
    *  than letting the booking fail the server's coverage check. */
   doorstepUnpinned: id(902),
   /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_COVERED: inside the default 10 km. */
-  reachCovered: id(903),
+  reachCovered: id(913),
   /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_OUTSIDE: outside it. */
   reachOutside: id(904),
 } as const
