@@ -262,6 +262,17 @@ export const adminRepository = {
     return row?.value ?? 0
   },
 
+  /**
+   * Every booking each garage has ever had, in any state, as one grouped
+   * query for the whole list. Garages with none have no row.
+   */
+  countBookingsByVendor() {
+    return db
+      .select({ vendorId: bookings.vendorId, value: count() })
+      .from(bookings)
+      .groupBy(bookings.vendorId)
+  },
+
   // Hard delete. FK cascades remove the vendor's services, photos, working
   // hours, service areas, bookings, payments and reviews. The owner user row
   // is preserved. Refused by the service for any garage with bookings.

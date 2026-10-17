@@ -29,7 +29,7 @@ export const LEGAL_DRAFT = true
 export const SITE_ORIGIN = 'https://detlio.com'
 
 /** The date the current text was last changed. */
-export const LAST_UPDATED = '12 October 2026'
+export const LAST_UPDATED = '16 October 2026'
 
 /** The date the current text takes effect. Null until it is published. */
 export const EFFECTIVE_DATE: string | null = null
@@ -45,6 +45,13 @@ export const BUSINESS = {
    * it is printed (see the reviewer note on the Terms).
    */
   proprietorName: null as string | null,
+  /**
+   * Whether the pages name the proprietor at all. The owner decided on
+   * 16 Oct 2026 not to print it, so they say "a sole proprietorship" with no
+   * name and no placeholder; the lawyer confirms that is enough (the reviewer
+   * note on the Terms asks the question).
+   */
+  printProprietorName: false,
   address:
     'No. 47, Radha Nagar Main Road, Chromepet, Chengalpattu, Tamil Nadu 600044',
   website: 'detlio.com',
@@ -52,8 +59,8 @@ export const BUSINESS = {
   phoneHref: SUPPORT_TEL_HREF,
   /** A Gmail inbox for now; to move to a detlio.com address later. */
   email: 'contact.scrubcars@gmail.com',
-  /** As the owner set them (5 Oct 2026). */
-  supportHours: '6 am to 1 am IST' as string | null,
+  /** As the owner set them: every day, confirmed 16 Oct 2026. */
+  supportHours: '6 am to 1 am IST, every day' as string | null,
 }
 
 /**
@@ -63,8 +70,9 @@ export const BUSINESS = {
  * the business's own until the officer has their own.
  */
 export const GRIEVANCE_OFFICER = {
-  name: null as string | null,
-  designation: null as string | null,
+  /** Named by the owner on 16 Oct 2026. */
+  name: 'Raga' as string | null,
+  designation: 'Operations Manager' as string | null,
   email: BUSINESS.email,
   phone: BUSINESS.phone,
   address: BUSINESS.address,

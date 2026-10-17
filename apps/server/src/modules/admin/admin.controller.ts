@@ -19,6 +19,7 @@ import type {
   MediaUrlInput,
   PauseVendorInput,
   PilotStatsQuery,
+  SetServiceActiveInput,
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
@@ -127,6 +128,21 @@ export async function pauseVendor(
 export async function resumeVendor(c: AdminContext, id: string) {
   const vendor = await adminService.resumeVendor(id)
   return c.json({ success: true, data: vendor })
+}
+
+export async function listHiddenServices(c: AdminContext, vendorId: string) {
+  const services = await adminService.listHiddenServices(vendorId)
+  return c.json({ success: true, data: services })
+}
+
+export async function setServiceActive(
+  c: AdminContext,
+  vendorId: string,
+  serviceId: string,
+  input: SetServiceActiveInput
+) {
+  const service = await adminService.setServiceActive(vendorId, serviceId, input)
+  return c.json({ success: true, data: service })
 }
 
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {

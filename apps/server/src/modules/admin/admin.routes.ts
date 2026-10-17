@@ -29,6 +29,7 @@ import {
   loginSchema,
   mediaUrlSchema,
   pauseVendorSchema,
+  setServiceActiveSchema,
   updateVendorSchema,
   uploadUrlSchema,
 } from './admin.validation.js'
@@ -140,6 +141,36 @@ adminRoutes.post(
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
   (c) => adminController.resumeVendor(c, c.req.valid('param').id)
+)
+
+// Hidden services, and hiding or showing one again. The editor loads only the
+// garage's live services, so without these a service switched off — on
+// purpose, or by an old editor bug that dropped rows it could not price — was
+// out of admin's sight for good. Saved immediately, like Pause; packages stay
+// the garage app's to manage.
+const vendorServiceParamSchema = z.object({
+  id: z.string().uuid(),
+  serviceId: z.string().uuid(),
+})
+
+adminRoutes.get(
+  '/vendors/:id/services/hidden',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  (c) => adminController.listHiddenServices(c, c.req.valid('param').id)
+)
+adminRoutes.patch(
+  '/vendors/:id/services/:serviceId/active',
+  ...adminMiddleware,
+  zValidator('param', vendorServiceParamSchema),
+  zValidator('json', setServiceActiveSchema),
+  (c) =>
+    adminController.setServiceActive(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').serviceId,
+      c.req.valid('json')
+    )
 )
 
 // Vendor team. Ownership transfer is deliberately absent: adding, removing and

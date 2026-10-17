@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start -p 3002",
     "lint": "eslint",
-    "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@repo/core": "*",

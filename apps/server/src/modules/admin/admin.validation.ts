@@ -223,6 +223,17 @@ export const pauseVendorSchema = z.object({
 
 export type PauseVendorInput = z.infer<typeof pauseVendorSchema>
 
+// Hiding a service, or showing a hidden one again. Strict, so a stray field
+// (a price, a name) is refused rather than silently ignored: this route only
+// ever flips whether customers can see the service.
+export const setServiceActiveSchema = z
+  .object({
+    isActive: z.boolean(),
+  })
+  .strict()
+
+export type SetServiceActiveInput = z.infer<typeof setServiceActiveSchema>
+
 // ─── Media (vendor logo / photos, service images) ────────────────────────────
 //
 // Same two-step flow the vendor panel uses: presign, PUT to R2, then register

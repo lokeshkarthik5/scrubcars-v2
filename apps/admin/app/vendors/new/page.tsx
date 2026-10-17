@@ -18,8 +18,18 @@ import { ScSelect } from '@repo/ui/sc/select'
 import { ApiError } from '@repo/core/api/client'
 import { createAdminVendor } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
+import { DOORSTEP_RADIUS_PLACEHOLDER } from '@repo/core/doorstep'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import type { ServiceCategory } from '@repo/core/types'
+import { cn } from '@repo/core/utils'
+import {
+  missingServiceFields,
+  rowsToSave,
+  serviceRowProblem,
+  servicesSaveBlock,
+  switchPricingType,
+  type PricingType,
+} from '@/lib/service-rows'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PICKUP_OPTIONS = [
@@ -36,7 +46,6 @@ const STATUS_OPTIONS = [
 
 const SERVICE_CATEGORIES = SERVICE_CATEGORY_OPTIONS
 
-type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [
   { value: 'flat', label: 'Flat' },
   { value: 'per_vehicle', label: 'Per vehicle' },
@@ -82,16 +91,6 @@ const emptyService = (): ServiceRow => ({
   durationValue: '',
   durationUnit: 'min',
 })
-
-// A row's pricing is complete when the right price(s) exist for its type.
-function rowPricingValid(s: ServiceRow): boolean {
-  if (s.pricingType === 'per_vehicle') {
-    // Every tier, matching the server: a gap would leave that vehicle
-    // unable to book the service.
-    return [s.priceHatchback, s.priceSedan, s.priceSuv].every((p) => Number(p) > 0)
-  }
-  return Number(s.price) > 0
-}
 
 export default function NewVendorPage() {
   const router = useRouter()
@@ -139,11 +138,11 @@ export default function NewVendorPage() {
   const removeService = (i: number) =>
     setServices((prev) => prev.filter((_, idx) => idx !== i))
 
-  // A service row counts once it has a name and valid pricing. Duration is
-  // optional — the server defaults it to one slot when left blank.
-  const validServices = services.filter(
-    (s) => s.name.trim() && rowPricingValid(s)
-  )
+  // Every row typed into is sent, as on the edit screen: a service left out
+  // here for a missing price would simply not exist, with nothing said. A row
+  // that is not ready says so and holds "Create vendor" instead.
+  const servicesBlock = servicesSaveBlock(services)
+  const servicesToSave = rowsToSave(services)
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -160,7 +159,7 @@ export default function NewVendorPage() {
   const num = (v: string) => (v.trim() === '' ? undefined : Number(v))
 
   const handleSubmit = async () => {
-    if (!isValid) return
+    if (!isValid || servicesBlock) return
     setLoading(true)
     setError('')
     try {
@@ -193,8 +192,8 @@ export default function NewVendorPage() {
         status,
         isVerified,
         notes: form.notes.trim() || undefined,
-        services: validServices.length
-          ? validServices.map((s) => {
+        services: servicesToSave.length
+          ? servicesToSave.map((s) => {
               const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
               const durationMins = durationToMins(s.durationValue, s.durationUnit)
               return {
@@ -326,7 +325,7 @@ export default function NewVendorPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <ScField label="Pickup radius km (optional)" value={form.pickupRadiusKm} onChange={set('pickupRadiusKm')} type="number" placeholder="e.g. 5" />
-              <ScField label="Doorstep travel radius km" value={form.doorstepRadiusKm} onChange={set('doorstepRadiusKm')} type="number" placeholder="e.g. 8" />
+              <ScField label="Doorstep travel radius km (optional)" value={form.doorstepRadiusKm} onChange={set('doorstepRadiusKm')} type="number" placeholder={DOORSTEP_RADIUS_PLACEHOLDER} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex items-end gap-4 pb-1">
@@ -392,8 +391,28 @@ export default function NewVendorPage() {
               <p className="text-[12px] text-text-muted">No services added yet.</p>
             ) : (
               <div className="space-y-3">
-                {services.map((s, i) => (
-                  <div key={i} className="space-y-2 rounded-[12px] border border-border p-3">
+                {services.map((s, i) => {
+                  const missing = missingServiceFields(s)
+                  const problem = serviceRowProblem(s)
+                  const problemId = `service-${i}-problem`
+                  // What an input missing its value carries: the amber edge,
+                  // and the row's line as its description.
+                  const flag = (field: (typeof missing)[number]) => {
+                    const on = missing.includes(field)
+                    return {
+                      'aria-invalid': on || undefined,
+                      'aria-describedby': on ? problemId : undefined,
+                      className: on ? 'border-error' : undefined,
+                    }
+                  }
+                  return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'space-y-2 rounded-[12px] border p-3',
+                      problem ? 'border-error' : 'border-border'
+                    )}
+                  >
                     <div className="flex items-end gap-2">
                       {/* The wrapper takes the row's width: ScInput's className
                           styles the field inside, not the box around it. */}
@@ -403,6 +422,7 @@ export default function NewVendorPage() {
                           aria-label={`Service ${i + 1} name`}
                           placeholder="Service name (e.g. Foam wash)"
                           onChange={(e) => updateService(i, { name: e.target.value })}
+                          {...flag('name')}
                         />
                       </div>
                       {/* Quiet: removing a row is not the form's main action. */}
@@ -415,6 +435,13 @@ export default function NewVendorPage() {
                         Remove
                       </button>
                     </div>
+                    {/* Amber, as errors are: what this row needs before the
+                        garage can be created. */}
+                    {problem && (
+                      <p id={problemId} className="text-[12px] text-error">
+                        {problem}
+                      </p>
+                    )}
                     <ScTextarea
                       value={s.description}
                       aria-label={`Service ${i + 1} description`}
@@ -437,7 +464,9 @@ export default function NewVendorPage() {
                       <ScSelect
                         value={s.pricingType}
                         aria-label={`Service ${i + 1} pricing`}
-                        onChange={(e) => updateService(i, { pricingType: e.target.value as PricingType })}
+                        onChange={(e) =>
+                          updateService(i, switchPricingType(s, e.target.value as PricingType))
+                        }
                       >
                         {PRICING_TYPES.map((p) => (
                           <option key={p.value} value={p.value}>
@@ -458,8 +487,9 @@ export default function NewVendorPage() {
                             : 'Price ₹'
                         }
                         aria-label={`Service ${i + 1} price in rupees`}
-                        className="font-numeric"
                         onChange={(e) => updateService(i, { price: e.target.value })}
+                        {...flag('price')}
+                        className={cn('font-numeric', flag('price').className)}
                       />
                     )}
                     <div className="grid grid-cols-2 gap-2">
@@ -491,7 +521,8 @@ export default function NewVendorPage() {
                           type="number"
                           min={0}
                           aria-label={`Service ${i + 1} hatchback price in rupees`}
-                          className="font-numeric"
+                          {...flag('priceHatchback')}
+                          className={cn('font-numeric', flag('priceHatchback').className)}
                           placeholder="Hatch ₹"
                           onChange={(e) => updateService(i, { priceHatchback: e.target.value })}
                         />
@@ -500,7 +531,8 @@ export default function NewVendorPage() {
                           type="number"
                           min={0}
                           aria-label={`Service ${i + 1} sedan price in rupees`}
-                          className="font-numeric"
+                          {...flag('priceSedan')}
+                          className={cn('font-numeric', flag('priceSedan').className)}
                           placeholder="Sedan ₹"
                           onChange={(e) => updateService(i, { priceSedan: e.target.value })}
                         />
@@ -509,14 +541,16 @@ export default function NewVendorPage() {
                           type="number"
                           min={0}
                           aria-label={`Service ${i + 1} SUV price in rupees`}
-                          className="font-numeric"
+                          {...flag('priceSuv')}
+                          className={cn('font-numeric', flag('priceSuv').className)}
                           placeholder="SUV ₹"
                           onChange={(e) => updateService(i, { priceSuv: e.target.value })}
                         />
                       </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
             <ScButton
@@ -528,8 +562,8 @@ export default function NewVendorPage() {
               <IconPlus size={14} aria-hidden="true" /> Add service
             </ScButton>
             <p className="text-[11px] text-text-muted">
-              Each service needs a name and price to be saved. Duration is optional —
-              leave it blank to use one booking slot; it drives the bookable time slots.
+              Each service needs a name and price. Duration is optional — leave it
+              blank to use one booking slot; it drives the bookable time slots.
             </p>
           </ScSection>
         </TabsContent>
@@ -542,7 +576,19 @@ export default function NewVendorPage() {
         </p>
       )}
 
-        <ScButton disabled={!isValid || loading} onClick={handleSubmit}>
+        {/* Why Create is off, here rather than only on the Services tab: the
+            admin may be on any tab when they reach for it. */}
+        {servicesBlock && (
+          <p id="services-save-block" className="text-[13px] text-error">
+            {servicesBlock} — see the Services tab.
+          </p>
+        )}
+
+        <ScButton
+          disabled={!isValid || loading || servicesBlock !== null}
+          aria-describedby={servicesBlock ? 'services-save-block' : undefined}
+          onClick={handleSubmit}
+        >
           {loading ? 'Creating…' : 'Create vendor'}
         </ScButton>
       </div>

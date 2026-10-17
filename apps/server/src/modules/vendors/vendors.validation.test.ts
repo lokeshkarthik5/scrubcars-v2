@@ -1,9 +1,20 @@
 import { describe, expect, test } from 'bun:test'
 import {
   createClosureSchema,
+  createVendorSchema,
   updateJobTypesSchema,
   updateVendorSchema,
 } from './vendors.validation.js'
+
+const NEW_GARAGE = {
+  businessName: 'Test Garage',
+  phone: '9876543210',
+  address: '1 Main Road',
+  city: 'Chennai',
+  pincode: '600001',
+  lat: 13.08,
+  lng: 80.27,
+}
 
 describe('createClosureSchema', () => {
   test('takes a real calendar day and an optional reason', () => {
@@ -31,6 +42,25 @@ describe('capacity on PATCH /vendors/me', () => {
   test('the daily limit can be cleared with null', () => {
     expect(updateVendorSchema.parse({ jobsPerDay: null })).toEqual({ jobsPerDay: null })
     expect(updateVendorSchema.safeParse({ jobsPerDay: 0 }).success).toBe(false)
+  })
+})
+
+describe('fields a garage may not write', () => {
+  test('notes is the admin-only ops note: dropped from signup and PATCH /vendors/me', () => {
+    // Stripped, not stored: the parsed input is what the service spreads into
+    // the row, so a key missing here can never reach the column.
+    expect(updateVendorSchema.parse({ bays: 2, notes: 'Checked by ops' })).toEqual({ bays: 2 })
+    expect('notes' in createVendorSchema.parse({ ...NEW_GARAGE, notes: 'OK to verify' })).toBe(false)
+    // On its own it is no change at all, so the update is refused.
+    expect(updateVendorSchema.safeParse({ notes: '' }).success).toBe(false)
+  })
+})
+
+describe('doorstep radius on PATCH /vendors/me', () => {
+  test('null clears it, so the garage falls back to the default', () => {
+    expect(updateVendorSchema.parse({ doorstepRadiusKm: null })).toEqual({ doorstepRadiusKm: null })
+    expect(updateVendorSchema.parse({ doorstepRadiusKm: 6 })).toEqual({ doorstepRadiusKm: 6 })
+    expect(updateVendorSchema.safeParse({ doorstepRadiusKm: 0 }).success).toBe(false)
   })
 })
 

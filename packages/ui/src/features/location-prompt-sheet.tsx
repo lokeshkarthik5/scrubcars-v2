@@ -49,6 +49,7 @@ export function LocationPromptSheet({
   onEnabled,
 }: LocationPromptSheetProps) {
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
+  const selectChennai = useLocationStore((s) => s.selectChennai)
   const locating = useLocationStore((s) => s.locating)
   const permission = useLocationStore((s) => s.permission)
   const dismiss = useLocationStore((s) => s.dismissPrompt)
@@ -69,6 +70,11 @@ export function LocationPromptSheet({
 
   const notNow = () => {
     dismiss()
+    onClose()
+  }
+
+  const chooseCity = () => {
+    selectChennai()
     onClose()
   }
 
@@ -117,17 +123,22 @@ export function LocationPromptSheet({
               {locating ? 'Finding you…' : 'Enable location'}
             </ScButton>
           )}
-          <ScButton variant="secondary" onClick={notNow}>
-            {blocked ? 'Close' : 'Not now'}
+          <ScButton variant="secondary" onClick={chooseCity}>
+            All of Chennai
           </ScButton>
+          {!blocked && (
+            <ScButton variant="ghost" onClick={notNow}>
+              Not now
+            </ScButton>
+          )}
         </div>
 
         {!blocked && (
           // Sets expectations for the dialog that appears next, so the browser
           // prompt reads as the consequence of tapping rather than an ambush.
           <p className="text-center text-[11px] text-text-muted">
-            Your browser will ask next. We only use this to sort garages — it is
-            never shared.
+            Enable location asks your browser. We only use it to sort garages — it
+            is never shared.
           </p>
         )}
       </div>
