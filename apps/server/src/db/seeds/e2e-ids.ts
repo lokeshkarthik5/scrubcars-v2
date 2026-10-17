@@ -684,6 +684,9 @@ export const BOOKINGS = {
    */
   refundMovedFrom: refId('5efd0005'),
   refundMovedTo: refId('5efd0006'),
+  /** Declined by the garage an hour ago and owed: ops presses Refund now
+   *  (E2E_FAKE_PAYMENTS mints the rfnd_e2e_… refund), and it moves to Done. */
+  refundSendNow: refId('5efd0007'),
   /**
    * The receipt spec's bookings at MAIN. Seeded without receipt numbers; the
    * spec's first open of each issues one, and nothing else changes them.

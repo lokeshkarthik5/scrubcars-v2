@@ -496,3 +496,55 @@ describe('complaint_received', () => {
     expect(text.split('\n')[1]).toBe('Not about a booking.')
   })
 })
+
+describe('refunds through Razorpay', () => {
+  const sent = {
+    kind: 'refund_sent',
+    what: 'booking',
+    bookingId: booking.id,
+    garageName: 'Marina Auto Spa',
+    amount: '1299.00',
+    paid: '1299.00',
+    refundedTotal: '1299.00',
+    refundRef: 'rfnd_ABC123',
+    paymentId: 'pay_SEED',
+    auto: false,
+    by: 'Anand',
+  } satisfies OpsAlert
+
+  test('one alert per refund sent, saying who sent it', () => {
+    const text = formatOpsAlert(sent)
+    expect(text).toContain('💸 Refund ₹1,299 started for booking #3F2A9C1B · admin')
+    expect(text).toContain('Razorpay refund rfnd_ABC123 for pay_SEED')
+    expect(text).toContain('Sent by Anand.')
+    expect(text).toContain(adminBookingUrl(booking.id))
+    const auto = formatOpsAlert({ ...sent, auto: true, by: 'Detlio (automatic)' })
+    expect(auto).toContain('· auto')
+    expect(auto).toContain('Sent automatically.')
+  })
+
+  test('one alert per failure, saying the money is owed again', () => {
+    const text = formatOpsAlert({
+      kind: 'refund_failed',
+      what: 'checkout',
+      bookingId: null,
+      amount: '499.00',
+      refundRef: null,
+      paymentId: 'pay_SEED',
+      reason: 'The balance is too low.',
+      auto: true,
+      gaveUp: true,
+    })
+    expect(text).toContain('⚠️ Refund ₹499 failed for a payment with no booking · auto')
+    expect(text).toContain('Razorpay payment pay_SEED')
+    expect(text).toContain('Why: The balance is too low.')
+    expect(text).toContain('Automatic refunds have stopped trying this one')
+    expect(text).toContain('https://admin.detlio.com/refunds')
+  })
+
+  test('the daily cap', () => {
+    const text = formatOpsAlert({ kind: 'auto_refund_cap_reached', cap: '20000.00', sentToday: '19800.00' })
+    expect(text).toContain('Automatic refunds paused for today')
+    expect(text).toContain('₹19,800 refunded automatically today; the daily cap is ₹20,000.')
+  })
+})

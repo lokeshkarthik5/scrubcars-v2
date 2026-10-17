@@ -278,8 +278,9 @@ export function NoShowDialog({
               <span className="font-numeric">
                 {formatRupees(booking.amount)}
               </span>{' '}
-              to the customer in full in Razorpay, then mark it refunded here.
-              The garage earns nothing for it. The team also gets a Telegram
+              goes back to the customer in full: use Refund now on this
+              booking (or, with automatic refunds on, it goes by itself). The
+              garage earns nothing for it. The team also gets a Telegram
               reminder.
             </>
           ) : party === 'garage' ? (

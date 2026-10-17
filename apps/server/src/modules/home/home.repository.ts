@@ -87,6 +87,7 @@ export const homeRepository = {
           sql`exists (
             select 1 from refund_records r
              where r.booking_id = ${bookings.id} and r.recorded_at >= ${sinceAt}
+               and r.gateway_status is distinct from 'failed'
           )`,
           sql`exists (
             select 1 from job_photos p
@@ -146,7 +147,11 @@ export const homeRepository = {
           },
         },
         photos: { columns: { stage: true, createdAt: true } },
-        refundRecords: { columns: { id: true, amount: true, recordedAt: true, refundRef: true } },
+        // A refund through Razorpay that failed moved no money (0036).
+        refundRecords: {
+          columns: { id: true, amount: true, recordedAt: true, refundRef: true },
+          where: (record, { sql }) => sql`${record.gatewayStatus} IS DISTINCT FROM 'failed'`,
+        },
       },
       orderBy: [desc(bookings.scheduledAt)],
       // A safety cap; the window keeps a real customer far below it.

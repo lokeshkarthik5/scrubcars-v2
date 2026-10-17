@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { isDataResetEnabled } from './data-reset.js'
+import { parseDailyCap } from './refund-sending.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -269,6 +270,25 @@ export const env = {
    * docs/test-data-reset.md. The "Test" mark on a booking works either way.
    */
   adminDataReset: isDataResetEnabled(process.env.ADMIN_DATA_RESET),
+
+  /**
+   * Whether refunds go back through Razorpay with nobody pressing anything:
+   * AUTO_REFUNDS=on. Off unless set to exactly `on`, and while off the only
+   * change from manual refunds is the admin Refund now button.
+   *
+   * When on, the clear-cut cases (garage declined or no-show, the customer
+   * cancelled in time, Detlio cancelled, a checkout paid with no booking)
+   * are refunded right after the cancel commits, and the pending-digest cron
+   * retries anything missed or failed. Final-bill money, part refunds and
+   * bookings with an open complaint always wait for a person. See
+   * lib/refund-sending.ts. Refunds come out of the Razorpay balance, which
+   * must cover them.
+   */
+  autoRefunds: (process.env.AUTO_REFUNDS ?? '').trim().toLowerCase() === 'on',
+  // The most the automatic mode refunds in an IST day, in rupees. Once a
+  // refund would take it past this, automatic refunds stop until the next
+  // day and the team gets one Telegram alert; the button still works.
+  autoRefundDailyCapInr: parseDailyCap(process.env.AUTO_REFUND_DAILY_CAP_INR),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;

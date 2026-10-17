@@ -365,6 +365,9 @@ export function mapBooking(booking: ApiBooking): Booking {
           amount: Number(booking.refund.amount),
           amountRefunded: Number(booking.refund.amountRefunded),
           refundedAt: booking.refund.refundedAt ?? undefined,
+          ...(booking.refund.started && {
+            started: { amount: Number(booking.refund.started.amount), at: booking.refund.started.at },
+          }),
         }
       : { status: 'none', amount: 0, amountRefunded: 0 },
     receiptAvailable: booking.receiptAvailable ?? false,

@@ -50,6 +50,34 @@ describe('customerRefundLine', () => {
     )
   })
 
+  test('started through Razorpay from the app: how much, the day, and when it arrives', () => {
+    expect(
+      customerRefundLine({
+        status: 'refunded',
+        amount: 499,
+        amountRefunded: 499,
+        refundedAt: '2026-10-05T06:00:00Z',
+        started: { amount: 499, at: '2026-10-05T06:00:00Z' },
+      })
+    ).toBe('Refund of ₹499 started on 5 Oct 2026. It reaches your account in 5–7 working days.')
+    // A part sent, the rest still owed: only what was started is promised.
+    expect(
+      customerRefundLine({
+        status: 'owed',
+        amount: 499,
+        amountRefunded: 200,
+        refundedAt: '2026-10-04T20:00:00Z',
+        started: { amount: 200, at: '2026-10-04T20:00:00Z' },
+      })
+    ).toBe('Refund of ₹200 started on 5 Oct 2026. It reaches your account in 5–7 working days.')
+    expect(
+      customerRefundLine(
+        { status: 'refunded', amount: 300, amountRefunded: 300, started: { amount: 300, at: '2026-10-05T06:00:00Z' } },
+        'earlier_bill'
+      )
+    ).toBe('Refund of ₹300 for the earlier final bill started on 5 Oct 2026. It reaches your account in 5–7 working days.')
+  })
+
   test('nothing to say when nothing is coming back', () => {
     expect(customerRefundLine({ status: 'none', amount: 0, amountRefunded: 0 })).toBeNull()
     expect(customerRefundLine(undefined)).toBeNull()

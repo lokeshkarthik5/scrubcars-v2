@@ -239,3 +239,168 @@ export function razorpayKeyMode(): 'live' | 'test' | 'fake' | 'none' {
   if (!env.razorpayKeyId || !env.razorpayKeySecret) return 'none'
   return env.razorpayKeyId.startsWith('rzp_live_') ? 'live' : 'test'
 }
+
+// ─── Refunds ─────────────────────────────────────────────────────────────────
+
+/** A Razorpay refund, as much of it as the refunds module reads. */
+export interface RazorpayRefund {
+  /** rfnd_… (rfnd_e2e_… under E2E_FAKE_PAYMENTS). */
+  id: string
+  paymentId: string
+  /** In paise. */
+  amountPaise: number
+  /** 'pending', 'processed' or 'failed'. */
+  status: string
+  notes: Record<string, string>
+}
+
+type RazorpayRefundEntity = {
+  id: string
+  payment_id: string
+  amount: number
+  status: string
+  notes?: Record<string, string> | unknown[]
+}
+
+/**
+ * Razorpay would not make the refund, or did not say. `status` is Razorpay's
+ * HTTP status, null when there was no answer (a timeout, a dropped
+ * connection); whether nothing was made is refusalIsDefinite in
+ * lib/refund-sending.ts. `description` is Razorpay's own words, for the
+ * team's alert and log only: never shown to a customer.
+ */
+export class RazorpayRefundError extends AppError {
+  constructor(
+    public readonly status: number | null,
+    public readonly description: string | null
+  ) {
+    super(502, "Razorpay didn't make the refund.", 'RAZORPAY_REFUND_FAILED')
+    this.name = 'RazorpayRefundError'
+  }
+}
+
+/** Prefix of a refund this server minted itself under E2E_FAKE_PAYMENTS. */
+const FAKE_REFUND_PREFIX = 'rfnd_e2e_'
+
+/**
+ * Under E2E_FAKE_PAYMENTS: the refunds made so far, by payment and by
+ * idempotency key, so the fake behaves like Razorpay where it matters to the
+ * app — a payment's refunds can be listed back, and the same key answers
+ * with the same refund. The E2E server is one long-lived process.
+ */
+const fakeRefunds = {
+  byPayment: new Map<string, RazorpayRefund[]>(),
+  byKey: new Map<string, RazorpayRefund>(),
+}
+
+function toRefund(entity: RazorpayRefundEntity): RazorpayRefund {
+  return {
+    id: entity.id,
+    paymentId: entity.payment_id,
+    amountPaise: entity.amount,
+    status: entity.status,
+    // Razorpay sends an empty array, not an object, when there are no notes.
+    notes: entity.notes && !Array.isArray(entity.notes) ? (entity.notes as Record<string, string>) : {},
+  }
+}
+
+async function razorpayErrorDescription(response: Response): Promise<string | null> {
+  const body = (await response.json().catch(() => null)) as { error?: { description?: string } } | null
+  return body?.error?.description ?? null
+}
+
+/**
+ * Refunds part or all of a captured payment: POST /v1/payments/:id/refund.
+ *
+ * Always speed 'normal': an instant refund costs extra, and the customer is
+ * told 5–7 working days either way. `idempotencyKey` goes in Razorpay's
+ * X-Refund-Idempotency header (normal and instant refunds both honour it;
+ * see refundIdempotencyKey), so the same request retried after a lost answer
+ * gets the refund Razorpay already made rather than a second one. No
+ * `receipt` is sent: Razorpay treats that as an idempotency key too, and
+ * refuses a reused one outright instead of answering with the first refund.
+ *
+ * Throws RazorpayRefundError when Razorpay refuses or does not answer.
+ * Nothing here decides whether or how much to refund; that is the refunds
+ * service, under its lock.
+ */
+export async function createRazorpayRefund(input: {
+  paymentId: string
+  amountPaise: number
+  notes: Record<string, string>
+  idempotencyKey: string
+}): Promise<RazorpayRefund> {
+  if (!Number.isInteger(input.amountPaise) || input.amountPaise <= 0) {
+    throw new AppError(400, 'Invalid refund amount', 'INVALID_AMOUNT')
+  }
+  const { keyId, keySecret } = getCredentials()
+
+  if (env.e2eFakePayments) {
+    const known = fakeRefunds.byKey.get(input.idempotencyKey)
+    if (known) return known
+    const refund: RazorpayRefund = {
+      id: `${FAKE_REFUND_PREFIX}${randomUUID().replace(/-/g, '')}`,
+      paymentId: input.paymentId,
+      amountPaise: input.amountPaise,
+      status: 'pending',
+      notes: input.notes,
+    }
+    fakeRefunds.byKey.set(input.idempotencyKey, refund)
+    fakeRefunds.byPayment.set(input.paymentId, [...(fakeRefunds.byPayment.get(input.paymentId) ?? []), refund])
+    return refund
+  }
+
+  let response: Response
+  try {
+    response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(input.paymentId)}/refund`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        Authorization: basicAuthHeader(keyId, keySecret),
+        'Content-Type': 'application/json',
+        'X-Refund-Idempotency': input.idempotencyKey,
+      },
+      body: JSON.stringify({ amount: input.amountPaise, speed: 'normal', notes: input.notes }),
+    })
+  } catch {
+    throw new RazorpayRefundError(null, null)
+  }
+
+  if (!response.ok) {
+    throw new RazorpayRefundError(response.status, await razorpayErrorDescription(response))
+  }
+  return toRefund((await response.json()) as RazorpayRefundEntity)
+}
+
+/**
+ * Every refund Razorpay holds for a payment, whoever made it (the app or the
+ * dashboard), newest first: GET /v1/payments/:id/refunds. Read before every
+ * refund the app sends, so one done by hand is recorded rather than
+ * repeated. Throws RazorpayRefundError when Razorpay doesn't answer: a send
+ * that can't check first doesn't go.
+ */
+export async function listRazorpayRefunds(paymentId: string): Promise<RazorpayRefund[]> {
+  const { keyId, keySecret } = getCredentials()
+
+  if (env.e2eFakePayments) return [...(fakeRefunds.byPayment.get(paymentId) ?? [])].reverse()
+
+  let response: Response
+  try {
+    response = await fetch(
+      `https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}/refunds?count=100`,
+      {
+        method: 'GET',
+        signal: AbortSignal.timeout(10_000),
+        headers: { Authorization: basicAuthHeader(keyId, keySecret) },
+      }
+    )
+  } catch {
+    throw new RazorpayRefundError(null, null)
+  }
+
+  if (!response.ok) {
+    throw new RazorpayRefundError(response.status, await razorpayErrorDescription(response))
+  }
+  const body = (await response.json()) as { items?: RazorpayRefundEntity[] }
+  return (body.items ?? []).map(toRefund)
+}

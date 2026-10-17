@@ -8,6 +8,7 @@ import {
   resolveBookingDraft,
 } from '../bookings/bookings.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
+import { refundsService } from '../refunds/refunds.service.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
 import type { CreateBookingIntentInput } from './booking-intents.validation.js'
@@ -270,6 +271,10 @@ async function failIntent(
   // error log above was the only place that said so. Only the call that
   // recorded the failure alerts — a racing confirm, or a later retry
   // ('previously_failed'), does not flag the same refund twice.
+  // Paid, no booking: refunded at once when AUTO_REFUNDS is on (the cron
+  // sweep retries anything this misses). Only from the call that recorded
+  // it, like the alert.
+  if (recorded) refundsService.queueAutoRefund({ kind: 'checkout', id: params.intentId })
   if (recorded) alertOps(async () => {
     const intent = await bookingIntentsRepository.findById(params.intentId)
     const vendor = intent ? await vendorsRepository.findVendorById(intent.vendorId) : null

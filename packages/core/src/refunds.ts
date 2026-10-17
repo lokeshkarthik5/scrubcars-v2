@@ -47,6 +47,8 @@ export type RefundFor = 'payment' | 'earlier_bill'
  * server never reports as owed: the page already says that payment isn't
  * refunded).
  *
+ * - Started through Razorpay from the app, not finished there yet: how
+ *   much, the day it started, and when it reaches the account.
  * - Owed, nothing sent yet: our team will refund it, and how long that takes.
  * - Partly sent: how much of how much, and when. Nothing about the rest: ops
  *   may have kept part on purpose, and there is no state yet that says so,
@@ -62,6 +64,12 @@ export function customerRefundLine(
   const when = refund.refundedAt ? ` on ${formatDate(refund.refundedAt)}` : ''
   const forBill = what === 'earlier_bill' ? ' for the earlier final bill' : ''
   const showing = `It can take ${BANK_DAYS} to show in your account.`
+
+  // Sent through Razorpay from the app and still on its way: said as
+  // started, with the day it was, until Razorpay finishes it.
+  if (refund.started && refund.started.amount > 0) {
+    return `Refund of ${formatRupees(refund.started.amount)}${forBill} started on ${formatDate(refund.started.at)}. It reaches your account in ${BANK_DAYS}.`
+  }
 
   if (refund.status === 'refunded') {
     return `Refunded ${formatRupees(refund.amountRefunded)}${forBill}${when}. ${showing}`

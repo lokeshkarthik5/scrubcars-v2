@@ -16,6 +16,7 @@ import {
   garageRefusalForBooking,
   logReceiptNumberFailure,
 } from '../bookings/bookings.service.js'
+import { refundsService } from '../refunds/refunds.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { paymentsRepository } from './payments.repository.js'
 import type { VerifyPaymentInput } from './payments.validation.js'
@@ -25,6 +26,16 @@ const log = logger.child({ module: 'payments' })
 type RazorpayWebhookPayload = {
   event: string
   payload?: {
+    /** On refund.* events, beside the payment the refund is of. */
+    refund?: {
+      entity?: {
+        id?: string
+        payment_id?: string
+        status?: string
+        /** In paise. */
+        amount?: number
+      }
+    }
     payment?: {
       entity?: {
         id?: string
@@ -204,6 +215,8 @@ async function markBookingPaid(
         { bookingId, paymentId: paymentTxnId, reason },
         'payment:settle_refused_refund_due'
       )
+      // Detlio cancelled it: refunded at once when AUTO_REFUNDS is on.
+      refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
       alertOps(async () => {
         const booking = await paymentsRepository.findBookingById(bookingId)
         const vendor = booking
@@ -368,6 +381,16 @@ export const paymentsService = {
 
     const payload = JSON.parse(rawBody) as RazorpayWebhookPayload
     const event = payload.event
+
+    // A refund's outcome, signed like every event above. Handled first and
+    // on its own: refund events carry the payment too, whose status still
+    // reads 'captured' after a part refund, and must never reach the
+    // capture handling below.
+    if (event?.startsWith('refund.')) {
+      log.info({ event, refundId: payload.payload?.refund?.entity?.id }, 'webhook:received')
+      return refundsService.handleGatewayRefund(event, payload.payload?.refund?.entity)
+    }
+
     const entity = payload.payload?.payment?.entity
 
     log.info({ event, paymentId: entity?.id }, 'webhook:received')

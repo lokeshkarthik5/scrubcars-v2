@@ -26,7 +26,9 @@ function GatewayId({ value, label }: { value: string; label: string }) {
 /**
  * One refund, owed or done: how much, for how long, whose money, the
  * Razorpay payment to refund and why — and, once done, the refund id, when
- * and who. "Mark refunded…" opens the dialog while anything is still owed.
+ * and who. While anything is still owed, "Refund now…" sends it through
+ * Razorpay (when there is a Razorpay payment to refund) and "Mark
+ * refunded…" records one done by hand in the dashboard.
  *
  * `linkBooking` is off on a booking's own page, where the link would lead
  * back to where you are.
@@ -35,12 +37,14 @@ export function RefundCard({
   refund: r,
   now,
   onMark,
+  onRefundNow,
   linkBooking = true,
   className,
 }: {
   refund: AdminRefund
   now: number
   onMark: (refund: AdminRefund) => void
+  onRefundNow?: (refund: AdminRefund) => void
   linkBooking?: boolean
   className?: string
 }) {
@@ -131,15 +135,28 @@ export function RefundCard({
       )}
 
       {owed && (
-        <ScButton
-          variant="secondary"
-          fullWidth={false}
-          onClick={() => onMark(r)}
-          aria-label={`Mark refunded: #${r.reference}, ${formatRupees(r.amountOwed)} owed`}
-          className="min-h-11 self-start px-4 text-[13px]"
-        >
-          Mark refunded…
-        </ScButton>
+        <div className="flex flex-wrap gap-2">
+          {/* Only a Razorpay payment (pay_…) can be refunded from here. */}
+          {onRefundNow && r.razorpayPaymentId?.startsWith('pay_') && (
+            <ScButton
+              fullWidth={false}
+              onClick={() => onRefundNow(r)}
+              aria-label={`Refund now: #${r.reference}, ${formatRupees(r.amountOwed)} owed`}
+              className="min-h-11 px-4 text-[13px]"
+            >
+              Refund now…
+            </ScButton>
+          )}
+          <ScButton
+            variant="secondary"
+            fullWidth={false}
+            onClick={() => onMark(r)}
+            aria-label={`Mark refunded: #${r.reference}, ${formatRupees(r.amountOwed)} owed`}
+            className="min-h-11 px-4 text-[13px]"
+          >
+            Mark refunded…
+          </ScButton>
+        </div>
       )}
     </ScCard>
   )

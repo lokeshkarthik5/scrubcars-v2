@@ -72,8 +72,9 @@ const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confi
  * server never reports a refund owed on one. A garage no-show is always
  * refunded, by the Detlio team. Every other cancellation of a paid booking is
  * refunded too, and the refund line (customerRefundLine) says so: "will
- * refund … within 5–7 working days" until the team records it, then
- * "Refunded ₹X on <date>".
+ * refund … within 5–7 working days" until the team records it, "Refund of
+ * ₹X started on <date>" while one sent through Razorpay from the app is on
+ * its way, then "Refunded ₹X on <date>".
  */
 function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
   if (booking.noShow === 'customer') {

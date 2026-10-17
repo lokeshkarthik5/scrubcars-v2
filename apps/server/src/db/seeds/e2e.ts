@@ -897,6 +897,10 @@ async function seedBookingRows() {
   await insertBooking({ id: BOOKINGS.refundMovedTo, ...refundsCustomer, scheduledAt: tomorrowAt(14),
     status: 'pending', rescheduledFromId: BOOKINGS.refundMovedFrom, rescheduleCount: 1,
     payment: { status: 'paid', txnId: 'pay_seed_refund_moved' } })
+  // Declined by the garage an hour ago: owed, and refunded with Refund now.
+  await insertBooking({ id: BOOKINGS.refundSendNow, ...refundsCustomer, scheduledAt: tomorrowAt(15),
+    status: 'cancelled', cancellation: { by: 'vendor', reason: 'Fully booked that day', at: anHourAgo() },
+    payment: { status: 'paid', txnId: 'pay_seed_refund_send', paidAt: daysAgo(1) } })
 
   // The receipt spec's bookings at MAIN. A completed one with two services
   // and a promo code, and one the garage declined that ops then refunded in
