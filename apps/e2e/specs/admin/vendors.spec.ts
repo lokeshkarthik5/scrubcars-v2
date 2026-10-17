@@ -301,6 +301,7 @@ test.describe('admin garage list: chips and checklist', () => {
       { key: 'no_services', severity: 'blocking', tab: 'services' },
       { key: 'no_logo', severity: 'optional', tab: 'details' },
       { key: 'no_photos', severity: 'optional', tab: 'details' },
+      { key: 'documents_not_verified', severity: 'optional', tab: 'documents' },
     ])
     // The customer lists' own rule: active, verified, not paused.
     expect(body.data.find((v) => v.id === VENDORS.main.id)?.live).toBe(true)
@@ -314,7 +315,7 @@ test.describe('admin garage list: chips and checklist', () => {
     const card = page.getByRole('group', { name: LIST.name, exact: true })
     const line = card.getByRole('button', { name: /^1 blocking/ })
     // Optional items trail in grey and never count as needing fixing.
-    await expect(line).toHaveText('1 blocking · 2 optional')
+    await expect(line).toHaveText('1 blocking · 3 optional')
     await expect(line).toHaveAttribute('aria-expanded', 'false')
     await line.click()
     await expect(line).toHaveAttribute('aria-expanded', 'true')
@@ -340,7 +341,7 @@ test.describe('admin garage list: chips and checklist', () => {
 
     const card = page.getByRole('group', { name: LIST.name, exact: true })
     const line = card.getByRole('button', { name: /^1 blocking/ })
-    await expect(line).toHaveText('1 blocking · 1 to fix · 2 optional')
+    await expect(line).toHaveText('1 blocking · 1 to fix · 3 optional')
     await line.click()
     await card.getByRole('link', { name: /Bays not set/ }).click()
     await expect(page.getByRole('tab', { name: 'Operations' })).toHaveAttribute('aria-selected', 'true')
@@ -362,7 +363,7 @@ test.describe('admin garage list: chips and checklist', () => {
     await expect(page).toHaveURL(/\/vendors\?show=pending$/)
     await expect(
       page.getByRole('group', { name: LIST.name, exact: true }).getByRole('button', { name: /^1 blocking/ })
-    ).toHaveText('1 blocking · 2 optional')
+    ).toHaveText('1 blocking · 3 optional')
 
     await resetListGarage()
   })
