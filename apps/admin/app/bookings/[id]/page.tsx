@@ -30,6 +30,8 @@ import {
   RefundOwedBadge,
   TestBadge,
   TestModePaymentBadge,
+  AcceptByBadge,
+  NotAcceptedBadge,
   WaitingBadge,
 } from '@/components/booking-badges'
 import { DeleteTestBookingDialog } from '@/components/delete-test-booking-dialog'
@@ -114,6 +116,22 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
     steps.push({ label: 'Paid online', at: b.payment.paidAt })
   }
 
+  // The garage's deadline to accept (0042), and how it went: accepted
+  // after it is only possible while AUTO_CANCEL_UNANSWERED is off.
+  if (b.respondBy) {
+    steps.push({
+      label: 'Deadline for the garage to accept',
+      at: b.respondBy,
+      detail: b.notAcceptedInTime
+        ? 'Missed: cancelled and refunded in full'
+        : b.acceptedAt
+          ? new Date(b.acceptedAt).getTime() <= new Date(b.respondBy).getTime()
+            ? 'Accepted in time'
+            : 'Accepted after it (auto-cancel was off)'
+          : null,
+    })
+  }
+
   const accepted =
     b.acceptedByName !== null ||
     ['confirmed', 'in_progress', 'completed'].includes(b.status)
@@ -168,7 +186,7 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
     steps.push({
       label: cancelled,
       at: b.noShowMarkedAt ?? b.cancelledAt,
-      detail: b.cancellationReason,
+      detail: b.notAcceptedInTime ? null : b.cancellationReason,
     })
   }
 
@@ -367,6 +385,8 @@ function BookingDetail({
                 <TestModePaymentBadge />
               )}
               {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
+              {b.status === 'pending' && b.respondBy && <AcceptByBadge respondBy={b.respondBy} />}
+              {b.notAcceptedInTime && <NotAcceptedBadge />}
               {b.noShow && <NoShowBadge party={b.noShow} />}
               {b.billDue && <BillDueBadge amount={b.billDue} />}
               {b.refundOwed ? (
@@ -393,7 +413,7 @@ function BookingDetail({
                 <p className="text-[13px] font-medium text-text-primary">
                   {cancellationLabel(b)}
                 </p>
-                {b.cancellationReason && (
+                {b.cancellationReason && !b.notAcceptedInTime && (
                   <p className="mt-0.5 text-[12px] text-text-secondary">
                     {b.cancellationReason}
                   </p>

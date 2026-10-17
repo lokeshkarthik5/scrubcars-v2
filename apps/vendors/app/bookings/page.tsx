@@ -29,6 +29,7 @@ import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
 import { JobPhotos } from '@/components/job-photos'
 import { PickupSteps } from '@/components/pickup-steps'
+import { ResponseCountdown, responseRunOut } from '@/components/response-countdown'
 import { jobStepTimes } from '@repo/core/job-records'
 import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
@@ -115,8 +116,10 @@ export default function VendorBookingsPage() {
     return { filtered: result, incomingCount: incoming, upcomingCount: upcoming, completedCount: completed, cancelledCount: cancelled }
   }, [vendorBookings, tab])
 
-  // A pending job whose time passes while this page is open loses its Accept.
-  const now = useNow(30_000)
+  // A pending job whose time passes while this page is open loses its Accept,
+  // and so does one whose time to answer runs out (0042): often enough that
+  // the buttons go with the countdown's own "cancelled and refunded".
+  const now = useNow(10_000)
 
   // A refusal (the slot has started, the customer cancelled a moment ago)
   // is shown, and the list re-read so the card stops offering it.
@@ -261,7 +264,19 @@ export default function VendorBookingsPage() {
                   offered, until when, and Withdraw. Accept and Reject wait. */}
               {tab === 'incoming' && proposalOpen(b) && <SuggestTimes booking={b} onChanged={refresh} />}
 
-              {tab === 'incoming' && !proposalOpen(b) && rejectId !== b.id && slotPassed(b, now) && (
+              {/* How long is left to answer (0042): a countdown, amber in
+                  its last five minutes. Once it runs out with auto-cancel on,
+                  it says the booking is cancelled and refunded, and the
+                  buttons below go (the server refuses them). */}
+              {tab === 'incoming' &&
+                b.status === 'pending' &&
+                b.responseDeadline &&
+                !proposalOpen(b) &&
+                (!slotPassed(b, now) || responseRunOut(b.responseDeadline, now)) && (
+                  <ResponseCountdown deadline={b.responseDeadline} />
+                )}
+
+              {tab === 'incoming' && !proposalOpen(b) && rejectId !== b.id && slotPassed(b, now) && !responseRunOut(b.responseDeadline, now) && (
                 // Accepting is refused once the time has passed: the customer
                 // waited and nobody answered. Declining frees the refund.
                 <div className="flex flex-col gap-2">
@@ -280,7 +295,7 @@ export default function VendorBookingsPage() {
                 </div>
               )}
 
-              {tab === 'incoming' && !proposalOpen(b) && rejectId !== b.id && !slotPassed(b, now) && (
+              {tab === 'incoming' && !proposalOpen(b) && rejectId !== b.id && !slotPassed(b, now) && !responseRunOut(b.responseDeadline, now) && (
                 <div className="grid grid-cols-2 gap-2">
                   {/* A list of identical "Accept" buttons announces as a list of
                       identical "Accept" buttons; the name has to say whose job
@@ -415,7 +430,9 @@ export default function VendorBookingsPage() {
                   <p className="text-[12px] font-medium text-text-primary">
                     {cancelledLabel(b)}
                   </p>
-                  {b.cancellationReason && (
+                  {/* The label says it all for a missed answer (its reason
+                      is the same words). */}
+                  {b.cancellationReason && !b.notAcceptedInTime && (
                     <p className="mt-1 text-[12px] text-text-secondary">{b.cancellationReason}</p>
                   )}
                 </div>
@@ -436,6 +453,8 @@ export default function VendorBookingsPage() {
 function cancelledLabel(b: Booking): string {
   if (b.noShow === 'customer') return 'Customer no-show'
   if (b.noShow === 'garage') return 'Marked as garage no-show'
+  // Nobody accepted it in time, so Detlio cancelled it (0042).
+  if (b.notAcceptedInTime) return 'Not accepted in time — cancelled and refunded'
   // None of the times the garage suggested was taken (0041).
   if (b.cancelledBy === 'vendor' && b.timeProposal?.status === 'declined') {
     return 'None of your suggested times worked for the customer'

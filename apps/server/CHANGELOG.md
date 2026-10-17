@@ -55,6 +55,50 @@ reconstructing every change in them.
     their files (a tombstone keeps only the signed agreement); the Bin and
     the pilot reset keep them. E2E: MinIO's private `detlio-e2e-docs`.
 
+- **Garages accept within 30 minutes of their opening hours, or the booking
+  is cancelled with a full refund** (migration `0042_garage_response_deadline`,
+  additive: `bookings.respond_by` and `bookings.response_missed_at`, both
+  nullable, a CHECK keeping `response_missed_at` to a garage-side
+  cancellation with a deadline, two partial indexes; nothing backfilled).
+  Behind `AUTO_CANCEL_UNANSWERED` (default **off**); the window is
+  `GARAGE_RESPONSE_MINUTES` (default 30).
+  - **The deadline** (`lib/response-deadline.ts`, pure and unit-tested):
+    paid while open, payment + 30 opening-hours minutes (the clock stops at
+    closing and runs on at the next opening); paid while shut (outside that
+    IST day's hours, a holiday, paused), 30 minutes after it next opens;
+    never later than 1 hour before the slot, with a 15-minute floor from
+    payment, never past the slot's start. Written with the payment
+    (`consumeIntent`, `settlePayment`) and by a customer's reschedule back to
+    pending (fresh from the move), via `respondByFor` in the same
+    transaction. Withdrawing suggested times leaves at least 15 minutes.
+  - **Enforced while the switch is on**: the garage's Accept and Suggest
+    times after it are 409 `RESPONSE_TIME_PASSED`, in their conditional
+    writes too, and always once the cron has cancelled the booking. The
+    pending-digest cron cancels overdue paid pending bookings with no open
+    suggestion (20 a run, oldest first, quiet hours included) through one
+    conditional write, `cancelNotAcceptedInTime`: `cancelled_by = 'vendor'`
+    (a full refund owed, `garage_declined` for AUTO_REFUNDS, counted with
+    garage declines), `response_missed_at`, reason "Not accepted in time".
+    An Accept racing it leaves exactly one winner.
+  - `GET /bookings/:id/other-garages` (`modules/garage-response`): up to
+    three nearby live garages for the same booking type and at least one of
+    the booked services' categories, from the customer's address (doorstep,
+    pickup) or the garage's pin (drop-in), as the garage list's cards
+    (`vendorCardsFor`); `listPublicVendorPage` gains `anyCategory` and
+    `excludeIds`.
+  - Booking payloads carry `responseDeadline { respondBy, enforced,
+    windowMins }` and `notAcceptedInTime`; admin rows `respondBy` and
+    `notAcceptedInTime`; the refunds list says "Not accepted in time";
+    Updates says "<Garage> didn't accept in time" with the refund (no Home
+    card: nothing is left for the customer to do). Statistics' garage rows
+    gain `notAcceptedInTime`.
+  - Telegram: `not_accepted_in_time` per auto-cancel; the 30-minute nudge
+    names the deadline; the 07:00 roll-up counts yesterday's auto-cancels per
+    garage. The digest's answer gains `notAccepted` and
+    `missedResponsesYesterday`.
+  - E2E: `response-deadline-journey.spec.ts` (@p0) on fixtures in the
+    2200–2299 range; `.env.e2e` turns the switch on.
+
 - **Garages suggest other times, and ask for extra work the customer
   approves by paying in the app** (migration
   `0041_time_proposals_and_extra_work`, additive: `booking_charge_kind`

@@ -478,6 +478,10 @@ export interface ApiBooking {
   timeProposal?: ApiTimeProposal | null
   /** Garage payloads only: whether "Suggest another time" applies now. */
   canSuggestTimes?: boolean
+  /** The garage's deadline to accept (0042); absent from older servers. */
+  responseDeadline?: { respondBy: string; enforced: boolean; windowMins: number } | null
+  /** Cancelled because the garage did not accept in time (0042). */
+  notAcceptedInTime?: boolean
   /** What the booking already covers toward a final bill, as a decimal string. */
   paidAtBooking?: string
   /**

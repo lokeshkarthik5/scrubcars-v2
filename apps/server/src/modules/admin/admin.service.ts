@@ -447,6 +447,10 @@ function toAdminBookingRow(
     acceptedAt: booking.acceptedAt?.toISOString() ?? null,
     startedAt: booking.startedAt?.toISOString() ?? null,
     completedAt: booking.completedAt?.toISOString() ?? null,
+    // The garage's deadline to accept (0042), and whether the cron cancelled
+    // it for missing it ("Not accepted in time", a full refund owed).
+    respondBy: booking.respondBy?.toISOString() ?? null,
+    notAcceptedInTime: booking.responseMissedAt?.toISOString() ?? null,
     billDue: billDueOf(booking),
     ...refundFlagsOf(booking, moved),
     notesCount,

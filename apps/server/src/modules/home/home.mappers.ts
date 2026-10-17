@@ -43,6 +43,7 @@ export function toHubBooking(row: HubBookingRecord, moved: Set<string>): HubBook
     cancelledBy: row.cancelledBy,
     cancelledOnBehalfOf: row.cancelledOnBehalfOf,
     noShow: row.noShow,
+    responseMissedAt: row.responseMissedAt,
     rescheduledFromId: row.rescheduledFromId,
     rescheduleCount: row.rescheduleCount,
     moved: moved.has(row.id),

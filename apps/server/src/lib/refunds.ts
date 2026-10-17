@@ -339,9 +339,13 @@ export function bookingRefundReason(booking: {
   noShow: 'customer' | 'garage' | null
   cancelledBy: 'user' | 'vendor' | 'admin' | null
   cancelledOnBehalfOf: 'customer' | 'garage' | 'detlio' | null
+  /** Set when the cron cancelled it because the garage did not accept in time (0042). */
+  responseMissedAt?: Date | null
 }): string {
   if (booking.noShow === 'garage') return 'Garage no-show'
   if (booking.noShow === 'customer') return 'Customer no-show'
+  // The garage's side, like a decline, but nobody pressed anything.
+  if (booking.cancelledBy === 'vendor' && booking.responseMissedAt) return 'Not accepted in time'
   switch (booking.cancelledBy) {
     case 'user':
       return 'Cancelled by the customer'

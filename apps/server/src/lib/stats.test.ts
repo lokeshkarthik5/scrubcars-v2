@@ -248,9 +248,25 @@ describe('summariseGarages', () => {
     ]
     const ratings = new Map([['a', { average: 4.666, count: 3 }]])
     expect(summariseGarages(rows, ratings)).toEqual([
-      { vendorId: 'b', name: 'Bravo', bookings: 1, collected: 1200, rating: null, reviews: 0 },
-      { vendorId: 'a', name: 'Alpha', bookings: 2, collected: 1000, rating: 4.7, reviews: 3 },
+      { vendorId: 'b', name: 'Bravo', bookings: 1, collected: 1200, rating: null, reviews: 0, notAcceptedInTime: 0 },
+      { vendorId: 'a', name: 'Alpha', bookings: 2, collected: 1000, rating: 4.7, reviews: 3, notAcceptedInTime: 0 },
     ])
+  })
+
+  test('counts the bookings each garage did not accept in time, among its cancellations (0042)', () => {
+    const missed = { status: 'cancelled', acceptedBy: null, responseMissed: true }
+    const rows = [
+      row({ vendorId: 'a', vendorName: 'Alpha', ...missed }),
+      row({ vendorId: 'a', vendorName: 'Alpha', ...missed }),
+      row({ vendorId: 'a', vendorName: 'Alpha' }),
+      // A garage's own Reject is a decline, not a missed answer.
+      row({ vendorId: 'b', vendorName: 'Bravo', status: 'cancelled', acceptedBy: null }),
+      row({ vendorId: 'a', vendorName: 'Alpha', ...missed, markedTest: true }),
+    ]
+    const garages = summariseGarages(rows, new Map())
+    expect(garages.find((g) => g.vendorId === 'a')?.notAcceptedInTime).toBe(2)
+    expect(garages.find((g) => g.vendorId === 'b')?.notAcceptedInTime).toBe(0)
+    expect(summariseFunnel(rows, { pending: 0, failed: 0 }).cancelled).toBe(3)
   })
 })
 

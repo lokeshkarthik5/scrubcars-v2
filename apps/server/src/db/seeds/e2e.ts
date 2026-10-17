@@ -66,6 +66,8 @@ import {
   PICKUP_PIN,
   PROPOSALS_PIN,
   DOCUMENTS_PIN,
+  RESPONSE_OTHER_PIN,
+  RESPONSE_PIN,
   REVIEWS,
   SERVICES,
   STAFF,
@@ -581,6 +583,8 @@ type BookingSpec = {
   }
   /** Written by a reschedule: the booking this one was moved from. */
   rescheduledFromId?: string
+  /** The garage's deadline to accept (0042). Null unless set, as on every booking from before it. */
+  respondBy?: Date
 }
 
 /**
@@ -638,6 +642,7 @@ async function insertBooking(spec: BookingSpec) {
       originalBookingId: spec.rescheduledFromId,
     }),
     ...(spec.markedTestAt && { markedTestAt: spec.markedTestAt, markedTestBy: 'E2E seed' }),
+    ...(spec.respondBy && { respondBy: spec.respondBy }),
   })
 
   await db.insert(bookingItems).values(
@@ -2081,6 +2086,59 @@ async function seedProposalRows() {
   })
 }
 
+/**
+ * The garage response deadline (0042), on garages of their own far from
+ * every other: VENDORS.response with its owner's seat, hours and one wash,
+ * and its neighbour VENDORS.responseOther (the suggestion), then the
+ * customer's car and the overdue booking. Every id and phone is in the
+ * 2200–2299 / 90000022xx range reserved for this feature. Garages before
+ * services before the car before the booking, as the foreign keys need.
+ */
+async function seedResponseDeadlineRows() {
+  const garages = [
+    { vendor: VENDORS.response, pin: RESPONSE_PIN, phone: '9000002200', service: SERVICES.responseWash },
+    { vendor: VENDORS.responseOther, pin: RESPONSE_OTHER_PIN, phone: '9000002210', service: SERVICES.responseOtherWash },
+  ]
+  for (const { vendor, pin, phone, service } of garages) {
+    await db.insert(vendors).values({
+      id: vendor.id, ownerId: STAFF.responseOwner.id, businessName: vendor.name,
+      phone, address: '7, Deadline Road, Tindivanam', city: 'Chennai', pincode: '604001',
+      lat: pin.lat, lng: pin.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'active', bays: 1,
+    })
+    await db.insert(userMemberMapping).values({
+      vendorId: vendor.id, userId: STAFF.responseOwner.id, role: 'vendor_admin', status: 'active',
+    })
+    await db.insert(vendorWorkingHours).values(hoursFor(vendor.id, '06:00:00', '22:00:00'))
+    await db.insert(services).values({
+      id: service.id, vendorId: vendor.id, name: service.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: service.price, durationMins: service.durationMins, isActive: true,
+    })
+  }
+
+  const customer = CUSTOMERS.notAccepted
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Hyundai', model: 'i20', color: 'Grey',
+    licensePlate: 'TN22RD0001', vehicleType: 'hatchback', isDefault: true,
+  })
+
+  const paidAt = new Date(now.getTime() - 45 * MINUTE)
+  await insertBooking({
+    id: BOOKINGS.notAccepted, userId: customer.id, vendorId: VENDORS.response.id,
+    vehicleId: customer.vehicleId, scheduledAt: tomorrowAt(15), status: 'pending',
+    items: [{
+      id: SERVICES.responseWash.id, name: SERVICES.responseWash.name,
+      amount: SERVICES.responseWash.price, durationMins: SERVICES.responseWash.durationMins,
+    }],
+    payment: { status: 'paid', txnId: 'pay_seed_not_accepted', gatewayMode: 'fake', paidAt },
+    createdAt: paidAt,
+    respondBy: new Date(now.getTime() - 15 * MINUTE),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2120,6 +2178,8 @@ async function main() {
   await seedPickupRows()
   console.log('[e2e-seed] suggested times & extra work…')
   await seedProposalRows()
+  console.log('[e2e-seed] garage response deadline…')
+  await seedResponseDeadlineRows()
   console.log('[e2e-seed] garage documents…')
   await seedDocumentRows()
   console.log('[e2e-seed] done')

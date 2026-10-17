@@ -33,6 +33,22 @@ reconstructing every change in them.
   readers) and a "Documents verified" badge on the garage page, once the
   four required documents are approved.
 
+- **A garage has 30 minutes to accept** (API 0042, behind
+  `AUTO_CANCEL_UNANSWERED`). Garage portal: each pending job card counts
+  down ("Accept within 12 min", amber in the last five; "Accept by 9:30 am"
+  while the clock waits for opening time); once it runs out with the switch
+  on, "Not accepted in time — cancelled and refunded" replaces the buttons,
+  and the Cancelled tab says the same. Customer app: a paid booking waiting
+  for its garage says "Waiting for <garage> to accept — by 10:42 am" (and,
+  only while the switch is on, that it is cancelled and refunded otherwise);
+  after an auto-cancel, "<Garage> didn't accept in time. Your full refund is
+  on its way (5–7 working days)." and **Book another garage**: up to three
+  nearby garages for the same booking type and kind of job, each opening
+  with that booking type chosen, and See all garages. Admin: an "Accept by"
+  badge on pending bookings, "Not accepted in time" on the list, the detail
+  (with the deadline in the timeline) and per garage under Statistics →
+  Breakdown.
+
 - **The garage suggests another time; extra work approved and paid in the
   app.** Customer app: when a garage can't do a booking's time it can offer
   up to three others. Home's must-act card ("Can't do 10:00 AM — pick

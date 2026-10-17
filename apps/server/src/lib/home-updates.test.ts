@@ -295,6 +295,22 @@ describe('money rows', () => {
     expect(items.some((i) => i.id === 'bill:c4')).toBe(false)
   })
 
+  test("a booking the garage didn't accept in time says so, with the refund (0042)", () => {
+    const missed = booking({
+      status: 'cancelled',
+      cancelledBy: 'vendor',
+      cancelledAt: ago(HOUR),
+      responseMissedAt: ago(HOUR),
+      payment: paid(),
+    })
+    expect(feed([missed]).find((i) => i.id === `cancelled:${missed.id}`)).toMatchObject({
+      kind: 'declined',
+      title: "Next Level didn't accept in time",
+      body: 'Refund due: ₹499',
+      amount: '499.00',
+    })
+  })
+
   test('"Refund due" only when lib/refunds.ts says money is owed', () => {
     const declined = booking({
       status: 'cancelled',

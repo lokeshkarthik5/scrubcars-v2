@@ -17,6 +17,7 @@ import {
   findOverlappingVehicleBooking,
   lockDiscount,
   lockVehicle,
+  respondByFor,
   type ReceiptNumberAllocation,
 } from '../bookings/bookings.repository.js'
 
@@ -145,6 +146,11 @@ export const bookingIntentsRepository = {
     // the intent turns out to be a pickup & drop booking; the CHECK in 0037
     // keeps them off every other type.
     handoverCodes: { pickupCode: string; deliveryCode: string }
+    /**
+     * GARAGE_RESPONSE_MINUTES (0042): the booking is written paid and
+     * pending, so the garage's deadline to answer is written with it.
+     */
+    responseWindowMins: number
   }): Promise<ConsumeIntentResult> {
     return db.transaction(async (tx): Promise<ConsumeIntentResult> => {
       const [intent] = await tx
@@ -247,10 +253,21 @@ export const bookingIntentsRepository = {
         .where(eq(bookingIntentItems.intentId, intent.id))
         .orderBy(asc(bookingIntentItems.sortOrder))
 
+      // The money landed now: the garage's deadline to answer is measured
+      // from here (0042). Plain reads, after every lock this write takes.
+      const paidAt = new Date()
+      const respondBy = await respondByFor(tx, {
+        vendorId: intent.vendorId,
+        from: paidAt,
+        scheduledAt: intent.scheduledAt,
+        windowMins: params.responseWindowMins,
+      })
+
       const [booking] = await tx
         .insert(bookings)
         .values({
           userId: intent.userId,
+          respondBy,
           vendorId: intent.vendorId,
           serviceId: intent.serviceId,
           vehicleId: intent.vehicleId,
@@ -286,7 +303,6 @@ export const bookingIntentsRepository = {
       )
 
       // `paid` from the outset — this row only exists because the money landed.
-      const paidAt = new Date()
       await tx.insert(payments).values({
         bookingId: booking.id,
         gateway: 'razorpay',

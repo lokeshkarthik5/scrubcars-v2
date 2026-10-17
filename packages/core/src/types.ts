@@ -415,6 +415,10 @@ export interface Booking {
   timeProposal: TimeProposal | null
   /** Garage only: the job card can offer "Suggest another time" now. */
   canSuggestTimes: boolean
+  /** The garage's deadline to accept (0042); null when the booking has none. */
+  responseDeadline: ResponseDeadline | null
+  /** Cancelled because the garage did not accept in time (refunded in full). */
+  notAcceptedInTime: boolean
   /**
    * Customer only: money owed back on this booking, or given back. 'none'
    * on garage payloads, on older servers, and on a customer no-show.
@@ -438,6 +442,17 @@ export interface Booking {
  * `amount` is all of it, `amountRefunded` what has gone back so far, and
  * `refundedAt` when the latest refund was recorded.
  */
+/**
+ * The garage's deadline to accept a paid booking (0042): when, whether the
+ * server cancels the booking at it (AUTO_CANCEL_UNANSWERED), and the
+ * window in opening-hours minutes (GARAGE_RESPONSE_MINUTES).
+ */
+export interface ResponseDeadline {
+  respondBy: string
+  enforced: boolean
+  windowMins: number
+}
+
 export interface BookingRefund {
   status: 'owed' | 'refunded' | 'none'
   amount: number

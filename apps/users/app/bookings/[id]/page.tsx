@@ -42,6 +42,12 @@ import { carWithGarage } from '@repo/core/pickup'
 import { googleMapsLink } from '@repo/core/contact-links'
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records'
 import { customerRefundLine, withoutRefundPromise } from '@repo/core/refunds'
+import {
+  customerWaitingLine,
+  customerWaitingNote,
+  notAcceptedRefundLine,
+  notAcceptedTitle,
+} from '@repo/core/response-deadline'
 import { formatBookingAmount } from '@repo/core/pricing'
 import {
   BOOKING_TYPE_LABELS,
@@ -62,6 +68,7 @@ import { BookingDirectionsSheet, describeDrive } from '@/components/booking-dire
 import { FinalBillCard, type BillPayment } from '@/components/final-bill-card'
 import { ExtraWorkCard } from '@/components/extra-work-card'
 import { TimeProposalCard } from '@/components/time-proposal-card'
+import { OtherGaragesCard } from '@/components/other-garages-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
@@ -116,6 +123,14 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
               : 'Nothing was charged online for it.'),
       ],
     }
+  }
+
+  // The garage let its time to answer run out, so the booking was cancelled
+  // for it (0042): said as what happened, with the money; other garages
+  // follow below the panel.
+  if (booking.notAcceptedInTime) {
+    const line = notAcceptedRefundLine(booking.refund)
+    return { title: notAcceptedTitle(booking.vendorName), lines: line ? [line] : [] }
   }
 
   const withRefund = (lines: Array<string | null | undefined>) =>
@@ -737,6 +752,25 @@ export default function BookingDetailPage({
         </div>
       </ScCard>
 
+      {/* Paid and waiting for the garage (0042): until when, and — only
+          while the server enforces it — what happens if nobody answers. */}
+      {awaitingGarage &&
+        booking.paymentStatus === 'paid' &&
+        booking.responseDeadline &&
+        !timeProposal &&
+        !missedByGarage && (
+          <ScCard>
+            <h2 className="text-sm font-semibold text-text-primary">
+              {customerWaitingLine(booking.vendorName, booking.responseDeadline, now)}
+            </h2>
+            {customerWaitingNote(booking.responseDeadline, now) && (
+              <p className="mt-1 text-[13px] text-text-secondary">
+                {customerWaitingNote(booking.responseDeadline, now)}
+              </p>
+            )}
+          </ScCard>
+        )}
+
       {/* The garage can't do the booked time and suggested others: the
           first thing to answer, right under the booking. */}
       {timeProposal && (
@@ -931,6 +965,9 @@ export default function BookingDetailPage({
           ))}
         </ScCard>
       )}
+
+      {/* Not accepted in time (0042): somewhere else to book, same type. */}
+      {booking.status === 'cancelled' && booking.notAcceptedInTime && <OtherGaragesCard booking={booking} />}
 
       {/* Totals live on the status card above; this is just the outstanding-payment CTA. */}
       {/* Says each step after payment out loud. On the page from the start

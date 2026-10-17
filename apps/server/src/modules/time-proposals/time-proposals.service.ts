@@ -1,7 +1,9 @@
 import { AppError } from '../../lib/errors.js'
+import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { getDateKeyFromScheduledAt, MIN_NOTICE_MS } from '../../lib/slots.js'
+import { afterWithdraw } from '../../lib/response-deadline.js'
 import type { BookingType } from '../../lib/booking-types.js'
 import {
   PROPOSAL_DECLINED_REASON,
@@ -19,10 +21,12 @@ import {
 import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import {
+  assertGarageCanAnswer,
   bookingsService,
   moveToSuggestedTime,
   toVendorBookingResponse,
 } from '../bookings/bookings.service.js'
+import { responseTimePassedError } from '../garage-response/garage-response.rules.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { jobSlots } from '../vendors/vendors.service.js'
 import { timeProposalsRepository } from './time-proposals.repository.js'
@@ -175,6 +179,8 @@ export const timeProposalsService = {
    */
   async getSlots(vendorId: string, bookingId: string, date: string, now = Date.now()) {
     const booking = await getBookingForGarage(vendorId, bookingId)
+    // Past the garage's time to answer (0042): nothing to suggest.
+    assertGarageCanAnswer(booking, now)
     const open = await timeProposalsRepository.findOpen(booking.id)
     const refusal = proposalRefusal({
       status: booking.status,
@@ -207,6 +213,9 @@ export const timeProposalsService = {
     now = Date.now()
   ) {
     const booking = await getBookingForGarage(vendorId, bookingId)
+    // Suggesting times is an answer, so it is refused once the garage's
+    // time to answer has run out (0042), like Accept.
+    assertGarageCanAnswer(booking, now)
     const open = await timeProposalsRepository.findOpen(booking.id)
     const refusal = proposalRefusal({
       status: booking.status,
@@ -245,7 +254,8 @@ export const timeProposalsService = {
       note: input.note ?? null,
       expiresAt: checked.expiresAt,
       createdBy: actorId,
-    })
+    }, env.autoCancelUnanswered ? { respondByAfter: new Date(now) } : {})
+    if (result.kind === 'too_late') throw responseTimePassedError()
     if (result.kind === 'already_open') throw refusalError('already_open')
     if (result.kind === 'state_changed') throw stateChanged()
 
@@ -279,7 +289,16 @@ export const timeProposalsService = {
       )
     }
 
-    const [withdrawn] = await timeProposalsRepository.withdraw(open.id, booking.id, new Date())
+    // The booking waits for the garage's answer again: it keeps its
+    // deadline, or gets at least 15 minutes from now to accept or decline
+    // (0042, afterWithdraw), in the same transaction as the withdrawal.
+    const at = new Date()
+    const [withdrawn] = await bookingsRepository.withdrawProposal({
+      proposalId: open.id,
+      bookingId: booking.id,
+      at,
+      respondBy: afterWithdraw(booking.respondBy ?? null, booking.scheduledAt, at),
+    })
     if (!withdrawn) throw proposalClosed()
     log.info({ bookingId: booking.id, vendorId, proposalId: open.id }, 'time_proposal:withdrawn')
 

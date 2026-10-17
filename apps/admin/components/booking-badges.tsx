@@ -1,6 +1,6 @@
 import { ScBadge } from '@repo/ui/sc/badge'
 import type { BookingParty } from '@repo/core/api/admin'
-import { formatRupees, formatWaiting, WAITING_ALERT_MINS } from '@/lib/bookings'
+import { formatRupees, formatWaiting, formatWhen, WAITING_ALERT_MINS } from '@/lib/bookings'
 
 /**
  * How long a pending booking has waited for its garage. Amber from 30
@@ -13,6 +13,24 @@ export function WaitingBadge({ mins }: { mins: number }) {
       Waiting&nbsp;<span className="font-numeric">{formatWaiting(mins)}</span>
     </ScBadge>
   )
+}
+
+/**
+ * A pending booking's deadline for the garage to accept (0042). Neutral:
+ * the Waiting badge beside it is the one that turns amber, and the cron
+ * cancels it at this time when AUTO_CANCEL_UNANSWERED is on.
+ */
+export function AcceptByBadge({ respondBy }: { respondBy: string }) {
+  return (
+    <ScBadge variant="muted">
+      Accept by&nbsp;<span className="font-numeric">{formatWhen(respondBy)}</span>
+    </ScBadge>
+  )
+}
+
+/** Cancelled by the cron because the garage did not accept in time (0042). */
+export function NotAcceptedBadge() {
+  return <ScBadge variant="danger">Not accepted in time</ScBadge>
 }
 
 export function NoShowBadge({ party }: { party: BookingParty }) {

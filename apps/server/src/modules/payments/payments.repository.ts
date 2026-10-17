@@ -4,6 +4,7 @@ import { bookingNotes, bookings, payments, type GatewayMode } from '../../db/sch
 import {
   allocateReceiptNumber,
   checkGarageCanTake,
+  respondByFor,
   type GarageRefusal,
   type ReceiptNumberAllocation,
 } from '../bookings/bookings.repository.js'
@@ -88,6 +89,12 @@ export const paymentsRepository = {
       cancellationReason: string
       note: { author: string; body: string }
     }
+    /**
+     * GARAGE_RESPONSE_MINUTES (0042): a pending booking paid now waits for
+     * its garage from now, so its deadline to answer is written with the
+     * payment.
+     */
+    responseWindowMins: number
   }) {
     return db.transaction(async (tx): Promise<SettlePaymentResult> => {
       const [booking] = await tx
@@ -145,6 +152,21 @@ export const paymentsRepository = {
       const rootBookingId = booking.originalBookingId ?? booking.id
 
       if (!refusal) {
+        // The garage's deadline to answer, from the moment the money landed
+        // (0042). The booking's row is ours already (NO KEY UPDATE above),
+        // and this comes before the receipt counter, the last lock.
+        if (booking.status === 'pending') {
+          const respondBy = await respondByFor(tx, {
+            vendorId: booking.vendorId,
+            from: params.paidAt,
+            scheduledAt: booking.scheduledAt,
+            windowMins: params.responseWindowMins,
+          })
+          await tx
+            .update(bookings)
+            .set({ respondBy })
+            .where(and(eq(bookings.id, booking.id), eq(bookings.status, 'pending')))
+        }
         const receipt = await allocateReceiptNumber(tx, rootBookingId, params.paidAt)
         return { kind: 'paid', payment, receipt }
       }

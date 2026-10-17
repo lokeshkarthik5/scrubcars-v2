@@ -110,6 +110,12 @@ export interface StatsChainRow {
   refundsRecorded: string | null
   /** Marked Test by ops (0032), on the whole chain. */
   markedTest: boolean
+  /**
+   * Its latest row was cancelled by the cron because the garage did not
+   * accept in time (0042). Already a cancellation by the garage
+   * (cancelled_by 'vendor'); this only tells it apart.
+   */
+  responseMissed?: boolean
 }
 
 /** A booking item, keyed by its chain. */
@@ -387,6 +393,11 @@ export interface StatsGarageRow {
   /** Average stars up to the period's end, one decimal; null with no reviews. */
   rating: number | null
   reviews: number
+  /**
+   * Paid bookings the garage did not accept in time, so the cron cancelled
+   * and refunded them (0042). Counted among its cancellations too.
+   */
+  notAcceptedInTime: number
 }
 
 /** Every garage with a booking made in the period, most collected first. */
@@ -394,12 +405,13 @@ export function summariseGarages(
   rows: StatsChainRow[],
   ratings: Map<string, { average: number; count: number }>
 ): StatsGarageRow[] {
-  const garages = new Map<string, { name: string; bookings: number; paise: number }>()
+  const garages = new Map<string, { name: string; bookings: number; paise: number; missed: number }>()
   for (const row of counted(rows)) {
     if (!isPaid(row)) continue
-    const garage = garages.get(row.vendorId) ?? { name: row.vendorName, bookings: 0, paise: 0 }
+    const garage = garages.get(row.vendorId) ?? { name: row.vendorName, bookings: 0, paise: 0, missed: 0 }
     garage.bookings++
     garage.paise += collectedPaise(row)
+    if (row.responseMissed) garage.missed++
     garages.set(row.vendorId, garage)
   }
 
@@ -413,6 +425,7 @@ export function summariseGarages(
         collected: garage.paise / 100,
         rating: rating ? Math.round(rating.average * 10) / 10 : null,
         reviews: rating?.count ?? 0,
+        notAcceptedInTime: garage.missed,
       }
     })
     .sort((a, b) => b.collected - a.collected || b.bookings - a.bookings || a.name.localeCompare(b.name))

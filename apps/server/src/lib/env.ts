@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { isDataResetEnabled } from './data-reset.js'
 import { parseDailyCap } from './refund-sending.js'
+import { isAutoCancelOn, parseResponseMinutes } from './response-deadline.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -305,6 +306,24 @@ export const env = {
   // refund would take it past this, automatic refunds stop until the next
   // day and the team gets one Telegram alert; the button still works.
   autoRefundDailyCapInr: parseDailyCap(process.env.AUTO_REFUND_DAILY_CAP_INR),
+
+  // ─── Garage response deadline (lib/response-deadline.ts, 0042) ─────────────
+  /**
+   * How many opening-hours minutes a garage has to accept (or reject, or
+   * suggest other times for) a paid booking: GARAGE_RESPONSE_MINUTES, a whole
+   * number from 5 to 240, default 30. Never later than an hour before the
+   * slot, with a 15-minute floor from payment; see lib/response-deadline.ts.
+   */
+  garageResponseMinutes: parseResponseMinutes(process.env.GARAGE_RESPONSE_MINUTES),
+  /**
+   * Whether a paid booking nobody accepted in time is cancelled and refunded:
+   * AUTO_CANCEL_UNANSWERED=on. Off unless set to exactly `on`, so the team can
+   * tell garages first. While off the deadline is still worked out, stored
+   * and shown to the garage and the customer as guidance, Accept and Suggest
+   * times are never refused for it (no 409 RESPONSE_TIME_PASSED), and the
+   * pending-digest cron cancels nothing.
+   */
+  autoCancelUnanswered: isAutoCancelOn(process.env.AUTO_CANCEL_UNANSWERED),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;
