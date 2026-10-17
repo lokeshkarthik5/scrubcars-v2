@@ -169,6 +169,41 @@ export async function updateBookingStatus(
   return mapBooking(booking)
 }
 
+// ─── Pickup & drop steps ─────────────────────────────────────────────────────
+// Garage only. Picked up and Delivered take the customer's 4-digit code; a
+// wrong one is a 400 (HANDOVER_CODE_WRONG, saying the tries left) and too
+// many a 409 (HANDOVER_CODE_LOCKED), when Detlio has to confirm it.
+
+/** PATCH /bookings/:id/picked-up — the garage has the car. */
+export async function markPickedUp(id: string, code: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/bookings/${id}/picked-up`, {
+    method: 'PATCH',
+    body: JSON.stringify({ code }),
+  })
+  return mapBooking(booking)
+}
+
+/** PATCH /bookings/:id/at-garage — the car has arrived at the garage. */
+export async function markAtGarage(id: string): Promise<Booking> {
+  return mapBooking(await apiClient<ApiBooking>(`/bookings/${id}/at-garage`, { method: 'PATCH' }))
+}
+
+/** PATCH /bookings/:id/out-for-delivery — the work is done, the car is on its way back. */
+export async function markOutForDelivery(id: string): Promise<Booking> {
+  return mapBooking(
+    await apiClient<ApiBooking>(`/bookings/${id}/out-for-delivery`, { method: 'PATCH' })
+  )
+}
+
+/** PATCH /bookings/:id/delivered — the customer has the car back; completes the job. */
+export async function markDelivered(id: string, code: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/bookings/${id}/delivered`, {
+    method: 'PATCH',
+    body: JSON.stringify({ code }),
+  })
+  return mapBooking(booking)
+}
+
 /** PATCH /bookings/:id/cancel */
 export async function cancelBooking(id: string, reason?: string): Promise<Booking> {
   const booking = await apiClient<ApiBooking>(`/bookings/${id}/cancel`, {

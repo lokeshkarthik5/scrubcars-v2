@@ -21,6 +21,17 @@ import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
 import { todayDateKey } from '../../lib/slots.js'
 import { vendorReadiness } from '../../lib/vendor-readiness.js'
+import { usesCustomerAddress } from '../../lib/booking-types.js'
+import {
+  codeTriesLeft,
+  customerChangeRefusal,
+  isPickupOffered,
+  legacyPickupIntent,
+  planPickupChange,
+  type PickupPatch,
+  type PickupSettings,
+} from '../../lib/pickup.js'
+import { bookingsService } from '../bookings/bookings.service.js'
 import {
   createPresignedUpload,
   deleteObject,
@@ -43,6 +54,7 @@ import type {
   ListBookingsQuery,
   MarkNoShowInput,
   LoginInput,
+  PickupStepOverrideInput,
   MediaUrlInput,
   PauseVendorInput,
   PilotStatsQuery,
@@ -146,6 +158,43 @@ function assertPinnedBeforeVerifying(vendor: {
       'VENDOR_LOCATION_REQUIRED'
     )
   }
+}
+
+/**
+ * What an admin save writes for pickup & drop (lib/pickup.ts). Turning it on
+ * needs the admin's tick that the garage signed the responsibility
+ * agreement, recorded as "admin: <name>"; turning it off never does. The
+ * legacy `pickup` answer from an older panel counts only when it differs
+ * from what is stored, as that panel sends it back on every save.
+ */
+async function pickupPatchFor(
+  current: PickupSettings,
+  input: {
+    pickupEnabled?: boolean
+    pickupAgreementSigned?: boolean
+    pickup?: 'yes' | 'nearby' | 'no' | null
+    pickupRadiusKm?: number | null
+  },
+  sub: string
+): Promise<PickupPatch> {
+  const enabled = input.pickupEnabled ?? legacyPickupIntent(current.pickup, input.pickup)
+  if (enabled === undefined && input.pickupRadiusKm === undefined) return {}
+
+  const change = planPickupChange(current, {
+    enabled,
+    radiusKm: input.pickupRadiusKm,
+    termsAccepted: input.pickupAgreementSigned,
+    actor: `admin: ${await resolveNoteAuthor(sub)}`,
+    now: new Date(),
+  })
+  if (!change.ok) {
+    throw new AppError(
+      400,
+      "To turn on pickup & drop, tick that the garage has signed the agreement to be responsible for the customer's car from pickup until it is returned.",
+      change.code
+    )
+  }
+  return change.patch
 }
 
 // ─── Bookings ────────────────────────────────────────────────────────────────
@@ -297,8 +346,25 @@ function toAdminBookingRow(
     customer: booking.user
       ? { id: booking.user.id, name: booking.user.name, phone: booking.user.phone }
       : null,
-    // Only a doorstep job has a place to go; a drop-in happens at the garage.
-    address: booking.bookingType === 'doorstep' ? booking.address : null,
+    // Only a doorstep job (where the crew goes) and a pickup & drop job
+    // (where the car is collected and returned) have an address; a drop-in
+    // happens at the garage.
+    address: usesCustomerAddress(booking.bookingType) ? booking.address : null,
+    // Pickup & drop's handover steps, and who at Detlio confirmed a code
+    // step for a customer who could not give the code. Never the codes.
+    pickup:
+      booking.bookingType === 'pickup'
+        ? {
+            pickedUpAt: booking.pickedUpAt?.toISOString() ?? null,
+            atGarageAt: booking.atGarageAt?.toISOString() ?? null,
+            outForDeliveryAt: booking.outForDeliveryAt?.toISOString() ?? null,
+            deliveredAt: booking.deliveredAt?.toISOString() ?? null,
+            pickupOverrideBy: booking.pickupOverrideBy,
+            deliveryOverrideBy: booking.deliveryOverrideBy,
+            pickupCodeTriesLeft: codeTriesLeft(booking.pickupCodeAttempts),
+            deliveryCodeTriesLeft: codeTriesLeft(booking.deliveryCodeAttempts),
+          }
+        : null,
     vehicle: booking.vehicle
       ? {
           id: booking.vehicle.id,
@@ -445,6 +511,8 @@ export const adminService = {
         // The customer lists' own rule (vendors.predicates.ts), so "Live" in
         // the panel is exactly the garages customers can find.
         live: isListedToCustomers(vendor),
+        // On with the responsibility terms on file (lib/pickup.ts).
+        pickupEnabled: isPickupOffered(vendor),
         readiness: vendorReadiness({
           ...vendor,
           hasDoorstepArea,
@@ -472,6 +540,7 @@ export const adminService = {
     return {
       ...vendor,
       hasDoorstepArea,
+      pickupEnabled: isPickupOffered(vendor),
       services: vendor.services.map(({ images, ...service }) => ({
         ...service,
         images: images.filter((image) => image.kind === 'image'),
@@ -480,8 +549,12 @@ export const adminService = {
     }
   },
 
-  async updateVendor(id: string, input: UpdateVendorInput) {
+  async updateVendor(id: string, input: UpdateVendorInput, sub: string) {
     const vendor = await assertWritableVendor(id)
+
+    // Pickup & drop's tick, checked before anything is written, like the
+    // hours below.
+    const pickupPatch = await pickupPatchFor(vendor, input, sub)
 
     // Checked before anything is written. The owner, the vendor row and the
     // hours are separate writes, so a bad Saturday found after the first two
@@ -554,10 +627,7 @@ export const adminService = {
         yearsInOperation: input.yearsInOperation,
       }),
       ...(input.mapsUrl !== undefined && { mapsUrl: input.mapsUrl }),
-      ...(input.pickup !== undefined && { pickup: input.pickup }),
-      ...(input.pickupRadiusKm !== undefined && {
-        pickupRadiusKm: input.pickupRadiusKm,
-      }),
+      ...pickupPatch,
       ...(input.doorstepRadiusKm !== undefined && {
         doorstepRadiusKm: input.doorstepRadiusKm,
       }),
@@ -670,8 +740,11 @@ export const adminService = {
       }
     }
 
+    if (pickupPatch.pickup !== undefined) {
+      log.info({ vendorId: id, pickup: pickupPatch.pickup }, 'admin:vendor-pickup-updated')
+    }
     log.info({ vendorId: id }, 'admin:vendor-updated')
-    return updated
+    return { ...updated, pickupEnabled: isPickupOffered(updated) }
   },
 
   /**
@@ -841,7 +914,14 @@ export const adminService = {
     return updated
   },
 
-  async createVendor(input: CreateVendorInput) {
+  async createVendor(input: CreateVendorInput, sub: string) {
+    // Pickup & drop's tick, before anything is written.
+    const pickupPatch = await pickupPatchFor(
+      { pickup: null, pickupRadiusKm: null, pickupTermsAcceptedAt: null },
+      input,
+      sub
+    )
+
     // Resolve (or create) the owner user for this vendor.
     let owner = await adminRepository.findUserByPhone(input.ownerPhone)
 
@@ -877,8 +957,9 @@ export const adminService = {
       whatsapp: input.whatsapp ?? null,
       yearsInOperation: input.yearsInOperation ?? null,
       mapsUrl: input.mapsUrl ?? null,
-      pickup: input.pickup ?? null,
-      pickupRadiusKm: input.pickupRadiusKm ?? null,
+      pickup: null,
+      pickupRadiusKm: null,
+      ...pickupPatch,
       doorstepRadiusKm: input.doorstepRadiusKm ?? null,
       lat: input.lat ?? null,
       lng: input.lng ?? null,
@@ -1035,6 +1116,16 @@ export const adminService = {
     const booking = await adminRepository.findBookingById(id)
     if (!booking) throw bookingNotFound()
 
+    // A pickup & drop job whose car the garage collected did not have a
+    // customer who failed to turn up.
+    if (input.party === 'customer' && customerChangeRefusal(booking)) {
+      throw new AppError(
+        400,
+        'The garage already collected this car, so the customer did turn up. Cancel the booking instead if it has to stop.',
+        'INVALID_BOOKING_STATUS'
+      )
+    }
+
     const check = checkNoShow(booking, now)
     if (check === 'wrong_status') {
       throw new AppError(
@@ -1108,6 +1199,28 @@ export const adminService = {
       log.info({ bookingId: id, marked, rows: changed.length, author }, 'admin:booking-test-mark')
     }
     return loadBookingDetail(id, now)
+  },
+
+  /**
+   * Confirms a pickup & drop handover for a customer who cannot give the
+   * code: Picked up or Delivered (which completes the job), in the job's
+   * own order (lib/pickup.ts). The admin's name is stored on the booking
+   * and the reason goes in the notes, like every booking action here.
+   */
+  async overridePickupStep(id: string, sub: string, input: PickupStepOverrideInput) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+
+    const author = await resolveNoteAuthor(sub)
+    await bookingsService.confirmHandoverAsDetlio(id, input.step, author)
+    await adminRepository.createBookingNote({
+      bookingId: id,
+      author,
+      body: `${input.step === 'picked_up' ? 'Picked up' : 'Delivered'} confirmed by Detlio without the customer's code: ${input.note}`,
+    })
+
+    log.info({ bookingId: id, step: input.step, author }, 'admin:booking-pickup-step-confirmed')
+    return loadBookingDetail(id, Date.now())
   },
 
   async addBookingNote(id: string, sub: string, input: CreateBookingNoteInput) {

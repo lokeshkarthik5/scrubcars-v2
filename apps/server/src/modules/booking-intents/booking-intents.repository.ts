@@ -141,6 +141,10 @@ export const bookingIntentsRepository = {
     // Set on the customer-facing path; omitted for the webhook, which is
     // authenticated by signature rather than by session.
     userId?: string
+    // Fresh handover codes from the service (lib/pickup.ts). Written only if
+    // the intent turns out to be a pickup & drop booking; the CHECK in 0037
+    // keeps them off every other type.
+    handoverCodes: { pickupCode: string; deliveryCode: string }
   }): Promise<ConsumeIntentResult> {
     return db.transaction(async (tx): Promise<ConsumeIntentResult> => {
       const [intent] = await tx
@@ -263,6 +267,10 @@ export const bookingIntentsRepository = {
           lat: intent.lat,
           lng: intent.lng,
           address: intent.address,
+          ...(intent.bookingType === 'pickup' && {
+            pickupCode: params.handoverCodes.pickupCode,
+            deliveryCode: params.handoverCodes.deliveryCode,
+          }),
         })
         .returning()
 

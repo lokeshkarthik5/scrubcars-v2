@@ -19,6 +19,27 @@ reconstructing every change in them.
 
 ### Added
 
+- **Pickup & drop, part 1 of 2 (garage portal and admin).** Garage
+  portal: Settings → Hours has a Pickup & drop switch; turning it on asks
+  for the distance (empty is 10 km from the pin) and the owner's tick "We
+  are responsible for the customer's car from pickup until it is
+  returned", and then says "Pickup within 8 km" with the date it was
+  accepted. A pickup job card has a "Pickup & drop" badge, the address to
+  collect from and return to with Open in Maps and the customer's phone,
+  and one button for the step it waits for: Picked up (with the customer's
+  4-digit pickup code) → At garage → Mark in progress → Out for delivery →
+  Delivered (with the delivery code), with the tries left after a wrong
+  code and Detlio's number once locked. Before photos are suggested at
+  pickup. Admin: a Pickup & drop card on Add vendor and on the edit page
+  (saves on its own; turning it on needs "The garage has agreed to this
+  (signed agreement)"); the garage card's line says "Pickup & drop"; the
+  checklist warns about pickup with no pin or no agreement. Bookings show
+  the type everywhere ("Pickup & drop"), the pickup address, the latest
+  handover step on the list, every step in the timeline, and "Confirm
+  picked up…" / "Confirm delivered…" for a customer who cannot give the
+  code. Customer app: no visible change yet; the type is labelled
+  everywhere it could appear.
+
 - **Complaints with a number and a 24-hour clock.** Customer app: a
   booking's Help sheet ends with "Make a complaint · Raise a complaint",
   which opens a short sheet (what it is about, as chips; what happened;

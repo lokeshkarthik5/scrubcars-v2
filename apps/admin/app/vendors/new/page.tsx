@@ -18,6 +18,8 @@ import { createAdminVendor } from '@repo/core/api/admin'
 import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import { BookingModeCard } from '@/components/booking-mode-card'
+import { PickupFields } from '@/components/pickup-card'
+import { parsePickupRadius } from '@repo/core/pickup'
 import { ServicesEditor } from '@/components/services-editor'
 import {
   bookingModeFlags,
@@ -29,11 +31,6 @@ import { rowsToSave, servicesSaveBlock } from '@/lib/service-rows'
 import { listHref } from '@/lib/vendor-list'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const PICKUP_OPTIONS = [
-  { value: 'yes' as const, label: 'Yes' },
-  { value: 'nearby' as const, label: 'Nearby only' },
-  { value: 'no' as const, label: 'No' },
-]
 const SLOT_INTERVALS = [30, 45, 60] as const
 const STATUS_OPTIONS = [
   { value: 'pending' as const, label: 'Pending' },
@@ -58,12 +55,15 @@ export default function NewVendorPage() {
     mapsUrl: '',
     bays: '',
     jobsPerDay: '',
-    pickupRadiusKm: '',
     openTime: '09:00',
     closeTime: '18:00',
     notes: '',
   })
-  const [pickup, setPickup] = useState<'yes' | 'nearby' | 'no' | ''>('')
+  // Pickup & drop: off unless the garage signed the agreement to be
+  // responsible for the car, which the admin ticks here.
+  const [pickupOn, setPickupOn] = useState(false)
+  const [pickupAgreed, setPickupAgreed] = useState(false)
+  const [pickupRadius, setPickupRadius] = useState('')
   // Optional here, unlike the vendor's own onboarding: staff often create a
   // garage from a phone call and pin it later. The consequence lands at
   // verification, which the server refuses without coordinates.
@@ -97,6 +97,14 @@ export default function NewVendorPage() {
   const travels = bookingMode !== 'garage'
   const radius = parseRadiusInput(doorstepRadius)
   const radiusBlock = travels && !radius.ok ? radius.message : null
+  const pickupRadiusParsed = parsePickupRadius(pickupRadius)
+  const pickupBlock = !pickupOn
+    ? null
+    : !pickupRadiusParsed.ok
+      ? pickupRadiusParsed.message
+      : !pickupAgreed
+        ? 'Tick that the garage signed the pickup & drop agreement, or turn pickup off.'
+        : null
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -113,7 +121,7 @@ export default function NewVendorPage() {
   const num = (v: string) => (v.trim() === '' ? undefined : Number(v))
 
   const handleSubmit = async () => {
-    if (!isValid || servicesBlock || radiusBlock || describing) return
+    if (!isValid || servicesBlock || radiusBlock || pickupBlock || describing) return
     setLoading(true)
     setError('')
     try {
@@ -129,8 +137,11 @@ export default function NewVendorPage() {
         whatsapp: form.whatsapp.trim() || undefined,
         yearsInOperation: form.yearsInOperation.trim() || undefined,
         mapsUrl: form.mapsUrl.trim() || undefined,
-        pickup: pickup || undefined,
-        pickupRadiusKm: num(form.pickupRadiusKm),
+        ...(pickupOn && pickupRadiusParsed.ok && {
+          pickupEnabled: true,
+          pickupAgreementSigned: pickupAgreed,
+          pickupRadiusKm: pickupRadiusParsed.km ?? undefined,
+        }),
         // Empty means the default distance, so nothing is sent for it.
         doorstepRadiusKm: travels && radius.ok ? (radius.km ?? undefined) : undefined,
         lat: pin?.lat,
@@ -181,6 +192,23 @@ export default function NewVendorPage() {
           radiusError={radiusBlock}
           live={status === 'active' && isVerified}
         />
+
+        <section aria-label="Pickup & drop" className="rounded-[16px] border border-border bg-surface p-4">
+          <PickupFields
+            on={pickupOn}
+            onSwitch={(next) => {
+              setPickupOn(next)
+              if (!next) setPickupAgreed(false)
+            }}
+            radius={pickupRadius}
+            onRadiusChange={setPickupRadius}
+            radiusError={pickupOn && !pickupRadiusParsed.ok ? pickupRadiusParsed.message : null}
+            askAgreement={pickupOn}
+            agreed={pickupAgreed}
+            onAgreedChange={setPickupAgreed}
+            pinned={pin != null}
+          />
+        </section>
 
         {/* Mirrors the edit screen's tabs, which mirror the vendor settings
           screen — one shape for "a garage's details", wherever you edit it. */}
@@ -262,23 +290,8 @@ export default function NewVendorPage() {
 
         <TabsContent value="operations">
           <ScSection title="Operations">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-medium text-text-secondary">Pickup &amp; drop (optional)</label>
-              <div className="flex flex-wrap gap-2">
-                {PICKUP_OPTIONS.map((o) => (
-                  <Chip
-                    key={o.value}
-                    label={o.label}
-                    selected={pickup === o.value}
-                    onClick={() => setPickup(pickup === o.value ? '' : o.value)}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <ScField label="Pickup radius km (optional)" value={form.pickupRadiusKm} onChange={set('pickupRadiusKm')} type="number" placeholder="e.g. 5" className="font-numeric" />
-            </div>
-
+            {/* Pickup & drop is its own card above the tabs, with the
+                agreement tick it needs. */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-medium text-text-secondary">Working days</label>
               <div className="flex flex-wrap gap-2">
@@ -361,15 +374,26 @@ export default function NewVendorPage() {
 
         {/* Why Create is off, here rather than only on the Services tab: the
             admin may be on any tab when they reach for it. */}
-        {(servicesBlock || radiusBlock) && (
+        {(servicesBlock || radiusBlock || pickupBlock) && (
           <p id="services-save-block" className="text-[13px] text-error">
-            {servicesBlock ? `${servicesBlock} — see the Services tab.` : 'Check the doorstep distance above.'}
+            {servicesBlock
+              ? `${servicesBlock} — see the Services tab.`
+              : radiusBlock
+                ? 'Check the doorstep distance above.'
+                : pickupBlock}
           </p>
         )}
 
         <ScButton
-          disabled={!isValid || loading || describing || servicesBlock !== null || radiusBlock !== null}
-          aria-describedby={servicesBlock || radiusBlock ? 'services-save-block' : undefined}
+          disabled={
+            !isValid ||
+            loading ||
+            describing ||
+            servicesBlock !== null ||
+            radiusBlock !== null ||
+            pickupBlock !== null
+          }
+          aria-describedby={servicesBlock || radiusBlock || pickupBlock ? 'services-save-block' : undefined}
           onClick={handleSubmit}
         >
           {loading ? 'Creating…' : 'Create vendor'}

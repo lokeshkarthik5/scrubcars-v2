@@ -31,6 +31,7 @@ import { customerSeesPhotos } from './job-records.js'
 import { receiptAvailability, REFUND_METHODS } from './receipts.js'
 import { bookingRefundTotals, isRazorpayRefundId } from './refunds.js'
 import { addDays, istDateKey, istMidnight, istSlotShortLabel, istTimeLabel, istWeekdayLabel } from './ist.js'
+import type { BookingType } from './booking-types.js'
 
 export const UPDATES_WINDOW_DAYS = 30
 export const MAX_UPDATES = 100
@@ -49,7 +50,7 @@ const DAY_MS = 24 * HOUR_MS
 export interface HubBooking {
   id: string
   status: string
-  bookingType: 'dropin' | 'doorstep'
+  bookingType: BookingType
   scheduledAt: Date
   createdAt: Date
   acceptedAt: Date | null

@@ -26,6 +26,7 @@ import { ActiveGarage } from '@/components/active-garage'
 import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
 import { JobPhotos } from '@/components/job-photos'
+import { PickupSteps } from '@/components/pickup-steps'
 import { jobStepTimes } from '@repo/core/job-records'
 import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
@@ -322,7 +323,17 @@ export default function VendorBookingsPage() {
                 <FinalBillPanel booking={b} onChanged={refresh} />
               )}
 
-              {tab === 'upcoming' && b.status === 'confirmed' && (
+              {/* Pickup & drop has its own steps around the work: one button
+                  for whatever the job waits for, from the server. */}
+              {tab === 'upcoming' && b.bookingType === 'pickup' && (
+                <PickupSteps
+                  booking={b}
+                  onStartWork={() => handleStatus(b.id, 'in_progress')}
+                  onChanged={refresh}
+                />
+              )}
+
+              {tab === 'upcoming' && b.bookingType !== 'pickup' && b.status === 'confirmed' && (
                 <ScButton
                   aria-label={`Mark booking for ${b.customerName} in progress`}
                   onClick={() => handleStatus(b.id, 'in_progress')}
@@ -331,7 +342,7 @@ export default function VendorBookingsPage() {
                 </ScButton>
               )}
 
-              {tab === 'upcoming' && b.status === 'in_progress' && (
+              {tab === 'upcoming' && b.bookingType !== 'pickup' && b.status === 'in_progress' && (
                 <ScButton
                   aria-label={`Mark booking for ${b.customerName} completed`}
                   onClick={() => handleStatus(b.id, 'completed')}

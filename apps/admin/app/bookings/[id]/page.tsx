@@ -47,7 +47,10 @@ import {
   formatWhen,
   paymentStatusLabel,
 } from '@/lib/bookings'
-import { CancelBookingDialog, NoShowDialog } from './booking-actions'
+import { CancelBookingDialog, NoShowDialog, PickupStepDialog } from './booking-actions'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
+import { MAX_CODE_ATTEMPTS } from '@repo/core/pickup'
+import type { BookingType } from '@repo/core/types'
 import { NotesSection } from './notes-section'
 import { RefundSection } from './refund-section'
 
@@ -116,8 +119,33 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
       detail: b.acceptedByName ? `by ${b.acceptedByName}` : null,
     })
   }
+  // Pickup & drop's handover, in its place around the work; a step Detlio
+  // confirmed without the customer's code says who.
+  const pickup = b.pickup
+  if (pickup?.pickedUpAt) {
+    steps.push({
+      label: 'Picked up from the customer',
+      at: pickup.pickedUpAt,
+      detail: pickup.pickupOverrideBy
+        ? `confirmed by ${pickup.pickupOverrideBy} without the code`
+        : 'with the customer’s code',
+    })
+  }
+  if (pickup?.atGarageAt) steps.push({ label: 'At the garage', at: pickup.atGarageAt })
   if (b.startedAt || b.status === 'in_progress' || b.status === 'completed') {
     steps.push({ label: 'Started', at: b.startedAt })
+  }
+  if (pickup?.outForDeliveryAt) {
+    steps.push({ label: 'Out for delivery', at: pickup.outForDeliveryAt })
+  }
+  if (pickup?.deliveredAt) {
+    steps.push({
+      label: 'Delivered to the customer',
+      at: pickup.deliveredAt,
+      detail: pickup.deliveryOverrideBy
+        ? `confirmed by ${pickup.deliveryOverrideBy} without the code`
+        : 'with the customer’s code',
+    })
   }
   if (b.completedAt || b.status === 'completed') {
     steps.push({
@@ -269,7 +297,9 @@ function BookingDetail({
   // Re-evaluated every 30 seconds, so "Mark no-show" appears on its own once
   // the start time passes with the page open.
   const now = useNow(30_000)
-  const [dialog, setDialog] = useState<'cancel' | 'no-show' | 'delete-test' | null>(null)
+  const [dialog, setDialog] = useState<
+    'cancel' | 'no-show' | 'delete-test' | 'picked_up' | 'delivered' | null
+  >(null)
   const router = useRouter()
 
   // After a cancel or no-show the button that opened the dialog is gone, so
@@ -290,8 +320,16 @@ function BookingDetail({
   const badge = bookingStatusBadge(b.status)
   const showCancel = canCancel(b.status)
   const showNoShow = canMarkNoShow(b, now)
+  // The pickup step Detlio can confirm now, for a customer without the code:
+  // the same order the garage follows (lib/pickup.ts on the server).
+  const pickupOverride: 'picked_up' | 'delivered' | null =
+    b.pickup && b.status === 'confirmed' && !b.pickup.pickedUpAt
+      ? 'picked_up'
+      : b.pickup && b.status === 'in_progress' && b.pickup.outForDeliveryAt && !b.pickup.deliveredAt
+        ? 'delivered'
+        : null
   const directions =
-    b.bookingType === 'doorstep'
+    b.bookingType === 'doorstep' || b.bookingType === 'pickup'
       ? directionsHref({
           lat: b.lat,
           lng: b.lng,
@@ -336,7 +374,7 @@ function BookingDetail({
               {formatWhen(b.scheduledAt)}
             </p>
             <p className="text-[13px] text-text-secondary">
-              {b.bookingType === 'doorstep' ? 'Doorstep' : 'At the garage'} ·{' '}
+              {BOOKING_TYPE_LABELS[b.bookingType as BookingType] ?? 'At garage'} ·{' '}
               <span className="font-numeric">
                 {formatDuration(b.durationMins)}
               </span>
@@ -388,8 +426,8 @@ function BookingDetail({
                   </p>
                 )}
               </Field>
-              {b.bookingType === 'doorstep' && (
-                <Field label="Doorstep address">
+              {(b.bookingType === 'doorstep' || b.bookingType === 'pickup') && (
+                <Field label={b.bookingType === 'pickup' ? 'Pickup & return address' : 'Doorstep address'}>
                   <p>{b.address ?? 'Address missing'}</p>
                   {directions && (
                     <a
@@ -473,9 +511,18 @@ function BookingDetail({
         </div>
 
         <div className="flex flex-col gap-4">
-          {(showCancel || showNoShow) && (
+          {(showCancel || showNoShow || pickupOverride) && (
             <ScSection title="Actions">
               <div className="flex flex-col gap-2">
+                {pickupOverride && (
+                  <ScButton
+                    variant="secondary"
+                    onClick={() => setDialog(pickupOverride)}
+                    className="min-h-11"
+                  >
+                    {pickupOverride === 'picked_up' ? 'Confirm picked up…' : 'Confirm delivered…'}
+                  </ScButton>
+                )}
                 {showNoShow && (
                   <ScButton
                     variant="secondary"
@@ -495,6 +542,18 @@ function BookingDetail({
                   </ScButton>
                 )}
               </div>
+              {pickupOverride && (
+                <p className="text-[12px] text-text-muted">
+                  For a customer who can’t give the{' '}
+                  {pickupOverride === 'picked_up' ? 'pickup' : 'delivery'} code.
+                  {b.pickup &&
+                    ` ${
+                      pickupOverride === 'picked_up'
+                        ? b.pickup.pickupCodeTriesLeft
+                        : b.pickup.deliveryCodeTriesLeft
+                    } of ${MAX_CODE_ATTEMPTS} garage tries left.`}
+                </p>
+              )}
               {!showNoShow &&
                 (b.status === 'confirmed' || b.status === 'in_progress') && (
                   <p className="text-[12px] text-text-muted">
@@ -534,6 +593,14 @@ function BookingDetail({
         onClose={() => setDialog(null)}
         onDone={onActionDone}
       />
+      {pickupOverride && (
+        <PickupStepDialog
+          booking={b}
+          step={pickupOverride}
+          open={dialog === pickupOverride}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </>
   )
 }

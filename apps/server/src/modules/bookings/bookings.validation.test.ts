@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { createBookingSchema } from './bookings.validation.js'
+import { createBookingSchema, handoverCodeSchema } from './bookings.validation.js'
 
 // The schema is where the old single-service shape and the new multi-service
 // one are reconciled. Everything downstream reads `serviceIds` and knows
@@ -78,5 +78,36 @@ describe('createBookingSchema', () => {
   it('does not require an address for drop-in', () => {
     const parsed = createBookingSchema.parse({ ...base, serviceId: A })
     expect(parsed.addressId).toBeUndefined()
+  })
+})
+
+describe('pickup & drop', () => {
+  it('needs the address the car is collected from', () => {
+    const missing = createBookingSchema.safeParse({ ...base, serviceId: A, bookingType: 'pickup' })
+    expect(missing.success).toBe(false)
+    expect(missing.error?.issues[0]?.message).toBe('Choose the address we should collect the car from')
+
+    const parsed = createBookingSchema.parse({
+      ...base,
+      serviceId: A,
+      bookingType: 'pickup',
+      addressId: ADDRESS,
+    })
+    expect(parsed.bookingType).toBe('pickup')
+    expect(parsed.addressId).toBe(ADDRESS)
+  })
+})
+
+describe('handoverCodeSchema', () => {
+  it('takes four digits, forgiving spaces', () => {
+    expect(handoverCodeSchema.parse({ code: '0420' })).toEqual({ code: '0420' })
+    expect(handoverCodeSchema.parse({ code: ' 04 20 ' })).toEqual({ code: '0420' })
+  })
+
+  it('refuses anything else', () => {
+    for (const code of ['420', '04200', 'abcd', '', '04-20']) {
+      expect(handoverCodeSchema.safeParse({ code }).success).toBe(false)
+    }
+    expect(handoverCodeSchema.safeParse({}).success).toBe(false)
   })
 })

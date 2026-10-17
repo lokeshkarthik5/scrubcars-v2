@@ -47,6 +47,16 @@ export function isListedToCustomers(row: ListedRow): boolean {
   )
 }
 
+// ─── Pickup & drop ───────────────────────────────────────────────────────────
+
+/**
+ * **Offers pickup & drop** (0037): said yes ('nearby', an older onboarding
+ * answer, counts) and the responsibility terms are on file. Against the
+ * alias `v`. The row twin is isPickupOffered in lib/pickup.ts, pinned to
+ * this by vendors.predicates.test.ts. Change one, change both.
+ */
+export const PICKUP_OFFERED = sql`(v.pickup IN ('yes', 'nearby') AND v.pickup_terms_accepted_at IS NOT NULL)`
+
 // ─── The Bin ─────────────────────────────────────────────────────────────────
 
 /** In the Bin: moved there by admin, and not restored. */

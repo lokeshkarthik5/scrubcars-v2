@@ -23,6 +23,7 @@
  */
 import { bookingReference } from './booking-ops.js'
 import { isRazorpayRefundId } from './refunds.js'
+import type { BookingType } from './booking-types.js'
 
 /**
  * Who issues the receipt: Detlio, the platform the customer paid.
@@ -245,7 +246,7 @@ export interface ReceiptBooking {
   /** The first booking of its reschedule chain; null if it was never moved. */
   originalBookingId?: string | null
   status: string
-  bookingType: 'dropin' | 'doorstep'
+  bookingType: BookingType
   scheduledAt: Date
   amount: string
   subtotalAmount?: string | null
@@ -313,7 +314,7 @@ export interface Receipt {
     reference: string
     /** The first booking's reference when this one was moved here; else null. */
     originalReference: string | null
-    bookingType: 'dropin' | 'doorstep'
+    bookingType: BookingType
     status: string
     statusLabel: string
     scheduledAt: string

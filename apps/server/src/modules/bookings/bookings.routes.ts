@@ -14,6 +14,7 @@ import {
   bookingIdParamSchema,
   cancelBookingSchema,
   createBookingSchema,
+  handoverCodeSchema,
   listMyBookingsQuerySchema,
   listVendorBookingsQuerySchema,
   rescheduleBookingSchema,
@@ -125,6 +126,45 @@ bookingsRoutes.patch(
   ...jobMiddleware,
   zValidator('param', bookingIdParamSchema),
   (c) => bookingsController.markCompleted(c, c.req.valid('param').id)
+)
+
+// Pickup & drop's own steps (0037), between Accept and the normal work and
+// after it: Picked up (with the customer's pickup code) → At garage →
+// Mark in progress → Out for delivery → Delivered (with the delivery code),
+// which completes the job. Open to operators like the other job steps: the
+// driver is often one.
+bookingsRoutes.patch(
+  '/:id/picked-up',
+  authMiddleware,
+  ...jobMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', handoverCodeSchema),
+  (c) => bookingsController.markPickedUp(c, c.req.valid('param').id, c.req.valid('json'))
+)
+
+bookingsRoutes.patch(
+  '/:id/at-garage',
+  authMiddleware,
+  ...jobMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => bookingsController.markAtGarage(c, c.req.valid('param').id)
+)
+
+bookingsRoutes.patch(
+  '/:id/out-for-delivery',
+  authMiddleware,
+  ...jobMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => bookingsController.markOutForDelivery(c, c.req.valid('param').id)
+)
+
+bookingsRoutes.patch(
+  '/:id/delivered',
+  authMiddleware,
+  ...jobMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', handoverCodeSchema),
+  (c) => bookingsController.markDelivered(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
 // The customer's payment receipt. Customer-only and owner-only: unlike

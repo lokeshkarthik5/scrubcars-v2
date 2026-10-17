@@ -1,6 +1,13 @@
 import type { OpeningDay } from '@repo/core/opening-hours'
+import type { PickupNext } from '@repo/core/pickup'
 
-export type BookingType = 'doorstep' | 'dropin'
+/**
+ * How the car and the work meet. 'pickup' is pickup & drop: the garage
+ * collects the car from the customer's address, works on it at the garage
+ * and brings it back. Customers cannot choose it yet (parseBookingType);
+ * the garage portal and admin already show it.
+ */
+export type BookingType = 'doorstep' | 'dropin' | 'pickup'
 export type BookingStatus =
   | 'pending'
   | 'confirmed'
@@ -69,6 +76,8 @@ export interface Vendor {
   startingPrice: number
   dropinEnabled: boolean
   doorstepEnabled: boolean
+  /** Offers pickup & drop. False on servers older than it. */
+  pickupEnabled: boolean
   serviceTags: string[]
   isVerified: boolean
   photos: string[]
@@ -238,6 +247,21 @@ export interface FinalBill {
   createdAt: string
 }
 
+/** A pickup & drop job's handover, as one payload carries it. */
+export interface BookingPickup {
+  pickedUpAtIso?: string
+  atGarageAtIso?: string
+  outForDeliveryAtIso?: string
+  deliveredAtIso?: string
+  /** Garage payloads: the step its job card offers next. */
+  nextStep?: PickupNext | null
+  pickupCodeTriesLeft?: number
+  deliveryCodeTriesLeft?: number
+  /** Customer payloads: the codes still to give, each until it is used. */
+  pickupCode?: string | null
+  deliveryCode?: string | null
+}
+
 export interface Booking {
   id: string
   vendorId: string
@@ -302,6 +326,12 @@ export interface Booking {
   /** Set when the customer moved an earlier booking to this new time. */
   rescheduledFromId?: string
   review?: Review
+  /**
+   * Pickup & drop only: the handover steps, and what the job waits for. The
+   * customer's codes are on the customer's own booking only (`pickupCode`,
+   * `deliveryCode`); the garage gets `nextStep` and the tries left instead.
+   */
+  pickup?: BookingPickup
   /** When each step happened, as ISO strings. Absent until it does. */
   requestedAtIso: string
   acceptedAtIso?: string

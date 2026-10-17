@@ -47,3 +47,23 @@ describe('updateJobTypesSchema', () => {
     ).toBe(false)
   })
 })
+
+describe('pickup & drop on PATCH /vendors/me/job-types', () => {
+  test('on, off, the tick and a radius from 1 to 30 km (null for the default)', () => {
+    expect(
+      updateJobTypesSchema.parse({ pickupEnabled: true, pickupTermsAccepted: true, pickupRadiusKm: 8 })
+    ).toEqual({ pickupEnabled: true, pickupTermsAccepted: true, pickupRadiusKm: 8 })
+    expect(updateJobTypesSchema.safeParse({ pickupEnabled: false }).success).toBe(true)
+    expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: null }).success).toBe(true)
+    expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: 31 }).success).toBe(false)
+    expect(updateJobTypesSchema.safeParse({ pickupRadiusKm: 0.5 }).success).toBe(false)
+  })
+
+  test('a tick alone changes nothing, so it is not a request', () => {
+    expect(updateJobTypesSchema.safeParse({ pickupTermsAccepted: true }).success).toBe(false)
+  })
+
+  test('the profile save cannot set pickup any more: it is dropped', () => {
+    expect(updateVendorSchema.parse({ bays: 2, pickup: 'yes' } as never)).toEqual({ bays: 2 })
+  })
+})

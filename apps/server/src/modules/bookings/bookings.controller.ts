@@ -7,6 +7,7 @@ import { bookingsService } from './bookings.service.js'
 import type {
   CancelBookingInput,
   CreateBookingInput,
+  HandoverCodeInput,
   ListMyBookingsQuery,
   ListVendorBookingsQuery,
   RescheduleBookingInput,
@@ -175,6 +176,70 @@ export async function markCompleted(c: BookingsContext, bookingId: string) {
     getVendorId(c),
     getAuth(c).sub,
     bookingId
+  )
+
+  return c.json({
+    success: true,
+    data: booking,
+  })
+}
+
+// ─── Pickup & drop steps ─────────────────────────────────────────────────────
+
+export async function markPickedUp(
+  c: BookingsContext,
+  bookingId: string,
+  input: HandoverCodeInput
+) {
+  const booking = await bookingsService.markPickedUp(
+    getVendorId(c),
+    getAuth(c).sub,
+    bookingId,
+    input.code
+  )
+
+  return c.json({
+    success: true,
+    data: booking,
+  })
+}
+
+export async function markAtGarage(c: BookingsContext, bookingId: string) {
+  const booking = await bookingsService.markAtGarage(
+    getVendorId(c),
+    getAuth(c).sub,
+    bookingId
+  )
+
+  return c.json({
+    success: true,
+    data: booking,
+  })
+}
+
+export async function markOutForDelivery(c: BookingsContext, bookingId: string) {
+  const booking = await bookingsService.markOutForDelivery(
+    getVendorId(c),
+    getAuth(c).sub,
+    bookingId
+  )
+
+  return c.json({
+    success: true,
+    data: booking,
+  })
+}
+
+export async function markDelivered(
+  c: BookingsContext,
+  bookingId: string,
+  input: HandoverCodeInput
+) {
+  const booking = await bookingsService.markDelivered(
+    getVendorId(c),
+    getAuth(c).sub,
+    bookingId,
+    input.code
   )
 
   return c.json({

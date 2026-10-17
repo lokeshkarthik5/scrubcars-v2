@@ -1,6 +1,7 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
+import { newHandoverCodes } from '../../lib/pickup.js'
 import { createRazorpayOrder } from '../../lib/razorpay.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import {
@@ -132,7 +133,11 @@ export const bookingIntentsService = {
     razorpayOrderId?: string
     userId?: string
   }) {
-    const result = await bookingIntentsRepository.consumeIntent(params)
+    const result = await bookingIntentsRepository.consumeIntent({
+      ...params,
+      // Made for every confirm and kept only by a pickup & drop booking.
+      handoverCodes: newHandoverCodes(),
+    })
 
     return await handleConsumeResult(params, result)
   },

@@ -16,6 +16,7 @@ import type {
   ListBookingsQuery,
   MarkNoShowInput,
   LoginInput,
+  PickupStepOverrideInput,
   MediaUrlInput,
   PauseVendorInput,
   PilotStatsQuery,
@@ -93,7 +94,7 @@ export async function updateVendor(
   id: string,
   input: UpdateVendorInput
 ) {
-  const vendor = await adminService.updateVendor(id, input)
+  const vendor = await adminService.updateVendor(id, input, c.get('auth').sub)
   return c.json({ success: true, data: vendor })
 }
 
@@ -142,7 +143,7 @@ export async function setServiceActive(
 }
 
 export async function createVendor(c: AdminContext, input: CreateVendorInput) {
-  const vendor = await adminService.createVendor(input)
+  const vendor = await adminService.createVendor(input, c.get('auth').sub)
   return c.json({ success: true, data: vendor }, 201)
 }
 
@@ -184,6 +185,15 @@ export async function markBookingNoShow(
 
 export async function setBookingTestMark(c: AdminContext, id: string, marked: boolean) {
   const booking = await adminService.setTestMark(id, c.get('auth').sub, marked)
+  return c.json({ success: true, data: booking })
+}
+
+export async function overridePickupStep(
+  c: AdminContext,
+  id: string,
+  input: PickupStepOverrideInput
+) {
+  const booking = await adminService.overridePickupStep(id, c.get('auth').sub, input)
   return c.json({ success: true, data: booking })
 }
 

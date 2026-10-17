@@ -5,6 +5,8 @@
  * Kept free of the app's env and database so it can be tested on its own.
  */
 
+import { bookingTypeLabel } from './booking-types.js'
+
 const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
 const ADMIN_REFUNDS_URL = 'https://admin.detlio.com/refunds'
@@ -104,6 +106,8 @@ export type OpsAlert =
       now: Date
       waiting: DigestBooking[]
       missed: DigestBooking[]
+      /** Pickup & drop jobs past their time with the car not collected. */
+      latePickups?: DigestBooking[]
     }
   | {
       kind: 'paid_no_booking'
@@ -376,6 +380,18 @@ export function formatOpsAlert(alert: OpsAlert): string {
           )
         )
       }
+      const late = alert.latePickups ?? []
+      if (late.length > 0) {
+        sections.push(
+          lines(
+            `🚗 ${plural(late.length, 'pickup & drop job')} past ${late.length === 1 ? 'its' : 'their'} time with the car not picked up`,
+            ...digestRows(late, (b) =>
+              `${when(b.scheduledAt)} · ${duration(alert.now.getTime() - b.scheduledAt.getTime())} late`
+            ),
+            'Call the garage: is the driver on the way? If the customer gave the code but the garage could not enter it, confirm Picked up from the booking.'
+          )
+        )
+      }
       return lines(sections.join('\n\n'), ADMIN_BOOKINGS_URL)
     }
 
@@ -588,7 +604,7 @@ function when(date: Date): string {
 }
 
 function modeLabel(bookingType: string): string {
-  return bookingType === 'doorstep' ? 'Doorstep' : 'At garage'
+  return bookingTypeLabel(bookingType)
 }
 
 function rupees(amount: string): string {

@@ -35,6 +35,16 @@ export interface AdminVendor {
   /** The garage drew its own doorstep area, which then replaces the radius. */
   hasDoorstepArea?: boolean
   /**
+   * Offers pickup & drop: said yes with the responsibility terms on file.
+   * Absent from a server older than pickup & drop.
+   */
+  pickupEnabled?: boolean
+  pickupRadiusKm?: number | null
+  /** The stored answer, and the last acceptance of the responsibility terms. */
+  pickup?: 'yes' | 'nearby' | 'no' | null
+  pickupTermsAcceptedAt?: string | null
+  pickupTermsAcceptedBy?: string | null
+  /**
    * Customers can find it: Active, verified, not paused and not in the Bin —
    * the customer lists' own rule, decided on the server so the two never
    * disagree. Absent from a server older than this field.
@@ -97,8 +107,15 @@ export interface AdminVendorDetail {
   whatsapp: string | null
   yearsInOperation: string | null
   mapsUrl: string | null
+  /** The stored answer; `pickupEnabled` says whether it is on. */
   pickup: 'yes' | 'nearby' | 'no' | null
+  /** Null is the 10 km default. */
   pickupRadiusKm: number | null
+  /** On: said yes with the responsibility terms on file. Optional for older servers. */
+  pickupEnabled?: boolean
+  /** When, and by whom, the responsibility terms were last accepted. */
+  pickupTermsAcceptedAt?: string | null
+  pickupTermsAcceptedBy?: string | null
   doorstepRadiusKm: number | null
   /**
    * The garage drew its own doorstep area in the garage app. Where it did,
@@ -195,7 +212,13 @@ export interface UpdateVendorInput {
   whatsapp?: string | null
   yearsInOperation?: string | null
   mapsUrl?: string | null
-  pickup?: 'yes' | 'nearby' | 'no' | null
+  /**
+   * Pickup & drop, saved on its own by the edit page's card. Turning it on
+   * needs `pickupAgreementSigned: true` (PICKUP_TERMS_ADMIN); off never does.
+   * The legacy `pickup` answer is not sent any more.
+   */
+  pickupEnabled?: boolean
+  pickupAgreementSigned?: boolean
   pickupRadiusKm?: number | null
   doorstepRadiusKm?: number | null
   /** Both or neither — the server rejects a half-set pair. */
@@ -276,8 +299,13 @@ export interface AdminBooking {
   markedTest?: { at: string; by: string | null } | null
   garage: { id: string; name: string; phone: string } | null
   customer: { id: string; name: string; phone: string } | null
-  /** Where a doorstep job happens. Null for a job at the garage. */
+  /**
+   * Where a doorstep job happens, or where a pickup & drop car is collected
+   * from. Null for a job at the garage.
+   */
   address: string | null
+  /** Pickup & drop's handover; null on other types. Optional for older servers. */
+  pickup?: AdminBookingPickup | null
   vehicle: { id: string; make: string; model: string; plate: string | null } | null
   /** Every service on the booking, priced as sold. */
   items: Array<{
@@ -312,6 +340,22 @@ export interface AdminBooking {
   refunded?: string | null
   notesCount: number
   rescheduledFromId: string | null
+}
+
+/**
+ * A pickup & drop job's handover as ops sees it: the steps, the tries left on
+ * each code, and who at Detlio confirmed a step without the code. Never the
+ * codes themselves.
+ */
+export interface AdminBookingPickup {
+  pickedUpAt: string | null
+  atGarageAt: string | null
+  outForDeliveryAt: string | null
+  deliveredAt: string | null
+  pickupOverrideBy: string | null
+  deliveryOverrideBy: string | null
+  pickupCodeTriesLeft: number
+  deliveryCodeTriesLeft: number
 }
 
 /** A final bill as ops sees it, with the Razorpay ids to find the payment by. */
@@ -446,7 +490,9 @@ export interface CreateVendorInput {
   whatsapp?: string
   yearsInOperation?: string
   mapsUrl?: string
-  pickup?: 'yes' | 'nearby' | 'no'
+  /** Pickup & drop on, with the admin's tick that the garage signed the agreement. */
+  pickupEnabled?: boolean
+  pickupAgreementSigned?: boolean
   pickupRadiusKm?: number
   doorstepRadiusKm?: number
   lat?: number
@@ -941,6 +987,21 @@ export async function markAdminBookingNoShow(
   input: { party: BookingParty; note?: string }
 ) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/no-show`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST /admin/bookings/:id/pickup-step — Detlio confirms Picked up or
+ * Delivered (which completes the job) for a customer who cannot give the
+ * code, with why. Refused out of the job's order like the garage's steps.
+ */
+export async function overrideAdminPickupStep(
+  id: string,
+  input: { step: 'picked_up' | 'delivered'; note: string }
+) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/pickup-step`, {
     method: 'POST',
     body: JSON.stringify(input),
   })

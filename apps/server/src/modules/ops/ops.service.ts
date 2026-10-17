@@ -18,11 +18,16 @@ export const opsService = {
    */
   async pendingDigest(options: { dryRun: boolean }) {
     const now = Date.now()
-    const rows = await opsRepository.listPaidPendingBookings(new Date(now - MISSED_LOOKBACK_MS))
-    const plan = planPendingDigest(now, rows)
+    const since = new Date(now - MISSED_LOOKBACK_MS)
+    const [rows, pickups] = await Promise.all([
+      opsRepository.listPaidPendingBookings(since),
+      opsRepository.listUncollectedPickups(since, new Date(now)),
+    ])
+    const plan = planPendingDigest(now, rows, pickups)
     const summary = {
       waiting: plan.waiting.length,
       missed: plan.missed.length,
+      latePickups: plan.latePickups.length,
       reason: plan.reason as string,
       posted: false,
     }
@@ -35,10 +40,14 @@ export const opsService = {
         now: new Date(now),
         waiting: plan.waiting,
         missed: plan.missed,
+        latePickups: plan.latePickups,
       })
       if (outcome === 'off') return { ...summary, reason: 'alerts_off' }
     } catch (err) {
-      log.error({ err, waiting: summary.waiting, missed: summary.missed }, 'ops:pending_digest_send_failed')
+      log.error(
+        { err, waiting: summary.waiting, missed: summary.missed, latePickups: summary.latePickups },
+        'ops:pending_digest_send_failed'
+      )
       // A failed run must show as failed to the scheduler, which emails on it.
       throw new AppError(502, 'Could not post the pending-booking digest', 'OPS_ALERT_SEND_FAILED')
     }

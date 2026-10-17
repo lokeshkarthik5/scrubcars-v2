@@ -17,7 +17,9 @@ import {
   vendorWorkingHours,
 } from '../../db/schema.js'
 import { containsPattern } from '../../lib/search.js'
-import { LISTED_TO_CUSTOMERS, vendorPageOpen } from './vendors.predicates.js'
+import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
+import type { BookingType } from '../../lib/booking-types.js'
+import { LISTED_TO_CUSTOMERS, PICKUP_OFFERED, vendorPageOpen } from './vendors.predicates.js'
 import type {
   serviceCategoryEnum,
   servicePricingTypeEnum,
@@ -114,7 +116,7 @@ export const vendorsRepository = {
     origin?: { lat: number; lng: number }
     radiusM?: number
     bbox?: { minLng: number; minLat: number; maxLng: number; maxLat: number }
-    bookingType?: 'dropin' | 'doorstep'
+    bookingType?: BookingType
     category?: ServiceCategory
     q?: string
     sort: VendorSort
@@ -192,6 +194,16 @@ export const vendorsRepository = {
           WHEN v.doorstep_area IS NOT NULL THEN gis.ST_Covers(v.doorstep_area, ${point})
           ELSE gis.ST_DWithin(v.geo, ${point}, COALESCE(v.doorstep_radius_km, 0) * 1000, false)
         END`)
+      }
+    } else if (bookingType === 'pickup') {
+      conditions.push(PICKUP_OFFERED)
+      // Pickup asks "who will collect my car", so, as for doorstep, the bound
+      // is the garage's own pickup radius from its pin, not a radius the
+      // customer picked. An empty radius is the default (lib/pickup.ts).
+      if (point) {
+        conditions.push(
+          sql`gis.ST_DWithin(v.geo, ${point}, COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000, false)`
+        )
       }
     } else if (point && params.radiusM) {
       // `false` selects sphere maths over spheroid: measurably faster, and
@@ -365,6 +377,14 @@ export const vendorsRepository = {
       .set(data)
       .where(eq(vendors.id, vendorId))
       .returning()
+  },
+
+  /** A person's name and phone, for the record of who accepted pickup terms. */
+  findUserContact(userId: string) {
+    return db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { name: true, phone: true },
+    })
   },
 
   setUserAsVendorOwner(userId: string) {
