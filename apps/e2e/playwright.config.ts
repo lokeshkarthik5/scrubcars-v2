@@ -55,8 +55,14 @@ export default defineConfig({
   // test made, count what it wrote — so running them concurrently makes them
   // race each other over one row. `fullyParallel: true` does exactly that, and
   // cost roughly one flaky test per run before this was turned off.
+  //
+  // CI's hosted runner has 4 cores. Two workers left the other half idle: the
+  // full suite is ~13 minutes of test time and packed to 7.2 minutes at two
+  // workers, so four is the cut that uses the machine. The API pool is raised
+  // for this run (PG_POOL_MAX in .env.e2e) so those workers are not queued
+  // behind the single connection production keeps.
   fullyParallel: false,
-  workers: CI ? 2 : 4,
+  workers: 4,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
 
