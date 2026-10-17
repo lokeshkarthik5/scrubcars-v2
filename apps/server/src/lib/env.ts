@@ -36,6 +36,28 @@ function readFakePaymentsFlag(): boolean {
   return enabled
 }
 
+/**
+ * Whether "Write with AI" answers with a fixed description instead of calling
+ * OpenAI. The E2E stack sets it, so the admin specs exercise the whole path
+ * without a key and without a network call (lib/ai.ts).
+ *
+ * Refused in production for the same reason as E2E_FAKE_PAYMENTS: a value
+ * leaked into a deploy should stop the boot, not quietly put the same
+ * sentence on every garage's services.
+ */
+function readFakeAiFlag(): boolean {
+  const enabled = process.env.AI_FAKE === '1'
+
+  if (enabled && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'AI_FAKE is set in production. It replaces every AI answer with a ' +
+        'fixed test sentence and must never be enabled outside tests.'
+    )
+  }
+
+  return enabled
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   databaseUrl: requireEnv('DATABASE_URL'),
@@ -193,6 +215,21 @@ export const env = {
   homeOfferTargeting: ['on', 'true', '1'].includes(
     (process.env.HOME_OFFER_TARGETING ?? '').trim().toLowerCase()
   ),
+
+  // ─── AI (OpenAI) ───────────────────────────────────────────────────────────
+  // Every AI feature in Detlio goes through OpenAI with this one key: service
+  // descriptions in the admin editor now, pictures later. Unset — as in
+  // development, E2E and previews — and the features are off: the admin
+  // panel hides their buttons (GET /admin/ai/config). The key lives in the
+  // Vercel environment only, never in code or git.
+  openaiApiKey: process.env.OPENAI_API_KEY || undefined,
+  // Which model writes the text. An env value so it can be changed without a
+  // release.
+  aiTextModel: process.env.AI_TEXT_MODEL?.trim() || 'gpt-5.5',
+  aiFake: readFakeAiFlag(),
+  // "Write with AI" calls per admin per hour. Each one is a paid request, and
+  // the editor's "Fill all empty descriptions" makes one per service.
+  aiDescribeRateLimit: Number(process.env.AI_DESCRIBE_RATE_LIMIT ?? '60'),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;

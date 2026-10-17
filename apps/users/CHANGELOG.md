@@ -19,6 +19,55 @@ reconstructing every change in them.
 
 ### Added
 
+- **Admin: easier garage editing.** On the edit page, a "How customers book"
+  card sits above the tabs: At the garage / Doorstep / Both, with a one-line
+  hint, saved the moment it is tapped (a quiet "Saved" tick; arrow keys wait
+  for the last pick, so passing over Doorstep never switches drop-in off),
+  "Travels up to [ ] km" (1–30, decimals allowed as in the garage app;
+  optional: "Empty means 10 km.", true once #42 is in, so this merges after
+  it) saved when the box is left, and a line saying what customers can book
+  ("At the garage · Doorstep within 8 km", "…within 10 km (default)", or
+  "Doorstep within the area the garage drew" when the garage drew one, which
+  the radius then doesn't touch), with an amber note when the garage isn't
+  live yet (not Active and verified), when bookings are paused or when
+  nothing is switched on. With nothing picked, the choice can still be
+  reached with Tab (`ScSegmented` gives the first option the tab stop, so
+  every segmented control does the same). The Drop-in and Doorstep
+  checkboxes and the doorstep radius are gone from Operations and from Save
+  changes, so nothing is saved twice; "Pickup & drop" stays there, marked
+  optional. Add vendor has the same card as an ordinary field, sent with
+  Create. Save changes is now a bar along
+  the bottom while something is unsaved ("Unsaved changes in Operations and
+  Services", Discard, the one red Save changes, off with the reason when a
+  field or a service row is not ready, e.g. "1 service needs a price
+  (Services)"); a dot marks each changed tab (amber where the problem is);
+  leaving with changes asks first — a reload, closing the tab, the panel's
+  links, and Back (the browser's button, Android's back, the iPhone's edge
+  swipe); saving stays on the garage with a "Saved" toast, so new services
+  can take photos straight away. If the reload after a save fails, Save waits
+  ("Saved. Reload the page to keep editing.") rather than add new services a
+  second time. Discard also puts the map's pin back. `?tab=` opens a tab
+  and is kept in the address as tabs change; `?back=` sets the back arrow
+  (garage-list paths only). The services editor, shared by both pages, is one
+  compact row per service, grouped "Wash and standard" and "Detailing": name,
+  a duration pill (30/45/60/90/120 min or Other…), Hatch/Sedan/SUV prices, or
+  one price for "Same for all cars" and the fee for "After inspection"; the ⋯
+  opens description, category, pricing, photos and Hide service. New rows are
+  priced by car type. A category change that moves a row to the other group
+  follows it there and says so. "Add from template" offers ten ready-made
+  services the garage doesn't have yet (Foam wash, Body wash, Full wash,
+  Interior cleaning, Ceramic coating, Polishing, Engine bay cleaning,
+  Underbody wash, Headlight restoration, Bike wash;
+  `@repo/core/service-templates`), filled in but for
+  the prices, which the row then asks for; Interior cleaning sits with the
+  washes, as in the mockup. With an OpenAI key set on the API, "Write with
+  AI" in a row's description ("Rewrite with AI" over existing text, with an
+  Undo) and "Fill all empty descriptions" (one row at a time, with progress,
+  stopping at the first error) draft the text; it is saved with Save changes
+  like typed text, and Save and Discard wait while it is being written.
+  Opening another tab stops it, and what had not arrived is dropped.
+  Packages are still the garage app's to edit.
+
 - **Garages outside Chennai say so** (owner decision, 2026-10-16), from the
   API's new `outsideServiceCity` (set past 50 km from the Chennai centre).
   Calm, not alarming: a graphite chip with an amber map pin, never red, and

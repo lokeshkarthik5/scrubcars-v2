@@ -18,6 +18,36 @@ reconstructing every change in them.
 
 ### Added
 
+- **"Write with AI" for service descriptions, on OpenAI** (no migration).
+  `POST /admin/services/describe { name, category, pricingType,
+  durationMins?, garageName? }` returns `{ description }`: a draft for the
+  admin editor's field, never saved by the call. `GET /admin/ai/config` says
+  `{ describe }`, false while `OPENAI_API_KEY` is unset, which is how the
+  panel knows to hide the buttons. Both super-admin only. The one AI wrapper
+  is `lib/ai.ts` (the official `openai` SDK, pinned at 7.30.1; Responses API,
+  20 s timeout, one SDK retry); the model is `AI_TEXT_MODEL`, default
+  `gpt-5.5`. Every answer is checked by `lib/service-description.ts`: 1–2
+  plain sentences, at most 200 characters, ending in a full stop, no price,
+  no time unless a duration was given, nothing `lib/copy-rules.ts` bans and
+  none of best / 100% / permanent / perfect / showroom and the like. A
+  failing answer is asked for once more with the reason; then 422
+  `AI_NO_DESCRIPTION`. Any SDK error (rate limit, timeout, bad key, outage)
+  is 503 `AI_UNAVAILABLE`, as is calling it with AI off. Only the service's
+  facts and the garage's business name are sent; the body is `.strict()`.
+  Rate limited per admin per hour (`AI_DESCRIBE_RATE_LIMIT`, default 60;
+  `createRateLimiter` takes a key function now, IP still the default).
+  `AI_FAKE=1` answers with a fixed sentence and calls nothing (E2E); the
+  server refuses to boot with it in production. What each ending becomes is
+  `modules/ai/ai.describe.ts`, unit-tested with fake clients; the OpenAI
+  client itself is tested against a canned `fetch`.
+- `GET /admin/vendors/:id` also says `hasDoorstepArea` (no migration): true
+  when the garage drew its own doorstep area in the garage app, which then
+  decides who is covered and leaves `doorstepRadiusKm` unread. The editor's
+  "How customers book" says so instead of quoting the radius.
+- E2E fixtures: `VENDORS.adminEditor` with `SERVICES.editorFoam` (named like
+  the Foam wash template) and `SERVICES.editorPolish` (no description), for
+  `specs/admin/garage-editor.spec.ts`.
+
 - **An "Outside Chennai" sign on garages in other towns** (owner decision,
   2026-10-16; no migration). Garages in other towns stay in the pilot, but
   each says it is not in Chennai. `GET /vendors` items, `GET /vendors/:id` and

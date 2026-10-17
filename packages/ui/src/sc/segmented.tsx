@@ -56,9 +56,15 @@ export function ScSegmented<T extends string>({
 
     event.preventDefault()
     const enabled = options.filter((option) => !option.disabled)
+    if (enabled.length === 0) return
     const current = enabled.findIndex((option) => option.value === value)
+    // Nothing picked yet: the arrows start from the first or the last option.
     const next =
-      (current + (forward ? 1 : -1) + enabled.length) % enabled.length
+      current === -1
+        ? forward
+          ? 0
+          : enabled.length - 1
+        : (current + (forward ? 1 : -1) + enabled.length) % enabled.length
 
     onChange(enabled[next].value)
     // Focus follows selection, as it does in a native radiogroup.
@@ -66,6 +72,13 @@ export function ScSegmented<T extends string>({
       ?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
       [options.indexOf(enabled[next])]?.focus()
   }
+
+  // With nothing picked, the first enabled option takes the tab stop, as in
+  // the WAI-ARIA radio group pattern; otherwise no option would be in the tab
+  // order and the whole group could not be reached from the keyboard.
+  const tabStop = options.some((option) => option.value === value)
+    ? value
+    : options.find((option) => !option.disabled)?.value
 
   return (
     <div
@@ -89,9 +102,9 @@ export function ScSegmented<T extends string>({
             role="radio"
             aria-checked={selected}
             disabled={option.disabled}
-            // Only the selected option is tabbable, so Tab moves past the group
-            // rather than through every choice in it.
-            tabIndex={selected ? 0 : -1}
+            // Only one option is tabbable (the selected one, see tabStop), so
+            // Tab moves past the group rather than through every choice in it.
+            tabIndex={option.value === tabStop ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 font-medium transition-colors',

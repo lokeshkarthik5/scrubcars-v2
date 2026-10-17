@@ -50,6 +50,14 @@ packages/ui     @repo/ui            shared components + globals.css
   - run inside a single transaction — no `BEGIN`/`COMMIT`, `CONCURRENTLY` or `VACUUM`; a new enum value cannot be used in the same file that adds it
   - be additive relative to the code currently in production; drops and renames go in a later release, once nothing reads the old shape
 
+### AI
+
+- **OpenAI only** (owner decision): every AI feature goes through `apps/server/src/lib/ai.ts`, which is the only file that imports the `openai` SDK (pinned in `apps/server/package.json`). Do not add another provider or call the SDK from anywhere else
+- **The key lives only in the Vercel environment** (`OPENAI_API_KEY`), never in code or git (`.env.example` lists it empty). Unset means the feature is off: `GET /admin/ai/config` says `{ describe: false }` and the admin panel hides the buttons. The model is `AI_TEXT_MODEL` (default `gpt-5.5`), so it can change without a release
+- **No personal data is ever sent**: no customer, owner or staff names, phones, addresses or booking details — only facts the garage page already shows (a service's name, category, pricing type, duration) and the garage's business name. Request schemas are `.strict()` so nothing else can ride along
+- **AI text is a draft, never saved by the AI call**: `POST /admin/services/describe` only returns text for a form field, and every answer must pass `lib/copy-rules.ts` plus the description rules in `lib/service-description.ts` (1–2 plain sentences, at most 200 characters, no prices, no times unless given, no claims), with one retry; otherwise 422 `AI_NO_DESCRIPTION`. Any SDK error is 503 `AI_UNAVAILABLE`. Rate limited per admin per hour (`AI_DESCRIBE_RATE_LIMIT`, default 60)
+- **Tests never call OpenAI**: unit tests pass a fake `TextClient` (or, for the SDK client itself, a canned `fetch`); E2E runs with `AI_FAKE=1` (`.env.e2e`), which answers every request with `FAKE_AI_TEXT`. The server refuses to boot with `AI_FAKE` set in production, like `E2E_FAKE_PAYMENTS`
+
 ### Module structure
 
 Every feature module must follow this exact file structure:
@@ -98,7 +106,7 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
   - Listings that mean "plain services" MUST exclude `category = 'package'` (see `listServices`, and the admin repository — `listActiveServiceIds` especially, since the admin editor reconciles against it)
   - The booking path MUST NOT exclude packages — a package occupies a slot like any other service
   - Packages are created only via `/vendors/me/packages`; `POST /vendors/me/services` rejects `category: 'package'` because a package with no members is invalid
-  - The admin editor's save sends the garage's full list and the server hides any live service missing from it, so the editor must never leave a typed-in row out: a row that is not ready blocks the save instead (`apps/admin/lib/service-rows.ts`). Admin hides and shows services one at a time with `PATCH /admin/vendors/:id/services/:serviceId/active` (plain services only; 409 `SERVICE_IN_PACKAGE` for one inside a package) and lists hidden ones at `GET /admin/vendors/:id/services/hidden`
+  - The admin editor's save sends the garage's full list and the server hides any live service missing from it, so the editor must never leave a typed-in row out: a row that is not ready blocks the save instead (`apps/admin/lib/service-rows.ts`). It sends `services` only when the Services tab has changes (`apps/admin/lib/garage-edit.ts` `dirtyTabs`). "How customers book" (`dropinEnabled` / `doorstepEnabled` / `doorstepRadiusKm`) is saved on tap by its own card above the tabs and is never part of Save changes, so the two can't overwrite each other. Ready-made services are `packages/core/src/service-templates.ts`; their descriptions pass the copy rules (tested on both sides). Admin hides and shows services one at a time with `PATCH /admin/vendors/:id/services/:serviceId/active` (plain services only; 409 `SERVICE_IN_PACKAGE` for one inside a package) and lists hidden ones at `GET /admin/vendors/:id/services/hidden`
 - Category labels live in `apps/server/src/lib/categories.ts` and `packages/core/src/categories.ts`, both keyed exhaustively on the category union — add new categories there or the build fails
 
 ### Transaction tables

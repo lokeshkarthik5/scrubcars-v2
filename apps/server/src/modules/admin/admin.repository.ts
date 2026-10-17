@@ -140,6 +140,22 @@ export const adminRepository = {
     })
   },
 
+  /**
+   * Whether the garage drew its own doorstep area in the garage app. Where it
+   * did, the area decides which addresses it covers and the radius is not
+   * read (bookings.repository.ts), so the admin editor must not quote the
+   * radius as the reach. Raw SQL: `doorstep_area` is not declared in the
+   * Drizzle schema (see vendorsRepository.getDoorstepArea).
+   */
+  async hasDoorstepArea(id: string): Promise<boolean> {
+    const rows = await db.execute<{ drawn: boolean }>(sql`
+      SELECT v.doorstep_area IS NOT NULL AS drawn
+        FROM vendors v
+       WHERE v.id = ${id}
+    `)
+    return Array.from(rows)[0]?.drawn === true
+  },
+
   // Any service (including a package) by id alone — the admin media routes are
   // keyed by service, and need the row to resolve which vendor's R2 prefix the
   // upload belongs under.

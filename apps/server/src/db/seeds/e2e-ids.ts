@@ -397,6 +397,14 @@ export const VENDORS = {
    * again. Pending and unpinned, so no customer sees it; nobody books it.
    */
   adminServices: { id: id(314), name: 'Admin Services Test Garage' },
+  /**
+   * The garage editor's own spec (specs/admin/garage-editor.spec.ts): how
+   * customers book, the save bar, ?tab=, templates and Write with AI. At the
+   * garage only, no radius; a "Foam wash" (so that template is not offered)
+   * and a service with no description for the AI to fill. Pending and
+   * unpinned, so no customer sees it; nobody books it.
+   */
+  adminEditor: { id: id(315), name: 'Admin Editor Test Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -470,6 +478,11 @@ export const SERVICES = {
     priceHatchback: '2000.00', priceSedan: '2500.00', priceSuv: '3000.00' },
   /** On ADMIN_SERVICES, a package of adminFlat. */
   adminPackage: { id: id(422), name: 'Admin Wash Combo', price: '800.00', durationMins: 60 },
+  /** On ADMIN_EDITOR, named exactly like the Foam wash template. */
+  editorFoam: { id: id(423), name: 'Foam wash', durationMins: 45,
+    priceHatchback: '399.00', priceSedan: '449.00', priceSuv: '549.00' },
+  /** On ADMIN_EDITOR, flat, no description: what Write with AI fills. */
+  editorPolish: { id: id(424), name: 'Editor Polish', price: '1499.00', durationMins: 180 },
 } as const
 
 export const DISCOUNTS = {
