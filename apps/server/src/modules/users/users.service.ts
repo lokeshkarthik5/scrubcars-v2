@@ -1,3 +1,4 @@
+import { accountDeletionRefusal } from '../../lib/account-deletion.js'
 import { AppError } from '../../lib/errors.js'
 import type { GeoSource } from '../../lib/geo/index.js'
 import {
@@ -214,17 +215,15 @@ export const usersService = {
   async deleteAccount(userId: string) {
     await getActiveUser(userId)
 
-    // Deleting a user deletes their bookings with it. A receipt number is
-    // never reused or renumbered, so the bookings one was issued on have to
-    // stay (receipt_numbers' foreign key would refuse the cascade anyway, as
-    // a bare 500). Closing such an account is a person's job for now.
-    if (await usersRepository.hasReceiptNumbers(userId)) {
-      throw new AppError(
-        409,
-        "Your account has bookings with payment receipts, so it can't be deleted from the app. Please call Detlio support to close it.",
-        'ACCOUNT_HAS_RECEIPTS'
-      )
-    }
+    // Deleting a user deletes their bookings with it, and any garage they own
+    // with that garage's own bookings and payments (vendors.owner_id cascades).
+    // Either is a record that must stay, so closing such an account is a
+    // person's job for now; see lib/account-deletion.ts.
+    const refusal = accountDeletionRefusal({
+      ownsGarage: await usersRepository.ownsVendor(userId),
+      hasReceipts: await usersRepository.hasReceiptNumbers(userId),
+    })
+    if (refusal) throw new AppError(409, refusal.message, refusal.code)
 
     await usersRepository.deleteUser(userId)
   },

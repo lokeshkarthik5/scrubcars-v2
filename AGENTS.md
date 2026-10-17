@@ -86,7 +86,7 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
 
 ### Vendor tables
 
-- `vendors` — the company. `owner_id` names the one person who owns the business; `user_member_mapping` answers the separate question of who can use the portal and with what power. `is_verified` is flipped manually by admin. `slot_interval_mins` sets calendar granularity (30/45/60)
+- `vendors` — the company. `owner_id` names the one person who owns the business; `user_member_mapping` answers the separate question of who can use the portal and with what power. `is_verified` is flipped manually by admin. `slot_interval_mins` sets calendar granularity (30/45/60). `owner_id` cascades from `users`, so `DELETE /users/me` refuses an account that owns a garage (409 `VENDOR_OWNER_ACCOUNT`, `lib/account-deletion.ts`) rather than delete the garage and its bookings with it
 - `vendor_working_hours` — one row per day of week (0=Sun … 6=Sat). `is_closed` handles off days
 - `vendor_service_areas` — pincodes/areas covered for doorstep jobs
 - `vendor_photos` — ordered gallery. `sort_order` controls display sequence
@@ -98,6 +98,7 @@ module.repository.ts   — all DB queries via Drizzle ORM, no logic
   - Listings that mean "plain services" MUST exclude `category = 'package'` (see `listServices`, and the admin repository — `listActiveServiceIds` especially, since the admin editor reconciles against it)
   - The booking path MUST NOT exclude packages — a package occupies a slot like any other service
   - Packages are created only via `/vendors/me/packages`; `POST /vendors/me/services` rejects `category: 'package'` because a package with no members is invalid
+  - The admin editor's save sends the garage's full list and the server hides any live service missing from it, so the editor must never leave a typed-in row out: a row that is not ready blocks the save instead (`apps/admin/lib/service-rows.ts`). Admin hides and shows services one at a time with `PATCH /admin/vendors/:id/services/:serviceId/active` (plain services only; 409 `SERVICE_IN_PACKAGE` for one inside a package) and lists hidden ones at `GET /admin/vendors/:id/services/hidden`
 - Category labels live in `apps/server/src/lib/categories.ts` and `packages/core/src/categories.ts`, both keyed exhaustively on the category union — add new categories there or the build fails
 
 ### Transaction tables

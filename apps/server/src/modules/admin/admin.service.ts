@@ -28,6 +28,7 @@ import {
 import { membersRepository } from '../members/members.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
+import { vendorsService } from '../vendors/vendors.service.js'
 import { adminRepository } from './admin.repository.js'
 import type {
   AdminCancelBookingInput,
@@ -40,6 +41,7 @@ import type {
   MediaUrlInput,
   PauseVendorInput,
   PilotStatsQuery,
+  SetServiceActiveInput,
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
@@ -398,10 +400,20 @@ export const adminService = {
 
   async listVendors() {
     const vendors = await adminRepository.listVendors()
+    // One grouped count for every garage rather than a query per card. It
+    // counts what deleteVendor counts — every booking in any state — so "Has
+    // N bookings" on a card is exactly the reason a delete would be refused.
+    const bookingCounts = new Map(
+      (await adminRepository.countBookingsByVendor()).map((row) => [
+        row.vendorId,
+        row.value,
+      ])
+    )
     // Flatten the active-services relation into a plain count for the list table.
     return vendors.map(({ services, ...vendor }) => ({
       ...vendor,
       serviceCount: services.length,
+      bookingCount: bookingCounts.get(vendor.id) ?? 0,
     }))
   },
 
@@ -608,6 +620,71 @@ export const adminService = {
     }
 
     log.info({ vendorId: id }, 'admin:vendor-updated')
+    return updated
+  },
+
+  /**
+   * The garage's hidden services: plain services switched off, by the garage
+   * in its app or from here. Packages are left out, as everywhere in admin.
+   * The editor loads only live services, so this list is the only way back to
+   * a hidden one.
+   */
+  async listHiddenServices(vendorId: string) {
+    await assertVendor(vendorId)
+    const services = await vendorsService.listMyServices(vendorId)
+    return services.filter((service) => !service.isActive)
+  },
+
+  /**
+   * Hides a service from customers, or shows a hidden one again — the same
+   * switch the garage has in its app, so a hidden service keeps its bookings
+   * and its history and is never deleted.
+   *
+   * Two refusals the garage's switch does not have. A package is a 404 here:
+   * admin cannot see or edit packages, so it should not be able to switch one
+   * off blind. And a service inside a package cannot be hidden: the package
+   * would still list it as included while customers could no longer find it
+   * on its own.
+   */
+  async setServiceActive(
+    vendorId: string,
+    serviceId: string,
+    input: SetServiceActiveInput
+  ) {
+    await assertVendor(vendorId)
+
+    // findServiceById excludes packages, and a service of another garage is
+    // as unknown here as a made-up id.
+    const service = await vendorsRepository.findServiceById(vendorId, serviceId)
+    if (!service) {
+      throw new AppError(404, 'Service not found', 'SERVICE_NOT_FOUND')
+    }
+
+    if (!input.isActive) {
+      const containing = await vendorsRepository.findPackagesContaining(
+        vendorId,
+        serviceId
+      )
+      if (containing.length > 0) {
+        const names = containing.map((p) => `"${p.name}"`).join(', ')
+        const one = containing.length === 1
+        throw new AppError(
+          409,
+          `This service is part of the ${one ? 'package' : 'packages'} ${names}. Take it out of ${one ? 'that package' : 'those packages'} in the garage app first, then hide it.`,
+          'SERVICE_IN_PACKAGE'
+        )
+      }
+    }
+
+    const updated = await vendorsService.toggleServiceActive(
+      vendorId,
+      serviceId,
+      input
+    )
+    log.info(
+      { vendorId, serviceId, isActive: input.isActive },
+      'admin:service-visibility-changed'
+    )
     return updated
   },
 
