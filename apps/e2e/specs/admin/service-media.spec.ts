@@ -83,6 +83,7 @@ test.describe('service sample pictures', () => {
     expect(await res.json()).toMatchObject({ success: false, code: 'INVALID_AI_PICTURE' })
 
     const config = await page.request.get('http://localhost:8080/api/v1/admin/ai/config')
-    expect(await config.json()).toEqual({ success: true, data: { describe: true, pictures: true } })
+    // Other AI features add their own flags here (describe, import); this test only owns pictures.
+    expect(await config.json()).toMatchObject({ success: true, data: { pictures: true } })
   })
 })

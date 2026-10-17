@@ -13,7 +13,7 @@ import type { Service, ServicePackage, Vendor } from '@repo/core/types'
  * the map view.
  *
  * All three want the same thing — a cursor-paged, server-sorted list — so the
- * fetch, the page accumulation and the "which radius actually answered this"
+ * fetch, the page accumulation and the "how far did this list reach"
  * bookkeeping live here rather than three times over.
  */
 
@@ -26,10 +26,11 @@ export const vendorKeys = {
 export interface VendorSearchResult {
   vendors: Vendor[]
   /**
-   * The radius that produced these results. Differs from the requested one when
-   * the search auto-widened, which the UI is expected to say out loud.
+   * How far from the customer the list reached, in km (50 unless the caller
+   * asked for less), or null when no radius applied: no location, doorstep,
+   * the map's viewport, or a typed search.
    */
-  appliedRadiusKm: number | null
+  radiusKm: number | null
   hasMore: boolean
   /** True only on a first load, when there is nothing to show yet. */
   isLoading: boolean
@@ -87,9 +88,9 @@ export function useVendorSearch(
 
   return {
     vendors: pages.flatMap((page) => page.vendors),
-    // The first page decides the radius: later pages are drawn from the same
-    // bounded candidate set, so a later page's value would say nothing new.
-    appliedRadiusKm: pages[0]?.appliedRadiusKm ?? null,
+    // From the first page: every page of one list is searched with the same
+    // radius, so a later page's value would say nothing new.
+    radiusKm: pages[0]?.radiusKm ?? null,
     hasMore,
     // Placeholder data counts as success, so this stays false through a
     // refresh and the full loading state is kept for the very first load. A

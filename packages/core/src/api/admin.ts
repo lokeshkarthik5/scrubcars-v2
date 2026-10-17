@@ -1,8 +1,10 @@
 import { apiClient } from './client'
+import { stripImageMetadata } from '@repo/core/image-upload'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
 import type { ComplaintCategory, ComplaintStatus } from '@repo/core/complaints'
+import type { OutsideServiceCity } from '@repo/core/service-city'
 
 export interface AdminVendor {
   id: string
@@ -56,6 +58,12 @@ export interface AdminVendor {
     name: string
     phone: string
   } | null
+  /**
+   * Set when the garage is pinned more than 50 km from the Chennai centre (or
+   * is unpinned and its city names another town, with km null), the sign
+   * customers see on it. Absent from an older API.
+   */
+  outsideServiceCity?: OutsideServiceCity | null
 }
 
 /** The edit page tab where a checklist item is fixed (its `?tab=`). */
@@ -806,6 +814,11 @@ export interface AdminAiConfig {
   describe: boolean
   /** "Make a picture with AI" for a service with no real photo. */
   pictures: boolean
+  /**
+   * Reading a poster, photo or PDF on Add garage. The Tally CSV import
+   * needs no AI and is there either way. Absent from an API older than it.
+   */
+  import?: boolean
 }
 
 /** GET /admin/ai/config */
@@ -837,6 +850,110 @@ export async function describeAdminService(input: DescribeServiceInput) {
   })
 }
 
+// ─── Garage import ───────────────────────────────────────────────────────────
+//
+// Add garage from a poster, photo, PDF or Tally file. The API reads the
+// garage into a draft shaped like CreateVendorInput, with how sure it is of
+// each field; the review screen fills the form from it, and the garage is
+// created by createAdminVendor like any other — always as Pending.
+
+/** sure: read cleanly · check: filled in, a person should look · missing: not found. */
+export type ImportConfidence = 'sure' | 'check' | 'missing'
+
+export interface ImportFieldNote {
+  confidence: ImportConfidence
+  reason?: string
+}
+
+export interface ImportDraftService {
+  name: string
+  description: string | null
+  category: Exclude<ServiceCategory, 'package'>
+  pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
+  price: number | null
+  priceHatchback: number | null
+  priceSedan: number | null
+  priceSuv: number | null
+  /** Never guessed: null when the document gives no time. */
+  durationMins: number | null
+}
+
+export interface ImportDraft {
+  businessName: string | null
+  ownerName: string | null
+  ownerPhone: string | null
+  phone: string | null
+  whatsapp: string | null
+  email: string | null
+  yearsInOperation: string | null
+  address: string | null
+  city: string | null
+  pincode: string | null
+  mapsUrl: string | null
+  dropinEnabled: boolean | null
+  doorstepEnabled: boolean | null
+  doorstepRadiusKm: number | null
+  /** All seven days (0 = Sunday), HH:MM, or null when not found. */
+  workingHours: Array<{ dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }> | null
+  vehicleTypes: string[]
+  services: ImportDraftService[]
+}
+
+export interface ImportedGarage {
+  /** What the pick list shows for a Tally row. */
+  label: { businessName: string | null; ownerName: string | null; submittedAt: string | null }
+  draft: ImportDraft
+  /**
+   * By path: `ownerPhone`, `bookingTypes`, `workingHours`,
+   * `services.2.price`, `services.2.category`… Every garage-level field has
+   * one.
+   */
+  fields: Record<string, ImportFieldNote>
+}
+
+export type GarageImportInput =
+  | {
+      source: 'files'
+      /** Up to 5; photos already shrunk to 2000 px. About 3 MB in all. */
+      files: Array<{
+        name: string
+        mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'
+        dataBase64: string
+      }>
+    }
+  | { source: 'tally_csv'; csv: string }
+
+/**
+ * POST /admin/vendor-imports/extract — the garage(s) in the files: one from
+ * photos and PDFs, one per row from a Tally file. Nothing is saved and the
+ * files are not stored. 503 AI_UNAVAILABLE (AI off, or OpenAI not
+ * answering), 422 IMPORT_UNREADABLE, 413 IMPORT_TOO_LARGE.
+ */
+export async function extractGarageImport(input: GarageImportInput) {
+  return apiClient<{ garages: ImportedGarage[] }>('/admin/vendor-imports/extract', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export interface OwnerAccount {
+  name: string
+  isCustomer: boolean
+  garages: Array<{ id: string; businessName: string; status: string }>
+}
+
+/**
+ * POST /admin/vendor-imports/owner-account — who a 10-digit owner phone
+ * already belongs to; Create attaches the garage to that account. A POST
+ * so the number stays out of the URL, and so out of request logs.
+ */
+export async function getOwnerAccount(phone: string) {
+  return apiClient<{ account: OwnerAccount | null }>('/admin/vendor-imports/owner-account', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  })
+}
+
 // ─── Media ───────────────────────────────────────────────────────────────────
 //
 // Presign → PUT straight to R2 → register the public URL, the same three steps
@@ -845,7 +962,7 @@ export async function describeAdminService(input: DescribeServiceInput) {
 
 type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
 
-async function putToR2(uploadUrl: string, file: File) {
+async function putToR2(uploadUrl: string, file: Blob) {
   const put = await fetch(uploadUrl, {
     method: 'PUT',
     body: file,
@@ -858,15 +975,17 @@ async function putToR2(uploadUrl: string, file: File) {
 
 /** Upload and set a garage logo. Returns the updated vendor row. */
 export async function uploadAdminVendorLogo(vendorId: string, file: File) {
+  // Presigned for the cleaned file's type, which is always the type picked.
+  const clean = await stripImageMetadata(file)
   const { uploadUrl, publicUrl } = await apiClient<{
     uploadUrl: string
     publicUrl: string
   }>(`/admin/vendors/${vendorId}/logo/upload-url`, {
     method: 'POST',
-    body: JSON.stringify({ contentType: file.type as UploadContentType }),
+    body: JSON.stringify({ contentType: clean.type as UploadContentType }),
   })
 
-  await putToR2(uploadUrl, file)
+  await putToR2(uploadUrl, clean)
 
   return apiClient<{ logoUrl: string | null }>(
     `/admin/vendors/${vendorId}/logo`,
@@ -884,15 +1003,17 @@ export async function deleteAdminVendorLogo(vendorId: string) {
 
 /** Upload and register one gallery photo. Returns the created row. */
 export async function uploadAdminVendorPhoto(vendorId: string, file: File) {
+  // Presigned for the cleaned file's type, which is always the type picked.
+  const clean = await stripImageMetadata(file)
   const { uploadUrl, publicUrl } = await apiClient<{
     uploadUrl: string
     publicUrl: string
   }>(`/admin/vendors/${vendorId}/photos/upload-url`, {
     method: 'POST',
-    body: JSON.stringify({ contentType: file.type as UploadContentType }),
+    body: JSON.stringify({ contentType: clean.type as UploadContentType }),
   })
 
-  await putToR2(uploadUrl, file)
+  await putToR2(uploadUrl, clean)
 
   return apiClient<AdminPhoto>(`/admin/vendors/${vendorId}/photos`, {
     method: 'POST',

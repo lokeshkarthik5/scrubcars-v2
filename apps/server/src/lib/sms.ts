@@ -29,6 +29,10 @@ export class SmsSendError extends AppError {
 export async function sendOtpSms(phone: string, otp: string): Promise<void> {
   if (!env.smsApiKey) {
     if (env.isDev) {
+      // The one place a code is ever printed, and only on a developer's own
+      // machine with no SMS key: it stands in for the phone, now that the
+      // table holds a hash. Never reached on a deploy (NODE_ENV=production
+      // there); keep every other log line free of codes.
       console.log(`[SMS] OTP for +91${phone}: ${otp}`)
       return
     }

@@ -36,6 +36,7 @@ import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
+import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SlotPicker } from '@repo/ui/sc/slot-picker'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
@@ -62,6 +63,7 @@ import { getVendorServices } from '@repo/core/api/services'
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
 import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
+import { outsideCityCheckoutLine } from '@repo/core/service-city'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { useAuthStore } from '@repo/core/stores/auth-store'
@@ -748,10 +750,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
       className={cn(
         'gap-7 pt-0',
         // The payment-received panel stands taller than the button it
-        // replaces, so the page leaves it more room to scroll clear of.
+        // replaces, so the page leaves it more room to scroll clear of; so
+        // does the "not Chennai" line above Pay, for a garage in another town.
         paid && paid.phase !== 'confirming'
           ? 'pb-[calc(12rem_+_env(safe-area-inset-bottom))]'
-          : 'pb-[calc(9.5rem_+_env(safe-area-inset-bottom))]'
+          : vendor?.outsideServiceCity && !paid
+            ? 'pb-[calc(11rem_+_env(safe-area-inset-bottom))]'
+            : 'pb-[calc(9.5rem_+_env(safe-area-inset-bottom))]'
       )}
     >
       {/* Sticky, not fixed: it keeps its place in the flow so the content
@@ -1287,8 +1292,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
       </ScSheet>
 
       {/* Height here (~124px: py-3 + the py-4 button + the helper line + the
-          terms line) is what the page's bottom padding above must clear,
-          plus the iOS home indicator inset added to both. */}
+          terms line; ~150px with the line about a garage in another town) is
+          what the page's bottom padding above must clear, plus the iOS home
+          indicator inset added to both. */}
       <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
         {/* Says each step after payment out loud. On the page from the first
             render and only its text changes: a live region that mounts with
@@ -1324,11 +1330,28 @@ function BookContent({ vendorId }: { vendorId: string }) {
           </ScButton>
         ) : (
           <>
+            {/* Said once more right above Pay, for a garage in another town:
+                someone who came straight from Book again or a shared link has
+                not seen the garage page's line. A fact, never a step: Pay
+                works exactly as it would without it. */}
+            {vendor?.outsideServiceCity && (
+              <OutsideCityLine
+                id="checkout-outside-city"
+                text={outsideCityCheckoutLine(vendor.outsideServiceCity)}
+                className="mb-2 justify-center text-center"
+              />
+            )}
             <MainAction
               // Disabled only while a payment is opening. Before that it is never
               // a dead end: it names what is missing and tapping it goes there.
               disabled={loading}
-              aria-describedby="checkout-cta-hint"
+              // The town line first: a screen reader that jumps straight to
+              // the button (Tab, the rotor) never passes the line above it.
+              aria-describedby={
+                vendor?.outsideServiceCity
+                  ? 'checkout-outside-city checkout-cta-hint'
+                  : 'checkout-cta-hint'
+              }
               onClick={nextStep ? () => goToStep(nextStep) : handleConfirm}
               className={cn(
                 'rounded-full py-4 text-[15px]',

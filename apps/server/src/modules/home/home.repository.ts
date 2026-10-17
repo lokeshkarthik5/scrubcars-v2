@@ -16,8 +16,8 @@ import {
 import type { HomeOfferRow } from '../../lib/offers.js'
 import { LISTED_TO_CUSTOMERS, NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 
-// Every read here runs on the API's single database connection (db/index.ts,
-// max: 1), so they run one after another however they are called. Home makes
+// Issued one at a time on purpose. Production keeps a single connection
+// (db/index.ts); overlapping them would not run any faster there. Home makes
 // about a dozen of them; the 30-day bound on the booking read is what keeps
 // them cheap, with the indexes 0031 added.
 

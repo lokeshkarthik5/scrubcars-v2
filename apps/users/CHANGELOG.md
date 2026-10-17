@@ -64,6 +64,35 @@ reconstructing every change in them.
   before its red-outlined button wakes. A binned garage's edit page opens
   read-only with a banner and Restore. The Bookings garage filter leaves the
   Bin out.
+
+- **Admin: add a garage from a poster, photo, PDF or Tally export.** Add
+  garage now opens on "Import from a form or poster": "Upload photo or PDF"
+  (up to 5; HEIC is refused with how to convert it; photos are shrunk to
+  2000 px in the browser before upload), "Upload Tally responses (CSV)"
+  (several garages in the file → pick one next), and "Fill in by hand" for
+  the usual form (`/vendors/new?by=hand`). The photo button is hidden when
+  the API has no OpenAI key. The review screen ("Check the details") shows
+  the photo, "Filled in / To check / To fill in" counts, and the new-garage
+  form filled in, stacked on one page, with amber "Check this" (and why)
+  and "Not found — fill in" under the fields and service rows that need a
+  person. The owner phone is always to check, and says whose Detlio account
+  it already belongs to, if any. Create stays off until the required fields
+  are in ("Fill in the 3 missing fields to create"), and an imported garage
+  is always saved as Pending and not verified (no stage controls; "Saved as
+  Pending — nothing goes live until you verify"). The form is now
+  `apps/admin/components/garage-form.tsx`, shared by both ways in; the
+  review rules are `apps/admin/lib/garage-import.ts` (unit-tested). Nothing
+  read is kept: a reload starts again. `PageHeader` takes `onBack` for a
+  step back within a page.
+- **Privacy policy (draft): garage onboarding documents.** Section 12 says a
+  garage's onboarding form, poster or price list may be processed by
+  service providers, including an AI provider outside India (OpenAI), to set
+  up its listing, that Detlio does not keep the files, and that the AI
+  provider may keep them for a short period under its own terms and does
+  not train on them; OpenAI joins the provider table and section 6's list
+  of providers outside India. A reviewer note asks the lawyer about the
+  basis, the line for the Tally form and that sentence's wording.
+
 - **Admin: garage list filters with counts, and a "what's missing"
   checklist per garage.** The list (now titled Garages, "Add garage") has one
   row of chips that scrolls sideways on a phone: All · Live · Active ·
@@ -139,6 +168,27 @@ reconstructing every change in them.
   like typed text, and Save and Discard wait while it is being written.
   Opening another tab stops it, and what had not arrived is dropped.
   Packages are still the garage app's to edit.
+
+- **Garages outside Chennai say so** (owner decision, 2026-10-16), from the
+  API's new `outsideServiceCity` (set past 50 km from the Chennai centre).
+  Calm, not alarming: a graphite chip with an amber map pin, never red, and
+  plain words from `@repo/core/service-city` (unit-tested), drawn by
+  `@repo/ui/features/outside-city`. The garage card on the list, Home's list,
+  search and the homepage's garage strip: "Outside Chennai · Sivakasi" (just
+  "Outside Chennai" when the garage's city field says Chennai). The map's card
+  strip: the same chip in place of the town (city mode already leaves such
+  garages off; the map now reads its centre and reach from the shared
+  `SERVICE_CITY`, and `DEFAULT_CENTER` is that centre). The garage page, under
+  the town: "This garage is in Sivakasi, about 485 km from Chennai." ("This
+  garage is in Sivakasi." for an unpinned garage, which has no distance; "This
+  garage is outside Chennai." when its city field says Chennai, so the page
+  never sets a figure against its own "Chennai" label). Checkout, right above
+  Pay: "This garage is in Sivakasi, not Chennai.", and Pay's accessible
+  description starts with it, so a screen reader that jumps to the button
+  hears it too. It never blocks: Pay and every step work as for any garage.
+  Admin's garage list shows the chip under the garage's name with "485 km out"
+  (no km when unpinned), which also gives away a Chennai garage pinned in the
+  wrong place.
 - **Admin: hidden services can be shown again.** The garage editor's
   Services tab has a collapsed "Hidden services (N)" list — each with its
   name, its price ("₹600–₹900 by car size · no SUV price" names a size with
@@ -557,6 +607,63 @@ reconstructing every change in them.
 
 ### Changed
 
+- **Legal pages: the owner's details of 16 Oct 2026.** The Grievance Officer
+  is Raga, Operations Manager; support hours read "6 am to 1 am IST, every
+  day"; and the proprietor's name is no longer printed (the owner's choice):
+  the pages say "a sole proprietorship" with no name and no placeholder,
+  behind `BUSINESS.printProprietorName` in `lib/legal/details.ts`, which the
+  lawyer can turn back on. `LAST_UPDATED` is 16 October 2026. The pages stay
+  in draft (`LEGAL_DRAFT`) until the lawyer signs off.
+
+- **The garage list, Home and the map show every garage within 50 km**
+  (owner decision, 2026-10-16), nearest first, from the API's new `radiusKm`
+  (`appliedRadiusKm` is deprecated and only read as a fallback from an older
+  API). The list says so above the cards: "Garages within 50 km of you,
+  nearest first" (no ", nearest first" on another sort), or "No garages
+  within 50 km of you yet." when only garages without a pin are listed;
+  "Other garages — location not set yet" now heads a list of only those too.
+  Empty, with a location: "No garages within 50 km of you yet."; without one:
+  "No garages found." The "Nothing within 10 km — showing…" line is gone, and
+  the "Nearby Garages" heading stays. A typed search has no radius.
+- **Home's Nearby card**: "12 garages" / "Within 50 km · nearest 2.3 km"
+  (under 1 km in metres, "400 m"). With none: "No garages within 50 km yet" /
+  "See all garages", opening the garage list rather than an empty map.
+- **The map opens on the customer's whole 50 km.** With a location it lists
+  the nearest 50 within 50 km without waiting for the map ("nearby" mode, no
+  `bbox`), and frames the customer and every pin once per location, with
+  room for the controls on top and the card strip below (`fitPadding` in
+  `lib/map-view.ts`). Without a location ("city" mode) it shows every pinned
+  garage within 50 km of the city centre, nearest the centre first, and frames
+  them all once, so the suburbs are on the opening map; garages in other towns
+  are left off, as for a Chennai customer. "Search this area" (after a real pan) and
+  "Centre on my location" (back to nearby, framed again) work as before; the
+  app's own camera moves never offer "Search this area". Copy: "Showing the
+  nearest 50." and, with none, "No garages within 50 km of you yet." with
+  "See all garages".
+- **Clearer pins.** Each shows the garage's short name (14 characters) over
+  its starting price, white on the dark map, with a tail on the spot and a
+  44 px target; the chosen garage's pin turns red and sits above the rest.
+  Pins that would overlap become a count bubble that zooms in when tapped
+  (grouped in `lib/map-view.ts`, unit-tested, rather than with MapLibre's
+  GeoJSON clustering, which would make the pins wait on the tile server's
+  style). The overlap test is the widest pin (132 px), and the fit leaves
+  half a pin at each side, so no name runs off the screen edge. A bubble
+  whose garages are too close to split (one street, one complex) brings the
+  next one's card up on each tap instead of doing nothing. Tapping a pin
+  brings its card to the middle without moving the map; tapping a card at
+  the side picks it (its pin turns red), panning just far enough to show its
+  pin when that is off screen, and tapping the chosen card opens the garage.
+  The customer is drawn as "You", in "Search this area" too. Choosing a pin
+  keeps keyboard and screen-reader focus on it, and the controls and cards
+  come before the pins in focus order.
+- **Doorstep travel radius is optional** in the garage portal and admin: the
+  inputs read "Default 10 km", onboarding no longer insists on a distance
+  (one given must still be 1–30 km), and Settings turns doorstep on without
+  asking for one first. The coverage editor says the default 10 km applies
+  until an area is drawn. Emptying a saved radius in Settings now clears it
+  (the field shows what was saved), and a doorstep garage with no pin is
+  told, under the switch and by the radius, that customers can't find it for
+  doorstep jobs until it is pinned.
 - **Admin garage forms never leave a service out of a save.** A service with
   a name but no complete price used to be dropped from the save without a
   word, and on the edit screen the server then hid it from customers. Now
@@ -716,6 +823,20 @@ reconstructing every change in them.
   customer no-show isn't refunded, a garage no-show is. The garage's cancelled
   tab names both. Checkout's cancellation policy and the FAQ now say that a
   missed accepted booking isn't refunded.
+
+### Security
+
+- **Photos lose their location before they upload.** Every image upload —
+  customer avatar, garage logo and gallery (portal and admin), service
+  photos (portal and admin) — is decoded and re-encoded in the browser by
+  `stripImageMetadata` (`packages/core/src/image-upload.ts`), which drops
+  EXIF (GPS, camera, time), keeps the photo the right way up, keeps the
+  type (JPEG/WebP at 0.9) and caps the long edge at 2560px. A file the
+  browser cannot read or write back as the same type (WebP in Safari) goes
+  up as it was rather than being refused. Job photos were already
+  re-encoded by the portal's `resizeForUpload`, which now shares the same
+  decoder. Videos are untouched. Photos already in storage are not
+  rewritten.
 
 ## [0.3.0] — 2026-08-28
 
