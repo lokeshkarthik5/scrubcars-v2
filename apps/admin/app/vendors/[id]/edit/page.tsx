@@ -44,6 +44,7 @@ import {
   type AdminVendorDetail,
   type AdminWorkingDay,
 } from '@repo/core/api/admin'
+import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import {
   legacyVehicleTypes,
   VENDOR_VEHICLE_TYPE_OPTIONS,
@@ -279,6 +280,11 @@ export default function EditVendorPage({
   const query = use(searchParams)
   const backHref = safeBackHref(query.back)
   const router = useRouter()
+  // Every change saved from here — the form, the pin, media, pause, a
+  // service hidden or shown, how customers book — marks the garage list
+  // stale, so Back lands on a list whose checklist and Live count already
+  // show it.
+  const markListStale = useInvalidateAdminVendors()
 
   const [tab, setTab] = useState<EditTab>(() => parseEditTab(query.tab))
   // As loaded or last saved, and as edited. Null until the first load.
@@ -494,6 +500,7 @@ export default function EditVendorPage({
     setError('')
     try {
       await action()
+      markListStale()
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         router.replace('/login')
@@ -612,6 +619,7 @@ export default function EditVendorPage({
       setPausedAt(updated.bookingsPausedAt ?? null)
       setPausedReason(pause ? pauseReasonInput.trim() || null : null)
       setPauseReasonInput('')
+      markListStale()
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         router.replace('/login')
@@ -638,6 +646,7 @@ export default function EditVendorPage({
       // Set in the same breath as the busy flag clears (the finally below),
       // so focus never lands on a button that is still disabled.
       setFocusAfterSwitch(await action())
+      markListStale()
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         router.replace('/login')
@@ -721,6 +730,7 @@ export default function EditVendorPage({
       })
       setGeoConfirmedAt(updated.geoConfirmedAt)
       setGeoSource(updated.geoSource)
+      markListStale()
       // The pin is saved now, so it is no longer an unsaved change.
       setSaved((prev) => (prev ? { ...prev, pin } : prev))
     } catch (err) {
@@ -783,6 +793,7 @@ export default function EditVendorPage({
           services: rowsToSave(draft.services).map(toServicePayload),
         }),
       })
+      markListStale()
       // Stay on the garage: the admin is usually mid-way through setting it
       // up, and new services need saving before they can take photos.
       toast.success('Saved')
@@ -871,6 +882,7 @@ export default function EditVendorPage({
             // As saved, not as drafted: an unsaved Active is not live yet.
             live={saved?.status === 'active' && saved.isVerified}
             onAuthError={toLogin}
+            onSaved={markListStale}
           />
 
           {/* Same four-tab shape as the vendor settings screen, so the admin

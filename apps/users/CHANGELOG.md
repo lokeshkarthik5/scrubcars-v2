@@ -19,6 +19,33 @@ reconstructing every change in them.
 
 ### Added
 
+- **Admin: garage list filters with counts, and a "what's missing"
+  checklist per garage.** The list (now titled Garages, "Add garage") has one
+  row of chips that scrolls sideways on a phone: All · Live · Active ·
+  Pending · Suspended · Archived, each with its count, counted over the full
+  list (All is every garage, so the stages add up to it). It opens on Live;
+  the chip is kept in `?show=`, so Back from a garage returns to it. Two
+  short lines under the chips say what the chosen one means ("Live =
+  customers can find it", "Active = approved by Detlio, even if paused";
+  Pending, Suspended and Archived have their own). Live is the server's
+  `live` flag, the customer lists' own rule. Each card is calmer: the name,
+  "Has N bookings" (or "No bookings yet") quietly beside it — or, for a
+  garage customers can't find, why not ("Pending", "Not verified",
+  "Paused") — the city and how it books ("At the garage · Doorstep 8 km",
+  "Doorstep only · 10 km default"), and one readiness line: "Ready" with a
+  quiet tick, "Ready · 2 optional: logo, photos" in grey, or "1 blocking ·
+  2 to fix" ("1 to fix: map pin" when nothing blocks) in amber. Tapping the
+  line opens the checklist grouped Blocking / Fix / Optional; each row
+  opens the edit page on the tab where it is fixed
+  (`/vendors/<id>/edit?tab=services&back=/vendors?show=pending`), as do
+  Edit and "Set location before verifying" (on Location). The Owner,
+  Location and Services cells are gone from the card; Verify, Edit,
+  Archive/Restore and Delete are unchanged. After any change on the edit
+  page (Save changes, the pin, logo and photos, pause, Hide / Show again,
+  How customers book) and after Verify, Archive and Restore, the garage list
+  is marked stale, so Back shows it as it is now. Add garage returns to All,
+  where the new garage is first. `FilterChip` takes an optional `count`
+  (named "Live 12"). Rules in `apps/admin/lib/vendor-list.ts`, unit-tested.
 - **Admin: easier garage editing.** On the edit page, a "How customers book"
   card sits above the tabs: At the garage / Doorstep / Both, with a one-line
   hint, saved the moment it is tapped (a quiet "Saved" tick; arrow keys wait

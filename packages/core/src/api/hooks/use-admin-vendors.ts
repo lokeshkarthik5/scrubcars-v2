@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   archiveAdminVendor,
@@ -14,9 +15,9 @@ import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
 
 /**
  * Hierarchical keys so a single `invalidateQueries({ queryKey: keys.all })`
- * after a write refreshes every list and detail at once. The status filter
- * lives inside the list key, which is what lets a filtered list refetch on
- * its own — see `discountKeys` for the same shape.
+ * after a write refreshes every list and detail at once. The list takes no
+ * filter: it is always every garage, and the panel's chips filter it on the
+ * client (other screens' garage pickers read the same list).
  */
 export const adminVendorKeys = {
   all: ['admin-vendors'] as const,
@@ -42,10 +43,28 @@ export function useAdminVendor(id: string) {
 }
 
 /**
+ * Marks the garage list stale, for a page that changed a garage without these
+ * hooks (the edit page saves through the API directly). The list refetches
+ * the moment it is shown again, so Back lands on what was just saved — the
+ * checklist and the Live count included — not a copy up to 30 s old.
+ */
+export function useInvalidateAdminVendors() {
+  const queryClient = useQueryClient()
+  return useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: adminVendorKeys.lists() })
+  }, [queryClient])
+}
+
+/**
  * Verify / archive / restore all patch one row and return the updated vendor.
  * They share this shape: write, then patch every cached list in place so the
- * row settles without a full refetch, and invalidate the detail because it
- * carries fields the list response does not.
+ * row settles at once, and invalidate the detail because it carries fields
+ * the list response does not.
+ *
+ * The lists are refetched as well: the server returns the bare row, and what
+ * the list adds to it — `live`, the checklist — is decided on the server.
+ * Verifying a garage can make it live, so without the refetch the Live count
+ * would stay wrong until something else reloaded the list.
  */
 function useVendorRowMutation<TArgs>(
   mutationFn: (args: TArgs) => Promise<Partial<AdminVendor> & { id: string }>,
@@ -71,6 +90,7 @@ function useVendorRowMutation<TArgs>(
       void queryClient.invalidateQueries({
         queryKey: adminVendorKeys.detail(id),
       })
+      void queryClient.invalidateQueries({ queryKey: adminVendorKeys.lists() })
     },
   })
 }

@@ -1274,10 +1274,11 @@ async function seedDoorstepReachRows() {
 // ─── admin fixtures ─────────────────────────────────────────────────────────
 
 /**
- * Three garages no customer can find (pending, unverified, unpinned): one
- * owned by a customer account, which DELETE /users/me must refuse to cascade
- * into, and the admin editor's two, with the rows their specs need (see
- * VENDORS.adminServices and VENDORS.adminEditor).
+ * Garages no customer can find (pending, unverified): one owned by a customer
+ * account, which DELETE /users/me must refuse to cascade into, the admin
+ * editor's two (unpinned), with the rows their specs need (see
+ * VENDORS.adminServices and VENDORS.adminEditor), and the garage list's
+ * checklist garage (VENDORS.adminList), set up but for its services.
  */
 async function seedAdminFixtureRows() {
   await db.insert(vendors).values([
@@ -1305,7 +1306,19 @@ async function seedAdminFixtureRows() {
       isVerified: false, doorstepEnabled: false, dropinEnabled: true,
       doorstepRadiusKm: null, slotIntervalMins: 30, status: 'pending',
     },
+    {
+      id: VENDORS.adminList.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.adminList.name, phone: '9000003700',
+      address: '3, Editor Street, Nungambakkam', city: 'Chennai', pincode: '600034',
+      lat: ORIGIN.lat + 0.01, lng: ORIGIN.lng - 0.03, geoSource: 'map_pin', geoConfirmedAt: now,
+      vehicleTypes: ['Hatchback', 'Sedan', 'SUV / MUV'], bays: 2,
+      isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'pending',
+    },
   ])
+  await db.insert(vendorWorkingHours).values(
+    hoursFor(VENDORS.adminList.id, '09:00:00', '18:00:00')
+  )
 
   const garage = VENDORS.adminServices.id
   await db.insert(services).values([

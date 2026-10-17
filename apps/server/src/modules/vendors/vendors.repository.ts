@@ -18,6 +18,7 @@ import {
 } from '../../db/schema.js'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { containsPattern } from '../../lib/search.js'
+import { LISTED_TO_CUSTOMERS } from './vendors.predicates.js'
 import type {
   serviceCategoryEnum,
   servicePricingTypeEnum,
@@ -85,9 +86,7 @@ export const vendorsRepository = {
     const [row] = await db.execute<{ count: number | string; closest_m: number | string | null }>(sql`
       SELECT count(*) AS count, min(gis.ST_Distance(v.geo, ${point})) AS closest_m
         FROM vendors v
-       WHERE v.status = 'active'
-         AND v.is_verified = true
-         AND v.bookings_paused_at IS NULL
+       WHERE ${LISTED_TO_CUSTOMERS}
          AND v.geo IS NOT NULL
          AND v.dropin_enabled = true
          AND gis.ST_DWithin(v.geo, ${point}, ${radiusM}, false)
@@ -147,13 +146,10 @@ export const vendorsRepository = {
         : null
 
     const conditions = [
-      sql`v.status = 'active'`,
-      sql`v.is_verified = true`,
-      // A paused garage takes no new bookings, so it is left out of every
-      // list a customer browses — search and the map read this too. Its own
-      // page still loads (findPublicVendorById does not filter on it) and says
-      // why it cannot be booked.
-      sql`v.bookings_paused_at IS NULL`,
+      // Active, verified and not paused: the one definition the admin
+      // panel's "Live" reads too (vendors.predicates.ts), so the two can
+      // never disagree about which garages customers can find.
+      LISTED_TO_CUSTOMERS,
       unlocated ? sql`v.geo IS NULL` : sql`v.geo IS NOT NULL`,
     ]
 

@@ -87,16 +87,32 @@ export const adminRepository = {
     return db.query.vendors.findMany({
       with: {
         owner: true,
-        // Only ids of active services — the service layer derives a count.
-        // Packages share this table, so they are excluded to keep the count a
-        // count of services.
+        // Active plain services, with just what the list counts and the
+        // checklist reads. Packages share this table, so they are excluded:
+        // the count is a count of services, and a package's own description
+        // is not what "services without a description" asks about.
         services: {
-          columns: { id: true },
+          columns: { id: true, description: true },
           where: and(eq(services.isActive, true), ne(services.category, 'package')),
         },
+        // Ids only: the checklist asks whether there are any.
+        photos: { columns: { id: true } },
+        workingHours: { columns: { dayOfWeek: true, isClosed: true } },
       },
       orderBy: [desc(vendors.createdAt)],
     })
+  },
+
+  /**
+   * The garages that drew their own doorstep area, as one query for the whole
+   * list. Raw SQL: `doorstep_area` is not declared in the Drizzle schema (see
+   * hasDoorstepArea below).
+   */
+  async listVendorIdsWithDoorstepArea(): Promise<string[]> {
+    const rows = await db.execute<{ id: string }>(sql`
+      SELECT v.id FROM vendors v WHERE v.doorstep_area IS NOT NULL
+    `)
+    return Array.from(rows).map((row) => row.id)
   },
 
   findVendorById(id: string) {

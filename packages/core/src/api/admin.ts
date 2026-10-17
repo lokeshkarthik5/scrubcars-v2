@@ -29,6 +29,19 @@ export interface AdminVendor {
    * a delete refused. Absent from a server older than this field.
    */
   bookingCount?: number
+  dropinEnabled: boolean
+  doorstepEnabled: boolean
+  doorstepRadiusKm: number | null
+  /** The garage drew its own doorstep area, which then replaces the radius. */
+  hasDoorstepArea?: boolean
+  /**
+   * Customers can find it: Active, verified and not paused — the customer
+   * lists' own rule, decided on the server so the two never disagree. Absent
+   * from a server older than this field.
+   */
+  live?: boolean
+  /** What the garage still needs, blocking first (see ReadinessItem). */
+  readiness?: ReadinessItem[]
   owner: {
     id: string
     name: string
@@ -40,6 +53,27 @@ export interface AdminVendor {
    * customers see on it. Absent from an older API.
    */
   outsideServiceCity?: OutsideServiceCity | null
+}
+
+/** The edit page tab where a checklist item is fixed (its `?tab=`). */
+export type ReadinessTab = 'details' | 'location' | 'operations' | 'services'
+
+/**
+ * One line of a garage's "what's missing" checklist, from the server's
+ * lib/vendor-readiness.ts. `blocking`: customers can't book it until this is
+ * done. `fix`: it works, but put it right soon. `optional`: nice to have.
+ * Only blocking and fix count as needing fixing.
+ */
+export interface ReadinessItem {
+  key: string
+  severity: 'blocking' | 'fix' | 'optional'
+  /** The checklist row: "No services". */
+  label: string
+  /** A quieter second line, when the label needs one. */
+  detail?: string
+  /** A word or two for the card's summary: "1 to fix: map pin". */
+  short: string
+  tab: ReadinessTab
 }
 
 export interface AdminPhoto {
