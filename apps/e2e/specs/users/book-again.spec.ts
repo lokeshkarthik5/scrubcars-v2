@@ -14,14 +14,18 @@ import { BOOKINGS, SERVICES, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('customer-bookAgain') })
 
+// A doorstep booking reopens on the address it went to; that address is
+// the customer's saved one, whose id the seed doesn't fix.
+const REBOOK_DOORSTEP = new RegExp(
+  `/book/${VENDORS.main.id}\\?service=${SERVICES.detail.id},${SERVICES.wash.id}&mode=doorstep&address=[0-9a-f-]{36}$`
+)
+
 test.describe('book again @p0', () => {
   test('opens checkout with the same services, in order, and the same mode', async ({ page }) => {
     await page.goto(`/bookings/${BOOKINGS.rebookDoorstep}`)
     await page.getByRole('link', { name: 'Book again' }).click()
 
-    await expect(page).toHaveURL(
-      `/book/${VENDORS.main.id}?service=${SERVICES.detail.id},${SERVICES.wash.id}&mode=doorstep`
-    )
+    await expect(page).toHaveURL(REBOOK_DOORSTEP)
     const checkout = new CheckoutPage(page)
     await expect(checkout.bookingType('Doorstep')).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByText(`${SERVICES.detail.name} + 1 more`)).toBeVisible()
@@ -46,9 +50,7 @@ test.describe('book again @p0', () => {
       })
       .click()
 
-    await expect(page).toHaveURL(
-      `/book/${VENDORS.main.id}?service=${SERVICES.detail.id},${SERVICES.wash.id}&mode=doorstep`
-    )
+    await expect(page).toHaveURL(REBOOK_DOORSTEP)
   })
 
   test('a service the garage has withdrawn is left out, and the page says so', async ({ page }) => {

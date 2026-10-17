@@ -84,13 +84,36 @@ export function bookingTypeParam(type: BookingType): BookingType | null {
 
 /**
  * Reads a `?mode=` value. Anything unrecognised is "no choice made".
- * Pickup & drop is not a customer choice yet (its booking screens come in
- * the next release), so `?mode=pickup` is unrecognised too.
+ * Pickup & drop is a customer choice like the other two; a garage that does
+ * not offer it is caught by resolveBookingType, as for doorstep.
  */
-export function parseBookingType(
-  value: string | string[] | null | undefined
-): Exclude<BookingType, 'pickup'> | null {
-  return value === 'dropin' || value === 'doorstep' ? value : null
+export function parseBookingType(value: string | string[] | null | undefined): BookingType | null {
+  return value === 'dropin' || value === 'doorstep' || value === 'pickup' ? value : null
+}
+
+/** Every mode, in the order the switches show them. */
+export const BOOKING_TYPES: readonly BookingType[] = ['dropin', 'doorstep', 'pickup']
+
+type ModeFlags = Pick<Vendor, 'dropinEnabled' | 'doorstepEnabled'> & Partial<Pick<Vendor, 'pickupEnabled'>>
+
+/** Whether a garage offers a mode. `pickupEnabled` is absent from older servers: off. */
+export function offersBookingType(vendor: ModeFlags, type: BookingType): boolean {
+  switch (type) {
+    case 'dropin':
+      return vendor.dropinEnabled
+    case 'doorstep':
+      return vendor.doorstepEnabled
+    case 'pickup':
+      return vendor.pickupEnabled === true
+  }
+}
+
+/**
+ * The modes a garage offers, in switch order. The garage page and checkout
+ * show their switch only when this has two or more.
+ */
+export function offeredBookingTypes(vendor: ModeFlags): BookingType[] {
+  return BOOKING_TYPES.filter((type) => offersBookingType(vendor, type))
 }
 
 /**
@@ -99,29 +122,14 @@ export function parseBookingType(
  * The customer's choice wins when the garage offers it. When it does not — a
  * Doorstep search led to a garage that has since stopped travelling, or a
  * hand-edited link — the garage's own mode stands in rather than a choice it
- * would refuse at payment. Before the garage has loaded, the choice is taken
- * at its word so the screen does not flicker to the default and back.
+ * would refuse at payment: at the garage first, then doorstep, then pickup &
+ * drop. Before the garage has loaded, the choice is taken at its word so the
+ * screen does not flicker to the default and back.
  */
-export function resolveBookingType(
-  preferred: BookingType | null,
-  vendor: Pick<Vendor, 'dropinEnabled' | 'doorstepEnabled'> & Partial<Pick<Vendor, 'pickupEnabled'>> | null
-): BookingType {
+export function resolveBookingType(preferred: BookingType | null, vendor: ModeFlags | null): BookingType {
   if (!vendor) return preferred ?? DEFAULT_BOOKING_TYPE
-
-  const offers = (type: BookingType) => {
-    switch (type) {
-      case 'dropin':
-        return vendor.dropinEnabled
-      case 'doorstep':
-        return vendor.doorstepEnabled
-      case 'pickup':
-        return vendor.pickupEnabled === true
-    }
-  }
-
-  if (preferred && offers(preferred)) return preferred
-  if (offers(DEFAULT_BOOKING_TYPE)) return DEFAULT_BOOKING_TYPE
-  return vendor.doorstepEnabled ? 'doorstep' : DEFAULT_BOOKING_TYPE
+  if (preferred && offersBookingType(vendor, preferred)) return preferred
+  return offeredBookingTypes(vendor)[0] ?? DEFAULT_BOOKING_TYPE
 }
 
 /**

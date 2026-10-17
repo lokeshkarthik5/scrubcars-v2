@@ -20,7 +20,7 @@ import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
-import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
 import { cn } from '@repo/core/utils'
 
 // Quick-access shortcuts for the most-used sorts. The Filter button opens the
@@ -41,7 +41,8 @@ function SearchContent() {
   // Without this, every keystroke is a fresh paged query.
   const debouncedQuery = useDebounced(query, 300)
   const category = searchParams.get('category') ?? undefined
-  const origin = location ? coarse(location) : undefined
+  const citywide = isCitywide(location)
+  const origin = citywide || !location ? undefined : coarse(location)
 
   // Each settled search: its category and how long the text was. Never the
   // text itself.
@@ -69,8 +70,7 @@ function SearchContent() {
       category,
       lat: origin?.lat,
       lng: origin?.lng,
-      // Falling back off 'distance' matters: without an origin the server
-      // rejects it, and a rejected browse is worse than an unsorted one.
+      // Without an origin the server rejects sort=distance.
       sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
     },
     // Each keystroke and sort change keeps the last results up until the new
@@ -189,7 +189,7 @@ function SearchContent() {
         value={sort}
         onChange={setSort}
         onClose={() => setSortOpen(false)}
-        locationUnavailable={!location}
+        locationUnavailable={citywide}
         ratingAvailable={ratingAvailable}
       />
     </CustomerShell>

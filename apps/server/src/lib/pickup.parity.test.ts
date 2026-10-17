@@ -39,4 +39,25 @@ describe('pickup & drop parity', () => {
       )
     )
   })
+
+  test("the customer's stage is read the same way", async () => {
+    const core = (await import(coreUrl('pickup.ts'))) as {
+      pickupStageOf: (facts: Parameters<typeof server.customerPickupStage>[0]) => string
+    }
+    const t = '2026-10-18T04:00:00.000Z'
+    const cases: Array<Parameters<typeof server.customerPickupStage>[0]> = [
+      { status: 'pending' },
+      { status: 'confirmed' },
+      { status: 'confirmed', pickedUpAt: t },
+      { status: 'confirmed', pickedUpAt: t, atGarageAt: t },
+      { status: 'in_progress', pickedUpAt: t, atGarageAt: t, startedAt: t },
+      { status: 'in_progress', startedAt: t, outForDeliveryAt: t },
+      { status: 'completed' },
+      { status: 'completed', deliveredAt: t },
+      { status: 'cancelled', pickedUpAt: t },
+    ]
+    for (const facts of cases) {
+      expect(core.pickupStageOf(facts)).toBe(server.customerPickupStage(facts))
+    }
+  })
 })

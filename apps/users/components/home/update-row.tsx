@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import {
   IconArrowUpRight,
+  IconBuildingStore,
   IconCalendarCheck,
   IconCalendarRepeat,
   IconCalendarX,
+  IconCar,
   IconCircleCheck,
   IconClock,
   IconFileInvoice,
@@ -18,6 +20,7 @@ import {
   IconReceiptRefund,
   IconSpeakerphone,
   IconTool,
+  IconTruckDelivery,
   IconX,
 } from '@tabler/icons-react'
 import type { UpdateKind } from '@repo/core/api/home'
@@ -43,6 +46,10 @@ const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   complaint_acknowledged: IconMessageDots,
   complaint_resolved: IconMessageCheck,
   complaint_closed: IconMessageX,
+  // Pickup & drop's handover steps.
+  picked_up: IconCar,
+  at_garage: IconBuildingStore,
+  out_for_delivery: IconTruckDelivery,
 }
 
 export interface UpdateRowData {

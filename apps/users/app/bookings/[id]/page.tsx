@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  IconCarGarage,
   IconCreditCard,
   IconHelpCircle,
   IconHome,
@@ -35,7 +36,9 @@ import {
   FALLBACK_REFUND_MESSAGE,
   realClock,
 } from '@repo/core/payment-confirmation'
-import { bookAgainPath, canBookAgain } from '@repo/core/book-again'
+import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-again'
+import { carWithGarage } from '@repo/core/pickup'
+import { googleMapsLink } from '@repo/core/contact-links'
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records'
 import { customerRefundLine, withoutRefundPromise } from '@repo/core/refunds'
 import { formatBookingAmount } from '@repo/core/pricing'
@@ -59,6 +62,7 @@ import { BookingHelpSheet } from '@/components/booking-help-sheet'
 import { FinalBillCard, type BillPayment } from '@/components/final-bill-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
+import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
 
 /** A booking the customer still has to get to, or is at. */
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress'])
@@ -159,6 +163,10 @@ export default function BookingDetailPage({
   const router = useRouter()
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
+  // For Book again on a doorstep or pickup & drop booking: the saved address
+  // it went to, when the customer still has it.
+  const addresses = useUserStore((s) => s.addresses)
+  const fetchAddresses = useUserStore((s) => s.fetchAddresses)
   const cancelBooking = useBookingsStore((s) => s.cancelBooking)
   const queryClient = useQueryClient()
   // For the 2-hour cutoff on an accepted booking, which a page left open can
@@ -222,6 +230,13 @@ export default function BookingDetailPage({
   // Read once into state rather than watching the URL, so the burst plays a
   // single time and a refresh doesn't replay it (the param is stripped below).
   const [celebrating, setCelebrating] = useState(() => queryValue('celebrate') === '1')
+
+  // Only for Book again's address, so a failure just leaves it to checkout.
+  const needsAddresses =
+    !!booking && booking.bookingType !== 'dropin' && canBookAgain(booking) && addresses.length === 0
+  useEffect(() => {
+    if (needsAddresses) void fetchAddresses().catch(() => undefined)
+  }, [needsAddresses, fetchAddresses])
 
   useEffect(() => {
     getBooking(id).then((b) => {
@@ -386,7 +401,18 @@ export default function BookingDetailPage({
       void invalidateHome(queryClient)
       toast.success('Booking cancelled')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to cancel booking')
+      if (error instanceof ApiError && error.code === 'CAR_WITH_GARAGE') {
+        // The garage collected the car while this page was open: show it,
+        // and the Help path, instead of a Cancel that can no longer work.
+        setShowCancelConfirm(false)
+        const fresh = await getBooking(id).catch(() => null)
+        if (fresh) setBooking(fresh)
+        toast.error(
+          'The garage has already collected your car, so this booking can’t be cancelled here. Use Help with this booking.'
+        )
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to cancel booking')
+      }
     } finally {
       setCancelling(false)
     }
@@ -421,7 +447,9 @@ export default function BookingDetailPage({
         code === 'RESCHEDULE_WINDOW_PASSED' ||
         code === 'RESCHEDULE_LIMIT_REACHED' ||
         code === 'BOOKING_STATE_CHANGED' ||
-        code === 'INVALID_BOOKING_STATUS'
+        code === 'INVALID_BOOKING_STATUS' ||
+        // Pickup & drop: the garage collected the car meanwhile.
+        code === 'CAR_WITH_GARAGE'
       ) {
         // Nothing to pick any more — the booking itself has moved on.
         setShowReschedule(false)
@@ -458,7 +486,9 @@ export default function BookingDetailPage({
   // server older than this page sends neither, and directions to "Chennai"
   // would be worse than no card.
   const garage = booking?.garage
-  const findable = !!garage && ((garage.lat !== null && garage.lng !== null) || !!garage.address)
+  const findable =
+    !!garage &&
+    ((garage.lat !== null && garage.lng !== null) || !!garage.address || !!googleMapsLink(garage.mapsUrl))
   const gettingThere =
     booking?.bookingType === 'dropin' && OPEN_STATUSES.has(booking.status) && findable
       ? garage
@@ -507,6 +537,12 @@ export default function BookingDetailPage({
   const billDue = booking.finalBill?.status === 'due' && booking.status !== 'cancelled'
   // When each step happened, under the step. An older booking has none.
   const stepTime = (iso: string | undefined) => (iso ? formatStepTime(iso, now) : undefined)
+  const isPickup = booking.bookingType === 'pickup'
+  // Pickup & drop, from Picked up on: the car is with the garage, and the
+  // customer can no longer cancel or move the booking in the app (the
+  // server's 409 CAR_WITH_GARAGE). Help is the way to reach anyone.
+  const carAway = carWithGarage(booking)
+  const canChange = ['pending', 'confirmed'].includes(booking.status) && !carAway
 
   return (
     <CustomerShell showNav className="gap-4 py-4">
@@ -549,6 +585,8 @@ export default function BookingDetailPage({
         <div className="mt-3 flex items-center gap-2 text-[13px]">
           {booking.bookingType === 'doorstep' ? (
             <IconHome size={15} className="text-text-primary" />
+          ) : isPickup ? (
+            <IconCarGarage size={15} className="text-text-primary" />
           ) : (
             <IconMapPin size={15} className="text-text-primary" />
           )}
@@ -557,10 +595,15 @@ export default function BookingDetailPage({
             {BOOKING_TYPE_LABELS[booking.bookingType]}
           </span>
         </div>
-        {/* Where the garage comes to, so a wrong address is caught before
-            anyone sets off. */}
+        {/* Where the garage comes to (or collects the car from and brings it
+            back to), so a wrong address is caught before anyone sets off.
+            For pickup & drop this is the address that matters, not the
+            garage's. */}
         {booking.jobLocation && (
           <p className="mt-1 pl-[23px] text-[12px] text-text-secondary">
+            {isPickup && (
+              <span className="block text-[11px] text-text-muted">Collected from and returned to</span>
+            )}
             {booking.jobLocation.address}
           </p>
         )}
@@ -572,15 +615,20 @@ export default function BookingDetailPage({
         {booking.status !== 'rescheduled' && booking.status !== 'cancelled' && !missedByGarage && (
           <>
             <div className="my-4 h-px bg-border" />
-            <StatusStepper
-              status={booking.status}
-              times={{
-                requested: stepTime(booking.requestedAtIso),
-                confirmed: stepTime(booking.acceptedAtIso),
-                in_progress: stepTime(booking.startedAtIso),
-                completed: stepTime(booking.completedAtIso),
-              }}
-            />
+            {/* Pickup & drop has its handover steps around the work. */}
+            {isPickup ? (
+              <PickupTimeline booking={booking} now={now} />
+            ) : (
+              <StatusStepper
+                status={booking.status}
+                times={{
+                  requested: stepTime(booking.requestedAtIso),
+                  confirmed: stepTime(booking.acceptedAtIso),
+                  in_progress: stepTime(booking.startedAtIso),
+                  completed: stepTime(booking.completedAtIso),
+                }}
+              />
+            )}
           </>
         )}
 
@@ -641,6 +689,10 @@ export default function BookingDetailPage({
           </span>
         </div>
       </ScCard>
+
+      {/* The handover code, right under the booking: it is what the customer
+          needs at the door. */}
+      {isPickup && !missedByGarage && <PickupCodeCard booking={booking} />}
 
       {/* A payment for a bill that no longer stands — the garage replaced
           it, or the booking was cancelled, while the customer paid. Its card
@@ -860,7 +912,23 @@ export default function BookingDetailPage({
           </ScButton>
         )}
 
-      {['pending', 'confirmed'].includes(booking.status) && (
+      {/* Pickup & drop once collected: no Reschedule or Cancel to tap, and
+          why, with the way to reach the garage or Detlio. */}
+      {carAway && OPEN_STATUSES.has(booking.status) && (
+        <ScCard>
+          <h2 className="mb-1 text-sm font-semibold text-text-primary">Your car is with the garage</h2>
+          <p className="mb-3 text-[13px] text-text-secondary">
+            {booking.vendorName} has collected your car, so this booking can&apos;t be cancelled or
+            moved in the app. To change anything, or if something isn&apos;t right, use Help with
+            this booking to reach the garage or our team, or raise a complaint there.
+          </p>
+          <ScButton variant="secondary" onClick={() => setShowHelp(true)}>
+            Get help
+          </ScButton>
+        </ScCard>
+      )}
+
+      {canChange && (
         <ScCard>
           <h2 className="mb-1 text-sm font-semibold text-text-primary">Reschedule booking</h2>
           <p className="mb-3 text-[12px] text-text-secondary">
@@ -869,6 +937,7 @@ export default function BookingDetailPage({
               : booking.status === 'confirmed'
                 ? `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. Your booking goes back to Requested until ${booking.vendorName} accepts the new time.`
                 : `You can reschedule twice in all · ${booking.remainingReschedules} of 2 left. ${booking.vendorName} will need to accept the new time.`}
+            {isPickup && !lockedIn && ' You can move it until the garage collects your car.'}
           </p>
           <ScButton
             variant="secondary"
@@ -887,7 +956,7 @@ export default function BookingDetailPage({
         </ScCard>
       )}
 
-      {['pending', 'confirmed'].includes(booking.status) && (
+      {canChange && (
         <ScCard>
           <h2 className="mb-2 text-sm font-semibold text-text-primary">Cancel booking</h2>
           {lockedIn ? (
@@ -992,7 +1061,7 @@ export default function BookingDetailPage({
           garage has stopped offering and says so. */}
       {canBookAgain(booking) && (
         <ScButtonLink
-          href={bookAgainPath(booking)}
+          href={bookAgainPath(booking, matchSavedAddress(booking, addresses))}
           variant="secondary"
           fullWidth
           className="gap-2"
@@ -1018,7 +1087,7 @@ export default function BookingDetailPage({
         // Reschedule button, so a stale ?then=reschedule opens nothing.
         open={
           showReschedule &&
-          (booking.status === 'pending' || booking.status === 'confirmed') &&
+          canChange &&
           booking.remainingReschedules > 0 &&
           !lockedIn
         }

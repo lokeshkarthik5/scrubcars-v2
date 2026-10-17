@@ -482,8 +482,8 @@ export default function ProfilePage() {
                 Pin the exact spot (optional)
               </span>
               <p className="text-[11px] text-text-muted">
-                Needed only for doorstep service — we&apos;ll ask before your
-                first one if you skip it.
+                Needed only for doorstep and pickup &amp; drop — we&apos;ll ask
+                before your first one if you skip it.
               </p>
               {/* GPS-first for customers: they are usually standing at the
                   address they are saving, unlike a garage owner onboarding. */}
@@ -594,8 +594,18 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Support</h2>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold">Support</h2>
+        {/* The answers first: most questions do not need a call. */}
+        <ScCard className="px-0 py-1">
+          <Link
+            href="/help"
+            className="flex items-center justify-between px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
+          >
+            Help centre
+            <IconChevronRight size={16} className="text-text-muted" aria-hidden="true" />
+          </Link>
+        </ScCard>
         <SupportCard />
       </section>
 

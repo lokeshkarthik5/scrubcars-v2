@@ -319,6 +319,44 @@ export function customerChangeRefusal(job: Pick<PickupJob, 'bookingType' | 'pick
   return 'The garage has already collected your car, so this booking can no longer be changed in the app. Please call the garage or Detlio support.'
 }
 
+// ─── The customer's side ────────────────────────────────────────────────────
+
+/**
+ * Where a pickup & drop job has got, as the customer's timeline names it
+ * (Booked → Picked up → At garage → Being worked on → Out for delivery →
+ * Delivered). Home's Next booking tile carries it; the words live in the
+ * apps (packages/core/src/pickup.ts PICKUP_STAGE_NOW).
+ */
+export type CustomerPickupStage =
+  | 'booked'
+  | 'picked_up'
+  | 'at_garage'
+  | 'in_progress'
+  | 'out_for_delivery'
+  | 'delivered'
+
+/**
+ * The latest step a pickup job has reached. The apps' twin is pickupStageOf
+ * in packages/core/src/pickup.ts, pinned by pickup.parity.test.ts. A
+ * completed job is delivered whatever was recorded; a step with no time is
+ * not reached.
+ */
+export function customerPickupStage(facts: {
+  status: string
+  pickedUpAt?: Date | string | null
+  atGarageAt?: Date | string | null
+  startedAt?: Date | string | null
+  outForDeliveryAt?: Date | string | null
+  deliveredAt?: Date | string | null
+}): CustomerPickupStage {
+  if (facts.status === 'completed' || facts.deliveredAt) return 'delivered'
+  if (facts.outForDeliveryAt) return 'out_for_delivery'
+  if (facts.status === 'in_progress' || facts.startedAt) return 'in_progress'
+  if (facts.atGarageAt) return 'at_garage'
+  if (facts.pickedUpAt) return 'picked_up'
+  return 'booked'
+}
+
 // ─── Ops ────────────────────────────────────────────────────────────────────
 
 /**

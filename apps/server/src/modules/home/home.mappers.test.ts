@@ -88,4 +88,14 @@ describe('a Home booking row', () => {
       payment: null,
     })
   })
+
+  test("pickup & drop's handover steps ride along; other types carry none", () => {
+    const pickedUpAt = new Date('2026-10-10T04:40:00Z')
+    const pickup = toHubBooking(
+      row({ bookingType: 'pickup', pickedUpAt, atGarageAt: null, outForDeliveryAt: null, deliveredAt: null }),
+      new Set()
+    )
+    expect(pickup.pickup).toEqual({ pickedUpAt, atGarageAt: null, outForDeliveryAt: null, deliveredAt: null })
+    expect(toHubBooking(row(), new Set()).pickup).toBeNull()
+  })
 })

@@ -1,6 +1,7 @@
-import { textClientFor, type TextClient } from '../../lib/ai.js'
+import { documentClientFor, textClientFor, type DocumentClient, type TextClient } from '../../lib/ai.js'
 import { isAiPicturesEnabled } from '../../lib/ai-images.js'
 import { env } from '../../lib/env.js'
+import { FAKE_GARAGE_READING } from '../../lib/garage-import/vision.js'
 import { logger } from '../../lib/logger.js'
 import { aiConfigFor, describeServiceWith } from './ai.describe.js'
 import type { DescribeServiceInput } from './ai.validation.js'
@@ -28,6 +29,22 @@ function textClient(): TextClient | null {
   return client
 }
 
+// Only asked whether it exists, for the config: the import module builds
+// and uses its own (vendor-imports.service.ts), from the same settings.
+let reader: DocumentClient | null | undefined
+
+function documentClient(): DocumentClient | null {
+  if (reader === undefined) {
+    reader = documentClientFor({
+      apiKey: env.openaiApiKey,
+      model: env.aiVisionModel,
+      fake: env.aiFake,
+      fakeAnswer: JSON.stringify(FAKE_GARAGE_READING),
+    })
+  }
+  return reader
+}
+
 export const aiService = {
   /**
    * Which AI helpers the admin panel may show: "Write with AI" (`describe`)
@@ -35,7 +52,7 @@ export const aiService = {
    * without a key.
    */
   config() {
-    return { ...aiConfigFor(textClient()), pictures: isAiPicturesEnabled() }
+    return { ...aiConfigFor(textClient(), documentClient()), pictures: isAiPicturesEnabled() }
   },
 
   describeService(input: DescribeServiceInput) {

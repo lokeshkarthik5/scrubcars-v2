@@ -18,7 +18,9 @@ type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
 /**
  * Upload a photo of a job and record it: presign, PUT straight to storage,
  * then register the key the upload went to. The caller hands over an image
- * already sized for upload (the portal turns phone photos into JPEGs first).
+ * already sized for upload (the portal turns phone photos into JPEGs first,
+ * with apps/vendors/lib/resize-image.ts, and that re-encode is what strips
+ * their location metadata), so it is not stripped a second time here.
  */
 export async function uploadJobPhoto(
   bookingId: string,

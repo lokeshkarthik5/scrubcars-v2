@@ -22,6 +22,7 @@ import {
   DISCOUNTS,
   HOME_PROMO_PIN,
   NOTICES,
+  ORIGIN,
   SERVICES,
   VEHICLES,
   VENDORS,
@@ -71,9 +72,14 @@ test.describe('Home hub API @p0', () => {
     expect(codes(home.offers)).not.toContain(DISCOUNTS.homeNear.code)
     expect(home.offers.length).toBeLessThanOrEqual(3)
 
-    // Nothing to act on; the job was three days ago, past the rating prompt.
+    // Nothing to act on. The job was three days ago and is not rated, so
+    // "How was your wash?" asks for it: the prompt lasts 14 days.
     expect(home.mustAct).toBeNull()
-    expect(home.softCard).toBeNull()
+    expect(home.softCard).toMatchObject({
+      kind: 'rate',
+      bookingId: BOOKINGS.homeOfferDone,
+      vendorName: VENDORS.homePromo.name,
+    })
     expect(home.header).toMatchObject({ firstName: 'Hub' })
 
     // No booking ahead: the tile offers the same job again, priced for the car.
@@ -101,7 +107,7 @@ test.describe('Home hub API @p0', () => {
     const order = codes(near.offers)
     expect(order).toContain(DISCOUNTS.homeNear.code)
     expect(order.indexOf(DISCOUNTS.homeBooked.code)).toBeLessThan(order.indexOf(DISCOUNTS.homeNear.code))
-    expect(near.nearby.radiusKm).toBe(10)
+    expect(near.nearby.radiusKm).toBe(50)
     expect(near.nearby.count).toBeGreaterThanOrEqual(1)
     expect(near.nearby.closestKm).toBeLessThanOrEqual(1)
 
@@ -344,6 +350,23 @@ test.describe('Home hub API @p0', () => {
     const noCode = await customer.post(`${API}/api/v1/users/me/offers/${BOOKINGS.homeNoticeUpcoming}/dismiss`)
     expect(noCode.status()).toBe(404)
     expect(await noCode.json()).toEqual({ success: false, message: 'Offer not found', code: 'OFFER_NOT_FOUND' })
+
+    await customer.dispose()
+  })
+
+  test('Nearby counts every garage within 50 km, the same reach as the list', async () => {
+    const customer = await loginViaApi(CUSTOMERS.homeNew.phone)
+
+    // From ORIGIN: MAIN, Second, Narrow and all twelve fillers (out to
+    // 24.8 km) at least, where the old 10 km counted five.
+    const city = await readHome(customer, `?lat=${ORIGIN.lat}&lng=${ORIGIN.lng}`)
+    expect(city.nearby.radiusKm).toBe(50)
+    expect(city.nearby.count).toBeGreaterThanOrEqual(15)
+    expect(city.nearby.closestKm).toBeLessThanOrEqual(1)
+
+    // Madurai: nothing within 50 km, said as a count of none, not left out.
+    const none = await readHome(customer, '?lat=9.925&lng=78.12')
+    expect(none.nearby).toEqual({ count: 0, closestKm: null, radiusKm: 50 })
 
     await customer.dispose()
   })
