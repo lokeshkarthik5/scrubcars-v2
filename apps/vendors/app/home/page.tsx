@@ -31,6 +31,7 @@ import {
 } from '@repo/core/vendor-stats'
 import type { Review } from '@repo/core/types'
 import { ActiveGarage } from '@/components/active-garage'
+import { PushBanner } from '@/components/push-banner'
 import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
 import { useNow } from '@repo/core/hooks/use-now'
@@ -147,6 +148,9 @@ export default function VendorHomePage() {
             made stay as they are.
           </Notice>
         ))}
+
+      {/* New-booking alerts on this device, until they are on (0044). */}
+      <PushBanner />
 
       <Reveal className="grid grid-cols-2 gap-2">
         <StatTile label="Today's jobs" value={jobsUnknown ? '–' : stats.todaysJobs} />

@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { newHandoverCodes } from '../../lib/pickup.js'
 import { createRazorpayOrder } from '../../lib/razorpay.js'
+import { garageNewBooking } from '../../lib/push-messages.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import {
@@ -12,6 +13,7 @@ import {
 } from '../bookings/bookings.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { pushService } from '../push/push.service.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
 import type { CreateBookingIntentInput } from './booking-intents.validation.js'
@@ -207,6 +209,16 @@ async function handleConsumeResult(
       alertOps(async () => {
         const booking = await bookingsRepository.findBookingById(result.bookingId)
         return booking ? { kind: 'booking_paid', booking } : null
+      })
+      // Every device of the garage's team hears about it at once (0044),
+      // with how long they have to accept. Same exactly-once as the alert.
+      pushService.notifyLater(async () => {
+        const booking = await bookingsRepository.findBookingById(result.bookingId)
+        if (!booking || booking.status !== 'pending') return []
+        return [{
+          recipient: { audience: 'garage', vendorId: booking.vendorId },
+          message: garageNewBooking(booking, new Date(), env.garageResponseMinutes),
+        }]
       })
       // The funnel's last step, recorded here rather than by the app, whose
       // tab may be gone by now. After the response; never fails this.

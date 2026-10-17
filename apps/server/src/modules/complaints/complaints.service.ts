@@ -16,6 +16,8 @@ import {
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
+import { customerComplaint } from '../../lib/push-messages.js'
+import { pushService } from '../push/push.service.js'
 import { pickBookingByReference, planLoggedComplaint } from './complaints.logging.js'
 import {
   complaintsRepository,
@@ -173,6 +175,18 @@ async function move(
     if (!(await complaintsRepository.exists(id))) throw notFound()
     throw alreadyMoved(action)
   }
+}
+
+/**
+ * The customer hears that the team moved their complaint on (0044), when
+ * it is linked to an account: the number only, never the team's answer,
+ * which they read in My complaints.
+ */
+function notifyCustomer(
+  complaint: { id: string; number: number; userId: string | null },
+  step: 'acknowledged' | 'resolved'
+) {
+  if (complaint.userId) pushService.notifyCustomer(complaint.userId, customerComplaint(complaint, step))
 }
 
 export const complaintsService = {
@@ -359,7 +373,9 @@ export const complaintsService = {
       complaintsRepository.moveTo(id, from, { status: 'acknowledged', by, at: now })
     )
     log.info({ complaintId: id }, 'complaint:acknowledged')
-    return toAdminComplaint(await getAdminOr404(id), now)
+    const row = await getAdminOr404(id)
+    notifyCustomer(row.complaint, 'acknowledged')
+    return toAdminComplaint(row, now)
   },
 
   async resolve(sub: string, id: string, input: ResolveComplaintInput, now = new Date()) {
@@ -373,7 +389,9 @@ export const complaintsService = {
       })
     )
     log.info({ complaintId: id }, 'complaint:resolved')
-    return toAdminComplaint(await getAdminOr404(id), now)
+    const row = await getAdminOr404(id)
+    notifyCustomer(row.complaint, 'resolved')
+    return toAdminComplaint(row, now)
   },
 
   async close(sub: string, id: string, input: CloseComplaintInput, now = new Date()) {

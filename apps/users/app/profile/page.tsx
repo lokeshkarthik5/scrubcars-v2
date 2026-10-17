@@ -39,6 +39,7 @@ import {
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
+import { getPushConfig } from '@repo/core/api/push'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
@@ -100,6 +101,8 @@ export default function ProfilePage() {
   // Shares one id across cars and addresses: only one row is ever mid-request,
   // and the two lists cannot collide on a uuid.
   const [promoting, setPromoting] = useState<string | null>(null)
+  // Notifications shows only once the API has them set up (0044).
+  const [pushOn, setPushOn] = useState(false)
 
   const user = profile ?? authUser
 
@@ -109,6 +112,19 @@ export default function ProfilePage() {
     void fetchVehicles().catch(() => undefined)
     void fetchAddresses().catch(() => undefined)
   }, [authUser, fetchProfile, fetchVehicles, fetchAddresses])
+
+  useEffect(() => {
+    if (!authUser) return
+    let cancelled = false
+    getPushConfig('customer')
+      .then((config) => {
+        if (!cancelled) setPushOn(config.enabled)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [authUser])
 
   if (!authUser) {
     return (
@@ -344,6 +360,13 @@ export default function ProfilePage() {
       <Link href="/profile/saved-garages">
         <ScCard className="text-[13px] text-text-primary">Saved garages</ScCard>
       </Link>
+
+      {/* Browser notifications on this device, and what to send (0044). */}
+      {pushOn && (
+        <Link href="/profile/notifications">
+          <ScCard className="text-[13px] text-text-primary">Notifications</ScCard>
+        </Link>
+      )}
 
       {/* #vehicles: Home's pencil on the car opens here. */}
       <section id="vehicles" className="scroll-mt-4">

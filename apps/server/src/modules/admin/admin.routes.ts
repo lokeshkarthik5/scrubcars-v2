@@ -8,6 +8,7 @@ import {
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminAiRoutes } from '../ai/ai.routes.js'
+import { adminAlertRoutes } from '../alerts/alerts.routes.js'
 import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
@@ -369,6 +370,10 @@ adminRoutes.route('/payouts', adminPayoutRoutes)
 // behalf. Nested here for the same cookie reason as discounts; every route
 // but /config is a 404 while R2_DOCS_BUCKET is unset.
 adminRoutes.route('/documents', adminDocumentRoutes)
+
+// Telegram: whether the team's alerts are set up, and "Send test alert".
+// Nested here for the same cookie reason as discounts.
+adminRoutes.route('/alerts', adminAlertRoutes)
 
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.

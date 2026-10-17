@@ -16,6 +16,7 @@ import { membersRoutes } from '../members/members.routes.js'
 import { vendorEarningsRoutes } from '../payouts/payouts.routes.js'
 import { garageMediaRoutes } from '../service-media/service-media.routes.js'
 import { garageDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
+import { garagePushRoutes } from '../push/push.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -144,6 +145,11 @@ vendorsRoutes.route('/me', garageMediaRoutes)
 // its own file, and every route but /config a 404 while R2_DOCS_BUCKET is
 // unset. Nested for the same reason as the team screen.
 vendorsRoutes.route('/me/documents', garageDocumentRoutes)
+
+// New-booking alerts on this device (0044): widened to operators in its own
+// file (the people at the counter need them), every route but /config a 404
+// while VAPID is unset. Nested for the same reason as the team screen.
+vendorsRoutes.route('/me/push', garagePushRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

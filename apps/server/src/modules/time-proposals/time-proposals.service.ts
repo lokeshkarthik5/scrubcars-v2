@@ -28,6 +28,12 @@ import {
 } from '../bookings/bookings.service.js'
 import { responseTimePassedError } from '../garage-response/garage-response.rules.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { pushService } from '../push/push.service.js'
+import {
+  customerTimesSuggested,
+  garageProposalChosen,
+  garageProposalDeclined,
+} from '../../lib/push-messages.js'
 import { jobSlots } from '../vendors/vendors.service.js'
 import { timeProposalsRepository } from './time-proposals.repository.js'
 import type { SuggestTimesInput } from './time-proposals.validation.js'
@@ -167,6 +173,9 @@ async function afterGarageSideCancel(bookingId: string, outcome: 'declined' | 'e
     booking: updated,
     previousScheduledAt: updated.scheduledAt,
   })
+  // The customer said none of the times work: the garage's team hears it
+  // was cancelled (0044). One that ran out is the cron's, and says nothing.
+  if (outcome === 'declined') pushService.notifyGarage(updated.vendorId, garageProposalDeclined(updated))
   analyticsService.bookingCancelled(bookingId, 'garage')
   if (updated.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
 }
@@ -269,6 +278,10 @@ export const timeProposalsService = {
       options: checked.slots.map((slot) => new Date(slot)),
       expiresAt: checked.expiresAt,
     })
+    pushService.notifyCustomer(
+      booking.userId,
+      customerTimesSuggested(booking, checked.slots.map((slot) => new Date(slot)))
+    )
 
     const updated = await bookingsRepository.findBookingById(booking.id)
     return toVendorBookingResponse(updated!)
@@ -354,6 +367,7 @@ export const timeProposalsService = {
         booking: moved,
         previousScheduledAt: booking.scheduledAt,
       })
+      pushService.notifyGarage(moved.vendorId, garageProposalChosen(moved))
     }
     return bookingsService.getBookingDetail(userId, result.booking.id)
   },

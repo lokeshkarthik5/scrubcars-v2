@@ -2340,3 +2340,29 @@ export async function saveAdminPayoutAccount(vendorId: string, input: PayoutAcco
 export async function removeAdminPayoutAccount(vendorId: string): Promise<void> {
   await apiClient(`/admin/payouts/vendors/${vendorId}/account`, { method: 'DELETE' })
 }
+
+// ─── Alerts (Telegram) ───────────────────────────────────────────────────────
+
+/** Whether the team's Telegram alerts are set up; never the token or the chat. */
+export interface TelegramAlertStatus {
+  /** TELEGRAM_BOT_TOKEN and TELEGRAM_OPS_CHAT_ID are both set on the API. */
+  configured: boolean
+  /** Booking alerts go out from this deployment (Production only). */
+  liveHere: boolean
+}
+
+/** GET /admin/alerts/telegram */
+export async function getTelegramAlertStatus() {
+  return apiClient<TelegramAlertStatus>('/admin/alerts/telegram')
+}
+
+/**
+ * POST /admin/alerts/telegram/test: posts "✅ Detlio test alert from <name>"
+ * to the team's chat, whatever the Production-only rule says. Rate limited.
+ */
+export async function sendTelegramTestAlert(actorName: string) {
+  return apiClient<{ sent: boolean; sentAt: string }>('/admin/alerts/telegram/test', {
+    method: 'POST',
+    body: JSON.stringify({ actorName }),
+  })
+}

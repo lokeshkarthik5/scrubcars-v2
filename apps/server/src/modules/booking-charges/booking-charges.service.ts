@@ -23,6 +23,12 @@ import { logger } from '../../lib/logger.js'
 import { createPresignedUpload, publicUrlForKey } from '../../lib/storage.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import {
+  customerExtraWorkRequested,
+  garageExtraWorkDeclined,
+  garageExtraWorkPaid,
+} from '../../lib/push-messages.js'
+import { pushService } from '../push/push.service.js'
+import {
   createRazorpayOrder,
   razorpayKeyId,
   toPaise,
@@ -191,6 +197,18 @@ async function settleCaptured(
         { chargeId: charge.id, bookingId: charge.bookingId, paymentId: payment.paymentId, source, kind: charge.kind },
         charge.kind === 'extra_work' ? 'extra_work:paid' : 'final_bill:paid'
       )
+      // Paying is the approval: the garage's team can start on it (0044).
+      if (charge.kind === 'extra_work') {
+        pushService.notifyLater(async () => {
+          const booking = await bookingChargesRepository.findBooking(charge.bookingId)
+          return booking
+            ? [{
+                recipient: { audience: 'garage', vendorId: booking.vendorId },
+                message: garageExtraWorkPaid(booking, settled.amountDue),
+              }]
+            : []
+        })
+      }
       alertOps(async () => {
         const booking = await bookingChargesRepository.findBooking(charge.bookingId)
         if (!booking) return null
@@ -646,6 +664,8 @@ export const bookingChargesService = {
       { bookingId: booking.id, vendorId, actorId, chargeId: result.charge.id, amount, photos: keys.length },
       'extra_work:asked'
     )
+    // The amount, never the garage's description of the work (0044).
+    pushService.notifyCustomer(booking.userId, customerExtraWorkRequested(booking, result.charge.amountDue))
     return toExtraWorkView(result.charge)
   },
 
@@ -709,6 +729,7 @@ export const bookingChargesService = {
       description: closed.lines[0]?.description ?? 'Extra work',
       amount: closed.amountDue,
     })
+    pushService.notifyGarage(booking.vendorId, garageExtraWorkDeclined(booking, closed.amountDue))
     return toExtraWorkView(closed)
   },
 

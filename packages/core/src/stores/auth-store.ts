@@ -14,6 +14,7 @@ import { clearSupportSession, setActiveVendorId } from '@repo/core/api/client'
 import { mapAuthUser } from '@repo/core/api/mappers'
 import type { ApiAuthVendor, ApiAuthUser, VendorRole } from '@repo/core/api/types'
 import type { User } from '@repo/core/types'
+import { forgetThisBrowser } from '@repo/core/push'
 
 export type AuthAudience = 'customer' | 'vendor'
 
@@ -259,6 +260,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   async logout() {
     set({ isLoading: true })
     try {
+      // This browser stops getting the account's notifications (0044),
+      // while the session can still say so to the API. Never holds up or
+      // fails the sign-out.
+      await forgetThisBrowser(get().audience === 'vendor' ? 'garage' : 'customer').catch(() => undefined)
       await apiLogout()
     } finally {
       get().clearSession()

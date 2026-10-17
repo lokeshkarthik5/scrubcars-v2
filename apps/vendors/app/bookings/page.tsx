@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   IconCalendarCheck,
   IconCalendarX,
@@ -25,6 +26,7 @@ import { FinalBillPanel } from '@/components/final-bill'
 import { ExtraWorkPanel } from '@/components/extra-work'
 import { SuggestTimes } from '@/components/suggest-times'
 import { ActiveGarage } from '@/components/active-garage'
+import { PushBanner } from '@/components/push-banner'
 import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
 import { JobPhotos } from '@/components/job-photos'
@@ -35,6 +37,9 @@ import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
 
 type Tab = 'incoming' | 'upcoming' | 'completed' | 'cancelled'
+
+const TABS: readonly Tab[] = ['incoming', 'upcoming', 'completed', 'cancelled']
+const isTab = (value: string | null): value is Tab => TABS.includes(value as Tab)
 
 /** What an empty tab says, in the garage's words. */
 const EMPTY: Record<Tab, { icon: React.ReactNode; title: string; subtitle: string }> = {
@@ -60,8 +65,22 @@ const EMPTY: Record<Tab, { icon: React.ReactNode; title: string; subtitle: strin
   },
 }
 
+// useSearchParams needs a Suspense boundary for the page to prerender.
 export default function VendorBookingsPage() {
-  const [tab, setTab] = useState<Tab>('incoming')
+  return (
+    <Suspense fallback={null}>
+      <VendorBookings />
+    </Suspense>
+  )
+}
+
+function VendorBookings() {
+  const searchParams = useSearchParams()
+  // The tab a link asked for: a notification opens its job's tab (0044).
+  const [tab, setTab] = useState<Tab>(() => {
+    const requested = searchParams.get('tab')
+    return isTab(requested) ? requested : 'incoming'
+  })
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const vendorBookings = useBookingsStore((s) => s.vendorBookings)
@@ -121,6 +140,18 @@ export default function VendorBookingsPage() {
   // the buttons go with the countdown's own "cancelled and refunded".
   const now = useNow(10_000)
 
+  // A notification opens a job here (0044): /bookings?tab=incoming#job-<id>.
+  // The job is scrolled to once, as soon as the list has it.
+  const scrolledTo = useRef<string | null>(null)
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash.startsWith('#job-') || scrolledTo.current === hash) return
+    const card = document.getElementById(hash.slice(1))
+    if (!card) return
+    scrolledTo.current = hash
+    card.scrollIntoView({ block: 'start' })
+  }, [filtered])
+
   // A refusal (the slot has started, the customer cancelled a moment ago)
   // is shown, and the list re-read so the card stops offering it.
   const refused = (error: unknown, fallback: string) => {
@@ -178,6 +209,8 @@ export default function VendorBookingsPage() {
         }
       />
 
+      <PushBanner />
+
       {/* The count sits beside each name in the numeric face, quieter than
           the name. Its accessible name still starts with the name. */}
       <ScSegmented
@@ -215,7 +248,7 @@ export default function VendorBookingsPage() {
           // their containing block, so the sheet would open inside the card
           // instead of over the screen.
           filtered.map((b) => (
-            <ScCard key={b.id} className="flex flex-col gap-3">
+            <ScCard key={b.id} id={`job-${b.id}`} className="flex scroll-mt-4 flex-col gap-3">
               <JobCardHeader booking={b} />
 
               {/* The summary line above says "+2 more"; whoever does the work

@@ -31,6 +31,7 @@ import type {
   DocumentStatus,
   DocumentType,
 } from '../lib/vendor-documents.js'
+import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -355,6 +356,12 @@ export const users = pgTable(
     // own created_at. 0031 set it for every existing account, so the bell did
     // not light up for everyone on launch day.
     updatesSeenAt: timestamp('updates_seen_at', { withTimezone: true }),
+    // The customer's two notification switches (0044, Profile →
+    // Notifications), for every device they turned browser notifications on
+    // for: news about their bookings, and the reminders before one. Both on
+    // by default; a device that never subscribed gets nothing either way.
+    pushBookingUpdates: boolean('push_booking_updates').default(true).notNull(),
+    pushReminders: boolean('push_reminders').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2224,6 +2231,76 @@ export const vendorDocumentFiles = pgTable(
     unique('vendor_document_files_document_id_side_key').on(table.documentId, table.side),
     uniqueIndex('vendor_document_files_storage_key_key').on(table.storageKey),
     check('vendor_document_files_side_check', sql`${table.side} in ('front', 'back')`),
+  ]
+)
+
+// Browser notifications (0044, lib/push.ts, modules/push): one row per
+// browser that turned them on. `endpoint` is the push service's URL for that
+// browser (FCM, Mozilla, Apple, Windows; checked against an allow-list before
+// it is stored or sent to) and, with the two keys, what web-push needs to
+// encrypt a message only that browser can read. A device identifier, never
+// logged. `audience` says which app it came from: a customer's (detlio.com)
+// or a garage seat's (vendor.detlio.com, with the garage it was turned on
+// for, from resolveTenant). A garage subscription is only sent to while its
+// user still holds an active seat there and the garage is not in the Bin;
+// the user's or the garage's deletion removes it. Removed when the push
+// service answers 404/410 (the browser dropped it) or the person turns it
+// off. The CHECKs are in 0044_push_notifications.sql.
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    endpoint: varchar('endpoint', { length: 1024 }).notNull(),
+    p256dh: varchar('p256dh', { length: 200 }).notNull(),
+    auth: varchar('auth', { length: 100 }).notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    audience: text('audience').$type<PushAudience>().notNull(),
+    // Garage subscriptions only (CHECK): the garage the seat turned it on for.
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'cascade' }),
+    // "Chrome on Android": shown on the Notifications screen, never the raw
+    // user agent.
+    deviceLabel: varchar('device_label', { length: 60 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    // Failed sends in a row (not 404/410, which remove the row at once).
+    failureCount: integer('failure_count').default(0).notNull(),
+  },
+  (table) => [
+    uniqueIndex('push_subscriptions_endpoint_key').on(table.endpoint),
+    index('push_subscriptions_user_id_idx').on(table.userId),
+    index('push_subscriptions_vendor_id_idx')
+      .on(table.vendorId)
+      .where(sql`${table.vendorId} is not null`),
+    check('push_subscriptions_audience_check', sql`${table.audience} in ('customer', 'garage')`),
+    check(
+      'push_subscriptions_vendor_check',
+      sql`(${table.audience} = 'garage') = (${table.vendorId} is not null)`
+    ),
+  ]
+)
+
+// The scheduled notifications already sent (0044): a customer's reminder
+// the evening before and an hour before, a garage's "accept within 10 min".
+// One row per booking per kind (unique), claimed before the send, so a cron
+// run that overlaps another sends nothing twice. Cascades with the booking.
+export const notificationSends = pgTable(
+  'notification_sends',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<ScheduledPushKind>().notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('notification_sends_booking_id_kind_key').on(table.bookingId, table.kind),
+    check(
+      'notification_sends_kind_check',
+      sql`${table.kind} in ('day_before', 'hour_before', 'respond_soon')`
+    ),
   ]
 )
 
