@@ -1,6 +1,4 @@
-import { GarageListScreen } from '@/components/garages/garage-list-screen'
-import { HomeHubScreen } from '@/components/home/home-hub-screen'
-import { isHomeHubEnabled } from '@/lib/home-hub'
+import { HomeScreen } from '@/components/home/home-screen'
 
 // The new Home hub, behind NEXT_PUBLIC_HOME_HUB (lib/home-hub.ts). With the
 // flag off — production, until the owner signs off a preview on live data —
@@ -12,5 +10,5 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
 // the manifest's start_url, the signed-in hint and sign-in all land here. A
 // signed-out visitor on the hub is sent on to /garages.
 export default function HomePage() {
-  return isHomeHubEnabled() ? <HomeHubScreen /> : <GarageListScreen />
+  return <HomeScreen />
 }

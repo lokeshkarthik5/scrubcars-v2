@@ -1,12 +1,12 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { track } from '@repo/core/analytics'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { Toast } from '@repo/ui/sc/toast'
-import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
 import { invalidateHome, useDismissReviewPrompt, useHome } from '@repo/core/api/hooks/use-home'
 import type { HomeCar } from '@repo/core/api/home'
 import { bookingTypeParam } from '@repo/core/booking-types'
@@ -23,6 +23,14 @@ import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
 import { NearbyCard } from './nearby-card'
 import { RightTile } from './right-tile'
+
+// Sheets closed on arrival are loaded after the page, not with it: they are
+// out of the first load's JavaScript, and on the page well before anyone can
+// tap what opens them. Client-only, since closed they render nothing anyway.
+const AddCarSheet = dynamic(
+  () => import('@repo/ui/features/add-car-sheet').then((m) => m.AddCarSheet),
+  { ssr: false }
+)
 import { TipCard } from './tip-card'
 import { UpdatesBlock } from './updates-block'
 import { WashStatusTile } from './wash-status-tile'

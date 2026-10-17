@@ -63,7 +63,9 @@ export function Stars({
             tabIndex={interactive ? undefined : -1}
             disabled={!interactive}
             onClick={() => interactive && onChange?.(i + 1)}
-            className={cn(interactive && 'cursor-pointer')}
+            // A 44px target per star when they are buttons; the stars are
+            // drawn at their own size inside it.
+            className={cn(interactive && 'flex size-11 cursor-pointer items-center justify-center')}
           >
             {/* The same amber as the star beside every rating in the app;
                 these were the only red ones. */}

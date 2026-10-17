@@ -94,6 +94,12 @@ container, or a platform text-metric difference. The responsive check runs at
 360px, which is the narrow end of what people actually carry. If you can
 reproduce on Linux, the 8px is worth chasing.
 
+`users/axe.spec.ts` is the P0 accessibility gate: axe on the signed-out
+homepage, Home, the garage list, a garage, checkout, a booking, the help centre
+and Profile, failing on serious and critical findings only. It leaves out the
+same brand-red contrast pairing as above and nothing else; the platform spec
+keeps the longer list of screens.
+
 A note on measuring contrast: the accessibility spec waits for entrance
 animations to finish before scanning. Cards enter through `.reveal`, which
 starts at `opacity: 0`, and axe samples the *computed* colour — scanning early

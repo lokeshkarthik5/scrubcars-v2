@@ -1040,7 +1040,7 @@ export default function EditVendorPage({
                   className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-text-muted transition-colors hover:border-text-secondary hover:text-text-secondary disabled:opacity-50"
                 >
                   <IconPhotoPlus size={18} />
-                  <span className="text-[10px]">
+                  <span className="text-[11px]">
                     {mediaBusy === 'photos' ? 'Uploading…' : 'Add'}
                   </span>
                 </button>

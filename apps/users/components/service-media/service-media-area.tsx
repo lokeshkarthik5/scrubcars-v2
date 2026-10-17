@@ -125,7 +125,7 @@ export function ServiceMediaArea({
               >
                 <Image src={photo.url} alt="" fill sizes="(max-width: 428px) 33vw, 130px" className="object-cover" />
                 {photo.source === 'ai' && (
-                  <span className="absolute bottom-1 left-1 rounded-[6px] bg-black/75 px-1 py-px text-[10px] font-medium text-white">
+                  <span className="absolute bottom-1 left-1 rounded-[6px] bg-black/75 px-1 py-px text-[11px] font-medium text-white">
                     Sample
                   </span>
                 )}

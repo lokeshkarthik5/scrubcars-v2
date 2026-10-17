@@ -148,7 +148,7 @@ function CtaLink({
 }) {
   const className_ = cn(
     'press inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-colors',
-    size === 'md' ? 'h-12 px-7 text-[15px]' : 'h-10 px-5 text-[14px]',
+    size === 'md' ? 'h-12 px-7 text-[15px]' : 'h-11 px-5 text-[14px]',
     variant === 'primary'
       ? 'bg-brand-red text-brand-white hover:bg-brand-red-hover'
       : 'border border-white/20 text-brand-white hover:bg-white/[0.06]',
@@ -281,7 +281,7 @@ export function SiteHeader({ links }: { links: Cta[] }) {
           <Link
             href="/login"
             className={cn(
-              'hidden h-10 items-center whitespace-nowrap rounded-lg border border-white/20 bg-brand-black px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06] sm:inline-flex',
+              'hidden h-11 items-center whitespace-nowrap rounded-lg border border-white/20 bg-brand-black px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06] sm:inline-flex',
               FOCUS_RING
             )}
           >
@@ -444,8 +444,8 @@ function OfferTag() {
             className="absolute left-1/2 top-2 size-2.5 -translate-x-1/2 rounded-full bg-brand-black"
           />
           {/* The guideline's deeper red (#C8102E, ch. 05): brand red
-              #EF3240 is 3.9:1 on white, too faint for 10px text. */}
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
+              #EF3240 is 3.9:1 on white, too faint for 11px text. */}
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C8102E]">
             {OFFER_TAG.label}
           </span>
           <span className="mt-1 block text-[16px] font-bold leading-tight tracking-[-0.01em]">
@@ -1038,7 +1038,7 @@ export function Promises() {
 /** The business support line, from @repo/core/support — the one the app uses. */
 function SupportLinks({ className }: { className?: string }) {
   const link = cn(
-    'inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-white/20 px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06]',
+    'inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-lg border border-white/20 px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06]',
     FOCUS_RING
   )
   return (

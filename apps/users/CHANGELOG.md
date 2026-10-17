@@ -696,6 +696,48 @@ reconstructing every change in them.
 
 ### Changed
 
+- **Accessibility pass before the app (customer app, garage portal, admin).**
+  Every control a thumb uses is at least 44 × 44 px: the garage page's back
+  button and heart (were 36), the slot picker's times, calendar days and
+  month arrows, the review stars, the sort sheet's ×, the map's buttons,
+  Profile's Add / Set default / bin, checkout's coupon Apply and Remove, the
+  coupon card's ×, the bottom bar's tabs; chips, the category and filter
+  rows, Map and Sort keep their look and get an invisible 44px touch area
+  (`tap-target` in globals.css). Keyboard: a white focus ring on every
+  control (it was the browser's thin blue line, invisible on the dark
+  canvas); every sheet now takes focus when it opens, keeps Tab inside and
+  gives focus back on close, as dialogs already did; the garage page's tabs
+  move with the arrow keys and name their panel; a "Skip to content" link
+  on the homepage and the legal pages. Names: the sign-in phone field, the
+  six code boxes ("Digit 1 of 6"), the garage page's search, the coupon
+  field, the review box, the map picker's two fields and the garage
+  portal's reject reason say what they are without the placeholder;
+  sign-in, code, coupon and complaint errors are read with their field.
+  Text: nothing a customer reads is below 11px any more (badges, the bottom
+  bar, the slot picker's day names and "More", review dates, "Sample" on
+  service pictures, the map's badge); Home's tiles, Updates' header and the
+  date chips grow with larger text instead of clipping it. Contrast: the
+  garage and admin "New" badge's red text is a step lighter
+  (`--color-accent-text` #F45A66, 4.1:1 → 5.2:1 on a card), and the filter
+  chips' counts went from 4.4:1 and 3.9:1 to 5.2:1 and 5.1:1. Pinch-zoom
+  works on Android again: the layouts no longer cap zoom at 1×; iOS keeps
+  the cap (it only stops Safari zooming into form fields there). On the
+  garage list, a long location line ("Location blocked — enable in browser
+  settings") no longer makes the page scroll sideways on a 360px phone.
+- **Faster first load.** The map page no longer loads MapLibre before it
+  needs it (a type import pulled it in): 444 kB → 194 kB of JavaScript
+  (compressed) on first load. /home no longer carries both of its screens
+  (the hub and the garage list): only the one the build shows is fetched,
+  alongside the session check (217 kB → 172 kB first load). Closed sheets
+  (add a car, add an address, a booking's Help) load after the page instead
+  of with it. Checkout opens on the garage page's cached
+  garage and services when Book Now was tapped there in the last minute,
+  instead of fetching all three again, and a garage's reviews are kept five
+  minutes, so Back to a garage shows them at once. The Meta Pixel loads
+  once the page is idle rather than straight after hydration. Garage
+  photos are served as AVIF where the browser takes it, and the garage
+  page's cover asks for a picture the width of the phone, not 428px.
+
 - **Garage contact details only after booking.** The garage page's data
   (`GET /vendors/:id`) no longer has the garage's phone, WhatsApp, email or
   street address; the screens never showed them there. A booking's Help

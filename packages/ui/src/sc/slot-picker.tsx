@@ -230,7 +230,7 @@ export function SlotPicker({
               disabled={closed}
               onClick={() => selectDate(d.value)}
               className={cn(
-                'flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors',
+                'flex min-h-[62px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors',
                 closed
                   ? 'cursor-not-allowed bg-surface text-text-muted opacity-50'
                   : selectedDate === d.value
@@ -240,7 +240,7 @@ export function SlotPicker({
             >
               <span
                 className={cn(
-                  'text-[10px] font-medium uppercase',
+                  'text-[11px] font-medium uppercase',
                   selectedDate === d.value && !closed ? 'text-brand-black/60' : 'text-text-secondary'
                 )}
               >
@@ -259,7 +259,7 @@ export function SlotPicker({
             aria-pressed={selectedDate === customDate}
             onClick={() => selectDate(customDate)}
             className={cn(
-              'flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors',
+              'flex min-h-[62px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors',
               selectedDate === customDate
                 ? 'bg-brand-white text-brand-black'
                 : 'bg-surface text-text-primary'
@@ -267,7 +267,7 @@ export function SlotPicker({
           >
             <span
               className={cn(
-                'text-[10px] font-medium uppercase',
+                'text-[11px] font-medium uppercase',
                 selectedDate === customDate ? 'text-brand-black/60' : 'text-text-secondary'
               )}
             >
@@ -287,11 +287,11 @@ export function SlotPicker({
             setCalMonth({ year: y, month: m - 1 })
             setShowCalendar(true)
           }}
-          className="flex h-[62px] w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] bg-surface text-text-secondary transition-colors hover:text-text-primary"
+          className="flex min-h-[62px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[12px] bg-surface text-text-secondary transition-colors hover:text-text-primary"
           title="Pick another date"
         >
-          <IconCalendar size={19} stroke={1.5} />
-          <span className="text-[9px] font-medium">More</span>
+          <IconCalendar size={19} stroke={1.5} aria-hidden="true" />
+          <span className="text-[11px] font-medium">More</span>
         </button>
       </div>
 
@@ -326,7 +326,7 @@ export function SlotPicker({
                   aria-pressed={value === slot.time}
                   onClick={() => onChange(slot.time)}
                   className={cn(
-                    'rounded-[10px] py-3 font-numeric text-[13px] font-medium transition-colors',
+                    'min-h-11 rounded-[10px] py-3 font-numeric text-[13px] font-medium transition-colors',
                     value === slot.time
                       ? 'bg-brand-white font-bold text-brand-black'
                       : 'bg-surface text-text-primary'
@@ -359,12 +359,13 @@ export function SlotPicker({
                   : { year: c.year, month: c.month - 1 }
               )
             }
-            className="rounded-lg p-1 text-text-secondary hover:text-text-primary"
+            className="-ml-3 flex size-11 items-center justify-center rounded-lg text-text-secondary hover:text-text-primary"
             aria-label="Previous month"
           >
-            <IconChevronLeft size={20} />
+            <IconChevronLeft size={20} aria-hidden="true" />
           </button>
-          <span className="text-sm font-semibold text-text-primary">
+          {/* Said aloud when the arrows change it. */}
+          <span aria-live="polite" className="text-sm font-semibold text-text-primary">
             {MONTH_NAMES[calMonth.month]} {calMonth.year}
           </span>
           <button
@@ -376,16 +377,16 @@ export function SlotPicker({
                   : { year: c.year, month: c.month + 1 }
               )
             }
-            className="rounded-lg p-1 text-text-secondary hover:text-text-primary"
+            className="-mr-3 flex size-11 items-center justify-center rounded-lg text-text-secondary hover:text-text-primary"
             aria-label="Next month"
           >
-            <IconChevronRight size={20} />
+            <IconChevronRight size={20} aria-hidden="true" />
           </button>
         </div>
 
-        <div className="mb-1 grid grid-cols-7 text-center">
+        <div aria-hidden="true" className="mb-1 grid grid-cols-7 text-center">
           {DAY_NAMES.map((d) => (
-            <span key={d} className="text-[10px] font-medium text-text-muted">
+            <span key={d} className="text-[11px] font-medium text-text-muted">
               {d[0]}
             </span>
           ))}
@@ -417,7 +418,7 @@ export function SlotPicker({
                   setShowCalendar(false)
                 }}
                 className={cn(
-                  'flex h-9 items-center justify-center rounded-lg font-numeric text-[13px] font-medium transition-colors',
+                  'flex h-11 items-center justify-center rounded-lg font-numeric text-[13px] font-medium transition-colors',
                   disabled
                     ? 'cursor-not-allowed text-text-muted opacity-30'
                     : selected

@@ -114,7 +114,11 @@ function CompanyLogo({ url, name }: { url?: string | null; name: string }) {
   }
 
   return (
-    <span className="flex size-5 shrink-0 items-center justify-center rounded bg-surface-elevated text-[10px] font-semibold text-text-primary">
+    // A stand-in for a logo beside the garage's name, which says it in full.
+    <span
+      aria-hidden="true"
+      className="flex size-5 shrink-0 items-center justify-center rounded bg-surface-elevated text-[11px] font-semibold text-text-primary"
+    >
       {name.charAt(0).toUpperCase()}
     </span>
   )

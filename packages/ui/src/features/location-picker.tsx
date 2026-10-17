@@ -416,6 +416,7 @@ export function LocationPicker({
           <div className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3">
             <IconSearch size={17} className="shrink-0 text-text-secondary" />
             <input
+              aria-label="Search for area, street or landmark"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search for area, street or landmark"
@@ -506,6 +507,7 @@ export function LocationPicker({
       <div className="flex flex-col gap-1.5">
         <div className="flex gap-2">
           <input
+            aria-label="Google Maps link or coordinates"
             value={linkInput}
             onChange={(e) => setLinkInput(e.target.value)}
             onKeyDown={(e) => {

@@ -79,7 +79,7 @@ export function UpdatesScreen() {
 
   return (
     <AppShell className="pt-2 pb-[calc(2rem+env(safe-area-inset-bottom))]">
-      <div className="flex h-[60px] items-center justify-between">
+      <div className="flex min-h-[60px] items-center justify-between">
         <Link
           href="/home"
           aria-label="Back to Home"

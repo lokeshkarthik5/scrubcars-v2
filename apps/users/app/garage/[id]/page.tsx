@@ -24,8 +24,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
-import { getVendorReviews } from '@repo/core/api/reviews'
-import { useGarage } from '@repo/core/api/hooks/use-vendors'
+import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
 import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { useSavedGarages, useToggleSavedGarage } from '@repo/core/api/hooks/use-favourites'
@@ -65,6 +64,15 @@ import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { SAVE_PARAM, withoutSaveFlag } from '@/lib/saved-garages'
 
 type Tab = 'services' | 'photos' | 'reviews'
+
+const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
+  { key: 'services', label: 'Services' },
+  { key: 'photos', label: 'Photos' },
+  { key: 'reviews', label: 'Reviews' },
+]
+
+// Stable empty, like the two below.
+const NO_REVIEWS: Review[] = []
 
 // Stable empties, so the memos below do not recompute on every render while
 // the garage loads.
@@ -178,7 +186,8 @@ export default function GaragePage({
   const vendor: Vendor | null = garage.data?.vendor ?? null
   const services = garage.data?.services ?? NO_SERVICES
   const packages = garage.data?.packages ?? NO_PACKAGES
-  const [reviews, setReviews] = useState<Review[]>([])
+  // Cached five minutes, so Back to this page shows them at once.
+  const reviews = useVendorReviews(id).data ?? NO_REVIEWS
   const [tab, setTab] = useState<Tab>('services')
   // The At garage / Doorstep / Pickup & drop choice, as made on home or here.
   // Null until one is made; `mode` below is what the garage can actually do
@@ -193,12 +202,6 @@ export default function GaragePage({
   const [selected, setSelected] = useState<string[]>([])
   // The service or package whose details popup is open, if any.
   const [details, setDetails] = useState<Service | ServicePackage | null>(null)
-
-  useEffect(() => {
-    getVendorReviews(id)
-      .then(setReviews)
-      .catch(() => undefined)
-  }, [id])
 
   // Back from signing in to save this garage (?save=1, set by the heart):
   // save it, once, and take the flag out of the URL so a reload or Back does
@@ -378,6 +381,7 @@ export default function GaragePage({
   // "0.0 (0 reviews)" line reads as a bad score, not as a new listing.
   const reviewCount = reviews.length || vendor.reviewCount
   const hasReviews = reviewCount > 0
+  const visibleTabs = TABS.filter((t) => t.key !== 'reviews' || hasReviews)
   const avgRating =
     reviews.length > 0
       ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
@@ -406,24 +410,28 @@ export default function GaragePage({
             alt={vendor.name}
             fill
             priority
-            sizes="428px"
+            // The column is the screen's width up to 428px: a 360px phone
+            // asks for a 360px-wide picture (times its pixel density), not
+            // one for 428.
+            sizes="(max-width: 428px) 100vw, 428px"
             className="object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-elevated to-surface">
-            <IconBuildingStore size={40} className="text-text-muted" />
+            <IconBuildingStore size={40} aria-hidden="true" className="text-text-muted" />
           </div>
         )}
         <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/60 to-transparent" />
+        {/* 44px, like the heart beside it: the disc is the whole target. */}
         <button
           type="button"
           onClick={() => router.back()}
           aria-label="Go back"
-          className="absolute left-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-brand-white backdrop-blur-sm"
+          className="absolute left-3 top-3 flex size-11 items-center justify-center rounded-full bg-black/45 text-brand-white backdrop-blur-sm"
         >
-          <IconArrowLeft size={20} />
+          <IconArrowLeft size={20} aria-hidden="true" />
         </button>
-        <SaveGarageButton vendor={vendor} className="absolute right-4 top-4" />
+        <SaveGarageButton vendor={vendor} className="absolute right-3 top-3" />
         {vendor.logoUrl && (
           <div className="absolute bottom-3 left-4 h-14 w-14 overflow-hidden rounded-[14px] border border-white/70 bg-surface shadow-md">
             <Image
@@ -517,27 +525,37 @@ export default function GaragePage({
         )}
       </div>
 
-      <div className="mt-4 flex border-b border-border px-4" role="tablist" aria-label="Garage sections">
-        {(
-          [
-            { key: 'services', label: 'Services' },
-            { key: 'photos', label: 'Photos' },
-            { key: 'reviews', label: 'Reviews' },
-          ] as const
-        )
-          .filter((t) => t.key !== 'reviews' || hasReviews)
-          .map((t) => (
+      <div
+        className="mt-4 flex border-b border-border px-4"
+        role="tablist"
+        aria-label="Garage sections"
+        // Tabs move with the arrow keys, and only the open one is a Tab stop
+        // (the WAI-ARIA tabs pattern).
+        onKeyDown={(event) => {
+          const forward = event.key === 'ArrowRight'
+          if (!forward && event.key !== 'ArrowLeft') return
+          event.preventDefault()
+          const keys = visibleTabs.map((t) => t.key)
+          const next = keys[(keys.indexOf(tab) + (forward ? 1 : -1) + keys.length) % keys.length]
+          setTab(next)
+          document.getElementById(`garage-tab-${next}`)?.focus()
+        }}
+      >
+        {visibleTabs.map((t) => (
           <button
             key={t.key}
+            id={`garage-tab-${t.key}`}
             type="button"
             role="tab"
             aria-selected={tab === t.key}
+            aria-controls="garage-tab-panel"
+            tabIndex={tab === t.key ? 0 : -1}
             onClick={() => setTab(t.key)}
             // White, not red: with an Add button on every card and Book Now
             // below, a red tab as well pushed this page past the brand's
             // 5–8% budget for red.
             className={cn(
-              'flex-1 border-b-2 py-2.5 text-[13px] font-medium transition-colors',
+              'min-h-11 flex-1 border-b-2 py-2.5 text-[13px] font-medium transition-colors',
               tab === t.key
                 ? 'border-text-primary text-text-primary'
                 : 'border-transparent text-text-secondary'
@@ -548,12 +566,19 @@ export default function GaragePage({
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 px-4 py-4">
+      <div
+        id="garage-tab-panel"
+        role="tabpanel"
+        aria-labelledby={`garage-tab-${tab}`}
+        className="flex flex-col gap-3 px-4 py-4"
+      >
         {tab === 'services' && (
           <>
             <label className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 focus-within:border-text-secondary">
-              <IconSearch size={17} className="text-text-secondary" />
+              <IconSearch size={17} aria-hidden="true" className="text-text-secondary" />
               <input
+                // The placeholder is no name once something is typed.
+                aria-label="Search services"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search services..."
@@ -789,7 +814,7 @@ export default function GaragePage({
                   </div>
                   <div className="flex-1">
                     <p className="text-[13px] font-medium text-text-primary">{review.userName}</p>
-                    <p className="font-numeric text-[10px] font-medium text-text-muted">{review.date}</p>
+                    <p className="font-numeric text-[11px] font-medium text-text-muted">{review.date}</p>
                   </div>
                   <Stars rating={review.rating} size={12} />
                 </div>

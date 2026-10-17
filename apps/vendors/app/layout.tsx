@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
 import { QueryProvider } from '@repo/ui/providers/query-provider'
+import { IosZoomGuard } from '@repo/ui/sc/ios-zoom-guard'
 import { AppProvider } from '@/components/providers/app-provider'
 import { VendorScope } from '@/components/vendor-scope'
 import 'react-toastify/dist/ReactToastify.css'
@@ -32,7 +33,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: capping it at 1 stopped Android users zooming at all.
+  // iOS keeps the cap through IosZoomGuard, which stops Safari zooming into
+  // a focused field and nothing else (iOS ignores it for pinch-zoom).
   // The browser's own chrome in the canvas colour, as in the customer app, so
   // the portal does not sit under a grey address bar on Android.
   themeColor: '#0A0A0B',
@@ -46,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} h-full`}>
       <body className="min-h-full font-sans">
+        <IosZoomGuard />
         {/* Outside AppProvider: the auth gate returns null while it resolves,
             and queries mounted underneath must keep their cache across that. */}
         <QueryProvider>

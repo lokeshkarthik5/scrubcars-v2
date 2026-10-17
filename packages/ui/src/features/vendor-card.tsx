@@ -12,8 +12,8 @@ function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep'
     <span
       className={
         tone === 'garage'
-          ? 'rounded-md bg-success-muted px-2 py-0.5 text-[10px] font-medium text-success'
-          : 'rounded-md bg-surface-elevated px-2 py-0.5 text-[10px] font-medium text-text-secondary'
+          ? 'rounded-md bg-success-muted px-2 py-0.5 text-[11px] font-medium text-success'
+          : 'rounded-md bg-surface-elevated px-2 py-0.5 text-[11px] font-medium text-text-secondary'
       }
     >
       {label}
@@ -74,7 +74,7 @@ export function VendorCard({
               // No vendor photo on file — a neutral placeholder rather than stock
               // imagery, so the card never implies a photo we don't have.
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-elevated to-surface">
-                <IconBuildingStore size={30} className="text-text-muted" />
+                <IconBuildingStore size={30} aria-hidden="true" className="text-text-muted" />
               </div>
             )}
 

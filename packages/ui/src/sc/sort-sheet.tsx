@@ -83,8 +83,13 @@ export function SortSheet({
       <div>
         <div className="flex items-center justify-between border-b border-border px-5 pb-4 pt-1">
           <h2 className="text-[17px] font-semibold text-text-primary">Sort by</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <IconCircleX size={22} className="text-text-secondary" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="-mr-[11px] flex size-11 items-center justify-center"
+          >
+            <IconCircleX size={22} aria-hidden="true" className="text-text-secondary" />
           </button>
         </div>
 

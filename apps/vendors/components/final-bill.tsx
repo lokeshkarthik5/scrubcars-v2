@@ -279,7 +279,8 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
         </div>
 
         {problem && lines.some((line) => line.description || line.amount) && (
-          <p className="mt-2 text-[12px] text-error">{problem}</p>
+          // Polite, not an alert: it changes as the lines are typed.
+          <p role="status" className="mt-2 text-[12px] text-error">{problem}</p>
         )}
 
         <div className="mt-5 flex gap-2">

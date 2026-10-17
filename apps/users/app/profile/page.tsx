@@ -300,7 +300,8 @@ export default function ProfilePage() {
           {user?.avatarUrl ? (
             <Image
               src={user.avatarUrl}
-              alt="Profile photo"
+              // The button around it is named; the picture adds nothing.
+              alt=""
               width={48}
               height={48}
               className="h-12 w-12 rounded-full object-cover"
@@ -327,7 +328,7 @@ export default function ProfilePage() {
               type="button"
               onClick={handleAvatarRemove}
               disabled={avatarBusy}
-              className="mt-1 text-[11px] text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+              className="tap-target mt-1 text-[11px] text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
             >
               Remove photo
             </button>
@@ -354,9 +355,9 @@ export default function ProfilePage() {
             // Both section headers render a button reading "Add", which on its
             // own tells a screen reader nothing about what is being added.
             aria-label="Add vehicle"
-            className="flex items-center gap-1 text-[12px] text-brand-red"
+            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[12px] text-brand-red"
           >
-            <IconPlus size={14} />
+            <IconPlus size={14} aria-hidden="true" />
             Add
           </button>
         </div>
@@ -435,7 +436,7 @@ export default function ProfilePage() {
                     aria-label={`Make ${v.make} ${v.model} the default vehicle`}
                     onClick={() => makeVehicleDefault(v.id)}
                     disabled={promoting === v.id}
-                    className="shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
+                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                   >
                     {promoting === v.id ? 'Setting...' : 'Set default'}
                   </button>
@@ -445,9 +446,11 @@ export default function ProfilePage() {
                   aria-label={`Remove ${v.make} ${v.model}`}
                   onClick={() => removeVehicle(v.id)}
                   disabled={deleting === v.id}
-                  className="shrink-0 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+                  // 44px around the 16px bin, mostly out into the card's
+                  // own padding so the row barely widens.
+                  className="-my-2 -ml-1 -mr-3 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
                 >
-                  <IconTrash size={16} />
+                  <IconTrash size={16} aria-hidden="true" />
                 </button>
               </ScCard>
             ))
@@ -462,9 +465,9 @@ export default function ProfilePage() {
             type="button"
             onClick={() => setShowAddressForm((a) => !a)}
             aria-label="Add address"
-            className="flex items-center gap-1 text-[12px] text-brand-red"
+            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[12px] text-brand-red"
           >
-            <IconPlus size={14} />
+            <IconPlus size={14} aria-hidden="true" />
             Add
           </button>
         </div>
@@ -574,7 +577,7 @@ export default function ProfilePage() {
                     aria-label={`Make ${a.label} the default address`}
                     onClick={() => makeAddressDefault(a.id)}
                     disabled={promoting === a.id}
-                    className="shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
+                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
                   >
                     {promoting === a.id ? 'Setting...' : 'Set default'}
                   </button>
@@ -584,9 +587,11 @@ export default function ProfilePage() {
                   aria-label={`Remove ${a.label} address`}
                   onClick={() => removeAddress(a.id)}
                   disabled={deleting === a.id}
-                  className="shrink-0 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+                  // 44px around the 16px bin, mostly out into the card's
+                  // own padding so the row barely widens.
+                  className="-my-2 -ml-1 -mr-3 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
                 >
-                  <IconTrash size={16} />
+                  <IconTrash size={16} aria-hidden="true" />
                 </button>
               </ScCard>
             ))

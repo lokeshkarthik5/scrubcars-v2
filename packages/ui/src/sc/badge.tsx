@@ -14,7 +14,9 @@ const variants: Record<BadgeVariant, string> = {
   // Vendor and admin only — chiefly a new job waiting for the garage to
   // accept, the one status that asks to be acted on, so the one that keeps
   // brand red. Customer screens never show it.
-  accent: 'bg-accent-muted text-brand-red',
+  // The text is a step lighter than brand red (--color-accent-text): #EF3240
+  // on its own tint is 4.1:1, under AA for text this small.
+  accent: 'bg-accent-muted text-accent-text',
   // A problem, in the amber errors use everywhere — never brand red.
   danger: 'bg-error-muted text-error',
 }
@@ -29,7 +31,8 @@ export function ScBadge({ children, variant = 'muted', className }: ScBadgeProps
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium',
+        // 11px, the app's smallest size for words a customer has to read.
+        'inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium',
         variants[variant],
         className
       )}

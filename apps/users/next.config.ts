@@ -41,6 +41,10 @@ const nextConfig: NextConfig = {
       (process.env.VERCEL_ENV === 'production' ? 'on' : 'off'),
   },
   images: {
+    // AVIF first, WebP where a browser has no AVIF: garage photos are the
+    // heaviest thing on the list and garage pages, and AVIF is about a fifth
+    // smaller than WebP at the same quality.
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',

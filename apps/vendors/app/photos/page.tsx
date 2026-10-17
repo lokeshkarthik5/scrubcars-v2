@@ -233,7 +233,8 @@ export default function VendorPhotosPage() {
               >
                 <Image
                   src={photo.url}
-                  alt="Garage photo"
+                  // Numbered, so a screen reader can tell the photos apart.
+                  alt={`Garage photo ${i + 1}`}
                   fill
                   sizes="(max-width: 428px) 50vw, 200px"
                   className="object-cover"

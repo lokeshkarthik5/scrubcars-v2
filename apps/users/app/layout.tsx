@@ -6,6 +6,7 @@ import { MetaPixel } from '@/components/meta-pixel'
 import { AppProvider } from '@/components/providers/app-provider'
 import { SIGNED_IN_REDIRECT_SCRIPT } from '@/components/providers/signed-in-landing'
 import { QueryProvider } from '@repo/ui/providers/query-provider'
+import { IosZoomGuard } from '@repo/ui/sc/ios-zoom-guard'
 import 'react-toastify/dist/ReactToastify.css'
 import './globals.css'
 
@@ -64,7 +65,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: capping it at 1 stopped Android users zooming at all.
+  // iOS keeps the cap through IosZoomGuard, which stops Safari zooming into
+  // a focused field and nothing else (iOS ignores it for pinch-zoom).
   // The browser's own chrome (Android's address bar) in the app's canvas
   // colour, so the page does not sit under a grey bar. Deliberately no
   // `colorScheme: 'dark'` beside it: a dark page with a light-scheme iframe
@@ -92,6 +95,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full font-sans">
+        <IosZoomGuard />
         <MetaPixel />
         {/* Detlio's own usage events, for the admin's Funnel. No third party. */}
         <Analytics />

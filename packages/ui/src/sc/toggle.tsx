@@ -34,7 +34,8 @@ export function ScToggle<T extends string>({
           // white label. A red fill made a choice look like the Pay button
           // at the bottom of the same screen.
           className={cn(
-            'flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors',
+            // 36px drawn, a 44px touch area (tap-target, globals.css).
+            'tap-target flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors',
             value === opt.value
               ? 'bg-surface-elevated text-text-primary shadow-sm'
               : 'bg-transparent text-text-secondary'

@@ -18,7 +18,7 @@ const STATUS_VARIANT: Record<AdminFinalBill['status'], 'pending' | 'success' | '
 function GatewayId({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
       <div className="flex min-w-0 items-center">
         <span className="truncate font-numeric text-[13px] text-text-primary">{value}</span>
         <CopyButton value={value} label={`Copy ${label} ${value}`} className="-my-2 shrink-0" />
@@ -215,7 +215,7 @@ export function JobPhotosSection({ booking }: { booking: AdminBookingDetail }) {
         const label = stage === 'before' ? 'Before' : 'After'
         return (
           <div key={stage} className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
             <ul className="flex flex-wrap gap-2">
               {ofStage.map((photo, i) => (
                 <li key={photo.id}>

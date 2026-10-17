@@ -159,6 +159,7 @@ export function PhoneLogin({
         tone={backdrop ? 'glass' : 'solid'}
         autoFocus
         enterKeyHint="go"
+        errorId={shownError ? 'phone-login-error' : undefined}
       />
 
       {/* Amber, never red: red on this screen is the Send OTP button. An
@@ -167,7 +168,7 @@ export function PhoneLogin({
           every change, so a countdown in here would interrupt a screen
           reader once a second. The ticking clock lives on the button. */}
       {shownError && (
-        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-error">
+        <p id="phone-login-error" role="alert" className="flex items-start gap-1.5 text-[12px] text-error">
           <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
           {shownError}
         </p>

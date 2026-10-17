@@ -297,6 +297,8 @@ export default function VendorBookingsPage() {
               {tab === 'incoming' && rejectId === b.id && (
                 <div className="rise-in flex flex-col gap-2 border-t border-border pt-3">
                   <ScInput
+                    // A placeholder is no name once something is typed.
+                    aria-label="Reason for rejecting (optional)"
                     placeholder="Reason for rejecting (optional)"
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}

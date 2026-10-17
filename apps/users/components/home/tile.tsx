@@ -35,7 +35,7 @@ export function Tile({
     <Link
       href={href}
       onClick={onClick}
-      className={cn('hub-card press flex h-[164px] min-w-0 flex-col pt-3.5 pr-3.5 pb-[18px] pl-5', className)}
+      className={cn('hub-card press flex min-h-[164px] min-w-0 flex-col pt-3.5 pr-3.5 pb-[18px] pl-5', className)}
     >
       <span className="flex items-center justify-between gap-2">
         <span className="truncate text-[13px] text-dim">{label}</span>

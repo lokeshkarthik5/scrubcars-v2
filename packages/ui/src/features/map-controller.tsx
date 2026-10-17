@@ -3,20 +3,11 @@
 import { useEffect, useRef } from 'react'
 import { useMap } from '@repo/ui/sc/map'
 import { PICKER_ZOOM } from '@repo/core/map'
+import type { MapBounds } from './map-bounds'
 
-export interface MapBounds {
-  minLng: number
-  minLat: number
-  maxLng: number
-  maxLat: number
-}
-
-/** The order PostGIS's ST_MakeEnvelope takes, so nothing reshuffles it later. */
-export function boundsToParam(bounds: MapBounds): string {
-  return [bounds.minLng, bounds.minLat, bounds.maxLng, bounds.maxLat]
-    .map((n) => n.toFixed(5))
-    .join(',')
-}
+// Re-exported for callers that already import them from here. A page that
+// needs only these should import ./map-bounds, which does not load MapLibre.
+export { boundsToParam, type MapBounds } from './map-bounds'
 
 interface MapControllerProps {
   /** Fired when the user taps the map, to move the pin there. */
@@ -93,6 +84,9 @@ export function MapController({
     return () => observer.disconnect()
   }, [map])
 
+  // No reduced-motion branch needed here or for fitBounds below: MapLibre
+  // itself skips the animation (duration 0) when the browser asks for reduced
+  // motion, unless a call marks it `essential`, which none of ours do.
   useEffect(() => {
     if (!map || !flyTo) return
     map.flyTo({

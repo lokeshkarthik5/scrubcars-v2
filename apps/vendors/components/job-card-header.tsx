@@ -13,7 +13,8 @@ export function JobCardHeader({ booking }: { booking: Booking }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold text-text-primary">
+        {/* The full name on hover or long-press when it is cut short. */}
+        <p title={booking.customerName} className="truncate text-[13px] font-semibold text-text-primary">
           {booking.customerName}
         </p>
         <p className="text-[12px] text-text-secondary">{booking.serviceSummary}</p>
