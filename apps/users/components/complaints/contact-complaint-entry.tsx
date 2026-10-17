@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { IconMessageReport } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { useAuthStore } from '@repo/core/stores/auth-store'
+import { track } from '@repo/core/analytics'
 import { COMPLAINT_ACKNOWLEDGE_HOURS } from '@repo/core/complaints'
 import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet'
 
@@ -23,6 +24,11 @@ export function ContactComplaintEntry() {
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
   const [open, setOpen] = useState(false)
+
+  // Someone looking for help, from the Contact page.
+  useEffect(() => {
+    track('help_view', { step: 'contact' })
+  }, [])
 
   return (
     <section

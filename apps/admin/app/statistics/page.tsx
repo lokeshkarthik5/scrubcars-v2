@@ -6,7 +6,8 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { BreakdownTab } from '@/components/statistics/breakdown-tab'
 import { CommissionTab } from '@/components/statistics/commission-tab'
-import { CompareToggle, GarageSelect, PeriodSelect } from '@/components/statistics/filters'
+import { CompareToggle, GarageSelect, ModeSelect, PeriodSelect } from '@/components/statistics/filters'
+import { FunnelTab } from '@/components/statistics/funnel-tab'
 import { OverviewTab } from '@/components/statistics/overview-tab'
 import { isStatsTab, StatsTabs, type StatsTab } from '@/components/statistics/stats-tabs'
 import { todayIst } from '@/lib/bookings'
@@ -14,6 +15,10 @@ import {
   comparedWith,
   comparisonDates,
   DEFAULT_PERIOD,
+  FUNNEL_MODES,
+  FUNNEL_PERIODS,
+  funnelPeriod,
+  isFunnelMode,
   isPeriod,
   monthOptions,
   monthRange,
@@ -22,15 +27,18 @@ import {
 } from '@/lib/statistics'
 
 /**
- * Statistics: bookings, money and garages over a period, in three tabs —
+ * Statistics: bookings, money and garages over a period, in four tabs —
  * Overview (six figures and two charts, with the pilot's own numbers),
- * Breakdown (funnel, garages, service types, busy hours, CSV) and Commission
- * (Detlio's commission and each garage's free 25, reporting only).
+ * Breakdown (funnel, garages, service types, busy hours, CSV), Commission
+ * (Detlio's commission and each garage's free 25, reporting only) and Funnel
+ * (where visits drop off on the way to a booking, from Detlio's own usage
+ * events, and returning customers).
  *
- * Every filter lives in the URL (tab, period, garage, compare, month), so a
- * view can be shared and Back returns to it. One filter row above everything
- * it scopes; the comparison switch only on Overview, the one tab that draws
- * the period before. Commission goes by calendar month.
+ * Every filter lives in the URL (tab, period, garage, compare, month, mode),
+ * so a view can be shared and Back returns to it. One filter row above
+ * everything it scopes; the comparison switch only on Overview, the one tab
+ * that draws the period before. Commission goes by calendar month; the
+ * Funnel by the last 7, 30 or 90 days and a booking type, not a garage.
  */
 function Statistics() {
   const router = useRouter()
@@ -69,6 +77,9 @@ function Statistics() {
   const periodName = PERIODS.find((p) => p.value === period)?.label ?? ''
   const previous = comparedWith(range)
   const monthName = months.find((m) => m.value === month)?.label.split(' ')[0] ?? ''
+  const modeParam = params.get('mode')
+  const mode = isFunnelMode(modeParam) ? modeParam : 'all'
+  const funnelRange = periodRange(funnelPeriod(period), today)
 
   return (
     <>
@@ -86,6 +97,12 @@ function Statistics() {
               options={months}
               onChange={(next) => setParams({ month: next === months[0].value ? '' : next })}
             />
+          ) : tab === 'funnel' ? (
+            <PeriodSelect
+              value={funnelPeriod(period)}
+              options={FUNNEL_PERIODS}
+              onChange={(next) => setParams({ period: next === DEFAULT_PERIOD ? '' : next })}
+            />
           ) : (
             <PeriodSelect
               value={period}
@@ -93,7 +110,15 @@ function Statistics() {
               onChange={(next) => setParams({ period: next === DEFAULT_PERIOD ? '' : next })}
             />
           )}
-          <GarageSelect value={vendorId} onChange={(next) => setParams({ garage: next })} />
+          {tab === 'funnel' ? (
+            <ModeSelect
+              value={mode}
+              options={FUNNEL_MODES}
+              onChange={(next) => setParams({ mode: next === 'all' ? '' : next })}
+            />
+          ) : (
+            <GarageSelect value={vendorId} onChange={(next) => setParams({ garage: next })} />
+          )}
         </div>
         {tab === 'overview' && (
           <CompareToggle
@@ -116,6 +141,7 @@ function Statistics() {
         />
       )}
       {tab === 'breakdown' && <BreakdownTab range={range} vendorId={vendorId} />}
+      {tab === 'funnel' && <FunnelTab range={funnelRange} mode={mode} />}
       {tab === 'commission' && (
         <CommissionTab
           range={monthRange(month, today)}

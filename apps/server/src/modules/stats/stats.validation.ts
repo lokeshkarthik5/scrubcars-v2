@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { BOOKING_MODES } from '../../lib/analytics.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
 import { MAX_RANGE_DAYS, rangeDays } from '../../lib/stats.js'
 
@@ -45,5 +46,18 @@ export const statsOverviewQuerySchema = z
   })
   .superRefine(checkRange)
 
+/**
+ * The Funnel tab: a period and a booking type (or all), never a garage —
+ * it lists garages itself.
+ */
+export const statsFunnelQuerySchema = z
+  .object({
+    from: istDateSchema,
+    to: istDateSchema,
+    mode: z.enum(['all', ...BOOKING_MODES]).default('all'),
+  })
+  .superRefine(checkRange)
+
 export type StatsRangeQuery = z.infer<typeof statsRangeQuerySchema>
+export type StatsFunnelQuery = z.infer<typeof statsFunnelQuerySchema>
 export type StatsOverviewQuery = z.infer<typeof statsOverviewQuerySchema>

@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -13,6 +13,7 @@ import {
   IconStarFilled,
 } from '@tabler/icons-react'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
+import { track } from '@repo/core/analytics'
 import { coarse, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
@@ -104,6 +105,10 @@ function MapBrowseContent() {
   const bookingType =
     searchParams.get('bookingType') === 'doorstep' ? 'doorstep' : 'dropin'
   const category = searchParams.get('category') ?? undefined
+
+  useEffect(() => {
+    track('map_view', { mode: bookingType })
+  }, [bookingType])
 
   /** The viewport the current results were fetched for. */
   const [searchedBounds, setSearchedBounds] = useState<MapBounds | null>(null)

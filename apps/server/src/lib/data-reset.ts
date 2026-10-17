@@ -213,7 +213,7 @@ export interface PlanInput {
    * scope is ticked. Either way every row in scope is in the plan, ticked
    * or not, so the dry run and its list say what happens to each.
    */
-  only?: { chainIds: string[]; checkoutIds: string[]; complaints?: boolean } | null
+  only?: { chainIds: string[]; checkoutIds: string[]; complaints?: boolean; analytics?: boolean } | null
   /** Every booking of every candidate chain, whole chains. */
   bookings: ResetBooking[]
   charges: ResetCharge[]
@@ -233,6 +233,13 @@ export interface PlanInput {
    * when `only.complaints` says so. Absent (other scopes) is none.
    */
   complaints?: ResetComplaint[]
+  /**
+   * How many usage events (0040) were recorded before the cutoff: a cutoff
+   * run's, as one row with one tick, like complaints (`only.analytics`).
+   * Anonymous and tied to nothing, so they are counted, not listed. Absent
+   * (other scopes) is none.
+   */
+  analyticsEvents?: number
   /**
    * Garage payouts that paid any candidate chain, each with every chain it
    * paid (some may be outside the scope). Absent is none.
@@ -630,6 +637,8 @@ export interface ResetCounts {
   receiptNumbers: number
   /** Customer complaints made before the cutoff (0035). */
   complaints: number
+  /** Usage events recorded before the cutoff (0040). */
+  analyticsEvents: number
   /** Garage payouts (0038) that paid only bookings this run deletes. */
   payouts: number
 }
@@ -666,6 +675,13 @@ export interface ResetPlan {
   complaints: { ids: string[]; first: number | null; last: number | null; selected: boolean }
   /** The complaints this run deletes: all of `complaints.ids`, or none. */
   selectedComplaintIds: string[]
+  /**
+   * The usage events recorded before the cutoff (a cutoff run's), and
+   * whether this run deletes them: all or none.
+   */
+  analyticsEvents: { count: number; selected: boolean }
+  /** Delete every usage event recorded before this instant; null deletes none. */
+  analyticsCutoff: Date | null
   /** Garage payouts this run deletes: those that paid only ticked chains. */
   selectedPayoutIds: string[]
   counts: ResetCounts
@@ -827,10 +843,11 @@ export function planReceipts(input: {
 /**
  * The phrase the owner types to confirm: "DELETE 143 BOOKINGS". Bookings are
  * counted as customers think of them, one per chain; a run with only
- * checkouts names those instead, and one with only complaints, those.
+ * checkouts names those instead, one with only complaints, those, and one
+ * with only usage events, those.
  */
 export function confirmPhraseFor(
-  counts: { bookings: number; checkouts: number; complaints?: number },
+  counts: { bookings: number; checkouts: number; complaints?: number; analyticsEvents?: number },
   checkoutsOnly: number
 ): string {
   if (counts.bookings > 0) {
@@ -839,6 +856,10 @@ export function confirmPhraseFor(
   const complaints = counts.complaints ?? 0
   if (checkoutsOnly === 0 && complaints > 0) {
     return `DELETE ${complaints} ${complaints === 1 ? 'COMPLAINT' : 'COMPLAINTS'}`
+  }
+  const events = counts.analyticsEvents ?? 0
+  if (checkoutsOnly === 0 && events > 0) {
+    return `DELETE ${events} ${events === 1 ? 'USAGE EVENT' : 'USAGE EVENTS'}`
   }
   return `DELETE ${checkoutsOnly} ${checkoutsOnly === 1 ? 'CHECKOUT' : 'CHECKOUTS'}`
 }
@@ -961,6 +982,7 @@ export function planReset(input: PlanInput): ResetPlan {
         chains: new Set(input.only.chainIds),
         checkouts: new Set(input.only.checkoutIds),
         complaints: input.only.complaints === true,
+        analytics: input.only.analytics === true,
       }
     : null
   const chargesByBooking = groupBy(input.charges, (charge) => charge.bookingId)
@@ -1129,6 +1151,15 @@ export function planReset(input: PlanInput): ResetPlan {
   const selectedComplaintIds =
     complaintsTicked ? complaintsInScope.map((complaint) => complaint.id) : []
 
+  // ── Usage events recorded before the cutoff ──
+  // Anonymous rows that point at nothing, taken like the complaints: one
+  // tick for all of them, on by default. Counted rather than listed, and
+  // left out of the fingerprint: nothing about them can change what else
+  // the run deletes, and the 180-day clean-up may trim the oldest between
+  // the dry run and the delete.
+  const analyticsInScope = scope.kind === 'before_cutoff' ? (input.analyticsEvents ?? 0) : 0
+  const analyticsTicked = (only ? only.analytics : true) && analyticsInScope > 0
+
   // ── What that deletes ──
   const selectedChainIds = chains.filter((c) => c.selected).map((c) => c.rootId)
   const selectedRoots = new Set(selectedChainIds)
@@ -1160,6 +1191,7 @@ export function planReset(input: PlanInput): ResetPlan {
     checkoutItems: 0,
     receiptNumbers: 0,
     complaints: selectedComplaintIds.length,
+    analyticsEvents: analyticsTicked ? analyticsInScope : 0,
     payouts: selectedPayoutIds.length,
   }
   const bookingsById = new Map(input.bookings.map((b) => [b.id, b]))
@@ -1207,6 +1239,8 @@ export function planReset(input: PlanInput): ResetPlan {
       selected: complaintsTicked && complaintsInScope.length > 0,
     },
     selectedComplaintIds,
+    analyticsEvents: { count: analyticsInScope, selected: analyticsTicked },
+    analyticsCutoff: analyticsTicked && scope.kind === 'before_cutoff' ? scope.cutoff : null,
     selectedPayoutIds,
     counts,
     receiptPlan,
@@ -1242,6 +1276,7 @@ export function countLines(counts: ResetCounts): string[] {
     [counts.checkouts, plural(counts.checkouts, 'checkout', 'checkouts')],
     [counts.receiptNumbers, plural(counts.receiptNumbers, 'receipt number', 'receipt numbers')],
     [counts.complaints, plural(counts.complaints, 'complaint', 'complaints')],
+    [counts.analyticsEvents ?? 0, plural(counts.analyticsEvents ?? 0, 'usage event', 'usage events')],
     [counts.payouts ?? 0, plural(counts.payouts ?? 0, 'garage payout', 'garage payouts')],
   ]
   return lines.filter(([n]) => n > 0).map(([, text]) => text)

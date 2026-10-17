@@ -18,6 +18,50 @@ reconstructing every change in them.
 
 ### Added
 
+- **First-party usage events and the booking funnel** (migration
+  `0040_analytics_events`, additive: `analytics_events`; no data step;
+  `0039` is another branch's and is slotted in before it). No third party,
+  no cookies, no personal data or free text in an event.
+  - `POST /api/v1/events` (`modules/analytics`): a batch of at most 25
+    events from the customer app, as `text/plain` (navigator.sendBeacon),
+    16 KB at most (413 `EVENTS_TOO_LARGE`), strict zod against the
+    allow-list in `lib/analytics.ts` (an unknown event, key or value shape
+    is 400 `INVALID_EVENTS`; the API's own events cannot be sent), 204
+    otherwise. No auth needed: the customer is read from the access cookie
+    when signed in. Per-IP limit `ANALYTICS_RATE_LIMIT` (default 60 a
+    minute) and 20 a minute per visit; left out of the global limiter so it
+    never uses a customer's allowance. Crawlers and headless browsers are
+    dropped (`ANALYTICS_ALLOW_HEADLESS=1` lets Playwright through; refused
+    in production). Insert errors are logged and still answer 204.
+  - Each row: event name (CHECK), random visit id from the tab's
+    sessionStorage, the customer's id only when signed in (ON DELETE SET
+    NULL, so `DELETE /users/me` leaves events anonymous), allow-listed
+    props (`vendorId`, `mode`, `category`, `serviceCount`, `amountBucket`,
+    `source`, `step`, `queryLength`, `cancelledBy`; CHECK), the path
+    without its query string or ids, a device class from the window width,
+    the app version.
+  - `booking_paid` (from `consumeIntent`'s winner and `markBookingPaid`) and
+    `booking_cancelled` (customer cancel, garage decline, admin cancel incl.
+    the Bin) are recorded by the API after the response, never failing the
+    payment or the cancel, with no user id; test-key and E2E payments, and
+    cancelled bookings never paid for, are not recorded.
+  - Kept 180 days: `POST /ops/pending-digest` deletes up to 5,000 older
+    rows a run (id subquery with LIMIT on the `occurred_at` index; its
+    answer gains `analyticsPurged`).
+  - `GET /admin/stats/funnel?from&to&mode` (super-admin): visits → saw a
+    garage → started checkout → picked a slot → pressed Pay → paid, each
+    step's conversion and the biggest drop; categories browsed; the ten
+    garages most viewed with their bookings and view-to-booking rate;
+    devices; returning customers (of those who paid in the period, who
+    booked again within 30 / 60 days; from bookings, Test-marked left out)
+    and new against repeat bookings per week; `eventsSince`, the first
+    event's day. Rules in `lib/analytics.ts` (pure, unit-tested), twinned
+    with `packages/core/src/analytics-events.ts` (parity test).
+  - Start pilot clean: a cutoff run lists the usage events recorded before
+    the cutoff as one row with one tick (`only.analytics`), counted
+    (`counts.analyticsEvents`, "N usage events"), deleted with the run, and
+    not part of the fingerprint.
+
 - **Garage earnings and payouts** (migration `0038_garage_payouts`,
   additive: `vendor_payouts`, `vendor_payout_items` and
   `vendor_payout_accounts`; no data step). Customers pay Detlio; Detlio pays

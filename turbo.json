@@ -16,6 +16,7 @@
       "env": [
         "ADMIN_PASSWORD",
         "ADMIN_USERNAME",
+        "ANALYTICS_RATE_LIMIT",
         "AUTH_RATE_LIMIT",
         "BACKEND_URL",
         "CORS_ORIGIN",
@@ -27,6 +28,7 @@
         "GEO_PROVIDER",
         "GLOBAL_RATE_LIMIT",
         "JWT_SECRET",
+        "NEXT_PUBLIC_ANALYTICS",
         "NEXT_PUBLIC_API_URL",
         "NEXT_PUBLIC_APP_VERSION",
         "NEXT_PUBLIC_HOME_HUB",

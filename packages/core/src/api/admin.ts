@@ -738,6 +738,52 @@ export interface StatsCommission {
   free: Array<{ vendorId: string; name: string; used: number; left: number }>
 }
 
+/** The Funnel tab's booking type: every one, or one. */
+export type StatsFunnelMode = 'all' | 'dropin' | 'doorstep' | 'pickup'
+
+export type StatsFunnelStepKey = 'visits' | 'garage' | 'checkout' | 'slot' | 'pay' | 'paid'
+
+/** GET /admin/stats/funnel — see apps/server/src/lib/analytics.ts. Rates are 0–1, or null. */
+export interface StatsFunnelReport {
+  range: StatsRange
+  mode: StatsFunnelMode
+  /** The IST day of the first usage event ever recorded; null before any. */
+  eventsSince: string | null
+  funnel: {
+    steps: Array<{
+      key: StatsFunnelStepKey
+      label: string
+      count: number
+      ofPrevious: number | null
+      ofVisits: number | null
+    }>
+    biggestDrop: { key: StatsFunnelStepKey; lost: number; ofPrevious: number | null } | null
+  }
+  /** Every category, most visits first. */
+  categories: Array<{ category: ServiceCategory; visits: number }>
+  /** The ten garages most looked at. */
+  garages: Array<{
+    vendorId: string
+    /** Null for a garage deleted since. */
+    name: string | null
+    views: number
+    bookings: number
+    viewToBooking: number | null
+  }>
+  devices: Array<{ device: 'phone' | 'tablet' | 'desktop'; visits: number; share: number | null }>
+  /** From bookings, every booking type. */
+  returning: {
+    customers: number
+    windows: Array<{ days: number; eligible: number; returned: number; rate: number | null }>
+  }
+  weeks: Array<{ start: string; end: string; full: boolean; new: number; repeat: number }>
+}
+
+/** GET /admin/stats/funnel?from&to&mode */
+export async function getStatsFunnel(filters: { from: string; to: string; mode: StatsFunnelMode }) {
+  return apiClient<StatsFunnelReport>('/admin/stats/funnel', { params: { ...filters } })
+}
+
 /** GET /admin/stats/overview?from&to&vendorId&compare */
 export async function getStatsOverview(filters: StatsFilters & { compare: boolean }) {
   return apiClient<StatsOverview>('/admin/stats/overview', {
@@ -1303,6 +1349,8 @@ export interface DataResetCounts {
   receiptNumbers: number
   /** Customer complaints made before the cutoff. */
   complaints: number
+  /** Usage events recorded before the cutoff (absent from older servers). */
+  analyticsEvents?: number
   /** Garage payouts that paid only deleted bookings (absent from older servers). */
   payouts?: number
 }
@@ -1332,6 +1380,11 @@ export interface DataResetPreview {
     lastNumber: string | null
     selected: boolean
   }
+  /**
+   * A cutoff run's usage events recorded before the cutoff, as one row with
+   * one tick. Absent from older servers; `count` 0 in any other scope.
+   */
+  analyticsEvents?: { count: number; selected: boolean }
   counts: DataResetCounts
   /** The counts in plain words, zeros left out. */
   countLines: string[]
@@ -1355,9 +1408,10 @@ export interface DataResetPreviewInput {
   scope: DataResetScope
   /**
    * The ticked rows; leave out on the first look to tick everything
-   * deletable. `complaints` is the one tick for a cutoff run's complaints.
+   * deletable. `complaints` is the one tick for a cutoff run's complaints,
+   * `analytics` for its usage events.
    */
-  only?: { chainIds: string[]; checkoutIds: string[]; complaints?: boolean }
+  only?: { chainIds: string[]; checkoutIds: string[]; complaints?: boolean; analytics?: boolean }
   unknownIds?: string[]
 }
 

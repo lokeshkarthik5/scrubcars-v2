@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import type { AuthVariables } from '../../middleware/auth.middleware.js'
 import { statsService } from './stats.service.js'
-import type { StatsOverviewQuery, StatsRangeQuery } from './stats.validation.js'
+import type { StatsFunnelQuery, StatsOverviewQuery, StatsRangeQuery } from './stats.validation.js'
 
 type StatsContext = Context<{ Variables: AuthVariables }>
 
@@ -17,5 +17,10 @@ export async function getBreakdown(c: StatsContext, query: StatsRangeQuery) {
 
 export async function getCommission(c: StatsContext, query: StatsRangeQuery) {
   const data = await statsService.commission(query)
+  return c.json({ success: true, data })
+}
+
+export async function getFunnel(c: StatsContext, query: StatsFunnelQuery) {
+  const data = await statsService.funnel(query)
   return c.json({ success: true, data })
 }

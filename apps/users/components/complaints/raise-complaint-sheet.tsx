@@ -9,6 +9,7 @@ import { Figures } from '@repo/ui/sc/figures'
 import { ScTextarea } from '@repo/ui/sc/input'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { ApiError } from '@repo/core/api/client'
+import { track } from '@repo/core/analytics'
 import type { CustomerComplaint } from '@repo/core/api/complaints'
 import { useRaiseComplaint } from '@repo/core/api/hooks/use-complaints'
 import {
@@ -88,7 +89,11 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
     raise.mutate(
       { category, message: trimmed, ...(booking ? { bookingId: booking.id } : {}) },
       {
-        onSuccess: setReceived,
+        onSuccess: (complaint) => {
+          setReceived(complaint)
+          // Where it came from, never what it says.
+          track('complaint_submit', { step: booking ? 'booking' : 'contact' })
+        },
         onError: (err) =>
           setError(
             err instanceof ApiError

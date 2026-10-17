@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { track } from '@repo/core/analytics'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { Toast } from '@repo/ui/sc/toast'
 import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
@@ -57,6 +58,12 @@ function HomeHubContent() {
   useEffect(() => {
     if (authUser) void fetchProfile().catch(() => undefined)
   }, [authUser, fetchProfile])
+
+  // Once per signed-in arrival on Home.
+  const signedIn = !!authUser
+  useEffect(() => {
+    if (signedIn) track('home_view')
+  }, [signedIn])
 
   if (!authUser) return null
 

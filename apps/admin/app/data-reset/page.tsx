@@ -28,6 +28,7 @@ import {
   ChainRow,
   CheckingLine,
   CheckoutRow,
+  AnalyticsEventsRow,
   ComplaintsRow,
   ConfirmDelete,
   DryRunSummary,
@@ -118,6 +119,9 @@ function StartPilotClean({
   // remembers the owner took it off, across "Load again", like the rows.
   const [tickedComplaints, setTickedComplaints] = useState(false)
   const [untickedComplaints, setUntickedComplaints] = useState(false)
+  // The same for a cutoff run's usage events.
+  const [tickedAnalytics, setTickedAnalytics] = useState(false)
+  const [untickedAnalytics, setUntickedAnalytics] = useState(false)
 
   const [dryRun, setDryRun] = useState<DataResetPreview | null>(null)
   const [downloaded, setDownloaded] = useState(false)
@@ -140,8 +144,9 @@ function StartPilotClean({
       chainIds: [...tickedChains],
       checkoutIds: [...tickedCheckouts],
       complaints: tickedComplaints,
+      analytics: tickedAnalytics,
     }),
-    [tickedChains, tickedCheckouts, tickedComplaints]
+    [tickedChains, tickedCheckouts, tickedComplaints, tickedAnalytics]
   )
 
   // Each step's heading takes focus as it opens, so a screen reader hears
@@ -186,6 +191,7 @@ function StartPilotClean({
             )
           )
           setTickedComplaints(data.complaints.selected && !untickedComplaints)
+          setTickedAnalytics((data.analyticsEvents?.selected ?? false) && !untickedAnalytics)
         },
         onError: (err) => {
           if (version === scopeVersion.current) {
@@ -240,8 +246,12 @@ function StartPilotClean({
     ? [...listing.chains, ...listing.checkouts].filter((row) => row.kept).length
     : 0
   const hasComplaints = (listing?.complaints.count ?? 0) > 0
+  const hasAnalytics = (listing?.analyticsEvents?.count ?? 0) > 0
   const nothingTicked =
-    tickedChains.size === 0 && tickedCheckouts.size === 0 && !(hasComplaints && tickedComplaints)
+    tickedChains.size === 0 &&
+    tickedCheckouts.size === 0 &&
+    !(hasComplaints && tickedComplaints) &&
+    !(hasAnalytics && tickedAnalytics)
   // Ticked past what one run deletes: the run takes the oldest, the rest wait.
   const overCap =
     Math.max(0, tickedChains.size - maxChainsPerRun) +
@@ -356,6 +366,8 @@ function StartPilotClean({
                       setUntickedCheckouts(new Set())
                       setTickedComplaints(hasComplaints)
                       setUntickedComplaints(false)
+                      setTickedAnalytics(hasAnalytics)
+                      setUntickedAnalytics(false)
                     }}
                     className="min-h-11 px-2 font-medium text-text-primary underline-offset-2 hover:underline"
                   >
@@ -370,6 +382,8 @@ function StartPilotClean({
                       setUntickedCheckouts(new Set(deletable.checkouts))
                       setTickedComplaints(false)
                       setUntickedComplaints(hasComplaints)
+                      setTickedAnalytics(false)
+                      setUntickedAnalytics(hasAnalytics)
                     }}
                     className="min-h-11 px-2 font-medium text-text-primary underline-offset-2 hover:underline"
                   >
@@ -423,6 +437,24 @@ function StartPilotClean({
                       onToggle={(on) => {
                         setTickedComplaints(on)
                         setUntickedComplaints(!on)
+                      }}
+                    />
+                  </ul>
+                </>
+              )}
+
+              {hasAnalytics && listing.analyticsEvents && (
+                <>
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                    Usage events
+                  </p>
+                  <ul aria-label="Usage events in scope" className="flex flex-col gap-1.5">
+                    <AnalyticsEventsRow
+                      events={listing.analyticsEvents}
+                      checked={tickedAnalytics}
+                      onToggle={(on) => {
+                        setTickedAnalytics(on)
+                        setUntickedAnalytics(!on)
                       }}
                     />
                   </ul>

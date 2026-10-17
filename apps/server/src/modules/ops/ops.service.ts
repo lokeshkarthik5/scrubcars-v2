@@ -2,6 +2,7 @@ import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
+import { analyticsService } from '../analytics/analytics.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { opsRepository } from './ops.repository.js'
@@ -29,6 +30,15 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
+    // The usage events' 180-day clean-up rides on it too: a bounded batch a
+    // run, skipped on a dry run, and never allowed to fail the digest.
+    const analyticsPurged = options.dryRun
+      ? 0
+      : await analyticsService.purgeExpired().catch((err: unknown) => {
+          log.error({ err }, 'ops:analytics_purge_failed')
+          return null
+        })
+
     const now = Date.now()
     const since = new Date(now - MISSED_LOOKBACK_MS)
     const [rows, pickups] = await Promise.all([
@@ -53,6 +63,7 @@ export const opsService = {
       posted: false,
       payoutsDue: payouts ? payouts.garages : null,
       autoRefunds,
+      analyticsPurged,
     }
 
     if (!plan.post || options.dryRun) return summary

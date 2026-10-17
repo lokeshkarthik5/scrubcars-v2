@@ -73,6 +73,17 @@ function complaintsCsvRow(preview: DataResetPreview, headers: string[]): string[
   return [headers.map((header) => csvCell(cells[header] ?? null)).join(',')]
 }
 
+/** A cutoff run's usage events, as one line in the same columns. None when there are none. */
+function analyticsCsvRow(preview: DataResetPreview, headers: string[]): string[] {
+  const events = preview.analyticsEvents
+  if (!events || events.count === 0) return []
+  const cells: Record<string, string | number | null> = {
+    What: `Usage events recorded before the cutoff (${events.count})`,
+    Outcome: events.selected ? 'Deleted' : 'Unticked — kept',
+  }
+  return [headers.map((header) => csvCell(cells[header] ?? null)).join(',')]
+}
+
 /**
  * The dry run's list as a CSV: every row in scope, deleted or kept, with
  * what happens to it and why. Kept alongside the database backup, it is the
@@ -87,6 +98,7 @@ export function dataResetCsv(preview: DataResetPreview): string {
       headers.map((header) => csvCell(CHECKOUT_CELLS[header]?.(checkout) ?? null)).join(',')
     ),
     ...complaintsCsvRow(preview, headers),
+    ...analyticsCsvRow(preview, headers),
   ]
   return `${lines.join('\r\n')}\r\n`
 }

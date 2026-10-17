@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { IconBuildingStore, IconCalendar, IconChevronDown } from '@tabler/icons-react'
+import { IconBuildingStore, IconCalendar, IconCar, IconChevronDown } from '@tabler/icons-react'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { cn } from '@repo/core/utils'
@@ -105,6 +105,27 @@ export function GarageSelect({
       {sorted.map((vendor) => (
         <option key={vendor.id} value={vendor.id}>
           {vendor.businessName}
+        </option>
+      ))}
+    </IconSelect>
+  )
+}
+
+/** The Funnel's booking type: all, or one. */
+export function ModeSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string
+  options: ReadonlyArray<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  return (
+    <IconSelect icon={<IconCar size={16} stroke={1.5} />} label="Booking type" value={value} onChange={onChange}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
         </option>
       ))}
     </IconSelect>

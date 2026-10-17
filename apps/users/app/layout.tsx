@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
+import { Analytics } from '@/components/analytics'
 import { MetaPixel } from '@/components/meta-pixel'
 import { AppProvider } from '@/components/providers/app-provider'
 import { SIGNED_IN_REDIRECT_SCRIPT } from '@/components/providers/signed-in-landing'
@@ -92,6 +93,8 @@ export default function RootLayout({
       </head>
       <body className="min-h-full font-sans">
         <MetaPixel />
+        {/* Detlio's own usage events, for the admin's Funnel. No third party. */}
+        <Analytics />
         {/* Outside AppProvider: the auth gate returns null while it resolves,
             and queries mounted underneath must keep their cache across that. */}
         <QueryProvider>

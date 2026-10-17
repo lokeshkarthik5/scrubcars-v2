@@ -278,3 +278,79 @@ export function CollectedChart({
     </ResponsiveContainer>
   )
 }
+
+interface NewRepeatPoint {
+  label: string
+  start: string
+  end: string
+  full: boolean
+  new: number
+  repeat: number
+}
+
+/**
+ * Paid bookings per week, a customer's first ever (quiet) under the ones by
+ * customers coming back (light), stacked. A week the period only partly
+ * covers keeps its colours: its total says what it is, and the tooltip its
+ * dates.
+ */
+export function NewRepeatChart({
+  weeks,
+}: {
+  weeks: Array<{ start: string; end: string; full: boolean; new: number; repeat: number }>
+}) {
+  const data: NewRepeatPoint[] = weeks.map((week) => ({ ...week, label: dayLabel(week.start) }))
+  const top = niceMax(Math.max(0, ...data.map((d) => d.new + d.repeat)))
+  const crowded = data.length > LABEL_EVERY_BAR_UP_TO
+
+  return (
+    <ResponsiveContainer width="100%" height={160}>
+      <BarChart data={data} margin={{ top: 10, right: 4, bottom: 0, left: -8 }} accessibilityLayer={false}>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis
+          dataKey="label"
+          ticks={crowded ? spreadTicks(data.map((d) => d.label)) : undefined}
+          interval={0}
+          tickLine={false}
+          axisLine={{ stroke: BASELINE }}
+          tick={{ fill: MUTED, fontSize: 10.5, fontFamily: TEXT_FONT }}
+          tickMargin={8}
+        />
+        <YAxis
+          domain={[0, top]}
+          ticks={[0, top / 2, top]}
+          allowDecimals={false}
+          width={36}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fill: MUTED, fontSize: 10, fontFamily: NUMERIC_FONT }}
+        />
+        <Tooltip
+          cursor={{ fill: 'rgba(255, 255, 255, 0.04)' }}
+          content={({ active, payload }) => {
+            const week = (payload?.[0]?.payload ?? null) as NewRepeatPoint | null
+            if (!active || !week) return null
+            return (
+              <TooltipCard
+                title={rangeLabel({ from: week.start, to: week.end })}
+                lines={[
+                  ['Returning customers', String(week.repeat)],
+                  ['First booking', String(week.new)],
+                ]}
+              />
+            )
+          }}
+        />
+        <Bar dataKey="new" stackId="bookings" fill={PREVIOUS} maxBarSize={24} isAnimationActive={false} />
+        <Bar
+          dataKey="repeat"
+          stackId="bookings"
+          fill={INK}
+          maxBarSize={24}
+          radius={[4, 4, 0, 0]}
+          isAnimationActive={false}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}

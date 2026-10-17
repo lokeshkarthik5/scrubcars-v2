@@ -39,7 +39,26 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
   }
 )
 
-export const requireCustomer = createMiddleware<{ Variables: AuthVariables }>(
+/**
+ * The session when there is one, and nothing when there is not: for a route
+ * open to everyone that only notes who is signed in (POST /events). Never
+ * refuses; a missing, expired or forged token is the same as none.
+ */
+export const optionalAuthMiddleware = createMiddleware<{ Variables: Partial<AuthVariables> }>(
+  async (c, next) => {
+    const token = getCookie(c, 'access_token')
+    if (token) {
+      try {
+        c.set('auth', await verifyAccessToken(token))
+      } catch {
+        // Treated as signed out.
+      }
+    }
+    await next()
+  }
+)
+
+export const requireCustomer =createMiddleware<{ Variables: AuthVariables }>(
   async (c, next) => {
     const auth = c.get('auth')
 

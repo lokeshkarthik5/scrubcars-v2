@@ -42,6 +42,7 @@ import {
   toJobPhotoView,
   type JobPhotoStage,
 } from '../../lib/job-records.js'
+import { analyticsService } from '../analytics/analytics.service.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { isInBin } from '../vendors/vendors.predicates.js'
@@ -1481,6 +1482,7 @@ export const bookingsService = {
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     alertOps({ kind: 'customer_cancelled', booking: updated!, reason })
+    analyticsService.bookingCancelled(bookingId, 'customer')
     // Cancelled in the allowed time (the cutoff above): a paid one is
     // refunded at once when AUTO_REFUNDS is on.
     if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
@@ -1751,6 +1753,7 @@ export const bookingsService = {
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     alertOps({ kind: 'garage_declined', booking: updated!, reason })
+    analyticsService.bookingCancelled(bookingId, 'garage')
     // Declined by the garage: a paid one is refunded at once when
     // AUTO_REFUNDS is on.
     if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
