@@ -252,7 +252,7 @@ export const CUSTOMERS = {
    * own customer, at a garage nobody else books, so a reset run touches
    * nothing another spec reads.
    */
-  dataReset: { id: id(150), phone: '9000000050', name: 'Reset Ramesh', vehicleId: id(760) },
+  dataReset: { id: id(152), phone: '9000000052', name: 'Reset Ramesh', vehicleId: id(760) },
   /**
    * Owns the test-data reset screens' bookings (BOOKINGS.resetUi*), deleted
    * from a booking's page and from Start pilot clean.
@@ -388,7 +388,7 @@ export const VENDORS = {
    * The test-data reset's garage. Not verified, so it is in no customer
    * list; every booking on it belongs to the reset specs, which delete them.
    */
-  reset: { id: id(313), name: 'Reset Test Garage' },
+  reset: { id: id(317), name: 'Reset Test Garage' },
   /**
    * Doorstep only, with no travel radius and no drawn area: it covers the
    * default 10 km from its pin (lib/doorstep.ts). Pinned in Puducherry, far
@@ -476,7 +476,7 @@ export const SERVICES = {
   /** On HOME_PROMO, priced on inspection: CUSTOMERS.homeBill's billed job. */
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
   /** On RESET: every reset-spec booking is one ₹499 wash. */
-  resetWash: { id: id(419), name: 'Reset Wash', price: '499.00', durationMins: 30 },
+  resetWash: { id: id(425), name: 'Reset Wash', price: '499.00', durationMins: 30 },
   /** On UNSET_RADIUS, a doorstep wash on its half-hour grid. */
   unsetRadiusWash: { id: id(490), name: 'Reach Doorstep Wash', price: '550.00', durationMins: 30 },
   /** On ADMIN_SERVICES, inside adminPackage: hiding it must be refused. */

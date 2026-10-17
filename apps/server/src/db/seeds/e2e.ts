@@ -1252,7 +1252,7 @@ async function seedDataResetRows() {
   const garage = VENDORS.reset.id
   await db.insert(vendors).values({
     id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.reset.name,
-    phone: '9000003400', address: '1, Reset Road, Guindy', city: 'Chennai', pincode: '600032',
+    phone: '9000003800', address: '1, Reset Road, Guindy', city: 'Chennai', pincode: '600032',
     lat: ORIGIN.lat - 0.55, lng: ORIGIN.lng - 0.15, geoSource: 'map_pin', geoConfirmedAt: now,
     vehicleTypes: ['hatchback', 'sedan', 'suv'],
     // Not verified: in no list a customer sees.
