@@ -23,6 +23,8 @@ export const CLIENT_EVENTS = [
   'review_submit',
   'complaint_submit',
   'help_view',
+  'favourite_add',
+  'favourite_remove',
 ] as const
 
 export type ClientEventName = (typeof CLIENT_EVENTS)[number]
@@ -80,6 +82,8 @@ export interface EventProps {
   review_submit: { vendorId?: string }
   complaint_submit: { step?: (typeof EVENT_STEPS)[number] }
   help_view: { step?: (typeof EVENT_STEPS)[number] }
+  favourite_add: { vendorId: string }
+  favourite_remove: { vendorId: string }
 }
 
 /** The keys each event may carry; the server refuses any other. */
@@ -98,6 +102,8 @@ export const EVENT_PROPS: { [K in ClientEventName]: ReadonlyArray<keyof EventPro
   review_submit: ['vendorId'],
   complaint_submit: ['step'],
   help_view: ['step'],
+  favourite_add: ['vendorId'],
+  favourite_remove: ['vendorId'],
 }
 
 /** The most events one request carries (the server refuses more). */

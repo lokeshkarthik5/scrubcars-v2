@@ -44,6 +44,8 @@ export const CLIENT_EVENTS = [
   'review_submit',
   'complaint_submit',
   'help_view',
+  'favourite_add',
+  'favourite_remove',
 ] as const
 
 /**
@@ -124,6 +126,8 @@ export const EVENT_PROPS: Record<AnalyticsEventName, readonly PropKey[]> = {
   review_submit: ['vendorId'],
   complaint_submit: ['step'],
   help_view: ['step'],
+  favourite_add: ['vendorId'],
+  favourite_remove: ['vendorId'],
   booking_paid: ['vendorId', 'mode', 'serviceCount', 'amountBucket'],
   booking_cancelled: ['vendorId', 'mode', 'cancelledBy'],
 }

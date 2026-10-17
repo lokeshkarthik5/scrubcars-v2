@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS "analytics_events" (
     "name" IN ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view',
                'garage_view', 'service_add', 'checkout_start', 'slot_select',
                'address_select', 'pay_click', 'booking_paid', 'booking_cancelled',
-               'review_submit', 'complaint_submit', 'help_view')
+               'review_submit', 'complaint_submit', 'help_view',
+               'favourite_add', 'favourite_remove')
   ),
   CONSTRAINT "analytics_events_device_check" CHECK (
     "device" IS NULL OR "device" IN ('phone', 'tablet', 'desktop')
