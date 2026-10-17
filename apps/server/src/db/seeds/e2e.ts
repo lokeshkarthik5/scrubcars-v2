@@ -62,10 +62,15 @@ import {
   NOTICES,
   ORIGIN,
   OTP_LIMITED_CUSTOMER,
+  PICKUP_HOME,
+  PICKUP_PIN,
   REVIEWS,
   SERVICES,
   STAFF,
   STATS,
+  UNSET_RADIUS_COVERED,
+  UNSET_RADIUS_OUTSIDE,
+  UNSET_RADIUS_PIN,
   VEHICLES,
   ADDRESSES,
   VENDORS,
@@ -1247,6 +1252,50 @@ async function seedHomeHubRows() {
   })
 }
 
+/**
+ * The listing spec's doorstep fixture (specs/users/listing-radius.spec.ts): a
+ * doorstep-only garage that left its travel radius empty, so it covers the
+ * default 10 km, and a customer with one address inside that and one outside.
+ * Far from ORIGIN and taking no drop-ins, so no other spec's list sees it.
+ */
+async function seedDoorstepReachRows() {
+  const garage = VENDORS.unsetRadius.id
+
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.unsetRadius.name,
+    phone: '9000005100', address: '1, Beach Road, White Town', city: 'Puducherry',
+    pincode: '605001', lat: UNSET_RADIUS_PIN.lat, lng: UNSET_RADIUS_PIN.lng,
+    geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    // No doorstepRadiusKm and no drawn area: the default is the point.
+    isVerified: true, doorstepEnabled: true, dropinEnabled: false,
+    slotIntervalMins: 30, status: 'active', bays: 5,
+    notes: VENDORS.unsetRadius.notes,
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.unsetRadiusWash.id, vendorId: garage, name: SERVICES.unsetRadiusWash.name,
+    category: 'car_wash', pricingType: 'flat', price: SERVICES.unsetRadiusWash.price,
+    durationMins: SERVICES.unsetRadiusWash.durationMins, isActive: true,
+  })
+
+  const customer = CUSTOMERS.doorstepReach
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Hyundai', model: 'Venue', color: 'Black',
+    licensePlate: 'PY01RR0001', vehicleType: 'hatchback', isDefault: true,
+  })
+  await db.insert(userAddresses).values([
+    { id: ADDRESSES.reachCovered, userId: customer.id, label: 'Home',
+      address: '3, Lake Road, Kalapet', city: 'Puducherry',
+      lat: UNSET_RADIUS_COVERED.lat, lng: UNSET_RADIUS_COVERED.lng, geoSource: 'map_pin',
+      isDefault: true },
+    { id: ADDRESSES.reachOutside, userId: customer.id, label: 'Office',
+      address: '8, ECR, Marakkanam Road', city: 'Puducherry',
+      lat: UNSET_RADIUS_OUTSIDE.lat, lng: UNSET_RADIUS_OUTSIDE.lng, geoSource: 'map_pin',
+      isDefault: false },
+  ])
+}
+
 // ─── admin fixtures ─────────────────────────────────────────────────────────
 
 /**
@@ -1900,6 +1949,48 @@ async function seedPayoutRows() {
     payment: { status: 'paid', txnId: 'pay_e2e_payout_upcoming', paidAt: daysAgo(2), gatewayMode: 'fake' } })
 }
 
+// ─── pickup & drop ──────────────────────────────────────────────────────────
+
+/**
+ * Pickup & drop (0037): VENDORS.pickup, on with the responsibility terms on
+ * file (pickup 'yes' alone is not on), collecting within 8 km of PICKUP_PIN;
+ * and CUSTOMERS.pickup, whose one car and pinned default address
+ * (ADDRESSES.pickupHome, ~1.7 km away) are what a pickup booking needs.
+ * After the people it names, like every garage seeded on its own.
+ */
+async function seedPickupRows() {
+  const garage = VENDORS.pickup.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.pickupOwner.id, businessName: VENDORS.pickup.name,
+    phone: '9000004800', address: '1, Pickup Road, Kelambakkam', city: 'Chennai', pincode: '603103',
+    lat: PICKUP_PIN.lat, lng: PICKUP_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    pickup: 'yes', pickupRadiusKm: 8,
+    pickupTermsAcceptedAt: daysAgo(1), pickupTermsAcceptedBy: 'admin: E2E seed',
+    slotIntervalMins: 30, status: 'active', bays: 5,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.pickupOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.pickupWash.id, vendorId: garage, name: SERVICES.pickupWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.pickupWash.price, durationMins: SERVICES.pickupWash.durationMins, isActive: true,
+  })
+
+  await db.insert(userVehicles).values({
+    id: CUSTOMERS.pickup.vehicleId, userId: CUSTOMERS.pickup.id, make: 'Tata', model: 'Altroz',
+    color: 'Black', licensePlate: 'TN24PD0001', vehicleType: 'hatchback', isDefault: true,
+  })
+  await db.insert(userAddresses).values({
+    id: ADDRESSES.pickupHome, userId: CUSTOMERS.pickup.id, label: PICKUP_HOME.label,
+    address: PICKUP_HOME.address, city: 'Chennai',
+    lat: PICKUP_HOME.lat, lng: PICKUP_HOME.lng, geoSource: 'map_pin', isDefault: true,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1919,6 +2010,8 @@ async function main() {
   await exhaustDiscounts()
   console.log('[e2e-seed] home hub…')
   await seedHomeHubRows()
+  console.log('[e2e-seed] doorstep reach…')
+  await seedDoorstepReachRows()
   console.log('[e2e-seed] admin fixtures…')
   await seedAdminFixtureRows()
   console.log('[e2e-seed] test-data reset…')
@@ -1933,6 +2026,8 @@ async function main() {
   await seedStatsRows()
   console.log('[e2e-seed] payouts…')
   await seedPayoutRows()
+  console.log('[e2e-seed] pickup & drop…')
+  await seedPickupRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

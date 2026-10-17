@@ -2,7 +2,8 @@
  * Direct database access for tests.
  *
  * Used for three things only:
- *   - reading the OTP a login just wrote, since there is no test inbox
+ *   - setting the OTP a login just wrote to a known code, since there is no
+ *     test inbox and the row holds only a hash (see latestOtp)
  *   - forgetting a phone's earlier codes, so a spec may send it another (see
  *     forgetOtps)
  *   - asserting persisted state the UI does not show (payment rows, redemption
@@ -12,7 +13,9 @@
  * through the UI or the API, because a row inserted here would not prove the
  * product can produce it.
  */
+import { createHash } from 'node:crypto'
 import postgres from 'postgres'
+import { deriveOtpKey, isPlainOtpRow, otpDigest } from '../../server/src/lib/otp'
 
 const url = process.env.DATABASE_URL
 
@@ -29,14 +32,25 @@ export const sql = postgres(url, {
 })
 
 /**
- * The most recent unexpired OTP for a phone.
+ * A code that will open the most recent unexpired OTP row for a phone.
  *
  * Deliberately not the BYPASS_PHONES shortcut in auth.service.ts: those are
  * three real production numbers, and a suite that depends on a production
  * bypass staying in place is a suite that breaks when someone rightly removes
- * it. Reading the row exercises the genuine flow and works for any number.
+ * it. Going through the row exercises the genuine verify path (the hash
+ * compare, the attempt counter) and works for any number.
+ *
+ * The row holds a keyed hash of the code, not the code, so the code the API
+ * texted cannot be read back. Instead the row is given the hash of a code
+ * picked here, with the key the API derives from the same JWT_SECRET
+ * (.env.e2e). The code is worked out from the row's id, so a second call for
+ * the same row writes the same hash and returns the same code.
  */
 export async function latestOtp(phone: string, timeoutMs = 5000): Promise<string> {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET is not set — playwright.config.ts loads .env.e2e')
+  }
   const deadline = Date.now() + timeoutMs
 
   // Polled, not read once. The row is written by a request the browser fires,
@@ -44,8 +58,8 @@ export async function latestOtp(phone: string, timeoutMs = 5000): Promise<string
   // and for an unrecognised number the client makes *two* calls, trying
   // `login` first and falling back to `register` on the 404.
   for (;;) {
-    const rows = await sql<{ otp_code: string }[]>`
-      select otp_code
+    const rows = await sql<{ id: string; purpose: string; otp_code: string }[]>`
+      select id, purpose, otp_code
         from otp_verifications
        where phone = ${phone}
          and verified = false
@@ -54,7 +68,18 @@ export async function latestOtp(phone: string, timeoutMs = 5000): Promise<string
        limit 1
     `
 
-    if (rows.length > 0) return rows[0].otp_code
+    if (rows.length > 0) {
+      const row = rows[0]
+      if (isPlainOtpRow(row.otp_code)) return row.otp_code
+
+      const code = String(createHash('sha256').update(row.id).digest().readUInt32BE(0) % 1_000_000).padStart(6, '0')
+      await sql`
+        update otp_verifications
+           set otp_code = ${otpDigest(deriveOtpKey(secret), code, phone, row.purpose)}
+         where id = ${row.id}
+      `
+      return code
+    }
 
     if (Date.now() > deadline) {
       throw new Error(`No pending OTP for ${phone} after ${timeoutMs}ms. Was /auth/otp/send called?`)

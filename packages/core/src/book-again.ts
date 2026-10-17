@@ -1,6 +1,6 @@
 import { bookingTypeParam, resolveBookingType } from '@repo/core/booking-types'
 import { bookingListTab } from '@repo/core/my-bookings'
-import type { Booking, BookingType, Vendor } from '@repo/core/types'
+import type { Address, Booking, BookingType, Vendor } from '@repo/core/types'
 
 /**
  * Whether a booking's page offers "Book again": once it is over (the Past
@@ -24,13 +24,41 @@ export function canBookAgain(booking: Pick<Booking, 'status' | 'moved'>): boolea
  * customer can pick.
  */
 export function bookAgainPath(
-  booking: Pick<Booking, 'vendorId' | 'bookingType' | 'items'>
+  booking: Pick<Booking, 'vendorId' | 'bookingType' | 'items'>,
+  /**
+   * The saved address the old booking went to, when the customer still has
+   * it (matchSavedAddress): doorstep and pickup & drop open on it rather than
+   * on the default address.
+   */
+  addressId?: string | null
 ): string {
   return bookAgainPathFor({
     vendorId: booking.vendorId,
     bookingType: booking.bookingType,
     serviceIds: booking.items.map((item) => item.serviceId),
+    addressId,
   })
+}
+
+/**
+ * Which of the customer's saved addresses a doorstep or pickup & drop
+ * booking went to. The booking keeps a snapshot (the text and the pin), not
+ * the address's id, so this matches on the pin first, then on the text; null
+ * when none matches any more (edited or deleted since) and checkout falls
+ * back to the default address. Drop-in has no address: always null.
+ */
+export function matchSavedAddress(
+  booking: Pick<Booking, 'bookingType' | 'jobLocation'>,
+  addresses: ReadonlyArray<Pick<Address, 'id' | 'address' | 'lat' | 'lng'>>
+): string | null {
+  const location = booking.jobLocation
+  if (booking.bookingType === 'dropin' || !location) return null
+  const near = (a: number | null | undefined, b: number | null | undefined) =>
+    a != null && b != null && Math.abs(a - b) < 1e-6
+  const byPin = addresses.find((saved) => near(saved.lat, location.lat) && near(saved.lng, location.lng))
+  if (byPin) return byPin.id
+  const text = location.address.trim().toLowerCase()
+  return addresses.find((saved) => saved.address.trim().toLowerCase() === text)?.id ?? null
 }
 
 /**
@@ -41,6 +69,8 @@ export function bookAgainPathFor(job: {
   vendorId: string
   bookingType: BookingType
   serviceIds: string[]
+  /** Doorstep and pickup & drop only; see bookAgainPath. */
+  addressId?: string | null
 }): string {
   const ids = [...new Set(job.serviceIds.filter(Boolean))]
   const mode = bookingTypeParam(job.bookingType)
@@ -49,7 +79,9 @@ export function bookAgainPathFor(job: {
   if (ids.length === 0) {
     return `/garage/${job.vendorId}${modeQuery ? `?${modeQuery}` : ''}`
   }
-  return `/book/${job.vendorId}?service=${ids.join(',')}${modeQuery ? `&${modeQuery}` : ''}`
+  const address =
+    job.addressId && job.bookingType !== 'dropin' ? `&address=${encodeURIComponent(job.addressId)}` : ''
+  return `/book/${job.vendorId}?service=${ids.join(',')}${modeQuery ? `&${modeQuery}` : ''}${address}`
 }
 
 /**
@@ -100,7 +132,7 @@ export function pickRequestedServices<T extends { id: string }>(
  */
 export function unofferedMode(
   asked: BookingType | null,
-  vendor: Pick<Vendor, 'dropinEnabled' | 'doorstepEnabled'> | null
+  vendor: (Pick<Vendor, 'dropinEnabled' | 'doorstepEnabled'> & Partial<Pick<Vendor, 'pickupEnabled'>>) | null
 ): BookingType | null {
   if (!asked || !vendor) return null
   return resolveBookingType(asked, vendor) === asked ? null : asked

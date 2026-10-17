@@ -18,6 +18,7 @@ import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
 import { adminStatsRoutes } from '../stats/stats.routes.js'
 import { adminPayoutRoutes } from '../payouts/payouts.routes.js'
+import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
   addMemberSchema,
   updateMemberSchema,
@@ -372,7 +373,11 @@ adminRoutes.route('/notices', adminNoticeRoutes)
 // Nested here for the same cookie reason as discounts.
 adminRoutes.route('/complaints', adminComplaintRoutes)
 
-// AI helpers: GET /ai/config (describe and pictures) and POST
+// Add garage's import from a poster, photo, PDF or Tally file, and the
+// owner-phone lookup. Nested here for the same cookie reason as discounts.
+adminRoutes.route('/vendor-imports', adminVendorImportRoutes)
+
+// AI helpers: GET /ai/config (describe, pictures and import) and POST
 // /services/describe. Mounted at the root rather than under a prefix because
 // the describe route sits with the other /services ones; it has no
 // :serviceId, so it never meets the image routes.

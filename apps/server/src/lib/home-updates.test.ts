@@ -105,6 +105,70 @@ describe('each step of a booking is a row', () => {
   })
 })
 
+describe('pickup & drop', () => {
+  const steps = {
+    pickedUpAt: new Date('2026-10-10T04:40:00Z'),
+    atGarageAt: new Date('2026-10-10T05:00:00Z'),
+    outForDeliveryAt: new Date('2026-10-10T07:00:00Z'),
+    deliveredAt: new Date('2026-10-10T07:30:00Z'),
+  }
+
+  test('each handover step is a row, in its place in the job', () => {
+    const items = feed([
+      booking({
+        bookingType: 'pickup',
+        status: 'completed',
+        acceptedAt: new Date('2026-10-08T05:00:00Z'),
+        startedAt: new Date('2026-10-10T05:10:00Z'),
+        completedAt: steps.deliveredAt,
+        pickup: steps,
+      }),
+    ])
+    expect(kinds(items)).toEqual([
+      'completed',
+      'out_for_delivery',
+      'started',
+      'at_garage',
+      'picked_up',
+      'reminder',
+      'accepted',
+    ])
+    expect(items.find((i) => i.kind === 'picked_up')).toMatchObject({
+      title: 'Next Level collected your car',
+      body: 'Express Wash',
+      bookingId: 'b1',
+    })
+    expect(items.find((i) => i.kind === 'at_garage')).toMatchObject({ title: 'Your car is at Next Level' })
+    expect(items.find((i) => i.kind === 'out_for_delivery')).toMatchObject({
+      title: 'Your car is on its way back',
+      body: 'Next Level',
+    })
+    // Delivered completes the job: said once, in the customer's words.
+    expect(items.find((i) => i.kind === 'completed')).toMatchObject({ title: 'Your car is back' })
+  })
+
+  test('a step not reached is not a row', () => {
+    const items = feed([
+      booking({
+        bookingType: 'pickup',
+        status: 'confirmed',
+        scheduledAt: ahead(HOUR),
+        createdAt: ago(DAY),
+        acceptedAt: ago(DAY - HOUR),
+        pickup: { pickedUpAt: ago(10 * 60_000), atGarageAt: null, outForDeliveryAt: null, deliveredAt: null },
+      }),
+    ])
+    expect(kinds(items)).toContain('picked_up')
+    expect(kinds(items)).not.toContain('at_garage')
+    expect(kinds(items)).not.toContain('out_for_delivery')
+  })
+
+  test('only a pickup job has handover rows, whatever a row carries', () => {
+    const items = feed([booking({ bookingType: 'doorstep', pickup: steps })])
+    expect(kinds(items)).not.toContain('picked_up')
+  })
+})
+
 describe('the reminder', () => {
   test('is dated 18:00 IST the day before the slot', () => {
     expect(reminderTimeFor(new Date('2026-10-10T04:30:00Z')).toISOString()).toBe('2026-10-09T12:30:00.000Z')

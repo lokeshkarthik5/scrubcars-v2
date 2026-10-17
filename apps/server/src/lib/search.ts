@@ -15,7 +15,12 @@
  * is escaped too.
  */
 export function containsPattern(text: string): string {
-  return `%${text.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
+  return `%${escapeLike(text)}%`
+}
+
+/** `text` with LIKE's wildcards and escape character made literal. */
+export function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (ch) => `\\${ch}`)
 }
 
 /** What a public garage search needs to know about one garage. */

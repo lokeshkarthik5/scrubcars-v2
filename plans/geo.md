@@ -138,8 +138,9 @@ left as questions:
    it never gets a guessed coordinate. §7.
 4. **Customer addresses re-prompt for a pin.** No users yet, so no migration
    subtlety needed. §7.
-5. **Radius: 10 km drop-in with an auto-widen ladder; doorstep uses the
-   *vendor's* radius, not the customer's.** §8.
+5. **Radius: every garage within 50 km, nearest first (owner, 2026-10-16;
+   was 10 km with an auto-widen ladder); doorstep uses the *vendor's* radius,
+   10 km when it left it empty.** §8.
 6. **Airbnb-style split list/map view is the target.** It changes one API
    decision now (bbox), even though the view itself ships later. §8, §9.
 
@@ -834,7 +835,7 @@ So `GET /vendors` accepts **either** origin shape, never both:
 | Param | Type | Notes |
 |---|---|---|
 | `lat`, `lng` | float, both-or-neither | Radius mode. Customer origin |
-| `radiusKm` | float, default 10, max 50 | Radius mode only |
+| `radiusKm` | float, default 50 (`LIST_RADIUS_KM`), max 50 | Radius mode only; ignored with `q` |
 | `bbox` | `minLng,minLat,maxLng,maxLat` | Map mode. Mutually exclusive with `radiusKm` |
 | `sort` | `distance \| rating \| price_asc \| price_desc \| relevance` | `distance` default when an origin is known, else `rating` |
 | `limit`, `cursor` | pagination | Unbounded today |
@@ -852,29 +853,55 @@ AND v.geo && ST_MakeEnvelope($minLng, $minLat, $maxLng, $maxLat, 4326)::geograph
 
 Both hit the same GiST index. `ORDER BY v.geo <-> $point LIMIT n` is unchanged.
 
-### Radius: 10 km, laddered — and doorstep doesn't use it at all
+### Radius: every garage within 50 km — and doorstep doesn't use it at all
 
-**Drop-in default: 10 km, not 15.** Nobody drives across Chennai for a car
-wash; a 15 km list is padded with results the customer will never pick. Ladder
-on empty results — **10 → 25 → 50 km** — and say so in the UI: *"No garages
-within 10 km. Showing within 25 km."* Widen visibly, never silently: a silent
-widen makes a far-away garage look nearby, which is precisely the trust you're
-trying to build with a distance figure.
+> **Superseded 2026-10-16 (owner decision).** This section first said 10 km
+> with a 10 → 25 → 50 km ladder. The ladder stopped at the first ring with
+> anything in it, so one garage within 10 km hid every garage 11–50 km away,
+> and page 2 restarted it at 10 km, skipping the rest of a widened list. The
+> owner wants customers to see every garage within reach.
+
+**Drop-in and browse: one radius, 50 km (`LIST_RADIUS_KM`,
+`apps/server/src/lib/discovery.ts`), nearest first, the same on every page.**
+The response says the bound it searched, `radiusKm: 50`, even when nothing
+was found, so the list can say *"Garages within 50 km of you, nearest first"*
+or *"No garages within 50 km of you yet."* `appliedRadiusKm` is deprecated
+and always null: bundles from the ladder days print "Nothing within 10 km"
+for any value over 10. Home's Nearby card counts within the same 50 km, and
+the map opens framing the customer and every garage within it (its nearby
+mode, `apps/users/app/map/page.tsx`; "Search this area" switches to `bbox`).
+
+- **No location:** no radius and no distance; every garage, A to Z, pinned
+  first.
+- **A typed search (`q`):** no radius. Someone typing a garage's name wants
+  that garage wherever it is; results are still nearest first.
+- **Unpinned garages** follow the located ones on the list (there is no
+  distance to rank them by). The map leaves them out, and so does the Doorstep
+  tab: a doorstep booking checks coverage from the garage's pin, so an
+  unpinned one could never be booked.
 
 **Doorstep ignores the customer's radius entirely.** The right question isn't
 "how far will the customer look?" but "how far will this garage travel?" — and
-that's `vendors.doorstep_radius_km`, set by the vendor. So:
+that's `vendors.doorstep_radius_km`, set by the vendor, or a drawn area. The
+radius is optional (owner, 2026-10-16): a garage that leaves it empty covers
+`DEFAULT_DOORSTEP_RADIUS_KM` = 10 km (`apps/server/src/lib/doorstep.ts`). The
+same default is used by the Doorstep list and by the check when a doorstep
+booking is written, so a garage listed for an address can be booked to it.
+Before this, an empty radius covered 0 km and the garage vanished for every
+customer with a location. So:
 
 ```sql
--- doorstep listing: the vendor's radius, not the customer's
+-- doorstep listing and booking check: the vendor's reach, not the customer's
 AND v.doorstep_enabled
-AND ST_DWithin(v.geo, $customer_point, v.doorstep_radius_km * 1000, false)
+AND CASE WHEN v.doorstep_area IS NOT NULL THEN ST_Covers(v.doorstep_area, $customer_point)
+         ELSE ST_DWithin(v.geo, $customer_point, COALESCE(v.doorstep_radius_km, 10) * 1000, false)
+    END
 ```
 
 This is strictly better than a symmetric radius: a premium detailer willing to
 drive 25 km appears for a customer a plain wash place 3 km away wouldn't serve.
-It also means the doorstep list needs no widen ladder — an empty result is a
-true "nobody covers you yet", which is a genuinely useful thing to say.
+It also means the doorstep list needs no customer radius — an empty result is
+a true "nobody covers you yet", which is a genuinely useful thing to say.
 
 `radiusKm` therefore applies only when `bookingType = 'dropin'`.
 
@@ -988,11 +1015,13 @@ traffic and needs aggressive caching). H3 supply-vs-demand heatmaps for ops.
   being wrong about this cheap.
 - **Rounding coordinates before sending** (§3) is a privacy *and* a caching win —
   but do it consistently, or the `geo_cache` hit rate collapses.
-- **The widen ladder must be visible.** Silently returning 25 km results for a
-  10 km query makes a far garage look near. Say which radius produced the list.
+- **Say how far the list reaches.** A 45 km garage high on a "Top Rated" list
+  reads as a near one unless the list says "within 50 km". (This was the
+  widen ladder's pitfall; the ladder is gone, the rule stays.)
 - **Map-mode bbox queries can return enormous sets** when zoomed out to state
   level. Cap `limit` server-side and cluster client-side rather than trusting
-  the viewport to be sane.
+  the viewport to be sane. (Done: limit 50, and overlapping pins are grouped
+  into a count bubble in `apps/users/lib/map-view.ts`.)
 
 ---
 
@@ -1006,7 +1035,7 @@ Resolved 2026-08-27. Recorded here because several are one-way doors.
 | 2 | Geocoding provider | **Ola Maps, behind a `GeoProvider` adapter** | Best India data; adapter makes Google/MapmyIndia/Geoapify a one-file swap. §5 |
 | 3 | Garages with no coordinates | **No backfill. Pin required to verify** | Listings already gate on `is_verified`, so this needs no tail and no special case in the query. §7 |
 | 4 | Existing customer addresses | **Re-prompt at doorstep selection** | No real users yet; prompt where the coordinate is actually needed. §7 |
-| 5 | Default radius | **10 km drop-in, ladder 10→25→50, visibly.** Doorstep uses the *vendor's* radius | Symmetric radius is the wrong model for doorstep — the garage decides how far it travels. §8 |
+| 5 | Default radius | ~~10 km drop-in, ladder 10→25→50, visibly.~~ **2026-10-16: every garage within 50 km, nearest first, one radius on every page; none for a typed search.** Doorstep uses the *vendor's* radius, 10 km when left empty | Owner: customers see every garage in reach. The ladder hid 11–50 km whenever anything was within 10 km. Symmetric radius is the wrong model for doorstep — the garage decides how far it travels. §8 |
 | 6 | Map view | **Airbnb-style split list/map is the target (Phase 5)** | Ships later, but forces the `bbox` query shape into the API now. §8, §9 |
 
 **Still genuinely open** — none of these block starting:

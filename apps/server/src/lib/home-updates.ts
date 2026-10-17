@@ -101,6 +101,19 @@ export interface HubBooking {
   photos: { count: number; before: number; after: number; lastAt: Date | null }
   /** `refundRef` is the Razorpay refund id (rfnd_…), or null for a refund done outside Razorpay. */
   refunds: Array<{ id: string; amount: string; recordedAt: Date; refundRef: string | null }>
+  /**
+   * Pickup & drop's handover steps (0037), null or absent on other types.
+   * Never the codes: Home and Updates have no use for them.
+   */
+  pickup?: HubPickupSteps | null
+}
+
+/** When each handover step of a pickup & drop job happened. */
+export interface HubPickupSteps {
+  pickedUpAt: Date | null
+  atGarageAt: Date | null
+  outForDeliveryAt: Date | null
+  deliveredAt: Date | null
 }
 
 export type UpdateKind =
@@ -122,6 +135,9 @@ export type UpdateKind =
   | 'complaint_acknowledged'
   | 'complaint_resolved'
   | 'complaint_closed'
+  | 'picked_up'
+  | 'at_garage'
+  | 'out_for_delivery'
 
 export interface UpdateItem {
   /** Stable across reads: kind plus what it is about. */
@@ -223,6 +239,40 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
     }
   }
 
+  // Pickup & drop's handover steps, each dated when the garage marked it.
+  // Delivered is the job's completion, said once by the completed row below.
+  const pickup = booking.bookingType === 'pickup' ? booking.pickup : null
+  if (pickup?.pickedUpAt) {
+    rows.push(draft({
+      ...about,
+      id: `picked_up:${booking.id}`,
+      kind: 'picked_up',
+      at: pickup.pickedUpAt,
+      title: `${booking.vendorName} collected your car`,
+      body: booking.serviceLabel,
+    }))
+  }
+  if (pickup?.atGarageAt) {
+    rows.push(draft({
+      ...about,
+      id: `at_garage:${booking.id}`,
+      kind: 'at_garage',
+      at: pickup.atGarageAt,
+      title: `Your car is at ${booking.vendorName}`,
+      body: booking.serviceLabel,
+    }))
+  }
+  if (pickup?.outForDeliveryAt) {
+    rows.push(draft({
+      ...about,
+      id: `out_for_delivery:${booking.id}`,
+      kind: 'out_for_delivery',
+      at: pickup.outForDeliveryAt,
+      title: 'Your car is on its way back',
+      body: booking.vendorName,
+    }))
+  }
+
   if (booking.startedAt) {
     rows.push(draft({
       ...about,
@@ -240,7 +290,8 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
       id: `completed:${booking.id}`,
       kind: 'completed',
       at: booking.completedAt,
-      title: 'Your car is done',
+      // A pickup & drop job completes when the car is handed back.
+      title: booking.bookingType === 'pickup' ? 'Your car is back' : 'Your car is done',
       body: `${booking.vendorName} · ${booking.serviceLabel}`,
     }))
   }

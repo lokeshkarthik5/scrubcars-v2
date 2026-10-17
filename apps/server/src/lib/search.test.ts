@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { containsPattern, matchedServiceName } from './search.js'
+import { containsPattern, escapeLike, matchedServiceName } from './search.js'
 
 describe('containsPattern', () => {
   test("makes the searcher's own wildcards literal", () => {
@@ -16,6 +16,16 @@ describe('containsPattern', () => {
     expect(containsPattern('%')).toBe('%\\%%')
     expect(containsPattern('_')).toBe('%\\_%')
     expect(containsPattern('\\')).toBe('%\\\\%')
+  })
+})
+
+describe('escapeLike', () => {
+  test('a Razorpay id is matched as written, underscore included', () => {
+    expect(escapeLike('pay_AbC123')).toBe('pay\\_AbC123')
+  })
+
+  test('text with no wildcards is unchanged', () => {
+    expect(escapeLike('SAVE20')).toBe('SAVE20')
   })
 })
 

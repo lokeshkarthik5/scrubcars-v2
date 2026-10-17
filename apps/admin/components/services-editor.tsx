@@ -49,6 +49,8 @@ import {
   type PricingType,
   type ServiceRowField,
 } from '@/lib/service-rows'
+import type { ServiceRowNote } from '@/lib/garage-import'
+import { ImportNote, MARKED_FIELD } from './import-note'
 
 const PILL_BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-border bg-white/[0.015] px-3.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface disabled:opacity-50'
@@ -96,6 +98,11 @@ interface ServicesEditorProps {
    * and Discard: either would swap the rows out from under it.
    */
   onAiBusyChange?: (busy: boolean) => void
+  /**
+   * Add garage's import: what to check on each row, by row key, shown under
+   * it ("Check this · The poster shows ₹999 crossed out…").
+   */
+  rowNotes?: Record<string, ServiceRowNote[]>
 }
 
 const isAuthError = (err: unknown) =>
@@ -127,6 +134,7 @@ export function ServicesEditor({
   footnote,
   onAuthError,
   onAiBusyChange,
+  rowNotes = {},
 }: ServicesEditorProps) {
   // Off unless the API says on: with no OpenAI key there are no AI buttons
   // at all, rather than ones that can only fail.
@@ -447,6 +455,7 @@ export function ServicesEditor({
                   onCategory={(category) => changeCategory(row, category)}
                   rowError={row.id ? rowErrors[row.id] : undefined}
                   media={media}
+                  importNotes={rowNotes[row.key]}
                   hide={hide}
                   saving={saving}
                   onRemove={() => removeRow(row.key)}
@@ -481,6 +490,7 @@ function ServiceRowItem({
   onCategory,
   rowError,
   media,
+  importNotes = [],
   hide,
   saving,
   onRemove,
@@ -503,6 +513,7 @@ function ServiceRowItem({
   onCategory: (category: PlainCategory) => void
   rowError?: string
   media?: ServiceMediaControls
+  importNotes?: ServiceRowNote[]
   hide?: ServiceHideControls
   saving: boolean
   onRemove: () => void
@@ -515,6 +526,13 @@ function ServiceRowItem({
   const problemId = `${id}-problem`
   const moreId = `${id}-more`
   const descriptionId = `${id}-description`
+  const importNotesId = `${id}-import`
+
+  // The import's notes: a "Check this" stays as a record of what to look
+  // at; a missing price's note goes once the price is in.
+  const priceMissing = missing.some((field) => field !== 'name')
+  const notes = importNotes.filter((note) => note.kind === 'check' || (note.field === 'price' && priceMissing))
+  const priceChecked = notes.some((note) => note.field === 'price' && note.kind === 'check')
 
   // What an input missing its value carries: the amber edge, and the row's
   // line as its description.
@@ -555,8 +573,17 @@ function ServiceRowItem({
         placeholder={placeholder}
         onChange={(e) => update({ [field]: e.target.value })}
         aria-invalid={flagged['aria-invalid']}
-        aria-describedby={flagged['aria-describedby']}
-        className={cn(FIELD, 'font-numeric text-[15.5px] font-medium', flagged.className, className)}
+        aria-describedby={
+          [flagged['aria-describedby'], priceChecked ? importNotesId : undefined].filter(Boolean).join(' ') ||
+          undefined
+        }
+        className={cn(
+          FIELD,
+          'font-numeric text-[15.5px] font-medium',
+          flagged.className,
+          priceChecked && !flagged['aria-invalid'] && MARKED_FIELD,
+          className
+        )}
       />
     )
   }
@@ -678,6 +705,25 @@ function ServiceRowItem({
           >
             {row.pricingType === 'on_inspection' ? 'Inspection fee' : 'Same for all cars'}
           </span>
+        </div>
+      )}
+
+      {/* What the import was unsure of on this row, outside the ⋯ so it is
+          seen without opening anything. */}
+      {notes.length > 0 && (
+        <div id={importNotesId} className="mt-2.5 flex flex-col gap-1.5">
+          {notes.map((note) => (
+            <ImportNote
+              key={`${note.field}-${note.kind}`}
+              mark={{
+                kind: note.kind,
+                reason:
+                  note.field === 'category' && note.reason
+                    ? `Category: ${note.reason}`
+                    : note.reason,
+              }}
+            />
+          ))}
         </div>
       )}
 
