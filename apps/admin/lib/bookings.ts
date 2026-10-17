@@ -1,4 +1,5 @@
 import type { AdminBooking, CancelledOnBehalfOf } from '@repo/core/api/admin'
+import { csvCell, downloadCsv } from '@repo/core/csv'
 import { APP_TIMEZONE } from '@repo/core/utils'
 
 /**
@@ -153,16 +154,10 @@ export function paymentStatusLabel(status: string | undefined): string {
 
 // ─── CSV ─────────────────────────────────────────────────────────────────────
 
-/**
- * One CSV cell. Quoted when it has to be, and a leading = + - @ is defused
- * with an apostrophe: reasons and notes are typed by customers and garages,
- * and a spreadsheet would otherwise run one that starts with "=" as a formula.
- */
-export function csvCell(value: string | number | null | undefined): string {
-  let text = value === null || value === undefined ? '' : String(value)
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-}
+// One CSV cell (a leading = + - @ defused) and saving a file: in
+// @repo/core/csv since the garage portal's Earnings download uses them too.
+// Re-exported so the admin's exports keep importing them from here.
+export { csvCell, downloadCsv }
 
 /**
  * A phone number as a spreadsheet will keep it. Excel and Sheets read a bare
@@ -223,26 +218,6 @@ export function bookingsCsv(rows: AdminBooking[]): string {
   ]
   // CRLF is what RFC 4180 and Excel expect.
   return `${lines.join('\r\n')}\r\n`
-}
-
-/**
- * Saves text as a CSV file. The link is attached to the page while it is
- * clicked and the URL revoked only later: Safari on iOS reads the blob after
- * the click returns, and fails the download if it is already gone.
- */
-export function downloadCsv(text: string, filename: string) {
-  // The byte-order mark makes Excel read the file as UTF-8, so ₹ and Tamil
-  // names survive the round trip.
-  const blob = new Blob(['\uFEFF', text], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.hidden = true
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 30_000)
 }
 
 /** Today in Chennai as YYYY-MM-DD, for an export's filename. */

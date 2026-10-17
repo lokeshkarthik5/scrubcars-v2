@@ -8,6 +8,7 @@
 const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
 const ADMIN_REFUNDS_URL = 'https://admin.detlio.com/refunds'
+const ADMIN_PAYOUTS_URL = 'https://admin.detlio.com/payouts'
 const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
 
 /** A complaint's own page in admin, where it is acknowledged and answered. */
@@ -150,6 +151,11 @@ export type OpsAlert =
       now: Date
       waiting: DigestBooking[]
       missed: DigestBooking[]
+      /**
+       * The morning roll-up only: what Detlio owes garages in payouts
+       * (modules/payouts). Absent, or null when nothing is due.
+       */
+      payouts?: { garages: number; total: string; oldestUnpaidAt: Date | null; overdue: boolean } | null
     }
   | {
       kind: 'paid_no_booking'
@@ -460,6 +466,19 @@ export function formatOpsAlert(alert: OpsAlert): string {
           )
         )
       }
+      const payouts = alert.payouts
+      if (payouts) {
+        // "Payouts due: 3 garages, ₹4,210 total, oldest Thu 15 Oct, 6:00 pm ⚠️"
+        sections.push(
+          lines(
+            `💰 Payouts due: ${plural(payouts.garages, 'garage')}, ${rupees(payouts.total)} total${
+              payouts.oldestUnpaidAt ? `, oldest ${when(payouts.oldestUnpaidAt)}` : ''
+            }${payouts.overdue ? ' · past 24 hours' : ''}`,
+            ADMIN_PAYOUTS_URL
+          )
+        )
+      }
+      if (alert.waiting.length === 0 && alert.missed.length === 0) return sections.join('\n\n')
       return lines(sections.join('\n\n'), ADMIN_BOOKINGS_URL)
     }
 

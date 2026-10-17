@@ -49,8 +49,12 @@ const moneyLanded = sql.join(
   sql`, `
 )
 
-/** Reads, through the read-only transaction the service opened. */
-function reads(tx: Tx) {
+/**
+ * Reads, through the read-only transaction the service opened. Exported for
+ * the payouts (modules/payouts), which count each garage's free 25 along the
+ * same queue.
+ */
+export function statsReads(tx: Tx) {
   return {
     /**
      * Every chain booked in [start, end), with its money: the latest row's
@@ -108,6 +112,9 @@ function reads(tx: Tx) {
                   left join booking_charges rc on rr.kind = 'bill' and rc.id = rr.target_id
                  where (rb.id = c.root_id or rb.original_booking_id = c.root_id)
                    and (rr.kind = 'booking' or (rr.kind = 'bill' and rc.status = 'paid'))
+                   -- A refund Razorpay failed moved no money (0036): every
+                   -- reader of the history leaves it out (STANDING_REFUND).
+                   and rr.gateway_status is distinct from 'failed'
                ) as refunds_recorded,
                c.marked_test_at is not null as marked_test
           from chains c
@@ -272,7 +279,7 @@ function reads(tx: Tx) {
   }
 }
 
-export type StatsReads = ReturnType<typeof reads>
+export type StatsReads = ReturnType<typeof statsReads>
 
 export const statsRepository = {
   /**
@@ -287,7 +294,7 @@ export const statsRepository = {
     return db.transaction(
       async (tx) => {
         await tx.execute(sql`set local statement_timeout = '10s'`)
-        return work(reads(tx))
+        return work(statsReads(tx))
       },
       { accessMode: 'read only' }
     )

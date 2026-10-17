@@ -17,6 +17,7 @@ import { adminVendorBinRoutes } from '../vendor-bin/vendor-bin.routes.js'
 import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
 import { adminStatsRoutes } from '../stats/stats.routes.js'
+import { adminPayoutRoutes } from '../payouts/payouts.routes.js'
 import {
   addMemberSchema,
   updateMemberSchema,
@@ -359,6 +360,8 @@ adminRoutes.route('/discounts', adminDiscountRoutes)
 // Refunds owed and done, and recording one. Nested here for the same cookie
 // reason as discounts.
 adminRoutes.route('/refunds', adminRefundRoutes)
+// Garage payouts: balances, Record payout, history and payout details.
+adminRoutes.route('/payouts', adminPayoutRoutes)
 
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.

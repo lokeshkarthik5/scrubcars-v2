@@ -19,6 +19,22 @@ reconstructing every change in them.
 
 ### Added
 
+- **Earnings and Payouts.** Garage portal: Earnings now opens on "Due now"
+  (or "You owe Detlio") and "Paid this month", lists each booking that
+  earned money in the chosen dates (30 days, this month, last month or two
+  dates) with its price, Detlio's or the garage's promo, refunds, Detlio's
+  commission ("8% · ₹40", or "Free — booking 12 of your first 25"), the
+  garage's share, cash it collected, and Due or Paid with the payout's
+  reference, plus the payouts made, and downloads it as CSV. Owners only,
+  as before. Admin: a Payouts page (header nav, and from Refunds on a
+  phone) lists every garage owed money, oldest first, flagged past 24
+  hours, with a CSV; each garage's page shows where to pay (copyable), the
+  bookings due, Record payout (the amount is what is due; UTR or UPI id,
+  time, note, your name) and the payout history, with statement and
+  payout CSVs. The garage edit page gains Payout details (account name,
+  number, IFSC, UPI id), saved on their own. Start pilot clean's counts
+  can say "N garage payouts". The CSV helpers moved to `@repo/core/csv`.
+
 - **Refund now in admin.** Each row on Refunds owed (and a booking's Refund
   section) has "Refund now…" beside "Mark refunded…" when there is a
   Razorpay payment to refund. Its sheet shows the customer, the booking or

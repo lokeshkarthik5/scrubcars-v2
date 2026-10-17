@@ -18,6 +18,58 @@ reconstructing every change in them.
 
 ### Added
 
+- **Garage earnings and payouts** (migration `0038_garage_payouts`,
+  additive: `vendor_payouts`, `vendor_payout_items` and
+  `vendor_payout_accounts`; no data step). Customers pay Detlio; Detlio pays
+  each garage its share by bank or UPI within 24 hours of the job, and now
+  records it.
+  - Earnings rules in `lib/payouts.ts` (pure, unit-tested), on top of
+    `lib/commission.ts` (the same rates, free 25 and queue as Statistics):
+    per booking chain the price (plus paid final bills), Detlio's promo
+    (Detlio's cost), the garage's promo (off its share), commission (or its
+    place in the free 25), refunds (standing ones only; a refund comes off
+    the garage's figure in proportion to its part of what the customer
+    paid, and the commission with it), the garage's share, cash the garage
+    collected itself (old cash bookings: the garage owes Detlio the
+    commission, netted off), and when it became payable (completed, or the
+    no-show recorded; a later final bill moves it). Test-marked chains earn
+    nothing.
+  - A booking's balance is what it earns now less what payouts paid on it,
+    so nothing is paid twice and a refund after a payout is owed back. Each
+    payout keeps the figures it paid per booking, so statements never
+    change.
+  - `GET /vendors/me/earnings/statement?from&to` (vendor_admin only, the
+    tenant's own garage): due now, paid this month, free bookings used, each
+    booking in the range with commission, refunds, share, status and payout
+    references, and the payouts in the range. `GET /vendors/me/earnings`
+    is unchanged.
+  - Admin (`modules/payouts`, super-admin, `/admin/payouts`): `GET /` (every
+    garage's balance, oldest unpaid, past 24 hours, last payout, payout
+    details masked), `GET /vendors/:id` (balance, what Record payout would
+    pay, the bookings due, history with each payout's bookings, details in
+    full), `POST /vendors/:id { amount, upTo, method, reference, paidAt,
+    note?, actorName }` (settles every booking payable by `upTo`, only if it
+    still comes to `amount`: 409 `PAYOUT_STATE_CHANGED`,
+    `PAYOUT_NOTHING_DUE`, `PAYOUT_OWED_BACK`, `PAYOUT_REFERENCE_USED`; under
+    `pg_advisory_xact_lock('payouts:<garage>')`), and
+    `GET`/`PUT`/`DELETE /vendors/:id/account` (bank account and/or UPI id;
+    409 `VENDOR_IN_BIN` for a garage in the Bin).
+  - Telegram: the 7 am roll-up of `POST /ops/pending-digest` adds "💰
+    Payouts due: N garages, ₹X total, oldest …", and posts for it alone;
+    its answer gains `payoutsDue`.
+  - Start pilot clean and Delete forever: a payout goes only with every
+    booking it paid (and, in a cutoff run, only if recorded before the
+    cutoff); otherwise its bookings are kept, "Paid out to the garage —
+    kept". Counts gain `payouts`. A tombstone loses its payout details.
+  - Statistics: refunds Razorpay failed no longer come off "collected after
+    refunds" (0036's rule, missed when the two branches met).
+  - E2E fixtures: `VENDORS.payouts`, `STAFF.payoutsOwner`,
+    `CUSTOMERS.payouts`, `SERVICES.payoutsWash`, `BOOKINGS.payout*`. The
+    Statistics fixtures from #46 were renumbered so no id or phone is
+    shared: `CUSTOMERS.stats` is `id(158)`, phone `9000000058`, car
+    `id(767)`; `VENDORS.stats` is `id(345)` (phone `9000004500`);
+    `SERVICES.stats*` are `id(436–438)`.
+
 - **Refunds through Razorpay from the app** (migration
   `0036_razorpay_refunds`: four columns on `refund_records`, its
   one-per-starting-total index made partial, a new `auto_refund_cap_days`

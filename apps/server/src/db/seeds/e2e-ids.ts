@@ -292,6 +292,11 @@ export const CUSTOMERS = {
    */
   stats: { id: id(158), phone: '9000000058', name: 'Stats Sathya', vehicleId: id(767) },
   /**
+   * Owns every booking at VENDORS.payouts (BOOKINGS.payout*), which the
+   * payouts spec pays out. Nothing signs in as them; the bookings are the point.
+   */
+  payouts: { id: id(159), phone: '9000000059', name: 'Payout Pavithra', vehicleId: id(768) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -360,6 +365,11 @@ export const STAFF = {
   binOwner: { id: id(209), phone: '9000001010', name: 'Bin Owner Bhuvana' },
   /** vendor_operator on VENDORS.binTeam alone: no company at all while it is in the Bin. */
   binOperator: { id: id(210), phone: '9000001011', name: 'Bin Operator Oscar' },
+  /**
+   * Owns VENDORS.payouts only, so the payouts spec reads that garage's
+   * Earnings with nothing any other spec books on it.
+   */
+  payoutsOwner: { id: id(211), phone: '9000001012', name: 'Payouts Prakash' },
 } as const
 
 export const VENDORS = {
@@ -481,6 +491,13 @@ export const VENDORS = {
    * booking on it is a STATS fixture, so its figures are exact.
    */
   stats: { id: id(345), name: 'Stats Test Garage' },
+  /**
+   * Garage payouts (specs/admin/payouts.spec.ts): a finished wash and a
+   * customer no-show to pay out (₹500 each, its first two bookings, so free
+   * of commission), and one still to come, not payable yet. Pending and
+   * unverified, so no customer sees it; a UPI id to pay to.
+   */
+  payouts: { id: id(346), name: 'Payouts Test Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -570,6 +587,8 @@ export const SERVICES = {
   statsWash: { id: id(436), name: 'Stats Wash', price: '500.00', durationMins: 30 },
   statsDetail: { id: id(437), name: 'Stats Detail', price: '2000.00', durationMins: 90 },
   statsInspect: { id: id(438), name: 'Stats Scratch Check', price: '300.00', durationMins: 60 },
+  /** On PAYOUTS: every payouts-spec booking is one ₹500 wash. */
+  payoutsWash: { id: id(439), name: 'Payouts Wash', price: '500.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -818,6 +837,14 @@ export const BOOKINGS = {
   binTombTest: refId('b1a00005'),
   /** CUSTOMERS.complaints', completed and paid (E2E money) at MAIN two days ago. */
   complaintDone: refId('c0a10001'),
+  /**
+   * CUSTOMERS.payouts' at VENDORS.payouts, each a paid ₹500 wash: finished
+   * two days ago, a customer no-show yesterday (paid as if done), and one
+   * confirmed for tomorrow, not payable yet.
+   */
+  payoutDone: refId('a7a00001'),
+  payoutNoShow: refId('a7a00002'),
+  payoutUpcoming: refId('a7a00003'),
 } as const
 
 export const VEHICLES = {

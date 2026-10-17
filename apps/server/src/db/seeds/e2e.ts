@@ -43,6 +43,7 @@ import {
   userVehicles,
   users,
   vendorClosures,
+  vendorPayoutAccounts,
   vendorPhotos,
   vendorServiceAreas,
   vendorWorkingHours,
@@ -189,7 +190,7 @@ async function seedPeople() {
         CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
         CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi,
         CUSTOMERS.binPaid, CUSTOMERS.binHard, CUSTOMERS.binTomb, CUSTOMERS.binBrowse,
-        CUSTOMERS.complaints].map((c, i) => ({
+        CUSTOMERS.complaints, CUSTOMERS.payouts].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -1846,6 +1847,59 @@ async function seedStatsRows() {
   })
 }
 
+// ─── garage payouts ─────────────────────────────────────────────────────────
+
+/**
+ * The payouts spec's garage (VENDORS.payouts): its owner's seat, one ₹500
+ * wash, a UPI id to pay to, and CUSTOMERS.payouts' three bookings — two
+ * payable (₹1,000 in all, its first two bookings, so free of commission) and
+ * one still to come. After the people it names, like every booking.
+ */
+async function seedPayoutRows() {
+  const garage = VENDORS.payouts.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.payoutsOwner.id, businessName: VENDORS.payouts.name,
+    phone: '9000004600', address: '1, Payout Lane, Porur', city: 'Chennai', pincode: '600116',
+    lat: ORIGIN.lat - 0.85, lng: ORIGIN.lng - 0.15, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    // Not verified: in no list a customer sees.
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending',
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.payoutsOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.payoutsWash.id, vendorId: garage, name: SERVICES.payoutsWash.name,
+    category: 'car_wash', pricingType: 'flat', price: SERVICES.payoutsWash.price,
+    durationMins: SERVICES.payoutsWash.durationMins, isActive: true,
+  })
+  await db.insert(vendorPayoutAccounts).values({
+    vendorId: garage, accountName: 'Payouts Test Garage', upiId: 'payoutsgarage@okaxis',
+    updatedBy: 'E2E seed',
+  })
+
+  const customer = CUSTOMERS.payouts
+  const base = { userId: customer.id, vehicleId: customer.vehicleId, vendorId: garage }
+  const wash = {
+    id: SERVICES.payoutsWash.id, name: SERVICES.payoutsWash.name,
+    amount: SERVICES.payoutsWash.price, durationMins: SERVICES.payoutsWash.durationMins,
+  }
+  await insertBooking({ ...base, id: BOOKINGS.payoutDone, items: [wash],
+    createdAt: daysAgo(4), scheduledAt: daysAgo(2), status: 'completed',
+    acceptedAt: daysAgo(4), startedAt: daysAgo(2), completedAt: daysAgo(2),
+    payment: { status: 'paid', txnId: 'pay_e2e_payout_done', paidAt: daysAgo(4), gatewayMode: 'fake' } })
+  await insertBooking({ ...base, id: BOOKINGS.payoutNoShow, items: [wash],
+    createdAt: daysAgo(3), scheduledAt: daysAgo(1), status: 'cancelled', acceptedAt: daysAgo(3),
+    cancellation: { by: 'admin', onBehalfOf: 'detlio', noShow: 'customer', reason: 'Customer did not turn up',
+      at: hoursAgo(20) },
+    payment: { status: 'paid', txnId: 'pay_e2e_payout_noshow', paidAt: daysAgo(3), gatewayMode: 'fake' } })
+  await insertBooking({ ...base, id: BOOKINGS.payoutUpcoming, items: [wash],
+    createdAt: daysAgo(2), scheduledAt: daysAheadAt(1, 10), status: 'confirmed', acceptedAt: daysAgo(2),
+    payment: { status: 'paid', txnId: 'pay_e2e_payout_upcoming', paidAt: daysAgo(2), gatewayMode: 'fake' } })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1877,6 +1931,8 @@ async function main() {
   await seedComplaintRows()
   console.log('[e2e-seed] statistics…')
   await seedStatsRows()
+  console.log('[e2e-seed] payouts…')
+  await seedPayoutRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

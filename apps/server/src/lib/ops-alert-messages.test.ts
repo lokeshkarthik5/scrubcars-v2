@@ -293,6 +293,24 @@ describe('pending digest', () => {
     expect(text).toContain('…and 4 more')
     expect(text.length).toBeLessThan(4096)
   })
+
+  test('the morning roll-up says what Detlio owes garages, and links to Payouts', () => {
+    const payouts = {
+      garages: 3,
+      total: '4210.50',
+      oldestUnpaidAt: new Date('2026-10-03T12:30:00Z'),
+      overdue: true,
+    }
+    const text = formatOpsAlert({ kind: 'pending_digest', now, waiting: [waitingRow], missed: [], payouts })
+    expect(text).toContain('💰 Payouts due: 3 garages, ₹4,210.5 total, oldest Sat 3 Oct, 6:00 pm · past 24 hours')
+    expect(text).toContain('https://admin.detlio.com/payouts')
+    // Alone, with no booking waiting: only the payouts line and its link.
+    const alone = formatOpsAlert({ kind: 'pending_digest', now, waiting: [], missed: [], payouts })
+    expect(alone.split('\n')).toEqual([
+      '💰 Payouts due: 3 garages, ₹4,210.5 total, oldest Sat 3 Oct, 6:00 pm · past 24 hours',
+      'https://admin.detlio.com/payouts',
+    ])
+  })
 })
 
 describe('final bill alerts', () => {

@@ -20,6 +20,8 @@ import {
   refundRecords,
   reviews,
   users,
+  vendorPayoutItems,
+  vendorPayouts,
   vendors,
 } from '../../db/schema.js'
 import type {
@@ -30,6 +32,7 @@ import type {
   ResetCharge,
   ResetComplaint,
   ResetIntent,
+  ResetPayout,
   ResetReceipt,
 } from '../../lib/data-reset.js'
 
@@ -367,6 +370,41 @@ export function dataResetReads(conn: Conn) {
         .orderBy(asc(complaints.number))
     },
 
+    /**
+     * Garage payouts (0038) that paid any of these chains, each with every
+     * chain it paid, in scope or not: the planner keeps a payout's chains
+     * together.
+     */
+    async payoutsOfChains(keys: string[]): Promise<ResetPayout[]> {
+      const ids = new Set<string>()
+      for (const slice of batches(keys)) {
+        const rows = await conn
+          .selectDistinct({ id: vendorPayoutItems.payoutId })
+          .from(vendorPayoutItems)
+          .where(inArray(vendorPayoutItems.bookingId, slice))
+        for (const row of rows) ids.add(row.id)
+      }
+      if (ids.size === 0) return []
+      const out = new Map<string, ResetPayout>()
+      for (const slice of batches([...ids])) {
+        const rows = await conn
+          .select({
+            id: vendorPayouts.id,
+            recordedAt: vendorPayouts.createdAt,
+            root: vendorPayoutItems.bookingId,
+          })
+          .from(vendorPayouts)
+          .innerJoin(vendorPayoutItems, eq(vendorPayoutItems.payoutId, vendorPayouts.id))
+          .where(inArray(vendorPayouts.id, slice))
+        for (const row of rows) {
+          const payout = out.get(row.id) ?? { id: row.id, recordedAt: row.recordedAt, rootBookingIds: [] }
+          payout.rootBookingIds.push(row.root)
+          out.set(row.id, payout)
+        }
+      }
+      return [...out.values()]
+    },
+
     async voidsByYear(years: string[]): Promise<Map<string, number>> {
       if (years.length === 0) return new Map()
       const rows = await conn
@@ -524,6 +562,22 @@ export function dataResetWrites(tx: Tx) {
           .delete(complaints)
           .where(inArray(complaints.id, slice))
           .returning({ id: complaints.id })
+        n += rows.length
+      }
+      return n
+    },
+
+    /**
+     * Garage payouts, with their items (ON DELETE CASCADE). Before the
+     * bookings: an item names its booking ON DELETE RESTRICT.
+     */
+    async deletePayouts(ids: string[]) {
+      let n = 0
+      for (const slice of batches(ids)) {
+        const rows = await tx
+          .delete(vendorPayouts)
+          .where(inArray(vendorPayouts.id, slice))
+          .returning({ id: vendorPayouts.id })
         n += rows.length
       }
       return n

@@ -260,6 +260,13 @@
       "when": 1787834189714,
       "tag": "0036_razorpay_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787834189716,
+      "tag": "0038_garage_payouts",
+      "breakpoints": true
     }
   ]
 }

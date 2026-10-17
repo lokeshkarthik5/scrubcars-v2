@@ -1,7 +1,8 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
-import { planPendingDigest } from '../../lib/pending-digest.js'
+import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
+import { payoutsService } from '../payouts/payouts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { opsRepository } from './ops.repository.js'
 
@@ -30,12 +31,22 @@ export const opsService = {
 
     const now = Date.now()
     const rows = await opsRepository.listPaidPendingBookings(new Date(now - MISSED_LOOKBACK_MS))
-    const plan = planPendingDigest(now, rows)
+    // The morning roll-up also says what Detlio owes garages. Read only at
+    // 07:00, and never allowed to fail the digest: without it the line is
+    // left out.
+    const payouts = isMorningTick(now)
+      ? await payoutsService.dueSummary(new Date(now)).catch((err: unknown) => {
+          log.error({ err }, 'ops:payouts_summary_failed')
+          return null
+        })
+      : null
+    const plan = planPendingDigest(now, rows, { morningExtras: payouts !== null })
     const summary = {
       waiting: plan.waiting.length,
       missed: plan.missed.length,
       reason: plan.reason as string,
       posted: false,
+      payoutsDue: payouts ? payouts.garages : null,
       autoRefunds,
     }
 
@@ -47,6 +58,7 @@ export const opsService = {
         now: new Date(now),
         waiting: plan.waiting,
         missed: plan.missed,
+        payouts: plan.reason === 'morning' ? payouts : null,
       })
       if (outcome === 'off') return { ...summary, reason: 'alerts_off' }
     } catch (err) {
