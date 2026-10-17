@@ -26,9 +26,15 @@ import type { BookingType } from './booking-types.js'
 import { customerPickupStage, type CustomerPickupStage } from './pickup.js'
 
 const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
 
-/** "Rate your wash" shows for this long after the job is finished. */
-export const RATE_PROMPT_HOURS = 72
+/**
+ * "Rate your wash" ("How was your wash at <garage>?") shows for this long
+ * after the job is finished: two weeks (owner decision, 17 Oct 2026; it was
+ * 72 hours). Inside the Home read's 30-day window, so no booking it needs is
+ * left unread.
+ */
+export const RATE_PROMPT_DAYS = 14
 /** Before & after photos stay on the tile for a week after the job. */
 export const PHOTOS_TILE_DAYS = 7
 /**
@@ -153,18 +159,21 @@ export function garageClosedCards(
 }
 
 /**
- * Finished jobs to ask a rating for, newest first: done within the last 72
- * hours, not reviewed, and not closed with ×.
+ * Finished jobs to ask a rating for, newest first: done within the last 14
+ * days, not reviewed, and not closed with ×. Only a job that was done: a
+ * cancelled booking, a no-show (either side) and a moved booking never ask.
  */
 export function rateCards(bookings: HubBooking[], now: Date): Array<Extract<ActionCard, { kind: 'rate' }>> {
   return bookings
     .filter(
       (b) =>
         b.status === 'completed' &&
+        !b.noShow &&
+        !b.moved &&
         b.completedAt !== null &&
         !b.hasReview &&
         !b.reviewPromptDismissedAt &&
-        now.getTime() - b.completedAt.getTime() <= RATE_PROMPT_HOURS * HOUR_MS &&
+        now.getTime() - b.completedAt.getTime() <= RATE_PROMPT_DAYS * DAY_MS &&
         b.completedAt <= now
     )
     .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())
@@ -449,7 +458,7 @@ function rightTileFor(
         b.status === 'completed' &&
         b.completedAt !== null &&
         b.photos.after > 0 &&
-        now.getTime() - b.completedAt.getTime() <= PHOTOS_TILE_DAYS * 24 * HOUR_MS
+        now.getTime() - b.completedAt.getTime() <= PHOTOS_TILE_DAYS * DAY_MS
     )
     .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())[0]
   if (withPhotos) {

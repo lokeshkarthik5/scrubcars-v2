@@ -18,6 +18,10 @@ reconstructing every change in them.
 
 ### Added
 
+- `GET /bookings/:id` (and the customer's list) carries the garage's own
+  `mapsUrl` on `vendor`, beside its phone, WhatsApp, address and pin, for the
+  booking page's Directions when the garage has no pin.
+
 - **Refunds through Razorpay from the app** (migration
   `0036_razorpay_refunds`: four columns on `refund_records`, its
   one-per-starting-total index made partial, a new `auto_refund_cap_days`
@@ -651,6 +655,31 @@ reconstructing every change in them.
   other cancellations still earn nothing. `jobsDone` counts jobs done only.
 
 ### Changed
+
+- **A garage's contact details stay private until the customer books**
+  (owner decision, 17 Oct 2026). `GET /vendors/:id` (the public garage page,
+  no auth) is now an allow-list (`modules/vendors/vendors.public.ts`
+  `toPublicVendor`) instead of the garage's own shape minus `ownerId`. It no
+  longer carries `phone`, `whatsapp`, `email`, `address`, `mapsUrl`, `notes`,
+  `pickup` (the stored answer; `pickupEnabled` stays),
+  `pickupTermsAcceptedAt`, `geoSource`, `geoConfirmedAt`, `bays`,
+  `jobsPerDay` or `vehicleTypes`. It keeps `id`, `businessName`, `logoUrl`,
+  `city`, `pincode`, `lat`/`lng`, `yearsInOperation`, `isVerified`,
+  `status`, `dropinEnabled`, `doorstepEnabled`, `doorstepRadiusKm`,
+  `pickupEnabled`, `pickupRadiusKm`, `slotIntervalMins`,
+  `bookingsPausedAt`/`Reason`, `createdAt`, and the photos, services and
+  rating as before. A customer gets the garage's phone, WhatsApp, address,
+  pin and maps link only on their own booking (`GET /bookings/:id`, owner
+  only; a vendor member gets its own garage). `GET /vendors` (list, search,
+  map) already sent none of them; reviews, offers, Home, checkout and slots
+  send the garage's name at most. Admin (`/admin/vendors/:id`) and the
+  portal (`/vendors/me`) are unchanged.
+- **"Rate your wash" lasts 14 days** after the job (was 72 hours;
+  `RATE_PROMPT_DAYS` in `lib/home-cards.ts`), on Home (still below the
+  offers and only with no must-act card, so at most two cards above the car)
+  and on Updates' To do (every unrated job, newest first). Never for a
+  cancelled booking, a no-show of either side or a moved booking. The ×
+  (`POST /bookings/:id/review-prompt/dismiss`) is unchanged.
 
 - **`DELETE /users/me` refuses a garage owner's account**: 409
   `VENDOR_OWNER_ACCOUNT`, "This number owns a garage on Detlio, so the

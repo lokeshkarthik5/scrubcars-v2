@@ -476,6 +476,12 @@ export interface JobLocation {
   lng: number | null
 }
 
+/**
+ * How a customer reaches and finds the garage of their own booking. Only the
+ * booking's payload carries it (GET /bookings/:id): the public garage page
+ * has no phone, WhatsApp, street address or maps link (owner decision, 17 Oct
+ * 2026), so this is never filled from a Vendor.
+ */
 export interface GarageContact {
   phone?: string
   whatsapp?: string
@@ -483,6 +489,8 @@ export interface GarageContact {
   city?: string
   lat: number | null
   lng: number | null
+  /** The garage's own Google Maps link, if it gave one. */
+  mapsUrl?: string
 }
 
 export interface VendorStats {

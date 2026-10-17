@@ -19,6 +19,18 @@ reconstructing every change in them.
 
 ### Added
 
+- **Help centre (`/help`, draft).** A searchable page of short answers in
+  six groups: Booking, Payments & refunds, Pickup & drop, Doorstep, Account
+  & privacy, Complaints (32 questions), ending with "Still need help?":
+  call or WhatsApp the team, Contact us, Raise a complaint. Open to anyone,
+  signed in or not; each answer has an anchor (`/help#cancel`). Linked from
+  Profile (Support → Help centre), a booking's Help sheet ("Common
+  questions: Help centre") and the Contact page. All the words are in
+  `components/help/content.ts`, with the booking, pickup, refund and
+  complaint figures read from `@repo/core` so they follow the code. While
+  `HELP_DRAFT` is true (it is) the page says "Draft: these answers are
+  waiting for sign-off" and is not indexed.
+
 - **Refund now in admin.** Each row on Refunds owed (and a booking's Refund
   section) has "Refund now…" beside "Mark refunded…" when there is a
   Razorpay payment to refund. Its sheet shows the customer, the booking or
@@ -602,6 +614,17 @@ reconstructing every change in them.
   start time, with what it means for the money), and internal notes.
 
 ### Changed
+
+- **Garage contact details only after booking.** The garage page's data
+  (`GET /vendors/:id`) no longer has the garage's phone, WhatsApp, email or
+  street address; the screens never showed them there. A booking's Help
+  sheet (Call / WhatsApp the garage) and Directions keep reading them from
+  the customer's own booking, as before. Directions now also opens the
+  garage's own Google Maps link when it has no pin (only a real Google
+  Maps link; anything else falls back to the address).
+- **"Rate your wash" asks "How was your wash at <garage>?"** with the car
+  and "Rate it" under it, for 14 days after the job (was 72 hours), on Home
+  and in Updates' To do. The stars and × work as before.
 
 - **Admin garage forms never leave a service out of a save.** A service with
   a name but no complete price used to be dropped from the save without a

@@ -37,6 +37,7 @@ import {
 } from '@repo/core/payment-confirmation'
 import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-again'
 import { carWithGarage } from '@repo/core/pickup'
+import { googleMapsLink } from '@repo/core/contact-links'
 import { finalBillMayChange, formatStepTime } from '@repo/core/job-records'
 import { customerRefundLine, withoutRefundPromise } from '@repo/core/refunds'
 import { formatBookingAmount } from '@repo/core/pricing'
@@ -482,7 +483,9 @@ export default function BookingDetailPage({
   // server older than this page sends neither, and directions to "Chennai"
   // would be worse than no card.
   const garage = booking?.garage
-  const findable = !!garage && ((garage.lat !== null && garage.lng !== null) || !!garage.address)
+  const findable =
+    !!garage &&
+    ((garage.lat !== null && garage.lng !== null) || !!garage.address || !!googleMapsLink(garage.mapsUrl))
   const gettingThere =
     booking?.bookingType === 'dropin' && OPEN_STATUSES.has(booking.status) && findable
       ? garage
