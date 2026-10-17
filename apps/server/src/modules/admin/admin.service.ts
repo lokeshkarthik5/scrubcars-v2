@@ -19,6 +19,7 @@ import { toJobPhotoView } from '../../lib/job-records.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
+import { outsideServiceCity } from '../../lib/service-city.js'
 import { todayDateKey } from '../../lib/slots.js'
 import { vendorReadiness } from '../../lib/vendor-readiness.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
@@ -507,6 +508,9 @@ export const adminService = {
         ...vendor,
         serviceCount: services.length,
         bookingCount: bookingCounts.get(vendor.id) ?? 0,
+        // The same sign customers see, so ops knows which garages carry it. A
+        // garage whose city says Chennai but shows it is usually pinned wrong.
+        outsideServiceCity: outsideServiceCity(vendor),
         hasDoorstepArea,
         // The customer lists' own rule (vendors.predicates.ts), so "Live" in
         // the panel is exactly the garages customers can find.

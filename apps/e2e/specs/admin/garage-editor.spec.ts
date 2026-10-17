@@ -237,7 +237,8 @@ test.describe('admin garage editor', () => {
     // The API side first: on in this stack (AI_FAKE), facts in, text out.
     const config = await page.request.get(`${API}/api/v1/admin/ai/config`)
     expect(config.status()).toBe(200)
-    expect(await config.json()).toEqual({ success: true, data: { describe: true, pictures: true } })
+    // Other AI features add their own flags here (import, pictures); this test only owns describe.
+    expect(await config.json()).toMatchObject({ success: true, data: { describe: true } })
 
     const described = await page.request.post(`${API}/api/v1/admin/services/describe`, {
       data: { name: 'Foam wash', category: 'car_wash', pricingType: 'per_vehicle', garageName: GARAGE.name },

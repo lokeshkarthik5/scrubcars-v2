@@ -1,5 +1,6 @@
 import type { ServiceMedia } from '@repo/core/types'
 import type { PickupNext } from '@repo/core/pickup'
+import type { OutsideServiceCity } from '@repo/core/service-city'
 
 export interface ApiSuccessResponse<T> {
   success: true
@@ -136,6 +137,12 @@ export interface ApiVendorListItem {
    * did not match. Null otherwise; absent on older servers.
    */
   matchedService?: string | null
+  /**
+   * Set when the garage is pinned more than 50 km from the Chennai centre, or
+   * is unpinned and its city field names another town; null in the city.
+   * Absent on older servers.
+   */
+  outsideServiceCity?: OutsideServiceCity | null
 }
 
 export interface ApiVendorList {
@@ -143,10 +150,17 @@ export interface ApiVendorList {
   /** Opaque; pass back as `cursor`. Null when the list is exhausted. */
   nextCursor: string | null
   /**
-   * The radius that actually produced these results. Differs from the requested
-   * one when the search auto-widened, which the UI must say out loud.
+   * How far from the customer the list reached, in km: set whenever a radius
+   * applied (a location, not doorstep, not the map's viewport, not a typed
+   * search), even with nothing found. Null otherwise. Optional because an API
+   * deployed before the field existed does not send it.
    */
-  appliedRadiusKm: number | null
+  radiusKm?: number | null
+  /**
+   * Deprecated: the old auto-widening ladder's ring, always null from the API
+   * that sends `radiusKm`. Read only as the fallback for an older API.
+   */
+  appliedRadiusKm?: number | null
 }
 
 export interface ApiPublicVendor {
@@ -176,6 +190,8 @@ export interface ApiPublicVendor {
   /** Set while the garage takes no new bookings. Optional for older servers. */
   bookingsPausedAt?: string | null
   bookingsPausedReason?: string | null
+  /** As on a list item: set only outside Chennai. Absent on older servers. */
+  outsideServiceCity?: OutsideServiceCity | null
 }
 
 export interface VendorProfileExtras {
@@ -201,7 +217,6 @@ export interface VendorProfileExtras {
   /** The most jobs it takes in a day. Null is no limit. */
   jobsPerDay: number | null
   vehicleTypes: string[]
-  notes: string | null
   /** When the garage paused new bookings; null while it takes them. */
   bookingsPausedAt: string | null
   bookingsPausedReason: string | null

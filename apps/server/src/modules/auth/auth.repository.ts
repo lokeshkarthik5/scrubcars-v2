@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, lt, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { otpVerifications, refreshTokens, users } from '../../db/schema.js'
 import type { otpPurposeEnum } from '../../db/schema.js'
@@ -101,9 +101,30 @@ export const authRepository = {
     return db.delete(otpVerifications).where(eq(otpVerifications.id, id))
   },
 
+  /**
+   * Deletes up to `limit` codes that expired before `cutoff`. By `expires_at`
+   * rather than `created_at` because that is the column with an index
+   * (`otp_verifications_expires_at_idx`), and every row's expiry is its
+   * creation plus the same three minutes. The limit keeps one call to an index
+   * range scan of a few hundred rows however much has piled up.
+   */
+  deleteOtpsExpiredBefore(cutoff: Date, limit: number) {
+    return db.delete(otpVerifications).where(
+      inArray(
+        otpVerifications.id,
+        db
+          .select({ id: otpVerifications.id })
+          .from(otpVerifications)
+          .where(lt(otpVerifications.expiresAt, cutoff))
+          .limit(limit)
+      )
+    )
+  },
+
+  /** `otpDigest` is the keyed hash of the code (lib/otp.ts), never the code. */
   createOtpVerification(data: {
     phone: string
-    otpCode: string
+    otpDigest: string
     purpose: OtpPurpose
     expiresAt: Date
   }) {
@@ -111,7 +132,7 @@ export const authRepository = {
       .insert(otpVerifications)
       .values({
         phone: data.phone,
-        otpCode: data.otpCode,
+        otpCode: data.otpDigest,
         purpose: data.purpose,
         expiresAt: data.expiresAt,
       })
