@@ -12,9 +12,26 @@ const connectionString = process.env.DATABASE_URL!
 // (which the migration runner shells out to) already reads it the same way.
 const sslDisabled = /[?&]sslmode=disable(&|$)/.test(connectionString)
 
+// One connection in production. A Vercel instance that opened a handful each
+// would exhaust Supabase's pooler as instances scaled, and Home is written to
+// await its reads one by one on that single connection. The e2e suite sets
+// PG_POOL_MAX so its workers are not stuck behind each other; unset stays 1.
+function connectionPoolMax(): number {
+  const raw = process.env.PG_POOL_MAX
+  if (raw === undefined || raw === '') return 1
+  if (!/^[1-9]\d*$/.test(raw)) {
+    throw new Error(`PG_POOL_MAX must be a positive integer, got ${JSON.stringify(raw)}`)
+  }
+  const max = Number(raw)
+  if (max > 20) {
+    throw new Error(`PG_POOL_MAX is ${max}; the cap is 20 so a typo cannot open a connection storm`)
+  }
+  return max
+}
+
 const client = postgres(connectionString, {
   prepare: false,
-  max: 1,
+  max: connectionPoolMax(),
   connect_timeout: 10,
   idle_timeout: 20,
   ssl: sslDisabled ? false : 'require',

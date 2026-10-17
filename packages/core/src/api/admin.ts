@@ -2,6 +2,7 @@ import { apiClient } from './client'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
 import type { ServiceCategory } from '@repo/core/types'
+import type { OutsideServiceCity } from '@repo/core/service-city'
 
 export interface AdminVendor {
   id: string
@@ -23,11 +24,22 @@ export interface AdminVendor {
   bookingsPausedAt?: string | null
   createdAt: string
   serviceCount: number
+  /**
+   * Every booking the garage has ever had, in any state: the count that makes
+   * a delete refused. Absent from a server older than this field.
+   */
+  bookingCount?: number
   owner: {
     id: string
     name: string
     phone: string
   } | null
+  /**
+   * Set when the garage is pinned more than 50 km from the Chennai centre (or
+   * is unpinned and its city names another town, with km null), the sign
+   * customers see on it. Absent from an older API.
+   */
+  outsideServiceCity?: OutsideServiceCity | null
 }
 
 export interface AdminPhoto {
@@ -91,6 +103,14 @@ export interface AdminVendorDetail {
     durationMins: number
     images: AdminPhoto[]
   }>
+}
+
+/**
+ * A plain service as the admin service routes return it: the editor's shape,
+ * plus whether customers can see it.
+ */
+export type AdminService = AdminVendorDetail['services'][number] & {
+  isActive: boolean
 }
 
 /** One day of a garage's week, as stored. */
@@ -551,6 +571,30 @@ export async function deleteAdminVendor(id: string) {
   return apiClient<void>(`/admin/vendors/${id}`, {
     method: 'DELETE',
   })
+}
+
+/**
+ * GET /admin/vendors/:id/services/hidden — the garage's switched-off plain
+ * services, which the editor (live services only) does not load.
+ */
+export async function listAdminHiddenServices(vendorId: string) {
+  return apiClient<AdminService[]>(`/admin/vendors/${vendorId}/services/hidden`)
+}
+
+/**
+ * PATCH /admin/vendors/:id/services/:serviceId/active — hide a service or show
+ * it again, saved immediately. Hiding one that is inside a package is refused
+ * (409 SERVICE_IN_PACKAGE).
+ */
+export async function setAdminServiceActive(
+  vendorId: string,
+  serviceId: string,
+  isActive: boolean
+) {
+  return apiClient<AdminService>(
+    `/admin/vendors/${vendorId}/services/${serviceId}/active`,
+    { method: 'PATCH', body: JSON.stringify({ isActive }) }
+  )
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────

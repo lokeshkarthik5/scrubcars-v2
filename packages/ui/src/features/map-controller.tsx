@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import type { MapMovementEvent, PaddingOptions } from 'maplibre-gl'
 import { useMap } from '@repo/ui/sc/map'
 import { PICKER_ZOOM } from '@repo/core/map'
 
@@ -10,6 +11,15 @@ export interface MapBounds {
   maxLng: number
   maxLat: number
 }
+
+/**
+ * Tagged onto every camera move the app makes (MapLibre hands a camera call's
+ * `eventData` back on that move's events), so `onBoundsChange` can tell the
+ * app moving the map from the customer moving it. Pass it as the last
+ * argument of a camera call made outside this component, too (a cluster's
+ * zoom in), so its settle is reported as programmatic.
+ */
+export const PROGRAMMATIC_MOVE = { programmatic: true } as const
 
 /** The order PostGIS's ST_MakeEnvelope takes, so nothing reshuffles it later. */
 export function boundsToParam(bounds: MapBounds): string {
@@ -30,11 +40,31 @@ interface MapControllerProps {
   /**
    * Fired once the map settles, with the viewport rectangle. Debounced by
    * MapLibre itself (`moveend`, not `move`), so panning does not produce a
-   * call per frame.
+   * call per frame. `programmatic` is true for the opening view and for moves
+   * made with PROGRAMMATIC_MOVE (this component's fits and fly-tos included),
+   * false when the customer dragged or zoomed.
    */
-  onBoundsChange?: (bounds: MapBounds, center: { lat: number; lng: number }) => void
-  /** Fit the map to these bounds once, e.g. to frame an initial result set. */
+  onBoundsChange?: (
+    bounds: MapBounds,
+    center: { lat: number; lng: number },
+    meta: { programmatic: boolean }
+  ) => void
+  /** Fit the map to these bounds, e.g. to frame an initial result set. */
   fitBounds?: MapBounds | null
+  /**
+   * Fit once per key. Without one, every new `fitBounds` value is fitted,
+   * which suits a memoised box; with one, a box that is recomputed on every
+   * render is fitted only when the key changes (a new origin, a recentre).
+   */
+  fitKey?: string | null
+  /**
+   * Room to leave around the fitted box, in pixels: a number for all sides,
+   * or a function read at the moment of the fit, so it can measure the
+   * controls drawn over the map then. 48 by default.
+   */
+  fitPadding?: number | PaddingOptions | (() => number | PaddingOptions)
+  /** How far in a fit may zoom. 15 by default. */
+  fitMaxZoom?: number
 }
 
 /**
@@ -49,6 +79,9 @@ export function MapController({
   flyTo,
   onBoundsChange,
   fitBounds,
+  fitKey,
+  fitPadding,
+  fitMaxZoom,
 }: MapControllerProps) {
   const { map } = useMap()
 
@@ -95,11 +128,14 @@ export function MapController({
 
   useEffect(() => {
     if (!map || !flyTo) return
-    map.flyTo({
-      center: [flyTo.lng, flyTo.lat],
-      zoom: Math.max(map.getZoom(), PICKER_ZOOM),
-      duration: 600,
-    })
+    map.flyTo(
+      {
+        center: [flyTo.lng, flyTo.lat],
+        zoom: Math.max(map.getZoom(), PICKER_ZOOM),
+        duration: 600,
+      },
+      PROGRAMMATIC_MOVE
+    )
   }, [map, flyTo])
 
   const boundsRef = useRef(onBoundsChange)
@@ -124,7 +160,7 @@ export function MapController({
   useEffect(() => {
     if (!map) return
 
-    const report = () => {
+    const report = (programmatic: boolean) => {
       const bounds = map.getBounds()
       const center = map.getCenter()
       boundsRef.current?.(
@@ -134,29 +170,44 @@ export function MapController({
           maxLng: bounds.getEast(),
           maxLat: bounds.getNorth(),
         },
-        { lat: center.lat, lng: center.lng }
+        { lat: center.lat, lng: center.lng },
+        { programmatic }
       )
     }
+    // A camera call's eventData arrives merged into its events, untyped.
+    const onMoveEnd = (e: MapMovementEvent) =>
+      report((e as MapMovementEvent & { programmatic?: boolean }).programmatic === true)
 
     // Report the opening viewport too, so the first search does not wait for
-    // the user to move a map they may be perfectly happy with.
-    report()
-    map.on('moveend', report)
+    // the user to move a map they may be perfectly happy with. Nobody moved
+    // it, so it counts as the app's own.
+    report(true)
+    map.on('moveend', onMoveEnd)
     return () => {
-      map.off('moveend', report)
+      map.off('moveend', onMoveEnd)
     }
   }, [map])
 
+  // The last key fitted. A ref, not state: it changes nothing on screen, it
+  // only stops the same view being fitted again on the next render.
+  const fittedKey = useRef<string | null>(null)
+
   useEffect(() => {
     if (!map || !fitBounds) return
+    if (fitKey != null) {
+      if (fittedKey.current === fitKey) return
+      fittedKey.current = fitKey
+    }
+    const padding = typeof fitPadding === 'function' ? fitPadding() : (fitPadding ?? 48)
     map.fitBounds(
       [
         [fitBounds.minLng, fitBounds.minLat],
         [fitBounds.maxLng, fitBounds.maxLat],
       ],
-      { padding: 48, duration: 600, maxZoom: 15 }
+      { padding, duration: 600, maxZoom: fitMaxZoom ?? 15 },
+      PROGRAMMATIC_MOVE
     )
-  }, [map, fitBounds])
+  }, [map, fitBounds, fitKey, fitPadding, fitMaxZoom])
 
   return null
 }
