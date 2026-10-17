@@ -1,13 +1,15 @@
 import { apiClient } from '@repo/core/api/client'
+import { stripImageMetadata } from '@repo/core/image-upload'
 import type { ServiceMedia } from '@repo/core/types'
 
 /**
  * A service's photos and video, from the garage's app and from admin.
  *
- * Photos: presign → PUT straight to R2 → register the URL with the privacy
- * tick. Video: ask the API for a one-time Cloudflare Stream link → upload the
- * file straight to Stream (a POST up to 200 MB, a resumable tus upload above)
- * → poll the row until Stream's webhook has marked it ready or failed.
+ * Photos: strip location metadata (image-upload.ts) → presign → PUT straight
+ * to R2 → register the URL with the privacy tick. Video: ask the API for a
+ * one-time Cloudflare Stream link → upload the file straight to Stream (a
+ * POST up to 200 MB, a resumable tus upload above) → poll the row until
+ * Stream's webhook has marked it ready or failed. Videos are sent as they are.
  *
  * The garage's app and admin reach the same rules through different routes
  * (and admin answers with the media list, the garage with the whole service),
@@ -44,7 +46,7 @@ export interface MediaApi {
 
 type PhotoType = 'image/jpeg' | 'image/png' | 'image/webp'
 
-async function putToR2(uploadUrl: string, file: File) {
+async function putToR2(uploadUrl: string, file: Blob) {
   const put = await fetch(uploadUrl, {
     method: 'PUT',
     body: file,
@@ -58,11 +60,12 @@ export const garageMediaApi: MediaApi = {
   config: () => apiClient<MediaConfig>('/vendors/me/media-config'),
 
   async uploadPhoto(serviceId, file) {
+    const clean = await stripImageMetadata(file)
     const { uploadUrl, publicUrl } = await apiClient<{ uploadUrl: string; publicUrl: string }>(
       `/vendors/me/services/${serviceId}/images/upload-url`,
-      { method: 'POST', body: JSON.stringify({ contentType: file.type as PhotoType }) }
+      { method: 'POST', body: JSON.stringify({ contentType: clean.type as PhotoType }) }
     )
-    await putToR2(uploadUrl, file)
+    await putToR2(uploadUrl, clean)
     // The answer is the whole service (or package); the block needs its media.
     const service = await apiClient<{ media?: ServiceMedia[] }>(
       `/vendors/me/services/${serviceId}/images`,
@@ -94,11 +97,12 @@ export const adminMediaApi: MediaApi = {
   config: () => apiClient<MediaConfig>('/admin/media-config'),
 
   async uploadPhoto(serviceId, file) {
+    const clean = await stripImageMetadata(file)
     const { uploadUrl, publicUrl } = await apiClient<{ uploadUrl: string; publicUrl: string }>(
       `/admin/services/${serviceId}/images/upload-url`,
-      { method: 'POST', body: JSON.stringify({ contentType: file.type as PhotoType }) }
+      { method: 'POST', body: JSON.stringify({ contentType: clean.type as PhotoType }) }
     )
-    await putToR2(uploadUrl, file)
+    await putToR2(uploadUrl, clean)
     return apiClient<ServiceMedia[]>(`/admin/services/${serviceId}/images`, {
       method: 'POST',
       body: JSON.stringify({ url: publicUrl, consent: true }),

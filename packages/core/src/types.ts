@@ -1,5 +1,6 @@
 import type { OpeningDay } from '@repo/core/opening-hours'
 import type { PickupNext } from '@repo/core/pickup'
+import type { OutsideServiceCity } from '@repo/core/service-city'
 
 /**
  * How the car and the work meet. 'pickup' is pickup & drop: the garage
@@ -86,6 +87,13 @@ export interface Vendor {
    * did not match ("Ceramic Coating"). Null everywhere else.
    */
   matchedService: string | null
+  /**
+   * Where the garage is when that is not Chennai: its town and how far out,
+   * for the "Outside Chennai" chip, the page's line and checkout's (km null
+   * when it has no pin). Null in the city, when an unpinned garage's town is
+   * unknown, and from a server older than the sign.
+   */
+  outsideServiceCity: OutsideServiceCity | null
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.
