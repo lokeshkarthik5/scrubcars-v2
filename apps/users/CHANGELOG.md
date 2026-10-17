@@ -417,6 +417,14 @@ reconstructing every change in them.
 
 ### Changed
 
+- **Legal pages: the owner's details of 16 Oct 2026.** The Grievance Officer
+  is Raga, Operations Manager; support hours read "6 am to 1 am IST, every
+  day"; and the proprietor's name is no longer printed (the owner's choice):
+  the pages say "a sole proprietorship" with no name and no placeholder,
+  behind `BUSINESS.printProprietorName` in `lib/legal/details.ts`, which the
+  lawyer can turn back on. `LAST_UPDATED` is 16 October 2026. The pages stay
+  in draft (`LEGAL_DRAFT`) until the lawyer signs off.
+
 - **The garage list, Home and the map show every garage within 50 km**
   (owner decision, 2026-10-16), nearest first, from the API's new `radiusKm`
   (`appliedRadiusKm` is deprecated and only read as a fallback from an older
