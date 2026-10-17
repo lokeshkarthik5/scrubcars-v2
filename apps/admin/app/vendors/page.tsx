@@ -21,6 +21,7 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SectionHeader } from '@repo/ui/sc/section-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
+import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { Meta } from '@/components/meta'
 import { PilotNumbersCard } from '@/components/pilot-numbers-card'
 import { deleteConfirm, deleteRefusal } from '@/lib/vendor-delete'
@@ -200,6 +201,24 @@ export default function AdminVendorsPage() {
                         {v.businessName}
                       </p>
                       <p className="font-numeric text-[12px] text-text-secondary">{v.phone}</p>
+                      {/* The sign customers see on this garage, with how far
+                          out it is: a garage whose city says Chennai but shows
+                          this is usually pinned in the wrong place. No km on
+                          an unpinned garage, signed from its city field alone
+                          (the card's "Not pinned" says why). */}
+                      {v.outsideServiceCity && (
+                        <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
+                          <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
+                          {v.outsideServiceCity.km !== null && (
+                            <span className="shrink-0">
+                              <span className="font-numeric">
+                                {v.outsideServiceCity.km.toLocaleString('en-IN')}
+                              </span>{' '}
+                              km out
+                            </span>
+                          )}
+                        </p>
+                      )}
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                       <ScBadge variant={stage.variant}>{stage.label}</ScBadge>
