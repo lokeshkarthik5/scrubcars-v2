@@ -212,6 +212,18 @@ describe('bookingEarning — final bills', () => {
   })
 })
 
+describe('bookingEarning — extra work (0041)', () => {
+  test('paid extra work is the garage’s, in the price and charged at the main service’s rate', () => {
+    const paidAt = new Date(DONE.getTime() - HOUR)
+    const e = bookingEarning(chain({ billsPaid: '450.00', lastBillPaidAt: paidAt }), PAYING)
+    expect(e.pricePaise).toBe(95_000)
+    expect(e.commissionPaise).toBe(7_600)
+    expect(e.sharePaise).toBe(87_400)
+    // Paid before the job was completed: payable from completion as usual.
+    expect(e.payableFrom).toEqual(DONE)
+  })
+})
+
 describe('bookingEarning — refunds', () => {
   test('a part refund comes off the garage’s figure, and its commission shrinks with it', () => {
     const e = bookingEarning(

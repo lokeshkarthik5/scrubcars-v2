@@ -220,9 +220,33 @@ export const bookingIntentStatusEnum = pgEnum('booking_intent_status', [
 // the stage is part of the record, not a caption.
 export const jobPhotoStageEnum = pgEnum('job_photo_stage', ['before', 'after'])
 
-// What an extra charge on a booking is for. Only the final bill of an
-// inspection job today; an enum so a second kind is a migration, not a guess.
-export const bookingChargeKindEnum = pgEnum('booking_charge_kind', ['final_bill'])
+// What an extra charge on a booking is for: the final bill of an inspection
+// job, or extra work the garage asked for mid-job and the customer approved by
+// paying it in the app (0041, lib/extra-work.ts).
+export const bookingChargeKindEnum = pgEnum('booking_charge_kind', ['final_bill', 'extra_work'])
+
+/**
+ * Why a charge stopped standing (booking_charges.cancel_reason, 0041): the
+ * garage replaced an unpaid final bill, withdrew an unpaid extra-work
+ * request, the customer declined one, or the booking was cancelled or moved
+ * with it unpaid. Null on rows cancelled before 0041. A text column with a
+ * CHECK, like home_audience.
+ */
+export const CHARGE_CANCEL_REASONS = ['replaced', 'withdrawn', 'declined', 'booking_closed'] as const
+
+export type ChargeCancelReason = (typeof CHARGE_CANCEL_REASONS)[number]
+
+/**
+ * Where a garage's suggested times stand (booking_time_proposals.status,
+ * 0041): open until the customer picks one ('accepted'), says none work
+ * ('declined'), lets it run out ('expired'), or the garage takes it back
+ * ('withdrawn'). 'closed' is one left behind by a booking that changed some
+ * other way (the customer cancelled or moved it, or Detlio cancelled it).
+ * Text + CHECK; the rules are lib/time-proposals.ts.
+ */
+export const TIME_PROPOSAL_STATUSES = ['open', 'accepted', 'declined', 'expired', 'withdrawn', 'closed'] as const
+
+export type TimeProposalStatus = (typeof TIME_PROPOSAL_STATUSES)[number]
 
 // Where a charge stands. 'due' waits for the customer to pay in the app;
 // 'not_needed' is a bill that came to no more than they already paid, kept as
@@ -1092,6 +1116,16 @@ export const bookingCharges = pgTable(
     // The Razorpay mode of the bill's order (see GATEWAY_MODES), from 0032.
     gatewayMode: gatewayModeColumn(),
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    // Extra work only (0041): up to three photos of what the garage found,
+    // uploaded into the booking's job-photos folder. Empty on a final bill.
+    photos: jsonb('photos')
+      .$type<Array<{ storageKey: string; url: string }>>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    // When and why it stopped standing (0041; see CHARGE_CANCEL_REASONS).
+    // Null on rows that never did, and on ones cancelled before 0041.
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason').$type<ChargeCancelReason>(),
     // Money given back on this bill: a paid bill on a booking that was then
     // cancelled, or a payment that landed on a replaced or withdrawn bill.
     // The bill's status is left as it is — it records what happened to the
@@ -1116,6 +1150,16 @@ export const bookingCharges = pgTable(
       .on(table.bookingId)
       .where(sql`${table.kind} = 'final_bill' and ${table.status} <> 'cancelled'`),
     gatewayModeCheck('booking_charges_gateway_mode_check', table.gatewayMode),
+    check(
+      'booking_charges_cancel_reason_check',
+      sql`${table.cancelReason} is null or (${table.status} = 'cancelled' and ${table.cancelReason} in ('replaced', 'withdrawn', 'declined', 'booking_closed'))`
+    ),
+    // At most three photos, and only on extra work (::text: 'extra_work' is
+    // added in the same migration).
+    check(
+      'booking_charges_photos_check',
+      sql`jsonb_typeof(${table.photos}) = 'array' and jsonb_array_length(${table.photos}) <= 3 and (${table.kind}::text = 'extra_work' or jsonb_array_length(${table.photos}) = 0)`
+    ),
   ]
 )
 
@@ -1177,12 +1221,83 @@ export const bookingReschedules = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     reason: text('reason'),
+    // Set when the move was the customer picking one of the garage's
+    // suggested times (0041). Such a move is the garage's doing, so it does
+    // not count toward the customer's two reschedules.
+    proposalId: uuid('proposal_id').references(() => bookingTimeProposals.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     index('booking_reschedules_original_idx').on(table.originalBookingId),
+  ]
+)
+
+// Other times a garage suggested instead of declining a booking (0041).
+//
+// On a pending, paid booking the garage can offer one to three of its own
+// free slots for the same job. The customer picks one, which moves the
+// booking there through the reschedule path, already accepted; or says none
+// work, which cancels it as the garage's decline with a full refund. Left
+// unanswered, it expires at `expires_at` (the earliest option less its
+// booking type's notice, or 12 hours, whichever is sooner) and the booking is
+// cancelled the same way by the pending-digest cron. Rules in
+// lib/time-proposals.ts.
+//
+// `slots` are ISO start times, soonest first. One open proposal per booking
+// (partial unique index). `result_booking_id` is the booking a pick moved
+// to. The row cascades with its booking, so the test-data reset and
+// account deletion take it with the chain.
+export const bookingTimeProposals = pgTable(
+  'booking_time_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    slots: jsonb('slots').$type<string[]>().notNull(),
+    note: varchar('note', { length: 200 }),
+    status: text('status').$type<TimeProposalStatus>().default('open').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // The person at the garage who suggested them, like accepted_by.
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    chosenSlot: timestamp('chosen_slot', { withTimezone: true }),
+    resultBookingId: uuid('result_booking_id').references(() => bookings.id, {
+      onDelete: 'set null',
+    }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('booking_time_proposals_booking_id_idx').on(table.bookingId),
+    uniqueIndex('booking_time_proposals_one_open')
+      .on(table.bookingId)
+      .where(sql`${table.status} = 'open'`),
+    // The cron's sweep reads open ones by when they run out.
+    index('booking_time_proposals_open_expires_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.status} = 'open'`),
+    check(
+      'booking_time_proposals_status_check',
+      sql`${table.status} in ('open', 'accepted', 'declined', 'expired', 'withdrawn', 'closed')`
+    ),
+    check(
+      'booking_time_proposals_slots_check',
+      sql`jsonb_typeof(${table.slots}) = 'array' and jsonb_array_length(${table.slots}) between 1 and 3`
+    ),
+    check(
+      'booking_time_proposals_resolved_check',
+      sql`(${table.status} = 'open') = (${table.resolvedAt} is null)`
+    ),
+    check(
+      'booking_time_proposals_chosen_check',
+      sql`(${table.status} = 'accepted') = (${table.chosenSlot} is not null)`
+    ),
   ]
 )
 
@@ -2279,6 +2394,15 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   photos: many(jobPhotos),
   charges: many(bookingCharges),
   refundRecords: many(refundRecords),
+  timeProposals: many(bookingTimeProposals, { relationName: 'proposalBooking' }),
+}))
+
+export const bookingTimeProposalsRelations = relations(bookingTimeProposals, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [bookingTimeProposals.bookingId],
+    references: [bookings.id],
+    relationName: 'proposalBooking',
+  }),
 }))
 
 export const bookingNotesRelations = relations(bookingNotes, ({ one }) => ({

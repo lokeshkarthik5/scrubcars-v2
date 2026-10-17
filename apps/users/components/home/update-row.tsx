@@ -5,6 +5,7 @@ import {
   IconArrowUpRight,
   IconBuildingStore,
   IconCalendarCheck,
+  IconCalendarQuestion,
   IconCalendarRepeat,
   IconCalendarX,
   IconCar,
@@ -20,6 +21,7 @@ import {
   IconReceiptRefund,
   IconSpeakerphone,
   IconTool,
+  IconToolsOff,
   IconTruckDelivery,
   IconX,
 } from '@tabler/icons-react'
@@ -50,6 +52,12 @@ const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   picked_up: IconCar,
   at_garage: IconBuildingStore,
   out_for_delivery: IconTruckDelivery,
+  // Suggested times and extra work (0041).
+  time_proposal: IconCalendarQuestion,
+  extra_work_due: IconTool,
+  extra_work_paid: IconTool,
+  extra_work_declined: IconToolsOff,
+  extra_work_withdrawn: IconToolsOff,
 }
 
 export interface UpdateRowData {

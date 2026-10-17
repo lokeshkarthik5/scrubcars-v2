@@ -5,6 +5,8 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import { bookingChargesService } from './booking-charges.service.js'
 import type {
+  AskExtraWorkInput,
+  ExtraWorkUploadUrlInput,
   RaiseFinalBillInput,
   VerifyChargePaymentInput,
 } from './booking-charges.validation.js'
@@ -84,4 +86,28 @@ export async function verifyChargePayment(
     success: true,
     data: result,
   })
+}
+
+export async function createExtraWorkUploadUrl(
+  c: ChargesContext,
+  bookingId: string,
+  input: ExtraWorkUploadUrlInput
+) {
+  const upload = await bookingChargesService.createExtraWorkUploadUrl(getVendorId(c), bookingId, input)
+  return c.json({ success: true, data: upload })
+}
+
+export async function askExtraWork(c: ChargesContext, bookingId: string, input: AskExtraWorkInput) {
+  const extraWork = await bookingChargesService.askExtraWork(getVendorId(c), getAuth(c).sub, bookingId, input)
+  return c.json({ success: true, data: extraWork }, 201)
+}
+
+export async function withdrawExtraWork(c: ChargesContext, bookingId: string, chargeId: string) {
+  const extraWork = await bookingChargesService.withdrawExtraWork(getVendorId(c), bookingId, chargeId)
+  return c.json({ success: true, data: extraWork })
+}
+
+export async function declineExtraWork(c: ChargesContext, bookingId: string, chargeId: string) {
+  const extraWork = await bookingChargesService.declineExtraWork(getAuth(c).sub, bookingId, chargeId)
+  return c.json({ success: true, data: extraWork })
 }

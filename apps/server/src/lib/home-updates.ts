@@ -38,6 +38,8 @@ import { bookingRefundTotals, isRazorpayRefundId } from './refunds.js'
 import { addDays, istDateKey, istMidnight, istSlotShortLabel, istTimeLabel, istWeekdayLabel } from './ist.js'
 import type { BookingType } from './booking-types.js'
 import { formatComplaintNumber, type ComplaintStatus } from './complaints.js'
+import { extraWorkPayable } from './extra-work.js'
+import { isProposalLive, liveOptions } from './time-proposals.js'
 
 export const UPDATES_WINDOW_DAYS = 30
 export const MAX_UPDATES = 100
@@ -89,6 +91,8 @@ export interface HubBooking {
   } | null
   charges: Array<{
     id: string
+    /** 'final_bill' or 'extra_work' (0041). */
+    kind: string
     status: string
     amountDue: string
     createdAt: Date
@@ -96,7 +100,16 @@ export interface HubBooking {
     gatewayPaymentId: string | null
     refundedAmount: string | null
     refundedAt: Date | null
+    /** Extra work's "what" (its one line); null on a final bill. */
+    description?: string | null
+    cancelledAt?: Date | null
+    cancelReason?: string | null
   }>
+  /**
+   * The newest time suggestion the garage made on this booking (0041), if
+   * any. Only its times and outcome, never who made it.
+   */
+  proposal?: HubProposal | null
   /** `count` is before + after. */
   photos: { count: number; before: number; after: number; lastAt: Date | null }
   /** `refundRef` is the Razorpay refund id (rfnd_…), or null for a refund done outside Razorpay. */
@@ -106,6 +119,16 @@ export interface HubBooking {
    * Never the codes: Home and Updates have no use for them.
    */
   pickup?: HubPickupSteps | null
+}
+
+/** A garage's suggested times on a booking, as Home and Updates read them. */
+export interface HubProposal {
+  id: string
+  status: string
+  slots: string[]
+  expiresAt: Date
+  createdAt: Date
+  resolvedAt: Date | null
 }
 
 /** When each handover step of a pickup & drop job happened. */
@@ -138,6 +161,11 @@ export type UpdateKind =
   | 'picked_up'
   | 'at_garage'
   | 'out_for_delivery'
+  | 'time_proposal'
+  | 'extra_work_due'
+  | 'extra_work_paid'
+  | 'extra_work_declined'
+  | 'extra_work_withdrawn'
 
 export interface UpdateItem {
   /** Stable across reads: kind plus what it is about. */
@@ -308,7 +336,30 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
     }))
   }
 
+  // The garage's suggested times (0041). Dated when it suggested them; an
+  // answered one stays as history, the outcome said by the rows below (the
+  // moved booking's own rows, or the cancellation).
+  const proposal = booking.proposal
+  if (proposal) {
+    const live = isProposalLive(proposal, booking.status, now.getTime())
+    const options = live ? liveOptions(proposal.slots, booking.bookingType, now.getTime()) : proposal.slots
+    rows.push(draft({
+      ...about,
+      id: `proposal:${proposal.id}`,
+      kind: 'time_proposal',
+      at: proposal.createdAt,
+      title: live
+        ? `${booking.vendorName} can't do ${istTimeLabel(booking.scheduledAt)} — pick another time`
+        : `${booking.vendorName} suggested other times`,
+      body: options.map((option) => istSlotShortLabel(new Date(option))).join(' · ') || null,
+    }))
+  }
+
   for (const charge of booking.charges) {
+    if (charge.kind === 'extra_work') {
+      rows.push(...extraWorkRows(booking, charge, about))
+      continue
+    }
     if (charge.status === 'due') {
       rows.push(draft({
         ...about,
@@ -377,14 +428,26 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
     })
     const refundLine = Number(owed) > 0 ? `Refund due: ${rupees(owed)}` : null
     const declined = booking.cancelledBy === 'vendor' && !booking.acceptedAt
+    // Cancelled because none of the garage's suggested times was picked
+    // (0041): said as what happened, not as a plain decline.
+    const proposalOutcome =
+      booking.cancelledBy === 'vendor' && booking.proposal
+        ? booking.proposal.status === 'declined'
+          ? `None of ${booking.vendorName}'s times worked, so your booking was cancelled`
+          : booking.proposal.status === 'expired'
+            ? `No time was picked, so your booking at ${booking.vendorName} was cancelled`
+            : null
+        : null
     rows.push(draft({
       ...about,
       id: `cancelled:${booking.id}`,
       kind: declined ? 'declined' : 'cancelled',
       at: booking.cancelledAt!,
-      title: declined
-        ? `${booking.vendorName} couldn't take your booking`
-        : `Your booking at ${booking.vendorName} was cancelled`,
+      title:
+        proposalOutcome ??
+        (declined
+          ? `${booking.vendorName} couldn't take your booking`
+          : `Your booking at ${booking.vendorName} was cancelled`),
       body: refundLine ?? slot,
       amount: refundLine ? owed : null,
     }))
@@ -420,6 +483,70 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
   }
 
   return rows
+}
+
+/**
+ * The rows one extra-work request makes (0041): asked (while it waits for
+ * the customer on a booking still on), paid, declined or withdrawn. Each
+ * dated when it happened; a request closed with its booking says nothing of
+ * its own, the cancellation row says it.
+ */
+function extraWorkRows(
+  booking: HubBooking,
+  charge: HubBooking['charges'][number],
+  about: { bookingId: string; vendorId: string; vendorName: string }
+): Draft[] {
+  const what = charge.description ?? 'Extra work'
+  if (charge.status === 'due') {
+    if (!extraWorkPayable(booking.status)) return []
+    return [draft({
+      ...about,
+      id: `extra_work:${charge.id}`,
+      kind: 'extra_work_due',
+      at: charge.createdAt,
+      title: `${booking.vendorName} asks for extra work: ${rupees(charge.amountDue)}`,
+      body: what,
+      amount: charge.amountDue,
+      chargeId: charge.id,
+    })]
+  }
+  if (charge.status === 'paid' && charge.paidAt) {
+    return [draft({
+      ...about,
+      id: `extra_work_paid:${charge.id}`,
+      kind: 'extra_work_paid',
+      at: charge.paidAt,
+      title: `Extra work approved and paid: ${rupees(charge.amountDue)}`,
+      body: what,
+      amount: charge.amountDue,
+      chargeId: charge.id,
+    })]
+  }
+  if (charge.status === 'cancelled' && charge.cancelledAt) {
+    if (charge.cancelReason === 'declined') {
+      return [draft({
+        ...about,
+        id: `extra_work_declined:${charge.id}`,
+        kind: 'extra_work_declined',
+        at: charge.cancelledAt,
+        title: `You declined extra work from ${booking.vendorName}`,
+        body: what,
+        chargeId: charge.id,
+      })]
+    }
+    if (charge.cancelReason === 'withdrawn') {
+      return [draft({
+        ...about,
+        id: `extra_work_withdrawn:${charge.id}`,
+        kind: 'extra_work_withdrawn',
+        at: charge.cancelledAt,
+        title: `${booking.vendorName} withdrew its extra-work request`,
+        body: what,
+        chargeId: charge.id,
+      })]
+    }
+  }
+  return []
 }
 
 /**

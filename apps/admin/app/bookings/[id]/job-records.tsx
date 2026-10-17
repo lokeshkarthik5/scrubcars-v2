@@ -2,7 +2,13 @@
 
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScSection } from '@repo/ui/sc/section'
-import type { AdminBookingDetail, AdminFinalBill } from '@repo/core/api/admin'
+import Link from 'next/link'
+import type {
+  AdminBookingDetail,
+  AdminExtraWork,
+  AdminFinalBill,
+  AdminTimeProposal,
+} from '@repo/core/api/admin'
 import { finalBillStatusLabel } from '@repo/core/job-records'
 import { CopyButton } from '@/components/copy-button'
 import { formatRupees, formatWhen } from '@/lib/bookings'
@@ -236,6 +242,165 @@ export function JobPhotosSection({ booking }: { booking: AdminBookingDetail }) {
           </div>
         )
       })}
+    </ScSection>
+  )
+}
+
+const EXTRA_WORK_STATE: Record<
+  AdminExtraWork['state'],
+  { label: string; variant: 'pending' | 'success' | 'muted' }
+> = {
+  awaiting: { label: 'Waiting for customer', variant: 'pending' },
+  paid: { label: 'Approved & paid', variant: 'success' },
+  declined: { label: 'Declined by customer', variant: 'muted' },
+  withdrawn: { label: 'Withdrawn by garage', variant: 'muted' },
+  closed: { label: 'Closed with the booking', variant: 'muted' },
+}
+
+/**
+ * Extra work the garage asked for (0041): what, how much, the photos, where
+ * each stands and the Razorpay ids. Paid extra work is kept only when the
+ * booking completes; a refund owed on one is in the Refund section above
+ * and pointed at here, like a bill's.
+ */
+export function ExtraWorkSection({ booking }: { booking: AdminBookingDetail }) {
+  const items = booking.extraWork ?? []
+  if (items.length === 0) return null
+
+  return (
+    <ScSection title="Extra work">
+      <ul className="flex flex-col gap-3">
+        {items.map((work) => (
+          <li key={work.id} className="flex flex-col gap-1.5 border-t border-border pt-2 first:border-t-0 first:pt-0">
+            <div className="flex items-start justify-between gap-3 text-[13px]">
+              <span className="min-w-0 text-text-primary">{work.description}</span>
+              <span className="shrink-0 font-numeric text-text-primary">{formatRupees(work.amount)}</span>
+            </div>
+            <div>
+              <ScBadge variant={EXTRA_WORK_STATE[work.state].variant}>{EXTRA_WORK_STATE[work.state].label}</ScBadge>
+            </div>
+            {work.note && (
+              <p className="text-[12px] text-text-secondary">
+                <span className="font-medium text-text-primary">Garage&apos;s note:</span> {work.note}
+              </p>
+            )}
+            {work.photos.length > 0 && (
+              <ul className="flex flex-wrap gap-2">
+                {work.photos.map((photo, i) => (
+                  <li key={photo.url}>
+                    <a
+                      href={photo.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Open photo ${i + 1} of ${work.description}`}
+                      className="block size-16 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photo.url} alt="" className="h-full w-full object-cover" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {(work.state === 'paid' || work.gatewayPaymentId) && (
+              <BillMoneyLine
+                booking={booking}
+                billId={work.id}
+                paidWhen={
+                  work.state === 'paid'
+                    ? 'Paid, on a booking that did not complete.'
+                    : 'A payment landed after this request no longer stood.'
+                }
+              />
+            )}
+            <p className="text-[12px] text-text-muted">
+              Asked <span className="font-numeric">{formatWhen(work.createdAt)}</span>
+              {work.paidAt && (
+                <>
+                  {' · '}paid <span className="font-numeric">{formatWhen(work.paidAt)}</span>
+                </>
+              )}
+              {work.cancelledAt && (
+                <>
+                  {' · '}closed <span className="font-numeric">{formatWhen(work.cancelledAt)}</span>
+                </>
+              )}
+            </p>
+            {(work.gatewayOrderId || work.gatewayPaymentId) && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {work.gatewayOrderId && <GatewayId label="Razorpay order id" value={work.gatewayOrderId} />}
+                {work.gatewayPaymentId && <GatewayId label="Razorpay payment id" value={work.gatewayPaymentId} />}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </ScSection>
+  )
+}
+
+const PROPOSAL_OUTCOME: Record<AdminTimeProposal['status'], string> = {
+  open: 'Waiting for the customer',
+  accepted: 'The customer picked a time',
+  declined: 'None worked: cancelled as the garage’s decline',
+  expired: 'Ran out unanswered: cancelled as the garage’s decline',
+  withdrawn: 'Withdrawn by the garage',
+  closed: 'Closed: the booking changed another way',
+}
+
+/**
+ * The times the garage suggested instead of declining (0041), and how each
+ * suggestion ended. A pick moved the booking to a new one in its chain,
+ * linked here.
+ */
+export function TimeProposalSection({ booking }: { booking: AdminBookingDetail }) {
+  const proposals = booking.timeProposals ?? []
+  if (proposals.length === 0) return null
+
+  return (
+    <ScSection title="Suggested times">
+      <ul className="flex flex-col gap-3">
+        {proposals.map((proposal) => (
+          <li key={proposal.id} className="flex flex-col gap-1 border-t border-border pt-2 first:border-t-0 first:pt-0">
+            <p className="text-[13px] font-medium text-text-primary">{PROPOSAL_OUTCOME[proposal.status]}</p>
+            <ul className="flex flex-col gap-0.5">
+              {proposal.slots.map((slot) => (
+                <li key={slot} className="font-numeric text-[12px] text-text-secondary">
+                  {formatWhen(slot)}
+                  {proposal.chosenSlot && new Date(proposal.chosenSlot).getTime() === new Date(slot).getTime() && (
+                    <span className="font-sans text-success"> · picked</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {proposal.note && (
+              <p className="text-[12px] text-text-secondary">
+                <span className="font-medium text-text-primary">Garage&apos;s note:</span> {proposal.note}
+              </p>
+            )}
+            <p className="text-[12px] text-text-muted">
+              Suggested <span className="font-numeric">{formatWhen(proposal.createdAt)}</span>
+              {proposal.resolvedAt ? (
+                <>
+                  {' · '}ended <span className="font-numeric">{formatWhen(proposal.resolvedAt)}</span>
+                </>
+              ) : (
+                <>
+                  {' · '}runs out <span className="font-numeric">{formatWhen(proposal.expiresAt)}</span>
+                </>
+              )}
+            </p>
+            {proposal.resultBookingId && (
+              <Link
+                href={`/bookings/${proposal.resultBookingId}`}
+                className="text-[12px] font-medium text-text-primary underline underline-offset-2"
+              >
+                Open the moved booking
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
     </ScSection>
   )
 }

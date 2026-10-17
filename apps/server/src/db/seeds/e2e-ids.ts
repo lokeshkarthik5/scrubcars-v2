@@ -320,6 +320,17 @@ export const CUSTOMERS = {
    */
   pickup: { id: id(178), phone: '9000000078', name: 'Pickup Padma', vehicleId: id(787) },
   /**
+   * Suggested times and extra work (0041), at VENDORS.proposals only
+   * (specs/journeys/proposals-extra-work-journey.spec.ts). Ids 2100–2199 and
+   * phones 90000021xx are this feature's own range. Each has one car and one
+   * seeded booking there: a pending paid one the garage suggests two other
+   * times for (picked), a pending paid one whose times the customer turns
+   * down, and a job under way the garage asks extra work on.
+   */
+  proposalPicker: { id: id(2102), phone: '9000002102', name: 'Proposal Pooja', vehicleId: id(2103) },
+  proposalDecliner: { id: id(2104), phone: '9000002104', name: 'Proposal Prem', vehicleId: id(2105) },
+  extraWorkPayer: { id: id(2106), phone: '9000002106', name: 'Extra Work Ezhil', vehicleId: id(2107) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -395,6 +406,8 @@ export const STAFF = {
   payoutsOwner: { id: id(211), phone: '9000001012', name: 'Payouts Prakash' },
   /** Owns VENDORS.pickup only, so a pickup job's garage session has one company. */
   pickupOwner: { id: id(228), phone: '9000001028', name: 'Pickup Owner Prabhu' },
+  /** Owns VENDORS.proposals only (0041; the 2100–2199 range). */
+  proposalsOwner: { id: id(2101), phone: '9000002101', name: 'Proposals Owner Parvathi' },
 } as const
 
 export const VENDORS = {
@@ -545,7 +558,17 @@ export const VENDORS = {
    * Booked only by CUSTOMERS.pickup.
    */
   pickup: { id: id(358), name: 'Pickup Drop Test Garage' },
+  /**
+   * Suggested times and extra work (0041). Live, at the garage only, open
+   * 06:00–22:00 every day, two bays, one ₹500 wash (SERVICES.proposalsWash).
+   * Far from ORIGIN like the other single-purpose garages (PROPOSALS_PIN), so
+   * it is in no Nearby count. Booked only by the three 0041 customers.
+   */
+  proposals: { id: id(2110), name: 'Proposals Test Garage' },
 } as const
+
+/** Where VENDORS.proposals is: south-west, clear of every other test garage. */
+export const PROPOSALS_PIN = { lat: 12.5, lng: 79.875 } as const
 
 /**
  * Where VENDORS.pickup is, and CUSTOMERS.pickup's saved address ~1.7 km north
@@ -662,6 +685,8 @@ export const SERVICES = {
   payoutsWash: { id: id(439), name: 'Payouts Wash', price: '500.00', durationMins: 30 },
   /** On PICKUP: its one service, at a price no other garage charges. */
   pickupWash: { id: id(456), name: 'Pickup Shine Wash', price: '549.00', durationMins: 30 },
+  /** On PROPOSALS: its one service (0041). */
+  proposalsWash: { id: id(2111), name: 'Proposals Foam Wash', price: '500.00', durationMins: 60 },
 } as const
 
 export const DISCOUNTS = {
@@ -918,6 +943,16 @@ export const BOOKINGS = {
   payoutDone: refId('a7a00001'),
   payoutNoShow: refId('a7a00002'),
   payoutUpcoming: refId('a7a00003'),
+  /**
+   * At VENDORS.proposals (0041), each a paid ₹500 wash. Pending tomorrow at
+   * 10:00 IST: the garage suggests other times and CUSTOMERS.proposalPicker
+   * picks one. Pending tomorrow at 12:00: CUSTOMERS.proposalDecliner says
+   * none work. In progress since an hour ago: the garage asks
+   * CUSTOMERS.extraWorkPayer for extra work, which they pay.
+   */
+  proposalPick: id(2120),
+  proposalDecline: id(2121),
+  extraWorkJob: id(2122),
 } as const
 
 export const VEHICLES = {

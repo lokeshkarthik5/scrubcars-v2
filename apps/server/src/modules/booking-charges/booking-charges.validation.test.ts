@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { raiseFinalBillSchema } from './booking-charges.validation.js'
+import { raiseFinalBillSchema,
+  askExtraWorkSchema,
+} from './booking-charges.validation.js'
 
 const line = (description: string, amount: number) => ({ description, amount })
 
@@ -48,5 +50,28 @@ describe('raiseFinalBillSchema', () => {
     expect(raiseFinalBillSchema.safeParse({ lines: [{ description: 'Polish', amount: '300' }] }).success).toBe(
       false
     )
+  })
+})
+
+describe('askExtraWorkSchema (0041)', () => {
+  const valid = { description: 'Replace wiper blades', amount: 450, note: '  ', photoKeys: ['vendors/v/job-photos/b/1.jpg'] }
+
+  test('what, a price of at least ₹1, an optional note and up to three photos', () => {
+    expect(askExtraWorkSchema.parse(valid)).toEqual({
+      description: 'Replace wiper blades',
+      amount: 450,
+      note: undefined,
+      photoKeys: ['vendors/v/job-photos/b/1.jpg'],
+    })
+    expect(askExtraWorkSchema.parse({ description: 'Polish', amount: 1 }).photoKeys).toEqual([])
+  })
+
+  test('refuses no description, a price under ₹1 or with paise past two, four photos, and anything extra', () => {
+    expect(askExtraWorkSchema.safeParse({ ...valid, description: '  ' }).success).toBe(false)
+    expect(askExtraWorkSchema.safeParse({ ...valid, amount: 0.5 }).success).toBe(false)
+    expect(askExtraWorkSchema.safeParse({ ...valid, amount: 10.005 }).success).toBe(false)
+    expect(askExtraWorkSchema.safeParse({ ...valid, photoKeys: ['a', 'b', 'c', 'd'] }).success).toBe(false)
+    expect(askExtraWorkSchema.safeParse({ ...valid, status: 'paid' }).success).toBe(false)
+    expect(askExtraWorkSchema.safeParse({ ...valid, description: 'x'.repeat(81) }).success).toBe(false)
   })
 })

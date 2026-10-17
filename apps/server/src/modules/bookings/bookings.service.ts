@@ -36,6 +36,18 @@ import {
   type FinalBillRecord,
 } from '../../lib/final-bill.js'
 import { customerRefund, type CustomerRefundRecord } from '../../lib/refunds.js'
+import {
+  latestProposal,
+  proposalRefusal,
+  toProposalView,
+  type ProposalRecord,
+} from '../../lib/time-proposals.js'
+import {
+  completionBlockedByExtraWork,
+  extraWorkRefusal,
+  extraWorkViews,
+  openExtraWork,
+} from '../../lib/extra-work.js'
 import { buildReceipt, receiptAvailability, receiptIssuedAt } from '../../lib/receipts.js'
 import {
   customerSeesPhotos,
@@ -326,7 +338,16 @@ type BookingWithRelations = {
   // repository). Absent from lists, and then absent from the payload too —
   // an empty list there would claim the job has none.
   photos?: Array<{ id: string; stage: JobPhotoStage; url: string; createdAt: Date }>
-  charges?: FinalBillRecord[]
+  // Final bills and extra work (0041) alike; the mappers pick each out.
+  charges?: Array<
+    FinalBillRecord & {
+      photos?: Array<{ storageKey: string; url: string }>
+      cancelledAt?: Date | null
+      cancelReason?: string | null
+    }
+  >
+  // The garage's time suggestions (0041), newest first, with JOB_RECORDS.
+  timeProposals?: ProposalRecord[]
   vehicle?: {
     id: string
     make: string
@@ -573,8 +594,23 @@ function toBookingResponse(
     ...(booking.charges !== undefined && {
       finalBill: finalBillOf(booking.charges),
       paidAtBooking: creditAtBooking(booking),
+      // Extra work the garage asked for (0041), newest first, whatever
+      // became of each: what, how much, the photos and where it stands.
+      extraWork: extraWorkViews(booking.charges),
+    }),
+    // The garage's suggested times (0041): the live suggestion while it can
+    // be answered, or how the last one ended. Null when there never was one.
+    ...(booking.timeProposals !== undefined && {
+      timeProposal: proposalViewOf(booking),
     }),
   }
+}
+
+function proposalViewOf(booking: BookingWithRelations) {
+  const proposal = latestProposal(booking.timeProposals)
+  return proposal
+    ? toProposalView(proposal, { status: booking.status, bookingType: booking.bookingType as BookingType }, Date.now())
+    : null
 }
 
 /** The pricing types of a booking's services, as BOOKING_ITEMS reads them. */
@@ -639,8 +675,53 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
           scheduledAt: booking.scheduledAt,
           now: Date.now(),
         }) === null && liveFinalBill(booking.charges)?.status !== 'paid',
+      // Whether the card offers "Ask for extra work", and if not, why
+      // (lib/extra-work.ts): 'on_inspection' says the final bill covers it.
+      extraWorkRefusal: extraWorkRefusal({
+        status: booking.status,
+        pricingTypes: pricingTypesOf(booking),
+        openCount: openExtraWork(booking.charges).length,
+      }),
+      // Mark completed (and Delivered) wait for the customer's answer.
+      completeBlockedByExtraWork: completionBlockedByExtraWork(booking.charges),
+    }),
+    // Whether the card offers "Suggest another time" (0041).
+    ...(booking.timeProposals !== undefined && {
+      canSuggestTimes:
+        proposalRefusal({
+          status: booking.status,
+          paymentStatus: booking.payment?.status,
+          hasOpenProposal: hasOpenProposal(booking),
+        }) === null,
     }),
   }
+}
+
+/**
+ * Whether a suggestion of the garage's is still open on the booking: one
+ * waiting for the customer, or one past its time the cron has not yet
+ * swept (the garage can't accept or decline over either).
+ */
+function hasOpenProposal(booking: BookingWithRelations): boolean {
+  return (booking.timeProposals ?? []).some((proposal) => proposal.status === 'open')
+}
+
+/** The garage's Accept or Decline while its suggested times wait for an answer. */
+function proposalOpen() {
+  return new AppError(
+    409,
+    'You suggested other times for this booking. Withdraw them first, or wait for the customer to pick one.',
+    'TIME_PROPOSAL_OPEN'
+  )
+}
+
+/** Mark completed (or Delivered) while extra work waits for the customer. */
+export function extraWorkAwaiting() {
+  return new AppError(
+    409,
+    "The customer hasn't answered your extra-work request yet. Withdraw it, or wait for their answer, before completing the job.",
+    'EXTRA_WORK_AWAITING'
+  )
 }
 
 /**
@@ -1202,6 +1283,103 @@ export async function resolveBookingDraft(
   }
 }
 
+/**
+ * What a move writes, copied from the booking being moved: the same lines,
+ * price, discount, place, codes, payment and Test mark. One builder for the
+ * customer's reschedule and the pick of a garage's suggested time (0041), so
+ * the two can never carry a booking differently.
+ */
+function moveParams(
+  booking: Awaited<ReturnType<typeof bookingsRepository.findBookingById>> & object,
+  move: {
+    userId: string
+    newScheduledAt: Date
+    durationMins: number
+    expectedStatus: 'pending' | 'confirmed'
+    reason: string | null
+    proposal?: { id: string; acceptedBy: string | null; reason: string } | null
+  }
+) {
+  const items = booking.items ?? []
+  return {
+    sourceBookingId: booking.id,
+    rootBookingId: booking.originalBookingId ?? booking.id,
+    userId: move.userId,
+    vendorId: booking.vendorId,
+    items: items.map((item) => ({
+      serviceId: item.serviceId,
+      name: item.name,
+      amount: item.amount,
+      durationMins: item.durationMins,
+    })),
+    vehicleId: booking.vehicleId,
+    bookingType: booking.bookingType,
+    newScheduledAt: move.newScheduledAt,
+    durationMins: move.durationMins,
+    expectedStatus: move.expectedStatus,
+    subtotalAmount: booking.subtotalAmount ?? booking.amount,
+    amount: booking.amount,
+    discountAmount: booking.discountAmount ?? '0.00',
+    discountId: booking.discountId ?? null,
+    discountCode: booking.discountCode ?? null,
+    discountFundedBy: booking.discountFundedBy ?? null,
+    paymentMethod: booking.paymentMethod,
+    lat: booking.lat,
+    lng: booking.lng,
+    address: booking.address,
+    handoverCodes:
+      booking.pickupCode && booking.deliveryCode
+        ? { pickupCode: booking.pickupCode, deliveryCode: booking.deliveryCode }
+        : null,
+    sourcePayment: booking.payment
+      ? {
+          gateway: booking.payment.gateway,
+          gatewayTxnId: booking.payment.gatewayTxnId,
+          gatewayMode: booking.payment.gatewayMode,
+          amount: booking.payment.amount,
+          currency: booking.payment.currency,
+          status: booking.payment.status,
+          paidAt: booking.payment.paidAt,
+        }
+      : null,
+    reason: move.reason,
+    maxReschedules: MAX_RESCHEDULES,
+    markedTestAt: booking.markedTestAt,
+    markedTestBy: booking.markedTestBy,
+    proposal: move.proposal ?? null,
+  }
+}
+
+/**
+ * Moves a pending booking to one of the times its garage suggested (0041),
+ * through the reschedule write: a new booking in the chain, already
+ * accepted, carrying the payment, receipt chain and pickup codes; the old
+ * one retired as moved. The write re-checks, under the vehicle, chain,
+ * booking, suggestion and vendor-day locks, that the suggestion is still
+ * open with this time on it and that the garage still has room. Answers
+ * what the write said; the caller has the words.
+ */
+export async function moveToSuggestedTime(
+  booking: Awaited<ReturnType<typeof bookingsRepository.findBookingById>> & object,
+  newScheduledAt: Date,
+  proposal: { id: string; acceptedBy: string | null; reason: string }
+) {
+  const items = booking.items ?? []
+  const durationMins =
+    booking.durationMins ?? items.reduce((total, item) => total + item.durationMins, 0)
+  const result = await bookingsRepository.rescheduleBookingWithPayment(
+    moveParams(booking, {
+      userId: booking.userId,
+      newScheduledAt,
+      durationMins,
+      expectedStatus: 'pending',
+      reason: proposal.reason,
+      proposal,
+    })
+  )
+  return result
+}
+
 export const bookingsService = {
   async listMyBookings(userId: string, query: ListMyBookingsQuery) {
     const bookings = await bookingsRepository.listBookingsForUser(userId, {
@@ -1518,6 +1696,18 @@ export const bookingsService = {
     const withCar = customerChangeRefusal(pickupJobOf(booking))
     if (withCar) throw new AppError(409, withCar, 'CAR_WITH_GARAGE')
 
+    // Extra work already paid for belongs to this job at this time (0041):
+    // moving it would leave that payment on the retired booking, owed back,
+    // and the garage's figures counting it meanwhile. Cancel (which refunds
+    // it) or ask for help instead.
+    if ((booking.charges ?? []).some((charge) => charge.kind === 'extra_work' && charge.status === 'paid')) {
+      throw new AppError(
+        409,
+        "You've paid for extra work on this booking, so it can't be moved in the app. Use Help with this booking to reach the garage or our team.",
+        'EXTRA_WORK_PAID'
+      )
+    }
+
     if ((booking.rescheduleCount ?? 0) >= MAX_RESCHEDULES) {
       throw new AppError(
         400,
@@ -1573,52 +1763,15 @@ export const bookingsService = {
 
     const rootBookingId = booking.originalBookingId ?? booking.id
 
-    const result = await bookingsRepository.rescheduleBookingWithPayment({
-      sourceBookingId: booking.id,
-      rootBookingId,
-      userId,
-      vendorId: booking.vendorId,
-      items: items.map((item) => ({
-        serviceId: item.serviceId,
-        name: item.name,
-        amount: item.amount,
-        durationMins: item.durationMins,
-      })),
-      vehicleId: booking.vehicleId,
-      bookingType: booking.bookingType,
-      newScheduledAt,
-      durationMins,
-      expectedStatus: booking.status === 'confirmed' ? 'confirmed' : 'pending',
-      subtotalAmount: booking.subtotalAmount ?? booking.amount,
-      amount: booking.amount,
-      discountAmount: booking.discountAmount ?? '0.00',
-      discountId: booking.discountId ?? null,
-      discountCode: booking.discountCode ?? null,
-      discountFundedBy: booking.discountFundedBy ?? null,
-      paymentMethod: booking.paymentMethod,
-      lat: booking.lat,
-      lng: booking.lng,
-      address: booking.address,
-      handoverCodes:
-        booking.pickupCode && booking.deliveryCode
-          ? { pickupCode: booking.pickupCode, deliveryCode: booking.deliveryCode }
-          : null,
-      sourcePayment: booking.payment
-        ? {
-            gateway: booking.payment.gateway,
-            gatewayTxnId: booking.payment.gatewayTxnId,
-            gatewayMode: booking.payment.gatewayMode,
-            amount: booking.payment.amount,
-            currency: booking.payment.currency,
-            status: booking.payment.status,
-            paidAt: booking.payment.paidAt,
-          }
-        : null,
-      reason: reason ?? null,
-      maxReschedules: MAX_RESCHEDULES,
-      markedTestAt: booking.markedTestAt,
-      markedTestBy: booking.markedTestBy,
-    })
+    const result = await bookingsRepository.rescheduleBookingWithPayment(
+      moveParams(booking, {
+        userId,
+        newScheduledAt,
+        durationMins,
+        expectedStatus: booking.status === 'confirmed' ? 'confirmed' : 'pending',
+        reason: reason ?? null,
+      })
+    )
 
     if (result.capReached) {
       throw new AppError(
@@ -1628,7 +1781,7 @@ export const bookingsService = {
       )
     }
 
-    if (result.stateChanged) throw stateChanged()
+    if (result.stateChanged || result.proposalGone) throw stateChanged()
 
     if (result.garageRefusal) {
       log.warn(
@@ -1662,6 +1815,8 @@ export const bookingsService = {
         'VEHICLE_DOUBLE_BOOKED'
       )
     }
+
+    if (!result.booking) throw stateChanged()
 
     log.info(
       {
@@ -1730,10 +1885,15 @@ export const bookingsService = {
       )
     }
 
-    const [accepted] = await bookingsRepository.updateBookingStatus(bookingId, 'confirmed', 'pending', {
-      acceptedBy: actorId,
-      acceptedAt: new Date(),
-    })
+    if (hasOpenProposal(booking)) throw proposalOpen()
+
+    const [accepted] = await bookingsRepository.updateBookingStatus(
+      bookingId,
+      'confirmed',
+      'pending',
+      { acceptedBy: actorId, acceptedAt: new Date() },
+      { noOpenProposal: true }
+    )
     if (!accepted) throw stateChanged()
     log.info({ bookingId, vendorId, actorId, status: 'confirmed' }, 'booking:status_updated')
 
@@ -1756,6 +1916,8 @@ export const bookingsService = {
         'INVALID_BOOKING_STATUS'
       )
     }
+
+    if (hasOpenProposal(booking)) throw proposalOpen()
 
     const [declined] = await bookingsRepository.cancelBooking(bookingId, 'vendor', 'pending', reason)
     if (!declined) throw stateChanged()
@@ -1811,10 +1973,15 @@ export const bookingsService = {
       throw new AppError(pickupRefusal.status, pickupRefusal.message, pickupRefusal.code)
     }
 
-    const [completed] = await bookingsRepository.updateBookingStatus(bookingId, 'completed', 'in_progress', {
-      completedBy: actorId,
-      completedAt: new Date(),
-    })
+    if (completionBlockedByExtraWork(booking.charges)) throw extraWorkAwaiting()
+
+    const [completed] = await bookingsRepository.updateBookingStatus(
+      bookingId,
+      'completed',
+      'in_progress',
+      { completedBy: actorId, completedAt: new Date() },
+      { noOpenExtraWork: true }
+    )
     if (!completed) throw stateChanged()
 
     await collectCashOnCompletion(booking)
@@ -1880,6 +2047,8 @@ export const bookingsService = {
   async markDelivered(vendorId: string, actorId: string, bookingId: string, code: string) {
     const { booking } = await getBookingForVendor(vendorId, bookingId)
     assertPickupStep(booking, 'delivered')
+    // Before the code is checked, so a wrong try is not spent on it.
+    if (completionBlockedByExtraWork(booking.charges)) throw extraWorkAwaiting()
     await assertHandoverCode(booking, 'delivery', code)
 
     const [row] = await bookingsRepository.markDelivered(bookingId, {
@@ -1910,6 +2079,7 @@ export const bookingsService = {
     const booking = await bookingsRepository.findBookingById(bookingId)
     if (!booking) throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
     assertPickupStep(booking, step)
+    if (step === 'delivered' && completionBlockedByExtraWork(booking.charges)) throw extraWorkAwaiting()
 
     const at = new Date()
     const [row] =

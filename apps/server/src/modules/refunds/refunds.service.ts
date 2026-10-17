@@ -39,6 +39,7 @@ import {
   afterRefund,
   amountOwed,
   billOwed,
+  billPaymentWhat,
   billRefundReason,
   bookingPaymentOwed,
   bookingRefundReason,
@@ -106,6 +107,11 @@ export interface RefundItem {
   refundNote: string | null
   /** Refunded, but not through Razorpay: `refundNote` says how. */
   outsideRazorpay: boolean
+  /**
+   * For a bill: whether it was the final bill or extra work (0041), so the
+   * Refunds page names it. Null for a booking's payment and a checkout.
+   */
+  chargeKind: 'final_bill' | 'extra_work' | null
 }
 
 function toPaise(amount: string | null | undefined): number {
@@ -164,6 +170,7 @@ function fromBookingPayment(row: BookingPaymentRefundRow): RefundItem | null {
     reason: bookingRefundReason(row),
     since: owedSince(row.paidAt, row.noShowMarkedAt ?? row.cancelledAt)?.toISOString() ?? null,
     ...refundPart(row, refunded),
+    chargeKind: null,
   }
 }
 
@@ -186,6 +193,7 @@ function fromCheckout(row: CheckoutRefundRow): RefundItem | null {
     // its own for it, so it is dated from when it was opened.
     since: row.createdAt.toISOString(),
     ...refundPart(row, refunded),
+    chargeKind: null,
   }
 }
 
@@ -213,6 +221,7 @@ function fromBill(row: BillRefundRow): RefundItem | null {
       : owedSince(row.paidAt, row.noShowMarkedAt ?? row.cancelledAt)
     )?.toISOString() ?? null,
     ...refundPart(row, refunded),
+    chargeKind: row.kind,
   }
 }
 
@@ -434,6 +443,11 @@ const WHAT: Record<RefundKind, string> = {
   bill: 'the final bill payment',
 }
 
+/** What a refund note says was refunded; a bill names its kind (0041). */
+function whatOf(kind: RefundKind, chargeKind: string | null | undefined): string {
+  return kind === 'bill' ? billPaymentWhat(chargeKind) : WHAT[kind]
+}
+
 /**
  * Records one refund on the money, whoever made it: the same write as Mark
  * refunded (conditional on the running total just read, with its history
@@ -468,7 +482,7 @@ async function writeRefund(
   const note = {
     author: input.by,
     body: refundBookingNote({
-      what: WHAT[money.target.kind],
+      what: whatOf(money.target.kind, money.item?.chargeKind),
       amount: input.amount,
       full: next.full,
       refundRef: input.refundRef,
@@ -511,7 +525,7 @@ async function takeBack(record: RefundRecordRow, reason: string, conn: Conn, now
     },
     {
       author: 'Detlio (automatic)',
-      body: `The refund of ₹${Number(record.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })} of ${WHAT[record.kind]} in Razorpay (${record.refundRef ?? 'no refund id'}) failed: ${reason} The money is owed again.`,
+      body: `The refund of ₹${Number(record.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })} of ${whatOf(record.kind, money.item?.chargeKind)} in Razorpay (${record.refundRef ?? 'no refund id'}) failed: ${reason} The money is owed again.`,
     },
     conn
   )

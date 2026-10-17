@@ -258,6 +258,23 @@ describe('bookingCommission', () => {
     ).toBe(105) // 40 + 15 + 50
   })
 
+  test('paid extra work (0041) is charged like a final bill, at the main service rate', () => {
+    // A ₹500 wash with ₹450 of extra work paid in the app: billsPaid is every
+    // paid booking charge on the chain, final bill and extra work alike.
+    expect(bookingCommission(booking({ billsPaid: '450.00' }))).toBe(76) // (500 + 450) × 8%
+    expect(
+      bookingCommission(
+        booking({
+          items: [
+            { category: 'coating', amount: '300.00', pricingType: 'flat', sortOrder: 0 },
+            { category: 'car_wash', amount: '200.00', pricingType: 'flat', sortOrder: 1 },
+          ],
+          billsPaid: '1000.00',
+        })
+      )
+    ).toBe(81) // 15 + 16 + 1000 × 5% (the first item's coating)
+  })
+
   test('to the paisa', () => {
     expect(
       bookingCommission(

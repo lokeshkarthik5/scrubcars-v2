@@ -444,3 +444,58 @@ describe('refunds started through Razorpay', () => {
     expect(refundBookingNote(base)).toBe('Refunded ₹499 of the booking payment in Razorpay (rfnd_X1).')
   })
 })
+
+describe('extra work (0041)', () => {
+  const extra = (status: string, overrides: object = {}) => ({
+    kind: 'extra_work',
+    status,
+    gatewayPaymentId: 'pay_x',
+    amountDue: '450.00',
+    refundedAmount: null,
+    ...overrides,
+  })
+
+  test('kept when the booking completes, refunded when it ends any other way', () => {
+    expect(isBillRefundable(extra('paid'), { status: 'completed', noShow: null })).toBe(false)
+    expect(isBillRefundable(extra('paid'), { status: 'in_progress', noShow: null })).toBe(false)
+    expect(isBillRefundable(extra('paid'), { status: 'cancelled', noShow: null })).toBe(true)
+    expect(isBillRefundable(extra('paid'), { status: 'cancelled', noShow: 'garage' })).toBe(true)
+  })
+
+  test('a customer no-show keeps the booking payment and a final bill, but not extra work never done', () => {
+    expect(isBillRefundable(extra('paid'), { status: 'cancelled', noShow: 'customer' })).toBe(true)
+    expect(
+      isBillRefundable({ ...extra('paid'), kind: 'final_bill' }, { status: 'cancelled', noShow: 'customer' })
+    ).toBe(false)
+
+    const noShow = {
+      ...cancelled({ noShow: 'customer' }),
+      payment: paid(),
+      charges: [extra('paid')],
+    }
+    expect(bookingRefundTotals(noShow)).toEqual({ paid: '450.00', owed: '450.00', refunded: '0.00', refundedAt: null })
+    expect(customerRefund(noShow)).toMatchObject({ status: 'owed', amount: '450.00' })
+    // Without extra work, the no-show still reads nothing to refund.
+    expect(customerRefund({ ...noShow, charges: [] }).status).toBe('none')
+  })
+
+  test('a payment on a withdrawn or declined request always goes back; unpaid ones owe nothing', () => {
+    expect(isBillRefundable(extra('cancelled'), { status: 'completed', noShow: null })).toBe(true)
+    expect(isBillRefundable(extra('cancelled', { gatewayPaymentId: null }), { status: 'cancelled', noShow: null })).toBe(false)
+    expect(isBillRefundable(extra('due', { gatewayPaymentId: null }), { status: 'cancelled', noShow: null })).toBe(false)
+  })
+
+  test('a cancelled booking owes its payment and its paid extra work, added up', () => {
+    const totals = bookingRefundTotals({ ...cancelled(), payment: paid(), charges: [extra('paid'), extra('paid')] })
+    expect(totals).toMatchObject({ paid: '1399.00', owed: '1399.00' })
+    expect(billOwed(extra('paid', { refundedAmount: '200.00' }), { status: 'cancelled', noShow: null })).toBe('250.00')
+  })
+
+  test('named as extra work for the team', () => {
+    expect(billRefundReason(extra('paid'))).toBe('Extra work paid on a booking that was not completed')
+    expect(billRefundReason(extra('cancelled'))).toBe('Extra work paid after it was withdrawn or declined')
+    expect(billRefundReason({ ...extra('paid'), kind: 'final_bill' })).toBe(
+      'Final bill paid on a booking that was then cancelled'
+    )
+  })
+})

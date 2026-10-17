@@ -538,3 +538,68 @@ describe('buildReceipt: no-shows', () => {
     expect(receiptStatusLabel('cancelled', 'garage')).toBe('Cancelled (garage no-show)')
   })
 })
+
+describe('extra work on the receipt (0041)', () => {
+  const extra = (overrides: Partial<ReceiptBill> = {}): ReceiptBill => ({
+    id: 'e0000000-0000-4000-8000-000000000001',
+    kind: 'extra_work',
+    status: 'paid',
+    totalAmount: '450.00',
+    paidBefore: '0.00',
+    amountDue: '450.00',
+    lines: [{ description: 'Replace wiper blades', amount: '450.00' }],
+    gatewayPaymentId: 'pay_E1x2T3r4A5w6K7',
+    paidAt: new Date('2026-10-03T05:00:00Z'),
+    refundedAmount: null,
+    refundRef: null,
+    refundedAt: null,
+    ...overrides,
+  })
+
+  test('paid extra work is a line each, oldest first, in the total paid', () => {
+    const receipt = receiptOf(
+      booking({
+        charges: [
+          extra({ id: 'e2', lines: [{ description: 'Headlight polish', amount: '300.00' }], amountDue: '300.00', paidAt: new Date('2026-10-03T06:00:00Z') }),
+          extra(),
+          // Withdrawn, declined or unpaid: no money, no line.
+          extra({ id: 'e3', status: 'cancelled' }),
+          extra({ id: 'e4', status: 'due', gatewayPaymentId: null, paidAt: null }),
+        ],
+      }),
+      []
+    )
+    expect(receipt.extraWork).toEqual([
+      {
+        description: 'Replace wiper blades',
+        amount: '450.00',
+        paymentId: 'pay_E1x2T3r4A5w6K7',
+        paidAt: '2026-10-03T05:00:00.000Z',
+        paidAtLabel: istDateTimeLabel(new Date('2026-10-03T05:00:00Z')),
+      },
+      expect.objectContaining({ description: 'Headlight polish', amount: '300.00' }),
+    ])
+    expect(receipt.finalBill).toBeNull()
+    expect(receipt.totalPaid).toBe('1249.00')
+    expect(receipt.netPaid).toBe('1249.00')
+  })
+
+  test('with a final bill, both count, and a refund of extra work is its own line', () => {
+    const receipt = receiptOf(
+      booking({
+        status: 'cancelled',
+        charges: [bill(), extra({ refundedAmount: '450.00', refundRef: 'rfnd_E9x8T7r6A5w4K3', refundedAt: new Date('2026-10-04T06:00:00Z') })],
+      }),
+      [record({ kind: 'bill', targetId: 'e0000000-0000-4000-8000-000000000001', amount: '450.00', refundRef: 'rfnd_E9x8T7r6A5w4K3' })]
+    )
+    expect(receipt.totalPaid).toBe('3150.00') // 499 + 2201 + 450
+    expect(receipt.refunds).toEqual([
+      expect.objectContaining({ against: 'extra_work', amount: '450.00', reference: 'rfnd_E9x8T7r6A5w4K3' }),
+    ])
+    expect(receipt.netPaid).toBe('2700.00')
+  })
+
+  test('a booking with none has an empty list', () => {
+    expect(receiptOf(booking(), []).extraWork).toEqual([])
+  })
+})

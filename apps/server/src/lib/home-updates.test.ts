@@ -265,6 +265,7 @@ describe('money rows', () => {
   test('a bill to pay, a bill with nothing more to pay, and a paid bill', () => {
     const charge = (id: string, status: string, extra: object = {}) => ({
       id,
+      kind: 'final_bill',
       status,
       amountDue: '1250.50',
       createdAt: ago(DAY),
@@ -593,5 +594,107 @@ describe("the team's answers to complaints", () => {
       complaint({ id: 'c', status: 'closed', acknowledgedAt: at, closedAt: at, hasAnswer: true }),
     ])
     for (const item of items) expect(bannedPhraseIn(item.title)).toBeNull()
+  })
+})
+
+describe('suggested times and extra work (0041)', () => {
+  const extra = (id: string, status: string, overrides: object = {}) => ({
+    id,
+    kind: 'extra_work',
+    status,
+    amountDue: '450.00',
+    createdAt: ago(3 * HOUR),
+    paidAt: null,
+    gatewayPaymentId: null,
+    refundedAmount: null,
+    refundedAt: null,
+    description: 'Replace wiper blades',
+    cancelledAt: null,
+    cancelReason: null,
+    ...overrides,
+  })
+
+  test('a live suggestion asks; an answered one is history', () => {
+    // Sat 17 Oct, 10:00 IST booked; two other times offered.
+    const scheduledAt = new Date('2026-10-17T04:30:00Z')
+    const proposal = {
+      id: 'p1',
+      status: 'open',
+      slots: ['2026-10-17T08:30:00.000Z', '2026-10-17T10:30:00.000Z'],
+      expiresAt: ahead(4 * HOUR),
+      createdAt: ago(HOUR),
+      resolvedAt: null,
+    }
+    const live = feed([booking({ status: 'pending', scheduledAt, payment: paid(), proposal })])
+    expect(live.find((i) => i.id === 'proposal:p1')).toMatchObject({
+      kind: 'time_proposal',
+      title: "Next Level can't do 10 AM — pick another time",
+      bookingId: 'b1',
+    })
+    expect(live.find((i) => i.id === 'proposal:p1')?.body).toBe('Sat 17 Oct, 2 PM · Sat 17 Oct, 4 PM')
+
+    const answered = feed([
+      booking({ status: 'cancelled', scheduledAt, payment: paid(), proposal: { ...proposal, status: 'withdrawn' } }),
+    ])
+    expect(answered.find((i) => i.id === 'proposal:p1')?.title).toBe('Next Level suggested other times')
+  })
+
+  test('none of the times worked, or nobody answered: the cancellation says so, with the refund', () => {
+    const base = {
+      status: 'cancelled',
+      cancelledBy: 'vendor' as const,
+      cancelledAt: ago(HOUR),
+      payment: paid(),
+    }
+    const proposal = {
+      id: 'p1',
+      slots: ['2026-10-17T08:30:00.000Z'],
+      expiresAt: ago(HOUR),
+      createdAt: ago(5 * HOUR),
+      resolvedAt: ago(HOUR),
+    }
+    const declined = feed([booking({ ...base, proposal: { ...proposal, status: 'declined' } })])
+    expect(declined.find((i) => i.id === 'cancelled:b1')).toMatchObject({
+      kind: 'declined',
+      title: "None of Next Level's times worked, so your booking was cancelled",
+      body: 'Refund due: ₹499',
+    })
+    const expired = feed([booking({ ...base, proposal: { ...proposal, status: 'expired' } })])
+    expect(expired.find((i) => i.id === 'cancelled:b1')?.title).toBe(
+      'No time was picked, so your booking at Next Level was cancelled'
+    )
+  })
+
+  test('extra work: asked (while the job is on), paid, declined, withdrawn; never a bill row', () => {
+    const items = feed([
+      booking({
+        status: 'in_progress',
+        payment: paid(),
+        charges: [
+          extra('x1', 'due'),
+          extra('x2', 'paid', { paidAt: ago(HOUR) }),
+          extra('x3', 'cancelled', { cancelledAt: ago(2 * HOUR), cancelReason: 'declined' }),
+          extra('x4', 'cancelled', { cancelledAt: ago(2 * HOUR), cancelReason: 'withdrawn' }),
+          extra('x5', 'cancelled', { cancelledAt: ago(2 * HOUR), cancelReason: 'booking_closed' }),
+        ],
+      }),
+    ])
+    expect(items.find((i) => i.id === 'extra_work:x1')).toMatchObject({
+      kind: 'extra_work_due',
+      title: 'Next Level asks for extra work: ₹450',
+      body: 'Replace wiper blades',
+      chargeId: 'x1',
+      amount: '450.00',
+    })
+    expect(items.find((i) => i.id === 'extra_work_paid:x2')?.title).toBe('Extra work approved and paid: ₹450')
+    expect(items.find((i) => i.id === 'extra_work_declined:x3')?.title).toBe('You declined extra work from Next Level')
+    expect(items.find((i) => i.id === 'extra_work_withdrawn:x4')?.title).toBe('Next Level withdrew its extra-work request')
+    expect(items.filter((i) => i.chargeId === 'x5')).toEqual([])
+    expect(items.filter((i) => i.kind.startsWith('bill'))).toEqual([])
+    for (const item of items) expect(bannedPhraseIn(item.title)).toBeNull()
+
+    // Due on a job that is no longer on: nothing to ask.
+    const off = feed([booking({ status: 'cancelled', charges: [extra('x1', 'due')] })])
+    expect(off.find((i) => i.id === 'extra_work:x1')).toBeUndefined()
   })
 })

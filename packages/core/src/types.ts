@@ -260,6 +260,43 @@ export interface FinalBill {
   createdAt: string
 }
 
+/**
+ * Extra work the garage asked for mid-job (0041): approved by the customer
+ * paying it in the app, or declined. `state` is where it stands.
+ */
+export interface ExtraWork {
+  id: string
+  description: string
+  amount: number
+  note: string | null
+  photos: Array<{ url: string }>
+  state: 'awaiting' | 'paid' | 'declined' | 'withdrawn' | 'closed'
+  paidAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+}
+
+/**
+ * Other times the garage suggested instead of declining (0041). `options`
+ * are the times still on offer while it is 'open'; once answered, every time
+ * it offered. 'closed' is one left behind by a booking that changed another
+ * way.
+ */
+export interface TimeProposal {
+  id: string
+  status: 'open' | 'accepted' | 'declined' | 'expired' | 'withdrawn' | 'closed'
+  options: string[]
+  note: string | null
+  expiresAt: string
+  chosenSlot: string | null
+  resultBookingId: string | null
+  resolvedAt: string | null
+  createdAt: string
+}
+
+/** Why the garage can't ask for extra work on a job now; null when it can. */
+export type ExtraWorkRefusal = 'on_inspection' | 'not_open' | 'too_many_open'
+
 /** A pickup & drop job's handover, as one payload carries it. */
 export interface BookingPickup {
   pickedUpAtIso?: string
@@ -362,6 +399,16 @@ export interface Booking {
   finalBill: FinalBill | null
   /** Garage only: the job card can offer "Raise final bill" now. */
   canRaiseFinalBill: boolean
+  /** Extra work the garage asked for (0041), newest first; empty where not carried. */
+  extraWork: ExtraWork[]
+  /** Garage only: why "Ask for extra work" is not offered now, or null when it is. */
+  extraWorkRefusal: ExtraWorkRefusal | null
+  /** Garage only: Mark completed waits for the customer's answer on extra work. */
+  completeBlockedByExtraWork: boolean
+  /** The garage's suggested times (0041): the live one, or how the last ended. */
+  timeProposal: TimeProposal | null
+  /** Garage only: the job card can offer "Suggest another time" now. */
+  canSuggestTimes: boolean
   /**
    * Customer only: money owed back on this booking, or given back. 'none'
    * on garage payloads, on older servers, and on a customer no-show.
@@ -464,8 +511,16 @@ export interface BookingReceipt {
     paidAt: string | null
     paidAtLabel: string | null
   } | null
+  /** Extra work approved and paid in the app (0041), a line each. Absent from older servers. */
+  extraWork?: Array<{
+    description: string
+    amount: string
+    paymentId: string | null
+    paidAt: string | null
+    paidAtLabel: string | null
+  }>
   refunds: Array<{
-    against: 'booking' | 'final_bill'
+    against: 'booking' | 'final_bill' | 'extra_work'
     amount: string
     refundedAt: string | null
     refundedAtLabel: string | null

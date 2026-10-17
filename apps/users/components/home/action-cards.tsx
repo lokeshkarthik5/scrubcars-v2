@@ -6,9 +6,11 @@ import {
   IconArrowUpRight,
   IconBuildingStore,
   IconCalendarOff,
+  IconCalendarQuestion,
   IconMessageCheck,
   IconReceipt,
   IconStar,
+  IconTool,
   IconX,
 } from '@tabler/icons-react'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
@@ -18,6 +20,8 @@ import { formatRupees } from '@repo/core/job-records'
 import { cn } from '@repo/core/utils'
 
 type BillCard = Extract<HomeActionCard, { kind: 'bill_due' }>
+type ProposalCard = Extract<HomeActionCard, { kind: 'time_proposal' }>
+type ExtraWorkDueCard = Extract<HomeActionCard, { kind: 'extra_work_due' }>
 type ClosedCard = Extract<HomeActionCard, { kind: 'garage_closed' }>
 type RateCard = Extract<HomeActionCard, { kind: 'rate' }>
 type ComplaintCard = Extract<HomeActionCard, { kind: 'complaint_resolved' }>
@@ -29,7 +33,10 @@ export const MY_COMPLAINTS_PATH = '/profile#my-complaints'
  * Where each card's buttons go: the booking's own page, which already does
  * the paying, moving and helping. `then` opens the right part of it.
  */
-export const bookingActionPath = (bookingId: string, then?: 'pay' | 'reschedule' | 'help') =>
+export const bookingActionPath = (
+  bookingId: string,
+  then?: 'pay' | 'reschedule' | 'help' | 'times' | 'extra'
+) =>
   `/bookings/${bookingId}${then ? `?then=${then}` : ''}`
 
 function Eyebrow({ vendorName, icon: Icon }: { vendorName: string; icon: typeof IconReceipt }) {
@@ -101,6 +108,81 @@ export function BillDueCard({
           className="mt-2 inline-flex min-h-11 items-center text-[13px] text-text-muted underline underline-offset-2"
         >
           +{card.moreDue} more to pay
+        </Link>
+      )}
+    </section>
+  )
+}
+
+/**
+ * The garage can't do the booked time and suggested others (0041). Must-act,
+ * first of all: unanswered by the time it shows, the booking is cancelled
+ * with a full refund. "Pick a time" is the screen's one red action; the
+ * times themselves are chosen on the booking's page, which also has "None of
+ * these work".
+ */
+export function TimeProposalHomeCard({ card }: { card: ProposalCard }) {
+  return (
+    <section aria-label={`${card.vendorName} suggested other times`} className="hub-card p-5">
+      <Eyebrow vendorName={card.vendorName} icon={IconCalendarQuestion} />
+      <p className="mt-3.5 text-[17px] font-medium tracking-[-0.012em] text-text-primary">
+        Can&apos;t do <span className="font-numeric">{istClock(new Date(card.scheduledAt))}</span> — pick another time
+      </p>
+      <p className="mt-1 text-[13px] text-dim">
+        {card.options.length === 1 ? '1 time' : `${card.options.length} times`} offered · answer by{' '}
+        <span className="font-numeric">
+          {bookingDayLabel(card.expiresAt)}, {istClock(new Date(card.expiresAt))}
+        </span>
+      </p>
+      <div className="mt-4">
+        <ScButtonLink
+          href={bookingActionPath(card.bookingId, 'times')}
+          variant="hero"
+          className="h-12 px-5"
+        >
+          <span>Pick a time</span>
+          <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
+        </ScButtonLink>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Extra work the garage asks for (0041), waiting for "Approve & pay". The
+ * garage has the car and is waiting, so it comes before a bill. Approving
+ * and paying happen on the booking's page, with the photos.
+ */
+export function ExtraWorkHomeCard({ card, now }: { card: ExtraWorkDueCard; now: Date }) {
+  const amount = formatRupees(Number(card.amount))
+  return (
+    <section aria-label={`Extra work from ${card.vendorName}`} className="hub-card p-5">
+      <Eyebrow vendorName={card.vendorName} icon={IconTool} />
+      <div className="mt-3.5 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[17px] font-medium tracking-[-0.012em] text-text-primary">Extra work to approve</p>
+          <p className="mt-1 truncate text-[13px] text-dim">
+            {card.description} · {raisedLabel(card.raisedAt, now)}
+          </p>
+        </div>
+        <ScButtonLink
+          href={bookingActionPath(card.bookingId, 'extra')}
+          variant="hero"
+          className="h-12 shrink-0 px-5"
+          aria-label={`Review ${amount}`}
+        >
+          <span>
+            Review <span className="font-numeric">{amount}</span>
+          </span>
+          <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
+        </ScButtonLink>
+      </div>
+      {card.moreDue > 0 && (
+        <Link
+          href="/updates"
+          className="mt-2 inline-flex min-h-11 items-center text-[13px] text-text-muted underline underline-offset-2"
+        >
+          +{card.moreDue} more to answer
         </Link>
       )}
     </section>

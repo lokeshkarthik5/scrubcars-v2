@@ -4,8 +4,11 @@
  *
  * Owner decisions on order (top to bottom):
  *
- *   1. A must-act card, only when one applies: a bill to pay, or the garage
- *      is shut on the day of a booking. Bill first. One at most.
+ *   1. A must-act card, only when one applies, one at most, in this order
+ *      (0041): the garage suggested other times for a booking (it runs out
+ *      within hours and then the booking is cancelled), extra work waiting
+ *      for approval (the garage has the car and is waiting), a bill to pay,
+ *      then the garage shut on the day of a booking.
  *   2. The offers (lib/offers.ts).
  *   3. "Rate your wash", a soft card, only when there is no must-act card;
  *      or, when there is neither, a complaint the team just resolved ("see
@@ -27,6 +30,8 @@ import { noticeMatchesBooking, type NoticeRow } from './notices.js'
 import { washStatus, type WashStatus } from './wash-status.js'
 import type { BookingType } from './booking-types.js'
 import { customerPickupStage, type CustomerPickupStage } from './pickup.js'
+import { extraWorkPayable } from './extra-work.js'
+import { isProposalLive, liveOptions } from './time-proposals.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -52,6 +57,34 @@ const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'in_progress'])
 // ─── Must-act and soft cards ─────────────────────────────────────────────────
 
 export type ActionCard =
+  | {
+      /**
+       * The garage can't do the booked time and suggested others (0041):
+       * "<Garage> can't do 10:00 — pick another time". Answer by
+       * `expiresAt`, or the booking is cancelled with a full refund.
+       */
+      kind: 'time_proposal'
+      bookingId: string
+      proposalId: string
+      vendorName: string
+      /** The time the customer booked, which the garage can't do. */
+      scheduledAt: string
+      /** The times on offer, soonest first. */
+      options: string[]
+      expiresAt: string
+    }
+  | {
+      /** Extra work the garage asks for, waiting for "Approve & pay" (0041). */
+      kind: 'extra_work_due'
+      bookingId: string
+      chargeId: string
+      vendorName: string
+      description: string
+      amount: string
+      raisedAt: string
+      /** Further requests waiting beyond this one. */
+      moreDue: number
+    }
   | {
       kind: 'bill_due'
       bookingId: string
@@ -116,11 +149,13 @@ export function canChangeTime(
   return true
 }
 
-/** Every bill waiting to be paid, oldest first. */
+/** Every final bill waiting to be paid, oldest first. Extra work has its own card. */
 export function billDueCards(bookings: HubBooking[]): Array<Extract<ActionCard, { kind: 'bill_due' }>> {
   const due = bookings
     .flatMap((booking) =>
-      booking.charges.filter((c) => c.status === 'due').map((charge) => ({ booking, charge }))
+      booking.charges
+        .filter((c) => c.status === 'due' && c.kind !== 'extra_work')
+        .map((charge) => ({ booking, charge }))
     )
     .sort((a, b) => a.charge.createdAt.getTime() - b.charge.createdAt.getTime())
 
@@ -131,6 +166,59 @@ export function billDueCards(bookings: HubBooking[]): Array<Extract<ActionCard, 
     vendorName: booking.vendorName,
     serviceName: booking.serviceLabel,
     amountDue: charge.amountDue,
+    raisedAt: charge.createdAt.toISOString(),
+    moreDue: due.length - 1,
+  }))
+}
+
+/**
+ * Bookings whose garage suggested other times that the customer can still
+ * answer, the one that runs out soonest first (lib/time-proposals.ts).
+ */
+export function timeProposalCards(
+  bookings: HubBooking[],
+  now: Date
+): Array<Extract<ActionCard, { kind: 'time_proposal' }>> {
+  return bookings
+    .flatMap((booking) => {
+      const proposal = booking.proposal
+      if (!proposal || !isProposalLive(proposal, booking.status, now.getTime())) return []
+      const options = liveOptions(proposal.slots, booking.bookingType, now.getTime())
+      if (options.length === 0) return []
+      return [{
+        kind: 'time_proposal' as const,
+        bookingId: booking.id,
+        proposalId: proposal.id,
+        vendorName: booking.vendorName,
+        scheduledAt: booking.scheduledAt.toISOString(),
+        options,
+        expiresAt: proposal.expiresAt.toISOString(),
+      }]
+    })
+    .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))
+}
+
+/**
+ * Extra work waiting for the customer's approval, oldest first: only on a
+ * booking that is still on (accepted or under way), where it can be paid.
+ */
+export function extraWorkDueCards(bookings: HubBooking[]): Array<Extract<ActionCard, { kind: 'extra_work_due' }>> {
+  const due = bookings
+    .filter((booking) => extraWorkPayable(booking.status))
+    .flatMap((booking) =>
+      booking.charges
+        .filter((c) => c.kind === 'extra_work' && c.status === 'due')
+        .map((charge) => ({ booking, charge }))
+    )
+    .sort((a, b) => a.charge.createdAt.getTime() - b.charge.createdAt.getTime())
+
+  return due.map(({ booking, charge }) => ({
+    kind: 'extra_work_due',
+    bookingId: booking.id,
+    chargeId: charge.id,
+    vendorName: booking.vendorName,
+    description: charge.description ?? 'Extra work',
+    amount: charge.amountDue,
     raisedAt: charge.createdAt.toISOString(),
     moreDue: due.length - 1,
   }))
@@ -254,23 +342,29 @@ export function softCardWithComplaint(
 }
 
 /**
- * The cards above the car: one must-act card (bill before closed day), and
- * a soft "Rate your wash" card only when there is none. `todo` is all of
- * them, for the To do list on /updates.
+ * The cards above the car: one must-act card (suggested times, then extra
+ * work, then a bill, then a closed day), and a soft "Rate your wash" card
+ * only when there is none. `todo` is all of them, for the To do list on
+ * /updates.
  */
 export function pickActionCards(bookings: HubBooking[], days: GarageDays, now: Date): {
   mustAct: ActionCard | null
   softCard: ActionCard | null
   todo: ActionCard[]
 } {
+  const proposals = timeProposalCards(bookings, now)
+  const extraWork = extraWorkDueCards(bookings)
   const bills = billDueCards(bookings)
-  const closed = garageClosedCards(bookings, days, now)
+  // A booking the garage suggested other times for is answered on that card;
+  // its closed-day card would only say the same thing less usefully.
+  const proposed = new Set(proposals.map((card) => card.bookingId))
+  const closed = garageClosedCards(bookings, days, now).filter((card) => !proposed.has(card.bookingId))
   const rate = rateCards(bookings, now)
-  const mustAct = bills[0] ?? closed[0] ?? null
+  const mustAct = proposals[0] ?? extraWork[0] ?? bills[0] ?? closed[0] ?? null
   return {
     mustAct,
     softCard: mustAct ? null : (rate[0] ?? null),
-    todo: [...bills, ...closed, ...rate],
+    todo: [...proposals, ...extraWork, ...bills, ...closed, ...rate],
   }
 }
 

@@ -213,3 +213,33 @@ export const realClock = {
   sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
   now: () => Date.now(),
 }
+
+/** Said when extra work's payment landed after it was withdrawn or declined (0041). */
+export const EXTRA_WORK_CLOSED_MESSAGE =
+  'This extra work was withdrawn or declined while you were paying, so this payment will be refunded.'
+
+/** The same, when the booking was cancelled while the customer paid for extra work. */
+export const EXTRA_WORK_CANCELLED_MESSAGE =
+  'This booking was cancelled while you were paying for the extra work, so this payment will be refunded.'
+
+/**
+ * One look at extra work being paid, as confirmPayment reads it: the request
+ * on the booking now. Paid is done; withdrawn, declined or closed means the
+ * payment landed on a request that no longer stood, and goes back.
+ */
+export function extraWorkPollResult(
+  bookingId: string,
+  chargeId: string,
+  extraWork: Array<{ id: string; state: string }>,
+  bookingStatus?: string
+): PollResult {
+  const work = extraWork.find((item) => item.id === chargeId)
+  if (!work || work.state === 'declined' || work.state === 'withdrawn' || work.state === 'closed') {
+    return {
+      kind: 'failed',
+      message: bookingStatus === 'cancelled' ? EXTRA_WORK_CANCELLED_MESSAGE : EXTRA_WORK_CLOSED_MESSAGE,
+    }
+  }
+  if (work.state === 'paid') return { kind: 'booked', bookingId }
+  return { kind: 'pending' }
+}

@@ -11,7 +11,7 @@ import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useRecordAdminRefund } from '@repo/core/api/hooks/use-admin-refunds'
 import { CopyButton } from '@/components/copy-button'
 import { formatRupees } from '@/lib/bookings'
-import { REFUND_KIND_LABEL } from '@/lib/refunds'
+import { refundKindLabel } from '@/lib/refunds'
 
 /** Same shape the API checks: rfnd_ and letters and digits. */
 const REFUND_ID = /^rfnd_[A-Za-z0-9]{1,59}$/
@@ -137,7 +137,7 @@ export function MarkRefundedDialog({
           <span className="font-numeric">#{refund.reference}</span>
         </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
-          {REFUND_KIND_LABEL[refund.kind]} · {refund.customer.name} ·{' '}
+          {refundKindLabel(refund)} · {refund.customer.name} ·{' '}
           <span className="font-numeric text-text-primary">
             {formatRupees(refund.amountOwed)}
           </span>{' '}

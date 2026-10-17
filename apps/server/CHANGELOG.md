@@ -18,6 +18,81 @@ reconstructing every change in them.
 
 ### Added
 
+- **Garages suggest other times, and ask for extra work the customer
+  approves by paying in the app** (migration
+  `0041_time_proposals_and_extra_work`, additive: `booking_charge_kind`
+  gains `extra_work`; `booking_charges.photos` (jsonb, default `[]`, at most
+  three, extra work only), `cancelled_at` and `cancel_reason` (text + CHECK:
+  `replaced` / `withdrawn` / `declined` / `booking_closed`); new table
+  `booking_time_proposals` (one open per booking, partial unique index);
+  `booking_reschedules.proposal_id`).
+  - **Suggest another time** (`modules/time-proposals`, rules in
+    `lib/time-proposals.ts`, pure and unit-tested). On a pending, paid
+    booking: `GET /vendors/me/bookings/:id/time-proposal/slots?date=` is the
+    garage's own free times for that job (the slot list's rule, now
+    `jobSlots` in vendors.service, shared with the customer's picker; the
+    booking itself left out, never its own time, never one leaving under 30
+    minutes to answer); `POST …/time-proposal { slots: 1–3, note? }`
+    (each re-checked against the list; 409 `TIME_PROPOSAL_OPEN`,
+    `TIME_PROPOSAL_SLOT_GONE`; 400 `TIME_PROPOSAL_TOO_SOON` /
+    `TIME_PROPOSAL_INVALID`); `POST …/time-proposal/withdraw`. Operators
+    too, like Accept. While one is open the garage's Accept and Decline are
+    409 `TIME_PROPOSAL_OPEN` (also in their conditional writes).
+    Customer: `POST /bookings/:id/time-proposal/choose { slot }` moves the
+    booking through the reschedule write (new row in the chain, old one
+    retired as moved, payment, receipt chain and pickup codes carried) and
+    writes it **confirmed**, accepted by whoever suggested it; the
+    suggestion's row is locked after the booking's own and must still be
+    open with that time (409 `TIME_PROPOSAL_CLOSED`); capacity is re-checked
+    under the vendor-day lock (409 `TIME_PROPOSAL_SLOT_GONE`, "That time was
+    just taken"). It does not count toward the customer's two reschedules
+    (the cap counts `proposal_id IS NULL`; `reschedule_count` stays the
+    customer's own moves). `POST /bookings/:id/time-proposal/decline`
+    cancels it as the garage's decline (`cancelled_by = 'vendor'`): the
+    payment is owed back in full and AUTO_REFUNDS treats it as
+    `garage_declined`. **Expiry**: at the earliest option less its booking
+    type's notice, or 12 hours, whichever is sooner; the pending-digest
+    cron's sweep (first, 20 a run) cancels it the same way, and closes
+    suggestions a booking left behind. Telegram: `time_proposal_made`,
+    `time_proposal_outcome` (chosen / declined / expired).
+  - **Extra work** (`booking_charges` kind `extra_work`, rules in
+    `lib/extra-work.ts`, pure and unit-tested). On a confirmed or
+    in-progress booking without an `on_inspection` service (400
+    `EXTRA_WORK_ON_INSPECTION`: the final bill covers it):
+    `POST /vendors/me/bookings/:id/extra-work/upload-url` (into the job's
+    photo folder, as job photos), `POST …/extra-work { description, amount,
+    note?, photoKeys ≤ 3 }` (at most 3 waiting, 409
+    `EXTRA_WORK_LIMIT_REACHED`; written under the booking's row lock),
+    `POST …/extra-work/:chargeId/withdraw` (unpaid only, 409
+    `EXTRA_WORK_PAID`). The customer pays it with the final bill's own
+    `pay` / `verify` (one order per charge; settlement conditional on
+    `due` and the charge's order; `gateway_mode` recorded) — paying is the
+    approval — or `POST /bookings/:id/charges/:chargeId/decline`. Mark
+    completed and Delivered are refused while one waits (409
+    `EXTRA_WORK_AWAITING`, also in the conditional write). Cancelling or
+    moving a booking (customer, garage, Detlio) withdraws its unpaid extra
+    work (`booking_closed`) and closes an open suggestion in the same
+    transaction. Telegram: `extra_work_paid`, `extra_work_declined`; a
+    payment landing on a closed request is `final_bill_refund_due` with
+    `what: 'extra_work'`.
+  - **Money**: paid extra work is kept only when the booking completes;
+    on any other end (cancelled by anyone, moved, a no-show on either side)
+    it is owed back (`lib/refunds.ts isBillRefundable`; the refunds SQL
+    widened to match). Receipts list it (`extraWork`, refund lines
+    `against: 'extra_work'`, in `totalPaid`). Commission charges it at the
+    booking's main service rate and payouts include it, as a paid final
+    bill (`billsPaid` is every paid charge); Statistics "collected"
+    includes it. Refund items carry `chargeKind`.
+  - **Home and Updates**: must-act cards `time_proposal` (first) and
+    `extra_work_due` (then), before a bill and a closed day; still one card
+    at most. Updates rows `time_proposal`, `extra_work_due`,
+    `extra_work_paid`, `extra_work_declined`, `extra_work_withdrawn`; a
+    booking cancelled because no time was picked says so.
+  - Booking payloads carry `extraWork` and `timeProposal`; the garage's
+    also `canSuggestTimes`, `extraWorkRefusal` and
+    `completeBlockedByExtraWork`. Admin booking detail adds `extraWork`
+    and `timeProposals`; its Bill due flag counts extra work due.
+
 - **Complaints part 2: logged complaints, and answers in Updates**
   (migration `0039_logged_complaints_and_favourites`, additive:
   `complaints.source` (text + CHECK, existing rows `app`),

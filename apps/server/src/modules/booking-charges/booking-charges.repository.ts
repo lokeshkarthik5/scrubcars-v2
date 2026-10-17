@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, like, ne } from 'drizzle-orm'
+import { and, asc, count, eq, isNull, like, ne } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookingCharges,
@@ -11,6 +11,14 @@ import { escapeLike } from '../../lib/search.js'
 
 export type BookingChargeRecord = typeof bookingCharges.$inferSelect
 type BookingChargeInsert = typeof bookingCharges.$inferInsert
+
+/** What insertExtraWork did. */
+export type InsertExtraWorkResult =
+  | { kind: 'made'; charge: BookingChargeRecord }
+  /** The booking is no longer accepted or under way. */
+  | { kind: 'state_changed' }
+  /** Already the most requests waiting for the customer. */
+  | { kind: 'too_many' }
 
 /** What replaceFinalBill did. */
 export type ReplaceFinalBillResult =
@@ -61,6 +69,14 @@ export const bookingChargesRepository = {
     })
   },
 
+  /** A booking's extra-work requests (0041), newest first. */
+  listExtraWork(bookingId: string) {
+    return db.query.bookingCharges.findMany({
+      where: and(eq(bookingCharges.bookingId, bookingId), eq(bookingCharges.kind, 'extra_work')),
+      orderBy: (charge, { desc }) => [desc(charge.createdAt)],
+    })
+  },
+
   findCharge(chargeId: string) {
     return db.query.bookingCharges.findFirst({
       where: eq(bookingCharges.id, chargeId),
@@ -99,9 +115,10 @@ export const bookingChargesRepository = {
 
         let replaced: BookingChargeRecord | null = null
         if (live) {
+          const at = new Date()
           ;[replaced] = await tx
             .update(bookingCharges)
-            .set({ status: 'cancelled', updatedAt: new Date() })
+            .set({ status: 'cancelled', cancelReason: 'replaced', cancelledAt: at, updatedAt: at })
             .where(eq(bookingCharges.id, live.id))
             .returning()
         }
@@ -117,6 +134,72 @@ export const bookingChargesRepository = {
         if (isUniqueViolation(error)) return { kind: 'conflict' as const }
         throw error
       })
+  },
+
+  /**
+   * Writes an extra-work request (0041), only while the booking is accepted
+   * or under way and has fewer than `maxOpen` waiting. The booking's own row
+   * is locked first (the lock order), so Mark completed, a cancel or a second
+   * request at the same moment queue behind it and count it.
+   */
+  insertExtraWork(
+    insert: Omit<BookingChargeInsert, 'kind' | 'status' | 'paidBefore'>,
+    maxOpen: number
+  ): Promise<InsertExtraWorkResult> {
+    return db.transaction(async (tx): Promise<InsertExtraWorkResult> => {
+      const [booking] = await tx
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, insert.bookingId))
+        .for('update')
+      if (!booking || (booking.status !== 'confirmed' && booking.status !== 'in_progress')) {
+        return { kind: 'state_changed' }
+      }
+
+      const [{ value: open }] = await tx
+        .select({ value: count() })
+        .from(bookingCharges)
+        .where(
+          and(
+            eq(bookingCharges.bookingId, insert.bookingId),
+            eq(bookingCharges.kind, 'extra_work'),
+            eq(bookingCharges.status, 'due')
+          )
+        )
+      if (open >= maxOpen) return { kind: 'too_many' }
+
+      const [charge] = await tx
+        .insert(bookingCharges)
+        .values({ ...insert, kind: 'extra_work', status: 'due', paidBefore: '0.00' })
+        .returning()
+      return { kind: 'made', charge }
+    })
+  },
+
+  /**
+   * Closes an extra-work request still waiting for the customer: the garage
+   * withdrew it, or the customer declined it. Only from 'due', so a payment
+   * that settled it first wins and this writes nothing (empty result); a
+   * payment that lands after finds it cancelled and is refunded.
+   */
+  closeExtraWork(params: {
+    chargeId: string
+    bookingId: string
+    reason: 'withdrawn' | 'declined'
+    at: Date
+  }) {
+    return db
+      .update(bookingCharges)
+      .set({ status: 'cancelled', cancelReason: params.reason, cancelledAt: params.at, updatedAt: params.at })
+      .where(
+        and(
+          eq(bookingCharges.id, params.chargeId),
+          eq(bookingCharges.bookingId, params.bookingId),
+          eq(bookingCharges.kind, 'extra_work'),
+          eq(bookingCharges.status, 'due')
+        )
+      )
+      .returning()
   },
 
   /**

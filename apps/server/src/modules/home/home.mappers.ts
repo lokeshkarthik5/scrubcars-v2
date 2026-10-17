@@ -22,6 +22,11 @@ function moneyOrNull(value: string | number | null): string | null {
   return value === null ? null : money(value)
 }
 
+function parseSlots(value: unknown): string[] {
+  const list = typeof value === 'string' ? (JSON.parse(value) as unknown) : value
+  return Array.isArray(list) ? list.filter((slot): slot is string => typeof slot === 'string') : []
+}
+
 export function toHubBooking(row: HubBookingRecord, moved: Set<string>): HubBooking {
   const names = row.items.length > 0 ? row.items.map((item) => item.name) : row.service ? [row.service.name] : []
   const photoTimes = row.photos.map((photo) => photo.createdAt.getTime())
@@ -56,11 +61,21 @@ export function toHubBooking(row: HubBookingRecord, moved: Set<string>): HubBook
           refundedAmount: moneyOrNull(row.payment.refundedAmount),
         }
       : null,
-    charges: row.charges.map((charge) => ({
+    charges: row.charges.map(({ lines, ...charge }) => ({
       ...charge,
       amountDue: money(charge.amountDue),
       refundedAmount: moneyOrNull(charge.refundedAmount),
+      // Extra work's "what" is its one line (0041); a final bill has none here.
+      description: charge.kind === 'extra_work' ? (lines[0]?.description ?? null) : null,
     })),
+    proposal: row.timeProposals[0]
+      ? {
+          ...row.timeProposals[0],
+          // A nested relational read rebuilds timestamps but may hand back a
+          // jsonb array as text.
+          slots: parseSlots(row.timeProposals[0].slots),
+        }
+      : null,
     photos: {
       count: row.photos.length,
       before: row.photos.filter((photo) => photo.stage === 'before').length,

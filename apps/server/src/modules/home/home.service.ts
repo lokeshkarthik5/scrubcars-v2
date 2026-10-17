@@ -53,7 +53,10 @@ const HOME_UPDATE_ROWS = 2
 export interface HomeResponse {
   now: string
   header: { firstName: string; avatarUrl: string | null; hasUnread: boolean }
-  /** Bill due, or the garage shut on a booking's day: above the offers. */
+  /**
+   * Suggested times to answer, extra work to approve, a bill due, or the
+   * garage shut on a booking's day (in that order): above the offers.
+   */
   mustAct: ActionCard | null
   /** Up to three, ranked. Null when the offers could not be read. */
   offers: HomeOffer[] | null
@@ -249,11 +252,16 @@ export const homeService = {
       now,
     })
     // A row shown as the action card above is not repeated below it.
-    const shownChargeId = mustAct?.kind === 'bill_due' ? mustAct.chargeId : null
-    const shownComplaintRow =
-      softCard?.kind === 'complaint_resolved' ? `complaint_resolved:${softCard.complaintId}` : null
+    const shownChargeId =
+      mustAct?.kind === 'bill_due' || mustAct?.kind === 'extra_work_due' ? mustAct.chargeId : null
+    const shownRow =
+      softCard?.kind === 'complaint_resolved'
+        ? `complaint_resolved:${softCard.complaintId}`
+        : mustAct?.kind === 'time_proposal'
+          ? `proposal:${mustAct.proposalId}`
+          : null
     const rows = feed.filter(
-      (item) => !(shownChargeId && item.chargeId === shownChargeId) && item.id !== shownComplaintRow
+      (item) => !(shownChargeId && item.chargeId === shownChargeId) && item.id !== shownRow
     )
 
     const nearby = origin

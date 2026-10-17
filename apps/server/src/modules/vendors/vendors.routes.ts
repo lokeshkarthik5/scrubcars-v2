@@ -11,6 +11,7 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import { vendorFinalBillRoutes } from '../booking-charges/booking-charges.routes.js'
 import { jobPhotosRoutes } from '../job-photos/job-photos.routes.js'
+import { vendorTimeProposalRoutes } from '../time-proposals/time-proposals.routes.js'
 import { membersRoutes } from '../members/members.routes.js'
 import { vendorEarningsRoutes } from '../payouts/payouts.routes.js'
 import { garageMediaRoutes } from '../service-media/service-media.routes.js'
@@ -131,6 +132,7 @@ vendorsRoutes.route('/me/earnings', vendorEarningsRoutes)
 // take the photos and write the bill.
 vendorsRoutes.route('/me/bookings', jobPhotosRoutes)
 vendorsRoutes.route('/me/bookings', vendorFinalBillRoutes)
+vendorsRoutes.route('/me/bookings', vendorTimeProposalRoutes)
 
 // A service's video and the photo-and-video block's config. vendor_admin only
 // in its own file, like the service image routes below. Photos keep their

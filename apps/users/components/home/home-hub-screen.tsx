@@ -17,7 +17,14 @@ import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { CustomerShell } from '@/components/customer-shell'
-import { BillDueCard, ComplaintAnswerCard, GarageClosedCard, RateWashCard } from './action-cards'
+import {
+  BillDueCard,
+  ComplaintAnswerCard,
+  ExtraWorkHomeCard,
+  GarageClosedCard,
+  RateWashCard,
+  TimeProposalHomeCard,
+} from './action-cards'
 import { CarHero } from './car-hero'
 import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
@@ -89,8 +96,11 @@ function HomeHubContent() {
   const car: HomeCar | undefined = cars[carIndex]
   const offers = data?.offers ?? []
   const mustAct = data?.mustAct ?? null
-  // One red action on the screen: Pay while a bill is due, Book a wash otherwise.
-  const billDue = mustAct?.kind === 'bill_due'
+  // One red action on the screen: the must-act card's (Pick a time, Review
+  // extra work, Pay a bill) while there is one that carries it, Book a wash
+  // otherwise.
+  const billDue =
+    mustAct?.kind === 'bill_due' || mustAct?.kind === 'time_proposal' || mustAct?.kind === 'extra_work_due'
   const rateCard = !mustAct && data?.softCard?.kind === 'rate' ? data.softCard : null
   // Only ever in a free place: the server sends it only with no must-act
   // card and no Rate your wash.
@@ -136,6 +146,8 @@ function HomeHubContent() {
             {/* At most two cards above the car: one must-act card, then the
                 offers; or the offers, then Rate your wash (or, in its place
                 when there is none, a complaint we just resolved). */}
+            {mustAct?.kind === 'time_proposal' && <TimeProposalHomeCard card={mustAct} />}
+            {mustAct?.kind === 'extra_work_due' && <ExtraWorkHomeCard card={mustAct} now={now} />}
             {mustAct?.kind === 'bill_due' && <BillDueCard card={mustAct} now={now} />}
             {mustAct?.kind === 'garage_closed' && <GarageClosedCard card={mustAct} />}
 

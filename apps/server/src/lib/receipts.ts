@@ -289,8 +289,8 @@ export function receiptAvailability(booking: {
 // ─── The receipt ─────────────────────────────────────────────────────────────
 
 export interface ReceiptRefundLine {
-  /** What was refunded: the booking's own payment, or the final bill's. */
-  against: 'booking' | 'final_bill'
+  /** What was refunded: the booking's own payment, the final bill's, or extra work's (0041). */
+  against: 'booking' | 'final_bill' | 'extra_work'
   amount: string
   refundedAt: string | null
   refundedAtLabel: string | null
@@ -349,8 +349,19 @@ export interface Receipt {
     paidAt: string | null
     paidAtLabel: string | null
   } | null
+  /**
+   * Extra work the customer approved and paid in the app (0041), oldest
+   * first, one line each. Empty when there is none.
+   */
+  extraWork: Array<{
+    description: string
+    amount: string
+    paymentId: string | null
+    paidAt: string | null
+    paidAtLabel: string | null
+  }>
   refunds: ReceiptRefundLine[]
-  /** Everything paid: the booking and a paid final bill's balance. */
+  /** Everything paid: the booking, a paid final bill's balance and paid extra work. */
   totalPaid: string
   totalRefunded: string
   /** What the customer paid in the end: paid less refunded. */
@@ -508,7 +519,21 @@ export function buildReceipt(
         { refunded: bill.refundedAmount, refundRef: bill.refundRef, refundedAt: bill.refundedAt }
       )
     : []
-  const refunds = [...paymentRefunds, ...billRefunds].sort(
+  // Paid extra work, oldest first. Like the final bill, a payment that landed
+  // on a withdrawn or declined request paid for nothing on this booking, so
+  // neither it nor its refund is here.
+  const extraWork = (booking.charges ?? [])
+    .filter((charge) => charge.kind === 'extra_work' && charge.status === 'paid')
+    .sort((a, b) => (a.paidAt?.getTime() ?? 0) - (b.paidAt?.getTime() ?? 0))
+  const extraWorkRefunds = extraWork.flatMap((charge) =>
+    refundLinesFor(
+      'extra_work',
+      refundRecords.filter((record) => record.kind === 'bill' && record.targetId === charge.id),
+      { refunded: charge.refundedAmount, refundRef: charge.refundRef, refundedAt: charge.refundedAt }
+    )
+  )
+  const extraWorkPaise = extraWork.reduce((total, charge) => total + toPaise(charge.amountDue), 0)
+  const refunds = [...paymentRefunds, ...billRefunds, ...extraWorkRefunds].sort(
     (a, b) => (a.refundedAt ?? '').localeCompare(b.refundedAt ?? '')
   )
 
@@ -517,7 +542,7 @@ export function buildReceipt(
   const billCredit = bill ? toPaise(bill.paidBefore) : 0
   const billDiscount = billCredit > 0 && discountPaise > 0 ? Math.min(discountPaise, billCredit) : 0
 
-  const totalPaid = toPaise(payment.amount) + (bill ? toPaise(bill.amountDue) : 0)
+  const totalPaid = toPaise(payment.amount) + (bill ? toPaise(bill.amountDue) : 0) + extraWorkPaise
   const totalRefunded = refunds.reduce((total, refund) => total + toPaise(refund.amount), 0)
 
   const vendor = booking.vendor
@@ -581,6 +606,13 @@ export function buildReceipt(
           paidAtLabel: bill.paidAt ? istDateTimeLabel(bill.paidAt) : null,
         }
       : null,
+    extraWork: extraWork.map((charge) => ({
+      description: charge.lines[0]?.description ?? 'Extra work',
+      amount: fromPaise(toPaise(charge.amountDue)),
+      paymentId: paymentIdOf(charge.gatewayPaymentId),
+      paidAt: charge.paidAt?.toISOString() ?? null,
+      paidAtLabel: charge.paidAt ? istDateTimeLabel(charge.paidAt) : null,
+    })),
     refunds,
     totalPaid: fromPaise(totalPaid),
     totalRefunded: fromPaise(totalRefunded),

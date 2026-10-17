@@ -4,6 +4,7 @@ import type {
   ApiAuthUser,
   ApiBooking,
   ApiBookingPickup,
+  ApiExtraWork,
   ApiFinalBill,
   ApiPackage,
   ApiPublicVendor,
@@ -18,6 +19,7 @@ import type {
   Address,
   Booking,
   BookingPickup,
+  ExtraWork,
   FinalBill,
   Review,
   Service,
@@ -385,6 +387,11 @@ export function mapBooking(booking: ApiBooking): Booking {
     jobPhotos: booking.photos ?? [],
     finalBill: booking.finalBill ? mapFinalBill(booking.finalBill) : null,
     canRaiseFinalBill: booking.canRaiseFinalBill ?? false,
+    extraWork: (booking.extraWork ?? []).map(mapExtraWork),
+    extraWorkRefusal: booking.extraWorkRefusal ?? null,
+    completeBlockedByExtraWork: booking.completeBlockedByExtraWork ?? false,
+    timeProposal: booking.timeProposal ?? null,
+    canSuggestTimes: booking.canSuggestTimes ?? false,
     refund: booking.refund
       ? {
           status: booking.refund.status,
@@ -399,6 +406,11 @@ export function mapBooking(booking: ApiBooking): Booking {
     receiptAvailable: booking.receiptAvailable ?? false,
     moved: booking.moved ?? false,
   }
+}
+
+/** Extra work, its price as a number like every other figure in the app. */
+export function mapExtraWork(work: ApiExtraWork): ExtraWork {
+  return { ...work, amount: Number(work.amount) }
 }
 
 // Takes the public shape, which the signed-in ApiReview extends.

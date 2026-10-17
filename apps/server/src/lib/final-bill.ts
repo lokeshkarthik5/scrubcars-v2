@@ -178,7 +178,8 @@ export function chargeSettlement(
 /** A bill row as the repository returns it. */
 export interface FinalBillRecord {
   id: string
-  kind: 'final_bill'
+  /** Extra work (0041) shares the table; liveFinalBill picks the bill out. */
+  kind: 'final_bill' | 'extra_work'
   status: 'due' | 'paid' | 'cancelled' | 'not_needed'
   totalAmount: string
   paidBefore: string
@@ -199,7 +200,7 @@ export interface FinalBillRecord {
  * The bill that stands: the newest one the garage has not replaced. At most
  * one exists (a partial unique index holds it); the rest are history.
  */
-export function liveFinalBill<T extends Pick<FinalBillRecord, 'kind' | 'status'>>(
+export function liveFinalBill<T extends { kind: string; status: string }>(
   charges: T[] | null | undefined
 ): T | null {
   return charges?.find((c) => c.kind === 'final_bill' && c.status !== 'cancelled') ?? null

@@ -33,7 +33,12 @@ import {
   WaitingBadge,
 } from '@/components/booking-badges'
 import { DeleteTestBookingDialog } from '@/components/delete-test-booking-dialog'
-import { FinalBillSection, JobPhotosSection } from './job-records'
+import {
+  ExtraWorkSection,
+  FinalBillSection,
+  JobPhotosSection,
+  TimeProposalSection,
+} from './job-records'
 import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
@@ -501,7 +506,9 @@ function BookingDetail({
 
           <RefundSection booking={b} now={now} />
 
+          <TimeProposalSection booking={b} />
           <FinalBillSection booking={b} />
+          <ExtraWorkSection booking={b} />
 
           <ScSection title="Timeline">
             <Timeline booking={b} />

@@ -144,6 +144,10 @@ export const homeRepository = {
         charges: {
           columns: {
             id: true,
+            kind: true,
+            lines: true,
+            cancelledAt: true,
+            cancelReason: true,
             status: true,
             amountDue: true,
             createdAt: true,
@@ -154,6 +158,13 @@ export const homeRepository = {
           },
         },
         photos: { columns: { stage: true, createdAt: true } },
+        // The newest time suggestion from the garage (0041): its times and
+        // outcome only.
+        timeProposals: {
+          columns: { id: true, status: true, slots: true, expiresAt: true, createdAt: true, resolvedAt: true },
+          orderBy: (proposal, { desc }) => [desc(proposal.createdAt)],
+          limit: 1,
+        },
         // A refund through Razorpay that failed moved no money (0036).
         refundRecords: {
           columns: { id: true, amount: true, recordedAt: true, refundRef: true },

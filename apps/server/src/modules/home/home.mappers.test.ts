@@ -33,6 +33,10 @@ function row(overrides: Record<string, unknown> = {}): HubBookingRecord {
     charges: [
       {
         id: 'c1',
+        kind: 'final_bill',
+        lines: [{ description: 'Dent repair', amount: '1099.00' }],
+        cancelledAt: null,
+        cancelReason: null,
         status: 'due',
         amountDue: 800,
         createdAt: new Date('2026-10-10T05:00:00Z'),
@@ -48,6 +52,7 @@ function row(overrides: Record<string, unknown> = {}): HubBookingRecord {
       { stage: 'after', createdAt: new Date('2026-10-10T05:25:00Z') },
     ],
     refundRecords: [{ id: 'r1', amount: 499, recordedAt: new Date('2026-10-11T04:30:00Z'), refundRef: 'rfnd_Abc123' }],
+    timeProposals: [],
     ...overrides,
   } as unknown as HubBookingRecord
 }
@@ -97,5 +102,49 @@ describe('a Home booking row', () => {
     )
     expect(pickup.pickup).toEqual({ pickedUpAt, atGarageAt: null, outForDeliveryAt: null, deliveredAt: null })
     expect(toHubBooking(row(), new Set()).pickup).toBeNull()
+  })
+})
+
+describe('suggested times and extra work (0041)', () => {
+  test("extra work carries its one line as what it is; a final bill carries none", () => {
+    const booking = toHubBooking(
+      row({
+        charges: [
+          {
+            id: 'x1',
+            kind: 'extra_work',
+            lines: [{ description: 'Replace wiper blades', amount: '450.00' }],
+            cancelledAt: null,
+            cancelReason: null,
+            status: 'due',
+            amountDue: 450,
+            createdAt: new Date('2026-10-10T05:00:00Z'),
+            paidAt: null,
+            gatewayPaymentId: null,
+            refundedAmount: null,
+            refundedAt: null,
+          },
+        ],
+      }),
+      new Set()
+    )
+    expect(booking.charges[0]).toMatchObject({ kind: 'extra_work', description: 'Replace wiper blades', amountDue: '450.00' })
+    expect(toHubBooking(row(), new Set()).charges[0].description).toBeNull()
+  })
+
+  test('the newest suggestion comes through, its times as a list however the jsonb arrives', () => {
+    const proposal = {
+      id: 'p1',
+      status: 'open',
+      expiresAt: new Date('2026-10-10T08:00:00Z'),
+      createdAt: new Date('2026-10-10T04:00:00Z'),
+      resolvedAt: null,
+    }
+    const slots = ['2026-10-10T09:30:00.000Z', '2026-10-10T10:30:00.000Z']
+    expect(toHubBooking(row({ timeProposals: [{ ...proposal, slots }] }), new Set()).proposal).toEqual({ ...proposal, slots })
+    expect(
+      toHubBooking(row({ timeProposals: [{ ...proposal, slots: JSON.stringify(slots) }] }), new Set()).proposal?.slots
+    ).toEqual(slots)
+    expect(toHubBooking(row(), new Set()).proposal).toBeNull()
   })
 })

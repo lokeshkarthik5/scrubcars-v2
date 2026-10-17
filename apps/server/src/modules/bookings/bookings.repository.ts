@@ -5,6 +5,7 @@ import {
   bookingCharges,
   bookingItems,
   bookingReschedules,
+  bookingTimeProposals,
   bookings,
   discountRedemptions,
   jobPhotos,
@@ -515,7 +516,69 @@ const BOOKING_ITEMS = {
 const JOB_RECORDS = {
   photos: { orderBy: [asc(jobPhotos.createdAt), asc(jobPhotos.id)] },
   charges: { orderBy: [desc(bookingCharges.createdAt)] },
+  // The garage's time suggestions (0041), newest first: the live one, or
+  // how the last one ended.
+  timeProposals: { orderBy: [desc(bookingTimeProposals.createdAt)], limit: 3 },
 }
+
+/**
+ * No time suggestion of the garage's is open on the booking (0041). The
+ * garage's Accept and Decline carry it in their conditional write: while it
+ * waits for the customer's answer, the garage withdraws it first.
+ */
+function noOpenProposal() {
+  return sql`not exists (
+    select 1 from ${bookingTimeProposals}
+     where ${bookingTimeProposals.bookingId} = ${bookings.id}
+       and ${bookingTimeProposals.status} = 'open'
+  )`
+}
+
+/**
+ * No extra work on the booking is still waiting for the customer (0041).
+ * Completing a job (Mark completed, Delivered) carries it in its write.
+ */
+function noOpenExtraWork() {
+  return sql`not exists (
+    select 1 from ${bookingCharges}
+     where ${bookingCharges.bookingId} = ${bookings.id}
+       and ${bookingCharges.kind} = 'extra_work'
+       and ${bookingCharges.status} = 'due'
+  )`
+}
+
+/**
+ * Closes what waits on a booking that is being cancelled or moved, in the
+ * caller's transaction, after the booking's own row (the lock order): its
+ * unpaid extra work is withdrawn ('booking_closed'), and an open time
+ * suggestion is closed. A payment already on its way for that extra work
+ * then lands on a withdrawn request and is refunded (booking-charges
+ * settleCaptured), like a final bill's.
+ */
+export async function closeWaitingOnBooking(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  bookingId: string,
+  at: Date
+) {
+  await tx
+    .update(bookingCharges)
+    .set({ status: 'cancelled', cancelReason: 'booking_closed', cancelledAt: at, updatedAt: at })
+    .where(
+      and(
+        eq(bookingCharges.bookingId, bookingId),
+        eq(bookingCharges.kind, 'extra_work'),
+        eq(bookingCharges.status, 'due')
+      )
+    )
+  await tx
+    .update(bookingTimeProposals)
+    .set({ status: 'closed', resolvedAt: at })
+    .where(and(eq(bookingTimeProposals.bookingId, bookingId), eq(bookingTimeProposals.status, 'open')))
+}
+
+/** Thrown inside a cancel's transaction to roll it back with nothing written. */
+class NothingCancelled extends Error {}
 
 export const bookingsRepository = {
   /**
@@ -945,6 +1008,18 @@ export const bookingsRepository = {
     // chain stays marked as a whole.
     markedTestAt?: Date | null
     markedTestBy?: string | null
+    /**
+     * Set when the customer is picking one of the garage's suggested times
+     * (0041). The move is then the garage's doing: it is not counted toward
+     * the customer's reschedules, it needs the suggestion still open with
+     * this time on it, and the new booking is written already accepted —
+     * by the person who suggested it — since the garage offered the time.
+     */
+    proposal?: {
+      id: string
+      acceptedBy: string | null
+      reason: string
+    } | null
   }) {
     return db.transaction(async (tx) => {
       // Vehicle lock first, matching the order used when creating a booking, so
@@ -985,17 +1060,61 @@ export const bookingsRepository = {
           vehicleClash: null,
           garageRefusal: null,
           stateChanged: true as const,
+          proposalGone: false as const,
         }
       }
 
-      // Cap check inside the transaction (race-safe): the number of successful
-      // moves for this chain is the authoritative reschedule count.
+      // A pick of a suggested time: the suggestion's row next, after the
+      // booking's own (the lock order). It must still be open, in time, and
+      // offer this exact time; the garage withdrawing it, or the cron
+      // expiring it, waits for this move or is waited for.
+      const now = new Date()
+      if (data.proposal) {
+        const [proposal] = await tx
+          .select({
+            status: bookingTimeProposals.status,
+            slots: bookingTimeProposals.slots,
+            expiresAt: bookingTimeProposals.expiresAt,
+          })
+          .from(bookingTimeProposals)
+          .where(
+            and(
+              eq(bookingTimeProposals.id, data.proposal.id),
+              eq(bookingTimeProposals.bookingId, data.sourceBookingId)
+            )
+          )
+          .for('update')
+        const offered = proposal?.slots.some(
+          (slot) => new Date(slot).getTime() === data.newScheduledAt.getTime()
+        )
+        if (!proposal || proposal.status !== 'open' || proposal.expiresAt <= now || !offered) {
+          return {
+            booking: null,
+            payment: null,
+            capReached: false as const,
+            vehicleClash: null,
+            garageRefusal: null,
+            stateChanged: false as const,
+            proposalGone: true as const,
+          }
+        }
+      }
+
+      // Cap check inside the transaction (race-safe): the number of moves the
+      // customer made in this chain is the authoritative reschedule count. A
+      // pick of the garage's suggested time is the garage's move (0041): it
+      // is neither counted nor capped.
       const [{ value: existing }] = await tx
         .select({ value: count() })
         .from(bookingReschedules)
-        .where(eq(bookingReschedules.originalBookingId, data.rootBookingId))
+        .where(
+          and(
+            eq(bookingReschedules.originalBookingId, data.rootBookingId),
+            isNull(bookingReschedules.proposalId)
+          )
+        )
 
-      if (existing >= data.maxReschedules) {
+      if (!data.proposal && existing >= data.maxReschedules) {
         return {
           booking: null,
           payment: null,
@@ -1003,6 +1122,7 @@ export const bookingsRepository = {
           vehicleClash: null,
           garageRefusal: null,
           stateChanged: false as const,
+          proposalGone: false as const,
         }
       }
 
@@ -1024,6 +1144,7 @@ export const bookingsRepository = {
           vehicleClash: clash,
           garageRefusal: null,
           stateChanged: false as const,
+          proposalGone: false as const,
         }
       }
 
@@ -1047,6 +1168,7 @@ export const bookingsRepository = {
           vehicleClash: null,
           garageRefusal,
           stateChanged: false as const,
+          proposalGone: false as const,
         }
       }
 
@@ -1060,9 +1182,12 @@ export const bookingsRepository = {
           bookingType: data.bookingType,
           scheduledAt: data.newScheduledAt,
           durationMins: data.durationMins,
-          // Always back to pending: the garage agreed to the old time, not
-          // this one, so it has to accept the move.
-          status: 'pending',
+          // Back to pending: the garage agreed to the old time, not this
+          // one, so it has to accept the move. A time the garage suggested
+          // itself is accepted already (0041).
+          status: data.proposal ? 'confirmed' : 'pending',
+          acceptedAt: data.proposal ? now : null,
+          acceptedBy: data.proposal?.acceptedBy ?? null,
           subtotalAmount: data.subtotalAmount,
           amount: data.amount,
           discountAmount: data.discountAmount,
@@ -1077,7 +1202,8 @@ export const bookingsRepository = {
           deliveryCode: data.handoverCodes?.deliveryCode ?? null,
           originalBookingId: data.rootBookingId,
           rescheduledFromId: data.sourceBookingId,
-          rescheduleCount: existing + 1,
+          // The customer's own moves so far (the garage's do not count).
+          rescheduleCount: data.proposal ? existing : existing + 1,
           markedTestAt: data.markedTestAt ?? null,
           markedTestBy: data.markedTestBy ?? null,
         })
@@ -1129,18 +1255,34 @@ export const bookingsRepository = {
         .set({
           status: 'cancelled',
           cancelledBy: 'user',
-          cancelledAt: new Date(),
+          cancelledAt: now,
           cancellationReason:
-            data.reason ?? 'Rescheduled to a new slot by the customer',
+            data.proposal?.reason ?? data.reason ?? 'Rescheduled to a new slot by the customer',
         })
         .where(eq(bookings.id, data.sourceBookingId))
+
+      // Unpaid extra work stays with the job that was moved away from, and
+      // goes with it; an open suggestion on it is answered (below) or closed.
+      if (data.proposal) {
+        await tx
+          .update(bookingTimeProposals)
+          .set({
+            status: 'accepted',
+            chosenSlot: data.newScheduledAt,
+            resultBookingId: booking.id,
+            resolvedAt: now,
+          })
+          .where(eq(bookingTimeProposals.id, data.proposal.id))
+      }
+      await closeWaitingOnBooking(tx, data.sourceBookingId, now)
 
       await tx.insert(bookingReschedules).values({
         originalBookingId: data.rootBookingId,
         fromBookingId: data.sourceBookingId,
         toBookingId: booking.id,
         userId: data.userId,
-        reason: data.reason,
+        reason: data.proposal?.reason ?? data.reason,
+        proposalId: data.proposal?.id ?? null,
       })
 
       return {
@@ -1150,6 +1292,7 @@ export const bookingsRepository = {
         vehicleClash: null,
         garageRefusal: null,
         stateChanged: false as const,
+        proposalGone: false as const,
       }
     })
   },
@@ -1167,6 +1310,9 @@ export const bookingsRepository = {
   // `step` stamps when it happened (accepted_at, started_at, completed_at) in
   // the same conditional write, so a time is only ever recorded for the move
   // that actually won.
+  //
+  // `guards` (0041): accepting needs no open time suggestion, completing no
+  // extra work still waiting for the customer, both checked in the write.
   updateBookingStatus(
     bookingId: string,
     status: BookingStatus,
@@ -1177,12 +1323,20 @@ export const bookingsRepository = {
       acceptedAt?: Date
       startedAt?: Date
       completedAt?: Date
-    }
+    },
+    guards: { noOpenProposal?: boolean; noOpenExtraWork?: boolean } = {}
   ) {
     return db
       .update(bookings)
       .set({ status, ...actor })
-      .where(and(eq(bookings.id, bookingId), eq(bookings.status, from)))
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.status, from),
+          guards.noOpenProposal ? noOpenProposal() : undefined,
+          guards.noOpenExtraWork ? noOpenExtraWork() : undefined
+        )
+      )
       .returning()
   },
 
@@ -1192,24 +1346,67 @@ export const bookingsRepository = {
    * garage cannot call it off with the car away from home (Detlio can, from
    * admin). A pickup landing between the check and this write is caught here.
    */
+  //
+  // In one transaction with closeWaitingOnBooking (0041): unpaid extra work
+  // is withdrawn and an open time suggestion closed with it. The garage's
+  // Decline (`cancelledBy` 'vendor') also needs no open suggestion: it
+  // withdraws its suggested times first. `proposalOutcome` is the
+  // suggestion's own end — the customer said none work, or nobody answered
+  // in time — which cancels as the garage's decline: the suggestion must
+  // still be open, and is marked with how it ended.
   cancelBooking(
     bookingId: string,
     cancelledBy: 'user' | 'vendor',
     from: BookingStatus,
-    reason?: string | null
+    reason?: string | null,
+    proposalOutcome?: { proposalId: string; status: 'declined' | 'expired' } | null
   ) {
     return db
-      .update(bookings)
-      .set({
-        status: 'cancelled',
-        cancelledBy,
-        cancellationReason: reason ?? null,
-        cancelledAt: new Date(),
+      .transaction(async (tx) => {
+        const at = new Date()
+        const [cancelled] = await tx
+          .update(bookings)
+          .set({
+            status: 'cancelled',
+            cancelledBy,
+            cancellationReason: reason ?? null,
+            cancelledAt: at,
+          })
+          .where(
+            and(
+              eq(bookings.id, bookingId),
+              eq(bookings.status, from),
+              isNull(bookings.pickedUpAt),
+              cancelledBy === 'vendor' && !proposalOutcome ? noOpenProposal() : undefined
+            )
+          )
+          .returning()
+        if (!cancelled) return []
+
+        // The suggestion's row after the booking's own (the lock order).
+        if (proposalOutcome) {
+          const [ended] = await tx
+            .update(bookingTimeProposals)
+            .set({ status: proposalOutcome.status, resolvedAt: at })
+            .where(
+              and(
+                eq(bookingTimeProposals.id, proposalOutcome.proposalId),
+                eq(bookingTimeProposals.bookingId, bookingId),
+                eq(bookingTimeProposals.status, 'open')
+              )
+            )
+            .returning({ id: bookingTimeProposals.id })
+          // Withdrawn or answered in between: undo the cancel, the booking
+          // stays as it is.
+          if (!ended) throw new NothingCancelled()
+        }
+        await closeWaitingOnBooking(tx, bookingId, at)
+        return [cancelled]
       })
-      .where(
-        and(eq(bookings.id, bookingId), eq(bookings.status, from), isNull(bookings.pickedUpAt))
-      )
-      .returning()
+      .catch((error: unknown) => {
+        if (error instanceof NothingCancelled) return []
+        throw error
+      })
   },
 
   // ─── Pickup & drop steps (0037) ────────────────────────────────────────────
@@ -1306,6 +1503,9 @@ export const bookingsRepository = {
           eq(bookings.status, 'in_progress'),
           isNotNull(bookings.outForDeliveryAt),
           isNull(bookings.deliveredAt),
+          // Delivered completes the job: not with extra work still waiting
+          // for the customer (0041).
+          noOpenExtraWork(),
           params.maxAttempts === null
             ? undefined
             : sql`${bookings.deliveryCodeAttempts} < ${params.maxAttempts}`

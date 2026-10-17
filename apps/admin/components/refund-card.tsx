@@ -11,7 +11,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import { formatRupees, formatWhen } from '@/lib/bookings'
-import { REFUND_KIND_LABEL } from '@/lib/refunds'
+import { refundKindLabel } from '@/lib/refunds'
 
 /** A Razorpay id ops pastes into the dashboard, with a copy button. */
 function GatewayId({ value, label }: { value: string; label: string }) {
@@ -57,7 +57,7 @@ export function RefundCard({
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
         <div className="min-w-0">
           <p className="text-[12px] text-text-secondary">
-            {REFUND_KIND_LABEL[r.kind]} ·{' '}
+            {refundKindLabel(r)} ·{' '}
             {r.bookingId && linkBooking ? (
               <Link
                 href={`/bookings/${r.bookingId}`}

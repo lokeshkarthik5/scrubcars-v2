@@ -238,3 +238,63 @@ export async function rescheduleBooking(
 export async function dismissReviewPrompt(bookingId: string): Promise<void> {
   await apiClient(`/bookings/${bookingId}/review-prompt/dismiss`, { method: 'POST' })
 }
+
+// ─── Suggest another time (0041) ─────────────────────────────────────────────
+
+/**
+ * GET /vendors/me/bookings/:id/time-proposal/slots — the garage's own free
+ * times on a day for this booking's job (same services, length, type and
+ * notice), without the booked time itself.
+ */
+export async function getProposalSlots(bookingId: string, date: string): Promise<AvailableSlots> {
+  const data = await apiClient<ApiSlotsResponse>(`/vendors/me/bookings/${bookingId}/time-proposal/slots`, {
+    params: { date },
+  })
+  return {
+    isClosed: data.isClosed,
+    slots: mapSlots(data.slots),
+    durationMins: data.durationMins ?? 0,
+    fitsInDay: data.fitsInDay ?? data.slots.length > 0,
+    closedReason: data.closedReason ?? null,
+    paused: data.paused ?? false,
+    allBooked: data.slots.length === 0 && (data.fullSlots ?? 0) > 0,
+  }
+}
+
+/** POST /vendors/me/bookings/:id/time-proposal — offer one to three other times. */
+export async function suggestTimes(bookingId: string, slots: string[], note?: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/vendors/me/bookings/${bookingId}/time-proposal`, {
+    method: 'POST',
+    body: JSON.stringify({ slots, ...(note ? { note } : {}) }),
+  })
+  return mapBooking(booking)
+}
+
+/** POST /vendors/me/bookings/:id/time-proposal/withdraw — the booking goes back to waiting. */
+export async function withdrawTimeProposal(bookingId: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/vendors/me/bookings/${bookingId}/time-proposal/withdraw`, {
+    method: 'POST',
+  })
+  return mapBooking(booking)
+}
+
+/**
+ * POST /bookings/:id/time-proposal/choose — the customer picks one of the
+ * garage's times. Answers the moved booking, already accepted, under a new id.
+ * A time taken meanwhile is a 409 TIME_PROPOSAL_SLOT_GONE.
+ */
+export async function chooseProposedTime(bookingId: string, slot: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/bookings/${bookingId}/time-proposal/choose`, {
+    method: 'POST',
+    body: JSON.stringify({ slot }),
+  })
+  return mapBooking(booking)
+}
+
+/** POST /bookings/:id/time-proposal/decline — none work: cancelled with a full refund. */
+export async function declineProposedTimes(bookingId: string): Promise<Booking> {
+  const booking = await apiClient<ApiBooking>(`/bookings/${bookingId}/time-proposal/decline`, {
+    method: 'POST',
+  })
+  return mapBooking(booking)
+}
