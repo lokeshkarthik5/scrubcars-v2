@@ -68,5 +68,14 @@ export function toHubBooking(row: HubBookingRecord, moved: Set<string>): HubBook
       lastAt: photoTimes.length > 0 ? new Date(Math.max(...photoTimes)) : null,
     },
     refunds: row.refundRecords.map((refund) => ({ ...refund, amount: money(refund.amount) })),
+    pickup:
+      row.bookingType === 'pickup'
+        ? {
+            pickedUpAt: row.pickedUpAt,
+            atGarageAt: row.atGarageAt,
+            outForDeliveryAt: row.outForDeliveryAt,
+            deliveredAt: row.deliveredAt,
+          }
+        : null,
   }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useRef, useState } from 'react'
+import { Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -13,29 +13,49 @@ import {
   IconStarFilled,
 } from '@tabler/icons-react'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
-import { coarse, useLocationStore } from '@repo/core/stores/location-store'
+import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
-import { DEFAULT_CENTER, MAP_STYLES, MAP_THEME, formatDistance } from '@repo/core/map'
+import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import {
+  DEFAULT_CENTER,
+  MAP_STYLES,
+  MAP_THEME,
+  formatDistance,
+  straightLineKm,
+} from '@repo/core/map'
+import { SERVICE_CITY } from '@repo/core/service-city'
 import { cn } from '@repo/core/utils'
-import { bookingTypeParam } from '@repo/core/booking-types'
+import { BOOKING_TYPE_LABELS, bookingTypeParam, parseBookingType } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { OpenStatus } from '@/components/open-status'
 import { HubNav } from '@/components/home/hub-nav'
 import { isHomeHubEnabled } from '@/lib/home-hub'
+import { fitPadding, framingBounds, type FitPadding } from '@/lib/map-view'
 
 /**
- * Airbnb-style map browse: the map is the filter.
+ * Airbnb-style map browse.
  *
- * Panning changes the *query*, not just the view — results are whatever is
- * inside the viewport rectangle. That is a bounding-box query rather than a
- * radius one, which is why `bbox` went into the listing API up front
- * (plans/geo.md §8) even though this screen came last.
+ * Three ways of choosing what is on the map:
+ *
+ * - Nearby, whenever we know where the customer is: every garage within the
+ *   list's 50 km, nearest first (the same radius as the list and Home), and
+ *   the map opens framing the customer and all of them. The query does not
+ *   wait for the map at all, so the cards load even before it has drawn.
+ * - City, for a customer with no location: every pinned garage within the
+ *   same 50 km of the city centre, nearest the centre first, all framed at
+ *   once. The owner asked for every garage on the opening map; the old opening
+ *   viewport, a few kilometres of central Chennai, left out the suburbs.
+ *   Garages in other towns are left off, as they are for a Chennai customer.
+ * - This area: after "Search this area", whatever is inside the viewport
+ *   rectangle. That is a bounding-box query rather than a radius one, which is
+ *   why `bbox` went into the listing API up front (plans/geo.md §8). "Centre
+ *   on my location" goes back to nearby.
  *
  * The two-way binding between markers and cards is the whole interaction:
- * tapping a marker brings its card up, swiping the cards moves the map. Either
- * one alone would be a map with a list stapled underneath it.
+ * tapping a pin brings its card up, swiping or tapping a card turns its pin
+ * red. Either one alone would be a map with a list stapled underneath it.
  */
 
 // maplibre-gl is ~200KB gzipped plus WebGL; it loads only on this route and the
@@ -44,20 +64,32 @@ const Map = dynamic(() => import('@repo/ui/sc/map').then((m) => m.Map), {
   ssr: false,
   loading: () => <div className="h-full w-full animate-pulse bg-surface" />,
 })
-const MapMarker = dynamic(
-  () => import('@repo/ui/sc/map').then((m) => m.MapMarker),
-  { ssr: false }
-)
-const MarkerContent = dynamic(
-  () => import('@repo/ui/sc/map').then((m) => m.MarkerContent),
-  { ssr: false }
-)
 const MapController = dynamic(
   () => import('@repo/ui/features/map-controller').then((m) => m.MapController),
   { ssr: false }
 )
+const GaragePins = dynamic(
+  () => import('@/components/map/garage-pins').then((m) => m.GaragePins),
+  { ssr: false }
+)
 
 const PAGE_LIMIT = 50
+
+/**
+ * City mode's reach from the centre: the same 50 km as the list's radius
+ * from a customer (LIST_RADIUS_KM in the server's lib/discovery.ts), so a
+ * customer with no location sees what one standing in the centre would. The
+ * service city's own numbers, so a garage this leaves off is exactly one
+ * that carries the "Outside Chennai" sign.
+ */
+const CITY_RADIUS_KM = SERVICE_CITY.radiusKm
+const CITY_CENTRE = SERVICE_CITY.centre
+
+/**
+ * The opening zoom, before any fit: about a city across on a phone. Chennai
+ * for a customer with no location, which the fit then narrows to its garages.
+ */
+const OPENING_ZOOM = 11
 
 /**
  * How much the viewport must change before "Search this area" appears.
@@ -91,6 +123,10 @@ function hasMovedMeaningfully(
   return centreShiftX > 0.25 || centreShiftY > 0.25 || zoomChange > 0.35
 }
 
+function hasPin(vendor: Vendor): vendor is Vendor & { lat: number; lng: number } {
+  return vendor.lat !== null && vendor.lng !== null
+}
+
 function MapBrowseContent() {
   const router = useRouter()
   // Read at build time (lib/home-hub.ts): the hub's floating nav, or none as
@@ -101,14 +137,32 @@ function MapBrowseContent() {
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
   const locating = useLocationStore((s) => s.locating)
 
-  const bookingType =
-    searchParams.get('bookingType') === 'doorstep' ? 'doorstep' : 'dropin'
+  const bookingType = parseBookingType(searchParams.get('bookingType')) ?? 'dropin'
   const category = searchParams.get('category') ?? undefined
 
-  /** The viewport the current results were fetched for. */
-  const [searchedBounds, setSearchedBounds] = useState<MapBounds | null>(null)
-  /** Where the map is now, which may have drifted from the above. */
+  // Browsing all of Chennai (the header's citywide choice) behaves like
+  // having no location: city mode below shows every pinned garage.
+  const origin =
+    !location || isCitywide(location) ? undefined : coarse(location)
+  const hasOrigin = origin !== undefined
+
+  /**
+   * The viewport being searched, in "this area" mode; null means nearby mode
+   * while there is a location (and, without one, that the opening viewport
+   * has not been reported yet).
+   */
+  const [areaBounds, setAreaBounds] = useState<MapBounds | null>(null)
+  /** Where the map is now. */
   const [liveBounds, setLiveBounds] = useState<MapBounds | null>(null)
+  /**
+   * Where the app last put the map, or where it last searched: what "Search
+   * this area" is measured from. Not the searched viewport alone, because in
+   * nearby mode nothing was searched by viewport, and the opening fit moves
+   * the map without the customer touching it.
+   */
+  const [baseline, setBaseline] = useState<MapBounds | null>(null)
+  /** Bumped by "Centre on my location", so a second press frames again. */
+  const [recentred, setRecentred] = useState(0)
   /**
    * The explicit choice, if one has been made. The effective selection is
    * derived below — storing it outright would need an effect to re-sync every
@@ -116,19 +170,27 @@ function MapBrowseContent() {
    * scroll handler for who owns the value.
    */
   const [chosenId, setChosenId] = useState<string | null>(null)
-  /** Set when the map should recentre — a selection, or a fresh GPS fix. */
-  const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null)
+  /** The last garage chosen by a tap, for the map to bring into view. */
+  const [reveal, setReveal] = useState<{ id: string; n: number } | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const topRef = useRef<HTMLDivElement>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
   const cardsRef = useRef<HTMLDivElement>(null)
   /** Suppresses the scroll→select feedback loop while we scroll programmatically. */
   const scrollingProgrammatically = useRef(false)
 
-  const origin = location ? coarse(location) : undefined
+  const nearby = origin !== undefined && areaBounds === null
+  const city = !hasOrigin && areaBounds === null
 
-  const { vendors, isLoading } = useVendorSearch(
+  const { vendors: found, radiusKm, isLoading } = useVendorSearch(
     {
       bookingType,
       category,
-      bbox: searchedBounds ? boundsToParam(searchedBounds) : undefined,
+      // Nearby sends no viewport, so the server applies the list's 50 km
+      // (doorstep: each garage's own reach) from the customer.
+      // City mode sends neither: every pinned garage comes back, and the ones
+      // within reach of the centre are picked below.
+      bbox: areaBounds ? boundsToParam(areaBounds) : undefined,
       lat: origin?.lat,
       lng: origin?.lng,
       sort: origin ? 'distance' : 'relevance',
@@ -139,39 +201,54 @@ function MapBrowseContent() {
       // page is capped and the map says so rather than truncating silently.
       limit: PAGE_LIMIT,
     },
-    { enabled: searchedBounds !== null }
+    { enabled: nearby || city || areaBounds !== null }
   )
 
-  const handleBoundsChange = useCallback((bounds: MapBounds) => {
-    setLiveBounds(bounds)
-    // First settle after load: search straight away rather than making someone
-    // press "Search this area" for a map they have not touched.
-    setSearchedBounds((current) => current ?? bounds)
-  }, [])
+  // City mode: the page holds every pinned garage, other towns included, so
+  // keep those within reach of the centre, nearest it first. Done here rather
+  // than with the centre as an origin, which would rank doorstep garages by
+  // whether they travel to the centre instead of showing them all.
+  const vendors = useMemo(() => {
+    if (!city) return found
+    return found
+      .filter(hasPin)
+      .map((vendor) => ({ vendor, km: straightLineKm(CITY_CENTRE, vendor) }))
+      .filter(({ km }) => km <= CITY_RADIUS_KM)
+      .sort((a, b) => a.km - b.km)
+      .map(({ vendor }) => vendor)
+  }, [city, found])
 
-  const hasMoved = hasMovedMeaningfully(liveBounds, searchedBounds)
+  const handleBoundsChange = useCallback(
+    (bounds: MapBounds, _center: unknown, meta: { programmatic: boolean }) => {
+      setLiveBounds(bounds)
+      // The app put the map here (the opening view, a fit, a bubble zooming
+      // in), so there is nothing new to search from this view.
+      if (meta.programmatic) setBaseline(bounds)
+    },
+    []
+  )
+
+  const hasMoved = hasMovedMeaningfully(liveBounds, baseline)
 
   const searchThisArea = () => {
-    if (liveBounds) setSearchedBounds(liveBounds)
+    if (!liveBounds) return
+    setAreaBounds(liveBounds)
+    setBaseline(liveBounds)
   }
 
   /**
-   * Recentre on the customer.
+   * Back to nearby mode, from a fresh fix.
    *
-   * Updating the location store alone moved nothing: the store feeds the
-   * distance sort, but the map's centre is a construction option MapLibre reads
-   * once. The map has to be told to fly, and the results have to be re-queried,
-   * or you land somewhere new still looking at the previous area's garages.
+   * Updating the location store alone moved nothing: the map's centre is a
+   * construction option MapLibre reads once. Clearing the area search puts
+   * the screen back on the nearby list for the new fix, and the bump frames
+   * it again even when the fix lands where the last one did.
    */
   const centreOnMe = async () => {
     const fix = await requestGpsLocation()
     if (!fix) return
-
-    setFlyTo({ lat: fix.lat, lng: fix.lng })
-    // The bounds this produces arrive via onBoundsChange; clearing the searched
-    // bounds makes the next settle re-search rather than leaving stale pins on
-    // a map that has moved somewhere else entirely.
-    setSearchedBounds(null)
+    setAreaBounds(null)
+    setRecentred((count) => count + 1)
   }
 
   // Falls back to the first result, so the strip always opens on a defined
@@ -196,13 +273,17 @@ function MapBrowseContent() {
     }, 500)
   }, [])
 
-  /** Tapping a marker: bring its card up and centre the map on it. */
-  const selectFromMap = (vendor: Vendor) => {
+  /**
+   * A pin or a card was tapped: that garage's card comes to the middle of the
+   * strip and its pin turns red. The map keeps its zoom — flying to street
+   * level from a 50 km view would throw away the overview the customer was
+   * using to choose — but if the pin is off screen (a card tapped after a
+   * bubble zoomed in elsewhere), GaragePins pans just far enough to show it.
+   */
+  const choose = (vendor: Vendor) => {
     setChosenId(vendor.id)
+    setReveal((last) => ({ id: vendor.id, n: (last?.n ?? 0) + 1 }))
     scrollCardIntoView(vendor.id)
-    if (vendor.lat !== null && vendor.lng !== null) {
-      setFlyTo({ lat: vendor.lat, lng: vendor.lng })
-    }
   }
 
   /**
@@ -239,49 +320,69 @@ function MapBrowseContent() {
     }
   }
 
+  /**
+   * Room around a fit, measured when it happens: the controls on top and the
+   * card strip along the bottom (taller with the hub's floating nav), so no
+   * pin is framed underneath either.
+   */
+  const getPadding = useCallback((): FitPadding => {
+    const root = rootRef.current?.getBoundingClientRect()
+    if (!root) return { top: 48, bottom: 48, left: 72, right: 72 }
+    const top = topRef.current ? topRef.current.getBoundingClientRect().bottom - root.top : 0
+    const bottom = resultsRef.current
+      ? root.bottom - resultsRef.current.getBoundingClientRect().top
+      : 0
+    return fitPadding({ width: root.width, height: root.height }, { top, bottom })
+  }, [])
+
+  // What the map frames once results land, keyed so it happens once per
+  // origin (and per "Centre on my location"), never again on a re-render.
+  // Nearby: the customer and every pin, however far apart; with no garages
+  // within reach, the customer alone, at about a city across. No location:
+  // every garage around the city centre, once — later area searches leave the
+  // map where the customer put it.
+  const pins = vendors.filter(hasPin)
+  let fitKey: string | null = null
+  let fitTarget: MapBounds | null = null
+  if (!isLoading && nearby && origin) {
+    fitKey = `nearby:${origin.lat},${origin.lng}:${recentred}`
+    fitTarget =
+      pins.length > 0 ? framingBounds([origin, ...pins], 3) : framingBounds([origin], 12)
+  } else if (!isLoading && city && pins.length > 0) {
+    fitKey = 'city'
+    fitTarget = framingBounds(pins, 3)
+  }
+
   const center: [number, number] = location
     ? [location.lng, location.lat]
     : DEFAULT_CENTER
 
   const emptyMessage =
-    bookingType === 'doorstep'
-      ? 'No garages travel to this area yet.'
-      : 'No garages in this area. Try zooming out or moving the map.'
+    bookingType === 'pickup' ? (
+      'No garages pick up near you yet — try At garage or Doorstep.'
+    ) : bookingType === 'doorstep' ? (
+      'No garages travel to this area yet.'
+    ) : nearby && radiusKm !== null ? (
+      <>
+        No garages within <span className="font-numeric">{radiusKm}</span> km of you yet.
+      </>
+    ) : (
+      'No garages in this area. Try zooming out or moving the map.'
+    )
 
   return (
-    <div className="fixed inset-0 bg-surface">
-      {/* The map bleeds to the viewport edges — insetting it left dark gutters
-          that read as a broken border. Only the chrome on top is constrained to
-          AppShell's phone width, so controls and cards stay in one column
-          instead of being flung to opposite edges on a wide screen. */}
-      <div className="absolute inset-0">
-        <Map
-          className="h-full w-full"
-          styles={MAP_STYLES}
-          theme={MAP_THEME}
-          center={center}
-          zoom={13}
-          attributionControl={false}
-        >
-          <MapController onBoundsChange={handleBoundsChange} flyTo={flyTo} />
-
-          {vendors.map((vendor) => (
-            <VendorPin
-              key={vendor.id}
-              vendor={vendor}
-              selected={vendor.id === selectedId}
-              onSelect={() => selectFromMap(vendor)}
-            />
-          ))}
-        </Map>
-
-      </div>
-
+    <div ref={rootRef} className="fixed inset-0 bg-surface">
       {/* Chrome column: phone-width, centred, transparent to pointer events
-          except where a control actually sits. */}
-      <div className="pointer-events-none absolute inset-0 mx-auto flex w-full max-w-[428px] flex-col">
+          except where a control actually sits. First in the DOM, and kept on
+          top with z-index, so a keyboard or screen-reader user reaches Back,
+          List, Centre and the cards before the map's pins (up to 50 of them,
+          plus bubbles); the cards are the full-name way to choose. */}
+      <div className="pointer-events-none absolute inset-0 z-10 mx-auto flex w-full max-w-[428px] flex-col">
         {/* ─── Top controls ──────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+        <div
+          ref={topRef}
+          className="flex items-start justify-between gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
+        >
           <RoundButton label="Back" onClick={() => router.back()}>
             <IconChevronLeft size={20} />
           </RoundButton>
@@ -289,8 +390,9 @@ function MapBrowseContent() {
           {/* Grouped so `justify-between` puts Back on one edge and this pair on
               the other, rather than spreading three controls evenly. */}
           <div className="flex items-center gap-2">
+            {/* Back to the list in the same mode the map was opened in. */}
             <Link
-              href="/garages"
+              href={bookingTypeParam(bookingType) ? `/garages?mode=${bookingTypeParam(bookingType)}` : '/garages'}
               className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
             >
               <IconList size={15} />
@@ -333,18 +435,31 @@ function MapBrowseContent() {
 
         {/* ─── Results ───────────────────────────────────────────────────── */}
         {/* With the Home hub on, Map is a tab of the floating nav, so the
-            cards sit above the pill rather than under it. */}
+            cards sit above the pill rather than under it. Measured for the
+            fit's padding (getPadding), so it is the whole block, nav room
+            included. */}
         <div
+          ref={resultsRef}
           className="mt-auto flex flex-col gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]"
           style={hub ? { paddingBottom: FLOATING_NAV_CLEARANCE } : undefined}
         >
           {isLoading ? (
             <p className="px-4 text-center text-[12px] text-text-secondary">
-              Looking in this area…
+              {nearby ? 'Finding garages near you…' : 'Looking in this area…'}
             </p>
           ) : vendors.length === 0 ? (
-            <div className="pointer-events-auto mx-4 rounded-[14px] bg-surface-elevated px-4 py-3 text-center shadow-lg ring-1 ring-border">
+            <div className="pointer-events-auto mx-4 flex flex-col items-center rounded-[14px] bg-surface-elevated px-4 py-3 text-center shadow-lg ring-1 ring-border">
               <p className="text-[13px] text-text-secondary">{emptyMessage}</p>
+              {/* Nothing within reach is not the end: the list has every
+                  garage, further away and not yet pinned ones included. */}
+              {nearby && bookingType === 'dropin' && (
+                <Link
+                  href="/garages"
+                  className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline underline-offset-4"
+                >
+                  See all garages
+                </Link>
+              )}
             </div>
           ) : (
             <>
@@ -368,6 +483,7 @@ function MapBrowseContent() {
                     vendor={vendor}
                     selected={vendor.id === selectedId}
                     mode={bookingType}
+                    onChoose={() => choose(vendor)}
                   />
                 ))}
               </div>
@@ -376,12 +492,55 @@ function MapBrowseContent() {
                 // Saying so beats a silently truncated map, which reads as
                 // "this is everything" when it is not.
                 <p className="px-4 text-center text-[11px] text-text-muted">
-                  Showing the first {PAGE_LIMIT} — zoom in to narrow it down.
+                  {nearby ? (
+                    <>
+                      Showing the nearest <span className="font-numeric">{PAGE_LIMIT}</span>.
+                    </>
+                  ) : (
+                    <>
+                      Showing the first <span className="font-numeric">{PAGE_LIMIT}</span> — zoom
+                      in to narrow it down.
+                    </>
+                  )}
                 </p>
               )}
             </>
           )}
         </div>
+      </div>
+
+      {/* The map bleeds to the viewport edges — insetting it left dark gutters
+          that read as a broken border. Only the chrome on top is constrained to
+          AppShell's phone width, so controls and cards stay in one column
+          instead of being flung to opposite edges on a wide screen. */}
+      <div className="absolute inset-0 z-0">
+        <Map
+          className="h-full w-full"
+          styles={MAP_STYLES}
+          theme={MAP_THEME}
+          center={center}
+          zoom={OPENING_ZOOM}
+          attributionControl={false}
+        >
+          <MapController
+            onBoundsChange={handleBoundsChange}
+            fitBounds={fitTarget}
+            fitKey={fitKey}
+            fitPadding={getPadding}
+            fitMaxZoom={15}
+          />
+
+          <GaragePins
+            vendors={vendors}
+            selectedId={selectedId}
+            onSelect={choose}
+            // Whenever it is known, not only in nearby mode: after "Search
+            // this area" the cards are still sorted by distance from it.
+            origin={origin}
+            getPadding={getPadding}
+            reveal={reveal}
+          />
+        </Map>
       </div>
 
       {/* No scrim: nothing scrolls under the pill here, and a dark band
@@ -415,42 +574,6 @@ function RoundButton({
   )
 }
 
-/** A price pill, the way a map-first marketplace marks a result. */
-function VendorPin({
-  vendor,
-  selected,
-  onSelect,
-}: {
-  vendor: Vendor
-  selected: boolean
-  onSelect: () => void
-}) {
-  // Vendors without coordinates never reach a bbox query, but the list type
-  // allows null so the guard keeps this component total.
-  if (vendor.lat === null || vendor.lng === null) return null
-
-  return (
-    <MapMarker latitude={vendor.lat} longitude={vendor.lng} onClick={onSelect}>
-      <MarkerContent>
-        <span
-          className={cn(
-            // Garages with no priced service fall back to their name, capped
-            // and ellipsised — a hard character slice cut them mid-word.
-            'block max-w-[140px] truncate rounded-full px-2.5 py-1 text-[12px] font-semibold shadow-md ring-1 transition-all',
-            // A price pin is a figure, in the brand's numeric face.
-            vendor.startingPrice > 0 && 'font-numeric font-bold',
-            selected
-              ? 'scale-110 bg-brand-red text-brand-white ring-brand-red'
-              : 'bg-surface-elevated text-text-primary ring-border'
-          )}
-        >
-          {vendor.startingPrice > 0 ? `₹${vendor.startingPrice}` : vendor.name}
-        </span>
-      </MarkerContent>
-    </MapMarker>
-  )
-}
-
 /**
  * A result card, carrying the facts someone actually chooses on.
  *
@@ -464,13 +587,24 @@ function MapVendorCard({
   vendor,
   selected,
   mode,
+  onChoose,
 }: {
   vendor: Vendor
   selected: boolean
   /** The mode home handed the map, passed on so checkout opens on it too. */
   mode: BookingType
+  /** Makes this the chosen garage: its card centred, its pin red. */
+  onChoose: () => void
 }) {
   const modeParam = bookingTypeParam(mode)
+  // Whether it comes to you: on a Pickup & drop map every garage collects,
+  // so that is the badge; otherwise Doorstep, as before.
+  const badge =
+    mode === 'pickup'
+      ? BOOKING_TYPE_LABELS.pickup
+      : vendor.doorstepEnabled
+        ? BOOKING_TYPE_LABELS.doorstep
+        : null
 
   return (
     <Link
@@ -480,6 +614,16 @@ function MapVendorCard({
           : `/garage/${vendor.id}`
       }
       data-vendor-id={vendor.id}
+      aria-current={selected ? 'true' : undefined}
+      // A tap on a card at the side of the strip picks it first, so its pin
+      // can be found on the map before committing to the garage; a tap on
+      // the chosen card opens the garage. A modified click (new tab) always
+      // follows the link.
+      onClick={(e) => {
+        if (selected || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+        e.preventDefault()
+        onChoose()
+      }}
       className={cn(
         'flex w-[78vw] max-w-[300px] shrink-0 snap-center flex-col overflow-hidden rounded-[16px] bg-surface-elevated shadow-xl ring-1 transition-colors',
         // The selected card is outlined in white; its pin carries the red.
@@ -510,13 +654,13 @@ function MapVendorCard({
           variant="overlay"
           className={cn(
             'absolute left-2 top-2',
-            vendor.doorstepEnabled ? 'max-w-[calc(100%-6rem)]' : 'max-w-[calc(100%-1rem)]'
+            badge ? 'max-w-[calc(100%-7.5rem)]' : 'max-w-[calc(100%-1rem)]'
           )}
         />
 
-        {vendor.doorstepEnabled && (
+        {badge && (
           <span className="absolute right-2 top-2 rounded-full bg-surface-elevated/90 px-2 py-0.5 text-[10px] font-semibold text-text-primary ring-1 ring-border">
-            Doorstep
+            {badge}
           </span>
         )}
       </div>
@@ -547,16 +691,28 @@ function MapVendorCard({
           </p>
         )}
 
-        <p className="truncate text-[12px] text-text-secondary">
-          <Figures
-            text={[
-              vendor.area,
-              vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          />
-        </p>
+        {/* A garage in another town (the strip can hold one in nearby and
+            "this area" modes) carries the sign in place of its town, which
+            the sign already names. */}
+        {vendor.outsideServiceCity ? (
+          <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
+            <OutsideCityChip outside={vendor.outsideServiceCity} className="min-w-0 bg-surface" />
+            {vendor.distanceKm !== null && (
+              <span className="shrink-0 font-numeric">{formatDistance(vendor.distanceKm)}</span>
+            )}
+          </p>
+        ) : (
+          <p className="truncate text-[12px] text-text-secondary">
+            <Figures
+              text={[
+                vendor.area,
+                vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            />
+          </p>
+        )}
 
         {vendor.startingPrice > 0 && (
           <p className="mt-0.5 text-[13px] text-text-secondary">

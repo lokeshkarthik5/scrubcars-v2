@@ -15,6 +15,7 @@ import { DISCOUNT_HELD, DISCOUNT_REALIZED } from './discounts.predicates.js'
 import { LISTED_TO_CUSTOMERS, vendorNotInBin } from '../vendors/vendors.predicates.js'
 import { db } from '../../db/index.js'
 import type { CarType } from '../../lib/offers.js'
+import { containsPattern } from '../../lib/search.js'
 import { WASH_CATEGORIES } from '../home/home.repository.js'
 import {
   bookings,
@@ -140,7 +141,7 @@ export const discountsRepository = {
   listDiscounts(filters: { q?: string; active?: boolean }) {
     // % and _ are wildcards to LIKE; an admin searching "20%" means the
     // characters, not "anything after 20".
-    const term = filters.q?.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+    const term = filters.q ? containsPattern(filters.q) : undefined
 
     const conditions = [
       filters.active === undefined
@@ -148,8 +149,8 @@ export const discountsRepository = {
         : eq(discounts.isActive, filters.active),
       term
         ? or(
-            ilike(discounts.code, `%${term}%`),
-            ilike(discounts.description, `%${term}%`)
+            ilike(discounts.code, term),
+            ilike(discounts.description, term)
           )
         : undefined,
     ].filter(Boolean)

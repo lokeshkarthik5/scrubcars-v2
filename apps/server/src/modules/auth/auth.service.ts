@@ -1,16 +1,22 @@
+import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import {
   checkOtpSendLimit,
+  deriveOtpKey,
   generateOtpCode,
   getOtpExpiryDate,
+  getOtpPurgeCutoff,
   getOtpSendWindowStart,
   getOtpVerifyWindowStart,
   MAX_OTP_VERIFY_ATTEMPTS,
   OTP_EXPIRY_SECONDS,
+  OTP_PURGE_BATCH,
   OTP_VERIFY_WINDOW_MINUTES,
   otpAttemptCap,
+  otpDigest,
+  otpMatches,
   otpSendLimitMessage,
 } from '../../lib/otp.js'
 import { sendOtpSms, SmsSendError } from '../../lib/sms.js'
@@ -33,6 +39,8 @@ import type { SendOtpInput, VerifyOtpInput } from './auth.validation.js'
 import type { UserRecord } from './auth.repository.js'
 
 const log = logger.child({ module: 'auth' })
+
+const otpKey = deriveOtpKey(env.jwtSecret)
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -137,6 +145,19 @@ async function canOpenVendorApp(user: UserRecord): Promise<boolean> {
   return (
     (await membersRepository.hasActiveVendorSeat(user.id)) || user.isVendorOwner
   )
+}
+
+/**
+ * Clears out codes from more than a day ago, a batch per send, so the table
+ * holds only what the rate limits still count. Housekeeping: a failure is
+ * logged and the customer's code goes out regardless.
+ */
+async function purgeOldOtps() {
+  try {
+    await authRepository.deleteOtpsExpiredBefore(getOtpPurgeCutoff(new Date()), OTP_PURGE_BATCH)
+  } catch (err) {
+    log.warn({ err }, 'otp:purge_failed')
+  }
 }
 
 /**
@@ -376,7 +397,7 @@ export const authService = {
 
     const [otpRow] = await authRepository.createOtpVerification({
       phone: input.phone,
-      otpCode,
+      otpDigest: otpDigest(otpKey, otpCode, input.phone, input.purpose),
       purpose: input.purpose,
       expiresAt,
     })
@@ -398,6 +419,9 @@ export const authService = {
     }
 
     log.info({ phone: maskPhone(input.phone), purpose: input.purpose, audience: input.audience }, 'otp:sent')
+
+    // After the SMS, so the purge never delays the code reaching the phone.
+    await purgeOldOtps()
 
     return {
       phone: input.phone,
@@ -469,7 +493,7 @@ export const authService = {
       )
     }
 
-    if (otpRecord.otpCode !== input.otp) {
+    if (!otpMatches(otpKey, otpRecord.otpCode, input.otp, input.phone, input.purpose)) {
       log.warn({ phone: maskPhone(input.phone), purpose: input.purpose }, 'otp:invalid')
       throw new AppError(400, 'Invalid or expired OTP', 'INVALID_OTP')
     }

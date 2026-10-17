@@ -12,6 +12,11 @@ interface PageHeaderProps {
   /** Shows the back arrow. With no backHref it goes back in history. */
   showBack?: boolean
   backHref?: string
+  /**
+   * The back arrow as a step back within the page (a form's earlier step),
+   * for a page whose steps are not separate addresses.
+   */
+  onBack?: () => void
   /** The page's actions and badges; they wrap under the title on a phone. */
   actions?: React.ReactNode
   className?: string
@@ -33,6 +38,7 @@ export function PageHeader({
   subtitle,
   showBack,
   backHref,
+  onBack,
   actions,
   className,
 }: PageHeaderProps) {
@@ -43,15 +49,15 @@ export function PageHeader({
       className={cn('flex flex-wrap items-center justify-between gap-x-4 gap-y-3', className)}
     >
       <div className="flex min-w-0 items-center gap-2">
-        {(showBack || backHref) &&
-          (backHref ? (
+        {(showBack || backHref || onBack) &&
+          (backHref && !onBack ? (
             <Link href={backHref} aria-label="Go back" className={BACK_CLASS}>
               <IconArrowLeft size={22} stroke={1.5} />
             </Link>
           ) : (
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => (onBack ? onBack() : router.back())}
               aria-label="Go back"
               className={BACK_CLASS}
             >

@@ -17,8 +17,8 @@ import type { HomeOfferRow } from '../../lib/offers.js'
 import type { BookingType } from '../../lib/booking-types.js'
 import { LISTED_TO_CUSTOMERS, NOT_IN_BIN, PICKUP_OFFERED } from '../vendors/vendors.predicates.js'
 
-// Every read here runs on the API's single database connection (db/index.ts,
-// max: 1), so they run one after another however they are called. Home makes
+// Issued one at a time on purpose. Production keeps a single connection
+// (db/index.ts); overlapping them would not run any faster there. Home makes
 // about a dozen of them; the 30-day bound on the booking read is what keeps
 // them cheap, with the indexes 0031 added.
 
@@ -114,6 +114,11 @@ export const homeRepository = {
         reviewPromptDismissedAt: true,
         vehicleId: true,
         vendorId: true,
+        // Pickup & drop's handover steps (0037); never its codes.
+        pickedUpAt: true,
+        atGarageAt: true,
+        outForDeliveryAt: true,
+        deliveredAt: true,
       },
       with: {
         vendor: { columns: { id: true, businessName: true, bookingsPausedAt: true } },

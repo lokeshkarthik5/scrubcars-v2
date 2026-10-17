@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { IconBuildingStore, IconStarFilled } from '@tabler/icons-react'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
+import { OutsideCityChip } from '@repo/ui/features/outside-city'
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
   return (
@@ -26,7 +27,7 @@ export function VendorCard({
 }: {
   vendor: Vendor
   /**
-   * The At garage / Doorstep choice the list was filtered by. Carried into
+   * The At garage / Doorstep / Pickup & drop choice the list was filtered by. Carried into
    * the garage page so the customer is not asked again there or at checkout.
    */
   mode?: BookingType
@@ -88,11 +89,17 @@ export function VendorCard({
               {vendor.dropinEnabled && (
                 <ModeBadge label={BOOKING_TYPE_LABELS.dropin} tone="garage" />
               )}
-              {vendor.doorstepEnabled && (
+              {/* On a Pickup & drop list, Pickup & drop takes Doorstep's place:
+                  three badges would crowd the name on a 360px phone. Elsewhere
+                  the garage page says whether it collects. */}
+              {vendor.doorstepEnabled && mode !== 'pickup' && (
                 <ModeBadge
                   label={BOOKING_TYPE_LABELS.doorstep}
                   tone="doorstep"
                 />
+              )}
+              {mode === 'pickup' && vendor.pickupEnabled && (
+                <ModeBadge label={BOOKING_TYPE_LABELS.pickup} tone="doorstep" />
               )}
             </div>
           </div>
@@ -134,6 +141,12 @@ export function VendorCard({
               </>
             )}
           </div>
+
+          {/* A garage in another town says so on its card, so nobody opens
+              it, or books it, thinking it is in Chennai. */}
+          {vendor.outsideServiceCity && (
+            <OutsideCityChip outside={vendor.outsideServiceCity} className="mt-0.5 self-start" />
+          )}
 
           {/* Only on a search that found the garage by one of its services:
               without it, "ceramic" listing a garage called "Marina Auto" reads

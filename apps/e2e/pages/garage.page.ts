@@ -11,9 +11,10 @@ export class GaragePage {
 
   goto = (vendorId: string) => this.page.goto(`/garage/${vendorId}`)
 
-  /** The At garage / Doorstep switch, a radiogroup. Only rendered for a garage
-   *  doing both; the choice rides along to checkout as `&mode=`. */
-  mode = (label: 'At garage' | 'Doorstep') =>
+  /** The At garage / Doorstep / Pickup & drop switch, a radiogroup. Only
+   *  rendered for a garage offering two or more; the choice rides along to
+   *  checkout as `&mode=`. */
+  mode = (label: 'At garage' | 'Doorstep' | 'Pickup & drop') =>
     this.page.getByRole('radio', { name: label, exact: true })
 
   tab = (name: 'Services' | 'Photos' | 'Reviews') => this.page.getByRole('tab', { name })
