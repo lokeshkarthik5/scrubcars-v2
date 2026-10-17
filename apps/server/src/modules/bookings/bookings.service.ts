@@ -13,6 +13,20 @@ import {
   minNoticeMessage,
 } from '../../lib/slots.js'
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
+import { usesCustomerAddress, type BookingType } from '../../lib/booking-types.js'
+import {
+  MAX_CODE_ATTEMPTS,
+  bookingTypeFee,
+  checkHandoverCode,
+  codeTriesLeft,
+  completeRefusal,
+  customerChangeRefusal,
+  isPickupOffered,
+  newHandoverCodes,
+  nextPickupStep,
+  pickupStepRefusal,
+  type PickupNext,
+} from '../../lib/pickup.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import {
   creditAtBooking,
@@ -35,6 +49,7 @@ import { vendorsRepository } from '../vendors/vendors.repository.js'
 import type {
   BookingDiscount,
   GarageRefusal,
+  HandoverCodeKind,
   ReceiptNumberAllocation,
 } from './bookings.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
@@ -42,8 +57,8 @@ import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
 
-/** Refuses a booking that starts too soon for its type (1h at the garage, 3h doorstep). */
-function assertMinNotice(scheduledAt: Date, bookingType: 'dropin' | 'doorstep') {
+/** Refuses a booking that starts too soon for its type (1h at the garage, 3h doorstep or pickup). */
+function assertMinNotice(scheduledAt: Date, bookingType: BookingType) {
   if (!meetsMinNotice(scheduledAt, bookingType)) {
     throw new AppError(400, minNoticeMessage(bookingType), 'SLOT_TOO_SOON')
   }
@@ -105,6 +120,73 @@ function stateChanged() {
     409,
     'This booking was just updated by someone else. Refresh to see its latest status.',
     'BOOKING_STATE_CHANGED'
+  )
+}
+
+/** Refuses a pickup & drop step the job is not waiting for (lib/pickup.ts). */
+function assertPickupStep(booking: BookingWithRelations, step: PickupNext) {
+  const refusal = pickupStepRefusal(pickupJobOf(booking), step)
+  if (refusal) throw new AppError(refusal.status, refusal.message, refusal.code)
+}
+
+/** The facts lib/pickup.ts reads off a booking row. */
+function pickupJobOf(booking: BookingWithRelations) {
+  return {
+    bookingType: booking.bookingType,
+    status: booking.status,
+    pickedUpAt: booking.pickedUpAt ?? null,
+    atGarageAt: booking.atGarageAt ?? null,
+    outForDeliveryAt: booking.outForDeliveryAt ?? null,
+    deliveredAt: booking.deliveredAt ?? null,
+  }
+}
+
+const CODE_NAMES: Record<HandoverCodeKind, string> = {
+  pickup: 'pickup code',
+  delivery: 'delivery code',
+}
+
+function codeLocked(kind: HandoverCodeKind) {
+  return new AppError(
+    409,
+    `Too many wrong tries for the ${CODE_NAMES[kind]}. Call Detlio support: we can confirm the handover once we have spoken to the customer.`,
+    'HANDOVER_CODE_LOCKED'
+  )
+}
+
+/**
+ * Checks the code the garage typed against the customer's, counting a wrong
+ * one. Throws unless it matches; the caller then writes the step under the
+ * same cap, so a guess racing a lock-out cannot slip through.
+ */
+async function assertHandoverCode(
+  booking: BookingWithRelations & { id: string },
+  kind: HandoverCodeKind,
+  given: string
+) {
+  const check = checkHandoverCode({
+    expected: (kind === 'pickup' ? booking.pickupCode : booking.deliveryCode) ?? null,
+    given,
+    attempts: (kind === 'pickup' ? booking.pickupCodeAttempts : booking.deliveryCodeAttempts) ?? 0,
+  })
+  if (check === 'ok') return
+  if (check === 'locked') throw codeLocked(kind)
+  if (check === 'missing') {
+    throw new AppError(
+      409,
+      `This booking has no ${CODE_NAMES[kind]}. Call Detlio support to confirm the handover.`,
+      'HANDOVER_CODE_MISSING'
+    )
+  }
+
+  const attempts = await bookingsRepository.recordWrongCode(booking.id, kind, MAX_CODE_ATTEMPTS)
+  log.warn({ bookingId: booking.id, kind, attempts }, 'booking:handover_code_wrong')
+  if (attempts === null || attempts >= MAX_CODE_ATTEMPTS) throw codeLocked(kind)
+  const left = codeTriesLeft(attempts)
+  throw new AppError(
+    400,
+    `That code doesn't match. Ask the customer for the 4-digit ${CODE_NAMES[kind]} in their Detlio app. ${left} ${left === 1 ? 'try' : 'tries'} left.`,
+    'HANDOVER_CODE_WRONG'
   )
 }
 
@@ -189,6 +271,15 @@ type BookingWithRelations = {
   acceptedAt?: Date | null
   startedAt?: Date | null
   completedAt?: Date | null
+  // Pickup & drop (0037); null on every other type.
+  pickedUpAt?: Date | null
+  atGarageAt?: Date | null
+  outForDeliveryAt?: Date | null
+  deliveredAt?: Date | null
+  pickupCode?: string | null
+  deliveryCode?: string | null
+  pickupCodeAttempts?: number
+  deliveryCodeAttempts?: number
   createdAt: Date
   review?: {
     id: string
@@ -260,6 +351,49 @@ function toPaymentResponse(payment: PaymentRecord | null | undefined) {
   }
 }
 
+/** The four handover steps of a pickup & drop job, as ISO times. */
+function pickupStepTimes(booking: BookingWithRelations) {
+  return {
+    pickedUpAt: booking.pickedUpAt?.toISOString() ?? null,
+    atGarageAt: booking.atGarageAt?.toISOString() ?? null,
+    outForDeliveryAt: booking.outForDeliveryAt?.toISOString() ?? null,
+    deliveredAt: booking.deliveredAt?.toISOString() ?? null,
+  }
+}
+
+const LIVE_STATUSES = new Set(['pending', 'confirmed', 'in_progress'])
+
+/**
+ * The customer's view of a pickup & drop job: the steps, and the two codes
+ * they give the garage — each only while it is still to be used, and none
+ * once the booking is no longer on. Only this mapper ever reads the codes;
+ * the garage's and admin's shapes are built without them.
+ */
+function customerPickupView(booking: BookingWithRelations) {
+  if (booking.bookingType !== 'pickup') return null
+  const live = LIVE_STATUSES.has(booking.status)
+  return {
+    ...pickupStepTimes(booking),
+    pickupCode: live && !booking.pickedUpAt ? (booking.pickupCode ?? null) : null,
+    deliveryCode: live && !booking.deliveredAt ? (booking.deliveryCode ?? null) : null,
+  }
+}
+
+/**
+ * The garage's view: the steps, what the job is waiting for (so the portal
+ * shows one button and never restates the order), and the tries left on
+ * each code. Never the codes themselves.
+ */
+function vendorPickupView(booking: BookingWithRelations) {
+  if (booking.bookingType !== 'pickup') return null
+  return {
+    ...pickupStepTimes(booking),
+    nextStep: nextPickupStep(pickupJobOf(booking)),
+    pickupCodeTriesLeft: codeTriesLeft(booking.pickupCodeAttempts ?? 0),
+    deliveryCodeTriesLeft: codeTriesLeft(booking.deliveryCodeAttempts ?? 0),
+  }
+}
+
 function finalBillOf(charges: FinalBillRecord[]) {
   const bill = liveFinalBill(charges)
   return bill ? toFinalBillView(bill) : null
@@ -319,6 +453,10 @@ function toBookingResponse(
     acceptedAt: booking.acceptedAt?.toISOString() ?? null,
     startedAt: booking.startedAt?.toISOString() ?? null,
     completedAt: booking.completedAt?.toISOString() ?? null,
+    // Pickup & drop only (null on every other type): the handover steps and
+    // the customer's codes. See customerPickupView; the garage's mapper
+    // replaces this with its own view.
+    pickup: customerPickupView(booking),
     createdAt: booking.createdAt.toISOString(),
     review: booking.review
       ? {
@@ -463,11 +601,15 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     // than sent wrong. The garage's card says a job was moved from the new
     // booking's `rescheduledFromId`.
     moved: _moved,
+    // The customer's pickup view carries the handover codes, which the
+    // garage must get from the customer, never from us.
+    pickup: _customerPickup,
     ...vendorView
   } = toBookingResponse(booking)
 
   return {
     ...vendorView,
+    pickup: vendorPickupView(booking),
     // The garage took the photos, so it always sees all of them — the
     // customer's view waits for the work to start.
     ...(booking.photos !== undefined && {
@@ -880,7 +1022,14 @@ export async function resolveBookingDraft(
   // Sum the lines, then discount — never discount per line — or the invariant
   // `amount = subtotalAmount - discountAmount` drifts by a paisa. Summed in
   // paise so the arithmetic never runs through a float.
-  const amount = sumAmounts(items.map((item) => item.amount))
+  //
+  // A booking type's own fee goes on here, before any promo code
+  // (bookingTypeFee, lib/pickup.ts). Zero for every type today: the pickup &
+  // drop fee is to be decided (owner, 17 Oct 2026).
+  const amount = sumAmounts([
+    ...items.map((item) => item.amount),
+    bookingTypeFee(input.bookingType),
+  ])
   const durationMins = items.reduce((total, item) => total + item.durationMins, 0)
 
   // Resolve the promo code against the *server-computed* subtotal. A
@@ -919,8 +1068,9 @@ export async function resolveBookingDraft(
     )
   }
 
-  // Doorstep snapshots the customer's location onto the booking, so a later
-  // edit to the saved address cannot change where the garage was told to go.
+  // Doorstep and pickup & drop snapshot the customer's location onto the
+  // booking, so a later edit to the saved address cannot change where the
+  // garage was told to go (or collect the car from).
   //
   // Drop-in leaves all three null: the customer comes to the garage, so there
   // is no address to record.
@@ -930,23 +1080,35 @@ export async function resolveBookingDraft(
 
   const bookingType = input.bookingType
 
-  if (bookingType === 'doorstep') {
-    if (!vendor.doorstepEnabled) {
-      log.warn(
-        { userId, vendorId: vendor.id },
-        'booking:doorstep_not_enabled'
-      )
-      throw new AppError(
-        400,
-        'Vendor does not accept doorstep bookings',
-        'DOORSTEP_NOT_ENABLED'
-      )
-    }
+  if (bookingType === 'doorstep' && !vendor.doorstepEnabled) {
+    log.warn(
+      { userId, vendorId: vendor.id },
+      'booking:doorstep_not_enabled'
+    )
+    throw new AppError(
+      400,
+      'Vendor does not accept doorstep bookings',
+      'DOORSTEP_NOT_ENABLED'
+    )
+  }
+
+  // On, with the responsibility terms on file (lib/pickup.ts).
+  if (bookingType === 'pickup' && !isPickupOffered(vendor)) {
+    log.warn({ userId, vendorId: vendor.id }, 'booking:pickup_not_offered')
+    throw new AppError(
+      400,
+      "This garage doesn't offer pickup & drop",
+      'PICKUP_NOT_OFFERED'
+    )
+  }
+
+  if (usesCustomerAddress(bookingType)) {
+    const pickup = bookingType === 'pickup'
 
     if (!input.addressId) {
       throw new AppError(
         400,
-        'Choose the address we should come to',
+        pickup ? 'Choose the address we should collect the car from' : 'Choose the address we should come to',
         'ADDRESS_REQUIRED'
       )
     }
@@ -966,27 +1128,35 @@ export async function resolveBookingDraft(
     if (savedAddress.lat === null || savedAddress.lng === null) {
       throw new AppError(
         422,
-        'Confirm exactly where we should come on the map',
+        pickup
+          ? 'Confirm exactly where the car should be collected from on the map'
+          : 'Confirm exactly where we should come on the map',
         'ADDRESS_LOCATION_REQUIRED'
       )
     }
 
-    const covered = await bookingsRepository.isWithinDoorstepRadius(
-      vendor.id,
-      savedAddress.lat,
-      savedAddress.lng
-    )
+    // Doorstep: the garage's drawn area or travel radius. Pickup: its pickup
+    // radius from its pin (10 km when empty).
+    const covered = pickup
+      ? await bookingsRepository.isWithinPickupRadius(vendor.id, savedAddress.lat, savedAddress.lng)
+      : await bookingsRepository.isWithinDoorstepRadius(vendor.id, savedAddress.lat, savedAddress.lng)
 
     if (!covered) {
       log.warn(
-        { userId, vendorId: vendor.id, addressId: input.addressId },
-        'booking:outside_doorstep_radius'
+        { userId, vendorId: vendor.id, addressId: input.addressId, bookingType },
+        pickup ? 'booking:outside_pickup_radius' : 'booking:outside_doorstep_radius'
       )
-      throw new AppError(
-        400,
-        'This garage does not travel to that address',
-        'OUTSIDE_DOORSTEP_RADIUS'
-      )
+      throw pickup
+        ? new AppError(
+            400,
+            "This garage doesn't collect cars from that address",
+            'OUTSIDE_PICKUP_RADIUS'
+          )
+        : new AppError(
+            400,
+            'This garage does not travel to that address',
+            'OUTSIDE_DOORSTEP_RADIUS'
+          )
     }
 
     lat = savedAddress.lat
@@ -1186,6 +1356,7 @@ export const bookingsService = {
           lng,
           address,
           discount,
+          handoverCodes: input.bookingType === 'pickup' ? newHandoverCodes() : null,
         })
 
       if (result.vehicleClash) {
@@ -1285,6 +1456,10 @@ export const bookingsService = {
       )
     }
 
+    // Pickup & drop: once the garage has the car, it has to come back first.
+    const withCar = customerChangeRefusal(pickupJobOf(booking))
+    if (withCar) throw new AppError(409, withCar, 'CAR_WITH_GARAGE')
+
     // Until the garage accepts, the customer can cancel any time — even after
     // the start, when a garage never answered. The cutoff protects a garage
     // that has committed to the slot.
@@ -1328,6 +1503,9 @@ export const bookingsService = {
       )
     }
 
+    const withCar = customerChangeRefusal(pickupJobOf(booking))
+    if (withCar) throw new AppError(409, withCar, 'CAR_WITH_GARAGE')
+
     if ((booking.rescheduleCount ?? 0) >= MAX_RESCHEDULES) {
       throw new AppError(
         400,
@@ -1359,7 +1537,7 @@ export const bookingsService = {
         'INVALID_SCHEDULED_AT'
       )
     }
-    assertMinNotice(newScheduledAt, booking.bookingType as 'dropin' | 'doorstep')
+    assertMinNotice(newScheduledAt, booking.bookingType)
 
     // A move re-books exactly what was sold, so the lines come off the booking
     // rather than being re-resolved: a service repriced or deactivated since
@@ -1409,6 +1587,10 @@ export const bookingsService = {
       lat: booking.lat,
       lng: booking.lng,
       address: booking.address,
+      handoverCodes:
+        booking.pickupCode && booking.deliveryCode
+          ? { pickupCode: booking.pickupCode, deliveryCode: booking.deliveryCode }
+          : null,
       sourcePayment: booking.payment
         ? {
             gateway: booking.payment.gateway,
@@ -1586,6 +1768,9 @@ export const bookingsService = {
       )
     }
 
+    // Pickup & drop: the work starts once the car is at the garage.
+    if (booking.bookingType === 'pickup') assertPickupStep(booking, 'start_work')
+
     const [started] = await bookingsRepository.updateBookingStatus(bookingId, 'in_progress', 'confirmed', {
       startedAt: new Date(),
     })
@@ -1607,24 +1792,143 @@ export const bookingsService = {
       )
     }
 
+    // Pickup & drop finishes on Delivered, with the customer's code.
+    const pickupRefusal = completeRefusal(booking)
+    if (pickupRefusal) {
+      throw new AppError(pickupRefusal.status, pickupRefusal.message, pickupRefusal.code)
+    }
+
     const [completed] = await bookingsRepository.updateBookingStatus(bookingId, 'completed', 'in_progress', {
       completedBy: actorId,
       completedAt: new Date(),
     })
     if (!completed) throw stateChanged()
 
-    if (booking.paymentMethod === 'cash') {
-      const { receipt } = await bookingsRepository.markCashCollected({
-        bookingId,
-        rootBookingId: booking.originalBookingId ?? booking.id,
-        collectedAt: new Date(),
-      })
-      logReceiptNumberFailure(receipt, bookingId)
-    }
+    await collectCashOnCompletion(booking)
 
     log.info({ bookingId, vendorId, actorId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     return toVendorBookingResponse(updated!)
   },
+
+  // ─── Pickup & drop steps (0037) ────────────────────────────────────────────
+  //
+  // Picked up → At garage → (Mark in progress, the normal work) → Out for
+  // delivery → Delivered, which completes the job. The order is
+  // lib/pickup.ts's; each write is conditional on the state checked here
+  // (bookings.repository.ts), so a second phone or a cancel in between
+  // leaves one winner. Open to operators, like every job step.
+
+  /** The garage has the car: needs the customer's pickup code. */
+  async markPickedUp(vendorId: string, actorId: string, bookingId: string, code: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
+    assertPickupStep(booking, 'picked_up')
+    await assertHandoverCode(booking, 'pickup', code)
+
+    const [row] = await bookingsRepository.markPickedUp(bookingId, {
+      at: new Date(),
+      maxAttempts: MAX_CODE_ATTEMPTS,
+    })
+    if (!row) throw stateChanged()
+    log.info({ bookingId, vendorId, actorId, step: 'picked_up' }, 'booking:pickup_step')
+
+    const updated = await bookingsRepository.findBookingById(bookingId)
+    return toVendorBookingResponse(updated!)
+  },
+
+  /** The car has arrived at the garage. */
+  async markAtGarage(vendorId: string, actorId: string, bookingId: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
+    assertPickupStep(booking, 'at_garage')
+
+    const [row] = await bookingsRepository.markAtGarage(bookingId, new Date())
+    if (!row) throw stateChanged()
+    log.info({ bookingId, vendorId, actorId, step: 'at_garage' }, 'booking:pickup_step')
+
+    const updated = await bookingsRepository.findBookingById(bookingId)
+    return toVendorBookingResponse(updated!)
+  },
+
+  /** The work is done and the car is on its way back. */
+  async markOutForDelivery(vendorId: string, actorId: string, bookingId: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
+    assertPickupStep(booking, 'out_for_delivery')
+
+    const [row] = await bookingsRepository.markOutForDelivery(bookingId, new Date())
+    if (!row) throw stateChanged()
+    log.info({ bookingId, vendorId, actorId, step: 'out_for_delivery' }, 'booking:pickup_step')
+
+    const updated = await bookingsRepository.findBookingById(bookingId)
+    return toVendorBookingResponse(updated!)
+  },
+
+  /** The customer has the car back: needs the delivery code, and completes the job. */
+  async markDelivered(vendorId: string, actorId: string, bookingId: string, code: string) {
+    const { booking } = await getBookingForVendor(vendorId, bookingId)
+    assertPickupStep(booking, 'delivered')
+    await assertHandoverCode(booking, 'delivery', code)
+
+    const [row] = await bookingsRepository.markDelivered(bookingId, {
+      at: new Date(),
+      completedBy: actorId,
+      maxAttempts: MAX_CODE_ATTEMPTS,
+    })
+    if (!row) throw stateChanged()
+    await collectCashOnCompletion(booking)
+    log.info({ bookingId, vendorId, actorId, step: 'delivered', status: 'completed' }, 'booking:pickup_step')
+
+    const updated = await bookingsRepository.findBookingById(bookingId)
+    return toVendorBookingResponse(updated!)
+  },
+
+  /**
+   * Detlio confirms a code step from admin for a customer who cannot give
+   * the code (lost phone, code locked after wrong tries), after speaking to
+   * them. Same order rules and conditional write as the garage's, without
+   * the code; the admin's name is stored on the booking. Answers nothing:
+   * the caller reloads its own view.
+   */
+  async confirmHandoverAsDetlio(
+    bookingId: string,
+    step: 'picked_up' | 'delivered',
+    adminName: string
+  ) {
+    const booking = await bookingsRepository.findBookingById(bookingId)
+    if (!booking) throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
+    assertPickupStep(booking, step)
+
+    const at = new Date()
+    const [row] =
+      step === 'picked_up'
+        ? await bookingsRepository.markPickedUp(bookingId, { at, maxAttempts: null, overrideBy: adminName })
+        : await bookingsRepository.markDelivered(bookingId, {
+            at,
+            completedBy: null,
+            maxAttempts: null,
+            overrideBy: adminName,
+          })
+    if (!row) throw stateChanged()
+    if (step === 'delivered') await collectCashOnCompletion(booking)
+    log.info({ bookingId, step, adminName }, 'booking:pickup_step_confirmed_by_detlio')
+  },
+}
+
+/**
+ * A legacy cash booking's money is collected when the job completes, with
+ * its receipt number (markCashCollected). Shared by Mark completed and
+ * pickup & drop's Delivered.
+ */
+async function collectCashOnCompletion(booking: {
+  id: string
+  paymentMethod: string
+  originalBookingId?: string | null
+}) {
+  if (booking.paymentMethod !== 'cash') return
+  const { receipt } = await bookingsRepository.markCashCollected({
+    bookingId: booking.id,
+    rootBookingId: booking.originalBookingId ?? booking.id,
+    collectedAt: new Date(),
+  })
+  logReceiptNumberFailure(receipt, booking.id)
 }

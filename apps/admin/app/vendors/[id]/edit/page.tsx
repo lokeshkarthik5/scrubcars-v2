@@ -58,6 +58,7 @@ import type { ServiceMedia } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
 import { PayoutAccountSection } from '@/components/payout-account-section'
+import { LivePickupCard } from '@/components/pickup-card'
 import { SaveBar } from '@/components/save-bar'
 import { RestoreDialog } from '@/components/vendor-bin-dialogs'
 import { formatWhen } from '@/lib/bookings'
@@ -88,11 +89,6 @@ import {
 import { VendorTeamSection } from './team-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const PICKUP_OPTIONS = [
-  { value: 'yes' as const, label: 'Yes' },
-  { value: 'nearby' as const, label: 'Nearby only' },
-  { value: 'no' as const, label: 'No' },
-]
 const SLOT_INTERVALS = [30, 45, 60] as const
 const STATUS_OPTIONS = [
   { value: 'pending' as const, label: 'Pending' },
@@ -168,10 +164,8 @@ interface GarageDraft {
     mapsUrl: string
     bays: string
     jobsPerDay: string
-    pickupRadiusKm: string
     notes: string
   }
-  pickup: 'yes' | 'nearby' | 'no' | ''
   pin: PickedLocation | null
   slotIntervalMins: 30 | 45 | 60
   // The real per-day schedule. Sent back only when a day differs from what
@@ -201,10 +195,8 @@ function toDraft(v: AdminVendorDetail): GarageDraft {
       mapsUrl: v.mapsUrl ?? '',
       bays: v.bays != null ? String(v.bays) : '',
       jobsPerDay: v.jobsPerDay != null ? String(v.jobsPerDay) : '',
-      pickupRadiusKm: v.pickupRadiusKm != null ? String(v.pickupRadiusKm) : '',
       notes: v.notes ?? '',
     },
-    pickup: v.pickup ?? '',
     pin:
       v.lat != null && v.lng != null
         ? {
@@ -258,8 +250,6 @@ function tabValues(draft: GarageDraft): TabValues {
       lng: draft.pin?.lng ?? null,
     },
     operations: {
-      pickup: draft.pickup,
-      pickupRadiusKm: trimmed(form.pickupRadiusKm),
       hours: draft.hours,
       slotIntervalMins: draft.slotIntervalMins,
       bays: trimmed(form.bays),
@@ -300,10 +290,15 @@ export default function EditVendorPage({
   // How customers book, as loaded: the card above the tabs saves it on its
   // own (LiveBookingModeCard) and reads these once.
   const [bookingMode, setBookingMode] = useState<
-    Pick<
-      AdminVendorDetail,
-      'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea'
-    > | null
+    | (Pick<
+        AdminVendorDetail,
+        'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea' | 'pickup' | 'pickupRadiusKm'
+      > & {
+        pickupEnabled: boolean
+        pickupTermsAcceptedAt: string | null
+        pickupTermsAcceptedBy: string | null
+      })
+    | null
   >(null)
   const [confirming, setConfirming] = useState(false)
   // Whether the garage arrived here already pinned, so the UI can say who put
@@ -436,6 +431,11 @@ export default function EditVendorPage({
           doorstepEnabled: v.doorstepEnabled,
           doorstepRadiusKm: v.doorstepRadiusKm,
           hasDoorstepArea: v.hasDoorstepArea,
+          pickupEnabled: v.pickupEnabled === true,
+          pickup: v.pickup,
+          pickupRadiusKm: v.pickupRadiusKm,
+          pickupTermsAcceptedAt: v.pickupTermsAcceptedAt ?? null,
+          pickupTermsAcceptedBy: v.pickupTermsAcceptedBy ?? null,
         }
       )
       setGeoSource(v.geoSource)
@@ -760,8 +760,6 @@ export default function EditVendorPage({
         whatsapp: form.whatsapp.trim() || null,
         yearsInOperation: form.yearsInOperation.trim() || null,
         mapsUrl: form.mapsUrl.trim() || null,
-        pickup: draft.pickup || null,
-        pickupRadiusKm: num(form.pickupRadiusKm),
         lat: draft.pin?.lat,
         lng: draft.pin?.lng,
         slotIntervalMins: draft.slotIntervalMins,
@@ -882,6 +880,23 @@ export default function EditVendorPage({
             onAuthError={toLogin}
             onSaved={markListStale}
           />
+          {/* Its own card, saved on its own: turning it on records the
+              garage's signed agreement to be responsible for the car. */}
+          <div className="mt-3">
+            <LivePickupCard
+              vendorId={id}
+              enabled={bookingMode.pickupEnabled}
+              pickup={bookingMode.pickup}
+              pickupRadiusKm={bookingMode.pickupRadiusKm}
+              termsAcceptedAt={bookingMode.pickupTermsAcceptedAt}
+              termsAcceptedBy={bookingMode.pickupTermsAcceptedBy}
+              // As saved: a pin dragged but not saved is not one yet.
+              pinned={saved?.pin != null}
+              readOnly={Boolean(bin)}
+              onAuthError={toLogin}
+              onSaved={markListStale}
+            />
+          </div>
           </fieldset>
 
           {/* Same four-tab shape as the vendor settings screen, so the admin
@@ -1114,26 +1129,9 @@ export default function EditVendorPage({
 
             <TabsContent value="operations">
             <ScSection title="Operations">
-              {/* Drop-in and doorstep are not here any more: they are "How
-                  customers book", above the tabs, and save on their own. */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-medium text-text-secondary">
-                  Pickup &amp; drop (optional)
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PICKUP_OPTIONS.map((o) => (
-                    <Chip
-                      key={o.value}
-                      label={o.label}
-                      selected={draft.pickup === o.value}
-                      onClick={() => patch({ pickup: draft.pickup === o.value ? '' : o.value })}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <ScField label="Pickup radius km (optional)" value={draft.form.pickupRadiusKm} onChange={set('pickupRadiusKm')} type="number" placeholder="e.g. 5" className="font-numeric" />
-              </div>
+              {/* Drop-in, doorstep and pickup & drop are not here any more:
+                  they are "How customers book" and "Pickup & drop", above the
+                  tabs, and save on their own. */}
 
               <div className="flex flex-col gap-1.5">
                 <span className="text-[11px] font-medium text-text-secondary">Working hours</span>

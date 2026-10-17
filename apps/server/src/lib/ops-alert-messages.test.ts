@@ -20,6 +20,18 @@ const booking: AlertBooking = {
   payment: { status: 'paid' },
 }
 
+describe('the booking type', () => {
+  test('every alert names it, pickup & drop included', () => {
+    expect(formatOpsAlert({ kind: 'booking_paid', booking })).toContain('· At garage')
+    expect(formatOpsAlert({ kind: 'booking_paid', booking: { ...booking, bookingType: 'doorstep' } })).toContain(
+      '· Doorstep'
+    )
+    expect(formatOpsAlert({ kind: 'booking_paid', booking: { ...booking, bookingType: 'pickup' } })).toContain(
+      '· Pickup & drop'
+    )
+  })
+})
+
 describe('quoted', () => {
   test('keeps a plain reason as one quoted line', () => {
     expect(quoted('Customer wrote', '  Change of plans ')).toBe('Customer wrote: "Change of plans"')
@@ -284,6 +296,22 @@ describe('pending digest', () => {
     const text = formatOpsAlert({ kind: 'pending_digest', now, waiting: [], missed: [missedRow] })
     expect(text).toContain('🚫 1 booking reached its time without the garage accepting · refund due')
     expect(text).toContain('#AA11BB22 · Marina Auto Spa')
+  })
+
+  test('lists pickup & drop jobs whose car was not collected, and how late', () => {
+    const late = {
+      ...waitingRow,
+      id: 'bb22cc33-0000-4000-8000-000000000003',
+      bookingType: 'pickup',
+      // 11:30 am IST, so 1 h 15 min before `now`.
+      scheduledAt: new Date('2026-10-04T06:00:00Z'),
+    }
+    const text = formatOpsAlert({ kind: 'pending_digest', now, waiting: [], missed: [], latePickups: [late] })
+    expect(text).toContain('🚗 1 pickup & drop job past its time with the car not picked up')
+    expect(text).toContain('#BB22CC33 · Marina Auto Spa · +91 98765 00011')
+    expect(text).toContain('Sun 4 Oct, 11:30 am · 1 h 15 min late')
+    expect(text).toContain('confirm Picked up from the booking')
+    expect(text.split('\n').at(-1)).toBe('https://admin.detlio.com/bookings')
   })
 
   test('caps a long list so the message stays within Telegram\'s limit', () => {

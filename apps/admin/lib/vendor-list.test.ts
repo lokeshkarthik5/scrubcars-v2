@@ -157,6 +157,17 @@ describe('the card', () => {
     expect(bookingParts({ ...modes, doorstepEnabled: false })).toEqual([{ text: 'At the garage' }])
     expect(bookingParts({ ...modes, dropinEnabled: false, doorstepEnabled: false })).toEqual([])
   })
+
+  test('pickup & drop, when on, comes last', () => {
+    const garage = { dropinEnabled: true, doorstepEnabled: false, doorstepRadiusKm: null, hasDoorstepArea: false }
+    expect(bookingParts({ ...garage, pickupEnabled: true })).toEqual([
+      { text: 'At the garage' },
+      { text: 'Pickup & drop' },
+    ])
+    expect(bookingParts({ ...garage, pickupEnabled: false })).toEqual([{ text: 'At the garage' }])
+    // An older server that does not say.
+    expect(bookingParts(garage)).toEqual([{ text: 'At the garage' }])
+  })
 })
 
 describe('the readiness line', () => {

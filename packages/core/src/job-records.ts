@@ -51,13 +51,32 @@ export function formatStepTime(iso: string, now: number = Date.now()): string {
  * left out rather than guessed.
  */
 export function jobStepTimes(
-  booking: { acceptedAtIso?: string; startedAtIso?: string; completedAtIso?: string },
+  booking: {
+    acceptedAtIso?: string
+    startedAtIso?: string
+    completedAtIso?: string
+    /** Pickup & drop's handover steps, in their place in the job. */
+    pickup?: {
+      pickedUpAtIso?: string
+      atGarageAtIso?: string
+      outForDeliveryAtIso?: string
+      deliveredAtIso?: string
+    }
+  },
   now: number = Date.now()
 ): string[] {
+  const pickup = booking.pickup
   return [
     booking.acceptedAtIso && `Accepted ${formatStepTime(booking.acceptedAtIso, now)}`,
+    pickup?.pickedUpAtIso && `Picked up ${formatStepTime(pickup.pickedUpAtIso, now)}`,
+    pickup?.atGarageAtIso && `At garage ${formatStepTime(pickup.atGarageAtIso, now)}`,
     booking.startedAtIso && `Started ${formatStepTime(booking.startedAtIso, now)}`,
-    booking.completedAtIso && `Completed ${formatStepTime(booking.completedAtIso, now)}`,
+    pickup?.outForDeliveryAtIso &&
+      `Out for delivery ${formatStepTime(pickup.outForDeliveryAtIso, now)}`,
+    // Delivered is the completion of a pickup job: said once, as Delivered.
+    pickup?.deliveredAtIso
+      ? `Delivered ${formatStepTime(pickup.deliveredAtIso, now)}`
+      : booking.completedAtIso && `Completed ${formatStepTime(booking.completedAtIso, now)}`,
   ].filter((line): line is string => Boolean(line))
 }
 

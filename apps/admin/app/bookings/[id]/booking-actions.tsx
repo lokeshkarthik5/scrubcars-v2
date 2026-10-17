@@ -14,6 +14,7 @@ import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import {
   useCancelAdminBooking,
   useMarkAdminBookingNoShow,
+  useOverrideAdminPickupStep,
 } from '@repo/core/api/hooks/use-admin-bookings'
 import { cn } from '@repo/core/utils'
 import { formatRupees, ON_BEHALF_OF_OPTIONS } from '@/lib/bookings'
@@ -159,6 +160,14 @@ export function CancelBookingDialog({
           The customer and the garage both see this reason.
         </p>
       </div>
+
+      {/* Pickup & drop: cancelling does not bring the car back. */}
+      {booking.pickup?.pickedUpAt && !booking.pickup.deliveredAt && (
+        <p role="alert" className="text-[12px] text-error">
+          The garage has the customer&apos;s car. Make sure it is returned before or after
+          cancelling: the garage is responsible for it until then.
+        </p>
+      )}
 
       <p className="text-[12px] text-text-secondary">
         {paid ? (
@@ -319,6 +328,97 @@ export function NoShowDialog({
           className="min-h-11"
         >
           {markNoShow.isPending ? 'Saving…' : 'Mark no-show'}
+        </ScButton>
+      </div>
+    </ScModal>
+  )
+}
+
+/**
+ * Pickup & drop: Detlio confirms Picked up or Delivered for a customer who
+ * cannot give the code (lost phone, code locked after wrong tries), once ops
+ * has spoken to them. The step must be the one the job waits for; the
+ * reason goes in the notes with the admin's name, and the name is kept on
+ * the booking. Delivered completes the job.
+ */
+export function PickupStepDialog({
+  booking,
+  step,
+  open,
+  onClose,
+}: {
+  booking: AdminBookingDetail
+  step: 'picked_up' | 'delivered'
+  open: boolean
+  onClose: () => void
+}) {
+  const override = useOverrideAdminPickupStep()
+  const [note, setNote] = useState('')
+  const [error, setError] = useState('')
+  const label = step === 'picked_up' ? 'Picked up' : 'Delivered'
+
+  const close = () => {
+    setNote('')
+    setError('')
+    onClose()
+  }
+
+  const submit = () => {
+    setError('')
+    override.mutate(
+      { id: booking.id, input: { step, note: note.trim() } },
+      {
+        onSuccess: () => {
+          toast.success(`${label} confirmed for #${booking.reference}`)
+          close()
+        },
+        onError: (err) => setError(errorMessage(err, `Couldn't confirm ${label}`)),
+      }
+    )
+  }
+
+  return (
+    <ScModal
+      open={open}
+      onClose={close}
+      dismissible={!override.isPending}
+      aria-label={`Confirm ${label} for booking #${booking.reference}`}
+      className="flex max-w-[420px] flex-col gap-4"
+    >
+      <div>
+        <h2 className="text-[15px] font-semibold text-text-primary">Confirm {label.toLowerCase()}</h2>
+        <p className="mt-1 text-[12px] text-text-secondary">
+          {step === 'picked_up'
+            ? 'For when the customer handed the car over but could not give the pickup code. From now the car is the garage’s responsibility.'
+            : 'For when the car is back with the customer but they could not give the delivery code. This completes the booking.'}{' '}
+          Only after speaking to the customer.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <ScTextarea
+          id="pickup-step-note"
+          label="Why the code could not be used"
+          rows={3}
+          maxLength={500}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+        <p className="text-[11px] text-text-muted">Goes in the notes with your name.</p>
+      </div>
+
+      <DialogError message={error} />
+
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <ScButton variant="secondary" onClick={close} disabled={override.isPending} className="min-h-11">
+          Not now
+        </ScButton>
+        <ScButton
+          onClick={submit}
+          disabled={note.trim().length === 0 || override.isPending}
+          className="min-h-11"
+        >
+          {override.isPending ? 'Confirming…' : `Confirm ${label.toLowerCase()}`}
         </ScButton>
       </div>
     </ScModal>

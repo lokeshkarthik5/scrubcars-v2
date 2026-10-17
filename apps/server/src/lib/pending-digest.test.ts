@@ -109,12 +109,56 @@ describe('planPendingDigest', () => {
       reason: 'morning',
     })
   })
-})
 
+  describe('pickup & drop not collected', () => {
+    // A pickup job whose slot is 11:00, accepted and paid, never picked up.
+    const pickup = (scheduledAt: Date, id = 'p1') => ({
+      ...row(scheduledAt, scheduledAt, id),
+      bookingType: 'pickup',
+    })
+
+    test('posts on the run where it is 30 minutes past its time', () => {
+      const rows = [pickup(IST('11:00:00'))]
+      // 11:20: late, but not yet the 30 minutes the digest waits.
+      expect(planPendingDigest(IST('11:20:00').getTime(), [], rows)).toMatchObject({
+        post: false,
+        reason: 'empty',
+      })
+      const due = planPendingDigest(IST('11:30:00').getTime(), [], rows)
+      expect(due).toMatchObject({ post: true, reason: 'new_late_pickup' })
+      expect(due.latePickups.map((r) => r.id)).toEqual(['p1'])
+      // Then it is listed on the hour until someone acts.
+      expect(planPendingDigest(IST('11:40:00').getTime(), [], rows)).toMatchObject({
+        post: false,
+        reason: 'nothing_new',
+      })
+      expect(planPendingDigest(IST('12:00:00').getTime(), [], rows)).toMatchObject({
+        post: true,
+        reason: 'hourly',
+      })
+    })
+
+    test('rides along with the waiting bookings, one message for everything', () => {
+      const plan = planPendingDigest(
+        IST('12:00:00').getTime(),
+        [row(IST('11:05:00'), start)],
+        [pickup(IST('10:00:00'))]
+      )
+      expect(plan.post).toBe(true)
+      expect(plan.waiting).toHaveLength(1)
+      expect(plan.latePickups).toHaveLength(1)
+    })
+
+    test('stays quiet at night like the rest', () => {
+      const rows = [pickup(IST('21:30:00'))]
+      expect(planPendingDigest(IST('22:00:00').getTime(), [], rows).reason).toBe('quiet_hours')
+    })
+  })
+})
 
 describe('the morning roll-up and payouts due', () => {
   test('posts at 07:00 for payouts due alone, with no booking waiting', () => {
-    expect(planPendingDigest(IST('07:00:30').getTime(), [], { morningExtras: true })).toMatchObject({
+    expect(planPendingDigest(IST('07:00:30').getTime(), [], [], { morningExtras: true })).toMatchObject({
       post: true,
       reason: 'morning',
     })
@@ -122,8 +166,8 @@ describe('the morning roll-up and payouts due', () => {
   })
 
   test('only at 07:00: payouts never post on their own at any other time', () => {
-    expect(planPendingDigest(IST('08:00:00').getTime(), [], { morningExtras: true }).post).toBe(false)
-    expect(planPendingDigest(IST('06:50:00').getTime(), [], { morningExtras: true }).post).toBe(false)
+    expect(planPendingDigest(IST('08:00:00').getTime(), [], [], { morningExtras: true }).post).toBe(false)
+    expect(planPendingDigest(IST('06:50:00').getTime(), [], [], { morningExtras: true }).post).toBe(false)
   })
 
   test('the morning tick is the 07:00 IST one', () => {

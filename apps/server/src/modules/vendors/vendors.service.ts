@@ -34,6 +34,7 @@ import { computeVendorPayout } from '../../lib/discounts.js'
 import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
 import { matchedServiceName } from '../../lib/search.js'
+import { isPickupOffered, planPickupChange } from '../../lib/pickup.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -122,8 +123,16 @@ export type VendorResponse = {
   email: string | null
   yearsInOperation: string | null
   mapsUrl: string | null
+  /** The stored answer. Read `pickupEnabled` for whether it is on. */
   pickup: string | null
   pickupRadiusKm: number | null
+  /**
+   * Whether the garage offers pickup & drop now: said yes with the
+   * responsibility terms on file (isPickupOffered, lib/pickup.ts).
+   */
+  pickupEnabled: boolean
+  /** When the responsibility terms were last accepted; null if never. */
+  pickupTermsAcceptedAt: string | null
   doorstepRadiusKm: number | null
   geoSource: GeoSource
   /** Set when an admin confirmed the pin on a map. Null means nobody has. */
@@ -164,6 +173,8 @@ export type VendorListItemResponse = {
   status: string
   doorstepEnabled: boolean
   dropinEnabled: boolean
+  /** Offers pickup & drop (isPickupOffered). */
+  pickupEnabled: boolean
   startingPrice: number | null
   // null when the vendor has no reviews yet — distinct from a rating of 0.
   rating: number | null
@@ -418,6 +429,8 @@ function toVendorResponse(vendor: VendorRecord): VendorResponse {
     mapsUrl: vendor.mapsUrl,
     pickup: vendor.pickup,
     pickupRadiusKm: vendor.pickupRadiusKm,
+    pickupEnabled: isPickupOffered(vendor),
+    pickupTermsAcceptedAt: vendor.pickupTermsAcceptedAt?.toISOString() ?? null,
     doorstepRadiusKm: vendor.doorstepRadiusKm,
     geoSource: vendor.geoSource,
     geoConfirmedAt: vendor.geoConfirmedAt?.toISOString() ?? null,
@@ -878,6 +891,7 @@ export const vendorsService = {
         status: vendor.status,
         doorstepEnabled: vendor.doorstepEnabled,
         dropinEnabled: vendor.dropinEnabled,
+        pickupEnabled: isPickupOffered(vendor),
         startingPrice: computeStartingPrice(vendor.services),
         rating: rating ? Number(rating.average.toFixed(2)) : null,
         reviewCount: rating?.count ?? 0,
@@ -1021,8 +1035,48 @@ export const vendorsService = {
     return vendorsRepository.getDoorstepArea(vendor.id).then((ring) => ({ ring }))
   },
 
-  async updateJobTypes(vendorId: string, input: UpdateJobTypesInput) {
+  async updateJobTypes(
+    vendorId: string,
+    input: UpdateJobTypesInput,
+    actor: { userId: string; viaSupport: boolean }
+  ) {
     const vendor = await getTenantVendor(vendorId)
+
+    // Pickup & drop (0037): turning it on records the owner's tick that the
+    // garage is responsible for the car from pickup until it is returned.
+    // A Detlio support session cannot give that tick for the garage: a
+    // signed agreement is recorded from admin instead.
+    let pickupPatch = {}
+    if (input.pickupEnabled !== undefined || input.pickupRadiusKm !== undefined) {
+      if (
+        actor.viaSupport &&
+        input.pickupEnabled === true &&
+        !isPickupOffered(vendor)
+      ) {
+        throw new AppError(
+          403,
+          "Only the garage can accept pickup & drop responsibility here. Record the garage's signed agreement in admin instead.",
+          'PICKUP_TERMS_GARAGE_ONLY'
+        )
+      }
+      const person =
+        input.pickupEnabled === true ? await vendorsRepository.findUserContact(actor.userId) : null
+      const change = planPickupChange(vendor, {
+        enabled: input.pickupEnabled,
+        radiusKm: input.pickupRadiusKm,
+        termsAccepted: input.pickupTermsAccepted,
+        actor: person?.name?.trim() || person?.phone || actor.userId,
+        now: new Date(),
+      })
+      if (!change.ok) throw new AppError(400, change.message, change.code)
+      pickupPatch = change.patch
+      if (input.pickupEnabled !== undefined) {
+        log.info(
+          { vendorId: vendor.id, actorId: actor.userId, pickupEnabled: input.pickupEnabled },
+          'vendor:pickup_updated'
+        )
+      }
+    }
 
     // Going to customers needs a "how far". Without a radius or a drawn area
     // the doorstep search matches no address at all, so switching it on would
@@ -1043,13 +1097,18 @@ export const vendorsService = {
       }
     }
 
-    const [updated] = await vendorsRepository.updateVendor(vendor.id, {
+    const patch = {
       ...(input.dropinEnabled !== undefined && { dropinEnabled: input.dropinEnabled }),
       ...(input.doorstepEnabled !== undefined && { doorstepEnabled: input.doorstepEnabled }),
       ...(input.doorstepRadiusKm !== undefined && {
         doorstepRadiusKm: input.doorstepRadiusKm,
       }),
-    })
+      ...pickupPatch,
+    }
+    // Turning off what is already off leaves nothing to write.
+    if (Object.keys(patch).length === 0) return toVendorResponse(vendor)
+
+    const [updated] = await vendorsRepository.updateVendor(vendor.id, patch)
     return toVendorResponse(updated)
   },
 

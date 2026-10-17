@@ -1,3 +1,4 @@
+import type { BookingType } from '@repo/core/types'
 import { apiClient } from './client'
 
 /**
@@ -75,7 +76,7 @@ export type HomeRightTile =
       /** 'unpaid' is a pay-later booking: it holds no slot until paid. */
       paymentStatus: 'paid' | 'collected' | 'unpaid'
       scheduledAt: string
-      bookingType: 'dropin' | 'doorstep'
+      bookingType: BookingType
       vendorId: string
       vendorName: string
       vehicleId: string
@@ -88,7 +89,7 @@ export type HomeRightTile =
       bookingId: string
       vendorId: string
       vendorName: string
-      bookingType: 'dropin' | 'doorstep'
+      bookingType: BookingType
       serviceIds: string[]
       serviceLabel: string
       /** For this car's type; null when a line has no price for it. */

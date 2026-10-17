@@ -3,6 +3,7 @@ import type {
   ApiAddress,
   ApiAuthUser,
   ApiBooking,
+  ApiBookingPickup,
   ApiFinalBill,
   ApiPackage,
   ApiPublicVendor,
@@ -16,6 +17,7 @@ import type {
 import type {
   Address,
   Booking,
+  BookingPickup,
   FinalBill,
   Review,
   Service,
@@ -111,6 +113,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     startingPrice: item.startingPrice ?? 0,
     dropinEnabled: item.dropinEnabled,
     doorstepEnabled: item.doorstepEnabled,
+    pickupEnabled: item.pickupEnabled ?? false,
     serviceTags: item.serviceTags,
     isVerified: item.isVerified,
     photos: item.photos,
@@ -150,6 +153,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     startingPrice: prices.length > 0 ? Math.min(...prices) : 0,
     dropinEnabled: vendor.dropinEnabled,
     doorstepEnabled: vendor.doorstepEnabled,
+    pickupEnabled: vendor.pickupEnabled ?? false,
     serviceTags: categories.map(categoryLabel),
     isVerified: vendor.isVerified,
     photos: vendor.photos.map((p) => p.url),
@@ -254,6 +258,21 @@ export function mapFinalBill(bill: ApiFinalBill): FinalBill {
   }
 }
 
+/** A pickup & drop job's handover, in the Booking's *Iso naming. */
+function mapBookingPickup(pickup: ApiBookingPickup): BookingPickup {
+  return {
+    pickedUpAtIso: pickup.pickedUpAt ?? undefined,
+    atGarageAtIso: pickup.atGarageAt ?? undefined,
+    outForDeliveryAtIso: pickup.outForDeliveryAt ?? undefined,
+    deliveredAtIso: pickup.deliveredAt ?? undefined,
+    nextStep: pickup.nextStep,
+    pickupCodeTriesLeft: pickup.pickupCodeTriesLeft,
+    deliveryCodeTriesLeft: pickup.deliveryCodeTriesLeft,
+    pickupCode: pickup.pickupCode,
+    deliveryCode: pickup.deliveryCode,
+  }
+}
+
 export function mapBooking(booking: ApiBooking): Booking {
   // Older payloads (and any response cached before multi-service bookings) have
   // no `items`, so the deprecated single `service` stands in as one line.
@@ -302,8 +321,10 @@ export function mapBooking(booking: ApiBooking): Booking {
     scheduledAtIso: booking.scheduledAt,
     customerName: booking.user?.name,
     customerPhone: booking.user?.phone || undefined,
+    // Where a doorstep crew goes, or where a pickup & drop car is collected
+    // from and returned to.
     jobLocation:
-      booking.bookingType === 'doorstep' && booking.address
+      (booking.bookingType === 'doorstep' || booking.bookingType === 'pickup') && booking.address
         ? { address: booking.address, lat: booking.lat, lng: booking.lng }
         : undefined,
     garage: booking.vendor
@@ -347,6 +368,7 @@ export function mapBooking(booking: ApiBooking): Booking {
     acceptedAtIso: booking.acceptedAt ?? undefined,
     startedAtIso: booking.startedAt ?? undefined,
     completedAtIso: booking.completedAt ?? undefined,
+    pickup: booking.pickup ? mapBookingPickup(booking.pickup) : undefined,
     // The server's figure when it sent one (it credits the pre-discount
     // price, so a promo code is not charged back on the bill); otherwise
     // what the payment says arrived.

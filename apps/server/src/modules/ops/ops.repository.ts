@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, lte, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookings, payments, vendors } from '../../db/schema.js'
 
@@ -32,6 +32,38 @@ export const opsRepository = {
           eq(bookings.status, 'pending'),
           eq(payments.status, 'paid'),
           gt(bookings.scheduledAt, after)
+        )
+      )
+      .orderBy(asc(bookings.scheduledAt))
+  },
+
+  /**
+   * Accepted, paid pickup & drop jobs whose time is between `after` and
+   * `before` with no Picked up: the driver has not collected the car.
+   * `waitingSince` is the slot, which is what the digest measures late from.
+   */
+  listUncollectedPickups(after: Date, before: Date) {
+    return db
+      .select({
+        id: bookings.id,
+        scheduledAt: bookings.scheduledAt,
+        bookingType: bookings.bookingType,
+        amount: bookings.amount,
+        waitingSince: bookings.scheduledAt,
+        garageName: vendors.businessName,
+        garagePhone: vendors.phone,
+      })
+      .from(bookings)
+      .innerJoin(payments, eq(payments.bookingId, bookings.id))
+      .innerJoin(vendors, eq(vendors.id, bookings.vendorId))
+      .where(
+        and(
+          eq(bookings.bookingType, 'pickup'),
+          eq(bookings.status, 'confirmed'),
+          isNull(bookings.pickedUpAt),
+          eq(payments.status, 'paid'),
+          gt(bookings.scheduledAt, after),
+          lte(bookings.scheduledAt, before)
         )
       )
       .orderBy(asc(bookings.scheduledAt))

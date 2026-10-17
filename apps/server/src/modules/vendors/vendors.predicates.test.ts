@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { PgDialect } from 'drizzle-orm/pg-core'
+import { isPickupOffered, type PickupSettings } from '../../lib/pickup.js'
 import {
   LISTED_TO_CUSTOMERS,
   NOT_IN_BIN,
+  PICKUP_OFFERED,
   isInBin,
   isListedToCustomers,
   vendorPageOpen,
@@ -94,5 +96,33 @@ describe('the SQL the customer lists run', () => {
     for (const row of everyRow()) {
       expect(sqlListed(row)).toBe(isListedToCustomers(row))
     }
+  })
+})
+
+describe('pickup & drop offered', () => {
+  const { sql, params } = new PgDialect().sqlToQuery(PICKUP_OFFERED)
+
+  test('the SQL the pickup list runs is the twin, word for word', () => {
+    expect(sql).toBe("(v.pickup IN ('yes', 'nearby') AND v.pickup_terms_accepted_at IS NOT NULL)")
+    expect(params).toEqual([])
+  })
+
+  test('evaluated as the twin reads it, it agrees on every garage', () => {
+    const clauses = sql.slice(1, -1).split(' AND ')
+    const sqlOffered = (row: PickupSettings) =>
+      clauses.every((clause) => {
+        if (clause === "v.pickup IN ('yes', 'nearby')") return row.pickup === 'yes' || row.pickup === 'nearby'
+        if (clause === 'v.pickup_terms_accepted_at IS NOT NULL') return row.pickupTermsAcceptedAt !== null
+        throw new Error(`a condition the twin does not know: ${clause}`)
+      })
+    const rows: PickupSettings[] = (['yes', 'nearby', 'no', null] as const).flatMap((pickup) =>
+      [null, new Date('2026-10-17T04:30:00Z')].map((pickupTermsAcceptedAt) => ({
+        pickup,
+        pickupRadiusKm: null,
+        pickupTermsAcceptedAt,
+      }))
+    )
+    for (const row of rows) expect(sqlOffered(row)).toBe(isPickupOffered(row))
+    expect(rows.filter(isPickupOffered)).toHaveLength(2)
   })
 })

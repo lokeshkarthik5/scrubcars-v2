@@ -12,19 +12,21 @@ import type { BookingType, Vendor } from '@repo/core/types'
 export const BOOKING_TYPE_LABELS: Record<BookingType, string> = {
   dropin: 'At garage',
   doorstep: 'Doorstep',
+  pickup: 'Pickup & drop',
 }
 
 /** What every screen assumes until the customer says otherwise. */
 export const DEFAULT_BOOKING_TYPE: BookingType = 'dropin'
 
 /**
- * How far ahead a booking must start: 1 hour at the garage, 3 for doorstep.
- * Mirrors MIN_NOTICE_MS in apps/server/src/lib/slots.ts, which is what
- * actually enforces it — change both together.
+ * How far ahead a booking must start: 1 hour at the garage, 3 for doorstep
+ * and pickup & drop. Mirrors MIN_NOTICE_MS in apps/server/src/lib/slots.ts,
+ * which is what actually enforces it — change both together.
  */
 export const MIN_NOTICE_MINS: Record<BookingType, number> = {
   dropin: 60,
   doorstep: 180,
+  pickup: 180,
 }
 
 /** Whether a slot starts far enough ahead. Exactly on the line counts, as on the server. */
@@ -36,9 +38,14 @@ export function meetsNotice(iso: string, type: BookingType, now: number = Date.n
 export function noticeSentence(type: BookingType): string {
   const hours = MIN_NOTICE_MINS[type] / 60
   const notice = hours === 1 ? "1 hour's notice" : `${hours} hours' notice`
-  return type === 'doorstep'
-    ? `Doorstep visits need at least ${notice}.`
-    : `At-garage bookings need at least ${notice}.`
+  switch (type) {
+    case 'doorstep':
+      return `Doorstep visits need at least ${notice}.`
+    case 'pickup':
+      return `Pickup & drop needs at least ${notice}.`
+    case 'dropin':
+      return `At-garage bookings need at least ${notice}.`
+  }
 }
 
 /**
@@ -75,10 +82,14 @@ export function bookingTypeParam(type: BookingType): BookingType | null {
   return type === DEFAULT_BOOKING_TYPE ? null : type
 }
 
-/** Reads a `?mode=` value. Anything unrecognised is "no choice made". */
+/**
+ * Reads a `?mode=` value. Anything unrecognised is "no choice made".
+ * Pickup & drop is not a customer choice yet (its booking screens come in
+ * the next release), so `?mode=pickup` is unrecognised too.
+ */
 export function parseBookingType(
   value: string | string[] | null | undefined
-): BookingType | null {
+): Exclude<BookingType, 'pickup'> | null {
   return value === 'dropin' || value === 'doorstep' ? value : null
 }
 
@@ -93,12 +104,20 @@ export function parseBookingType(
  */
 export function resolveBookingType(
   preferred: BookingType | null,
-  vendor: Pick<Vendor, 'dropinEnabled' | 'doorstepEnabled'> | null
+  vendor: Pick<Vendor, 'dropinEnabled' | 'doorstepEnabled'> & Partial<Pick<Vendor, 'pickupEnabled'>> | null
 ): BookingType {
   if (!vendor) return preferred ?? DEFAULT_BOOKING_TYPE
 
-  const offers = (type: BookingType) =>
-    type === 'dropin' ? vendor.dropinEnabled : vendor.doorstepEnabled
+  const offers = (type: BookingType) => {
+    switch (type) {
+      case 'dropin':
+        return vendor.dropinEnabled
+      case 'doorstep':
+        return vendor.doorstepEnabled
+      case 'pickup':
+        return vendor.pickupEnabled === true
+    }
+  }
 
   if (preferred && offers(preferred)) return preferred
   if (offers(DEFAULT_BOOKING_TYPE)) return DEFAULT_BOOKING_TYPE

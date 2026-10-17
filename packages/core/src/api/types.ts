@@ -1,4 +1,5 @@
 import type { ServiceMedia } from '@repo/core/types'
+import type { PickupNext } from '@repo/core/pickup'
 
 export interface ApiSuccessResponse<T> {
   success: true
@@ -110,6 +111,8 @@ export interface ApiVendorListItem {
   status: string
   doorstepEnabled: boolean
   dropinEnabled: boolean
+  /** Offers pickup & drop. Absent from older servers. */
+  pickupEnabled?: boolean
   startingPrice: number | null
   rating: number | null
   reviewCount: number
@@ -159,6 +162,8 @@ export interface ApiPublicVendor {
   isVerified: boolean
   doorstepEnabled: boolean
   dropinEnabled: boolean
+  /** Offers pickup & drop. Absent from older servers. */
+  pickupEnabled?: boolean
   slotIntervalMins: number
   status: string
   createdAt: string
@@ -176,8 +181,14 @@ export interface VendorProfileExtras {
   email: string | null
   yearsInOperation: string | null
   mapsUrl: string | null
+  /** The stored answer; read `pickupEnabled` for whether it is on. */
   pickup: 'yes' | 'nearby' | 'no' | null
+  /** How far it collects cars from. Null is the 10 km default. */
   pickupRadiusKm: number | null
+  /** Offers pickup & drop: said yes, with the responsibility terms on file. */
+  pickupEnabled?: boolean
+  /** When the responsibility terms were last accepted; null if never. */
+  pickupTermsAcceptedAt?: string | null
   /** How far this garage travels for doorstep work. Null means "nowhere yet". */
   doorstepRadiusKm: number | null
   geoSource: 'unset' | 'gps' | 'map_pin' | 'geocoded' | 'admin'
@@ -338,6 +349,20 @@ export interface ApiFinalBill {
   createdAt: string
 }
 
+export interface ApiBookingPickup {
+  pickedUpAt: string | null
+  atGarageAt: string | null
+  outForDeliveryAt: string | null
+  deliveredAt: string | null
+  /** Garage payloads only. */
+  nextStep?: PickupNext | null
+  pickupCodeTriesLeft?: number
+  deliveryCodeTriesLeft?: number
+  /** Customer payloads only. */
+  pickupCode?: string | null
+  deliveryCode?: string | null
+}
+
 export interface ApiBooking {
   id: string
   status: string
@@ -373,6 +398,12 @@ export interface ApiBooking {
   acceptedAt?: string | null
   startedAt?: string | null
   completedAt?: string | null
+  /**
+   * Pickup & drop only (null on other types; absent from older servers).
+   * The customer's payload carries the codes still to give; the garage's
+   * carries `nextStep` and the tries left instead, never the codes.
+   */
+  pickup?: ApiBookingPickup | null
   createdAt: string
   /**
    * The job's photos. Only on the booking page and the garage's job list,

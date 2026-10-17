@@ -30,7 +30,11 @@ export const opsService = {
       })
 
     const now = Date.now()
-    const rows = await opsRepository.listPaidPendingBookings(new Date(now - MISSED_LOOKBACK_MS))
+    const since = new Date(now - MISSED_LOOKBACK_MS)
+    const [rows, pickups] = await Promise.all([
+      opsRepository.listPaidPendingBookings(since),
+      opsRepository.listUncollectedPickups(since, new Date(now)),
+    ])
     // The morning roll-up also says what Detlio owes garages. Read only at
     // 07:00, and never allowed to fail the digest: without it the line is
     // left out.
@@ -40,10 +44,11 @@ export const opsService = {
           return null
         })
       : null
-    const plan = planPendingDigest(now, rows, { morningExtras: payouts !== null })
+    const plan = planPendingDigest(now, rows, pickups, { morningExtras: payouts !== null })
     const summary = {
       waiting: plan.waiting.length,
       missed: plan.missed.length,
+      latePickups: plan.latePickups.length,
       reason: plan.reason as string,
       posted: false,
       payoutsDue: payouts ? payouts.garages : null,
@@ -59,10 +64,14 @@ export const opsService = {
         waiting: plan.waiting,
         missed: plan.missed,
         payouts: plan.reason === 'morning' ? payouts : null,
+        latePickups: plan.latePickups,
       })
       if (outcome === 'off') return { ...summary, reason: 'alerts_off' }
     } catch (err) {
-      log.error({ err, waiting: summary.waiting, missed: summary.missed }, 'ops:pending_digest_send_failed')
+      log.error(
+        { err, waiting: summary.waiting, missed: summary.missed, latePickups: summary.latePickups },
+        'ops:pending_digest_send_failed'
+      )
       // A failed run must show as failed to the scheduler, which emails on it.
       throw new AppError(502, 'Could not post the pending-booking digest', 'OPS_ALERT_SEND_FAILED')
     }

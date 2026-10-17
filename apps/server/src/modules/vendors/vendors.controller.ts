@@ -108,7 +108,10 @@ export async function updateJobTypes(
   c: VendorsContext,
   input: UpdateJobTypesInput
 ) {
-  const vendor = await vendorsService.updateJobTypes(getVendorId(c), input)
+  const vendor = await vendorsService.updateJobTypes(getVendorId(c), input, {
+    userId: getActorId(c),
+    viaSupport: getTenant(c).viaSuperAdmin,
+  })
 
   return c.json({
     success: true,

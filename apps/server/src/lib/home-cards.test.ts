@@ -291,7 +291,7 @@ describe('the car and its tile', () => {
       vehicleId: 'car1',
       vendorId: 'v1',
       vendorName: 'Next Level',
-      garage: { active: true, verified: true, pinned: true, dropinEnabled: true, doorstepEnabled: true },
+      garage: { active: true, verified: true, pinned: true, dropinEnabled: true, doorstepEnabled: true, pickupOffered: false },
       vendorPausedAt: null,
       bookingType: 'doorstep',
       services: [
@@ -332,7 +332,7 @@ describe('the car and its tile', () => {
       vehicleId: 'car1',
       vendorId: 'v1',
       vendorName: 'Next Level',
-      garage: { active: true, verified: true, pinned: true, dropinEnabled: true, doorstepEnabled: false },
+      garage: { active: true, verified: true, pinned: true, dropinEnabled: true, doorstepEnabled: false, pickupOffered: false },
       vendorPausedAt: null,
       bookingType: 'dropin',
       services: [
@@ -348,7 +348,7 @@ describe('the car and its tile', () => {
 
   test('which garages can take the job again', () => {
     const job = (garage: Partial<LastJob['garage']>, rest: Partial<Pick<LastJob, 'bookingType' | 'vendorPausedAt'>> = {}) => ({
-      garage: { active: true, verified: true, pinned: true, dropinEnabled: true, doorstepEnabled: true, ...garage },
+      garage: { active: true, verified: true, pinned: true, dropinEnabled: true, doorstepEnabled: true, pickupOffered: true, ...garage },
       bookingType: 'dropin' as const,
       vendorPausedAt: null,
       ...rest,
@@ -361,6 +361,12 @@ describe('the car and its tile', () => {
     // Still offering that kind of booking.
     expect(garageTakesJobAgain(job({ dropinEnabled: false }))).toBe(false)
     expect(garageTakesJobAgain(job({ doorstepEnabled: false }, { bookingType: 'doorstep' }))).toBe(false)
+    // Pickup & drop: still offered (terms on file), and measured from the pin.
+    expect(garageTakesJobAgain(job({}, { bookingType: 'pickup' }))).toBe(true)
+    expect(garageTakesJobAgain(job({ pickupOffered: false }, { bookingType: 'pickup' }))).toBe(false)
+    expect(garageTakesJobAgain(job({ pinned: false }, { bookingType: 'pickup' }))).toBe(false)
+    // A drop-in is not affected by the garage dropping pickup.
+    expect(garageTakesJobAgain(job({ pickupOffered: false }))).toBe(true)
     expect(garageTakesJobAgain(job({ active: false }))).toBe(false)
     expect(garageTakesJobAgain(job({ verified: false }))).toBe(false)
     expect(garageTakesJobAgain(job({}, { vendorPausedAt: ago(HOUR) }))).toBe(false)

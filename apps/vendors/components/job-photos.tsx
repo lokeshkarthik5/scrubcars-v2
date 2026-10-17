@@ -21,6 +21,14 @@ const HINTS: Record<JobPhoto['stage'], string> = {
   after: 'Optional. The finished work, before the car goes back.',
 }
 
+// Pickup & drop: the car is in the garage's care from the moment it is
+// collected, so its before photos are taken at the customer's door.
+const PICKUP_HINTS: Record<JobPhoto['stage'], string> = {
+  before:
+    'Recommended: the car as you collect it, every side and any marks. They are your record of how it was handed over.',
+  after: 'Optional. The finished work, before the car goes back.',
+}
+
 const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 interface JobPhotosProps {
@@ -108,7 +116,11 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
           {photos.length}/{MAX_JOB_PHOTOS_PER_STAGE}
         </p>
       </div>
-      {photos.length === 0 && <p className="text-[11px] text-text-secondary">{HINTS[stage]}</p>}
+      {photos.length === 0 && (
+        <p className="text-[11px] text-text-secondary">
+          {(booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage]}
+        </p>
+      )}
       {readOnly && (
         <p className="text-[11px] text-text-muted">Closed a week after the job was completed.</p>
       )}

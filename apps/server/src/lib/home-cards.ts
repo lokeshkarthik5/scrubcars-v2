@@ -22,6 +22,7 @@ import { istDateKey } from './ist.js'
 import { isPaid, type HubBooking } from './home-updates.js'
 import { noticeMatchesBooking, type NoticeRow } from './notices.js'
 import { washStatus, type WashStatus } from './wash-status.js'
+import type { BookingType } from './booking-types.js'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -223,10 +224,12 @@ export interface LastJob {
     pinned: boolean
     dropinEnabled: boolean
     doorstepEnabled: boolean
+    /** Offers pickup & drop now (lib/pickup.ts isPickupOffered). */
+    pickupOffered: boolean
   }
   /** Set while the garage has stopped taking new bookings. */
   vendorPausedAt: Date | null
-  bookingType: 'dropin' | 'doorstep'
+  bookingType: BookingType
   /** The services as sold, in order, with their live state and prices. */
   services: Array<PricingColumns & { id: string; name: string; isActive: boolean }>
 }
@@ -234,8 +237,8 @@ export interface LastJob {
 /**
  * Whether the garage can take this job again now: the rule its own page
  * books by (findPublicVendorById: active and verified), not paused, and still
- * offering this kind of booking. A map pin is needed only for doorstep, which
- * measures the customer's distance from it. Most garages predate the map
+ * offering this kind of booking. A map pin is needed only for doorstep and
+ * pickup & drop, which measure the customer's distance from it. Most garages predate the map
  * picker and lost their pins in 0019; they still take drop-ins, so a missing
  * pin must not tell their customers they "aren't taking bookings". (Offers
  * and Nearby keep the pin rule: they are about where a garage is.)
@@ -243,8 +246,15 @@ export interface LastJob {
 export function garageTakesJobAgain(job: Pick<LastJob, 'garage' | 'vendorPausedAt' | 'bookingType'>): boolean {
   const { garage } = job
   if (!garage.active || !garage.verified || job.vendorPausedAt) return false
-  if (job.bookingType === 'doorstep') return garage.doorstepEnabled && garage.pinned
-  return garage.dropinEnabled
+  switch (job.bookingType) {
+    case 'doorstep':
+      return garage.doorstepEnabled && garage.pinned
+    // Measured from the pin too: the pickup radius is.
+    case 'pickup':
+      return garage.pickupOffered && garage.pinned
+    case 'dropin':
+      return garage.dropinEnabled
+  }
 }
 
 export type RightTile =
@@ -255,7 +265,7 @@ export type RightTile =
       /** 'unpaid' is a pay-later booking: it holds no slot until paid. */
       paymentStatus: 'paid' | 'collected' | 'unpaid'
       scheduledAt: string
-      bookingType: 'dropin' | 'doorstep'
+      bookingType: BookingType
       vendorId: string
       vendorName: string
       /** May be an archived car's: Home never hides a booking. */
@@ -273,7 +283,7 @@ export type RightTile =
       bookingId: string
       vendorId: string
       vendorName: string
-      bookingType: 'dropin' | 'doorstep'
+      bookingType: BookingType
       /** Still on sale, in the order first booked. The client builds the link. */
       serviceIds: string[]
       /** "Exterior Wash", or "Exterior Wash + 1 more". */
