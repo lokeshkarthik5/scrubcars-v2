@@ -11,7 +11,8 @@
     "db:down": "docker compose down -v",
     "db:reset": "tsx scripts/reset-db.ts",
     "report": "playwright show-report",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ./support/network.test.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",

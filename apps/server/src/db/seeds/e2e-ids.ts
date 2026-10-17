@@ -247,6 +247,14 @@ export const CUSTOMERS = {
    */
   homeTile: { id: id(149), phone: '9000000049', name: 'Hub Tile Tara', vehicleId: id(759) },
   /**
+   * Doorstep at VENDORS.unsetRadius, the garage that left its travel radius
+   * empty: one saved address inside the default 10 km and one outside it
+   * (ADDRESSES.reachCovered / reachOutside). The listing spec checks the
+   * Doorstep list and checkout agree on both. Nothing is ever written: the
+   * checkout attempts stop before any payment order.
+   */
+  doorstepReach: { id: id(190), phone: '9000000090', name: 'Reach Rathi', vehicleId: id(795) },
+  /**
    * A customer account that is also the named owner of a garage
    * (VENDORS.ownerAccount). Deleting the account would cascade into that
    * garage through vendors.owner_id, so DELETE /users/me must refuse it. No
@@ -365,6 +373,18 @@ export const VENDORS = {
    */
   homePromo: { id: id(312), name: 'Hub Promo Test Garage' },
   /**
+   * Doorstep only, with no travel radius and no drawn area: it covers the
+   * default 10 km from its pin (lib/doorstep.ts). Pinned in Puducherry, far
+   * from ORIGIN and from HOME_PROMO_PIN, and taking no drop-ins, so it is in
+   * no drop-in list and no other spec's doorstep list. Carries an internal
+   * admin note that its public page must never show.
+   */
+  unsetRadius: {
+    id: id(390),
+    name: 'Unset Radius Garage',
+    notes: 'Internal: owner prefers calls after 6 pm',
+  },
+  /**
    * Owned by CUSTOMERS.garageOwner, a customer account: what makes deleting
    * that account a cascade into a garage. Pending and unpinned, so no
    * customer list ever shows it; nothing else reads it.
@@ -389,6 +409,15 @@ export const VENDORS = {
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
 export const HOME_PROMO_PIN = { lat: 12.9165, lng: 79.1325 } as const
+
+/**
+ * Where VENDORS.unsetRadius is, and the two points its customer's addresses
+ * sit at: ~7 km north (inside the default 10 km) and ~14 km north (outside).
+ * Multiples of 1/32, so float columns hand them back exactly.
+ */
+export const UNSET_RADIUS_PIN = { lat: 11.9375, lng: 79.8125 } as const
+export const UNSET_RADIUS_COVERED = { lat: 12, lng: 79.8125 } as const
+export const UNSET_RADIUS_OUTSIDE = { lat: 12.0625, lng: 79.8125 } as const
 
 /** Filler garages so listing, sorting and infinite scroll have real volume. */
 export const FILLER_VENDOR_COUNT = 12
@@ -437,6 +466,8 @@ export const SERVICES = {
   homePromoWash: { id: id(417), name: 'Hub Foam Wash', price: '450.00', durationMins: 30 },
   /** On HOME_PROMO, priced on inspection: CUSTOMERS.homeBill's billed job. */
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
+  /** On UNSET_RADIUS, a doorstep wash on its half-hour grid. */
+  unsetRadiusWash: { id: id(490), name: 'Reach Doorstep Wash', price: '550.00', durationMins: 30 },
   /** On ADMIN_SERVICES, inside adminPackage: hiding it must be refused. */
   adminFlat: { id: id(419), name: 'Admin Foam Wash', price: '450.00', durationMins: 30 },
   /** On ADMIN_SERVICES, per vehicle with no SUV price: flagged, never dropped. */
@@ -672,6 +703,10 @@ export const ADDRESSES = {
   /** Saved with no lat/lng. Doorstep checkout must prompt for a pin rather
    *  than letting the booking fail the server's coverage check. */
   doorstepUnpinned: id(902),
+  /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_COVERED: inside the default 10 km. */
+  reachCovered: id(913),
+  /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_OUTSIDE: outside it. */
+  reachOutside: id(904),
 } as const
 
 export const REVIEWS = { existing: id(801) } as const

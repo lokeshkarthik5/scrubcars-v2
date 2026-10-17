@@ -19,6 +19,7 @@ import { toJobPhotoView } from '../../lib/job-records.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
+import { outsideServiceCity } from '../../lib/service-city.js'
 import { todayDateKey } from '../../lib/slots.js'
 import {
   createPresignedUpload,
@@ -413,6 +414,9 @@ export const adminService = {
     return vendors.map(({ services, ...vendor }) => ({
       ...vendor,
       serviceCount: services.length,
+      // The same sign customers see, so ops knows which garages carry it. A
+      // garage whose city says Chennai but shows it is usually pinned wrong.
+      outsideServiceCity: outsideServiceCity(vendor),
       bookingCount: bookingCounts.get(vendor.id) ?? 0,
     }))
   },

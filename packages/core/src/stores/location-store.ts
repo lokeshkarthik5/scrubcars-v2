@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { ASSUMED_ORIGIN } from '@repo/core/map'
 
 /**
  * Where the customer is, for sorting garages by distance.
@@ -44,6 +45,8 @@ interface LocationState {
   promptDismissedAt: number | null
   dismissPrompt: () => void
   setLocation: (location: ActiveLocation) => void
+  /** Browse the whole city. Not a pin, so lists are not sorted from downtown. */
+  selectChennai: () => void
   clearLocation: () => void
   setPermission: (permission: PermissionState) => void
   /**
@@ -68,6 +71,16 @@ export const useLocationStore = create<LocationState>()(
       dismissPrompt: () => set({ promptDismissedAt: Date.now() }),
 
       setLocation: (location) => set({ location }),
+      selectChennai: () =>
+        set({
+          location: {
+            lat: ASSUMED_ORIGIN.lat,
+            lng: ASSUMED_ORIGIN.lng,
+            label: ASSUMED_ORIGIN.label,
+            source: 'manual',
+            updatedAt: Date.now(),
+          },
+        }),
       clearLocation: () => set({ location: null }),
       setPermission: (permission) => set({ permission }),
 
@@ -137,6 +150,15 @@ export const useLocationStore = create<LocationState>()(
     }
   )
 )
+
+/**
+ * "All of Chennai" — no phone fix, or the header choice. Lists then omit an
+ * origin, so doorstep is not filtered to one downtown point and distances are
+ * not measured from somewhere the customer never stood.
+ */
+export function isCitywide(location: ActiveLocation | null): boolean {
+  return location === null || location.source === 'manual'
+}
 
 export function isStale(location: ActiveLocation | null): boolean {
   return location !== null && Date.now() - location.updatedAt > STALE_AFTER_MS
