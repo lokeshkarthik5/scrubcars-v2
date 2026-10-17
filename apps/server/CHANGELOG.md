@@ -18,6 +18,24 @@ reconstructing every change in them.
 
 ### Added
 
+- **Hidden services, from admin** (no migration).
+  `GET /admin/vendors/:id/services/hidden` lists a garage's switched-off
+  plain services (packages left out, as everywhere in admin), and
+  `PATCH /admin/vendors/:id/services/:serviceId/active { isActive }` hides
+  one or shows it again, through the garage's own `toggleServiceActive`, so a
+  hidden service is never deleted and keeps its bookings. Super-admin only,
+  like the routes beside them. A package, or another garage's service, is a
+  404 `SERVICE_NOT_FOUND`; hiding a service that is inside a package is a 409
+  `SERVICE_IN_PACKAGE` naming the package, since the package would still list
+  it. The body takes `isActive` and nothing else (400 otherwise). The admin
+  editor's save is unchanged: it still hides any live service missing from
+  the list it sends.
+- `GET /admin/vendors` carries `bookingCount` on each garage: every booking it
+  has ever had, in any state, from one grouped count (no query per garage).
+  It is the count `DELETE /admin/vendors/:id` refuses on (409
+  `VENDOR_HAS_BOOKINGS`, unchanged), so the admin list can say so before
+  anyone presses delete.
+
 - **Estimated reach for offers on Home** (no migration). PR 2 of 6 of the
   Home hub (the admin screens). `GET /admin/discounts/home-reach?audience=&vendorId=&radiusKm=&vehicleTypes=`
   counts how many signed-in customers the discount form's Show on Home
@@ -276,6 +294,14 @@ reconstructing every change in them.
   without a location: a doorstep booking checks coverage from the garage's
   pin, so they could never be booked. Drop-in and browse lists still append
   them after the located garages.
+- **`DELETE /users/me` refuses a garage owner's account**: 409
+  `VENDOR_OWNER_ACCOUNT`, "This number owns a garage on Detlio, so the
+  account can't be deleted here. Contact support to close it." Deleting the
+  user row cascaded through `vendors.owner_id` into the garage, its services,
+  and its bookings and payments from other customers. Checked before the
+  receipts refusal (`ACCOUNT_HAS_RECEIPTS`, unchanged), and both are decided
+  in `lib/account-deletion.ts` (unit-tested). The customer app still has no
+  button for this endpoint.
 - A promo code used on a booking the customer didn't turn up for stays used:
   `DISCOUNT_HELD` and `DISCOUNT_REALIZED` count customer no-shows. Every other
   cancellation still gives the use back.

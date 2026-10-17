@@ -19,6 +19,24 @@ reconstructing every change in them.
 
 ### Added
 
+- **Admin: hidden services can be shown again.** The garage editor's
+  Services tab has a collapsed "Hidden services (N)" list — each with its
+  name, its price ("₹600–₹900 by car size · no SUV price" names a size with
+  no price) and Show again, which puts it back on the garage page and in the
+  editor straight away. A saved service's Remove is now Hide, which asks
+  first ("Customers won't see it; you can show it again from Hidden
+  services.") and also saves straight away; a service inside a package says
+  it can't be hidden and why, on its row. A card never saved still has
+  Remove. Hidden is never deleted. A hidden service with a car size unpriced
+  says so before Show again ("SUV customers can't book this until it has an
+  SUV price."); once shown, its row is scrolled to and focus lands on the
+  missing price. Hide and Show again say what they did in a status line and
+  move focus to where the service went (the Hidden services toggle, or the
+  restored row). Save changes waits while a Hide or Show again is saving, and
+  they wait for a save, so a save can't carry a list from before the switch.
+  A garage with every service hidden says so instead of "No services added
+  yet." and opens the hidden list. Admin runs `bun test` now
+  (`apps/admin/lib/service-rows.test.ts`, `vendor-delete.test.ts`).
 - **The new Home hub and Updates (behind `NEXT_PUBLIC_HOME_HUB`).** With the
   flag `on`, `/home` is the hub (`components/home/`); with it off, as in
   production until the owner signs off a preview on live data, `/home` is the
@@ -428,6 +446,27 @@ reconstructing every change in them.
   (the field shows what was saved), and a doorstep garage with no pin is
   told, under the switch and by the radius, that customers can't find it for
   doorstep jobs until it is pinned.
+- **Admin garage forms never leave a service out of a save.** A service with
+  a name but no complete price used to be dropped from the save without a
+  word, and on the edit screen the server then hid it from customers. Now
+  the row is marked in amber with what it needs ("Add the SUV price", "Add a
+  name and the price") and Save changes (Create vendor on the add screen)
+  stays off, saying why under the button on every tab ("2 services need a
+  price — see the Services tab."), until each row is fixed or removed. Only
+  an empty card that was never typed into is left out. Switching a row from
+  Flat to Per vehicle fills the three sizes with the flat price; back to
+  Flat takes the cheapest size. The rules are in `apps/admin/lib/service-rows.ts`.
+- **Admin garages list: a refused action is shown on that garage's card.**
+  A failed verify, archive or delete printed one line above the first card,
+  so for an older garage (the list is newest first) a refused delete seemed
+  to do nothing. The message now sits under the card's own buttons, is
+  announced and is scrolled into view. A garage that has been booked says
+  "Has N bookings" beside its delete button (the two wrap together, right-
+  aligned). Pressing delete on it no longer asks to confirm a delete that
+  would be refused: the card says why straight away, in words that fit its
+  status — archive it if it is live, and no "archive it" loop if it already
+  is (`apps/admin/lib/vendor-delete.ts`). A garage with no bookings gets a
+  confirm about the delete alone.
 - **Home's car is a picture of its body type.** `carImageFor` in
   `@repo/core/car-images` now gives a hatchback, a sedan and an SUV each its
   own picture (`public/cars/car-<type>-1200.webp` and `-2400.webp`); "SUV /

@@ -7,6 +7,7 @@ import {
   userAddresses,
   users,
   userVehicles,
+  vendors,
 } from '../../db/schema.js'
 import type { geoSourceEnum, vehicleTypeEnum } from '../../db/schema.js'
 
@@ -52,6 +53,19 @@ export const usersRepository = {
       .from(receiptNumbers)
       .innerJoin(bookings, eq(bookings.id, receiptNumbers.rootBookingId))
       .where(eq(bookings.userId, userId))
+      .limit(1)
+    return !!row
+  },
+
+  /**
+   * Whether the user is the named owner (`vendors.owner_id`) of any garage,
+   * in any status. Owner, not member: only the owner row cascades.
+   */
+  async ownsVendor(userId: string) {
+    const [row] = await db
+      .select({ one: sql`1` })
+      .from(vendors)
+      .where(eq(vendors.ownerId, userId))
       .limit(1)
     return !!row
   },

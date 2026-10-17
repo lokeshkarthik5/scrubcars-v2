@@ -6,6 +6,7 @@ import {
   markNoShowSchema,
   pauseVendorSchema,
   pilotStatsQuerySchema,
+  setServiceActiveSchema,
   updateVendorSchema,
 } from './admin.validation.js'
 
@@ -189,5 +190,20 @@ describe('pauseVendorSchema', () => {
       reason: 'Owner unwell',
     })
     expect(pauseVendorSchema.safeParse({ reason: 'x'.repeat(201) }).success).toBe(false)
+  })
+})
+
+describe('setServiceActiveSchema', () => {
+  test('takes a yes or no, nothing else', () => {
+    expect(setServiceActiveSchema.parse({ isActive: false })).toEqual({ isActive: false })
+    expect(setServiceActiveSchema.parse({ isActive: true })).toEqual({ isActive: true })
+    expect(setServiceActiveSchema.safeParse({}).success).toBe(false)
+    expect(setServiceActiveSchema.safeParse({ isActive: 'false' }).success).toBe(false)
+  })
+
+  test('refuses other fields, so it can never be used to edit a service', () => {
+    expect(
+      setServiceActiveSchema.safeParse({ isActive: true, price: 100 }).success
+    ).toBe(false)
   })
 })
