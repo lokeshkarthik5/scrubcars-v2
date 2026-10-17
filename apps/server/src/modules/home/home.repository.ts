@@ -114,6 +114,11 @@ export const homeRepository = {
         reviewPromptDismissedAt: true,
         vehicleId: true,
         vendorId: true,
+        // Pickup & drop's handover steps (0037); never its codes.
+        pickedUpAt: true,
+        atGarageAt: true,
+        outForDeliveryAt: true,
+        deliveredAt: true,
       },
       with: {
         vendor: { columns: { id: true, businessName: true, bookingsPausedAt: true } },

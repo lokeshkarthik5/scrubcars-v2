@@ -241,6 +241,37 @@ describe('the car and its tile', () => {
     expect(washing.wash.state).toBe('booked')
   })
 
+  test('a pickup & drop booking carries the step it has reached; others carry none', () => {
+    const [booked] = build({ bookings: [booking({ bookingType: 'pickup' })] })
+    expect(booked.rightTile).toMatchObject({ kind: 'next_booking', bookingType: 'pickup', pickupStage: 'booked' })
+
+    const [collected] = build({
+      bookings: [
+        booking({
+          bookingType: 'pickup',
+          pickup: { pickedUpAt: ago(HOUR), atGarageAt: null, outForDeliveryAt: null, deliveredAt: null },
+        }),
+      ],
+    })
+    expect(collected.rightTile).toMatchObject({ pickupStage: 'picked_up' })
+
+    const [returning] = build({
+      bookings: [
+        booking({
+          bookingType: 'pickup',
+          status: 'in_progress',
+          scheduledAt: ago(3 * HOUR),
+          startedAt: ago(2 * HOUR),
+          pickup: { pickedUpAt: ago(3 * HOUR), atGarageAt: ago(150 * 60_000), outForDeliveryAt: ago(10 * 60_000), deliveredAt: null },
+        }),
+      ],
+    })
+    expect(returning.rightTile).toMatchObject({ pickupStage: 'out_for_delivery' })
+
+    const [dropin] = build({ bookings: [booking()] })
+    expect(dropin.rightTile).toMatchObject({ kind: 'next_booking', pickupStage: null })
+  })
+
   test("a removed car's live booking shows on the default car", () => {
     const cars = build({
       cars: [car(), car({ id: 'car2', isDefault: false, make: 'Tata' })],

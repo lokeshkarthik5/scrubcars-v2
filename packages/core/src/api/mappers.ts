@@ -154,6 +154,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     dropinEnabled: vendor.dropinEnabled,
     doorstepEnabled: vendor.doorstepEnabled,
     pickupEnabled: vendor.pickupEnabled ?? false,
+    pickupRadiusKm: vendor.pickupRadiusKm ?? null,
     serviceTags: categories.map(categoryLabel),
     isVerified: vendor.isVerified,
     photos: vendor.photos.map((p) => p.url),

@@ -13,8 +13,9 @@ export class CheckoutPage {
   goto = (vendorId: string, serviceIds: string[]) =>
     this.page.goto(`/book/${vendorId}?service=${serviceIds.join(',')}`)
 
-  /** The At garage / Doorstep toggle. Only rendered for a garage doing both. */
-  bookingType = (label: 'At garage' | 'Doorstep') =>
+  /** The At garage / Doorstep / Pickup & drop toggle. Only rendered for a
+   *  garage offering two or more. */
+  bookingType = (label: 'At garage' | 'Doorstep' | 'Pickup & drop') =>
     this.page.getByRole('button', { name: label, exact: true })
 
   /** Tomorrow, never today: it keeps the run independent of the wall clock and
@@ -57,6 +58,10 @@ export class CheckoutPage {
    * chosen — drop-in never asks, because the customer comes to the garage.
    */
   addressStep = () => this.page.getByRole('heading', { name: /Where should we come/i })
+
+  /** The same step for pickup & drop, which asks where the car is collected from. */
+  pickupAddressStep = () =>
+    this.page.getByRole('heading', { name: /Where should we collect your car/i })
 
   addressCard = (label: string | RegExp) =>
     this.page.getByRole('button', { name: label })
@@ -132,7 +137,7 @@ export class CheckoutPage {
    *  paid one, which can no longer be pressed. */
   cta = () =>
     this.page.getByRole('button', {
-      name: /^(Pay ₹|Confirm booking|Processing payment|Payment received|Pick a time|Choose your car|Add your car|Choose an address|Add your address|Pin your address|Remove the unpriced service)/,
+      name: /^(Pay ₹|Confirm booking|Processing payment|Payment received|Pick a time|Choose your car|Add your car|Choose an address|Choose another address|Add your address|Pin your address|Remove the unpriced service)/,
     })
 
   /**

@@ -164,6 +164,8 @@ export interface ApiPublicVendor {
   dropinEnabled: boolean
   /** Offers pickup & drop. Absent from older servers. */
   pickupEnabled?: boolean
+  /** How far it collects cars from; null is the 10 km default. */
+  pickupRadiusKm?: number | null
   slotIntervalMins: number
   status: string
   createdAt: string

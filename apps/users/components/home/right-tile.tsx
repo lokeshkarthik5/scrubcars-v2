@@ -10,6 +10,7 @@ import { bookAgainPathFor, withdrawnPathFor } from '@repo/core/book-again'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { bookingDayLabel, istClockParts } from '@repo/core/home-display'
 import { formatRupees } from '@repo/core/job-records'
+import { PICKUP_STAGE_NOW } from '@repo/core/pickup'
 import { Tile } from './tile'
 
 const NEXT_LABELS: Record<string, string> = {
@@ -43,8 +44,15 @@ export function RightTile({ tile, onBook }: { tile: HomeRightTile; onBook?: () =
       const { time, meridiem } = istClockParts(new Date(tile.scheduledAt))
       // A pay-later booking holds no slot until it is paid: say so plainly.
       const unpaid = tile.paymentStatus === 'unpaid'
+      // Pickup & drop, once the car has left the customer: where it is now
+      // ("Car collected", "On its way back") says more than the status does.
+      const stage = tile.pickupStage && tile.pickupStage !== 'booked' ? PICKUP_STAGE_NOW[tile.pickupStage] : null
       return (
-        <Tile href={`/bookings/${tile.bookingId}`} label={NEXT_LABELS[tile.status] ?? 'Next booking'} icon={IconCalendarEvent}>
+        <Tile
+          href={`/bookings/${tile.bookingId}`}
+          label={stage ?? NEXT_LABELS[tile.status] ?? 'Next booking'}
+          icon={IconCalendarEvent}
+        >
           <span className="flex min-h-0 flex-1 items-end pb-3">
             {tile.notice && (
               <span className="-mr-1.5 flex min-w-0 items-center gap-[5px] text-[12px] text-[#E4E4E7]">

@@ -116,7 +116,7 @@ function ProfileSetupForm() {
         </ScButton>
 
         <p className="mt-4 text-center text-[13px] leading-5 text-text-secondary">
-          We&apos;ll ask for an address only if you book a doorstep service.
+          We&apos;ll ask for an address only if you book doorstep or pickup &amp; drop.
         </p>
       </form>
     </AuthStage>

@@ -759,13 +759,14 @@ export const vendorsService = {
     const limit = query.limit ?? DEFAULT_PAGE_SIZE
     const { segment: startSegment, offset } = decodeCursor(query.cursor)
 
-    // Doorstep is bounded by each vendor's own doorstepRadiusKm, and the map
-    // view is bounded by the viewport. Neither takes a customer radius, so
-    // neither has anything to widen.
+    // Doorstep and pickup & drop are bounded by each vendor's own radius, and
+    // the map view is bounded by the viewport. None takes a customer radius,
+    // so none has anything to widen.
     const usesRadius =
       origin !== undefined &&
       query.bbox === undefined &&
-      query.bookingType !== 'doorstep'
+      query.bookingType !== 'doorstep' &&
+      query.bookingType !== 'pickup'
 
     /**
      * Whether to append garages that have no coordinates yet.
@@ -780,7 +781,12 @@ export const vendorsService = {
      * The map view is the exception and passes false: a garage with no
      * coordinates cannot be drawn on a map, so there is nothing to show.
      */
-    const includeUnlocated = query.bbox ? false : (query.includeUnlocated ?? true)
+    //
+    // Pickup & drop is the other: its reach is measured from the garage's pin
+    // and the booking is refused without one (OUTSIDE_PICKUP_RADIUS), so an
+    // unpinned garage in that list could never be booked from it.
+    const includeUnlocated =
+      query.bbox || query.bookingType === 'pickup' ? false : (query.includeUnlocated ?? true)
 
     const attempts = !usesRadius
       ? [undefined]

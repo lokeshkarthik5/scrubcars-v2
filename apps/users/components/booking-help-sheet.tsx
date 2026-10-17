@@ -88,7 +88,9 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
                 <p className="text-[12px] text-text-secondary">
                   {booking.bookingType === 'doorstep'
                     ? 'For timings, finding your place, or questions about the work.'
-                    : 'For timings, finding the garage, or questions about the work.'}
+                    : booking.bookingType === 'pickup'
+                      ? 'For the pickup and return times, where your car is, or questions about the work.'
+                      : 'For timings, finding the garage, or questions about the work.'}
                 </p>
               </div>
               <ContactButtons

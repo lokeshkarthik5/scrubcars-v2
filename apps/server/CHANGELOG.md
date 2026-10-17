@@ -61,6 +61,20 @@ reconstructing every change in them.
     while a refund the app sent is pending at Razorpay (left out otherwise).
   - `E2E_FAKE_PAYMENTS` mints `rfnd_e2e_…` refunds in memory.
 
+- **Pickup & drop, part 2 of 2: what the customer app reads** (no
+  migration).
+  - Home and Updates read the handover times of a customer's pickup
+    bookings (never the codes). Updates gains `picked_up`, `at_garage` and
+    `out_for_delivery` rows, and a delivered pickup job's completed row reads
+    "Your car is back". Home's `next_booking` tile carries `pickupStage`
+    (`booked` / `picked_up` / `at_garage` / `in_progress` /
+    `out_for_delivery` / `delivered`, null on other types) from
+    `customerPickupStage` in `lib/pickup.ts`, twinned in packages/core
+    (parity test).
+  - `GET /vendors?bookingType=pickup` no longer appends garages without a
+    pin (they can't be booked for pickup: the reach is measured from the
+    pin) and no longer runs the drop-in radius ladder, which pickup ignores.
+
 - **Pickup & drop, part 1 of 2: garages, bookings and job steps** (migration
   `0037_pickup_drop`, additive: `booking_type` gains `'pickup'`; on
   `vendors`, `pickup_terms_accepted_at` / `_by`; on `bookings`,

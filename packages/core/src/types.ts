@@ -4,8 +4,7 @@ import type { PickupNext } from '@repo/core/pickup'
 /**
  * How the car and the work meet. 'pickup' is pickup & drop: the garage
  * collects the car from the customer's address, works on it at the garage
- * and brings it back. Customers cannot choose it yet (parseBookingType);
- * the garage portal and admin already show it.
+ * and brings it back, from garages that offer it (Vendor.pickupEnabled).
  */
 export type BookingType = 'doorstep' | 'dropin' | 'pickup'
 export type BookingStatus =
@@ -78,6 +77,12 @@ export interface Vendor {
   doorstepEnabled: boolean
   /** Offers pickup & drop. False on servers older than it. */
   pickupEnabled: boolean
+  /**
+   * How far it collects cars from, from its pin; null is the 10 km default.
+   * Only the garage page carries it (undefined on list items), for
+   * checkout's early check; the server's check is the one that counts.
+   */
+  pickupRadiusKm?: number | null
   serviceTags: string[]
   isVerified: boolean
   photos: string[]

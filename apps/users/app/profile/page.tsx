@@ -477,8 +477,8 @@ export default function ProfilePage() {
                 Pin the exact spot (optional)
               </span>
               <p className="text-[11px] text-text-muted">
-                Needed only for doorstep service — we&apos;ll ask before your
-                first one if you skip it.
+                Needed only for doorstep and pickup &amp; drop — we&apos;ll ask
+                before your first one if you skip it.
               </p>
               {/* GPS-first for customers: they are usually standing at the
                   address they are saving, unlike a garage owner onboarding. */}
