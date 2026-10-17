@@ -291,7 +291,7 @@ export const CUSTOMERS = {
    * PICKUP_HOME), inside that garage's 8 km pickup radius. No seeded
    * bookings, so the one the spec makes is the customer's only one.
    */
-  pickup: { id: id(158), phone: '9000000058', name: 'Pickup Padma', vehicleId: id(767) },
+  pickup: { id: id(178), phone: '9000000078', name: 'Pickup Padma', vehicleId: id(787) },
   /**
    * Customers whose *session* is the thing under test.
    *
@@ -362,7 +362,7 @@ export const STAFF = {
   /** vendor_operator on VENDORS.binTeam alone: no company at all while it is in the Bin. */
   binOperator: { id: id(210), phone: '9000001011', name: 'Bin Operator Oscar' },
   /** Owns VENDORS.pickup only, so a pickup job's garage session has one company. */
-  pickupOwner: { id: id(211), phone: '9000001012', name: 'Pickup Owner Prabhu' },
+  pickupOwner: { id: id(228), phone: '9000001028', name: 'Pickup Owner Prabhu' },
 } as const
 
 export const VENDORS = {
@@ -487,7 +487,7 @@ export const VENDORS = {
    * the fillers in a sort, and no customer at ORIGIN is within its reach.
    * Booked only by CUSTOMERS.pickup.
    */
-  pickup: { id: id(345), name: 'Pickup Drop Test Garage' },
+  pickup: { id: id(358), name: 'Pickup Drop Test Garage' },
 } as const
 
 /**
@@ -587,7 +587,7 @@ export const SERVICES = {
   binHardPackage: { id: id(434), name: 'Bin Gone Combo', price: '899.00', durationMins: 60 },
   binTombWash: { id: id(435), name: 'Bin Kept Wash', price: '499.00', durationMins: 30 },
   /** On PICKUP: its one service, at a price no other garage charges. */
-  pickupWash: { id: id(436), name: 'Pickup Shine Wash', price: '549.00', durationMins: 30 },
+  pickupWash: { id: id(456), name: 'Pickup Shine Wash', price: '549.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {

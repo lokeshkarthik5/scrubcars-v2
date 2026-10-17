@@ -1674,7 +1674,7 @@ async function seedPickupRows() {
   const garage = VENDORS.pickup.id
   await db.insert(vendors).values({
     id: garage, ownerId: STAFF.pickupOwner.id, businessName: VENDORS.pickup.name,
-    phone: '9000004500', address: '1, Pickup Road, Kelambakkam', city: 'Chennai', pincode: '603103',
+    phone: '9000004800', address: '1, Pickup Road, Kelambakkam', city: 'Chennai', pincode: '603103',
     lat: PICKUP_PIN.lat, lng: PICKUP_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
     vehicleTypes: ['hatchback', 'sedan', 'suv'],
     isVerified: true, doorstepEnabled: false, dropinEnabled: true,
