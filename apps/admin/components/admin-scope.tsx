@@ -13,6 +13,7 @@ const NAV: PanelNavItem[] = [
   { href: '/refunds', label: 'Refunds' },
   { href: '/discounts', label: 'Discounts' },
   { href: '/coverage', label: 'Coverage' },
+  { href: '/statistics', label: 'Statistics' },
 ]
 
 // Only while the API has it switched on (ADMIN_DATA_RESET); otherwise the

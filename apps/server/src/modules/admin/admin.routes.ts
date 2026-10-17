@@ -16,6 +16,7 @@ import { adminRefundRoutes } from '../refunds/refunds.routes.js'
 import { adminVendorBinRoutes } from '../vendor-bin/vendor-bin.routes.js'
 import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
+import { adminStatsRoutes } from '../stats/stats.routes.js'
 import {
   addMemberSchema,
   updateMemberSchema,
@@ -80,13 +81,17 @@ adminRoutes.get(
   ...adminMiddleware,
   adminController.getDemandSupply
 )
-// The pilot's numbers for the last 7 or 30 days (?days=7|30).
+// The pilot's numbers for the last 7 or 30 days (?days=7|30). Shown on the
+// Statistics page's Overview, beside the routes mounted below.
 adminRoutes.get(
   '/stats/pilot',
   ...adminMiddleware,
   zValidator('query', pilotStatsQuerySchema),
   (c) => adminController.getPilotStats(c, c.req.valid('query'))
 )
+// Statistics: overview, breakdown and commission over a range of days.
+// Nested here for the same cookie reason as discounts (below).
+adminRoutes.route('/stats', adminStatsRoutes)
 adminRoutes.post(
   '/vendors',
   ...adminMiddleware,

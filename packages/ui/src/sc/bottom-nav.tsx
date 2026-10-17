@@ -65,6 +65,9 @@ const adminItems: NavItem[] = [
   { href: '/refunds', label: 'Refunds', icon: IconReceiptRefund },
   { href: '/discounts', label: 'Discounts', icon: IconDiscount2 },
   { href: '/coverage', label: 'Coverage', icon: IconMap },
+  // Six tabs fit the bar's 428px at 10px labels, as the approved Statistics
+  // mockup draws them; a seventh would not.
+  { href: '/statistics', label: 'Statistics', icon: IconChartBar },
 ]
 
 const itemsByType: Record<NavType, NavItem[]> = {

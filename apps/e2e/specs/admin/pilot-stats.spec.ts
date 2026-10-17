@@ -1,6 +1,6 @@
 /**
  * The pilot numbers: an admin-only read of counts over the last 7 or 30 days,
- * and the card on the panel's landing page that shows them.
+ * and the card under the Statistics page's Overview that shows them.
  *
  * Counts are asserted as shapes and floors, never exact totals: other specs
  * book, pay and cancel in parallel, so the totals move while this runs.
@@ -82,8 +82,8 @@ test.describe('pilot numbers @p0', () => {
     await customer.dispose()
   })
 
-  test('the card is on the landing page, with a 7 / 30 day switch', async ({ page }) => {
-    await page.goto('/vendors')
+  test('the card is on Statistics, with a 7 / 30 day switch', async ({ page }) => {
+    await page.goto('/statistics')
 
     await expect(page.getByRole('heading', { name: 'Pilot numbers' })).toBeVisible()
     await expect(page.getByText('Checkouts started')).toBeVisible()
@@ -91,9 +91,11 @@ test.describe('pilot numbers @p0', () => {
     await page.getByRole('radio', { name: '30 days' }).click()
     await expect(page.getByRole('radio', { name: '30 days' })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByText('Paid, no booking')).toBeVisible()
-    // Exact: the Revenue hint ("After refunds owed, …") holds the same words,
-    // and a loose match would find both.
+    // Exact: a loose match would also find the hints that mention refunds.
     await expect(page.getByText('Refunds owed', { exact: true })).toBeVisible()
+    await expect(page.getByText('Collected, less refunds owed', { exact: true })).toBeVisible()
+    // It follows none of the page's filters, and says so.
+    await expect(page.getByText(/^All garages · the last 30 days to now, not the filters above/)).toBeVisible()
     // The accept time is a figure now, not a note saying it can't be shown.
     await expect(page.getByText('Payment to accept')).toBeVisible()
   })

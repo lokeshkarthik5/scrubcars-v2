@@ -567,6 +567,148 @@ export async function getPilotStats(days: 7 | 30) {
   return apiClient<PilotStats>('/admin/stats/pilot', { params: { days } })
 }
 
+// ─── Statistics ──────────────────────────────────────────────────────────────
+// What each figure counts is in apps/server/src/lib/stats.ts and
+// lib/commission.ts; the page's "How we count" says it in plain words.
+
+/** IST calendar dates, both included. */
+export interface StatsRange {
+  from: string
+  to: string
+  days: number
+}
+
+/** The filters every Statistics read takes. */
+export interface StatsFilters {
+  from: string
+  to: string
+  /** One garage, or every garage when absent. */
+  vendorId?: string
+}
+
+/** The Overview's six tiles, for one period. Rates are 0–1, or null with nothing to divide by. */
+export interface StatsKpis {
+  bookings: number
+  collected: number
+  commission: number
+  averageBooking: number | null
+  checkoutsStarted: number
+  paidOfStarted: number | null
+  cancelled: number
+  cancellationRate: number | null
+}
+
+export interface StatsCollectedBar {
+  start: string
+  end: string
+  days: number
+  /** False for a week or month the range only partly covers. */
+  full: boolean
+  collected: number
+}
+
+/** GET /admin/stats/overview */
+export interface StatsOverview {
+  range: StatsRange
+  /** The period compared with, when asked for. */
+  previous: StatsRange | null
+  kpis: StatsKpis
+  previousKpis: StatsKpis | null
+  perDay: Array<{ date: string; bookings: number }>
+  previousPerDay: Array<{ date: string; bookings: number }> | null
+  collected: { unit: 'week' | 'month'; bars: StatsCollectedBar[] }
+}
+
+export interface StatsFunnel {
+  checkoutsStarted: number
+  paid: number
+  completed: number
+  leftWithoutPaying: number
+  paidNoBooking: number
+  cancelled: number
+  noShows: number
+  /** Paid, and neither done nor cancelled yet, whenever its slot was. */
+  notDone: number
+  paidOfStarted: number | null
+  completedOfPaid: number | null
+}
+
+export interface StatsGarageRow {
+  vendorId: string
+  name: string
+  bookings: number
+  collected: number
+  rating: number | null
+  reviews: number
+}
+
+export interface StatsServiceRow {
+  category: ServiceCategory
+  bookings: number
+  collected: number
+}
+
+/** ISO weekday (1 = Monday) by IST hour of the slot. */
+export interface StatsBusyHourCell {
+  weekday: number
+  hour: number
+  bookings: number
+}
+
+/** GET /admin/stats/breakdown */
+export interface StatsBreakdown {
+  range: StatsRange
+  funnel: StatsFunnel
+  /** Every garage with a booking in the period, most collected first. */
+  garages: StatsGarageRow[]
+  /** Every service type, most collected first. */
+  services: StatsServiceRow[]
+  busyHours: {
+    firstHour: number
+    lastHour: number
+    cells: StatsBusyHourCell[]
+    total: number
+  }
+}
+
+/** GET /admin/stats/commission */
+export interface StatsCommission {
+  range: StatsRange
+  rules: {
+    rates: Array<{ rate: number; categories: ServiceCategory[] }>
+    freeBookings: number
+  }
+  commission: number
+  collected: number
+  bookings: number
+  active: Array<{
+    vendorId: string
+    name: string
+    bookings: number
+    commission: number
+    /** The day its 26th booking was made, when that was in the period. */
+    activeSince: string | null
+  }>
+  free: Array<{ vendorId: string; name: string; used: number; left: number }>
+}
+
+/** GET /admin/stats/overview?from&to&vendorId&compare */
+export async function getStatsOverview(filters: StatsFilters & { compare: boolean }) {
+  return apiClient<StatsOverview>('/admin/stats/overview', {
+    params: { ...filters, compare: filters.compare ? 1 : 0 },
+  })
+}
+
+/** GET /admin/stats/breakdown?from&to&vendorId */
+export async function getStatsBreakdown(filters: StatsFilters) {
+  return apiClient<StatsBreakdown>('/admin/stats/breakdown', { params: { ...filters } })
+}
+
+/** GET /admin/stats/commission?from&to&vendorId */
+export async function getStatsCommission(filters: StatsFilters) {
+  return apiClient<StatsCommission>('/admin/stats/commission', { params: { ...filters } })
+}
+
 export interface DemandSupplyCell {
   lat: number
   lng: number
