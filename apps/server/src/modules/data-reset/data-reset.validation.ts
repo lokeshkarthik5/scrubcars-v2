@@ -39,6 +39,9 @@ export const previewSchema = z.object({
       // The one tick for every complaint made before the cutoff. Left out is
       // unticked, so a request from before complaints existed deletes none.
       complaints: z.boolean().optional(),
+      // The one tick for every usage event recorded before the cutoff, like
+      // complaints. Left out is unticked.
+      analytics: z.boolean().optional(),
     })
     .optional(),
   unknownIds: z.array(z.string().max(64)).max(5000).default([]),

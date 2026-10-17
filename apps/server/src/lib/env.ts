@@ -296,4 +296,17 @@ export const env = {
   // IP and would otherwise spend most of a run being throttled by itself.
   authRateLimit: Number(process.env.AUTH_RATE_LIMIT ?? '10'),
   globalRateLimit: Number(process.env.GLOBAL_RATE_LIMIT ?? '100'),
+  // Usage-event batches (POST /events) per IP per minute. Counted on their
+  // own and never against the global limit above, so analytics can never
+  // use up a customer's allowance for checkout. The app sends a batch every
+  // few seconds at most, and only while something happened.
+  analyticsRateLimit: Number(process.env.ANALYTICS_RATE_LIMIT ?? '60'),
+
+  // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
+  // E2E only: let Playwright's headless browser record events, which are
+  // otherwise dropped with crawlers. Refused in production.
+  analyticsAllowHeadless: readTestFake(
+    'ANALYTICS_ALLOW_HEADLESS',
+    'records usage events from headless browsers'
+  ),
 } as const

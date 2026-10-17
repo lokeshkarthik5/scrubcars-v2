@@ -236,6 +236,50 @@ export function ComplaintsRow({
 }
 
 /**
+ * A cutoff run's usage events (Statistics → Funnel) recorded before the
+ * cutoff, as one row with one tick: "1,240 usage events recorded before the
+ * cutoff". Anonymous and tied to no booking, so they are counted, not
+ * listed, and go or stay together.
+ */
+export function AnalyticsEventsRow({
+  events,
+  checked,
+  onToggle,
+}: {
+  events: { count: number; selected: boolean }
+  checked: boolean
+  onToggle?: (checked: boolean) => void
+}) {
+  if (events.count === 0) return null
+  return (
+    <ListRow
+      kept={false}
+      checkbox={
+        onToggle ? (
+          <input
+            type="checkbox"
+            aria-label="Delete the usage events recorded before the cutoff"
+            checked={checked}
+            onChange={(e) => onToggle(e.target.checked)}
+            className={BOX}
+          />
+        ) : null
+      }
+    >
+      <div className="min-w-0 flex-1 text-[12px]">
+        <p className="text-[13px] font-semibold text-text-primary">
+          {plural(events.count, 'usage event', 'usage events')} recorded before the cutoff
+        </p>
+        <p className="mt-0.5 text-text-secondary">
+          Visits and steps for the Funnel on Statistics, with no names or numbers. The Funnel starts
+          again from the cutoff.
+        </p>
+      </div>
+    </ListRow>
+  )
+}
+
+/**
  * What the dry run will delete, in plain words, and what happens to the
  * receipt numbering, with the list to download. The caller decides whether
  * the download is required before going on (`downloaded` is its record).

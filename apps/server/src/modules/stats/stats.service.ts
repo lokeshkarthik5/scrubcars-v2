@@ -1,4 +1,14 @@
 import {
+  FUNNEL_STEPS,
+  newVsRepeatByWeek,
+  returningCustomers,
+  summariseCategories,
+  summariseDevices,
+  summariseEventFunnel,
+  summariseGarageViews,
+  type FunnelStepKey,
+} from '../../lib/analytics.js'
+import {
   commissionRules,
   garageCommissionStatus,
   queuePositions,
@@ -23,7 +33,8 @@ import {
   type StatsRange,
 } from '../../lib/stats.js'
 import { statsRepository, type StatsReads } from './stats.repository.js'
-import type { StatsOverviewQuery, StatsRangeQuery } from './stats.validation.js'
+import { istDateKey } from '../../lib/ist.js'
+import type { StatsFunnelQuery, StatsOverviewQuery, StatsRangeQuery } from './stats.validation.js'
 
 const log = logger.child({ module: 'stats' })
 
@@ -167,6 +178,53 @@ export const statsService = {
         bookings: totals.bookings,
         active: garages.active,
         free: garages.free,
+      }
+    })
+  },
+
+  /**
+   * The Funnel tab, from the usage events (lib/analytics.ts): visits to a
+   * paid booking step by step, the categories browsed, garages by views
+   * against bookings and devices, for one booking type or all; and, from
+   * the bookings themselves, returning customers and new against repeat
+   * bookings per week. Events exist only from the release that added them,
+   * which `eventsSince` says.
+   */
+  async funnel(query: StatsFunnelQuery) {
+    const range = { from: query.from, to: query.to }
+    const { start, end } = rangeInstants(range)
+    const mode = query.mode === 'all' ? undefined : query.mode
+    const now = new Date()
+
+    return readOnly(async (reads) => {
+      const first = await reads.eventsSince()
+      const visits = await reads.visits(start, end)
+      const stepEvents = FUNNEL_STEPS.flatMap((step) => (step.event ? [step.event] : []))
+      const counted = await reads.eventCounts(start, end, stepEvents, mode)
+      const categories = await reads.categoriesBrowsed(start, end, mode)
+      const garages = await reads.garageViews(start, end, mode)
+      const devices = await reads.devices(start, end)
+      const customerBookings = await reads.customerBookings(start, end)
+
+      const counts = Object.fromEntries(
+        FUNNEL_STEPS.map((step) => {
+          if (!step.event) return [step.key, visits]
+          const row = counted.get(step.event)
+          // Paid is the API's own event, one per booking and in no visit.
+          return [step.key, (step.event === 'booking_paid' ? row?.events : row?.visits) ?? 0]
+        })
+      ) as Record<FunnelStepKey, number>
+
+      return {
+        range: describe(range),
+        mode: query.mode,
+        eventsSince: first ? istDateKey(first) : null,
+        funnel: summariseEventFunnel(counts),
+        categories: summariseCategories(categories),
+        garages: summariseGarageViews(garages),
+        devices: summariseDevices(devices),
+        returning: returningCustomers(customerBookings, start, end, now),
+        weeks: newVsRepeatByWeek(customerBookings, range),
       }
     })
   },

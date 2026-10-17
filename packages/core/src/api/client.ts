@@ -1,6 +1,7 @@
 import type { ApiErrorResponse, ApiSuccessResponse } from './types'
 
-const API_BASE_URL =
+/** The API every request goes to; also where usage events are sent (analytics.ts). */
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
 
 /**

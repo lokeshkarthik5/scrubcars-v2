@@ -26,6 +26,8 @@ import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
 import { getVendorReviews } from '@repo/core/api/reviews'
 import { useGarage } from '@repo/core/api/hooks/use-vendors'
+import { browseCategory } from '@repo/core/analytics-events'
+import { track } from '@repo/core/analytics'
 import { useSavedGarages, useToggleSavedGarage } from '@repo/core/api/hooks/use-favourites'
 import { categoryLabel } from '@repo/core/categories'
 import {
@@ -259,12 +261,17 @@ export default function GaragePage({
       .filter((s): s is Service | ServicePackage => s != null)
   }, [selected, services, packages])
 
-  const toggle = (serviceId: string) =>
+  const toggle = (serviceId: string) => {
+    if (!selected.includes(serviceId)) {
+      const item = [...services, ...packages].find((s) => s.id === serviceId)
+      track('service_add', { vendorId: id, category: browseCategory(item?.category) })
+    }
     setSelected((current) =>
       current.includes(serviceId)
         ? current.filter((id) => id !== serviceId)
         : [...current, serviceId]
     )
+  }
 
   // The running total is the sum of the list prices. For a per-vehicle service
   // that is the "from" price — the car is not known until the next screen, so
@@ -286,6 +293,14 @@ export default function GaragePage({
   // is Doorstep whatever was chosen, and one that does both honours the
   // choice, with no render in between where the toggle shows the wrong one.
   const mode = resolveBookingType(chosenMode, vendor)
+
+  // Once per garage opened, with the booking type it opened on.
+  const viewedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!vendor || viewedRef.current === vendor.id) return
+    viewedRef.current = vendor.id
+    track('garage_view', { vendorId: vendor.id, mode })
+  }, [vendor, mode])
 
   const changeMode = (next: BookingType) => {
     setChosenMode(next)

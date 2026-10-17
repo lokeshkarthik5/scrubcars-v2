@@ -5,8 +5,10 @@ import { ApiError } from '@repo/core/api/client'
 import {
   getStatsBreakdown,
   getStatsCommission,
+  getStatsFunnel,
   getStatsOverview,
   type StatsFilters,
+  type StatsFunnelMode,
 } from '@repo/core/api/admin'
 
 export const adminStatsKeys = {
@@ -15,6 +17,8 @@ export const adminStatsKeys = {
     [...adminStatsKeys.all, 'overview', filters] as const,
   breakdown: (filters: StatsFilters) => [...adminStatsKeys.all, 'breakdown', filters] as const,
   commission: (filters: StatsFilters) => [...adminStatsKeys.all, 'commission', filters] as const,
+  funnel: (filters: { from: string; to: string; mode: StatsFunnelMode }) =>
+    [...adminStatsKeys.all, 'funnel', filters] as const,
 }
 
 // Figures over days barely move in a few minutes, and each read scans the
@@ -66,6 +70,21 @@ export function useStatsCommission(filters: StatsFilters, enabled = true) {
   return useQuery({
     queryKey: adminStatsKeys.commission(filters),
     queryFn: () => getStatsCommission(filters),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_MS,
+    retry: retryStats,
+    enabled,
+  })
+}
+
+/** The Funnel tab. */
+export function useStatsFunnel(
+  filters: { from: string; to: string; mode: StatsFunnelMode },
+  enabled = true
+) {
+  return useQuery({
+    queryKey: adminStatsKeys.funnel(filters),
+    queryFn: () => getStatsFunnel(filters),
     placeholderData: keepPreviousData,
     staleTime: STALE_MS,
     retry: retryStats,

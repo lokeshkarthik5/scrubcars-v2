@@ -33,6 +33,11 @@ from):
   made after the cutoff, stays, with its booking reference and no link. The
   numbering does not restart: the next complaint carries on from the last
   number issued;
+- in a cutoff run, every usage event (migration 0040, the Funnel on
+  Statistics) recorded before the cutoff, as one ticked row: "1,240 usage
+  events recorded before the cutoff". They are anonymous and point at
+  nothing, so they are counted rather than listed; untick the row to keep
+  them. The Funnel then starts from the cutoff;
 - garage payouts (migration 0038) recorded before the cutoff that paid only
   bookings this run deletes, with what they paid booking by booking ("1
   garage payout").

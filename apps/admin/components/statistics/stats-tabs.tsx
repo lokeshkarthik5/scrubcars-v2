@@ -7,6 +7,7 @@ export const STATS_TABS = [
   { value: 'overview', label: 'Overview' },
   { value: 'breakdown', label: 'Breakdown' },
   { value: 'commission', label: 'Commission' },
+  { value: 'funnel', label: 'Funnel' },
 ] as const
 
 export type StatsTab = (typeof STATS_TABS)[number]['value']
@@ -16,7 +17,7 @@ export function isStatsTab(value: string | null): value is StatsTab {
 }
 
 /**
- * "Overview · Breakdown · Commission". Each is its own view with its own
+ * "Overview · Breakdown · Commission · Funnel". Each is its own view with its own
  * address (?tab=), so a link opens on the tab it was copied from: links with
  * aria-current, drawn as the Discounts page's Codes · Notices are, rather than
  * Radix tabs, which promise panels already on the page.

@@ -22,6 +22,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 
@@ -2021,6 +2022,52 @@ export const geoCache = pgTable(
       .notNull(),
   },
   (table) => [index('geo_cache_created_at_idx').on(table.createdAt)]
+)
+
+// First-party usage events for admin's Funnel (0040, lib/analytics.ts): an
+// allow-listed name, an anonymous visit id kept in the browser tab's
+// sessionStorage (null on the API's own booking_paid/booking_cancelled), the
+// signed-in customer only when signed in, allow-listed props, the path
+// without its query or ids, and a device class from the window's width.
+// Kept 180 days. The CHECKs are in 0040_analytics_events.sql.
+export const analyticsEvents = pgTable(
+  'analytics_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    name: text('name').$type<AnalyticsEventName>().notNull(),
+    visitId: uuid('visit_id'),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    props: jsonb('props').$type<Record<string, string | number>>().default({}).notNull(),
+    path: varchar('path', { length: 200 }),
+    device: text('device').$type<DeviceClass>(),
+    appVersion: varchar('app_version', { length: 32 }),
+  },
+  (table) => [
+    index('analytics_events_name_occurred_at_idx').on(table.name, table.occurredAt),
+    index('analytics_events_occurred_at_idx').on(table.occurredAt),
+    index('analytics_events_user_id_idx')
+      .on(table.userId)
+      .where(sql`${table.userId} is not null`),
+    check(
+      'analytics_events_name_check',
+      sql`${table.name} in ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view', 'garage_view', 'service_add', 'checkout_start', 'slot_select', 'address_select', 'pay_click', 'booking_paid', 'booking_cancelled', 'review_submit', 'complaint_submit', 'help_view')`
+    ),
+    check(
+      'analytics_events_device_check',
+      sql`${table.device} is null or ${table.device} in ('phone', 'tablet', 'desktop')`
+    ),
+    check(
+      'analytics_events_props_check',
+      sql`jsonb_typeof(${table.props}) = 'object' and ${table.props} - array['vendorId', 'mode', 'category', 'serviceCount', 'amountBucket', 'source', 'step', 'queryLength', 'cancelledBy']::text[] = '{}'::jsonb`
+    ),
+    check(
+      'analytics_events_visit_check',
+      sql`(${table.name} in ('booking_paid', 'booking_cancelled')) = (${table.visitId} is null)`
+    ),
+  ]
 )
 
 // ─── Relations ───────────────────────────────────────────────────────────────

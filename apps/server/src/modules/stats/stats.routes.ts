@@ -6,7 +6,11 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import * as statsController from './stats.controller.js'
-import { statsOverviewQuerySchema, statsRangeQuerySchema } from './stats.validation.js'
+import {
+  statsFunnelQuerySchema,
+  statsOverviewQuerySchema,
+  statsRangeQuerySchema,
+} from './stats.validation.js'
 
 // The admin's Statistics: read-only figures over a range of IST days
 // (?from=YYYY-MM-DD&to=YYYY-MM-DD, both included, at most 366 days), for
@@ -40,4 +44,13 @@ adminStatsRoutes.get(
   ...adminMiddleware,
   zValidator('query', statsRangeQuerySchema),
   (c) => statsController.getCommission(c, c.req.valid('query'))
+)
+
+// The booking funnel from usage events (0040), garages by views against
+// bookings, devices, and returning customers (from bookings).
+adminStatsRoutes.get(
+  '/funnel',
+  ...adminMiddleware,
+  zValidator('query', statsFunnelQuerySchema),
+  (c) => statsController.getFunnel(c, c.req.valid('query'))
 )

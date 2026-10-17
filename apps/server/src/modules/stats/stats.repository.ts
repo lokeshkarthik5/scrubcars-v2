@@ -276,6 +276,151 @@ export function statsReads(tx: Tx) {
       `)
       return rows.map((row) => ({ weekday: row.weekday, hour: row.hour, bookings: row.bookings }))
     },
+
+    // ─── The Funnel (usage events, 0040) ─────────────────────────────────────
+    // Visits are distinct visit ids; the API's own events have none and are
+    // counted as events. `mode`, when given, keeps only events that say that
+    // booking type.
+
+    /** When the first usage event was recorded, or null before any. */
+    async eventsSince(): Promise<Date | null> {
+      const [row] = await tx.execute<{ first: Date | string | null }>(sql`
+        select min(occurred_at) as first from analytics_events
+      `)
+      return row?.first ? toDate(row.first) : null
+    },
+
+    /** Distinct visits in [start, end), whatever they did. */
+    async visits(start: Date, end: Date): Promise<number> {
+      const [row] = await tx.execute<{ n: number }>(sql`
+        select count(distinct visit_id)::int as n
+          from analytics_events
+         where occurred_at >= ${at(start)}
+           and occurred_at < ${at(end)}
+           and visit_id is not null
+      `)
+      return row?.n ?? 0
+    },
+
+    /** For each of `names`: the visits that did it and how many times it happened. */
+    async eventCounts(
+      start: Date,
+      end: Date,
+      names: readonly string[],
+      mode?: string
+    ): Promise<Map<string, { visits: number; events: number }>> {
+      if (names.length === 0) return new Map()
+      const rows = await tx.execute<{ name: string; visits: number; events: number }>(sql`
+        select name, count(distinct visit_id)::int as visits, count(*)::int as events
+          from analytics_events
+         where name in (${sql.join(
+           names.map((name) => sql`${name}`),
+           sql`, `
+         )})
+           and occurred_at >= ${at(start)}
+           and occurred_at < ${at(end)}
+           ${mode ? sql`and props->>'mode' = ${mode}` : sql``}
+         group by name
+      `)
+      return new Map(rows.map((row) => [row.name, { visits: row.visits, events: row.events }]))
+    },
+
+    /** Visits that browsed each category, from the garage list and search. */
+    async categoriesBrowsed(
+      start: Date,
+      end: Date,
+      mode?: string
+    ): Promise<Array<{ category: string | null; visits: number }>> {
+      const rows = await tx.execute<{ category: string | null; visits: number }>(sql`
+        select props->>'category' as category, count(distinct visit_id)::int as visits
+          from analytics_events
+         where name in ('garage_list_view', 'search')
+           and occurred_at >= ${at(start)}
+           and occurred_at < ${at(end)}
+           and props->>'category' is not null
+           ${mode ? sql`and props->>'mode' = ${mode}` : sql``}
+         group by 1
+      `)
+      return rows.map((row) => ({ category: row.category, visits: row.visits }))
+    },
+
+    /**
+     * Each garage's page views (distinct visits) and paid bookings (the
+     * API's booking_paid), with its name as it is now; a garage deleted
+     * since has none.
+     */
+    async garageViews(
+      start: Date,
+      end: Date,
+      mode?: string
+    ): Promise<Array<{ vendorId: string; name: string | null; views: number; bookings: number }>> {
+      const rows = await tx.execute<{
+        vendor_id: string
+        name: string | null
+        views: number
+        bookings: number
+      }>(sql`
+        select e.props->>'vendorId' as vendor_id,
+               v.business_name as name,
+               (count(distinct e.visit_id) filter (where e.name = 'garage_view'))::int as views,
+               (count(*) filter (where e.name = 'booking_paid'))::int as bookings
+          from analytics_events e
+          left join vendors v on v.id::text = e.props->>'vendorId'
+         where e.name in ('garage_view', 'booking_paid')
+           and e.occurred_at >= ${at(start)}
+           and e.occurred_at < ${at(end)}
+           and e.props->>'vendorId' is not null
+           ${mode ? sql`and e.props->>'mode' = ${mode}` : sql``}
+         group by 1, 2
+      `)
+      return rows.map((row) => ({
+        vendorId: row.vendor_id,
+        name: row.name,
+        views: row.views,
+        bookings: row.bookings,
+      }))
+    },
+
+    /** Distinct visits by device class. */
+    async devices(start: Date, end: Date): Promise<Array<{ device: string | null; visits: number }>> {
+      const rows = await tx.execute<{ device: string | null; visits: number }>(sql`
+        select device, count(distinct visit_id)::int as visits
+          from analytics_events
+         where occurred_at >= ${at(start)}
+           and occurred_at < ${at(end)}
+           and visit_id is not null
+         group by device
+      `)
+      return rows.map((row) => ({ device: row.device, visits: row.visits }))
+    },
+
+    /**
+     * Every paid booking, ever, of each customer who made a paid booking in
+     * [start, end): chains dated by their first row, Test-marked ones left
+     * out. Only the account id and the time leave this query, for
+     * lib/analytics.ts to count returns and first bookings; neither leaves
+     * the API.
+     */
+    async customerBookings(start: Date, end: Date): Promise<Array<{ userId: string; bookedAt: Date }>> {
+      const rows = await tx.execute<{ user_id: string; booked_at: Date | string }>(sql`
+        with ${chainsCte()},
+        paid as (
+          select c.user_id, c.booked_at
+            from chains c
+            join payments p on p.booking_id = c.id
+           where c.marked_test_at is null
+             and p.status::text in (${moneyLanded})
+        )
+        select user_id, booked_at
+          from paid
+         where user_id in (
+           select user_id from paid
+            where booked_at >= ${at(start)}
+              and booked_at < ${at(end)}
+         )
+      `)
+      return rows.map((row) => ({ userId: row.user_id, bookedAt: toDate(row.booked_at) }))
+    },
   }
 }
 

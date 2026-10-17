@@ -33,6 +33,12 @@ const nextConfig: NextConfig = {
     // whether it came from Production or a preview. VERCEL_ENV exists only at
     // build time on Vercel; the browser bundle needs it inlined.
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.VERCEL_ENV ?? 'development',
+    // Detlio's own usage events (components/analytics.tsx): on in the
+    // Production build, off in development, E2E and previews unless
+    // NEXT_PUBLIC_ANALYTICS=on is set for that build.
+    NEXT_PUBLIC_ANALYTICS:
+      process.env.NEXT_PUBLIC_ANALYTICS ??
+      (process.env.VERCEL_ENV === 'production' ? 'on' : 'off'),
   },
   images: {
     remotePatterns: [

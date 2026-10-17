@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useRef, useState, Suspense } from 'react'
+import { use, useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -59,6 +59,8 @@ import {
 } from '@repo/core/payment-confirmation'
 import { getAddresses, updateAddress } from '@repo/core/api/users'
 import { ApiError } from '@repo/core/api/client'
+import { amountBucket } from '@repo/core/analytics-events'
+import { track } from '@repo/core/analytics'
 import { getVendorServices } from '@repo/core/api/services'
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
 import { getVendorPackages } from '@repo/core/api/packages'
@@ -324,6 +326,29 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const modeOptions = vendor
     ? offeredBookingTypes(vendor).map((value) => ({ value, label: BOOKING_TYPE_LABELS[value] }))
     : []
+
+  // Checkout opened with something in the cart: once per visit to this page.
+  const checkoutSeen = useRef(false)
+  const serviceCount = selectedServices.length
+  useEffect(() => {
+    if (checkoutSeen.current || !vendor || serviceCount === 0) return
+    checkoutSeen.current = true
+    track('checkout_start', { vendorId, mode: bookingType, serviceCount })
+  }, [vendor, vendorId, bookingType, serviceCount])
+
+  // A time picked (not the picker letting one go). Stable, since the picker
+  // lists it among its effect's dependencies.
+  const pickSlot = useCallback(
+    (scheduledAt: string | null) => {
+      setSelectedSlot(scheduledAt)
+      if (scheduledAt) track('slot_select', { vendorId, mode: bookingType })
+    },
+    [vendorId, bookingType]
+  )
+  const pickAddress = (addressId: string) => {
+    setPickedAddress(addressId)
+    track('address_select', { vendorId, mode: bookingType })
+  }
 
   // Doorstep and pickup & drop. Unlike the car, the default *is* preselected:
   // the customer chose it as "where I am" in their profile, so re-asking adds
@@ -656,6 +681,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
     if (!addressReady) return
     bookingLockRef.current = true
     setLoading(true)
+    // The price as a band, never the amount.
+    track('pay_click', {
+      vendorId,
+      mode: bookingType,
+      serviceCount: selectedServices.length,
+      amountBucket: payableAmount === null ? undefined : amountBucket(payableAmount),
+    })
     try {
       // Nothing is booked yet. The intent is priced and validated server-side,
       // but it holds no slot, no promo code and no claim on the car — so a
@@ -949,7 +981,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           vendorId={vendorId}
           serviceIds={serviceIds}
           value={selectedSlot}
-          onChange={setSelectedSlot}
+          onChange={pickSlot}
           bookingType={bookingType}
           onLapse={handleSlotLapse}
         />
@@ -1063,7 +1095,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   key={a.id}
                   type="button"
                   aria-pressed={selectedAddress === a.id}
-                  onClick={() => setPickedAddress(a.id)}
+                  onClick={() => pickAddress(a.id)}
                 >
                   <ScCard
                     className={cn(
@@ -1396,7 +1428,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       <AddAddressSheet
         open={addAddressOpen}
         onClose={() => setAddAddressOpen(false)}
-        onAdded={(address) => setPickedAddress(address.id)}
+        onAdded={(address) => pickAddress(address.id)}
         pickup={isPickup}
       />
 

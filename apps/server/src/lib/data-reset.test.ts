@@ -770,8 +770,61 @@ describe('complaints made before the cutoff', () => {
   })
 })
 
+describe('usage events recorded before the cutoff', () => {
+  test('a cutoff run counts them, ticked on the first look, and deletes everything before the cutoff', () => {
+    const plan = planReset(input({ analyticsEvents: 1240 }))
+    expect(plan.analyticsEvents).toEqual({ count: 1240, selected: true })
+    expect(plan.analyticsCutoff).toEqual(CUTOFF)
+    expect(plan.counts.analyticsEvents).toBe(1240)
+    expect(countLines(plan.counts)).toEqual(['1240 usage events'])
+    expect(plan.confirmPhrase).toBe('DELETE 1240 USAGE EVENTS')
+  })
+
+  test('once the list is reviewed, only when their one tick says so', () => {
+    const unticked = planReset(input({ analyticsEvents: 5, only: { chainIds: [], checkoutIds: [] } }))
+    expect(unticked.analyticsEvents).toEqual({ count: 5, selected: false })
+    expect(unticked.analyticsCutoff).toBeNull()
+    expect(unticked.counts.analyticsEvents).toBe(0)
+
+    const ticked = planReset(
+      input({ analyticsEvents: 5, only: { chainIds: [], checkoutIds: [], analytics: true } })
+    )
+    expect(ticked.analyticsCutoff).toEqual(CUTOFF)
+    expect(ticked.counts.analyticsEvents).toBe(5)
+  })
+
+  test('none to take is nothing ticked', () => {
+    const plan = planReset(input({ analyticsEvents: 0 }))
+    expect(plan.analyticsEvents).toEqual({ count: 0, selected: false })
+    expect(plan.analyticsCutoff).toBeNull()
+  })
+
+  test('no other scope takes them', () => {
+    for (const scope of [
+      { kind: 'marked_test' as const },
+      { kind: 'chains' as const, bookingIds: [uuid(1)] },
+      { kind: 'garage' as const, vendorId: uuid(900) },
+    ]) {
+      const plan = planReset(input({ scope, analyticsEvents: 7 }))
+      expect(plan.analyticsCutoff).toBeNull()
+      expect(plan.counts.analyticsEvents).toBe(0)
+    }
+  })
+
+  test('bookings and complaints name the phrase first, and the fingerprint ignores events', () => {
+    const plan = planReset(input({ bookings: [booking(1)], analyticsEvents: 9 }))
+    expect(plan.confirmPhrase).toBe('DELETE 1 BOOKING')
+    expect(countLines(plan.counts)).toContain('9 usage events')
+    expect(planReset(input({ bookings: [booking(1)] })).selectionHash).toBe(plan.selectionHash)
+    expect(confirmPhraseFor({ bookings: 0, checkouts: 0, complaints: 2, analyticsEvents: 9 }, 0)).toBe(
+      'DELETE 2 COMPLAINTS'
+    )
+    expect(confirmPhraseFor({ bookings: 0, checkouts: 0, analyticsEvents: 1 }, 0)).toBe('DELETE 1 USAGE EVENT')
+  })
+})
+
 describe('garage payouts', () => {
-  const payout = (n: number, roots: string[], recordedAt = before(3)): ResetPayout => ({
+  const payout =(n: number, roots: string[], recordedAt = before(3)): ResetPayout => ({
     id: uuid(700 + n),
     recordedAt,
     rootBookingIds: roots,

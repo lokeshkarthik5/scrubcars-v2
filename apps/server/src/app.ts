@@ -10,6 +10,7 @@ import { initMonitoring, reportError } from './lib/monitoring.js'
 import { APP_VERSION } from './lib/version.js'
 import { globalRateLimiter } from './middleware/rate-limit.middleware.js'
 import { SUPPORT_SESSION_HEADER } from './middleware/tenant.middleware.js'
+import { analyticsRoutes } from './modules/analytics/analytics.routes.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { usersRoutes } from './modules/users/users.routes.js'
 import { bookingIntentsRoutes } from './modules/booking-intents/booking-intents.routes.js'
@@ -70,7 +71,11 @@ app.use(
   })
 )
 
-app.use('/api/*', globalRateLimiter)
+// Usage events have their own limit (modules/analytics) and are left out of
+// this one, so a customer's analytics can never use up the allowance their
+// checkout needs.
+const EVENTS_PATH = '/api/v1/events'
+app.use('/api/*', (c, next) => (c.req.path === EVENTS_PATH ? next() : globalRateLimiter(c, next)))
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
@@ -134,6 +139,8 @@ app.route('/api/v1/geo', geoRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)
 app.route('/api/v1/health', healthRoutes)
+// The customer app's usage events (first-party, no third party).
+app.route(EVENTS_PATH, analyticsRoutes)
 // Cloudflare Stream says here when a service video is ready or has failed.
 app.route('/api/v1/webhooks', webhookRoutes)
 // STREAM_FAKE only (E2E): a 404 everywhere else.

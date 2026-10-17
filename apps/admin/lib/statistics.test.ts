@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { StatsBreakdown } from '@repo/core/api/admin'
 import {
   barsToLabel,
+  biggestDropLine,
   breakdownCsv,
   busiestSlots,
   busiestWeekday,
@@ -9,6 +10,9 @@ import {
   change,
   comparedWith,
   comparisonDates,
+  eventsStartNote,
+  FUNNEL_PERIODS,
+  funnelPeriod,
   heatLevel,
   hourLabel,
   monthOptions,
@@ -16,6 +20,7 @@ import {
   percent,
   periodRange,
   rangeLabel,
+  returnWindowLine,
   rupees,
   shortRupees,
 } from './statistics'
@@ -202,5 +207,40 @@ describe('breakdownCsv', () => {
     expect(lines).toContain('Busy hours,Sat 10 AM,7,,')
     expect(lines.filter((line) => line.startsWith('Busy hours'))).toHaveLength(1)
     expect(lines[lines.length - 1]).toBe('')
+  })
+})
+
+describe('the Funnel tab', () => {
+  test('goes by the last 7, 30 or 90 days; a month falls back to 30', () => {
+    expect(FUNNEL_PERIODS.map((p) => p.value)).toEqual(['last7', 'last30', 'last90'])
+    expect(funnelPeriod('last7')).toBe('last7')
+    expect(funnelPeriod('last90')).toBe('last90')
+    expect(funnelPeriod('thisMonth')).toBe('last30')
+    expect(funnelPeriod('lastMonth')).toBe('last30')
+  })
+
+  test('says when usage events start, only while the period reaches back past it', () => {
+    const range = { from: '2026-09-18', to: '2026-10-17' }
+    expect(eventsStartNote('2026-10-17', range)).toBe(
+      'Usage events start on 17 Oct, when recording began. Days before that have none, so the visit steps read low for this period.'
+    )
+    expect(eventsStartNote('2026-09-18', range)).toBeNull()
+    expect(eventsStartNote('2026-09-01', range)).toBeNull()
+    expect(eventsStartNote(null, range)).toContain('No usage events yet')
+  })
+
+  test('names the biggest drop, or nothing when nothing fell', () => {
+    const steps: never[] = []
+    expect(biggestDropLine({ steps, biggestDrop: { key: 'checkout', lost: 90, ofPrevious: 0.25 } })).toBe(
+      'Biggest drop: 90 lost before this step · 25% went on'
+    )
+    expect(biggestDropLine({ steps, biggestDrop: null })).toBeNull()
+  })
+
+  test('a return window says how many of how many, or that it is too soon', () => {
+    expect(returnWindowLine({ days: 30, eligible: 20, returned: 8, rate: 0.4 })).toBe('8 of 20 customers')
+    expect(returnWindowLine({ days: 60, eligible: 0, returned: 0, rate: null })).toBe(
+      'Too recent to tell: no booking in the period is 60 days old yet'
+    )
   })
 })

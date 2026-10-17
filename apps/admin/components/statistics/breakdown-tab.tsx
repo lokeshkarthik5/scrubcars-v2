@@ -36,7 +36,7 @@ const HOW_WE_COUNT = [
   'Bookings marked Test, and their checkouts, are left out.',
 ]
 
-function CardHeading({ title, subtitle }: { title: string; subtitle: string }) {
+export function CardHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <>
       <h2 className="text-[15px] font-medium tracking-tight text-text-primary">{title}</h2>
@@ -46,7 +46,7 @@ function CardHeading({ title, subtitle }: { title: string; subtitle: string }) {
 }
 
 /** A bar as a share of its whole, on a faint track. */
-function ShareBar({ share, className }: { share: number; className?: string }) {
+export function ShareBar({ share, className }: { share: number; className?: string }) {
   return (
     <div aria-hidden="true" className={cn('overflow-hidden rounded-full bg-white/[0.06]', className)}>
       <i
