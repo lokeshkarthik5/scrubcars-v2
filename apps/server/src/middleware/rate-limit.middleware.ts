@@ -70,11 +70,21 @@ export const geoAutocompleteRateLimiter = createRateLimiter(
 // per-minute limit would cut short for no saving. Mounted after
 // authMiddleware, which is what puts `auth` on the context; the IP is only a
 // fallback for a route that forgot to.
+const bySignedInAdmin: RateLimitKey = (c) => {
+  const auth = c.get('auth') as { sub?: string } | undefined
+  return auth?.sub ? `admin:${auth.sub}` : byClientIp(c)
+}
+
 export const aiDescribeRateLimiter = createRateLimiter(
   env.aiDescribeRateLimit,
   60 * 60 * 1000,
-  (c) => {
-    const auth = c.get('auth') as { sub?: string } | undefined
-    return auth?.sub ? `admin:${auth.sub}` : byClientIp(c)
-  }
+  bySignedInAdmin
+)
+
+// Reading a garage's documents on Add garage, per signed-in admin per hour,
+// for the same reasons: each photo read is a paid request, and the dearest.
+export const aiImportRateLimiter = createRateLimiter(
+  env.aiImportRateLimit,
+  60 * 60 * 1000,
+  bySignedInAdmin
 )
