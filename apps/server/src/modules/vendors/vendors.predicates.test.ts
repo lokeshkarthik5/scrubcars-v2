@@ -8,6 +8,7 @@ import {
   isInBin,
   isListedToCustomers,
   vendorPageOpen,
+  vendorPagesOpen,
   type ListedRow,
 } from './vendors.predicates.js'
 
@@ -66,6 +67,20 @@ describe('the Bin', () => {
       '("vendors"."id" = $1 and "vendors"."status" = $2 and "vendors"."is_verified" = $3 and "vendors"."deleted_at" is null)'
     )
     expect(page.params).toEqual(['e2e00000-0000-4000-8000-000000000301', 'active', true])
+  })
+
+  test("Saved garages joins on the page's own rule: a garage in the Bin, suspended or unverified is left out, a paused one is not", () => {
+    const pages = new PgDialect().sqlToQuery(vendorPagesOpen())
+    expect(pages.sql).toBe(
+      '("vendors"."status" = $1 and "vendors"."is_verified" = $2 and "vendors"."deleted_at" is null)'
+    )
+    expect(pages.params).toEqual(['active', true])
+    // The same rule, read over every garage the four facts describe.
+    const open = (row: ListedRow) => row.status === 'active' && row.isVerified && row.deletedAt === null
+    const shown = everyRow().filter(open)
+    expect(shown).toHaveLength(2)
+    expect(shown.every((row) => !isInBin(row) && row.status === 'active' && row.isVerified)).toBe(true)
+    expect(shown.some((row) => row.bookingsPausedAt !== null)).toBe(true)
   })
 })
 

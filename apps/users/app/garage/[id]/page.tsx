@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useMemo, useState } from 'react'
+import { use, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -28,6 +28,7 @@ import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
 import { getVendorReviews } from '@repo/core/api/reviews'
 import { useGarage } from '@repo/core/api/hooks/use-vendors'
+import { useSavedGarages, useToggleSavedGarage } from '@repo/core/api/hooks/use-favourites'
 import { categoryLabel } from '@repo/core/categories'
 import {
   BOOKING_TYPE_LABELS,
@@ -59,6 +60,8 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
 import { ServiceMediaArea } from '@/components/service-media/service-media-area'
 import { ServiceThumb } from '@/components/service-media/service-thumb'
 import { ClampedText } from '@/components/service-media/clamped-text'
+import { SaveGarageButton } from '@/components/favourites/save-garage-button'
+import { SAVE_PARAM, withoutSaveFlag } from '@/lib/saved-garages'
 
 type Tab = 'services' | 'photos' | 'reviews'
 
@@ -194,6 +197,22 @@ export default function GaragePage({
       .then(setReviews)
       .catch(() => undefined)
   }, [id])
+
+  // Back from signing in to save this garage (?save=1, set by the heart):
+  // save it, once, and take the flag out of the URL so a reload or Back does
+  // not do it again. Already saved is left as it is.
+  const wantsSave = searchParams.get(SAVE_PARAM) === '1'
+  const savedGarages = useSavedGarages({ enabled: !!user })
+  const toggleSaved = useToggleSavedGarage()
+  const saveHandled = useRef(false)
+  useEffect(() => {
+    if (!wantsSave || saveHandled.current || !user || !vendor || !savedGarages.data) return
+    saveHandled.current = true
+    if (!savedGarages.data.vendors.some((v) => v.id === vendor.id)) {
+      toggleSaved.mutate({ vendor, save: true })
+    }
+    window.history.replaceState(null, '', withoutSaveFlag(window.location.pathname, window.location.search))
+  }, [wantsSave, user, vendor, savedGarages.data, toggleSaved])
 
   // Open/closed is tracked separately from *what* is shown: the popup animates
   // out, so it has to keep rendering its contents after being dismissed.
@@ -362,9 +381,8 @@ export default function GaragePage({
     <AppShell
       className={cn('px-0', selected.length > 0 || paused ? 'pb-28' : 'pb-6')}
     >
-      {/* Hero — full-bleed cover with the back control floated on top. There is
-          no favourite heart beside it: one that is not saved anywhere resets
-          on reload and tells the customer something that isn't true. */}
+      {/* Hero — full-bleed cover with the back control and the heart floated
+          on top. The heart is saved on the account (Profile → Saved garages). */}
       <div className="relative h-[210px] w-full shrink-0 bg-surface-elevated">
         {hero ? (
           <Image
@@ -389,6 +407,7 @@ export default function GaragePage({
         >
           <IconArrowLeft size={20} />
         </button>
+        <SaveGarageButton vendor={vendor} className="absolute right-4 top-4" />
         {vendor.logoUrl && (
           <div className="absolute bottom-3 left-4 h-14 w-14 overflow-hidden rounded-[14px] border border-white/70 bg-surface shadow-md">
             <Image

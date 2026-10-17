@@ -2,15 +2,17 @@ import { describe, expect, test } from 'bun:test'
 import {
   buildCars,
   canChangeTime,
+  complaintAnswerCard,
   garageTakesJobAgain,
   nextBookingWithoutCar,
   pickActionCards,
   serviceLabelOf,
+  softCardWithComplaint,
   type GarageDays,
   type HubCar,
   type LastJob,
 } from './home-cards.js'
-import type { HubBooking } from './home-updates.js'
+import type { HubBooking, HubComplaint } from './home-updates.js'
 import type { NoticeRow } from './notices.js'
 
 // Fixed clock: Mon 12 Oct 2026, 12:00 IST.
@@ -375,5 +377,55 @@ describe('the car and its tile', () => {
   test('service labels', () => {
     expect(serviceLabelOf(['Express Wash'])).toBe('Express Wash')
     expect(serviceLabelOf(['Express Wash', 'Vacuum', 'Polish'])).toBe('Express Wash + 2 more')
+  })
+})
+
+describe('a resolved complaint on Home', () => {
+  const resolved = (overrides: Partial<HubComplaint> = {}): HubComplaint => ({
+    id: 'c1',
+    number: 123,
+    status: 'resolved',
+    acknowledgedAt: ago(2 * DAY),
+    resolvedAt: ago(DAY),
+    closedAt: null,
+    hasAnswer: true,
+    ...overrides,
+  })
+  const LONG_AGO = new Date('2026-01-01T00:00:00Z')
+
+  test('the newest resolved in the last 7 days, while unread', () => {
+    expect(
+      complaintAnswerCard([resolved({ id: 'old', resolvedAt: ago(3 * DAY) }), resolved()], LONG_AGO, NOW)
+    ).toEqual({ kind: 'complaint_resolved', complaintId: 'c1', number: 'C-000123', resolvedAt: ago(DAY).toISOString() })
+  })
+
+  test('not once seen in Updates, not after 7 days, and not while only acknowledged or closed', () => {
+    expect(complaintAnswerCard([resolved()], ago(HOUR), NOW)).toBeNull()
+    expect(complaintAnswerCard([resolved({ resolvedAt: ago(8 * DAY) })], LONG_AGO, NOW)).toBeNull()
+    expect(complaintAnswerCard([resolved({ status: 'acknowledged', resolvedAt: null })], LONG_AGO, NOW)).toBeNull()
+    expect(complaintAnswerCard([resolved({ status: 'closed', closedAt: ago(HOUR) })], LONG_AGO, NOW)).toBeNull()
+  })
+
+  test('only in a free place: a must-act card or Rate your wash keeps it, so two cards at most', () => {
+    const complaints = [resolved()]
+    const card = complaintAnswerCard(complaints, LONG_AGO, NOW)
+
+    expect(softCardWithComplaint({ mustAct: null, softCard: null }, complaints, LONG_AGO, NOW)).toEqual(card)
+
+    const billCard = pickActionCards(
+      [booking({ status: 'in_progress', charges: [bill('ch1', ago(HOUR))] })],
+      noDays,
+      NOW
+    )
+    expect(billCard.mustAct?.kind).toBe('bill_due')
+    expect(softCardWithComplaint(billCard, complaints, LONG_AGO, NOW)).toBeNull()
+
+    const rate = pickActionCards(
+      [booking({ status: 'completed', completedAt: ago(HOUR), scheduledAt: ago(2 * HOUR) })],
+      noDays,
+      NOW
+    )
+    expect(rate.softCard?.kind).toBe('rate')
+    expect(softCardWithComplaint(rate, complaints, LONG_AGO, NOW)).toBe(rate.softCard)
   })
 })

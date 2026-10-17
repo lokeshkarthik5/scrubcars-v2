@@ -13,10 +13,10 @@
  * this file directly.
  */
 
-/** Acknowledge a complaint within this many hours of it being made. */
+/** Acknowledge a complaint within this many hours of Detlio receiving it. */
 export const COMPLAINT_ACKNOWLEDGE_HOURS = 24
 
-/** Resolve a complaint within this many days of it being made. */
+/** Resolve a complaint within this many days of Detlio receiving it. */
 export const COMPLAINT_RESOLVE_DAYS = 7
 
 const HOUR_MS = 60 * 60 * 1000
@@ -42,6 +42,44 @@ export const COMPLAINT_CATEGORY_LABELS: Record<ComplaintCategory, string> = {
   app_problem: 'Problem with the app',
   other: 'Something else',
 }
+
+/**
+ * Where a complaint came from: 'app' when the customer raised it in the app;
+ * otherwise how the team heard it before logging it on the Complaints tab.
+ */
+export const COMPLAINT_SOURCES = ['app', 'phone', 'whatsapp', 'email', 'in_person', 'other'] as const
+
+export type ComplaintSource = (typeof COMPLAINT_SOURCES)[number]
+
+/** What the team may pick when logging one: everything but the app itself. */
+export const LOGGED_COMPLAINT_SOURCES = ['phone', 'whatsapp', 'email', 'in_person', 'other'] as const
+
+export type LoggedComplaintSource = (typeof LOGGED_COMPLAINT_SOURCES)[number]
+
+/** How it reached us, for admin's cards and the log form. */
+export const COMPLAINT_SOURCE_LABELS: Record<ComplaintSource, string> = {
+  app: 'In the app',
+  phone: 'By phone',
+  whatsapp: 'On WhatsApp',
+  email: 'By email',
+  in_person: 'In person',
+  other: 'Some other way',
+}
+
+/**
+ * The line a customer reads on a complaint the team logged for them, so one
+ * they never typed in the app makes sense: "You told us by phone".
+ */
+export const COMPLAINT_SOURCE_CUSTOMER_LINES: Record<Exclude<ComplaintSource, 'app'>, string> = {
+  phone: 'You told us by phone',
+  whatsapp: 'You told us on WhatsApp',
+  email: 'You told us by email',
+  in_person: 'You told us in person',
+  other: 'You told our team',
+}
+
+/** How far back the team may date a complaint it logs. */
+export const MAX_RECEIVED_DAYS_BACK = 7
 
 /**
  * open → acknowledged → resolved. Closed is the other way out: a duplicate,
@@ -88,11 +126,15 @@ export function isComplaintFinished(status: ComplaintStatus): boolean {
   return status === 'resolved' || status === 'closed'
 }
 
-/** When it must be acknowledged by, and resolved by. */
-export function complaintDueTimes(createdAt: Date): { acknowledgeBy: Date; resolveBy: Date } {
+/**
+ * When it must be acknowledged by, and resolved by. The clock runs from when
+ * Detlio received it: the moment an app complaint was made, or the time the
+ * team gave when logging a call or a message.
+ */
+export function complaintDueTimes(receivedAt: Date): { acknowledgeBy: Date; resolveBy: Date } {
   return {
-    acknowledgeBy: new Date(createdAt.getTime() + COMPLAINT_ACKNOWLEDGE_HOURS * HOUR_MS),
-    resolveBy: new Date(createdAt.getTime() + COMPLAINT_RESOLVE_DAYS * DAY_MS),
+    acknowledgeBy: new Date(receivedAt.getTime() + COMPLAINT_ACKNOWLEDGE_HOURS * HOUR_MS),
+    resolveBy: new Date(receivedAt.getTime() + COMPLAINT_RESOLVE_DAYS * DAY_MS),
   }
 }
 
@@ -107,11 +149,11 @@ export function complaintDueTimes(createdAt: Date): { acknowledgeBy: Date; resol
  * Right on the due moment is not late yet.
  */
 export function complaintOverdue(
-  complaint: { status: ComplaintStatus; createdAt: Date },
+  complaint: { status: ComplaintStatus; receivedAt: Date },
   now: Date
 ): 'acknowledge' | 'resolve' | null {
   if (isComplaintFinished(complaint.status)) return null
-  const due = complaintDueTimes(complaint.createdAt)
+  const due = complaintDueTimes(complaint.receivedAt)
   if (now.getTime() > due.resolveBy.getTime()) return 'resolve'
   if (complaint.status === 'open' && now.getTime() > due.acknowledgeBy.getTime()) {
     return 'acknowledge'
@@ -120,7 +162,7 @@ export function complaintOverdue(
 }
 
 export function isComplaintOverdue(
-  complaint: { status: ComplaintStatus; createdAt: Date },
+  complaint: { status: ComplaintStatus; receivedAt: Date },
   now: Date
 ): boolean {
   return complaintOverdue(complaint, now) !== null
@@ -142,12 +184,12 @@ export function complaintDuration(ms: number): string {
  * 2 days", "Resolved".
  */
 export function complaintClockLine(
-  complaint: { status: ComplaintStatus; createdAt: Date },
+  complaint: { status: ComplaintStatus; receivedAt: Date },
   now: Date
 ): string {
   if (complaint.status === 'resolved') return 'Resolved'
   if (complaint.status === 'closed') return 'Closed'
-  const due = complaintDueTimes(complaint.createdAt)
+  const due = complaintDueTimes(complaint.receivedAt)
   const late = complaintOverdue(complaint, now)
   if (late === 'resolve') {
     return `Resolve overdue by ${complaintDuration(now.getTime() - due.resolveBy.getTime())}`

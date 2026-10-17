@@ -19,6 +19,30 @@ reconstructing every change in them.
 
 ### Added
 
+- **Complaints that came by phone or WhatsApp, and answers in Updates.**
+  Admin: Complaints has **Log a complaint** (customer's phone, looked up as
+  it is typed: "Karthik's account" or "No account with this number" with a
+  name field; how it came: phone, WhatsApp, email, in person or other;
+  what it is about; what they said; an optional booking reference, looked
+  up too; when it was received, now or up to 7 days back; your name,
+  remembered on this device like the Bin's). It gets a C-number and opens
+  its page. Cards and the detail say how each came ("By phone · logged by
+  Ravi") and when it was received; the clock runs from then. Customer app:
+  a complaint logged for their number is in My complaints ("You told us by
+  phone"), dated when it was received; when the team acknowledges,
+  resolves or closes one, Updates says so ("Complaint C-000123 resolved —
+  see our answer"), opening My complaints. A resolved one is also a Home
+  card for a week while unread, but only in Rate your wash's place when
+  that is free, so Home never has more than two cards above the car.
+- **Saved garages.** A heart on the garage list's cards, search results and
+  the garage page (top right of the photo, where the old unsaved heart
+  was): white when saved, it changes at once and goes back if the save
+  fails (with the reason at 50 saved). Signed out, it asks to sign in and
+  comes back to the garage with it saved. Profile → **Saved garages** lists
+  them as the list's cards, newest first; a paused one says "Not taking
+  bookings right now", and the heart there removes it. No "Your garages"
+  row on Home: Home's order is fixed by the owner's card rules.
+
 - **Earnings and Payouts.** Garage portal: Earnings now opens on "Due now"
   (or "You owe Detlio") and "Paid this month", lists each booking that
   earned money in the chosen dates (30 days, this month, last month or two

@@ -453,6 +453,8 @@ export const vendorBinService = {
           // Its payouts on kept bookings stay, for the accounts; where the
           // money was sent does not.
           await repo.deletePayoutAccount(id)
+          // Customers' saves of it go too (a deleted garage's go by cascade).
+          await repo.deleteFavourites(id)
           await repo.makeTombstone(id, tombstoneFields(now))
         }
         if (deletingGarage) await syncOwnerFlags(repo, seatHolders)

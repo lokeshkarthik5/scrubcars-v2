@@ -43,50 +43,50 @@ describe('the published promises', () => {
 
 describe('complaintOverdue', () => {
   test('open: on time up to the acknowledge-by moment itself', () => {
-    expect(complaintOverdue({ status: 'open', createdAt: created }, at(23))).toBeNull()
-    expect(complaintOverdue({ status: 'open', createdAt: created }, at(24))).toBeNull()
-    expect(complaintOverdue({ status: 'open', createdAt: created }, at(24.01))).toBe('acknowledge')
+    expect(complaintOverdue({ status: 'open', receivedAt: created }, at(23))).toBeNull()
+    expect(complaintOverdue({ status: 'open', receivedAt: created }, at(24))).toBeNull()
+    expect(complaintOverdue({ status: 'open', receivedAt: created }, at(24.01))).toBe('acknowledge')
   })
 
   test('acknowledged: the 24 hours no longer apply, the 7 days do', () => {
-    const c = { status: 'acknowledged' as const, createdAt: created }
+    const c = { status: 'acknowledged' as const, receivedAt: created }
     expect(complaintOverdue(c, at(30))).toBeNull()
     expect(complaintOverdue(c, at(7 * 24))).toBeNull()
     expect(complaintOverdue(c, at(7 * 24 + 1))).toBe('resolve')
   })
 
   test('open past 7 days has missed both, and says the bigger one', () => {
-    expect(complaintOverdue({ status: 'open', createdAt: created }, at(8 * 24))).toBe('resolve')
+    expect(complaintOverdue({ status: 'open', receivedAt: created }, at(8 * 24))).toBe('resolve')
   })
 
   test('resolved and closed are never overdue', () => {
-    expect(isComplaintOverdue({ status: 'resolved', createdAt: created }, at(30 * 24))).toBe(false)
-    expect(isComplaintOverdue({ status: 'closed', createdAt: created }, at(30 * 24))).toBe(false)
+    expect(isComplaintOverdue({ status: 'resolved', receivedAt: created }, at(30 * 24))).toBe(false)
+    expect(isComplaintOverdue({ status: 'closed', receivedAt: created }, at(30 * 24))).toBe(false)
   })
 })
 
 describe('complaintClockLine', () => {
   test('says what is due next and how long is left', () => {
-    expect(complaintClockLine({ status: 'open', createdAt: created }, at(19))).toBe(
+    expect(complaintClockLine({ status: 'open', receivedAt: created }, at(19))).toBe(
       'Acknowledge within 5 h'
     )
-    expect(complaintClockLine({ status: 'acknowledged', createdAt: created }, at(24))).toBe(
+    expect(complaintClockLine({ status: 'acknowledged', receivedAt: created }, at(24))).toBe(
       'Resolve within 6 days'
     )
   })
 
   test('or how late it is', () => {
-    expect(complaintClockLine({ status: 'open', createdAt: created }, at(27))).toBe(
+    expect(complaintClockLine({ status: 'open', receivedAt: created }, at(27))).toBe(
       'Acknowledge overdue by 3 h'
     )
-    expect(complaintClockLine({ status: 'acknowledged', createdAt: created }, at(9 * 24))).toBe(
+    expect(complaintClockLine({ status: 'acknowledged', receivedAt: created }, at(9 * 24))).toBe(
       'Resolve overdue by 2 days'
     )
   })
 
   test('finished ones say so', () => {
-    expect(complaintClockLine({ status: 'resolved', createdAt: created }, at(9 * 24))).toBe('Resolved')
-    expect(complaintClockLine({ status: 'closed', createdAt: created }, at(1))).toBe('Closed')
+    expect(complaintClockLine({ status: 'resolved', receivedAt: created }, at(9 * 24))).toBe('Resolved')
+    expect(complaintClockLine({ status: 'closed', receivedAt: created }, at(1))).toBe('Closed')
   })
 })
 

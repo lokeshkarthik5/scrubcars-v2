@@ -1,10 +1,11 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconAlertTriangle, IconMessageReport } from '@tabler/icons-react'
+import { IconAlertTriangle, IconMessageReport, IconPlus } from '@tabler/icons-react'
 import { ScBadge } from '@repo/ui/sc/badge'
+import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
@@ -22,12 +23,14 @@ import {
   complaintClockLine,
 } from '@repo/core/complaints'
 import { cn } from '@repo/core/utils'
+import { LogComplaintDialog } from '@/components/log-complaint-dialog'
 import { Meta } from '@/components/meta'
 import { formatClock, formatWhen } from '@/lib/bookings'
 import {
   COMPLAINT_FILTERS,
   COMPLAINT_FILTER_LABELS,
   complaintFilterHint,
+  complaintSourceLine,
   complaintsListHref,
   overdueLabel,
   parseComplaintFilter,
@@ -44,13 +47,14 @@ const STATUS_BADGE: Record<AdminComplaint['status'], 'pending' | 'success' | 'mu
 const EMPTY: Record<AdminComplaintFilter, { title: string; subtitle: string }> = {
   open: {
     title: 'No open complaints',
-    subtitle: 'A complaint raised in the app shows up here, and in the team’s Telegram group.',
+    subtitle:
+      'A complaint raised in the app, or logged here from a call or a message, shows up here and in the team’s Telegram group.',
   },
   overdue: { title: 'Nothing overdue', subtitle: 'Every open complaint is inside its time.' },
   resolved: { title: 'Nothing resolved yet', subtitle: 'Resolved and closed complaints show up here.' },
   all: {
     title: 'No complaints yet',
-    subtitle: 'Customers raise them from a booking’s Help, or from the Contact page.',
+    subtitle: 'Customers raise them from a booking’s Help or the Contact page; log one that came another way with Log a complaint.',
   },
 }
 
@@ -92,7 +96,7 @@ function ComplaintRow({
           )}
         </div>
         <p className={cn('font-numeric text-[12px]', overdue ? 'text-warning' : 'text-text-secondary')}>
-          {complaintClockLine({ status: c.status, createdAt: new Date(c.createdAt) }, now)}
+          {complaintClockLine({ status: c.status, receivedAt: new Date(c.receivedAt) }, now)}
         </p>
       </div>
 
@@ -107,8 +111,9 @@ function ComplaintRow({
             <span className="font-numeric text-text-muted"> · #{c.booking.reference}</span>
           )}
         </Meta>
-        <Meta label="Made">
-          <span className="font-numeric">{formatWhen(c.createdAt)}</span>
+        <Meta label="Received">
+          <span className="font-numeric">{formatWhen(c.receivedAt)}</span>
+          <span className="block text-[12px] text-text-muted">{complaintSourceLine(c)}</span>
         </Meta>
       </div>
 
@@ -133,6 +138,9 @@ function ComplaintsList() {
 
   const complaints = data?.complaints ?? []
   const now = data ? new Date(data.now) : new Date(dataUpdatedAt || 0)
+  // Bumped on each open, so the dialog starts empty every time.
+  const [logging, setLogging] = useState(0)
+  const [logOpen, setLogOpen] = useState(false)
   const refreshFailed = Boolean(error) && complaints.length > 0
 
   return (
@@ -143,10 +151,27 @@ function ComplaintsList() {
           <>
             Acknowledge each within <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span>{' '}
             hours and resolve it within <span className="font-numeric">{COMPLAINT_RESOLVE_DAYS}</span>{' '}
-            days of when it was made: the Contact page promises both.
+            days of when it was received: the Contact page promises both.
           </>
         }
+        actions={
+          <ScButton
+            fullWidth={false}
+            onClick={() => {
+              setLogging((n) => n + 1)
+              setLogOpen(true)
+            }}
+            className="min-h-11 px-4 text-[13px]"
+          >
+            <span className="flex items-center gap-1.5">
+              <IconPlus size={16} aria-hidden />
+              Log a complaint
+            </span>
+          </ScButton>
+        }
       />
+
+      <LogComplaintDialog key={logging} open={logOpen} onClose={() => setLogOpen(false)} />
 
       <div>
         {/* One row that scrolls sideways on a phone, like the garage list's. */}

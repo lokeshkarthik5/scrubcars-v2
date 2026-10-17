@@ -23,6 +23,7 @@ import {
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { Toast } from '@repo/ui/sc/toast'
 import { VendorCard } from '@repo/ui/features/vendor-card'
+import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
@@ -318,7 +319,11 @@ function GarageListContent() {
                   <Reveal index={i}>
                     {/* The mode travels with the tap, so the garage page and
                         checkout open on the choice made here. */}
-                    <VendorCard vendor={vendor} mode={serviceMode} />
+                    <VendorCard
+                      vendor={vendor}
+                      mode={serviceMode}
+                      action={<SaveGarageButton vendor={vendor} />}
+                    />
                   </Reveal>
                 </Fragment>
               ))}

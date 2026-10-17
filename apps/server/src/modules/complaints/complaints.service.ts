@@ -2,6 +2,7 @@ import { bookingReference } from '../../lib/booking-ops.js'
 import {
   COMPLAINT_ACTION_FROM,
   COMPLAINT_CATEGORY_LABELS,
+  COMPLAINT_SOURCE_LABELS,
   MAX_COMPLAINTS_PER_HOUR,
   MAX_UNFINISHED_COMPLAINTS,
   complaintDueTimes,
@@ -15,6 +16,7 @@ import {
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
+import { pickBookingByReference, planLoggedComplaint } from './complaints.logging.js'
 import {
   complaintsRepository,
   type AdminComplaintRow,
@@ -24,8 +26,10 @@ import {
 import type {
   CloseComplaintInput,
   ComplaintAdminNoteInput,
+  ComplaintLookupQuery,
   CreateComplaintInput,
   ListComplaintsQuery,
+  LogComplaintInput,
   ResolveComplaintInput,
 } from './complaints.validation.js'
 
@@ -66,6 +70,9 @@ function toCustomerComplaint(row: ComplaintRecord) {
     bookingId: row.bookingId,
     bookingRef: row.bookingRef,
     garageName: row.garageName,
+    // How it reached us: 'app', or how they told the team (never who logged it).
+    source: row.source,
+    receivedAt: row.receivedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
     resolvedAt: row.resolvedAt?.toISOString() ?? null,
@@ -77,7 +84,7 @@ function toCustomerComplaint(row: ComplaintRecord) {
 
 function toAdminComplaint(row: AdminComplaintRow, now: Date) {
   const c = row.complaint
-  const due = complaintDueTimes(c.createdAt)
+  const due = complaintDueTimes(c.receivedAt)
   return {
     id: c.id,
     number: formatComplaintNumber(c.number),
@@ -88,8 +95,10 @@ function toAdminComplaint(row: AdminComplaintRow, now: Date) {
       id: c.userId,
       name: c.customerName,
       phone: c.customerPhone,
-      // Null user id: the account was deleted after the complaint was made.
-      accountDeleted: c.userId === null || !row.accountExists,
+      // Null user id on an app complaint: the account was deleted after it
+      // was made. A logged one may never have had an account (the phone was
+      // not one), so it is not called deleted; admin says it has none.
+      accountDeleted: c.userId === null ? c.source === 'app' : !row.accountExists,
     },
     booking: c.bookingRef
       ? {
@@ -110,6 +119,9 @@ function toAdminComplaint(row: AdminComplaintRow, now: Date) {
     resolvedBy: c.resolvedBy,
     closedAt: c.closedAt?.toISOString() ?? null,
     closedBy: c.closedBy,
+    source: c.source,
+    loggedBy: c.loggedBy,
+    receivedAt: c.receivedAt.toISOString(),
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     acknowledgeBy: due.acknowledgeBy.toISOString(),
@@ -229,10 +241,88 @@ export const complaintsService = {
       garageName: created.garageName,
       customerName: created.customerName,
       message: created.message,
-      acknowledgeBy: complaintDueTimes(created.createdAt).acknowledgeBy,
+      acknowledgeBy: complaintDueTimes(created.receivedAt).acknowledgeBy,
+      logged: null,
     })
 
     return toCustomerComplaint(created)
+  },
+
+  /**
+   * The team logs a complaint that came by phone, WhatsApp, email or in
+   * person. It gets a number and the same clock as one raised in the app,
+   * counted from when it was received.
+   *
+   * The phone finds the account: if there is one, the complaint is theirs
+   * (it shows in their My complaints, with the team's answer) and their
+   * name is taken from it; if not, the name typed is kept with the phone.
+   * A booking reference attaches the booking and its garage; with an
+   * account it must be one of theirs.
+   */
+  async log(input: LogComplaintInput, now = new Date()) {
+    const account = (await complaintsRepository.findUserByPhone(input.phone)) ?? null
+    const bookings = input.bookingRef
+      ? await complaintsRepository.findBookingsByReference(input.bookingRef)
+      : []
+    const values = planLoggedComplaint(input, { account, bookings }, now)
+    const created = await complaintsRepository.insertLogged(values)
+
+    const number = formatComplaintNumber(created.number)
+    log.info(
+      {
+        complaintId: created.id,
+        number,
+        source: created.source,
+        linkedToAccount: created.userId !== null,
+        bookingId: created.bookingId,
+      },
+      'complaint:logged'
+    )
+    alertOps({
+      kind: 'complaint_received',
+      complaintId: created.id,
+      number,
+      category: COMPLAINT_CATEGORY_LABELS[created.category],
+      bookingId: created.bookingId,
+      garageName: created.garageName,
+      customerName: created.customerName,
+      message: created.message,
+      acknowledgeBy: complaintDueTimes(created.receivedAt).acknowledgeBy,
+      logged: { source: COMPLAINT_SOURCE_LABELS[created.source], by: input.loggedBy },
+    })
+
+    return toAdminComplaint(await getAdminOr404(created.id), now)
+  },
+
+  /**
+   * The log form's look-ups: whose account a phone is (only the name: the
+   * form shows "Karthik's account"), and which booking a reference is, with
+   * whether it is that customer's. Nothing is written.
+   */
+  async lookup(query: ComplaintLookupQuery) {
+    const account = query.phone ? await complaintsRepository.findUserByPhone(query.phone) : undefined
+    let booking:
+      | { found: true; reference: string; garageName: string | null; scheduledAt: string; status: string }
+      | { found: false; refusal: 'not_found' | 'not_theirs' | 'ambiguous' }
+      | null = null
+    if (query.bookingRef) {
+      const candidates = await complaintsRepository.findBookingsByReference(query.bookingRef)
+      const picked = pickBookingByReference(candidates, account?.id ?? null)
+      booking =
+        'booking' in picked
+          ? {
+              found: true as const,
+              reference: bookingReference(picked.booking.id),
+              garageName: picked.booking.garageName,
+              scheduledAt: picked.booking.scheduledAt.toISOString(),
+              status: picked.booking.status,
+            }
+          : { found: false as const, refusal: picked.refusal }
+    }
+    return {
+      customer: query.phone ? (account ? { name: account.name } : null) : undefined,
+      booking: query.bookingRef ? booking : undefined,
+    }
   },
 
   /** The customer's own complaints, newest first. */

@@ -4,8 +4,10 @@ import { complaintsService } from './complaints.service.js'
 import type {
   CloseComplaintInput,
   ComplaintAdminNoteInput,
+  ComplaintLookupQuery,
   CreateComplaintInput,
   ListComplaintsQuery,
+  LogComplaintInput,
   ResolveComplaintInput,
 } from './complaints.validation.js'
 
@@ -32,6 +34,16 @@ export async function listMyComplaints(c: ComplaintsContext) {
 
 export async function listComplaints(c: ComplaintsContext, query: ListComplaintsQuery) {
   const data = await complaintsService.list(query)
+  return c.json({ success: true, data })
+}
+
+export async function logComplaint(c: ComplaintsContext, input: LogComplaintInput) {
+  const data = await complaintsService.log(input)
+  return c.json({ success: true, data }, 201)
+}
+
+export async function lookupForLog(c: ComplaintsContext, query: ComplaintLookupQuery) {
+  const data = await complaintsService.lookup(query)
   return c.json({ success: true, data })
 }
 

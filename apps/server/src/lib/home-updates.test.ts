@@ -5,10 +5,13 @@ import {
   deriveUpdates,
   firstNameOf,
   hasUnread,
+  MY_COMPLAINTS_PATH,
   reminderTimeFor,
   rupees,
   type HubBooking,
+  type HubComplaint,
 } from './home-updates.js'
+import { bannedPhraseIn } from './copy-rules.js'
 import type { NoticeRow } from './notices.js'
 
 // Fixed clock: Mon 12 Oct 2026, 12:00 IST.
@@ -425,5 +428,106 @@ describe('wording helpers', () => {
     expect(firstNameOf('Priya Ramesh')).toBe('Priya')
     expect(firstNameOf('  J  ')).toBe('J')
     expect(firstNameOf('A. B.')).toBe('A. B.')
+  })
+})
+
+describe("the team's answers to complaints", () => {
+  function complaint(overrides: Partial<HubComplaint> = {}): HubComplaint {
+    return {
+      id: 'c1',
+      number: 123,
+      status: 'acknowledged',
+      acknowledgedAt: ago(2 * DAY),
+      resolvedAt: null,
+      closedAt: null,
+      hasAnswer: false,
+      ...overrides,
+    }
+  }
+  const complaintFeed = (complaints: HubComplaint[], seenAt = LONG_AGO) =>
+    deriveUpdates({ bookings: [], notices: [], complaints, seenAt, now: NOW })
+
+  test('acknowledged: "We\'re looking into" it, opening My complaints', () => {
+    const [row] = complaintFeed([complaint()])
+    expect(row).toMatchObject({
+      id: 'complaint_ack:c1',
+      kind: 'complaint_acknowledged',
+      title: "We're looking into complaint C-000123",
+      body: null,
+      linkUrl: MY_COMPLAINTS_PATH,
+      linkLabel: null,
+      bookingId: null,
+      at: ago(2 * DAY).toISOString(),
+    })
+  })
+
+  test('acknowledged, then resolved: two rows, the answer newest', () => {
+    const items = complaintFeed([
+      complaint({ status: 'resolved', resolvedAt: ago(DAY), hasAnswer: true }),
+    ])
+    expect(kinds(items)).toEqual(['complaint_resolved', 'complaint_acknowledged'])
+    expect(items[0]!.title).toBe('Complaint C-000123 resolved — see our answer')
+    expect(items[0]!.linkUrl).toBe(MY_COMPLAINTS_PATH)
+  })
+
+  test('resolved straight from open stamps the acknowledgement then: one row, not two', () => {
+    const at = ago(DAY)
+    const items = complaintFeed([
+      complaint({ status: 'resolved', acknowledgedAt: at, resolvedAt: at, hasAnswer: true }),
+    ])
+    expect(kinds(items)).toEqual(['complaint_resolved'])
+  })
+
+  test('closed: with a note of its own it says so; after a resolution it is only closed', () => {
+    const at = ago(DAY)
+    const withNote = complaintFeed([
+      complaint({ status: 'closed', acknowledgedAt: at, closedAt: at, hasAnswer: true }),
+    ])
+    expect(kinds(withNote)).toEqual(['complaint_closed'])
+    expect(withNote[0]!.title).toBe('Complaint C-000123 closed — see our note')
+
+    const plain = complaintFeed([
+      complaint({ status: 'closed', acknowledgedAt: at, closedAt: at, hasAnswer: false }),
+    ])
+    expect(plain[0]!.title).toBe('Complaint C-000123 closed')
+
+    const afterResolve = complaintFeed([
+      complaint({ status: 'closed', resolvedAt: ago(DAY), closedAt: ago(HOUR), hasAnswer: true }),
+    ])
+    expect(kinds(afterResolve)).toEqual(['complaint_closed', 'complaint_resolved', 'complaint_acknowledged'])
+    expect(afterResolve[0]!.title).toBe('Complaint C-000123 closed')
+  })
+
+  test('an open complaint has no row: nothing has happened to it yet', () => {
+    expect(complaintFeed([complaint({ status: 'open', acknowledgedAt: null })])).toEqual([])
+  })
+
+  test('older than 30 days falls out, and unread is after the read marker', () => {
+    expect(complaintFeed([complaint({ acknowledgedAt: ago(31 * DAY) })])).toEqual([])
+    const [row] = complaintFeed([complaint({ acknowledgedAt: ago(HOUR) })], ago(2 * HOUR))
+    expect(row!.unread).toBe(true)
+    const [seen] = complaintFeed([complaint({ acknowledgedAt: ago(3 * HOUR) })], ago(2 * HOUR))
+    expect(seen!.unread).toBe(false)
+  })
+
+  test('mixed in with the booking rows, newest first', () => {
+    const items = deriveUpdates({
+      bookings: [booking({ status: 'confirmed', acceptedAt: ago(3 * DAY), scheduledAt: ahead(5 * DAY) })],
+      notices: [],
+      complaints: [complaint({ acknowledgedAt: ago(DAY) })],
+      seenAt: LONG_AGO,
+      now: NOW,
+    })
+    expect(kinds(items)).toEqual(['complaint_acknowledged', 'accepted'])
+  })
+
+  test('every line passes the copy rules', () => {
+    const at = ago(DAY)
+    const items = complaintFeed([
+      complaint({ id: 'a' }),
+      complaint({ id: 'b', status: 'resolved', resolvedAt: at, hasAnswer: true }),
+      complaint({ id: 'c', status: 'closed', acknowledgedAt: at, closedAt: at, hasAnswer: true }),
+    ])
+    for (const item of items) expect(bannedPhraseIn(item.title)).toBeNull()
   })
 })

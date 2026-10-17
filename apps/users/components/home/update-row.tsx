@@ -9,6 +9,9 @@ import {
   IconCircleCheck,
   IconClock,
   IconFileInvoice,
+  IconMessageCheck,
+  IconMessageDots,
+  IconMessageX,
   IconPhoto,
   IconPlayerPause,
   IconReceipt,
@@ -37,6 +40,9 @@ const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   refunded: IconReceiptRefund,
   moved: IconCalendarRepeat,
   garage_paused: IconPlayerPause,
+  complaint_acknowledged: IconMessageDots,
+  complaint_resolved: IconMessageCheck,
+  complaint_closed: IconMessageX,
 }
 
 export interface UpdateRowData {

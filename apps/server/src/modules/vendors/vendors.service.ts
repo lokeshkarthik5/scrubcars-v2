@@ -744,6 +744,79 @@ function decodeCursor(cursor: string | undefined): {
   }
 }
 
+/**
+ * The list's garage cards for ids already chosen, in the order given, each
+ * with its distance when one was measured. The garage list and the
+ * customer's Saved garages (modules/favourites) both build their cards here,
+ * so the two are always the same shape. Filtering is the caller's: this
+ * only hydrates.
+ */
+export async function vendorCardsFor(
+  page: Array<{ id: string; distanceM: number | null }>,
+  q?: string
+): Promise<VendorListItemResponse[]> {
+  const rows = await vendorsRepository.listPublicVendorsByIds(
+    page.map((row) => row.id)
+  )
+
+  const today = todayDateKey()
+  const [aggregates, closures] = await Promise.all([
+    vendorsRepository.getRatingAggregates(rows.map((vendor) => vendor.id)),
+    vendorsRepository.listClosuresForVendors(
+      rows.map((vendor) => vendor.id),
+      today,
+      addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
+    ),
+  ])
+  const closuresByVendor = new Map<string, string[]>()
+  for (const closure of closures) {
+    const dates = closuresByVendor.get(closure.vendorId) ?? []
+    dates.push(closure.date)
+    closuresByVendor.set(closure.vendorId, dates)
+  }
+  const ratingsByVendor = new Map(
+    aggregates.map((row) => [row.vendorId, row])
+  )
+  const distanceByVendor = new Map(
+    page.map((row) => [row.id, row.distanceM])
+  )
+
+  return rows.map((vendor): VendorListItemResponse => {
+    const categories = [
+      ...new Set(vendor.services.map((service) => service.category)),
+    ]
+    const rating = ratingsByVendor.get(vendor.id)
+    const distanceM = distanceByVendor.get(vendor.id) ?? null
+
+    return {
+      id: vendor.id,
+      businessName: vendor.businessName,
+      logoUrl: vendor.logoUrl,
+      city: vendor.city,
+      isVerified: vendor.isVerified,
+      status: vendor.status,
+      doorstepEnabled: vendor.doorstepEnabled,
+      dropinEnabled: vendor.dropinEnabled,
+      pickupEnabled: isPickupOffered(vendor),
+      startingPrice: computeStartingPrice(vendor.services),
+      rating: rating ? Number(rating.average.toFixed(2)) : null,
+      reviewCount: rating?.count ?? 0,
+      serviceTags: categories.map(categoryLabel),
+      photos: vendor.photos.map((photo) => photo.url),
+      // One decimal is all a straight-line distance can honestly claim.
+      distanceKm:
+        distanceM === null ? null : Number((distanceM / 1000).toFixed(1)),
+      lat: vendor.lat,
+      lng: vendor.lng,
+      workingHours: vendor.workingHours.map(toOpeningHoursResponse),
+      closures: closuresByVendor.get(vendor.id) ?? [],
+      // From the active services loaded above, the same set the search
+      // clause reads.
+      matchedService: q ? matchedServiceName(q, vendor) : null,
+    }
+  })
+}
+
 export const vendorsService = {
   async listPublicVendors(
     query: ListPublicVendorsQuery
@@ -849,66 +922,7 @@ export const vendorsService = {
       segmentOffset = offset + page.length
     }
 
-    const rows = await vendorsRepository.listPublicVendorsByIds(
-      page.map((row) => row.id)
-    )
-
-    const today = todayDateKey()
-    const [aggregates, closures] = await Promise.all([
-      vendorsRepository.getRatingAggregates(rows.map((vendor) => vendor.id)),
-      vendorsRepository.listClosuresForVendors(
-        rows.map((vendor) => vendor.id),
-        today,
-        addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
-      ),
-    ])
-    const closuresByVendor = new Map<string, string[]>()
-    for (const closure of closures) {
-      const dates = closuresByVendor.get(closure.vendorId) ?? []
-      dates.push(closure.date)
-      closuresByVendor.set(closure.vendorId, dates)
-    }
-    const ratingsByVendor = new Map(
-      aggregates.map((row) => [row.vendorId, row])
-    )
-    const distanceByVendor = new Map(
-      page.map((row) => [row.id, row.distanceM])
-    )
-
-    const items = rows.map((vendor): VendorListItemResponse => {
-      const categories = [
-        ...new Set(vendor.services.map((service) => service.category)),
-      ]
-      const rating = ratingsByVendor.get(vendor.id)
-      const distanceM = distanceByVendor.get(vendor.id) ?? null
-
-      return {
-        id: vendor.id,
-        businessName: vendor.businessName,
-        logoUrl: vendor.logoUrl,
-        city: vendor.city,
-        isVerified: vendor.isVerified,
-        status: vendor.status,
-        doorstepEnabled: vendor.doorstepEnabled,
-        dropinEnabled: vendor.dropinEnabled,
-        pickupEnabled: isPickupOffered(vendor),
-        startingPrice: computeStartingPrice(vendor.services),
-        rating: rating ? Number(rating.average.toFixed(2)) : null,
-        reviewCount: rating?.count ?? 0,
-        serviceTags: categories.map(categoryLabel),
-        photos: vendor.photos.map((photo) => photo.url),
-        // One decimal is all a straight-line distance can honestly claim.
-        distanceKm:
-          distanceM === null ? null : Number((distanceM / 1000).toFixed(1)),
-        lat: vendor.lat,
-        lng: vendor.lng,
-        workingHours: vendor.workingHours.map(toOpeningHoursResponse),
-        closures: closuresByVendor.get(vendor.id) ?? [],
-        // From the active services loaded above, the same set the search
-        // clause reads.
-        matchedService: query.q ? matchedServiceName(query.q, vendor) : null,
-      }
-    })
+    const items = await vendorCardsFor(page, query.q)
 
     return {
       items,

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   COMPLAINT_ADMIN_NOTE_MAX,
   COMPLAINT_CATEGORIES,
+  LOGGED_COMPLAINT_SOURCES,
   COMPLAINT_MESSAGE_MAX,
   COMPLAINT_MESSAGE_MIN,
   COMPLAINT_RESOLUTION_MAX,
@@ -22,6 +23,68 @@ export const createComplaintSchema = z
       .min(COMPLAINT_MESSAGE_MIN, `Tell us a little more: at least ${COMPLAINT_MESSAGE_MIN} characters.`)
       .max(COMPLAINT_MESSAGE_MAX),
     bookingId: z.string().uuid().optional(),
+  })
+  .strict()
+
+/**
+ * The ten national digits of an Indian mobile, however it was typed or
+ * pasted ("+91 98765 43210", "098765 43210"): the shape users.phone holds.
+ * The country code and trunk prefix are peeled off only while more than ten
+ * digits remain, so a number that starts with 91 is never eaten.
+ */
+export function nationalMobileDigits(raw: string): string {
+  let digits = raw.replace(/\D/g, '')
+  while (digits.length > 10) {
+    if (digits.startsWith('0')) digits = digits.slice(1)
+    else if (digits.startsWith('91') && digits.length >= 12) digits = digits.slice(2)
+    else break
+  }
+  return digits
+}
+
+const mobileSchema = z
+  .string()
+  .max(30)
+  .transform(nationalMobileDigits)
+  .pipe(z.string().regex(/^[6-9]\d{9}$/, 'Enter a 10-digit Indian mobile number'))
+
+/** "#C0A10001", "c0a10001": a booking's 8-character reference, as lowercase hex. */
+const bookingRefSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.replace(/^#/, '').toLowerCase())
+  .pipe(z.string().regex(/^[0-9a-f]{8}$/, 'A booking reference is 8 letters and numbers, like #3F2A9C1B'))
+
+/**
+ * A complaint the team logs from a call, a WhatsApp message, an email or a
+ * visit. Strict, like the customer's: no status, user id or garage can ride
+ * along. The account is found by the phone, and the garage by the booking,
+ * on the server; `customerName` is only used when no account has this phone.
+ * `receivedAt` is when Detlio got it (the clock starts there), up to 7 days
+ * back; left out, it is now. `loggedBy` is the name typed, like the Bin's.
+ */
+export const logComplaintSchema = z
+  .object({
+    phone: mobileSchema,
+    customerName: z.string().trim().min(1).max(255).optional(),
+    source: z.enum(LOGGED_COMPLAINT_SOURCES),
+    category: z.enum(COMPLAINT_CATEGORIES),
+    message: z
+      .string()
+      .trim()
+      .min(COMPLAINT_MESSAGE_MIN, `Write a little more: at least ${COMPLAINT_MESSAGE_MIN} characters.`)
+      .max(COMPLAINT_MESSAGE_MAX),
+    bookingRef: bookingRefSchema.optional(),
+    receivedAt: z.string().datetime({ offset: true }).optional(),
+    loggedBy: z.string().trim().min(2, 'Type your name').max(100),
+  })
+  .strict()
+
+/** The log form's look-ups, as the team types: who has this phone, which booking is this. */
+export const complaintLookupQuerySchema = z
+  .object({
+    phone: mobileSchema.optional(),
+    bookingRef: bookingRefSchema.optional(),
   })
   .strict()
 
@@ -57,6 +120,8 @@ export const complaintAdminNoteSchema = z
   .strict()
 
 export type CreateComplaintInput = z.infer<typeof createComplaintSchema>
+export type LogComplaintInput = z.infer<typeof logComplaintSchema>
+export type ComplaintLookupQuery = z.infer<typeof complaintLookupQuerySchema>
 export type ListComplaintsQuery = z.infer<typeof listComplaintsQuerySchema>
 export type ResolveComplaintInput = z.infer<typeof resolveComplaintSchema>
 export type CloseComplaintInput = z.infer<typeof closeComplaintSchema>
