@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { IconBuildingStore, IconStarFilled } from '@tabler/icons-react'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
+import { DocumentsVerifiedMark } from '@repo/ui/features/documents-verified'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
@@ -94,8 +95,12 @@ export function VendorCard({
 
           <div className="flex flex-col gap-1.5 px-3.5 py-3">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text-primary">
-                {vendor.name}
+              {/* The shield sits right after the name and the name gives way
+                  first (truncates), so it never pushes the booking badges
+                  off a 360px card. */}
+              <h3 className="flex min-w-0 flex-1 items-center gap-1 text-[15px] font-semibold text-text-primary">
+                <span className="truncate">{vendor.name}</span>
+                {vendor.documentsVerified && <DocumentsVerifiedMark />}
               </h3>
               <div className="flex shrink-0 gap-1.5">
                 {vendor.dropinEnabled && (

@@ -46,6 +46,8 @@ import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { toPublicVendor, type PublicVendorFields } from './vendors.public.js'
+import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
+import { summariesByVendor } from '../../lib/vendor-documents.js'
 
 const log = logger.child({ module: 'vendors' })
 
@@ -236,6 +238,11 @@ export type VendorListItemResponse = {
    * Sivakasi" chip. The same rule as the garage page; see outsideServiceCity.
    */
   outsideServiceCity: OutsideServiceCity | null
+  /**
+   * Detlio has approved every required document: the card's shield. Only
+   * this boolean (vendors.public.ts says why). False while documents are off.
+   */
+  documentsVerified: boolean
 }
 
 export type VendorListResponse = {
@@ -775,13 +782,14 @@ export async function vendorCardsFor(
   )
 
   const today = todayDateKey()
-  const [aggregates, closures] = await Promise.all([
+  const [aggregates, closures, verified] = await Promise.all([
     vendorsRepository.getRatingAggregates(rows.map((vendor) => vendor.id)),
     vendorsRepository.listClosuresForVendors(
       rows.map((vendor) => vendor.id),
       today,
       addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
     ),
+    documentsVerifiedIds(rows.map((vendor) => vendor.id)),
   ])
   const closuresByVendor = new Map<string, string[]>()
   for (const closure of closures) {
@@ -829,8 +837,22 @@ export async function vendorCardsFor(
       // clause reads.
       matchedService: q ? matchedServiceName(q, vendor) : null,
       outsideServiceCity: outsideServiceCity(vendor),
+      documentsVerified: verified.has(vendor.id),
     }
   })
+}
+
+/**
+ * The garages, of these, with the "Documents verified" badge: every required
+ * document approved (lib/vendor-documents.ts). Nothing is read, and nobody
+ * has the badge, while garage documents are off (no R2_DOCS_BUCKET).
+ */
+async function documentsVerifiedIds(vendorIds: string[]): Promise<Set<string>> {
+  if (vendorIds.length === 0 || !isDocumentStorageConfigured()) return new Set()
+  const rows = await vendorsRepository.listApprovedDocumentTypes(vendorIds)
+  return new Set(
+    [...summariesByVendor(rows)].filter(([, summary]) => summary.verified).map(([vendorId]) => vendorId)
+  )
 }
 
 /**
@@ -1039,16 +1061,17 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, aggregates] = await Promise.all([
+    const [photos, services, aggregates, verified] = await Promise.all([
       vendorsRepository.listPhotos(vendor.id),
       vendorsRepository.listServices(vendor.id, true),
       vendorsRepository.getRatingAggregates([vendor.id]),
+      documentsVerifiedIds([vendor.id]),
     ])
 
     const rating = aggregates[0]
 
     return {
-      ...toPublicVendor(vendor),
+      ...toPublicVendor(vendor, { documentsVerified: verified.has(vendor.id) }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
       rating: rating ? Number(rating.average.toFixed(2)) : null,

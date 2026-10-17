@@ -1,0 +1,255 @@
+/**
+ * Garage documents (0043): what a garage uploads for Detlio to check, and
+ * when it has earned the "Documents verified" badge customers see. Pure, so
+ * every rule is pinned by vendor-documents.test.ts.
+ *
+ * Owner decision (17 Oct 2026): "A separate section where they upload their
+ * documents and we verify and give them a documents-verified badge." It is
+ * separate from `vendors.is_verified`, which only decides whether a garage is
+ * listed (LISTED_TO_CUSTOMERS) and is untouched by anything here.
+ *
+ * The files are ID and bank proof, so they live in a private R2 bucket of
+ * their own (lib/document-storage.ts, R2_DOCS_BUCKET) and are only ever read
+ * through a link that lasts five minutes, made for the garage's owner seat or
+ * a super-admin. The words the screens show are twinned in
+ * packages/core/src/vendor-documents.ts (vendor-documents.parity.test.ts).
+ */
+
+/** Every kind of document, in the order the screens list them. */
+export const DOCUMENT_TYPES = [
+  'shop_photo',
+  'owner_id',
+  'bank_proof',
+  'agreement',
+  'gst_certificate',
+  'trade_licence',
+] as const
+
+export type DocumentType = (typeof DOCUMENT_TYPES)[number]
+
+/**
+ * The four a garage needs approved for the badge. GST and a trade licence
+ * are optional: many small garages have neither.
+ */
+export const REQUIRED_DOCUMENT_TYPES = [
+  'shop_photo',
+  'owner_id',
+  'bank_proof',
+  'agreement',
+] as const satisfies readonly DocumentType[]
+
+/** The names the team and the garage both use. */
+export const DOCUMENT_LABELS: Record<DocumentType, string> = {
+  shop_photo: 'Shop photo',
+  owner_id: 'Owner ID',
+  bank_proof: 'Bank proof',
+  agreement: 'Signed Detlio agreement',
+  gst_certificate: 'GST certificate',
+  trade_licence: 'Trade licence',
+}
+
+export const DOCUMENT_STATUSES = ['pending', 'approved', 'rejected'] as const
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number]
+
+/** A file's place on its document: one side, or the front and back of a card. */
+export const DOCUMENT_SIDES = ['front', 'back'] as const
+export type DocumentSide = (typeof DOCUMENT_SIDES)[number]
+
+/** Photos (re-encoded in the browser first) and PDFs, with each one's extension. */
+export const DOCUMENT_CONTENT_TYPES = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'application/pdf': 'pdf',
+} as const
+
+export type DocumentContentType = keyof typeof DOCUMENT_CONTENT_TYPES
+
+/** 10 MB a file: a phone's PDF scan of a passbook page fits easily. */
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+
+/** Front and back, at most. */
+export const MAX_FILES_PER_DOCUMENT = 2
+
+/** How long a link to view a file works. Made per press, never stored. */
+export const DOCUMENT_LINK_TTL_SECONDS = 5 * 60
+
+/** How long the browser has to send a file once it has its upload link. */
+export const DOCUMENT_UPLOAD_TTL_SECONDS = 5 * 60
+
+/** The longest rejection reason, as the column holds it. */
+export const MAX_REJECTION_REASON = 300
+
+export function isDocumentType(value: string): value is DocumentType {
+  return (DOCUMENT_TYPES as readonly string[]).includes(value)
+}
+
+export function isRequiredDocument(type: DocumentType): boolean {
+  return (REQUIRED_DOCUMENT_TYPES as readonly string[]).includes(type)
+}
+
+export function isDocumentContentType(value: string): value is DocumentContentType {
+  return Object.hasOwn(DOCUMENT_CONTENT_TYPES, value)
+}
+
+/** Only a trade licence carries an expiry date. */
+export function takesExpiry(type: DocumentType): boolean {
+  return type === 'trade_licence'
+}
+
+// ─── Storage keys ────────────────────────────────────────────────────────────
+
+/**
+ * Where a garage's files of one type go in the private bucket. The vendor id
+ * comes from resolveTenant (or the admin route's own garage), never from a
+ * request body, so one garage can never be handed a key in another's folder.
+ */
+export function documentFolder(vendorId: string, type: DocumentType): string {
+  return `vendors/${vendorId}/documents/${type}/`
+}
+
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const EXTENSIONS = Object.values(DOCUMENT_CONTENT_TYPES).join('|')
+
+/**
+ * Whether a key the client sends back is one this API could have minted for
+ * this garage and type: its folder, a random uuid and an allowed extension,
+ * and nothing else (no `..`, no second folder).
+ */
+export function isDocumentKey(key: string, vendorId: string, type: DocumentType): boolean {
+  const folder = documentFolder(vendorId, type)
+  if (!key.startsWith(folder)) return false
+  return new RegExp(`^${UUID}\\.(${EXTENSIONS})$`).test(key.slice(folder.length))
+}
+
+// ─── Upload rules ────────────────────────────────────────────────────────────
+
+export type UploadRefusal = 'unsupported_type' | 'too_large' | 'empty'
+
+/** Why a file may not be uploaded, before any link is made, or null. */
+export function uploadRefusal(contentType: string, sizeBytes: number): UploadRefusal | null {
+  if (!isDocumentContentType(contentType)) return 'unsupported_type'
+  if (!Number.isInteger(sizeBytes) || sizeBytes <= 0) return 'empty'
+  if (sizeBytes > MAX_DOCUMENT_BYTES) return 'too_large'
+  return null
+}
+
+export type FilesRefusal = 'no_files' | 'too_many_files' | 'duplicate_side' | 'no_front' | 'duplicate_file'
+
+/**
+ * Why a set of files cannot make one document, or null. One file is its
+ * front; two are a front and a back, never two of one side or the same file
+ * twice.
+ */
+export function filesRefusal(files: Array<{ side: DocumentSide; key: string }>): FilesRefusal | null {
+  if (files.length === 0) return 'no_files'
+  if (files.length > MAX_FILES_PER_DOCUMENT) return 'too_many_files'
+  if (new Set(files.map((f) => f.key)).size !== files.length) return 'duplicate_file'
+  if (new Set(files.map((f) => f.side)).size !== files.length) return 'duplicate_side'
+  if (!files.some((f) => f.side === 'front')) return 'no_front'
+  return null
+}
+
+// ─── Review ──────────────────────────────────────────────────────────────────
+
+export type ReviewAction = 'approve' | 'reject'
+export type ReviewRefusal = 'already_approved' | 'already_rejected' | 'changed'
+
+/**
+ * Why a review cannot be recorded, or null. The admin names the version they
+ * looked at: a garage that uploaded again meanwhile has sent files nobody has
+ * opened, and those are never approved by a press made on the old ones. An
+ * approved document can still be rejected (something found later), and a
+ * rejected one approved (a rejection by mistake); pressing the same answer
+ * twice is refused, so a double click records one review.
+ */
+export function reviewRefusal(
+  current: { status: DocumentStatus; version: number },
+  action: ReviewAction,
+  seenVersion: number
+): ReviewRefusal | null {
+  if (current.version !== seenVersion) return 'changed'
+  if (action === 'approve' && current.status === 'approved') return 'already_approved'
+  if (action === 'reject' && current.status === 'rejected') return 'already_rejected'
+  return null
+}
+
+// ─── The badge and the progress line ─────────────────────────────────────────
+
+export interface DocumentState {
+  type: DocumentType
+  status: DocumentStatus
+}
+
+/**
+ * **Documents verified**: every required type approved. Optional ones do not
+ * count either way, so an expired trade licence never takes the badge away.
+ */
+export function documentsVerified(documents: readonly DocumentState[]): boolean {
+  return REQUIRED_DOCUMENT_TYPES.every((type) =>
+    documents.some((doc) => doc.type === type && doc.status === 'approved')
+  )
+}
+
+export interface DocumentsSummary {
+  verified: boolean
+  /** Required types approved, of `required`. */
+  approvedRequired: number
+  required: number
+  /** Documents (any type) waiting for Detlio to look at them. */
+  toReview: number
+  /** Required types never uploaded. */
+  missingRequired: number
+  /** Documents (any type) sent back to the garage. */
+  rejected: number
+}
+
+export function summariseDocuments(documents: readonly DocumentState[]): DocumentsSummary {
+  const approvedRequired = REQUIRED_DOCUMENT_TYPES.filter((type) =>
+    documents.some((doc) => doc.type === type && doc.status === 'approved')
+  ).length
+  return {
+    verified: approvedRequired === REQUIRED_DOCUMENT_TYPES.length,
+    approvedRequired,
+    required: REQUIRED_DOCUMENT_TYPES.length,
+    toReview: documents.filter((doc) => doc.status === 'pending').length,
+    missingRequired: REQUIRED_DOCUMENT_TYPES.filter(
+      (type) => !documents.some((doc) => doc.type === type)
+    ).length,
+    rejected: documents.filter((doc) => doc.status === 'rejected').length,
+  }
+}
+
+/** "3 of 4 required approved". */
+export function progressLine(summary: Pick<DocumentsSummary, 'approvedRequired' | 'required'>): string {
+  return `${summary.approvedRequired} of ${summary.required} required approved`
+}
+
+/**
+ * Every document row grouped by garage, as the admin list and the customer
+ * lists read them: one pass, no query per garage.
+ */
+export function summariesByVendor(
+  rows: ReadonlyArray<DocumentState & { vendorId: string }>
+): Map<string, DocumentsSummary> {
+  const byVendor = new Map<string, DocumentState[]>()
+  for (const row of rows) {
+    const list = byVendor.get(row.vendorId) ?? []
+    list.push(row)
+    byVendor.set(row.vendorId, list)
+  }
+  return new Map([...byVendor].map(([vendorId, docs]) => [vendorId, summariseDocuments(docs)]))
+}
+
+/**
+ * What the Telegram alert says was uploaded: "Owner ID", or "Owner ID
+ * (replacing an approved one)" when a garage swaps a document the team had
+ * already passed, which takes the badge away until it is checked again.
+ */
+export function uploadedLine(type: DocumentType, replaced: DocumentStatus | null): string {
+  const label = DOCUMENT_LABELS[type]
+  if (replaced === 'approved') return `${label} (replacing an approved one)`
+  if (replaced === 'rejected') return `${label} (after a rejection)`
+  if (replaced === 'pending') return `${label} (replacing one not yet checked)`
+  return label
+}

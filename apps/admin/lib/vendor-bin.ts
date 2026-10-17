@@ -60,7 +60,7 @@ export function confirmNameMatches(typed: string, businessName: string): boolean
   return tidy(typed).length > 0 && tidy(typed) === tidy(businessName)
 }
 
-export type DeleteLine = { key: 'bookings' | 'pictures' | 'setup'; text: string }
+export type DeleteLine = { key: 'bookings' | 'pictures' | 'setup' | 'documents'; text: string }
 
 /** What goes, as the sheet lists it under "These go with it". */
 export function deleteLines(preview: Pick<AdminVendorDeletePreview, 'bookings' | 'checkouts' | 'assets'>): DeleteLine[] {
@@ -84,6 +84,19 @@ export function deleteLines(preview: Pick<AdminVendorDeletePreview, 'bookings' |
           : 'Logo, photos and service pictures',
     },
     { key: 'setup', text: 'Services, prices, hours and team logins' },
+    // Garage documents (0043). On a tombstone the signed agreement stays,
+    // with the bookings kept for their money (keptLine says those stay).
+    ...(preview.assets.documents
+      ? [
+          {
+            key: 'documents' as const,
+            text:
+              preview.bookings.kept + preview.checkouts.kept > 0
+                ? 'Its documents (ID, bank proof and the rest), except the signed agreement'
+                : 'Its documents (ID, bank proof, agreement and the rest)',
+          },
+        ]
+      : []),
   ]
 }
 

@@ -23,6 +23,13 @@ import { resolveServicePricing } from '../../lib/pricing.js'
 import { outsideServiceCity } from '../../lib/service-city.js'
 import { todayDateKey } from '../../lib/slots.js'
 import { vendorReadiness } from '../../lib/vendor-readiness.js'
+import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
+import {
+  summariesByVendor,
+  summariseDocuments,
+  type DocumentsSummary,
+} from '../../lib/vendor-documents.js'
+import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.repository.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
 import {
   codeTriesLeft,
@@ -550,12 +557,22 @@ export const adminService = {
       ])
     )
     const drawnAreas = new Set(await adminRepository.listVendorIdsWithDoorstepArea())
+    // Garage documents (0043), as type and status only, for the "Documents
+    // to review" chip and the checklist. Null for every garage while they
+    // are off.
+    const documentsOn = isDocumentStorageConfigured()
+    const documents = documentsOn
+      ? summariesByVendor(await vendorDocumentsRepository.listAllStates())
+      : new Map<string, DocumentsSummary>()
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
     // forever and kept as a tombstone is not in it at all.
     return vendors.map(({ services, photos, workingHours, ...vendor }) => {
       const hasDoorstepArea = drawnAreas.has(vendor.id)
+      const documentSummary = documentsOn
+        ? (documents.get(vendor.id) ?? summariseDocuments([]))
+        : null
       return {
         ...vendor,
         serviceCount: services.length,
@@ -569,12 +586,14 @@ export const adminService = {
         live: isListedToCustomers(vendor),
         // On with the responsibility terms on file (lib/pickup.ts).
         pickupEnabled: isPickupOffered(vendor),
+        documents: documentSummary,
         readiness: vendorReadiness({
           ...vendor,
           hasDoorstepArea,
           photoCount: photos.length,
           services,
           workingHours,
+          documents: documentSummary,
         }),
       }
     })

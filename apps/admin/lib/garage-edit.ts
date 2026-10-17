@@ -29,6 +29,34 @@ export function parseEditTab(value: string | string[] | null | undefined): EditT
 }
 
 /**
+ * Every tab the page has: the four "Save changes" covers, then Documents
+ * (garage documents, 0043), which saves each action on its own and is shown
+ * only while documents are on. The checklist's "Documents not verified"
+ * links here.
+ */
+export const PAGE_TABS = [...EDIT_TABS, 'documents'] as const
+export type PageTab = (typeof PAGE_TABS)[number]
+
+export const PAGE_TAB_LABELS: Record<PageTab, string> = {
+  ...EDIT_TAB_LABELS,
+  documents: 'Documents',
+}
+
+/**
+ * The tab a `?tab=` asks for, Documents included while documents are on, or
+ * Details. An allow-list, like parseEditTab.
+ */
+export function parsePageTab(value: string | string[] | null | undefined, documentsOn = true): PageTab {
+  if (value === 'documents') return documentsOn ? 'documents' : 'details'
+  return parseEditTab(value)
+}
+
+/** Whether a tab is one "Save changes" covers. */
+export function isEditTab(tab: PageTab): tab is EditTab {
+  return (EDIT_TABS as readonly string[]).includes(tab)
+}
+
+/**
  * Where the header's back arrow goes: the `?back=` a link brought along (the
  * garage list with its filters, say), when it is one of the panel's own
  * garage-list paths, or else the list itself. Anything that could leave the

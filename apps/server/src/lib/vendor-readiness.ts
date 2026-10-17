@@ -18,6 +18,10 @@
  * that answered yes to pickup at onboarding but has not accepted the
  * responsibility terms, so it is not on.
  *
+ * Garage documents (0043) add one optional item: not every required
+ * document approved yet, so no "Documents verified" badge. Never blocking:
+ * listing is the Verify button's, not the documents'.
+ *
  * Only blocking and fix count as "needs fixing"; a garage with nothing but
  * optional items is Ready.
  *
@@ -28,11 +32,12 @@
  */
 
 import { DEFAULT_PICKUP_RADIUS_KM, isPickupOffered, type VendorPickupAnswer } from './pickup.js'
+import { progressLine, type DocumentsSummary } from './vendor-documents.js'
 
 export type ReadinessSeverity = 'blocking' | 'fix' | 'optional'
 
 /** The edit page tab where each item is fixed (its `?tab=` allow-list). */
-export type ReadinessTab = 'details' | 'location' | 'operations' | 'services'
+export type ReadinessTab = 'details' | 'location' | 'operations' | 'services' | 'documents'
 
 export interface ReadinessItem {
   key: string
@@ -68,6 +73,12 @@ export interface ReadinessInput {
   services: Array<{ description: string | null }>
   /** Its weekly rows. A day with no row is closed, as slots.ts reads it. */
   workingHours: Array<{ isClosed: boolean }>
+  /**
+   * Its garage documents (0043, lib/vendor-documents.ts summariseDocuments),
+   * or null/absent while garage documents are off, when there is nothing to
+   * ask of it.
+   */
+  documents?: Pick<DocumentsSummary, 'verified' | 'approvedRequired' | 'required' | 'toReview'> | null
 }
 
 /**
@@ -262,6 +273,22 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
 
   if (v.photoCount === 0) {
     items.push({ key: 'no_photos', severity: 'optional', label: 'No photos', short: 'photos', tab: 'details' })
+  }
+
+  // Optional, never blocking: the badge is a sign for customers, and a
+  // garage is listed on `is_verified` alone (owner decision, 17 Oct 2026).
+  if (v.documents && !v.documents.verified) {
+    items.push({
+      key: 'documents_not_verified',
+      severity: 'optional',
+      label: 'Documents not verified',
+      detail:
+        v.documents.toReview > 0
+          ? `${progressLine(v.documents)} · ${v.documents.toReview} to review`
+          : progressLine(v.documents),
+      short: 'documents',
+      tab: 'documents',
+    })
   }
 
   return items

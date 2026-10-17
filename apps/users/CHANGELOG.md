@@ -19,6 +19,20 @@ reconstructing every change in them.
 
 ### Added
 
+- **Garage documents and the "Documents verified" badge.** Garage portal:
+  Settings → Documents (owner only, shown once the server has its private
+  documents bucket): each document with what to upload ("Cover the first 8
+  digits of an Aadhaar number" on Owner ID), its status, the reason when
+  rejected, upload or replace (one or two files, photos re-encoded to drop
+  location data, PDFs as they are, 10 MB each), a five-minute View link,
+  and "3 of 4 required approved". Admin: a garage's edit page gains a
+  Documents tab (open each file, Approve or Reject with a reason, upload on
+  the garage's behalf and approve at once), and the garage list a
+  "Documents to review" chip and card link. Customer app: a small shield
+  after the name on garage cards (labelled "Documents verified" for screen
+  readers) and a "Documents verified" badge on the garage page, once the
+  four required documents are approved.
+
 - **The garage suggests another time; extra work approved and paid in the
   app.** Customer app: when a garage can't do a booking's time it can offer
   up to three others. Home's must-act card ("Can't do 10:00 AM — pick

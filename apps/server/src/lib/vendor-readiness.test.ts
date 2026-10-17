@@ -241,4 +241,37 @@ describe('vendorReadiness', () => {
       )
     })
   })
+
+  describe('garage documents', () => {
+    const docs = (overrides: Partial<NonNullable<ReadinessInput['documents']>> = {}) => ({
+      verified: false,
+      approvedRequired: 2,
+      required: 4,
+      toReview: 0,
+      ...overrides,
+    })
+
+    test('not verified is optional, never blocking, and opens the Documents tab', () => {
+      expect(item(ready({ documents: docs() }), 'documents_not_verified')).toEqual({
+        key: 'documents_not_verified',
+        severity: 'optional',
+        label: 'Documents not verified',
+        detail: '2 of 4 required approved',
+        short: 'documents',
+        tab: 'documents',
+      })
+    })
+
+    test('says how many wait for review', () => {
+      expect(item(ready({ documents: docs({ toReview: 2 }) }), 'documents_not_verified')?.detail).toBe(
+        '2 of 4 required approved · 2 to review'
+      )
+    })
+
+    test('nothing once verified, and nothing while documents are off', () => {
+      expect(vendorReadiness(ready({ documents: docs({ verified: true, approvedRequired: 4 }) }))).toEqual([])
+      expect(vendorReadiness(ready({ documents: null }))).toEqual([])
+      expect(vendorReadiness(ready())).toEqual([])
+    })
+  })
 })

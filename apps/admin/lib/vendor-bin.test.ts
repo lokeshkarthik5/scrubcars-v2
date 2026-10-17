@@ -113,3 +113,21 @@ describe('delete forever', () => {
     ).toBe('Deleted part of Zero H2O. 4 more rows are left: press Delete forever again.')
   })
 })
+
+describe('delete forever: garage documents', () => {
+  const preview = (documents: number, kept = 0) => ({
+    bookings: { deleted: 2, kept },
+    checkouts: { deleted: 0, kept: 0 },
+    assets: { ...assets, documents },
+  })
+
+  test('says its documents go, and that the signed agreement stays when bookings are kept', () => {
+    expect(deleteLines(preview(0)).map((line) => line.key)).toEqual(['bookings', 'pictures', 'setup'])
+    expect(deleteLines(preview(4)).find((line) => line.key === 'documents')?.text).toBe(
+      'Its documents (ID, bank proof, agreement and the rest)'
+    )
+    expect(deleteLines(preview(4, 1)).find((line) => line.key === 'documents')?.text).toBe(
+      'Its documents (ID, bank proof and the rest), except the signed agreement'
+    )
+  })
+})

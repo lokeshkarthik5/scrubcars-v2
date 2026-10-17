@@ -57,6 +57,8 @@ services:
 
   # One-shot: creates the bucket and makes it publicly readable, because
   # R2_PUBLIC_BASE_URL is served straight to the browser as an <img> src.
+  # Also the garage documents bucket (R2_DOCS_BUCKET), left private as in
+  # production: its files are only read through presigned links.
   # The server image ships `mc`, so it doubles as the client here.
   minio-init:
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
@@ -67,5 +69,6 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 detlio detlio-secret &&
       mc mb --ignore-existing local/detlio-e2e &&
-      mc anonymous set download local/detlio-e2e
+      mc anonymous set download local/detlio-e2e &&
+      mc mb --ignore-existing local/detlio-e2e-docs
       "

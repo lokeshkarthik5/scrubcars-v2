@@ -68,6 +68,19 @@ export interface AdminVendor {
   deletedReason?: string | null
   /** What the garage still needs, blocking first (see ReadinessItem). */
   readiness?: ReadinessItem[]
+  /**
+   * Its garage documents in short (0043): whether it has the badge, how
+   * many required are approved, how many wait for review. Null while garage
+   * documents are off; absent from older servers.
+   */
+  documents?: {
+    verified: boolean
+    approvedRequired: number
+    required: number
+    toReview: number
+    missingRequired: number
+    rejected: number
+  } | null
   owner: {
     id: string
     name: string
@@ -82,7 +95,7 @@ export interface AdminVendor {
 }
 
 /** The edit page tab where a checklist item is fixed (its `?tab=`). */
-export type ReadinessTab = 'details' | 'location' | 'operations' | 'services'
+export type ReadinessTab = 'details' | 'location' | 'operations' | 'services' | 'documents'
 
 /**
  * One line of a garage's "what's missing" checklist, from the server's
@@ -992,6 +1005,8 @@ export interface AdminVendorDeletePreview {
     videos: number
     services: number
     teamLogins: number
+    /** Garage documents (ID, bank proof…). Absent from older servers. */
+    documents?: number
   }
   countLines: string[]
   receiptPlan: DataResetReceiptYear[]

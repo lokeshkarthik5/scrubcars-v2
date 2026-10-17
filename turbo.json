@@ -41,6 +41,7 @@
         "R2_ACCESS_KEY_ID",
         "R2_ACCOUNT_ID",
         "R2_BUCKET",
+        "R2_DOCS_BUCKET",
         "R2_ENDPOINT",
         "R2_PUBLIC_BASE_URL",
         "R2_SECRET_ACCESS_KEY",

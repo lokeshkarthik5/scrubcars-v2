@@ -14,6 +14,7 @@ import {
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
+import { deleteDocumentObjects } from '../../lib/document-storage.js'
 import { deleteObject, isStorageConfigured, keyFromPublicUrl } from '../../lib/storage.js'
 import {
   BIN_CANCELLATION,
@@ -167,8 +168,14 @@ function removeGarageFiles(files: {
   galleryKeys: string[]
   media: Parameters<typeof removeMediaFiles>[0]
   jobPhotoKeys: string[]
+  documentKeys: string[]
 }) {
   removeMediaFiles(files.media)
+  // Garage documents live in their own private bucket (0043).
+  if (files.documentKeys.length > 0) {
+    const documentKeys = files.documentKeys
+    runInBackground('vendor_bin_documents', () => deleteDocumentObjects(documentKeys, 'garage_deleted'))
+  }
   const keys = [files.logoKey, ...files.galleryKeys, ...files.jobPhotoKeys].filter(
     (key): key is string => Boolean(key)
   )
@@ -433,6 +440,13 @@ export const vendorBinService = {
               .filter((key): key is string => Boolean(key))
           : []
         const media = deletingGarage ? await repo.mediaFiles(id) : []
+        // Its documents' files: every one when the row goes; on a tombstone
+        // all but the signed agreement, which stays with the kept bookings.
+        const documentKeys = deletingGarage
+          ? (await repo.documentFiles(id))
+              .filter((file) => outcome === 'hard_delete' || file.type !== 'agreement')
+              .map((file) => file.storageKey)
+          : []
 
         const { photoKeys, restartYears } = await deletePlannedRows(repo, plan, audit.id, VOID_REASON)
 
@@ -455,6 +469,9 @@ export const vendorBinService = {
           await repo.deletePayoutAccount(id)
           // Customers' saves of it go too (a deleted garage's go by cascade).
           await repo.deleteFavourites(id)
+          // Its documents too, but for the signed agreement (a deleted
+          // garage's go by cascade).
+          await repo.deleteDocumentsExceptAgreement(id)
           await repo.makeTombstone(id, tombstoneFields(now))
         }
         if (deletingGarage) await syncOwnerFlags(repo, seatHolders)
@@ -474,6 +491,7 @@ export const vendorBinService = {
             galleryKeys,
             media,
             jobPhotoKeys: photoKeys,
+            documentKeys,
           },
         }
       })

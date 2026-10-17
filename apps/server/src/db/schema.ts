@@ -25,6 +25,12 @@ import {
 import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
+import type {
+  DocumentContentType,
+  DocumentSide,
+  DocumentStatus,
+  DocumentType,
+} from '../lib/vendor-documents.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -2123,6 +2129,76 @@ export const vendorPayoutAccounts = pgTable('vendor_payout_accounts', {
   updatedBy: varchar('updated_by', { length: 100 }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
+
+// Garage documents (0043, lib/vendor-documents.ts, modules/vendor-documents):
+// one row per garage per type, the current upload and where its review
+// stands. Re-uploading replaces the row's files (the old objects are deleted
+// from the private bucket after the commit; no history of ID or bank proof
+// is kept), bumps `version` and puts it back to pending. A review must name
+// the version the admin opened. The files are in vendor_document_files.
+// Never on a public or customer payload; customers get one boolean,
+// `documentsVerified`. The CHECKs are in 0043_garage_documents.sql.
+export const vendorDocuments = pgTable(
+  'vendor_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    type: text('type').$type<DocumentType>().notNull(),
+    status: text('status').$type<DocumentStatus>().notNull().default('pending'),
+    version: integer('version').notNull().default(1),
+    // Trade licence only (CHECK).
+    expiresOn: date('expires_on'),
+    // 'garage', or the name the admin typed when uploading on its behalf.
+    uploadedBy: varchar('uploaded_by', { length: 100 }).notNull(),
+    // The session that uploaded it: a user id, or 'admin' for the shared login.
+    uploadedBySub: varchar('uploaded_by_sub', { length: 100 }).notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
+    // The admin's typed name, as the Bin records it.
+    reviewedBy: varchar('reviewed_by', { length: 100 }),
+    reviewedBySub: varchar('reviewed_by_sub', { length: 100 }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    // Shown to the garage. Required exactly when rejected (CHECK).
+    rejectionReason: varchar('rejection_reason', { length: 300 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('vendor_documents_vendor_id_type_key').on(table.vendorId, table.type),
+    index('vendor_documents_pending_idx')
+      .on(table.vendorId)
+      .where(sql`${table.status} = 'pending'`),
+    check(
+      'vendor_documents_type_check',
+      sql`${table.type} in ('shop_photo', 'owner_id', 'bank_proof', 'agreement', 'gst_certificate', 'trade_licence')`
+    ),
+    check('vendor_documents_status_check', sql`${table.status} in ('pending', 'approved', 'rejected')`),
+  ]
+)
+
+// A document's files in the private bucket: its front, and a back when it
+// has one. Cascades with its document; the objects are removed by the API
+// after the commit, best effort.
+export const vendorDocumentFiles = pgTable(
+  'vendor_document_files',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => vendorDocuments.id, { onDelete: 'cascade' }),
+    side: text('side').$type<DocumentSide>().notNull(),
+    storageKey: varchar('storage_key', { length: 512 }).notNull(),
+    contentType: text('content_type').$type<DocumentContentType>().notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('vendor_document_files_document_id_side_key').on(table.documentId, table.side),
+    uniqueIndex('vendor_document_files_storage_key_key').on(table.storageKey),
+    check('vendor_document_files_side_check', sql`${table.side} in ('front', 'back')`),
+  ]
+)
 
 // Cached geocoding responses, keyed "{provider}:{op}:{normalised-input}". Lives
 // in Postgres rather than process memory because the API is serverless — an

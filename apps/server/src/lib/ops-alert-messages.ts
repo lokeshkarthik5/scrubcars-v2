@@ -12,6 +12,12 @@ const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
 const ADMIN_REFUNDS_URL = 'https://admin.detlio.com/refunds'
 const ADMIN_PAYOUTS_URL = 'https://admin.detlio.com/payouts'
 const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
+const ADMIN_VENDORS_URL = 'https://admin.detlio.com/vendors'
+
+/** A garage's Documents tab in admin, where its uploads are approved or rejected. */
+export function adminGarageDocumentsUrl(vendorId: string): string {
+  return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=documents`
+}
 
 /** A complaint's own page in admin, where it is acknowledged and answered. */
 export function adminComplaintUrl(id: string): string {
@@ -284,6 +290,21 @@ export type OpsAlert =
        * customer raised it in the app.
        */
       logged: { source: string; by: string } | null
+    }
+  | {
+      /**
+       * A garage uploaded a document for Detlio to check (0043). The files
+       * are ID and bank proof, so the alert never carries a file, a link to
+       * one or anything read off it: only the garage, the kind of document
+       * and the admin page where it is opened.
+       */
+      kind: 'documents_uploaded'
+      vendorId: string
+      garage: string
+      /** "Owner ID", or "Owner ID (replacing an approved one)" (uploadedLine). */
+      what: string
+      /** The garage's documents now waiting for review, this one included. */
+      waiting: number
     }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
@@ -704,6 +725,14 @@ export function formatOpsAlert(alert: OpsAlert): string {
         quoted(alert.logged ? 'What they said' : 'Customer wrote', alert.message),
         `Acknowledge by ${when(alert.acknowledgeBy)}.`,
         adminComplaintUrl(alert.complaintId)
+      )
+
+    case 'documents_uploaded':
+      return lines(
+        `📄 Documents to review: ${alert.garage}`,
+        `Uploaded: ${alert.what}.`,
+        `${alert.waiting} ${alert.waiting === 1 ? 'document waits' : 'documents wait'} for review at this garage.`,
+        adminGarageDocumentsUrl(alert.vendorId)
       )
   }
 }

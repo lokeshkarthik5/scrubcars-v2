@@ -36,6 +36,16 @@ function getClient(): S3Client {
     )
   }
 
+  return makeR2Client()
+}
+
+/**
+ * The S3 client for Cloudflare R2, with the account's keys. Shared by the
+ * public photo bucket here and the private documents bucket
+ * (lib/document-storage.ts): one account, one set of keys, two buckets.
+ * Callers check their own bucket is configured first.
+ */
+export function makeR2Client(): S3Client {
   return new S3Client({
     region: 'auto',
     endpoint: env.r2Endpoint ?? `https://${env.r2AccountId}.r2.cloudflarestorage.com`,
@@ -43,8 +53,8 @@ function getClient(): S3Client {
     // bucket in the path. Only the override needs path style.
     forcePathStyle: Boolean(env.r2Endpoint),
     credentials: {
-      accessKeyId: env.r2AccessKeyId,
-      secretAccessKey: env.r2SecretAccessKey,
+      accessKeyId: env.r2AccessKeyId ?? '',
+      secretAccessKey: env.r2SecretAccessKey ?? '',
     },
     // The SDK otherwise injects a CRC32 checksum into presigned PUT URLs, which
     // R2 rejects (the checksum is computed without the body at presign time).

@@ -49,6 +49,7 @@ import {
   type AdminVendorDetail,
   type AdminWorkingDay,
 } from '@repo/core/api/admin'
+import { useAdminDocumentsConfig } from '@repo/core/api/hooks/use-admin-documents'
 import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import {
   legacyVehicleTypes,
@@ -57,6 +58,7 @@ import {
 import type { ServiceMedia } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
+import { GarageDocumentsSection } from '@/components/garage-documents-section'
 import { PayoutAccountSection } from '@/components/payout-account-section'
 import { LivePickupCard } from '@/components/pickup-card'
 import { SaveBar } from '@/components/save-bar'
@@ -67,12 +69,14 @@ import { useWarnBeforeLeaving } from '@/hooks/use-warn-before-leaving'
 import {
   EDIT_TABS,
   EDIT_TAB_LABELS,
+  PAGE_TAB_LABELS,
   dirtyTabs,
   garageFieldsProblem,
-  parseEditTab,
+  parsePageTab,
   safeBackHref,
   unsavedChangesLine,
   type EditTab,
+  type PageTab,
   type TabValues,
 } from '@/lib/garage-edit'
 import {
@@ -283,7 +287,13 @@ export default function EditVendorPage({
   // show it.
   const markListStale = useInvalidateAdminVendors()
 
-  const [tab, setTab] = useState<EditTab>(() => parseEditTab(query.tab))
+  const [tab, setTab] = useState<PageTab>(() => parsePageTab(query.tab))
+  // Garage documents (0043) have their own tab, shown only while they are
+  // on (R2_DOCS_BUCKET on the server). A ?tab=documents link while they are
+  // off lands on Details.
+  const documentsConfig = useAdminDocumentsConfig()
+  const documentsOn = documentsConfig.data?.enabled === true
+  const shownTab: PageTab = tab === 'documents' && documentsConfig.data && !documentsOn ? 'details' : tab
   // As loaded or last saved, and as edited. Null until the first load.
   const [saved, setSaved] = useState<GarageDraft | null>(null)
   const [draft, setDraft] = useState<GarageDraft | null>(null)
@@ -504,7 +514,7 @@ export default function EditVendorPage({
    * it. Replaced rather than pushed: switching tabs is not somewhere Back
    * should step through.
    */
-  const changeTab = (next: EditTab) => {
+  const changeTab = (next: PageTab) => {
     setTab(next)
     const url = new URL(window.location.href)
     url.searchParams.set('tab', next)
@@ -902,7 +912,7 @@ export default function EditVendorPage({
           {/* Same four-tab shape as the vendor settings screen, so the admin
               editing a garage and the owner editing it see the same structure.
               Grouped by subject rather than by form length. */}
-          <Tabs value={tab} onValueChange={(value) => changeTab(parseEditTab(value))}>
+          <Tabs value={shownTab} onValueChange={(value) => changeTab(parsePageTab(value, documentsOn))}>
             <TabsList>
               {EDIT_TABS.map((value) => {
                 const changed = dirty.includes(value)
@@ -930,6 +940,13 @@ export default function EditVendorPage({
                   </TabsTrigger>
                 )
               })}
+              {/* Saves each action on its own, so it never holds unsaved
+                  changes and is not one of Save changes' tabs. */}
+              {documentsOn && (
+                <TabsTrigger value="documents" className="min-h-11 px-1">
+                  {PAGE_TAB_LABELS.documents}
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* The tabs themselves stay usable, to look around; what is in
@@ -1458,6 +1475,14 @@ export default function EditVendorPage({
               )}
             </TabsContent>
             </fieldset>
+
+            {/* Outside the read-only fieldset: in the Bin the files still
+                open, and the section itself hides every change. */}
+            {documentsOn && (
+              <TabsContent value="documents">
+                <GarageDocumentsSection vendorId={id} readOnly={Boolean(bin)} />
+              </TabsContent>
+            )}
           </Tabs>
 
           {/* Amber, as errors are: red on this page is Save changes. */}

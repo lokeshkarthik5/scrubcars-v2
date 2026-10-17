@@ -7,6 +7,7 @@ import {
   editHref,
   isInBin,
   isLive,
+  documentsToReviewCount,
   listHref,
   matchesShow,
   parseShow,
@@ -43,6 +44,7 @@ describe('the chips', () => {
     expect(parseShow(null)).toBe('live')
     expect(parseShow('trash')).toBe('live')
     expect(parseShow('ALL')).toBe('live')
+    expect(parseShow('documents')).toBe('documents')
   })
 
   test('the list address carries the chip, and Live is the bare list', () => {
@@ -215,5 +217,32 @@ describe('the readiness line', () => {
     const back = new URLSearchParams(href.split('?')[1]).get('back')
     expect(safeBackHref(back)).toBe('/vendors?show=pending')
     expect(editHref('v1', '/vendors')).toBe('/vendors/v1/edit?back=%2Fvendors')
+  })
+})
+
+describe('documents to review', () => {
+  const docs = (toReview: number) => ({
+    verified: false,
+    approvedRequired: 1,
+    required: 4,
+    toReview,
+    missingRequired: 2,
+    rejected: 0,
+  })
+
+  test('garages with documents waiting, never one in the Bin', () => {
+    const waiting = garage({ documents: docs(2) })
+    expect(matchesShow(waiting, 'documents')).toBe(true)
+    expect(matchesShow(garage({ documents: docs(0) }), 'documents')).toBe(false)
+    expect(matchesShow(garage({ documents: null }), 'documents')).toBe(false)
+    expect(matchesShow(garage(), 'documents')).toBe(false)
+    const binned = garage({ documents: docs(1), deletedAt: '2026-10-16T05:00:00Z', live: false })
+    expect(matchesShow(binned, 'documents')).toBe(false)
+    expect(documentsToReviewCount([waiting, binned, garage({ documents: docs(0) })])).toBe(1)
+  })
+
+  test('its own link, and a hint that says what it is', () => {
+    expect(listHref('documents')).toBe('/vendors?show=documents')
+    expect(showHints('documents')[0].term).toBe('Documents to review')
   })
 })

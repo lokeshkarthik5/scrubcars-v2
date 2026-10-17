@@ -143,6 +143,8 @@ export interface ApiVendorListItem {
    * Absent on older servers.
    */
   outsideServiceCity?: OutsideServiceCity | null
+  /** Every required document approved by Detlio. Absent on older servers. */
+  documentsVerified?: boolean
 }
 
 export interface ApiVendorList {
@@ -199,6 +201,8 @@ export interface ApiPublicVendor {
   bookingsPausedReason?: string | null
   /** As on a list item: set only outside Chennai. Absent on older servers. */
   outsideServiceCity?: OutsideServiceCity | null
+  /** As on a list item: the "Documents verified" badge. Absent on older servers. */
+  documentsVerified?: boolean
 }
 
 export interface VendorProfileExtras {

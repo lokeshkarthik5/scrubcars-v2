@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   IconCalendarEvent,
+  IconFileCertificate,
   IconCheck,
   IconPhoto,
   IconReceipt,
@@ -282,6 +283,7 @@ const LINE_ICON: Record<DeleteLine['key'], React.ReactNode> = {
   bookings: <IconCalendarEvent size={20} stroke={1.6} aria-hidden="true" />,
   pictures: <IconPhoto size={20} stroke={1.6} aria-hidden="true" />,
   setup: <IconTool size={20} stroke={1.6} aria-hidden="true" />,
+  documents: <IconFileCertificate size={20} stroke={1.6} aria-hidden="true" />,
 }
 
 /**

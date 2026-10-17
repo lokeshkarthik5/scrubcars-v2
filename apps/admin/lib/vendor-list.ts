@@ -30,22 +30,44 @@ export const SHOW_LABELS: Record<ShowFilter, string> = {
   bin: 'Bin',
 }
 
+/**
+ * "Documents to review": garages (not in the Bin) with documents waiting for
+ * Detlio to check (0043). A chip of its own after the stages, shown while
+ * any wait or while chosen; it cuts across the stages, so it is not one of
+ * SHOW_FILTERS and its garages are counted there too.
+ */
+export const REVIEW_FILTER = 'documents' as const
+export const REVIEW_LABEL = 'Documents to review'
+export type ListFilter = ShowFilter | typeof REVIEW_FILTER
+
 /** What the list opens on: the garages customers can find. */
 export const DEFAULT_SHOW: ShowFilter = 'live'
 
 /** The chip a `?show=` asks for, or Live. An allow-list, like `?tab=`. */
-export function parseShow(value: string | null | undefined): ShowFilter {
+export function parseShow(value: string | null | undefined): ListFilter {
+  if (value === REVIEW_FILTER) return REVIEW_FILTER
   return value && (SHOW_FILTERS as readonly string[]).includes(value)
     ? (value as ShowFilter)
     : DEFAULT_SHOW
 }
 
 /** The list with a chip chosen: `/vendors` for the default, so Back is tidy. */
-export function listHref(show: ShowFilter): string {
+export function listHref(show: ListFilter): string {
   return show === DEFAULT_SHOW ? '/vendors' : `/vendors?show=${show}`
 }
 
-type ListedFields = Pick<AdminVendor, 'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'>
+type ListedFields = Pick<AdminVendor, 'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'> &
+  Partial<Pick<AdminVendor, 'documents'>>
+
+/** Has documents waiting for Detlio, and is not in the Bin. */
+export function hasDocumentsToReview(v: ListedFields): boolean {
+  return !isInBin(v) && (v.documents?.toReview ?? 0) > 0
+}
+
+/** How many garages the "Documents to review" chip holds. */
+export function documentsToReviewCount(vendors: ListedFields[]): number {
+  return vendors.filter(hasDocumentsToReview).length
+}
 
 /** Moved to the Bin by admin, and not restored. */
 export function isInBin(v: Pick<AdminVendor, 'deletedAt'>): boolean {
@@ -63,7 +85,8 @@ export function isLive(v: ListedFields): boolean {
 }
 
 /** A garage in the Bin is under the Bin chip and no other. */
-export function matchesShow(v: ListedFields, show: ShowFilter): boolean {
+export function matchesShow(v: ListedFields, show: ListFilter): boolean {
+  if (show === REVIEW_FILTER) return hasDocumentsToReview(v)
   if (show === 'bin') return isInBin(v)
   if (isInBin(v)) return false
   if (show === 'all') return true
@@ -85,8 +108,10 @@ export function showCounts(vendors: ListedFields[]): Record<ShowFilter, number> 
  * Active are told apart wherever either could be meant, since to the owner
  * they sound like the same thing.
  */
-export function showHints(show: ShowFilter): Array<{ term: string; meaning: string }> {
+export function showHints(show: ListFilter): Array<{ term: string; meaning: string }> {
   switch (show) {
+    case REVIEW_FILTER:
+      return [{ term: REVIEW_LABEL, meaning: 'uploaded by the garage, waiting for Detlio to check them' }]
     case 'pending':
       return [{ term: 'Pending', meaning: 'added, not shown to customers yet' }]
     case 'suspended':
