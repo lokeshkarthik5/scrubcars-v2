@@ -34,10 +34,17 @@ export const MAP_STYLES = {
 export const MAP_THEME = 'dark' as const
 
 /**
- * Fallback map centre. Only ever used before we know anything about the user —
- * it decides where an empty map opens, never what gets searched.
+ * Central Chennai. The map opens here, and "All of Chennai" in the header
+ * remembers this point so the map can too. Lists do not search from it.
  */
 export const DEFAULT_CENTER: [number, number] = [80.2707, 13.0827]
+
+/** The same point, in the lat/lng shape the vendor list takes. */
+export const ASSUMED_ORIGIN = {
+  lat: DEFAULT_CENTER[1],
+  lng: DEFAULT_CENTER[0],
+  label: 'Chennai',
+} as const
 
 /** Close enough to recognise your own street, wide enough to get your bearings. */
 export const PICKER_ZOOM = 16
