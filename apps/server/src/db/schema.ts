@@ -961,6 +961,20 @@ export const bookings = pgTable(
     // refunds or receipts. `markedTestBy` is a name, like booking_notes.author.
     markedTestAt: timestamp('marked_test_at', { withTimezone: true }),
     markedTestBy: varchar('marked_test_by', { length: 100 }),
+    // The garage's deadline to answer (0042, lib/response-deadline.ts): set
+    // when the booking becomes paid and pending (the payment landing, or the
+    // customer's reschedule back to pending), from GARAGE_RESPONSE_MINUTES of
+    // its opening hours, never later than an hour before the slot (with a
+    // 15-minute floor from payment). Null on every booking from before 0042,
+    // on unpaid ones and on a time the garage suggested itself: no deadline,
+    // never backfilled.
+    respondBy: timestamp('respond_by', { withTimezone: true }),
+    // Set only by the pending-digest cron's auto-cancel (AUTO_CANCEL_UNANSWERED)
+    // when the garage did not answer by `respondBy`: the booking was cancelled
+    // as the garage's ('vendor'), refunded in full, "Not accepted in time".
+    // Its own column, not the reason text, so admin, the garage, the customer
+    // and the morning roll-up tell it apart from a garage pressing Reject.
+    responseMissedAt: timestamp('response_missed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1003,6 +1017,19 @@ export const bookings = pgTable(
     check(
       'bookings_pickup_fields_check',
       sql`${table.bookingType}::text = 'pickup' or (${table.pickupCode} is null and ${table.deliveryCode} is null and ${table.pickedUpAt} is null and ${table.atGarageAt} is null and ${table.outForDeliveryAt} is null and ${table.deliveredAt} is null)`
+    ),
+    // The pending-digest sweep reads paid pending bookings by their deadline
+    // (0042); the morning roll-up counts yesterday's auto-cancels.
+    index('bookings_respond_by_pending_idx')
+      .on(table.respondBy)
+      .where(sql`${table.status} = 'pending' and ${table.respondBy} is not null`),
+    index('bookings_response_missed_at_idx')
+      .on(table.responseMissedAt)
+      .where(sql`${table.responseMissedAt} is not null`),
+    // Only the auto-cancel sets it, and it cancels as the garage (0042).
+    check(
+      'bookings_response_missed_check',
+      sql`${table.responseMissedAt} is null or (${table.status}::text = 'cancelled' and ${table.cancelledBy}::text = 'vendor' and ${table.respondBy} is not null)`
     ),
     check(
       'bookings_handover_codes_check',

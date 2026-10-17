@@ -68,6 +68,11 @@ export interface HubBooking {
   cancelledBy: 'user' | 'vendor' | 'admin' | null
   cancelledOnBehalfOf: 'customer' | 'garage' | 'detlio' | null
   noShow: 'customer' | 'garage' | null
+  /**
+   * When the cron cancelled it because the garage did not accept in time
+   * (0042). Optional so a hand-built booking (tests) needs no change.
+   */
+  responseMissedAt?: Date | null
   rescheduledFromId: string | null
   rescheduleCount: number
   /** Another booking was rescheduled from this one: its payment went with it. */
@@ -438,12 +443,19 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
             ? `No time was picked, so your booking at ${booking.vendorName} was cancelled`
             : null
         : null
+    // The garage let its time to answer run out and the booking was
+    // cancelled for it (0042): said as what happened, with the refund.
+    const notAccepted =
+      booking.cancelledBy === 'vendor' && booking.responseMissedAt
+        ? `${booking.vendorName} didn't accept in time`
+        : null
     rows.push(draft({
       ...about,
       id: `cancelled:${booking.id}`,
       kind: declined ? 'declined' : 'cancelled',
       at: booking.cancelledAt!,
       title:
+        notAccepted ??
         proposalOutcome ??
         (declined
           ? `${booking.vendorName} couldn't take your booking`

@@ -38,6 +38,8 @@ import {
   RefundedBadge,
   RefundOwedBadge,
   TestBadge,
+  AcceptByBadge,
+  NotAcceptedBadge,
   WaitingBadge,
 } from '@/components/booking-badges'
 import { CopyButton } from '@/components/copy-button'
@@ -100,6 +102,8 @@ function BookingRow({
           <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
           {b.markedTest && <TestBadge />}
           {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
+          {b.status === 'pending' && b.respondBy && <AcceptByBadge respondBy={b.respondBy} />}
+          {b.notAcceptedInTime && <NotAcceptedBadge />}
           {b.noShow && <NoShowBadge party={b.noShow} />}
           {b.billDue && <BillDueBadge amount={b.billDue} />}
           {b.refundOwed ? (
@@ -184,7 +188,7 @@ function BookingRow({
       {cancelled && (
         <div className="border-t border-border pt-2 text-[12px]">
           <p className="font-medium text-text-primary">{cancelled}</p>
-          {b.cancellationReason && (
+          {b.cancellationReason && !b.notAcceptedInTime && (
             <p className="mt-0.5 text-text-secondary">{b.cancellationReason}</p>
           )}
         </div>

@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { createThrottle } from '../../lib/throttle.js'
@@ -49,6 +50,8 @@ import {
   openExtraWork,
 } from '../../lib/extra-work.js'
 import { buildReceipt, receiptAvailability, receiptIssuedAt } from '../../lib/receipts.js'
+import { responseDeadlineView } from '../../lib/response-deadline.js'
+import { assertCanStillAnswer } from '../garage-response/garage-response.rules.js'
 import {
   customerSeesPhotos,
   toJobPhotoView,
@@ -293,6 +296,10 @@ type BookingWithRelations = {
   deliveryCode?: string | null
   pickupCodeAttempts?: number
   deliveryCodeAttempts?: number
+  // The garage's deadline to answer, and whether it was cancelled for
+  // missing it (0042). Optional so a hand-built row still type-checks.
+  respondBy?: Date | null
+  responseMissedAt?: Date | null
   createdAt: Date
   review?: {
     id: string
@@ -481,6 +488,17 @@ function toBookingResponse(
     // the customer's codes. See customerPickupView; the garage's mapper
     // replaces this with its own view.
     pickup: customerPickupView(booking),
+    // The garage's deadline to answer (0042), for the garage's countdown and
+    // the customer's "by 10:42 am", with whether it is enforced
+    // (AUTO_CANCEL_UNANSWERED) so neither app promises a cancellation the
+    // server won't make. Null when the booking has none.
+    responseDeadline: responseDeadlineView(booking, {
+      enforced: env.autoCancelUnanswered,
+      windowMins: env.garageResponseMinutes,
+    }),
+    // Cancelled by the cron because the garage did not answer in time:
+    // "Not accepted in time", refunded in full.
+    notAcceptedInTime: Boolean(booking.responseMissedAt),
     createdAt: booking.createdAt.toISOString(),
     review: booking.review
       ? {
@@ -713,6 +731,17 @@ function proposalOpen() {
     'You suggested other times for this booking. Withdraw them first, or wait for the customer to pick one.',
     'TIME_PROPOSAL_OPEN'
   )
+}
+
+/**
+ * Whether the garage's answer (Accept, Suggest times) comes too late for
+ * this booking now (0042): refused with 409 RESPONSE_TIME_PASSED. Throws.
+ */
+export function assertGarageCanAnswer(
+  booking: { status: string; respondBy?: Date | null; responseMissedAt?: Date | null },
+  now = Date.now()
+): void {
+  assertCanStillAnswer(booking, env.autoCancelUnanswered, now)
 }
 
 /** Mark completed (or Delivered) while extra work waits for the customer. */
@@ -1347,6 +1376,7 @@ function moveParams(
     markedTestAt: booking.markedTestAt,
     markedTestBy: booking.markedTestBy,
     proposal: move.proposal ?? null,
+    responseWindowMins: env.garageResponseMinutes,
   }
 }
 
@@ -1852,6 +1882,13 @@ export const bookingsService = {
 
   async acceptBooking(vendorId: string, actorId: string, bookingId: string) {
     const { booking } = await getBookingForVendor(vendorId, bookingId)
+    const now = new Date()
+
+    // Too late to answer (0042): the cron has cancelled it already, or the
+    // switch is on and the deadline has passed. Before the status check, so
+    // a garage that taps Accept on a card the cron just cancelled is told
+    // why rather than "only pending bookings".
+    assertGarageCanAnswer(booking, now.getTime())
 
     if (booking.status !== 'pending') {
       throw new AppError(
@@ -1891,10 +1928,21 @@ export const bookingsService = {
       bookingId,
       'confirmed',
       'pending',
-      { acceptedBy: actorId, acceptedAt: new Date() },
-      { noOpenProposal: true }
+      { acceptedBy: actorId, acceptedAt: now },
+      {
+        noOpenProposal: true,
+        // In the write too while the switch is on: an Accept and the
+        // cron's auto-cancel racing on this booking leave one winner.
+        ...(env.autoCancelUnanswered && { responseTimeLeftAt: now }),
+      }
     )
-    if (!accepted) throw stateChanged()
+    if (!accepted) {
+      // Lost to the cron's auto-cancel, or to the deadline passing in
+      // between: say so. Anything else changed it some other way.
+      const fresh = await bookingsRepository.findBookingById(bookingId)
+      if (fresh) assertGarageCanAnswer(fresh)
+      throw stateChanged()
+    }
     log.info({ bookingId, vendorId, actorId, status: 'confirmed' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)

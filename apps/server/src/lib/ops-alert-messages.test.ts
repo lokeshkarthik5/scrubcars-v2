@@ -271,6 +271,34 @@ describe('receipt number failure', () => {
   })
 })
 
+describe('not accepted in time (0042)', () => {
+  const late = { ...booking, respondBy: new Date('2026-10-04T05:00:00Z') }
+
+  test('names the garage, the booking and the refund owed', () => {
+    const text = formatOpsAlert({ kind: 'not_accepted_in_time', booking: late, autoRefunds: false })
+    expect(text.split('\n')[0]).toBe('⌛ Not accepted in time: Marina Auto Spa, booking #3F2A9C1B · refund ₹1,299 owed')
+    expect(text).toContain('Had until Sun 4 Oct, 10:30 am to accept.')
+    expect(text).toContain('refund it in full from the Refunds page')
+    expect(text.split('\n').at(-1)).toBe(adminBookingUrl(booking.id))
+  })
+
+  test('says the refund started when AUTO_REFUNDS sends it', () => {
+    const text = formatOpsAlert({ kind: 'not_accepted_in_time', booking: late, autoRefunds: true })
+    expect(text.split('\n')[0]).toContain('· refund ₹1,299 started')
+    expect(text).toContain('going back automatically')
+  })
+
+  test('nothing to refund on an unpaid one', () => {
+    const text = formatOpsAlert({
+      kind: 'not_accepted_in_time',
+      booking: { ...late, payment: { status: 'pending' } },
+      autoRefunds: false,
+    })
+    expect(text.split('\n')[0]).not.toContain('refund')
+    expect(text).toContain('nothing to refund')
+  })
+})
+
 describe('pending digest', () => {
   const now = new Date('2026-10-04T07:15:00Z') // 12:45 pm IST
   const waitingRow = {
@@ -289,6 +317,38 @@ describe('pending digest', () => {
     expect(text).toContain('Sun 4 Oct, 3:30 pm · At garage · waiting 45 min')
     expect(text).toContain('Call the garage to accept or decline.')
     expect(text).not.toContain('🚫')
+  })
+
+  test("the waiting nudge names the garage's deadline to accept (0042)", () => {
+    // 06:30 UTC paid, so 12:30 pm IST; due at 1:00 pm IST.
+    const ahead = { ...waitingRow, respondBy: new Date('2026-10-04T07:30:00Z') }
+    expect(formatOpsAlert({ kind: 'pending_digest', now, waiting: [ahead], missed: [] })).toContain(
+      'waiting 45 min · accept by Sun 4 Oct, 1:00 pm'
+    )
+    const gone = { ...waitingRow, respondBy: new Date('2026-10-04T07:00:00Z') }
+    expect(formatOpsAlert({ kind: 'pending_digest', now, waiting: [gone], missed: [] })).toContain(
+      'waiting 45 min · time to accept ran out Sun 4 Oct, 12:30 pm'
+    )
+    // A booking from before 0042 has none, and the line is as it was.
+    expect(formatOpsAlert({ kind: 'pending_digest', now, waiting: [waitingRow], missed: [] })).toContain(
+      'waiting 45 min\n'
+    )
+  })
+
+  test("the morning roll-up counts yesterday's auto-cancels per garage (0042)", () => {
+    const text = formatOpsAlert({
+      kind: 'pending_digest',
+      now,
+      waiting: [],
+      missed: [],
+      missedResponses: [
+        { garageName: 'Marina Auto Spa', count: 2 },
+        { garageName: 'Adyar Car Care', count: 1 },
+      ],
+    })
+    expect(text).toContain('⌛ Not accepted in time yesterday: 3 bookings, cancelled and refunded')
+    expect(text).toContain('Marina Auto Spa · 2')
+    expect(text).toContain('Adyar Car Care · 1')
   })
 
   test('flags bookings that reached their time unaccepted as refund due', () => {

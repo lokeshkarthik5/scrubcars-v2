@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import {
@@ -172,6 +173,7 @@ async function markBookingPaid(
     bookingId,
     paymentTxnId,
     paidAt: new Date(),
+    responseWindowMins: env.garageResponseMinutes,
     onRefusal: (refusal) => ({
       cancellationReason: failureMessage(REFUSAL_REASONS[refusal]),
       note: {

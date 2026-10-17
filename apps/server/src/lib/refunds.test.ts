@@ -244,6 +244,10 @@ describe('the words', () => {
     const base = { noShow: null, cancelledBy: null, cancelledOnBehalfOf: null } as const
     expect(bookingRefundReason({ ...base, cancelledBy: 'user' })).toBe('Cancelled by the customer')
     expect(bookingRefundReason({ ...base, cancelledBy: 'vendor' })).toBe('Declined by the garage')
+    // The cron's auto-cancel (0042): the garage's side, said as what happened.
+    expect(bookingRefundReason({ ...base, cancelledBy: 'vendor', responseMissedAt: new Date() })).toBe(
+      'Not accepted in time'
+    )
     expect(bookingRefundReason({ ...base, cancelledBy: 'admin', cancelledOnBehalfOf: 'detlio' })).toBe(
       'Cancelled by Detlio'
     )

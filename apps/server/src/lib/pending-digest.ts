@@ -9,7 +9,8 @@
  * - a waiting booking's start time passed since the last tick → post;
  * - on the hour, while anything is waiting or refund-due → post a reminder;
  * - at 07:00 IST, if anything is listed → post the morning roll-up, which
- *   also says what Detlio owes garages in payouts (and posts for that alone);
+ *   also says what Detlio owes garages in payouts and how many bookings each
+ *   garage did not accept in time yesterday (and posts for either alone);
  * - never between 22:00 and 07:00 IST (the morning roll-up catches the night).
  *
  * Pickup & drop jobs (0037) ride on the same digest: an accepted pickup job
@@ -34,6 +35,11 @@ export interface PendingBookingRow {
   waitingSince: Date
   garageName: string
   garagePhone: string
+  /**
+   * The garage's deadline to accept (0042), null on bookings from before it.
+   * Only said in the message; when to post is unchanged.
+   */
+  respondBy?: Date | null
 }
 
 /**

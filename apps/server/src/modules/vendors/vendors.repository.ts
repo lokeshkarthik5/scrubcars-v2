@@ -119,6 +119,13 @@ export const vendorsRepository = {
     bbox?: { minLng: number; minLat: number; maxLng: number; maxLat: number }
     bookingType?: BookingType
     category?: ServiceCategory
+    /**
+     * Garages that offer at least one of these categories (0042's "Book
+     * another garage": any of a booking's services' categories).
+     */
+    anyCategory?: ServiceCategory[]
+    /** Garages left out by id (the one that did not accept in time). */
+    excludeIds?: string[]
     q?: string
     sort: VendorSort
     /**
@@ -179,6 +186,18 @@ export const vendorsRepository = {
         SELECT 1 FROM services s
          WHERE s.vendor_id = v.id AND s.is_active = true AND s.category = ${category}
       )`)
+    }
+
+    if (params.anyCategory && params.anyCategory.length > 0) {
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM services s
+         WHERE s.vendor_id = v.id AND s.is_active = true
+           AND s.category IN (${sql.join(params.anyCategory.map((c) => sql`${c}`), sql`, `)})
+      )`)
+    }
+
+    if (params.excludeIds && params.excludeIds.length > 0) {
+      conditions.push(sql`v.id NOT IN (${sql.join(params.excludeIds.map((id) => sql`${id}::uuid`), sql`, `)})`)
     }
 
     if (bookingType === 'dropin') conditions.push(sql`v.dropin_enabled = true`)

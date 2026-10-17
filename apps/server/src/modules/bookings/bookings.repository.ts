@@ -17,6 +17,7 @@ import {
   userAddresses,
   userVehicles,
   vendorClosures,
+  vendorWorkingHours,
   vendors,
 } from '../../db/schema.js'
 import type { bookingStatusEnum, bookingTypeEnum, GatewayMode } from '../../db/schema.js'
@@ -30,6 +31,7 @@ import {
 import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { financialYearOf, formatReceiptSerial } from '../../lib/receipts.js'
 import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
+import { calendarRange, garageRespondBy, type GarageCalendar } from '../../lib/response-deadline.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 import { isInBin, vendorPageOpen } from '../vendors/vendors.predicates.js'
 
@@ -497,6 +499,71 @@ export async function checkGarageCanTake(
     : 'slot_full'
 }
 
+/**
+ * What decides when a garage is open between `from` and a slot: its pause,
+ * its weekly hours and its holidays in that range (lib/response-deadline.ts).
+ * Plain reads, no locks: taken inside the booking write's transaction so the
+ * deadline is written with the payment, after the locks it already holds.
+ */
+export async function readGarageCalendar(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  executor: PgTransaction<any, any, any> | typeof db,
+  vendorId: string,
+  from: Date,
+  scheduledAt: Date
+): Promise<GarageCalendar> {
+  const { first, last } = calendarRange(from, scheduledAt)
+  const [vendor] = await executor
+    .select({ bookingsPausedAt: vendors.bookingsPausedAt })
+    .from(vendors)
+    .where(eq(vendors.id, vendorId))
+    .limit(1)
+  const hours = await executor
+    .select({
+      dayOfWeek: vendorWorkingHours.dayOfWeek,
+      openTime: vendorWorkingHours.openTime,
+      closeTime: vendorWorkingHours.closeTime,
+      isClosed: vendorWorkingHours.isClosed,
+    })
+    .from(vendorWorkingHours)
+    .where(eq(vendorWorkingHours.vendorId, vendorId))
+  const closures = await executor
+    .select({ date: vendorClosures.date })
+    .from(vendorClosures)
+    .where(
+      and(
+        eq(vendorClosures.vendorId, vendorId),
+        sql`${vendorClosures.date} >= ${first}::date`,
+        sql`${vendorClosures.date} <= ${last}::date`
+      )
+    )
+  return {
+    pausedAt: vendor?.bookingsPausedAt ?? null,
+    hours,
+    closures: closures.map((row) => row.date),
+  }
+}
+
+/**
+ * The garage's deadline to answer a booking that becomes paid and pending
+ * at `from` (0042): read its calendar, then the pure rule. Called by every
+ * write that makes a paid pending booking — consumeIntent, settlePayment
+ * and a customer's reschedule — in its own transaction.
+ */
+export async function respondByFor(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: PgTransaction<any, any, any>,
+  params: { vendorId: string; from: Date; scheduledAt: Date; windowMins: number }
+): Promise<Date> {
+  const calendar = await readGarageCalendar(tx, params.vendorId, params.from, params.scheduledAt)
+  return garageRespondBy({
+    from: params.from,
+    scheduledAt: params.scheduledAt,
+    windowMins: params.windowMins,
+    calendar,
+  }).respondBy
+}
+
 // Line items in the order the customer added them. Declared once because
 // every booking read needs the same shape — a list that came back ordered
 // differently in one place would show a different "first service" there.
@@ -545,6 +612,17 @@ function noOpenExtraWork() {
        and ${bookingCharges.kind} = 'extra_work'
        and ${bookingCharges.status} = 'due'
   )`
+}
+
+/**
+ * The garage's time to answer has not run out at `at` (0042): no deadline,
+ * or one still ahead. Accept carries it in its conditional write while
+ * AUTO_CANCEL_UNANSWERED is on, so an Accept and the cron's auto-cancel
+ * racing on one booking leave exactly one winner: both are conditional on
+ * `status = 'pending'`, and whichever writes second finds it changed.
+ */
+function responseTimeLeft(at: Date) {
+  return sql`(${bookings.respondBy} is null or ${bookings.respondBy} > ${at.toISOString()}::timestamptz)`
 }
 
 /**
@@ -1020,6 +1098,13 @@ export const bookingsRepository = {
       acceptedBy: string | null
       reason: string
     } | null
+    /**
+     * GARAGE_RESPONSE_MINUTES (0042). A customer's move writes a paid
+     * booking back to pending, so the garage gets a fresh deadline from the
+     * moment of the move; a time the garage suggested is accepted already
+     * and has none, nor does an unpaid one.
+     */
+    responseWindowMins: number
   }) {
     return db.transaction(async (tx) => {
       // Vehicle lock first, matching the order used when creating a booking, so
@@ -1172,6 +1257,18 @@ export const bookingsRepository = {
         }
       }
 
+      // The garage's deadline to answer the move (0042): plain reads, after
+      // every lock this write takes.
+      const respondBy =
+        !data.proposal && data.sourcePayment?.status === 'paid'
+          ? await respondByFor(tx, {
+              vendorId: data.vendorId,
+              from: now,
+              scheduledAt: data.newScheduledAt,
+              windowMins: data.responseWindowMins,
+            })
+          : null
+
       const [booking] = await tx
         .insert(bookings)
         .values({
@@ -1181,6 +1278,7 @@ export const bookingsRepository = {
           vehicleId: data.vehicleId,
           bookingType: data.bookingType,
           scheduledAt: data.newScheduledAt,
+          respondBy,
           durationMins: data.durationMins,
           // Back to pending: the garage agreed to the old time, not this
           // one, so it has to accept the move. A time the garage suggested
@@ -1313,6 +1411,8 @@ export const bookingsRepository = {
   //
   // `guards` (0041): accepting needs no open time suggestion, completing no
   // extra work still waiting for the customer, both checked in the write.
+  // `responseTimeLeftAt` (0042): accepting, while AUTO_CANCEL_UNANSWERED is
+  // on, needs the garage's deadline still ahead at that moment.
   updateBookingStatus(
     bookingId: string,
     status: BookingStatus,
@@ -1324,7 +1424,7 @@ export const bookingsRepository = {
       startedAt?: Date
       completedAt?: Date
     },
-    guards: { noOpenProposal?: boolean; noOpenExtraWork?: boolean } = {}
+    guards: { noOpenProposal?: boolean; noOpenExtraWork?: boolean; responseTimeLeftAt?: Date } = {}
   ) {
     return db
       .update(bookings)
@@ -1334,10 +1434,105 @@ export const bookingsRepository = {
           eq(bookings.id, bookingId),
           eq(bookings.status, from),
           guards.noOpenProposal ? noOpenProposal() : undefined,
-          guards.noOpenExtraWork ? noOpenExtraWork() : undefined
+          guards.noOpenExtraWork ? noOpenExtraWork() : undefined,
+          guards.responseTimeLeftAt ? responseTimeLeft(guards.responseTimeLeftAt) : undefined
         )
       )
       .returning()
+  },
+
+  /**
+   * The pending-digest cron's auto-cancel (0042, AUTO_CANCEL_UNANSWERED): a
+   * paid booking the garage did not answer by its deadline is cancelled as
+   * the garage's (`cancelled_by = 'vendor'`, so lib/refunds.ts owes a full
+   * refund and AUTO_REFUNDS treats it as a garage decline), stamped
+   * `response_missed_at`, with NOT_ACCEPTED_REASON.
+   *
+   * One conditional write, everything re-checked at the moment of writing:
+   * still pending, still paid, the deadline passed, no suggested times
+   * waiting for the customer, the car not collected. A garage Accept racing
+   * it is conditional on `pending` too (and on the deadline still ahead,
+   * responseTimeLeft), so one of the two finds the row changed: exactly one
+   * winner. The booking's own row is the only lock, taken first; what waits
+   * on it is closed after it in the same transaction (the lock order).
+   * Empty when it no longer qualifies.
+   */
+  cancelNotAcceptedInTime(bookingId: string, reason: string, at: Date) {
+    return db.transaction(async (tx) => {
+      // The booking's row first, on its own. A suggestion of other times
+      // only locks this row (insertProposal) without changing it, so an
+      // UPDATE that had queued behind it would go ahead on its old snapshot
+      // and miss the suggestion just written. Holding the lock first, the
+      // write below is a new statement that sees it.
+      await tx.select({ id: bookings.id }).from(bookings).where(eq(bookings.id, bookingId)).for('update')
+      const [cancelled] = await tx
+        .update(bookings)
+        .set({
+          status: 'cancelled',
+          cancelledBy: 'vendor',
+          cancellationReason: reason,
+          cancelledAt: at,
+          responseMissedAt: at,
+        })
+        .where(
+          and(
+            eq(bookings.id, bookingId),
+            eq(bookings.status, 'pending'),
+            isNotNull(bookings.respondBy),
+            sql`${bookings.respondBy} <= ${at.toISOString()}::timestamptz`,
+            isNull(bookings.pickedUpAt),
+            noOpenProposal(),
+            sql`exists (
+              select 1 from ${payments}
+               where ${payments.bookingId} = ${bookings.id}
+                 and ${payments.status} = 'paid'
+            )`
+          )
+        )
+        .returning()
+      if (!cancelled) return []
+      await closeWaitingOnBooking(tx, bookingId, at)
+      return [cancelled]
+    })
+  },
+
+  /**
+   * The garage withdrew its suggested times (0041) and the booking waits for
+   * an answer again: the suggestion is withdrawn and, with it, the booking's
+   * deadline moved to `respondBy` (lib/response-deadline.ts afterWithdraw:
+   * at least 15 minutes from now), only while the suggestion is still open
+   * and in time and the booking still pending. The booking's row first,
+   * then the suggestion's (the lock order). Empty when it was no longer open.
+   */
+  withdrawProposal(params: { proposalId: string; bookingId: string; at: Date; respondBy: Date | null }) {
+    return db
+      .transaction(async (tx) => {
+        const [booking] = await tx
+          .select({ status: bookings.status })
+          .from(bookings)
+          .where(eq(bookings.id, params.bookingId))
+          .for('update')
+        const [withdrawn] = await tx
+          .update(bookingTimeProposals)
+          .set({ status: 'withdrawn', resolvedAt: params.at })
+          .where(
+            and(
+              eq(bookingTimeProposals.id, params.proposalId),
+              eq(bookingTimeProposals.bookingId, params.bookingId),
+              eq(bookingTimeProposals.status, 'open'),
+              sql`${bookingTimeProposals.expiresAt} > ${params.at.toISOString()}::timestamptz`
+            )
+          )
+          .returning()
+        if (!withdrawn) return []
+        if (booking?.status === 'pending' && params.respondBy) {
+          await tx
+            .update(bookings)
+            .set({ respondBy: params.respondBy })
+            .where(and(eq(bookings.id, params.bookingId), eq(bookings.status, 'pending')))
+        }
+        return [withdrawn]
+      })
   },
 
   /**

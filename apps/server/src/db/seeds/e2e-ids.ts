@@ -331,6 +331,14 @@ export const CUSTOMERS = {
   proposalDecliner: { id: id(2104), phone: '9000002104', name: 'Proposal Prem', vehicleId: id(2105) },
   extraWorkPayer: { id: id(2106), phone: '9000002106', name: 'Extra Work Ezhil', vehicleId: id(2107) },
   /**
+   * The garage response deadline (0042), at VENDORS.response only
+   * (specs/journeys/response-deadline-journey.spec.ts). Ids 2200–2299 and
+   * phones 90000022xx are this feature's own range. One car and one seeded
+   * booking, paid and pending, whose garage's deadline to accept passed
+   * 15 minutes ago: the cron cancels it as not accepted in time.
+   */
+  notAccepted: { id: id(2202), phone: '9000002202', name: 'Late Answer Lalitha', vehicleId: id(2203) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -408,6 +416,8 @@ export const STAFF = {
   pickupOwner: { id: id(228), phone: '9000001028', name: 'Pickup Owner Prabhu' },
   /** Owns VENDORS.proposals only (0041; the 2100–2199 range). */
   proposalsOwner: { id: id(2101), phone: '9000002101', name: 'Proposals Owner Parvathi' },
+  /** Owns VENDORS.response and VENDORS.responseOther only (0042; the 2200–2299 range). */
+  responseOwner: { id: id(2201), phone: '9000002201', name: 'Response Owner Revathi' },
 } as const
 
 export const VENDORS = {
@@ -565,10 +575,31 @@ export const VENDORS = {
    * it is in no Nearby count. Booked only by the three 0041 customers.
    */
   proposals: { id: id(2110), name: 'Proposals Test Garage' },
+  /**
+   * The garage response deadline (0042). Live, at the garage only, open
+   * 06:00–22:00 every day, one ₹600 wash (SERVICES.responseWash), at
+   * RESPONSE_PIN, far from every other test garage. It lets
+   * BOOKINGS.notAccepted run past its deadline.
+   */
+  response: { id: id(2210), name: 'Slow Reply Garage' },
+  /**
+   * Its neighbour, ~3.5 km north (RESPONSE_OTHER_PIN), live, at the garage
+   * only, with a car wash of its own: the "Book another garage" suggestion
+   * the customer is shown. Booked by nobody.
+   */
+  responseOther: { id: id(2212), name: 'Quick Reply Garage' },
 } as const
 
 /** Where VENDORS.proposals is: south-west, clear of every other test garage. */
 export const PROPOSALS_PIN = { lat: 12.5, lng: 79.875 } as const
+
+/**
+ * Where VENDORS.response and VENDORS.responseOther are (0042): far
+ * south-west, about 100 km from every other test garage, so neither is in
+ * any other spec's lists, and the only garage near the first is the second.
+ */
+export const RESPONSE_PIN = { lat: 11.5, lng: 79 } as const
+export const RESPONSE_OTHER_PIN = { lat: 11.53125, lng: 79 } as const
 
 /**
  * Where VENDORS.pickup is, and CUSTOMERS.pickup's saved address ~1.7 km north
@@ -687,6 +718,10 @@ export const SERVICES = {
   pickupWash: { id: id(456), name: 'Pickup Shine Wash', price: '549.00', durationMins: 30 },
   /** On PROPOSALS: its one service (0041). */
   proposalsWash: { id: id(2111), name: 'Proposals Foam Wash', price: '500.00', durationMins: 60 },
+  /** On RESPONSE (0042): its one service. */
+  responseWash: { id: id(2211), name: 'Slow Reply Wash', price: '600.00', durationMins: 60 },
+  /** On RESPONSE_OTHER: a car wash too, so it matches the booking's kind of job. */
+  responseOtherWash: { id: id(2213), name: 'Quick Reply Wash', price: '650.00', durationMins: 45 },
 } as const
 
 export const DISCOUNTS = {
@@ -953,6 +988,13 @@ export const BOOKINGS = {
   proposalPick: id(2120),
   proposalDecline: id(2121),
   extraWorkJob: id(2122),
+  /**
+   * At VENDORS.response (0042): a paid ₹600 wash for tomorrow at 15:00 IST,
+   * pending, paid 45 minutes ago, its garage's deadline to accept 15 minutes
+   * ago. The pending-digest cron (AUTO_CANCEL_UNANSWERED on in E2E) cancels
+   * it as not accepted in time, with the payment owed back in full.
+   */
+  notAccepted: id(2220),
 } as const
 
 export const VEHICLES = {
