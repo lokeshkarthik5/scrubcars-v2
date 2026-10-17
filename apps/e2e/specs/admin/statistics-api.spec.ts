@@ -121,6 +121,7 @@ test.describe('statistics API @p0', () => {
         collected: 7900,
         rating: 4.5,
         reviews: 2,
+        notAcceptedInTime: 0,
       },
     ])
     expect(data.services.slice(0, 3)).toEqual([
@@ -210,6 +211,7 @@ test.describe('statistics API @p0', () => {
       collected: 7900,
       rating: 4.5,
       reviews: 2,
+      notAcceptedInTime: 0,
     })
 
     const commission = await (
