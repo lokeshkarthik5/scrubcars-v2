@@ -29,7 +29,7 @@ import { Figures } from '@repo/ui/sc/figures'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
-import { PilotNumbersCard } from '@/components/pilot-numbers-card'
+import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import {
   DeleteForeverSheet,
   MoveToBinDialog,
@@ -215,12 +215,6 @@ function VendorsList() {
           </ScButtonLink>
         }
       />
-
-      {/* The panel's landing page, so the pilot's numbers sit near the top of
-          what ops sees after signing in — below the page's own title and its
-          Add garage button, so the heading order and the main action stay
-          first, and above the list. */}
-      <PilotNumbersCard />
 
       {loading ? (
         <SkeletonList count={3} itemClassName="h-40" />
@@ -525,6 +519,21 @@ function GarageCard({
           </span>
         ))}
       </p>
+
+      {/* The sign customers see on this garage, with how far out it is: a
+          garage whose city says Chennai but shows this is usually pinned in
+          the wrong place. No km on an unpinned garage, signed from its city
+          field alone. */}
+      {v.outsideServiceCity && (
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
+          <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
+          {v.outsideServiceCity.km !== null && (
+            <span className="shrink-0">
+              <span className="font-numeric">{v.outsideServiceCity.km.toLocaleString('en-IN')}</span> km out
+            </span>
+          )}
+        </p>
+      )}
 
       {v.readiness && (
         <Readiness

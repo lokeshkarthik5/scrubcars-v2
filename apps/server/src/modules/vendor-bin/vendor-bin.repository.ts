@@ -14,6 +14,7 @@ import {
   userMemberMapping,
   users,
   vendorClosures,
+  vendorPayoutAccounts,
   vendorPhotos,
   vendors,
   vendorServiceAreas,
@@ -272,6 +273,11 @@ function writes(tx: Tx) {
       await tx.delete(vendorWorkingHours).where(eq(vendorWorkingHours.vendorId, vendorId))
       await tx.delete(vendorClosures).where(eq(vendorClosures.vendorId, vendorId))
       await tx.delete(vendorServiceAreas).where(eq(vendorServiceAreas.vendorId, vendorId))
+    },
+
+    /** Where Detlio paid the garage (0038): bank and UPI details go with a tombstone's contact fields. */
+    async deletePayoutAccount(vendorId: string) {
+      await tx.delete(vendorPayoutAccounts).where(eq(vendorPayoutAccounts.vendorId, vendorId))
     },
 
     async deleteSeats(vendorId: string) {

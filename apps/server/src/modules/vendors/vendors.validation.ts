@@ -69,8 +69,11 @@ const vendorProfileFields = {
   whatsapp: phoneSchema.optional(),
   geoSource: vendorGeoSourceSchema.optional(),
   // How far this garage will travel for doorstep work. Separate from
-  // pickupRadiusKm, which is pickup-and-drop of the vehicle.
-  doorstepRadiusKm: z.number().positive().max(100).optional(),
+  // pickupRadiusKm, which is pickup-and-drop of the vehicle. Null clears it,
+  // and the garage then covers DEFAULT_DOORSTEP_RADIUS_KM (lib/doorstep.ts):
+  // Settings says "Leave empty to use 10 km", so emptying the field has to
+  // reach the column rather than leave the old number in place.
+  doorstepRadiusKm: z.number().positive().max(100).nullable().optional(),
   email: z.string().trim().email().max(255).optional(),
   yearsInOperation: z.string().trim().max(20).optional(),
   mapsUrl: z.string().trim().url().max(2048).optional(),
@@ -84,7 +87,11 @@ const vendorProfileFields = {
   // The most jobs in one day. Null clears it: no cap beyond the bays.
   jobsPerDay: z.number().int().min(1).max(500).nullable().optional(),
   vehicleTypes: vehicleTypesSchema.optional(),
-  notes: z.string().trim().max(5000).optional(),
+  // No `notes`. That column is Detlio's internal "Notes (optional)" under
+  // Onboarding status, written only through the admin API (admin.validation.ts
+  // has its own). Accepting it here let a garage wipe the ops note, or write
+  // one that reads as if staff had, on signup or PATCH /vendors/me. Zod drops
+  // the unknown key, so an old client that still sends it changes nothing.
 }
 
 export const createVendorSchema = z.object({
@@ -124,8 +131,8 @@ export const updateJobTypesSchema = z
     dropinEnabled: z.boolean().optional(),
     doorstepEnabled: z.boolean().optional(),
     // Sent with doorstepEnabled when the owner says how far they go in the
-    // same breath (onboarding does), so the two land together. A garage that
-    // goes to customers but nowhere in particular would match no address.
+    // same breath (onboarding does), so the two land together. Optional: left
+    // out, the garage covers DEFAULT_DOORSTEP_RADIUS_KM (lib/doorstep.ts).
     doorstepRadiusKm: z.number().min(1).max(30).optional(),
     // Pickup & drop (0037). Turning it on needs `pickupTermsAccepted: true`,
     // the owner's tick: "We are responsible for the customer's car from
@@ -303,7 +310,9 @@ export const listPublicVendorsQuerySchema = z
     // Drop-in only. Doorstep deliberately ignores this and uses the *vendor's*
     // doorstepRadiusKm instead: the question is "who will come to me", and the
     // garage is the one that decides how far it travels. Pickup & drop, the
-    // same, with the garage's pickupRadiusKm.
+    // same, with the garage's pickupRadiusKm. Left out, the list reaches
+    // LIST_RADIUS_KM (lib/discovery.ts), which is also the most a caller may
+    // ask for. A typed search (`q`) ignores it: no radius applies.
     radiusKm: z.coerce.number().positive().max(50).optional(),
     bbox: bboxSchema.optional(),
     sort: vendorSortSchema.optional(),

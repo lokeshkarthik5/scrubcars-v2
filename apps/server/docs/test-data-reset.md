@@ -32,7 +32,10 @@ from):
   not part of any booking's chain: one about a booking that is deleted, but
   made after the cutoff, stays, with its booking reference and no link. The
   numbering does not restart: the next complaint carries on from the last
-  number issued.
+  number issued;
+- garage payouts (migration 0038) recorded before the cutoff that paid only
+  bookings this run deletes, with what they paid booking by booking ("1
+  garage payout").
 
 **Kept, always**: garages, services, photos and logos, offers and promo
 codes (their usage counts drop by themselves, because usage is counted from
@@ -40,6 +43,12 @@ the promo-code uses), notices, customer accounts, cars, addresses and admin
 settings.
 
 **Kept whatever is ticked**, greyed out in the list with the reason:
+
+- **Paid out to the garage** ("Paid out to the garage — kept"). A booking a
+  garage payout covered together with a booking that is kept, or with a
+  payout recorded after the cutoff. A payout is deleted only with every
+  booking it paid; bookings paid out together are ticked and unticked
+  together.
 
 - **Real money.** A booking whose payment, final bill or failed checkout was a
   live Razorpay payment, a cash payment, or a payment nobody can confirm was a

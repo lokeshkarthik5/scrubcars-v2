@@ -22,6 +22,7 @@ import {
   DISCOUNTS,
   HOME_PROMO_PIN,
   NOTICES,
+  ORIGIN,
   SERVICES,
   VEHICLES,
   VENDORS,
@@ -106,7 +107,7 @@ test.describe('Home hub API @p0', () => {
     const order = codes(near.offers)
     expect(order).toContain(DISCOUNTS.homeNear.code)
     expect(order.indexOf(DISCOUNTS.homeBooked.code)).toBeLessThan(order.indexOf(DISCOUNTS.homeNear.code))
-    expect(near.nearby.radiusKm).toBe(10)
+    expect(near.nearby.radiusKm).toBe(50)
     expect(near.nearby.count).toBeGreaterThanOrEqual(1)
     expect(near.nearby.closestKm).toBeLessThanOrEqual(1)
 
@@ -349,6 +350,23 @@ test.describe('Home hub API @p0', () => {
     const noCode = await customer.post(`${API}/api/v1/users/me/offers/${BOOKINGS.homeNoticeUpcoming}/dismiss`)
     expect(noCode.status()).toBe(404)
     expect(await noCode.json()).toEqual({ success: false, message: 'Offer not found', code: 'OFFER_NOT_FOUND' })
+
+    await customer.dispose()
+  })
+
+  test('Nearby counts every garage within 50 km, the same reach as the list', async () => {
+    const customer = await loginViaApi(CUSTOMERS.homeNew.phone)
+
+    // From ORIGIN: MAIN, Second, Narrow and all twelve fillers (out to
+    // 24.8 km) at least, where the old 10 km counted five.
+    const city = await readHome(customer, `?lat=${ORIGIN.lat}&lng=${ORIGIN.lng}`)
+    expect(city.nearby.radiusKm).toBe(50)
+    expect(city.nearby.count).toBeGreaterThanOrEqual(15)
+    expect(city.nearby.closestKm).toBeLessThanOrEqual(1)
+
+    // Madurai: nothing within 50 km, said as a count of none, not left out.
+    const none = await readHome(customer, '?lat=9.925&lng=78.12')
+    expect(none.nearby).toEqual({ count: 0, closestKm: null, radiusKm: 50 })
 
     await customer.dispose()
   })

@@ -7,6 +7,7 @@ import {
   bookings,
   type GatewayMode,
 } from '../../db/schema.js'
+import { escapeLike } from '../../lib/search.js'
 
 export type BookingChargeRecord = typeof bookingCharges.$inferSelect
 type BookingChargeInsert = typeof bookingCharges.$inferInsert
@@ -225,7 +226,8 @@ export const bookingChargesRepository = {
         .where(
           and(
             eq(bookingNotes.bookingId, params.bookingId),
-            like(bookingNotes.body, `Payment ${params.paymentId} %`)
+            // Razorpay ids hold an underscore (pay_…), a LIKE wildcard.
+            like(bookingNotes.body, `Payment ${escapeLike(params.paymentId)} %`)
           )
         )
         .limit(1)

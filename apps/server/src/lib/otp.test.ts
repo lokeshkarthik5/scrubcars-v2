@@ -1,8 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
   checkOtpSendLimit,
+  deriveOtpKey,
+  getOtpPurgeCutoff,
+  isPlainOtpRow,
   MAX_OTP_VERIFY_ATTEMPTS,
+  OTP_DIGEST_LENGTH,
   otpAttemptCap,
+  otpDigest,
+  otpMatches,
   otpSendLimitMessage,
 } from './otp.js'
 
@@ -94,5 +100,72 @@ describe('otpAttemptCap', () => {
     // not take this code's own counter, which a burst of parallel guesses is
     // moving, so every guess in the burst works out the same cap of 1.
     expect(2 + otpAttemptCap(2)).toBe(MAX_OTP_VERIFY_ATTEMPTS)
+  })
+})
+
+describe('otpDigest / otpMatches', () => {
+  const key = deriveOtpKey('test-jwt-secret')
+  const phone = '9876543210'
+  const stored = otpDigest(key, '123456', phone, 'login')
+
+  test('the row holds a ten-character digest that fits otp_code, never the code', () => {
+    expect(stored).toHaveLength(OTP_DIGEST_LENGTH)
+    expect(stored).toMatch(/^[A-Za-z0-9_-]{10}$/)
+    expect(stored).not.toContain('123456')
+  })
+
+  test('the right code matches', () => {
+    expect(otpMatches(key, stored, '123456', phone, 'login')).toBe(true)
+  })
+
+  test('a wrong code does not', () => {
+    expect(otpMatches(key, stored, '123457', phone, 'login')).toBe(false)
+    expect(otpMatches(key, stored, '', phone, 'login')).toBe(false)
+  })
+
+  test('the digest is bound to the phone and the purpose', () => {
+    expect(otpMatches(key, stored, '123456', '9876543211', 'login')).toBe(false)
+    expect(otpMatches(key, stored, '123456', phone, 'register')).toBe(false)
+  })
+
+  test('the key is derived, not the raw secret, and a different secret voids the row', () => {
+    expect(deriveOtpKey('test-jwt-secret').equals(Buffer.from('test-jwt-secret'))).toBe(false)
+    expect(otpMatches(deriveOtpKey('another-secret'), stored, '123456', phone, 'login')).toBe(false)
+  })
+
+  test('the same inputs always make the same digest', () => {
+    expect(otpDigest(deriveOtpKey('test-jwt-secret'), '123456', phone, 'login')).toBe(stored)
+  })
+})
+
+describe('rows written before codes were hashed', () => {
+  const key = deriveOtpKey('test-jwt-secret')
+  const phone = '9876543210'
+
+  test('a plain six-digit row is recognised; a digest never is', () => {
+    expect(isPlainOtpRow('004321')).toBe(true)
+    expect(isPlainOtpRow(otpDigest(key, '004321', phone, 'login'))).toBe(false)
+    // Ten digits is a digest that happens to be all digits, not a plain code.
+    expect(isPlainOtpRow('0123456789')).toBe(false)
+  })
+
+  test('a plain row still accepts its code, so a login in flight at deploy works', () => {
+    expect(otpMatches(key, '004321', '004321', phone, 'login')).toBe(true)
+  })
+
+  test('a plain row refuses any other code', () => {
+    expect(otpMatches(key, '004321', '004322', phone, 'login')).toBe(false)
+    expect(otpMatches(key, '004321', '04321', phone, 'login')).toBe(false)
+  })
+
+  test("typing a row's digest is not the code", () => {
+    const digest = otpDigest(key, '004321', phone, 'login')
+    expect(otpMatches(key, digest, digest, phone, 'login')).toBe(false)
+  })
+})
+
+describe('getOtpPurgeCutoff', () => {
+  test('a day before now', () => {
+    expect(getOtpPurgeCutoff(now)).toEqual(new Date('2026-10-03T10:00:00Z'))
   })
 })

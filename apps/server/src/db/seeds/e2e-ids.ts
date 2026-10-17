@@ -247,6 +247,14 @@ export const CUSTOMERS = {
    */
   homeTile: { id: id(149), phone: '9000000049', name: 'Hub Tile Tara', vehicleId: id(759) },
   /**
+   * Doorstep at VENDORS.unsetRadius, the garage that left its travel radius
+   * empty: one saved address inside the default 10 km and one outside it
+   * (ADDRESSES.reachCovered / reachOutside). The listing spec checks the
+   * Doorstep list and checkout agree on both. Nothing is ever written: the
+   * checkout attempts stop before any payment order.
+   */
+  doorstepReach: { id: id(190), phone: '9000000090', name: 'Reach Rathi', vehicleId: id(795) },
+  /**
    * A customer account that is also the named owner of a garage
    * (VENDORS.ownerAccount). Deleting the account would cascade into that
    * garage through vendors.owner_id, so DELETE /users/me must refuse it. No
@@ -280,11 +288,23 @@ export const CUSTOMERS = {
   binBrowse: { id: id(156), phone: '9000000056', name: 'Bin Browse Bala', vehicleId: id(765) },
   /**
    * Raises a complaint about BOOKINGS.complaintDone (a finished job at MAIN)
+  /**
    * in the complaint journey, and is refused one about someone else's
    * booking. Its own customer, so the per-customer limits and My
    * complaints hold only this spec's complaints.
    */
   complaints: { id: id(157), phone: '9000000057', name: 'Complaint Kavitha', vehicleId: id(766) },
+  /**
+   * Owns every booking at VENDORS.stats (see STATS), so the Statistics spec
+   * can assert exact figures for that garage. Signed in fresh by that spec
+   * to be refused the admin-only figures.
+   */
+  stats: { id: id(158), phone: '9000000058', name: 'Stats Sathya', vehicleId: id(767) },
+  /**
+   * Owns every booking at VENDORS.payouts (BOOKINGS.payout*), which the
+   * payouts spec pays out. Nothing signs in as them; the bookings are the point.
+   */
+  payouts: { id: id(159), phone: '9000000059', name: 'Payout Pavithra', vehicleId: id(768) },
   /**
    * Books pickup & drop at VENDORS.pickup (specs/users/booking-pickup.spec.ts).
    * One car and one pinned default address (ADDRESSES.pickupHome, at
@@ -361,6 +381,11 @@ export const STAFF = {
   binOwner: { id: id(209), phone: '9000001010', name: 'Bin Owner Bhuvana' },
   /** vendor_operator on VENDORS.binTeam alone: no company at all while it is in the Bin. */
   binOperator: { id: id(210), phone: '9000001011', name: 'Bin Operator Oscar' },
+  /**
+   * Owns VENDORS.payouts only, so the payouts spec reads that garage's
+   * Earnings with nothing any other spec books on it.
+   */
+  payoutsOwner: { id: id(211), phone: '9000001012', name: 'Payouts Prakash' },
   /** Owns VENDORS.pickup only, so a pickup job's garage session has one company. */
   pickupOwner: { id: id(228), phone: '9000001028', name: 'Pickup Owner Prabhu' },
 } as const
@@ -418,6 +443,18 @@ export const VENDORS = {
    */
   homePromo: { id: id(312), name: 'Hub Promo Test Garage' },
   /**
+   * Doorstep only, with no travel radius and no drawn area: it covers the
+   * default 10 km from its pin (lib/doorstep.ts). Pinned in Puducherry, far
+   * from ORIGIN and from HOME_PROMO_PIN, and taking no drop-ins, so it is in
+   * no drop-in list and no other spec's doorstep list. Carries an internal
+   * admin note that its public page must never show.
+   */
+  unsetRadius: {
+    id: id(390),
+    name: 'Unset Radius Garage',
+    notes: 'Internal: owner prefers calls after 6 pm',
+  },
+  /**
    * Owned by CUSTOMERS.garageOwner, a customer account: what makes deleting
    * that account a cascade into a garage. Pending and unpinned, so no
    * customer list ever shows it; nothing else reads it.
@@ -434,6 +471,7 @@ export const VENDORS = {
    * The garage editor's own spec (specs/admin/garage-editor.spec.ts): how
    * customers book, the save bar, ?tab=, templates and Write with AI. At the
    * garage only, no radius; a "Foam wash" (so that template is not offered)
+  /**
    * and a service with no description for the AI to fill. Pending and
    * unpinned, so no customer sees it; nobody books it.
    */
@@ -480,6 +518,18 @@ export const VENDORS = {
   /** Seeded in the Bin with a live-money booking: Delete forever keeps a tombstone. */
   binTomb: { id: id(344), name: 'Bin Tombstone Garage' },
   /**
+   * The Statistics garage. Not verified, so it is in no customer list; every
+   * booking on it is a STATS fixture, so its figures are exact.
+   */
+  stats: { id: id(345), name: 'Stats Test Garage' },
+  /**
+   * Garage payouts (specs/admin/payouts.spec.ts): a finished wash and a
+   * customer no-show to pay out (₹500 each, its first two bookings, so free
+   * of commission), and one still to come, not payable yet. Pending and
+   * unverified, so no customer sees it; a UPI id to pay to.
+   */
+  payouts: { id: id(346), name: 'Payouts Test Garage' },
+  /**
    * Pickup & drop (0037): at the garage and pickup, on with the responsibility
    * terms on file, collecting within 8 km of its pin (PICKUP_PIN). Live, open
    * 06:00–22:00 every day, one service (SERVICES.pickupWash). Far south-west
@@ -505,6 +555,15 @@ export const PICKUP_HOME = {
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
 export const HOME_PROMO_PIN = { lat: 12.9165, lng: 79.1325 } as const
+
+/**
+ * Where VENDORS.unsetRadius is, and the two points its customer's addresses
+ * sit at: ~7 km north (inside the default 10 km) and ~14 km north (outside).
+ * Multiples of 1/32, so float columns hand them back exactly.
+ */
+export const UNSET_RADIUS_PIN = { lat: 11.9375, lng: 79.8125 } as const
+export const UNSET_RADIUS_COVERED = { lat: 12, lng: 79.8125 } as const
+export const UNSET_RADIUS_OUTSIDE = { lat: 12.0625, lng: 79.8125 } as const
 
 /** Filler garages so listing, sorting and infinite scroll have real volume. */
 export const FILLER_VENDOR_COUNT = 12
@@ -553,6 +612,8 @@ export const SERVICES = {
   homePromoWash: { id: id(417), name: 'Hub Foam Wash', price: '450.00', durationMins: 30 },
   /** On HOME_PROMO, priced on inspection: CUSTOMERS.homeBill's billed job. */
   homePromoInspect: { id: id(418), name: 'Hub Dent Check', price: '299.00', durationMins: 60 },
+  /** On UNSET_RADIUS, a doorstep wash on its half-hour grid. */
+  unsetRadiusWash: { id: id(490), name: 'Reach Doorstep Wash', price: '550.00', durationMins: 30 },
   /** On ADMIN_SERVICES, inside adminPackage: hiding it must be refused. */
   adminFlat: { id: id(419), name: 'Admin Foam Wash', price: '450.00', durationMins: 30 },
   /** On ADMIN_SERVICES, per vehicle with no SUV price: flagged, never dropped. */
@@ -586,6 +647,12 @@ export const SERVICES = {
   binHardWash: { id: id(433), name: 'Bin Gone Wash', price: '499.00', durationMins: 30 },
   binHardPackage: { id: id(434), name: 'Bin Gone Combo', price: '899.00', durationMins: 60 },
   binTombWash: { id: id(435), name: 'Bin Kept Wash', price: '499.00', durationMins: 30 },
+  /** On STATS: a car wash (8%), a detailing job (5%) and an inspection (5%). */
+  statsWash: { id: id(436), name: 'Stats Wash', price: '500.00', durationMins: 30 },
+  statsDetail: { id: id(437), name: 'Stats Detail', price: '2000.00', durationMins: 90 },
+  statsInspect: { id: id(438), name: 'Stats Scratch Check', price: '300.00', durationMins: 60 },
+  /** On PAYOUTS: every payouts-spec booking is one ₹500 wash. */
+  payoutsWash: { id: id(439), name: 'Payouts Wash', price: '500.00', durationMins: 30 },
   /** On PICKUP: its one service, at a price no other garage charges. */
   pickupWash: { id: id(456), name: 'Pickup Shine Wash', price: '549.00', durationMins: 30 },
 } as const
@@ -836,6 +903,14 @@ export const BOOKINGS = {
   binTombTest: refId('b1a00005'),
   /** CUSTOMERS.complaints', completed and paid (E2E money) at MAIN two days ago. */
   complaintDone: refId('c0a10001'),
+  /**
+   * CUSTOMERS.payouts' at VENDORS.payouts, each a paid ₹500 wash: finished
+   * two days ago, a customer no-show yesterday (paid as if done), and one
+   * confirmed for tomorrow, not payable yet.
+   */
+  payoutDone: refId('a7a00001'),
+  payoutNoShow: refId('a7a00002'),
+  payoutUpcoming: refId('a7a00003'),
 } as const
 
 export const VEHICLES = {
@@ -871,6 +946,10 @@ export const ADDRESSES = {
   doorstepUnpinned: id(902),
   /** CUSTOMERS.pickup's default, pinned at PICKUP_HOME: inside VENDORS.pickup's reach. */
   pickupHome: id(903),
+  /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_COVERED: inside the default 10 km. */
+  reachCovered: id(913),
+  /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_OUTSIDE: outside it. */
+  reachOutside: id(904),
 } as const
 
 export const REVIEWS = { existing: id(801) } as const
@@ -932,3 +1011,60 @@ export const ORIGIN = { lat: 13.0827, lng: 80.2707 } as const
  * character for character.
  */
 export const DOORSTEP_JOB_PIN = { lat: 13.09375, lng: 80.28125 } as const
+
+/**
+ * The Statistics fixtures (specs/admin/statistics-api.spec.ts), all
+ * CUSTOMERS.stats's at VENDORS.stats, made at 11:00 IST on the days named.
+ *
+ * Before the spec's range (it runs from a day before `received(23)` to today):
+ *
+ * - received(1–20): one a day, 61 to 42 days ago, ₹500 washes, completed —
+ *   except 3 and 7 (declined by the garage, refunded) and 12 (cancelled by
+ *   the customer, refunded), which still use up a free place.
+ * - received(21), received(22): completed washes 20 and 18 days ago, in the
+ *   period the range is compared with: 2 bookings, ₹1,000.
+ * - testOld: a completed wash marked Test, 50 days ago: no place in the queue.
+ * - unpaidOld: an old pay-later booking cancelled before it was paid, 45 days
+ *   ago: the garage never received it.
+ *
+ * In the range, one a day from 12 days ago, each slot the next day at 10:00:
+ *
+ * - received(23–25): completed washes, the last of the free 25.
+ * - received(26): a completed wash: ₹40 (8% of ₹500).
+ * - received(27): completed detailing with STATSPROMO, ₹200 off paid by
+ *   Detlio: ₹100 (5% of the full ₹2,000); ₹1,800 collected.
+ * - received(28): completed detailing with STATSGARAGE, ₹400 off paid by the
+ *   garage: ₹80 (5% of ₹1,600).
+ * - received(29): a completed scratch check (₹300) with a ₹1,200 final bill
+ *   paid: ₹75 (5% of ₹1,500). Also a stray ₹1,300 paid on the bill it
+ *   replaced, refunded: in no figure, its refund included.
+ * - received(30): a customer no-show on a wash: ₹40, and its ₹500 kept.
+ * - received(31): declined by the garage and refunded: no commission, ₹0.
+ * - received(32) → movedTo: a wash moved by the customer to a slot after
+ *   the range (two days on, so never today in India): one booking, not
+ *   done yet, ₹500 collected.
+ * - testInRange: a completed wash marked Test: in no figure.
+ * - unpaidInRange: a pay-later booking cancelled unpaid: a checkout started.
+ * - abandonedCheckout, failedCheckout (paid, no booking, refunded): two more.
+ *
+ * So, over the range: 10 bookings, ₹7,900 collected, ₹335 commission, 13
+ * checkouts started, 1 cancellation, 7 completed, 1 no-show, 1 not done yet;
+ * 7 slots at 10:00 in the busy hours; rated 4.5 over 2 reviews.
+ */
+export const STATS = {
+  /** The garage's n-th received booking, 1-based, in the order made. */
+  received: (n: number): string => id(1400 + n),
+  testOld: id(1450),
+  unpaidOld: id(1451),
+  testInRange: id(1452),
+  unpaidInRange: id(1453),
+  movedTo: id(1454),
+  abandonedCheckout: id(1460),
+  failedCheckout: id(1461),
+  reviews: [id(1470), id(1471)],
+  bill: id(1480),
+  strayBill: id(1481),
+  /** Ended codes at VENDORS.stats, so nobody can use them at checkout. */
+  promo: { id: id(511), code: 'STATSPROMO' },
+  garageDiscount: { id: id(512), code: 'STATSGARAGE' },
+} as const

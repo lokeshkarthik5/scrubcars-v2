@@ -21,6 +21,7 @@ import {
   type PausedGarage,
   type UpdateItem,
 } from '../../lib/home-updates.js'
+import { LIST_RADIUS_KM } from '../../lib/discovery.js'
 import { istDateKey } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
 import { reportError } from '../../lib/monitoring.js'
@@ -38,8 +39,11 @@ const log = logger.child({ module: 'home' })
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** "N garages to drive to within 10 km". */
-export const NEARBY_RADIUS_KM = 10
+/**
+ * "N garages within 50 km": the garage list's own radius (lib/discovery.ts),
+ * so the count on Home matches the pinned part of the drop-in list.
+ */
+export const NEARBY_RADIUS_KM = LIST_RADIUS_KM
 
 /** Home's Updates block: the pinned notice, then this many newest rows. */
 const HOME_UPDATE_ROWS = 2
@@ -69,8 +73,8 @@ export interface HomeResponse {
 /**
  * Runs one part of Home on its own. A part that fails comes back null and is
  * reported, and Home still renders around it: a broken offers query must not
- * take the customer's bookings with it. (The queries still run one at a time:
- * the connection pool has one connection.)
+ * take the customer's bookings with it. The queries still run one at a time.
+ * Production's pool has one connection, so they would be serial anyway.
  */
 async function part<T>(name: string, run: () => Promise<T>): Promise<T | null> {
   try {

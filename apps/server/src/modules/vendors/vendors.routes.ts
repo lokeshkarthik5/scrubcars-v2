@@ -12,6 +12,7 @@ import {
 import { vendorFinalBillRoutes } from '../booking-charges/booking-charges.routes.js'
 import { jobPhotosRoutes } from '../job-photos/job-photos.routes.js'
 import { membersRoutes } from '../members/members.routes.js'
+import { vendorEarningsRoutes } from '../payouts/payouts.routes.js'
 import { garageMediaRoutes } from '../service-media/service-media.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
@@ -118,6 +119,11 @@ vendorsRoutes.get(
 // The team screen. Nested here so it inherits the /vendors/me prefix — the
 // company it acts on is the one resolveTenant produced, never a path parameter.
 vendorsRoutes.route('/me/members', membersRoutes)
+
+// The Earnings statement (GET /me/earnings/statement): each booking's
+// commission, share and payout. vendor_admin only in its own file, like the
+// summary above, and nested for the same reason as the team screen.
+vendorsRoutes.route('/me/earnings', vendorEarningsRoutes)
 
 // A job's records: before/after photos and the final bill of an inspection
 // job. Nested here for the same reason as the team screen. Both are widened

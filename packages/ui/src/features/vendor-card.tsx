@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { IconBuildingStore, IconStarFilled } from '@tabler/icons-react'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
+import { OutsideCityChip } from '@repo/ui/features/outside-city'
 
 function ModeBadge({ label, tone }: { label: string; tone: 'garage' | 'doorstep' }) {
   return (
@@ -140,6 +141,12 @@ export function VendorCard({
               </>
             )}
           </div>
+
+          {/* A garage in another town says so on its card, so nobody opens
+              it, or books it, thinking it is in Chennai. */}
+          {vendor.outsideServiceCity && (
+            <OutsideCityChip outside={vendor.outsideServiceCity} className="mt-0.5 self-start" />
+          )}
 
           {/* Only on a search that found the garage by one of its services:
               without it, "ceramic" listing a garage called "Marina Auto" reads

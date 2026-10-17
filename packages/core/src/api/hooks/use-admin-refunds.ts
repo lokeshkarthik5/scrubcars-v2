@@ -9,6 +9,7 @@ import {
   type RefundNowInput,
 } from '@repo/core/api/admin'
 import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
+import { adminStatsKeys } from '@repo/core/api/hooks/use-admin-stats'
 import { pilotStatsKeys } from '@repo/core/api/hooks/use-pilot-stats'
 
 export const adminRefundKeys = {
@@ -35,9 +36,10 @@ export function useAdminRefunds(status: 'owed' | 'done') {
 
 /**
  * Records a refund. A refund moves a row between the tabs, changes a
- * booking's refund section and its list badge, and the pilot numbers, so
- * all of those are refetched — on a refusal too, because a 409 usually
- * means someone else recorded it first and the screen is out of date.
+ * booking's refund section and its list badge, the pilot numbers and the
+ * Statistics (collected after refunds), so all of those are refetched — on
+ * a refusal too, because a 409 usually means someone else recorded it first
+ * and the screen is out of date.
  */
 function useRefreshAfterRefund() {
   const queryClient = useQueryClient()
@@ -45,6 +47,7 @@ function useRefreshAfterRefund() {
     void queryClient.invalidateQueries({ queryKey: adminRefundKeys.all })
     void queryClient.invalidateQueries({ queryKey: adminBookingKeys.lists() })
     void queryClient.invalidateQueries({ queryKey: pilotStatsKeys.all })
+    void queryClient.invalidateQueries({ queryKey: adminStatsKeys.all })
     if (bookingId) {
       void queryClient.invalidateQueries({ queryKey: adminBookingKeys.detail(bookingId) })
     }

@@ -336,6 +336,8 @@ export const otpVerifications = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     phone: varchar('phone', { length: 20 }).notNull(),
+    // A keyed hash of the code (otpDigest, lib/otp.ts), never the code
+    // itself; rows from before hashing hold the plain six digits.
     otpCode: varchar('otp_code', { length: 10 }).notNull(),
     purpose: otpPurposeEnum('purpose').notNull(),
     verified: boolean('verified').default(false).notNull(),
@@ -1873,6 +1875,92 @@ export const complaints = pgTable(
     ),
   ]
 )
+
+// A transfer Detlio made to a garage, by bank or UPI, recorded from admin's
+// Payouts (0038). `coversFrom`–`coversUpTo` are the bookings it paid: every
+// one that was payable when it was recorded. What it paid, booking by
+// booking, is vendorPayoutItems. The CHECKs are in 0038_garage_payouts.sql.
+export type PayoutMethod = 'bank' | 'upi' | 'other'
+
+export const vendorPayouts = pgTable(
+  'vendor_payouts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'restrict' }),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    method: text('method').$type<PayoutMethod>().notNull(),
+    reference: varchar('reference', { length: 80 }).notNull(),
+    paidAt: timestamp('paid_at', { withTimezone: true }).notNull(),
+    coversFrom: timestamp('covers_from', { withTimezone: true }).notNull(),
+    coversUpTo: timestamp('covers_up_to', { withTimezone: true }).notNull(),
+    note: varchar('note', { length: 500 }),
+    recordedBy: varchar('recorded_by', { length: 100 }).notNull(),
+    recordedBySub: varchar('recorded_by_sub', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('vendor_payouts_vendor_id_reference_key').on(table.vendorId, table.reference),
+    index('vendor_payouts_vendor_id_paid_at_idx').on(table.vendorId, table.paidAt),
+    check('vendor_payouts_amount_check', sql`${table.amount} > 0`),
+    check('vendor_payouts_method_check', sql`${table.method} in ('bank', 'upi', 'other')`),
+  ]
+)
+
+// What one payout paid on one booking (a reschedule chain, keyed by its
+// first booking), with the figures it was paid on, so a statement never
+// changes after the money has gone. A booking's balance is what it earns now
+// less the `amount`s already paid on it (lib/payouts.ts): never paid twice,
+// and a refund after a payout comes off the next one. RESTRICT on the
+// booking: the reset and Delete forever remove an item only with its payout.
+export type PayoutItemKind = 'job' | 'customer_no_show' | 'none'
+
+export const vendorPayoutItems = pgTable(
+  'vendor_payout_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    payoutId: uuid('payout_id')
+      .notNull()
+      .references(() => vendorPayouts.id, { onDelete: 'cascade' }),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'restrict' }),
+    bookingRef: varchar('booking_ref', { length: 8 }).notNull(),
+    kind: text('kind').$type<PayoutItemKind>().notNull(),
+    payableFrom: timestamp('payable_from', { withTimezone: true }).notNull(),
+    price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+    detlioPromo: decimal('detlio_promo', { precision: 10, scale: 2 }).notNull(),
+    garagePromo: decimal('garage_promo', { precision: 10, scale: 2 }).notNull(),
+    refunds: decimal('refunds', { precision: 10, scale: 2 }).notNull(),
+    commission: decimal('commission', { precision: 10, scale: 2 }).notNull(),
+    freePosition: smallint('free_position'),
+    garageShare: decimal('garage_share', { precision: 10, scale: 2 }).notNull(),
+    heldByGarage: decimal('held_by_garage', { precision: 10, scale: 2 }).notNull(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  },
+  (table) => [
+    unique('vendor_payout_items_payout_id_booking_id_key').on(table.payoutId, table.bookingId),
+    index('vendor_payout_items_booking_id_idx').on(table.bookingId),
+    check('vendor_payout_items_amount_check', sql`${table.amount} <> 0`),
+    check('vendor_payout_items_kind_check', sql`${table.kind} in ('job', 'customer_no_show', 'none')`),
+  ]
+)
+
+// Where a garage's money goes (0038): a bank account (number and IFSC
+// together) and/or a UPI id. Admin-only: no garage or customer payload ever
+// carries it, and lists show it masked (lib/payouts.ts maskAccount).
+export const vendorPayoutAccounts = pgTable('vendor_payout_accounts', {
+  vendorId: uuid('vendor_id')
+    .primaryKey()
+    .references(() => vendors.id, { onDelete: 'cascade' }),
+  accountName: varchar('account_name', { length: 100 }),
+  accountNumber: varchar('account_number', { length: 18 }),
+  ifsc: varchar('ifsc', { length: 11 }),
+  upiId: varchar('upi_id', { length: 100 }),
+  updatedBy: varchar('updated_by', { length: 100 }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
 
 // Cached geocoding responses, keyed "{provider}:{op}:{normalised-input}". Lives
 // in Postgres rather than process memory because the API is serverless — an

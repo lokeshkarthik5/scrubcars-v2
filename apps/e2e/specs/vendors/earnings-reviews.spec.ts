@@ -20,13 +20,17 @@ test.describe('earnings', () => {
   test('the period selector switches range', async ({ page }) => {
     await page.goto('/earnings')
 
-    const week = page.getByRole('radio', { name: 'Week' })
-    const month = page.getByRole('radio', { name: 'Month' })
+    const last30 = page.getByRole('radio', { name: '30 days' })
+    const month = page.getByRole('radio', { name: 'This month' })
 
-    await expect(week).toHaveAttribute('aria-checked', 'true')
+    await expect(last30).toHaveAttribute('aria-checked', 'true')
     await month.click()
     await expect(month).toHaveAttribute('aria-checked', 'true')
-    await expect(week).toHaveAttribute('aria-checked', 'false')
+    await expect(last30).toHaveAttribute('aria-checked', 'false')
+    // Dates opens the two date fields.
+    await page.getByRole('radio', { name: 'Dates' }).click()
+    await expect(page.getByLabel('From')).toBeVisible()
+    await expect(page.getByLabel('To')).toBeVisible()
   })
 
   test('completed work is what shows up as earned', async ({ page }) => {
@@ -38,7 +42,7 @@ test.describe('earnings', () => {
     `
 
     await page.goto('/earnings')
-    await page.getByRole('radio', { name: 'Month' }).click()
+    await expect(page.getByText(/^(Due now|You owe Detlio)$/)).toBeVisible()
 
     if (Number(n) > 0) {
       await expect(page.getByText(/₹/).first()).toBeVisible()

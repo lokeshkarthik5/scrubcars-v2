@@ -16,6 +16,9 @@ import { adminRefundRoutes } from '../refunds/refunds.routes.js'
 import { adminVendorBinRoutes } from '../vendor-bin/vendor-bin.routes.js'
 import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
+import { adminStatsRoutes } from '../stats/stats.routes.js'
+import { adminPayoutRoutes } from '../payouts/payouts.routes.js'
+import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
   addMemberSchema,
   updateMemberSchema,
@@ -81,13 +84,17 @@ adminRoutes.get(
   ...adminMiddleware,
   adminController.getDemandSupply
 )
-// The pilot's numbers for the last 7 or 30 days (?days=7|30).
+// The pilot's numbers for the last 7 or 30 days (?days=7|30). Shown on the
+// Statistics page's Overview, beside the routes mounted below.
 adminRoutes.get(
   '/stats/pilot',
   ...adminMiddleware,
   zValidator('query', pilotStatsQuerySchema),
   (c) => adminController.getPilotStats(c, c.req.valid('query'))
 )
+// Statistics: overview, breakdown and commission over a range of days.
+// Nested here for the same cookie reason as discounts (below).
+adminRoutes.route('/stats', adminStatsRoutes)
 adminRoutes.post(
   '/vendors',
   ...adminMiddleware,
@@ -355,6 +362,8 @@ adminRoutes.route('/discounts', adminDiscountRoutes)
 // Refunds owed and done, and recording one. Nested here for the same cookie
 // reason as discounts.
 adminRoutes.route('/refunds', adminRefundRoutes)
+// Garage payouts: balances, Record payout, history and payout details.
+adminRoutes.route('/payouts', adminPayoutRoutes)
 
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.
@@ -364,7 +373,11 @@ adminRoutes.route('/notices', adminNoticeRoutes)
 // Nested here for the same cookie reason as discounts.
 adminRoutes.route('/complaints', adminComplaintRoutes)
 
-// AI helpers: GET /ai/config (describe and pictures) and POST
+// Add garage's import from a poster, photo, PDF or Tally file, and the
+// owner-phone lookup. Nested here for the same cookie reason as discounts.
+adminRoutes.route('/vendor-imports', adminVendorImportRoutes)
+
+// AI helpers: GET /ai/config (describe, pictures and import) and POST
 // /services/describe. Mounted at the root rather than under a prefix because
 // the describe route sits with the other /services ones; it has no
 // :serviceId, so it never meets the image routes.
