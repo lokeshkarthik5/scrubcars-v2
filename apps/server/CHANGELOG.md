@@ -18,6 +18,49 @@ reconstructing every change in them.
 
 ### Added
 
+- **Refunds through Razorpay from the app** (migration
+  `0036_razorpay_refunds`: four columns on `refund_records`, its
+  one-per-starting-total index made partial, a new `auto_refund_cap_days`
+  table; additive, no data step).
+  - `POST /admin/refunds/send { kind, id, amount?, expectedRefunded?, note? }`
+    (super-admin, `.strict()`): Refund now. Sends the refund through Razorpay
+    (`POST /v1/payments/:id/refund`, speed `normal` only, notes naming our
+    booking/checkout/bill, `X-Refund-Idempotency`) and records it exactly
+    like Mark refunded, with the Razorpay refund id, the admin's name and
+    "Sent through Razorpay from the app by …". Everything owed by default, a
+    part on request, never more.
+  - Never twice: every send first reads the payment's refunds from Razorpay
+    (`GET /v1/payments/:id/refunds`) and records any it has no record of (a
+    refund done in the dashboard is recorded, not repeated), then sends only
+    what is still owed. Serialised per payment by
+    `pg_advisory_xact_lock('refund:<payment>')`, held across the Razorpay
+    calls and taken by Mark refunded and the refund webhooks too. Refusals:
+    409 `REFUND_BUSY`, `REFUND_STATE_CHANGED`, `REFUND_RAZORPAY_MISMATCH`,
+    `ALREADY_REFUNDED`; 400 `REFUND_TOO_MUCH`, `REFUND_NO_PAYMENT`; 502
+    `RAZORPAY_REFUND_FAILED`; 503 `RAZORPAY_UNAVAILABLE`,
+    `RAZORPAY_REFUND_UNKNOWN`.
+  - `refund.processed` and `refund.failed` on the existing signed webhook,
+    handled before any payment logic. A failed refund keeps its record
+    (`gateway_status = 'failed'`, with why), comes off the money row's total
+    (a fully refunded payment goes back to `paid`), notes the booking and
+    alerts the team: the money shows as owed again. Failed rows are left out
+    of the receipt, Home and Updates.
+  - Automatic refunds behind `AUTO_REFUNDS=on` (default off: then nothing
+    runs and nothing is read). The clear-cut cases (garage declined or
+    no-show, customer cancelled in time, Detlio cancelled, checkout paid
+    with no booking) are refunded right after the cancel commits
+    (`waitUntil`), and `POST /ops/pending-digest` retries what was missed or
+    failed (20 a run; its answer gains `autoRefunds`). Never final-bill
+    money, never part amounts, never a booking with an open or acknowledged
+    complaint, only money owed in the last 3 days, at most 3 failed tries.
+    `AUTO_REFUND_DAILY_CAP_INR` (default 20000) stops them for the IST day,
+    with one alert.
+  - Telegram: `refund_sent` ("💸 Refund ₹X started for booking #… · auto"
+    or "· admin"), `refund_failed`, `auto_refund_cap_reached`.
+  - The customer's booking payload gains `refund.started { amount, at }`
+    while a refund the app sent is pending at Razorpay (left out otherwise).
+  - `E2E_FAKE_PAYMENTS` mints `rfnd_e2e_…` refunds in memory.
+
 - **Pickup & drop, part 1 of 2: garages, bookings and job steps** (migration
   `0037_pickup_drop`, additive: `booking_type` gains `'pickup'`; on
   `vendors`, `pickup_terms_accepted_at` / `_by`; on `bookings`,

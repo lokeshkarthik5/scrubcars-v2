@@ -2,6 +2,7 @@ import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { planPendingDigest } from '../../lib/pending-digest.js'
+import { refundsService } from '../refunds/refunds.service.js'
 import { opsRepository } from './ops.repository.js'
 
 const log = logger.child({ module: 'ops' })
@@ -17,6 +18,16 @@ export const opsService = {
    * booking still waiting for its garage.
    */
   async pendingDigest(options: { dryRun: boolean }) {
+    // The automatic refunds' retry rides on this run (AUTO_REFUNDS; nothing
+    // happens while it is off). First, and never allowed to fail the digest:
+    // a refund problem is alerted on its own, and the digest still posts.
+    const autoRefunds = await refundsService
+      .sweepAutoRefunds({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:auto_refund_sweep_failed')
+        return { enabled: true as const, error: true as const }
+      })
+
     const now = Date.now()
     const since = new Date(now - MISSED_LOOKBACK_MS)
     const [rows, pickups] = await Promise.all([
@@ -30,6 +41,7 @@ export const opsService = {
       latePickups: plan.latePickups.length,
       reason: plan.reason as string,
       posted: false,
+      autoRefunds,
     }
 
     if (!plan.post || options.dryRun) return summary

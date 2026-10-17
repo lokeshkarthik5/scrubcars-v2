@@ -6,8 +6,10 @@
  * itself leaves them (see seedBookingRows): a booking Detlio cancelled three
  * days ago and one an hour ago, a customer no-show, a garage no-show, a
  * booking the customer moved, and a checkout whose payment became no
- * booking. Ops finds them on the Refunds page, refunds the first in full,
- * and the customer's page says so. The rules themselves are unit-tested in
+ * booking, and one the garage declined. Ops finds them on the Refunds page,
+ * marks the first refunded in full, sends the declined one back with Refund
+ * now (E2E_FAKE_PAYMENTS stands in for Razorpay), and the customer's pages
+ * say so. The rules themselves are unit-tested in
  * apps/server/src/lib/refunds.test.ts; this pins that the list, the write,
  * the customer's words and the garage's earnings all follow them.
  *
@@ -17,7 +19,7 @@
 import type { Browser } from '@playwright/test'
 import { test, expect } from '../../support/fixtures'
 import { API, loginViaApi, setActiveVendor, statePath } from '../../support/auth'
-import { bookingNotes, getIntent, getPayment } from '../../support/db'
+import { bookingNotes, getIntent, getPayment, refundRecordsFor } from '../../support/db'
 import { USERS_ORIGIN, VENDORS_ORIGIN } from '../../support/journey'
 import { blockThirdParties, dismissLocationPrompt } from '../../support/network'
 import { BOOKING_INTENTS, BOOKINGS, CUSTOMERS, VENDORS } from '../../support/seed-ids'
@@ -205,6 +207,85 @@ test.describe('refunds @p0', () => {
     await customer.page.goto('/bookings?tab=past')
     await expect(customer.page.getByText('Refunded', { exact: true })).toBeVisible()
     await customer.ctx.close()
+  })
+
+  test('Refund now sends it through Razorpay, records it like a manual one, and the customer is told it started', async ({
+    browser,
+  }) => {
+    const id = BOOKINGS.refundSendNow
+    const ref = reference(id)
+    const { ctx, page } = await openAdmin(browser)
+
+    await page.goto('/refunds')
+    await page.getByRole('button', { name: `Refund now: #${ref}, ₹499 owed` }).click()
+
+    const sheet = page.getByRole('dialog', { name: `Refund now: #${ref}` })
+    // Who, which booking and how much, before anything is sent.
+    await expect(sheet.getByText(CUSTOMERS.refunds.name)).toBeVisible()
+    await expect(sheet.getByText('pay_seed_refund_send')).toBeVisible()
+    await expect(sheet.getByText('Refunds take 5–7 working days to reach the customer.')).toBeVisible()
+    await expect(sheet.getByLabel('Amount to refund (₹)')).toHaveValue('499')
+    // Never above what is owed.
+    await sheet.getByLabel('Amount to refund (₹)').fill('500')
+    await expect(sheet.getByText("That's more than the ₹499 still owed.")).toBeVisible()
+    await expect(sheet.getByRole('button', { name: 'Refund ₹500 now' })).toBeDisabled()
+    await sheet.getByLabel('Amount to refund (₹)').fill('499')
+    await sheet.getByRole('button', { name: 'Refund ₹499 now' }).click()
+    await expect(sheet).toBeHidden()
+
+    // Recorded exactly like Mark refunded, with the Razorpay refund id, the
+    // admin, and the marker that the app sent it.
+    await expect.poll(async () => (await getPayment(id))?.status).toBe('refunded')
+    const payment = await getPayment(id)
+    expect(payment?.refunded_amount).toBe('499.00')
+    expect(payment?.refund_ref).toMatch(/^rfnd_e2e_[0-9a-f]{32}$/)
+    expect(payment?.refunded_by).toBe('admin')
+    expect(payment?.refund_note).toBe('Sent through Razorpay from the app by admin.')
+    expect(await refundRecordsFor(id)).toEqual([
+      {
+        kind: 'booking',
+        amount: '499.00',
+        refund_ref: payment?.refund_ref ?? null,
+        recorded_by: 'admin',
+        source: 'admin',
+        gateway_status: 'pending',
+      },
+    ])
+    expect((await bookingNotes(id)).map((note) => note.body)).toContain(
+      `Sent a refund of ₹499 of the booking payment through Razorpay from the app (${payment?.refund_ref}).`
+    )
+
+    // Off the Owed list, onto Done.
+    await expect(page.getByRole('link', { name: `Open booking #${ref}` })).toHaveCount(0)
+    await page.getByRole('radio', { name: 'Done' }).click()
+    await expect(
+      page
+        .getByRole('list', { name: 'Refunds done' })
+        .getByRole('listitem')
+        .filter({ has: page.getByRole('link', { name: `Open booking #${ref}` }) })
+    ).toBeVisible()
+
+    // A second press sends nothing: Razorpay is read first, and all of it
+    // has gone back.
+    const again = await ctx.request.post(`${REFUNDS}/send`, { data: { kind: 'booking', id } })
+    expect(again.status()).toBe(409)
+    expect((await again.json()).code).toBe('ALREADY_REFUNDED')
+    expect(await refundRecordsFor(id)).toHaveLength(1)
+
+    // Admin only.
+    const customer = await loginViaApi(CUSTOMERS.refunds.phone)
+    expect((await customer.post(`${REFUNDS}/send`, { data: { kind: 'booking', id } })).status()).toBe(403)
+    await customer.dispose()
+    await ctx.close()
+
+    const shopper = await openCustomer(browser)
+    await shopper.page.goto(`/bookings/${id}`)
+    await expect(
+      shopper.page.getByText(
+        /^Refund of ₹499 started on \d{1,2} [A-Z][a-z]{2,3} \d{4}\. It reaches your account in 5–7 working days\.$/
+      )
+    ).toBeVisible()
+    await shopper.ctx.close()
   })
 
   test('a refund that is not owed, too large, or under a used refund id is refused', async ({ browser }) => {

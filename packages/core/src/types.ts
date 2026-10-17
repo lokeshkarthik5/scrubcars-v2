@@ -377,6 +377,11 @@ export interface BookingRefund {
   amount: number
   amountRefunded: number
   refundedAt?: string
+  /**
+   * Refunds sent through Razorpay from the app that Razorpay hasn't finished
+   * yet: how much, and when the latest was started (ISO).
+   */
+  started?: { amount: number; at: string }
 }
 
 /**

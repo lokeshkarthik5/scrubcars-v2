@@ -458,6 +458,21 @@ export interface RecordRefundInput {
   expectedRefunded?: number
 }
 
+/**
+ * What POST /admin/refunds/send takes: Refund now, through Razorpay. `amount`
+ * from everything owed down to a part of it (never more); left out, all of
+ * it. `expectedRefunded` is what the sheet showed as refunded: if that has
+ * moved, nothing is sent (409 REFUND_STATE_CHANGED).
+ */
+export interface RefundNowInput {
+  kind: RefundKind
+  id: string
+  /** Rupees, to the paisa. */
+  amount?: number
+  expectedRefunded?: number
+  note?: string
+}
+
 export interface AdminBookingFilters {
   /** A booking reference, a customer phone or name, or a garage name. */
   q?: string
@@ -1021,6 +1036,22 @@ export async function listAdminRefunds(status: 'owed' | 'done') {
  */
 export async function recordAdminRefund(input: RecordRefundInput) {
   return apiClient<AdminRefund>('/admin/refunds', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST /admin/refunds/send — Refund now: sends the refund through Razorpay
+ * and records it. It checks Razorpay first, so a refund already done in the
+ * dashboard is recorded rather than sent again. 409 REFUND_BUSY while
+ * another refund of the payment is under way, 409 REFUND_STATE_CHANGED when
+ * the figures moved, 400 REFUND_TOO_MUCH above what is owed, 502
+ * RAZORPAY_REFUND_FAILED when Razorpay refuses it, 503 when Razorpay can't
+ * be reached or didn't answer (pressing again never sends twice).
+ */
+export async function sendAdminRefund(input: RefundNowInput) {
+  return apiClient<AdminRefund>('/admin/refunds/send', {
     method: 'POST',
     body: JSON.stringify(input),
   })

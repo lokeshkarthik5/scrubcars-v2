@@ -425,6 +425,11 @@ export interface ApiBooking {
     amount: string
     amountRefunded: string
     refundedAt: string | null
+    /**
+     * Refunds the app sent through Razorpay that are still on their way:
+     * how much, and when the latest was started. Absent when there are none.
+     */
+    started?: { amount: string; at: string }
   }
   /**
    * Customer payloads only: whether GET /bookings/:id/receipt has a receipt

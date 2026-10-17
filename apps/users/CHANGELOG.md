@@ -19,6 +19,17 @@ reconstructing every change in them.
 
 ### Added
 
+- **Refund now in admin.** Each row on Refunds owed (and a booking's Refund
+  section) has "Refund now…" beside "Mark refunded…" when there is a
+  Razorpay payment to refund. Its sheet shows the customer, the booking or
+  checkout, what is owed and the payment, takes an amount (everything owed
+  to start with, can be lowered, never above it) and says "Refunds take 5–7
+  working days to reach the customer." The refund goes through Razorpay and
+  the row moves to Done. Mark refunded stays for refunds done in the
+  dashboard. Customer app: while such a refund is on its way, the booking
+  page says "Refund of ₹X started on <date>. It reaches your account in 5–7
+  working days."
+
 - **Pickup & drop, part 1 of 2 (garage portal and admin).** Garage
   portal: Settings → Hours has a Pickup & drop switch; turning it on asks
   for the distance (empty is 10 km from the pin) and the owner's tick "We

@@ -102,6 +102,52 @@ export type OpsAlert =
       by: string
     }
   | {
+      /**
+       * The app sent a refund through Razorpay: from the Refund now button
+       * (`by` the admin) or by itself under AUTO_REFUNDS. Nothing to do
+       * unless it later fails, which gets its own alert.
+       */
+      kind: 'refund_sent'
+      what: 'booking' | 'checkout' | 'bill'
+      bookingId: string | null
+      garageName: string | null
+      amount: string
+      paid: string
+      refundedTotal: string
+      refundRef: string
+      paymentId: string | null
+      auto: boolean
+      by: string
+    }
+  | {
+      /**
+       * A refund through Razorpay did not happen: Razorpay refused it when
+       * the app sent it, or failed it later (refund.failed). The money is
+       * owed again and back on the Refunds page.
+       */
+      kind: 'refund_failed'
+      what: 'booking' | 'checkout' | 'bill'
+      bookingId: string | null
+      amount: string
+      /** Null when Razorpay refused it outright and made no refund. */
+      refundRef: string | null
+      paymentId: string | null
+      /** Plain words for the team; may be Razorpay's own. */
+      reason: string
+      auto: boolean
+      /** The automatic mode has tried as often as it will. */
+      gaveUp: boolean
+    }
+  | {
+      /**
+       * The automatic mode reached its daily cap: no more automatic refunds
+       * until tomorrow (IST). Sent once a day at most.
+       */
+      kind: 'auto_refund_cap_reached'
+      cap: string
+      sentToday: string
+    }
+  | {
       kind: 'pending_digest'
       now: Date
       waiting: DigestBooking[]
@@ -344,6 +390,44 @@ export function formatOpsAlert(alert: OpsAlert): string {
         alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
       )
     }
+
+    case 'refund_sent': {
+      const full = Number(alert.refundedTotal) >= Number(alert.paid)
+      return lines(
+        `💸 Refund ${rupees(alert.amount)} started${alert.bookingId ? ` for booking #${reference(alert.bookingId)}` : ' for a payment with no booking'} · ${alert.auto ? 'auto' : 'admin'}`,
+        [REFUND_WHAT[alert.what], alert.garageName].filter(Boolean).join(' · '),
+        `Razorpay refund ${alert.refundRef}${alert.paymentId ? ` for ${alert.paymentId}` : ''}`,
+        full
+          ? 'All of it is on its way back.'
+          : `Part refund: ${rupees(alert.refundedTotal)} of ${rupees(alert.paid)} back so far. The rest is still owed.`,
+        alert.auto ? 'Sent automatically.' : `Sent by ${alert.by}.`,
+        alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
+      )
+    }
+
+    case 'refund_failed':
+      return lines(
+        `⚠️ Refund ${rupees(alert.amount)} failed${alert.bookingId ? ` for booking #${reference(alert.bookingId)}` : ' for a payment with no booking'} · ${alert.auto ? 'auto' : 'admin'}`,
+        REFUND_WHAT[alert.what],
+        alert.refundRef
+          ? `Razorpay refund ${alert.refundRef}${alert.paymentId ? ` for ${alert.paymentId}` : ''}`
+          : alert.paymentId
+            ? `Razorpay payment ${alert.paymentId}`
+            : null,
+        `Why: ${alert.reason}`,
+        alert.gaveUp
+          ? 'The money is owed again. Automatic refunds have stopped trying this one: refund it from the Refunds page.'
+          : 'The money is owed again and back on the Refunds page.',
+        alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
+      )
+
+    case 'auto_refund_cap_reached':
+      return lines(
+        `🛑 Automatic refunds paused for today`,
+        `${rupees(alert.sentToday)} refunded automatically today; the daily cap is ${rupees(alert.cap)}.`,
+        'Anything else owed today waits on the Refunds page: use Refund now, or it goes automatically tomorrow.',
+        ADMIN_REFUNDS_URL
+      )
 
     case 'rescheduled': {
       const b = alert.booking

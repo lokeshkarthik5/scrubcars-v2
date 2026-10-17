@@ -2,15 +2,34 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, not, or, sql, type 
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
+  autoRefundCapDays,
   bookingCharges,
   bookingIntents,
   bookingNotes,
   bookings,
+  complaints,
   payments,
   refundRecords,
   users,
   vendors,
 } from '../../db/schema.js'
+import type { GatewayRefundStatus, RefundKind, RefundSource } from '../../lib/refunds.js'
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
+ * Where a query runs: the pool, or the transaction a refund is sent under.
+ * The database has a single connection (db/index.ts `max: 1`), so anything
+ * read or written while that transaction is open must go through it: a
+ * query on `db` would queue behind the transaction it is part of, for ever.
+ */
+export type Conn = typeof db | Tx
+
+/**
+ * A refund that stands: every one but a failed refund through Razorpay,
+ * which moved no money (0036). Every reader of the history says this.
+ */
+export const STANDING_REFUND = sql`${refundRecords.gatewayStatus} IS DISTINCT FROM 'failed'`
 
 /**
  * Whether the customer moved this booking to a new time: some booking was
@@ -63,8 +82,8 @@ const CUSTOMER_AND_GARAGE = {
   garageName: vendors.businessName,
 }
 
-function bookingPaymentRows(where: SQL | undefined) {
-  return db
+function bookingPaymentRows(where: SQL | undefined, conn: Conn = db) {
+  return conn
     .select({
       bookingId: bookings.id,
       status: payments.status,
@@ -92,8 +111,8 @@ function bookingPaymentRows(where: SQL | undefined) {
     .where(where)
 }
 
-function checkoutRows(where: SQL | undefined) {
-  return db
+function checkoutRows(where: SQL | undefined, conn: Conn = db) {
+  return conn
     .select({
       intentId: bookingIntents.id,
       status: bookingIntents.status,
@@ -114,8 +133,8 @@ function checkoutRows(where: SQL | undefined) {
     .where(where)
 }
 
-function billRows(where: SQL | undefined) {
-  return db
+function billRows(where: SQL | undefined, conn: Conn = db) {
+  return conn
     .select({
       chargeId: bookingCharges.id,
       bookingId: bookingCharges.bookingId,
@@ -148,6 +167,10 @@ export type BillRefundRow = Awaited<ReturnType<typeof billRows>>[number]
 
 /** The figures a refund write sets, worked out by the service. */
 export interface RefundWrite {
+  /** How it came to be recorded; 'recorded' (ops, by hand) when not said. */
+  source?: RefundSource
+  /** Where Razorpay says it stands, when the app sent or found it. */
+  gatewayStatus?: GatewayRefundStatus | null
   /**
    * What was refunded before this one, as the person recording it saw it:
    * the write is conditional on it.
@@ -209,8 +232,6 @@ async function guarded<T>(write: () => Promise<T | null>): Promise<RefundWriteRe
   }
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
-
 /** The history row every refund leaves, written in the same transaction. */
 function insertRecord(
   tx: Tx,
@@ -227,7 +248,26 @@ function insertRecord(
     refundNote: write.refundNote,
     recordedBy: write.refundedBy,
     recordedAt: write.refundedAt,
+    source: write.source ?? 'recorded',
+    gatewayStatus: write.gatewayStatus ?? null,
   })
+}
+
+/** Thrown inside failRefund to roll its transaction back. */
+class FiguresMoved extends Error {}
+
+/** A refund record, as the sending and webhook paths read it. */
+export type RefundRecordRow = typeof refundRecords.$inferSelect
+
+/**
+ * What the money row says about its latest refund after one is taken back:
+ * the latest refund still standing, or nothing.
+ */
+export interface LatestRefund {
+  refundRef: string | null
+  refundedAt: Date | null
+  refundedBy: string | null
+  refundNote: string | null
 }
 
 export const refundsRepository = {
@@ -270,18 +310,18 @@ export const refundsRepository = {
     return { bookingPayments, bills }
   },
 
-  async findBookingPayment(bookingId: string) {
-    const [row] = await bookingPaymentRows(eq(bookings.id, bookingId))
+  async findBookingPayment(bookingId: string, conn: Conn = db) {
+    const [row] = await bookingPaymentRows(eq(bookings.id, bookingId), conn)
     return row ?? null
   },
 
-  async findCheckout(intentId: string) {
-    const [row] = await checkoutRows(eq(bookingIntents.id, intentId))
+  async findCheckout(intentId: string, conn: Conn = db) {
+    const [row] = await checkoutRows(eq(bookingIntents.id, intentId), conn)
     return row ?? null
   },
 
-  async findBill(chargeId: string) {
-    const [row] = await billRows(eq(bookingCharges.id, chargeId))
+  async findBill(chargeId: string, conn: Conn = db) {
+    const [row] = await billRows(eq(bookingCharges.id, chargeId), conn)
     return row ?? null
   },
 
@@ -292,8 +332,8 @@ export const refundsRepository = {
    * it was pasted onto the wrong row. The unique index on it is what holds
    * under a race; this is so the refusal can say where.
    */
-  async findRefundRef(refundRef: string) {
-    const [row] = await db
+  async findRefundRef(refundRef: string, conn: Conn = db) {
+    const [row] = await conn
       .select({ kind: refundRecords.kind, targetId: refundRecords.targetId, bookingId: refundRecords.bookingId })
       .from(refundRecords)
       .where(eq(refundRecords.refundRef, refundRef))
@@ -313,9 +353,10 @@ export const refundsRepository = {
   recordBookingRefund(
     bookingId: string,
     write: RefundWrite & { full: boolean },
-    note: { author: string; body: string }
+    note: { author: string; body: string },
+    conn: Conn = db
   ) {
-    return guarded(() => db.transaction(async (tx) => {
+    return guarded(() => conn.transaction(async (tx) => {
       const [payment] = await tx
         .update(payments)
         .set({
@@ -348,8 +389,8 @@ export const refundsRepository = {
    * There is no booking to note it on; the rows and the alert are the
    * record.
    */
-  recordCheckoutRefund(intentId: string, write: RefundWrite) {
-    return guarded(() => db.transaction(async (tx) => {
+  recordCheckoutRefund(intentId: string, write: RefundWrite, conn: Conn = db) {
+    return guarded(() => conn.transaction(async (tx) => {
       const [intent] = await tx
         .update(bookingIntents)
         .set({
@@ -384,9 +425,10 @@ export const refundsRepository = {
     chargeId: string,
     bookingId: string,
     write: RefundWrite,
-    note: { author: string; body: string }
+    note: { author: string; body: string },
+    conn: Conn = db
   ) {
-    return guarded(() => db.transaction(async (tx) => {
+    return guarded(() => conn.transaction(async (tx) => {
       const [charge] = await tx
         .update(bookingCharges)
         .set({
@@ -437,5 +479,313 @@ export const refundsRepository = {
 
   findUserById(id: string) {
     return db.query.users.findFirst({ where: eq(users.id, id) })
+  },
+
+  /**
+   * Runs `work` in one transaction holding the refund lock of one Razorpay
+   * payment, `pg_advisory_xact_lock('refund:<paymentId>')`: every path that
+   * sends, records or takes back a refund of that payment takes it, so a
+   * double-tap of Refund now, the automatic mode, the cron and a webhook
+   * never work on the same money at once. It is held across the calls to
+   * Razorpay, which is the point: the read of Razorpay's refunds, the send
+   * and the record are one step.
+   *
+   * Taken on its own, never alongside the booking-write locks (outside their
+   * order, like service media's and complaints'), and first in its
+   * transaction: the only lock taken after it is the automatic mode's cap
+   * lock (lockAutoRefundCap), then the money row's own row lock at the write.
+   *
+   * `wait: false` (the button, the automatic mode) answers `busy` at once
+   * when someone else holds it; `wait: true` (a webhook, which Razorpay
+   * retries anyway) waits up to 20 seconds.
+   */
+  async withRefundLock<T>(
+    paymentKey: string,
+    options: { wait: boolean },
+    work: (tx: Tx) => Promise<T>
+  ): Promise<{ kind: 'done'; value: T } | { kind: 'busy' }> {
+    const key = `refund:${paymentKey}`
+    return db.transaction(async (tx) => {
+      if (options.wait) {
+        await tx.execute(sql`SET LOCAL lock_timeout = '20s'`)
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${key})::bigint)`)
+      } else {
+        const rows = await tx.execute<{ locked: boolean }>(
+          sql`select pg_try_advisory_xact_lock(hashtext(${key})::bigint) as locked`
+        )
+        if (!Array.from(rows)[0]?.locked) return { kind: 'busy' as const }
+      }
+      return { kind: 'done' as const, value: await work(tx) }
+    })
+  },
+
+  /**
+   * The automatic mode's own lock, taken after a payment's refund lock and
+   * only by an automatic refund: it serialises every automatic refund, so
+   * two at once can't both fit under the day's cap.
+   */
+  async lockAutoRefundCap(tx: Tx) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('auto-refunds:cap')::bigint)`)
+  },
+
+  /** Which of these Razorpay refund ids are recorded on any refund. */
+  async findRecordedRefs(refs: string[], conn: Conn = db): Promise<Set<string>> {
+    if (refs.length === 0) return new Set()
+    const rows = await conn
+      .select({ refundRef: refundRecords.refundRef })
+      .from(refundRecords)
+      .where(inArray(refundRecords.refundRef, refs))
+    return new Set(rows.flatMap((row) => (row.refundRef ? [row.refundRef] : [])))
+  },
+
+  /** The record of a Razorpay refund id, whatever its state. */
+  async findRecordByRef(refundRef: string, conn: Conn = db): Promise<RefundRecordRow | null> {
+    const [row] = await conn.select().from(refundRecords).where(eq(refundRecords.refundRef, refundRef)).limit(1)
+    return row ?? null
+  },
+
+  /**
+   * The app's own refunds of one piece of money still pending at Razorpay,
+   * whose outcome a sync can settle when a webhook was missed.
+   */
+  listPendingForTarget(kind: RefundKind, targetId: string, conn: Conn = db) {
+    return conn
+      .select()
+      .from(refundRecords)
+      .where(
+        and(
+          eq(refundRecords.kind, kind),
+          eq(refundRecords.targetId, targetId),
+          eq(refundRecords.gatewayStatus, 'pending')
+        )
+      )
+  },
+
+  /** How many sends through Razorpay of this money have failed. */
+  async countFailedAttempts(kind: RefundKind, targetId: string, conn: Conn = db): Promise<number> {
+    const [row] = await conn
+      .select({ count: sql<number>`count(*)::int` })
+      .from(refundRecords)
+      .where(
+        and(
+          eq(refundRecords.kind, kind),
+          eq(refundRecords.targetId, targetId),
+          eq(refundRecords.gatewayStatus, 'failed')
+        )
+      )
+    return row?.count ?? 0
+  },
+
+  /** Whether the booking has a complaint that is open or acknowledged. */
+  async hasOpenComplaint(bookingId: string, conn: Conn = db): Promise<boolean> {
+    const [row] = await conn
+      .select({ id: complaints.id })
+      .from(complaints)
+      .where(and(eq(complaints.bookingId, bookingId), inArray(complaints.status, ['open', 'acknowledged'])))
+      .limit(1)
+    return Boolean(row)
+  },
+
+  /** What the automatic mode has sent since `since` and still stands. */
+  async autoRefundedSince(since: Date, conn: Conn = db): Promise<string> {
+    const [row] = await conn
+      .select({ total: sql<string>`coalesce(sum(${refundRecords.amount}), 0)::numeric(10, 2)::text` })
+      .from(refundRecords)
+      .where(and(eq(refundRecords.source, 'auto'), gte(refundRecords.recordedAt, since), STANDING_REFUND))
+    return row?.total ?? '0.00'
+  },
+
+  /** Whether the automatic mode's daily cap was reached on this IST day. */
+  async capReachedOn(day: string, conn: Conn = db): Promise<boolean> {
+    const [row] = await conn
+      .select({ day: autoRefundCapDays.day })
+      .from(autoRefundCapDays)
+      .where(eq(autoRefundCapDays.day, day))
+      .limit(1)
+    return Boolean(row)
+  },
+
+  /**
+   * Marks the day's cap reached. True only for the call that wrote the row,
+   * which is the one that tells the team.
+   */
+  async markCapReached(input: { day: string; cap: string; sent: string }, conn: Conn = db): Promise<boolean> {
+    const rows = await conn
+      .insert(autoRefundCapDays)
+      .values({ day: input.day, capAmount: input.cap, sentAmount: input.sent })
+      .onConflictDoNothing()
+      .returning({ day: autoRefundCapDays.day })
+    return rows.length > 0
+  },
+
+  /**
+   * Records a send Razorpay refused outright, which made no refund: a
+   * failed attempt, with no refund id, and the money row left as it was.
+   * It is what counts the automatic mode's tries, and the history of what
+   * was tried.
+   */
+  async recordFailedAttempt(
+    input: {
+      kind: RefundKind
+      targetId: string
+      bookingId: string | null
+      amount: string
+      refundedBefore: string
+      source: 'admin' | 'auto'
+      by: string
+      reason: string
+      at: Date
+    },
+    conn: Conn = db
+  ) {
+    await conn.insert(refundRecords).values({
+      kind: input.kind,
+      targetId: input.targetId,
+      bookingId: input.bookingId,
+      amount: input.amount,
+      refundedBefore: input.refundedBefore,
+      refundRef: null,
+      recordedBy: input.by,
+      recordedAt: input.at,
+      source: input.source,
+      gatewayStatus: 'failed',
+      settledAt: input.at,
+      failureReason: input.reason,
+    })
+  },
+
+  /**
+   * Razorpay says a refund was processed. Only from pending, or from no
+   * status (one ops recorded by hand); a failed one stays failed.
+   */
+  async markProcessed(recordId: string, at: Date, conn: Conn = db) {
+    return conn
+      .update(refundRecords)
+      .set({ gatewayStatus: 'processed', settledAt: at })
+      .where(
+        and(
+          eq(refundRecords.id, recordId),
+          or(isNull(refundRecords.gatewayStatus), eq(refundRecords.gatewayStatus, 'pending'))
+        )
+      )
+      .returning({ id: refundRecords.id })
+  },
+
+  /**
+   * The latest refund of this money that still stands, other than
+   * `exceptId`: what the money row describes once a refund is taken back.
+   */
+  async latestStanding(kind: RefundKind, targetId: string, exceptId: string, conn: Conn = db): Promise<LatestRefund> {
+    const [row] = await conn
+      .select({
+        refundRef: refundRecords.refundRef,
+        refundedAt: refundRecords.recordedAt,
+        refundedBy: refundRecords.recordedBy,
+        refundNote: refundRecords.refundNote,
+      })
+      .from(refundRecords)
+      .where(
+        and(
+          eq(refundRecords.kind, kind),
+          eq(refundRecords.targetId, targetId),
+          ne(refundRecords.id, exceptId),
+          STANDING_REFUND
+        )
+      )
+      .orderBy(desc(refundRecords.recordedAt), desc(refundRecords.id))
+      .limit(1)
+    return row ?? { refundRef: null, refundedAt: null, refundedBy: null, refundNote: null }
+  },
+
+  /**
+   * Takes back a refund Razorpay failed: its record becomes failed (kept,
+   * with why), the money row's running total drops by it — conditional on
+   * the total being what the service read, like every refund write — and
+   * its description goes back to the latest refund still standing. A
+   * booking's payment that the refund had made 'refunded' is 'paid' again,
+   * so it is owed. Leaves a booking note when there is a booking. Nothing
+   * is written unless all of it is; null when the record was already failed
+   * or the figures moved.
+   */
+  failRefund(
+    record: RefundRecordRow,
+    write: {
+      expectedRefunded: string
+      refundedAmount: string | null
+      latest: LatestRefund
+      reason: string
+      at: Date
+    },
+    note: { author: string; body: string } | null,
+    conn: Conn = db
+  ) {
+    return conn.transaction(async (tx) => {
+      const [failed] = await tx
+        .update(refundRecords)
+        .set({ gatewayStatus: 'failed', settledAt: write.at, failureReason: write.reason })
+        .where(and(eq(refundRecords.id, record.id), STANDING_REFUND))
+        .returning({ id: refundRecords.id })
+      if (!failed) return null
+
+      const back = {
+        refundedAmount: write.refundedAmount,
+        refundRef: write.latest.refundRef,
+        refundedAt: write.latest.refundedAt,
+        refundedBy: write.latest.refundedBy,
+        refundNote: write.latest.refundNote,
+      }
+
+      let moved: unknown[]
+      switch (record.kind) {
+        case 'booking':
+          moved = await tx
+            .update(payments)
+            .set({ ...back, status: 'paid' })
+            .where(
+              and(
+                eq(payments.bookingId, record.targetId),
+                inArray(payments.status, ['paid', 'refunded']),
+                refundedSoFarIs(payments.refundedAmount, write.expectedRefunded)
+              )
+            )
+            .returning({ id: payments.id })
+          break
+        case 'checkout':
+          moved = await tx
+            .update(bookingIntents)
+            .set(back)
+            .where(
+              and(
+                eq(bookingIntents.id, record.targetId),
+                refundedSoFarIs(bookingIntents.refundedAmount, write.expectedRefunded)
+              )
+            )
+            .returning({ id: bookingIntents.id })
+          break
+        case 'bill':
+          moved = await tx
+            .update(bookingCharges)
+            .set(back)
+            .where(
+              and(
+                eq(bookingCharges.id, record.targetId),
+                refundedSoFarIs(bookingCharges.refundedAmount, write.expectedRefunded)
+              )
+            )
+            .returning({ id: bookingCharges.id })
+          break
+      }
+      // The figures moved under the lock: nothing is taken back, so a
+      // person looks rather than the total going wrong.
+      if (moved.length === 0) throw new FiguresMoved()
+
+      if (note && record.bookingId) {
+        await tx.insert(bookingNotes).values({ bookingId: record.bookingId, author: note.author, body: note.body })
+      }
+      return failed
+    }).catch((error: unknown) => {
+      if (error instanceof FiguresMoved) return null
+      throw error
+    })
   },
 }

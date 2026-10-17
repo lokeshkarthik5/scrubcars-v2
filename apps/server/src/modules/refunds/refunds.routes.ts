@@ -6,7 +6,7 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import * as refundsController from './refunds.controller.js'
-import { listRefundsQuerySchema, recordRefundSchema } from './refunds.validation.js'
+import { listRefundsQuerySchema, recordRefundSchema, refundNowSchema } from './refunds.validation.js'
 
 // Refunds owed and done. Mounted under /api/v1/admin/refunds (see
 // admin.routes.ts), like discounts: the admin session cookie is scoped to
@@ -23,11 +23,21 @@ adminRefundRoutes.get(
   (c) => refundsController.listRefunds(c, c.req.valid('query'))
 )
 
-// Records a refund ops has done in Razorpay (or outside it). Nothing here
-// moves money: refunds stay manual in the Razorpay dashboard for the pilot.
+// Records a refund ops has done in the Razorpay dashboard (or outside
+// Razorpay). Nothing here moves money; Refund now below is what sends one.
 adminRefundRoutes.post(
   '/',
   ...adminMiddleware,
   zValidator('json', recordRefundSchema),
   (c) => refundsController.recordRefund(c, c.req.valid('json'))
+)
+
+// Refund now: sends a refund through Razorpay from Detlio's balance, then
+// records it like the route above. Super-admin only, like every refunds
+// route. Always normal speed; never more than is owed.
+adminRefundRoutes.post(
+  '/send',
+  ...adminMiddleware,
+  zValidator('json', refundNowSchema),
+  (c) => refundsController.refundNow(c, c.req.valid('json'))
 )

@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   listAdminRefunds,
   recordAdminRefund,
+  sendAdminRefund,
   type RecordRefundInput,
+  type RefundNowInput,
 } from '@repo/core/api/admin'
 import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
 import { pilotStatsKeys } from '@repo/core/api/hooks/use-pilot-stats'
@@ -37,10 +39,9 @@ export function useAdminRefunds(status: 'owed' | 'done') {
  * all of those are refetched — on a refusal too, because a 409 usually
  * means someone else recorded it first and the screen is out of date.
  */
-export function useRecordAdminRefund() {
+function useRefreshAfterRefund() {
   const queryClient = useQueryClient()
-
-  const refresh = (bookingId: string | null) => {
+  return (bookingId: string | null) => {
     void queryClient.invalidateQueries({ queryKey: adminRefundKeys.all })
     void queryClient.invalidateQueries({ queryKey: adminBookingKeys.lists() })
     void queryClient.invalidateQueries({ queryKey: pilotStatsKeys.all })
@@ -48,10 +49,30 @@ export function useRecordAdminRefund() {
       void queryClient.invalidateQueries({ queryKey: adminBookingKeys.detail(bookingId) })
     }
   }
+}
+
+export function useRecordAdminRefund() {
+  const refresh = useRefreshAfterRefund()
 
   return useMutation({
     mutationFn: ({ input }: { input: RecordRefundInput; bookingId: string | null }) =>
       recordAdminRefund(input),
+    onSuccess: (_refund, { bookingId }) => refresh(bookingId),
+    onError: (_error, { bookingId }) => refresh(bookingId),
+  })
+}
+
+/**
+ * Refund now: sends a refund through Razorpay. Refreshes the same screens as
+ * recording one, on a refusal too: a 409 usually means the figures moved (a
+ * refund was found in Razorpay, or someone recorded one).
+ */
+export function useSendAdminRefund() {
+  const refresh = useRefreshAfterRefund()
+
+  return useMutation({
+    mutationFn: ({ input }: { input: RefundNowInput; bookingId: string | null }) =>
+      sendAdminRefund(input),
     onSuccess: (_refund, { bookingId }) => refresh(bookingId),
     onError: (_error, { bookingId }) => refresh(bookingId),
   })

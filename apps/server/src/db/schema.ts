@@ -23,6 +23,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 import type { ComplaintCategory, ComplaintStatus } from '../lib/complaints.js'
+import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -1454,19 +1455,60 @@ export const refundRecords = pgTable(
     recordedAt: timestamp('recorded_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
+    // How it came to be recorded (0036): 'recorded' by ops after doing it by
+    // hand (Mark refunded), 'razorpay' found on the payment in Razorpay with
+    // no record here, or sent by the app itself, 'admin' (Refund now) or
+    // 'auto' (AUTO_REFUNDS). See RefundSource in lib/refunds.ts.
+    source: text('source').$type<RefundSource>().default('recorded').notNull(),
+    // Where Razorpay says it stands: pending until its refund.processed or
+    // refund.failed webhook; null when nobody asked. A failed row moved no
+    // money: the money row's total was put back, and every reader of the
+    // history leaves it out (STANDING_REFUND in refunds.repository).
+    gatewayStatus: text('gateway_status').$type<GatewayRefundStatus>(),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    failureReason: varchar('failure_reason', { length: 300 }),
   },
   (table) => [
     uniqueIndex('refund_records_refund_ref_key').on(table.refundRef),
     // A booking's refunds, for the Updates feed.
     index('refund_records_booking_id_idx').on(table.bookingId),
-    uniqueIndex('refund_records_kind_target_before_key').on(
-      table.kind,
-      table.targetId,
-      table.refundedBefore
-    ),
+    // A failed refund put the running total back, so the retry starts from
+    // the same total: failed rows are left out of this one.
+    uniqueIndex('refund_records_kind_target_before_key')
+      .on(table.kind, table.targetId, table.refundedBefore)
+      .where(sql`${table.gatewayStatus} IS DISTINCT FROM 'failed'`),
+    // The automatic mode's daily cap adds up the day's automatic refunds.
+    index('refund_records_auto_recorded_at_idx')
+      .on(table.recordedAt)
+      .where(sql`${table.source} = 'auto'`),
     check('refund_records_amount_check', sql`${table.amount} > 0`),
+    check(
+      'refund_records_source_check',
+      sql`${table.source} in ('recorded', 'razorpay', 'admin', 'auto')`
+    ),
+    check(
+      'refund_records_gateway_status_check',
+      sql`${table.gatewayStatus} in ('pending', 'processed', 'failed')`
+    ),
+    // A pending or processed refund is a real Razorpay refund with its id;
+    // only one Razorpay refused outright has none.
+    check(
+      'refund_records_gateway_ref_check',
+      sql`${table.gatewayStatus} IS NULL OR ${table.gatewayStatus} = 'failed' OR ${table.refundRef} IS NOT NULL`
+    ),
   ]
 )
+
+// The IST days the automatic mode's daily cap (AUTO_REFUND_DAILY_CAP_INR)
+// was reached (0036). Written once a day, by whichever automatic refund
+// found the cap reached first: that row is what stops automatic refunds for
+// the rest of the day and what sends the team its one alert about it.
+export const autoRefundCapDays = pgTable('auto_refund_cap_days', {
+  day: date('day').primaryKey(),
+  reachedAt: timestamp('reached_at', { withTimezone: true }).defaultNow().notNull(),
+  capAmount: decimal('cap_amount', { precision: 10, scale: 2 }).notNull(),
+  sentAmount: decimal('sent_amount', { precision: 10, scale: 2 }).notNull(),
+})
 
 // The customer's receipt numbers: "DTL/26-27/000123", consecutive within each
 // Indian financial year (see formatReceiptSerial in lib/receipts.ts). The
