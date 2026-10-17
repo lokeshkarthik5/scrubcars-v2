@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   IconBuildingStore,
+  IconChevronDown,
   IconPhotoPlus,
   IconPlus,
   IconTrash,
@@ -28,13 +29,16 @@ import {
   deleteAdminVendorLogo,
   deleteAdminVendorPhoto,
   getAdminVendor,
+  listAdminHiddenServices,
   pauseAdminVendor,
   resumeAdminVendor,
+  setAdminServiceActive,
   updateAdminVendor,
   uploadAdminServiceImage,
   uploadAdminVendorLogo,
   uploadAdminVendorPhoto,
   type AdminPhoto,
+  type AdminService,
   type AdminVendorDetail,
   type AdminWorkingDay,
 } from '@repo/core/api/admin'
@@ -46,6 +50,16 @@ import {
 } from '@repo/core/vehicles'
 import type { ServiceCategory } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
+import {
+  missingServiceFields,
+  rowsToSave,
+  serviceRowProblem,
+  servicesSaveBlock,
+  showAgainWarning,
+  storedPriceSummary,
+  switchPricingType,
+  type PricingType,
+} from '@/lib/service-rows'
 import { VendorTeamSection } from './team-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -78,7 +92,6 @@ function rejectFile(file: File): string | null {
   return null
 }
 
-type PricingType = 'flat' | 'per_vehicle' | 'on_inspection'
 const PRICING_TYPES: Array<{ value: PricingType; label: string }> = [
   { value: 'flat', label: 'Flat' },
   { value: 'per_vehicle', label: 'Per vehicle' },
@@ -174,15 +187,25 @@ const emptyService = (): ServiceRow => ({
 const decToInput = (v: string | null): string =>
   v == null ? '' : String(Number(v))
 
-// A row's pricing is complete when the right price(s) exist for its type.
-function rowPricingValid(s: ServiceRow): boolean {
-  if (s.pricingType === 'per_vehicle') {
-    // Every tier, matching the server: a gap would leave that vehicle
-    // unable to book the service.
-    return [s.priceHatchback, s.priceSedan, s.priceSuv].every((p) => Number(p) > 0)
+/** A stored service as the editor holds it. */
+function toServiceRow(s: AdminVendorDetail['services'][number]): ServiceRow {
+  return {
+    id: s.id,
+    images: s.images ?? [],
+    name: s.name,
+    description: s.description ?? '',
+    category: s.category,
+    pricingType: s.pricingType,
+    price: s.pricingType === 'per_vehicle' ? '' : decToInput(s.price),
+    priceHatchback: decToInput(s.priceHatchback),
+    priceSedan: decToInput(s.priceSedan),
+    priceSuv: decToInput(s.priceSuv),
+    ...minsToDuration(s.durationMins),
   }
-  return Number(s.price) > 0
 }
+
+/** Where focus goes after a hide or a show: see focusAfterSwitch. */
+type FocusAfterSwitch = { to: 'hidden-toggle' } | { to: 'row'; id: string }
 
 export default function EditVendorPage({
   params,
@@ -233,6 +256,22 @@ export default function EditVendorPage({
   const [status, setStatus] = useState<'pending' | 'active' | 'suspended' | 'archived'>('pending')
   const [isVerified, setIsVerified] = useState(false)
   const [services, setServices] = useState<ServiceRow[]>([])
+  // Hidden services, and hiding or showing one, save immediately like Pause:
+  // they are the garage's switch, not part of the form "Save changes" sends.
+  const [hiddenServices, setHiddenServices] = useState<AdminService[]>([])
+  const [hiddenLoadFailed, setHiddenLoadFailed] = useState(false)
+  const [showHidden, setShowHidden] = useState(false)
+  const [serviceBusyId, setServiceBusyId] = useState<string | null>(null)
+  // Keyed by service id, so a refusal sits on the row it is about.
+  const [serviceErrors, setServiceErrors] = useState<Record<string, string>>({})
+  // What the last Hide or Show again did, read out politely: the row the
+  // focused button was on has gone, so without it a keyboard or screen-reader
+  // admin is left on <body> with no word that anything happened.
+  const [serviceNotice, setServiceNotice] = useState('')
+  // Where focus goes once a hide or show has rendered. A fresh object each
+  // time, so the same target twice still moves focus twice.
+  const [focusAfterSwitch, setFocusAfterSwitch] = useState<FocusAfterSwitch | null>(null)
+  const hiddenToggleRef = useRef<HTMLButtonElement>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -256,11 +295,11 @@ export default function EditVendorPage({
   const removeService = (i: number) =>
     setServices((prev) => prev.filter((_, idx) => idx !== i))
 
-  // A service row counts once it has a name and valid pricing. Duration is
-  // optional — the server defaults it to one slot when left blank.
-  const validServices = services.filter(
-    (s) => s.name.trim() && rowPricingValid(s)
-  )
+  // Every row is sent; none is filtered out. The save is the garage's full
+  // list and the server hides any live service missing from it, so a row
+  // dropped here for an incomplete price used to vanish from customers with
+  // no message. A row that is not ready now says so and holds the save.
+  const servicesBlock = servicesSaveBlock(services)
 
   // No setLoading/setError before the first await: this runs from an effect on
   // mount, where `loading` already starts true and `error` already starts
@@ -269,7 +308,12 @@ export default function EditVendorPage({
   // change remounts the page.
   const load = useCallback(async () => {
     try {
-      const v = await getAdminVendor(id)
+      const [v, hidden] = await Promise.all([
+        getAdminVendor(id),
+        // On its own catch: a garage whose hidden list fails to load can still
+        // be edited, and the Services tab says the list is missing.
+        listAdminHiddenServices(id).catch(() => null),
+      ])
       setForm({
         ownerName: v.owner?.name ?? '',
         ownerPhone: v.owner?.phone ?? '',
@@ -312,21 +356,15 @@ export default function EditVendorPage({
       setIsVerified(v.isVerified)
       setLogoUrl(v.logoUrl)
       setPhotos(v.photos ?? [])
-      setServices(
-        v.services.map((s) => ({
-          id: s.id,
-          images: s.images ?? [],
-          name: s.name,
-          description: s.description ?? '',
-          category: s.category,
-          pricingType: s.pricingType,
-          price: s.pricingType === 'per_vehicle' ? '' : decToInput(s.price),
-          priceHatchback: decToInput(s.priceHatchback),
-          priceSedan: decToInput(s.priceSedan),
-          priceSuv: decToInput(s.priceSuv),
-          ...minsToDuration(s.durationMins),
-        }))
-      )
+      setServices(v.services.map(toServiceRow))
+      if (hidden) {
+        setHiddenServices(hidden)
+        // Every service hidden — the state the old save bug could leave a
+        // garage in — so the list that matters is open, not behind a toggle.
+        setShowHidden(v.services.length === 0 && hidden.length > 0)
+      } else {
+        setHiddenLoadFailed(true)
+      }
 
       setHours(toWeekForm(v.workingHours))
       setPausedAt(v.bookingsPausedAt ?? null)
@@ -352,6 +390,24 @@ export default function EditVendorPage({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!focusAfterSwitch) return
+    if (focusAfterSwitch.to === 'hidden-toggle') {
+      hiddenToggleRef.current?.focus()
+      return
+    }
+    // A service shown again is added at the end of the list, which on a phone
+    // is off-screen. Land on what it still needs (a missing size price), or
+    // else on its Hide button, so the admin is where the service now is.
+    const row = document.getElementById(`service-row-${focusAfterSwitch.id}`)
+    if (!row) return
+    row.scrollIntoView({ block: 'center' })
+    const target =
+      row.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+      row.querySelector<HTMLElement>('[data-service-hide]')
+    target?.focus({ preventScroll: true })
+  }, [focusAfterSwitch])
 
   // Every media action runs through here: one busy key, one error surface.
   const runMedia = async (key: string, action: () => Promise<void>) => {
@@ -488,6 +544,73 @@ export default function EditVendorPage({
     }
   }
 
+  const runServiceSwitch = async (
+    serviceId: string,
+    action: () => Promise<FocusAfterSwitch>
+  ) => {
+    setServiceBusyId(serviceId)
+    setServiceNotice('')
+    setServiceErrors((prev) => {
+      const next = { ...prev }
+      delete next[serviceId]
+      return next
+    })
+    try {
+      // Set in the same breath as the busy flag clears (the finally below),
+      // so focus never lands on a button that is still disabled.
+      setFocusAfterSwitch(await action())
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        router.replace('/login')
+        return
+      }
+      const message = err instanceof Error ? err.message : 'Something went wrong'
+      setServiceErrors((prev) => ({ ...prev, [serviceId]: message }))
+    } finally {
+      setServiceBusyId(null)
+    }
+  }
+
+  /**
+   * Takes a saved service off the garage page, straight away. Hidden, never
+   * deleted: its bookings keep it, and it waits under Hidden services.
+   */
+  const hideService = (row: ServiceRow) => {
+    const serviceId = row.id
+    if (!serviceId) return
+    if (
+      !window.confirm(
+        `Hide "${row.name.trim() || 'this service'}"?\n\nCustomers won't see it; you can show it again from Hidden services.`
+      )
+    ) {
+      return
+    }
+    void runServiceSwitch(serviceId, async () => {
+      const hidden = await setAdminServiceActive(id, serviceId, false)
+      setServices((prev) => prev.filter((s) => s.id !== serviceId))
+      setHiddenServices((prev) =>
+        [...prev, hidden].sort((a, b) => a.name.localeCompare(b.name))
+      )
+      setServiceNotice(`Hidden “${hidden.name}”. It’s under Hidden services.`)
+      return { to: 'hidden-toggle' }
+    })
+  }
+
+  const showServiceAgain = (service: AdminService) =>
+    runServiceSwitch(service.id, async () => {
+      const shown = await setAdminServiceActive(id, service.id, true)
+      setHiddenServices((prev) => prev.filter((s) => s.id !== service.id))
+      // Into the editor as well, not only back on the garage page: "Save
+      // changes" sends the full list, and the server hides any live service
+      // the list leaves out — it would be hidden again by the next save.
+      setServices((prev) => [...prev, toServiceRow(shown)])
+      const warning = showAgainWarning(shown)
+      setServiceNotice(
+        `“${shown.name}” is back on the garage page.${warning ? ` ${warning}` : ''}`
+      )
+      return { to: 'row', id: shown.id }
+    })
+
   const isValid =
     form.ownerName &&
     /^\d{10}$/.test(form.ownerPhone) &&
@@ -531,8 +654,14 @@ export default function EditVendorPage({
     }
   }
 
+  // Hide and Show again save on their own, and the editor's list only changes
+  // once that lands. A save sent in between carries the old list: the server
+  // would insert a fresh copy of a service just hidden, or hide one just shown
+  // again. So each waits for the other.
+  const serviceSwitching = serviceBusyId !== null
+
   const handleSubmit = async () => {
-    if (!isValid) return
+    if (!isValid || servicesBlock || serviceSwitching) return
     setSaving(true)
     setError('')
     try {
@@ -571,8 +700,9 @@ export default function EditVendorPage({
         isVerified,
         notes: form.notes.trim() || null,
         // Full desired set: keeps/edits rows with an id, adds new ones, and
-        // the server soft-deletes any existing service dropped from this list.
-        services: validServices.map((s) => {
+        // the server soft-deletes any existing service dropped from this list
+        // — which is why only empty, never-saved cards are left out.
+        services: rowsToSave(services).map((s) => {
           const pos = (v: string) => (Number(v) > 0 ? Number(v) : undefined)
           const durationMins = durationToMins(s.durationValue, s.durationUnit)
           return {
@@ -1035,11 +1165,41 @@ export default function EditVendorPage({
             <TabsContent value="services">
             <ScSection title="Services offered">
               {services.length === 0 ? (
-                <p className="text-[12px] text-text-muted">No services added yet.</p>
+                <p className="text-[12px] text-text-muted">
+                  {hiddenServices.length > 0
+                    ? 'No services on the garage page. Hidden ones are listed below; show them again or add a new one.'
+                    : 'No services added yet.'}
+                </p>
               ) : (
                 <div className="space-y-3">
-                  {services.map((s, i) => (
-                    <div key={s.id ?? `new-${i}`} className="space-y-2 rounded-[12px] border border-border p-3">
+                  {services.map((s, i) => {
+                    const missing = missingServiceFields(s)
+                    const problem = serviceRowProblem(s)
+                    const problemId = `service-${i}-problem`
+                    // What an input missing its value carries: the amber edge,
+                    // and the row's line as its description.
+                    const flag = (field: (typeof missing)[number]) => {
+                      const on = missing.includes(field)
+                      return {
+                        'aria-invalid': on || undefined,
+                        'aria-describedby': on ? problemId : undefined,
+                        className: on ? 'border-error' : undefined,
+                      }
+                    }
+                    const rowError = s.id ? serviceErrors[s.id] : undefined
+                    return (
+                    // A named group, so the row's own refusal can be found on
+                    // it — and is read out with the service it is about.
+                    <div
+                      key={s.id ?? `new-${i}`}
+                      id={s.id ? `service-row-${s.id}` : undefined}
+                      role="group"
+                      aria-label={s.name.trim() || `Service ${i + 1}`}
+                      className={cn(
+                        'space-y-2 rounded-[12px] border p-3',
+                        problem ? 'border-error' : 'border-border'
+                      )}
+                    >
                       <div className="flex items-end gap-2">
                         {/* The wrapper takes the row's width: ScInput's className
                             styles the field inside, not the box around it. */}
@@ -1049,18 +1209,46 @@ export default function EditVendorPage({
                             aria-label={`Service ${i + 1} name`}
                             placeholder="Service name (e.g. Foam wash)"
                             onChange={(e) => updateService(i, { name: e.target.value })}
+                            {...flag('name')}
                           />
                         </div>
-                        {/* Quiet: removing a row is not the form's main action. */}
-                        <button
-                          type="button"
-                          onClick={() => removeService(i)}
-                          aria-label={`Remove service ${i + 1}`}
-                          className="min-h-11 rounded-[10px] px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
-                        >
-                          Remove
-                        </button>
+                        {/* Quiet: neither is the form's main action. A saved
+                            service is hidden, straight away and reversibly; a
+                            card never saved is only taken off the form. */}
+                        {s.id ? (
+                          <button
+                            type="button"
+                            data-service-hide
+                            disabled={serviceSwitching || saving}
+                            onClick={() => hideService(s)}
+                            aria-label={`Hide ${s.name.trim() || `service ${i + 1}`}`}
+                            className="min-h-11 rounded-[10px] px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary disabled:opacity-50"
+                          >
+                            {serviceBusyId === s.id ? 'Hiding…' : 'Hide'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => removeService(i)}
+                            aria-label={`Remove service ${i + 1}`}
+                            className="min-h-11 rounded-[10px] px-3 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
+                      {/* Amber, as errors are: what this row needs before the
+                          garage can be saved. */}
+                      {problem && (
+                        <p id={problemId} className="text-[12px] text-error">
+                          {problem}
+                        </p>
+                      )}
+                      {rowError && (
+                        <p role="alert" className="text-[12px] text-error">
+                          {rowError}
+                        </p>
+                      )}
                       <ScTextarea
                         value={s.description}
                         aria-label={`Service ${i + 1} description`}
@@ -1083,7 +1271,9 @@ export default function EditVendorPage({
                         <ScSelect
                           value={s.pricingType}
                           aria-label={`Service ${i + 1} pricing`}
-                          onChange={(e) => updateService(i, { pricingType: e.target.value as PricingType })}
+                          onChange={(e) =>
+                            updateService(i, switchPricingType(s, e.target.value as PricingType))
+                          }
                         >
                           {PRICING_TYPES.map((p) => (
                             <option key={p.value} value={p.value}>
@@ -1104,8 +1294,9 @@ export default function EditVendorPage({
                               : 'Price ₹'
                           }
                           aria-label={`Service ${i + 1} price in rupees`}
-                          className="font-numeric"
                           onChange={(e) => updateService(i, { price: e.target.value })}
+                          {...flag('price')}
+                          className={cn('font-numeric', flag('price').className)}
                         />
                       )}
                       <div className="grid grid-cols-2 gap-2">
@@ -1137,7 +1328,8 @@ export default function EditVendorPage({
                             type="number"
                             min={0}
                             aria-label={`Service ${i + 1} hatchback price in rupees`}
-                            className="font-numeric"
+                            {...flag('priceHatchback')}
+                            className={cn('font-numeric', flag('priceHatchback').className)}
                             placeholder="Hatch ₹"
                             onChange={(e) => updateService(i, { priceHatchback: e.target.value })}
                           />
@@ -1146,7 +1338,8 @@ export default function EditVendorPage({
                             type="number"
                             min={0}
                             aria-label={`Service ${i + 1} sedan price in rupees`}
-                            className="font-numeric"
+                            {...flag('priceSedan')}
+                            className={cn('font-numeric', flag('priceSedan').className)}
                             placeholder="Sedan ₹"
                             onChange={(e) => updateService(i, { priceSedan: e.target.value })}
                           />
@@ -1155,7 +1348,8 @@ export default function EditVendorPage({
                             type="number"
                             min={0}
                             aria-label={`Service ${i + 1} SUV price in rupees`}
-                            className="font-numeric"
+                            {...flag('priceSuv')}
+                            className={cn('font-numeric', flag('priceSuv').className)}
                             placeholder="SUV ₹"
                             onChange={(e) => updateService(i, { priceSuv: e.target.value })}
                           />
@@ -1225,7 +1419,8 @@ export default function EditVendorPage({
                         </p>
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
               <ScButton
@@ -1238,9 +1433,105 @@ export default function EditVendorPage({
               </ScButton>
               <p className="text-[11px] text-text-muted">
                 Each service needs a name and price. Duration is optional — leave it
-                blank to use one booking slot. Removing a service hides it from
-                customers; past bookings are preserved.
+                blank to use one booking slot. Hide takes a service off the garage
+                page straight away; past bookings keep it, and you can show it
+                again from Hidden services.
               </p>
+              {/* Always mounted, so the message is announced when it lands. */}
+              <p
+                role="status"
+                className={serviceNotice ? 'text-[12px] text-text-secondary' : 'sr-only'}
+              >
+                {serviceNotice}
+              </p>
+
+              {hiddenLoadFailed ? (
+                <p className="text-[12px] text-error">
+                  Couldn’t load the hidden services. Reload the page to see them.
+                </p>
+              ) : (
+                hiddenServices.length > 0 && (
+                  <div className="rounded-[12px] border border-border">
+                    {/* Collapsed: these are off the garage page, and the
+                        services that are on it are what this tab is for. */}
+                    <button
+                      ref={hiddenToggleRef}
+                      type="button"
+                      aria-expanded={showHidden}
+                      aria-controls="hidden-services"
+                      onClick={() => setShowHidden((open) => !open)}
+                      className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-[13px] font-medium text-text-primary"
+                    >
+                      <span>
+                        Hidden services (
+                        <span className="font-numeric">{hiddenServices.length}</span>)
+                      </span>
+                      <IconChevronDown
+                        size={16}
+                        aria-hidden="true"
+                        className={cn(
+                          'shrink-0 text-text-muted transition-transform',
+                          showHidden && 'rotate-180'
+                        )}
+                      />
+                    </button>
+                    {showHidden && (
+                      <div id="hidden-services" className="border-t border-border">
+                        <p className="px-3 pt-2 text-[11px] text-text-muted">
+                          Customers can’t see or book these. Showing one again puts
+                          it back on the garage page straight away, with the price
+                          it had.
+                        </p>
+                        <ul className="divide-y divide-border">
+                          {hiddenServices.map((hidden) => {
+                            const warning = showAgainWarning(hidden)
+                            const warningId = `hidden-${hidden.id}-warning`
+                            return (
+                            <li
+                              key={hidden.id}
+                              className="flex flex-wrap items-center gap-2 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-[13px] text-text-primary">
+                                  {hidden.name}
+                                </p>
+                                <p className="font-numeric text-[12px] text-text-muted">
+                                  {storedPriceSummary(hidden)}
+                                </p>
+                                {/* Before the tap, not after a customer finds
+                                    out: shown again as it is, a size with no
+                                    price can't be booked. */}
+                                {warning && (
+                                  <p id={warningId} className="text-[12px] text-warning">
+                                    {warning}
+                                  </p>
+                                )}
+                                {serviceErrors[hidden.id] && (
+                                  <p role="alert" className="text-[12px] text-error">
+                                    {serviceErrors[hidden.id]}
+                                  </p>
+                                )}
+                              </div>
+                              <ScButton
+                                fullWidth={false}
+                                variant="secondary"
+                                disabled={serviceSwitching || saving}
+                                aria-label={`Show ${hidden.name} again`}
+                                aria-describedby={warning ? warningId : undefined}
+                                onClick={() => void showServiceAgain(hidden)}
+                                className="min-h-11 px-3.5 py-2 text-[12px]"
+                              >
+                                {serviceBusyId === hidden.id ? 'Working…' : 'Show again'}
+                              </ScButton>
+                            </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
             </ScSection>
             </TabsContent>
           </Tabs>
@@ -1252,7 +1543,19 @@ export default function EditVendorPage({
             </p>
           )}
 
-          <ScButton disabled={!isValid || saving} onClick={handleSubmit}>
+          {/* Why Save is off, here rather than only on the Services tab: the
+              admin may be on any tab when they reach for it. */}
+          {servicesBlock && (
+            <p id="services-save-block" className="text-[13px] text-error">
+              {servicesBlock} — see the Services tab.
+            </p>
+          )}
+
+          <ScButton
+            disabled={!isValid || saving || servicesBlock !== null || serviceSwitching}
+            aria-describedby={servicesBlock ? 'services-save-block' : undefined}
+            onClick={handleSubmit}
+          >
             {saving ? 'Saving…' : 'Save changes'}
           </ScButton>
         </div>

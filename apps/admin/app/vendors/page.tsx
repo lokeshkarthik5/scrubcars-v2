@@ -24,7 +24,9 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { Meta } from '@/components/meta'
 import { PilotNumbersCard } from '@/components/pilot-numbers-card'
+import { deleteConfirm, deleteRefusal } from '@/lib/vendor-delete'
 import { type AdminVendor } from '@repo/core/api/admin'
+import { ApiError } from '@repo/core/api/client'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import {
   useAdminVendors,
@@ -47,13 +49,36 @@ export default function AdminVendorsPage() {
   const archive = useArchiveAdminVendor()
   const remove = useDeleteAdminVendor()
 
-  // Row-action failures surface in the same place a load failure does, which
-  // is what this screen has always done — a failed verify replaces the list
-  // rather than sitting above it.
-  const [actionError, setActionError] = useState('')
-  const error = loadError
-    ? errorMessage(loadError, 'Failed to load vendors')
-    : actionError
+  const error = loadError ? errorMessage(loadError, 'Failed to load vendors') : ''
+
+  // A row action's failure is shown on the card it was pressed on. It used to
+  // be one line above the first card, so on an older garage — the list is
+  // newest first — a refused delete printed its reason off-screen and the
+  // button seemed to do nothing.
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  // The garage whose error should be brought into view once it renders. A
+  // fresh object per failure, so the same garage failing twice scrolls twice.
+  const [reveal, setReveal] = useState<{ id: string } | null>(null)
+
+  const clearRowError = (id: string) =>
+    setRowErrors((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  const showRowError = (id: string, message: string) => {
+    setRowErrors((prev) => ({ ...prev, [id]: message }))
+    setReveal({ id })
+  }
+
+  useEffect(() => {
+    if (!reveal) return
+    // `nearest`: no jump at all when the message is already on screen.
+    document
+      .getElementById(`vendor-${reveal.id}-error`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [reveal])
 
   // A dead admin session is a redirect, not an error message.
   useEffect(() => {
@@ -68,40 +93,45 @@ export default function AdminVendorsPage() {
       : null
 
   const handleVerify = (id: string) => {
-    setActionError('')
+    clearRowError(id)
     verify.mutate(id, {
-      onError: () => setActionError('Failed to verify vendor'),
+      onError: () => showRowError(id, 'Failed to verify vendor'),
     })
   }
 
   const handleArchiveToggle = (v: AdminVendor) => {
     const archiving = v.status !== 'archived'
-    setActionError('')
+    clearRowError(v.id)
     archive.mutate(
       { id: v.id, archiving },
       {
         onError: () =>
-          setActionError(
-            `Failed to ${archiving ? 'archive' : 'restore'} vendor`
-          ),
+          showRowError(v.id, `Failed to ${archiving ? 'archive' : 'restore'} vendor`),
       }
     )
   }
 
   const handleDelete = (v: AdminVendor) => {
-    if (
-      !window.confirm(
-        `Permanently delete "${v.businessName}"?\n\nThis removes the vendor, its services and photos. It cannot be undone. A garage that has any bookings cannot be deleted — archive it instead.`
-      )
-    ) {
+    clearRowError(v.id)
+    // Known before the click: a garage that has been booked is refused by the
+    // server, so say so on the card rather than ask the admin to confirm an
+    // irreversible delete that cannot happen.
+    if ((v.bookingCount ?? 0) > 0) {
+      showRowError(v.id, deleteRefusal(v.status))
       return
     }
-    setActionError('')
+    if (!window.confirm(deleteConfirm(v.businessName))) return
     remove.mutate(v.id, {
-      // The server's own words: a garage with bookings is refused with "This
-      // garage has bookings. Archive it instead.", which tells the admin what
-      // to do next where a generic failure would not.
-      onError: (err) => setActionError(errorMessage(err, 'Failed to delete vendor')),
+      // A booking made since the list loaded gets the same refusal, in words
+      // that fit the garage's status rather than the server's "Archive it
+      // instead", which is a loop for one already archived.
+      onError: (err) =>
+        showRowError(
+          v.id,
+          err instanceof ApiError && err.code === 'VENDOR_HAS_BOOKINGS'
+            ? deleteRefusal(v.status)
+            : errorMessage(err, 'Failed to delete vendor')
+        ),
     })
   }
 
@@ -146,17 +176,28 @@ export default function AdminVendorsPage() {
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {/* Errors from a row action surface above the list the row is in. */}
+          {/* A failed refetch, with the last list still on screen. */}
           {error && <p role="alert" className="text-[12px] text-error">{error}</p>}
 
           {vendors.map((v, i) => {
             const stage = vendorAdminStatusBadge(v.status)
+            const rowError = rowErrors[v.id]
+            const bookingCount = v.bookingCount ?? 0
             return (
               <Reveal key={v.id} index={i}>
-                <ScCard className="flex flex-col gap-3">
+                {/* Named by the garage, so the card is one findable region:
+                    its actions and any refusal they get sit inside it. */}
+                <ScCard
+                  role="group"
+                  aria-labelledby={`vendor-${v.id}-name`}
+                  className="flex flex-col gap-3"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
                     <div className="min-w-0">
-                      <p className="truncate text-[14px] font-semibold text-text-primary">
+                      <p
+                        id={`vendor-${v.id}-name`}
+                        className="truncate text-[14px] font-semibold text-text-primary"
+                      >
                         {v.businessName}
                       </p>
                       <p className="font-numeric text-[12px] text-text-secondary">{v.phone}</p>
@@ -294,19 +335,52 @@ export default function AdminVendorsPage() {
                         </>
                       )}
                     </ScButton>
-                    <button
-                      type="button"
-                      disabled={busyId === v.id}
-                      onClick={() => handleDelete(v)}
-                      title="Delete permanently"
-                      aria-label={`Delete ${v.businessName}`}
-                      // Grey until hovered, then amber: destructive, but not the
-                      // thing to press — it asks first, and red is Add vendor's.
-                      className="ml-auto inline-flex size-11 items-center justify-center rounded-[10px] text-text-muted transition-colors hover:bg-error-muted hover:text-error disabled:opacity-50"
-                    >
-                      <IconTrash size={16} aria-hidden="true" />
-                    </button>
+                    {/* The count and the bin wrap as one, right-aligned, so the
+                        bin never lands alone under Verify, away from the count
+                        that explains it. */}
+                    <div className="ml-auto flex items-center gap-2">
+                      {/* Said before anyone presses delete: a garage that has
+                          been booked cannot be deleted, so the count is the
+                          reason in advance. Absent from an older server, and
+                          for none. */}
+                      {bookingCount > 0 && (
+                        <span
+                          id={`vendor-${v.id}-bookings`}
+                          className="text-[12px] text-text-muted"
+                        >
+                          Has <span className="font-numeric">{bookingCount}</span>{' '}
+                          booking{bookingCount === 1 ? '' : 's'}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busyId === v.id}
+                        onClick={() => handleDelete(v)}
+                        title="Delete permanently"
+                        aria-label={`Delete ${v.businessName}`}
+                        aria-describedby={
+                          bookingCount > 0 ? `vendor-${v.id}-bookings` : undefined
+                        }
+                        // Grey until hovered, then amber: destructive, but not the
+                        // thing to press — it asks first, and red is Add vendor's.
+                        className="inline-flex size-11 items-center justify-center rounded-[10px] text-text-muted transition-colors hover:bg-error-muted hover:text-error disabled:opacity-50"
+                      >
+                        <IconTrash size={16} aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Amber, as errors are; announced, and on the card that
+                      was pressed. */}
+                  {rowError && (
+                    <p
+                      id={`vendor-${v.id}-error`}
+                      role="alert"
+                      className="text-[12px] text-error"
+                    >
+                      {rowError}
+                    </p>
+                  )}
                 </ScCard>
               </Reveal>
             )

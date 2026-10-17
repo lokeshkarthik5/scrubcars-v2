@@ -82,9 +82,14 @@ test.describe('admin vendors', () => {
 
     await page.goto('/vendors')
 
+    // Never booked, so its card says nothing about bookings.
+    const card = page.getByRole('group', { name, exact: true })
+    await expect(card.getByRole('button', { name: `Delete ${name}` })).toBeVisible()
+    await expect(card.getByText(/^Has \d+ bookings?$/)).toHaveCount(0)
+
     // Destructive, so it asks first.
     page.once('dialog', (dialog) => dialog.accept())
-    await page.getByRole('button', { name: `Delete ${name}` }).click()
+    await card.getByRole('button', { name: `Delete ${name}` }).click()
 
     await expect
       .poll(async () => {
@@ -109,10 +114,39 @@ test.describe('admin vendors', () => {
       code: 'VENDOR_HAS_BOOKINGS',
     })
 
+    // The list says how many before anyone presses delete: the same count
+    // the refusal is decided on.
+    const list = await page.request.get(`${API}/api/v1/admin/vendors`)
+    expect(list.status()).toBe(200)
+    const { data: vendors } = (await list.json()) as {
+      data: Array<{ id: string; bookingCount: number }>
+    }
+    const capacity = vendors.find((v) => v.id === VENDORS.capacity.id)
+    expect(capacity?.bookingCount).toBeGreaterThan(0)
+
     await page.goto('/vendors')
-    page.once('dialog', (dialog) => dialog.accept())
-    await page.getByRole('button', { name: `Delete ${VENDORS.capacity.name}` }).click()
-    await expect(page.getByText('This garage has bookings. Archive it instead.')).toBeVisible()
+    const card = page.getByRole('group', { name: VENDORS.capacity.name, exact: true })
+    await expect(card.getByText(/^Has \d+ bookings?$/)).toBeVisible()
+
+    // The list already knows it will be refused, so it does not ask to confirm
+    // an irreversible delete; it says why, on the card that was pressed,
+    // announced and in view — not one line above the first card, which for an
+    // older garage is off-screen.
+    let asked = false
+    const onDialog = (dialog: { dismiss: () => Promise<void> }) => {
+      asked = true
+      void dialog.dismiss()
+    }
+    page.on('dialog', onDialog)
+    await card.getByRole('button', { name: `Delete ${VENDORS.capacity.name}` }).click()
+
+    const refusal = card.getByRole('alert')
+    await expect(refusal).toHaveText(
+      "This garage has bookings, so it can't be deleted yet. Archive it to hide it from customers; its bookings are kept."
+    )
+    await expect(refusal).toBeInViewport()
+    page.off('dialog', onDialog)
+    expect(asked).toBe(false)
 
     const [row] = await sql<{ n: string }[]>`
       select count(*)::text as n from vendors where id = ${VENDORS.capacity.id}

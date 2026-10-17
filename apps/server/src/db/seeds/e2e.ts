@@ -1238,7 +1238,7 @@ async function seedDoorstepReachRows() {
 
   await db.insert(vendors).values({
     id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.unsetRadius.name,
-    phone: '9000003400', address: '1, Beach Road, White Town', city: 'Puducherry',
+    phone: '9000005100', address: '1, Beach Road, White Town', city: 'Puducherry',
     pincode: '605001', lat: UNSET_RADIUS_PIN.lat, lng: UNSET_RADIUS_PIN.lng,
     geoSource: 'map_pin', geoConfirmedAt: now,
     vehicleTypes: ['hatchback', 'sedan', 'suv'],
@@ -1271,6 +1271,63 @@ async function seedDoorstepReachRows() {
   ])
 }
 
+// ─── admin fixtures ─────────────────────────────────────────────────────────
+
+/**
+ * Two garages no customer can find (pending, unverified, unpinned): one owned
+ * by a customer account, which DELETE /users/me must refuse to cascade into,
+ * and the admin services editor's, with the rows its spec needs (see
+ * VENDORS.adminServices).
+ */
+async function seedAdminFixtureRows() {
+  await db.insert(vendors).values([
+    {
+      id: VENDORS.ownerAccount.id, ownerId: CUSTOMERS.garageOwner.id,
+      businessName: VENDORS.ownerAccount.name, phone: '9000003400',
+      address: '1, Owner Street, Mylapore', city: 'Chennai', pincode: '600004',
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'pending',
+    },
+    {
+      id: VENDORS.adminServices.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.adminServices.name, phone: '9000003500',
+      address: '1, Editor Street, Nungambakkam', city: 'Chennai', pincode: '600034',
+      vehicleTypes: ['hatchback', 'sedan', 'suv'],
+      isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+      slotIntervalMins: 30, status: 'pending',
+    },
+  ])
+
+  const garage = VENDORS.adminServices.id
+  await db.insert(services).values([
+    { id: SERVICES.adminFlat.id, vendorId: garage, name: SERVICES.adminFlat.name,
+      category: 'car_wash', pricingType: 'flat', price: SERVICES.adminFlat.price,
+      durationMins: SERVICES.adminFlat.durationMins, isActive: true },
+    // No SUV price, as some garages' older per-vehicle services have.
+    { id: SERVICES.adminTiered.id, vendorId: garage, name: SERVICES.adminTiered.name,
+      category: 'detailing', pricingType: 'per_vehicle',
+      price: SERVICES.adminTiered.priceHatchback,
+      priceHatchback: SERVICES.adminTiered.priceHatchback,
+      priceSedan: SERVICES.adminTiered.priceSedan,
+      priceSuv: SERVICES.adminTiered.priceSuv,
+      durationMins: SERVICES.adminTiered.durationMins, isActive: true },
+    { id: SERVICES.adminHidden.id, vendorId: garage, name: SERVICES.adminHidden.name,
+      category: 'coating', pricingType: 'per_vehicle',
+      price: SERVICES.adminHidden.priceHatchback,
+      priceHatchback: SERVICES.adminHidden.priceHatchback,
+      priceSedan: SERVICES.adminHidden.priceSedan,
+      priceSuv: SERVICES.adminHidden.priceSuv,
+      durationMins: SERVICES.adminHidden.durationMins, isActive: false },
+    { id: SERVICES.adminPackage.id, vendorId: garage, name: SERVICES.adminPackage.name,
+      category: 'package', pricingType: 'flat', price: SERVICES.adminPackage.price,
+      durationMins: SERVICES.adminPackage.durationMins, isActive: true },
+  ])
+  await db.insert(servicePackageItems).values({
+    packageId: SERVICES.adminPackage.id, serviceId: SERVICES.adminFlat.id, sortOrder: 0,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1292,6 +1349,8 @@ async function main() {
   await seedHomeHubRows()
   console.log('[e2e-seed] doorstep reach…')
   await seedDoorstepReachRows()
+  console.log('[e2e-seed] admin fixtures…')
+  await seedAdminFixtureRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

@@ -73,8 +73,8 @@ export interface HomeResponse {
 /**
  * Runs one part of Home on its own. A part that fails comes back null and is
  * reported, and Home still renders around it: a broken offers query must not
- * take the customer's bookings with it. (The queries still run one at a time:
- * the connection pool has one connection.)
+ * take the customer's bookings with it. The queries still run one at a time.
+ * Production's pool has one connection, so they would be serial anyway.
  */
 async function part<T>(name: string, run: () => Promise<T>): Promise<T | null> {
   try {
