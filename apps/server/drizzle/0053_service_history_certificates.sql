@@ -23,10 +23,9 @@
 -- Purely additive: a new table nothing in production reads yet, so it is
 -- safe to apply before the code that uses it is deployed.
 --
--- Numbering: 0050, 0051 and 0052 belong to branches built at the same time
--- (rewards, the guarantee, bypass reports); this file and its journal entry
--- are written to sit after them. Nothing here depends on any of them. Until
--- they land, `scripts/migrate.sh lint` reports the gap.
+-- Numbering: runs after 0050, 0051 and 0052 (rewards, the guarantee, bypass
+-- reports), which this branch now sits on, with no gap. Nothing here depends
+-- on any of them.
 --
 -- Applied by scripts/migrate.sh, one transaction per file. Every statement is
 -- also safe to re-run.

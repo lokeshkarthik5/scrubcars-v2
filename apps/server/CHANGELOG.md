@@ -20,13 +20,14 @@ reconstructing every change in them.
 
 - **Detlio Service History certificate: a printable record of a car's jobs
   through Detlio, with a public verification link** (migration
-  `0053_service_history_certificates`, additive; numbered after 0050–0052,
-  which belong to branches built at the same time: new table
+  `0053_service_history_certificates`, additive; runs after 0050–0052 with
+  no gap: new table
   `vehicle_certificate_links` with CHECKs, a unique index on `token_hash` and
   a partial unique index of one live link per car).
   - `modules/certificates`, rules in `lib/service-history-certificate.ts`:
     every completed reschedule chain on the car (latest row), newest first;
-    cancelled, no-show and Test-marked chains left out. Per job the IST
+    cancelled, no-show and Test-marked chains and Detlio Guarantee free
+    redos (0051; the job they re-did stays listed) left out. Per job the IST
     date, the garage's name and today's Certified / Documents verified
     marks, the services and whether the garage took before/after photos.
     Registration masked (`TN09 ** ** 1234`); certificate number

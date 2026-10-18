@@ -192,6 +192,7 @@ export const certificatesService = {
       photo.uploadedByRole !== 'garage' ||
       photo.bookingStatus !== 'completed' ||
       photo.bookingMarkedTest ||
+      photo.bookingGuaranteeRedo ||
       !photoSignatureValid(key, { photoId, linkId: link.id, expiresAtSec, signature }, now)
     ) {
       throw new AppError(404, 'Not found', 'NOT_FOUND')

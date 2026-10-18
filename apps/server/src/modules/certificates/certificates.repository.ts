@@ -43,6 +43,8 @@ export interface SharedPhotoRow {
   uploadedByRole: string
   bookingStatus: string
   bookingMarkedTest: boolean
+  /** A Detlio Guarantee free redo (0051): not on the certificate, so its photos are not served. */
+  bookingGuaranteeRedo: boolean
   /** The car's live link (not revoked), if any, and only while the car and its owner stand. */
   link: { id: string; includePhotos: boolean; expiresAt: Date | null; revokedAt: Date | null } | null
 }
@@ -81,6 +83,7 @@ export const certificatesRepository = {
       scheduled_at: Date | string
       completed_at: Date | string | null
       marked_test: boolean
+      guarantee_redo: boolean
       vendor_id: string
       vendor_name: string
       vendor_in_bin: boolean
@@ -94,6 +97,7 @@ export const certificatesRepository = {
              b.scheduled_at,
              b.completed_at,
              (b.marked_test_at IS NOT NULL) AS marked_test,
+             b.guarantee_redo,
              b.vendor_id,
              v.business_name AS vendor_name,
              (v.deleted_at IS NOT NULL) AS vendor_in_bin,
@@ -118,6 +122,7 @@ export const certificatesRepository = {
       scheduledAt: toDate(row.scheduled_at),
       completedAt: toDateOrNull(row.completed_at),
       markedTest: row.marked_test,
+      guaranteeRedo: row.guarantee_redo,
       vendorId: row.vendor_id,
       vendorName: row.vendor_name,
       vendorInBin: row.vendor_in_bin,
@@ -313,6 +318,7 @@ export const certificatesRepository = {
       uploaded_by_role: string
       booking_status: string
       booking_marked_test: boolean
+      booking_guarantee_redo: boolean
       link_id: string | null
       include_photos: boolean | null
       expires_at: Date | string | null
@@ -320,6 +326,7 @@ export const certificatesRepository = {
     }>(sql`
       SELECT jp.id AS photo_id, jp.storage_key, jp.uploaded_by_role,
              b.status::text AS booking_status, (b.marked_test_at IS NOT NULL) AS booking_marked_test,
+             b.guarantee_redo AS booking_guarantee_redo,
              l.id AS link_id, l.include_photos, l.expires_at, l.revoked_at
         FROM job_photos jp
         JOIN bookings b ON b.id = jp.booking_id
@@ -341,6 +348,7 @@ export const certificatesRepository = {
       uploadedByRole: row.uploaded_by_role,
       bookingStatus: row.booking_status,
       bookingMarkedTest: row.booking_marked_test,
+      bookingGuaranteeRedo: Boolean(row.booking_guarantee_redo),
       link: row.link_id
         ? {
             id: row.link_id,

@@ -7,9 +7,14 @@
  * - **What counts** is exactly the car's history (lib/car-history.ts): one
  *   entry per reschedule chain (its latest row), only chains whose latest row
  *   is `completed`. Cancelled chains (no-shows of either side included) and
- *   jobs to come are left out, and so is any chain the team marked Test. A
- *   redo booking from the job guarantee (built alongside) is not told apart
- *   yet: if it completes it is listed like any other job.
+ *   jobs to come are left out, and so is any chain the team marked Test.
+ *   **A Detlio Guarantee free redo (0051, `bookings.guarantee_redo`) is left
+ *   out too**: it re-does a job the certificate already lists (that job
+ *   stays, with its own date and photos), so listing it would count one
+ *   service twice, and a "Free redo" line on a page shared with buyers would
+ *   speak about the garage's work rather than the car's history. Its photos
+ *   are never served on the public page either. (The customer's own car
+ *   history still shows it.)
  * - **No personal data on the public page**: the car's make, model, colour,
  *   body type and a masked registration; per job its IST date, the garage's
  *   name and its two marks (Detlio Certified, Documents verified) as they
@@ -63,6 +68,8 @@ export interface CertificateRow {
   completedAt: Date | null
   /** The team's Test mark (`marked_test_at`), copied along the chain. */
   markedTest: boolean
+  /** A Detlio Guarantee free redo (0051): never listed. */
+  guaranteeRedo?: boolean
   vendorId: string
   vendorName: string
   /** The garage is in the Bin (or deleted forever): its marks are not shown. */
@@ -262,12 +269,13 @@ function doneAt(row: Pick<CertificateRow, 'completedAt' | 'scheduledAt'>): Date 
 
 /**
  * The jobs the certificate lists: each chain once (its latest row), only
- * completed ones, no chain the team marked Test, newest first.
+ * completed ones, no chain the team marked Test and no free redo (0051),
+ * newest first.
  */
 export function eligibleJobs<Row extends CertificateRow>(rows: Row[]): Row[] {
   const testChains = new Set(rows.filter((row) => row.markedTest).map((row) => row.chainId))
   return latestOfChains(rows)
-    .filter((row) => row.status === 'completed' && !testChains.has(row.chainId))
+    .filter((row) => row.status === 'completed' && !testChains.has(row.chainId) && !row.guaranteeRedo)
     .sort((a, b) => doneAt(b).getTime() - doneAt(a).getTime() || b.id.localeCompare(a.id))
 }
 

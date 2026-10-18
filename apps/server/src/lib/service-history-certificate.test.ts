@@ -224,6 +224,14 @@ describe('eligibleJobs: what counts', () => {
     ])
     expect(jobs.map((job) => job.id)).toEqual([id(3340)])
   })
+
+  test('a Detlio Guarantee free redo is left out; the job it re-did stays', () => {
+    const jobs = eligibleJobs([
+      row({ id: id(3341), completedAt: daysAgo(6), scheduledAt: daysAgo(6) }),
+      row({ id: id(3342), guaranteeRedo: true, completedAt: daysAgo(4), scheduledAt: daysAgo(4) }),
+    ])
+    expect(jobs.map((job) => job.id)).toEqual([id(3341)])
+  })
 })
 
 describe('photoPairOf', () => {

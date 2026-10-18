@@ -166,6 +166,7 @@ beforeAll(() => {
       uploadedByRole: p.role,
       bookingStatus: b.status,
       bookingMarkedTest: b.markedTest,
+      bookingGuaranteeRedo: false,
       link: link ? { id: link.id, includePhotos: link.includePhotos, expiresAt: link.expiresAt, revokedAt: link.revokedAt } : null,
     }
   })
