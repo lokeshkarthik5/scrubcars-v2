@@ -77,8 +77,17 @@ export interface ScratchCardView {
   expiresAt: string
   lastDay: string
   state: 'waiting' | 'scratched' | 'expired' | 'void'
-  /** Only once scratched. */
-  prize: { outcome: ScratchOutcome; label: string; amount: string | null; fellBack: boolean } | null
+  /**
+   * Only once scratched. `voucher` is the money prize's voucher (its last
+   * day and state), so a card loaded later can say when to use it.
+   */
+  prize: {
+    outcome: ScratchOutcome
+    label: string
+    amount: string | null
+    fellBack: boolean
+    voucher?: { lastDay: string; state: RewardVoucher['state'] } | null
+  } | null
 }
 
 export interface RewardsSummary {

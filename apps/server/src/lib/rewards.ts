@@ -40,6 +40,7 @@
  */
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto'
 import { addDays, istDateKey, istMidnight, istParts, MONTHS } from './ist.js'
+import { formatRupees } from './discounts.js'
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 
@@ -460,7 +461,7 @@ export function stampRefusalLabel(refusal: StampRefusal, settings: RewardsSettin
     case 'test':
       return 'Test booking'
     case 'under_minimum':
-      return `Under ₹${settings.minPaidAmount}`
+      return `Under ${formatRupees(settings.minPaidAmount)}`
     case 'same_day_car':
       return 'Same car, same day'
     case 'free_redo':
@@ -471,7 +472,7 @@ export function stampRefusalLabel(refusal: StampRefusal, settings: RewardsSettin
 /** What a scratched card says it won. */
 export function scratchPrizeLabel(outcome: ScratchOutcome, amount: number | string | null): string {
   if (outcome === 'bonus_stamp') return 'A bonus stamp'
-  const rupee = `₹${Math.round(Number(amount ?? 0))}`
+  const rupee = formatRupees(Math.round(Number(amount ?? 0)))
   return outcome === 'free_wash' ? `A free wash (up to ${rupee})` : `${rupee} off`
 }
 
@@ -1070,7 +1071,7 @@ export function washDueNudge(onCard: number, settings: RewardsSettings): NudgeWo
 export function oneAwayNudge(rewardAmount: number): NudgeWords {
   return {
     title: 'One wash from your reward',
-    body: `Your next booking fills your Shine Card: ₹${rewardAmount} off the one after.`,
+    body: `Your next booking fills your Shine Card: ${formatRupees(rewardAmount)} off the one after.`,
     url: '/garages',
   }
 }
@@ -1082,7 +1083,7 @@ export function expiringNudge(
   const day = shortDate(input.lastDay)
   switch (what) {
     case 'voucher':
-      return { title: `Your ₹${input.amount} off ends ${day}`, body: 'Use it on your next booking before it goes.', url: '/profile/rewards' }
+      return { title: `Your ${formatRupees(input.amount ?? 0)} off ends ${day}`, body: 'Use it on your next booking before it goes.', url: '/profile/rewards' }
     case 'scratch_card':
       return { title: 'A scratch card is waiting', body: `Scratch it by ${day} to see what you won.`, url: '/profile/rewards' }
     case 'stamps':
@@ -1124,19 +1125,19 @@ export function planNudges(candidates: readonly NudgeCandidate[]): NudgeCandidat
 export function voucherIssuedWords(kind: VoucherKind, amount: number): { title: string; body: string } {
   switch (kind) {
     case 'shine':
-      return { title: 'Your Shine Card is full', body: `₹${amount} off your next booking is ready.` }
+      return { title: 'Your Shine Card is full', body: `${formatRupees(amount)} off your next booking is ready.` }
     case 'referral':
-      return { title: 'Your invite paid off', body: `₹${amount} off your next booking is ready.` }
+      return { title: 'Your invite paid off', body: `${formatRupees(amount)} off your next booking is ready.` }
     case 'birthday':
-      return { title: 'Happy birthday from Detlio', body: `A wash on us, up to ₹${amount}, this month.` }
+      return { title: 'Happy birthday from Detlio', body: `A wash on us, up to ${formatRupees(amount)}, this month.` }
     case 'annual_detailing':
-      return { title: 'Your yearly detailing is ready', body: `Up to ₹${amount} off a detailing, on us.` }
+      return { title: 'Your yearly detailing is ready', body: `Up to ${formatRupees(amount)} off a detailing, on us.` }
     case 'adjustment':
-      return { title: 'A reward from Detlio', body: `₹${amount} off your next booking is ready.` }
+      return { title: 'A reward from Detlio', body: `${formatRupees(amount)} off your next booking is ready.` }
     case 'challenge':
-      return { title: 'Challenge won', body: `₹${amount} off your next booking is ready.` }
+      return { title: 'Challenge won', body: `${formatRupees(amount)} off your next booking is ready.` }
     default:
-      return { title: 'You won a scratch card prize', body: `₹${amount} off your next booking is ready.` }
+      return { title: 'You won a scratch card prize', body: `${formatRupees(amount)} off your next booking is ready.` }
   }
 }
 

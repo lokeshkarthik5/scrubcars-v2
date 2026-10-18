@@ -7,6 +7,7 @@ import { ScCard } from '@repo/ui/sc/card'
 import { Figures } from '@repo/ui/sc/figures'
 import type { MyRewards } from '@repo/core/api/rewards'
 import { useCreateInvite } from '@repo/core/api/hooks/use-rewards'
+import { rewardRupees } from '@repo/core/rewards'
 
 /**
  * Invite a friend: the customer's own link, shared from their phone. Both
@@ -17,7 +18,7 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
   const create = useCreateInvite()
   const code = invite.code ?? create.data?.code ?? null
   const url = code ? `${typeof window === 'undefined' ? 'https://detlio.com' : window.location.origin}/invite/${code}` : null
-  const text = `Book your car wash on Detlio and get ₹${invite.amount} off your first booking: ${url ?? ''}`
+  const text = `Book your car wash on Detlio and get ${rewardRupees(invite.amount)} off your first booking: ${url ?? ''}`
 
   const copy = async () => {
     if (!url) return
@@ -50,7 +51,7 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
         <h2 className="text-sm font-semibold text-text-primary">Invite a friend</h2>
         <p className="mt-1 text-[13px] text-text-secondary">
           <Figures
-            text={`You both get ₹${invite.amount} off when their first booking of ₹${invite.minAmount} or more is done.`}
+            text={`You both get ${rewardRupees(invite.amount)} off when their first booking of ${rewardRupees(invite.minAmount)} or more is done.`}
           />
         </p>
       </div>
@@ -58,16 +59,18 @@ export function InviteCard({ invite }: { invite: MyRewards['invite'] }) {
         <>
           <p className="truncate rounded-[10px] border border-line px-3 py-2 font-numeric text-[13px] text-text-primary">{url}</p>
           <div className="grid grid-cols-2 gap-2">
-            <ScButton variant="secondary" onClick={() => void share()} className="h-10 gap-1.5">
-              <IconShare size={16} aria-hidden /> Share
+            <ScButton variant="secondary" onClick={() => void share()} className="flex min-h-11 items-center justify-center gap-2">
+              <IconShare size={16} aria-hidden />
+              Share
             </ScButton>
-            <ScButton variant="secondary" onClick={() => void copy()} className="h-10 gap-1.5">
-              <IconCopy size={16} aria-hidden /> Copy link
+            <ScButton variant="secondary" onClick={() => void copy()} className="flex min-h-11 items-center justify-center gap-2">
+              <IconCopy size={16} aria-hidden />
+              Copy link
             </ScButton>
           </div>
         </>
       ) : (
-        <ScButton variant="secondary" onClick={() => create.mutate()} disabled={create.isPending} className="h-10">
+        <ScButton variant="secondary" onClick={() => create.mutate()} disabled={create.isPending} className="flex min-h-11 items-center justify-center">
           {create.isPending ? 'Making your link…' : 'Get your invite link'}
         </ScButton>
       )}

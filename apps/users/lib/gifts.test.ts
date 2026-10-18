@@ -71,6 +71,8 @@ describe('gift words', () => {
   test('dates in Chennai', () => {
     // 20:00 UTC on 11 Oct is 01:30 on 12 Oct in Chennai.
     expect(formatGiftDate('2027-10-11T20:00:00Z')).toBe('12 Oct 2027')
+    // "Sep", never the "Sept" browsers write for en-IN.
+    expect(formatGiftDate('2027-09-14T06:00:00Z')).toBe('14 Sep 2027')
   })
 
   test('ledger amounts carry their sign', () => {

@@ -16,6 +16,8 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- Rewards words: ₹ amounts are grouped the Indian way ("up to ₹1,500" on the level ladder, challenge prizes, scratch prizes and reward pushes), and a challenge's start push says "3 washes by 11 Nov win" ("wins" only for 1). A scratched card in `GET /users/me/rewards` (and the summary and admin) carries `prize.voucher` (`lastDay`, `state`), so the app can say when to use it after a reload.
+
 ### Added
 
 - **Achievements, seasonal challenges and Detlio Wrapped, on top of Detlio

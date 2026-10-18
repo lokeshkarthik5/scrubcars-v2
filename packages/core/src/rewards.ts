@@ -8,6 +8,8 @@
  */
 
 import type { BadgeKey, BadgeSettings } from './achievements'
+import { formatRupees } from './job-records'
+import { istDateLabel } from './payouts'
 
 export const SCRATCH_OUTCOMES = ['small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash'] as const
 export type ScratchOutcome = (typeof SCRATCH_OUTCOMES)[number]
@@ -165,15 +167,23 @@ export function rewardDay(dateKey: string): string {
   return `${day} ${MONTHS[month - 1]}`
 }
 
-/** "₹299", whole rupees. */
-export function rewardRupees(amount: string | number): string {
-  return `₹${Math.round(Number(amount)).toLocaleString('en-IN')}`
+/** "₹299", "₹1,500": whole rupees, grouped the Indian way (formatRupees). */
+export function rewardRupees(amount: string | number | null | undefined): string {
+  return formatRupees(Math.round(Number(amount ?? 0)))
+}
+
+/**
+ * "14 Sep 2026", the India date of a moment, for the history and badge
+ * dates. Not en-IN through Intl: browsers write September "Sept" there.
+ */
+export function rewardDate(iso: string): string {
+  return istDateLabel(iso)
 }
 
 /** What a scratched card won, as the API says it (lib/rewards.ts scratchPrizeLabel). */
 export function scratchPrizeLabel(outcome: ScratchOutcome, amount: number | string | null): string {
   if (outcome === 'bonus_stamp') return 'A bonus stamp'
-  const rupee = `₹${Math.round(Number(amount ?? 0))}`
+  const rupee = rewardRupees(amount)
   return outcome === 'free_wash' ? `A free wash (up to ${rupee})` : `${rupee} off`
 }
 
@@ -215,10 +225,28 @@ export function levelLine(level: {
   return `You're at the top: ${level.label}`
 }
 
-/** "You've saved ₹1,240 with Detlio Rewards · 14 washes · since Oct 2026" */
+/** No-break spaces, so a short phrase ("since Oct 2026") never splits across lines. */
+const NBSP = '\u00a0'
+function keepTogether(text: string): string {
+  return text.replace(/ /g, NBSP)
+}
+
+/**
+ * "You've saved ₹1,240 with Detlio Rewards · 14 washes · since Oct 2026",
+ * with "since Oct 2026" held together so "Oct 2026" never wraps alone.
+ */
 export function lifetimeLine(lifetime: { saved: string; washes: number; since: string | null }): string {
-  const washes = `${lifetime.washes} ${lifetime.washes === 1 ? 'wash' : 'washes'}`
+  const washes = `${lifetime.washes.toLocaleString('en-IN')} ${lifetime.washes === 1 ? 'wash' : 'washes'}`
   const parts = [`You've saved ${rewardRupees(lifetime.saved)} with Detlio Rewards`, washes]
-  if (lifetime.since) parts.push(`since ${lifetime.since}`)
+  if (lifetime.since) parts.push(keepTogether(`since ${lifetime.since}`))
   return parts.join(' · ')
+}
+
+/**
+ * What a challenge asks and wins, the verb agreeing with the count:
+ * "3 washes win double stamps", "1 wash wins ₹100 off".
+ */
+export function challengeWinsLine(challenge: { counts: string; goal: number; reward: string }): string {
+  const counts = `${challenge.counts.charAt(0).toUpperCase()}${challenge.counts.slice(1)}`
+  return `${counts} ${challenge.goal === 1 ? 'wins' : 'win'} ${challenge.reward}`
 }

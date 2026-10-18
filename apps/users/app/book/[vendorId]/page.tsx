@@ -80,6 +80,7 @@ import {
 } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { invalidateRewards, rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import { rewardRupees } from '@repo/core/rewards'
 import {
   giftsEnabled,
   invalidateGiftData,
@@ -1397,7 +1398,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                           onClick={() => handleApplyReward(voucher.code!)}
                           className="flex min-h-9 items-center gap-1.5 rounded-full border border-stroke px-3 text-[12px] text-text-primary disabled:opacity-50"
                         >
-                          <span className="font-numeric font-medium">₹{Math.round(Number(voucher.amount))} off</span>
+                          <span className="font-numeric font-medium">{rewardRupees(voucher.amount)} off</span>
                           <span className="text-text-secondary">· {voucher.label}</span>
                         </button>
                       ))}

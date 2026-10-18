@@ -1,6 +1,7 @@
 import { IconCheck, IconTrophy } from '@tabler/icons-react'
 import { Figures } from '@repo/ui/sc/figures'
 import type { CustomerChallenge } from '@repo/core/api/reward-extras'
+import { challengeWinsLine } from '@repo/core/rewards'
 import { cn } from '@repo/core/utils'
 
 /** The challenge's bar: silver, never red; full once won. */
@@ -38,7 +39,7 @@ export function ChallengeCard({ challenge, highlight = false }: { challenge: Cus
         <div className="min-w-0">
           <h3 className="text-[15px] font-semibold leading-tight text-text-primary">{challenge.title}</h3>
           <p className="mt-0.5 text-[12px] text-text-secondary">
-            <Figures text={`${challenge.counts.charAt(0).toUpperCase()}${challenge.counts.slice(1)} wins ${challenge.reward}`} />
+            <Figures text={challengeWinsLine(challenge)} />
           </p>
         </div>
         <span

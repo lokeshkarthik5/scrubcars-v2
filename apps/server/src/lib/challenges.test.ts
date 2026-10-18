@@ -163,6 +163,7 @@ describe('words', () => {
   test('the reward and what counts', () => {
     expect(rewardLabel(diwali())).toBe('double stamps')
     expect(rewardLabel(diwali({ rewardKind: 'voucher', rewardAmount: 100, rewardMultiplier: null }))).toBe('₹100 off')
+    expect(rewardLabel(diwali({ rewardKind: 'voucher', rewardAmount: 1500, rewardMultiplier: null }))).toBe('₹1,500 off')
     expect(rewardLabel(diwali({ rewardKind: 'stamps', rewardStamps: 1, rewardMultiplier: null }))).toBe('a bonus stamp')
     expect(rewardLabel(diwali({ rewardKind: 'badge', rewardMultiplier: null }))).toBe('the Diwali Shine badge')
     expect(countsLine(diwali())).toBe('3 washes')
@@ -171,7 +172,8 @@ describe('words', () => {
   })
 
   test('push words carry the challenge, never anything about the customer', () => {
-    expect(challengeStartWords(diwali())).toEqual({ title: 'New challenge: Diwali Shine', body: '3 washes by 11 Nov wins double stamps.' })
+    expect(challengeStartWords(diwali())).toEqual({ title: 'New challenge: Diwali Shine', body: '3 washes by 11 Nov win double stamps.' })
+    expect(challengeStartWords(diwali({ goalCount: 1 })).body).toBe('1 wash by 11 Nov wins double stamps.')
     expect(challengeOneLeftWords(diwali())).toEqual({ title: 'One more for Diwali Shine', body: 'Book 1 more by 11 Nov to win double stamps.' })
     expect(challengeWonWords(diwali()).title).toBe('You won Diwali Shine')
     expect(challengeWonWords(diwali({ rewardKind: 'voucher', rewardAmount: 100, rewardMultiplier: null })).body).toBe('₹100 off your next booking is ready.')

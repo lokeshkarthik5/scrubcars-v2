@@ -592,9 +592,12 @@ html:has(.legal-doc) {
  * movement is a one-off flourish that stops under prefers-reduced-motion
  * (bottom of this block); the stars and the prize are there either way.
  */
+/* Held from the bottom, where Book a wash is (12pt inset + the 52pt pill):
+   the stars sit 11pt clear of the pill's top edge (the box itself 6pt, its
+   padding the rest), and clear of the tyres in both heights of the hero. */
 .car-hero__stars {
   position: absolute;
-  top: 231px;
+  bottom: 70px;
   left: 50%;
   z-index: 3;
   display: flex;
@@ -604,9 +607,6 @@ html:has(.legal-doc) {
   padding: 2px 8px;
   transform: translateX(-50%);
   border-radius: 999px;
-}
-.car-hero--short .car-hero__stars {
-  top: 212px;
 }
 .car-hero__stars:focus-visible {
   outline: 2px solid #FAFAFA;
@@ -788,6 +788,13 @@ html:has(.legal-doc) {
 .wrapped-story {
   touch-action: pan-y;
   user-select: none;
+}
+/* The card's width, and so its 9:16 height: at most 360pt, and short enough
+   that the controls, the name switch and the privacy note under it are all
+   on the first screen (248pt of them with the bar on top; 390 × 844 leaves
+   the card about 596pt tall). Never under 220pt wide on a very short screen. */
+.wrapped-story-size {
+  width: min(100%, 360px, max(220px, calc((100dvh - 248px) * 9 / 16)));
 }
 .wrapped-card--in {
   animation: wrapped-card-in 420ms ease-out both;
