@@ -11,6 +11,7 @@ import { adminAiRoutes } from '../ai/ai.routes.js'
 import { adminAlertRoutes } from '../alerts/alerts.routes.js'
 import { adminCreditRoutes } from '../gift-credit/gift-credit.routes.js'
 import { adminGiftRoutes } from '../gifts/gifts.routes.js'
+import { adminRewardRoutes } from '../rewards/rewards.routes.js'
 import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
@@ -390,6 +391,11 @@ adminRoutes.route('/alerts', adminAlertRoutes)
 // GIFTS_ENABLED is off.
 adminRoutes.route('/gifts/credit', adminCreditRoutes)
 adminRoutes.route('/gifts', adminGiftRoutes)
+
+// Detlio Rewards (0050): tracking, the CSV ledger, a customer's rewards and
+// adjustments, and the settings form. Super-admin; a 404 (but /config)
+// while REWARDS_ENABLED is off.
+adminRoutes.route('/rewards', adminRewardRoutes)
 
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.

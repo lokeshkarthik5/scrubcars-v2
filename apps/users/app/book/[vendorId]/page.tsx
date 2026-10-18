@@ -79,6 +79,7 @@ import {
   usePendingCheckoutStore,
 } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
+import { invalidateRewards, rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
 import {
   giftsEnabled,
   invalidateGiftData,
@@ -240,6 +241,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const giftsConfig = useGiftsConfig()
   const giftsOn = giftsEnabled(giftsConfig.data)
   const myCredit = useMyCredit(giftsOn && !!userId)
+  // Detlio Rewards (0050): the customer's vouchers, offered as one tap under
+  // the coupon row. A voucher is a promo code that only they can use; it goes
+  // through the same check and booking write as any code.
+  const rewardsConfig = useRewardsConfig()
+  const rewardsSummary = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && !!userId)
+  const rewardVouchers = (rewardsSummary.data?.vouchers ?? []).filter((v) => v.code)
   const pending = usePendingCheckoutStore((s) => s.pending)
   const forgetPendingCode = usePendingCheckoutStore((s) => s.forgetCode)
   const clearPending = usePendingCheckoutStore((s) => s.clear)
@@ -473,6 +480,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
     appliedPromo.vehicleId === selectedVehicle
       ? appliedPromo.discount
       : null
+  // A reward voucher applied shows by its name, not its code.
+  const appliedReward = appliedDiscount
+    ? rewardVouchers.find((v) => v.code?.toUpperCase() === appliedDiscount.code.toUpperCase())
+    : undefined
 
   const selectedVehicleType = vehicles.find((v) => v.id === selectedVehicle)?.vehicleType
   // The tier drives the price for per-vehicle services, so the summary names
@@ -597,6 +608,25 @@ function BookContent({ vendorId }: { vendorId: string }) {
     selectedServices.length > 0 &&
     selectedVehicle != null &&
     !unpricedForVehicle
+
+  /** One tap on a reward voucher: applied exactly like a typed code. */
+  const handleApplyReward = (code: string) => {
+    if (selectedServices.length === 0 || selectedVehicle == null || unpricedForVehicle || applyPromo.isPending) return
+    const vehicleId = selectedVehicle
+    applyPromo.mutate(
+      { code, vendorId, serviceIds, vehicleId },
+      {
+        onSuccess: (applied) => {
+          setAppliedPromo({ discount: applied, serviceKey, vehicleId })
+          if (offerCode && applied.code !== offerCode) setOfferDropped(true)
+        },
+        onError: (error) => {
+          setAppliedPromo(null)
+          toast.error(error instanceof Error ? error.message : "This reward can't be used here.")
+        },
+      }
+    )
+  }
 
   const handleApplyPromo = () => {
     if (!canApplyPromo || applyPromo.isPending) return
@@ -768,6 +798,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         paidRef.current = true
         void invalidateHome(queryClient)
         void invalidateGiftData(queryClient)
+        void invalidateRewards(queryClient)
         clearPending()
         router.push(`/bookings/${order.bookingId}?celebrate=1`)
         return
@@ -814,6 +845,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // the credit with a booking that used some.
           void invalidateHome(queryClient)
           if (creditApplied) void invalidateGiftData(queryClient)
+          // A reward voucher used on it leaves Your rewards (0050).
+          void invalidateRewards(queryClient)
           if (outcome.kind === 'booked') {
             // The offer and car Home handed over have done their job.
             clearPending()
@@ -1284,7 +1317,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-medium text-text-primary">
-                      {appliedDiscount.code} applied
+                      {appliedReward ? `${appliedReward.label} applied` : `${appliedDiscount.code} applied`}
                     </p>
                     <p className="text-[11px] text-success">
                       You save{' '}
@@ -1347,6 +1380,28 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     >
                       Remove
                     </button>
+                  </div>
+                )}
+                {/* Detlio Rewards (0050): one voucher per booking, instead
+                    of a code; it goes with Detlio credit. Quiet chips: red
+                    stays on Pay. */}
+                {rewardVouchers.length > 0 && (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <p className="text-[12px] text-text-secondary">Your rewards</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {rewardVouchers.slice(0, 4).map((voucher) => (
+                        <button
+                          key={voucher.id}
+                          type="button"
+                          disabled={applyPromo.isPending}
+                          onClick={() => handleApplyReward(voucher.code!)}
+                          className="flex min-h-9 items-center gap-1.5 rounded-full border border-stroke px-3 text-[12px] text-text-primary disabled:opacity-50"
+                        >
+                          <span className="font-numeric font-medium">₹{Math.round(Number(voucher.amount))} off</span>
+                          <span className="text-text-secondary">· {voucher.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </>

@@ -4,11 +4,10 @@
 -- strike against the garage (and against Detlio Certified). Rules in
 -- lib/bypass-reports.ts.
 --
--- NUMBERING: runs after 0049 (gift credit). 0050 and 0051 belong to branches
--- built in parallel (rewards, the guarantee); nothing here depends on them.
--- The migrations lint reports the gap until they are merged. If 0050 also
--- widens `gift_credit_entries_kind_check` / `_sign_check`, whoever lines the
--- branches up must make the later file's lists the union of both.
+-- NUMBERING: runs after 0051 (the guarantee), itself after 0050 (rewards),
+-- with no gap. Nothing here depends on them, and neither touches
+-- `gift_credit_entries`, so the kind lists below are 0049's plus
+-- `report_reward` (Detlio Rewards' vouchers are promo codes, not credit).
 --
 -- Changes:
 --

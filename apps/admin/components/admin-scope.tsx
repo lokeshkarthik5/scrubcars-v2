@@ -7,6 +7,7 @@ import { adminLogout, getAdminMe } from '@repo/core/api/admin'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { useAdminGiftsConfig } from '@repo/core/api/hooks/use-admin-gifts'
 import { useAdminGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
+import { useAdminRewardsConfig } from '@repo/core/api/hooks/use-admin-rewards'
 
 const NAV: PanelNavItem[] = [
   { href: '/vendors', label: 'Vendors' },
@@ -44,6 +45,16 @@ function withGuarantee(items: PanelNavItem[]): PanelNavItem[] {
   return [...items.slice(0, at), GUARANTEE_NAV, ...items.slice(at)]
 }
 
+// Detlio Rewards (0050): only while REWARDS_ENABLED is on at the API. Header
+// only, after Gifts (or Payouts).
+const REWARDS_NAV: PanelNavItem = { href: '/rewards', label: 'Rewards' }
+
+function withRewards(items: PanelNavItem[]): PanelNavItem[] {
+  const gifts = items.findIndex((item) => item.href === '/gifts')
+  const at = (gifts >= 0 ? gifts : items.findIndex((item) => item.href === '/payouts')) + 1
+  return [...items.slice(0, at), REWARDS_NAV, ...items.slice(at)]
+}
+
 function withGifts(items: PanelNavItem[]): PanelNavItem[] {
   const at = items.findIndex((item) => item.href === '/payouts') + 1
   return [...items.slice(0, at), GIFTS_NAV, ...items.slice(at)]
@@ -65,6 +76,7 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   const { data: resetConfig } = useDataResetConfig(authed)
   const { data: giftsConfig } = useAdminGiftsConfig(authed)
   const { data: guaranteeConfig } = useAdminGuaranteeConfig(authed)
+  const { data: rewardsConfig } = useAdminRewardsConfig(authed)
 
   useEffect(() => {
     if (isLogin) return
@@ -104,7 +116,8 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
       brandLabel="Admin"
       navItems={(() => {
         const base = guaranteeConfig?.enabled ? withGuarantee(NAV) : NAV
-        const items = giftsConfig?.enabled ? withGifts(base) : base
+        const withGift = giftsConfig?.enabled ? withGifts(base) : base
+        const items = rewardsConfig?.masterSwitch ? withRewards(withGift) : withGift
         return resetConfig?.enabled ? [...items, RESET_NAV] : items
       })()}
       navType="admin"

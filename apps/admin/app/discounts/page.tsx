@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   IconDiscount2,
@@ -26,6 +27,7 @@ import {
   useToggleDiscountActive,
 } from '@repo/core/api/hooks/use-discounts'
 import type { AdminDiscount } from '@repo/core/api/admin'
+import { useAdminRewardsConfig } from '@repo/core/api/hooks/use-admin-rewards'
 import { DiscountsTabs } from '@/components/discounts-tabs'
 import { Meta } from '@/components/meta'
 
@@ -95,6 +97,7 @@ const ROW_ACTION = 'flex min-h-11 items-center gap-1 px-3 py-1.5 text-[12px]'
 
 export default function AdminDiscountsPage() {
   const router = useRouter()
+  const { data: rewardsConfig } = useAdminRewardsConfig()
 
   const { data: discounts = [], isPending, error, refetch } = useAdminDiscounts()
 
@@ -181,6 +184,18 @@ export default function AdminDiscountsPage() {
       />
 
       <DiscountsTabs />
+
+      {/* Detlio Rewards (0050): its vouchers are codes like these, but the
+          page has no room in the phone's bottom bar; the header has it on a
+          wider screen. */}
+      {rewardsConfig?.masterSwitch && (
+        <Link
+          href="/rewards"
+          className="inline-flex min-h-11 items-center gap-1 self-start text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline md:hidden"
+        >
+          Detlio Rewards
+        </Link>
+      )}
 
       {!isPending && !error && discounts.length > 0 && (
         <>

@@ -14,10 +14,21 @@ export function JobCardHeader({ booking }: { booking: Booking }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        {/* The full name on hover or long-press when it is cut short. */}
-        <p title={booking.customerName} className="truncate text-[13px] font-semibold text-text-primary">
-          {booking.customerName}
-        </p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {/* The full name on hover or long-press when it is cut short. */}
+          <p title={booking.customerName} className="truncate text-[13px] font-semibold text-text-primary">
+            {booking.customerName}
+          </p>
+          {/* Detlio Rewards (0050): a regular's level name, nothing else. */}
+          {booking.customerBadge && (
+            <span
+              title={`Detlio Rewards: ${booking.customerBadge}`}
+              className="shrink-0 rounded-full border border-line px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-text-secondary"
+            >
+              {booking.customerBadge}
+            </span>
+          )}
+        </div>
         <p className="text-[12px] text-text-secondary">{booking.serviceSummary}</p>
         <p className="mt-0.5 font-numeric text-[12px] font-medium text-text-primary">
           {booking.scheduledAt}

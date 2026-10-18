@@ -3,11 +3,10 @@
 --
 -- Behind GUARANTEE_ENABLED (default off). Rules in lib/guarantee.ts.
 --
--- NUMBERING: 0051 runs after 0050 (Detlio Rewards), which is being built on a
--- parallel branch and will be merged before this one. Until it is, the
--- journal jumps from 0049 to 0051 and `migrate.sh lint` reports the gap; that
--- is expected and goes away when 0050 lands. Nothing here depends on 0050,
--- and 0050 does not touch these tables or columns.
+-- NUMBERING: 0051 runs after 0050 (Detlio Rewards), which this branch now
+-- sits on: the journal runs 0049 → 0050 → 0051 with no gap. The one thing
+-- here that depends on 0050 is widening `reward_bookings_refusal_check`
+-- (below); 0050 does not touch these tables or columns.
 --
 -- Changes:
 --
@@ -28,11 +27,16 @@
 --     redo booking is SET NULL.
 --   - `guarantee_claim_photos`: the customer's photos of the problem (keys in
 --     the job's own folder). Cascade with the claim.
+--   - `reward_bookings_refusal_check` (0050): a new reason a completed booking
+--     earns no Detlio Rewards stamp, `free_redo` (a redo is ₹0 and earns no
+--     stamp, scratch card or level progress). Dropped and added again with it.
 --
 -- Purely additive: two new tables and two new columns (one NOT NULL with a
 -- constant default, which does not rewrite the table on PostgreSQL 11+, one
--- nullable), which today's API never reads, so it is safe to apply before
--- the code that uses it is deployed.
+-- nullable), which today's API never reads, and one CHECK that only allows
+-- more (re-adding it validates reward_bookings' existing rows, all of which
+-- pass, under a short lock on a new, small table), so it is safe to apply
+-- before the code that uses it is deployed.
 --
 -- Applied by scripts/migrate.sh, one transaction per file. Every statement is
 -- also safe to re-run.
@@ -144,4 +148,9 @@ CREATE TABLE IF NOT EXISTS "guarantee_claim_photos" (
 );--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS "guarantee_claim_photos_storage_key_key" ON "guarantee_claim_photos" ("storage_key");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "guarantee_claim_photos_claim_id_idx" ON "guarantee_claim_photos" ("claim_id");
+CREATE INDEX IF NOT EXISTS "guarantee_claim_photos_claim_id_idx" ON "guarantee_claim_photos" ("claim_id");--> statement-breakpoint
+
+ALTER TABLE "reward_bookings" DROP CONSTRAINT IF EXISTS "reward_bookings_refusal_check";--> statement-breakpoint
+ALTER TABLE "reward_bookings" ADD CONSTRAINT "reward_bookings_refusal_check" CHECK (
+  "refusal" IN ('not_completed', 'not_paid_online', 'refunded', 'test', 'under_minimum', 'same_day_car', 'free_redo')
+);

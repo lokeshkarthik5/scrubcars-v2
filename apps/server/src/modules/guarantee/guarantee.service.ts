@@ -60,6 +60,7 @@ import { createPresignedUpload, publicUrlForKey } from '../../lib/storage.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { rewardsService } from '../rewards/rewards.service.js'
 import { jobSlots } from '../vendors/vendors.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import {
@@ -779,7 +780,12 @@ export const guaranteeService = {
     // A refund instead: the credit part goes back as credit at once, and
     // the automatic mode (AUTO_REFUNDS) sends the rest; otherwise it waits on
     // the Refunds page like any refund owed.
-    if (decision === 'refund') refundsService.queueAutoRefund({ kind: 'booking', id: updated.bookingId })
+    if (decision === 'refund') {
+      refundsService.queueAutoRefund({ kind: 'booking', id: updated.bookingId })
+      // Detlio Rewards (0050): a refunded booking loses its stamp if still
+      // on the card, like any other refund.
+      rewardsService.scheduleAfterRefund(updated.bookingId)
+    }
 
     return guaranteeService.adminGet(id, now)
   },
