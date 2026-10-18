@@ -53,7 +53,7 @@ export function BirthdayForm({ birthday, perkFrom }: { birthday: { month: number
       <div className="flex gap-2">
         <ScButton
           variant="secondary"
-          className="h-9 w-auto px-4 text-[13px]"
+          className="flex h-9 w-auto items-center justify-center px-4 py-0 text-[13px]"
           disabled={!changed || !month || !day || save.isPending}
           onClick={() =>
             save.mutate({ month, day }, {

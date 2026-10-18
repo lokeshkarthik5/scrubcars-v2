@@ -26,6 +26,7 @@
  */
 import { addDays, daysBetween, istDateKey, istMidnight } from './ist.js'
 import { bannedPhraseIn } from './copy-rules.js'
+import { formatRupees } from './discounts.js'
 import { LEVELS, type RewardLevel } from './rewards.js'
 
 export const CHALLENGE_REWARD_KINDS = ['stamps', 'voucher', 'multiplier', 'badge'] as const
@@ -151,7 +152,7 @@ export function rewardLabel(c: Pick<Challenge, 'rewardKind' | 'rewardStamps' | '
     case 'stamps':
       return c.rewardStamps === 1 ? 'a bonus stamp' : `${c.rewardStamps ?? 0} bonus stamps`
     case 'voucher':
-      return `₹${Math.round(c.rewardAmount ?? 0)} off`
+      return `${formatRupees(c.rewardAmount ?? 0)} off`
     case 'multiplier':
       return c.rewardMultiplier === 3 ? 'triple stamps' : 'double stamps'
     case 'badge':
@@ -188,7 +189,7 @@ export function countsLine(c: Pick<Challenge, 'goalCount' | 'category' | 'bookin
 /** Push and Updates words. A title the team typed (it passed the copy rules); nothing about the customer. */
 export function challengeStartWords(c: Challenge): { title: string; body: string } {
   const by = shortDay(c.endDate)
-  return { title: `New challenge: ${c.title}`, body: `${capitalise(countsLine(c))} by ${by} wins ${rewardLabel(c)}.` }
+  return { title: `New challenge: ${c.title}`, body: `${capitalise(countsLine(c))} by ${by} ${c.goalCount === 1 ? 'wins' : 'win'} ${rewardLabel(c)}.` }
 }
 
 export function challengeOneLeftWords(c: Challenge): { title: string; body: string } {
@@ -265,7 +266,7 @@ export function challengeProblems(input: ChallengeInput): string[] {
       if (!within(input.rewardStamps, L.stamps)) problems.push(`Bonus stamps are ${L.stamps.min} to ${L.stamps.max}`)
       break
     case 'voucher':
-      if (!within(input.rewardAmount, L.amount)) problems.push(`The voucher is ₹${L.amount.min} to ₹${L.amount.max}`)
+      if (!within(input.rewardAmount, L.amount)) problems.push(`The voucher is ${formatRupees(L.amount.min)} to ${formatRupees(L.amount.max)}`)
       if (input.maxWinners === null) problems.push('A ₹ prize needs a limit on winners')
       break
     case 'multiplier':

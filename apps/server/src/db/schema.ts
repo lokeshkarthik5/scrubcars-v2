@@ -2686,7 +2686,7 @@ export const gifts = pgTable(
     index('gifts_status_idx').on(table.status),
     gatewayModeCheck('gifts_gateway_mode_check', table.gatewayMode),
     check('gifts_status_check', sql`${table.status} in ('pending', 'paid', 'redeemed', 'cancelled')`),
-    check('gifts_design_check', sql`${table.design} in ('shine', 'midnight', 'fresh')`),
+    check('gifts_design_check', sql`${table.design} in ('shine', 'midnight', 'fresh', 'pearl', 'birthday', 'diwali', 'thank_you')`),
     check('gifts_amount_check', sql`${table.amount} >= 300 and ${table.amount} <= 5000`),
   ]
 )

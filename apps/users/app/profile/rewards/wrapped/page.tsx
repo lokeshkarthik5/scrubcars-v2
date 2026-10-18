@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
-import { IconChevronLeft, IconChevronRight, IconShare, IconSparkles, IconX } from '@tabler/icons-react'
+import { IconChevronLeft, IconChevronRight, IconShare, IconSparkles, IconStarFilled, IconX } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
@@ -14,8 +14,11 @@ import { rewardsEnabled, useRewardsConfig } from '@repo/core/api/hooks/use-rewar
 import { useWrapped, useWrappedEvent } from '@repo/core/api/hooks/use-reward-extras'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
+import { BADGE_CATALOG } from '@repo/core/achievements'
 import { WRAPPED_SHARE_LINE, wrappedCards, type WrappedCard, type WrappedStats } from '@repo/core/wrapped'
-import { shareWrappedCard, wrappedBackground } from '@/lib/wrapped-image'
+import { BadgeMedal } from '@/components/rewards/badge-medal'
+import { WrappedVisual } from '@/components/rewards/wrapped-visual'
+import { levelMetal, shareWrappedCard, splitBig, wrappedBackground } from '@/lib/wrapped-image'
 
 /**
  * Detlio Wrapped (0054): the customer's year as story cards. Tap the right
@@ -55,7 +58,7 @@ function WrappedScreen() {
     return (
       <Frame>
         <div className="flex justify-end">{back}</div>
-        <div className="mx-auto mt-6 aspect-[9/16] w-full max-w-[360px] animate-pulse rounded-[24px] bg-surface" aria-busy="true" />
+        <div className="wrapped-story-size mx-auto mt-6 aspect-[9/16] animate-pulse rounded-[24px] bg-surface" aria-busy="true" />
       </Frame>
     )
   }
@@ -114,7 +117,7 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
   const share = async () => {
     setSharing(true)
     try {
-      const outcome = await shareWrappedCard(card, { year, index, total: cards.length })
+      const outcome = await shareWrappedCard(card, { year, index, total: cards.length, level: stats.level })
       if (outcome !== 'cancelled') event.mutate({ year, kind: 'shared' })
       if (outcome === 'downloaded') toast.success('Image saved')
     } catch {
@@ -140,7 +143,7 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
       <section
         aria-roledescription="story"
         aria-label={`Detlio Wrapped ${year}, card ${index + 1} of ${cards.length}`}
-        className="wrapped-story relative mx-auto mt-3 aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-[24px] border border-white/10"
+        className="wrapped-story wrapped-story-size relative mx-auto mt-3 aspect-[9/16] overflow-hidden rounded-[24px] border border-white/10"
         style={{ background: wrappedBackground(card.key) }}
         onPointerDown={(e) => {
           start.current = { x: e.clientX, y: e.clientY }
@@ -155,7 +158,8 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
           go(e.clientX - rect.left < rect.width / 3 ? -1 : 1)
         }}
       >
-        <WrappedCardView key={`${card.key}-${showName}`} card={card} year={year} />
+        <span key={`glow-${card.key}`} className="wrapped-story__glow" aria-hidden />
+        <WrappedCardView key={`${card.key}-${showName}`} card={card} year={year} stats={stats} />
       </section>
 
       <div className="mx-auto mt-3 flex w-full max-w-[360px] items-center justify-between gap-2">
@@ -183,27 +187,65 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
   )
 }
 
-/** One card on screen: the same words, in the same places, as its image. */
-function WrappedCardView({ card, year }: { card: WrappedCard; year: number }) {
+/** The badge keys for the names on the level card (the API sends names). */
+function badgeKeysFor(names: string[]) {
+  return names.map((name) => ({ name, key: BADGE_CATALOG.find((b) => b.label === name)?.key ?? ('challenge' as const) }))
+}
+
+/**
+ * One card on screen: the same words, in the same order, as its image, with
+ * the level's pill, the figure huge (its unit under it), and a picture that
+ * fills the card (the coupé, coins, the year's months, the level's medal).
+ */
+function WrappedCardView({ card, year, stats }: { card: WrappedCard; year: number; stats: WrappedStats }) {
+  const split = splitBig(card.big)
+  const metal = levelMetal(stats.level.key)
   return (
-    <div className="wrapped-card--in absolute inset-0 flex flex-col px-7 pb-7 pt-7" aria-live="polite">
+    <div className="wrapped-card--in absolute inset-0 flex flex-col px-6 pb-6 pt-6" aria-live="polite">
       <div className="flex items-center justify-between">
         <BrandMark height={20} />
-        <span className="font-numeric text-[12px] font-semibold text-white/70">Wrapped {year}</span>
+        <span className="font-numeric text-[11px] font-semibold tracking-[0.12em] text-white/75">WRAPPED {year}</span>
       </div>
-      <div className="mt-auto flex flex-col gap-2 pb-6">
-        <p className="text-[14px] text-white/70">{card.eyebrow}</p>
-        <p className={cn('font-numeric font-semibold leading-[1.02] text-white', card.big.length > 14 ? 'text-[34px]' : 'text-[48px]')}>{card.big}</p>
+      <span
+        className="mt-4 inline-flex items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
+        style={{ background: `linear-gradient(120deg, ${metal.light}, ${metal.base} 55%, ${metal.dark})`, color: metal.ink }}
+      >
+        <IconStarFilled size={11} aria-hidden />
+        {stats.level.label} level
+      </span>
+
+      <div className="mt-6 flex flex-col">
+        <span aria-hidden className="mb-2.5 h-[3px] w-6 rounded-full bg-[#E4002B]" />
+        <p className="text-[14px] text-white/75">{card.eyebrow}</p>
+        {split ? (
+          <p className="mt-1 text-white">
+            <span className="block font-numeric text-[84px] font-bold leading-[0.95] tracking-[-0.03em]">{split.figure}</span>
+            {split.unit && <span className="block text-[24px] font-semibold leading-tight">{split.unit}</span>}
+          </p>
+        ) : (
+          <p className={cn('mt-1 font-numeric font-bold leading-[1.02] tracking-[-0.02em] text-white', card.big.length > 14 ? 'text-[34px]' : 'text-[48px]')}>{card.big}</p>
+        )}
         <p className="mt-2 text-[14px] text-white/85">{card.caption}</p>
-        {card.extra.length > 0 && (
-          <ul className="mt-1 text-[13px] text-white/70">
-            {card.extra.map((line) => (
-              <li key={line}>· {line}</li>
+        {card.key === 'level' && card.extra.length > 0 && (
+          <ul className="mt-3 flex gap-3" aria-label="Badges earned">
+            {badgeKeysFor(card.extra).map((b) => (
+              <li key={b.name} className="flex w-[64px] flex-col items-center gap-1 text-center">
+                <BadgeMedal badgeKey={b.key} earned size={40} />
+                <span className="text-[10px] leading-tight text-white/80">{b.name}</span>
+              </li>
             ))}
           </ul>
         )}
       </div>
-      <p className="text-[15px] font-semibold text-white">{WRAPPED_SHARE_LINE}</p>
+
+      <div className="relative min-h-0 flex-1">
+        <WrappedVisual cardKey={card.key} monthIndex={stats.busiestMonth ? stats.busiestMonth.month - 1 : null} level={stats.level} />
+      </div>
+
+      <p className="flex items-center gap-1.5 text-[14px] font-semibold text-white">
+        <span aria-hidden className="size-1.5 rounded-full bg-[#E4002B]" />
+        {WRAPPED_SHARE_LINE}
+      </p>
     </div>
   )
 }

@@ -89,6 +89,7 @@ const recorded: Array<{ userId: string | null; ipKey: string }> = []
 const codeHashesSet: string[] = []
 const redeemCalls: Array<{ giftId: string; userId: string }> = []
 const adjustCalls: Array<Record<string, unknown>> = []
+const storedDesigns: string[] = []
 
 beforeAll(() => {
   envValues.e2eFakePayments = true
@@ -99,11 +100,12 @@ beforeAll(() => {
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
 
-  patch(giftsRepository, 'createPending', async (input: { amount: number; buyerId: string }) =>
-    input.amount === 2000 && failures.ipFailures === -1
+  patch(giftsRepository, 'createPending', async (input: { amount: number; buyerId: string; design: string }) => {
+    storedDesigns.push(input.design)
+    return input.amount === 2000 && failures.ipFailures === -1
       ? { kind: 'over_limit', boughtTodayPaise: 900000 }
       : { kind: 'created', gift: giftRow({ status: 'pending', buyerId: input.buyerId, amount: `${input.amount}.00`, paidAt: null, expiresAt: null, codeHash: null }) }
-  )
+  })
   patch(giftsRepository, 'setOrder', async () => undefined)
   patch(giftsRepository, 'findById', async (id: string) => (id === gift.id ? gift : undefined))
   patch(giftsRepository, 'findByCodeHash', async (hash: string) => (hash === gift.codeHash ? gift : undefined))
@@ -152,6 +154,7 @@ beforeEach(() => {
   codeHashesSet.length = 0
   redeemCalls.length = 0
   adjustCalls.length = 0
+  storedDesigns.length = 0
   giftsOn(true)
 })
 
@@ -241,12 +244,22 @@ describe('buying a gift', () => {
     expect(JSON.stringify(body)).not.toContain('code')
   })
 
+  test('the card is stored as picked (0055); fresh from an older app is stored as pearl', async () => {
+    for (const design of ['shine', 'midnight', 'pearl', 'birthday', 'diwali', 'thank_you', 'fresh']) {
+      expect((await call('POST', '/users/me/gifts', 'buyer', { amount: 500, recipientName: 'Meena', design })).status).toBe(201)
+    }
+    expect(storedDesigns).toEqual(['shine', 'midnight', 'pearl', 'birthday', 'diwali', 'thank_you', 'pearl'])
+    const config = await call('GET', '/gifts/config', null)
+    expect(config.body.data).toMatchObject({ designs: ['shine', 'midnight', 'pearl', 'birthday', 'diwali', 'thank_you'] })
+  })
+
   test('amounts outside ₹300–₹5,000, fractions, unknown designs and extra fields are refused', async () => {
     for (const bad of [
       { amount: 299, recipientName: 'Meena', design: 'shine' },
       { amount: 5001, recipientName: 'Meena', design: 'shine' },
       { amount: 450.5, recipientName: 'Meena', design: 'shine' },
       { amount: 500, recipientName: 'Meena', design: 'gold' },
+      { amount: 500, recipientName: 'Meena', design: 'thankyou' },
       { amount: 500, recipientName: '', design: 'shine' },
       { amount: 500, recipientName: 'Meena', design: 'shine', buyerId: PEOPLE.friend },
     ]) {
