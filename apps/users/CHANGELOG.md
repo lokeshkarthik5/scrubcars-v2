@@ -19,6 +19,20 @@ reconstructing every change in them.
 
 ### Added
 
+- **Detlio Certified** (API 0048). Customer app: a "Detlio Certified" seal
+  on the garage page with "What this means" (the standards in plain words,
+  in a sheet), the seal after the name on garage cards (in place of the
+  Documents verified shield, which it includes; still one row on a 360px
+  card), and a "Certified only" chip first in the garage list's chip row
+  (filtered on the server, so sorting and paging hold). Garage portal: a
+  "Detlio Certified" card on Home for the owner seat: certified (and, if
+  falling short, the date to put it right by) or how many standards it
+  meets, each with its own figure against the target, and Detlio's check.
+  Admin: a Certification tab on the garage edit page (standards met or
+  not, quality-check history and "Record a check", Certify and Revoke, each
+  saved on its own) and "Certified" / "Eligible, not yet certified" chips
+  and a card line on the garage list.
+
 - **Free browser notifications** (API 0044, shown only once the API has its
   VAPID keys). Customer app: Profile → Notifications, with "Notifications
   on this device" (asks the browser, then subscribes), two account switches

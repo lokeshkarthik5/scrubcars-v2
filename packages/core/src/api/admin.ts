@@ -81,6 +81,13 @@ export interface AdminVendor {
     missingRequired: number
     rejected: number
   } | null
+  /**
+   * Detlio Certified (0048), from the garage's last evaluation: certified
+   * now, eligible then, the last day a certified garage falling short keeps
+   * it (`keepsUntil`), and how the last one ended. Null when never evaluated
+   * or certified; absent from older servers.
+   */
+  certification?: AdminVendorCertification | null
   owner: {
     id: string
     name: string
@@ -92,6 +99,17 @@ export interface AdminVendor {
    * customers see on it. Absent from an older API.
    */
   outsideServiceCity?: OutsideServiceCity | null
+}
+
+export interface AdminVendorCertification {
+  certified: boolean
+  certifiedAt: string | null
+  eligible: boolean
+  lastEvaluatedAt: string | null
+  /** IST date key; set while certified and falling short. */
+  keepsUntil: string | null
+  endedAt: string | null
+  endedKind: 'revoked' | 'lapsed' | null
 }
 
 /** The edit page tab where a checklist item is fixed (its `?tab=`). */

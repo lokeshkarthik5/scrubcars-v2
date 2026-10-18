@@ -19,6 +19,8 @@ import {
   IconPencil,
   IconPlus,
   IconRestore,
+  IconRosetteDiscountCheck,
+  IconRosetteDiscountCheckFilled,
   IconTrash,
 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
@@ -40,6 +42,10 @@ import { formatWhen } from '@/lib/bookings'
 import { PAGE_TAB_LABELS } from '@/lib/garage-edit'
 import { binDoneMessage, deleteDoneMessage } from '@/lib/vendor-bin'
 import {
+  CERTIFIED_FILTER,
+  CERTIFIED_LABEL,
+  ELIGIBLE_FILTER,
+  ELIGIBLE_LABEL,
   REVIEW_FILTER,
   REVIEW_LABEL,
   SHOW_FILTERS,
@@ -47,6 +53,7 @@ import {
   binDeleteLine,
   bookingParts,
   bookingsLine,
+  certificationCounts,
   documentsToReviewCount,
   editHref,
   hasDocumentsToReview,
@@ -122,6 +129,7 @@ function VendorsList() {
   // garage, and other screens' garage pickers need it that way.
   const counts = showCounts(vendors)
   const toReview = documentsToReviewCount(vendors)
+  const certification = certificationCounts(vendors)
   const shown = vendors.filter((v) => matchesShow(v, show))
 
   // Checklists open, by garage. A tap on the readiness line toggles one.
@@ -269,6 +277,27 @@ function VendorsList() {
                   />
                 </>
               )}
+              {/* Detlio Certified (0048): who has the seal, and who met
+                  every standard last night and waits for a quality check.
+                  Apart from the stages, after a rule; Eligible only while
+                  any are (or it is the one chosen). */}
+              <span aria-hidden="true" className="my-2 w-px shrink-0 bg-border" />
+              <FilterChip
+                label={CERTIFIED_LABEL}
+                count={certification.certified}
+                active={show === CERTIFIED_FILTER}
+                onClick={() => chooseShow(CERTIFIED_FILTER)}
+                className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
+              />
+              {(certification.eligible > 0 || show === ELIGIBLE_FILTER) && (
+                <FilterChip
+                  label={ELIGIBLE_LABEL}
+                  count={certification.eligible}
+                  active={show === ELIGIBLE_FILTER}
+                  onClick={() => chooseShow(ELIGIBLE_FILTER)}
+                  className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
+                />
+              )}
             </div>
             <div className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
               {showHints(show).map((hint) => (
@@ -294,7 +323,11 @@ function VendorsList() {
                 ? 'Nothing in the Bin.'
                 : show === REVIEW_FILTER
                   ? 'No documents to review.'
-                  : `No ${SHOW_LABELS[show].toLowerCase()} garages.`}
+                  : show === CERTIFIED_FILTER
+                    ? 'No Detlio Certified garages yet.'
+                    : show === ELIGIBLE_FILTER
+                      ? 'No garage is waiting to be certified.'
+                      : `No ${SHOW_LABELS[show].toLowerCase()} garages.`}
             </p>
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -571,6 +604,34 @@ function GarageCard({
           <Figures
             text={`${v.documents.toReview} ${v.documents.toReview === 1 ? 'document' : 'documents'} to review`}
           />
+          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+        </Link>
+      )}
+
+      {/* Detlio Certified (0048): the seal, the days a certified garage has
+          left to put a shortfall right, or that it met every standard and
+          waits for a quality check. Straight to the Certification tab. */}
+      {v.certification && (v.certification.certified || v.certification.eligible) && (
+        <Link
+          href={editHref(v.id, back, 'certification')}
+          className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
+        >
+          {v.certification.certified ? (
+            <IconRosetteDiscountCheckFilled size={15} aria-hidden="true" className="shrink-0" />
+          ) : (
+            <IconRosetteDiscountCheck size={15} aria-hidden="true" className="shrink-0 text-text-secondary" />
+          )}
+          {v.certification.certified ? (
+            v.certification.keepsUntil ? (
+              <span className="text-warning">
+                Certified, falling short · keeps it until <span className="font-numeric">{v.certification.keepsUntil}</span>
+              </span>
+            ) : (
+              'Detlio Certified'
+            )
+          ) : (
+            'Eligible for Detlio Certified · record a check'
+          )}
           <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
         </Link>
       )}

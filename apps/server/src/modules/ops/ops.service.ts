@@ -3,6 +3,7 @@ import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { analyticsService } from '../analytics/analytics.service.js'
+import { certificationService } from '../certification/certification.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
@@ -69,6 +70,17 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
+    // Detlio Certified's nightly evaluation (0048): each garage once per
+    // daily run from 05:00 IST, a bounded batch a run, so its alerts land
+    // before the 07:00 roll-up. Nothing while garage documents are off.
+    // Never allowed to fail the digest.
+    const certification = await certificationService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:certification_sweep_failed')
+        return { enabled: true as const, error: true as const }
+      })
+
     // The usage events' 180-day clean-up rides on it too: a bounded batch a
     // run, skipped on a dry run, and never allowed to fail the digest.
     const analyticsPurged = options.dryRun
@@ -116,6 +128,7 @@ export const opsService = {
       timeProposals,
       notAccepted,
       notifications,
+      certification,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

@@ -105,6 +105,7 @@ import type {
   UpdateVendorInput,
 } from './vendors.validation.js'
 import type { AddPhotoInput } from '../service-media/service-media.validation.js'
+import { certificationService } from '../certification/certification.service.js'
 import {
   removeMediaFiles,
   serviceMediaService,
@@ -243,6 +244,12 @@ export type VendorListItemResponse = {
    * this boolean (vendors.public.ts says why). False while documents are off.
    */
   documentsVerified: boolean
+  /**
+   * Detlio Certified (0048): the card's seal. Only this boolean
+   * (vendors.public.ts says why). A certified card shows the seal in place
+   * of the documents shield: certification needs the documents.
+   */
+  certified: boolean
 }
 
 export type VendorListResponse = {
@@ -782,7 +789,7 @@ export async function vendorCardsFor(
   )
 
   const today = todayDateKey()
-  const [aggregates, closures, verified] = await Promise.all([
+  const [aggregates, closures, verified, certified] = await Promise.all([
     vendorsRepository.getRatingAggregates(rows.map((vendor) => vendor.id)),
     vendorsRepository.listClosuresForVendors(
       rows.map((vendor) => vendor.id),
@@ -790,6 +797,7 @@ export async function vendorCardsFor(
       addDaysToDateKey(today, LISTING_CLOSURE_DAYS_AHEAD)
     ),
     documentsVerifiedIds(rows.map((vendor) => vendor.id)),
+    certificationService.certifiedIds(rows.map((vendor) => vendor.id)),
   ])
   const closuresByVendor = new Map<string, string[]>()
   for (const closure of closures) {
@@ -838,6 +846,7 @@ export async function vendorCardsFor(
       matchedService: q ? matchedServiceName(q, vendor) : null,
       outsideServiceCity: outsideServiceCity(vendor),
       documentsVerified: verified.has(vendor.id),
+      certified: certified.has(vendor.id),
     }
   })
 }
@@ -1002,6 +1011,7 @@ export const vendorsService = {
         bbox: query.bbox,
         bookingType: query.bookingType,
         category: query.category,
+        certifiedOnly: query.certified,
         q: query.q,
         sort,
         segment: 'located',
@@ -1014,6 +1024,7 @@ export const vendorsService = {
         const tail = await vendorsRepository.listPublicVendorPage({
           bookingType: query.bookingType,
           category: query.category,
+          certifiedOnly: query.certified,
           q: query.q,
           sort,
           segment: 'unlocated',
@@ -1031,6 +1042,7 @@ export const vendorsService = {
       page = await vendorsRepository.listPublicVendorPage({
         bookingType: query.bookingType,
         category: query.category,
+        certifiedOnly: query.certified,
         q: query.q,
         sort,
         segment: 'unlocated',
@@ -1061,17 +1073,21 @@ export const vendorsService = {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
 
-    const [photos, services, aggregates, verified] = await Promise.all([
+    const [photos, services, aggregates, verified, certified] = await Promise.all([
       vendorsRepository.listPhotos(vendor.id),
       vendorsRepository.listServices(vendor.id, true),
       vendorsRepository.getRatingAggregates([vendor.id]),
       documentsVerifiedIds([vendor.id]),
+      certificationService.certifiedIds([vendor.id]),
     ])
 
     const rating = aggregates[0]
 
     return {
-      ...toPublicVendor(vendor, { documentsVerified: verified.has(vendor.id) }),
+      ...toPublicVendor(vendor, {
+        documentsVerified: verified.has(vendor.id),
+        certified: certified.has(vendor.id),
+      }),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
       rating: rating ? Number(rating.average.toFixed(2)) : null,

@@ -42,7 +42,7 @@ const ROW = {
   createdAt: new Date('2026-01-01T00:00:00Z'),
 } satisfies PublicVendorSource & Record<string, unknown>
 
-const NOT_VERIFIED = { documentsVerified: false }
+const NOT_VERIFIED = { documentsVerified: false, certified: false }
 
 const PRIVATE = [
   'ownerId',
@@ -99,13 +99,22 @@ describe('toPublicVendor', () => {
       bookingsPausedReason: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       documentsVerified: false,
+      certified: false,
     })
   })
 
   test('garage documents are one boolean, never the documents', () => {
-    const shown = toPublicVendor(ROW, { documentsVerified: true })
+    const shown = toPublicVendor(ROW, { documentsVerified: true, certified: false })
     expect(shown.documentsVerified).toBe(true)
     for (const key of Object.keys(shown)) expect(key).not.toMatch(/^document(?!sVerified$)|file|storage/i)
+  })
+
+  test('Detlio Certified is one boolean, never the numbers, the checks or who certified it', () => {
+    const shown = toPublicVendor(ROW, { documentsVerified: true, certified: true })
+    expect(shown.certified).toBe(true)
+    for (const key of Object.keys(shown)) {
+      expect(key).not.toMatch(/certif(?!ied$)|check|revok|eligib|rating|complaint|noShow/i)
+    }
   })
 
   test('pickup is on only with the terms on file, and a pause says when and why', () => {

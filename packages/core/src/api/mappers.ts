@@ -122,6 +122,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     matchedService: item.matchedService ?? null,
     outsideServiceCity: item.outsideServiceCity ?? null,
     documentsVerified: item.documentsVerified ?? false,
+    certified: item.certified ?? false,
   }
 }
 
@@ -166,6 +167,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     matchedService: null,
     outsideServiceCity: vendor.outsideServiceCity ?? null,
     documentsVerified: vendor.documentsVerified ?? false,
+    certified: vendor.certified ?? false,
   }
 }
 

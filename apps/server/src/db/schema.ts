@@ -32,6 +32,12 @@ import type {
   DocumentType,
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
+import type {
+  EligibilitySnapshot,
+  QualityCheckKind,
+  QualityCheckResult,
+  RevokeKind,
+} from '../lib/certification.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -2231,6 +2237,72 @@ export const vendorDocumentFiles = pgTable(
     unique('vendor_document_files_document_id_side_key').on(table.documentId, table.side),
     uniqueIndex('vendor_document_files_storage_key_key').on(table.storageKey),
     check('vendor_document_files_side_check', sql`${table.side} in ('front', 'back')`),
+  ]
+)
+
+// Detlio Certified (0048, lib/certification.ts, modules/certification).
+// Each mystery visit or inspection Detlio made of a garage: the IST date of
+// the visit, who checked, pass or fail, and notes (required on a fail, CHECK).
+// The latest check of the last 6 months must be a pass to certify. Internal:
+// customers never see a check, and the garage sees only whether and when it
+// passed. Cascades with the garage. The CHECKs are in 0048_detlio_certified.sql.
+export const vendorQualityChecks = pgTable(
+  'vendor_quality_checks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    checkedOn: date('checked_on').notNull(),
+    kind: text('kind').$type<QualityCheckKind>().notNull(),
+    checkerName: varchar('checker_name', { length: 100 }).notNull(),
+    result: text('result').$type<QualityCheckResult>().notNull(),
+    notes: varchar('notes', { length: 1000 }),
+    // The admin's typed name, as the Bin records it; the session in *_sub.
+    recordedBy: varchar('recorded_by', { length: 100 }).notNull(),
+    recordedBySub: varchar('recorded_by_sub', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('vendor_quality_checks_vendor_id_checked_on_idx').on(table.vendorId, table.checkedOn.desc()),
+    check('vendor_quality_checks_kind_check', sql`${table.kind} in ('mystery_visit', 'inspection')`),
+    check('vendor_quality_checks_result_check', sql`${table.result} in ('pass', 'fail')`),
+  ]
+)
+
+// A garage's certification (0048): one row per garage evaluated or certified.
+// Certified = `certified_at` set and `revoked_at` null (isCertified, SQL twin
+// CERTIFIED_GARAGE in vendors.predicates.ts); Certify again clears the
+// revocation. `eligible`/`eligibility`/`last_evaluated_at` are the last
+// evaluation (nightly, or Certify), for the admin list; `ineligible_since`
+// starts a certified garage's 14 days. History lives in admin_audit_log.
+export const vendorCertifications = pgTable(
+  'vendor_certifications',
+  {
+    vendorId: uuid('vendor_id')
+      .primaryKey()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    certifiedAt: timestamp('certified_at', { withTimezone: true }),
+    certifiedBy: varchar('certified_by', { length: 100 }),
+    certifiedBySub: varchar('certified_by_sub', { length: 100 }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    // The admin's typed name, or AUTOMATIC_ACTOR for a lapse.
+    revokedBy: varchar('revoked_by', { length: 100 }),
+    revokedBySub: varchar('revoked_by_sub', { length: 100 }),
+    revokedReason: varchar('revoked_reason', { length: 300 }),
+    revokeKind: text('revoke_kind').$type<RevokeKind>(),
+    eligible: boolean('eligible').default(false).notNull(),
+    eligibility: jsonb('eligibility').$type<EligibilitySnapshot>(),
+    lastEvaluatedAt: timestamp('last_evaluated_at', { withTimezone: true }),
+    ineligibleSince: timestamp('ineligible_since', { withTimezone: true }),
+    eligibleAlertedAt: timestamp('eligible_alerted_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('vendor_certifications_certified_idx')
+      .on(table.vendorId)
+      .where(sql`${table.certifiedAt} is not null and ${table.revokedAt} is null`),
+    check('vendor_certifications_revoke_kind_check', sql`${table.revokeKind} is null or ${table.revokeKind} in ('revoked', 'lapsed')`),
   ]
 )
 

@@ -19,6 +19,11 @@ export function adminGarageDocumentsUrl(vendorId: string): string {
   return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=documents`
 }
 
+/** A garage's Certification tab in admin: its standards, checks, Certify and Revoke. */
+export function adminGarageCertificationUrl(vendorId: string): string {
+  return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=certification`
+}
+
 /** A complaint's own page in admin, where it is acknowledged and answered. */
 export function adminComplaintUrl(id: string): string {
   return `${ADMIN_COMPLAINTS_URL}/${id}`
@@ -322,6 +327,41 @@ export type OpsAlert =
       what: string
       /** The garage's documents now waiting for review, this one included. */
       waiting: number
+    }
+  | {
+      /**
+       * Detlio Certified (0048): the nightly run found a garage that is not
+       * certified meeting every standard, so the team can arrange its
+       * quality check (a mystery visit or an inspection) and then certify it.
+       */
+      kind: 'certification_eligible'
+      vendorId: string
+      garage: string
+    }
+  | {
+      /**
+       * A certified garage fell short for the first night: it keeps the
+       * badge until `keepsUntil` (an IST date label) unless it is put right.
+       */
+      kind: 'certification_at_risk'
+      vendorId: string
+      garage: string
+      /** The standards not met, and the check if it does not stand (shortfallLine). */
+      shortfall: string
+      keepsUntil: string
+    }
+  | {
+      /**
+       * A garage lost Detlio Certified: 14 days short (`lapsed`), or an
+       * admin revoked it, with their typed name and reason.
+       */
+      kind: 'certification_lost'
+      vendorId: string
+      garage: string
+      how: 'lapsed' | 'revoked'
+      /** The admin's typed name; null for a lapse. */
+      by: string | null
+      reason: string
     }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
@@ -781,6 +821,32 @@ export function formatOpsAlert(alert: OpsAlert): string {
         `Uploaded: ${alert.what}.`,
         `${alert.waiting} ${alert.waiting === 1 ? 'document waits' : 'documents wait'} for review at this garage.`,
         adminGarageDocumentsUrl(alert.vendorId)
+      )
+
+    case 'certification_eligible':
+      return lines(
+        `🏅 Eligible for Detlio Certified: ${alert.garage}`,
+        'It meets every standard. Arrange a quality check (mystery visit or inspection), record it, then Certify.',
+        adminGarageCertificationUrl(alert.vendorId)
+      )
+
+    case 'certification_at_risk':
+      return lines(
+        `⚠️ Detlio Certified at risk: ${alert.garage}`,
+        `Falling short: ${alert.shortfall}.`,
+        `It keeps the badge until ${alert.keepsUntil} unless this is put right.`,
+        adminGarageCertificationUrl(alert.vendorId)
+      )
+
+    case 'certification_lost':
+      return lines(
+        `Detlio Certified removed: ${alert.garage}`,
+        alert.how === 'lapsed'
+          ? `Lost automatically. ${alert.reason}`
+          : `Revoked by ${alert.by ?? 'admin'}.`,
+        alert.how === 'revoked' ? quoted('Reason', alert.reason) : null,
+        'Customers no longer see the seal.',
+        adminGarageCertificationUrl(alert.vendorId)
       )
   }
 }

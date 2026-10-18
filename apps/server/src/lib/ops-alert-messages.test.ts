@@ -642,6 +642,65 @@ describe('documents_uploaded', () => {
   })
 })
 
+describe('Detlio Certified', () => {
+  const vendorId = 'e2e00000-0000-4000-8000-000000002810'
+  const link = `https://admin.detlio.com/vendors/${vendorId}/edit?tab=certification`
+
+  test('eligible: the garage, what to do next and where', () => {
+    expect(formatOpsAlert({ kind: 'certification_eligible', vendorId, garage: 'Marina Auto Spa' }).split('\n')).toEqual([
+      '🏅 Eligible for Detlio Certified: Marina Auto Spa',
+      'It meets every standard. Arrange a quality check (mystery visit or inspection), record it, then Certify.',
+      link,
+    ])
+  })
+
+  test('at risk: what fell short and the last day it keeps the badge', () => {
+    expect(
+      formatOpsAlert({
+        kind: 'certification_at_risk',
+        vendorId,
+        garage: 'Marina Auto Spa',
+        shortfall: 'Rating',
+        keepsUntil: 'Fri 30 Oct',
+      }).split('\n')
+    ).toEqual([
+      '⚠️ Detlio Certified at risk: Marina Auto Spa',
+      'Falling short: Rating.',
+      'It keeps the badge until Fri 30 Oct unless this is put right.',
+      link,
+    ])
+  })
+
+  test('lost: lapsed says why; revoked says who and quotes the reason, scrubbed', () => {
+    expect(
+      formatOpsAlert({
+        kind: 'certification_lost',
+        vendorId,
+        garage: 'Marina Auto Spa',
+        how: 'lapsed',
+        by: null,
+        reason: 'Did not meet the Detlio Certified standards for 14 days: Rating.',
+      }).split('\n')
+    ).toEqual([
+      'Detlio Certified removed: Marina Auto Spa',
+      'Lost automatically. Did not meet the Detlio Certified standards for 14 days: Rating.',
+      'Customers no longer see the seal.',
+      link,
+    ])
+    const revoked = formatOpsAlert({
+      kind: 'certification_lost',
+      vendorId,
+      garage: 'Marina Auto Spa',
+      how: 'revoked',
+      by: 'Lokesh',
+      reason: 'Customer called 98400 12345 about a scratched bumper',
+    })
+    expect(revoked).toContain('Revoked by Lokesh.')
+    expect(revoked).toContain('Reason: "Customer called [number] about a scratched bumper"')
+    expect(revoked).not.toContain('98400')
+  })
+})
+
 describe('refunds through Razorpay', () => {
   const sent = {
     kind: 'refund_sent',
