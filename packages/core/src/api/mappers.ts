@@ -404,6 +404,8 @@ export function mapBooking(booking: ApiBooking): Booking {
     canSuggestTimes: booking.canSuggestTimes ?? false,
     responseDeadline: booking.responseDeadline ?? null,
     notAcceptedInTime: booking.notAcceptedInTime ?? false,
+    contactWindow: booking.contactWindow ?? null,
+    guaranteeRedo: booking.guaranteeRedo ?? false,
     refund: booking.refund
       ? {
           status: booking.refund.status,

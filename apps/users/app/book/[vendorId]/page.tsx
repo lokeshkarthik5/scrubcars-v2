@@ -37,6 +37,8 @@ import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
+import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
+import { GUARANTEE_BADGE, GUARANTEE_SUMMARY } from '@repo/core/guarantee'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SlotPicker } from '@repo/ui/sc/slot-picker'
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
@@ -160,6 +162,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
+  // Detlio Guarantee (0051): the checkout badge shows only while it is on.
+  const guaranteeOn = useGuaranteeConfig().data?.enabled === true
   // Set when the link asked for services the garage no longer sells (Book
   // again on an old booking, a tab left open), so the page can say why the
   // cart is shorter than what was asked for.
@@ -1565,6 +1569,25 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <span>{PICKUP_RESPONSIBILITY_LINE}</span>
               </p>
             )}
+
+            {/* Detlio Guarantee (0051), only while it is on and only for a
+                wash or detailing (a package counts): what the claim screen
+                offers after the job, in one line. */}
+            {guaranteeOn &&
+              selectedServices.length > 0 &&
+              selectedServices.every(
+                (service) =>
+                  service.pricingType !== 'on_inspection' &&
+                  ['car_wash', 'detailing', 'package'].includes(service.category)
+              ) && (
+                <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-text-primary">
+                  <IconShieldCheck size={15} className="mt-px shrink-0 text-text-secondary" aria-hidden="true" />
+                  <span>
+                    <span className="font-medium">{GUARANTEE_BADGE}</span>
+                    <span className="text-text-secondary"> — {GUARANTEE_SUMMARY}</span>
+                  </span>
+                </p>
+              )}
 
             {/* An inspection fee is not the whole price, and the customer
                 should know before paying how the rest is charged: the garage

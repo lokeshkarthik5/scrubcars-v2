@@ -500,6 +500,13 @@ export interface ApiBooking {
   responseDeadline?: { respondBy: string; enforced: boolean; windowMins: number } | null
   /** Cancelled because the garage did not accept in time (0042). */
   notAcceptedInTime?: boolean
+  /**
+   * The contact window: the other side's phone is on the payload only while
+   * `open`. Absent from older servers.
+   */
+  contactWindow?: { opensAt: string; closesAt: string | null; open: boolean }
+  /** A free redo of an earlier job (Detlio Guarantee, 0051). Absent from older servers. */
+  guaranteeRedo?: boolean
   /** What the booking already covers toward a final bill, as a decimal string. */
   paidAtBooking?: string
   /**
@@ -541,11 +548,13 @@ export interface ApiBooking {
     comment: string | null
     createdAt: string
   } | null
-  user: { id: string; name: string; phone: string } | null
+  // `phone` is null outside the contact window: the customer's on a garage
+  // payload, the garage's (and its WhatsApp) on a customer's.
+  user: { id: string; name: string; phone: string | null } | null
   vendor: {
     id: string
     businessName: string
-    phone: string
+    phone: string | null
     city: string
     // Optional: the API and the apps deploy separately, so a client can meet
     // a server that does not send these yet.

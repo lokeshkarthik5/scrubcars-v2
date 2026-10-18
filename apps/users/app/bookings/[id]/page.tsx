@@ -73,8 +73,10 @@ import { TimeProposalCard } from '@/components/time-proposal-card'
 import { OtherGaragesCard } from '@/components/other-garages-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { CarConditionCard } from '@/components/car-condition-card'
+import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
+import { BypassReportLine } from '@/components/bypass/bypass-report-line'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
 // out of the first load's JavaScript, and on the page well before anyone can
@@ -908,6 +910,10 @@ export default function BookingDetailPage({
 
       <JobPhotosCard photos={booking.jobPhotos} completed={booking.status === 'completed'} />
 
+      {/* Detlio Guarantee (0051): "Not happy?" on a completed job inside its
+          48 hours, the claim's status once made, or "Free redo" on a redo. */}
+      <GuaranteeCard booking={booking} />
+
       {/* The customer's own photos of their car (0045): before the work,
           and for a day after it. */}
       <CarConditionCard
@@ -993,6 +999,11 @@ export default function BookingDetailPage({
         <IconHelpCircle size={18} aria-hidden />
         Help with this booking
       </ScButton>
+
+      {/* "Did the garage ask you to book directly?" (0052): a quiet line,
+          from the garage's acceptance until 30 days after the job; once
+          reported, where the report stands. Never shown to the garage. */}
+      <BypassReportLine booking={booking} />
 
       {booking.status === 'rescheduled' && (
         <ScCard>

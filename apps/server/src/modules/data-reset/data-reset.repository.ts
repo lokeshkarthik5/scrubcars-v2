@@ -13,6 +13,8 @@ import {
   bookings,
   complaints,
   discountRedemptions,
+  guaranteeClaimPhotos,
+  guaranteeClaims,
   jobPhotos,
   payments,
   receiptCounters,
@@ -544,6 +546,14 @@ export function dataResetWrites(tx: Tx) {
           .from(jobPhotos)
           .where(inArray(jobPhotos.bookingId, slice))
         keys.push(...rows.map((row) => row.key))
+        // A free redo claim's photos (0051): the rows cascade with the
+        // booking's claim; their objects go with the job's photos.
+        const claimPhotos = await tx
+          .select({ key: guaranteeClaimPhotos.storageKey })
+          .from(guaranteeClaimPhotos)
+          .innerJoin(guaranteeClaims, eq(guaranteeClaims.id, guaranteeClaimPhotos.claimId))
+          .where(inArray(guaranteeClaims.bookingId, slice))
+        keys.push(...claimPhotos.map((row) => row.key))
       }
       return keys
     },

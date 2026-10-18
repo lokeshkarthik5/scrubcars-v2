@@ -381,6 +381,9 @@ function BookingDetail({
           <ScCard className="flex flex-col gap-2 px-4 py-4">
             <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
               {b.markedTest && <TestBadge />}
+              {/* Detlio Guarantee (0051): a free redo, or refunded instead of one. */}
+              {b.guaranteeRedo && <ScBadge variant="accent">Free redo · ₹0</ScBadge>}
+              {b.guaranteeRefundAt && <ScBadge variant="accent">Refund instead of a redo</ScBadge>}
               {(b.payment?.gatewayMode === 'test' || b.payment?.gatewayMode === 'fake') && (
                 <TestModePaymentBadge />
               )}

@@ -442,8 +442,11 @@ export const STAMP_LABELS: Record<StampSource, string> = {
   challenge: 'Bonus stamp (challenge)',
 }
 
-/** Why a completed booking earned no stamp. Text + CHECK in 0050. */
-export const STAMP_REFUSALS = ['not_completed', 'not_paid_online', 'refunded', 'test', 'under_minimum', 'same_day_car'] as const
+/**
+ * Why a completed booking earned no stamp. Text + CHECK in 0050;
+ * `free_redo` (a Detlio Guarantee redo, ₹0) was added to the CHECK by 0051.
+ */
+export const STAMP_REFUSALS = ['not_completed', 'not_paid_online', 'refunded', 'test', 'under_minimum', 'same_day_car', 'free_redo'] as const
 export type StampRefusal = (typeof STAMP_REFUSALS)[number]
 
 export function stampRefusalLabel(refusal: StampRefusal, settings: RewardsSettings): string {
@@ -460,6 +463,8 @@ export function stampRefusalLabel(refusal: StampRefusal, settings: RewardsSettin
       return `Under ₹${settings.minPaidAmount}`
     case 'same_day_car':
       return 'Same car, same day'
+    case 'free_redo':
+      return 'Free redo'
   }
 }
 
@@ -575,6 +580,18 @@ export interface CompletedJob {
     creditReturnedAt?: Date | null
   } | null
   markedTest: boolean
+  /**
+   * A Detlio Guarantee redo (0051, `bookings.guarantee_redo`): a ₹0 booking
+   * that earns no stamp, scratch card or level progress, whatever the
+   * minimum is set to.
+   */
+  guaranteeRedo?: boolean
+  /**
+   * Detlio approved a refund instead of a redo on it (0051,
+   * `bookings.guarantee_refund_at`): the booking's money is owed back, so
+   * it counts as refunded from that moment, before the refund is sent.
+   */
+  guaranteeRefund?: boolean
   /** What the customer was charged: Razorpay part + Detlio credit. */
   amount: string
   subtotalAmount: string
@@ -599,7 +616,9 @@ export function discountPercent(job: Pick<CompletedJob, 'subtotalAmount' | 'disc
   return Math.min(100, Math.max(0, Math.floor((paise(job.discountAmount) * 100) / subtotal)))
 }
 
-function moneyWentBack(payment: CompletedJob['payment']): boolean {
+function moneyWentBack(job: Pick<CompletedJob, 'payment' | 'guaranteeRefund'>): boolean {
+  if (job.guaranteeRefund) return true
+  const payment = job.payment
   return !!payment && (payment.status === 'refunded' || paise(payment.refundedAmount) > 0 || !!payment.creditReturnedAt)
 }
 
@@ -610,21 +629,28 @@ function moneyWentBack(payment: CompletedJob['payment']): boolean {
  */
 export function stampRefusal(job: CompletedJob, context: { sameDayCar: boolean }, settings: RewardsSettings): StampRefusal | null {
   if (job.status !== 'completed') return 'not_completed'
+  // A free redo (0051) is ₹0 and Detlio's own make-good: never a stamp,
+  // even with the minimum set to ₹0.
+  if (job.guaranteeRedo) return 'free_redo'
   if (job.markedTest) return 'test'
   // Only money that came through Detlio: an online payment that landed.
   // 'collected' is the old pay-at-garage cash path.
   if (job.paymentMethod !== 'online' || !job.payment || !job.payment.paidAt) return 'not_paid_online'
-  if (moneyWentBack(job.payment)) return 'refunded'
+  if (moneyWentBack(job)) return 'refunded'
   if (job.payment.status !== 'paid') return 'not_paid_online'
   if (eligibleAmountPaise(job) < settings.minPaidAmount * 100) return 'under_minimum'
   if (context.sameDayCar) return 'same_day_car'
   return null
 }
 
-/** Whether an earned stamp must be taken back: marked Test, or money went back, after it was earned. */
-export function stampRevocation(job: Pick<CompletedJob, 'markedTest' | 'payment'>): 'test' | 'refunded' | null {
+/**
+ * Whether an earned stamp must be taken back: marked Test, or money went
+ * back (or a Detlio Guarantee refund instead was approved, 0051), after it
+ * was earned.
+ */
+export function stampRevocation(job: Pick<CompletedJob, 'markedTest' | 'payment' | 'guaranteeRefund'>): 'test' | 'refunded' | null {
   if (job.markedTest) return 'test'
-  if (moneyWentBack(job.payment)) return 'refunded'
+  if (moneyWentBack(job)) return 'refunded'
   return null
 }
 

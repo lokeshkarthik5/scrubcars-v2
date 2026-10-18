@@ -223,6 +223,8 @@ describe('what goes in an event', () => {
     )
     // A gift link's code never leaves the browser (0049).
     expect(cleanPath('/gift/ABCDEFGHJKMNPQRS')).toBe('/gift/:code')
+    // Nor a shared certificate's token (0053).
+    expect(cleanPath('/verify/AbCdEfGhIjKlMnOpQrStUvWxYz012345')).toBe('/verify/:token')
   })
 
   test('the device from the window width only', () => {

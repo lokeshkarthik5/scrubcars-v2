@@ -6,12 +6,16 @@ import { PanelShell, type PanelNavItem } from '@repo/ui/sc/panel-shell'
 import { adminLogout, getAdminMe } from '@repo/core/api/admin'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { useAdminGiftsConfig } from '@repo/core/api/hooks/use-admin-gifts'
+import { useAdminGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { useAdminRewardsConfig } from '@repo/core/api/hooks/use-admin-rewards'
 
 const NAV: PanelNavItem[] = [
   { href: '/vendors', label: 'Vendors' },
   { href: '/bookings', label: 'Bookings' },
   { href: '/complaints', label: 'Complaints' },
+  // "Did the garage ask you to book directly?" reports and customer drop-off
+  // (0052). Header only on a phone-full bottom bar: Complaints links to it.
+  { href: '/bypass-reports', label: 'Bypass' },
   { href: '/refunds', label: 'Refunds' },
   { href: '/payouts', label: 'Payouts' },
   { href: '/discounts', label: 'Discounts' },
@@ -30,6 +34,16 @@ const RESET_NAV: PanelNavItem = { href: '/data-reset', label: 'Start pilot clean
 // Gift a wash (0049): only while the API has it on (GIFTS_ENABLED). Header
 // only, after Payouts, money's other page; the phone's bottom bar is full.
 const GIFTS_NAV: PanelNavItem = { href: '/gifts', label: 'Gifts' }
+
+// Detlio Guarantee (0051): free redo claims, only while the API has it on
+// (GUARANTEE_ENABLED). Header only, after Complaints, its sibling; the
+// phone's bottom bar is full.
+const GUARANTEE_NAV: PanelNavItem = { href: '/guarantee', label: 'Redo claims' }
+
+function withGuarantee(items: PanelNavItem[]): PanelNavItem[] {
+  const at = items.findIndex((item) => item.href === '/complaints') + 1
+  return [...items.slice(0, at), GUARANTEE_NAV, ...items.slice(at)]
+}
 
 // Detlio Rewards (0050): only while REWARDS_ENABLED is on at the API. Header
 // only, after Gifts (or Payouts).
@@ -61,6 +75,7 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false)
   const { data: resetConfig } = useDataResetConfig(authed)
   const { data: giftsConfig } = useAdminGiftsConfig(authed)
+  const { data: guaranteeConfig } = useAdminGuaranteeConfig(authed)
   const { data: rewardsConfig } = useAdminRewardsConfig(authed)
 
   useEffect(() => {
@@ -100,7 +115,8 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
     <PanelShell
       brandLabel="Admin"
       navItems={(() => {
-        const withGift = giftsConfig?.enabled ? withGifts(NAV) : NAV
+        const base = guaranteeConfig?.enabled ? withGuarantee(NAV) : NAV
+        const withGift = giftsConfig?.enabled ? withGifts(base) : base
         const items = rewardsConfig?.masterSwitch ? withRewards(withGift) : withGift
         return resetConfig?.enabled ? [...items, RESET_NAV] : items
       })()}

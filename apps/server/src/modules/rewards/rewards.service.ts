@@ -308,6 +308,26 @@ export const rewardsService = {
     runInBackground('rewards_judge', () => rewardsService.onBookingCompleted(bookingId))
   },
 
+  /**
+   * Money owed back on a booking outside the refund paths the cron watches
+   * for (a Detlio Guarantee refund instead, 0051): its stamp is taken back
+   * now if still on the card, its unscratched card voided, like any refund.
+   * The cron's revoke pass (listToRevoke) catches it too if this fails.
+   */
+  async onBookingRefunded(bookingId: string, now = new Date()) {
+    if (!(await rewardsLive())) return null
+    const row = await rewardsRepository.findEarnedForBooking(bookingId)
+    if (!row) return null
+    const revoked = await rewardsRepository.revoke({ ...row, now })
+    if (revoked) log.info({ bookingId, ...row, ...revoked }, 'rewards:stamp_revoked')
+    return revoked
+  },
+
+  scheduleAfterRefund(bookingId: string): void {
+    if (!env.rewardsEnabled) return
+    runInBackground('rewards_revoke', () => rewardsService.onBookingRefunded(bookingId))
+  },
+
   /** A customer no-show recorded: one level off (once per chain). */
   async onCustomerNoShow(bookingId: string, now = new Date()) {
     if (!(await rewardsLive())) return null

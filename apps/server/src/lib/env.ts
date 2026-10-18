@@ -349,6 +349,19 @@ export const env = {
    */
   giftsEnabled: (process.env.GIFTS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
+  // ─── Detlio Guarantee (lib/guarantee.ts, 0051) ──────────────────────────────
+  /**
+   * Whether customers can ask for a free redo within 48 hours of a job:
+   * GUARANTEE_ENABLED=on. Off unless set to exactly `on`. While off every
+   * guarantee route but the two `/config` ones is a 404 before auth runs,
+   * the apps hide every entry point (the button, the checkout badge, the
+   * portal's and admin's pages), and the cron's sweep reads nothing. Claims
+   * already open stay as they are until it is on again; a refund Detlio
+   * already approved stays owed (lib/refunds.ts reads the booking, not the
+   * switch).
+   */
+  guaranteeEnabled: (process.env.GUARANTEE_ENABLED ?? '').trim().toLowerCase() === 'on',
+
   // ─── Detlio Rewards (lib/rewards.ts, 0050) ─────────────────────────────────
   /**
    * The master switch for the loyalty programme (Shine Card stamps, scratch
@@ -410,6 +423,11 @@ export const env = {
   // redeem) per IP per minute. Wrong codes are also counted in the database
   // (lib/gift-credit.ts), which is the real cap on guessing.
   giftCodeRateLimit: Number(process.env.GIFT_CODE_RATE_LIMIT ?? '20'),
+  // Service History certificate lookups (POST /certificates/verify, 0053) per
+  // IP per minute. Tokens are 192 bits, so this caps load rather than
+  // guessing. The customer app's /verify page calls it from its server, so
+  // that page also limits each viewer itself (apps/users/lib/certificates.ts).
+  certificateLookupRateLimit: Number(process.env.CERTIFICATE_LOOKUP_RATE_LIMIT ?? '60'),
 
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are

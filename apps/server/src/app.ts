@@ -26,6 +26,8 @@ import { adminRoutes } from './modules/admin/admin.routes.js'
 import { opsRoutes } from './modules/ops/ops.routes.js'
 import { discountsRoutes } from './modules/discounts/discounts.routes.js'
 import { publicGiftRoutes } from './modules/gifts/gifts.routes.js'
+import { publicCertificateRoutes } from './modules/certificates/certificates.routes.js'
+import { publicGuaranteeRoutes } from './modules/guarantee/guarantee.routes.js'
 import { publicRewardRoutes } from './modules/rewards/rewards.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
@@ -146,6 +148,11 @@ app.route('/api/v1/reviews', reviewsRoutes)
 app.route('/api/v1/discounts', discountsRoutes)
 // Gift a wash (0049): /config, and the gift page's lookup by code.
 app.route('/api/v1/gifts', publicGiftRoutes)
+// Service History certificate (0053): the public /verify page's lookup and
+// the shared photos it shows. No sign-in.
+app.route('/api/v1/certificates', publicCertificateRoutes)
+// Detlio Guarantee (0051): /config, for the checkout badge and Help.
+app.route('/api/v1/guarantee', publicGuaranteeRoutes)
 // Detlio Rewards (0050): /config, and the invite page's lookup by code.
 app.route('/api/v1/rewards', publicRewardRoutes)
 app.route('/api/v1/geo', geoRoutes)

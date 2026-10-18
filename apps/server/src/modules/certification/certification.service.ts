@@ -27,6 +27,7 @@ import {
   type QualityCheckStatus,
   type RuleResult,
 } from '../../lib/certification.js'
+import { strikeWindowStart } from '../../lib/bypass-reports.js'
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import { AppError } from '../../lib/errors.js'
 import { istDateKey, istDayLabel, istMidnight } from '../../lib/ist.js'
@@ -104,6 +105,14 @@ async function measure(vendorIds: string[], now: Date): Promise<Map<string, Cert
     (await certificationRepository.garageNoShowCounts(vendorIds, since)).map((row) => [row.vendorId, row.count])
   )
   const photos = await photoComplianceByGarage(vendorIds, now)
+  // Bypass reports (0052): the garage's strikes, over their own window (180
+  // IST days, lib/bypass-reports.ts), not the 90 days above.
+  const strikes = new Map(
+    (await certificationRepository.bypassStrikeCounts(vendorIds, strikeWindowStart(now))).map((row) => [
+      row.vendorId,
+      row.count,
+    ])
+  )
 
   return new Map(
     vendorIds.map((id): [string, CertificationMetrics] => {
@@ -120,6 +129,7 @@ async function measure(vendorIds: string[], now: Date): Promise<Map<string, Cert
           complaints: complaints.get(id) ?? 0,
           garageNoShows: noShows.get(id) ?? 0,
           photoCompliance: photos.get(id) ?? PHOTO_COMPLIANCE_NOT_MEASURED,
+          bypassStrikes: strikes.get(id) ?? 0,
         },
       ]
     })

@@ -350,12 +350,21 @@ function worst(classes: MoneyClass[]): MoneyClass {
   )
 }
 
+/** ₹0 through Razorpay, ₹0 of credit and no gateway id: no money moved. */
+export function isZeroPayment(payment: { amount?: string | null; creditAmount?: string | null; gatewayTxnId: string | null }): boolean {
+  return !payment.gatewayTxnId && Number(payment.amount ?? 0) === 0 && Number(payment.creditAmount ?? 0) === 0
+}
+
 /** Where money landed on a chain: its payments and its paid bills. */
 function chainMoneyItems(bookings: ResetBooking[], charges: ResetCharge[]): MoneyItem[] {
   const items: MoneyItem[] = []
   for (const booking of bookings) {
     const payment = booking.payment
     if (!payment || !MONEY_TAKEN.has(payment.status)) continue
+    // Nothing at all was taken: a free redo (Detlio Guarantee, 0051) is
+    // written paid at ₹0 with no Razorpay id and no credit, so there is no
+    // money to keep it for.
+    if (isZeroPayment(payment)) continue
     items.push({
       gatewayId: payment.gatewayTxnId,
       gatewayMode: payment.gatewayMode,

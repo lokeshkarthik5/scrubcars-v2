@@ -21,6 +21,8 @@ import {
   UPDATES_WINDOW_DAYS,
   type HubBooking,
   type HubComplaint,
+  type HubReportReward,
+  type HubGuaranteeClaim,
   type HubRewards,
   type HubSlotAlert,
   type PausedGarage,
@@ -37,11 +39,13 @@ import { isWashDue } from '../../lib/wash-status.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { discountsRepository } from '../discounts/discounts.repository.js'
+import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { slotAlertsRepository } from '../slot-alerts/slot-alerts.repository.js'
 import { rewardsService } from '../rewards/rewards.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { toHubBooking } from './home.mappers.js'
 import { homeRepository } from './home.repository.js'
+import { guaranteeRepository } from '../guarantee/guarantee.repository.js'
 import type { HomeQuery, MarkUpdatesSeenInput } from './home.validation.js'
 
 const log = logger.child({ module: 'home' })
@@ -135,6 +139,15 @@ function loadServiceReminders(userId: string, now: Date): Promise<HubServiceRemi
   return carHistoryService.remindersForHub(userId, now)
 }
 
+/**
+ * The customer's free redo claims moved in the Updates window (0051): one
+ * bounded read (20 rows), and none at all while GUARANTEE_ENABLED is off.
+ */
+async function loadGuaranteeClaims(userId: string, now: Date): Promise<HubGuaranteeClaim[]> {
+  if (!env.guaranteeEnabled) return []
+  return guaranteeRepository.listCustomerClaimsSince(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
+}
+
 /** The customer's slot alerts that were told a time opened, in the Updates window (0047). */
 async function loadSlotAlerts(userId: string, now: Date): Promise<HubSlotAlert[]> {
   const rows = await slotAlertsRepository.listToldSince(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
@@ -143,6 +156,11 @@ async function loadSlotAlerts(userId: string, now: Date): Promise<HubSlotAlert[]
       ? [{ ...row, notifiedAt: row.notifiedAt, notifiedSlotAt: row.notifiedSlotAt }]
       : []
   )
+}
+
+/** Rewards for the customer's confirmed bypass reports in the Updates window (0052). */
+function loadReportRewards(userId: string, now: Date): Promise<HubReportReward[]> {
+  return bypassReportsService.rewardsForHub(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
 }
 
 /** Detlio Rewards news in the Updates window (0050): three bounded reads, none while not live. */
@@ -246,6 +264,8 @@ export const homeService = {
     const complaints = (await part('complaints', () => loadComplaints(userId, now))) ?? []
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = (await part('slot_alerts', () => loadSlotAlerts(userId, now))) ?? []
+    const reportRewards = (await part('report_rewards', () => loadReportRewards(userId, now))) ?? []
+    const guaranteeClaims = (await part('guarantee_claims', () => loadGuaranteeClaims(userId, now))) ?? []
     const rewards = await part('rewards', () => loadRewards(userId, now))
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
@@ -288,6 +308,8 @@ export const homeService = {
       complaints,
       serviceReminders,
       slotAlerts,
+      reportRewards,
+      guaranteeClaims,
       rewards,
       seenAt,
       now,
@@ -359,6 +381,8 @@ export const homeService = {
     // Isolated like Home's parts: a reminder read that fails leaves Updates whole.
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = await loadSlotAlerts(userId, now)
+    const reportRewards = (await part('report_rewards', () => loadReportRewards(userId, now))) ?? []
+    const guaranteeClaims = (await part('guarantee_claims', () => loadGuaranteeClaims(userId, now))) ?? []
     const rewards = await part('rewards', () => loadRewards(userId, now))
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
@@ -374,6 +398,8 @@ export const homeService = {
         complaints,
         serviceReminders,
         slotAlerts,
+        reportRewards,
+        guaranteeClaims,
         rewards,
         seenAt,
         now,

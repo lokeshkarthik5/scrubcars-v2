@@ -141,6 +141,8 @@ export type AutoRefundCause =
   | 'customer_cancelled'
   | 'detlio_cancelled'
   | 'paid_no_booking'
+  /** Detlio approved a refund instead of a free redo (0051): Detlio's own decision. */
+  | 'guarantee_refund'
 
 /**
  * The clear-cut reason a cancelled booking's payment is owed, or null when
@@ -156,7 +158,12 @@ export function autoRefundCause(booking: {
   noShow: 'customer' | 'garage' | null
   cancelledBy: 'user' | 'vendor' | 'admin' | null
   moved: boolean
+  /** A refund instead of a redo on a completed booking (0051). */
+  guaranteeRefund?: boolean
 }): AutoRefundCause | null {
+  // Detlio decided it, with a typed name, after looking at both sides'
+  // photos: as clear-cut as a cancellation Detlio made.
+  if (booking.guaranteeRefund && booking.status === 'completed') return 'guarantee_refund'
   if (booking.status !== 'cancelled' || booking.moved) return null
   if (booking.noShow === 'customer') return null
   if (booking.noShow === 'garage') return 'garage_no_show'

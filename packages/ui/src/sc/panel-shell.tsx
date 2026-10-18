@@ -63,14 +63,17 @@ export function PanelShell({
                 Drawn as the app's segmented control — the current page raised
                 onto graphite with a white label — so the panel's one menu
                 looks like every other "pick one of these" in the product. */}
-            <nav className="hidden items-center gap-0.5 rounded-[12px] bg-surface p-1 md:flex">
+            {/* Scrolls sideways when the admin's switched-on pages (Gifts,
+                Rewards, Redo claims, …) outgrow the row, like the panel's
+                filter chips; never wraps or pushes the header actions off. */}
+            <nav className="hidden min-w-0 items-center gap-0.5 overflow-x-auto rounded-[12px] bg-surface p-1 [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   aria-current={isActive(item.href) ? 'page' : undefined}
                   className={cn(
-                    'rounded-[9px] px-3 py-1.5 text-[13px] font-medium transition-colors',
+                    'shrink-0 whitespace-nowrap rounded-[9px] px-3 py-1.5 text-[13px] font-medium transition-colors',
                     isActive(item.href)
                       ? 'bg-surface-elevated text-text-primary shadow-sm'
                       : 'text-text-secondary hover:text-text-primary'

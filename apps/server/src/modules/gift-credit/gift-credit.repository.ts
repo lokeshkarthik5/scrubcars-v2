@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -88,6 +88,33 @@ export async function insertCreditDraws(
   )
 }
 
+/**
+ * A reward for a bypass report Detlio confirmed (0052): a new lot of kind
+ * `report_reward`, lasting 12 months like a gift, written in the caller's
+ * transaction under the customer's credit lock (taken here). The caller
+ * (bypass-reports.repository `confirm` / `grantOwed`) holds its garage's
+ * bypass lock first; nothing holds the credit lock and then asks for that
+ * one, so the two never wait on each other.
+ */
+export async function insertReportRewardLot(
+  tx: AnyTx,
+  input: { userId: string; amountPaise: number; reason: string; actorName: string; now: Date }
+): Promise<{ id: string }> {
+  await lockCredit(tx, input.userId)
+  const [entry] = await tx
+    .insert(giftCreditEntries)
+    .values({
+      userId: input.userId,
+      kind: 'report_reward',
+      amount: rupees(input.amountPaise),
+      expiresAt: giftExpiresAt(input.now),
+      reason: input.reason.slice(0, 300),
+      actorName: input.actorName.slice(0, 100),
+    })
+    .returning({ id: giftCreditEntries.id })
+  return entry!
+}
+
 /** What returnBookingCredit did. */
 export type CreditReturn =
   | { kind: 'returned'; userId: string; amount: string; expiresAt: Date; rootBookingId: string }
@@ -135,6 +162,7 @@ export const giftCreditRepository = {
           originalBookingId: bookings.originalBookingId,
           status: bookings.status,
           noShow: bookings.noShow,
+          guaranteeRefundAt: bookings.guaranteeRefundAt,
           paymentId: payments.id,
           paymentStatus: payments.status,
           creditAmount: payments.creditAmount,
@@ -152,7 +180,13 @@ export const giftCreditRepository = {
         .where(eq(bookings.rescheduledFromId, bookingId))
         .limit(1)
       const refundable = isBookingPaymentRefundable(
-        { status: row.status, noShow: row.noShow ?? null, moved: Boolean(next) },
+        {
+          status: row.status,
+          noShow: row.noShow ?? null,
+          moved: Boolean(next),
+          // A refund instead of a free redo (0051) gives the credit back too.
+          guaranteeRefund: row.guaranteeRefundAt !== null,
+        },
         { status: row.paymentStatus }
       )
       if (!refundable) return { kind: 'nothing' }
@@ -228,12 +262,18 @@ export const giftCreditRepository = {
           gt(payments.creditAmount, '0'),
           isNull(payments.creditReturnedAt),
           inArray(payments.status, ['paid', 'refunded']),
-          eq(bookings.status, 'cancelled'),
-          sql`${bookings.noShow} is distinct from 'customer'`,
-          sql`not exists (select 1 from bookings n where n.rescheduled_from_id = ${bookings.id})`
+          or(
+            and(
+              eq(bookings.status, 'cancelled'),
+              sql`${bookings.noShow} is distinct from 'customer'`,
+              sql`not exists (select 1 from bookings n where n.rescheduled_from_id = ${bookings.id})`
+            ),
+            // A refund instead of a free redo on a completed job (0051).
+            and(eq(bookings.status, 'completed'), isNotNull(bookings.guaranteeRefundAt))
+          )
         )
       )
-      .orderBy(asc(bookings.cancelledAt))
+      .orderBy(asc(sql`coalesce(${bookings.cancelledAt}, ${bookings.guaranteeRefundAt})`))
       .limit(limit)
     return rows.map((row) => row.bookingId)
   },

@@ -15,6 +15,7 @@ export type CertificationRuleKey =
   | 'complaints'
   | 'no_shows'
   | 'photos'
+  | 'bypass'
 
 /** One standard, measured: what it is, the garage's figure, the target. */
 export interface CertificationRule {

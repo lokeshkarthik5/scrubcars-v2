@@ -6,12 +6,15 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { carHistoryRoutes } from '../car-history/car-history.routes.js'
+import { customerCertificateRoutes } from '../certificates/certificates.routes.js'
 import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
+import { customerBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import { favouritesRoutes } from '../favourites/favourites.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
 import { customerPushRoutes } from '../push/push.routes.js'
 import { customerGiftRoutes } from '../gifts/gifts.routes.js'
 import { customerCreditRoutes } from '../gift-credit/gift-credit.routes.js'
+import { customerGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import { customerRewardRoutes } from '../rewards/rewards.routes.js'
 import { customerRewardExtrasRoutes } from '../reward-extras/reward-extras.routes.js'
@@ -39,6 +42,10 @@ usersRoutes.route('/me', homeRoutes)
 // The customer's complaints: /me/complaints. Same mounting, same check.
 usersRoutes.route('/me', customerComplaintRoutes)
 
+// "Did the garage ask you to book directly?" (0052): /me/bypass-reports.
+// Same mounting, same check; the session's own bookings only.
+usersRoutes.route('/me', customerBypassReportRoutes)
+
 // The customer's saved garages: /me/favourites. Same mounting, same check.
 usersRoutes.route('/me', favouritesRoutes)
 
@@ -46,6 +53,11 @@ usersRoutes.route('/me', favouritesRoutes)
 // /me/vehicles/:vehicleId/history and /me/service-reminders/:id/{dismiss,
 // snooze}. Same mounting, same check; the session's own cars only.
 usersRoutes.route('/me', carHistoryRoutes)
+
+// A car's Service History certificate and its share link (0053):
+// /me/vehicles/:vehicleId/certificate and …/certificate/share. Same
+// mounting, same check; the session's own cars only.
+usersRoutes.route('/me', customerCertificateRoutes)
 
 // Browser notifications on the customer's own devices, and their two
 // switches: /me/push (0044). Same mounting, same check.
@@ -60,6 +72,8 @@ usersRoutes.route('/me', slotAlertsRoutes)
 // both are 404s while GIFTS_ENABLED is off.
 usersRoutes.route('/me/gifts', customerGiftRoutes)
 usersRoutes.route('/me/credit', customerCreditRoutes)
+// Detlio Guarantee (0051): a free redo claim on the customer's own booking.
+usersRoutes.route('/me/guarantee', customerGuaranteeRoutes)
 
 // Detlio Rewards (0050): the customer's Shine Card, scratch cards, level,
 // vouchers, birthday and invite: /me/rewards. Same mounting, same check; a

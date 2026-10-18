@@ -8,7 +8,13 @@
 import { test, expect, asRole } from '../../support/fixtures'
 import { API, setActiveVendor } from '../../support/auth'
 import { getBooking } from '../../support/db'
-import { BOOKINGS, CUSTOMERS, DOORSTEP_JOB_PIN, VENDORS } from '../../support/seed-ids'
+import {
+  BOOKINGS,
+  CONTACT_DOORSTEP,
+  CUSTOMERS,
+  DOORSTEP_JOB_PIN,
+  VENDORS,
+} from '../../support/seed-ids'
 
 test.use({ storageState: asRole('vendor-owner') })
 
@@ -33,11 +39,18 @@ test.describe('vendor booking lifecycle @p0', () => {
       name: `Accept booking for ${CUSTOMERS.vendorJob.name}`,
     })
     await expect(accept).toBeVisible()
-    // The customer's number is on the card, so the garage can call before
-    // deciding — it used to reach the portal and never be shown.
-    await expect(
-      page.getByRole('link', { name: `Call ${CUSTOMERS.vendorJob.name}` })
-    ).toHaveAttribute('href', `tel:+91${CUSTOMERS.vendorJob.phone}`)
+    // Tomorrow is outside the contact window: the card names the customer
+    // and says when their number shows, with Detlio support in between.
+    const card = page.locator(`#job-${BOOKINGS.vendorIncoming}`)
+    await expect(card.getByText(CUSTOMERS.vendorJob.name).first()).toBeVisible()
+    await expect(card.getByText("Customer's number shows 2 hours before the job.")).toBeVisible()
+    await expect(card.getByRole('link', { name: `Call ${CUSTOMERS.vendorJob.name}` })).toHaveCount(0)
+    const support = await card
+      .getByRole('link', { name: /Need to reach the customer\? Contact Detlio support/ })
+      .getAttribute('href')
+    expect(new URL(support!).searchParams.get('text')).toContain(
+      `#${BOOKINGS.vendorIncoming.slice(0, 8).toUpperCase()}`
+    )
     await accept.click()
     await expect.poll(statusOf(BOOKINGS.vendorIncoming)).toBe('confirmed')
 
@@ -47,19 +60,25 @@ test.describe('vendor booking lifecycle @p0', () => {
       .getByRole('button', { name: `Mark booking for ${CUSTOMERS.vendorJob.name} in progress` })
       .click()
     await expect.poll(statusOf(BOOKINGS.vendorIncoming)).toBe('in_progress')
+    // A job under way is always inside the window, early or not.
+    await expect(
+      page.getByRole('link', { name: `Call ${CUSTOMERS.vendorJob.name}` })
+    ).toHaveAttribute('href', `tel:+91${CUSTOMERS.vendorJob.phone}`)
 
     await page
       .getByRole('button', { name: `Mark booking for ${CUSTOMERS.vendorJob.name} completed` })
       .click()
     await expect.poll(statusOf(BOOKINGS.vendorIncoming)).toBe('completed')
 
-    // Once the job is done the customer's number comes off the card.
+    // For an hour after the job the number stays (a forgotten key, a
+    // question about the work); after that it comes off the card (see the
+    // contact-window tests below).
     await tab(page, 'Completed').click()
     await expect(page.getByText(CUSTOMERS.vendorJob.name).first()).toBeVisible()
-    await expect(page.getByRole('link', { name: `Call ${CUSTOMERS.vendorJob.name}` })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: `Call ${CUSTOMERS.vendorJob.name}` })).toBeVisible()
   })
 
-  test('a doorstep job shows where to go and how to reach the customer', async ({ page }) => {
+  test('a doorstep job shows where to go, and when the customer can be reached', async ({ page }) => {
     await page.goto('/bookings')
 
     // Seeded pending and never touched, so it is always under Incoming.
@@ -74,12 +93,13 @@ test.describe('vendor booking lifecycle @p0', () => {
       `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${lat.toFixed(6)},${lng.toFixed(6)}`
     )
 
-    const whatsApp = await page
-      .getByRole('link', { name: `WhatsApp ${CUSTOMERS.vendorDoorstep.name}` })
-      .getAttribute('href')
-    expect(whatsApp).toMatch(new RegExp(`^https://wa\\.me/91${CUSTOMERS.vendorDoorstep.phone}\\?text=`))
-    // Opens saying who is writing: the customer has never seen this number.
-    expect(new URL(whatsApp!).searchParams.get('text')).toContain(VENDORS.main.name)
+    // Tomorrow: outside the contact window, so no WhatsApp yet; the route
+    // can be planned now and the customer called from 2 hours before.
+    const card = page.locator(`#job-${BOOKINGS.vendorDoorstep}`)
+    await expect(card.getByText("Customer's number shows 2 hours before the job.")).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: `WhatsApp ${CUSTOMERS.vendorDoorstep.name}` })
+    ).toHaveCount(0)
   })
 
   test('a job whose time passed unaccepted can only be declined', async ({ page }) => {
@@ -137,5 +157,65 @@ test.describe('vendor booking lifecycle @p0', () => {
     // committed and the exit is a cancellation, not a refusal.
     await expect(page.getByRole('button', { name: /^Reject booking/ })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /^Mark booking/ }).first()).toBeVisible()
+  })
+})
+
+/**
+ * Contact windows at VENDORS.contact (its own owner, CUSTOMERS.contact's four
+ * jobs, ids 3400–3499; read-only). Inside the window the card calls and
+ * WhatsApps the customer; outside it, it says why not and offers Detlio
+ * support with the booking named.
+ */
+test.describe('job card contact windows @p0', () => {
+  test.use({ storageState: asRole('vendor-contact') })
+  test.beforeEach(async ({ context }) => {
+    await setActiveVendor(context, VENDORS.contact.id)
+  })
+
+  test('an hour before: Call and WhatsApp the customer', async ({ page }) => {
+    await page.goto('/bookings')
+    await tab(page, 'Upcoming').click()
+    const card = page.locator(`#job-${BOOKINGS.contactSoon}`)
+    await expect(card.getByRole('link', { name: `Call ${CUSTOMERS.contact.name}` })).toHaveAttribute(
+      'href',
+      `tel:+91${CUSTOMERS.contact.phone}`
+    )
+    const whatsApp = await card.getByRole('link', { name: `WhatsApp ${CUSTOMERS.contact.name}` }).getAttribute('href')
+    expect(whatsApp).toMatch(new RegExp(`^https://wa\\.me/91${CUSTOMERS.contact.phone}\\?text=`))
+    // Opens saying who is writing.
+    expect(new URL(whatsApp!).searchParams.get('text')).toContain(VENDORS.contact.name)
+  })
+
+  test('two days ahead: the name, no number, and Detlio support', async ({ page }) => {
+    await page.goto('/bookings')
+    await tab(page, 'Upcoming').click()
+    const card = page.locator(`#job-${BOOKINGS.contactLater}`)
+    await expect(card.getByText(CUSTOMERS.contact.name).first()).toBeVisible()
+    await expect(card.getByText("Customer's number shows 2 hours before the job.")).toBeVisible()
+    await expect(card.getByRole('link', { name: `Call ${CUSTOMERS.contact.name}` })).toHaveCount(0)
+    const support = await card
+      .getByRole('link', { name: /Need to reach the customer\? Contact Detlio support/ })
+      .getAttribute('href')
+    expect(support).toMatch(/^https:\/\/wa\.me\/\d+\?text=/)
+    expect(new URL(support!).searchParams.get('text')).toContain(
+      `#${BOOKINGS.contactLater.slice(0, 8).toUpperCase()}`
+    )
+  })
+
+  test('a doorstep job tomorrow: the address and Maps now, the number later', async ({ page }) => {
+    await page.goto('/bookings')
+    const card = page.locator(`#job-${BOOKINGS.contactDoorstep}`)
+    await expect(card.getByText(CONTACT_DOORSTEP.address)).toBeVisible()
+    await expect(card.getByRole('link', { name: `Open in Maps for ${CUSTOMERS.contact.name}` })).toBeVisible()
+    await expect(card.getByText("Customer's number shows 2 hours before the job.")).toBeVisible()
+    await expect(card.getByRole('link', { name: `WhatsApp ${CUSTOMERS.contact.name}` })).toHaveCount(0)
+  })
+
+  test('three hours after the job: hidden again', async ({ page }) => {
+    await page.goto('/bookings')
+    await tab(page, 'Completed').click()
+    const card = page.locator(`#job-${BOOKINGS.contactDone}`)
+    await expect(card.getByText("Customer's number is hidden after the job.")).toBeVisible()
+    await expect(card.getByRole('link', { name: `Call ${CUSTOMERS.contact.name}` })).toHaveCount(0)
   })
 })

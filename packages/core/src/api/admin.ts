@@ -75,6 +75,16 @@ export interface AdminVendor {
    */
   photoCompliance?: { jobs: number; compliant: number; waived: number; percent: number | null }
   /**
+   * Bypass reports (0052): confirmed reports from the last 180 days. 2 or
+   * more are highlighted. Absent from older servers.
+   */
+  bypassStrikes?: number
+  /**
+   * Detlio Guarantee (0051): free redo claims approved against it in the
+   * last 90 days. Null while the guarantee is off; absent from older servers.
+   */
+  redoClaims90d?: number | null
+  /**
    * Its garage documents in short (0043): whether it has the badge, how
    * many required are approved, how many wait for review. Null while garage
    * documents are off; absent from older servers.
@@ -353,6 +363,9 @@ export interface AdminBooking {
    * its page while the test-data reset is on. Optional for an older server.
    */
   markedTest?: { at: string; by: string | null } | null
+  /** A free redo of an earlier job (0051), and when Detlio approved a refund instead of a redo. */
+  guaranteeRedo?: boolean
+  guaranteeRefundAt?: string | null
   garage: { id: string; name: string; phone: string } | null
   customer: { id: string; name: string; phone: string } | null
   /**
