@@ -284,6 +284,7 @@ describe('section references', () => {
     '/privacy#7': 'retention',
     '/privacy#8': 'security',
     '/privacy#9': 'rights',
+    '/privacy#12': 'garage-staff',
     '/privacy#13': 'changes',
     '/privacy#14': 'contact',
     '/refund-policy#1': 'every-case',
@@ -344,4 +345,34 @@ describe('section references', () => {
       expect(section?.id).toBe(expected)
     })
   }
+})
+
+// Add garage's "Import from a form or poster" sends a garage's onboarding
+// documents to OpenAI (apps/server/src/lib/ai.ts, DocumentClient). The
+// policy says so where garage partners read it, and names the provider.
+describe('garage onboarding documents', () => {
+  const ai = readFileSync(new URL('../../../server/src/lib/ai.ts', import.meta.url), 'utf8')
+  const privacy = () => markdownOf(LEGAL_DOCS.find((doc) => doc.path === LEGAL_PATHS.privacy)!)
+
+  test('may be read by an AI provider outside India, kept by Detlio nowhere, as the import does', () => {
+    expect(ai).toContain('export function openAiDocumentClient')
+    const text = privacy()
+    expect(text).toContain(
+      'these documents may be processed by our service providers, including an AI provider outside India (OpenAI, section 4)'
+    )
+    // Detlio keeps nothing, but OpenAI may hold inputs a while for abuse
+    // monitoring even with store: false, so the policy must not say the
+    // files are stored nowhere.
+    expect(text).toContain(
+      'Detlio does not keep the files. Our AI provider may keep them for a short period under its own terms, and does not use them to train its models.'
+    )
+    expect(text).not.toContain('read once and not stored')
+    expect(text).toContain('Sentry, Telegram and OpenAI) may process data on servers outside India')
+    expect(ai.match(/store: false/g)?.length).toBe(2)
+    expect(text).toContain('| OpenAI |')
+  })
+
+  test("the lawyer's question is on the page while it is a draft", () => {
+    expect(privacy()).toContain('**Garage documents read by AI.**')
+  })
 })

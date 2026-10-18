@@ -18,6 +18,41 @@ reconstructing every change in them.
 
 ### Added
 
+- **Add garage from a poster, photo, PDF or Tally export** (no migration).
+  `POST /admin/vendor-imports/extract` (super-admin, `AI_IMPORT_RATE_LIMIT`
+  per admin per hour, default 30) takes either `{ source: 'files', files }`
+  (1–5 JPEG/PNG/WebP/PDF as base64, about 3 MB in all so the request stays
+  under Vercel's 4.5 MB body cap; the panel shrinks photos to 2000 px first)
+  or `{ source: 'tally_csv', csv }`, and answers `{ garages: [{ label,
+  draft, fields }] }`: a draft shaped like the create-vendor input and, per
+  field, `sure` / `check` (with a short reason) / `missing`. Nothing is
+  saved and the files are never stored or logged (only counts, sizes and
+  timing), and every Responses call (the text client's too) now sends
+  `store: false`, since the API otherwise keeps the response for at least
+  30 days; the garage is created by the ordinary `POST /admin/vendors`.
+  Photos and PDFs go to OpenAI through `lib/ai.ts`'s new `DocumentClient`
+  (Responses API, `input_image` / `input_file`, strict JSON-schema output,
+  model `AI_VISION_MODEL`, default `gpt-5.5`; 50 s timeout and no retry,
+  under the function's 60 s, now set in `vercel.json`). The model only
+  copies what is written; every decision is plain code in
+  `lib/garage-import/` (unit-tested): phones to 10 digits, "Call" / "on
+  inspection" → On inspection with the fee missing, "from ₹X" → X to check,
+  more than three car sizes or combos kept in the description to check, a
+  missing time never guessed, the owner phone always to check (and, when
+  it was copied from a garage landline, said to be no use for signing in).
+  A Tally CSV
+  is parsed without AI (header → field table in `lib/garage-import/tally.ts`;
+  unknown columns ignored; one garage per row). Every draft is held to the
+  create endpoint's own zod schemas before it is returned. Errors: 503
+  `AI_UNAVAILABLE` (no key, or OpenAI not answering), 422
+  `IMPORT_UNREADABLE`, 413 `IMPORT_TOO_LARGE`. `GET /admin/ai/config` gains
+  `import` (false without `OPENAI_API_KEY`; the CSV import works either
+  way). `POST /admin/vendor-imports/owner-account { phone }` says whose
+  account an owner phone already belongs to (name, customer, garages
+  owned), so the form can say who Create will attach the garage to; a POST
+  so the number stays out of URLs and logs. With `AI_FAKE=1` every file
+  reads as one fixed poster (`FAKE_GARAGE_READING`), for E2E.
+
 - **Live and a "what's missing" checklist on the admin garage list** (no
   migration). `GET /admin/vendors` still returns every garage as one array
   (the Bookings garage filter and other pickers read it), and each now also

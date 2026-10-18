@@ -19,6 +19,34 @@ reconstructing every change in them.
 
 ### Added
 
+- **Admin: add a garage from a poster, photo, PDF or Tally export.** Add
+  garage now opens on "Import from a form or poster": "Upload photo or PDF"
+  (up to 5; HEIC is refused with how to convert it; photos are shrunk to
+  2000 px in the browser before upload), "Upload Tally responses (CSV)"
+  (several garages in the file → pick one next), and "Fill in by hand" for
+  the usual form (`/vendors/new?by=hand`). The photo button is hidden when
+  the API has no OpenAI key. The review screen ("Check the details") shows
+  the photo, "Filled in / To check / To fill in" counts, and the new-garage
+  form filled in, stacked on one page, with amber "Check this" (and why)
+  and "Not found — fill in" under the fields and service rows that need a
+  person. The owner phone is always to check, and says whose Detlio account
+  it already belongs to, if any. Create stays off until the required fields
+  are in ("Fill in the 3 missing fields to create"), and an imported garage
+  is always saved as Pending and not verified (no stage controls; "Saved as
+  Pending — nothing goes live until you verify"). The form is now
+  `apps/admin/components/garage-form.tsx`, shared by both ways in; the
+  review rules are `apps/admin/lib/garage-import.ts` (unit-tested). Nothing
+  read is kept: a reload starts again. `PageHeader` takes `onBack` for a
+  step back within a page.
+- **Privacy policy (draft): garage onboarding documents.** Section 12 says a
+  garage's onboarding form, poster or price list may be processed by
+  service providers, including an AI provider outside India (OpenAI), to set
+  up its listing, that Detlio does not keep the files, and that the AI
+  provider may keep them for a short period under its own terms and does
+  not train on them; OpenAI joins the provider table and section 6's list
+  of providers outside India. A reviewer note asks the lawyer about the
+  basis, the line for the Tally form and that sentence's wording.
+
 - **Admin: garage list filters with counts, and a "what's missing"
   checklist per garage.** The list (now titled Garages, "Add garage") has one
   row of chips that scrolls sideways on a phone: All · Live · Active ·
