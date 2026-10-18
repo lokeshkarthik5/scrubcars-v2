@@ -2,7 +2,7 @@ import { tipHash } from './car-care-tips'
 
 /**
  * The car photos on premium cards (gift cards and revealed scratch prizes):
- * licensed Unsplash photos with every badge, logo and lettering retouched
+ * licensed Unsplash and Pexels photos with every badge, logo and lettering retouched
  * out (apps/users/public/cards/cars, sources and edits in CREDITS.md).
  * Never name a make or model: not in an id, a file name, alt text or a
  * comment.
@@ -51,7 +51,7 @@ export interface CardCar {
 /** The photo files' width ÷ height: 1600 × 1300. */
 export const PHOTO_ASPECT = 16 / 13
 
-/** How much more likely a look's favourite photo is than any other of its tone. */
+/** How much more likely a look's favourite photo is than any other of its tone (a look may have more than one). */
 export const SUITS_WEIGHT = 3
 
 export const CARD_CARS: readonly CardCar[] = [
@@ -102,6 +102,198 @@ export const CARD_CARS: readonly CardCar[] = [
     position: '50% 50%',
     suits: ['birthday', 'prize_gold'],
     alt: 'Purple hypercar on a race track, side view',
+  },
+  {
+    id: 'white-wing-rear',
+    file: 'white-wing-rear',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'White sports car with a large rear wing, rear view',
+  },
+  {
+    id: 'white-coupe-side',
+    file: 'white-coupe-side',
+    tone: 'light',
+    position: '50% 50%',
+    suits: ['pearl'],
+    alt: 'White sports coupe in a studio, side view',
+  },
+  {
+    id: 'white-supercar-front',
+    file: 'white-supercar-front',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'White supercar in a studio, front view',
+  },
+  {
+    id: 'silver-roadster-front',
+    file: 'silver-roadster-front',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Silver roadster on white, head-on view',
+  },
+  {
+    id: 'bronze-coupe-side',
+    file: 'bronze-coupe-side',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Bronze widebody coupe in a studio, side view',
+  },
+  {
+    id: 'green-racer',
+    file: 'green-racer',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Green vintage race car, side view',
+  },
+  {
+    id: 'black-widebody-front',
+    file: 'black-widebody-front',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Black widebody sports car on pale grey, front view',
+  },
+  {
+    id: 'black-coupe-rooftop',
+    file: 'black-coupe-rooftop',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Black sports coupe on a white rooftop, side view',
+  },
+  {
+    id: 'orange-coupe-side',
+    file: 'orange-coupe-side',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: ['diwali'],
+    alt: 'Orange sports coupe against a warm wall, side view',
+  },
+  {
+    id: 'blue-coupe-rear',
+    file: 'blue-coupe-rear',
+    tone: 'light',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Blue sports coupe outdoors, rear view',
+  },
+  {
+    id: 'silver-supercar-close',
+    file: 'silver-supercar-close',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Silver supercar in a grey studio, front close up',
+  },
+  {
+    id: 'green-coupe-front',
+    file: 'green-coupe-front',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Green sports coupe in a studio, front view',
+  },
+  {
+    id: 'red-supercar-studio',
+    file: 'red-supercar-studio',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Red supercar in a dark studio, front view',
+  },
+  {
+    id: 'blue-supercar-outline',
+    file: 'blue-supercar-outline',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Blue supercar outlined in light, side view',
+  },
+  {
+    id: 'yellow-coupe-street',
+    file: 'yellow-coupe-street',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Yellow sports coupe on a dark street, side view',
+  },
+  {
+    id: 'white-concept-top',
+    file: 'white-concept-top',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'White open-top concept car on black, from above',
+  },
+  {
+    id: 'black-coupe-blue-light',
+    file: 'black-coupe-blue-light',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: ['midnight'],
+    alt: 'Black sports coupe in blue light, front view',
+  },
+  {
+    id: 'green-grey-concept',
+    file: 'green-grey-concept',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Dark green concept coupe in a studio, front view',
+  },
+  {
+    id: 'silver-hypercar-light',
+    file: 'silver-hypercar-light',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Silver hypercar in a shaft of light, side view',
+  },
+  {
+    id: 'silver-coupe-black',
+    file: 'silver-coupe-black',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Silver sports coupe on black, front view',
+  },
+  {
+    id: 'red-concept-reflection',
+    file: 'red-concept-reflection',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: ['prize_jackpot'],
+    alt: 'Red concept coupe with its reflection, rear view',
+  },
+  {
+    id: 'black-coupe-silhouette',
+    file: 'black-coupe-silhouette',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Black sports coupe in silhouette, side view',
+  },
+  {
+    id: 'grey-coupe-taillights',
+    file: 'grey-coupe-taillights',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'Dark grey sports coupe with glowing tail lights',
+  },
+  {
+    id: 'white-roadster-garage',
+    file: 'white-roadster-garage',
+    tone: 'dark',
+    position: '50% 50%',
+    suits: [],
+    alt: 'White roadster in a dark garage, front view',
   },
 ]
 

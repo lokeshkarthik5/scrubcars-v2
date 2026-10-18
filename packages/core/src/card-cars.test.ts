@@ -71,10 +71,12 @@ describe('picking a car for a card', () => {
       }
       const ofTone = CARD_CARS.filter((c) => c.tone === tone)
       expect({ look, seen: counts.size }).toEqual({ look, seen: ofTone.length })
-      const favourite = ofTone.find((c) => c.suits.includes(look))
-      if (favourite) {
-        const others = ofTone.filter((c) => c !== favourite).map((c) => counts.get(c.id) ?? 0)
-        expect({ look, favouriteLeads: (counts.get(favourite.id) ?? 0) > Math.max(...others) }).toEqual({ look, favouriteLeads: true })
+      // Each favourite turns up more often than the average photo that isn't one.
+      const favourites = ofTone.filter((c) => c.suits.includes(look))
+      const others = ofTone.filter((c) => !c.suits.includes(look)).map((c) => counts.get(c.id) ?? 0)
+      const average = others.reduce((sum, n) => sum + n, 0) / Math.max(1, others.length)
+      for (const favourite of favourites) {
+        expect({ look, car: favourite.id, favouriteLeads: (counts.get(favourite.id) ?? 0) > average * 2 }).toEqual({ look, car: favourite.id, favouriteLeads: true })
       }
     }
   })
