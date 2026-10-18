@@ -30,10 +30,9 @@ export const CERTIFICATION_THRESHOLDS = {
 
 /**
  * "What this means": the standards in plain words, for the sheet on the
- * garage page. Before and after photos are left out until the photo
- * standards (0045) are measured: a seal must never claim what nobody checked.
- * TODO(line-up with 0045): add "Before and after photos on at least 90% of
- * jobs" here once the server measures it.
+ * garage page. Every line is one the server measures (a seal must never
+ * claim what nobody checked), photos included since 0045's photo
+ * compliance counts toward it.
  */
 export const CERTIFIED_STANDARDS: readonly string[] = [
   'Detlio has checked the owner’s ID, bank details, shop and signed agreement.',
@@ -42,6 +41,7 @@ export const CERTIFIED_STANDARDS: readonly string[] = [
   `Answers at least ${Math.round(CERTIFICATION_THRESHOLDS.minResponseRate * 100)}% of bookings in time.`,
   `Complaints about damage, poor work or not turning up on fewer than ${Math.round(CERTIFICATION_THRESHOLDS.maxComplaintRate * 100)} in 100 jobs.`,
   `Has not missed a booking in the last ${CERTIFICATION_THRESHOLDS.windowDays} days.`,
+  `Takes before and after photos of the car on at least ${Math.round(CERTIFICATION_THRESHOLDS.minPhotoCompliance * 100)}% of jobs.`,
   `Visited and checked in person by Detlio in the last ${CERTIFICATION_THRESHOLDS.qualityCheckMonths} months.`,
 ]
 

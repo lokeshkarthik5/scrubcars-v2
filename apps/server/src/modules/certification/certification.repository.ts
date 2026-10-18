@@ -14,12 +14,16 @@ import {
   type QualityCheckResult,
   type RevokeKind,
 } from '../../lib/certification.js'
+import type { PhotoComplianceJob } from '../../lib/photo-compliance.js'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Conn = typeof db | Tx
 
 export type CertificationRecord = typeof vendorCertifications.$inferSelect
 export type QualityCheckRecord = typeof vendorQualityChecks.$inferSelect
+
+/** One completed job and its garage photo counts (0045), as lib/photo-compliance.ts reads it. */
+export type PhotoComplianceRow = PhotoComplianceJob & { vendorId: string }
 
 export interface CertificationGarage {
   id: string
@@ -237,6 +241,48 @@ function reads(conn: Conn) {
          GROUP BY b.vendor_id
       `)
       return Array.from(rows).map((row) => ({ vendorId: row.vendor_id, count: Number(row.count) }))
+    },
+
+    /**
+     * Completed jobs since `since` with the garage's own before and after
+     * photo counts (0045), for lib/photo-compliance.ts to grade. The same
+     * rows as adminRepository.listPhotoComplianceJobs (completed bookings,
+     * finished at completed_at or else the slot, only `garage` photos,
+     * waived and Test-marked flagged rather than dropped), for these garages
+     * only. Every decision is the lib's.
+     */
+    async photoComplianceJobs(vendorIds: string[], since: Date): Promise<PhotoComplianceRow[]> {
+      if (vendorIds.length === 0) return []
+      const rows = await conn.execute<{
+        vendor_id: string
+        finished_at: string | Date
+        garage_before: number | string
+        garage_after: number | string
+        waived: boolean
+        marked_test: boolean
+      }>(sql`
+        SELECT b.vendor_id,
+               coalesce(b.completed_at, b.scheduled_at) AS finished_at,
+               count(jp.id) FILTER (WHERE jp.stage = 'before') AS garage_before,
+               count(jp.id) FILTER (WHERE jp.stage = 'after') AS garage_after,
+               b.photos_waived_at IS NOT NULL AS waived,
+               b.marked_test_at IS NOT NULL AS marked_test
+          FROM bookings b
+          LEFT JOIN job_photos jp
+            ON jp.booking_id = b.id AND jp.uploaded_by_role = 'garage'
+         WHERE b.vendor_id IN (${inList(vendorIds)})
+           AND b.status = 'completed'
+           AND coalesce(b.completed_at, b.scheduled_at) >= ${since.toISOString()}::timestamptz
+         GROUP BY b.id
+      `)
+      return Array.from(rows).map((row) => ({
+        vendorId: row.vendor_id,
+        finishedAt: new Date(row.finished_at),
+        garageBefore: Number(row.garage_before),
+        garageAfter: Number(row.garage_after),
+        waived: Boolean(row.waived),
+        markedTest: Boolean(row.marked_test),
+      }))
     },
 
     /**

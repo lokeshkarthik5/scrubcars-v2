@@ -7,6 +7,7 @@ import {
   certifyRefusal,
   evaluateEligibility,
   evaluationRunStart,
+  fromPhotoCompliance,
   graceEndsOn,
   isCertified,
   lapseReason,
@@ -30,6 +31,11 @@ import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import { AppError } from '../../lib/errors.js'
 import { istDateKey, istDayLabel, istMidnight } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
+import {
+  photoComplianceByGarage as gradePhotoCompliance,
+  photoComplianceSince,
+  type PhotoCompliance as PhotoComplianceFigure,
+} from '../../lib/photo-compliance.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summariesByVendor } from '../../lib/vendor-documents.js'
 import {
@@ -48,22 +54,27 @@ const SWEEP_BUDGET_MS = 15_000
 
 // ─── The photo standard's one hook ───────────────────────────────────────────
 
+/** A garage with no completed job in the window: nothing to grade. */
+const NO_PHOTO_JOBS: PhotoComplianceFigure = { jobs: 0, compliant: 0, waived: 0, percent: null }
+
 /**
- * Before/after photo compliance per garage over the window: the ONE place
- * this branch reads it.
- *
- * TODO(line-up with 0045, feat/job-photo-standards): read it from
- * `lib/photo-compliance.ts` (that branch's measure of completed jobs with
- * before and after photos) and return `{ measured: true, rate, jobs }` for
- * each garage. Until then every garage is "not measured yet", which passes
- * (lib/certification.ts PhotoCompliance), so the standard blocks nobody on a
- * number nobody can see.
+ * Before/after photo compliance per garage (0045): the ONE place this module
+ * reads it. lib/photo-compliance.ts grades it, over its own window
+ * (PHOTO_COMPLIANCE_DAYS, 90, ending now), so the checklist's figure is the
+ * one admin's garage card shows: of the jobs completed in it, not
+ * Test-marked and not waived, the share with 2 before and 2 after photos of
+ * the garage's own. A garage with no such jobs reads "No jobs to measure
+ * yet", which passes (and it cannot have the 20 completed jobs then anyway,
+ * unless Detlio waived them all).
  */
-async function photoComplianceByGarage(
-  vendorIds: string[],
-  _since: Date
-): Promise<Map<string, PhotoCompliance>> {
-  return new Map(vendorIds.map((id) => [id, PHOTO_COMPLIANCE_NOT_MEASURED]))
+async function photoComplianceByGarage(vendorIds: string[], now: Date): Promise<Map<string, PhotoCompliance>> {
+  const figures = gradePhotoCompliance(
+    await certificationRepository.photoComplianceJobs(vendorIds, photoComplianceSince(now)),
+    now
+  )
+  return new Map(
+    vendorIds.map((id) => [id, fromPhotoCompliance(figures.get(id) ?? NO_PHOTO_JOBS)])
+  )
 }
 
 // ─── Measuring ───────────────────────────────────────────────────────────────
@@ -92,7 +103,7 @@ async function measure(vendorIds: string[], now: Date): Promise<Map<string, Cert
   const noShows = new Map(
     (await certificationRepository.garageNoShowCounts(vendorIds, since)).map((row) => [row.vendorId, row.count])
   )
-  const photos = await photoComplianceByGarage(vendorIds, since)
+  const photos = await photoComplianceByGarage(vendorIds, now)
 
   return new Map(
     vendorIds.map((id): [string, CertificationMetrics] => {

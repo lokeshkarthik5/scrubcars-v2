@@ -24,6 +24,7 @@
  * (certification.parity.test.ts).
  */
 import { addDays, daysBetween, istDateKey, istMidnight } from './ist.js'
+import type { PhotoCompliance as PhotoComplianceFigure } from './photo-compliance.js'
 
 // ─── The standards ───────────────────────────────────────────────────────────
 
@@ -56,9 +57,9 @@ export const CERTIFICATION_RULES = {
   /** Garage no-shows recorded in the window: none at all. */
   maxGarageNoShows: 0,
   /**
-   * Before/after job photos (the photo standards branch, 0045): share of
-   * completed jobs with them. Not measured on this branch; see
-   * PhotoCompliance.
+   * Before/after job photos (0045): share of the last 90 days' completed
+   * jobs with 2 before and 2 after photos of the garage's own, as
+   * lib/photo-compliance.ts grades it (waived and Test jobs left out).
    */
   minPhotoCompliance: 0.9,
   /** A passing quality check counts for this many months. */
@@ -72,14 +73,11 @@ export const CERTIFICATION_RULES = {
 export type CertificationComplaintCategory = (typeof CERTIFICATION_RULES.complaintCategories)[number]
 
 /**
- * Before/after photo compliance, from the photo standards branch.
- *
- * TODO(line-up with 0045, feat/job-photo-standards): `lib/photo-compliance.ts`
- * measures it there. Wire it into `photoComplianceByGarage` in
- * modules/certification/certification.service.ts (the one place this branch
- * reads it) and return `{ measured: true, rate, jobs }`. Until then it is
- * `PHOTO_COMPLIANCE_NOT_MEASURED`, which passes, so the standard never blocks
- * a garage on a number nobody can see yet.
+ * Before/after photo compliance (0045), as the evaluation reads it: the
+ * figure lib/photo-compliance.ts computes (`fromPhotoCompliance`), read in
+ * `photoComplianceByGarage` in modules/certification/certification.service.ts,
+ * the one place this module reads it. `PHOTO_COMPLIANCE_NOT_MEASURED` (passes)
+ * is only the default for metrics that leave it out.
  */
 export type PhotoCompliance =
   | { measured: false }
@@ -91,6 +89,19 @@ export type PhotoCompliance =
     }
 
 export const PHOTO_COMPLIANCE_NOT_MEASURED: PhotoCompliance = { measured: false }
+
+/**
+ * lib/photo-compliance.ts's figure as a rate: its whole percent (rounded
+ * down, so the checklist says the same number as admin's garage card and
+ * 89.9% never reads 90%), null with no jobs to grade.
+ */
+export function fromPhotoCompliance(figure: PhotoComplianceFigure): PhotoCompliance {
+  return {
+    measured: true,
+    rate: figure.percent === null ? null : figure.percent / 100,
+    jobs: figure.jobs,
+  }
+}
 
 /** What the evaluation reads about one garage. */
 export interface CertificationMetrics {
@@ -108,7 +119,7 @@ export interface CertificationMetrics {
   /** Complaints in CERTIFICATION_RULES.complaintCategories, one per booking. */
   complaints: number
   garageNoShows: number
-  /** Defaults to not measured (passes); see PhotoCompliance. */
+  /** lib/photo-compliance.ts's figure (`fromPhotoCompliance`); left out, not measured (passes). */
   photoCompliance?: PhotoCompliance
 }
 
@@ -156,8 +167,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 /**
  * Every standard, measured. Eligible is every one met; one with nothing to
- * measure (no booking with a deadline yet; photos before 0045) passes and
- * says so.
+ * measure (no booking with a deadline yet; no completed job to grade for
+ * photos) passes and says so.
  */
 export function evaluateEligibility(metrics: CertificationMetrics): Eligibility {
   const R = CERTIFICATION_RULES

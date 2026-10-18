@@ -36,10 +36,18 @@ function documentsOn(on: boolean) {
 }
 
 let states: Map<string, Record<string, unknown>>
-let saved: Array<{ vendorId: string; eligible: boolean; ineligibleSince: Date | null }>
+let saved: Array<{
+  vendorId: string
+  eligible: boolean
+  ineligibleSince: Date | null
+  eligibility?: { rules: Array<{ key: string; met: boolean; value: string }> }
+}>
 let revoked: Array<{ vendorId: string; revokeKind: string; revokedBy: string }>
 let audits: string[]
 let dueAsked: Date[]
+/** Completed jobs with the garage's photo counts (0045), per garage. */
+let photoJobs: Map<string, Array<{ garageBefore: number; garageAfter: number; waived?: boolean }>>
+let photosAsked: Array<{ vendorIds: string[]; since: Date }>
 
 beforeAll(() => {
   patch(certificationRepository, 'listDueForEvaluation', async (runStart: Date) => {
@@ -62,14 +70,39 @@ beforeAll(() => {
   patch(certificationRepository, 'responseCounts', async () => [])
   patch(certificationRepository, 'complaintCounts', async () => [])
   patch(certificationRepository, 'garageNoShowCounts', async () => [])
+  patch(certificationRepository, 'photoComplianceJobs', async (ids: string[], since: Date) => {
+    photosAsked.push({ vendorIds: ids, since })
+    return ids.flatMap((vendorId) =>
+      (photoJobs.get(vendorId) ?? []).map((job) => ({
+        vendorId,
+        finishedAt: new Date(NOW.getTime() - 3 * 24 * 60 * 60 * 1000),
+        garageBefore: job.garageBefore,
+        garageAfter: job.garageAfter,
+        waived: job.waived ?? false,
+        markedTest: false,
+      }))
+    )
+  })
   patch(certificationRepository, 'listRecentChecks', async (ids: string[]) =>
     ids.map((vendorId) => ({ vendorId, checkedOn: '2026-09-01', result: 'pass', createdAt: new Date('2026-09-01') }))
   )
   patch(certificationRepository, 'transaction', async (vendorId: string, work: (repo: unknown) => Promise<unknown>) =>
     work({
       findState: async (id: string) => states.get(id),
-      saveEvaluation: async (id: string, values: { eligible: boolean; ineligibleSince: Date | null }) => {
-        saved.push({ vendorId: id, eligible: values.eligible, ineligibleSince: values.ineligibleSince })
+      saveEvaluation: async (
+        id: string,
+        values: {
+          eligible: boolean
+          ineligibleSince: Date | null
+          eligibility: { rules: Array<{ key: string; met: boolean; value: string }> }
+        }
+      ) => {
+        saved.push({
+          vendorId: id,
+          eligible: values.eligible,
+          ineligibleSince: values.ineligibleSince,
+          eligibility: values.eligibility,
+        })
       },
       revoke: async (id: string, values: { revokeKind: string; revokedBy: string }) => {
         revoked.push({ vendorId: id, ...values })
@@ -94,6 +127,8 @@ beforeEach(() => {
   revoked = []
   audits = []
   dueAsked = []
+  photoJobs = new Map()
+  photosAsked = []
 })
 
 const certified = (ineligibleSince: Date | null) => ({
@@ -122,7 +157,7 @@ describe('certificationService.sweep', () => {
     states.set(SHORT_GARAGE, certified(null))
     const summary = await certificationService.sweep({ dryRun: false, now: NOW })
     expect(summary).toMatchObject({ evaluated: 2, eligible: 1, atRisk: 1, lapsed: 0 })
-    expect(saved.find((row) => row.vendorId === SHORT_GARAGE)).toEqual({
+    expect(saved.find((row) => row.vendorId === SHORT_GARAGE)).toMatchObject({
       vendorId: SHORT_GARAGE,
       eligible: false,
       ineligibleSince: NOW,
@@ -149,11 +184,47 @@ describe('certificationService.sweep', () => {
 
   test('a garage that is not certified is saved as eligible and never revoked', async () => {
     await certificationService.sweep({ dryRun: false, now: NOW })
-    expect(saved.find((row) => row.vendorId === NEW_GARAGE)).toEqual({
+    expect(saved.find((row) => row.vendorId === NEW_GARAGE)).toMatchObject({
       vendorId: NEW_GARAGE,
       eligible: true,
       ineligibleSince: null,
     })
     expect(revoked).toHaveLength(0)
+  })
+})
+
+describe('certificationService.sweep: photo compliance (0045)', () => {
+  const jobs = (compliant: number, short: number) => [
+    ...Array.from({ length: compliant }, () => ({ garageBefore: 2, garageAfter: 2 })),
+    ...Array.from({ length: short }, () => ({ garageBefore: 2, garageAfter: 1 })),
+  ]
+  const photosRule = (vendorId: string) =>
+    saved.find((row) => row.vendorId === vendorId)?.eligibility?.rules.find((rule) => rule.key === 'photos')
+
+  test("reads the batch's jobs over lib/photo-compliance.ts's 90 days, ending now", async () => {
+    await certificationService.sweep({ dryRun: false, now: NOW })
+    expect(photosAsked).toEqual([
+      { vendorIds: [SHORT_GARAGE, NEW_GARAGE], since: new Date(NOW.getTime() - 90 * 24 * 60 * 60 * 1000) },
+    ])
+  })
+
+  test('photos on 90% of jobs is met; under it, an otherwise eligible garage is not', async () => {
+    photoJobs.set(NEW_GARAGE, jobs(27, 3))
+    await certificationService.sweep({ dryRun: false, now: NOW })
+    expect(photosRule(NEW_GARAGE)).toMatchObject({ met: true, value: '90% of 30 jobs' })
+    expect(saved.find((row) => row.vendorId === NEW_GARAGE)?.eligible).toBe(true)
+
+    saved = []
+    photoJobs.set(NEW_GARAGE, jobs(26, 4))
+    await certificationService.sweep({ dryRun: false, now: NOW })
+    expect(photosRule(NEW_GARAGE)).toMatchObject({ met: false, value: '86% of 30 jobs' })
+    expect(saved.find((row) => row.vendorId === NEW_GARAGE)?.eligible).toBe(false)
+  })
+
+  test('waived jobs are not graded; with nothing left to grade it passes and says so', async () => {
+    photoJobs.set(NEW_GARAGE, [{ garageBefore: 0, garageAfter: 0, waived: true }])
+    await certificationService.sweep({ dryRun: false, now: NOW })
+    expect(photosRule(NEW_GARAGE)).toMatchObject({ met: true, value: 'No jobs to measure yet' })
+    expect(saved.find((row) => row.vendorId === NEW_GARAGE)?.eligible).toBe(true)
   })
 })

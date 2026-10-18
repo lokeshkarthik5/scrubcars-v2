@@ -21,7 +21,7 @@ reconstructing every change in them.
 
 - **Detlio Certified** (API 0048). Customer app: a "Detlio Certified" seal
   on the garage page with "What this means" (the standards in plain words,
-  in a sheet), the seal after the name on garage cards (in place of the
+  in a sheet, before and after photos on 90% of jobs included), the seal after the name on garage cards (in place of the
   Documents verified shield, which it includes; still one row on a 360px
   card), and a "Certified only" chip first in the garage list's chip row
   (filtered on the server, so sorting and paging hold). Garage portal: a

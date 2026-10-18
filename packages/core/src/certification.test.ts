@@ -2,12 +2,12 @@ import { describe, expect, test } from 'bun:test'
 import { CERTIFIED_STANDARDS, dateKeyLabel, garageCheckLine } from './certification'
 
 describe('Detlio Certified words', () => {
-  test('the standards say the numbers, and never claim photos before they are measured', () => {
+  test('the standards say the numbers, photos included (0045)', () => {
     const text = CERTIFIED_STANDARDS.join(' ')
     for (const figure of ['4.5', '10 customers', '20 jobs', '90 days', '90%', '3 in 100', '6 months']) {
       expect(text).toContain(figure)
     }
-    expect(text).not.toMatch(/photo/i)
+    expect(CERTIFIED_STANDARDS).toContain('Takes before and after photos of the car on at least 90% of jobs.')
   })
 
   test('a date key reads as a date', () => {

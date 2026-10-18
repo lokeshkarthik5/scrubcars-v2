@@ -26,9 +26,8 @@ reconstructing every change in them.
   certified at/by, revoked at/by/reason/kind `revoked` | `lapsed`, the last
   evaluation's `eligible`, `eligibility` JSON snapshot and
   `last_evaluated_at`, `ineligible_since`, `eligible_alerted_at`; CHECKs);
-  both cascade with the garage. Numbered 0048: 0045–0047 belong to branches
-  built in parallel, so the migrations lint reports the gap until they are
-  merged).
+  both cascade with the garage. Numbered 0048, after 0045–0047 from branches
+  built in parallel; migrations run 0045 → 0048 in order).
   - Rules in `lib/certification.ts` (pure, unit-tested; thresholds in one
     object, `CERTIFICATION_RULES`, twinned with
     `packages/core/src/certification.ts` by a parity test). **Eligible**,
@@ -39,9 +38,12 @@ reconstructing every change in them.
     declines are answers; none yet passes); complaints in damage /
     service_quality / garage_no_show under 3% of completed (every status
     counts: complaints have no "upheld" flag); no garage no-shows; photo
-    compliance 90%+ (**not measured on this branch**: a hook,
-    `photoComplianceByGarage` in `modules/certification`, passes until
-    0045's `lib/photo-compliance.ts` is wired in). **Certified** = eligible
+    compliance 90%+ (0045's `lib/photo-compliance.ts` over its 90 days,
+    the figure admin's garage card shows: `photoComplianceByGarage` in
+    `modules/certification` reads the batch's jobs
+    (`certificationRepository.photoComplianceJobs`) and
+    `fromPhotoCompliance` turns the lib's whole percent into the rule's
+    rate; no job to grade passes). **Certified** = eligible
     + the latest quality check of the last 6 months a pass + Certify
     pressed.
   - `modules/certification`: admin (super-admin) `GET

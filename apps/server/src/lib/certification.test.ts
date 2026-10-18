@@ -6,6 +6,7 @@ import {
   certifyRefusal,
   evaluateEligibility,
   evaluationRunStart,
+  fromPhotoCompliance,
   graceEndsOn,
   isCertified,
   lapseReason,
@@ -21,6 +22,7 @@ import {
   type QualityCheckRow,
   type RuleKey,
 } from './certification.js'
+import { photoCompliance, type PhotoComplianceJob } from './photo-compliance.js'
 
 /** A garage that meets every standard with room to spare. */
 const GOOD: CertificationMetrics = {
@@ -118,7 +120,7 @@ describe('evaluateEligibility', () => {
     expect(rule({ ...GOOD, garageNoShows: 1 }, 'no_shows')).toMatchObject({ met: false, value: '1', target: 'None' })
   })
 
-  test('photos: not measured yet by default, which passes (the 0045 hook)', () => {
+  test('photos: left out of the metrics, it is not measured, which passes', () => {
     expect(rule(GOOD, 'photos')).toMatchObject({ met: true, measured: false, value: 'Not measured yet' })
     expect(rule({ ...GOOD, photoCompliance: PHOTO_COMPLIANCE_NOT_MEASURED }, 'photos').met).toBe(true)
   })
@@ -131,6 +133,50 @@ describe('evaluateEligibility', () => {
     expect(rule({ ...GOOD, photoCompliance: { measured: true, rate: 0.85, jobs: 30 } }, 'photos').met).toBe(false)
     expect(rule({ ...GOOD, photoCompliance: { measured: true, rate: null, jobs: 0 } }, 'photos').met).toBe(true)
     expect(evaluateEligibility({ ...GOOD, photoCompliance: { measured: true, rate: 0.5, jobs: 30 } }).eligible).toBe(false)
+  })
+
+  describe("photos: lib/photo-compliance.ts's figure (0045)", () => {
+    const NOW = new Date('2026-10-18T06:30:00Z')
+    const job = (daysAgo: number, before: number, after: number, extra: Partial<PhotoComplianceJob> = {}) => ({
+      finishedAt: new Date(NOW.getTime() - daysAgo * 24 * 60 * 60 * 1000),
+      garageBefore: before,
+      garageAfter: after,
+      waived: false,
+      markedTest: false,
+      ...extra,
+    })
+    const graded = (jobs: PhotoComplianceJob[]) =>
+      rule({ ...GOOD, photoCompliance: fromPhotoCompliance(photoCompliance(jobs, NOW)) }, 'photos')
+
+    test('9 of 10 jobs with 2 before and 2 after is 90%: met', () => {
+      const jobs = [...Array.from({ length: 9 }, () => job(5, 2, 3)), job(5, 1, 2)]
+      expect(fromPhotoCompliance(photoCompliance(jobs, NOW))).toEqual({ measured: true, rate: 0.9, jobs: 10 })
+      expect(graded(jobs)).toMatchObject({ met: true, measured: true, value: '90% of 10 jobs' })
+    })
+
+    test('89.x% is rounded down, as admin shows it, and falls short', () => {
+      const jobs = [...Array.from({ length: 17 }, () => job(5, 2, 2)), job(5, 2, 0), job(5, 0, 2)]
+      expect(graded(jobs)).toMatchObject({ met: false, value: '89% of 19 jobs' })
+    })
+
+    test('waived and Test-marked jobs, and jobs older than 90 days, are not graded', () => {
+      const jobs = [
+        ...Array.from({ length: 9 }, () => job(5, 2, 2)),
+        job(5, 0, 0, { waived: true }),
+        job(5, 0, 0, { markedTest: true }),
+        job(91, 0, 0),
+        job(4, 2, 1),
+      ]
+      expect(graded(jobs)).toMatchObject({ met: true, value: '90% of 10 jobs' })
+    })
+
+    test('nothing to grade passes and says so', () => {
+      expect(graded([job(5, 0, 0, { waived: true })])).toMatchObject({
+        met: true,
+        measured: false,
+        value: 'No jobs to measure yet',
+      })
+    })
   })
 
   test('one standard missed is not eligible, and the line names it', () => {
