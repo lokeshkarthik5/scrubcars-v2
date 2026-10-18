@@ -10,9 +10,12 @@ import {
   rupees,
   type HubBooking,
   type HubComplaint,
+  type HubSlotAlert,
 } from './home-updates.js'
 import { bannedPhraseIn } from './copy-rules.js'
 import type { NoticeRow } from './notices.js'
+import { istDateKey } from './ist.js'
+import { reminderStanding, type HubServiceReminder } from './service-reminders.js'
 
 // Fixed clock: Mon 12 Oct 2026, 12:00 IST.
 const NOW = new Date('2026-10-12T06:30:00Z')
@@ -712,6 +715,82 @@ describe('suggested times and extra work (0041)', () => {
     // Due on a job that is no longer on: nothing to ask.
     const off = feed([booking({ status: 'cancelled', charges: [extra('x1', 'due')] })])
     expect(off.find((i) => i.id === 'extra_work:x1')).toBeUndefined()
+  })
+})
+
+describe('service reminders (0046)', () => {
+  const hubReminder = (dueOn: string, snoozedUntil: string | null = null): HubServiceReminder => ({
+    id: 'r1',
+    vehicleId: 'car-1',
+    vehicleName: 'Honda City',
+    kind: 'coating_check',
+    vendorName: 'Shine Studio',
+    standing: reminderStanding(
+      { id: 'r1', kind: 'coating_check', dueOn, sourceBookingId: 'coat-1', snoozedUntil },
+      [],
+      istDateKey(NOW)
+    ),
+    createdAt: new Date('2025-10-12T10:00:00Z'),
+  })
+  const feed = (reminders: HubServiceReminder[], seenAt = LONG_AGO) =>
+    deriveUpdates({ bookings: [], notices: [], serviceReminders: reminders, seenAt, now: NOW })
+
+  test('a row from 09:00 IST on its due date, opening the car', () => {
+    // NOW is 12:00 IST on 12 Oct.
+    const [row] = feed([hubReminder('2026-10-12')])
+    expect(row).toMatchObject({
+      id: 'service_reminder:r1:2026-10-12',
+      kind: 'service_reminder',
+      at: '2026-10-12T03:30:00.000Z',
+      title: 'Coating check-up',
+      body: 'Honda City · 12 months since your coating at Shine Studio',
+      linkUrl: '/profile/cars/car-1',
+      bookingId: null,
+      unread: true,
+    })
+    expect(bannedPhraseIn(`${row.title} ${row.body}`)).toBeNull()
+  })
+
+  test('none before its due date; a snooze moves it to a new, unread row', () => {
+    expect(feed([hubReminder('2026-10-13')])).toEqual([])
+    expect(feed([hubReminder('2026-10-01', '2026-10-15')])).toEqual([])
+    const [snoozedRow] = feed([hubReminder('2026-09-27', '2026-10-11')], new Date('2026-10-11T12:00:00Z'))
+    expect(snoozedRow).toMatchObject({ id: 'service_reminder:r1:2026-10-11', unread: false })
+  })
+})
+
+describe('slot alerts (0047)', () => {
+  const told: HubSlotAlert = {
+    id: 'a1',
+    vendorId: 'v1',
+    vendorName: 'Marina Auto Spa',
+    date: '2026-10-13',
+    bookingType: 'doorstep',
+    serviceIds: ['s1', 's2'],
+    notifiedAt: ago(2 * HOUR),
+    // Tue 13 Oct, 10:30 IST.
+    notifiedSlotAt: new Date('2026-10-13T05:00:00Z'),
+  }
+
+  test('a time that opened is a row when it was told, in the push’s words, opening checkout on that day', () => {
+    const [row] = deriveUpdates({ bookings: [], notices: [], slotAlerts: [told], seenAt: ago(3 * HOUR), now: NOW })
+    expect(row).toMatchObject({
+      id: 'slot_opened:a1',
+      kind: 'slot_opened',
+      at: told.notifiedAt.toISOString(),
+      unread: true,
+      title: 'A slot opened at Marina Auto Spa',
+      body: 'Tue 13 Oct — 10:30 AM. Book before it goes.',
+      vendorId: 'v1',
+      bookingId: null,
+      linkUrl: '/book/v1?service=s1%2Cs2&date=2026-10-13&mode=doorstep',
+    })
+    expect(bannedPhraseIn(`${row.title} ${row.body}`)).toBeNull()
+  })
+
+  test('older than the window, it is gone', () => {
+    const old = { ...told, notifiedAt: ago(31 * DAY) }
+    expect(deriveUpdates({ bookings: [], notices: [], slotAlerts: [old], seenAt: LONG_AGO, now: NOW })).toEqual([])
   })
 })
 

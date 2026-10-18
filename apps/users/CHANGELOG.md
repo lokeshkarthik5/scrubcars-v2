@@ -53,6 +53,60 @@ reconstructing every change in them.
   recorded in the audit log); a booking's payment shows "Paid with Detlio
   credit ₹X".
 
+- **Detlio Certified** (API 0048). Customer app: a "Detlio Certified" seal
+  on the garage page with "What this means" (the standards in plain words,
+  in a sheet, before and after photos on 90% of jobs included), the seal after the name on garage cards (in place of the
+  Documents verified shield, which it includes; still one row on a 360px
+  card), and a "Certified only" chip first in the garage list's chip row
+  (filtered on the server, so sorting and paging hold). Garage portal: a
+  "Detlio Certified" card on Home for the owner seat: certified (and, if
+  falling short, the date to put it right by) or how many standards it
+  meets, each with its own figure against the target, and Detlio's check.
+  Admin: a Certification tab on the garage edit page (standards met or
+  not, quality-check history and "Record a check", Certify and Revoke, each
+  saved on its own) and "Certified" / "Eligible, not yet certified" chips
+  and a card line on the garage list.
+
+- **"Notify me if a slot opens"** (API 0047). Checkout: on a day that is
+  all booked, a card under the times with the part of the day (Any time,
+  Morning, Afternoon, Evening) and "Notify me"; on a day with times left, a
+  quiet "None of these suit you?" line for the parts that have none. Once
+  set it says it is waiting, with Stop waiting. The garage page shows the
+  days waited on there; Profile → Slot alerts lists them all (while any
+  wait). A time that opens shows in Updates (and as a notification when
+  they are on), opening checkout on that day: `?date=` now opens the slot
+  picker on it. The shared `SlotPicker` gains `initialDate` and
+  `renderDayExtra`.
+
+- **Car history and coating/detailing reminders** (API 0046). Profile → a
+  car (and the new history disc beside the pencil on Home's car) opens its
+  history: every completed job newest first, a moved booking once, with the
+  garage, services, amount paid and links to the booking, its receipt and
+  its before & after photos; washes and spend this year; a filter by
+  service; "N cancelled bookings aren't listed" with a link to My bookings;
+  and an empty state. The car's next follow-up (a maintenance wash 3 months
+  and a coating check 12 months after a coating, another detailing 6 months
+  after a detailing) shows there with Book (the search for that service,
+  with the car chosen), Remind me in 2 weeks and Dismiss; on Home as a soft
+  card when no other card wants the place; and in Updates on its due date.
+  The booking page's job photos gain a `#job-photos` anchor.
+
+- **Job photo standards** (API 0045). Garage portal: each job's before and
+  after photos are a guided checklist (Front, Back, Left side, Right side,
+  Interior; a tap opens the back camera; extras under More), with the
+  customer's own photos read-only beneath; while the standard is on,
+  Mark in progress waits for 2 before photos and Mark completed (pickup &
+  drop: Out for delivery and Delivered) for 2 after photos, with the words
+  beside the disabled button ("Add 2 before photos to start."). Customer
+  app: "Your car's condition" on the booking page, up to 4 photos before
+  the work starts and 4 for a day after it is done, from the same angles,
+  re-encoded in the browser first. After completion the booking page, the
+  portal's Completed card and admin show a before/after slider of matching
+  angles. Admin: the booking's photos with angle, who and when, the
+  standard, and "Waive photos for this booking" (typed name and reason);
+  complaints about damage or the quality of the work show the booking's
+  photos; garage cards show photo compliance over the last 90 days.
+
 - **Free browser notifications** (API 0044, shown only once the API has its
   VAPID keys). Customer app: Profile → Notifications, with "Notifications
   on this device" (asks the browser, then subscribes), two account switches

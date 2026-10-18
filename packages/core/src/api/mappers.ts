@@ -6,6 +6,7 @@ import type {
   ApiBookingPickup,
   ApiExtraWork,
   ApiFinalBill,
+  ApiJobPhoto,
   ApiPackage,
   ApiPublicVendor,
   ApiPublicReview,
@@ -21,6 +22,7 @@ import type {
   BookingPickup,
   ExtraWork,
   FinalBill,
+  JobPhoto,
   Review,
   Service,
   ServicePackage,
@@ -122,6 +124,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     matchedService: item.matchedService ?? null,
     outsideServiceCity: item.outsideServiceCity ?? null,
     documentsVerified: item.documentsVerified ?? false,
+    certified: item.certified ?? false,
   }
 }
 
@@ -166,6 +169,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     matchedService: null,
     outsideServiceCity: vendor.outsideServiceCity ?? null,
     documentsVerified: vendor.documentsVerified ?? false,
+    certified: vendor.certified ?? false,
   }
 }
 
@@ -387,7 +391,9 @@ export function mapBooking(booking: ApiBooking): Booking {
         : booking.payment && ['paid', 'collected'].includes(booking.payment.status)
           ? Number(booking.subtotalAmount ?? booking.payment.amount)
           : 0,
-    jobPhotos: booking.photos ?? [],
+    jobPhotos: (booking.photos ?? []).map(mapJobPhoto),
+    photoStandard: booking.photoStandard ?? null,
+    conditionPhotos: booking.conditionPhotos ?? null,
     finalBill: booking.finalBill ? mapFinalBill(booking.finalBill) : null,
     canRaiseFinalBill: booking.canRaiseFinalBill ?? false,
     extraWork: (booking.extraWork ?? []).map(mapExtraWork),
@@ -417,6 +423,11 @@ export function mapBooking(booking: ApiBooking): Booking {
     receiptAvailable: booking.receiptAvailable ?? false,
     moved: booking.moved ?? false,
   }
+}
+
+/** A job photo; one from a server older than 0045 is the garage's, with no angle. */
+export function mapJobPhoto(photo: ApiJobPhoto): JobPhoto {
+  return { ...photo, angle: photo.angle ?? null, by: photo.by ?? 'garage' }
 }
 
 /** Extra work, its price as a number like every other figure in the app. */

@@ -3,6 +3,7 @@ import { bannedPhraseIn } from './copy-rules.js'
 import {
   acceptWithin,
   customerAccepted,
+  customerBeforePhotos,
   customerComplaint,
   customerCompleted,
   customerDayBefore,
@@ -12,6 +13,8 @@ import {
   customerNotAcceptedInTime,
   customerPickupStep,
   customerRefund,
+  customerServiceReminder,
+  customerSlotOpened,
   customerTimesSuggested,
   garageCustomerCancelled,
   garageExtraWorkDeclined,
@@ -68,6 +71,17 @@ const PERSONAL = [
 
 const NOW = IST('2026-10-16T18:00:00')
 
+// A slot alert as the re-check reads it (0047): who set it is on the row,
+// and never reaches the notification.
+const slotAlert = {
+  id: 'a0000000-0000-4000-8000-000000002701',
+  userId: booking.userId,
+  vendorId: booking.vendorId,
+  date: '2026-10-17',
+  bookingType: 'doorstep',
+  serviceIds: ['s0000000-0000-4000-8000-000000002720', 's0000000-0000-4000-8000-000000002721'],
+}
+
 const ALL: Array<[string, PushMessage]> = [
   ['garage new booking', garageNewBooking(booking, NOW, 30)],
   ['garage respond soon', garageRespondSoon(booking, IST('2026-10-16T18:20:00'))],
@@ -85,6 +99,8 @@ const ALL: Array<[string, PushMessage]> = [
   ['customer picked up', customerPickupStep({ ...booking, bookingType: 'pickup' }, 'picked_up')],
   ['customer out for delivery', customerPickupStep({ ...booking, bookingType: 'pickup' }, 'out_for_delivery')],
   ['customer completed', customerCompleted(booking)],
+  ['customer before photos', customerBeforePhotos(booking)],
+  ['customer completed with after photos', customerCompleted(booking, { afterPhotos: true })],
   ['customer refund started', customerRefund(booking, '799.00', true)],
   ['customer refund recorded', customerRefund(booking, '799.00', false)],
   ['customer complaint ack', customerComplaint({ id: 'c1', number: 123 }, 'acknowledged')],
@@ -92,6 +108,11 @@ const ALL: Array<[string, PushMessage]> = [
   ['customer not accepted', customerNotAcceptedInTime(booking)],
   ['customer day before', customerDayBefore({ ...booking, status: 'confirmed' }, NOW)],
   ['customer hour before', customerHourBefore({ ...booking, status: 'confirmed' }, IST('2026-10-17T09:00:00'))],
+  ['customer service reminder', customerServiceReminder({
+    id: 'r0000000-0000-4000-8000-000000002601', vehicleId: 'c0000000-0000-4000-8000-000000002602',
+    kind: 'maintenance_wash', vendorName: booking.vendor.businessName,
+  })],
+  ['customer slot opened', customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)],
   ['customer test', testMessage('customer')],
   ['garage test', testMessage('garage')],
 ]
@@ -172,6 +193,20 @@ describe('customer: the same words as Updates', () => {
     expect(customerCompleted({ ...booking, bookingType: 'pickup' }).title).toBe('Your car is back')
   })
 
+  test('job photos (0045): before photos when the work starts, after photos with completion', () => {
+    const before = customerBeforePhotos(booking)
+    expect(before.title).toBe("Your car's before photos are in")
+    expect(before.body).toBe('Marina Auto Spa has started work. See them on your booking.')
+    expect(before.url).toBe(`/bookings/${booking.id}`)
+    expect(before.category).toBe('booking_update')
+    expect(customerCompleted(booking, { afterPhotos: true }).title).toBe('Your car is done — see the after photos')
+    expect(customerCompleted({ ...booking, bookingType: 'pickup' }, { afterPhotos: true }).title).toBe(
+      'Your car is back — see the after photos'
+    )
+    // One notification at completion, whichever it is.
+    expect(customerCompleted(booking, { afterPhotos: true }).tag).toBe(customerCompleted(booking).tag)
+  })
+
   test('complaints open My complaints, by number only', () => {
     const message = customerComplaint({ id: 'c1', number: 123 }, 'resolved')
     expect(message.title).toBe('Complaint C-000123 resolved — see our answer')
@@ -194,7 +229,40 @@ describe('customer: the same words as Updates', () => {
   test('every booking message is booking news, for the Booking updates switch', () => {
     for (const [name, message] of ALL) {
       if (name.includes('day before') || name.includes('hour before') || name.includes('test')) continue
+      if (name.includes('service reminder')) continue
       expect(message.category).toBe('booking_update')
     }
+  })
+
+  test('a coating or detailing follow-up is a reminder, opens the car, and never names it', () => {
+    const message = customerServiceReminder({
+      id: 'r1', vehicleId: 'car-1', kind: 'coating_check', vendorName: 'Marina Auto Spa',
+    })
+    expect(message.title).toBe('Coating check-up')
+    expect(message.body).toBe('12 months since your coating at Marina Auto Spa. Book it in Detlio.')
+    expect(message.category).toBe('reminder')
+    expect(message.url).toBe('/profile/cars/car-1')
+    expect(message.tag).toBe('service_reminder:r1')
+  })
+})
+
+describe('slot alerts (0047)', () => {
+  test("a freed time: the garage, the day and the time; checkout opens on that day, in that mode", () => {
+    const message = customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)
+    expect(message.title).toBe('A slot opened at Marina Auto Spa')
+    expect(message.body).toBe('Sat 17 Oct — 10:30 AM. Book before it goes.')
+    expect(message.url).toBe(
+      `/book/${slotAlert.vendorId}?service=${slotAlert.serviceIds.join('%2C')}&date=2026-10-17&mode=doorstep`
+    )
+    expect(message.tag).toBe(`slot_alert:${slotAlert.id}`)
+    // The Booking updates switch, and wanted now: someone else may take it.
+    expect(message.category).toBe('booking_update')
+    expect(message.urgency).toBe('high')
+    expect(message.ttlSeconds).toBeLessThanOrEqual((IST('2026-10-17T10:30:00').getTime() - NOW.getTime()) / 1000)
+  })
+
+  test('at the garage is the default and is not spelled out', () => {
+    const message = customerSlotOpened({ ...slotAlert, bookingType: 'dropin' }, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)
+    expect(message.url).not.toContain('mode=')
   })
 })

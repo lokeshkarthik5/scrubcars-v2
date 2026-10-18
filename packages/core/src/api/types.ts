@@ -1,4 +1,4 @@
-import type { ServiceMedia } from '@repo/core/types'
+import type { ConditionPhotos, PhotoStandard, ServiceMedia } from '@repo/core/types'
 import type { PickupNext } from '@repo/core/pickup'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 
@@ -145,6 +145,8 @@ export interface ApiVendorListItem {
   outsideServiceCity?: OutsideServiceCity | null
   /** Every required document approved by Detlio. Absent on older servers. */
   documentsVerified?: boolean
+  /** Detlio Certified (0048): the seal. Absent on older servers. */
+  certified?: boolean
 }
 
 export interface ApiVendorList {
@@ -203,6 +205,8 @@ export interface ApiPublicVendor {
   outsideServiceCity?: OutsideServiceCity | null
   /** As on a list item: the "Documents verified" badge. Absent on older servers. */
   documentsVerified?: boolean
+  /** As on a list item: the Detlio Certified seal. Absent on older servers. */
+  certified?: boolean
 }
 
 export interface VendorProfileExtras {
@@ -358,6 +362,10 @@ export interface ApiJobPhoto {
   stage: 'before' | 'after'
   url: string
   createdAt: string
+  /** 0045; absent from older servers. */
+  angle?: 'front' | 'back' | 'left' | 'right' | 'interior' | null
+  /** 0045; absent from older servers, whose photos were all the garage's. */
+  by?: 'garage' | 'customer'
 }
 
 /**
@@ -464,6 +472,10 @@ export interface ApiBooking {
    * and the customer's copy is empty until the work starts.
    */
   photos?: ApiJobPhoto[]
+  /** Garage payloads only (0045): the job's photo standard. */
+  photoStandard?: PhotoStandard
+  /** Customer payloads only (0045): when they may add their own photos. */
+  conditionPhotos?: ConditionPhotos
   /** The final bill that stands, on payloads that carry job records. */
   finalBill?: ApiFinalBill | null
   /** Garage payloads only: whether "Raise final bill" applies now. */

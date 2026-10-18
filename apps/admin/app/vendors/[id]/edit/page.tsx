@@ -59,6 +59,7 @@ import type { ServiceMedia } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
+import { GarageCertificationSection } from '@/components/garage-certification-section'
 import { PayoutAccountSection } from '@/components/payout-account-section'
 import { LivePickupCard } from '@/components/pickup-card'
 import { SaveBar } from '@/components/save-bar'
@@ -913,7 +914,9 @@ export default function EditVendorPage({
               editing a garage and the owner editing it see the same structure.
               Grouped by subject rather than by form length. */}
           <Tabs value={shownTab} onValueChange={(value) => changeTab(parsePageTab(value, documentsOn))}>
-            <TabsList>
+            {/* Six tabs do not fit a 360px phone word for word: the row
+                scrolls sideways there rather than widening the page. */}
+            <TabsList className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {EDIT_TABS.map((value) => {
                 const changed = dirty.includes(value)
                 return (
@@ -947,6 +950,10 @@ export default function EditVendorPage({
                   {PAGE_TAB_LABELS.documents}
                 </TabsTrigger>
               )}
+              {/* Detlio Certified (0048): saves each action on its own too. */}
+              <TabsTrigger value="certification" className="min-h-11 px-1">
+                {PAGE_TAB_LABELS.certification}
+              </TabsTrigger>
             </TabsList>
 
             {/* The tabs themselves stay usable, to look around; what is in
@@ -1483,6 +1490,11 @@ export default function EditVendorPage({
                 <GarageDocumentsSection vendorId={id} readOnly={Boolean(bin)} />
               </TabsContent>
             )}
+            {/* Outside the read-only fieldset too: in the Bin it still shows,
+                and the section itself hides every change. */}
+            <TabsContent value="certification">
+              <GarageCertificationSection vendorId={id} readOnly={Boolean(bin)} />
+            </TabsContent>
           </Tabs>
 
           {/* Amber, as errors are: red on this page is Save changes. */}

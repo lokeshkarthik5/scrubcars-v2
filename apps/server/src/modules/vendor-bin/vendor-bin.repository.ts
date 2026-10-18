@@ -16,7 +16,9 @@ import {
   users,
   vendorClosures,
   vendorDocumentFiles,
+  vendorCertifications,
   vendorDocuments,
+  vendorQualityChecks,
   vendorPayoutAccounts,
   vendorPhotos,
   vendors,
@@ -312,6 +314,16 @@ function writes(tx: Tx) {
       await tx
         .delete(vendorDocuments)
         .where(and(eq(vendorDocuments.vendorId, vendorId), sql`${vendorDocuments.type} <> 'agreement'`))
+    },
+
+    /**
+     * A tombstone's Detlio Certified rows (0048): its quality checks (with
+     * checkers' names and notes) and its certification have no use once the
+     * garage is gone; the audit log keeps the grants and revocations.
+     */
+    async deleteCertification(vendorId: string) {
+      await tx.delete(vendorQualityChecks).where(eq(vendorQualityChecks.vendorId, vendorId))
+      await tx.delete(vendorCertifications).where(eq(vendorCertifications.vendorId, vendorId))
     },
 
     /**

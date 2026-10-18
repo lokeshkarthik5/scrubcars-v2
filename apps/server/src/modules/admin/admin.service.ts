@@ -17,6 +17,9 @@ import { liveFinalBill, type FinalBillRecord } from '../../lib/final-bill.js'
 import { toExtraWorkView } from '../../lib/extra-work.js'
 import { bookingRefundTotals } from '../../lib/refunds.js'
 import { toJobPhotoView } from '../../lib/job-records.js'
+import { garagePhotoStandardView } from '../../lib/job-photo-standards.js'
+import { photoComplianceByGarage, photoComplianceSince, type PhotoCompliance } from '../../lib/photo-compliance.js'
+import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
@@ -30,6 +33,8 @@ import {
   type DocumentsSummary,
 } from '../../lib/vendor-documents.js'
 import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.repository.js'
+import { certificationRepository } from '../certification/certification.repository.js'
+import { graceEndsOn, isCertified } from '../../lib/certification.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
 import {
   codeTriesLeft,
@@ -56,9 +61,11 @@ import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
 import { adminRepository } from './admin.repository.js'
+import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import type {
   AdminCancelBookingInput,
   CreateBookingNoteInput,
+  WaiveJobPhotosInput,
   CreateVendorInput,
   GrantSuperAdminInput,
   ListBookingsQuery,
@@ -488,9 +495,14 @@ async function loadBookingDetail(id: string, now: number) {
   const booking = await adminRepository.findBookingDetail(id)
   if (!booking) throw bookingNotFound()
 
-  const staffIds = [booking.acceptedBy, booking.completedBy].filter(
-    (staffId): staffId is string => staffId !== null
-  )
+  // Who took each job photo (0045), named like the steps.
+  const staffIds = [
+    ...new Set(
+      [booking.acceptedBy, booking.completedBy, ...booking.photos.map((photo) => photo.uploadedBy)].filter(
+        (staffId): staffId is string => staffId !== null
+      )
+    ),
+  ]
   const [rescheduledToId, names, refunds] = await Promise.all([
     adminRepository.findRescheduledToId(id),
     adminRepository.findUserNames(staffIds),
@@ -515,7 +527,35 @@ async function loadBookingDetail(id: string, now: number) {
     // of each, and the times it suggested instead of declining.
     extraWork: booking.charges.filter((charge) => charge.kind === 'extra_work').map(toAdminExtraWork),
     timeProposals: timeProposals.map(toAdminTimeProposal),
-    photos: photos.map(toJobPhotoView),
+    // Every photo of the job, both sides', with who added it (0045): the
+    // garage person's name, or the customer's. Null once that account is gone.
+    photos: photos.map((photo) => ({
+      ...toJobPhotoView(photo),
+      uploadedByName: photo.uploadedBy ? (names.get(photo.uploadedBy) ?? null) : null,
+    })),
+    // What Start and Complete wait for on this job, as the garage sees it,
+    // and Detlio's waiver with its name and reason.
+    photoStandard: garagePhotoStandardView(
+      {
+        status: booking.status,
+        bookingType: booking.bookingType,
+        scheduledAt: booking.scheduledAt,
+        completedAt: booking.completedAt,
+        pickedUpAt: booking.pickedUpAt,
+        outForDeliveryAt: booking.outForDeliveryAt,
+        photosWaivedAt: booking.photosWaivedAt,
+        photos,
+      },
+      jobPhotosRequiredFor(booking.vendorId),
+      now
+    ),
+    photosWaiver: booking.photosWaivedAt
+      ? {
+          at: booking.photosWaivedAt.toISOString(),
+          by: booking.photosWaivedBy,
+          reason: booking.photosWaivedReason,
+        }
+      : null,
     lat: booking.lat,
     lng: booking.lng,
     garageAddress: booking.vendor
@@ -543,6 +583,40 @@ async function resolveNoteAuthor(sub: string): Promise<string> {
   return (user?.name.trim() || user?.phone || sub).slice(0, 100)
 }
 
+/**
+ * A garage's Detlio Certified standing for the admin list (0048): certified
+ * now, eligible at its last evaluation, falling short since (its 14 days
+ * running), and how the last certification ended. Null when never evaluated
+ * or certified.
+ */
+function certificationSummary(
+  row:
+    | {
+        certifiedAt: Date | null
+        revokedAt: Date | null
+        revokeKind: string | null
+        eligible: boolean
+        lastEvaluatedAt: Date | null
+        ineligibleSince: Date | null
+      }
+    | undefined
+) {
+  if (!row) return null
+  const certified = isCertified(row)
+  return {
+    certified,
+    certifiedAt: certified ? (row.certifiedAt?.toISOString() ?? null) : null,
+    eligible: row.eligible,
+    lastEvaluatedAt: row.lastEvaluatedAt?.toISOString() ?? null,
+    keepsUntil: certified && row.ineligibleSince ? graceEndsOn(row.ineligibleSince) : null,
+    endedAt: !certified && row.revokedAt ? row.revokedAt.toISOString() : null,
+    endedKind: !certified && row.revokedAt ? row.revokeKind : null,
+  }
+}
+
+/** A garage with no completed jobs in the window: nothing to grade. */
+const NO_COMPLETED_JOBS: PhotoCompliance = { jobs: 0, compliant: 0, waived: 0, percent: null }
+
 export const adminService = {
   async login(input: LoginInput): Promise<{ accessToken: string }> {
     const validUser = safeEqual(input.username, env.adminUsername)
@@ -569,6 +643,14 @@ export const adminService = {
       ])
     )
     const drawnAreas = new Set(await adminRepository.listVendorIdsWithDoorstepArea())
+    // Photo compliance (0045, lib/photo-compliance.ts): the share of each
+    // garage's jobs completed in the last 90 days with 2 before and 2 after
+    // photos of its own. One grouped read for every garage.
+    const now = new Date()
+    const compliance = photoComplianceByGarage(
+      await adminRepository.listPhotoComplianceJobs(photoComplianceSince(now)),
+      now
+    )
     // Garage documents (0043), as type and status only, for the "Documents
     // to review" chip and the checklist. Null for every garage while they
     // are off.
@@ -576,6 +658,12 @@ export const adminService = {
     const documents = documentsOn
       ? summariesByVendor(await vendorDocumentsRepository.listAllStates())
       : new Map<string, DocumentsSummary>()
+    // Detlio Certified (0048), from each garage's last evaluation: the
+    // "Certified" and "Eligible, not yet certified" chips. Never the
+    // snapshot's rules (the edit page measures afresh).
+    const certifications = new Map(
+      (await certificationRepository.listStates()).map((row) => [row.vendorId, row])
+    )
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
@@ -599,6 +687,8 @@ export const adminService = {
         // On with the responsibility terms on file (lib/pickup.ts).
         pickupEnabled: isPickupOffered(vendor),
         documents: documentSummary,
+        certification: certificationSummary(certifications.get(vendor.id)),
+        photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
         readiness: vendorReadiness({
           ...vendor,
           hasDoorstepArea,
@@ -831,6 +921,8 @@ export const adminService = {
       log.info({ vendorId: id, pickup: pickupPatch.pickup }, 'admin:vendor-pickup-updated')
     }
     log.info({ vendorId: id }, 'admin:vendor-updated')
+    // Hours, bays, the day's cap or the slot length may have made room (0047).
+    slotAlertsService.garageChanged(id, 'admin_garage_updated')
     return { ...updated, pickupEnabled: isPickupOffered(updated) }
   },
 
@@ -973,6 +1065,7 @@ export const adminService = {
 
     const [updated] = await adminRepository.unarchiveVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-unarchived')
+    slotAlertsService.garageChanged(id, 'admin_unarchived')
     return updated
   },
 
@@ -998,6 +1091,7 @@ export const adminService = {
       bookingsPausedReason: null,
     })
     log.info({ vendorId: id }, 'admin:vendor-resumed')
+    slotAlertsService.garageChanged(id, 'admin_resumed')
     return updated
   },
 
@@ -1178,6 +1272,8 @@ export const adminService = {
     )
     // Recorded only if it was paid for (lib/analytics.ts bookingEventProps).
     analyticsService.bookingCancelled(id, 'detlio')
+    // Its time is free again: anyone waiting for that day hears (0047).
+    slotAlertsService.capacityFreed(booking, 'admin_cancelled')
 
     // Only a paid booking leaves anything to do: an unpaid one has no money
     // to return. With AUTO_REFUNDS on it goes back at once.
@@ -1252,6 +1348,8 @@ export const adminService = {
       { bookingId: id, from: booking.status, party: input.party, author },
       'admin:booking-no-show'
     )
+    // Whatever is left of its time is free again (0047).
+    slotAlertsService.capacityFreed(booking, 'no_show')
 
     if (input.party === 'garage') {
       const updated = await adminRepository.findBookingById(id)
@@ -1312,6 +1410,42 @@ export const adminService = {
     })
 
     log.info({ bookingId: id, step: input.step, author }, 'admin:booking-pickup-step-confirmed')
+    return loadBookingDetail(id, Date.now())
+  },
+
+  /**
+   * Detlio waives the photo standard on one booking (0045): Start and
+   * Complete stop waiting for the garage's photos, and the job leaves the
+   * garage's photo compliance. For genuine cases (the garage's phone died,
+   * the customer would not wait); the typed name and the reason are stored
+   * on the booking and left as a note. Once only; not on a cancelled booking.
+   */
+  async waiveJobPhotos(id: string, input: WaiveJobPhotosInput) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+    if (booking.photosWaivedAt) {
+      throw new AppError(409, 'Photos are already waived on this booking.', 'PHOTOS_ALREADY_WAIVED')
+    }
+
+    const [waived] = await adminRepository.waiveJobPhotos(id, {
+      by: input.actorName,
+      reason: input.reason,
+      at: new Date(),
+    })
+    if (!waived) {
+      throw new AppError(
+        409,
+        "This booking changed (cancelled, or waived by someone else). Reload to see it as it is now.",
+        'BOOKING_STATE_CHANGED'
+      )
+    }
+    await adminRepository.createBookingNote({
+      bookingId: id,
+      author: input.actorName,
+      body: `Job photos waived by ${input.actorName}: ${input.reason}`,
+    })
+
+    log.info({ bookingId: id, actorName: input.actorName }, 'admin:job-photos-waived')
     return loadBookingDetail(id, Date.now())
   },
 

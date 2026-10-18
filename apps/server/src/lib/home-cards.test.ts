@@ -9,6 +9,7 @@ import {
   pickActionCards,
   serviceLabelOf,
   softCardWithComplaint,
+  softCardWithReminder,
   type GarageDays,
   type HubCar,
   type LastJob,
@@ -16,6 +17,7 @@ import {
 import type { HubBooking, HubComplaint } from './home-updates.js'
 import type { NoticeRow } from './notices.js'
 import { istDateKey } from './ist.js'
+import { reminderStanding, type HubServiceReminder } from './service-reminders.js'
 
 // Fixed clock: Mon 12 Oct 2026, 12:00 IST.
 const NOW = new Date('2026-10-12T06:30:00Z')
@@ -561,5 +563,75 @@ describe('suggested times and extra work (0041)', () => {
     expect(todo.map((card) => card.kind)).toEqual(['time_proposal'])
     // Without one, the closed day is the card.
     expect(pickActionCards([booking({ status: 'pending' })], shut, NOW).mustAct?.kind).toBe('garage_closed')
+  })
+})
+
+describe('a service reminder on Home (0046)', () => {
+  // Today is Mon 12 Oct 2026 in IST.
+  const today = istDateKey(NOW)
+  const hubReminder = (over: Partial<{ id: string; dueOn: string; snoozedUntil: string | null }> = {}): HubServiceReminder => {
+    const facts = {
+      id: over.id ?? 'r1',
+      kind: 'maintenance_wash' as const,
+      dueOn: over.dueOn ?? '2026-10-15',
+      sourceBookingId: 'coat-1',
+      snoozedUntil: over.snoozedUntil ?? null,
+    }
+    return {
+      id: facts.id,
+      vehicleId: 'car-1',
+      vehicleName: 'Honda City',
+      kind: facts.kind,
+      vendorName: 'Shine Studio',
+      standing: reminderStanding(facts, [], today),
+      createdAt: new Date('2026-07-15T10:00:00Z'),
+    }
+  }
+
+  test('the nearest due within a week takes a free place', () => {
+    const card = softCardWithReminder({ mustAct: null, softCard: null }, [
+      hubReminder({ id: 'later', dueOn: '2026-10-18' }),
+      hubReminder(),
+    ])
+    expect(card).toEqual({
+      kind: 'service_reminder',
+      reminderId: 'r1',
+      vehicleId: 'car-1',
+      vehicleName: 'Honda City',
+      reminderKind: 'maintenance_wash',
+      title: 'Maintenance wash for your coating',
+      reason: '3 months since your coating at Shine Studio',
+      dueOn: '2026-10-15',
+      state: 'due_soon',
+      daysLeft: 3,
+      bookCategory: 'car_wash',
+    })
+  })
+
+  test('not while it is further off, or snoozed past the week', () => {
+    expect(softCardWithReminder({ mustAct: null, softCard: null }, [hubReminder({ dueOn: '2026-11-01' })])).toBeNull()
+    expect(
+      softCardWithReminder({ mustAct: null, softCard: null }, [hubReminder({ snoozedUntil: '2026-10-26' })])
+    ).toBeNull()
+  })
+
+  test('only in a free place: a must-act card, Rate your wash or a resolved complaint keeps it', () => {
+    const reminders = [hubReminder()]
+    const billCard = pickActionCards(
+      [booking({ status: 'in_progress', charges: [bill('ch1', ago(HOUR))] })],
+      noDays,
+      NOW
+    )
+    expect(softCardWithReminder(billCard, reminders)).toBeNull()
+
+    const rate = pickActionCards(
+      [booking({ status: 'completed', completedAt: ago(HOUR), scheduledAt: ago(2 * HOUR) })],
+      noDays,
+      NOW
+    )
+    expect(softCardWithReminder(rate, reminders)).toBe(rate.softCard)
+
+    const complaintCard = { kind: 'complaint_resolved' as const, complaintId: 'c1', number: 'C-000123', resolvedAt: ago(DAY).toISOString() }
+    expect(softCardWithReminder({ mustAct: null, softCard: complaintCard }, reminders)).toBe(complaintCard)
   })
 })

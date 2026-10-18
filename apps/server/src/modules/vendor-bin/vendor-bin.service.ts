@@ -472,6 +472,9 @@ export const vendorBinService = {
           // Its documents too, but for the signed agreement (a deleted
           // garage's go by cascade).
           await repo.deleteDocumentsExceptAgreement(id)
+          // And its quality checks and certification (a deleted garage's go
+          // by cascade).
+          await repo.deleteCertification(id)
           await repo.makeTombstone(id, tombstoneFields(now))
         }
         if (deletingGarage) await syncOwnerFlags(repo, seatHolders)

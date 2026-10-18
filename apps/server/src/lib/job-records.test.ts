@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  GARAGE_AFTER_GRACE_MINUTES,
   PHOTO_EDIT_WINDOW_DAYS,
   customerSeesPhotos,
   isJobPhotoKey,
   jobPhotoFolder,
   photoChangeRefusal,
+  toJobPhotoView,
 } from './job-records.js'
 
 const NOW = new Date('2026-10-05T10:00:00Z').getTime()
@@ -20,16 +22,17 @@ const job = (status: string, completedAt: Date | null = null) => ({
   now: NOW,
 })
 
-describe('photoChangeRefusal', () => {
-  test('before photos from the moment the garage accepts', () => {
+describe('photoChangeRefusal (the garage)', () => {
+  test('before photos from the moment the garage accepts, until the job is completed', () => {
     expect(photoChangeRefusal({ stage: 'before', ...job('confirmed') })).toBeNull()
     expect(photoChangeRefusal({ stage: 'before', ...job('in_progress') })).toBeNull()
+    // 0045: the car is no longer as it came in.
+    expect(photoChangeRefusal({ stage: 'before', ...job('completed', new Date(NOW - 60_000)) })).toBe('before_closed')
   })
 
   test('after photos only once the work has started', () => {
     expect(photoChangeRefusal({ stage: 'after', ...job('confirmed') })).toBe('stage_not_open')
     expect(photoChangeRefusal({ stage: 'after', ...job('in_progress') })).toBeNull()
-    expect(photoChangeRefusal({ stage: 'after', ...job('completed', new Date(NOW - DAY)) })).toBeNull()
   })
 
   test('none before the garage accepts, or on a cancelled or moved job', () => {
@@ -39,12 +42,13 @@ describe('photoChangeRefusal', () => {
     }
   })
 
-  test(`closed ${PHOTO_EDIT_WINDOW_DAYS} days after completion`, () => {
-    const justInside = new Date(NOW - 7 * DAY + 60_000)
-    const justOutside = new Date(NOW - 7 * DAY - 60_000)
+  test(`after photos close ${GARAGE_AFTER_GRACE_MINUTES} minutes after completion (no late fabrication)`, () => {
+    const justInside = new Date(NOW - GARAGE_AFTER_GRACE_MINUTES * 60_000 + 1_000)
+    const justOutside = new Date(NOW - GARAGE_AFTER_GRACE_MINUTES * 60_000 - 1_000)
     expect(photoChangeRefusal({ stage: 'after', ...job('completed', justInside) })).toBeNull()
     expect(photoChangeRefusal({ stage: 'after', ...job('completed', justOutside) })).toBe('window_closed')
-    expect(photoChangeRefusal({ stage: 'before', ...job('completed', justOutside) })).toBe('window_closed')
+    // Well inside the outer week the public terms print.
+    expect(GARAGE_AFTER_GRACE_MINUTES * 60_000).toBeLessThan(PHOTO_EDIT_WINDOW_DAYS * DAY)
   })
 
   test('a job finished before completion times were kept counts from its slot', () => {
@@ -53,10 +57,32 @@ describe('photoChangeRefusal', () => {
         stage: 'after',
         status: 'completed',
         completedAt: null,
-        scheduledAt: new Date(NOW - 8 * DAY),
+        scheduledAt: new Date(NOW - 2 * 60 * 60 * 1000),
         now: NOW,
       })
     ).toBe('window_closed')
+  })
+})
+
+describe('toJobPhotoView', () => {
+  const row = { id: 'p1', stage: 'before' as const, url: 'https://x/y.jpg', createdAt: new Date(NOW) }
+
+  test('a row from before 0045 is the garage’s, with no angle', () => {
+    expect(toJobPhotoView(row)).toEqual({
+      id: 'p1',
+      stage: 'before',
+      url: 'https://x/y.jpg',
+      createdAt: new Date(NOW).toISOString(),
+      angle: null,
+      by: 'garage',
+    })
+  })
+
+  test('says whose and which angle, never the key or the person', () => {
+    const view = toJobPhotoView({ ...row, angle: 'front', uploadedByRole: 'customer', storageKey: 'k', uploadedBy: 'u' } as never)
+    expect(view.angle).toBe('front')
+    expect(view.by).toBe('customer')
+    expect(Object.keys(view).sort()).toEqual(['angle', 'by', 'createdAt', 'id', 'stage', 'url'])
   })
 })
 
@@ -82,6 +108,14 @@ describe('isJobPhotoKey', () => {
     expect(isJobPhotoKey(`vendors/${VENDOR}/job-photos/${otherBooking}/${FILE}.jpg`, VENDOR, BOOKING)).toBe(false)
     expect(isJobPhotoKey(`vendors/${otherBooking}/job-photos/${BOOKING}/${FILE}.jpg`, VENDOR, BOOKING)).toBe(false)
     expect(isJobPhotoKey(`vendors/${VENDOR}/${FILE}.jpg`, VENDOR, BOOKING)).toBe(false)
+  })
+
+  test("the customer's own folder (0045): neither side can record the other's upload", () => {
+    const customerKey = `${folder}/customer/${FILE}.jpg`
+    expect(isJobPhotoKey(customerKey, VENDOR, BOOKING, 'customer')).toBe(true)
+    expect(isJobPhotoKey(customerKey, VENDOR, BOOKING, 'garage')).toBe(false)
+    expect(isJobPhotoKey(`${folder}/${FILE}.jpg`, VENDOR, BOOKING, 'customer')).toBe(false)
+    expect(jobPhotoFolder(BOOKING, 'customer')).toBe(`job-photos/${BOOKING}/customer`)
   })
 
   test('no path tricks or other file types', () => {

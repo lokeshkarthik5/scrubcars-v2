@@ -24,6 +24,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
+import { CertifiedSeal } from '@repo/ui/features/detlio-certified'
 import { DocumentsVerifiedBadge } from '@repo/ui/features/documents-verified'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
@@ -65,6 +66,7 @@ import { ServiceThumb } from '@/components/service-media/service-thumb'
 import { ClampedText } from '@/components/service-media/clamped-text'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { SAVE_PARAM, withoutSaveFlag } from '@/lib/saved-garages'
+import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts'
 
 type Tab = 'services' | 'photos' | 'reviews'
 
@@ -502,9 +504,12 @@ export default function GaragePage({
           </div>
         )}
 
-        {/* Detlio checked its ID, bank and shop documents. Only whether it
-            did reaches this page, never the documents. */}
-        {vendor.documentsVerified && <DocumentsVerifiedBadge />}
+        {/* Detlio Certified (0048): meets the standards and passed Detlio's
+            visit, with "What this means" in plain words. It needs the
+            documents, so it stands in for their badge. Otherwise, whether
+            Detlio checked its ID, bank and shop documents; only whether,
+            never the documents. */}
+        {vendor.certified ? <CertifiedSeal /> : vendor.documentsVerified && <DocumentsVerifiedBadge />}
 
         {/* Garages in other towns are part of the pilot; this says plainly
             where one is before anything is picked, so nobody books it
@@ -537,6 +542,10 @@ export default function GaragePage({
             Choose from what this garage offers now.
           </Notice>
         )}
+
+        {/* The days the customer is waiting on here (0047), with Stop
+            waiting. Nothing while signed out or when there are none. */}
+        <GarageSlotAlerts vendorId={vendor.id} />
       </div>
 
       <div

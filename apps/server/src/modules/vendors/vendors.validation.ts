@@ -328,6 +328,15 @@ export const listPublicVendorsQuerySchema = z
       .enum(['true', 'false'])
       .transform((v) => v === 'true')
       .optional(),
+    /**
+     * "Certified only" (0048): only Detlio Certified garages. A filter in
+     * SQL like the rest, so it holds across sorting and pages. Left out (or
+     * false), every listed garage.
+     */
+    certified: z
+      .enum(['true', 'false'])
+      .transform((v) => v === 'true')
+      .optional(),
     limit: z.coerce.number().int().min(1).max(50).optional(),
     cursor: z.string().trim().min(1).max(200).optional(),
   })

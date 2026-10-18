@@ -17,6 +17,7 @@ import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { customerNotAcceptedInTime, garageNotAcceptedInTime } from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
+import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { vendorCardsFor, type VendorListItemResponse } from '../vendors/vendors.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { garageResponseRepository } from './garage-response.repository.js'
@@ -46,6 +47,8 @@ async function afterCancel(bookingId: string) {
   pushService.notifyGarage(booking.vendorId, garageNotAcceptedInTime(booking))
   analyticsService.bookingCancelled(bookingId, 'garage')
   if (booking.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
+  // Its time is free again: anyone waiting for that day hears (0047).
+  slotAlertsService.capacityFreed(booking, 'not_accepted_in_time')
 }
 
 const rules = garageResponseWith({

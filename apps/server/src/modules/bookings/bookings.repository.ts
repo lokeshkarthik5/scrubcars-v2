@@ -621,6 +621,22 @@ function noOpenExtraWork() {
 }
 
 /**
+ * The photo standard holds at the moment of writing (0045): Detlio waived it
+ * on this booking, or the garage has at least `min` photos of `stage`. Start
+ * and Complete (and pickup & drop's Out for delivery and Delivered) carry it
+ * in their conditional write while the standard is on for the garage, so a
+ * photo removed between the check and the write cannot slip a job past it.
+ */
+function garagePhotosAtLeast(guard: { stage: 'before' | 'after'; min: number }) {
+  return sql`(${bookings.photosWaivedAt} is not null or (
+    select count(*) from ${jobPhotos}
+     where ${jobPhotos.bookingId} = ${bookings.id}
+       and ${jobPhotos.stage} = ${guard.stage}
+       and ${jobPhotos.uploadedByRole} = 'garage'
+  ) >= ${guard.min})`
+}
+
+/**
  * The garage's time to answer has not run out at `at` (0042): no deadline,
  * or one still ahead. Accept carries it in its conditional write while
  * AUTO_CANCEL_UNANSWERED is on, so an Accept and the cron's auto-cancel
@@ -1435,7 +1451,13 @@ export const bookingsRepository = {
       startedAt?: Date
       completedAt?: Date
     },
-    guards: { noOpenProposal?: boolean; noOpenExtraWork?: boolean; responseTimeLeftAt?: Date } = {}
+    guards: {
+      noOpenProposal?: boolean
+      noOpenExtraWork?: boolean
+      responseTimeLeftAt?: Date
+      // 0045: the photo standard, while it is on for the garage.
+      garagePhotos?: { stage: 'before' | 'after'; min: number }
+    } = {}
   ) {
     return db
       .update(bookings)
@@ -1446,7 +1468,8 @@ export const bookingsRepository = {
           eq(bookings.status, from),
           guards.noOpenProposal ? noOpenProposal() : undefined,
           guards.noOpenExtraWork ? noOpenExtraWork() : undefined,
-          guards.responseTimeLeftAt ? responseTimeLeft(guards.responseTimeLeftAt) : undefined
+          guards.responseTimeLeftAt ? responseTimeLeft(guards.responseTimeLeftAt) : undefined,
+          guards.garagePhotos ? garagePhotosAtLeast(guards.garagePhotos) : undefined
         )
       )
       .returning()
@@ -1665,7 +1688,7 @@ export const bookingsRepository = {
   },
 
   /** Out for delivery: the work is done and the car is on its way back. */
-  markOutForDelivery(bookingId: string, at: Date) {
+  markOutForDelivery(bookingId: string, at: Date, garagePhotos?: { stage: 'before' | 'after'; min: number }) {
     return db
       .update(bookings)
       .set({ outForDeliveryAt: at })
@@ -1674,7 +1697,9 @@ export const bookingsRepository = {
           eq(bookings.id, bookingId),
           eq(bookings.bookingType, 'pickup'),
           eq(bookings.status, 'in_progress'),
-          isNull(bookings.outForDeliveryAt)
+          isNull(bookings.outForDeliveryAt),
+          // 0045: the car leaves only with its after photos.
+          garagePhotos ? garagePhotosAtLeast(garagePhotos) : undefined
         )
       )
       .returning()
@@ -1691,6 +1716,8 @@ export const bookingsRepository = {
       completedBy: string | null
       maxAttempts: number | null
       overrideBy?: string | null
+      // 0045: the photo standard, while it is on for the garage.
+      garagePhotos?: { stage: 'before' | 'after'; min: number }
     }
   ) {
     return db
@@ -1712,6 +1739,7 @@ export const bookingsRepository = {
           // Delivered completes the job: not with extra work still waiting
           // for the customer (0041).
           noOpenExtraWork(),
+          params.garagePhotos ? garagePhotosAtLeast(params.garagePhotos) : undefined,
           params.maxAttempts === null
             ? undefined
             : sql`${bookings.deliveryCodeAttempts} < ${params.maxAttempts}`

@@ -2,7 +2,7 @@ import { apiClient } from './client'
 import { stripImageMetadata } from '@repo/core/image-upload'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
-import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
+import type { PhotoStandard, ServiceCategory, ServiceMedia } from '@repo/core/types'
 import type {
   ComplaintCategory,
   ComplaintSource,
@@ -69,6 +69,12 @@ export interface AdminVendor {
   /** What the garage still needs, blocking first (see ReadinessItem). */
   readiness?: ReadinessItem[]
   /**
+   * Photo compliance (0045): of its jobs completed in the last 90 days (not
+   * waived, not Test), how many had 2 before and 2 after photos of its own.
+   * `percent` null with no such jobs. Absent from older servers.
+   */
+  photoCompliance?: { jobs: number; compliant: number; waived: number; percent: number | null }
+  /**
    * Its garage documents in short (0043): whether it has the badge, how
    * many required are approved, how many wait for review. Null while garage
    * documents are off; absent from older servers.
@@ -81,6 +87,13 @@ export interface AdminVendor {
     missingRequired: number
     rejected: number
   } | null
+  /**
+   * Detlio Certified (0048), from the garage's last evaluation: certified
+   * now, eligible then, the last day a certified garage falling short keeps
+   * it (`keepsUntil`), and how the last one ended. Null when never evaluated
+   * or certified; absent from older servers.
+   */
+  certification?: AdminVendorCertification | null
   owner: {
     id: string
     name: string
@@ -92,6 +105,17 @@ export interface AdminVendor {
    * customers see on it. Absent from an older API.
    */
   outsideServiceCity?: OutsideServiceCity | null
+}
+
+export interface AdminVendorCertification {
+  certified: boolean
+  certifiedAt: string | null
+  eligible: boolean
+  lastEvaluatedAt: string | null
+  /** IST date key; set while certified and falling short. */
+  keepsUntil: string | null
+  endedAt: string | null
+  endedKind: 'revoked' | 'lapsed' | null
 }
 
 /** The edit page tab where a checklist item is fixed (its `?tab=`). */
@@ -474,8 +498,24 @@ export interface AdminBookingDetail extends AdminBooking {
    * money taken for a bill that no longer stands: a refund to do.
    */
   replacedFinalBills?: AdminFinalBill[]
-  /** The garage's before/after photos, oldest first. */
-  photos?: Array<{ id: string; stage: 'before' | 'after'; url: string; createdAt: string }>
+  /**
+   * Every before/after photo of the job, oldest first: the garage's and,
+   * since 0045, the customer's own, with the angle and who added it.
+   */
+  photos?: Array<{
+    id: string
+    stage: 'before' | 'after'
+    url: string
+    createdAt: string
+    angle?: 'front' | 'back' | 'left' | 'right' | 'interior' | null
+    by?: 'garage' | 'customer'
+    /** The person's name; null once their account is gone. */
+    uploadedByName?: string | null
+  }>
+  /** What Start and Complete wait for on this job (0045), as the garage sees it. */
+  photoStandard?: PhotoStandard
+  /** Detlio waived the photo standard on this booking (0045), by whom and why. */
+  photosWaiver?: { at: string; by: string; reason: string } | null
   /** Extra work the garage asked for (0041), newest first. */
   extraWork?: AdminExtraWork[]
   /** Times the garage suggested instead of declining (0041), newest first. */
@@ -1403,6 +1443,17 @@ export async function overrideAdminPickupStep(
   input: { step: 'picked_up' | 'delivered'; note: string }
 ) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/pickup-step`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST /admin/bookings/:id/photos-waiver — Detlio waives the photo standard
+ * on one booking (0045), with the typed name and why. Once only.
+ */
+export async function waiveAdminJobPhotos(id: string, input: { actorName: string; reason: string }) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver`, {
     method: 'POST',
     body: JSON.stringify(input),
   })

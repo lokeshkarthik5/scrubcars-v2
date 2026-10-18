@@ -507,6 +507,57 @@ export const adminRepository = {
     })
   },
 
+  /**
+   * Detlio waives the photo standard on a booking (0045): once, and not on a
+   * cancelled one. Empty when it was already waived, or is gone or cancelled.
+   */
+  waiveJobPhotos(bookingId: string, input: { by: string; reason: string; at: Date }) {
+    return db
+      .update(bookings)
+      .set({ photosWaivedAt: input.at, photosWaivedBy: input.by, photosWaivedReason: input.reason })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          isNull(bookings.photosWaivedAt),
+          ne(bookings.status, 'cancelled')
+        )
+      )
+      .returning({ id: bookings.id })
+  },
+
+  /**
+   * Every job completed since `since` (by completion time, or the slot for
+   * one from before completion times were kept), with its garage's photo
+   * counts per stage, for photo compliance (0045, lib/photo-compliance.ts
+   * decides). Counts only: no photo, URL or person is read.
+   */
+  async listPhotoComplianceJobs(since: Date) {
+    const rows = await db
+      .select({
+        vendorId: bookings.vendorId,
+        finishedAt: sql<Date>`coalesce(${bookings.completedAt}, ${bookings.scheduledAt})`.mapWith(
+          (value: string | Date) => new Date(value)
+        ),
+        garageBefore: sql<number>`count(*) filter (where ${jobPhotos.stage} = 'before')`.mapWith(Number),
+        garageAfter: sql<number>`count(*) filter (where ${jobPhotos.stage} = 'after')`.mapWith(Number),
+        waived: sql<boolean>`${bookings.photosWaivedAt} is not null`,
+        markedTest: sql<boolean>`${bookings.markedTestAt} is not null`,
+      })
+      .from(bookings)
+      .leftJoin(
+        jobPhotos,
+        and(eq(jobPhotos.bookingId, bookings.id), eq(jobPhotos.uploadedByRole, 'garage'))
+      )
+      .where(
+        and(
+          eq(bookings.status, 'completed'),
+          sql`coalesce(${bookings.completedAt}, ${bookings.scheduledAt}) >= ${since.toISOString()}::timestamptz`
+        )
+      )
+      .groupBy(bookings.id)
+    return rows
+  },
+
   /** The booking this one was moved to, if the customer rescheduled it. */
   async findRescheduledToId(id: string): Promise<string | null> {
     const row = await db.query.bookings.findFirst({

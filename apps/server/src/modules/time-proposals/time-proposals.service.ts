@@ -29,6 +29,7 @@ import {
 import { responseTimePassedError } from '../garage-response/garage-response.rules.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { pushService } from '../push/push.service.js'
+import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import {
   customerTimesSuggested,
   garageProposalChosen,
@@ -177,6 +178,8 @@ async function afterGarageSideCancel(bookingId: string, outcome: 'declined' | 'e
   // was cancelled (0044). One that ran out is the cron's, and says nothing.
   if (outcome === 'declined') pushService.notifyGarage(updated.vendorId, garageProposalDeclined(updated))
   analyticsService.bookingCancelled(bookingId, 'garage')
+  // Its time is free again: anyone waiting for that day hears (0047).
+  slotAlertsService.capacityFreed(updated, `proposal_${outcome}`)
   if (updated.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
 }
 
@@ -369,6 +372,8 @@ export const timeProposalsService = {
       })
       pushService.notifyGarage(moved.vendorId, garageProposalChosen(moved))
     }
+    // The time it moved from is free again (0047).
+    slotAlertsService.capacityFreed(booking, 'moved')
     return bookingsService.getBookingDetail(userId, result.booking.id)
   },
 

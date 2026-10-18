@@ -20,8 +20,7 @@ reconstructing every change in them.
 
 - **Gift a wash: Detlio gifts, Detlio credit, and paying for a booking
   with credit, behind `GIFTS_ENABLED` (default off)** (migration
-  `0049_gift_credit`, additive; numbered after the four parallel branches'
-  0045–0048, so `migrate.sh lint` reports the gap until they land: new
+  `0049_gift_credit`, additive, after 0048: new
   tables `gifts` (with `gift_number_seq`), `gift_credit_entries` and
   `gift_code_attempts`, `payments.credit_amount` / `credit_returned_at` and
   `booking_intents.credit_amount`, with CHECKs and partial unique indexes).
@@ -68,6 +67,157 @@ reconstructing every change in them.
     clears wrong-code rows. `DELETE /users/me` refuses an account with
     gifts or credit (409 `ACCOUNT_HAS_GIFTS`); the pilot reset keeps any
     chain paid with credit.
+
+- **Detlio Certified garages: standards, quality checks, a seal and a
+  filter** (migration `0048_detlio_certified`, additive: new tables
+  `vendor_quality_checks` (IST date of the visit, `mystery_visit` /
+  `inspection`, checker's name, `pass` / `fail`, notes required on a fail,
+  who recorded it; CHECKs) and `vendor_certifications` (one row per garage:
+  certified at/by, revoked at/by/reason/kind `revoked` | `lapsed`, the last
+  evaluation's `eligible`, `eligibility` JSON snapshot and
+  `last_evaluated_at`, `ineligible_since`, `eligible_alerted_at`; CHECKs);
+  both cascade with the garage. Numbered 0048, after 0045–0047 from branches
+  built in parallel; migrations run 0045 → 0048 in order).
+  - Rules in `lib/certification.ts` (pure, unit-tested; thresholds in one
+    object, `CERTIFICATION_RULES`, twinned with
+    `packages/core/src/certification.ts` by a parity test). **Eligible**,
+    over the last 90 IST days with Test-marked bookings left out: documents
+    verified (0043); rating 4.5+ from 10+ reviews (all-time); 20+ completed
+    bookings; 90%+ of paid bookings with a deadline (0042) answered in time
+    (a miss is `response_missed_at` or an accept after `respond_by`;
+    declines are answers; none yet passes); complaints in damage /
+    service_quality / garage_no_show under 3% of completed (every status
+    counts: complaints have no "upheld" flag); no garage no-shows; photo
+    compliance 90%+ (0045's `lib/photo-compliance.ts` over its 90 days,
+    the figure admin's garage card shows: `photoComplianceByGarage` in
+    `modules/certification` reads the batch's jobs
+    (`certificationRepository.photoComplianceJobs`) and
+    `fromPhotoCompliance` turns the lib's whole percent into the rule's
+    rate; no job to grade passes). **Certified** = eligible
+    + the latest quality check of the last 6 months a pass + Certify
+    pressed.
+  - `modules/certification`: admin (super-admin) `GET
+    /admin/certification/vendors/:id` (standards measured now, checks,
+    why Certify is off), `POST …/checks`, `POST …/certify { actorName }`,
+    `POST …/revoke { actorName, reason }` (409 `VENDOR_IN_BIN`,
+    `ALREADY_CERTIFIED`, `CERTIFICATION_NOT_ELIGIBLE`,
+    `CERTIFICATION_NO_PASSING_CHECK`, `NOT_CERTIFIED`; 400
+    `CHECK_DATE_IN_FUTURE` / `CHECK_DATE_TOO_OLD`); audit rows
+    `garage_certified`, `garage_certification_revoked`,
+    `garage_certification_lapsed`. Garage (owner seat) `GET
+    /vendors/me/certification`: its own figures, never a checker or notes.
+    Every write under `pg_advisory_xact_lock('certification:<garage>')`.
+  - Nightly on the pending-digest cron (`certificationService.sweep`): each
+    garage on the app or certified, once per daily run from 05:00 IST, 20 a
+    run; a certified garage short (or whose check ran out or failed) for 14
+    IST days loses the seal on its own. Nothing runs while garage documents
+    are off. The digest summary gains `certification`.
+  - Telegram: `certification_eligible` (arrange a check),
+    `certification_at_risk` (first night short, with the last day it keeps
+    the seal), `certification_lost` (lapsed, or revoked by name with the
+    reason quoted).
+  - Customers: `certified: boolean` on `GET /vendors/:id` (public
+    allow-list) and on every card (`vendorCardsFor`); `GET
+    /vendors?certified=true` filters in SQL (`CERTIFIED_GARAGE`, twin
+    `isCertified`, pinned by the predicates test), so it holds across sort
+    and pages. `GET /admin/vendors` rows carry `certification` (from the
+    last evaluation). A tombstone deletes its checks and certification.
+
+- **"Notify me if a slot opens"** (migration `0047_slot_alerts`, additive:
+  new table `slot_alerts` — customer, garage, IST date, `time_window`
+  (`any`/`morning`/`afternoon`/`evening`, CHECK), booking type, the
+  services' total `duration_mins`, `service_ids`, `expires_at` (end of the
+  day), `notified_at`/`notified_slot_at` (both or neither, CHECK),
+  `last_checked_at`; one waiting per customer, garage and date (partial
+  unique index); cascades with the customer and the garage. Numbered after
+  0045/0046, which come from parallel branches).
+  - `modules/slot-alerts`: `GET`/`POST /users/me/slot-alerts`,
+    `DELETE /users/me/slot-alerts/:id` (the session's customer only;
+    anyone else's is 404 `SLOT_ALERT_NOT_FOUND`). At most 5 waiting
+    (409 `SLOT_ALERT_LIMIT`, under a per-customer lock); setting one again
+    for the same garage and day changes it. Refused when a time in the
+    window is free now (409 `SLOT_ALERT_SLOT_FREE`), the day is closed or
+    paused, the job is too long for it, or no time in the window has notice
+    left (409 `SLOT_ALERT_NO_TIMES`); today up to 60 days ahead.
+  - Matching runs the slot list's own rule: `slotsForDay` (new, in
+    `lib/slots.ts`; `jobSlots` now runs it too, same answers) for the
+    alert's job length and booking type, then its window.
+  - Re-checked after every write that frees capacity commits (customer
+    cancel, garage decline, admin cancel, no-show, not accepted in time,
+    suggested times declined or expired, a booking moved, a holiday
+    removed, a pause lifted, hours, slot length or admin's garage save),
+    in the background; the pending-digest cron sweeps 20 garage-days a run
+    as a safety net and deletes alerts whose day ended 31+ days ago. The
+    digest's summary gains `slotAlerts`.
+  - A match is claimed once, then pushed (`customerSlotOpened`, Booking
+    updates switch) and shown in Updates (`slot_opened`): "A slot opened at
+    <garage>", "Sat 24 Oct — 10:30 AM. Book before it goes.", opening
+    checkout on that day with the same services and mode. Nothing is held.
+
+- **Car history and coating/detailing reminders** (migration
+  `0046_vehicle_service_reminders`, additive: new table
+  `vehicle_service_reminders` (user, car, kind, due date, source booking,
+  status open/dismissed/done/superseded, snooze date, notified date, the
+  booking that answered it; unique per job and kind; CHECKs; cascades with
+  the user, the car and the source booking). Numbered 0046 because 0045
+  belongs to the job photo standards branch, built in parallel; the
+  migrations lint reports the gap until 0045 is merged).
+  - `modules/car-history`: `GET /users/me/vehicles/:vehicleId/history
+    [?category=]` (the customer's own current car only, else 404): completed
+    jobs newest first, one per reschedule chain, with garage, services, amount
+    paid (payment and paid bills/extra work, less refunds), receipt and photo
+    counts; washes and spend this year and all time; the categories present;
+    how many cancelled bookings were left out; the nearest reminder. Rules in
+    `lib/car-history.ts` (pure, unit-tested).
+  - Reminders (`lib/service-reminders.ts`, pure, unit-tested): a completed
+    coating schedules a maintenance wash at 3 months and a coating check at
+    12; a detailing a repeat at 6. A newer job of the same kind supersedes;
+    a booking of an answering service for the car (from 30 days before the
+    due date) makes it booked, then done. `POST /users/me/service-reminders/
+    :id/dismiss` and `/snooze` (14 days; 409 `REMINDER_CLOSED`). Scheduled
+    after Mark completed, Delivered and admin's pickup override, with a
+    catch-up in the pending-digest cron.
+  - Home's soft card `service_reminder` (only when no must-act card, Rate
+    your wash or resolved complaint wants the place) and an Updates row on
+    the due date; a browser notification in the 09:00 IST cron runs of the
+    due date, claimed by `notified_on` so it goes once per date, to
+    customers with Reminders on. Never names the car. The digest's summary
+    gains `serviceReminders`.
+  - E2E fixtures in the 2600–2699 / 90000026xx range (`seedCarHistoryRows`).
+
+- **Job photo standards: required before/after photos for garages, optional
+  condition photos for customers** (migration `0045_job_photo_standards`,
+  additive: `job_photos.uploaded_by_role` (text + CHECK `garage` /
+  `customer`, default `garage`, so every existing row stays the garage's),
+  `job_photos.angle` (text + CHECK, nullable), an index on (booking, role,
+  stage), and `bookings.photos_waived_at` / `photos_waived_by` /
+  `photos_waived_reason` (all or none, CHECK)).
+  - Rules in `lib/job-photo-standards.ts` (pure, unit-tested; twinned with
+    `packages/core/src/job-photo-standards.ts`, parity test). Start needs 2
+    before photos of the garage's; Complete, and pickup & drop's Out for
+    delivery and Delivered, 2 after photos: 409 `JOB_PHOTOS_REQUIRED`, also
+    held in each conditional write. A passed gate's photos cannot drop below
+    2 (409 `JOB_PHOTO_MINIMUM`). `JOB_PHOTOS_REQUIRED` is **off unless
+    `on`** (pilot: nudged, not blocked); `JOB_PHOTOS_REQUIRED_GARAGES` turns it on for named garages.
+  - Tightened garage windows (`lib/job-records.ts`): before photos until
+    completion, after photos until 1 hour after it (no late fabrication);
+    the 7-day outer freeze stays. Each side removes only its own photos.
+  - Customers: `POST /bookings/:id/photos/upload-url`, `POST
+    /bookings/:id/photos { stage, key, angle? }`, `DELETE
+    /bookings/:id/photos/:photoId` (own booking only, else 404): up to 4
+    before photos until the work starts (pickup: until collected), 4 after
+    photos for 24 hours after completion, into their own `customer/` folder.
+    The booking payload gains `conditionPhotos`; customers see their own
+    photos always and the garage's once in progress. Garages see both sides (the customer's once they have accepted the job)
+    and get `photoStandard`. Photo views carry `angle` and `by`.
+  - Admin: `POST /admin/bookings/:id/photos-waiver { actorName, reason }`;
+    the booking detail adds each photo's `uploadedByName`, `photoStandard`
+    and `photosWaiver`; `GET /admin/vendors` adds `photoCompliance` (90
+    days, `lib/photo-compliance.ts`, pure, reusable).
+  - Push: "Your car's before photos are in" when the work starts with the
+    garage's before photos; the completion message becomes "Your car is
+    done — see the after photos" when it has after photos. Home's Before &
+    after tile and Updates' photos row count the garage's photos only.
 
 - **Free browser notifications for garages and customers, booking
   reminders, and a Telegram test button** (migration

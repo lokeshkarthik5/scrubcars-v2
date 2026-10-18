@@ -48,6 +48,7 @@ import {
   vendorServiceAreas,
   vendorWorkingHours,
   vendors,
+  vehicleServiceReminders,
 } from '../schema.js'
 import {
   BOOKING_INTENTS,
@@ -67,6 +68,7 @@ import {
   PROPOSALS_PIN,
   DOCUMENTS_PIN,
   RESPONSE_OTHER_PIN,
+  SLOT_ALERTS_PIN,
   RESPONSE_PIN,
   REVIEWS,
   SERVICES,
@@ -79,6 +81,7 @@ import {
   ADDRESSES,
   VENDORS,
   fillerVendorId,
+  SERVICE_REMINDERS,
 } from './e2e-ids.js'
 
 // ─── time helpers ───────────────────────────────────────────────────────────
@@ -2160,6 +2163,164 @@ async function seedResponseDeadlineRows() {
   })
 }
 
+/**
+ * Job photo standards (0045): VENDORS.photos with its owner's seat, hours
+ * and one wash, pending and unverified so no customer list shows it; the
+ * customer's car; and BOOKINGS.photosJob, accepted, paid, not started. Every
+ * id and phone is in the 2500–2599 / 90000025xx range reserved for this
+ * feature. Garage before service before car before booking, as the foreign
+ * keys need; the people are seeded with everyone else.
+ */
+async function seedPhotoStandardRows() {
+  const garage = VENDORS.photos.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.photosOwner.id, businessName: VENDORS.photos.name,
+    phone: '9000002500', address: '9, Shutter Street, Chengalpattu', city: 'Chennai', pincode: '603002',
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.photosOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.photosWash.id, vendorId: garage, name: SERVICES.photosWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.photosWash.price, durationMins: SERVICES.photosWash.durationMins, isActive: true,
+  })
+
+  const customer = CUSTOMERS.photos
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Honda', model: 'Amaze', color: 'Blue',
+    licensePlate: 'TN25PS0001', vehicleType: 'sedan', isDefault: true,
+  })
+
+  await insertBooking({
+    id: BOOKINGS.photosJob, userId: customer.id, vendorId: garage,
+    vehicleId: customer.vehicleId, scheduledAt: tomorrowAt(11), status: 'confirmed',
+    items: [{
+      id: SERVICES.photosWash.id, name: SERVICES.photosWash.name,
+      amount: SERVICES.photosWash.price, durationMins: SERVICES.photosWash.durationMins,
+    }],
+    payment: { status: 'paid', txnId: 'pay_seed_photos_job', gatewayMode: 'fake' },
+    createdAt: hoursAgo(2), acceptedAt: hoursAgo(1),
+  })
+}
+
+/**
+ * Car history and service reminders (0046): VENDORS.carHistory with its
+ * owner's seat and two services (pending and unverified, so no customer sees
+ * it), CUSTOMERS.carHistory's car, two completed paid jobs on it (a coating,
+ * then a wash), a cancelled one, and the coating's maintenance-wash reminder
+ * due in 3 days. The wash is more than 30 days before that, so it does not
+ * answer the reminder. Every id and phone is in the 2600–2699 / 90000026xx
+ * range reserved for this feature.
+ */
+async function seedCarHistoryRows() {
+  const garage = VENDORS.carHistory.id
+  const customer = CUSTOMERS.carHistory
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.carHistoryOwner.id, businessName: VENDORS.carHistory.name,
+    phone: '9000002610', address: '9, History Lane, Chengalpattu', city: 'Chennai', pincode: '603003',
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.carHistoryOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(services).values([
+    {
+      id: SERVICES.carHistoryWash.id, vendorId: garage, name: SERVICES.carHistoryWash.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: SERVICES.carHistoryWash.price, durationMins: SERVICES.carHistoryWash.durationMins, isActive: true,
+    },
+    {
+      id: SERVICES.carHistoryCoating.id, vendorId: garage, name: SERVICES.carHistoryCoating.name,
+      description: 'A ceramic coating over a polished finish.', category: 'coating', pricingType: 'flat',
+      price: SERVICES.carHistoryCoating.price, durationMins: SERVICES.carHistoryCoating.durationMins, isActive: true,
+    },
+  ])
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Kia', model: 'Seltos', color: 'Black',
+    licensePlate: 'TN26KH0001', vehicleType: 'suv', isDefault: true,
+  })
+
+  const item = (service: { id: string; name: string; price: string; durationMins: number }) => ({
+    id: service.id, name: service.name, amount: service.price, durationMins: service.durationMins,
+  })
+  const done = (days: number) => ({
+    scheduledAt: daysAgo(days), createdAt: daysAgo(days + 2),
+    acceptedAt: daysAgo(days + 1), startedAt: daysAgo(days), completedAt: new Date(daysAgo(days).getTime() + 2 * HOUR),
+  })
+  await insertBooking({
+    id: BOOKINGS.carHistoryCoating, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    status: 'completed', items: [item(SERVICES.carHistoryCoating)],
+    payment: { status: 'paid', txnId: 'pay_seed_history_coating', gatewayMode: 'fake', paidAt: daysAgo(89) },
+    ...done(87),
+  })
+  await insertBooking({
+    id: BOOKINGS.carHistoryWash, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    status: 'completed', items: [item(SERVICES.carHistoryWash)],
+    payment: { status: 'paid', txnId: 'pay_seed_history_wash', gatewayMode: 'fake', paidAt: daysAgo(42) },
+    ...done(40),
+  })
+  await insertBooking({
+    id: BOOKINGS.carHistoryCancelled, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    scheduledAt: daysAgo(10), status: 'cancelled', items: [item(SERVICES.carHistoryWash)],
+    createdAt: daysAgo(12),
+    cancellation: { by: 'user', reason: 'Plans changed', at: daysAgo(11) },
+  })
+  await db.insert(vehicleServiceReminders).values({
+    id: SERVICE_REMINDERS.carHistoryMaintenance, userId: customer.id, vehicleId: customer.vehicleId,
+    kind: 'maintenance_wash', dueOn: istDate(3), sourceBookingId: BOOKINGS.carHistoryCoating,
+  })
+}
+
+/**
+ * "Notify me if a slot opens" (0047), on a garage of its own so nothing else
+ * books its day: VENDORS.slotAlerts with its owner's seat, hours, one bay,
+ * one job a day and one wash, the holder's car, and the booking that fills
+ * the day two days ahead. Every id and phone is in the 2700–2799 /
+ * 90000027xx range reserved for this feature. Garage before service before
+ * the car before the booking, as the foreign keys need.
+ */
+async function seedSlotAlertRows() {
+  const garage = VENDORS.slotAlerts.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.slotAlertsOwner.id, businessName: VENDORS.slotAlerts.name,
+    phone: '9000002710', address: '9, Waiting Street, Chidambaram', city: 'Chennai', pincode: '608001',
+    lat: SLOT_ALERTS_PIN.lat, lng: SLOT_ALERTS_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 60, status: 'active', bays: 1, jobsPerDay: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.slotAlertsOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  const wash = SERVICES.slotAlertsWash
+  await db.insert(services).values({
+    id: wash.id, vendorId: garage, name: wash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: wash.price, durationMins: wash.durationMins, isActive: true,
+  })
+
+  const holder = CUSTOMERS.slotHolder
+  await db.insert(userVehicles).values({
+    id: holder.vehicleId, userId: holder.id, make: 'Honda', model: 'Amaze', color: 'Blue',
+    licensePlate: 'TN31SA0001', vehicleType: 'sedan', isDefault: true,
+  })
+  await insertBooking({
+    id: BOOKINGS.slotAlertsHeld, userId: holder.id, vendorId: garage,
+    vehicleId: holder.vehicleId, scheduledAt: daysAheadAt(2, 10), status: 'pending',
+    items: [{ id: wash.id, name: wash.name, amount: wash.price, durationMins: wash.durationMins }],
+    payment: { status: 'paid', txnId: 'pay_seed_slot_alerts_held', gatewayMode: 'fake' },
+    createdAt: hoursAgo(1),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2205,6 +2366,12 @@ async function main() {
   await seedDocumentRows()
   console.log('[e2e-seed] browser notifications…')
   await seedPushRows()
+  console.log('[e2e-seed] job photo standards…')
+  await seedPhotoStandardRows()
+  console.log('[e2e-seed] car history…')
+  await seedCarHistoryRows()
+  console.log('[e2e-seed] slot alerts…')
+  await seedSlotAlertRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

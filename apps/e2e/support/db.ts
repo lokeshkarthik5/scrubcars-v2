@@ -334,10 +334,19 @@ export const getFinalBills = async (bookingId: string) =>
       from booking_charges where booking_id = ${bookingId} order by created_at desc
   `
 
-/** A job's photos, oldest first. */
+/** A job's photos, oldest first, with whose each is and its angle (0045). */
 export const getJobPhotos = async (bookingId: string) =>
-  sql<{ id: string; stage: 'before' | 'after'; url: string; storage_key: string }[]>`
-    select id, stage, url, storage_key
+  sql<
+    {
+      id: string
+      stage: 'before' | 'after'
+      url: string
+      storage_key: string
+      uploaded_by_role: 'garage' | 'customer'
+      angle: string | null
+    }[]
+  >`
+    select id, stage, url, storage_key, uploaded_by_role, angle
       from job_photos where booking_id = ${bookingId} order by created_at
   `
 

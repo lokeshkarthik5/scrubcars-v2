@@ -39,6 +39,7 @@ import { Notice } from '@repo/ui/sc/notice'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SlotPicker } from '@repo/ui/sc/slot-picker'
+import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { ScToggle } from '@repo/ui/sc/toggle'
@@ -146,6 +147,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // (/garage/:id?code= passes it on); a Detlio-wide one, and the car picked
   // on Home, come from the pending-checkout store.
   const codeParam = searchParams.get('code')?.trim().toUpperCase() || null
+  // The day to open the picker on: a slot alert's notification (0047) links
+  // here with the day a time opened.
+  const dateParam = searchParams.get('date')
   const vehicles = useUserStore((s) => s.vehicles)
   const addresses = useUserStore((s) => s.addresses)
   const profile = useUserStore((s) => s.profile)
@@ -1063,6 +1067,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
           onChange={pickSlot}
           bookingType={bookingType}
           onLapse={handleSlotLapse}
+          initialDate={dateParam}
+          // A day with nothing left (or nothing in the part of the day the
+          // customer wants): "Notify me if a slot opens" (0047).
+          renderDayExtra={(state) => (
+            <SlotAlertAsk state={state} vendorId={vendorId} serviceIds={serviceIds} bookingType={bookingType} />
+          )}
         />
       </section>
 
