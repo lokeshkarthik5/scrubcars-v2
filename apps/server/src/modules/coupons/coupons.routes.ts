@@ -18,7 +18,7 @@ import {
 } from './coupons.validation.js'
 
 /**
- * Printed coupons with QR codes (0055). No switch: nothing happens until the
+ * Printed coupons with QR codes (0056). No switch: nothing happens until the
  * team makes a batch.
  *
  * A code always travels in the body (POST), never the URL of an API call:

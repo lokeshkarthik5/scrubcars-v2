@@ -2,7 +2,7 @@ import type { AdminCouponBatch, CouponRedemption, PrintedCode } from '@repo/core
 import { toCsv } from '@repo/core/csv'
 
 /**
- * Printed coupons (0055) in the panel: the words and sums the pages share.
+ * Printed coupons (0056) in the panel: the words and sums the pages share.
  * Pure, so each has a test.
  */
 

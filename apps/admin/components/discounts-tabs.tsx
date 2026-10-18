@@ -6,7 +6,7 @@ import { cn } from '@repo/core/utils'
 
 const TABS = [
   { href: '/discounts', label: 'Codes' },
-  // Printed coupons with QR codes (0055).
+  // Printed coupons with QR codes (0056).
   { href: '/discounts/coupons', label: 'Coupons' },
   { href: '/discounts/notices', label: 'Notices' },
 ] as const

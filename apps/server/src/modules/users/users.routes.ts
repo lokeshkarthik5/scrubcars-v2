@@ -73,7 +73,7 @@ usersRoutes.route('/me', slotAlertsRoutes)
 // both are 404s while GIFTS_ENABLED is off.
 usersRoutes.route('/me/gifts', customerGiftRoutes)
 usersRoutes.route('/me/credit', customerCreditRoutes)
-// Printed coupons (0055): the customer's coupons and adding one by code:
+// Printed coupons (0056): the customer's coupons and adding one by code:
 // /me/coupons. Same mounting, same check.
 usersRoutes.route('/me/coupons', customerCouponRoutes)
 // Detlio Guarantee (0051): a free redo claim on the customer's own booking.

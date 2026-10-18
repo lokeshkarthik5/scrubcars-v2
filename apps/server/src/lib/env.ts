@@ -375,7 +375,7 @@ export const env = {
    */
   rewardsEnabled: (process.env.REWARDS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
-  // ─── Printed coupons (lib/coupons.ts, 0055) ────────────────────────────────
+  // ─── Printed coupons (lib/coupons.ts, 0056) ────────────────────────────────
   /**
    * The secret printed coupon codes are derived from and hashed with:
    * COUPON_SECRET, or JWT_SECRET while that is unset. Codes are never
@@ -446,7 +446,7 @@ export const env = {
   // that page also limits each viewer itself (apps/users/lib/certificates.ts).
   certificateLookupRateLimit: Number(process.env.CERTIFICATE_LOOKUP_RATE_LIMIT ?? '60'),
   // Coupon code lookups and redemptions (POST /coupons/lookup,
-  // /users/me/coupons/redeem, 0055) per IP per minute. Wrong codes are also
+  // /users/me/coupons/redeem, 0056) per IP per minute. Wrong codes are also
   // counted in the database (lib/coupons.ts), which is the real cap on
   // guessing.
   couponCodeRateLimit: Number(process.env.COUPON_CODE_RATE_LIMIT ?? '20'),

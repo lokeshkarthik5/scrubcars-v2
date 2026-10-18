@@ -19,7 +19,7 @@ reconstructing every change in them.
 
 ### Added
 
-- **Printed coupons with QR codes** (API 0055). Customer: `/c/<code>`, the
+- **Printed coupons with QR codes** (API 0056). Customer: `/c/<code>`, the
   page a coupon's QR opens (the offer and every condition, "Add to my
   Detlio"; signed out it signs in or up and adds it on return; then "Book a
   wash" takes it to checkout), Profile → Coupons ("Have a coupon?" with a

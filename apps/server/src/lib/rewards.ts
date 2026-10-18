@@ -440,7 +440,7 @@ export const STAMP_LABELS: Record<StampSource, string> = {
   adjustment: 'From Detlio',
   badge: 'Bonus stamp (badge)',
   challenge: 'Bonus stamp (challenge)',
-  // 0055: a printed coupon's bonus stamps.
+  // 0056: a printed coupon's bonus stamps.
   coupon: 'Bonus stamp (coupon)',
 }
 

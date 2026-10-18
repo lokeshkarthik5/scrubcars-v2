@@ -80,7 +80,7 @@ export function computeDiscount(
   subtotal: string,
   /**
    * The part of the subtotal the code applies to, when it is limited to one
-   * service type (a printed coupon's voucher, 0055): a percentage is taken
+   * service type (a printed coupon's voucher, 0056): a percentage is taken
    * of it and nothing more than it comes off. Omitted, the whole subtotal.
    */
   eligibleSubtotal?: string

@@ -123,7 +123,7 @@ export default function ProfilePage() {
 
   // Slot alerts shows while any are waiting (0047).
   const slotAlertCount = useSlotAlerts({ enabled: !!authUser }).data?.items.length ?? 0
-  // Coupons ready to use (0055), counted on the Coupons row.
+  // Coupons ready to use (0056), counted on the Coupons row.
   const readyCoupons = couponsForCheckout(useMyCoupons(!!authUser).data).length
 
   const user = profile ?? authUser
@@ -394,7 +394,7 @@ export default function ProfilePage() {
         </Link>
       )}
 
-      {/* Printed coupons (0055): type or scan a coupon's code, and the
+      {/* Printed coupons (0056): type or scan a coupon's code, and the
           coupons added. Always there: a coupon works with or without
           Rewards. */}
       <Link href="/profile/coupons">

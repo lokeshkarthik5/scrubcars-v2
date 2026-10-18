@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { CouponView } from '@/components/coupons/coupon-view'
 
 /**
- * A printed coupon's QR (0055): /c/<code>, opened by the phone's camera,
+ * A printed coupon's QR (0056): /c/<code>, opened by the phone's camera,
  * signed in or not. The code is the coupon, so the page never hands its
  * address on: no Referer to anything it links to, kept out of search
  * engines, and no Meta Pixel (components/meta-pixel.tsx). The title names

@@ -173,7 +173,7 @@ export const opsService = {
           return null
         })
 
-    // Printed coupons (0055): wrong-code rows over a day old.
+    // Printed coupons (0056): wrong-code rows over a day old.
     const couponCodeAttemptsPurged = options.dryRun
       ? 0
       : await couponsService.purgeAttempts().catch((err: unknown) => {

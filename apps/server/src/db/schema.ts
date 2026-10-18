@@ -1495,7 +1495,7 @@ export const discounts = pgTable(
     // Discounts page never lists one, and resolveDiscount lets only its owner
     // use it, only while REWARDS_ENABLED is on.
     //
-    // Printed coupons (0055): 'coupon' for the personal voucher a coupon
+    // Printed coupons (0056): 'coupon' for the personal voucher a coupon
     // becomes (coupon_redemptions names it): Detlio-funded, once, for one
     // customer, never on Home (discounts_coupon_shape_check); it may be a %
     // off, name a garage, and be limited to one service type
@@ -2753,7 +2753,7 @@ export const giftCodeAttempts = pgTable(
   ]
 )
 
-// ─── Printed coupons (0055, lib/coupons.ts) ──────────────────────────────────
+// ─── Printed coupons (0056, lib/coupons.ts) ──────────────────────────────────
 
 /**
  * A batch of printed coupons: a campaign, where it is given out (the
@@ -3184,7 +3184,7 @@ export const rewardStamps = pgTable(
     // 0054: a badge's bonus stamps, and a challenge's prize or "double stamps".
     badgeAwardId: uuid('badge_award_id').references(() => rewardBadgeAwards.id, { onDelete: 'cascade' }),
     challengeId: uuid('challenge_id').references(() => rewardChallenges.id, { onDelete: 'cascade' }),
-    // 0055: a printed coupon's bonus stamps.
+    // 0056: a printed coupon's bonus stamps.
     couponRedemptionId: uuid('coupon_redemption_id').references(() => couponRedemptions.id, { onDelete: 'cascade' }),
   },
   (table) => [

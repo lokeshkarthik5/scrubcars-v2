@@ -59,7 +59,7 @@ export const discountsRepository = {
   },
 
   /**
-   * Whose voucher a 'coupon' code is (0055), whether the team cancelled it
+   * Whose voucher a 'coupon' code is (0056), whether the team cancelled it
    * (a voided coupon), and whether its batch is for new customers only.
    */
   async findCouponVoucher(discountId: string) {
@@ -79,7 +79,7 @@ export const discountsRepository = {
   /**
    * Whether the customer has a booking whose money landed and was kept (not
    * cancelled, or a customer no-show): DISCOUNT_REALIZED's rule. "New
-   * customers only" coupons (0055) read it.
+   * customers only" coupons (0056) read it.
    */
   async hasKeptBooking(userId: string): Promise<boolean> {
     const [row] = await db

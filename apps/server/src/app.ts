@@ -149,7 +149,7 @@ app.route('/api/v1/reviews', reviewsRoutes)
 app.route('/api/v1/discounts', discountsRoutes)
 // Gift a wash (0049): /config, and the gift page's lookup by code.
 app.route('/api/v1/gifts', publicGiftRoutes)
-// Printed coupons (0055): the /c/<code> page's lookup by code.
+// Printed coupons (0056): the /c/<code> page's lookup by code.
 app.route('/api/v1/coupons', publicCouponRoutes)
 // Service History certificate (0053): the public /verify page's lookup and
 // the shared photos it shows. No sign-in.

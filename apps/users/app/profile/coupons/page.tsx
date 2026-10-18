@@ -17,7 +17,7 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
 import { myCouponStateLine } from '@/lib/coupons'
 
 /**
- * Profile → Coupons (0055): "Have a coupon?" (type the code off a printed
+ * Profile → Coupons (0056): "Have a coupon?" (type the code off a printed
  * coupon, or scan its QR where the browser can), then every coupon the
  * customer added: ready ones with "Use now", which takes the voucher to
  * checkout like an offer from Home; used, expired and withdrawn ones

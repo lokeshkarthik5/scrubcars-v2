@@ -373,7 +373,7 @@ adminRoutes.delete(
 // admin session cookie is scoped to path=/api/v1/admin — anywhere else and the
 // browser never sends it.
 adminRoutes.route('/discounts', adminDiscountRoutes)
-// Printed coupons (0055): batches, their print sheets and codes, tracking,
+// Printed coupons (0056): batches, their print sheets and codes, tracking,
 // and void. Nested here for the same cookie reason as discounts.
 adminRoutes.route('/coupons', adminCouponRoutes)
 

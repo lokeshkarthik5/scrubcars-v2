@@ -110,7 +110,7 @@ export const telegramTestRateLimiter = createRateLimiter(
 // what actually caps guessing across instances.
 export const giftCodeRateLimiter = createRateLimiter(env.giftCodeRateLimit, 60 * 1000)
 
-// Printed coupon codes (0055): the /c page's lookup and redeeming, per IP
+// Printed coupon codes (0056): the /c page's lookup and redeeming, per IP
 // per minute, on their own count. Wrong codes are counted per hour in the
 // database too (coupon_code_attempts); this caps bursts.
 export const couponCodeRateLimiter = createRateLimiter(env.couponCodeRateLimit, 60 * 1000)

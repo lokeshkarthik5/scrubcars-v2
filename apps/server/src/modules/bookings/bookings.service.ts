@@ -1321,7 +1321,7 @@ export async function resolveBookingDraft(
       userId,
       vendorId: vendor.id,
       subtotal: amount,
-      // A coupon voucher limited to one service type (0055) comes off those lines.
+      // A coupon voucher limited to one service type (0056) comes off those lines.
       lines: resolvedServices.map((row, index) => ({ category: row.category, amount: items[index]!.amount })),
     })
 

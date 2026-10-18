@@ -3,7 +3,7 @@ import type { CouponKind, CouponReward, RedeemChannel } from '@repo/core/coupons
 import type { ServiceCategory } from '@repo/core/types'
 
 /**
- * Printed coupons with QR codes (0055). A code always travels in a request
+ * Printed coupons with QR codes (0056). A code always travels in a request
  * body, never an API URL. The words (`title`, `conditions`) come from the
  * server, generated from the batch's columns.
  */

@@ -249,7 +249,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const rewardsConfig = useRewardsConfig()
   const rewardsSummary = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && !!userId)
   const rewardVouchers = (rewardsSummary.data?.vouchers ?? []).filter((v) => v.code)
-  // Printed coupons (0055): the customer's ready coupon vouchers, offered
+  // Printed coupons (0056): the customer's ready coupon vouchers, offered
   // the same way, whether or not Rewards is on.
   const myCoupons = couponsForCheckout(useMyCoupons(!!userId).data)
   const pending = usePendingCheckoutStore((s) => s.pending)
@@ -854,7 +854,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // the credit with a booking that used some.
           void invalidateHome(queryClient)
           if (creditApplied) void invalidateGiftData(queryClient)
-          // A reward voucher used on it leaves Your rewards (0050), a coupon Your coupons (0055).
+          // A reward voucher used on it leaves Your rewards (0050), a coupon Your coupons (0056).
           void invalidateRewards(queryClient)
           void invalidateCoupons(queryClient)
           if (outcome.kind === 'booked') {
@@ -1418,7 +1418,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     </div>
                   </div>
                 )}
-                {/* Printed coupons (0055) the customer added: one tap, the
+                {/* Printed coupons (0056) the customer added: one tap, the
                     same check as a typed code. Quiet chips: red stays on Pay. */}
                 {myCoupons.length > 0 && (
                   <div className="mt-3 border-t border-border pt-3">

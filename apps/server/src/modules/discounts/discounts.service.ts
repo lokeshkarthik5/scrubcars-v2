@@ -97,7 +97,7 @@ export async function resolveDiscount(input: {
   subtotal: string
   /**
    * Each line's service category and price, for a code limited to one
-   * service type (a printed coupon's voucher, 0055). Both callers pass
+   * service type (a printed coupon's voucher, 0056). Both callers pass
    * them; without them such a code applies to nothing.
    */
   lines?: ReadonlyArray<{ category: string; amount: string }>
@@ -124,7 +124,7 @@ export async function resolveDiscount(input: {
     }
   }
 
-  // A printed coupon's voucher (0055) belongs to the customer who added it,
+  // A printed coupon's voucher (0056) belongs to the customer who added it,
   // exactly like a reward voucher, but works whatever REWARDS_ENABLED says.
   // Not once the team voided its coupon. "New customers only" is checked
   // again here, so a voucher added before a first booking can't ride on a
@@ -148,7 +148,7 @@ export async function resolveDiscount(input: {
     subtotal: input.subtotal,
   })
 
-  // A coupon voucher limited to one service type (0055) needs one in the
+  // A coupon voucher limited to one service type (0056) needs one in the
   // booking, and comes off those lines only.
   if (discount.source === 'coupon' && discount.serviceCategory) {
     const eligible = eligibleSubtotalOf(input.lines ?? [], discount.serviceCategory)

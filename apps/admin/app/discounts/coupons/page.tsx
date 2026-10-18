@@ -68,7 +68,7 @@ function BatchRow({ batch, today }: { batch: AdminCouponBatch; today: string }) 
 }
 
 /**
- * Discounts → Coupons (0055): every printed batch with what came of it
+ * Discounts → Coupons (0056): every printed batch with what came of it
  * (printed, scanned, added, bookings, new customers, cost), and the same
  * figures added up by where each was given out, so the team can see which
  * giveaway works best.

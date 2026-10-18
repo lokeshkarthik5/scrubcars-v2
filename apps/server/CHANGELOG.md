@@ -19,7 +19,7 @@ reconstructing every change in them.
 ### Added
 
 - **Printed coupons with QR codes: print a batch, scan to redeem in the
-  app, track each giveaway** (migration `0055_printed_coupons`, additive,
+  app, track each giveaway** (migration `0056_printed_coupons`, additive,
   on top of 0054; new tables `coupon_batches`, `coupon_codes`,
   `coupon_redemptions`, `coupon_code_attempts`; `discounts.source`
   'coupon' with `discounts_coupon_shape_check` and

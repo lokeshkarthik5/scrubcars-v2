@@ -46,7 +46,7 @@ export const CLIENT_EVENTS = [
   'help_view',
   'favourite_add',
   'favourite_remove',
-  // 0055: a printed coupon's page opened, and a coupon added (source: link, typed, camera).
+  // 0056: a printed coupon's page opened, and a coupon added (source: link, typed, camera).
   'coupon_scan',
   'coupon_redeem',
 ] as const
@@ -171,7 +171,7 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * A page's path as we keep it: no query string or hash, every id replaced
  * by ":id" (a booking's id is a way back to a person), a gift link's code by
  * ":code" (0049: the code is the gift; only its hash is ever stored), a
- * printed coupon's (/c/<code>, 0055) likewise, a
+ * printed coupon's (/c/<code>, 0056) likewise, a
  * shared certificate's token by ":token" (0053, likewise), anything else
  * that is not a plain path character dropped, at most MAX_PATH_LENGTH
  * characters. The app does the same before sending; this is the server's

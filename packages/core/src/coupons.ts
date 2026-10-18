@@ -2,7 +2,7 @@ import { CATEGORY_LABELS } from '@repo/core/categories'
 import type { ServiceCategory } from '@repo/core/types'
 
 /**
- * Printed coupons with QR codes (0055): the code's shape, the limits the
+ * Printed coupons with QR codes (0056): the code's shape, the limits the
  * admin form shows, and the words a coupon says. The twin of
  * apps/server/src/lib/coupons.ts, which decides (coupons.parity.test.ts
  * keeps the two the same). No hashing or deriving here: the app only reads

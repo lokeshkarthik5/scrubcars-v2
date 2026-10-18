@@ -1,5 +1,5 @@
 /**
- * Printed coupons with QR codes (0055): the rules, pure, so each one has a
+ * Printed coupons with QR codes (0056): the rules, pure, so each one has a
  * test. The team prints a batch (cards, flyers, a poster at a garage
  * counter); a customer scans the QR or types the short code, and the coupon
  * becomes a personal one-use voucher in their account (a Detlio-funded

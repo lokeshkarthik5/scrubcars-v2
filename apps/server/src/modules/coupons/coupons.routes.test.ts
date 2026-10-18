@@ -1,5 +1,5 @@
 /**
- * Printed coupons (0055) through the real routes and the real auth
+ * Printed coupons (0056) through the real routes and the real auth
  * middleware: who may do what, and the limits on guessing codes. Only the
  * database is stood in for (the coupons and discounts repositories, put
  * back afterwards).
