@@ -8,6 +8,8 @@ import { ScButton } from '@repo/ui/sc/button'
 import type { HomeCar } from '@repo/core/api/home'
 import { CAR_DEFAULT_PICTURE, carImageFor, type CarPicture as Picture } from '@repo/core/car-images'
 import { cn } from '@repo/core/utils'
+import { stampsToGoLine } from '@repo/core/rewards'
+import { StampStars } from '@/components/rewards/stamp-stars'
 
 interface CarHeroProps {
   cars: HomeCar[]
@@ -21,6 +23,8 @@ interface CarHeroProps {
   quiet: boolean
   onBookWash: (car: HomeCar) => void
   onAddCar: () => void
+  /** Detlio Rewards (0050): the Shine Card's stars on the car's stage; null while rewards are off. */
+  shine?: { onCard: number; goal: number; toGo: number } | null
 }
 
 /**
@@ -39,6 +43,7 @@ export function CarHero({
   quiet,
   onBookWash,
   onAddCar,
+  shine = null,
 }: CarHeroProps) {
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -132,6 +137,16 @@ export function CarHero({
             <IconHistory size={20} stroke={1.5} />
           </span>
         </Link>
+        {/* The Shine Card (0050): one star per stamp, under the car. */}
+        {shine && (
+          <Link
+            href="/profile/rewards"
+            aria-label={`Shine Card: ${shine.onCard} of ${shine.goal} stamps. ${stampsToGoLine(shine.toGo)}.`}
+            className="car-hero__stars"
+          >
+            <StampStars onCard={shine.onCard} goal={shine.goal} remember />
+          </Link>
+        )}
         {/* A 40pt disc, as drawn, in a 44pt target. */}
         <Link
           href="/profile#vehicles"

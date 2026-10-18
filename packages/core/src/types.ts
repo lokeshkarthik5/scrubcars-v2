@@ -456,6 +456,8 @@ export interface Booking {
   jobPhotos: JobPhoto[]
   /** Garage only (0045): what Start and Complete wait for; null where not carried. */
   photoStandard: PhotoStandard | null
+  /** The customer's Detlio Rewards badge on the garage's job list (Diamond, Detlio Icon), else null. */
+  customerBadge: string | null
   /** Customer only (0045): when they may add their own photos; null where not carried. */
   conditionPhotos: ConditionPhotos | null
   /** The final bill that stands, if the garage has raised one. */

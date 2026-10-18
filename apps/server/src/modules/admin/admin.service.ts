@@ -61,6 +61,7 @@ import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
 import { adminRepository } from './admin.repository.js'
+import { rewardsService } from '../rewards/rewards.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
 import type {
@@ -1366,6 +1367,8 @@ export const adminService = {
     slotAlertsService.capacityFreed(booking, 'no_show')
     // A free redo that did not happen (0051): its claim moves on.
     if (booking.guaranteeRedo) guaranteeService.redoChanged(booking.id)
+    // Detlio Rewards (0050): a customer no-show takes one level off (recorded).
+    if (input.party === 'customer') rewardsService.scheduleAfterNoShow(id)
 
     if (input.party === 'garage') {
       const updated = await adminRepository.findBookingById(id)

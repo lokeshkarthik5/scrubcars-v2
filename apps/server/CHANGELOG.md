@@ -47,9 +47,9 @@ reconstructing every change in them.
   statuses, route and reasons, the garage's answer and deadline, Detlio's
   decision with the typed name and the customer-facing reason, `approved_at`,
   the redo window and booking, how it closed; CHECKs) and
-  `guarantee_claim_photos`. Numbered 0051 after 0049: 0050 (Detlio Rewards)
-  comes from a parallel branch and is merged first; until then
-  `migrate.sh lint` reports the gap).
+  `guarantee_claim_photos`. Numbered 0051, after 0050 (Detlio Rewards),
+  which this branch now sits on; migrations run 0049 → 0050 → 0051 with no
+  gap).
   - Rules in `lib/guarantee.ts` (pure; every number in `GUARANTEE_RULES`,
     twinned in `packages/core/src/guarantee.ts` with a parity test):
     eligible jobs (completed, paid through Detlio, washes/detailing/packages
@@ -67,7 +67,10 @@ reconstructing every change in them.
   - The redo: a ₹0 confirmed booking through the vehicle lock and
     `checkGarageCanTake` (the claim row locked first), no receipt number,
     never rescheduled; it earns nothing and is left out of Statistics,
-    commission's free 25, payouts and the pilot numbers.
+    commission's free 25, payouts and the pilot numbers. Detlio Rewards
+    (0050) judges it `free_redo` (no stamp, scratch card or level progress;
+    0051 adds the value to `reward_bookings_refusal_check`), and a refund
+    instead takes the booking's stamp back at once like any refund.
   - Refund instead: `lib/refunds.ts` owes a completed booking's payment when
     `guarantee_refund_at` is set (Refunds page, `AUTO_REFUNDS` cause
     `guarantee_refund`, credit back as credit); the garage earns nothing on
@@ -77,6 +80,56 @@ reconstructing every change in them.
     as the copy rules require), Telegram `guarantee_claim` and
     `guarantee_needs_detlio`; the pending-digest cron applies garage
     timeouts, closes unbooked redo windows and follows redo bookings.
+- **Detlio Rewards: the Shine Card, scratch cards, monthly streaks, levels
+  and Invite a friend, behind `REWARDS_ENABLED` (default off) and an admin
+  switch** (migration `0050_detlio_rewards`, additive, after 0049: new
+  tables `reward_settings` (seeded with version 1), `reward_bookings`,
+  `reward_vouchers`, `reward_scratch_cards`, `reward_stamps`,
+  `reward_level_drops`, `reward_perks`, `reward_referral_codes`,
+  `reward_referrals`, `reward_invite_opens`, `reward_nudges`,
+  `reward_cap_months`; `discounts.source` ('admin' | 'reward', default
+  'admin', with a CHECK on a reward code's shape); `users.birthday_month` /
+  `birthday_day`). Rules in `lib/rewards.ts` (pure, unit-tested), module
+  `modules/rewards`.
+  - Every completed booking chain paid through Detlio (online, payment
+    landed, nothing refunded, not Test-marked) worth at least ₹199 before
+    Detlio promos earns one stamp, one per car per IST day; judged once, in
+    the background after Mark completed / Delivered / Detlio's Delivered,
+    with a cron catch-up. 5 stamps → a voucher worth the level's card reward.
+  - Each stamp-earning booking gets a scratch card whose prize the server
+    draws when the card is made (crypto, weights per level); a streak of 3
+    IST months earns a bonus stamp; levels Member/Silver 3/Gold 10/Platinum
+    25/Diamond 50/Detlio Icon 100 on the rolling 12 months, one level off per
+    customer no-show (recorded); Platinum+ birthday voucher, Icon annual
+    detailing voucher; Diamond and Icon names on the garage's job list
+    (`customerBadge`).
+  - **Vouchers are Detlio-funded promo codes** (one `discounts` row each,
+    source 'reward', once, for one customer): `resolveDiscount` lets only
+    the owner use one, only while rewards are live; DISCOUNT_HELD makes a
+    cancelled booking give it back and a no-show keep it; payouts and
+    commission pay the garage the full price. No new money path.
+  - Invite a friend: `POST /rewards/invites/open` (public, rate limited,
+    first name only, an HMAC-signed note of when it was opened) and `POST
+    /users/me/rewards/invite/claim` (new accounts only; only a keyed hash of
+    the phone is stored); both get ₹100 off on the newcomer's first
+    stamp-earning booking, the inviter at most 10 a year, never on the
+    inviter's own car.
+  - Monthly budget (₹10,000 default): past it, new scratch cards give a
+    bonus stamp; everything else is honoured; Telegram `rewards_cap_reached`
+    once a month.
+  - Habit nudges in the 10:00–17:59 IST cron runs (wash due "this one earns
+    stamp 4 of 5", one stamp from a reward, something about to lapse), push
+    category `reminder` plus an Updates row, claimed once per subject, at
+    most one per customer per 3 days. Updates rows `reward_card`,
+    `reward_voucher`, `reward_nudge`.
+  - Every number is a setting: `GET/PUT /admin/rewards/settings` (versioned,
+    checked whole, 409 on a stale version, audit `reward_settings_changed`
+    with before → after), read through one 30-second cached accessor.
+    Admin tracking: `/admin/rewards/summary?month=`, `/ledger?month=` (CSV),
+    `/find`, `/customers/:userId`, `/customers/:userId/adjust` (audit
+    `reward_adjusted`, `reward_voucher_cancelled`). Customer:
+    `/users/me/rewards`, `/summary`, `/scratch-cards/:id/scratch`,
+    `/birthday`, `/invite`, `/invite/claim`; public `/rewards/config`.
 
 - **Gift a wash: Detlio gifts, Detlio credit, and paying for a booking
   with credit, behind `GIFTS_ENABLED` (default off)** (migration
