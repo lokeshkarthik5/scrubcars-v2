@@ -13,8 +13,11 @@ import { DEFAULT_DOORSTEP_RADIUS_KM } from './garage-edit'
 
 // ─── Chips ───────────────────────────────────────────────────────────────────
 
-/** The chips, in order. All is every garage, so the stages add up to it. */
-export const SHOW_FILTERS = ['all', 'live', 'active', 'pending', 'suspended', 'archived'] as const
+/**
+ * The chips, in order. All is every garage not in the Bin, so the stages add
+ * up to it; the Bin is apart, last, and in no other chip or count.
+ */
+export const SHOW_FILTERS = ['all', 'live', 'active', 'pending', 'suspended', 'archived', 'bin'] as const
 export type ShowFilter = (typeof SHOW_FILTERS)[number]
 
 export const SHOW_LABELS: Record<ShowFilter, string> = {
@@ -24,6 +27,7 @@ export const SHOW_LABELS: Record<ShowFilter, string> = {
   pending: 'Pending',
   suspended: 'Suspended',
   archived: 'Archived',
+  bin: 'Bin',
 }
 
 /** What the list opens on: the garages customers can find. */
@@ -41,19 +45,27 @@ export function listHref(show: ShowFilter): string {
   return show === DEFAULT_SHOW ? '/vendors' : `/vendors?show=${show}`
 }
 
-type ListedFields = Pick<AdminVendor, 'live' | 'status' | 'isVerified' | 'bookingsPausedAt'>
+type ListedFields = Pick<AdminVendor, 'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'>
+
+/** Moved to the Bin by admin, and not restored. */
+export function isInBin(v: Pick<AdminVendor, 'deletedAt'>): boolean {
+  return v.deletedAt != null
+}
 
 /**
  * Whether customers can find the garage: the server's `live`. The fallback
  * is only for a server older than that field, during a deploy, so the list
  * does not open on an empty Live; it is the same rule (Active, verified, not
- * paused), and the server's flag wins whenever it is there.
+ * paused, not in the Bin), and the server's flag wins whenever it is there.
  */
 export function isLive(v: ListedFields): boolean {
-  return v.live ?? (v.status === 'active' && v.isVerified && !v.bookingsPausedAt)
+  return v.live ?? (v.status === 'active' && v.isVerified && !v.bookingsPausedAt && !isInBin(v))
 }
 
+/** A garage in the Bin is under the Bin chip and no other. */
 export function matchesShow(v: ListedFields, show: ShowFilter): boolean {
+  if (show === 'bin') return isInBin(v)
+  if (isInBin(v)) return false
   if (show === 'all') return true
   if (show === 'live') return isLive(v)
   return v.status === show
@@ -81,6 +93,8 @@ export function showHints(show: ShowFilter): Array<{ term: string; meaning: stri
       return [{ term: 'Suspended', meaning: 'stopped by Detlio, not shown to customers' }]
     case 'archived':
       return [{ term: 'Archived', meaning: 'put away, not shown to customers; its bookings are kept' }]
+    case 'bin':
+      return [{ term: 'Bin', meaning: 'off the app. Restore it, or delete it forever.' }]
     default:
       return [
         { term: 'Live', meaning: 'customers can find it' },
@@ -104,6 +118,12 @@ export function stateWord(v: ListedFields): string | null {
   const paused = Boolean(v.bookingsPausedAt)
   if (paused && !v.isVerified) return 'Paused · not verified'
   return paused ? 'Paused' : 'Not verified'
+}
+
+/** "12 bookings will be deleted with it", or null when none would be. */
+export function binDeleteLine(count: number): string | null {
+  if (count <= 0) return null
+  return `${count} booking${count === 1 ? '' : 's'} will be deleted with it`
 }
 
 /** "Has 4 bookings", "Has 1 booking", "No bookings yet". */

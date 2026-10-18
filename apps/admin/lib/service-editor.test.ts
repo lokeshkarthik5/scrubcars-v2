@@ -26,6 +26,7 @@ const stored = (patch: Partial<Parameters<typeof toServiceRow>[0]> = {}) => ({
   priceSuv: '549.00',
   durationMins: 45,
   images: [],
+  media: [],
   ...patch,
 })
 

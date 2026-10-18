@@ -18,16 +18,22 @@ import 'dotenv/config'
 import { eq } from 'drizzle-orm'
 import { db } from '../index.js'
 import {
+  adminAuditLog,
   bookingCharges,
   bookingIntentItems,
   bookingIntents,
   bookingItems,
+  bookingNotes,
   bookingReschedules,
   bookings,
   discountRedemptions,
   discounts,
+  jobPhotos,
   notices,
   payments,
+  receiptCounters,
+  receiptNumbers,
+  receiptNumberVoids,
   refundRecords,
   reviews,
   servicePackageItems,
@@ -47,6 +53,7 @@ import {
   BOOKINGS,
   CHARGES,
   CUSTOMERS,
+  DATA_RESET,
   DISCOUNTS,
   FILLER_VENDOR_COUNT,
   DOORSTEP_JOB_PIN,
@@ -182,7 +189,8 @@ async function seedPeople() {
         CUSTOMERS.billPayer, CUSTOMERS.billSmall, CUSTOMERS.billStranger,
         CUSTOMERS.jobRecords, CUSTOMERS.billWebhook, CUSTOMERS.refunds,
         CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
-        CUSTOMERS.bookAgain].map((c, i) => ({
+        CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi,
+        CUSTOMERS.binPaid, CUSTOMERS.binHard, CUSTOMERS.binTomb, CUSTOMERS.binBrowse].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -537,7 +545,11 @@ type BookingSpec = {
     txnId?: string
     paidAt?: Date
     refund?: { ref: string; at: Date }
+    /** The Razorpay mode (0032); left null, as on a payment from before it. */
+    gatewayMode?: 'live' | 'test' | 'fake'
   }
+  /** Marked "Test" by ops (0032), at this time. */
+  markedTestAt?: Date
   rescheduleCount?: number
   /** Defaults to now. Set it back to make a booking that has been waiting. */
   createdAt?: Date
@@ -618,6 +630,7 @@ async function insertBooking(spec: BookingSpec) {
       rescheduledFromId: spec.rescheduledFromId,
       originalBookingId: spec.rescheduledFromId,
     }),
+    ...(spec.markedTestAt && { markedTestAt: spec.markedTestAt, markedTestBy: 'E2E seed' }),
   })
 
   await db.insert(bookingItems).values(
@@ -638,6 +651,7 @@ async function insertBooking(spec: BookingSpec) {
       bookingId: spec.id,
       gateway: 'razorpay',
       gatewayTxnId: spec.payment.txnId ?? null,
+      gatewayMode: spec.payment.gatewayMode ?? null,
       amount: paidAmount,
       currency: 'INR',
       status: spec.payment.status,
@@ -722,7 +736,9 @@ async function seedBookingRows() {
     scheduledAt: tomorrowAt(11), status: 'confirmed', items: [washItem, detailItem],
     discount: { id: DISCOUNTS.percentCapped.id, code: DISCOUNTS.percentCapped.code,
       amount: '200.00', fundedBy: 'platform' },
-    payment: { status: 'paid', txnId: 'pay_seed_reschedulable' } })
+    // Test mode and marked Test, so the spec can see a move carry both.
+    markedTestAt: daysAgo(1),
+    payment: { status: 'paid', txnId: 'pay_seed_reschedulable', gatewayMode: 'test' } })
 
   await insertBooking({ id: BOOKINGS.rescheduleExhausted, userId: CUSTOMERS.reschedule.id, vehicleId: CUSTOMERS.reschedule.vehicleId,
     scheduledAt: tomorrowAt(13), status: 'confirmed', items: [washItem],
@@ -1362,6 +1378,314 @@ async function seedAdminFixtureRows() {
   ])
 }
 
+/**
+ * The test-data reset's fixtures (specs/admin/data-reset-api.spec.ts and
+ * data-reset.spec.ts): see BOOKINGS.reset* for what each is for. All at
+ * VENDORS.reset, which no customer list shows and nobody else books, and
+ * the receipt numbers in 22-23 and 23-24, years nothing else numbers in.
+ */
+async function seedDataResetRows() {
+  const garage = VENDORS.reset.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.reset.name,
+    phone: '9000003800', address: '1, Reset Road, Guindy', city: 'Chennai', pincode: '600032',
+    lat: ORIGIN.lat - 0.55, lng: ORIGIN.lng - 0.15, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    // Not verified: in no list a customer sees.
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending',
+  })
+  await db.insert(services).values({
+    id: SERVICES.resetWash.id, vendorId: garage, name: SERVICES.resetWash.name,
+    category: 'car_wash', pricingType: 'flat', price: SERVICES.resetWash.price,
+    durationMins: SERVICES.resetWash.durationMins, isActive: true,
+  })
+
+  const wash = {
+    id: SERVICES.resetWash.id, name: SERVICES.resetWash.name,
+    amount: SERVICES.resetWash.price, durationMins: SERVICES.resetWash.durationMins,
+  }
+  const api = { userId: CUSTOMERS.dataReset.id, vehicleId: CUSTOMERS.dataReset.vehicleId, vendorId: garage }
+  const ui = { userId: CUSTOMERS.dataResetUi.id, vehicleId: CUSTOMERS.dataResetUi.vehicleId, vendorId: garage }
+  // Financial years 2022-23 and 2023-24, in IST mid-morning.
+  const fy2223 = new Date('2022-06-10T05:00:00.000Z')
+  const fy2324 = new Date('2023-06-10T05:00:00.000Z')
+
+  // 22-23: declined, refunded in full, numbered, with its checkout, a note
+  // and a photo.
+  await insertBooking({ id: BOOKINGS.resetRefunded, ...api, scheduledAt: fy2223, createdAt: fy2223,
+    status: 'cancelled', items: [wash],
+    cancellation: { by: 'vendor', reason: 'Fully booked that day', at: fy2223 },
+    payment: { status: 'refunded', txnId: 'pay_TestResetA1', paidAt: fy2223, gatewayMode: 'test',
+      refund: { ref: 'rfnd_E2ERESET0001', at: fy2223 } } })
+  await db.insert(bookingNotes).values({
+    bookingId: BOOKINGS.resetRefunded, author: 'E2E seed', body: 'Team test booking.',
+  })
+  await db.insert(jobPhotos).values({
+    bookingId: BOOKINGS.resetRefunded, stage: 'before',
+    storageKey: `vendors/${garage}/job-photos/${BOOKINGS.resetRefunded}/seed.jpg`,
+    url: `http://localhost:9000/detlio-e2e/vendors/${garage}/job-photos/${BOOKINGS.resetRefunded}/seed.jpg`,
+  })
+
+  // 23-24: a reschedule chain (test), a live payment, and a live payment
+  // with no number yet.
+  await insertBooking({ id: BOOKINGS.resetMovedFrom, ...api, scheduledAt: fy2324, createdAt: fy2324,
+    status: 'cancelled', items: [wash],
+    cancellation: { by: 'user', reason: 'Rescheduled to a new slot by the customer', at: fy2324 },
+    payment: { status: 'paid', txnId: 'pay_TestResetB1', paidAt: fy2324, gatewayMode: 'test' } })
+  await insertBooking({ id: BOOKINGS.resetMovedTo, ...api, scheduledAt: fy2324,
+    createdAt: new Date(fy2324.getTime() + HOUR), status: 'completed', items: [wash],
+    rescheduledFromId: BOOKINGS.resetMovedFrom, rescheduleCount: 1,
+    payment: { status: 'paid', txnId: 'pay_TestResetB1', paidAt: fy2324, gatewayMode: 'test' } })
+  await db.insert(bookingReschedules).values({
+    originalBookingId: BOOKINGS.resetMovedFrom, fromBookingId: BOOKINGS.resetMovedFrom,
+    toBookingId: BOOKINGS.resetMovedTo, userId: CUSTOMERS.dataReset.id, reason: 'seed',
+  })
+  await insertBooking({ id: BOOKINGS.resetLive, ...api, scheduledAt: fy2324,
+    createdAt: new Date(fy2324.getTime() - HOUR), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_LiveResetC1', paidAt: new Date(fy2324.getTime() - HOUR),
+      gatewayMode: 'live' } })
+  await insertBooking({ id: BOOKINGS.resetNextReceipt, ...api, scheduledAt: fy2324,
+    createdAt: new Date(fy2324.getTime() + 2 * HOUR), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_LiveResetE1', paidAt: new Date(fy2324.getTime() + 2 * HOUR),
+      gatewayMode: 'live' } })
+
+  // Paid before gateway_mode, with an id Razorpay is never asked about here.
+  // The rest are older than the pilot card's 30 days, so they never move
+  // its numbers while the specs delete them.
+  await insertBooking({ id: BOOKINGS.resetUnknown, ...api, scheduledAt: daysAgo(44),
+    createdAt: daysAgo(45), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_OldResetD1', paidAt: daysAgo(45) } })
+  await insertBooking({ id: BOOKINGS.resetSingle, ...api, scheduledAt: daysAgo(49),
+    createdAt: daysAgo(50), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_e2e_reset_single', paidAt: daysAgo(50), gatewayMode: 'fake' } })
+  // Never paid, but its live order is open and the booking still on: a
+  // late capture could land, so it is kept whatever is ticked.
+  await insertBooking({ id: BOOKINGS.resetOpenOrder, ...api, scheduledAt: daysAgo(45),
+    createdAt: daysAgo(46), status: 'pending', items: [wash],
+    payment: { status: 'pending', txnId: 'order_LiveResetH1', gatewayMode: 'live' } })
+
+  await insertBooking({ id: BOOKINGS.resetUiSingle, ...ui, scheduledAt: daysAgo(49),
+    createdAt: daysAgo(50), status: 'completed', items: [wash],
+    payment: { status: 'paid', txnId: 'pay_e2e_reset_ui_single', paidAt: daysAgo(50), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.resetUiMarked, ...ui, scheduledAt: daysAgo(48),
+    createdAt: daysAgo(49), status: 'cancelled', items: [wash], markedTestAt: daysAgo(48),
+    cancellation: { by: 'user', reason: 'Plans changed', at: daysAgo(48) },
+    payment: { status: 'pending' } })
+  await insertBooking({ id: BOOKINGS.resetUiKeep, ...ui, scheduledAt: daysAgo(47),
+    createdAt: daysAgo(48), status: 'completed', items: [wash], markedTestAt: daysAgo(47),
+    payment: { status: 'paid', txnId: 'pay_e2e_reset_ui_keep', paidAt: daysAgo(48), gatewayMode: 'fake' } })
+
+  // Receipt numbers, as the app issues them: one per chain, on its first
+  // booking. 22-23 holds resetRefunded's alone, plus a void from an earlier
+  // run; 23-24 the live one's and the reschedule chain's.
+  await db.insert(receiptNumbers).values([
+    { rootBookingId: BOOKINGS.resetRefunded, financialYear: '22-23', seq: 1,
+      number: 'DTL/22-23/000001', issuedAt: fy2223 },
+    { rootBookingId: BOOKINGS.resetLive, financialYear: '23-24', seq: 1,
+      number: 'DTL/23-24/000001', issuedAt: new Date(fy2324.getTime() - HOUR) },
+    { rootBookingId: BOOKINGS.resetMovedFrom, financialYear: '23-24', seq: 2,
+      number: 'DTL/23-24/000002', issuedAt: fy2324 },
+  ])
+  await db.insert(receiptCounters).values([
+    { financialYear: '22-23', lastSeq: 2 },
+    { financialYear: '23-24', lastSeq: 2 },
+  ])
+  await db.insert(adminAuditLog).values({
+    id: DATA_RESET.earlierAudit, action: 'test_data_reset', actorSub: 'admin',
+    actorName: 'E2E seed', summary: {}, detail: {},
+  })
+  await db.insert(receiptNumberVoids).values({
+    financialYear: '22-23', seq: 2, number: 'DTL/22-23/000002', issuedAt: fy2223,
+    rootBookingId: '00000000-0000-4000-8000-00000000dead', reason: 'Seeded earlier run',
+    auditId: DATA_RESET.earlierAudit,
+  })
+
+  // Checkouts: resetRefunded's own, and two that never became a booking.
+  const intent = {
+    userId: CUSTOMERS.dataReset.id, vendorId: garage, serviceId: SERVICES.resetWash.id,
+    vehicleId: CUSTOMERS.dataReset.vehicleId, bookingType: 'dropin' as const,
+    serviceDurationMins: SERVICES.resetWash.durationMins, amount: SERVICES.resetWash.price,
+    subtotalAmount: SERVICES.resetWash.price, paymentMethod: 'online' as const,
+    gatewayMode: 'test' as const,
+  }
+  await db.insert(bookingIntents).values([
+    { ...intent, id: BOOKING_INTENTS.resetOwn, scheduledAt: fy2223, createdAt: fy2223,
+      expiresAt: fy2223, gatewayTxnId: 'order_TestResetA1', status: 'consumed',
+      bookingId: BOOKINGS.resetRefunded },
+    { ...intent, id: BOOKING_INTENTS.resetFailed, scheduledAt: fy2324, createdAt: fy2324,
+      expiresAt: fy2324, gatewayTxnId: 'order_TestResetF1', status: 'failed',
+      paymentRef: 'pay_TestResetF1', failureReason: 'slot_full',
+      refundedAmount: SERVICES.resetWash.price, refundRef: 'rfnd_E2ERESET0002',
+      refundedAt: fy2324, refundedBy: 'E2E seed' },
+    { ...intent, id: BOOKING_INTENTS.resetAbandoned, scheduledAt: fy2324, createdAt: fy2324,
+      expiresAt: fy2324, gatewayTxnId: 'order_TestResetG1', status: 'pending' },
+  ])
+  await db.insert(bookingIntentItems).values(
+    [BOOKING_INTENTS.resetOwn, BOOKING_INTENTS.resetFailed, BOOKING_INTENTS.resetAbandoned].map(
+      (intentId) => ({ intentId, ...{ serviceId: wash.id, name: wash.name, amount: wash.amount,
+        durationMins: wash.durationMins }, sortOrder: 0 })
+    )
+  )
+  await db.insert(refundRecords).values({
+    kind: 'checkout', targetId: BOOKING_INTENTS.resetFailed, bookingId: null,
+    amount: SERVICES.resetWash.price, refundedBefore: '0.00', refundRef: 'rfnd_E2ERESET0002',
+    recordedBy: 'E2E seed', recordedAt: fy2324,
+  })
+}
+
+/**
+ * The service photo and video specs' garage: VENDORS.media and its services,
+ * with no media at all, so each spec adds exactly what it asserts on.
+ */
+async function seedServiceMediaRows() {
+  const garage = VENDORS.media.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.mediaOwner.id, businessName: VENDORS.media.name,
+    phone: '9000003900', address: '1, Media Road, Porur', city: 'Chennai', pincode: '600116',
+    lat: ORIGIN.lat - 0.65, lng: ORIGIN.lng - 0.15, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'active',
+  })
+  // The owner's seat is written here, after the garage row it points at:
+  // seedMembership runs long before this garage exists.
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.mediaOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '09:00:00', '18:00:00'))
+  await db.insert(services).values(
+    ([
+      [SERVICES.mediaPhoto, 'car_wash'],
+      [SERVICES.mediaVideo, 'car_wash'],
+      [SERVICES.mediaAi, 'coating'],
+      [SERVICES.mediaRefused, 'detailing'],
+      [SERVICES.mediaBike, 'others'],
+    ] as const).map(([service, category]) => ({
+      id: service.id, vendorId: garage, name: service.name, category,
+      pricingType: 'flat' as const, price: service.price,
+      durationMins: service.durationMins, isActive: true,
+    }))
+  )
+}
+
+/**
+ * The garage Bin's fixtures (specs/admin/garage-bin.spec.ts); see VENDORS.bin*
+ * for what each garage is for. All far south-west, past every other
+ * single-purpose garage, and every booking older than the pilot card's 30
+ * days except the two still to come, so nothing here moves another spec's
+ * numbers.
+ */
+async function seedGarageBinRows() {
+  const pin = (n: number) => ({
+    lat: ORIGIN.lat - 0.75 - n * 0.01, lng: ORIGIN.lng - 0.15,
+    geoSource: 'map_pin' as const, geoConfirmedAt: now,
+  })
+  const garage = {
+    city: 'Chennai', pincode: '600116', vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    doorstepEnabled: false, dropinEnabled: true, slotIntervalMins: 30,
+  }
+  // Seeded in the Bin, as moving it there leaves a garage.
+  const binned = {
+    deletedAt: daysAgo(1), deletedByName: 'E2E seed', deletedReason: 'Test garage from setup',
+  }
+  await db.insert(vendors).values([
+    { ...garage, ...pin(0), id: VENDORS.binTeam.id, ownerId: STAFF.binOwner.id,
+      businessName: VENDORS.binTeam.name, phone: '9000004000', address: '1, Bin Road, Porur',
+      isVerified: true, status: 'active' },
+    { ...garage, ...pin(1), id: VENDORS.binOwnerLive.id, ownerId: STAFF.binOwner.id,
+      businessName: VENDORS.binOwnerLive.name, phone: '9000004100', address: '2, Bin Road, Porur',
+      isVerified: false, status: 'pending' },
+    { ...garage, ...pin(2), id: VENDORS.binPaid.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.binPaid.name, phone: '9000004200', address: '3, Bin Road, Porur',
+      isVerified: false, status: 'pending' },
+    { ...garage, ...pin(3), ...binned, id: VENDORS.binHard.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.binHard.name, phone: '9000004300', address: '4, Bin Road, Porur',
+      isVerified: false, status: 'pending' },
+    { ...garage, ...pin(4), ...binned, id: VENDORS.binTomb.id, ownerId: STAFF.narrowOwner.id,
+      businessName: VENDORS.binTomb.name, phone: '9000004400', address: '5, Bin Road, Porur',
+      email: 'tomb@example.com', isVerified: false, status: 'pending' },
+  ])
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(VENDORS.binTeam.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.binPaid.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.binTomb.id, '09:00:00', '18:00:00'),
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: VENDORS.binTeam.id, userId: STAFF.binOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.binOwnerLive.id, userId: STAFF.binOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.binTeam.id, userId: STAFF.binOperator.id, role: 'vendor_operator', status: 'active' },
+    ...[VENDORS.binPaid, VENDORS.binHard, VENDORS.binTomb].map((v) => ({
+      vendorId: v.id, userId: STAFF.narrowOwner.id, role: 'vendor_admin' as const, status: 'active' as const,
+    })),
+  ])
+  const flat = (service: { id: string; name: string; price: string; durationMins: number }, vendorId: string) => ({
+    id: service.id, vendorId, name: service.name, category: 'car_wash' as const,
+    pricingType: 'flat' as const, price: service.price, durationMins: service.durationMins,
+    isActive: true,
+  })
+  await db.insert(services).values([
+    flat(SERVICES.binTeamWash, VENDORS.binTeam.id),
+    flat(SERVICES.binPaidWash, VENDORS.binPaid.id),
+    flat(SERVICES.binHardWash, VENDORS.binHard.id),
+    { ...flat(SERVICES.binHardPackage, VENDORS.binHard.id), category: 'package' as const },
+    flat(SERVICES.binTombWash, VENDORS.binTomb.id),
+  ])
+  // The package's member is ON DELETE RESTRICT: what made a garage with a
+  // package undeletable before.
+  await db.insert(servicePackageItems).values({
+    packageId: SERVICES.binHardPackage.id, serviceId: SERVICES.binHardWash.id, sortOrder: 0,
+  })
+  await db.insert(vendorPhotos).values({
+    vendorId: VENDORS.binHard.id, sortOrder: 0,
+    url: `http://localhost:9000/detlio-e2e/vendors/${VENDORS.binHard.id}/photos/seed.jpg`,
+    storageKey: `vendors/${VENDORS.binHard.id}/photos/seed.jpg`,
+  })
+
+  const item = (service: { id: string; name: string; price: string; durationMins: number }) => ({
+    id: service.id, name: service.name, amount: service.price, durationMins: service.durationMins,
+  })
+  await insertBooking({ id: BOOKINGS.binPaidUpcoming, userId: CUSTOMERS.binPaid.id,
+    vehicleId: CUSTOMERS.binPaid.vehicleId, vendorId: VENDORS.binPaid.id,
+    scheduledAt: daysAheadAt(3, 10), createdAt: daysAgo(40), status: 'confirmed',
+    acceptedAt: daysAgo(40), items: [item(SERVICES.binPaidWash)],
+    payment: { status: 'paid', txnId: 'pay_e2e_bin_paid', paidAt: daysAgo(40), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.binUnpaidUpcoming, userId: CUSTOMERS.binPaid.id,
+    vehicleId: CUSTOMERS.binPaid.vehicleId, vendorId: VENDORS.binPaid.id,
+    scheduledAt: daysAheadAt(4, 10), createdAt: daysAgo(40), status: 'pending',
+    items: [item(SERVICES.binPaidWash)], payment: { status: 'pending' } })
+  await insertBooking({ id: BOOKINGS.binHardTest, userId: CUSTOMERS.binHard.id,
+    vehicleId: CUSTOMERS.binHard.vehicleId, vendorId: VENDORS.binHard.id,
+    scheduledAt: daysAgo(44), createdAt: daysAgo(45), status: 'completed',
+    items: [item(SERVICES.binHardWash)],
+    payment: { status: 'paid', txnId: 'pay_e2e_bin_hard', paidAt: daysAgo(45), gatewayMode: 'fake' } })
+  await insertBooking({ id: BOOKINGS.binTombLive, userId: CUSTOMERS.binTomb.id,
+    vehicleId: CUSTOMERS.binTomb.vehicleId, vendorId: VENDORS.binTomb.id,
+    scheduledAt: daysAgo(44), createdAt: daysAgo(45), status: 'completed',
+    items: [item(SERVICES.binTombWash)],
+    payment: { status: 'paid', txnId: 'pay_LiveBinK1', paidAt: daysAgo(45), gatewayMode: 'live' } })
+  await insertBooking({ id: BOOKINGS.binTombTest, userId: CUSTOMERS.binTomb.id,
+    vehicleId: CUSTOMERS.binTomb.vehicleId, vendorId: VENDORS.binTomb.id,
+    scheduledAt: daysAgo(42), createdAt: daysAgo(43), status: 'completed',
+    items: [item(SERVICES.binTombWash)],
+    payment: { status: 'paid', txnId: 'pay_e2e_bin_tomb', paidAt: daysAgo(43), gatewayMode: 'fake' } })
+
+  // Abandoned unpaid, test mode, long expired: nothing could still land on it.
+  await db.insert(bookingIntents).values({
+    id: BOOKING_INTENTS.binAbandoned, userId: CUSTOMERS.binHard.id, vendorId: VENDORS.binHard.id,
+    serviceId: SERVICES.binHardWash.id, vehicleId: CUSTOMERS.binHard.vehicleId,
+    bookingType: 'dropin', serviceDurationMins: SERVICES.binHardWash.durationMins,
+    amount: SERVICES.binHardWash.price, subtotalAmount: SERVICES.binHardWash.price,
+    paymentMethod: 'online', gatewayMode: 'test', gatewayTxnId: 'order_TestBinG1',
+    status: 'pending', scheduledAt: daysAgo(40), createdAt: daysAgo(41), expiresAt: daysAgo(41),
+  })
+  await db.insert(bookingIntentItems).values({
+    intentId: BOOKING_INTENTS.binAbandoned, serviceId: SERVICES.binHardWash.id,
+    name: SERVICES.binHardWash.name, amount: SERVICES.binHardWash.price,
+    durationMins: SERVICES.binHardWash.durationMins, sortOrder: 0,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1385,6 +1709,12 @@ async function main() {
   await seedDoorstepReachRows()
   console.log('[e2e-seed] admin fixtures…')
   await seedAdminFixtureRows()
+  console.log('[e2e-seed] test-data reset…')
+  await seedDataResetRows()
+  console.log('[e2e-seed] service media…')
+  await seedServiceMediaRows()
+  console.log('[e2e-seed] garage bin…')
+  await seedGarageBinRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

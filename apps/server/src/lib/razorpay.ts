@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto'
 import { AppError } from './errors.js'
 import { env } from './env.js'
+import { classifyModeLookup, gatewayModeForKey, isLookupId } from './gateway-mode.js'
 
 type RazorpayOrder = {
   id: string
@@ -49,6 +50,18 @@ export function toPaise(amount: string | number) {
   return Math.round(value * 100)
 }
 
+/**
+ * The Razorpay mode an order opened now is in, for gateway_mode (0032): an
+ * order this server mints under E2E_FAKE_PAYMENTS is 'fake'; otherwise the
+ * key id says it, rzp_live_… being live and anything else test. Recorded on
+ * every row money can land in, so telling test money from real money later
+ * (the test-data reset) needs no call to Razorpay. Never branch payment
+ * logic on it. The rule itself is gatewayModeForKey (lib/gateway-mode.ts).
+ */
+export function gatewayModeFor(keyId: string | undefined): 'live' | 'test' | 'fake' {
+  return gatewayModeForKey(keyId, env.e2eFakePayments)
+}
+
 export async function createRazorpayOrder(input: {
   amount: string
   receipt: string
@@ -75,6 +88,7 @@ export async function createRazorpayOrder(input: {
       amount,
       currency: 'INR',
       keyId,
+      gatewayMode: gatewayModeFor(keyId),
     }
   }
 
@@ -114,6 +128,7 @@ export async function createRazorpayOrder(input: {
     amount: order.amount,
     currency: order.currency,
     keyId,
+    gatewayMode: gatewayModeFor(keyId),
   }
 }
 
@@ -171,4 +186,56 @@ export function verifyWebhookSignature(body: string, signature: string | undefin
     .digest('hex')
 
   return expected === signature
+}
+
+/** What Razorpay said about a payment or order id; see lookupRazorpayMode. */
+export type RazorpayModeLookup = 'live' | 'test' | 'unknown'
+
+/**
+ * Asks Razorpay which mode an old payment or order was in, for a row from
+ * before gateway_mode was recorded. Used only by the test-data reset's dry
+ * run, and only for rows with no gateway_mode.
+ *
+ * Only the asking is here. What the answer means (an id live keys can't
+ * find is test money; anything in doubt is 'unknown', and unknown keeps the
+ * booking) is classifyModeLookup in lib/gateway-mode.ts, where it is tested.
+ *
+ * Never reaches Razorpay under E2E_FAKE_PAYMENTS or without keys.
+ */
+export async function lookupRazorpayMode(id: string, timeoutMs: number): Promise<RazorpayModeLookup> {
+  if (env.e2eFakePayments || !env.razorpayKeyId || !env.razorpayKeySecret) return 'unknown'
+  if (!isLookupId(id) || timeoutMs <= 0) return 'unknown'
+
+  const liveKeys = env.razorpayKeyId.startsWith('rzp_live_')
+  const path = id.startsWith('pay_') ? 'payments' : 'orders'
+
+  try {
+    const response = await fetch(`https://api.razorpay.com/v1/${path}/${id}`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { Authorization: basicAuthHeader(env.razorpayKeyId, env.razorpayKeySecret) },
+    })
+    // The body is only read for the error's description; a success says
+    // all it needs to by its status.
+    const body = response.ok
+      ? null
+      : ((await response.json().catch(() => null)) as { error?: { description?: string } } | null)
+    return classifyModeLookup({
+      liveKeys,
+      answer: {
+        ok: response.ok,
+        status: response.status,
+        description: body?.error?.description ?? null,
+      },
+    })
+  } catch {
+    return classifyModeLookup({ liveKeys, answer: null })
+  }
+}
+
+/** Which keys the server holds, for the reset page to say what a check can tell. */
+export function razorpayKeyMode(): 'live' | 'test' | 'fake' | 'none' {
+  if (env.e2eFakePayments) return 'fake'
+  if (!env.razorpayKeyId || !env.razorpayKeySecret) return 'none'
+  return env.razorpayKeyId.startsWith('rzp_live_') ? 'live' : 'test'
 }

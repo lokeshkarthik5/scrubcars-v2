@@ -103,63 +103,7 @@ export async function deleteService(id: string): Promise<Service> {
   return mapService(service, '')
 }
 
-// ─── Service images ──────────────────────────────────────────────────────────
+// ─── Service photos and video ────────────────────────────────────────────────
 //
-// Mirrors the vendor photo flow: presign → PUT straight to R2 → register the
-// public URL. Both mutations return the whole service, so callers swap one
-// object into their list instead of patching a sub-array.
-
-/** Server-enforced cap; the UI hides the add button once it is reached. */
-export const MAX_IMAGES_PER_SERVICE = 3
-
-type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
-
-/** POST /vendors/me/services/:id/images/upload-url */
-async function getServiceImageUploadUrl(
-  serviceId: string,
-  contentType: UploadContentType
-): Promise<{ uploadUrl: string; publicUrl: string }> {
-  return apiClient<{ uploadUrl: string; publicUrl: string }>(
-    `/vendors/me/services/${serviceId}/images/upload-url`,
-    { method: 'POST', body: JSON.stringify({ contentType }) }
-  )
-}
-
-/** Full upload flow. Returns the service with its new image attached. */
-export async function uploadServiceImage(
-  serviceId: string,
-  file: File
-): Promise<Service> {
-  const contentType = file.type as UploadContentType
-  const { uploadUrl, publicUrl } = await getServiceImageUploadUrl(
-    serviceId,
-    contentType
-  )
-
-  const put = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': contentType },
-  })
-  if (!put.ok) {
-    throw new Error('Upload failed. Please try again.')
-  }
-
-  const service = await apiClient<ApiService>(
-    `/vendors/me/services/${serviceId}/images`,
-    { method: 'POST', body: JSON.stringify({ url: publicUrl }) }
-  )
-  return mapService(service, '')
-}
-
-/** DELETE /vendors/me/services/:id/images/:imageId */
-export async function deleteServiceImage(
-  serviceId: string,
-  imageId: string
-): Promise<Service> {
-  const service = await apiClient<ApiService>(
-    `/vendors/me/services/${serviceId}/images/${imageId}`,
-    { method: 'DELETE' }
-  )
-  return mapService(service, '')
-}
+// In @repo/core/api/service-media (garageMediaApi), shared with admin: every
+// upload now carries the privacy tick, and a service can have a video.

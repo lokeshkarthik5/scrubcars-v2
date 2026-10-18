@@ -23,6 +23,7 @@ import type {
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
+import type { AddPhotoInput } from '../service-media/service-media.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
 
@@ -111,11 +112,6 @@ export async function unarchiveVendor(c: AdminContext, id: string) {
   return c.json({ success: true, data: vendor })
 }
 
-export async function deleteVendor(c: AdminContext, id: string) {
-  await adminService.deleteVendor(id)
-  return c.json({ success: true })
-}
-
 export async function pauseVendor(
   c: AdminContext,
   id: string,
@@ -186,6 +182,11 @@ export async function markBookingNoShow(
   return c.json({ success: true, data: booking })
 }
 
+export async function setBookingTestMark(c: AdminContext, id: string, marked: boolean) {
+  const booking = await adminService.setTestMark(id, c.get('auth').sub, marked)
+  return c.json({ success: true, data: booking })
+}
+
 export async function addBookingNote(
   c: AdminContext,
   id: string,
@@ -252,17 +253,17 @@ export async function createServiceImageUploadUrl(
   serviceId: string,
   input: UploadUrlInput
 ) {
-  const data = await adminService.createServiceImageUploadUrl(serviceId, input)
+  const data = await adminService.createServiceImageUploadUrl(c.get('auth').sub, serviceId, input)
   return c.json({ success: true, data })
 }
 
 export async function addServiceImage(
   c: AdminContext,
   serviceId: string,
-  input: MediaUrlInput
+  input: AddPhotoInput
 ) {
-  const images = await adminService.addServiceImage(serviceId, input)
-  return c.json({ success: true, data: images }, 201)
+  const media = await adminService.addServiceImage(c.get('auth').sub, serviceId, input)
+  return c.json({ success: true, data: media }, 201)
 }
 
 export async function deleteServiceImage(
@@ -270,8 +271,8 @@ export async function deleteServiceImage(
   serviceId: string,
   imageId: string
 ) {
-  const images = await adminService.deleteServiceImage(serviceId, imageId)
-  return c.json({ success: true, data: images })
+  const media = await adminService.deleteServiceImage(c.get('auth').sub, serviceId, imageId)
+  return c.json({ success: true, data: media })
 }
 
 // ─── Platform admins ─────────────────────────────────────────────────────────
@@ -320,12 +321,15 @@ export async function listVendorMembers(c: AdminContext, vendorId: string) {
   return c.json({ success: true, data: members })
 }
 
+// The three team writes go through adminService, which refuses a garage in
+// the Bin (409 VENDOR_IN_BIN) before handing over to membersService.
+
 export async function addVendorMember(
   c: AdminContext,
   vendorId: string,
   input: AddMemberInput
 ) {
-  const member = await membersService.addMember(
+  const member = await adminService.addVendorMember(
     vendorId,
     getAdminActorId(c),
     input
@@ -339,7 +343,7 @@ export async function updateVendorMember(
   membershipId: string,
   input: UpdateMemberInput
 ) {
-  const member = await membersService.updateMember(
+  const member = await adminService.updateVendorMember(
     vendorId,
     getAdminActorId(c),
     membershipId,
@@ -353,6 +357,6 @@ export async function removeVendorMember(
   vendorId: string,
   membershipId: string
 ) {
-  await membersService.removeMember(vendorId, getAdminActorId(c), membershipId)
+  await adminService.removeVendorMember(vendorId, getAdminActorId(c), membershipId)
   return c.json({ success: true })
 }

@@ -88,11 +88,32 @@ export interface Vendor {
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.
-// Capped server-side (3 per service) — see MAX_IMAGES_PER_SERVICE.
+// Capped server-side (3 per service) — see MAX_SERVICE_PHOTOS.
 export interface ServiceImage {
   id: string
   url: string
   sortOrder: number
+}
+
+/**
+ * One photo or video of a service, as the garage page shows it. A video
+ * reaches customers only once it is ready to play. `source: 'ai'` is a
+ * picture admin made with AI: always shown tagged "Sample image".
+ */
+export interface ServiceMedia {
+  id: string
+  kind: 'image' | 'video'
+  /** A photo's URL, or a video's HLS manifest. */
+  url: string
+  /** A video's poster frame; null for a photo. */
+  posterUrl: string | null
+  /** A video's length in whole seconds; null for a photo. */
+  durationSecs: number | null
+  source: 'upload' | 'ai'
+  /** The garage's app and admin only: where a video is up to. */
+  videoStatus?: 'processing' | 'ready' | 'error' | null
+  /** The garage's app and admin only: why a video failed, in plain words. */
+  videoError?: string | null
 }
 
 export interface Service {
@@ -110,7 +131,10 @@ export interface Service {
   priceSuv: number | null
   durationMins: number
   isActive: boolean
+  /** Photos only. */
   images: ServiceImage[]
+  /** Photos and the video, the video first. */
+  media: ServiceMedia[]
 }
 
 export interface PackageItem {

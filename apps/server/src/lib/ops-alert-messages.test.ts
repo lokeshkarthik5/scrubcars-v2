@@ -396,3 +396,71 @@ describe('refund recorded', () => {
     expect(text).toContain('https://admin.detlio.com/refunds')
   })
 })
+
+describe('test data cleared', () => {
+  test('one line says who and how many, then the receipts', () => {
+    const text = formatOpsAlert({
+      kind: 'test_data_cleared',
+      by: 'Mathew',
+      bookings: 143,
+      checkouts: 160,
+      receipts: ['Numbering restarts at DTL/26-27/000001'],
+      auditId: '00000000-0000-4000-8000-000000000001',
+    })
+    expect(text.split('\n')[0]).toBe('🧹 Test data cleared by Mathew: 143 bookings')
+    expect(text).toContain('160 checkouts with it, refunds and photos included.')
+    expect(text).toContain('Numbering restarts at DTL/26-27/000001')
+    expect(text.split('\n').at(-1)).toBe('Audit record 00000000-0000-4000-8000-000000000001.')
+  })
+
+  test('one booking, no checkouts', () => {
+    const text = formatOpsAlert({
+      kind: 'test_data_cleared',
+      by: 'admin',
+      bookings: 1,
+      checkouts: 0,
+      receipts: [],
+      auditId: 'a',
+    })
+    expect(text).toBe('🧹 Test data cleared by admin: 1 booking\nAudit record a.')
+  })
+})
+
+describe('garage_deleted', () => {
+  test('one line says who, which garage and how many bookings', () => {
+    const text = formatOpsAlert({
+      kind: 'garage_deleted',
+      by: 'Mathew',
+      garage: 'Detlio (test garage)',
+      bookings: 12,
+      keptBookings: 0,
+      outcome: 'hard_delete',
+      auditId: 'a',
+    })
+    expect(text).toBe('🗑️ Garage deleted by Mathew: Detlio (test garage), 12 bookings\nAudit record a.')
+  })
+
+  test('says what was kept for the accounts, and when it must be pressed again', () => {
+    const kept = formatOpsAlert({
+      kind: 'garage_deleted',
+      by: 'admin',
+      garage: 'Sparkle Wash',
+      bookings: 1,
+      keptBookings: 2,
+      outcome: 'tombstone',
+      auditId: 'b',
+    })
+    expect(kept.split('\n')[0]).toBe('🗑️ Garage deleted by admin: Sparkle Wash, 1 booking')
+    expect(kept).toContain('2 bookings with real money kept for the accounts')
+    const partial = formatOpsAlert({
+      kind: 'garage_deleted',
+      by: 'admin',
+      garage: 'Sparkle Wash',
+      bookings: 300,
+      keptBookings: 0,
+      outcome: 'partial',
+      auditId: 'c',
+    })
+    expect(partial).toContain('Delete forever must be pressed again')
+  })
+})

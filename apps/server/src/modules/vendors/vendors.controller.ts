@@ -10,7 +10,6 @@ import type {
   CreatePackageInput,
   DoorstepAreaInput,
   CreateServiceAreaInput,
-  CreateServiceImageInput,
   CreateServiceInput,
   CreateVendorInput,
   ListPublicVendorsQuery,
@@ -30,6 +29,7 @@ import type {
   UpdateVendorInput,
   EarningsQuery,
 } from './vendors.validation.js'
+import type { AddPhotoInput } from '../service-media/service-media.validation.js'
 
 type VendorsContext = Context<{ Variables: TenantVariables }>
 
@@ -443,7 +443,7 @@ export async function createServiceImageUploadUrl(
 export async function addServiceImage(
   c: VendorsContext,
   serviceId: string,
-  input: CreateServiceImageInput
+  input: AddPhotoInput
 ) {
   const service = await vendorsService.addServiceImage(
     getVendorId(c),

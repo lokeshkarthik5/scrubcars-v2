@@ -5,6 +5,7 @@ import {
   bookingItems,
   bookingNotes,
   bookings,
+  type GatewayMode,
 } from '../../db/schema.js'
 
 export type BookingChargeRecord = typeof bookingCharges.$inferSelect
@@ -122,10 +123,11 @@ export const bookingChargesRepository = {
    * and has none — of two taps that both opened an order, the first one is
    * kept and the other is never used. Empty when that did not hold.
    */
-  setGatewayOrderId(chargeId: string, orderId: string) {
+  setGatewayOrderId(chargeId: string, orderId: string, gatewayMode: GatewayMode) {
     return db
       .update(bookingCharges)
-      .set({ gatewayOrderId: orderId, updatedAt: new Date() })
+      // With the order's Razorpay mode (0032), for the test-data reset.
+      .set({ gatewayOrderId: orderId, gatewayMode, updatedAt: new Date() })
       .where(
         and(
           eq(bookingCharges.id, chargeId),

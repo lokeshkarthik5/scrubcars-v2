@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -143,6 +144,44 @@ export async function createUserUpload(
     key,
     publicUrl: `${env.r2PublicBaseUrl}/${key}`,
   }
+}
+
+/**
+ * Write an object from the server itself, for files this API makes rather
+ * than receives (the admin's AI pictures). Throws on failure: the caller is
+ * about to hand out the URL.
+ */
+export async function putObject(
+  key: string,
+  body: Uint8Array,
+  contentType: string
+): Promise<string> {
+  const client = getClient()
+  await client.send(
+    new PutObjectCommand({
+      Bucket: env.r2Bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
+  )
+  return publicUrlForKey(key)
+}
+
+/**
+ * Copy an object to a new key in the same bucket, without the bytes passing
+ * through this server. Throws on failure.
+ */
+export async function copyObject(fromKey: string, toKey: string): Promise<string> {
+  const client = getClient()
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: env.r2Bucket,
+      CopySource: `${env.r2Bucket}/${fromKey}`,
+      Key: toKey,
+    })
+  )
+  return publicUrlForKey(toKey)
 }
 
 /** Best-effort delete of an object; logs but does not throw on failure. */

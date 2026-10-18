@@ -264,7 +264,7 @@ export const paymentsService = {
       bookingId: booking.id,
     })
 
-    await paymentsRepository.setGatewayTxnId(booking.id, order.orderId)
+    await paymentsRepository.setGatewayTxnId(booking.id, order.orderId, order.gatewayMode)
     log.info({ bookingId: booking.id, orderId: order.orderId, amount: order.amount }, 'payment:order_created')
 
     return {

@@ -12,7 +12,14 @@ import {
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-toastify'
-import { IconBuildingStore, IconChevronDown, IconEyeOff, IconPhotoPlus, IconTrash } from '@tabler/icons-react'
+import {
+  IconBuildingStore,
+  IconChevronDown,
+  IconEyeOff,
+  IconPhotoPlus,
+  IconRestore,
+  IconTrash,
+} from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
 import {
@@ -27,7 +34,6 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { ApiError } from '@repo/core/api/client'
 import {
-  deleteAdminServiceImage,
   deleteAdminVendorLogo,
   deleteAdminVendorPhoto,
   getAdminVendor,
@@ -36,7 +42,6 @@ import {
   resumeAdminVendor,
   setAdminServiceActive,
   updateAdminVendor,
-  uploadAdminServiceImage,
   uploadAdminVendorLogo,
   uploadAdminVendorPhoto,
   type AdminPhoto,
@@ -49,9 +54,12 @@ import {
   legacyVehicleTypes,
   VENDOR_VEHICLE_TYPE_OPTIONS,
 } from '@repo/core/vehicles'
+import type { ServiceMedia } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
 import { SaveBar } from '@/components/save-bar'
+import { RestoreDialog } from '@/components/vendor-bin-dialogs'
+import { formatWhen } from '@/lib/bookings'
 import { ServicesEditor } from '@/components/services-editor'
 import { useWarnBeforeLeaving } from '@/hooks/use-warn-before-leaving'
 import {
@@ -94,8 +102,6 @@ const STATUS_OPTIONS = [
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
-// Mirrors R2_MAX_IMAGES_PER_SERVICE on the server, which is the real cap.
-const MAX_IMAGES_PER_SERVICE = 3
 
 // Shared guard for every media picker on this page.
 function rejectFile(file: File): string | null {
@@ -308,6 +314,13 @@ export default function EditVendorPage({
   const [pauseReasonInput, setPauseReasonInput] = useState('')
   const [pausing, setPausing] = useState(false)
   const [closures, setClosures] = useState<AdminVendorDetail['closures']>([])
+  // In the Bin: the page opens read-only with a banner and Restore, since the
+  // server refuses every other change to it (409 VENDOR_IN_BIN).
+  const [bin, setBin] = useState<Pick<
+    AdminVendorDetail,
+    'deletedAt' | 'deletedByName' | 'deletedReason'
+  > | null>(null)
+  const [restoring, setRestoring] = useState(false)
   // Rows with their ⋯ open, by key. Held here so Show again can open the
   // row it brings back.
   const [openRows, setOpenRows] = useState<ReadonlySet<string>>(new Set())
@@ -350,8 +363,6 @@ export default function EditVendorPage({
   const [mediaBusy, setMediaBusy] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
-  const serviceImageInputRef = useRef<HTMLInputElement>(null)
-  const [imageTargetId, setImageTargetId] = useState<string | null>(null)
 
   const toLogin = useCallback(() => router.replace('/login'), [router])
 
@@ -442,6 +453,11 @@ export default function EditVendorPage({
       setPausedAt(v.bookingsPausedAt ?? null)
       setPausedReason(v.bookingsPausedReason ?? null)
       setClosures(v.closures ?? [])
+      setBin(
+        v.deletedAt
+          ? { deletedAt: v.deletedAt, deletedByName: v.deletedByName ?? null, deletedReason: v.deletedReason ?? null }
+          : null
+      )
       return true
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -559,35 +575,12 @@ export default function EditVendorPage({
       setPhotos((prev) => prev.filter((p) => p.id !== photoId))
     })
 
-  const pickServiceImage = (serviceId: string) => {
-    setImageTargetId(serviceId)
-    serviceImageInputRef.current?.click()
+  // "Photos and video" in a service's ⋯ (ServiceMediaPanel) saves as it
+  // goes and hands back the service's new list.
+  const setServiceMedia = (serviceId: string, media: ServiceMedia[]) => {
+    applyToBoth((rows) => rows.map((s) => (s.id === serviceId ? { ...s, media } : s)))
+    markListStale()
   }
-
-  const setServiceImages = (serviceId: string, images: AdminPhoto[]) =>
-    applyToBoth((rows) => rows.map((s) => (s.id === serviceId ? { ...s, images } : s)))
-
-  const handleServiceImageFile = async (files: FileList | null) => {
-    const file = files?.[0]
-    const serviceId = imageTargetId
-    if (serviceImageInputRef.current) serviceImageInputRef.current.value = ''
-    if (!file || !serviceId) return
-
-    const rejection = rejectFile(file)
-    if (rejection) {
-      setError(rejection)
-      return
-    }
-
-    await runMedia(`service-${serviceId}`, async () => {
-      setServiceImages(serviceId, await uploadAdminServiceImage(serviceId, file))
-    })
-  }
-
-  const handleRemoveServiceImage = (serviceId: string, imageId: string) =>
-    runMedia(`service-${serviceId}`, async () => {
-      setServiceImages(serviceId, await deleteAdminServiceImage(serviceId, imageId))
-    })
 
   const toggle = <T,>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -852,13 +845,6 @@ export default function EditVendorPage({
         hidden
         onChange={(e) => handlePhotoFiles(e.target.files)}
       />
-      <input
-        ref={serviceImageInputRef}
-        type="file"
-        accept={ACCEPTED_IMAGE_TYPES}
-        hidden
-        onChange={(e) => handleServiceImageFile(e.target.files)}
-      />
 
       {loading || !draft || !bookingMode ? (
         loading ? (
@@ -870,6 +856,17 @@ export default function EditVendorPage({
         )
       ) : (
         <div className="space-y-4">
+          {bin && (
+            <BinBanner
+              bin={bin}
+              onRestore={() => setRestoring(true)}
+            />
+          )}
+
+          {/* Disabled as a whole while the garage is in the Bin: every field
+              and button under it, the tabs' contents included, is read-only
+              until it is restored. */}
+          <fieldset disabled={Boolean(bin)} className="m-0 min-w-0 border-0 p-0">
           {/* Above the tabs, so it is the first thing on every one of them:
               the switch the owner could not find on the third tab. */}
           <LiveBookingModeCard
@@ -884,6 +881,7 @@ export default function EditVendorPage({
             onAuthError={toLogin}
             onSaved={markListStale}
           />
+          </fieldset>
 
           {/* Same four-tab shape as the vendor settings screen, so the admin
               editing a garage and the owner editing it see the same structure.
@@ -917,6 +915,10 @@ export default function EditVendorPage({
                 )
               })}
             </TabsList>
+
+            {/* The tabs themselves stay usable, to look around; what is in
+                them is read-only while the garage is in the Bin. */}
+            <fieldset disabled={Boolean(bin)} className="m-0 min-w-0 border-0 p-0">
 
             <TabsContent value="details">
             <ScSection title="Business & contact">
@@ -1328,12 +1330,7 @@ export default function EditVendorPage({
                     : 'No services yet. Add one, or start from a template above.'
                 }
                 saving={saving}
-                photos={{
-                  busyKey: mediaBusy,
-                  max: MAX_IMAGES_PER_SERVICE,
-                  onAdd: pickServiceImage,
-                  onRemove: (serviceId, imageId) => void handleRemoveServiceImage(serviceId, imageId),
-                }}
+                media={{ onChange: setServiceMedia }}
                 hide={{
                   onHide: hideService,
                   busyId: serviceBusyId,
@@ -1457,6 +1454,7 @@ export default function EditVendorPage({
                 )
               )}
             </TabsContent>
+            </fieldset>
           </Tabs>
 
           {/* Amber, as errors are: red on this page is Save changes. */}
@@ -1466,6 +1464,18 @@ export default function EditVendorPage({
             </p>
           )}
         </div>
+      )}
+
+      {restoring && saved && (
+        <RestoreDialog
+          vendor={{ id, businessName: saved.form.businessName }}
+          onClose={() => setRestoring(false)}
+          onDone={() => {
+            setRestoring(false)
+            markListStale()
+            void load()
+          }}
+        />
       )}
 
       {showSaveBar && (
@@ -1480,5 +1490,45 @@ export default function EditVendorPage({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * What a garage in the Bin's edit page says first: since when, who moved it
+ * and why, that it is off the app, and the one thing to do here, Restore.
+ */
+function BinBanner({
+  bin,
+  onRestore,
+}: {
+  bin: Pick<AdminVendorDetail, 'deletedAt' | 'deletedByName' | 'deletedReason'>
+  onRestore: () => void
+}) {
+  return (
+    <section
+      aria-labelledby="bin-banner-title"
+      className="flex flex-col gap-3 rounded-[14px] border border-warning/40 bg-warning-muted px-4 py-3.5"
+    >
+      <div>
+        <p id="bin-banner-title" className="text-[14px] font-semibold text-text-primary">
+          In the Bin, read-only
+        </p>
+        <p className="mt-1 text-[12.5px] leading-[18px] text-text-secondary">
+          Moved there{' '}
+          {bin.deletedAt && <span className="font-numeric">{formatWhen(bin.deletedAt)}</span>}
+          {bin.deletedByName && <> by {bin.deletedByName}</>}.
+          {bin.deletedReason && <> Reason: {bin.deletedReason}.</>} Customers and its team
+          can&apos;t see it. Restore it to make changes.
+        </p>
+      </div>
+      <ScButton
+        variant="secondary"
+        fullWidth={false}
+        onClick={onRestore}
+        className="flex min-h-11 items-center justify-center gap-1.5 self-start px-4 text-[13px]"
+      >
+        <IconRestore size={16} aria-hidden="true" /> Restore
+      </ScButton>
+    </section>
   )
 }

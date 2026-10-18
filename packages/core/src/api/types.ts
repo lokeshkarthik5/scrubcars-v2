@@ -1,3 +1,4 @@
+import type { ServiceMedia } from '@repo/core/types'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 
 export interface ApiSuccessResponse<T> {
@@ -271,6 +272,8 @@ export interface ApiService {
   durationMins: number
   isActive: boolean
   images: ApiServiceImage[]
+  /** Absent from responses older than service videos. */
+  media?: ServiceMedia[]
 }
 
 export interface ApiPackageItem {

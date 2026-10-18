@@ -125,6 +125,38 @@ export type OpsAlert =
       /** How long further failures stay quiet, so the message can say so. */
       quietMinutes: number
     }
+  | {
+      /**
+       * The owner ran "Start pilot clean" in admin: test bookings and
+       * checkouts were deleted for good. Nothing to do; the team should
+       * know it happened, and who did it.
+       */
+      kind: 'test_data_cleared'
+      /** The name the person typed to confirm. */
+      by: string
+      bookings: number
+      checkouts: number
+      /** The receipt plan, a year a line, in the dry run's words. */
+      receipts: string[]
+      auditId: string
+    }
+  | {
+      /**
+       * A garage was deleted forever from the admin Bin. Nothing to do; the
+       * team should know it happened, who did it, and whether bookings with
+       * real money were kept (the garage then stays as a tombstone).
+       */
+      kind: 'garage_deleted'
+      /** The name the person typed. */
+      by: string
+      garage: string
+      /** Bookings deleted with it, one per reschedule chain. */
+      bookings: number
+      /** Bookings kept for their real money. */
+      keptBookings: number
+      outcome: 'hard_delete' | 'tombstone' | 'partial'
+      auditId: string
+    }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
 export interface DigestBooking {
@@ -357,6 +389,28 @@ export function formatOpsAlert(alert: OpsAlert): string {
         'Check that migration 0030 is applied, and that receipt_counters is not behind the highest seq in receipt_numbers for this financial year.',
         `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`,
         adminBookingUrl(alert.bookingId)
+      )
+
+    case 'test_data_cleared':
+      return lines(
+        `🧹 Test data cleared by ${alert.by}: ${alert.bookings} ${alert.bookings === 1 ? 'booking' : 'bookings'}`,
+        alert.checkouts > 0
+          ? `${alert.checkouts} ${alert.checkouts === 1 ? 'checkout' : 'checkouts'} with it, refunds and photos included.`
+          : null,
+        ...alert.receipts,
+        `Audit record ${alert.auditId}.`
+      )
+
+    case 'garage_deleted':
+      return lines(
+        `🗑️ Garage deleted by ${alert.by}: ${alert.garage}, ${alert.bookings} ${alert.bookings === 1 ? 'booking' : 'bookings'}`,
+        alert.keptBookings > 0
+          ? `${alert.keptBookings} ${alert.keptBookings === 1 ? 'booking' : 'bookings'} with real money kept for the accounts, with the garage's name and address.`
+          : null,
+        alert.outcome === 'partial'
+          ? 'More bookings than one run deletes: the garage is still in the Bin, and Delete forever must be pressed again.'
+          : null,
+        `Audit record ${alert.auditId}.`
       )
   }
 }

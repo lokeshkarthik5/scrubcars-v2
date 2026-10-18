@@ -28,8 +28,11 @@ import {
   keyFromPublicUrl,
 } from '../../lib/storage.js'
 import { membersRepository } from '../members/members.repository.js'
+import { membersService } from '../members/members.service.js'
+import type { AddMemberInput, UpdateMemberInput } from '../members/members.validation.js'
 import { refundsService } from '../refunds/refunds.service.js'
-import { isListedToCustomers } from '../vendors/vendors.predicates.js'
+import { vendorInBin } from '../../lib/vendor-bin.js'
+import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
 import { adminRepository } from './admin.repository.js'
@@ -48,6 +51,9 @@ import type {
   UpdateVendorInput,
   UploadUrlInput,
 } from './admin.validation.js'
+import type { AddPhotoInput } from '../service-media/service-media.validation.js'
+import { serviceMediaService } from '../service-media/service-media.service.js'
+import { toManagedMedia } from '../../lib/service-media.js'
 
 const log = logger.child({ module: 'admin' })
 
@@ -61,11 +67,28 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB)
 }
 
+/**
+ * A garage admin can see. One deleted forever and kept only as a tombstone
+ * for its receipts is gone as far as admin is concerned: a 404, like an id
+ * that never was.
+ */
 async function assertVendor(vendorId: string) {
   const vendor = await adminRepository.findVendorById(vendorId)
-  if (!vendor) {
+  if (!vendor || vendor.purgedAt) {
     throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
   }
+  return vendor
+}
+
+/**
+ * A garage admin can change: as assertVendor, and not in the Bin. A garage
+ * in the Bin takes two changes only, Restore and Delete forever
+ * (modules/vendor-bin); anything else is 409 VENDOR_IN_BIN, so the edit
+ * page's read-only view is the server's rule too, not just the panel's.
+ */
+async function assertWritableVendor(vendorId: string) {
+  const vendor = await assertVendor(vendorId)
+  if (isInBin(vendor)) throw vendorInBin()
   return vendor
 }
 
@@ -94,17 +117,6 @@ async function assertPhotoCapacity(vendorId: string) {
       409,
       `This garage can have at most ${env.r2MaxPhotosPerVendor} photos`,
       'PHOTO_LIMIT_REACHED'
-    )
-  }
-}
-
-async function assertServiceImageCapacity(serviceId: string) {
-  const [{ count }] = await vendorsRepository.countServiceImages(serviceId)
-  if (count >= env.r2MaxImagesPerService) {
-    throw new AppError(
-      409,
-      `A service can have at most ${env.r2MaxImagesPerService} images`,
-      'SERVICE_IMAGE_LIMIT_REACHED'
     )
   }
 }
@@ -266,8 +278,15 @@ function toAdminBookingRow(
           status: booking.payment.status,
           // The Razorpay payment id ops searches for in the dashboard to refund.
           gatewayTxnId: booking.payment.gatewayTxnId,
+          // Which Razorpay mode it was taken in; null on payments from
+          // before 0032 recorded it.
+          gatewayMode: booking.payment.gatewayMode,
           paidAt: booking.payment.paidAt?.toISOString() ?? null,
         }
+      : null,
+    // Marked "Test" by ops: left out of the pilot numbers.
+    markedTest: booking.markedTestAt
+      ? { at: booking.markedTestAt.toISOString(), by: booking.markedTestBy }
       : null,
     garage: booking.vendor
       ? {
@@ -403,9 +422,9 @@ export const adminService = {
 
   async listVendors() {
     const vendors = await adminRepository.listVendors()
-    // One grouped count for every garage rather than a query per card. It
-    // counts what deleteVendor counts — every booking in any state — so "Has
-    // N bookings" on a card is exactly the reason a delete would be refused.
+    // One grouped count for every garage rather than a query per card:
+    // every booking it has had, in any state, for the card's "Has N
+    // bookings".
     const bookingCounts = new Map(
       (await adminRepository.countBookingsByVendor()).map((row) => [
         row.vendorId,
@@ -413,9 +432,10 @@ export const adminService = {
       ])
     )
     const drawnAreas = new Set(await adminRepository.listVendorIdsWithDoorstepArea())
-    // Still the full array, every stage included: the Bookings garage filter
-    // and other pickers read this list too. The panel's chips filter and
-    // count it on the client.
+    // Still the full array, every stage and the Bin included: the Bookings
+    // garage filter reads this list too (and leaves the Bin out itself). The
+    // panel's chips filter and count it on the client. A garage deleted
+    // forever and kept as a tombstone is not in it at all.
     return vendors.map(({ services, photos, workingHours, ...vendor }) => {
       const hasDoorstepArea = drawnAreas.has(vendor.id)
       return {
@@ -443,20 +463,29 @@ export const adminService = {
   async getVendor(id: string) {
     // Holidays from today on: past ones are history nobody acts on here.
     const vendor = await adminRepository.findVendorDetailById(id, todayDateKey())
-    if (!vendor) {
+    // A garage in the Bin still opens, read-only, with its Restore button;
+    // one deleted forever does not.
+    if (!vendor || vendor.purgedAt) {
       throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
     }
     // So the editor's "How customers book" can say a drawn area, not the
     // radius, is what covers doorstep customers.
     const hasDoorstepArea = await adminRepository.hasDoorstepArea(id)
-    return { ...vendor, hasDoorstepArea }
+    // `images` stays the photo rows the editor always read; `media` is the
+    // photo-and-video block's view of the same rows.
+    return {
+      ...vendor,
+      hasDoorstepArea,
+      services: vendor.services.map(({ images, ...service }) => ({
+        ...service,
+        images: images.filter((image) => image.kind === 'image'),
+        media: toManagedMedia(images),
+      })),
+    }
   },
 
   async updateVendor(id: string, input: UpdateVendorInput) {
-    const vendor = await adminRepository.findVendorById(id)
-    if (!vendor) {
-      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
-    }
+    const vendor = await assertWritableVendor(id)
 
     // Checked before anything is written. The owner, the vendor row and the
     // hours are separate writes, so a bad Saturday found after the first two
@@ -677,7 +706,7 @@ export const adminService = {
     serviceId: string,
     input: SetServiceActiveInput
   ) {
-    await assertVendor(vendorId)
+    await assertWritableVendor(vendorId)
 
     // findServiceById excludes packages, and a service of another garage is
     // as unknown here as a made-up id.
@@ -764,10 +793,7 @@ export const adminService = {
   },
 
   async verifyVendor(id: string) {
-    const vendor = await adminRepository.findVendorById(id)
-    if (!vendor) {
-      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
-    }
+    const vendor = await assertWritableVendor(id)
 
     assertPinnedBeforeVerifying(vendor)
 
@@ -779,10 +805,7 @@ export const adminService = {
   },
 
   async archiveVendor(id: string) {
-    const vendor = await adminRepository.findVendorById(id)
-    if (!vendor) {
-      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
-    }
+    await assertWritableVendor(id)
 
     const [updated] = await adminRepository.archiveVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-archived')
@@ -790,36 +813,11 @@ export const adminService = {
   },
 
   async unarchiveVendor(id: string) {
-    const vendor = await adminRepository.findVendorById(id)
-    if (!vendor) {
-      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
-    }
+    await assertWritableVendor(id)
 
     const [updated] = await adminRepository.unarchiveVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-unarchived')
     return updated
-  },
-
-  async deleteVendor(id: string) {
-    const vendor = await adminRepository.findVendorById(id)
-    if (!vendor) {
-      throw new AppError(404, 'Vendor not found', 'VENDOR_NOT_FOUND')
-    }
-
-    // Deleting cascades to every booking, payment and review the garage has —
-    // the record of money taken and work done. A garage that has ever been
-    // booked is archived instead, which takes it out of circulation and keeps
-    // that history.
-    if ((await adminRepository.countBookingsForVendor(id)) > 0) {
-      throw new AppError(
-        409,
-        'This garage has bookings. Archive it instead.',
-        'VENDOR_HAS_BOOKINGS'
-      )
-    }
-
-    await adminRepository.deleteVendor(id)
-    log.info({ vendorId: id }, 'admin:vendor-deleted')
   },
 
   /**
@@ -828,7 +826,7 @@ export const adminService = {
    * untouched. Pausing a paused garage only changes the reason.
    */
   async pauseVendor(id: string, input: PauseVendorInput) {
-    const vendor = await assertVendor(id)
+    const vendor = await assertWritableVendor(id)
     const [updated] = await vendorsRepository.updateVendor(id, {
       bookingsPausedAt: vendor.bookingsPausedAt ?? new Date(),
       bookingsPausedReason: input.reason || null,
@@ -838,7 +836,7 @@ export const adminService = {
   },
 
   async resumeVendor(id: string) {
-    await assertVendor(id)
+    await assertWritableVendor(id)
     const [updated] = await vendorsRepository.updateVendor(id, {
       bookingsPausedAt: null,
       bookingsPausedReason: null,
@@ -948,6 +946,7 @@ export const adminService = {
       search: parseBookingSearch(query.q),
       start,
       end,
+      test: query.test,
       after: query.cursor ?? null,
       limit: query.limit,
       offset: query.cursor ? 0 : (query.page - 1) * query.limit,
@@ -1084,6 +1083,37 @@ export const adminService = {
     return loadBookingDetail(id, now)
   },
 
+  /**
+   * Marks a booking "Test", or takes the mark off: the whole reschedule
+   * chain, since a chain is one customer booking. A marked booking is left
+   * out of the pilot numbers and, while the test-data reset is switched on,
+   * can be deleted from its page. The mark changes nothing else: slots,
+   * refunds and receipts read it nowhere. Leaves a note either way; marking
+   * what is already marked changes nothing and answers with the booking.
+   */
+  async setTestMark(id: string, sub: string, marked: boolean, now = Date.now()) {
+    const booking = await adminRepository.findBookingById(id)
+    if (!booking) throw bookingNotFound()
+
+    const author = await resolveNoteAuthor(sub)
+    const changed = await adminRepository.setChainTestMark(
+      booking.originalBookingId ?? booking.id,
+      marked ? { at: new Date(now), by: author } : null,
+      {
+        bookingId: id,
+        author,
+        body: marked
+          ? 'Marked as a test booking. It is left out of the pilot numbers.'
+          : 'Test mark removed. It counts in the pilot numbers again.',
+      }
+    )
+
+    if (changed) {
+      log.info({ bookingId: id, marked, rows: changed.length, author }, 'admin:booking-test-mark')
+    }
+    return loadBookingDetail(id, now)
+  },
+
   async addBookingNote(id: string, sub: string, input: CreateBookingNoteInput) {
     const booking = await adminRepository.findBookingById(id)
     if (!booking) throw bookingNotFound()
@@ -1108,7 +1138,7 @@ export const adminService = {
   // admin names the vendor, an owner is resolved from their token.
 
   async createVendorLogoUploadUrl(vendorId: string, input: UploadUrlInput) {
-    const vendor = await assertVendor(vendorId)
+    const vendor = await assertWritableVendor(vendorId)
     const { uploadUrl, publicUrl } = await createPresignedUpload(
       vendor.id,
       input.contentType,
@@ -1118,7 +1148,7 @@ export const adminService = {
   },
 
   async setVendorLogo(vendorId: string, input: MediaUrlInput) {
-    const vendor = await assertVendor(vendorId)
+    const vendor = await assertWritableVendor(vendorId)
 
     const storageKey = assertOwnBucketUrl(input.url, 'INVALID_LOGO_URL')
     const previousKey = vendor.logoStorageKey
@@ -1137,7 +1167,7 @@ export const adminService = {
   },
 
   async deleteVendorLogo(vendorId: string) {
-    const vendor = await assertVendor(vendorId)
+    const vendor = await assertWritableVendor(vendorId)
 
     const [updated] = await adminRepository.updateVendor(vendor.id, {
       logoUrl: null,
@@ -1154,7 +1184,7 @@ export const adminService = {
   },
 
   async createVendorPhotoUploadUrl(vendorId: string, input: UploadUrlInput) {
-    const vendor = await assertVendor(vendorId)
+    const vendor = await assertWritableVendor(vendorId)
     await assertPhotoCapacity(vendor.id)
 
     const { uploadUrl, publicUrl } = await createPresignedUpload(
@@ -1165,7 +1195,7 @@ export const adminService = {
   },
 
   async addVendorPhoto(vendorId: string, input: MediaUrlInput) {
-    const vendor = await assertVendor(vendorId)
+    const vendor = await assertWritableVendor(vendorId)
     const storageKey = assertOwnBucketUrl(input.url, 'INVALID_PHOTO_URL')
 
     // Re-checked after the presign: that URL stays usable for its whole TTL,
@@ -1189,7 +1219,7 @@ export const adminService = {
   },
 
   async deleteVendorPhoto(vendorId: string, photoId: string) {
-    const vendor = await assertVendor(vendorId)
+    const vendor = await assertWritableVendor(vendorId)
     const photo = await vendorsRepository.findPhotoById(vendor.id, photoId)
 
     if (!photo) {
@@ -1206,66 +1236,49 @@ export const adminService = {
     return deleted
   },
 
-  async createServiceImageUploadUrl(serviceId: string, input: UploadUrlInput) {
-    const service = await assertService(serviceId)
-    await assertServiceImageCapacity(service.id)
+  // Service photos and video. The rules (the privacy tick, the limits, AI
+  // samples giving way to a real photo, removing the files) are
+  // serviceMediaService's, shared with the garage's app. Each mutation
+  // answers with the service's media, as the upload block shows it.
 
-    // Keyed under the owning vendor, so a service's images sit beside the rest
-    // of that vendor's objects regardless of who uploaded them.
-    const { uploadUrl, publicUrl } = await createPresignedUpload(
-      service.vendorId,
-      input.contentType,
-      `services/${service.id}`
-    )
-    return { uploadUrl, publicUrl }
+  async createServiceImageUploadUrl(sub: string, serviceId: string, input: UploadUrlInput) {
+    return serviceMediaService.createPhotoUploadUrl({ kind: 'admin', sub }, serviceId, input)
   },
 
-  async addServiceImage(serviceId: string, input: MediaUrlInput) {
-    const service = await assertService(serviceId)
-    const storageKey = assertOwnBucketUrl(
-      input.url,
-      'INVALID_SERVICE_IMAGE_URL'
-    )
-
-    await assertServiceImageCapacity(service.id)
-
-    const [{ maxOrder }] =
-      await vendorsRepository.getNextServiceImageSortOrder(service.id)
-    await vendorsRepository.createServiceImage(service.id, {
-      url: input.url,
-      storageKey,
-      sortOrder: maxOrder + 1,
-    })
-
-    log.info(
-      { vendorId: service.vendorId, serviceId },
-      'admin:service-image-added'
-    )
-    return vendorsRepository.listServiceImages(service.id)
+  async addServiceImage(sub: string, serviceId: string, input: AddPhotoInput) {
+    const service = await serviceMediaService.addPhoto({ kind: 'admin', sub }, serviceId, input)
+    return serviceMediaService.listManaged(service.id)
   },
 
-  async deleteServiceImage(serviceId: string, imageId: string) {
-    const service = await assertService(serviceId)
-    const image = await vendorsRepository.findServiceImageById(
-      service.id,
-      imageId
-    )
+  /** Removes a photo or the video. */
+  async deleteServiceImage(sub: string, serviceId: string, imageId: string) {
+    const service = await serviceMediaService.deleteMedia({ kind: 'admin', sub }, serviceId, imageId)
+    return serviceMediaService.listManaged(service.id)
+  },
 
-    if (!image) {
-      throw new AppError(404, 'Image not found', 'SERVICE_IMAGE_NOT_FOUND')
-    }
+  // ─── Vendor team ───────────────────────────────────────────────────────────
+  //
+  // membersService's own rules, behind the Bin check: a garage in the Bin
+  // takes no team changes (its seats are kept as they are for Restore).
 
-    const [deleted] = await vendorsRepository.deleteServiceImage(
-      service.id,
-      imageId
-    )
+  async addVendorMember(vendorId: string, actorId: string | null, input: AddMemberInput) {
+    await assertWritableVendor(vendorId)
+    return membersService.addMember(vendorId, actorId, input)
+  },
 
-    const key = deleted.storageKey ?? keyFromPublicUrl(deleted.url)
-    if (key) {
-      await deleteObject(key)
-    }
+  async updateVendorMember(
+    vendorId: string,
+    actorId: string | null,
+    membershipId: string,
+    input: UpdateMemberInput
+  ) {
+    await assertWritableVendor(vendorId)
+    return membersService.updateMember(vendorId, actorId, membershipId, input)
+  },
 
-    return vendorsRepository.listServiceImages(service.id)
+  async removeVendorMember(vendorId: string, actorId: string | null, membershipId: string) {
+    await assertWritableVendor(vendorId)
+    return membersService.removeMember(vendorId, actorId, membershipId)
   },
 
   // ─── Platform admins ───────────────────────────────────────────────────────

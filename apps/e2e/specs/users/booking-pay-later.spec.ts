@@ -10,7 +10,7 @@
  * @p0 specs cover consumeIntent and the refused branch).
  */
 import { test, expect, asRole } from '../../support/fixtures'
-import { getPayment, getReceiptNumber } from '../../support/db'
+import { gatewayModes, getPayment, getReceiptNumber } from '../../support/db'
 import { BOOKINGS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('customer-payLater') })
@@ -29,4 +29,7 @@ test('an unpaid booking can be settled from its own page @p0', async ({ page }) 
 
   // The receipt number is issued in the same transaction that settles it.
   expect((await getReceiptNumber(BOOKINGS.unpaid))?.number).toMatch(/^DTL\/\d{2}-\d{2}\/\d{6}$/)
+
+  // Opening the order recorded its mode on the payment (no checkout here).
+  expect((await gatewayModes(BOOKINGS.unpaid))?.payment).toBe('fake')
 })

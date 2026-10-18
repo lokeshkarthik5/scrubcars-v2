@@ -7,6 +7,7 @@ import {
   vendors,
 } from '../../db/schema.js'
 import type { memberRoleEnum } from '../../db/schema.js'
+import { vendorNotInBin } from '../vendors/vendors.predicates.js'
 
 export type MemberRole = (typeof memberRoleEnum.enumValues)[number]
 
@@ -24,6 +25,13 @@ export type MemberMappingRecord = typeof userMemberMapping.$inferSelect
  * Every read here filters on status = 'active'. A suspended row is treated
  * exactly like no row — miss the filter in one place and a suspended member
  * still has access, which is the same bug class as forgetting a tenant filter.
+ *
+ * The seat reads also join the company and leave out one in the Bin
+ * (vendorNotInBin): a seat at a garage in the Bin is no seat, so its team
+ * cannot sign in to it, switch to it or reach it with X-Vendor-Id. The two
+ * filters are on different tables — the seat's status, the garage's
+ * deleted_at — and neither stands in for the other. The seat rows are kept,
+ * so Restore gives everyone their access back as it was.
  */
 export const membersRepository = {
   /** The caller's seats, one per company they can act as. */
@@ -49,22 +57,36 @@ export const membersRepository = {
         and(
           eq(userMemberMapping.userId, userId),
           eq(userMemberMapping.status, 'active'),
-          inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES])
+          inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES]),
+          vendorNotInBin()
         )
       )
       .orderBy(asc(vendors.businessName))
   },
 
-  /** The caller's seat in one specific company, if any. */
-  findActiveVendorSeat(vendorId: string, userId: string) {
-    return db.query.userMemberMapping.findFirst({
-      where: and(
-        eq(userMemberMapping.vendorId, vendorId),
-        eq(userMemberMapping.userId, userId),
-        eq(userMemberMapping.status, 'active'),
-        inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES])
-      ),
-    })
+  /** The caller's seat in one specific company, if any, and not in the Bin. */
+  async findActiveVendorSeat(vendorId: string, userId: string) {
+    const [row] = await db
+      .select({
+        id: userMemberMapping.id,
+        vendorId: userMemberMapping.vendorId,
+        userId: userMemberMapping.userId,
+        role: userMemberMapping.role,
+        status: userMemberMapping.status,
+      })
+      .from(userMemberMapping)
+      .innerJoin(vendors, eq(vendors.id, userMemberMapping.vendorId))
+      .where(
+        and(
+          eq(userMemberMapping.vendorId, vendorId),
+          eq(userMemberMapping.userId, userId),
+          eq(userMemberMapping.status, 'active'),
+          inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES]),
+          vendorNotInBin()
+        )
+      )
+      .limit(1)
+    return row
   },
 
   /** The caller's platform-scoped row, if any. */
@@ -87,11 +109,13 @@ export const membersRepository = {
     const [row] = await db
       .select({ value: sql<number>`1` })
       .from(userMemberMapping)
+      .innerJoin(vendors, eq(vendors.id, userMemberMapping.vendorId))
       .where(
         and(
           eq(userMemberMapping.userId, userId),
           eq(userMemberMapping.status, 'active'),
-          inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES])
+          inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES]),
+          vendorNotInBin()
         )
       )
       .limit(1)
@@ -273,11 +297,16 @@ export const membersRepository = {
       .orderBy(asc(userMemberMapping.createdAt))
   },
 
+  /**
+   * Companies this person owns, toward the cap on new ones. A garage in the
+   * Bin still counts (it can come back); one deleted forever and kept only
+   * as a tombstone for its receipts does not.
+   */
   countOwnedVendors(userId: string) {
     return db
       .select({ value: sql<number>`count(*)` })
       .from(vendors)
-      .where(eq(vendors.ownerId, userId))
+      .where(and(eq(vendors.ownerId, userId), isNull(vendors.purgedAt)))
   },
 
   /** Does this person own any company? A super_admin may not (§10). */
@@ -301,16 +330,33 @@ export const membersRepository = {
     return db.insert(internalAccessLog).values(data)
   },
 
+  /** Seats that open the garage app: active, in a garage not in the Bin. */
   countActiveVendorSeats(userId: string) {
     return db
       .select({ value: sql<number>`count(*)` })
       .from(userMemberMapping)
+      .innerJoin(vendors, eq(vendors.id, userMemberMapping.vendorId))
       .where(
         and(
           eq(userMemberMapping.userId, userId),
           eq(userMemberMapping.status, 'active'),
-          inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES])
+          inArray(userMemberMapping.role, [...VENDOR_SCOPED_ROLES]),
+          vendorNotInBin()
         )
       )
+  },
+
+  /**
+   * The company a support session asks for, if it exists and is not in the
+   * Bin. Ids only: the support path needs to know it may go in, not what is
+   * inside.
+   */
+  async findVendorForSupport(vendorId: string) {
+    const [row] = await db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(and(eq(vendors.id, vendorId), vendorNotInBin()))
+      .limit(1)
+    return row
   },
 }

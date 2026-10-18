@@ -29,13 +29,15 @@ import {
   useAdminBookings,
 } from '@repo/core/api/hooks/use-admin-bookings'
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
+import { isInBin } from '@/lib/vendor-list'
+import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
-import { APP_TIMEZONE } from '@repo/core/utils'
 import {
   BillDueBadge,
   NoShowBadge,
   RefundedBadge,
   RefundOwedBadge,
+  TestBadge,
   WaitingBadge,
 } from '@/components/booking-badges'
 import { CopyButton } from '@/components/copy-button'
@@ -44,11 +46,13 @@ import { PhoneLink } from '@/components/phone-link'
 import {
   bookingsCsv,
   cancellationLabel,
+  downloadCsv,
   formatClock,
   formatRupees,
   formatWhen,
   listQueryForDetail,
   paymentStatusLabel,
+  todayIst,
 } from '@/lib/bookings'
 
 const STATUSES = [
@@ -92,6 +96,7 @@ function BookingRow({
             #{b.reference}
           </Link>
           <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
+          {b.markedTest && <TestBadge />}
           {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
           {b.noShow && <NoShowBadge party={b.noShow} />}
           {b.billDue && <BillDueBadge amount={b.billDue} />}
@@ -190,31 +195,6 @@ function BookingRow({
  */
 const EXPORT_MAX_PAGES = 50
 
-/** Today in Chennai as YYYY-MM-DD, for the export's filename. */
-function todayIst(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: APP_TIMEZONE })
-}
-
-/**
- * Saves text as a file. The link is attached to the page while it is
- * clicked and the URL revoked only later: Safari on iOS reads the blob after
- * the click returns, and fails the download if it is already gone.
- */
-function downloadCsv(text: string, filename: string) {
-  // The byte-order mark makes Excel read the file as UTF-8, so ₹ and Tamil
-  // names survive the round trip.
-  const blob = new Blob(['\uFEFF', text], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.hidden = true
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 30_000)
-}
-
 function BookingsList() {
   const router = useRouter()
   const pathname = usePathname()
@@ -227,6 +207,8 @@ function BookingsList() {
   const vendorId = params.get('garage') ?? ''
   const from = params.get('from') ?? ''
   const to = params.get('to') ?? ''
+  // Bookings the team marked Test: on their own, when the chip is on.
+  const testOnly = params.get('test') === 'only'
 
   const [search, setSearch] = useState(params.get('q') ?? '')
   const q = useDebounced(search.trim(), 350)
@@ -268,8 +250,9 @@ function BookingsList() {
       vendorId: vendorId || undefined,
       from: rangeReversed ? undefined : from || undefined,
       to: rangeReversed ? undefined : to || undefined,
+      test: testOnly ? ('only' as const) : undefined,
     }),
-    [q, status, vendorId, from, to, rangeReversed]
+    [q, status, vendorId, from, to, rangeReversed, testOnly]
   )
 
   const {
@@ -286,10 +269,15 @@ function BookingsList() {
   const listQuery = listQueryForDetail(params)
 
   const { data: vendors = [] } = useAdminVendors()
+  // Garages in the Bin are left out of the filter, as of every other picker:
+  // they are on their way out. One already chosen (a link from before it
+  // went there) stays, so the filter never shows a blank.
   const garages = useMemo(
     () =>
-      [...vendors].sort((a, b) => a.businessName.localeCompare(b.businessName)),
-    [vendors]
+      vendors
+        .filter((v) => !isInBin(v) || v.id === vendorId)
+        .sort((a, b) => a.businessName.localeCompare(b.businessName)),
+    [vendors, vendorId]
   )
 
   // A dead admin session is a redirect, not an error message.
@@ -297,7 +285,10 @@ function BookingsList() {
     if (isAuthError(error)) router.replace('/login')
   }, [error, router])
 
-  const isFiltered = Boolean(q || status !== 'all' || vendorId || from || to)
+  const isFiltered = Boolean(q || status !== 'all' || vendorId || from || to || testOnly)
+  // Start pilot clean is reachable from here on a phone, where the bottom
+  // bar has no room for it; only while it is switched on.
+  const { data: resetConfig } = useDataResetConfig()
 
   const clearFilters = () => {
     setSearch('')
@@ -346,6 +337,16 @@ function BookingsList() {
     <>
       <PageHeader
         title="Bookings"
+        subtitle={
+          resetConfig?.enabled ? (
+            <Link
+              href="/data-reset"
+              className="inline-flex min-h-11 items-center font-medium text-text-primary underline underline-offset-2"
+            >
+              Start pilot clean
+            </Link>
+          ) : undefined
+        }
         actions={
           <ScButton
             variant="secondary"
@@ -385,6 +386,11 @@ function BookingsList() {
               onClick={() => setParams({ status: s === 'all' ? '' : s })}
             />
           ))}
+          <FilterChip
+            label="Test bookings"
+            active={testOnly}
+            onClick={() => setParams({ test: testOnly ? '' : 'only' })}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-[2fr_1fr_1fr]">
@@ -399,7 +405,7 @@ function BookingsList() {
               <option value="">All garages</option>
               {garages.map((garage) => (
                 <option key={garage.id} value={garage.id}>
-                  {garage.businessName}
+                  {isInBin(garage) ? `${garage.businessName} (in the Bin)` : garage.businessName}
                 </option>
               ))}
             </ScSelect>

@@ -8,6 +8,7 @@ import {
   discountRedemptions,
   discounts,
   payments,
+  type GatewayMode,
 } from '../../db/schema.js'
 import {
   allocateReceiptNumber,
@@ -75,10 +76,12 @@ export const bookingIntentsRepository = {
     })
   },
 
-  setGatewayTxnId(intentId: string, gatewayTxnId: string) {
+  // With the order's Razorpay mode (0032), so the test-data reset can tell
+  // test money from real without asking Razorpay.
+  setGatewayTxnId(intentId: string, gatewayTxnId: string, gatewayMode: GatewayMode) {
     return db
       .update(bookingIntents)
-      .set({ gatewayTxnId })
+      .set({ gatewayTxnId, gatewayMode })
       .where(eq(bookingIntents.id, intentId))
       .returning()
   },
@@ -280,6 +283,8 @@ export const bookingIntentsRepository = {
         bookingId: booking.id,
         gateway: 'razorpay',
         gatewayTxnId: params.razorpayPaymentId,
+        // The mode of the order it was paid through, carried over.
+        gatewayMode: intent.gatewayMode,
         amount: intent.amount,
         status: 'paid',
         paidAt,

@@ -12,6 +12,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { DISCOUNT_HELD, DISCOUNT_REALIZED } from './discounts.predicates.js'
+import { LISTED_TO_CUSTOMERS, vendorNotInBin } from '../vendors/vendors.predicates.js'
 import { db } from '../../db/index.js'
 import type { CarType } from '../../lib/offers.js'
 import { WASH_CATEGORIES } from '../home/home.repository.js'
@@ -192,20 +193,21 @@ export const discountsRepository = {
     await db.delete(discounts).where(eq(discounts.id, id))
   },
 
+  /** A garage a code can be scoped to: one that exists and is not in the Bin. */
   async vendorExists(vendorId: string): Promise<boolean> {
     const row = await db.query.vendors.findFirst({
-      where: eq(vendors.id, vendorId),
+      where: and(eq(vendors.id, vendorId), vendorNotInBin()),
       columns: { id: true },
     })
     return Boolean(row)
   },
 
-  /** Vendor picker for the admin form: active garages, alphabetical. */
+  /** Vendor picker for the admin form: garages not archived or in the Bin, alphabetical. */
   listVendorOptions() {
     return db
       .select({ id: vendors.id, businessName: vendors.businessName })
       .from(vendors)
-      .where(ne(vendors.status, 'archived'))
+      .where(and(ne(vendors.status, 'archived'), vendorNotInBin()))
       .orderBy(asc(vendors.businessName))
   },
 
@@ -335,8 +337,7 @@ export const discountsRepository = {
    */
   async vendorIsPublic(vendorId: string): Promise<boolean | null> {
     const [row] = await db.execute<{ public: boolean }>(sql`
-      SELECT (v.status = 'active' AND v.is_verified AND v.geo IS NOT NULL
-               AND v.bookings_paused_at IS NULL) AS public
+      SELECT (${LISTED_TO_CUSTOMERS} AND v.geo IS NOT NULL) AS public
         FROM vendors v
        WHERE v.id = ${vendorId}
     `)

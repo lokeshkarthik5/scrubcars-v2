@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
-import type { ServiceCategory } from '@repo/core/types'
+import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 
 export interface AdminVendor {
@@ -35,11 +35,20 @@ export interface AdminVendor {
   /** The garage drew its own doorstep area, which then replaces the radius. */
   hasDoorstepArea?: boolean
   /**
-   * Customers can find it: Active, verified and not paused — the customer
-   * lists' own rule, decided on the server so the two never disagree. Absent
-   * from a server older than this field.
+   * Customers can find it: Active, verified, not paused and not in the Bin —
+   * the customer lists' own rule, decided on the server so the two never
+   * disagree. Absent from a server older than this field.
    */
   live?: boolean
+  /**
+   * In the Bin since then (see AdminVendorBin), or null. A garage in the Bin
+   * is off the app for customers and its team until restored or deleted
+   * forever. Absent from a server older than the Bin.
+   */
+  deletedAt?: string | null
+  /** The name typed by whoever moved it to the Bin, and why, if they said. */
+  deletedByName?: string | null
+  deletedReason?: string | null
   /** What the garage still needs, blocking first (see ReadinessItem). */
   readiness?: ReadinessItem[]
   owner: {
@@ -119,6 +128,10 @@ export interface AdminVendorDetail {
   /** When the garage paused new bookings, and why. Null while it takes them. */
   bookingsPausedAt: string | null
   bookingsPausedReason: string | null
+  /** In the Bin since then, by whom and why: the edit page opens read-only. */
+  deletedAt?: string | null
+  deletedByName?: string | null
+  deletedReason?: string | null
   createdAt: string
   owner: {
     id: string
@@ -141,6 +154,8 @@ export interface AdminVendorDetail {
     priceSuv: string | null
     durationMins: number
     images: AdminPhoto[]
+    /** Photos and the video, with each video's state. */
+    media: ServiceMedia[]
   }>
 }
 
@@ -253,8 +268,18 @@ export interface AdminBooking {
     status: string
     /** The Razorpay payment id — what ops searches the dashboard for to refund. */
     gatewayTxnId: string | null
+    /**
+     * Which Razorpay mode the money was taken in. Null on payments from
+     * before it was recorded; optional for an older server.
+     */
+    gatewayMode?: 'live' | 'test' | 'fake' | null
     paidAt: string | null
   } | null
+  /**
+   * Marked "Test" by ops: left out of the pilot numbers, and deletable from
+   * its page while the test-data reset is on. Optional for an older server.
+   */
+  markedTest?: { at: string; by: string | null } | null
   garage: { id: string; name: string; phone: string } | null
   customer: { id: string; name: string; phone: string } | null
   /** Where a doorstep job happens. Null for a job at the garage. */
@@ -403,6 +428,8 @@ export interface AdminBookingFilters {
   /** IST calendar dates (YYYY-MM-DD) on the scheduled time, both inclusive. */
   from?: string
   to?: string
+  /** Bookings marked "Test": only those, or all but those. */
+  test?: 'only' | 'hide'
   limit?: number
   /** Older paging; the panel uses `cursor`. */
   page?: number
@@ -602,13 +629,139 @@ export async function resumeAdminVendor(id: string) {
   })
 }
 
+// ─── The Bin ─────────────────────────────────────────────────────────────────
+//
+// A garage being deleted goes to the Bin first: off the app for customers and
+// for its team, with its bookings still to come cancelled by Detlio ("Garage
+// removed"; a paid one becomes a refund owed). From the Bin it is restored as
+// it was, or deleted forever. Every one of these writes is recorded with the
+// name typed in the dialog.
+
+/** A booking still to happen, which moving its garage to the Bin cancels. */
+export interface AdminBinUpcomingBooking {
+  id: string
+  reference: string
+  status: string
+  scheduledAt: string
+  amount: string
+  customerName: string | null
+  /** Paid: cancelling it makes a refund owed (Refunds page). */
+  paid: boolean
+}
+
+/** The garage as the Bin's answers describe it. */
+export interface AdminBinGarage {
+  id: string
+  businessName: string
+  deletedAt: string | null
+  deletedByName: string | null
+  deletedReason: string | null
+}
+
+/** GET /admin/vendors/:id/bin-preview: what moving it to the Bin would cancel. */
+export interface AdminVendorBinPreview {
+  garage: AdminBinGarage
+  inBin: boolean
+  upcomingCount: number
+  paidCount: number
+  upcoming: AdminBinUpcomingBooking[]
+}
+
+/** POST /admin/vendors/:id/bin: what was done. */
+export interface AdminVendorBinResult {
+  garage: AdminBinGarage
+  auditId: string
+  cancelled: Array<{ id: string; reference: string; paid: boolean }>
+  /** Cancelled bookings that were paid: each is a refund owed now. */
+  refundsOwed: number
+  /** Bookings that could not be cancelled (changed meanwhile): cancel them from their page. */
+  notCancelled: Array<{ id: string; reference: string; message: string }>
+}
+
 /**
- * DELETE /admin/vendors/:id — permanent hard delete. Refused (409
- * VENDOR_HAS_BOOKINGS) for a garage that has ever been booked; archive it.
+ * GET /admin/vendors/:id/delete-preview: what Delete forever would do now.
+ * `hard_delete`: the garage goes entirely. `tombstone`: bookings with real
+ * money are kept, and the garage's name and address with them, for their
+ * receipts. `partial`: more bookings than one run deletes; it stays in the
+ * Bin and Delete forever is pressed again.
  */
-export async function deleteAdminVendor(id: string) {
-  return apiClient<void>(`/admin/vendors/${id}`, {
+export interface AdminVendorDeletePreview {
+  garage: AdminBinGarage
+  inBin: boolean
+  outcome: 'hard_delete' | 'tombstone' | 'partial'
+  /** Customer bookings (one per reschedule chain): deleted, and kept for their money. */
+  bookings: { deleted: number; kept: number }
+  /** Checkouts that never became a booking. */
+  checkouts: { deleted: number; kept: number }
+  assets: {
+    /** Logo and gallery photos. */
+    photos: number
+    servicePictures: number
+    videos: number
+    services: number
+    teamLogins: number
+  }
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  kept: Array<{
+    kind: 'booking' | 'checkout'
+    id: string
+    reference: string
+    moneyLabel: string
+    label: string
+    detail: string
+  }>
+  overCap: { chains: number; checkouts: number }
+  selectionHash: string
+}
+
+export interface AdminVendorDeleteResult {
+  garage: { id: string; businessName: string }
+  outcome: AdminVendorDeletePreview['outcome']
+  auditId: string
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  keptBookings: number
+  keptCheckouts: number
+  remaining: { chains: number; checkouts: number }
+}
+
+export async function getAdminVendorBinPreview(id: string) {
+  return apiClient<AdminVendorBinPreview>(`/admin/vendors/${id}/bin-preview`)
+}
+
+/** POST /admin/vendors/:id/bin */
+export async function binAdminVendor(id: string, input: { actorName: string; reason?: string }) {
+  return apiClient<AdminVendorBinResult>(`/admin/vendors/${id}/bin`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** POST /admin/vendors/:id/restore — back as it was, team access included. */
+export async function restoreAdminVendor(id: string, input: { actorName: string }) {
+  return apiClient<{ garage: AdminBinGarage; auditId: string }>(`/admin/vendors/${id}/restore`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function getAdminVendorDeletePreview(id: string) {
+  return apiClient<AdminVendorDeletePreview>(`/admin/vendors/${id}/delete-preview`)
+}
+
+/**
+ * DELETE /admin/vendors/:id — delete forever, only for a garage in the Bin,
+ * with its name typed out and the preview's fingerprint (409 PREVIEW_STALE
+ * if anything moved since).
+ */
+export async function deleteAdminVendorForever(
+  id: string,
+  input: { actorName: string; confirmName: string; selectionHash: string }
+) {
+  return apiClient<AdminVendorDeleteResult>(`/admin/vendors/${id}`, {
     method: 'DELETE',
+    body: JSON.stringify(input),
   })
 }
 
@@ -640,7 +793,10 @@ export async function setAdminServiceActive(
 
 /** Which AI helpers the API has switched on. All off without an OpenAI key. */
 export interface AdminAiConfig {
+  /** "Write with AI" for service descriptions. */
   describe: boolean
+  /** "Make a picture with AI" for a service with no real photo. */
+  pictures: boolean
   /**
    * Reading a poster, photo or PDF on Add garage. The Tally CSV import
    * needs no AI and is there either way. Absent from an API older than it.
@@ -855,34 +1011,8 @@ export async function deleteAdminVendorPhoto(
   )
 }
 
-/** Upload one service image. Returns that service's full image list. */
-export async function uploadAdminServiceImage(serviceId: string, file: File) {
-  const { uploadUrl, publicUrl } = await apiClient<{
-    uploadUrl: string
-    publicUrl: string
-  }>(`/admin/services/${serviceId}/images/upload-url`, {
-    method: 'POST',
-    body: JSON.stringify({ contentType: file.type as UploadContentType }),
-  })
-
-  await putToR2(uploadUrl, file)
-
-  return apiClient<AdminPhoto[]>(`/admin/services/${serviceId}/images`, {
-    method: 'POST',
-    body: JSON.stringify({ url: publicUrl }),
-  })
-}
-
-/** DELETE /admin/services/:serviceId/images/:imageId */
-export async function deleteAdminServiceImage(
-  serviceId: string,
-  imageId: string
-) {
-  return apiClient<AdminPhoto[]>(
-    `/admin/services/${serviceId}/images/${imageId}`,
-    { method: 'DELETE' }
-  )
-}
+// Service photos and video: adminMediaApi in @repo/core/api/service-media,
+// shared with the garage's app.
 
 /** GET /admin/bookings — one page, newest scheduled first. */
 export async function listAdminBookings(filters: AdminBookingFilters = {}) {
@@ -893,6 +1023,7 @@ export async function listAdminBookings(filters: AdminBookingFilters = {}) {
       vendorId: filters.vendorId || undefined,
       from: filters.from || undefined,
       to: filters.to || undefined,
+      test: filters.test || undefined,
       limit: filters.limit,
       page: filters.page,
       cursor: filters.cursor,
@@ -944,6 +1075,193 @@ export async function listAdminRefunds(status: 'owed' | 'done') {
  */
 export async function recordAdminRefund(input: RecordRefundInput) {
   return apiClient<AdminRefund>('/admin/refunds', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST (mark) or DELETE (unmark) /admin/bookings/:id/mark-test — the whole
+ * reschedule chain, with a note. Returns the updated booking.
+ */
+export async function setAdminBookingTestMark(id: string, marked: boolean) {
+  return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/mark-test`, {
+    method: marked ? 'POST' : 'DELETE',
+  })
+}
+
+// ─── Start pilot clean (the test-data reset) ─────────────────────────────────
+//
+// Behind ADMIN_DATA_RESET on the API: while it is off every route is a 404,
+// which is how the panel knows to hide it. See
+// apps/server/src/lib/data-reset.ts for the rules.
+
+export interface DataResetConfig {
+  enabled: boolean
+  /** The Razorpay keys the API holds, which decides what a check can tell. */
+  keyMode: 'live' | 'test' | 'fake' | 'none'
+  maxChainsPerRun: number
+  maxCheckoutsPerRun: number
+  /** The server's clock, ISO: the default cutoff. */
+  now: string
+}
+
+export type DataResetScope =
+  | { kind: 'before_cutoff'; cutoff: string }
+  | { kind: 'marked_test' }
+  | { kind: 'chains'; bookingIds: string[] }
+
+export type DataResetMoney =
+  | 'live'
+  | 'cash'
+  | 'unknown'
+  | 'unchecked'
+  | 'test'
+  | 'fake'
+  | 'no_money'
+
+/** Why a row is kept whatever is ticked. */
+export interface DataResetKept {
+  code: string
+  /** "Real payment — kept". */
+  label: string
+  detail: string
+}
+
+/** One customer booking (a reschedule chain) in the dry run. */
+export interface DataResetChain {
+  rootId: string
+  reference: string
+  bookingIds: string[]
+  createdAt: string
+  scheduledAt: string
+  status: string
+  garage: { id: string; name: string }
+  customer: { id: string; name: string; phone: string | null }
+  amount: string
+  paymentStatus: string | null
+  razorpayIds: string[]
+  money: DataResetMoney
+  moneyLabel: string
+  receiptNumber: string | null
+  refunded: string
+  markedTest: boolean
+  kept: DataResetKept | null
+  selected: boolean
+}
+
+/** A checkout that never became a booking, in the dry run. */
+export interface DataResetCheckout {
+  id: string
+  reference: string
+  createdAt: string
+  status: string
+  customer: { id: string; name: string }
+  garageName: string
+  amount: string
+  paymentRef: string | null
+  money: DataResetMoney
+  moneyLabel: string
+  refunded: string
+  kept: DataResetKept | null
+  selected: boolean
+}
+
+export interface DataResetCounts {
+  bookings: number
+  bookingRows: number
+  bookingItems: number
+  payments: number
+  finalBills: number
+  refundRecords: number
+  photos: number
+  notes: number
+  reviews: number
+  promoUses: number
+  reschedules: number
+  checkouts: number
+  checkoutItems: number
+  receiptNumbers: number
+}
+
+export interface DataResetReceiptYear {
+  financialYear: string
+  mode: 'restart' | 'void'
+  numbers: string[]
+  nextNumber: string
+  voidsCleared: number
+  /** "Numbering restarts at DTL/26-27/000001". */
+  words: string
+}
+
+export interface DataResetPreview {
+  scope: { kind: DataResetScope['kind']; cutoff?: string; bookingIds?: string[] }
+  generatedAt: string
+  chains: DataResetChain[]
+  checkouts: DataResetCheckout[]
+  counts: DataResetCounts
+  /** The counts in plain words, zeros left out. */
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  /** Deletable rows left unticked because the run is over its cap. */
+  overCap: { chains: number; checkouts: number }
+  /** What to type: "DELETE 143 BOOKINGS". */
+  confirmPhrase: string
+  selectionHash: string
+  lookups: {
+    keyMode: DataResetConfig['keyMode']
+    checkedNow: number
+    /** Old payments still to check with Razorpay; call again until 0. */
+    remaining: number
+    /** Send back on the next call: Razorpay could not answer for these. */
+    unknownIds: string[]
+  }
+}
+
+export interface DataResetPreviewInput {
+  scope: DataResetScope
+  /** The ticked rows; leave out on the first look to tick everything deletable. */
+  only?: { chainIds: string[]; checkoutIds: string[] }
+  unknownIds?: string[]
+}
+
+export interface DataResetExecuteInput extends DataResetPreviewInput {
+  selectionHash: string
+  confirmText: string
+  actorName: string
+  backupConfirmed: true
+}
+
+export interface DataResetResult {
+  auditId: string
+  at: string
+  by: string
+  counts: DataResetCounts
+  countLines: string[]
+  receiptPlan: DataResetReceiptYear[]
+  photosRemoved: number
+}
+
+/** GET /admin/data-reset/config — 404 while the reset is switched off. */
+export async function getDataResetConfig() {
+  return apiClient<DataResetConfig>('/admin/data-reset/config')
+}
+
+/** POST /admin/data-reset/preview — the dry run. Deletes nothing. */
+export async function previewDataReset(input: DataResetPreviewInput) {
+  return apiClient<DataResetPreview>('/admin/data-reset/preview', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * POST /admin/data-reset/execute — 409 PREVIEW_STALE when anything moved
+ * since the dry run, 400 CONFIRM_PHRASE_MISMATCH for a wrong phrase, 503
+ * RESET_BUSY when a row was busy. Nothing is deleted on any of them.
+ */
+export async function executeDataReset(input: DataResetExecuteInput) {
+  return apiClient<DataResetResult>('/admin/data-reset/execute', {
     method: 'POST',
     body: JSON.stringify(input),
   })

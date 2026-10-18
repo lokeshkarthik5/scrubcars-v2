@@ -1,4 +1,5 @@
 import { documentClientFor, textClientFor, type DocumentClient, type TextClient } from '../../lib/ai.js'
+import { isAiPicturesEnabled } from '../../lib/ai-images.js'
 import { env } from '../../lib/env.js'
 import { FAKE_GARAGE_READING } from '../../lib/garage-import/vision.js'
 import { logger } from '../../lib/logger.js'
@@ -45,9 +46,13 @@ function documentClient(): DocumentClient | null {
 }
 
 export const aiService = {
-  /** Which AI helpers the admin panel may show. All off without a key. */
+  /**
+   * Which AI helpers the admin panel may show: "Write with AI" (`describe`)
+   * and "Make a picture with AI" (`pictures`, lib/ai-images.ts). All off
+   * without a key.
+   */
   config() {
-    return aiConfigFor(textClient(), documentClient())
+    return { ...aiConfigFor(textClient(), documentClient()), pictures: isAiPicturesEnabled() }
   },
 
   describeService(input: DescribeServiceInput) {

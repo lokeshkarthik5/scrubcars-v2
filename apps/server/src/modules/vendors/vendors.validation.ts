@@ -424,10 +424,6 @@ export const serviceImageUploadUrlSchema = z.object({
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 })
 
-export const createServiceImageSchema = z.object({
-  url: z.string().url().max(2048),
-})
-
 export const serviceImageParamSchema = z.object({
   id: z.string().uuid(),
   imageId: z.string().uuid(),
@@ -529,7 +525,6 @@ export type ToggleServiceActiveInput = z.infer<typeof toggleServiceActiveSchema>
 export type ServiceImageUploadUrlInput = z.infer<
   typeof serviceImageUploadUrlSchema
 >
-export type CreateServiceImageInput = z.infer<typeof createServiceImageSchema>
 export type CreatePackageInput = z.infer<typeof createPackageSchema>
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>
 export type SlotsQueryInput = z.infer<typeof slotsQuerySchema>

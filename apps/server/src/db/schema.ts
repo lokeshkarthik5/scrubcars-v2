@@ -1,4 +1,4 @@
-import { relations, sql } from 'drizzle-orm'
+import { relations, sql, type AnyColumn } from 'drizzle-orm'
 import {
   boolean,
   check,
@@ -53,6 +53,18 @@ export const HOME_AUDIENCES = [
 ] as const
 
 export type HomeAudience = (typeof HOME_AUDIENCES)[number]
+
+/**
+ * Which Razorpay mode money was taken in (payments, booking_intents and
+ * booking_charges `gateway_mode`, 0032): 'live' or 'test' from the key id the
+ * order was opened with, 'fake' for an order the server minted itself under
+ * E2E_FAKE_PAYMENTS. Null on rows from before 0032. Only the test-data reset
+ * reads it; nothing may branch payment logic on it. A text column with a
+ * CHECK, like home_audience.
+ */
+export const GATEWAY_MODES = ['live', 'test', 'fake'] as const
+
+export type GatewayMode = (typeof GATEWAY_MODES)[number]
 
 export const userStatusEnum = pgEnum('user_status', ['active', 'suspended'])
 
@@ -272,6 +284,15 @@ const refundColumns = () => ({
   refundNote: text('refund_note'),
 })
 
+/**
+ * The Razorpay mode column (see GATEWAY_MODES), with its CHECK. A function
+ * for the same reason as refundColumns.
+ */
+const gatewayModeColumn = () => text('gateway_mode').$type<GatewayMode>()
+
+const gatewayModeCheck = (name: string, column: AnyColumn) =>
+  check(name, sql`${column} in ('live', 'test', 'fake')`)
+
 export const users = pgTable(
   'users',
   {
@@ -450,6 +471,20 @@ export const vendors = pgTable(
     // Null is "taking bookings". See 0027.
     bookingsPausedAt: timestamp('bookings_paused_at', { withTimezone: true }),
     bookingsPausedReason: varchar('bookings_paused_reason', { length: 200 }),
+    // The Bin (0034). Set when admin moved the garage there: off the app for
+    // customers and for its own team, everything else about it untouched, so
+    // Restore brings back exactly what was there. "In the Bin" is
+    // `deletedAt IS NOT NULL`, read through vendors.predicates.ts. Distinct
+    // from status 'archived', which only hides it from customers.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    // The name typed by whoever moved it (the shared admin login cannot say),
+    // and why, if they said. The full record is in admin_audit_log.
+    deletedByName: varchar('deleted_by_name', { length: 100 }),
+    deletedReason: varchar('deleted_reason', { length: 200 }),
+    // Set when it was deleted forever but kept as a tombstone, because real
+    // money on it is kept: only its name and address remain, for receipts.
+    // A garage with nothing kept is deleted outright instead.
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -457,6 +492,14 @@ export const vendors = pgTable(
   (table) => [
     index('vendors_owner_id_idx').on(table.ownerId),
     index('vendors_status_idx').on(table.status),
+    index('vendors_deleted_at_idx')
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} is not null`),
+    // Only a garage in the Bin can be deleted forever.
+    check(
+      'vendors_purged_in_bin_check',
+      sql`${table.purgedAt} is null or ${table.deletedAt} is not null`
+    ),
     // The GiST indexes on `geo` live in drizzle/0019_add_geo.sql alongside the
     // column itself; see the note at the top of this file.
   ]
@@ -658,11 +701,28 @@ export const services = pgTable(
   ]
 )
 
-// Photos of the work a service produces, shown in the service details popup on
-// the garage page. Capped per service in the service layer (see
-// MAX_IMAGES_PER_SERVICE) rather than by a constraint, so the limit can move
-// without a migration. Cascade-deleted with the service; the underlying R2
-// objects are removed best-effort alongside.
+// Photos and videos of the work a service produces, shown on the garage page
+// (a thumbnail on the service card, the media area in its details sheet).
+// Named for what it first held; since 0033 a row is a photo (`kind = 'image'`,
+// an R2 object) or a video (`kind = 'video'`, a Cloudflare Stream upload).
+// At most R2_MAX_IMAGES_PER_SERVICE photos and one video per service, checked
+// in the service layer under a row lock on the service (lib/service-media.ts,
+// modules/service-media) rather than by a constraint, so the limits can move
+// without a migration. Cascade-deleted with the service; the R2 objects and
+// Stream videos behind the rows are removed best-effort alongside.
+//
+// `source = 'ai'` is a picture made with AI by admin: customers see it tagged
+// "Sample image". `consent_confirmed_at` is when the privacy tick ("no number
+// plates or faces can be read, or the owner agreed") was given, and
+// `uploaded_by` who added it (an admin's name, or 'garage'). Neither is ever
+// in a customer-facing response.
+export const SERVICE_MEDIA_KINDS = ['image', 'video'] as const
+export type ServiceMediaKind = (typeof SERVICE_MEDIA_KINDS)[number]
+export const SERVICE_MEDIA_SOURCES = ['upload', 'ai'] as const
+export type ServiceMediaSource = (typeof SERVICE_MEDIA_SOURCES)[number]
+export const VIDEO_STATUSES = ['processing', 'ready', 'error'] as const
+export type VideoStatus = (typeof VIDEO_STATUSES)[number]
+
 export const serviceImages = pgTable(
   'service_images',
   {
@@ -670,14 +730,35 @@ export const serviceImages = pgTable(
     serviceId: uuid('service_id')
       .notNull()
       .references(() => services.id, { onDelete: 'cascade' }),
+    // A photo's public R2 URL; a video's HLS manifest on Stream.
     url: varchar('url', { length: 2048 }).notNull(),
     storageKey: varchar('storage_key', { length: 1024 }),
     sortOrder: integer('sort_order').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
+    kind: text('kind').$type<ServiceMediaKind>().default('image').notNull(),
+    source: text('source').$type<ServiceMediaSource>().default('upload').notNull(),
+    consentConfirmedAt: timestamp('consent_confirmed_at', { withTimezone: true }),
+    uploadedBy: varchar('uploaded_by', { length: 100 }),
+    videoUid: varchar('video_uid', { length: 64 }),
+    videoStatus: text('video_status').$type<VideoStatus>(),
+    videoError: varchar('video_error', { length: 200 }),
+    durationSecs: integer('duration_secs'),
+    posterUrl: varchar('poster_url', { length: 2048 }),
   },
-  (table) => [index('service_images_service_id_idx').on(table.serviceId)]
+  (table) => [
+    index('service_images_service_id_idx').on(table.serviceId),
+    uniqueIndex('service_images_video_uid_idx')
+      .on(table.videoUid)
+      .where(sql`${table.videoUid} IS NOT NULL`),
+    check('service_images_kind_check', sql`${table.kind} in ('image', 'video')`),
+    check('service_images_source_check', sql`${table.source} in ('upload', 'ai')`),
+    check(
+      'service_images_video_status_check',
+      sql`${table.videoStatus} in ('processing', 'ready', 'error')`
+    ),
+  ]
 )
 
 // Composition of a package. `packageId` is a services row with
@@ -800,6 +881,13 @@ export const bookings = pgTable(
     reviewPromptDismissedAt: timestamp('review_prompt_dismissed_at', {
       withTimezone: true,
     }),
+    // Marked "Test" by ops (0032): left out of the pilot numbers, and
+    // deletable through the test-data reset's dry run. Set on every booking
+    // of the reschedule chain at once, and copied onto the booking a
+    // reschedule writes. Display and stats only: it never changes slots,
+    // refunds or receipts. `markedTestBy` is a name, like booking_notes.author.
+    markedTestAt: timestamp('marked_test_at', { withTimezone: true }),
+    markedTestBy: varchar('marked_test_by', { length: 100 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -823,6 +911,9 @@ export const bookings = pgTable(
     // went with it, so the refunds list must not count it as owed. See 0029.
     index('bookings_rescheduled_from_id_idx').on(table.rescheduledFromId),
     index('bookings_discount_id_idx').on(table.discountId),
+    index('bookings_marked_test_at_idx')
+      .on(table.markedTestAt)
+      .where(sql`${table.markedTestAt} is not null`),
     // An on-behalf-of or a no-show without an admin cancellation would be a
     // record of something nobody did. See 0026 for why the comparison is on
     // ::text.
@@ -939,6 +1030,8 @@ export const bookingCharges = pgTable(
     status: bookingChargeStatusEnum('status').notNull(),
     gatewayOrderId: varchar('gateway_order_id', { length: 255 }).unique(),
     gatewayPaymentId: varchar('gateway_payment_id', { length: 255 }).unique(),
+    // The Razorpay mode of the bill's order (see GATEWAY_MODES), from 0032.
+    gatewayMode: gatewayModeColumn(),
     paidAt: timestamp('paid_at', { withTimezone: true }),
     // Money given back on this bill: a paid bill on a booking that was then
     // cancelled, or a payment that landed on a replaced or withdrawn bill.
@@ -963,6 +1056,7 @@ export const bookingCharges = pgTable(
     uniqueIndex('booking_charges_one_live_final_bill')
       .on(table.bookingId)
       .where(sql`${table.kind} = 'final_bill' and ${table.status} <> 'cancelled'`),
+    gatewayModeCheck('booking_charges_gateway_mode_check', table.gatewayMode),
   ]
 )
 
@@ -1171,6 +1265,9 @@ export const payments = pgTable(
       .references(() => bookings.id, { onDelete: 'cascade' }),
     gateway: paymentGatewayEnum('gateway').notNull(),
     gatewayTxnId: varchar('gateway_txn_id', { length: 255 }),
+    // The Razorpay mode of the order this was paid through (see
+    // GATEWAY_MODES), from 0032. A reschedule copies it with the payment.
+    gatewayMode: gatewayModeColumn(),
     amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
     currency: varchar('currency', { length: 3 }).default('INR').notNull(),
     status: paymentStatusEnum('status').default('pending').notNull(),
@@ -1186,6 +1283,7 @@ export const payments = pgTable(
   (table) => [
     index('payments_booking_id_idx').on(table.bookingId),
     index('payments_status_idx').on(table.status),
+    gatewayModeCheck('payments_gateway_mode_check', table.gatewayMode),
   ]
 )
 
@@ -1239,6 +1337,9 @@ export const bookingIntents = pgTable(
     // The Razorpay order id. Unique because it is how the webhook finds this
     // intent when the client never comes back to confirm it.
     gatewayTxnId: varchar('gateway_txn_id', { length: 255 }).unique(),
+    // The Razorpay mode of that order (see GATEWAY_MODES), from 0032. Copied
+    // onto the payment when the intent becomes a booking.
+    gatewayMode: gatewayModeColumn(),
     status: bookingIntentStatusEnum('status').default('pending').notNull(),
     // Set when the intent is consumed. Its presence *is* the idempotency
     // record: the client callback and the webhook both confirm, and whichever
@@ -1263,6 +1364,7 @@ export const bookingIntents = pgTable(
   (table) => [
     index('booking_intents_user_id_idx').on(table.userId),
     index('booking_intents_status_idx').on(table.status),
+    gatewayModeCheck('booking_intents_gateway_mode_check', table.gatewayMode),
   ]
 )
 
@@ -1364,6 +1466,63 @@ export const receiptCounters = pgTable('receipt_counters', {
   financialYear: text('financial_year').primaryKey(),
   lastSeq: integer('last_seq').notNull(),
 })
+
+// One row per destructive admin action, written in the same transaction as
+// the action (see 0032). Today that is only the test-data reset. Append-only:
+// a trigger refuses UPDATE and DELETE. Deliberately no foreign keys, because
+// the rows it describes are the ones the action deletes. `detail` names
+// bookings, customers and garages by id and reference, never by phone.
+// `actorName` is the name the person typed: the shared admin login cannot
+// say who they are, so `actorSub` alone would always read 'admin'.
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    action: text('action').notNull(),
+    actorSub: text('actor_sub').notNull(),
+    actorName: varchar('actor_name', { length: 100 }).notNull(),
+    summary: jsonb('summary').notNull(),
+    detail: jsonb('detail').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index('admin_audit_log_created_at_idx').on(table.createdAt)]
+)
+
+// A receipt number issued on test data that the reset then deleted, in a
+// financial year that also has real receipts (see 0032). The number is never
+// given out again (the year's counter is left alone) and stays on record
+// here, so the year's series is complete without renumbering anything. A
+// year whose receipts were all test data restarts instead: its numbers,
+// voids and counter go, and the next receipt is 000001.
+//
+// `rootBookingId` has no foreign key: the booking is gone.
+export const receiptNumberVoids = pgTable(
+  'receipt_number_voids',
+  {
+    financialYear: text('financial_year').notNull(),
+    seq: integer('seq').notNull(),
+    number: text('number').notNull().unique(),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull(),
+    rootBookingId: uuid('root_booking_id').notNull(),
+    voidedAt: timestamp('voided_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    reason: text('reason').notNull(),
+    auditId: uuid('audit_id')
+      .notNull()
+      .references(() => adminAuditLog.id, { onDelete: 'restrict' }),
+  },
+  (table) => [
+    primaryKey({ name: 'receipt_number_voids_pkey', columns: [table.financialYear, table.seq] }),
+    check('receipt_number_voids_seq_check', sql`${table.seq} > 0`),
+    check(
+      'receipt_number_voids_number_length_check',
+      sql`char_length(${table.number}) <= 16`
+    ),
+  ]
+)
 
 // The same lines as booking_items, held against an unpaid intent. Copied
 // verbatim into booking_items by `consumeIntent`, so what the customer saw in

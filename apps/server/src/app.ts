@@ -23,6 +23,7 @@ import { opsRoutes } from './modules/ops/ops.routes.js'
 import { discountsRoutes } from './modules/discounts/discounts.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
+import { fakeStreamRoutes, webhookRoutes } from './modules/service-media/service-media.routes.js'
 
 console.log(`[BOOT] app.ts loading (v${APP_VERSION})`)
 
@@ -133,6 +134,10 @@ app.route('/api/v1/geo', geoRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)
 app.route('/api/v1/health', healthRoutes)
+// Cloudflare Stream says here when a service video is ready or has failed.
+app.route('/api/v1/webhooks', webhookRoutes)
+// STREAM_FAKE only (E2E): a 404 everywhere else.
+app.route('/api/v1/fake-stream', fakeStreamRoutes)
 
 console.log('[BOOT] app.ts ready')
 

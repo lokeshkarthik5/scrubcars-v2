@@ -8,9 +8,13 @@ import {
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminAiRoutes } from '../ai/ai.routes.js'
+import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
 import { adminRefundRoutes } from '../refunds/refunds.routes.js'
+import { adminVendorBinRoutes } from '../vendor-bin/vendor-bin.routes.js'
+import { adminMediaRoutes } from '../service-media/service-media.routes.js'
+import { addPhotoSchema } from '../service-media/service-media.validation.js'
 import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
   addMemberSchema,
@@ -120,12 +124,12 @@ adminRoutes.patch(
   zValidator('param', vendorIdParamSchema),
   (c) => adminController.unarchiveVendor(c, c.req.valid('param').id)
 )
-adminRoutes.delete(
-  '/vendors/:id',
-  ...adminMiddleware,
-  zValidator('param', vendorIdParamSchema),
-  (c) => adminController.deleteVendor(c, c.req.valid('param').id)
-)
+// The Bin: GET /vendors/:id/bin-preview, POST /vendors/:id/bin and
+// /restore, GET /vendors/:id/delete-preview, and DELETE /vendors/:id (delete
+// forever, only from the Bin). Their own module; mounted at the root for the
+// cookie's sake, like the media routes below.
+adminRoutes.route('/', adminVendorBinRoutes)
+
 // Pause / resume new bookings on a garage's behalf. POST rather than the
 // PATCH of verify/archive: these are actions with a body (the reason), not a
 // flip of a column the list already shows.
@@ -302,8 +306,10 @@ adminRoutes.delete(
     )
 )
 
-// Service images are keyed by service alone: the admin editor already knows the
-// service id, and the owning vendor is resolved from the row.
+// Service photos are keyed by service alone: the admin editor already knows the
+// service id, and the owning vendor is resolved from the row. Adding one needs
+// the privacy tick (`consent: true`); the delete removes a video too. Each
+// answers with the service's media, as the upload block shows it.
 adminRoutes.post(
   '/services/:serviceId/images/upload-url',
   ...adminMiddleware,
@@ -320,7 +326,7 @@ adminRoutes.post(
   '/services/:serviceId/images',
   ...adminMiddleware,
   zValidator('param', serviceIdParamSchema),
-  zValidator('json', mediaUrlSchema),
+  zValidator('json', addPhotoSchema),
   (c) =>
     adminController.addServiceImage(
       c,
@@ -357,10 +363,20 @@ adminRoutes.route('/notices', adminNoticeRoutes)
 // owner-phone lookup. Nested here for the same cookie reason as discounts.
 adminRoutes.route('/vendor-imports', adminVendorImportRoutes)
 
-// AI helpers: GET /ai/config and POST /services/describe. Mounted at the root
-// rather than under a prefix because the describe route sits with the other
-// /services ones; it has no :serviceId, so it never meets the image routes.
+// AI helpers: GET /ai/config (describe, pictures and import) and POST
+// /services/describe. Mounted at the root rather than under a prefix because
+// the describe route sits with the other /services ones; it has no
+// :serviceId, so it never meets the image routes.
 adminRoutes.route('/', adminAiRoutes)
+
+// "Start pilot clean": the test-data reset. Nested here for the same cookie
+// reason; every route is a 404 unless ADMIN_DATA_RESET is on.
+adminRoutes.route('/data-reset', adminDataResetRoutes)
+
+// A service's video, AI sample pictures and the upload block's config
+// (/media-config, /services/:serviceId/{videos,media,ai-pictures}).
+// Mounted at the root of /admin for the same cookie reason.
+adminRoutes.route('/', adminMediaRoutes)
 
 adminRoutes.get(
   '/bookings',
@@ -396,6 +412,20 @@ adminRoutes.post(
       c.req.valid('param').id,
       c.req.valid('json')
     )
+)
+// The "Test" mark: on the whole reschedule chain, with a note. Works whether
+// or not the test-data reset is switched on; only deleting needs that.
+adminRoutes.post(
+  '/bookings/:id/mark-test',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => adminController.setBookingTestMark(c, c.req.valid('param').id, true)
+)
+adminRoutes.delete(
+  '/bookings/:id/mark-test',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  (c) => adminController.setBookingTestMark(c, c.req.valid('param').id, false)
 )
 adminRoutes.post(
   '/bookings/:id/notes',

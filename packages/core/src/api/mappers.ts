@@ -177,6 +177,7 @@ export function mapService(service: ApiService, vendorId: string): Service {
     isActive: service.isActive,
     // Older responses (and any cached payload) may predate service images.
     images: service.images ?? [],
+    media: service.media ?? [],
   }
 }
 

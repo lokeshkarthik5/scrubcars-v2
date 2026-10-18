@@ -6,29 +6,74 @@
 // The SQL is what the lists run; the plain-function twin below is the same
 // rule over one row, for the admin list, and vendors.predicates.test.ts pins
 // the two together. Change one, change both.
+//
+// The Bin (0034) lives here too. A garage in the Bin is off the app for
+// everyone but admin: no list, no garage page, no booking, no team login.
+// "In the Bin" is `deleted_at IS NOT NULL`, and every read that serves
+// customers or the garage's team says so through one of the names below
+// rather than restating it.
 
-import { sql } from 'drizzle-orm'
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm'
+import { vendors } from '../../db/schema.js'
 
 /** The facts about a garage that decide whether customers can find it. */
 export interface ListedRow {
   status: string
   isVerified: boolean
   bookingsPausedAt: Date | string | null
+  deletedAt: Date | string | null
 }
 
 /**
- * **Listed to customers**: stage Active, verified by Detlio, and not paused.
+ * **Listed to customers**: stage Active, verified by Detlio, not paused, and
+ * not in the Bin.
  *
  * A paused garage takes no new bookings, so it is left out of every list a
  * customer browses — search and the map read this too. Its own page still
  * loads (findPublicVendorById does not filter on pause) and says why it
- * cannot be booked.
+ * cannot be booked. A garage in the Bin has no page at all.
  *
  * Written against the alias `v`: every query that uses it reads
  * `FROM vendors v`.
  */
-export const LISTED_TO_CUSTOMERS = sql`(v.status = 'active' AND v.is_verified = true AND v.bookings_paused_at IS NULL)`
+export const LISTED_TO_CUSTOMERS = sql`(v.status = 'active' AND v.is_verified = true AND v.bookings_paused_at IS NULL AND v.deleted_at IS NULL)`
 
 export function isListedToCustomers(row: ListedRow): boolean {
-  return row.status === 'active' && row.isVerified && row.bookingsPausedAt == null
+  return (
+    row.status === 'active' &&
+    row.isVerified &&
+    row.bookingsPausedAt == null &&
+    row.deletedAt == null
+  )
+}
+
+// ─── The Bin ─────────────────────────────────────────────────────────────────
+
+/** In the Bin: moved there by admin, and not restored. */
+export function isInBin(row: { deletedAt: Date | string | null }): boolean {
+  return row.deletedAt != null
+}
+
+/** Not in the Bin, against the alias `v`, for raw SQL over `FROM vendors v`. */
+export const NOT_IN_BIN = sql`v.deleted_at IS NULL`
+
+/** Not in the Bin, as a Drizzle condition on the vendors table. */
+export function vendorNotInBin(): SQL {
+  return isNull(vendors.deletedAt)
+}
+
+/**
+ * A garage whose page customers may open: Active, verified and not in the
+ * Bin. Unlike the lists it ignores pause, so a paused garage's page still
+ * loads and says why it can't be booked. The garage page and everything
+ * read off it (services, packages, slots, hours, holidays) and the booking
+ * write all look a garage up through this.
+ */
+export function vendorPageOpen(id: string): SQL {
+  return and(
+    eq(vendors.id, id),
+    eq(vendors.status, 'active'),
+    eq(vendors.isVerified, true),
+    vendorNotInBin()
+  )!
 }

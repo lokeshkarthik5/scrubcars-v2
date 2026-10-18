@@ -263,6 +263,30 @@ export const CUSTOMERS = {
    */
   garageOwner: { id: id(150), phone: '9000000050', name: 'Owner Customer Oviyan', vehicleId: null },
   /**
+   * Owns the test-data reset API spec's bookings at VENDORS.reset
+   * (BOOKINGS.reset*, BOOKING_INTENTS.reset*), which the spec deletes. Its
+   * own customer, at a garage nobody else books, so a reset run touches
+   * nothing another spec reads.
+   */
+  dataReset: { id: id(152), phone: '9000000052', name: 'Reset Ramesh', vehicleId: id(760) },
+  /**
+   * Owns the test-data reset screens' bookings (BOOKINGS.resetUi*), deleted
+   * from a booking's page and from Start pilot clean.
+   */
+  dataResetUi: { id: id(151), phone: '9000000051', name: 'Reset Usha', vehicleId: id(761) },
+  /**
+   * The garage Bin's customers (specs/admin/garage-bin.spec.ts), one per
+   * garage it moves or deletes, so nothing another spec reads goes with it.
+   * binPaid owns an upcoming paid booking (and an unpaid one) at
+   * VENDORS.binPaid, which moving it to the Bin cancels; binHard and binTomb
+   * own the bookings and checkout deleted forever with VENDORS.binHard and
+   * VENDORS.binTomb; binBrowse only tries to book at VENDORS.binTeam.
+   */
+  binPaid: { id: id(153), phone: '9000000053', name: 'Bin Refund Bindu', vehicleId: id(762) },
+  binHard: { id: id(154), phone: '9000000054', name: 'Bin Gone Gopal', vehicleId: id(763) },
+  binTomb: { id: id(155), phone: '9000000055', name: 'Bin Kept Kamala', vehicleId: id(764) },
+  binBrowse: { id: id(156), phone: '9000000056', name: 'Bin Browse Bala', vehicleId: id(765) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -318,6 +342,19 @@ export const STAFF = {
    * earnings with nothing any other spec books on it.
    */
   refundsOwner: { id: id(207), phone: '9000001008', name: 'Refunds Ramesh' },
+  /**
+   * Owns VENDORS.media only, so the service photo and video specs change the
+   * media of a garage nobody else reads, with one company in the switcher.
+   */
+  mediaOwner: { id: id(208), phone: '9000001009', name: 'Media Meena' },
+  /**
+   * Owns VENDORS.binTeam, which the Bin spec moves to the Bin and back, and
+   * VENDORS.binOwnerLive, which stays on the app: the proof that the Bin
+   * locks a team out of the binned garage only, never out of a live one.
+   */
+  binOwner: { id: id(209), phone: '9000001010', name: 'Bin Owner Bhuvana' },
+  /** vendor_operator on VENDORS.binTeam alone: no company at all while it is in the Bin. */
+  binOperator: { id: id(210), phone: '9000001011', name: 'Bin Operator Oscar' },
 } as const
 
 export const VENDORS = {
@@ -412,6 +449,40 @@ export const VENDORS = {
    * is to fix. Pending, so no customer sees it; nobody books it.
    */
   adminList: { id: id(316), name: 'Admin List Test Garage' },
+  /**
+   * The test-data reset's garage. Not verified, so it is in no customer
+   * list; every booking on it belongs to the reset specs, which delete them.
+   */
+  reset: { id: id(317), name: 'Reset Test Garage' },
+  /**
+   * Service photos and videos (specs/vendors/service-media.spec.ts,
+   * specs/admin/service-media.spec.ts). Verified, so its garage page shows
+   * customers what was added; far south-west like the other single-purpose
+   * garages, so it never comes between MAIN and the fillers in a sort.
+   * Nobody books it. Each spec owns one of its services (SERVICES.media*).
+   */
+  media: { id: id(318), name: 'Media Test Garage' },
+  /**
+   * The garage Bin (specs/admin/garage-bin.spec.ts). binTeam is live (Active,
+   * verified, pinned far south-west like the other single-purpose garages,
+   * one service, open every day), so moving it to the Bin can be seen to
+   * take it out of everything customers read, and Restore to bring it back;
+   * its team is STAFF.binOwner and STAFF.binOperator. binOwnerLive is
+   * binOwner's other garage, pending, which must stay reachable. Nobody books
+   * either.
+   */
+  binTeam: { id: id(340), name: 'Bin Team Test Garage' },
+  binOwnerLive: { id: id(341), name: 'Bin Owner Live Garage' },
+  /** Pending; CUSTOMERS.binPaid's two upcoming bookings, cancelled by moving it to the Bin. */
+  binPaid: { id: id(342), name: 'Bin Refund Test Garage' },
+  /**
+   * Seeded in the Bin, for Delete forever with nothing kept: a package (whose
+   * member is ON DELETE RESTRICT), an abandoned checkout, a test booking and
+   * a gallery photo. The garage row goes too.
+   */
+  binHard: { id: id(343), name: 'Bin Hard Delete Garage' },
+  /** Seeded in the Bin with a live-money booking: Delete forever keeps a tombstone. */
+  binTomb: { id: id(344), name: 'Bin Tombstone Garage' },
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -490,6 +561,24 @@ export const SERVICES = {
     priceHatchback: '399.00', priceSedan: '449.00', priceSuv: '549.00' },
   /** On ADMIN_EDITOR, flat, no description: what Write with AI fills. */
   editorPolish: { id: id(424), name: 'Editor Polish', price: '1499.00', durationMins: 180 },
+  /** On RESET: every reset-spec booking is one ₹499 wash. */
+  resetWash: { id: id(425), name: 'Reset Wash', price: '499.00', durationMins: 30 },
+  /** On MEDIA: the garage adds a photo to it. */
+  mediaPhoto: { id: id(426), name: 'Media Foam Wash', price: '499.00', durationMins: 30 },
+  /** On MEDIA: the garage adds a video to it (Stream faked). */
+  mediaVideo: { id: id(427), name: 'Media Full Wash', price: '599.00', durationMins: 45 },
+  /** On MEDIA, a coating: admin makes it an AI sample picture (AI faked). */
+  mediaAi: { id: id(428), name: 'Media Ceramic Coat', price: '2999.00', durationMins: 120 },
+  /** On MEDIA: the refusals (no privacy tick, a clip over 60 seconds). Never gets media. */
+  mediaRefused: { id: id(429), name: 'Media Polish', price: '899.00', durationMins: 60 },
+  /** On MEDIA, filed under others: the drawn bike sample, "No photos from this garage yet". */
+  mediaBike: { id: id(430), name: 'Media Bike Wash', price: '200.00', durationMins: 45 },
+  /** One ₹499 wash on each Bin garage; binHardPackage bundles binHardWash. */
+  binTeamWash: { id: id(431), name: 'Bin Team Wash', price: '499.00', durationMins: 30 },
+  binPaidWash: { id: id(432), name: 'Bin Refund Wash', price: '499.00', durationMins: 30 },
+  binHardWash: { id: id(433), name: 'Bin Gone Wash', price: '499.00', durationMins: 30 },
+  binHardPackage: { id: id(434), name: 'Bin Gone Combo', price: '899.00', durationMins: 60 },
+  binTombWash: { id: id(435), name: 'Bin Kept Wash', price: '499.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -677,6 +766,62 @@ export const BOOKINGS = {
   homeScreenWashSecond: id(639),
   homeBellDone: id(640),
   homeTileUpcoming: id(641),
+  /**
+   * The test-data reset API spec's chains, CUSTOMERS.dataReset's at RESET,
+   * in two old financial years so its receipt numbers are the only ones
+   * there. Deletable (Razorpay test mode):
+   *
+   * - resetRefunded: declined and refunded in full, receipt DTL/22-23/000001,
+   *   the only receipt of 22-23 (which also has a void left by an earlier
+   *   run), with its checkout, a note and a job photo. Deleting it restarts
+   *   22-23.
+   * - resetMovedFrom → resetMovedTo: a reschedule chain, receipt
+   *   DTL/23-24/000002 on its first booking.
+   *
+   * Kept whatever is ticked:
+   *
+   * - resetLive: paid in Razorpay live mode, receipt DTL/23-24/000001. So
+   *   23-24 keeps its series and 000002 becomes void.
+   * - resetUnknown: paid before gateway_mode was recorded, an id Razorpay is
+   *   never asked about in E2E: unknown, so kept.
+   * - resetNextReceipt: paid live in 23-24 with no number yet; opened after
+   *   the run, its receipt is DTL/23-24/000003.
+   * - resetOpenOrder: never paid, with a live Razorpay order still open on
+   *   a booking that is still on: "Payment may still arrive — kept".
+   *
+   * resetSingle: test mode, not marked: deleted on its own once marked.
+   */
+  resetRefunded: refId('da7a0001'),
+  resetMovedFrom: refId('da7a0002'),
+  resetMovedTo: refId('da7a0003'),
+  resetLive: refId('da7a0004'),
+  resetUnknown: refId('da7a0005'),
+  resetNextReceipt: refId('da7a0006'),
+  resetSingle: refId('da7a0007'),
+  resetOpenOrder: refId('da7a000a'),
+  /**
+   * CUSTOMERS.dataResetUi's, test mode. resetUiSingle is marked Test and
+   * deleted from its page; resetUiMarked is seeded marked and deleted from
+   * Start pilot clean; resetUiKeep is seeded marked and unticked there, so
+   * it must survive the run and stay unticked through "Load again".
+   */
+  resetUiSingle: refId('da7a0008'),
+  resetUiMarked: refId('da7a0009'),
+  resetUiKeep: refId('da7a000b'),
+  /**
+   * The garage Bin's (CUSTOMERS.bin*). binPaidUpcoming is confirmed and paid
+   * (E2E money) in three days at VENDORS.binPaid, and binUnpaidUpcoming
+   * pending and unpaid: moving the garage to the Bin cancels both, and only
+   * the paid one is then a refund owed. binHardTest is a finished job paid in
+   * E2E money at VENDORS.binHard, deleted forever with it; at VENDORS.binTomb,
+   * binTombLive was paid in Razorpay live mode (kept, with the garage as a
+   * tombstone) and binTombTest in E2E money (deleted).
+   */
+  binPaidUpcoming: refId('b1a00001'),
+  binUnpaidUpcoming: refId('b1a00002'),
+  binHardTest: refId('b1a00003'),
+  binTombLive: refId('b1a00004'),
+  binTombTest: refId('b1a00005'),
 } as const
 
 export const VEHICLES = {
@@ -724,7 +869,27 @@ export const REVIEWS = { existing: id(801) } as const
  * CUSTOMERS.refunds' one at REFUNDS, which the refunds journey finds on the
  * Owed list.
  */
-export const BOOKING_INTENTS = { failed: id(1001), refundOwed: id(1002) } as const
+export const BOOKING_INTENTS = {
+  failed: id(1001),
+  refundOwed: id(1002),
+  /** BOOKINGS.resetRefunded's own checkout, consumed: goes with it. */
+  resetOwn: id(1003),
+  /**
+   * CUSTOMERS.dataReset's checkouts that never became a booking: one paid
+   * in test mode, failed and refunded (a checkout refund record), and one
+   * abandoned unpaid. Both opened in 23-24, so long expired.
+   */
+  resetFailed: id(1004),
+  resetAbandoned: id(1005),
+  /** CUSTOMERS.binHard's checkout at VENDORS.binHard, abandoned unpaid (test mode) days ago. */
+  binAbandoned: id(1006),
+} as const
+
+/**
+ * An earlier reset's audit row, which RESET_VOID (DTL/22-23/000002) points
+ * at: the void a restart of 22-23 clears.
+ */
+export const DATA_RESET = { earlierAudit: id(1301) } as const
 
 /**
  * Team notices. `homeRain` is about bookings at HOME_PROMO around

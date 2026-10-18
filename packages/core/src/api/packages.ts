@@ -92,50 +92,7 @@ export async function deletePackage(id: string): Promise<void> {
   })
 }
 
-// ─── Package images ──────────────────────────────────────────────────────────
+// ─── Package photos and video ────────────────────────────────────────────────
 //
-// A package is a services row, so it shares the /me/services/:id/images
-// endpoints; the server notices the category and answers in package shape
-// (contents, savings) so the caller can swap the whole object into its list.
-
-/** Full upload flow. Returns the package with its new image attached. */
-export async function uploadPackageImage(
-  packageId: string,
-  file: File
-): Promise<ServicePackage> {
-  const contentType = file.type as 'image/jpeg' | 'image/png' | 'image/webp'
-  const { uploadUrl, publicUrl } = await apiClient<{
-    uploadUrl: string
-    publicUrl: string
-  }>(`/vendors/me/services/${packageId}/images/upload-url`, {
-    method: 'POST',
-    body: JSON.stringify({ contentType }),
-  })
-
-  const put = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': contentType },
-  })
-  if (!put.ok) {
-    throw new Error('Upload failed. Please try again.')
-  }
-
-  const pkg = await apiClient<ApiPackage>(
-    `/vendors/me/services/${packageId}/images`,
-    { method: 'POST', body: JSON.stringify({ url: publicUrl }) }
-  )
-  return mapPackage(pkg, '')
-}
-
-/** DELETE /vendors/me/services/:id/images/:imageId */
-export async function deletePackageImage(
-  packageId: string,
-  imageId: string
-): Promise<ServicePackage> {
-  const pkg = await apiClient<ApiPackage>(
-    `/vendors/me/services/${packageId}/images/${imageId}`,
-    { method: 'DELETE' }
-  )
-  return mapPackage(pkg, '')
-}
+// A package is a services row, so it shares the services' photo and video
+// routes: garageMediaApi in @repo/core/api/service-media.
