@@ -1,4 +1,6 @@
-import { randomInt } from 'node:crypto'
+// Imported by the E2E helpers too (apps/e2e/support/db.ts), so it must keep
+// to node built-ins: nothing that loads env or a database client.
+import { createHmac, randomInt, timingSafeEqual } from 'node:crypto'
 
 export const OTP_LENGTH = 6
 export const OTP_EXPIRY_MINUTES = 3
@@ -22,6 +24,79 @@ export function generateOtpCode(): string {
   return randomInt(0, 10 ** OTP_LENGTH)
     .toString()
     .padStart(OTP_LENGTH, '0')
+}
+
+/**
+ * Login codes are kept as a keyed hash, never as the code itself, so a copy of
+ * the table (a backup, a support query, a leaked read replica) hands nobody a
+ * way into an account.
+ *
+ * The digest is bound to the phone and the purpose, so a row cannot be copied
+ * onto another number or reused for another flow. It is cut to fit the
+ * existing `otp_code` varchar(10): ten base64url characters are 60 bits,
+ * plenty when the key is secret and a code gets three guesses (see
+ * MAX_OTP_VERIFY_ATTEMPTS) and three minutes.
+ */
+export const OTP_DIGEST_LENGTH = 10
+
+/**
+ * The hashing key, derived from the JWT secret under its own label rather than
+ * reusing it raw, so a digest can never double as anything the session tokens
+ * accept. Changing the label (or the JWT secret) only voids codes in flight.
+ */
+export function deriveOtpKey(secret: string): Buffer {
+  return createHmac('sha256', secret).update('otp-v1').digest()
+}
+
+/** What `otp_code` holds for `code`, sent to `phone` for `purpose`. */
+export function otpDigest(key: Buffer, code: string, phone: string, purpose: string): string {
+  // The code goes last: phone and purpose never contain ':', so no two
+  // different (purpose, phone, code) triples can make the same message.
+  return createHmac('sha256', key)
+    .update(`${purpose}:${phone}:${code}`)
+    .digest('base64url')
+    .slice(0, OTP_DIGEST_LENGTH)
+}
+
+/**
+ * A row written before codes were hashed: the plain six digits. A digest is
+ * always OTP_DIGEST_LENGTH (10) characters, so the two cannot be confused.
+ *
+ * Transitional — such a row lives three minutes and is purged within a day, so
+ * this (and its branch in otpMatches) can go in any release after the one
+ * that started hashing.
+ */
+export function isPlainOtpRow(stored: string): boolean {
+  return stored.length === OTP_LENGTH && /^\d+$/.test(stored)
+}
+
+/** Whether `given` is the code a row was written for. Constant time. */
+export function otpMatches(
+  key: Buffer,
+  stored: string,
+  given: string,
+  phone: string,
+  purpose: string
+): boolean {
+  const expected = Buffer.from(stored)
+  const actual = Buffer.from(isPlainOtpRow(stored) ? given : otpDigest(key, given, phone, purpose))
+  // Lengths are not secret (a digest is always ten characters, a plain code
+  // six), and timingSafeEqual throws on a mismatch.
+  return expected.length === actual.length && timingSafeEqual(expected, actual)
+}
+
+// Old codes are deleted a day after they expire, a few at a time, whenever a
+// new one is sent (see authService.sendOtp). A day is well past every window
+// that counts them — the send limit's hour, the verify window's five minutes —
+// so a purge never changes a rate-limit answer.
+export const OTP_RETENTION_HOURS = 24
+// Bounds each send's share of the work: the first send after a deploy may
+// find months of rows, and nobody's login should wait for all of them.
+export const OTP_PURGE_BATCH = 500
+
+/** Rows whose code expired before this may be deleted. */
+export function getOtpPurgeCutoff(now: Date): Date {
+  return new Date(now.getTime() - OTP_RETENTION_HOURS * 60 * 60 * 1000)
 }
 
 export function getOtpExpiryDate(): Date {

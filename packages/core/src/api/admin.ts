@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { stripImageMetadata } from '@repo/core/image-upload'
 import type { ApiMember } from './members'
 import type { VendorRole } from './types'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
@@ -945,7 +946,7 @@ export async function getOwnerAccount(phone: string) {
 
 type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
 
-async function putToR2(uploadUrl: string, file: File) {
+async function putToR2(uploadUrl: string, file: Blob) {
   const put = await fetch(uploadUrl, {
     method: 'PUT',
     body: file,
@@ -958,15 +959,17 @@ async function putToR2(uploadUrl: string, file: File) {
 
 /** Upload and set a garage logo. Returns the updated vendor row. */
 export async function uploadAdminVendorLogo(vendorId: string, file: File) {
+  // Presigned for the cleaned file's type, which is always the type picked.
+  const clean = await stripImageMetadata(file)
   const { uploadUrl, publicUrl } = await apiClient<{
     uploadUrl: string
     publicUrl: string
   }>(`/admin/vendors/${vendorId}/logo/upload-url`, {
     method: 'POST',
-    body: JSON.stringify({ contentType: file.type as UploadContentType }),
+    body: JSON.stringify({ contentType: clean.type as UploadContentType }),
   })
 
-  await putToR2(uploadUrl, file)
+  await putToR2(uploadUrl, clean)
 
   return apiClient<{ logoUrl: string | null }>(
     `/admin/vendors/${vendorId}/logo`,
@@ -984,15 +987,17 @@ export async function deleteAdminVendorLogo(vendorId: string) {
 
 /** Upload and register one gallery photo. Returns the created row. */
 export async function uploadAdminVendorPhoto(vendorId: string, file: File) {
+  // Presigned for the cleaned file's type, which is always the type picked.
+  const clean = await stripImageMetadata(file)
   const { uploadUrl, publicUrl } = await apiClient<{
     uploadUrl: string
     publicUrl: string
   }>(`/admin/vendors/${vendorId}/photos/upload-url`, {
     method: 'POST',
-    body: JSON.stringify({ contentType: file.type as UploadContentType }),
+    body: JSON.stringify({ contentType: clean.type as UploadContentType }),
   })
 
-  await putToR2(uploadUrl, file)
+  await putToR2(uploadUrl, clean)
 
   return apiClient<AdminPhoto>(`/admin/vendors/${vendorId}/photos`, {
     method: 'POST',

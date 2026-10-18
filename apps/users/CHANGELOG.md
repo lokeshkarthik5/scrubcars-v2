@@ -795,6 +795,20 @@ reconstructing every change in them.
   tab names both. Checkout's cancellation policy and the FAQ now say that a
   missed accepted booking isn't refunded.
 
+### Security
+
+- **Photos lose their location before they upload.** Every image upload —
+  customer avatar, garage logo and gallery (portal and admin), service
+  photos (portal and admin) — is decoded and re-encoded in the browser by
+  `stripImageMetadata` (`packages/core/src/image-upload.ts`), which drops
+  EXIF (GPS, camera, time), keeps the photo the right way up, keeps the
+  type (JPEG/WebP at 0.9) and caps the long edge at 2560px. A file the
+  browser cannot read or write back as the same type (WebP in Safari) goes
+  up as it was rather than being refused. Job photos were already
+  re-encoded by the portal's `resizeForUpload`, which now shares the same
+  decoder. Videos are untouched. Photos already in storage are not
+  rewritten.
+
 ## [0.3.0] — 2026-08-28
 
 Location, a map, and one tab component instead of six.
