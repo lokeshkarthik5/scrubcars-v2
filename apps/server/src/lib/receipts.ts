@@ -278,14 +278,20 @@ export interface ReceiptBooking {
  *   payment, still 'paid', onto the new booking, so this one would be a second
  *   receipt for the same money.
  * - `unpaid`: no payment has gone through yet.
+ * - `free_redo`: a free redo of an earlier job (Detlio Guarantee, 0051). No
+ *   money changed hands, so it takes no number from the receipt series; the
+ *   original job's receipt stands.
  */
-export type ReceiptAvailability = 'available' | 'moved' | 'unpaid'
+export type ReceiptAvailability = 'available' | 'moved' | 'unpaid' | 'free_redo'
 
 export function receiptAvailability(booking: {
   status: string
   moved: boolean
   payment?: { status: string } | null
+  /** Optional: absent is false. */
+  guaranteeRedo?: boolean | null
 }): ReceiptAvailability {
+  if (booking.guaranteeRedo) return 'free_redo'
   // 'rescheduled' is the old way a moved booking was retired.
   if (booking.moved || booking.status === 'rescheduled') return 'moved'
   if (!booking.payment || !SUCCEEDED.has(booking.payment.status)) return 'unpaid'

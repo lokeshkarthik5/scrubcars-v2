@@ -70,7 +70,7 @@ export async function uploadMyCarPhoto(
  * drops its metadata too; a file it cannot read is refused here rather than
  * by the upload.
  */
-async function prepareCarPhoto(file: Blob): Promise<Blob> {
+export async function prepareCarPhoto(file: Blob): Promise<Blob> {
   if (isUploadImageType(file.type)) return stripImageMetadata(file)
   try {
     const decoded = await decodeImage(file)

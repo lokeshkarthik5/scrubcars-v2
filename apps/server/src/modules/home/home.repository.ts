@@ -113,6 +113,9 @@ export const homeRepository = {
         noShow: true,
         // Cancelled because the garage did not accept in time (0042).
         responseMissedAt: true,
+        // A free redo, and a refund instead of one (0051).
+        guaranteeRedo: true,
+        guaranteeRefundAt: true,
         rescheduledFromId: true,
         rescheduleCount: true,
         reviewPromptDismissedAt: true,

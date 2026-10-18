@@ -83,6 +83,7 @@ import { refundsService } from '../refunds/refunds.service.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
+import { guaranteeService } from '../guarantee/guarantee.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { bookingsRepository } from './bookings.repository.js'
 
@@ -364,6 +365,11 @@ type BookingWithRelations = {
   // standard on it (0045). Optional so a hand-built row still type-checks.
   vendorId?: string
   photosWaivedAt?: Date | null
+  // Detlio Guarantee (0051): a free redo of an earlier job, and a refund
+  // Detlio approved instead of a redo. Optional so a hand-built row still
+  // type-checks.
+  guaranteeRedo?: boolean
+  guaranteeRefundAt?: Date | null
   createdAt: Date
   review?: {
     id: string
@@ -576,6 +582,9 @@ function toBookingResponse(
     // Cancelled by the cron because the garage did not answer in time:
     // "Not accepted in time", refunded in full.
     notAcceptedInTime: Boolean(booking.responseMissedAt),
+    // A free redo of an earlier job (Detlio Guarantee, 0051): ₹0, no
+    // receipt. The garage's job card and the customer's page both flag it.
+    guaranteeRedo: Boolean(booking.guaranteeRedo),
     createdAt: booking.createdAt.toISOString(),
     review: booking.review
       ? {
@@ -661,6 +670,8 @@ function toBookingResponse(
       status: booking.status,
       noShow: (booking.noShow as 'customer' | 'garage' | null | undefined) ?? null,
       moved,
+      // A refund instead of a free redo (0051).
+      guaranteeRefund: Boolean(booking.guaranteeRefundAt),
       payment: booking.payment,
       charges: booking.charges,
     }, refundRecords),
@@ -668,8 +679,12 @@ function toBookingResponse(
     // page offers "View receipt" from this, so the rule lives in one place
     // (lib/receipts.ts) rather than being re-derived from the payment status.
     receiptAvailable:
-      receiptAvailability({ status: booking.status, moved, payment: booking.payment }) ===
-      'available',
+      receiptAvailability({
+        status: booking.status,
+        moved,
+        payment: booking.payment,
+        guaranteeRedo: booking.guaranteeRedo,
+      }) === 'available',
     // Whether the customer moved this booking to a new time. A move cancels
     // the old row, and the customer's list leaves it out: the booking they
     // have is the new one, which carries the payment.
@@ -1570,7 +1585,15 @@ export const bookingsService = {
       status: booking.status,
       moved: moved.has(booking.id),
       payment: booking.payment,
+      guaranteeRedo: booking.guaranteeRedo,
     })
+    if (availability === 'free_redo') {
+      throw new AppError(
+        404,
+        "This was a free redo, so there's no receipt for it. The receipt for the original job stands.",
+        'RECEIPT_NOT_AVAILABLE'
+      )
+    }
     if (availability === 'moved') {
       throw new AppError(
         404,
@@ -1819,9 +1842,12 @@ export const bookingsService = {
     alertOps({ kind: 'customer_cancelled', booking: updated!, reason })
     // The garage's team (0044); never the customer's reason, which is typed text.
     pushService.notifyGarage(updated!.vendorId, pushMessages.garageCustomerCancelled(updated!))
-    analyticsService.bookingCancelled(bookingId, 'customer')
+    // A free redo (0051) was never a booking anyone paid for: no usage event.
+    if (!updated!.guaranteeRedo) analyticsService.bookingCancelled(bookingId, 'customer')
     // Its time is free again: anyone waiting for that day hears (0047).
     slotAlertsService.capacityFreed(updated!, 'customer_cancelled')
+    // A free redo cancelled (0051): its claim lets them pick again.
+    if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     // Cancelled in the allowed time (the cutoff above): a paid one is
     // refunded at once when AUTO_REFUNDS is on.
     if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
@@ -1846,6 +1872,17 @@ export const bookingsService = {
 
     const withCar = customerChangeRefusal(pickupJobOf(booking))
     if (withCar) throw new AppError(409, withCar, 'CAR_WITH_GARAGE')
+
+    // A free redo (Detlio Guarantee, 0051) is not moved: it is tied to its
+    // claim's window. Cancelling it lets the customer pick another time
+    // from the claim while the window is open.
+    if (booking.guaranteeRedo) {
+      throw new AppError(
+        409,
+        "A free redo can't be moved. Cancel it and pick another time from the original booking.",
+        'GUARANTEE_REDO_NO_RESCHEDULE'
+      )
+    }
 
     // Extra work already paid for belongs to this job at this time (0041):
     // moving it would leave that payment on the retired booking, owed back,
@@ -2201,6 +2238,8 @@ export const bookingsService = {
     )
     // Coating and detailing follow-ups for the car (0046), after the response.
     carHistoryService.scheduleAfterCompletion(bookingId)
+    // A free redo done (0051): its claim closes.
+    if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2291,6 +2330,8 @@ export const bookingsService = {
       pushMessages.customerCompleted(updated!, { afterPhotos: garagePhotoCount(updated!, 'after') > 0 })
     )
     carHistoryService.scheduleAfterCompletion(bookingId)
+    // A free redo done (0051): its claim closes.
+    if (updated!.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2329,6 +2370,7 @@ export const bookingsService = {
     if (step === 'delivered') {
       await collectCashOnCompletion(booking)
       carHistoryService.scheduleAfterCompletion(bookingId)
+      if (booking.guaranteeRedo) guaranteeService.redoChanged(bookingId)
     }
     log.info({ bookingId, step, adminName }, 'booking:pickup_step_confirmed_by_detlio')
   },

@@ -85,6 +85,13 @@ export interface BookingForRefund {
    * with the move, so the old row owes nothing.
    */
   moved: boolean
+  /**
+   * Detlio approved a refund instead of a redo on this completed booking
+   * (Detlio Guarantee, 0051: bookings.guarantee_refund_at). Its payment is
+   * then owed back like a cancelled one's. Optional: absent is false, which
+   * every caller from before 0051 means.
+   */
+  guaranteeRefund?: boolean
 }
 
 /** A booking's own payment, as the payments row holds it. */
@@ -108,6 +115,8 @@ export interface PaymentForRefund {
  * not: the booking is off (cancelled by anyone, or a garage no-show), the
  * money arrived, and neither of the two exceptions applies — a customer
  * no-show keeps the payment, and a moved booking's payment went with it.
+ * Or Detlio approved a refund instead of a free redo on the completed job
+ * (Detlio Guarantee, 0051).
  *
  * 'refunded' counts as well as 'paid': a refunded payment was refundable,
  * which is how it shows on the done list.
@@ -117,6 +126,8 @@ export function isBookingPaymentRefundable(
   payment: Pick<PaymentForRefund, 'status'> | null | undefined
 ): boolean {
   if (!payment || (payment.status !== 'paid' && payment.status !== 'refunded')) return false
+  // A refund instead of a redo (0051): only ever on a completed booking.
+  if (booking.guaranteeRefund) return booking.status === 'completed'
   if (booking.status !== 'cancelled') return false
   if (booking.moved) return false
   return booking.noShow !== 'customer'
@@ -350,7 +361,10 @@ export function bookingRefundReason(booking: {
   cancelledOnBehalfOf: 'customer' | 'garage' | 'detlio' | null
   /** Set when the cron cancelled it because the garage did not accept in time (0042). */
   responseMissedAt?: Date | null
+  /** Detlio approved a refund instead of a redo (0051). */
+  guaranteeRefundAt?: Date | null
 }): string {
+  if (booking.guaranteeRefundAt) return 'Detlio Guarantee: refund instead of a redo'
   if (booking.noShow === 'garage') return 'Garage no-show'
   if (booking.noShow === 'customer') return 'Customer no-show'
   // The garage's side, like a decline, but nobody pressed anything.
