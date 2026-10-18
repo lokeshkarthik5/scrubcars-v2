@@ -46,6 +46,7 @@ import {
   vendorPayoutAccounts,
   vendorPhotos,
   vendorServiceAreas,
+  vehicleServiceReminders,
   vendorWorkingHours,
   vendors,
 } from '../schema.js'
@@ -70,6 +71,7 @@ import {
   RESPONSE_PIN,
   REVIEWS,
   SERVICES,
+  SERVICE_REMINDERS,
   STAFF,
   STATS,
   UNSET_RADIUS_COVERED,
@@ -2160,6 +2162,76 @@ async function seedResponseDeadlineRows() {
   })
 }
 
+/**
+ * Car history and service reminders (0046): VENDORS.carHistory with its
+ * owner's seat and two services (pending and unverified, so no customer sees
+ * it), CUSTOMERS.carHistory's car, two completed paid jobs on it (a coating,
+ * then a wash), a cancelled one, and the coating's maintenance-wash reminder
+ * due in 3 days. The wash is more than 30 days before that, so it does not
+ * answer the reminder. Every id and phone is in the 2600–2699 / 90000026xx
+ * range reserved for this feature.
+ */
+async function seedCarHistoryRows() {
+  const garage = VENDORS.carHistory.id
+  const customer = CUSTOMERS.carHistory
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.carHistoryOwner.id, businessName: VENDORS.carHistory.name,
+    phone: '9000002610', address: '9, History Lane, Chengalpattu', city: 'Chennai', pincode: '603003',
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.carHistoryOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(services).values([
+    {
+      id: SERVICES.carHistoryWash.id, vendorId: garage, name: SERVICES.carHistoryWash.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: SERVICES.carHistoryWash.price, durationMins: SERVICES.carHistoryWash.durationMins, isActive: true,
+    },
+    {
+      id: SERVICES.carHistoryCoating.id, vendorId: garage, name: SERVICES.carHistoryCoating.name,
+      description: 'A ceramic coating over a polished finish.', category: 'coating', pricingType: 'flat',
+      price: SERVICES.carHistoryCoating.price, durationMins: SERVICES.carHistoryCoating.durationMins, isActive: true,
+    },
+  ])
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Kia', model: 'Seltos', color: 'Black',
+    licensePlate: 'TN26KH0001', vehicleType: 'suv', isDefault: true,
+  })
+
+  const item = (service: { id: string; name: string; price: string; durationMins: number }) => ({
+    id: service.id, name: service.name, amount: service.price, durationMins: service.durationMins,
+  })
+  const done = (days: number) => ({
+    scheduledAt: daysAgo(days), createdAt: daysAgo(days + 2),
+    acceptedAt: daysAgo(days + 1), startedAt: daysAgo(days), completedAt: new Date(daysAgo(days).getTime() + 2 * HOUR),
+  })
+  await insertBooking({
+    id: BOOKINGS.carHistoryCoating, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    status: 'completed', items: [item(SERVICES.carHistoryCoating)],
+    payment: { status: 'paid', txnId: 'pay_seed_history_coating', gatewayMode: 'fake', paidAt: daysAgo(89) },
+    ...done(87),
+  })
+  await insertBooking({
+    id: BOOKINGS.carHistoryWash, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    status: 'completed', items: [item(SERVICES.carHistoryWash)],
+    payment: { status: 'paid', txnId: 'pay_seed_history_wash', gatewayMode: 'fake', paidAt: daysAgo(42) },
+    ...done(40),
+  })
+  await insertBooking({
+    id: BOOKINGS.carHistoryCancelled, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    scheduledAt: daysAgo(10), status: 'cancelled', items: [item(SERVICES.carHistoryWash)],
+    createdAt: daysAgo(12),
+    cancellation: { by: 'user', reason: 'Plans changed', at: daysAgo(11) },
+  })
+  await db.insert(vehicleServiceReminders).values({
+    id: SERVICE_REMINDERS.carHistoryMaintenance, userId: customer.id, vehicleId: customer.vehicleId,
+    kind: 'maintenance_wash', dueOn: istDate(3), sourceBookingId: BOOKINGS.carHistoryCoating,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2205,6 +2277,8 @@ async function main() {
   await seedDocumentRows()
   console.log('[e2e-seed] browser notifications…')
   await seedPushRows()
+  console.log('[e2e-seed] car history…')
+  await seedCarHistoryRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

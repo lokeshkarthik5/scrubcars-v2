@@ -27,7 +27,8 @@ export function JobPhotosCard({ photos }: { photos: JobPhoto[] }) {
   if (photos.length === 0) return null
 
   return (
-    <ScCard className="flex flex-col gap-3">
+    // #job-photos: a car's history links straight to them.
+    <ScCard id="job-photos" className="flex scroll-mt-4 flex-col gap-3">
       <h2 className="text-sm font-semibold text-text-primary">Job photos</h2>
       {STAGES.map(({ stage, label }) => {
         const ofStage = photos.filter((photo) => photo.stage === stage)

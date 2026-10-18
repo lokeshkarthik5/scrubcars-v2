@@ -32,6 +32,7 @@ import type {
   DocumentType,
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
+import type { ServiceReminderKind, ServiceReminderStatus } from '../lib/service-reminders.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -2300,6 +2301,70 @@ export const notificationSends = pgTable(
     check(
       'notification_sends_kind_check',
       sql`${table.kind} in ('day_before', 'hour_before', 'respond_soon')`
+    ),
+  ]
+)
+
+// Coating and detailing follow-ups for a customer's car (0046,
+// lib/service-reminders.ts): a maintenance wash 3 months and a coating check
+// 12 months after a coating, another detailing 6 months after a detailing.
+// Written when the job completes, one per job per kind (unique), dated from
+// its IST completion date. `status` leaves 'open' exactly once (CHECK):
+// dismissed by the customer, done when a booking answered it, or superseded
+// by a newer job of the same kind. `snoozed_until` moves the due date in
+// force; `notified_on` is the date the browser notification went for, the
+// cron's claim (one per due date in force). Cascades with the customer, the
+// car (a car with bookings is archived, never deleted, so its reminders
+// stay and are not shown) and the job that scheduled it; the booking that
+// answered one is only a link (SET NULL).
+export const vehicleServiceReminders = pgTable(
+  'vehicle_service_reminders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vehicleId: uuid('vehicle_id')
+      .notNull()
+      .references(() => userVehicles.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<ServiceReminderKind>().notNull(),
+    dueOn: date('due_on', { mode: 'string' }).notNull(),
+    sourceBookingId: uuid('source_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    status: text('status').$type<ServiceReminderStatus>().default('open').notNull(),
+    snoozedUntil: date('snoozed_until', { mode: 'string' }),
+    notifiedOn: date('notified_on', { mode: 'string' }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    doneBookingId: uuid('done_booking_id').references(() => bookings.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('vehicle_service_reminders_source_kind_key').on(table.sourceBookingId, table.kind),
+    // A car's open reminders: its page, Home and each completion.
+    index('vehicle_service_reminders_open_vehicle_idx')
+      .on(table.vehicleId)
+      .where(sql`${table.status} = 'open'`),
+    // The cron's due-date runs.
+    index('vehicle_service_reminders_open_due_idx')
+      .on(table.dueOn)
+      .where(sql`${table.status} = 'open'`),
+    index('vehicle_service_reminders_user_id_idx').on(table.userId),
+    check(
+      'vehicle_service_reminders_kind_check',
+      sql`${table.kind} in ('maintenance_wash', 'coating_check', 'detailing_repeat')`
+    ),
+    check(
+      'vehicle_service_reminders_status_check',
+      sql`${table.status} in ('open', 'dismissed', 'done', 'superseded')`
+    ),
+    check(
+      'vehicle_service_reminders_closed_check',
+      sql`(${table.status} = 'open') = (${table.closedAt} is null)`
     ),
   ]
 )

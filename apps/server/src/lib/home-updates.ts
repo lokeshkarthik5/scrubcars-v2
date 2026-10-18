@@ -27,6 +27,11 @@
  *     it or closes it, each opening My complaints, where the answer is.
  *     Resolving or closing an open one stamps the acknowledgement at the same
  *     moment; that is the answer, not a second step, so it is one row.
+ *   - A coating or detailing follow-up for one of their cars (0046,
+ *     lib/service-reminders.ts) adds a row on its due date, dated 09:00 IST
+ *     with its notification, opening the car's page. Snoozed, it moves to
+ *     the new date (a new row, so unread again); booked, answered or
+ *     dismissed, it goes.
  *
  * No row promises a message: only devices that turned browser notifications
  * on get one (0044, lib/push-messages.ts, which reuses these words), and
@@ -42,6 +47,15 @@ import type { BookingType } from './booking-types.js'
 import { formatComplaintNumber, type ComplaintStatus } from './complaints.js'
 import { extraWorkPayable } from './extra-work.js'
 import { isProposalLive, liveOptions } from './time-proposals.js'
+import {
+  carPagePath,
+  inUpdates,
+  REMINDER_TITLES,
+  reminderMomentFor,
+  reminderReason,
+  serviceReminderRowId,
+  type HubServiceReminder,
+} from './service-reminders.js'
 
 export const UPDATES_WINDOW_DAYS = 30
 export const MAX_UPDATES = 100
@@ -173,6 +187,7 @@ export type UpdateKind =
   | 'extra_work_paid'
   | 'extra_work_declined'
   | 'extra_work_withdrawn'
+  | 'service_reminder'
 
 export interface UpdateItem {
   /** Stable across reads: kind plus what it is about. */
@@ -671,6 +686,23 @@ function complaintRows(complaints: HubComplaint[]): Draft[] {
   return rows
 }
 
+/** The rows of the customer's service reminders due by now (0046). */
+function serviceReminderRows(reminders: HubServiceReminder[], now: Date): Draft[] {
+  return reminders.flatMap((reminder) => {
+    const standing = reminder.standing
+    if (standing.kind !== 'open' || !inUpdates(standing, now)) return []
+    return [draft({
+      id: serviceReminderRowId(reminder, standing.dueOn),
+      kind: 'service_reminder',
+      at: reminderMomentFor(standing.dueOn),
+      title: REMINDER_TITLES[reminder.kind],
+      body: `${reminder.vehicleName} · ${reminderReason(reminder.kind, reminder.vendorName)}`,
+      vendorName: reminder.vendorName,
+      linkUrl: carPagePath(reminder.vehicleId),
+    })]
+  })
+}
+
 /** Booking-window notices about the customer's own bookings, one row each. */
 function noticeRows(bookings: HubBooking[], notices: NoticeRow[]): Draft[] {
   const rows: Draft[] = []
@@ -713,6 +745,8 @@ export function deriveUpdates(input: {
   pausedGarages?: PausedGarage[]
   /** The customer's complaints the team has moved on (acknowledged, resolved or closed). */
   complaints?: HubComplaint[]
+  /** Open coating and detailing follow-ups on their current cars, with where each stands. */
+  serviceReminders?: HubServiceReminder[]
   /** updates_seen_at, or the account's creation when never opened. */
   seenAt: Date
   now: Date
@@ -737,6 +771,7 @@ export function deriveUpdates(input: {
     ...input.bookings.flatMap((booking) => bookingRows(booking, now)),
     ...pausedRows(input.bookings, input.pausedGarages ?? [], now),
     ...complaintRows(input.complaints ?? []),
+    ...serviceReminderRows(input.serviceReminders ?? [], now),
   ]
     .filter(inWindow)
     .sort(newestFirst)

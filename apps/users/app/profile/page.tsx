@@ -442,15 +442,26 @@ export default function ProfilePage() {
           ) : (
             vehicles.map((v) => (
               <ScCard key={v.id} className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
-                  <IconCar size={18} className="text-text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-text-primary">{v.make} {v.model}</p>
-                  {v.plate && (
-                    <p className="text-[11px] text-text-secondary">{v.plate}</p>
-                  )}
-                </div>
+                {/* The car opens its history: every job, receipts, photos
+                    and its next coating or detailing reminder. */}
+                <Link
+                  href={`/profile/cars/${v.id}`}
+                  aria-label={`${v.make} ${v.model}: history`}
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
+                    <IconCar size={18} className="text-text-primary" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-0.5 text-[13px] font-medium text-text-primary">
+                      <span className="truncate">{v.make} {v.model}</span>
+                      <IconChevronRight size={14} className="shrink-0 text-text-muted" aria-hidden="true" />
+                    </span>
+                    <span className="block text-[11px] text-text-secondary">
+                      {v.plate ? `${v.plate} · History` : 'History'}
+                    </span>
+                  </span>
+                </Link>
                 {v.isDefault ? (
                   <ScBadge variant="success">Default</ScBadge>
                 ) : (

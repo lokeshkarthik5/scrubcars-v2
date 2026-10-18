@@ -12,6 +12,7 @@ import {
   customerNotAcceptedInTime,
   customerPickupStep,
   customerRefund,
+  customerServiceReminder,
   customerTimesSuggested,
   garageCustomerCancelled,
   garageExtraWorkDeclined,
@@ -92,6 +93,10 @@ const ALL: Array<[string, PushMessage]> = [
   ['customer not accepted', customerNotAcceptedInTime(booking)],
   ['customer day before', customerDayBefore({ ...booking, status: 'confirmed' }, NOW)],
   ['customer hour before', customerHourBefore({ ...booking, status: 'confirmed' }, IST('2026-10-17T09:00:00'))],
+  ['customer service reminder', customerServiceReminder({
+    id: 'r0000000-0000-4000-8000-000000002601', vehicleId: 'c0000000-0000-4000-8000-000000002602',
+    kind: 'maintenance_wash', vendorName: booking.vendor.businessName,
+  })],
   ['customer test', testMessage('customer')],
   ['garage test', testMessage('garage')],
 ]
@@ -194,7 +199,19 @@ describe('customer: the same words as Updates', () => {
   test('every booking message is booking news, for the Booking updates switch', () => {
     for (const [name, message] of ALL) {
       if (name.includes('day before') || name.includes('hour before') || name.includes('test')) continue
+      if (name.includes('service reminder')) continue
       expect(message.category).toBe('booking_update')
     }
+  })
+
+  test('a coating or detailing follow-up is a reminder, opens the car, and never names it', () => {
+    const message = customerServiceReminder({
+      id: 'r1', vehicleId: 'car-1', kind: 'coating_check', vendorName: 'Marina Auto Spa',
+    })
+    expect(message.title).toBe('Coating check-up')
+    expect(message.body).toBe('12 months since your coating at Marina Auto Spa. Book it in Detlio.')
+    expect(message.category).toBe('reminder')
+    expect(message.url).toBe('/profile/cars/car-1')
+    expect(message.tag).toBe('service_reminder:r1')
   })
 })

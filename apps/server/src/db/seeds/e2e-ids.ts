@@ -353,6 +353,14 @@ export const CUSTOMERS = {
    */
   notAccepted: { id: id(2202), phone: '9000002202', name: 'Late Answer Lalitha', vehicleId: id(2203) },
   /**
+   * Car history and service reminders (0046; specs/users/car-history.spec.ts),
+   * at VENDORS.carHistory only. Ids 2600–2699 and phones 90000026xx are this
+   * feature's own range. One car with a ceramic coating done ~87 days ago and
+   * a wash ~40 days ago (both completed and paid), one cancelled wash, and the
+   * coating's maintenance-wash reminder due in 3 days.
+   */
+  carHistory: { id: id(2601), phone: '9000002601', name: 'History Harini', vehicleId: id(2603) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -440,6 +448,8 @@ export const STAFF = {
   pushOperator: { id: id(2403), phone: '9000002403', name: 'Push Operator Padma' },
   /** Owns VENDORS.response and VENDORS.responseOther only (0042; the 2200–2299 range). */
   responseOwner: { id: id(2201), phone: '9000002201', name: 'Response Owner Revathi' },
+  /** Owns VENDORS.carHistory only (0046; the 2600–2699 range). */
+  carHistoryOwner: { id: id(2602), phone: '9000002602', name: 'History Owner Hari' },
 } as const
 
 export const VENDORS = {
@@ -611,6 +621,11 @@ export const VENDORS = {
    */
   push: { id: id(2410), name: 'Push Test Garage' },
   /**
+   * Car history (0046). Pending and not verified, so no customer list shows
+   * it and nobody books it: it only did CUSTOMERS.carHistory's past jobs.
+   */
+  carHistory: { id: id(2610), name: 'History Test Garage' },
+  /**
    * The garage response deadline (0042). Live, at the garage only, open
    * 06:00–22:00 every day, one ₹600 wash (SERVICES.responseWash), at
    * RESPONSE_PIN, far from every other test garage. It lets
@@ -761,6 +776,9 @@ export const SERVICES = {
   responseWash: { id: id(2211), name: 'Slow Reply Wash', price: '600.00', durationMins: 60 },
   /** On RESPONSE_OTHER: a car wash too, so it matches the booking's kind of job. */
   responseOtherWash: { id: id(2213), name: 'Quick Reply Wash', price: '650.00', durationMins: 45 },
+  /** On CAR_HISTORY (0046): a wash and a coating, so the history filters by service. */
+  carHistoryWash: { id: id(2611), name: 'History Foam Wash', price: '450.00', durationMins: 45 },
+  carHistoryCoating: { id: id(2612), name: 'History Ceramic Coating', price: '6000.00', durationMins: 240 },
 } as const
 
 export const DISCOUNTS = {
@@ -1034,6 +1052,19 @@ export const BOOKINGS = {
    * it as not accepted in time, with the payment owed back in full.
    */
   notAccepted: id(2220),
+  /**
+   * CUSTOMERS.carHistory's car at VENDORS.carHistory (0046): a ₹6,000
+   * coating completed ~87 days ago, a ₹450 wash completed ~40 days ago, and
+   * a wash cancelled by the customer (left out of the history).
+   */
+  carHistoryCoating: id(2620),
+  carHistoryWash: id(2621),
+  carHistoryCancelled: id(2622),
+} as const
+
+/** The coating's maintenance-wash reminder (0046), due in 3 days. */
+export const SERVICE_REMINDERS = {
+  carHistoryMaintenance: id(2630),
 } as const
 
 export const VEHICLES = {

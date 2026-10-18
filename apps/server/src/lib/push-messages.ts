@@ -19,6 +19,7 @@ import { BANK_DAYS, MY_COMPLAINTS_PATH, rupees } from './home-updates.js'
 import { serviceLabelOf } from './home-cards.js'
 import { istDateKey, istSlotShortLabel, istTimeLabel } from './ist.js'
 import { DEFAULT_TTL_SECONDS, type PushMessage } from './push.js'
+import { carPagePath, REMINDER_TITLES, reminderReason, type ServiceReminderKind } from './service-reminders.js'
 
 const MINUTE_MS = 60 * 1000
 
@@ -363,6 +364,27 @@ export function customerHourBefore(booking: PushBooking, now: Date): PushMessage
     category: 'reminder',
     urgency: 'high',
     ttlSeconds: ttlUntil(booking.scheduledAt, now),
+  })
+}
+
+/**
+ * A coating or detailing follow-up is due today (0046,
+ * lib/service-reminders.ts): the reminder's name, and how long since the job
+ * at which garage. Never the car: its make or plate is the customer's own.
+ */
+export function customerServiceReminder(reminder: {
+  id: string
+  vehicleId: string
+  kind: ServiceReminderKind
+  vendorName: string | null
+}): PushMessage {
+  return message({
+    title: REMINDER_TITLES[reminder.kind],
+    body: `${reminderReason(reminder.kind, reminder.vendorName)}. Book it in Detlio.`,
+    url: carPagePath(reminder.vehicleId),
+    tag: `service_reminder:${reminder.id}`,
+    category: 'reminder',
+    ttlSeconds: 12 * 60 * 60,
   })
 }
 
