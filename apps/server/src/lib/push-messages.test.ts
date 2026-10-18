@@ -13,6 +13,7 @@ import {
   customerNotAcceptedInTime,
   customerPickupStep,
   customerRefund,
+  customerReportReward,
   customerServiceReminder,
   customerSlotOpened,
   customerTimesSuggested,
@@ -113,6 +114,7 @@ const ALL: Array<[string, PushMessage]> = [
     kind: 'maintenance_wash', vendorName: booking.vendor.businessName,
   })],
   ['customer slot opened', customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)],
+  ['customer report reward', customerReportReward({ id: 'r1' }, '100.00')],
   ['customer test', testMessage('customer')],
   ['garage test', testMessage('garage')],
 ]

@@ -16,6 +16,7 @@ import {
 } from './common'
 import { BUSINESS, GOVERNING_COURTS } from './details'
 import { LEGAL_PATHS } from './routes'
+import { BYPASS_LAWYER_NOTES } from './bypass-reports'
 import { GIFTS_LAWYER_NOTES } from './gifts'
 
 const COURTS = GOVERNING_COURTS ?? tbc('city whose courts have jurisdiction')
@@ -377,6 +378,10 @@ export const TERMS: LegalDoc = {
           kind: 'note',
           text: '**Offers on Home and ranking.** Added because Home now shows garages\' promo codes in an order (apps/server/src/lib/offers.ts rankOffers: the team\'s priority, then, only once matching is on, the customer\'s tie to the garage, with Detlio\'s own codes after booked and nearby garages but before every other garage\'s, then the soonest end, then the newest). Detlio ranking its own offers above other garages\' is disclosed here because it is a ranking parameter; if the owner would rather not rank them first, offerTier can give Detlio-wide and other garages\' offers the same tier and this paragraph changes with it. Please confirm that no garage pays for an offer\'s place on Home; if one ever does, the offer must be labelled as sponsored, as the paragraph above promises for listings, and this paragraph must say so.',
         },
+        // "Did the garage ask you to book directly?" (0052): the garage
+        // agreement's non-solicitation clause and the reports, for the lawyer
+        // only (notes are never public copy).
+        ...BYPASS_LAWYER_NOTES,
       ],
     },
     {

@@ -30,6 +30,7 @@ import {
   reviewCountLabel,
 } from '@repo/core/vendor-stats'
 import type { Review } from '@repo/core/types'
+import { GARAGE_NON_SOLICITATION_LINE } from '@repo/core/bypass-reports'
 import { ActiveGarage } from '@/components/active-garage'
 import { CertifiedCard } from '@/components/certified-card'
 import { PushBanner } from '@/components/push-banner'
@@ -299,6 +300,11 @@ export default function VendorHomePage() {
           standards, for the owner seat (the server refuses operators). After
           the jobs: it is something to work towards, not to act on now. */}
       {isVendorAdmin && <CertifiedCard key={vendor?.id} />}
+
+      {/* The agreement's non-solicitation term (0052), in the same quiet
+          small print as the Earnings page's payout terms: a reminder for
+          every seat, not a warning. Never says anything about a report. */}
+      <p className="px-1 text-[11px] text-text-secondary">{GARAGE_NON_SOLICITATION_LINE}</p>
     </AppShell>
   )
 }

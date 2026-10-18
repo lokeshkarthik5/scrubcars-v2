@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { IconChevronRight, IconCircleX, IconMessageReport } from '@tabler/icons-react'
+import { IconChevronRight, IconCircleX, IconFlag, IconMessageReport } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -11,6 +11,10 @@ import { telHref, whatsAppHref } from '@repo/core/contact-links'
 import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support'
 import { COMPLAINT_ACKNOWLEDGE_HOURS } from '@repo/core/complaints'
 import type { Booking } from '@repo/core/types'
+import { useBypassStatus } from '@repo/core/api/hooks/use-bypass-reports'
+import { BYPASS_QUESTION } from '@repo/core/bypass-reports'
+import { mayBeReportable } from '@/components/bypass/bypass-report-line'
+import { ReportBypassSheet } from '@/components/bypass/report-bypass-sheet'
 import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet'
 
 interface BookingHelpSheetProps {
@@ -39,10 +43,15 @@ const GARAGE_REACHABLE: ReadonlySet<Booking['status']> = new Set([
  * Below them, "Raise a complaint": a written complaint about this booking,
  * with a number and the 24-hour clock. It replaces this sheet with its own
  * (two sheets stacked would be two backdrops and two scroll locks); closing
- * it closes Help too.
+ * it closes Help too. While the booking can be reported, "Did the garage ask
+ * you to book directly?" (0052) works the same way.
  */
 export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetProps) {
   const [raising, setRaising] = useState(false)
+  // "Did the garage ask you to book directly?" (0052): the booking page's
+  // own read, shared (one request, one cache).
+  const [reporting, setReporting] = useState(false)
+  const bypass = useBypassStatus(booking.id, open && mayBeReportable(booking)).data
   const reference = `#${bookingReference(booking.id)}`
   const garage = booking.garage
   const showGarage = GARAGE_REACHABLE.has(booking.status) && !!garage
@@ -57,7 +66,7 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
   return (
     <>
       <ScSheet
-        open={open && !raising}
+        open={open && !raising && !reporting}
         onClose={onClose}
         aria-label="Help with this booking"
         className="px-4 pt-1"
@@ -135,6 +144,23 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
             </ScButton>
           </section>
 
+          {bypass?.canReport && (
+            <section className="flex flex-col gap-2">
+              <div>
+                <h3 className="text-[13px] font-semibold text-text-primary">{BYPASS_QUESTION}</h3>
+                <p className="text-[12px] text-text-secondary">
+                  Tell us in confidence. The garage is never told who reported it.
+                </p>
+              </div>
+              <ScButton variant="secondary" onClick={() => setReporting(true)} className="min-h-11">
+                <span className="flex items-center justify-center gap-2">
+                  <IconFlag size={18} aria-hidden />
+                  Tell us what happened
+                </span>
+              </ScButton>
+            </section>
+          )}
+
           {/* Answers to the usual questions (cancelling, refunds, pickup
               codes), for when there is no one to call about it. */}
           <Link
@@ -149,6 +175,19 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
           </Link>
         </div>
       </ScSheet>
+
+      {bypass?.canReport && (
+        <ReportBypassSheet
+          open={open && reporting}
+          onClose={() => {
+            setReporting(false)
+            onClose()
+          }}
+          booking={{ id: booking.id, reference, vendorName: booking.vendorName }}
+          rewardOffered={bypass.rewardOffered}
+          rewardAmount={bypass.rewardAmount}
+        />
+      )}
 
       <RaiseComplaintSheet
         open={open && raising}

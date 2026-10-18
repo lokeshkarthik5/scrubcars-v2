@@ -7,6 +7,7 @@ import {
 } from '../../middleware/auth.middleware.js'
 import { carHistoryRoutes } from '../car-history/car-history.routes.js'
 import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
+import { customerBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import { favouritesRoutes } from '../favourites/favourites.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
 import { customerPushRoutes } from '../push/push.routes.js'
@@ -36,6 +37,10 @@ usersRoutes.route('/me', homeRoutes)
 
 // The customer's complaints: /me/complaints. Same mounting, same check.
 usersRoutes.route('/me', customerComplaintRoutes)
+
+// "Did the garage ask you to book directly?" (0052): /me/bypass-reports.
+// Same mounting, same check; the session's own bookings only.
+usersRoutes.route('/me', customerBypassReportRoutes)
 
 // The customer's saved garages: /me/favourites. Same mounting, same check.
 usersRoutes.route('/me', favouritesRoutes)

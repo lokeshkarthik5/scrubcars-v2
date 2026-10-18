@@ -33,6 +33,7 @@ import {
   type DocumentsSummary,
 } from '../../lib/vendor-documents.js'
 import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.repository.js'
+import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationRepository } from '../certification/certification.repository.js'
 import { graceEndsOn, isCertified } from '../../lib/certification.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
@@ -664,6 +665,9 @@ export const adminService = {
     const certifications = new Map(
       (await certificationRepository.listStates()).map((row) => [row.vendorId, row])
     )
+    // Bypass reports (0052): each garage's strikes, confirmed reports of the
+    // last 180 IST days. One grouped read; 2 or more are highlighted.
+    const strikes = await bypassReportsService.strikesByGarage(now)
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
@@ -689,6 +693,7 @@ export const adminService = {
         documents: documentSummary,
         certification: certificationSummary(certifications.get(vendor.id)),
         photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
+        bypassStrikes: strikes.get(vendor.id) ?? 0,
         readiness: vendorReadiness({
           ...vendor,
           hasDoorstepArea,

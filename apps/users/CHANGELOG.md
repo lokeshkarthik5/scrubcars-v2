@@ -19,6 +19,27 @@ reconstructing every change in them.
 
 ### Added
 
+- **"Did the garage ask you to book directly?"** (API 0052). Customer app: a
+  booking from the garage's acceptance until 30 days after completion shows
+  a quiet line under Help ("Did the garage ask you to book directly?"), and
+  Help gains the same question; both open a sheet with what happened (five
+  chips) and an optional note, saying the garage is never told who reported
+  it and, while Detlio credit is on, "If we confirm it, we add ₹100 to your
+  Detlio credit (once per garage)". Once sent, the booking page says where
+  the report stands; a confirmed reward is an Updates row ("Thanks — ₹100
+  added to your Detlio credit", opening Detlio credit) and a push. Garage
+  portal: Home ends with "Asking Detlio customers to book directly breaks
+  your agreement and can lead to suspension." Admin: a Bypass reports page
+  (header nav "Bypass"; linked from Complaints on a phone) with New /
+  Confirmed / Dismissed, each report's garage (with its strikes), booking,
+  customer, what happened and note, and Confirm / Dismiss with a typed
+  name; a Customer drop-off page (regulars who went quiet, per garage and
+  one by one, linked to the garage and the customer's last booking there);
+  a strike line on the garage card (red at 2+) and a strikes card on the
+  garage page; "Report rewards" on Gifts. The Detlio Certified sheet gains
+  "Has not been found asking customers to book or pay outside Detlio in the
+  last 180 days." Lawyer notes on the garage agreement's non-solicitation
+  clause: `apps/users/lib/legal/bypass-reports.ts` (not public copy).
 - **Gift a wash: Detlio gifts and Detlio credit** (API 0049, shown only
   while the API has `GIFTS_ENABLED` on; every entry point is hidden while it
   is off or its config is loading, and a gift page opened directly says

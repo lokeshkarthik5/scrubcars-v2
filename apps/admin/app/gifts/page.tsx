@@ -104,6 +104,12 @@ function SummaryTiles({ summary }: { summary: AdminGiftsSummary }) {
         <Meta label="Credit adjusted">
           <span className="font-numeric">{formatRupees(credit.adjusted)}</span>
         </Meta>
+        {/* Bypass report rewards (0052): Detlio's own money, not gift sales. */}
+        {credit.rewarded !== undefined && (
+          <Meta label="Report rewards">
+            <span className="font-numeric">{formatRupees(credit.rewarded)}</span>
+          </Meta>
+        )}
         <Meta label="Gifts expired">
           <span className="font-numeric">{countAndAmount(summary.expired.count, summary.expired.amount)}</span>
         </Meta>

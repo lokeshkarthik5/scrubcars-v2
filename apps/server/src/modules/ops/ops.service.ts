@@ -4,6 +4,7 @@ import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
+import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationService } from '../certification/certification.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
@@ -121,6 +122,15 @@ export const opsService = {
         log.error({ err }, 'ops:gift_credit_sweep_failed')
         return { error: true as const }
       })
+    // Bypass reports (0052): rewards confirmed while Detlio credit was off
+    // are granted once it is on. Nothing while off. Bounded, never allowed
+    // to fail the digest.
+    const bypassRewards = await bypassReportsService
+      .sweepOwedRewards({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:bypass_reward_sweep_failed')
+        return { error: true as const }
+      })
     const giftCodeAttemptsPurged = options.dryRun
       ? 0
       : await giftsService.purgeAttempts().catch((err: unknown) => {
@@ -179,6 +189,7 @@ export const opsService = {
       serviceReminders,
       slotAlerts,
       giftCredit,
+      bypassRewards,
       giftCodeAttemptsPurged,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }

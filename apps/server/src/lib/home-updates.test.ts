@@ -794,6 +794,31 @@ describe('slot alerts (0047)', () => {
   })
 })
 
+describe('bypass report rewards (0052)', () => {
+  const reward = { id: 'r1', grantedAt: ago(2 * HOUR), amount: '100.00' }
+
+  test('a reward added is a row in the push’s words, opening the credit screen', () => {
+    const [row] = deriveUpdates({ bookings: [], notices: [], reportRewards: [reward], seenAt: ago(3 * HOUR), now: NOW })
+    expect(row).toMatchObject({
+      id: 'report_reward:r1',
+      kind: 'report_reward',
+      at: reward.grantedAt.toISOString(),
+      unread: true,
+      title: 'Thanks — ₹100 added to your Detlio credit',
+      amount: '100.00',
+      bookingId: null,
+      vendorName: null,
+      linkUrl: '/profile/credit',
+    })
+    expect(bannedPhraseIn(`${row.title} ${row.body}`)).toBeNull()
+  })
+
+  test('older than the window, it is gone', () => {
+    const old = { ...reward, grantedAt: ago(31 * DAY) }
+    expect(deriveUpdates({ bookings: [], notices: [], reportRewards: [old], seenAt: LONG_AGO, now: NOW })).toEqual([])
+  })
+})
+
 describe('Detlio credit (0049)', () => {
   test('a booking paid with credit and declined: no bank refund is promised, and the credit coming back is a row', () => {
     const declined = booking({

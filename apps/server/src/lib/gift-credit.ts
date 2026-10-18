@@ -30,7 +30,8 @@
  *
  * The ledger (gift_credit_entries) is a list of lots and draws. A lot is a
  * positive entry with an expiry: a redeemed gift (`redeem`), credit given
- * back from a booking (`refund`), or a positive `adjustment` by the team. A
+ * back from a booking (`refund`), a positive `adjustment` by the team, or a
+ * reward for a confirmed bypass report (`report_reward`, 0052). A
  * draw is a negative entry naming the lot it came from: a booking paid with
  * credit (`debit`, one row per lot), a negative `adjustment`, or an
  * `expiry` that writes off what a lot had left when it ran out. A lot's
@@ -72,7 +73,9 @@ export const GIFT_STATUSES = ['pending', 'paid', 'redeemed', 'cancelled'] as con
 /** As stored: pending until Razorpay says paid, then redeemed once, or cancelled by the team. */
 export type GiftStatus = (typeof GIFT_STATUSES)[number]
 
-export const CREDIT_ENTRY_KINDS = ['redeem', 'debit', 'refund', 'expiry', 'adjustment'] as const
+// `report_reward` (0052): a lot of ₹100 for a bypass report Detlio confirmed
+// (lib/bypass-reports.ts), Detlio's own money, not a gift's.
+export const CREDIT_ENTRY_KINDS = ['redeem', 'debit', 'refund', 'expiry', 'adjustment', 'report_reward'] as const
 export type CreditEntryKind = (typeof CREDIT_ENTRY_KINDS)[number]
 
 const DAY_MS = 24 * 60 * 60 * 1000

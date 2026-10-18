@@ -75,6 +75,11 @@ export interface AdminVendor {
    */
   photoCompliance?: { jobs: number; compliant: number; waived: number; percent: number | null }
   /**
+   * Bypass reports (0052): confirmed reports from the last 180 days. 2 or
+   * more are highlighted. Absent from older servers.
+   */
+  bypassStrikes?: number
+  /**
    * Its garage documents in short (0043): whether it has the badge, how
    * many required are approved, how many wait for review. Null while garage
    * documents are off; absent from older servers.

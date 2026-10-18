@@ -15,6 +15,7 @@ import {
   type RevokeKind,
 } from '../../lib/certification.js'
 import type { PhotoComplianceJob } from '../../lib/photo-compliance.js'
+import { strikeCountsByGarage } from '../bypass-reports/bypass-reports.repository.js'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Conn = typeof db | Tx
@@ -226,6 +227,15 @@ function reads(conn: Conn) {
          GROUP BY c.vendor_id
       `)
       return Array.from(rows).map((row) => ({ vendorId: row.vendor_id, count: Number(row.count) }))
+    },
+
+    /**
+     * Confirmed bypass reports in the last 180 IST days (0052): the
+     * garage's strikes, read through the bypass-reports module's one SQL
+     * definition (`strikeCountsByGarage`).
+     */
+    bypassStrikeCounts(vendorIds: string[], since: Date) {
+      return strikeCountsByGarage(conn, { vendorIds, since })
     },
 
     /** Garage no-shows recorded in the window. */

@@ -196,6 +196,13 @@ function ComplaintsList() {
           ))}
         </div>
         <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">{complaintFilterHint(show)}</p>
+        {/* Bypass reports (0052) have no room in the phone's bottom bar. */}
+        <Link
+          href="/bypass-reports"
+          className="mt-1 inline-flex min-h-11 items-center gap-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
+        >
+          Garage asked a customer to book directly? Bypass reports
+        </Link>
       </div>
 
       {refreshFailed && (

@@ -23,6 +23,7 @@
  * and the same numbers are twinned in packages/core/src/certification.ts
  * (certification.parity.test.ts).
  */
+import { BYPASS_RULES } from './bypass-reports.js'
 import { addDays, daysBetween, istDateKey, istMidnight } from './ist.js'
 import type { PhotoCompliance as PhotoComplianceFigure } from './photo-compliance.js'
 
@@ -62,6 +63,15 @@ export const CERTIFICATION_RULES = {
    * lib/photo-compliance.ts grades it (waived and Test jobs left out).
    */
   minPhotoCompliance: 0.9,
+  /**
+   * "Did the garage ask you to book directly?" (0052): reports Detlio
+   * confirmed in the last 180 IST days (the garage's strikes, the same
+   * window as lib/bypass-reports.ts, Test-marked bookings left out). One is
+   * enough to lose eligibility; a certified garage then goes through the
+   * usual 14 days at risk before the seal lapses.
+   */
+  maxBypassStrikes: 0,
+  bypassWindowDays: BYPASS_RULES.strikeWindowDays,
   /** A passing quality check counts for this many months. */
   qualityCheckMonths: 6,
   /** Days a certified garage may fall short before it loses the badge. */
@@ -121,6 +131,11 @@ export interface CertificationMetrics {
   garageNoShows: number
   /** lib/photo-compliance.ts's figure (`fromPhotoCompliance`); left out, not measured (passes). */
   photoCompliance?: PhotoCompliance
+  /**
+   * Confirmed bypass reports in the last 180 IST days (0052, the garage's
+   * strikes); left out, none.
+   */
+  bypassStrikes?: number
 }
 
 export const RULE_KEYS = [
@@ -131,6 +146,7 @@ export const RULE_KEYS = [
   'complaints',
   'no_shows',
   'photos',
+  'bypass',
 ] as const
 export type RuleKey = (typeof RULE_KEYS)[number]
 
@@ -160,6 +176,7 @@ export const RULE_LABELS: Record<RuleKey, string> = {
   complaints: 'Complaints (90 days)',
   no_shows: 'Garage no-shows (90 days)',
   photos: 'Before and after photos (90 days)',
+  bypass: 'Bypass reports (180 days)',
 }
 
 const percent = (share: number) => `${Math.round(share * 1000) / 10}%`
@@ -253,6 +270,14 @@ export function evaluateEligibility(metrics: CertificationMetrics): Eligibility 
       `At least ${percent(R.minPhotoCompliance)} of jobs`
     )
   }
+
+  const strikes = metrics.bypassStrikes ?? 0
+  add(
+    'bypass',
+    strikes <= R.maxBypassStrikes,
+    strikes === 0 ? 'None confirmed' : `${strikes} confirmed`,
+    R.maxBypassStrikes === 0 ? 'None confirmed' : `At most ${R.maxBypassStrikes}`
+  )
 
   return { eligible: rules.every((rule) => rule.met), rules }
 }

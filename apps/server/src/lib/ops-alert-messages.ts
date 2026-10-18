@@ -14,6 +14,7 @@ const ADMIN_GIFTS_URL = 'https://admin.detlio.com/gifts'
 const ADMIN_PAYOUTS_URL = 'https://admin.detlio.com/payouts'
 const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
 const ADMIN_VENDORS_URL = 'https://admin.detlio.com/vendors'
+const ADMIN_BYPASS_REPORTS_URL = 'https://admin.detlio.com/bypass-reports'
 
 /** A garage's Documents tab in admin, where its uploads are approved or rejected. */
 export function adminGarageDocumentsUrl(vendorId: string): string {
@@ -23,6 +24,11 @@ export function adminGarageDocumentsUrl(vendorId: string): string {
 /** A garage's Certification tab in admin: its standards, checks, Certify and Revoke. */
 export function adminGarageCertificationUrl(vendorId: string): string {
   return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=certification`
+}
+
+/** A garage's page in admin (its strikes show at the top). */
+export function adminGarageUrl(vendorId: string): string {
+  return `${ADMIN_VENDORS_URL}/${vendorId}/edit`
 }
 
 /** A complaint's own page in admin, where it is acknowledged and answered. */
@@ -363,6 +369,35 @@ export type OpsAlert =
       /** The admin's typed name; null for a lapse. */
       by: string | null
       reason: string
+    }
+  | {
+      /**
+       * "Did the garage ask you to book directly?" (0052): a customer reported
+       * a garage. Never who reported it (the garage must never learn it, and
+       * the group chat keeps everything): the garage, the booking, what
+       * happened and the customer's note, quoted and scrubbed.
+       */
+      kind: 'bypass_report_received'
+      garage: string
+      bookingId: string | null
+      /** What happened, as the customer picked it. */
+      what: string
+      note: string | null
+      /** The garage's strikes before this report is looked at. */
+      strikes: number
+    }
+  | {
+      /**
+       * A confirmed report took a garage to 2 strikes (confirmed reports in
+       * the last 180 days): time to talk to it, or to suspend it.
+       */
+      kind: 'bypass_strikes_reached'
+      vendorId: string
+      garage: string
+      strikes: number
+      windowDays: number
+      /** Detlio Certified now: it will be at risk at the next nightly check. */
+      certified: boolean
     }
   | {
       /**
@@ -861,6 +896,29 @@ export function formatOpsAlert(alert: OpsAlert): string {
         alert.how === 'revoked' ? quoted('Reason', alert.reason) : null,
         'Customers no longer see the seal.',
         adminGarageCertificationUrl(alert.vendorId)
+      )
+
+    case 'bypass_report_received':
+      return lines(
+        `🚩 Bypass report: ${alert.garage}`,
+        [alert.bookingId ? `booking #${reference(alert.bookingId)}` : null, alert.what].filter(Boolean).join(' · '),
+        alert.note ? quoted('Customer wrote', alert.note) : null,
+        alert.strikes > 0
+          ? `This garage has ${alert.strikes} ${alert.strikes === 1 ? 'strike' : 'strikes'} already.`
+          : null,
+        'Look into it, then Confirm or Dismiss. The garage must never learn who reported it.',
+        ADMIN_BYPASS_REPORTS_URL
+      )
+
+    case 'bypass_strikes_reached':
+      return lines(
+        `⛔ ${alert.garage} reached ${alert.strikes} strikes`,
+        `${alert.strikes} confirmed reports of taking customers off Detlio in the last ${alert.windowDays} days.`,
+        alert.certified
+          ? 'It is Detlio Certified: the next nightly check puts the seal at risk.'
+          : null,
+        'Talk to the garage about its agreement, or pause or suspend it.',
+        adminGarageUrl(alert.vendorId)
       )
 
     case 'gift_payment_stray':

@@ -88,6 +88,33 @@ export async function insertCreditDraws(
   )
 }
 
+/**
+ * A reward for a bypass report Detlio confirmed (0052): a new lot of kind
+ * `report_reward`, lasting 12 months like a gift, written in the caller's
+ * transaction under the customer's credit lock (taken here). The caller
+ * (bypass-reports.repository `confirm` / `grantOwed`) holds its garage's
+ * bypass lock first; nothing holds the credit lock and then asks for that
+ * one, so the two never wait on each other.
+ */
+export async function insertReportRewardLot(
+  tx: AnyTx,
+  input: { userId: string; amountPaise: number; reason: string; actorName: string; now: Date }
+): Promise<{ id: string }> {
+  await lockCredit(tx, input.userId)
+  const [entry] = await tx
+    .insert(giftCreditEntries)
+    .values({
+      userId: input.userId,
+      kind: 'report_reward',
+      amount: rupees(input.amountPaise),
+      expiresAt: giftExpiresAt(input.now),
+      reason: input.reason.slice(0, 300),
+      actorName: input.actorName.slice(0, 100),
+    })
+    .returning({ id: giftCreditEntries.id })
+  return entry!
+}
+
 /** What returnBookingCredit did. */
 export type CreditReturn =
   | { kind: 'returned'; userId: string; amount: string; expiresAt: Date; rootBookingId: string }

@@ -18,6 +18,59 @@ reconstructing every change in them.
 
 ### Added
 
+- **"Did the garage ask you to book directly?" reports, garage strikes and
+  customer drop-off** (migration `0052_bypass_reports`, additive, after
+  0049; 0050–0051 belong to parallel branches and the migrations lint
+  reports the gap until they are merged: new table `bypass_reports` with
+  CHECKs and partial unique indexes, and a new Detlio credit lot kind,
+  `report_reward`, added to `gift_credit_entries`' kind and sign CHECKs).
+  Rules in `lib/bypass-reports.ts` and `lib/drop-off.ts` (pure,
+  unit-tested), words twinned in `packages/core/src/bypass-reports.ts`
+  (parity test).
+  - Customers (`modules/bypass-reports`, `/users/me/bypass-reports`,
+    `.strict()`, the session's own bookings only, anyone else's a 404):
+    `GET …/bookings/:bookingId` (can it be reported, and the report if it
+    was), `POST` (what happened — asked to book directly, a lower price
+    outside Detlio, cash/UPI directly, gave their number, other — and an
+    optional note of up to 500 characters), `GET` (their own). From the
+    garage's acceptance until 30 days after completion (or after a
+    cancellation, if the garage had accepted); one per reschedule chain;
+    at most 5 in any 365 days, counted under `bypass-reports:<userId>`
+    (409 `BYPASS_NOT_YET` / `BYPASS_WINDOW_CLOSED` /
+    `BYPASS_ALREADY_REPORTED` / `BYPASS_REPORT_LIMIT`). Never written to a
+    garage payload, a booking note or a garage push; Telegram
+    `bypass_report_received` names the garage, booking and what happened,
+    never the customer.
+  - Admin (`/admin/bypass-reports`, super-admin): list by New / Confirmed /
+    Dismissed with counts, Confirm (`{ actorName }`) and Dismiss
+    (`{ actorName, reason }`), each once from New (409
+    `BYPASS_REPORT_ANSWERED`), each with an audit row
+    (`bypass_report_confirmed` / `_dismissed`); a garage's strikes
+    (`/vendors/:vendorId`); customer drop-off (`/drop-off`).
+  - Reward only on confirm: ₹100 of Detlio credit, once per customer per
+    garage (partial unique index), a `report_reward` lot (12 months) written
+    through the ledger (`insertReportRewardLot`) under the customer's
+    credit lock, after the garage's `bypass-reports:garage:<id>` lock.
+    While `GIFTS_ENABLED` is off it is recorded as owed and the
+    pending-digest cron grants it once credit is on (20 a run). Push and
+    Updates: "Thanks — ₹100 added to your Detlio credit".
+  - Strikes: confirmed reports confirmed in the last 180 IST days, a
+    Test-marked booking's left out (`strikeCountsByGarage`, the one SQL
+    definition). On `GET /admin/vendors` rows (`bypassStrikes`); reaching 2
+    alerts the team (`bypass_strikes_reached`).
+  - Detlio Certified: a new standard, `bypass` ("Bypass reports (180
+    days)", `maxBypassStrikes: 0`, `bypassWindowDays: 180` in
+    `CERTIFICATION_RULES`): any strike makes a garage ineligible, and a
+    certified garage goes through the usual 14 days at risk before the seal
+    lapses.
+  - Customer drop-off: regulars (3+ completed at a garage in 180 IST days)
+    who have booked nothing anywhere on Detlio for over twice their usual
+    gap (the median gap between their completed bookings, at least 30
+    days); per garage the rate, flagged at 30%+ with 3+ regulars. Computed
+    on request from one bounded read-only query (10 s statement timeout,
+    503 `DROP_OFF_TIMEOUT`); nothing stored.
+  - Gifts summary: `credit.rewarded` (report rewards, Detlio's own money).
+
 - **Gift a wash: Detlio gifts, Detlio credit, and paying for a booking
   with credit, behind `GIFTS_ENABLED` (default off)** (migration
   `0049_gift_credit`, additive, after 0048: new
