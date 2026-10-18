@@ -37,6 +37,8 @@ export const challengeSchema = z
     rewardStamps: whole.nullable(),
     rewardAmount: whole.nullable(),
     rewardMultiplier: whole.nullable(),
+    // 0057: Garage cards won; an older form leaves it out.
+    rewardCards: whole.nullable().default(null),
     audienceMinLevel: z.enum(LEVELS).nullable(),
     maxWinners: whole.nullable(),
     actorName: z.string().trim().min(2, 'Type your name').max(100),

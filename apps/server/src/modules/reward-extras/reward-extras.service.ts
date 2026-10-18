@@ -43,6 +43,8 @@ import {
 import { buildWrapped, isWrappedPushWindow, levelMoment, wrappedAvailable, wrappedPushWords, wrappedStale, wrappedYears, yearRange } from '../../lib/wrapped.js'
 import { pushService } from '../push/push.service.js'
 import { announceRewards } from '../rewards/rewards.announce.js'
+import { garageService } from '../garage/garage.service.js'
+import { garageSettings } from '../../lib/garage.js'
 import { rewardsRepository } from '../rewards/rewards.repository.js'
 import { currentSettings, rewardsLive } from '../rewards/rewards.settings.js'
 import { rewardExtrasRepository, toChallenge, type AwardedBadge, type CountResult } from './reward-extras.repository.js'
@@ -245,7 +247,9 @@ export const rewardExtrasService = {
         'rewards:extras_earned'
       )
     }
-    announceRewards(result.vouchers, result.capAlert, settings)
+    // 0057: a challenge's or a badge's Garage cards are told with the vouchers.
+    if ((result.garagePulls ?? []).length > 0) await garageService.announce(result.garagePulls, result.vouchers, result.capAlert, settings, now)
+    else announceRewards(result.vouchers, result.capAlert, settings)
     if (isCelebrationHour(now)) {
       const titles = new Map(result.wins.map((win) => [win.challenge.id, win.challenge.title]))
       await celebrateBadges(
@@ -308,7 +312,8 @@ export const rewardExtrasService = {
           const result = await rewardExtrasRepository.checkBadges({ userId, now, settings, achievements })
           summary.badgeChecks += 1
           summary.badges += result.badges.length
-          announceRewards(result.vouchers, result.capAlert, settings)
+          if ((result.garagePulls ?? []).length > 0) await garageService.announce(result.garagePulls, result.vouchers, result.capAlert, settings, now)
+          else announceRewards(result.vouchers, result.capAlert, settings)
         } catch (err) {
           summary.failed += 1
           log.error({ err, userId }, 'rewards:badge_check_failed')
@@ -419,7 +424,9 @@ export const rewardExtrasService = {
     const awards = await rewardExtrasRepository.listAwards(userId)
     const facts = await rewardExtrasRepository.badgeFacts(userId)
     const earned = new Map(awards.filter((a) => a.key !== 'challenge').map((a) => [a.key, a]))
-    const badges = BADGES.filter((badge) => achievements[badge.key].enabled || earned.has(badge.key)).map((badge) => {
+    // 0057: Garage Legend shows only while the Garage is switched on (or once earned).
+    const garageOn = garageSettings(settings).enabled
+    const badges = BADGES.filter((badge) => earned.has(badge.key) || (achievements[badge.key].enabled && (badge.key !== 'garage_legend' || garageOn))).map((badge) => {
       const award = earned.get(badge.key)
       return {
         key: badge.key,
@@ -486,7 +493,10 @@ export const rewardExtrasService = {
     const { settings } = await currentSettings()
     const achievements = achievementSettings(settings)
     const awards = await rewardExtrasRepository.listAwards(userId)
-    const shown = BADGES.filter((badge) => achievements[badge.key].enabled || awards.some((a) => a.key === badge.key)).length
+    const garageOn = garageSettings(settings).enabled
+    const shown = BADGES.filter(
+      (badge) => awards.some((a) => a.key === badge.key) || (achievements[badge.key].enabled && (badge.key !== 'garage_legend' || garageOn))
+    ).length
     const challenges = await rewardExtrasService.customerChallenges(userId, now, settings)
     const challenge = challenges.find((c) => c.status === 'live' && !c.won && !c.full) ?? null
     const years = await rewardExtrasService.wrappedYearsFor(userId, now)

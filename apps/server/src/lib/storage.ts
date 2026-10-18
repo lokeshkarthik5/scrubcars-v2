@@ -171,6 +171,22 @@ export async function createUserUpload(
 }
 
 /**
+ * A short-lived presigned PUT for one exact key, type and size, for uploads
+ * whose folder the caller decides (the Garage's card pictures, 0057, wait
+ * under ai-temp/ until the admin uses them). The signed Content-Length makes
+ * R2 refuse any other size.
+ */
+export async function createPresignedPutForKey(key: string, contentType: string, sizeBytes: number): Promise<{ uploadUrl: string; key: string }> {
+  const client = getClient()
+  const uploadUrl = await getSignedUrl(
+    client,
+    new PutObjectCommand({ Bucket: env.r2Bucket, Key: key, ContentType: contentType, ContentLength: sizeBytes }),
+    { expiresIn: env.r2UploadUrlTtlSeconds }
+  )
+  return { uploadUrl, key }
+}
+
+/**
  * Write an object from the server itself, for files this API makes rather
  * than receives (the admin's AI pictures). Throws on failure: the caller is
  * about to hand out the URL.

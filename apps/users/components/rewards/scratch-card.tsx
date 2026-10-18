@@ -13,6 +13,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { livePendingCheckout, usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { cn } from '@repo/core/utils'
 import { PremiumCard } from '@/components/premium-card/premium-card'
+import { GarageCard, GarageCardBack } from '@/components/garage/garage-card'
 import { ShareCardImage } from '@/components/premium-card/share-card-image'
 import { JACKPOT_CONFETTI_COLORS, burstConfetti } from '@/lib/confetti'
 import { prizeCardSpec, type PremiumCardSpec } from '@/lib/premium-card'
@@ -207,7 +208,9 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
   const waiting = scratch.isPending && !result
   const failed = scratch.isError && !result
   const showPrize = cleared && prize !== null
-  const spec = prize
+  // 0057: a Garage card shows its car (or, loaded later, the card's back: the car is in the album).
+  const garage = prize?.outcome === 'garage_card'
+  const spec = prize && !garage
     ? prizeCardSpec({ id: card.id, createdAt: card.createdAt, outcome: prize.outcome, amount: prize.amount, vendorName: card.vendorName, useBy: voucherLastDay })
     : null
 
@@ -216,7 +219,11 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
       <div className="relative">
         <div className="scratch-card">
           <div className="absolute inset-0" aria-live="polite">
-            {spec ? (
+            {garage ? (
+              <div className={cn('absolute inset-0 grid place-items-center rounded-[12px] bg-[radial-gradient(70%_60%_at_50%_45%,#24262D,#0B0C0F)]', showPrize && 'scratch-card__prize--in')}>
+                <div className="w-[64%]">{result?.garagePull ? <GarageCard car={result.garagePull.car} /> : <GarageCardBack />}</div>
+              </div>
+            ) : spec ? (
               <PrizeFace spec={spec} revealed={showPrize} />
             ) : (
               <p className="grid h-full place-items-center px-4 text-center text-[13px] text-text-secondary">
@@ -224,6 +231,11 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
               </p>
             )}
             {/* What the picture says, for a screen reader. */}
+            {showPrize && garage && (
+              <p className="sr-only">
+                A Garage card{result?.garagePull ? `: ${result.garagePull.car.name}, ${result.garagePull.car.rarityLabel}` : ''}.
+              </p>
+            )}
             {showPrize && spec && (
               <p className="sr-only">
                 {spec.title.join(', ')}. {spec.chips.map((chip) => chip.text).join(', ')}.
@@ -283,6 +295,16 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
             <IconArrowUpRight size={16} aria-hidden />
           </ScButton>
         </div>
+      ) : garage ? (
+        <p className="flex items-center gap-1.5 text-[12px] text-text-primary">
+          <IconCircleCheckFilled size={16} className="shrink-0 text-[#DCE1EC]" aria-hidden />
+          <span>
+            {result?.garagePull ? `${result.garagePull.car.name} (${result.garagePull.car.rarityLabel}) is in your Garage. ` : 'A new car is in your Garage. '}
+            <Link href="/profile/rewards/garage" className="underline underline-offset-4">
+              See it
+            </Link>
+          </span>
+        </p>
       ) : prize?.outcome === 'bonus_stamp' ? (
         <p className="flex items-center gap-1.5 text-[12px] text-text-primary">
           <IconCircleCheckFilled size={16} className="shrink-0 text-[#DCE1EC]" aria-hidden />

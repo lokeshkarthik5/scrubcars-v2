@@ -26,12 +26,14 @@ import { Figures } from '@repo/ui/sc/figures'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { rewardsEnabled, useMyRewards, useRewardsConfig } from '@repo/core/api/hooks/use-rewards'
 import { useRewardExtras } from '@repo/core/api/hooks/use-reward-extras'
+import { garageLive } from '@repo/core/api/hooks/use-garage'
 import type { RewardExtras } from '@repo/core/api/reward-extras'
 import type { MyRewards, RewardVoucher } from '@repo/core/api/rewards'
 import { levelLine, rewardDate, rewardDay, rewardRupees, stampsToGoLine, streakLine } from '@repo/core/rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { CustomerShell } from '@/components/customer-shell'
+import { GarageEntry } from '@/components/garage/garage-entry'
 import { BadgeCabinet } from '@/components/rewards/badge-cabinet'
 import { BadgeCelebration } from '@/components/rewards/badge-celebration'
 import { ChallengeCard } from '@/components/rewards/challenge-card'
@@ -127,6 +129,7 @@ function RewardsScreen() {
           extras={extras.data ?? null}
           focusBadge={params.get('badge')}
           focusChallenge={params.get('challenge')}
+          garage={garageLive(config.data)}
           birthdayPerkFrom={settings?.levels.find((l) => l.birthdayVoucher !== null)?.label ?? null}
         />
       )}
@@ -139,12 +142,15 @@ function RewardsBody({
   extras,
   focusBadge,
   focusChallenge,
+  garage,
   birthdayPerkFrom,
 }: {
   view: MyRewards
   extras: RewardExtras | null
   focusBadge: string | null
   focusChallenge: string | null
+  /** 0057: the Detlio Garage is live. */
+  garage: boolean
   birthdayPerkFrom: string | null
 }) {
   const { card, level, streak } = view
@@ -246,6 +252,9 @@ function RewardsBody({
           {vouchers}
         </>
       )}
+
+      {/* 0057: the Detlio Garage, under the Shine Card it shares its bookings with. */}
+      {garage && <GarageEntry />}
 
       {extras && extras.unseen.length > 0 && <BadgeCelebration badges={extras.unseen} focusId={focusBadge} />}
 

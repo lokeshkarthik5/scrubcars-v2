@@ -29,7 +29,7 @@ export interface BadgeToCelebrate {
 }
 
 export type ChallengeStatus = 'draft' | 'scheduled' | 'live' | 'finished' | 'ended'
-export type ChallengeRewardKind = 'stamps' | 'voucher' | 'multiplier' | 'badge'
+export type ChallengeRewardKind = 'stamps' | 'voucher' | 'multiplier' | 'badge' | 'garage_cards'
 
 export interface CustomerChallenge {
   id: string
@@ -120,6 +120,8 @@ export interface ChallengeFormValues {
   rewardStamps: number | null
   rewardAmount: number | null
   rewardMultiplier: number | null
+  /** 0057: Detlio Garage cards won (1–5). */
+  rewardCards: number | null
   audienceMinLevel: RewardLevel | null
   maxWinners: number | null
 }

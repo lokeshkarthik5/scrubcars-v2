@@ -47,15 +47,16 @@ function getClient(): OpenAI {
 }
 
 /**
- * Two pictures for one prompt, in one request (n = 2), landscape 1536×1024
+ * Two pictures for one prompt (or `count`: the Garage's bulk fill takes
+ * one each, 0057), in one request, landscape 1536×1024
  * at medium quality, returned as WebP so they are small enough to serve
  * as they are. Any failure of the SDK is the same 503 to the admin: there is
  * nothing they can do about OpenAI being down, out of credit or refusing,
  * except try other words later.
  */
-export async function generatePictures(prompt: string): Promise<GeneratedPicture[]> {
+export async function generatePictures(prompt: string, count: number = PICTURES_PER_REQUEST): Promise<GeneratedPicture[]> {
   if (env.aiFake) {
-    return Array.from({ length: PICTURES_PER_REQUEST }, () => ({
+    return Array.from({ length: count }, () => ({
       bytes: FAKE_PICTURE,
       contentType: 'image/png' as const,
       ext: 'png' as const,
@@ -66,7 +67,7 @@ export async function generatePictures(prompt: string): Promise<GeneratedPicture
     const response = await getClient().images.generate({
       model: env.aiImageModel,
       prompt,
-      n: PICTURES_PER_REQUEST,
+      n: count,
       size: '1536x1024',
       quality: 'medium',
       output_format: 'webp',

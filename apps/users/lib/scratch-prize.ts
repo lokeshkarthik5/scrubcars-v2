@@ -16,6 +16,7 @@ export type PrizeTier = 'silver' | 'gold' | 'stamp' | 'jackpot'
 export function prizeTier(outcome: ScratchOutcome): PrizeTier {
   switch (outcome) {
     case 'bonus_stamp':
+    case 'garage_card':
       return 'stamp'
     case 'free_wash':
       return 'jackpot'
@@ -28,7 +29,8 @@ export function prizeTier(outcome: ScratchOutcome): PrizeTier {
 
 /** Whether the prize is money to spend at checkout (a voucher). */
 export function isMoneyPrize(outcome: ScratchOutcome): boolean {
-  return outcome !== 'bonus_stamp'
+  // 0057: a Garage card is a car for the album, not money.
+  return outcome !== 'bonus_stamp' && outcome !== 'garage_card'
 }
 
 /**

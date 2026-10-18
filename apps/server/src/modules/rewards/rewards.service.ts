@@ -61,6 +61,8 @@ import {
 import { isWashDue, washStatus } from '../../lib/wash-status.js'
 import { pushService } from '../push/push.service.js'
 import { rewardExtrasService } from '../reward-extras/reward-extras.service.js'
+import { garageService } from '../garage/garage.service.js'
+import { garageSettings, scratchIsGarageCard } from '../../lib/garage.js'
 import { announceRewards } from './rewards.announce.js'
 import { rewardsRepository, type JudgeResult } from './rewards.repository.js'
 import { currentSettings, forgetSettings, rewardsLive } from './rewards.settings.js'
@@ -228,8 +230,10 @@ function publicSettings(settings: RewardsSettings) {
 export const rewardsService = {
   /** Whether the app shows rewards, and the live numbers it shows. Always answers. */
   async config() {
-    if (!(await rewardsLive())) return { enabled: false as const, settings: null }
-    return { enabled: true as const, settings: publicSettings((await currentSettings()).settings) }
+    if (!(await rewardsLive())) return { enabled: false as const, settings: null, garage: { live: false as const } }
+    const { settings } = await currentSettings()
+    // 0057: whether the apps show the Detlio Garage (its switch and a live series).
+    return { enabled: true as const, settings: publicSettings(settings), garage: await garageService.publicConfig(settings) }
   },
 
   // ─── Settings (admin) ─────────────────────────────────────────────────────
@@ -292,11 +296,15 @@ export const rewardsService = {
   ): Promise<JudgeResult | null> {
     if (!(await rewardsLive())) return null
     const { settings } = await currentSettings()
+    // 0057: while the Garage is live, a scratch card may be a Garage card, drawn
+    // with its own chance before the money prizes (the odds table is untouched).
+    const garageCard = !draw && (await garageService.publicConfig(settings, now)).live && scratchIsGarageCard(garageSettings(settings))
     const result = await rewardsRepository.judgeCompletion({
       bookingId,
       now,
       settings,
-      draw: (level) => (draw ? draw(level, settings) : drawScratchOutcome(level, settings)),
+      draw: (level) =>
+        draw ? draw(level, settings) : garageCard ? { outcome: 'garage_card' as const, amount: null } : drawScratchOutcome(level, settings),
     })
     if (result.kind === 'earned') {
       log.info(
@@ -316,6 +324,10 @@ export const rewardsService = {
       // transaction after this one; if it fails, the cron's catch-up does it.
       await rewardExtrasService.onStampEarned(result.userId, result.rootBookingId, now).catch((err: unknown) => {
         log.error({ err, bookingId }, 'rewards:extras_failed')
+      })
+      // 0057: the booking's Detlio Garage card, in its own transaction; the cron catches up if it fails.
+      await garageService.onStampEarned(result.userId, result.rootBookingId, now).catch((err: unknown) => {
+        log.error({ err, bookingId }, 'rewards:garage_failed')
       })
     } else if (result.kind === 'refused') {
       log.info({ bookingId, userId: result.userId, refusal: result.refusal }, 'rewards:no_stamp')
@@ -459,7 +471,21 @@ export const rewardsService = {
 
   async scratch(userId: string, cardId: string, now = new Date()) {
     const { settings } = await currentSettings()
-    const result = await rewardsRepository.scratch({ userId, cardId, now, settings })
+    // 0057: a Garage card pulls its car inside the scratch's own transaction.
+    const pulled: Array<Awaited<ReturnType<typeof garageService.tx.pull>>> = []
+    const result = await rewardsRepository.scratch({
+      userId,
+      cardId,
+      now,
+      settings,
+      garageCard: async (tx, card) => {
+        if (!(await garageService.publicConfig(settings, now)).live) return null
+        const outcome = await garageService.tx.pull(tx, { userId, source: 'scratch', scratchCardId: card.id, rootBookingId: card.rootBookingId, now, settings })
+        if (!outcome) return null
+        pulled.push(outcome)
+        return garageService.tx.finishPulls(tx, { userId, outcomes: [outcome], now, settings, sourceBookingId: card.rootBookingId })
+      },
+    })
     switch (result.kind) {
       case 'not_found':
         throw new AppError(404, 'Scratch card not found', 'SCRATCH_CARD_NOT_FOUND')
@@ -470,7 +496,9 @@ export const rewardsService = {
       case 'revealed':
         if (!result.already) {
           log.info({ userId, cardId, outcome: result.outcome }, 'rewards:scratched')
-          announce(result.vouchers, result.capAlert, settings)
+          const outcomes = pulled.filter((o): o is NonNullable<typeof o> => o !== null)
+          if (outcomes.length > 0) await garageService.announce(outcomes, result.vouchers, result.capAlert, settings, now)
+          else announce(result.vouchers, result.capAlert, settings)
         }
         return {
           outcome: result.outcome,
@@ -482,6 +510,8 @@ export const rewardsService = {
             : null,
           // A bonus stamp may have filled the card.
           shineVoucher: result.vouchers.find((v) => v.kind === 'shine') ?? null,
+          // 0057: a Garage card's car, for the reveal.
+          garagePull: result.outcome === 'garage_card' ? await garageService.pullForScratchCard(userId, cardId).catch(() => null) : null,
         }
     }
   },
@@ -819,7 +849,8 @@ export const rewardsService = {
       },
       bookings: figures.judged,
       scratch: {
-        outcomes: SCRATCH_OUTCOMES.map((outcome) => ({
+        outcomes: [
+          ...SCRATCH_OUTCOMES.map((outcome): { outcome: ScratchOutcome; label: string; weight: number; drawn: number; given: number; scratched: number } => ({
           outcome,
           label: scratchPrizeLabel(outcome, outcome === 'bonus_stamp' ? null : settings.scratchAmounts[outcome]),
           weight: settings.scratchWeights[outcome],
@@ -827,6 +858,16 @@ export const rewardsService = {
           given: figures.outcomes.filter((r) => r.outcome === outcome).reduce((s, r) => s + r.n, 0),
           scratched: figures.outcomes.filter((r) => r.outcome === outcome).reduce((s, r) => s + r.scratched, 0),
         })),
+          // 0057: Garage cards, drawn with the Garage's own chance before the table above.
+          {
+            outcome: 'garage_card' as const,
+            label: scratchPrizeLabel('garage_card', null),
+            weight: garageSettings(settings).scratchCardWeight,
+            drawn: figures.outcomes.filter((r) => r.drawn === 'garage_card').reduce((s, r) => s + r.n, 0),
+            given: figures.outcomes.filter((r) => r.outcome === 'garage_card').reduce((s, r) => s + r.n, 0),
+            scratched: figures.outcomes.filter((r) => r.outcome === 'garage_card').reduce((s, r) => s + r.scratched, 0),
+          },
+        ],
         fellBack: figures.outcomes.filter((r) => r.outcome !== r.drawn).reduce((s, r) => s + r.n, 0),
         expiredUnscratched: figures.cardsExpired,
       },

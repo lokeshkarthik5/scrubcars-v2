@@ -39,6 +39,8 @@ import { yearRange, type WrappedBooking, type WrappedStats } from '../../lib/wra
 import { bookingCategories } from '../car-history/car-history.repository.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 import { rewardsTx, type IssuedVoucher } from '../rewards/rewards.repository.js'
+import { garageTx, type PullOutcome } from '../garage/garage.repository.js'
+import { garageSettings } from '../../lib/garage.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = PgTransaction<any, any, any>
@@ -75,6 +77,7 @@ export function toChallenge(row: ChallengeRow): Challenge {
     rewardStamps: row.rewardStamps,
     rewardAmount: row.rewardAmount === null ? null : Number(row.rewardAmount),
     rewardMultiplier: row.rewardMultiplier,
+    rewardCards: row.rewardCards,
     audienceMinLevel: row.audienceMinLevel,
     maxWinners: row.maxWinners,
     publishedAt: row.publishedAt,
@@ -139,7 +142,11 @@ async function badgeFacts(conn: Conn, userId: string): Promise<BadgeFacts> {
   const [invites] = await (conn as typeof db).execute<{ n: number }>(sql`
     select count(*)::int as n from reward_referrals where referrer_id = ${userId} and status = 'rewarded'
   `)
-  return { bookings, reviews: Number(reviews?.n ?? 0), rewardedInvites: Number(invites?.n ?? 0) }
+  // 0057: Detlio Garage series collected in full (the Garage Legend badge).
+  const [garage] = await (conn as typeof db).execute<{ n: number }>(sql`
+    select count(*)::int as n from garage_series_completions where user_id = ${userId}
+  `)
+  return { bookings, reviews: Number(reviews?.n ?? 0), rewardedInvites: Number(invites?.n ?? 0), garageSeries: Number(garage?.n ?? 0) }
 }
 
 async function earnedBadgeKeys(conn: Conn, userId: string): Promise<Set<string>> {
@@ -185,6 +192,8 @@ async function awardBadges(
     achievements: Record<BadgeKey, BadgeSettings>
     rootBookingId: string | null
     facts?: BadgeFacts
+    /** 0057: the Detlio Garage cards each badge gave (`badgeBonusCards`), for the caller to tell. */
+    garagePulls?: PullOutcome[]
   }
 ): Promise<AwardedBadge[]> {
   const facts = input.facts ?? (await badgeFacts(tx, input.userId))
@@ -205,6 +214,14 @@ async function awardBadges(
     if (!row) continue
     await addStamps(tx, { userId: input.userId, count: badge.bonusStamps, now: input.now, settings: input.settings, badgeAwardId: row.id })
     awarded.push({ id: row.id, key: badge.key, challengeId: null, bonusStamps: badge.bonusStamps })
+    // 0057: a badge's bonus Garage cards (none for Garage Legend itself, nor while the Garage is not live).
+    if (badge.key !== 'garage_legend' && input.garagePulls) {
+      for (let i = 0; i < garageSettings(input.settings).badgeBonusCards; i += 1) {
+        const pulled = await garageTx.pull(tx, { userId: input.userId, source: 'badge', badgeAwardId: row.id, rootBookingId: input.rootBookingId, now: input.now, settings: input.settings })
+        if (!pulled) break
+        input.garagePulls.push(pulled)
+      }
+    }
   }
   return awarded
 }
@@ -227,6 +244,8 @@ export type CountResult =
       full: Challenge[]
       vouchers: IssuedVoucher[]
       capAlert: { month: string; issuedPaise: number } | null
+      /** 0057: Detlio Garage cards a challenge or a badge gave, for the service to tell. */
+      garagePulls: PullOutcome[]
     }
 
 /** The challenge rows a booking starting on `dayKey` could count toward: published, its dates around the day. */
@@ -267,7 +286,7 @@ async function countedFor(conn: Conn, challengeId: string, userId: string) {
 async function grantWin(
   tx: AnyTx,
   input: { challenge: Challenge; userId: string; rootBookingId: string; now: Date; settings: RewardsSettings }
-): Promise<{ win: ChallengeWin; vouchers: IssuedVoucher[] } | null> {
+): Promise<{ win: ChallengeWin; vouchers: IssuedVoucher[]; garagePulls: PullOutcome[] } | null> {
   const { challenge: c, userId, now, settings } = input
   const [claimed] = await tx
     .insert(rewardChallengeWinners)
@@ -277,10 +296,20 @@ async function grantWin(
   if (!claimed) return null
 
   const vouchers: IssuedVoucher[] = []
+  const garagePulls: PullOutcome[] = []
   let bonusStamps = 0
   let voucherId: string | null = null
   let badgeAwardId: string | null = null
   switch (c.rewardKind) {
+    case 'garage_cards': {
+      // 0057: each a random pull, like a booking's.
+      for (let i = 0; i < (c.rewardCards ?? 0); i += 1) {
+        const pulled = await garageTx.pull(tx, { userId, source: 'challenge', challengeId: c.id, rootBookingId: input.rootBookingId, now, settings })
+        if (!pulled) break
+        garagePulls.push(pulled)
+      }
+      break
+    }
     case 'stamps':
       bonusStamps = c.rewardStamps ?? 0
       await addStamps(tx, { userId, count: bonusStamps, now, settings, challengeId: c.id })
@@ -327,7 +356,7 @@ async function grantWin(
     .update(rewardChallengeWinners)
     .set({ voucherId, bonusStamps, badgeAwardId })
     .where(and(eq(rewardChallengeWinners.challengeId, c.id), eq(rewardChallengeWinners.userId, userId)))
-  return { win: { challenge: c, bonusStamps, voucherId, badgeAwardId }, vouchers }
+  return { win: { challenge: c, bonusStamps, voucherId, badgeAwardId }, vouchers, garagePulls }
 }
 
 // ─── The repository ──────────────────────────────────────────────────────────
@@ -369,6 +398,7 @@ export const rewardExtrasRepository = {
       const facts = await badgeFacts(tx, userId)
       const booking = facts.bookings.find((row) => row.rootBookingId === rootBookingId)
       const wins: ChallengeWin[] = []
+      const garagePulls: PullOutcome[] = []
       const oneLeft: Challenge[] = []
       const full: Challenge[] = []
       const vouchers: IssuedVoucher[] = []
@@ -436,18 +466,25 @@ export const rewardExtrasRepository = {
           if (!granted) continue
           wins.push(granted.win)
           vouchers.push(...granted.vouchers)
+          garagePulls.push(...granted.garagePulls)
           if (granted.win.bonusStamps > 0) stampsAdded = true
         }
       }
 
-      const badges = await awardBadges(tx, { userId, now, settings, achievements: input.achievements, rootBookingId, facts })
+      const badges = await awardBadges(tx, { userId, now, settings, achievements: input.achievements, rootBookingId, facts, garagePulls })
       for (const win of wins) {
         if (win.badgeAwardId) badges.push({ id: win.badgeAwardId, key: 'challenge', challengeId: win.challenge.id, bonusStamps: 0 })
       }
       if (badges.some((badge) => badge.bonusStamps > 0)) stampsAdded = true
+      // 0057: the Garage cards' duplicates and rows may add stamps and vouchers too.
+      for (const pulled of garagePulls) {
+        vouchers.push(...pulled.vouchers)
+        if (pulled.stampsAdded) stampsAdded = true
+      }
+      const garageCapHit = garagePulls.some((p) => p.capHit)
       if (stampsAdded) vouchers.push(...(await rewardsTx.convertFullCards(tx, { userId, now, settings, sourceBookingId: rootBookingId })))
-      const capAlert = vouchers.length > 0 ? await rewardsTx.capCheck(tx, { now, settings, forced: false }) : null
-      return { kind: 'counted', userId, badges, wins, oneLeft, full, vouchers, capAlert }
+      const capAlert = vouchers.length > 0 || garageCapHit ? await rewardsTx.capCheck(tx, { now, settings, forced: garageCapHit }) : null
+      return { kind: 'counted', userId, badges, wins, oneLeft, full, vouchers, capAlert, garagePulls }
     })
   },
 
@@ -499,20 +536,23 @@ export const rewardExtrasRepository = {
     now: Date
     settings: RewardsSettings
     achievements: Record<BadgeKey, BadgeSettings>
-  }): Promise<{ badges: AwardedBadge[]; vouchers: IssuedVoucher[]; capAlert: { month: string; issuedPaise: number } | null }> {
+  }): Promise<{ badges: AwardedBadge[]; vouchers: IssuedVoucher[]; capAlert: { month: string; issuedPaise: number } | null; garagePulls: PullOutcome[] }> {
     const { userId, now, settings } = input
     return db.transaction(async (tx) => {
       await rewardsTx.lockRewards(tx, userId)
-      const badges = await awardBadges(tx, { userId, now, settings, achievements: input.achievements, rootBookingId: null })
-      const vouchers = badges.some((badge) => badge.bonusStamps > 0)
-        ? await rewardsTx.convertFullCards(tx, { userId, now, settings })
-        : []
-      const capAlert = vouchers.length > 0 ? await rewardsTx.capCheck(tx, { now, settings, forced: false }) : null
+      const garagePulls: PullOutcome[] = []
+      const badges = await awardBadges(tx, { userId, now, settings, achievements: input.achievements, rootBookingId: null, garagePulls })
+      const vouchers = garagePulls.flatMap((p) => p.vouchers)
+      if (badges.some((badge) => badge.bonusStamps > 0) || garagePulls.some((p) => p.stampsAdded)) {
+        vouchers.push(...(await rewardsTx.convertFullCards(tx, { userId, now, settings })))
+      }
+      const garageCapHit = garagePulls.some((p) => p.capHit)
+      const capAlert = vouchers.length > 0 || garageCapHit ? await rewardsTx.capCheck(tx, { now, settings, forced: garageCapHit }) : null
       await tx
         .insert(rewardBadgeChecks)
         .values({ userId, checkedAt: now })
         .onConflictDoUpdate({ target: rewardBadgeChecks.userId, set: { checkedAt: now } })
-      return { badges, vouchers, capAlert }
+      return { badges, vouchers, capAlert, garagePulls }
     })
   },
 
@@ -1051,6 +1091,7 @@ function challengeValues(input: ChallengeInput) {
     rewardStamps: input.rewardKind === 'stamps' ? input.rewardStamps : null,
     rewardAmount: input.rewardKind === 'voucher' && input.rewardAmount !== null ? rupees(input.rewardAmount * 100) : null,
     rewardMultiplier: input.rewardKind === 'multiplier' ? input.rewardMultiplier : null,
+    rewardCards: input.rewardKind === 'garage_cards' ? input.rewardCards : null,
     audienceMinLevel: input.audienceMinLevel,
     maxWinners: input.maxWinners,
   }
