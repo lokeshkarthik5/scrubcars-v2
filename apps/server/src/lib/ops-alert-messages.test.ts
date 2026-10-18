@@ -833,3 +833,13 @@ describe('extra work (0041)', () => {
     expect(text).toContain('₹450 · Razorpay payment pay_LATE')
   })
 })
+
+describe('Detlio Rewards (0050)', () => {
+  test('the monthly cap: what was issued, the cap, what changes, and where to look', () => {
+    const text = formatOpsAlert({ kind: 'rewards_cap_reached', month: '2026-10', cap: '10000.00', issued: '10049.00' })
+    expect(text).toContain('Rewards budget reached for 2026-10')
+    expect(text).toContain('₹10,049 of rewards issued this month; the cap is ₹10,000.')
+    expect(text).toContain('New scratch cards now give a bonus stamp instead of money.')
+    expect(text).toContain('https://admin.detlio.com/rewards')
+  })
+})

@@ -19,6 +19,23 @@ reconstructing every change in them.
 
 ### Added
 
+- **Detlio Rewards** (API 0050, shown only while the API says rewards are
+  live; hidden while off or loading). Home: the Shine Card's stars under the
+  car (a new stamp pops in once) and one line under it ("2 more washes to
+  your reward", the level, a scratch card or voucher waiting) — not a card,
+  so Home's two-card rule holds. Profile → Detlio Rewards
+  (`/profile/rewards`): the lifetime line ("You've saved ₹X with Detlio
+  Rewards · N washes · since …"), the Shine Card, scratch cards (scratch
+  with a finger, or Reveal), vouchers with their codes, the level with
+  "N more to reach / keep" and the ladder of what each level unlocks, the
+  monthly streak, an optional birthday, Invite a friend and the history.
+  The booking page shows the job's scratch card once completed; checkout
+  offers "Your rewards" under the coupon row (one voucher, applied like a
+  code); `/invite/<code>` is the invite page. Silver, never red; every
+  animation stops under prefers-reduced-motion. Garage portal: a Diamond or
+  Detlio Icon customer's level name on the job card. Admin: Rewards
+  (Overview with a CSV, Customers with a timeline and Adjust, Settings).
+
 - **Gift a wash: Detlio gifts and Detlio credit** (API 0049, shown only
   while the API has `GIFTS_ENABLED` on; every entry point is hidden while it
   is off or its config is loading, and a gift page opened directly says

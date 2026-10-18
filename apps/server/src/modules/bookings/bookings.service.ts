@@ -82,6 +82,7 @@ import type {
 import { refundsService } from '../refunds/refunds.service.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
+import { rewardsService } from '../rewards/rewards.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { bookingsRepository } from './bookings.repository.js'
@@ -2004,7 +2005,19 @@ export const bookingsService = {
       query.status
     )
 
-    return bookings.map(toVendorBookingResponse)
+    // Detlio Rewards (0050): the level name of a customer whose level has
+    // the garage badge on (Diamond, Detlio Icon), and nothing else about
+    // them. Two grouped reads; a failure leaves the badges off, never the list.
+    const badges = await rewardsService
+      .garageBadges(bookings.map((booking) => booking.userId))
+      .catch((err: unknown) => {
+        log.warn({ err, vendorId: vendor.id }, 'booking:reward_badges_failed')
+        return new Map<string, string>()
+      })
+    return bookings.map((booking) => ({
+      ...toVendorBookingResponse(booking),
+      customerBadge: badges.get(booking.userId) ?? null,
+    }))
   },
 
   async acceptBooking(vendorId: string, actorId: string, bookingId: string) {
@@ -2201,6 +2214,8 @@ export const bookingsService = {
     )
     // Coating and detailing follow-ups for the car (0046), after the response.
     carHistoryService.scheduleAfterCompletion(bookingId)
+    // Detlio Rewards (0050): a stamp and a scratch card, or why not.
+    rewardsService.scheduleAfterCompletion(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2291,6 +2306,7 @@ export const bookingsService = {
       pushMessages.customerCompleted(updated!, { afterPhotos: garagePhotoCount(updated!, 'after') > 0 })
     )
     carHistoryService.scheduleAfterCompletion(bookingId)
+    rewardsService.scheduleAfterCompletion(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2329,6 +2345,7 @@ export const bookingsService = {
     if (step === 'delivered') {
       await collectCashOnCompletion(booking)
       carHistoryService.scheduleAfterCompletion(bookingId)
+      rewardsService.scheduleAfterCompletion(bookingId)
     }
     log.info({ bookingId, step, adminName }, 'booking:pickup_step_confirmed_by_detlio')
   },

@@ -21,6 +21,7 @@ import { istDateKey, istSlotShortLabel, istTimeLabel } from './ist.js'
 import { DEFAULT_TTL_SECONDS, type PushMessage } from './push.js'
 import { carPagePath, REMINDER_TITLES, reminderReason, type ServiceReminderKind } from './service-reminders.js'
 import { slotAlertPath, slotOpenedWords } from './slot-alerts.js'
+import { voucherIssuedWords, type NudgeKind, type NudgeWords, type VoucherKind } from './rewards.js'
 
 const MINUTE_MS = 60 * 1000
 
@@ -430,6 +431,39 @@ export function customerServiceReminder(reminder: {
     body: `${reminderReason(reminder.kind, reminder.vendorName)}. Book it in Detlio.`,
     url: carPagePath(reminder.vehicleId),
     tag: `service_reminder:${reminder.id}`,
+    category: 'reminder',
+    ttlSeconds: 12 * 60 * 60,
+  })
+}
+
+// ─── Detlio Rewards (0050) ───────────────────────────────────────────────────
+
+/**
+ * A reward voucher is ready (a full Shine Card, an invite that paid off, or
+ * one from the team): the amount only. Category 'reminder', so it follows
+ * the Reminders switch like the habit nudges.
+ */
+export function customerRewardVoucher(voucher: { id: string; kind: VoucherKind; amount: string }): PushMessage {
+  const words = voucherIssuedWords(voucher.kind, Math.round(Number(voucher.amount)))
+  return message({
+    ...words,
+    url: '/profile/rewards',
+    tag: `reward_voucher:${voucher.id}`,
+    category: 'reminder',
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/**
+ * A habit nudge (a wash due, one stamp from a reward, something about to
+ * lapse): the words Updates shows. Never the car or the customer.
+ */
+export function customerRewardNudge(nudge: { kind: NudgeKind; subjectKey: string; words: NudgeWords }): PushMessage {
+  return message({
+    title: nudge.words.title,
+    body: nudge.words.body,
+    url: nudge.words.url,
+    tag: `reward_nudge:${nudge.kind}`,
     category: 'reminder',
     ttlSeconds: 12 * 60 * 60,
   })

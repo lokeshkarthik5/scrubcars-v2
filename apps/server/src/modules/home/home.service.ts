@@ -21,6 +21,7 @@ import {
   UPDATES_WINDOW_DAYS,
   type HubBooking,
   type HubComplaint,
+  type HubRewards,
   type HubSlotAlert,
   type PausedGarage,
   type UpdateItem,
@@ -37,6 +38,7 @@ import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { discountsRepository } from '../discounts/discounts.repository.js'
 import { slotAlertsRepository } from '../slot-alerts/slot-alerts.repository.js'
+import { rewardsService } from '../rewards/rewards.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { toHubBooking } from './home.mappers.js'
 import { homeRepository } from './home.repository.js'
@@ -143,6 +145,11 @@ async function loadSlotAlerts(userId: string, now: Date): Promise<HubSlotAlert[]
   )
 }
 
+/** Detlio Rewards news in the Updates window (0050): three bounded reads, none while not live. */
+function loadRewards(userId: string, now: Date): Promise<HubRewards | null> {
+  return rewardsService.hubEvents(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
+}
+
 /** Holidays and weekly hours for the garages of upcoming bookings only. */
 async function loadGarageDays(bookings: HubBooking[], now: Date): Promise<GarageDays> {
   const upcoming = bookings.filter(
@@ -239,6 +246,7 @@ export const homeService = {
     const complaints = (await part('complaints', () => loadComplaints(userId, now))) ?? []
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = (await part('slot_alerts', () => loadSlotAlerts(userId, now))) ?? []
+    const rewards = await part('rewards', () => loadRewards(userId, now))
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     const homeCars = buildCars({ cars, bookings, lastWashAt, lastJobs, notices: bookingWindow, now })
@@ -280,6 +288,7 @@ export const homeService = {
       complaints,
       serviceReminders,
       slotAlerts,
+      rewards,
       seenAt,
       now,
     })
@@ -350,6 +359,7 @@ export const homeService = {
     // Isolated like Home's parts: a reminder read that fails leaves Updates whole.
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = await loadSlotAlerts(userId, now)
+    const rewards = await part('rewards', () => loadRewards(userId, now))
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     return {
@@ -364,6 +374,7 @@ export const homeService = {
         complaints,
         serviceReminders,
         slotAlerts,
+        rewards,
         seenAt,
         now,
       }),

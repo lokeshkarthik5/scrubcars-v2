@@ -28,6 +28,8 @@ import {
   TimeProposalHomeCard,
 } from './action-cards'
 import { CarHero } from './car-hero'
+import { RewardsStrip } from '@/components/rewards/rewards-strip'
+import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
 import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
 import { NearbyCard } from './nearby-card'
@@ -62,6 +64,11 @@ function HomeHubContent() {
   // place the customer stood, so it is not sent.
   const origin = location && !isCitywide(location) ? coarse(location) : null
   const home = useHome(origin, { enabled: !!authUser })
+  // Detlio Rewards (0050): the stars on the car and the line under it, only
+  // while the API says rewards are live.
+  const rewardsConfig = useRewardsConfig()
+  const rewardsOn = rewardsEnabled(rewardsConfig.data) && !!authUser
+  const rewards = useRewardsSummary(rewardsOn)
   const clock = useNow()
 
   const [selectedCar, setSelectedCar] = useState(0)
@@ -197,7 +204,10 @@ function HomeHubContent() {
               quiet={billDue}
               onBookWash={bookWash}
               onAddCar={() => setAddCarOpen(true)}
+              shine={rewards.data && cars.length > 0 ? rewards.data.card : null}
             />
+
+            {rewards.data && <RewardsStrip summary={rewards.data} />}
 
             {car ? (
               <div className="grid grid-cols-2 gap-3">

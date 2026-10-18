@@ -351,6 +351,13 @@
       "when": 1787834189727,
       "tag": "0049_gift_credit",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787834189728,
+      "tag": "0050_detlio_rewards",
+      "breakpoints": true
     }
   ]
 }

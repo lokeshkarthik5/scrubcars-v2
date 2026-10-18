@@ -13,6 +13,8 @@ import {
   customerNotAcceptedInTime,
   customerPickupStep,
   customerRefund,
+  customerRewardNudge,
+  customerRewardVoucher,
   customerServiceReminder,
   customerSlotOpened,
   customerTimesSuggested,
@@ -28,6 +30,7 @@ import {
   testMessage,
 } from './push-messages.js'
 import type { PushMessage } from './push.js'
+import { DEFAULT_REWARDS_SETTINGS, expiringNudge, oneAwayNudge, washDueNudge } from './rewards.js'
 
 const IST = (iso: string) => new Date(`${iso}+05:30`)
 
@@ -113,6 +116,11 @@ const ALL: Array<[string, PushMessage]> = [
     kind: 'maintenance_wash', vendorName: booking.vendor.businessName,
   })],
   ['customer slot opened', customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)],
+  ['customer reward voucher', customerRewardVoucher({ id: 'v1', kind: 'shine', amount: '299.00' })],
+  ['customer reward voucher (invite)', customerRewardVoucher({ id: 'v2', kind: 'referral', amount: '100.00' })],
+  ['customer reward nudge', customerRewardNudge({ kind: 'wash_due', subjectKey: 'car:2026-10-01', words: washDueNudge(3, DEFAULT_REWARDS_SETTINGS) })],
+  ['customer reward nudge (one away)', customerRewardNudge({ kind: 'one_away', subjectKey: 's1', words: oneAwayNudge(299) })],
+  ['customer reward nudge (expiring)', customerRewardNudge({ kind: 'expiring', subjectKey: 'voucher:v1', words: expiringNudge('voucher', { amount: 299, lastDay: '2026-10-24' }) })],
   ['customer test', testMessage('customer')],
   ['garage test', testMessage('garage')],
 ]
@@ -230,8 +238,24 @@ describe('customer: the same words as Updates', () => {
     for (const [name, message] of ALL) {
       if (name.includes('day before') || name.includes('hour before') || name.includes('test')) continue
       if (name.includes('service reminder')) continue
+      if (name.includes('reward')) continue
       expect(message.category).toBe('booking_update')
     }
+  })
+
+  test('rewards (0050) are reminders, for the Reminders switch, and open the app', () => {
+    for (const [name, message] of ALL) {
+      if (!name.includes('reward')) continue
+      expect(message.category).toBe('reminder')
+    }
+    const voucher = customerRewardVoucher({ id: 'v1', kind: 'shine', amount: '399.00' })
+    expect(voucher.title).toBe('Your Shine Card is full')
+    expect(voucher.body).toBe('₹399 off your next booking is ready.')
+    expect(voucher.url).toBe('/profile/rewards')
+    const nudge = customerRewardNudge({ kind: 'wash_due', subjectKey: 'x', words: washDueNudge(3, DEFAULT_REWARDS_SETTINGS) })
+    expect(nudge.title).toBe("Your car's due a wash")
+    expect(nudge.body).toBe('This one earns stamp 4 of 5.')
+    expect(nudge.url).toBe('/garages')
   })
 
   test('a coating or detailing follow-up is a reminder, opens the car, and never names it', () => {

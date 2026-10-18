@@ -821,3 +821,30 @@ describe('Detlio credit (0049)', () => {
     expect(feed([declined]).find((i) => i.kind === 'declined')).toMatchObject({ body: 'Refund due: ₹199', amount: '199.00' })
   })
 })
+
+describe('Detlio Rewards (0050)', () => {
+  test('a scratch card, a voucher that arrived on its own and a nudge, newest first, opening the right page', () => {
+    const items = deriveUpdates({
+      bookings: [],
+      notices: [],
+      rewards: {
+        cards: [{ id: 'c1', createdAt: new Date(NOW.getTime() - 3 * 60 * 60 * 1000) }],
+        vouchers: [{ id: 'v1', kind: 'shine', amount: '349.00', issuedAt: new Date(NOW.getTime() - 2 * 60 * 60 * 1000) }],
+        nudges: [{ id: 'n1', title: "Your car's due a wash", body: 'This one earns stamp 4 of 5.', linkUrl: '/garages', sentAt: new Date(NOW.getTime() - 60 * 60 * 1000) }],
+      },
+      seenAt: new Date(NOW.getTime() - 150 * 60 * 1000),
+      now: NOW,
+    })
+    expect(items.map((item) => [item.kind, item.title, item.linkUrl, item.unread])).toEqual([
+      ['reward_nudge', "Your car's due a wash", '/garages', true],
+      ['reward_voucher', 'Your Shine Card is full', '/profile/rewards', true],
+      ['reward_card', 'You earned a stamp and a scratch card', '/profile/rewards', false],
+    ])
+    expect(items[1].body).toBe('₹349 off your next booking is ready.')
+    expect(items[1].amount).toBe('349.00')
+  })
+
+  test('nothing while rewards are not live (null)', () => {
+    expect(deriveUpdates({ bookings: [], notices: [], rewards: null, seenAt: NOW, now: NOW })).toEqual([])
+  })
+})
