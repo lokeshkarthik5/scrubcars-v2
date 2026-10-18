@@ -714,3 +714,31 @@ describe('suggested times and extra work (0041)', () => {
     expect(off.find((i) => i.id === 'extra_work:x1')).toBeUndefined()
   })
 })
+
+describe('Detlio credit (0049)', () => {
+  test('a booking paid with credit and declined: no bank refund is promised, and the credit coming back is a row', () => {
+    const declined = booking({
+      status: 'cancelled',
+      cancelledBy: 'vendor',
+      cancelledAt: ago(2 * HOUR),
+      payment: { ...paid(), status: 'refunded', amount: '0.00', creditAmount: '499.00', creditReturnedAt: ago(HOUR) },
+    })
+    const items = feed([declined])
+    expect(items.find((i) => i.kind === 'declined')!.body).not.toContain('Refund due')
+    expect(items.find((i) => i.id === `credit-returned:${declined.id}`)).toMatchObject({
+      kind: 'refunded',
+      title: '₹499 back in your Detlio credit',
+      amount: '499.00',
+    })
+  })
+
+  test('part credit: only the card part is "Refund due"', () => {
+    const declined = booking({
+      status: 'cancelled',
+      cancelledBy: 'vendor',
+      cancelledAt: ago(HOUR),
+      payment: { ...paid(), amount: '199.00', creditAmount: '300.00', creditReturnedAt: null },
+    })
+    expect(feed([declined]).find((i) => i.kind === 'declined')).toMatchObject({ body: 'Refund due: ₹199', amount: '199.00' })
+  })
+})

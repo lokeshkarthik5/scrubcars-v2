@@ -40,8 +40,8 @@ import {
 import { bookAgainPath, canBookAgain, matchSavedAddress } from '@repo/core/book-again'
 import { carWithGarage } from '@repo/core/pickup'
 import { googleMapsLink } from '@repo/core/contact-links'
-import { finalBillMayChange, formatStepTime } from '@repo/core/job-records'
-import { customerRefundLine, withoutRefundPromise } from '@repo/core/refunds'
+import { finalBillMayChange, formatRupees, formatStepTime } from '@repo/core/job-records'
+import { BANK_DAYS, customerRefundLine, withoutRefundPromise } from '@repo/core/refunds'
 import {
   customerWaitingLine,
   customerWaitingNote,
@@ -82,6 +82,23 @@ const BookingHelpSheet = dynamic(
 )
 
 /** A booking the customer still has to get to, or is at. */
+/**
+ * What Cancel says about the money before it is confirmed. The part paid
+ * with Detlio credit (0049) goes back to the credit, not the card, and the
+ * bank's days are only about the rest; a booking paid wholly with credit
+ * promises no bank refund.
+ */
+function cancelRefundNote(booking: Booking): string {
+  const credit = Math.min(booking.creditPaid ?? 0, booking.servicePrice)
+  const online = Math.round((booking.servicePrice - credit) * 100) / 100
+  if (credit <= 0) {
+    return `Our team will refund your payment to your original payment method within ${BANK_DAYS}.`
+  }
+  const creditLine = `${formatRupees(credit)} goes back to your Detlio credit.`
+  if (online <= 0) return creditLine
+  return `Our team will refund the ${formatRupees(online)} you paid online to your original payment method within ${BANK_DAYS}. ${creditLine}`
+}
+
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress'])
 
 /**
@@ -741,7 +758,9 @@ export default function BookingDetailPage({
           <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
             <IconCreditCard size={14} />
             {booking.paymentStatus === 'paid'
-              ? 'Paid online'
+              ? (booking.creditPaid ?? 0) >= booking.servicePrice
+                ? 'Paid'
+                : 'Paid online'
               : booking.paymentMethod === 'online'
                 ? `Online · ${booking.paymentStatus}`
                 : `Cash · ${booking.paymentStatus}`}
@@ -750,6 +769,13 @@ export default function BookingDetailPage({
             {formatBookingAmount(booking.servicePrice)}
           </span>
         </div>
+        {/* Gift a wash (0049): the part Detlio credit paid. */}
+        {(booking.creditPaid ?? 0) > 0 && (
+          <p className="mt-1 text-[12px] text-text-secondary">
+            Paid with Detlio credit{' '}
+            <span className="font-numeric font-medium">{formatBookingAmount(booking.creditPaid ?? 0)}</span>
+          </p>
+        )}
       </ScCard>
 
       {/* Paid and waiting for the garage (0042): until when, and — only
@@ -1099,10 +1125,7 @@ export default function BookingDetailPage({
                 onChange={(e) => setCancelReason(e.target.value)}
               />
               {booking.paymentMethod === 'online' && booking.paymentStatus === 'paid' && (
-                <p className="text-[12px] text-text-muted">
-                  Our team will refund your payment to your original payment method within 5–7
-                  working days.
-                </p>
+                <p className="text-[12px] text-text-muted">{cancelRefundNote(booking)}</p>
               )}
               <div className="flex gap-2">
                 <ScButton

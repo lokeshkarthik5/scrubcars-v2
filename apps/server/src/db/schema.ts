@@ -32,6 +32,7 @@ import type {
   DocumentType,
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
+import type { CreditEntryKind, GiftDesign, GiftStatus } from '../lib/gift-credit.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -1486,6 +1487,16 @@ export const payments = pgTable(
     currency: varchar('currency', { length: 3 }).default('INR').notNull(),
     status: paymentStatusEnum('status').default('pending').notNull(),
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    // Gift a wash (0049): the part of the booking paid with Detlio credit.
+    // `amount` above is only what came through Razorpay (0.00 when credit
+    // paid it all, with no gateway ids), so every refund rule, which works on
+    // `amount`, only ever sends back money Razorpay holds; the two together
+    // are bookings.amount. The credit part goes back to the customer's
+    // credit, never as cash, when the booking's money is owed back
+    // (`credit_returned_at`, with a `refund` entry in gift_credit_entries).
+    // A reschedule copies `credit_amount` with the payment.
+    creditAmount: decimal('credit_amount', { precision: 10, scale: 2 }).default('0.00').notNull(),
+    creditReturnedAt: timestamp('credit_returned_at', { withTimezone: true }),
     // A full refund also moves `status` to 'refunded'; a part refund leaves
     // it 'paid'. A reschedule copies the payment to the new booking but never
     // these: a moved booking is not refunded, its payment goes with it.
@@ -1498,6 +1509,15 @@ export const payments = pgTable(
     index('payments_booking_id_idx').on(table.bookingId),
     index('payments_status_idx').on(table.status),
     gatewayModeCheck('payments_gateway_mode_check', table.gatewayMode),
+    // The pending-digest cron's sweep: credit still to give back (0049).
+    index('payments_credit_unreturned_idx')
+      .on(table.bookingId)
+      .where(sql`${table.creditAmount} > 0 and ${table.creditReturnedAt} is null`),
+    check('payments_credit_amount_check', sql`${table.creditAmount} >= 0`),
+    check(
+      'payments_credit_returned_check',
+      sql`${table.creditReturnedAt} is null or ${table.creditAmount} > 0`
+    ),
   ]
 )
 
@@ -1531,7 +1551,12 @@ export const bookingIntents = pgTable(
     bookingType: bookingTypeEnum('booking_type').notNull(),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
     serviceDurationMins: integer('service_duration_mins').notNull(),
+    // What the Razorpay order is for. With Detlio credit (0049) that is the
+    // price after any promo less `credit_amount`; the booking it becomes
+    // costs the two together. A failed checkout owes back only this part:
+    // credit is spent when the booking is written, never before.
     amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    creditAmount: decimal('credit_amount', { precision: 10, scale: 2 }).default('0.00').notNull(),
     subtotalAmount: decimal('subtotal_amount', {
       precision: 10,
       scale: 2,
@@ -1579,6 +1604,7 @@ export const bookingIntents = pgTable(
     index('booking_intents_user_id_idx').on(table.userId),
     index('booking_intents_status_idx').on(table.status),
     gatewayModeCheck('booking_intents_gateway_mode_check', table.gatewayMode),
+    check('booking_intents_credit_amount_check', sql`${table.creditAmount} >= 0`),
   ]
 )
 
@@ -2301,6 +2327,137 @@ export const notificationSends = pgTable(
       'notification_sends_kind_check',
       sql`${table.kind} in ('day_before', 'hour_before', 'respond_soon')`
     ),
+  ]
+)
+
+// ─── Gift a wash (0049) ──────────────────────────────────────────────────────
+//
+// A Detlio gift a customer bought for someone, and the Detlio credit it
+// becomes once redeemed. Rules in lib/gift-credit.ts; behind GIFTS_ENABLED.
+// The CHECKs are in 0049_gift_credit.sql.
+
+// The gift purchases' reference, "G-000123": a SEQUENCE like complaints',
+// so buyers never wait on each other; a rolled-back purchase leaves a gap.
+// Not a receipt number: a gift is a prepaid voucher, not a service supplied
+// (the open GST/receipt question is in apps/users/lib/legal/gifts.ts).
+export const giftNumberSeq = pgSequence('gift_number_seq', {
+  startWith: 1,
+  increment: 1,
+  minValue: 1,
+  cache: 1,
+})
+
+// One row per gift bought. `pending` while its Razorpay order is open,
+// `paid` once the money landed (it can then be redeemed until `expires_at`),
+// `redeemed` once someone turned it into credit, or `cancelled` by the team
+// (refunded by hand). Only the code's SHA-256 is kept (`code_hash`, null
+// until the buyer first asks for the link); the code itself is shown once.
+// The buyer and the redeemer are RESTRICT: a gift is a money record, so
+// DELETE /users/me refuses an account with one (ACCOUNT_HAS_GIFTS).
+export const gifts = pgTable(
+  'gifts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    number: integer('number')
+      .default(sql`nextval('gift_number_seq')`)
+      .notNull(),
+    buyerId: uuid('buyer_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    recipientName: varchar('recipient_name', { length: 60 }).notNull(),
+    message: varchar('message', { length: 200 }),
+    design: text('design').$type<GiftDesign>().notNull(),
+    status: text('status').$type<GiftStatus>().default('pending').notNull(),
+    codeHash: varchar('code_hash', { length: 64 }),
+    // How many links the buyer has made; each new one ends the last.
+    linksIssued: integer('links_issued').default(0).notNull(),
+    gatewayOrderId: varchar('gateway_order_id', { length: 255 }),
+    gatewayPaymentId: varchar('gateway_payment_id', { length: 255 }),
+    gatewayMode: gatewayModeColumn(),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    redeemedBy: uuid('redeemed_by').references(() => users.id, { onDelete: 'restrict' }),
+    redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledBy: varchar('cancelled_by', { length: 100 }),
+    cancelReason: varchar('cancel_reason', { length: 300 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('gifts_number_key').on(table.number),
+    uniqueIndex('gifts_code_hash_key').on(table.codeHash),
+    uniqueIndex('gifts_gateway_order_id_key').on(table.gatewayOrderId),
+    uniqueIndex('gifts_gateway_payment_id_key').on(table.gatewayPaymentId),
+    index('gifts_buyer_id_created_at_idx').on(table.buyerId, table.createdAt),
+    index('gifts_redeemed_by_idx').on(table.redeemedBy),
+    index('gifts_status_idx').on(table.status),
+    gatewayModeCheck('gifts_gateway_mode_check', table.gatewayMode),
+    check('gifts_status_check', sql`${table.status} in ('pending', 'paid', 'redeemed', 'cancelled')`),
+    check('gifts_design_check', sql`${table.design} in ('shine', 'midnight', 'fresh')`),
+    check('gifts_amount_check', sql`${table.amount} >= 300 and ${table.amount} <= 5000`),
+  ]
+)
+
+// The Detlio credit ledger. A lot is a positive row with an expiry (a
+// redeemed gift, credit given back from a cancelled booking, or a team
+// adjustment); a draw is a negative row naming its lot (a booking paid with
+// credit, one row per lot; a negative adjustment; an expiry writing off a
+// lot's remainder). Append-only in practice: nothing updates or deletes a
+// row. `booking_id` is the reschedule chain's first booking (SET NULL, so
+// the ledger outlives anything); `user_id` is RESTRICT, like gifts.
+export const giftCreditEntries = pgTable(
+  'gift_credit_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    kind: text('kind').$type<CreditEntryKind>().notNull(),
+    // Signed: positive for a lot, negative for a draw.
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    lotId: uuid('lot_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    giftId: uuid('gift_id').references(() => gifts.id, { onDelete: 'restrict' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    // A team adjustment's reason and the name typed, as the Bin records it.
+    reason: varchar('reason', { length: 300 }),
+    actorName: varchar('actor_name', { length: 100 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('gift_credit_entries_user_id_idx').on(table.userId, table.createdAt),
+    index('gift_credit_entries_lot_id_idx').on(table.lotId),
+    index('gift_credit_entries_booking_id_idx').on(table.bookingId),
+    // A gift becomes credit once; a booking's credit comes back once.
+    uniqueIndex('gift_credit_entries_redeem_gift_key')
+      .on(table.giftId)
+      .where(sql`${table.kind} = 'redeem'`),
+    uniqueIndex('gift_credit_entries_refund_booking_key')
+      .on(table.bookingId)
+      .where(sql`${table.kind} = 'refund'`),
+    check(
+      'gift_credit_entries_kind_check',
+      sql`${table.kind} in ('redeem', 'debit', 'refund', 'expiry', 'adjustment')`
+    ),
+  ]
+)
+
+// Wrong gift codes tried (0049), to rate limit guessing: per signed-in
+// customer and per network address (hashed, never the address itself).
+// Right codes are not recorded. The pending-digest cron clears rows older
+// than a day.
+export const giftCodeAttempts = pgTable(
+  'gift_code_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    ipKey: varchar('ip_key', { length: 32 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('gift_code_attempts_user_id_idx').on(table.userId, table.createdAt),
+    index('gift_code_attempts_ip_key_idx').on(table.ipKey, table.createdAt),
   ]
 )
 

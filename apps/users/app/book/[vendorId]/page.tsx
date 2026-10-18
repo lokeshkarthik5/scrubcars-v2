@@ -40,6 +40,7 @@ import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SlotPicker } from '@repo/ui/sc/slot-picker'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
+import { ScSwitch } from '@repo/ui/sc/switch'
 import { ScToggle } from '@repo/ui/sc/toggle'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import type { AppliedDiscount } from '@repo/core/api/discounts'
@@ -75,6 +76,13 @@ import {
   usePendingCheckoutStore,
 } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
+import {
+  giftsEnabled,
+  invalidateGiftData,
+  useGiftsConfig,
+  useMyCredit,
+} from '@repo/core/api/hooks/use-gifts'
+import { checkoutCreditSplit } from '@/lib/gifts'
 import { useNow } from '@repo/core/hooks/use-now'
 import {
   BOOKING_TYPE_LABELS,
@@ -212,12 +220,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // above is ours, because "which code did the customer commit to" is client
   // state, not a server response.
   const applyPromo = useValidateDiscount()
+  // Detlio credit (0049): on by default whenever there is some to use. The
+  // row only exists while gifts are on and the balance is above zero.
+  const [creditSwitchOn, setCreditSwitchOn] = useState(true)
 
   // What Home handed over (@repo/core/stores/pending-checkout-store): only
   // this account's, only while the offer still runs, and only a code that can
   // work at this garage. Read, never trusted: the code is validated like a
   // typed one.
   const userId = useAuthStore((s) => s.user?.id)
+  const giftsConfig = useGiftsConfig()
+  const giftsOn = giftsEnabled(giftsConfig.data)
+  const myCredit = useMyCredit(giftsOn && !!userId)
   const pending = usePendingCheckoutStore((s) => s.pending)
   const forgetPendingCode = usePendingCheckoutStore((s) => s.forgetCode)
   const clearPending = usePendingCheckoutStore((s) => s.clear)
@@ -552,6 +566,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
     ? Number(appliedDiscount.finalAmount)
     : subtotal
 
+  // Detlio credit comes off after any promo code. The server decides how
+  // much (creditToUse, mirrored by checkoutCreditSplit): all of it when the
+  // balance covers the booking, and otherwise never leaving Razorpay under
+  // ₹1. This is only what the summary and the button say.
+  const creditBalance = giftsOn ? Number(myCredit.data?.balance ?? 0) : 0
+  const creditSplit =
+    creditBalance > 0 && payableAmount != null && payableAmount > 0
+      ? checkoutCreditSplit(payableAmount, creditBalance)
+      : null
+  const creditOffered = creditSplit !== null && creditSplit.credit > 0
+  const creditApplied = creditOffered && creditSwitchOn
+  const toPay = creditApplied ? creditSplit.toPay : payableAmount
+
   const totalDuration = selectedServices.reduce(
     (total, service) => total + service.durationMins,
     0
@@ -723,10 +750,32 @@ function BookContent({ vendorId }: { vendorId: string }) {
         // to travel to.
         addressId: selectedAddress ?? undefined,
         discountCode: appliedDiscount?.code,
+        // Only said while gifts are on; the server ignores it otherwise.
+        useCredit: giftsOn ? creditApplied : undefined,
       })
 
+      // Detlio credit covered all of it (0049): there is no payment sheet,
+      // and the booking already exists. Same way out as a paid checkout.
+      if (order.paidWithCredit && order.bookingId) {
+        paidRef.current = true
+        void invalidateHome(queryClient)
+        void invalidateGiftData(queryClient)
+        clearPending()
+        router.push(`/bookings/${order.bookingId}?celebrate=1`)
+        return
+      }
+      if (!order.orderId) {
+        throw new Error('Could not start the payment. Please try again.')
+      }
+
       await openRazorpayCheckout({
-        order,
+        // The order Razorpay takes: the price after any promo and credit.
+        order: {
+          orderId: order.orderId,
+          amount: order.amount,
+          currency: order.currency,
+          keyId: order.keyId ?? '',
+        },
         description: `${formatServiceSummary(
           selectedServices.map((service) => service.name)
         )} at ${vendor?.name ?? 'vendor'}`,
@@ -753,8 +802,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
             ...realClock,
           })
 
-          // Home's bill, tiles and bell all move with a new booking.
+          // Home's bill, tiles and bell all move with a new booking, and
+          // the credit with a booking that used some.
           void invalidateHome(queryClient)
+          if (creditApplied) void invalidateGiftData(queryClient)
           if (outcome.kind === 'booked') {
             // The offer and car Home handed over have done their job.
             clearPending()
@@ -834,6 +885,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
             requestAnimationFrame(() => goToStep('pin'))
           })
           .catch(() => undefined)
+      } else if (error instanceof ApiError && error.code?.startsWith('CREDIT_')) {
+        // The credit moved since this page read it (spent on another
+        // booking, or ran out). Nothing was charged; read it again so the
+        // row shows what is there now.
+        void invalidateGiftData(queryClient)
+        toast.error(error.message)
       } else if (!(error instanceof RazorpayReportedError) && error instanceof Error) {
         // Anything the sheet already reported — a dismissal, a declined card —
         // has been shown once already.
@@ -1387,13 +1444,52 @@ function BookContent({ vendorId }: { vendorId: string }) {
               )}
 
               <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
-                <span>Amount to pay</span>
+                <span>{creditApplied ? 'Total' : 'Amount to pay'}</span>
                 <span className="font-numeric font-bold">
                   {payableAmount == null
                     ? '—'
                     : `₹${payableAmount.toLocaleString('en-IN')}`}
                 </span>
               </div>
+
+              {/* Detlio credit (0049), after the promo: a switch, on by
+                  default, then what it takes off and what is left. */}
+              {creditOffered && (
+                <>
+                  <div className="-my-1 flex items-center justify-between gap-3 text-[13px]">
+                    <span className="min-w-0 text-text-primary">
+                      Use{' '}
+                      <span className="font-numeric font-medium">
+                        ₹{creditSplit.credit.toLocaleString('en-IN')}
+                      </span>{' '}
+                      Detlio credit
+                    </span>
+                    <ScSwitch
+                      label="Use Detlio credit"
+                      checked={creditSwitchOn}
+                      disabled={loading}
+                      onChange={setCreditSwitchOn}
+                      className="-mr-2"
+                    />
+                  </div>
+                  {creditApplied && (
+                    <>
+                      <div className="flex items-start justify-between gap-3 text-[13px]">
+                        <span className="text-success">Detlio credit</span>
+                        <span className="shrink-0 font-numeric font-medium text-success">
+                          −₹{creditSplit.credit.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
+                        <span>To pay</span>
+                        <span className="font-numeric font-bold">
+                          ₹{creditSplit.toPay.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </ScCard>
 
             {/* Before paying, on purpose (owner decision): who has the car
@@ -1591,13 +1687,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 ? 'Processing payment...'
                 : nextStep
                   ? stepLabels[nextStep]
-                  : payableAmount == null
+                  : toPay == null
                     ? 'Confirm booking'
-                    : (
+                    : toPay === 0
+                      ? 'Book with credit'
+                      : (
                         <>
                           Pay{' '}
                           <span className="font-numeric font-bold">
-                            ₹{payableAmount.toLocaleString('en-IN')}
+                            ₹{toPay.toLocaleString('en-IN')}
                           </span>
                         </>
                       )}
@@ -1626,7 +1724,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
                     : // Paying sends the request; the garage's accept is what
                       // confirms it, so the footer does not promise more.
-                      'You pay now. Your booking is confirmed once the garage accepts it.'}
+                      toPay === 0
+                      ? 'Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.'
+                      : 'You pay now. Your booking is confirmed once the garage accepts it.'}
             </p>
             {/* Beside Pay, as Razorpay and the E-Commerce Rules expect: the
                 terms and the refund policy a payment accepts. New tabs, so

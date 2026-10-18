@@ -356,6 +356,7 @@ export function mapBooking(booking: ApiBooking): Booking {
       : undefined,
     paymentMethod: booking.paymentMethod as Booking['paymentMethod'],
     paymentStatus: (booking.payment?.status ?? 'pending') as Booking['paymentStatus'],
+    creditPaid: Number(booking.payment?.creditAmount ?? 0),
     cancelledBy: booking.cancelledBy ?? undefined,
     cancellationReason: booking.cancellationReason ?? undefined,
     cancelledOnBehalfOf: booking.cancelledOnBehalfOf ?? undefined,
@@ -404,6 +405,12 @@ export function mapBooking(booking: ApiBooking): Booking {
           refundedAt: booking.refund.refundedAt ?? undefined,
           ...(booking.refund.started && {
             started: { amount: Number(booking.refund.started.amount), at: booking.refund.started.at },
+          }),
+          ...(booking.refund.credit && {
+            credit: {
+              amount: Number(booking.refund.credit.amount),
+              returnedAt: booking.refund.credit.returnedAt ?? undefined,
+            },
           }),
         }
       : { status: 'none', amount: 0, amountRefunded: 0 },

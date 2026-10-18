@@ -679,7 +679,9 @@ export const adminRepository = {
         cancelledOnBehalfOf: bookings.cancelledOnBehalfOf,
         noShow: bookings.noShow,
         paymentStatus: payments.status,
-        paymentAmount: payments.amount,
+        // Razorpay's part plus the part paid with Detlio credit (0049), until
+        // that went back as credit: the same "collected" as Statistics.
+        paymentAmount: sql<string>`(${payments.amount} + case when ${payments.creditReturnedAt} is null then ${payments.creditAmount} else 0 end)::text`,
         paymentRefunded: payments.refundedAmount,
         // Final bills paid in the app on this booking, added up, and what has
         // been refunded of them.

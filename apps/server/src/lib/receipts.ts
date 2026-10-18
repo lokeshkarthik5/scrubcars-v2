@@ -79,6 +79,8 @@ export const REFUND_METHODS = {
   razorpay: 'Refunded to original payment method',
   direct: 'Refunded directly by Detlio',
   unknown: 'Refunded',
+  // The part of a booking paid with Detlio credit (0049) goes back as credit.
+  credit: 'Returned as Detlio credit',
 } as const
 
 // ─── Money ───────────────────────────────────────────────────────────────────
@@ -207,7 +209,11 @@ export function maskPhone(phone: string): string {
 
 export interface ReceiptPayment {
   status: string
+  /** What came through Razorpay (0.00 when Detlio credit paid it all). */
   amount: string
+  /** The part paid with Detlio credit (0049), and when it went back as credit. */
+  creditAmount?: string | null
+  creditReturnedAt?: Date | string | null
   /** The Razorpay payment id once paid ("pay_…"); the order id before. */
   gatewayTxnId: string | null
   paidAt: Date | null
@@ -325,8 +331,14 @@ export interface Receipt {
   subtotal: string
   discount: { code: string | null; amount: string } | null
   bookingPayment: {
+    /** Everything paid for the booking at checkout: Razorpay's part and credit's. */
     amount: string
     method: string
+    /**
+     * Gift a wash (0049): the part paid with Detlio credit, and the part
+     * through Razorpay, when credit was used; null otherwise.
+     */
+    credit: { amount: string; razorpayAmount: string } | null
     paymentId: string | null
     paidAt: string | null
     paidAtLabel: string | null
@@ -366,6 +378,14 @@ export interface Receipt {
   totalRefunded: string
   /** What the customer paid in the end: paid less refunded. */
   netPaid: string
+}
+
+/** How the booking was paid, in a few words: Razorpay, Detlio credit, or both (0049). */
+export function paymentMethodLabel(paymentMethod: string, razorpayPaise: number, creditPaise: number): string {
+  if (paymentMethod === 'cash') return 'Cash'
+  if (creditPaise > 0 && razorpayPaise <= 0) return 'Detlio credit'
+  if (creditPaise > 0) return 'Online (Razorpay) and Detlio credit'
+  return 'Online (Razorpay)'
 }
 
 /** The booking's state in a word or two, as the receipt states it. */
@@ -542,7 +562,24 @@ export function buildReceipt(
   const billCredit = bill ? toPaise(bill.paidBefore) : 0
   const billDiscount = billCredit > 0 && discountPaise > 0 ? Math.min(discountPaise, billCredit) : 0
 
-  const totalPaid = toPaise(payment.amount) + (bill ? toPaise(bill.amountDue) : 0) + extraWorkPaise
+  // Detlio credit (0049): part of what was paid for the booking, and when
+  // the booking's money was owed back, returned as credit.
+  const creditPaise = toPaise(payment.creditAmount)
+  if (creditPaise > 0 && payment.creditReturnedAt) {
+    const at = new Date(payment.creditReturnedAt)
+    refunds.push({
+      against: 'booking',
+      amount: fromPaise(creditPaise),
+      refundedAt: at.toISOString(),
+      refundedAtLabel: istDateLabel(at),
+      method: REFUND_METHODS.credit,
+      reference: null,
+    })
+    refunds.sort((a, b) => (a.refundedAt ?? '').localeCompare(b.refundedAt ?? ''))
+  }
+
+  const bookingPaid = toPaise(payment.amount) + creditPaise
+  const totalPaid = bookingPaid + (bill ? toPaise(bill.amountDue) : 0) + extraWorkPaise
   const totalRefunded = refunds.reduce((total, refund) => total + toPaise(refund.amount), 0)
 
   const vendor = booking.vendor
@@ -584,8 +621,12 @@ export function buildReceipt(
         ? { code: discountCode, amount: fromPaise(discountPaise) }
         : null,
     bookingPayment: {
-      amount: fromPaise(toPaise(payment.amount)),
-      method: booking.paymentMethod === 'cash' ? 'Cash' : 'Online (Razorpay)',
+      amount: fromPaise(bookingPaid),
+      method: paymentMethodLabel(booking.paymentMethod, toPaise(payment.amount), creditPaise),
+      credit:
+        creditPaise > 0
+          ? { amount: fromPaise(creditPaise), razorpayAmount: fromPaise(toPaise(payment.amount)) }
+          : null,
       paymentId: paymentIdOf(payment.gatewayTxnId),
       paidAt: payment.paidAt?.toISOString() ?? null,
       paidAtLabel: payment.paidAt ? istDateTimeLabel(payment.paidAt) : null,

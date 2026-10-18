@@ -4,6 +4,8 @@ import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
+import { giftCreditService } from '../gift-credit/gift-credit.service.js'
+import { giftsService } from '../gifts/gifts.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
@@ -69,6 +71,24 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
+    // Gift a wash (0049), whatever GIFTS_ENABLED says (credit already on
+    // accounts must still come back and run out as promised): booking credit
+    // a cancel missed giving back, credit past its expiry written off, and
+    // wrong gift codes older than a day cleared. Bounded batches, never
+    // allowed to fail the digest.
+    const giftCredit = await giftCreditService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:gift_credit_sweep_failed')
+        return { error: true as const }
+      })
+    const giftCodeAttemptsPurged = options.dryRun
+      ? 0
+      : await giftsService.purgeAttempts().catch((err: unknown) => {
+          log.error({ err }, 'ops:gift_attempts_purge_failed')
+          return null
+        })
+
     // The usage events' 180-day clean-up rides on it too: a bounded batch a
     // run, skipped on a dry run, and never allowed to fail the digest.
     const analyticsPurged = options.dryRun
@@ -116,6 +136,8 @@ export const opsService = {
       timeProposals,
       notAccepted,
       notifications,
+      giftCredit,
+      giftCodeAttemptsPurged,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

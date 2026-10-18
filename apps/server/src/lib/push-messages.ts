@@ -321,10 +321,14 @@ export function customerComplaint(complaint: { id: string; number: number }, ste
 }
 
 /** The garage let its time to answer run out (0042); the refund is on its way. */
-export function customerNotAcceptedInTime(booking: PushBooking): PushMessage {
+export function customerNotAcceptedInTime(booking: PushBooking, options: { paidWithCreditOnly?: boolean } = {}): PushMessage {
   return message({
     title: `${garageName(booking)} didn't accept in time`,
-    body: `Your full refund is on its way (${BANK_DAYS}). Book another garage in Detlio.`,
+    // Paid wholly with Detlio credit (0049): it goes back as credit, with
+    // no bank in between.
+    body: options.paidWithCreditOnly
+      ? 'Your Detlio credit is going back to your account. Book another garage in Detlio.'
+      : `Your full refund is on its way (${BANK_DAYS}). Book another garage in Detlio.`,
     url: customerBookingPath(booking.id),
     tag: bookingTag(booking.id),
     ttlSeconds: 24 * 60 * 60,

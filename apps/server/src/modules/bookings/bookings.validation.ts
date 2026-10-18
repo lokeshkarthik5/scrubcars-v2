@@ -73,6 +73,11 @@ export const createBookingSchema = z
     // applies is decided by the discount engine at write time, never by the
     // client.
     discountCode: z.string().trim().min(3).max(40).optional(),
+    // Gift a wash (0049): pay with the customer's Detlio credit first, after
+    // any promo code. Only checkout (POST /booking-intents) reads it, and only
+    // while GIFTS_ENABLED is on; how much is used is decided by the server
+    // (lib/gift-credit.ts creditToUse), never by the client.
+    useCredit: z.boolean().optional(),
   })
   .transform(({ serviceId, serviceIds, ...rest }) => ({
     ...rest,

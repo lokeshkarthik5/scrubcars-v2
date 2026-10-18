@@ -28,3 +28,14 @@ describe('accountDeletionRefusal', () => {
     ).toBe('VENDOR_OWNER_ACCOUNT')
   })
 })
+
+describe('Detlio gifts and credit (0049)', () => {
+  test('an account that bought or redeemed a gift, or holds credit, is refused', () => {
+    expect(accountDeletionRefusal({ ownsGarage: false, hasReceipts: false, hasGifts: true })).toEqual({
+      code: 'ACCOUNT_HAS_GIFTS',
+      message:
+        "Your account has Detlio gifts or credit, so it can't be deleted from the app. Please call Detlio support to close it.",
+    })
+    expect(accountDeletionRefusal({ ownsGarage: false, hasReceipts: false, hasGifts: false })).toBeNull()
+  })
+})

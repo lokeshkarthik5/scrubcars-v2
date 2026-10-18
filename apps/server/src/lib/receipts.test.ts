@@ -261,6 +261,7 @@ describe('buildReceipt: a plain paid booking', () => {
     expect(receipt.bookingPayment).toEqual({
       amount: '499.00',
       method: 'Online (Razorpay)',
+      credit: null,
       paymentId: 'pay_N1a2B3c4D5e6F7',
       paidAt: PAID_AT.toISOString(),
       paidAtLabel: '3 Oct 2026, 9:05 AM IST',
@@ -601,5 +602,72 @@ describe('extra work on the receipt (0041)', () => {
 
   test('a booking with none has an empty list', () => {
     expect(receiptOf(booking(), []).extraWork).toEqual([])
+  })
+})
+
+describe('Detlio credit on the receipt (0049)', () => {
+  const creditOnly = booking({
+    payment: {
+      status: 'paid',
+      amount: '0.00',
+      creditAmount: '499.00',
+      creditReturnedAt: null,
+      gatewayTxnId: null,
+      paidAt: PAID_AT,
+      createdAt: new Date('2026-10-03T03:30:00Z'),
+      refundedAmount: null,
+      refundRef: null,
+      refundedAt: null,
+    },
+  })
+
+  test('a booking paid wholly with credit: paid in full, by Detlio credit, with no payment id', () => {
+    const receipt = receiptOf(creditOnly, [])
+    expect(receipt.bookingPayment).toMatchObject({
+      amount: '499.00',
+      method: 'Detlio credit',
+      credit: { amount: '499.00', razorpayAmount: '0.00' },
+      paymentId: null,
+    })
+    expect(receipt).toMatchObject({ totalPaid: '499.00', totalRefunded: '0.00', netPaid: '499.00' })
+  })
+
+  test('part credit, part Razorpay: both shown, adding up to the booking', () => {
+    const receipt = receiptOf(
+      booking({ payment: { ...creditOnly.payment!, amount: '199.00', creditAmount: '300.00', gatewayTxnId: 'pay_N1a2B3c4D5e6F7' } }),
+      []
+    )
+    expect(receipt.bookingPayment).toMatchObject({
+      amount: '499.00',
+      method: 'Online (Razorpay) and Detlio credit',
+      credit: { amount: '300.00', razorpayAmount: '199.00' },
+    })
+    expect(receipt.totalPaid).toBe('499.00')
+  })
+
+  test('cancelled: the credit part is a refund line "Returned as Detlio credit", the card part as usual', () => {
+    const returnedAt = new Date('2026-10-04T05:00:00Z')
+    const receipt = receiptOf(
+      booking({
+        status: 'cancelled',
+        payment: {
+          ...creditOnly.payment!,
+          status: 'refunded',
+          amount: '199.00',
+          creditAmount: '300.00',
+          creditReturnedAt: returnedAt,
+          gatewayTxnId: 'pay_N1a2B3c4D5e6F7',
+          refundedAmount: '199.00',
+          refundRef: 'rfnd_Q1w2E3r4T5y6U7',
+          refundedAt: new Date('2026-10-04T06:00:00Z'),
+        },
+      }),
+      [record({ amount: '199.00' })]
+    )
+    expect(receipt.refunds).toEqual([
+      expect.objectContaining({ amount: '300.00', method: REFUND_METHODS.credit, reference: null }),
+      expect.objectContaining({ amount: '199.00', method: REFUND_METHODS.razorpay, reference: 'rfnd_Q1w2E3r4T5y6U7' }),
+    ])
+    expect(receipt).toMatchObject({ totalPaid: '499.00', totalRefunded: '499.00', netPaid: '0.00' })
   })
 })

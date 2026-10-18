@@ -40,6 +40,8 @@ import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { getPushConfig } from '@repo/core/api/push'
+import { giftsEnabled, useGiftsConfig, useMyCredit } from '@repo/core/api/hooks/use-gifts'
+import { giftRupees } from '@/lib/gifts'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
@@ -103,6 +105,11 @@ export default function ProfilePage() {
   const [promoting, setPromoting] = useState<string | null>(null)
   // Notifications shows only once the API has them set up (0044).
   const [pushOn, setPushOn] = useState(false)
+  // Gift a wash and Detlio credit show only while the API has gifts on
+  // (0049); loading or a failed read counts as off.
+  const giftsConfig = useGiftsConfig()
+  const giftsOn = giftsEnabled(giftsConfig.data)
+  const credit = useMyCredit(giftsOn && !!authUser)
 
   const user = profile ?? authUser
 
@@ -366,6 +373,24 @@ export default function ProfilePage() {
         <Link href="/profile/notifications">
           <ScCard className="text-[13px] text-text-primary">Notifications</ScCard>
         </Link>
+      )}
+
+      {/* Detlio credit, with the balance once it is known, and the gifts
+          bought (0049). Plain links, like the rows above. */}
+      {giftsOn && (
+        <>
+          <Link href="/profile/credit">
+            <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
+              Detlio credit
+              {credit.data && (
+                <span className="font-numeric text-[13px] text-text-secondary">{giftRupees(credit.data.balance)}</span>
+              )}
+            </ScCard>
+          </Link>
+          <Link href="/profile/gifts">
+            <ScCard className="text-[13px] text-text-primary">Gift a wash</ScCard>
+          </Link>
+        </>
       )}
 
       {/* #vehicles: Home's pencil on the car opens here. */}

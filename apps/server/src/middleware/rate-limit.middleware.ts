@@ -11,7 +11,8 @@ interface RateLimitEntry {
 /** Who a request counts against: the client's IP unless a limiter says otherwise. */
 type RateLimitKey = (c: Context) => string
 
-const byClientIp: RateLimitKey = (c) =>
+/** The client's address as the limiters count it (gift codes count wrong tries by it too). */
+export const byClientIp: RateLimitKey = (c) =>
   c.req.header('x-forwarded-for')?.split(',')[0].trim() ??
   c.req.header('x-real-ip') ??
   'unknown'
@@ -102,3 +103,9 @@ export const telegramTestRateLimiter = createRateLimiter(
   60 * 60 * 1000,
   bySignedInAdmin
 )
+
+// Gift codes (0049): looking one up or redeeming it, per IP per minute, on
+// its own count (never the login limiter's). A burst backstop in front of
+// the wrong-code limit the gifts service keeps in the database, which is
+// what actually caps guessing across instances.
+export const giftCodeRateLimiter = createRateLimiter(env.giftCodeRateLimit, 60 * 1000)

@@ -74,6 +74,7 @@ import { customerRefund } from '../../lib/push-messages.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { pushService } from '../push/push.service.js'
 
+import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 const log = logger.child({ module: 'refunds' })
 
 /** How many refunds the Done tab shows, of each kind, newest first. */
@@ -1254,8 +1255,16 @@ export const refundsService = {
    * nothing at all — no read, no task — while it is off. Whether this money
    * may go automatically is decided inside, under the lock; the cron sweep
    * picks up anything this misses.
+   *
+   * Every cancel path calls this, so it is also where a booking paid partly
+   * or wholly with Detlio credit (0049) gets that part back, as credit and
+   * never as cash, whatever AUTO_REFUNDS says: the gift-credit module
+   * decides, under the customer's credit lock, whether anything is owed
+   * back (lib/refunds.ts) and does it once. The Razorpay part is refunded
+   * exactly as before.
    */
   queueAutoRefund(target: Target): void {
+    if (target.kind === 'booking') giftCreditService.returnCreditLater(target.id)
     if (!env.autoRefunds) return
     runInBackground('auto_refund', () => refundsService.autoRefund(target))
   },

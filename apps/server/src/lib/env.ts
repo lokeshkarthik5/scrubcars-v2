@@ -329,6 +329,25 @@ export const env = {
   // day and the team gets one Telegram alert; the button still works.
   autoRefundDailyCapInr: parseDailyCap(process.env.AUTO_REFUND_DAILY_CAP_INR),
 
+  // ─── Gift a wash (lib/gift-credit.ts, 0049) ─────────────────────────────────
+  /**
+   * Whether customers can buy Detlio gifts, redeem them as Detlio credit and
+   * pay for bookings with that credit: GIFTS_ENABLED=on. Off unless set to
+   * exactly `on`, and while off every gift and credit route but the two
+   * `/config` ones is a 404 before auth runs, the apps hide every entry
+   * point, and checkout never reads or spends credit.
+   *
+   * Off by default for a legal reason, not a technical one: a prepaid
+   * instrument redeemable at many merchants may be a semi-closed PPI that
+   * needs RBI authorisation, and Detlio sells garages' services as a
+   * marketplace. The owner's lawyer/CA must confirm the structure first
+   * (apps/users/lib/legal/gifts.ts, not public copy). Credit already on
+   * accounts stays on them while off, and bookings already paid with it
+   * still get it back when they are cancelled (the cron does that either
+   * way).
+   */
+  giftsEnabled: (process.env.GIFTS_ENABLED ?? '').trim().toLowerCase() === 'on',
+
   // ─── Garage response deadline (lib/response-deadline.ts, 0042) ─────────────
   /**
    * How many opening-hours minutes a garage has to accept (or reject, or
@@ -358,6 +377,10 @@ export const env = {
   // use up a customer's allowance for checkout. The app sends a batch every
   // few seconds at most, and only while something happened.
   analyticsRateLimit: Number(process.env.ANALYTICS_RATE_LIMIT ?? '60'),
+  // Gift code lookups and redemptions (POST /gifts/lookup, /users/me/gifts/
+  // redeem) per IP per minute. Wrong codes are also counted in the database
+  // (lib/gift-credit.ts), which is the real cap on guessing.
+  giftCodeRateLimit: Number(process.env.GIFT_CODE_RATE_LIMIT ?? '20'),
 
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are

@@ -357,6 +357,20 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
         <div className="mt-1 border-t border-dashed border-neutral-200" />
         <Row label="Paid at booking" value={formatReceiptAmount(bookingPayment.amount)} strong />
         <Detail>{bookingPayment.method}</Detail>
+        {/* Gift a wash (0049): how the booking's payment was split. */}
+        {bookingPayment.credit && (
+          <>
+            <Detail>
+              Detlio credit <span className="font-numeric">{formatReceiptAmount(bookingPayment.credit.amount)}</span>
+            </Detail>
+            {Number(bookingPayment.credit.razorpayAmount) > 0 && (
+              <Detail>
+                Online (Razorpay){' '}
+                <span className="font-numeric">{formatReceiptAmount(bookingPayment.credit.razorpayAmount)}</span>
+              </Detail>
+            )}
+          </>
+        )}
         {bookingPayment.paymentId && (
           <Detail>
             Payment ID <span className="font-numeric">{bookingPayment.paymentId}</span>

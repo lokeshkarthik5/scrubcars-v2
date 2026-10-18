@@ -18,6 +18,57 @@ reconstructing every change in them.
 
 ### Added
 
+- **Gift a wash: Detlio gifts, Detlio credit, and paying for a booking
+  with credit, behind `GIFTS_ENABLED` (default off)** (migration
+  `0049_gift_credit`, additive; numbered after the four parallel branches'
+  0045–0048, so `migrate.sh lint` reports the gap until they land: new
+  tables `gifts` (with `gift_number_seq`), `gift_credit_entries` and
+  `gift_code_attempts`, `payments.credit_amount` / `credit_returned_at` and
+  `booking_intents.credit_amount`, with CHECKs and partial unique indexes).
+  - Off until the owner's lawyer/CA confirm the structure (prepaid payment
+    instrument rules; questions as lawyer notes in
+    `apps/users/lib/legal/gifts.ts`, never public copy). While off every
+    gift and credit route but `GET /gifts/config` and `GET
+    /admin/gifts/config` is a 404 and checkout ignores `useCredit`.
+  - Buying (`modules/gifts`): `POST /users/me/gifts` (₹300–₹5,000, at most
+    ₹10,000 a buyer a day under `gifts-buy:<buyer>`), Razorpay with
+    `gift_id` notes, `POST /users/me/gifts/:id/verify` and the webhook
+    (after `charge_id`) settle it once; a stray second payment alerts
+    (`gift_payment_stray`). Evidence: the gift's `G-000123` reference,
+    amount, date and Razorpay payment id (no DTL receipt number).
+  - Links and codes: `POST /users/me/gifts/:id/link` makes a 16-character
+    code (no look-alikes), shown once; only its SHA-256 is stored, and a new
+    link ends the old one. `POST /gifts/lookup` (public) shows the card;
+    `POST /users/me/gifts/redeem` turns it into credit once. Wrong codes are
+    counted per customer and per hashed address (10 / 30 an hour, 429
+    `GIFT_CODE_RATE_LIMIT`) plus a per-IP burst limiter
+    (`GIFT_CODE_RATE_LIMIT`, default 20/min).
+  - The ledger (`modules/gift-credit`, `lib/gift-credit.ts`): lots and
+    draws, spent oldest expiry first under `gift-credit:<userId>`; 12 months
+    from the gift's payment; `GET /users/me/credit`.
+  - Checkout: `POST /booking-intents { useCredit }`, promo first, then
+    credit, never leaving Razorpay under ₹1. Credit is drawn in
+    `consumeIntent` under the customer's credit lock (lock order step 5a);
+    if it is gone the checkout fails as `credit_exhausted` (Razorpay part
+    refunded). Credit covering everything books at once with no Razorpay
+    order (`paidWithCredit: true`). `payments.amount` stays the Razorpay
+    part, so refunds only ever send back Razorpay money.
+  - Refunds: the credit part of a cancelled booking goes back as credit
+    (from `refundsService.queueAutoRefund`, whatever AUTO_REFUNDS says, and
+    the pending-digest cron), once; the receipt, the booking's `refund`
+    (`credit`), Updates and push say so. A customer no-show keeps it.
+  - Garages are paid as for a card payment (payouts and commission read
+    `bookings.amount`); Statistics' collected and the pilot numbers count
+    the credit part until it goes back.
+  - Admin (`/admin/gifts`, `/admin/gifts/credit`, super-admin): summary
+    with outstanding liability, the gift list, Cancel gift, customer credit
+    by phone, top balances, and Adjust credit; both actions write
+    `admin_audit_log`.
+  - The cron also returns missed credit, writes off expired credit and
+    clears wrong-code rows. `DELETE /users/me` refuses an account with
+    gifts or credit (409 `ACCOUNT_HAS_GIFTS`); the pilot reset keeps any
+    chain paid with credit.
+
 - **Free browser notifications for garages and customers, booking
   reminders, and a Telegram test button** (migration
   `0044_push_notifications`, additive: new tables `push_subscriptions`

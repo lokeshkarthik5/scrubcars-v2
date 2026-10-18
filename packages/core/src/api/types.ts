@@ -498,6 +498,12 @@ export interface ApiBooking {
      * how much, and when the latest was started. Absent when there are none.
      */
     started?: { amount: string; at: string }
+    /**
+     * Gift a wash (0049): the part paid with Detlio credit, which goes back to
+     * the customer's credit (never their card), and when it did (null while
+     * on its way). Absent when no credit was used. Already in `amount`.
+     */
+    credit?: { amount: string; returnedAt: string | null }
   }
   /**
    * Customer payloads only: whether GET /bookings/:id/receipt has a receipt
@@ -562,8 +568,13 @@ export interface ApiBooking {
   payment: {
     id: string
     status: string
+    /** What came through Razorpay (0.00 when Detlio credit paid it all). */
     amount: string
     gateway: string | null
+    /** Gift a wash (0049): the part paid with Detlio credit. Absent from older servers. */
+    creditAmount?: string
+    /** When that part went back to the customer's credit (a cancelled booking). */
+    creditReturnedAt?: string | null
   } | null
 }
 
