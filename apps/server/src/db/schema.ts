@@ -32,6 +32,7 @@ import type {
   DocumentType,
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
+import type { PhotoAngle, PhotoRole } from '../lib/job-photo-standards.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -988,6 +989,12 @@ export const bookings = pgTable(
     // Its own column, not the reason text, so admin, the garage, the customer
     // and the morning roll-up tell it apart from a garage pressing Reject.
     responseMissedAt: timestamp('response_missed_at', { withTimezone: true }),
+    // Detlio waived the photo standard on this booking (0045): Start and
+    // Complete no longer wait for the garage's photos. The admin's typed
+    // name and the reason, like the Bin's; all three or none (CHECK).
+    photosWaivedAt: timestamp('photos_waived_at', { withTimezone: true }),
+    photosWaivedBy: varchar('photos_waived_by', { length: 100 }),
+    photosWaivedReason: varchar('photos_waived_reason', { length: 500 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1045,6 +1052,10 @@ export const bookings = pgTable(
       sql`${table.responseMissedAt} is null or (${table.status}::text = 'cancelled' and ${table.cancelledBy}::text = 'vendor' and ${table.respondBy} is not null)`
     ),
     check(
+      'bookings_photos_waived_check',
+      sql`(${table.photosWaivedAt} is null and ${table.photosWaivedBy} is null and ${table.photosWaivedReason} is null) or (${table.photosWaivedAt} is not null and ${table.photosWaivedBy} is not null and ${table.photosWaivedReason} is not null)`
+    ),
+    check(
       'bookings_handover_codes_check',
       sql`(${table.pickupCode} is null or ${table.pickupCode} ~ '^[0-9]{4}$') and (${table.deliveryCode} is null or ${table.deliveryCode} ~ '^[0-9]{4}$')`
     ),
@@ -1100,6 +1111,12 @@ export const jobPhotos = pgTable(
     uploadedBy: uuid('uploaded_by').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // Whose photo it is (0045): the garage's (every row before 0045) or the
+    // customer's own record of the car. Only the garage's count toward the
+    // photo standard (lib/job-photo-standards.ts).
+    uploadedByRole: text('uploaded_by_role').$type<PhotoRole>().default('garage').notNull(),
+    // The guided angle it was taken from (0045), or null for an extra photo.
+    angle: text('angle').$type<PhotoAngle>(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1111,6 +1128,18 @@ export const jobPhotos = pgTable(
       table.bookingId,
       table.stage,
       table.createdAt
+    ),
+    // The gates and the per-side caps count one side's photos of a stage
+    // (0045); photo compliance counts the garage's per job.
+    index('job_photos_booking_role_stage_idx').on(
+      table.bookingId,
+      table.uploadedByRole,
+      table.stage
+    ),
+    check('job_photos_uploaded_by_role_check', sql`${table.uploadedByRole} in ('garage', 'customer')`),
+    check(
+      'job_photos_angle_check',
+      sql`${table.angle} is null or ${table.angle} in ('front', 'back', 'left', 'right', 'interior')`
     ),
   ]
 )

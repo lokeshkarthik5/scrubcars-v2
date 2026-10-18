@@ -19,6 +19,22 @@ reconstructing every change in them.
 
 ### Added
 
+- **Job photo standards** (API 0045). Garage portal: each job's before and
+  after photos are a guided checklist (Front, Back, Left side, Right side,
+  Interior; a tap opens the back camera; extras under More), with the
+  customer's own photos read-only beneath; while the standard is on,
+  Mark in progress waits for 2 before photos and Mark completed (pickup &
+  drop: Out for delivery and Delivered) for 2 after photos, with the words
+  beside the disabled button ("Add 2 before photos to start."). Customer
+  app: "Your car's condition" on the booking page, up to 4 photos before
+  the work starts and 4 for a day after it is done, from the same angles,
+  re-encoded in the browser first. After completion the booking page, the
+  portal's Completed card and admin show a before/after slider of matching
+  angles. Admin: the booking's photos with angle, who and when, the
+  standard, and "Waive photos for this booking" (typed name and reason);
+  complaints about damage or the quality of the work show the booking's
+  photos; garage cards show photo compliance over the last 90 days.
+
 - **Free browser notifications** (API 0044, shown only once the API has its
   VAPID keys). Customer app: Profile → Notifications, with "Notifications
   on this device" (asks the browser, then subscribes), two account switches

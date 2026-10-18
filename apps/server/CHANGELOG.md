@@ -18,6 +18,40 @@ reconstructing every change in them.
 
 ### Added
 
+- **Job photo standards: required before/after photos for garages, optional
+  condition photos for customers** (migration `0045_job_photo_standards`,
+  additive: `job_photos.uploaded_by_role` (text + CHECK `garage` /
+  `customer`, default `garage`, so every existing row stays the garage's),
+  `job_photos.angle` (text + CHECK, nullable), an index on (booking, role,
+  stage), and `bookings.photos_waived_at` / `photos_waived_by` /
+  `photos_waived_reason` (all or none, CHECK)).
+  - Rules in `lib/job-photo-standards.ts` (pure, unit-tested; twinned with
+    `packages/core/src/job-photo-standards.ts`, parity test). Start needs 2
+    before photos of the garage's; Complete, and pickup & drop's Out for
+    delivery and Delivered, 2 after photos: 409 `JOB_PHOTOS_REQUIRED`, also
+    held in each conditional write. A passed gate's photos cannot drop below
+    2 (409 `JOB_PHOTO_MINIMUM`). `JOB_PHOTOS_REQUIRED` is **on unless
+    `off`**; `JOB_PHOTOS_REQUIRED_GARAGES` keeps it on for named garages.
+  - Tightened garage windows (`lib/job-records.ts`): before photos until
+    completion, after photos until 1 hour after it (no late fabrication);
+    the 7-day outer freeze stays. Each side removes only its own photos.
+  - Customers: `POST /bookings/:id/photos/upload-url`, `POST
+    /bookings/:id/photos { stage, key, angle? }`, `DELETE
+    /bookings/:id/photos/:photoId` (own booking only, else 404): up to 4
+    before photos until the work starts (pickup: until collected), 4 after
+    photos for 24 hours after completion, into their own `customer/` folder.
+    The booking payload gains `conditionPhotos`; customers see their own
+    photos always and the garage's once in progress. Garages see both sides (the customer's once they have accepted the job)
+    and get `photoStandard`. Photo views carry `angle` and `by`.
+  - Admin: `POST /admin/bookings/:id/photos-waiver { actorName, reason }`;
+    the booking detail adds each photo's `uploadedByName`, `photoStandard`
+    and `photosWaiver`; `GET /admin/vendors` adds `photoCompliance` (90
+    days, `lib/photo-compliance.ts`, pure, reusable).
+  - Push: "Your car's before photos are in" when the work starts with the
+    garage's before photos; the completion message becomes "Your car is
+    done — see the after photos" when it has after photos. Home's Before &
+    after tile and Updates' photos row count the garage's photos only.
+
 - **Free browser notifications for garages and customers, booking
   reminders, and a Telegram test button** (migration
   `0044_push_notifications`, additive: new tables `push_subscriptions`

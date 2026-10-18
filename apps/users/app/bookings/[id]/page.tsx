@@ -70,6 +70,7 @@ import { ExtraWorkCard } from '@/components/extra-work-card'
 import { TimeProposalCard } from '@/components/time-proposal-card'
 import { OtherGaragesCard } from '@/components/other-garages-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
+import { CarConditionCard } from '@/components/car-condition-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
 
@@ -854,7 +855,17 @@ export default function BookingDetailPage({
         />
       )}
 
-      <JobPhotosCard photos={booking.jobPhotos} />
+      <JobPhotosCard photos={booking.jobPhotos} completed={booking.status === 'completed'} />
+
+      {/* The customer's own photos of their car (0045): before the work,
+          and for a day after it. */}
+      <CarConditionCard
+        booking={booking}
+        onChanged={async () => {
+          const fresh = await getBooking(booking.id).catch(() => null)
+          if (fresh) setBooking(fresh)
+        }}
+      />
 
       {missedByGarage && (
         <ScCard>

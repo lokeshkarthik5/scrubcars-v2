@@ -9,6 +9,7 @@ import {
   IconArchive,
   IconArchiveOff,
   IconBuildingStore,
+  IconCamera,
   IconCheck,
   IconChevronDown,
   IconChevronRight,
@@ -573,6 +574,24 @@ function GarageCard({
           />
           <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
         </Link>
+      )}
+
+      {/* Photo compliance (0045): how many of its jobs completed in the last
+          90 days had 2 before and 2 after photos. Only once it has some. */}
+      {v.photoCompliance && v.photoCompliance.percent !== null && (
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
+          <IconCamera size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <span className="truncate">
+            Photos on{' '}
+            <span className={cn('font-numeric', v.photoCompliance.percent < 80 && 'text-warning')}>
+              {v.photoCompliance.percent}%
+            </span>{' '}
+            of jobs{' '}
+            <span className="text-text-muted">
+              (<Figures text={`${v.photoCompliance.compliant} of ${v.photoCompliance.jobs}, last 90 days`} />)
+            </span>
+          </span>
+        </p>
       )}
 
       {v.readiness && (
