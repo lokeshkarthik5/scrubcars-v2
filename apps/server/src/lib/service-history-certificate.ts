@@ -317,7 +317,7 @@ export interface CertificateInput {
 
 /**
  * The certificate. `photoUrl` says where each photo of a pair is shown from
- * (the owner's stored URLs, or the public page's signed paths); null leaves
+ * (the owner's short-lived links, or the public page's signed paths); null leaves
  * every pair out, which is what a link without photos gets.
  */
 export function buildCertificate(

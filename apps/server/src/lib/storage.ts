@@ -22,6 +22,19 @@ const CONTENT_TYPE_EXT: Record<string, string> = {
 
 export const ALLOWED_IMAGE_TYPES = Object.keys(CONTENT_TYPE_EXT)
 
+/** The key's extension for an allowed image type; 400 for anything else. */
+export function imageExtension(contentType: string): string {
+  const ext = CONTENT_TYPE_EXT[contentType]
+  if (!ext) {
+    throw new AppError(
+      400,
+      'Unsupported image type. Use JPEG, PNG or WebP.',
+      'UNSUPPORTED_IMAGE_TYPE'
+    )
+  }
+  return ext
+}
+
 function getClient(): S3Client {
   if (
     !env.r2AccountId ||
@@ -199,7 +212,8 @@ export async function copyObject(fromKey: string, toKey: string): Promise<string
  * An object's bytes, read by this server to pass on: the Service History
  * certificate's public page (0053) shows job photos through the API rather
  * than at their stored addresses. Null when nothing is stored there or the
- * bucket can't be read; logged by kind only, never by key.
+ * bucket can't be read; logged by kind only, never by key. A job photo in
+ * the private bucket is read by lib/job-photo-storage.ts instead.
  */
 export async function readObject(
   key: string

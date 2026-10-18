@@ -17,6 +17,7 @@ import { liveFinalBill, type FinalBillRecord } from '../../lib/final-bill.js'
 import { toExtraWorkView } from '../../lib/extra-work.js'
 import { bookingRefundTotals } from '../../lib/refunds.js'
 import { toJobPhotoView } from '../../lib/job-records.js'
+import { jobPhotoLink } from '../../lib/job-photo-storage.js'
 import { garagePhotoStandardView } from '../../lib/job-photo-standards.js'
 import { photoComplianceByGarage, photoComplianceSince, type PhotoCompliance } from '../../lib/photo-compliance.js'
 import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
@@ -304,7 +305,7 @@ function billDueOf(booking: AdminBookingRecord): string | null {
  */
 function toAdminExtraWork(charge: AdminBookingRecord['charges'][number]) {
   return {
-    ...toExtraWorkView(charge),
+    ...toExtraWorkView(charge, jobPhotoLink),
     cancelReason: charge.cancelReason ?? null,
     gatewayOrderId: charge.gatewayOrderId,
     gatewayPaymentId: charge.gatewayPaymentId,
@@ -539,7 +540,7 @@ async function loadBookingDetail(id: string, now: number) {
     // Every photo of the job, both sides', with who added it (0045): the
     // garage person's name, or the customer's. Null once that account is gone.
     photos: photos.map((photo) => ({
-      ...toJobPhotoView(photo),
+      ...toJobPhotoView(photo, jobPhotoLink),
       uploadedByName: photo.uploadedBy ? (names.get(photo.uploadedBy) ?? null) : null,
     })),
     // What Start and Complete wait for on this job, as the garage sees it,

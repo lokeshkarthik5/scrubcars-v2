@@ -16,11 +16,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 process.env.DATABASE_URL ??= 'postgres://test:test@localhost:5432/test'
 
 const { Hono } = await import('hono')
+const { env } = await import('../../lib/env.js')
 const { AppError } = await import('../../lib/errors.js')
 const { signAccessToken } = await import('../../lib/jwt.js')
 const { authMiddleware, requireCustomer } = await import('../../middleware/auth.middleware.js')
 const { certificationService } = await import('../certification/certification.service.js')
 const { certificatesRepository } = await import('./certificates.repository.js')
+const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { photoStore } = await import('./certificates.service.js')
 const { customerCertificateRoutes, publicCertificateRoutes } = await import('./certificates.routes.js')
 type LinkRow = import('./certificates.repository.js').CertificateLinkRow
@@ -78,6 +80,7 @@ const photos: Array<CertificatePhoto & { role: string; key: string }> = [
   { id: PHOTOS.customer, bookingId: JOBS.coating, stage: 'after', angle: null, createdAt: ago(50), url: 'https://photos.example/vendors/g/job-photos/c/customer/x.jpg', role: 'customer', key: 'vendors/g/job-photos/c/customer/x.jpg' },
 ]
 let links: LinkRow[] = []
+let reads: Array<{ storageKey: string; url: string }> = []
 
 // ─── Stand-ins for the database and the bucket ───────────────────────────────
 
@@ -162,6 +165,7 @@ beforeAll(() => {
     const link = links.find((l) => l.vehicleId === b.vehicleId && l.userId === b.userId && !l.revokedAt)
     return {
       photoId: p.id,
+      url: p.url,
       storageKey: p.key,
       uploadedByRole: p.role,
       bookingStatus: b.status,
@@ -171,11 +175,15 @@ beforeAll(() => {
     }
   })
   patch(certificationService, 'certifiedIds', async () => new Set<string>())
-  patch(photoStore, 'read', async (key: string) => ({ body: new TextEncoder().encode(`bytes of ${key}`), contentType: 'image/jpeg' }))
+  patch(photoStore, 'read', async (photo: { storageKey: string; url: string }) => {
+    reads.push(photo)
+    return { body: new TextEncoder().encode(`bytes of ${photo.storageKey}`), contentType: 'image/jpeg' }
+  })
 })
 
 beforeEach(() => {
   links = []
+  reads = []
   userActive.set(PEOPLE.owner, true)
   cars.find((c) => c.id === CARS.own)!.archived = false
 })
@@ -426,5 +434,84 @@ describe('photos on the public page', () => {
 
     const unsigned = `/certificates/photos/${PHOTOS.before}`
     expect((await call('GET', unsigned, null)).status).toBe(400)
+  })
+})
+
+describe('private job photos (R2_DOCS_BUCKET set)', () => {
+  const STORAGE = ['r2AccountId', 'r2AccessKeyId', 'r2SecretAccessKey', 'r2DocsBucket', 'r2Endpoint'] as const
+  const values = env as unknown as Record<string, string | undefined>
+  const saved = Object.fromEntries(STORAGE.map((key) => [key, values[key]]))
+  const storedUrls = photos.map((p) => p.url)
+
+  beforeAll(() => {
+    // The same bucket switches garage documents on, so the certificate asks
+    // which garages hold Documents verified: none here.
+    patch(vendorsRepository, 'listApprovedDocumentTypes', async () => [])
+  })
+
+  beforeEach(() => {
+    values.r2AccountId = 'test-account'
+    values.r2AccessKeyId = 'test-key'
+    values.r2SecretAccessKey = 'test-secret'
+    values.r2DocsBucket = 'detlio-private-test'
+    values.r2Endpoint = undefined
+    // The garage's before photo is private (its key is stored); the after
+    // photo is an older public row, which keeps its address.
+    photos[0]!.url = photos[0]!.key
+  })
+
+  afterAll(() => {
+    Object.assign(values, saved)
+    photos.forEach((p, i) => (p.url = storedUrls[i]!))
+  })
+
+  test('the owner gets a short-lived link for a private photo, an older public one as it was', async () => {
+    const { status, body } = await call('GET', own, 'owner')
+    expect(status).toBe(200)
+    const data = body.data as { certificate: { jobs: Array<{ photoPair: { before: string; after: string } | null }> } }
+    const pair = data.certificate.jobs.find((j) => j.photoPair)!.photoPair!
+    const link = new URL(pair.before)
+    expect(link.host).toBe('detlio-private-test.test-account.r2.cloudflarestorage.com')
+    expect(link.pathname).toBe('/vendors/g/job-photos/c/before.jpg')
+    expect(Number(link.searchParams.get('X-Amz-Expires'))).toBeLessThanOrEqual(15 * 60)
+    expect(link.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/)
+    expect(pair.after).toBe('https://photos.example/vendors/g/job-photos/c/after.jpg')
+  })
+
+  test('someone else asking for the owner’s car gets a 404, and no link', async () => {
+    const { status, text } = await call('GET', own, 'other')
+    expect(status).toBe(404)
+    expect(text).not.toContain('X-Amz-Signature')
+    expect(text).not.toContain('job-photos')
+  })
+
+  test('the public page shows no photos by default: no link, no key, no address', async () => {
+    const share = await shareOwn()
+    const { status, text } = await verify(share.token)
+    expect(status).toBe(200)
+    const data = JSON.parse(text).data as { jobs: Array<{ photoPair: unknown }> }
+    expect(data.jobs.every((j) => j.photoPair === null)).toBe(true)
+    for (const leak of ['X-Amz-Signature', 'job-photos', 'r2.cloudflarestorage.com', 'photos.example']) {
+      expect(text).not.toContain(leak)
+    }
+  })
+
+  test('with photos included, still only the API’s own signed paths, read from the right bucket', async () => {
+    const share = await shareOwn({ includePhotos: true })
+    const { text } = await verify(share.token)
+    for (const leak of ['X-Amz-Signature', 'job-photos', 'r2.cloudflarestorage.com', 'photos.example']) {
+      expect(text).not.toContain(leak)
+    }
+    const data = JSON.parse(text).data as { jobs: Array<{ photoPair: { before: string; after: string } | null }> }
+    const pair = data.jobs.find((j) => j.photoPair)!.photoPair!
+    expect(pair.before).toStartWith(`/certificates/photos/${PHOTOS.before}?`)
+
+    expect((await call('GET', pair.before, null)).status).toBe(200)
+    expect((await call('GET', pair.after, null)).status).toBe(200)
+    // The private photo by its key; the older one by its public address.
+    expect(reads).toEqual([
+      { storageKey: 'vendors/g/job-photos/c/before.jpg', url: 'vendors/g/job-photos/c/before.jpg' },
+      { storageKey: 'vendors/g/job-photos/c/after.jpg', url: 'https://photos.example/vendors/g/job-photos/c/after.jpg' },
+    ])
   })
 })

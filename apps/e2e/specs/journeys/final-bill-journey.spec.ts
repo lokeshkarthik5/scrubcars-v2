@@ -307,7 +307,18 @@ test.describe('job records @p0', () => {
     expect(photo.storage_key).toMatch(
       new RegExp(`^vendors/${VENDORS.inspect.id}/job-photos/${BOOKINGS.jobRecords}/[0-9a-f-]+\\.jpg$`)
     )
-    expect((await vendor.request.get(photo.url)).status()).toBe(200)
+    // Private (.env.e2e sets R2_DOCS_BUCKET): the row holds the key, never an
+    // address, and nothing is at the public photo bucket's address for it.
+    // The garage's own list hands out a short-lived signed link that opens.
+    expect(photo.url).toBe(photo.storage_key)
+    expect((await vendor.request.get(`http://localhost:9000/detlio-e2e/${photo.storage_key}`)).status()).not.toBe(200)
+    const listed = await vendorCtx.request.get(`${API}/api/v1/vendors/me/bookings/${BOOKINGS.jobRecords}/photos`, {
+      headers: { 'X-Vendor-Id': VENDORS.inspect.id },
+    })
+    expect(listed.status()).toBe(200)
+    const [shown] = ((await listed.json()) as { data: Array<{ url: string }> }).data
+    expect(shown!.url).toContain('X-Amz-Signature')
+    expect((await vendor.request.get(shown!.url)).status()).toBe(200)
 
     // A key from anywhere but this job's folder is refused.
     const forged = await vendorCtx.request.post(

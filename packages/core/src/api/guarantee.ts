@@ -79,20 +79,21 @@ type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
  * Uploads one photo of the problem: stripped of its metadata in the browser
  * first (prepareCarPhoto → stripImageMetadata, like every image upload), presigned into the
  * job's claim folder, PUT straight to storage. Returns the key the claim
- * names it by, and a local preview URL is the caller's.
+ * names it by; a local preview URL is the caller's (the photo is private, so
+ * there is no address to show until the API signs one).
  */
-export async function uploadClaimPhoto(bookingId: string, file: Blob): Promise<{ key: string; url: string }> {
+export async function uploadClaimPhoto(bookingId: string, file: Blob): Promise<{ key: string }> {
   // A JPEG, PNG or WebP without its metadata; an iPhone's HEIC re-encoded
   // as a JPEG (the same as the customer's car photos, 0045).
   const clean = await prepareCarPhoto(file)
   const contentType = clean.type as UploadContentType
-  const { uploadUrl, key, publicUrl } = await apiClient<{ uploadUrl: string; key: string; publicUrl: string }>(
+  const { uploadUrl, key } = await apiClient<{ uploadUrl: string; key: string }>(
     `/users/me/guarantee/bookings/${bookingId}/photos/upload-url`,
     { method: 'POST', body: JSON.stringify({ contentType }) }
   )
   const put = await fetch(uploadUrl, { method: 'PUT', body: clean, headers: { 'Content-Type': contentType } })
   if (!put.ok) throw new Error('Upload failed. Please try again.')
-  return { key, url: publicUrl }
+  return { key }
 }
 
 export interface CreateClaimInput {

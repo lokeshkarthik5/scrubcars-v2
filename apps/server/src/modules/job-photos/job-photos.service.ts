@@ -20,12 +20,13 @@ import {
   type JobPhotoStage,
   type PhotoRefusal,
 } from '../../lib/job-records.js'
-import { logger } from '../../lib/logger.js'
 import {
-  createPresignedUpload,
-  deleteObject,
-  publicUrlForKey,
-} from '../../lib/storage.js'
+  createJobPhotoUpload,
+  jobPhotoLink,
+  removeJobPhotoObjects,
+  storedJobPhotoUrl,
+} from '../../lib/job-photo-storage.js'
+import { logger } from '../../lib/logger.js'
 import { jobPhotosRepository } from './job-photos.repository.js'
 import type {
   JobPhotoUploadUrlInput,
@@ -146,17 +147,21 @@ const MAX_FOR: Record<PhotoRole, number> = {
   customer: MAX_CUSTOMER_PHOTOS_PER_STAGE,
 }
 
-/** The presign both sides share, into that side's folder of the job. */
+/**
+ * The presign both sides share, into that side's folder of the job: the
+ * private bucket while it is on (lib/job-photo-storage.ts). Only the key
+ * comes back; the photo is seen through a signed link once recorded.
+ */
 async function uploadUrlFor(job: Job, role: PhotoRole, input: JobPhotoUploadUrlInput) {
   if ((await jobPhotosRepository.countPhotos(job.id, input.stage, role)) >= MAX_FOR[role]) {
     throw limitReached(input.stage, MAX_FOR[role])
   }
-  const { uploadUrl, key, publicUrl } = await createPresignedUpload(
-    job.vendorId,
-    input.contentType,
-    jobPhotoFolder(job.id, role)
-  )
-  return { uploadUrl, key, publicUrl }
+  return createJobPhotoUpload(job.vendorId, input.contentType, jobPhotoFolder(job.id, role))
+}
+
+/** A photo as its viewer gets it, with a short-lived link (never the key). */
+function view(photo: Parameters<typeof toJobPhotoView>[0]) {
+  return toJobPhotoView(photo, jobPhotoLink)
 }
 
 /** The record both sides share, by the key their upload went to. */
@@ -168,14 +173,15 @@ async function record(job: Job, role: PhotoRole, actorId: string, input: RecordJ
   // A retried request after a dropped answer: the photo is already there.
   // The key sits in this side's own folder, so it can only be this side's.
   const existing = await jobPhotosRepository.findPhotoByKey(job.id, input.key)
-  if (existing) return toJobPhotoView(existing)
+  if (existing) return view(existing)
 
   const created = await jobPhotosRepository.insertPhotoUnderCap(
     {
       bookingId: job.id,
       stage: input.stage,
       storageKey: input.key,
-      url: publicUrlForKey(input.key),
+      // The key itself while photos are private; the public address if not.
+      url: storedJobPhotoUrl(input.key),
       uploadedBy: actorId,
       uploadedByRole: role,
       angle: input.angle ?? null,
@@ -188,7 +194,7 @@ async function record(job: Job, role: PhotoRole, actorId: string, input: RecordJ
     { bookingId: job.id, vendorId: job.vendorId, role, stage: input.stage, angle: created.angle, photoId: created.id },
     'job_photo:added'
   )
-  return toJobPhotoView(created)
+  return view(created)
 }
 
 export const jobPhotosService = {
@@ -202,7 +208,7 @@ export const jobPhotosService = {
     const job = await getJobForGarage(vendorId, bookingId)
     const photos = await jobPhotosRepository.listPhotos(job.id)
     const theirs = garageSeesCustomerPhotos(job)
-    return photos.filter((photo) => photo.uploadedByRole !== 'customer' || theirs).map(toJobPhotoView)
+    return photos.filter((photo) => photo.uploadedByRole !== 'customer' || theirs).map(view)
   },
 
   /**
@@ -272,10 +278,10 @@ export const jobPhotosService = {
     if (!deleted) throw photoNotFound()
 
     // Best-effort: a stray object costs storage, not correctness.
-    await deleteObject(deleted.storageKey)
+    await removeJobPhotoObjects([deleted.storageKey], 'job_photo_removed')
 
     log.info({ bookingId: job.id, vendorId, photoId, stage: deleted.stage, role: 'garage' }, 'job_photo:removed')
-    return toJobPhotoView(deleted)
+    return view(deleted)
   },
 
   // ─── The customer (/bookings/:id/photos) ──────────────────────────────────
@@ -318,10 +324,10 @@ export const jobPhotosService = {
     const deleted = await jobPhotosRepository.deletePhoto(job.id, photoId, 'customer', null)
     if (!deleted || deleted === 'floor') throw photoNotFound()
 
-    await deleteObject(deleted.storageKey)
+    await removeJobPhotoObjects([deleted.storageKey], 'job_photo_removed')
 
     log.info({ bookingId: job.id, photoId, stage: deleted.stage, role: 'customer' }, 'job_photo:removed')
-    return toJobPhotoView(deleted)
+    return view(deleted)
   },
 }
 

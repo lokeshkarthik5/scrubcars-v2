@@ -66,9 +66,10 @@ describe('photoChangeRefusal (the garage)', () => {
 
 describe('toJobPhotoView', () => {
   const row = { id: 'p1', stage: 'before' as const, url: 'https://x/y.jpg', createdAt: new Date(NOW) }
+  const asStored = (stored: string) => stored
 
   test('a row from before 0045 is the garage’s, with no angle', () => {
-    expect(toJobPhotoView(row)).toEqual({
+    expect(toJobPhotoView(row, asStored)).toEqual({
       id: 'p1',
       stage: 'before',
       url: 'https://x/y.jpg',
@@ -79,10 +80,15 @@ describe('toJobPhotoView', () => {
   })
 
   test('says whose and which angle, never the key or the person', () => {
-    const view = toJobPhotoView({ ...row, angle: 'front', uploadedByRole: 'customer', storageKey: 'k', uploadedBy: 'u' } as never)
+    const view = toJobPhotoView({ ...row, angle: 'front', uploadedByRole: 'customer', storageKey: 'k', uploadedBy: 'u' } as never, asStored)
     expect(view.angle).toBe('front')
     expect(view.by).toBe('customer')
     expect(Object.keys(view).sort()).toEqual(['angle', 'by', 'createdAt', 'id', 'stage', 'url'])
+  })
+
+  test('the address is whatever the link maker gives for the stored value', () => {
+    const view = toJobPhotoView({ ...row, url: 'vendors/v/job-photos/b/k.jpg' }, (stored) => `signed:${stored}`)
+    expect(view.url).toBe('signed:vendors/v/job-photos/b/k.jpg')
   })
 })
 

@@ -1829,6 +1829,21 @@ reconstructing every change in them.
 
 ### Security
 
+- **Job photos are private: shown only through short-lived signed links.**
+  Garage before/after photos, customers' car photos, extra-work and
+  free-redo claim photos go to the private bucket `R2_DOCS_BUCKET` (no new
+  env var, no migration) under their usual keys; the `url` columns hold the
+  key, and every payload (customer booking, garage job, admin, redo claims,
+  the owner's certificate) carries a presigned GET link valid 15 minutes
+  from a 5-minute signing window (`lib/job-photo-storage.ts`, signed
+  synchronously by `lib/r2-presign.ts`, which its test pins to the AWS SDK's
+  own output). Upload responses return `{ uploadUrl, key }` only. Rows with
+  a full public URL (older photos) are passed through until moved. With
+  `R2_DOCS_BUCKET` unset, job photos stay public, as before. The shared
+  certificate's public page is unchanged: no photos unless the owner
+  includes them, and then only through the API's own signed paths. The
+  private bucket's CORS rule must now also allow the customer app's origins.
+
 - **Login codes are stored as a keyed hash, and deleted after a day.**
   `otp_verifications.otp_code` now holds ten base64url characters of
   HMAC-SHA256 over purpose, phone and code (`lib/otp.ts`), keyed by

@@ -20,7 +20,7 @@ import {
 } from '../../lib/extra-work.js'
 import { isJobPhotoKey, jobPhotoFolder } from '../../lib/job-records.js'
 import { logger } from '../../lib/logger.js'
-import { createPresignedUpload, publicUrlForKey } from '../../lib/storage.js'
+import { createJobPhotoUpload, jobPhotoLink, storedJobPhotoUrl } from '../../lib/job-photo-storage.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import {
   customerExtraWorkRequested,
@@ -586,7 +586,7 @@ export const bookingChargesService = {
     switch (outcome.kind) {
       case 'paid':
         return outcome.charge.kind === 'extra_work'
-          ? { bookingId, extraWork: toExtraWorkView(outcome.charge) }
+          ? { bookingId, extraWork: toExtraWorkView(outcome.charge, jobPhotoLink) }
           : { bookingId, finalBill: toFinalBillView(outcome.charge) }
       case 'refund_due':
         throw new AppError(409, outcome.message, REFUND_DUE_CODE)
@@ -614,12 +614,9 @@ export const bookingChargesService = {
     })
     if (refusal) throw extraWorkRefusalError(refusal)
 
-    const { uploadUrl, key, publicUrl } = await createPresignedUpload(
-      vendorId,
-      input.contentType,
-      jobPhotoFolder(booking.id)
-    )
-    return { uploadUrl, key, publicUrl }
+    // The private bucket while it is on (lib/job-photo-storage.ts): the key
+    // only, no address.
+    return createJobPhotoUpload(vendorId, input.contentType, jobPhotoFolder(booking.id))
   },
 
   /**
@@ -652,7 +649,7 @@ export const bookingChargesService = {
         amountDue: amount,
         lines: [{ description: input.description, amount }],
         note: input.note ?? null,
-        photos: keys.map((key) => ({ storageKey: key, url: publicUrlForKey(key) })),
+        photos: keys.map((key) => ({ storageKey: key, url: storedJobPhotoUrl(key) })),
         createdBy: actorId,
       },
       EXTRA_WORK_MAX_OPEN
@@ -666,7 +663,7 @@ export const bookingChargesService = {
     )
     // The amount, never the garage's description of the work (0044).
     pushService.notifyCustomer(booking.userId, customerExtraWorkRequested(booking, result.charge.amountDue))
-    return toExtraWorkView(result.charge)
+    return toExtraWorkView(result.charge, jobPhotoLink)
   },
 
   /** The garage takes back a request the customer has not paid. */
@@ -701,7 +698,7 @@ export const bookingChargesService = {
       throw extraWorkClosed()
     }
     log.info({ bookingId: booking.id, vendorId, chargeId: charge.id }, 'extra_work:withdrawn')
-    return toExtraWorkView(closed)
+    return toExtraWorkView(closed, jobPhotoLink)
   },
 
   /**
@@ -730,7 +727,7 @@ export const bookingChargesService = {
       amount: closed.amountDue,
     })
     pushService.notifyGarage(booking.vendorId, garageExtraWorkDeclined(booking, closed.amountDue))
-    return toExtraWorkView(closed)
+    return toExtraWorkView(closed, jobPhotoLink)
   },
 
   /**
