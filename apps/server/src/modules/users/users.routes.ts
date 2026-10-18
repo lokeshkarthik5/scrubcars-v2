@@ -8,11 +8,13 @@ import {
 import { carHistoryRoutes } from '../car-history/car-history.routes.js'
 import { customerCertificateRoutes } from '../certificates/certificates.routes.js'
 import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
+import { customerBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import { favouritesRoutes } from '../favourites/favourites.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
 import { customerPushRoutes } from '../push/push.routes.js'
 import { customerGiftRoutes } from '../gifts/gifts.routes.js'
 import { customerCreditRoutes } from '../gift-credit/gift-credit.routes.js'
+import { customerGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import * as usersController from './users.controller.js'
 import {
@@ -37,6 +39,10 @@ usersRoutes.route('/me', homeRoutes)
 
 // The customer's complaints: /me/complaints. Same mounting, same check.
 usersRoutes.route('/me', customerComplaintRoutes)
+
+// "Did the garage ask you to book directly?" (0052): /me/bypass-reports.
+// Same mounting, same check; the session's own bookings only.
+usersRoutes.route('/me', customerBypassReportRoutes)
 
 // The customer's saved garages: /me/favourites. Same mounting, same check.
 usersRoutes.route('/me', favouritesRoutes)
@@ -64,6 +70,8 @@ usersRoutes.route('/me', slotAlertsRoutes)
 // both are 404s while GIFTS_ENABLED is off.
 usersRoutes.route('/me/gifts', customerGiftRoutes)
 usersRoutes.route('/me/credit', customerCreditRoutes)
+// Detlio Guarantee (0051): a free redo claim on the customer's own booking.
+usersRoutes.route('/me/guarantee', customerGuaranteeRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

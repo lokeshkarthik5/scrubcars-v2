@@ -29,6 +29,7 @@ import {
   RETENTION,
 } from './details'
 import { LEGAL_PATHS } from './routes'
+import { CONTACT_WINDOW_HOURS } from './contact-window'
 
 const BOOKING_RECORDS = orTbc(RETENTION.bookingRecords, 'how long booking and payment records are kept')
 const JOB_PHOTOS = orTbc(RETENTION.jobPhotos, 'how long job photos are kept')
@@ -52,7 +53,7 @@ export const PRIVACY: LegalDoc = {
     },
     {
       kind: 'callout',
-      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, number, car and (for doorstep) address. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data or show ads in Detlio. Our website does load Meta\'s pixel, which tells Meta (Facebook and Instagram) which of our pages you open, so we can measure our ads there (section 4).',
+      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, car and (for doorstep) address, and your number only around the booking itself. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data or show ads in Detlio. Our website does load Meta\'s pixel, which tells Meta (Facebook and Instagram) which of our pages you open, so we can measure our ads there (section 4).',
     },
   ],
   sections: [
@@ -79,7 +80,7 @@ export const PRIVACY: LegalDoc = {
             [
               'Mobile number',
               'You, when you sign in',
-              'Your account and sign-in; shown to the garage you book so it can reach you; on your receipts (partly hidden, e.g. ******4321)',
+              `Your account and sign-in; shown to the garage you book so it can reach you, ${CONTACT_WINDOW_HOURS}; on your receipts (partly hidden, e.g. ******4321)`,
             ],
             [
               'One-time sign-in codes',
@@ -273,7 +274,7 @@ export const PRIVACY: LegalDoc = {
             {
               kind: 'list',
               items: [
-                'your name and mobile number;',
+                `your name, and your mobile number ${CONTACT_WINDOW_HOURS} (never on a cancelled booking);`,
                 'for a doorstep visit, the address and map pin;',
                 'your car\'s make, model, size and number plate (if added);',
                 'the services, time, amount, payment method, promo code used, and the Razorpay payment ID;',
@@ -627,7 +628,7 @@ export const PRIVACY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: `Garage owners and staff sign in to the Detlio partner portal with their mobile number in the same way. We keep their name and number, their role at the garage, which bookings they accepted or completed, the photos and bills they add, and a log of when our team accesses a garage's portal to help it. A garage's business details (its name, area, map location, photos, opening hours and rating) are shown publicly on Detlio, and its address, phone and WhatsApp are shown to customers who book it. The rest of this policy, including your rights, applies to you too, and your garage's agreement with Detlio covers anything specific to garages.`,
+          text: `Garage owners and staff sign in to the Detlio partner portal with their mobile number in the same way. We keep their name and number, their role at the garage, which bookings they accepted or completed, the photos and bills they add, and a log of when our team accesses a garage's portal to help it. A garage's business details (its name, area, map location, photos, opening hours and rating) are shown publicly on Detlio, its address is shown to customers who book it, and its phone and WhatsApp are shown to them only around their booking (${CONTACT_WINDOW_HOURS}). The rest of this policy, including your rights, applies to you too, and your garage's agreement with Detlio covers anything specific to garages.`,
         },
         {
           kind: 'p',

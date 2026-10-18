@@ -833,3 +833,103 @@ describe('extra work (0041)', () => {
     expect(text).toContain('₹450 · Razorpay payment pay_LATE')
   })
 })
+
+describe('bypass reports (0052)', () => {
+  test('a new report names the garage, the booking and what happened — never who reported it', () => {
+    const text = formatOpsAlert({
+      kind: 'bypass_report_received',
+      garage: 'Marina Auto Spa',
+      bookingId: booking.id,
+      what: 'Asked me to pay cash or UPI directly',
+      note: 'He said call 98400 12345 next time and pay by UPI ram@okicici',
+      strikes: 1,
+    })
+    expect(text.split('\n')).toEqual([
+      '🚩 Bypass report: Marina Auto Spa',
+      'booking #3F2A9C1B · Asked me to pay cash or UPI directly',
+      'Customer wrote: "He said call [number] next time and pay by UPI [id]"',
+      'This garage has 1 strike already.',
+      'Look into it, then Confirm or Dismiss. The garage must never learn who reported it.',
+      'https://admin.detlio.com/bypass-reports',
+    ])
+    expect(text).not.toContain('Priya')
+    expect(text).not.toContain('98400')
+  })
+
+  test('a report with no note and no strikes is shorter', () => {
+    const text = formatOpsAlert({
+      kind: 'bypass_report_received',
+      garage: 'Marina Auto Spa',
+      bookingId: null,
+      what: 'Something else',
+      note: null,
+      strikes: 0,
+    })
+    expect(text).not.toContain('Customer wrote')
+    expect(text).not.toContain('strike')
+  })
+
+  test('reaching 2 strikes says how many, and whether the seal is at stake', () => {
+    const text = formatOpsAlert({
+      kind: 'bypass_strikes_reached',
+      vendorId: 'v0000000-0000-4000-8000-000000003201',
+      garage: 'Marina Auto Spa',
+      strikes: 2,
+      windowDays: 180,
+      certified: true,
+    })
+    expect(text.split('\n')).toEqual([
+      '⛔ Marina Auto Spa reached 2 strikes',
+      '2 confirmed reports of taking customers off Detlio in the last 180 days.',
+      'It is Detlio Certified: the next nightly check puts the seal at risk.',
+      'Talk to the garage about its agreement, or pause or suspend it.',
+      'https://admin.detlio.com/vendors/v0000000-0000-4000-8000-000000003201/edit',
+    ])
+  })
+})
+
+describe('free redo claims (0051)', () => {
+  const base = {
+    kind: 'guarantee_claim' as const,
+    claimId: 'c1a10001-0000-4000-8000-000000003101',
+    bookingId: '3f2a9c1b-0000-4000-8000-000000003102',
+    garageName: 'Marina Auto Spa',
+    issues: ['Missed spots or dirt left', 'Water marks or streaks'],
+    reasons: ['Garage has before and after photos'],
+    // 04:30 UTC is 10:00 am in Chennai.
+    respondBy: new Date('2026-10-18T04:30:00Z'),
+    decideBy: null,
+  }
+
+  test('a new claim with the garage: what is wrong, by when, the link', () => {
+    expect(formatOpsAlert({ ...base, route: 'garage' }).split('\n')).toEqual([
+      '🔁 New free redo claim · #3F2A9C1B · with the garage',
+      'Garage: Marina Auto Spa',
+      "What's wrong: Missed spots or dirt left, Water marks or streaks",
+      'Why: Garage has before and after photos',
+      'Garage answers by Sun 18 Oct, 10:00 am; no answer approves it.',
+      'https://admin.detlio.com/guarantee/c1a10001-0000-4000-8000-000000003101',
+    ])
+  })
+
+  test('approved automatically because the garage took no photos says so', () => {
+    const text = formatOpsAlert({ ...base, route: 'auto', reasons: ['Garage skipped its photos'], respondBy: null })
+    expect(text).toContain('Free redo approved automatically — no garage photos')
+    expect(text).toContain('nothing to defend it with')
+  })
+
+  test('a dispute needing Detlio quotes the garage, scrubbed', () => {
+    const text = formatOpsAlert({
+      kind: 'guarantee_needs_detlio',
+      claimId: base.claimId,
+      bookingId: base.bookingId,
+      garageName: base.garageName,
+      why: 'disputed',
+      note: 'Car was clean, see photos. Call 98765 43210',
+      decideBy: new Date('2026-10-18T04:30:00Z'),
+    })
+    expect(text).toContain('disputed by the garage')
+    expect(text).toContain('Garage wrote: "Car was clean, see photos. Call [number]"')
+    expect(text).toContain('Decide by Sun 18 Oct, 10:00 am')
+  })
+})

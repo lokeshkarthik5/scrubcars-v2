@@ -152,12 +152,23 @@ function refundedOfPayment(row: Pick<BookingPaymentRefundRow, 'status' | 'amount
   return row.refundedAmount ?? '0.00'
 }
 
+/** The facts lib/refunds.ts decides a booking's payment on, from its refunds row. */
+function bookingForRefund(row: BookingPaymentRefundRow) {
+  return {
+    status: row.bookingStatus,
+    noShow: row.noShow,
+    moved: Boolean(row.moved),
+    // A refund instead of a free redo (0051).
+    guaranteeRefund: row.guaranteeRefundAt !== null,
+  }
+}
+
 /**
  * A booking's payment as a refund item, or null when it is neither owed nor
  * refunded (a customer no-show, a booking still on, a moved one).
  */
 function fromBookingPayment(row: BookingPaymentRefundRow): RefundItem | null {
-  const booking = { status: row.bookingStatus, noShow: row.noShow, moved: Boolean(row.moved) }
+  const booking = bookingForRefund(row)
   const refunded = refundedOfPayment(row)
   if (!isBookingPaymentRefundable(booking, row) && toPaise(refunded) === 0) return null
 
@@ -172,7 +183,7 @@ function fromBookingPayment(row: BookingPaymentRefundRow): RefundItem | null {
     amountOwed: bookingPaymentOwed(booking, row),
     razorpayPaymentId: row.gatewayTxnId,
     reason: bookingRefundReason(row),
-    since: owedSince(row.paidAt, row.noShowMarkedAt ?? row.cancelledAt)?.toISOString() ?? null,
+    since: owedSince(row.paidAt, row.guaranteeRefundAt ?? row.noShowMarkedAt ?? row.cancelledAt)?.toISOString() ?? null,
     ...refundPart(row, refunded),
     chargeKind: null,
   }
@@ -376,7 +387,7 @@ async function readMoney(target: Target, conn?: Conn): Promise<Money | null> {
     case 'booking': {
       const row = await refundsRepository.findBookingPayment(target.id, conn)
       if (!row) return null
-      const booking = { status: row.bookingStatus, noShow: row.noShow, moved: Boolean(row.moved) }
+      const booking = bookingForRefund(row)
       return {
         target,
         bookingId: row.bookingId,
@@ -387,7 +398,7 @@ async function readMoney(target: Target, conn?: Conn): Promise<Money | null> {
         refundable: isBookingPaymentRefundable(booking, row),
         garageName: row.garageName,
         cause: autoRefundCause({ ...booking, cancelledBy: row.cancelledBy }),
-        since: owedSince(row.paidAt, row.noShowMarkedAt ?? row.cancelledAt),
+        since: owedSince(row.paidAt, row.guaranteeRefundAt ?? row.noShowMarkedAt ?? row.cancelledAt),
         item: fromBookingPayment(row),
       }
     }
@@ -1061,7 +1072,7 @@ export const refundsService = {
           case 'booking': {
             const row = await refundsRepository.findBookingPayment(input.id, tx)
             if (!row) throw notFound()
-            const booking = { status: row.bookingStatus, noShow: row.noShow, moved: Boolean(row.moved) }
+            const booking = bookingForRefund(row)
             const refunded = refundedOfPayment(row)
             assertRecordable(
               checkRefund({

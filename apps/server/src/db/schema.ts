@@ -23,6 +23,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
+import type { BypassKind, BypassStatus, RewardStatus } from '../lib/bypass-reports.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 import type {
@@ -42,6 +43,15 @@ import type {
   RevokeKind,
 } from '../lib/certification.js'
 import type { CreditEntryKind, GiftDesign, GiftStatus } from '../lib/gift-credit.js'
+import type {
+  ClaimDecision,
+  ClaimRoute,
+  ClaimStatus,
+  CloseReason,
+  GarageResponse,
+  GuaranteeIssue,
+  RouteReason,
+} from '../lib/guarantee.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -1004,6 +1014,18 @@ export const bookings = pgTable(
     photosWaivedAt: timestamp('photos_waived_at', { withTimezone: true }),
     photosWaivedBy: varchar('photos_waived_by', { length: 100 }),
     photosWaivedReason: varchar('photos_waived_reason', { length: 500 }),
+    // Detlio Guarantee (0051, lib/guarantee.ts). A free redo of an earlier
+    // job: a ₹0 booking written through the ordinary slot rule so it holds
+    // the garage's room, which earns the garage nothing, Detlio no
+    // commission, takes no receipt number and is left out of Statistics.
+    // The claim it answers names it (guarantee_claims.redo_booking_id).
+    guaranteeRedo: boolean('guarantee_redo').default(false).notNull(),
+    // Detlio approved a refund instead of a redo on this completed booking
+    // (0051): lib/refunds.ts then owes its payment back like a cancelled
+    // one's, and the garage earns nothing on it (a payout already made comes
+    // back as a negative line). Set once, by the decision (CHECK: completed
+    // bookings only, never a redo).
+    guaranteeRefundAt: timestamp('guarantee_refund_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1063,6 +1085,10 @@ export const bookings = pgTable(
     check(
       'bookings_photos_waived_check',
       sql`(${table.photosWaivedAt} is null and ${table.photosWaivedBy} is null and ${table.photosWaivedReason} is null) or (${table.photosWaivedAt} is not null and ${table.photosWaivedBy} is not null and ${table.photosWaivedReason} is not null)`
+    ),
+    check(
+      'bookings_guarantee_refund_check',
+      sql`${table.guaranteeRefundAt} is null or (${table.status}::text = 'completed' and not ${table.guaranteeRedo})`
     ),
     check(
       'bookings_handover_codes_check',
@@ -2654,7 +2680,7 @@ export const giftCreditEntries = pgTable(
       .where(sql`${table.kind} = 'refund'`),
     check(
       'gift_credit_entries_kind_check',
-      sql`${table.kind} in ('redeem', 'debit', 'refund', 'expiry', 'adjustment')`
+      sql`${table.kind} in ('redeem', 'debit', 'refund', 'expiry', 'adjustment', 'report_reward')`
     ),
   ]
 )
@@ -2674,6 +2700,78 @@ export const giftCodeAttempts = pgTable(
   (table) => [
     index('gift_code_attempts_user_id_idx').on(table.userId, table.createdAt),
     index('gift_code_attempts_ip_key_idx').on(table.ipKey, table.createdAt),
+  ]
+)
+
+// "Did the garage ask you to book directly?" (0052, lib/bypass-reports.ts):
+// a customer's report that a garage tried to take them off Detlio. One per
+// reschedule chain (`root_booking_id`). Customer, booking and garage are SET
+// NULL with the reference and garage name kept, so an account deletion, the
+// reset or Delete forever keep the report. Never shown to a garage. A
+// confirmed one is a strike against its garage for 180 days, and may earn
+// the customer ₹100 of Detlio credit, once per garage (`reward_status`; the
+// ledger row is `reward_entry_id`).
+export const bypassReports = pgTable(
+  'bypass_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    bookingRef: varchar('booking_ref', { length: 8 }).notNull(),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    garageName: varchar('garage_name', { length: 255 }).notNull(),
+    kind: text('kind').$type<BypassKind>().notNull(),
+    note: varchar('note', { length: 500 }),
+    status: text('status').$type<BypassStatus>().default('new').notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    confirmedBy: varchar('confirmed_by', { length: 100 }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+    dismissedBy: varchar('dismissed_by', { length: 100 }),
+    dismissedReason: varchar('dismissed_reason', { length: 300 }),
+    rewardStatus: text('reward_status').$type<RewardStatus>().default('none').notNull(),
+    rewardEntryId: uuid('reward_entry_id').references(() => giftCreditEntries.id, { onDelete: 'restrict' }),
+    rewardGrantedAt: timestamp('reward_granted_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('bypass_reports_reward_entry_id_unique').on(table.rewardEntryId),
+    uniqueIndex('bypass_reports_root_booking_key').on(table.rootBookingId),
+    uniqueIndex('bypass_reports_reward_once_key')
+      .on(table.userId, table.vendorId)
+      .where(sql`${table.rewardStatus} in ('owed', 'granted')`),
+    index('bypass_reports_status_created_at_idx').on(table.status, table.createdAt),
+    index('bypass_reports_user_id_created_at_idx').on(table.userId, table.createdAt),
+    index('bypass_reports_vendor_confirmed_idx')
+      .on(table.vendorId, table.confirmedAt)
+      .where(sql`${table.status} = 'confirmed'`),
+    index('bypass_reports_reward_owed_idx')
+      .on(table.confirmedAt)
+      .where(sql`${table.rewardStatus} = 'owed'`),
+    check(
+      'bypass_reports_kind_check',
+      sql`${table.kind} in ('book_directly', 'lower_price', 'pay_directly', 'gave_number', 'other')`
+    ),
+    check('bypass_reports_status_check', sql`${table.status} in ('new', 'confirmed', 'dismissed')`),
+    check('bypass_reports_note_check', sql`${table.note} is null or char_length(btrim(${table.note})) > 0`),
+    check(
+      'bypass_reports_confirmed_check',
+      sql`(${table.status} = 'confirmed') = (${table.confirmedAt} is not null and ${table.confirmedBy} is not null)`
+    ),
+    check(
+      'bypass_reports_dismissed_check',
+      sql`(${table.status} = 'dismissed') = (${table.dismissedAt} is not null and ${table.dismissedBy} is not null and ${table.dismissedReason} is not null)`
+    ),
+    check('bypass_reports_reward_status_check', sql`${table.rewardStatus} in ('none', 'owed', 'granted')`),
+    check(
+      'bypass_reports_reward_confirmed_check',
+      sql`${table.rewardStatus} = 'none' or ${table.status} = 'confirmed'`
+    ),
+    check(
+      'bypass_reports_reward_granted_check',
+      sql`(${table.rewardStatus} = 'granted') = (${table.rewardEntryId} is not null and ${table.rewardGrantedAt} is not null)`
+    ),
   ]
 )
 
@@ -2737,6 +2835,92 @@ export const analyticsEvents = pgTable(
       'analytics_events_visit_check',
       sql`(${table.name} in ('booking_paid', 'booking_cancelled')) = (${table.visitId} is null)`
     ),
+  ]
+)
+
+// ─── Detlio Guarantee (0051) ─────────────────────────────────────────────────
+//
+// A customer's claim for a free redo of a completed job, with the photos of
+// the problem they took in the app. Rules in lib/guarantee.ts; behind
+// GUARANTEE_ENABLED. One claim per booking. The CHECKs are in
+// 0051_detlio_guarantee.sql.
+//
+// The claim goes with its booking (CASCADE): the test-data reset and Delete
+// forever take it, and its photos' objects, with the chain. The redo booking
+// it points at is SET NULL, so a reset that takes only the redo leaves the
+// claim to be picked up again (lib/guarantee.ts nextClaimMove).
+export const guaranteeClaims = pgTable(
+  'guarantee_claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    issues: text('issues').array().$type<GuaranteeIssue[]>().notNull(),
+    otherText: varchar('other_text', { length: 300 }),
+    status: text('status').$type<ClaimStatus>().notNull(),
+    route: text('route').$type<ClaimRoute>().notNull(),
+    routeReasons: text('route_reasons').array().$type<RouteReason[]>().notNull(),
+    // The garage's answer (route 'garage'): by when, what, its note, who.
+    garageRespondBy: timestamp('garage_respond_by', { withTimezone: true }),
+    garageResponse: text('garage_response').$type<GarageResponse>(),
+    garageNote: varchar('garage_note', { length: 500 }),
+    garageRespondedAt: timestamp('garage_responded_at', { withTimezone: true }),
+    garageRespondedBy: uuid('garage_responded_by').references(() => users.id, { onDelete: 'set null' }),
+    // Detlio's 24-hour target once the claim is with Detlio.
+    detlioDecideBy: timestamp('detlio_decide_by', { withTimezone: true }),
+    // Detlio's decision: the typed name, like the Bin's, and the reason the
+    // customer reads when it is not approved. `adminNote` never leaves admin.
+    decision: text('decision').$type<ClaimDecision>(),
+    decidedBy: varchar('decided_by', { length: 100 }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decisionReason: varchar('decision_reason', { length: 500 }),
+    adminNote: varchar('admin_note', { length: 1000 }),
+    // When it was approved (a redo or a refund, by anyone): the limit and
+    // Detlio Certified's quality figure count from here.
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    redoBookBy: timestamp('redo_book_by', { withTimezone: true }),
+    redoBookingId: uuid('redo_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closeReason: text('close_reason').$type<CloseReason>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('guarantee_claims_booking_id_key').on(table.bookingId),
+    index('guarantee_claims_user_id_created_at_idx').on(table.userId, table.createdAt),
+    index('guarantee_claims_vendor_id_created_at_idx').on(table.vendorId, table.createdAt),
+    index('guarantee_claims_status_idx').on(table.status),
+    index('guarantee_claims_redo_booking_id_idx')
+      .on(table.redoBookingId)
+      .where(sql`${table.redoBookingId} is not null`),
+  ]
+)
+
+// The customer's photos of the problem, taken in the app (0051). The key is
+// under the job's own folder (vendors/<vendorId>/job-photos/<bookingId>/
+// guarantee/), so the reset and Delete forever remove the objects with the
+// job's photos.
+export const guaranteeClaimPhotos = pgTable(
+  'guarantee_claim_photos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    claimId: uuid('claim_id')
+      .notNull()
+      .references(() => guaranteeClaims.id, { onDelete: 'cascade' }),
+    storageKey: text('storage_key').notNull(),
+    url: text('url').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('guarantee_claim_photos_storage_key_key').on(table.storageKey),
+    index('guarantee_claim_photos_claim_id_idx').on(table.claimId),
   ]
 )
 
@@ -3141,4 +3325,22 @@ export const complaintsRelations = relations(complaints, ({ one }) => ({
     fields: [complaints.vendorId],
     references: [vendors.id],
   }),
+}))
+
+export const guaranteeClaimsRelations = relations(guaranteeClaims, ({ one, many }) => ({
+  booking: one(bookings, {
+    fields: [guaranteeClaims.bookingId],
+    references: [bookings.id],
+  }),
+  redoBooking: one(bookings, {
+    fields: [guaranteeClaims.redoBookingId],
+    references: [bookings.id],
+  }),
+  user: one(users, { fields: [guaranteeClaims.userId], references: [users.id] }),
+  vendor: one(vendors, { fields: [guaranteeClaims.vendorId], references: [vendors.id] }),
+  photos: many(guaranteeClaimPhotos),
+}))
+
+export const guaranteeClaimPhotosRelations = relations(guaranteeClaimPhotos, ({ one }) => ({
+  claim: one(guaranteeClaims, { fields: [guaranteeClaimPhotos.claimId], references: [guaranteeClaims.id] }),
 }))

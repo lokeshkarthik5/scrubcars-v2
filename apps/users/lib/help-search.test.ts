@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { countQuestions, searchHelp } from './help-search'
-import { HELP_GROUPS, HELP_STILL_NEED } from '../components/help/content'
+import { HELP_GROUPS, HELP_STILL_NEED, helpGroupsFor } from '../components/help/content'
 
 const ids = (groups: typeof HELP_GROUPS) => groups.flatMap((group) => group.questions.map((q) => q.id))
 
@@ -62,7 +62,9 @@ describe('the Help centre copy', () => {
     expect(text).toContain("The garage is responsible for your car from pickup until it's returned.")
     expect(text).toContain('within 5–7 working days')
     // No promises the product does not keep.
-    expect(text).not.toMatch(/guarantee|instant refund|we will notify|we'll notify|SMS you/i)
+    // "Detlio Guarantee" is the feature's own name (0051, owner decision);
+    // any other use of the word is still a promise the product cannot back.
+    expect(text.replaceAll('Detlio Guarantee', '')).not.toMatch(/guarantee|instant refund|we will notify|we'll notify|SMS you/i)
   })
 
   test('no garage phone before booking: the answer sends customers to their booking', () => {
@@ -73,5 +75,13 @@ describe('the Help centre copy', () => {
   test('the page ends with Contact and Raise a complaint', () => {
     expect(HELP_STILL_NEED.contact.href).toBe('/contact')
     expect(HELP_STILL_NEED.complaint.href).toBe('/contact#raise-complaint')
+  })
+})
+
+describe('feature questions (0051)', () => {
+  test("the Detlio Guarantee's answer shows only while it is on", () => {
+    expect(ids(helpGroupsFor({ guarantee: false }))).not.toContain('free-redo')
+    expect(ids(helpGroupsFor({ guarantee: true }))).toContain('free-redo')
+    expect(ids(searchHelp(helpGroupsFor({ guarantee: true }), 'free redo'))).toEqual(['free-redo'])
   })
 })

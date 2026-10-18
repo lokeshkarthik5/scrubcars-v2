@@ -36,6 +36,71 @@ reconstructing every change in them.
   Admin: a "Service history certificates" card on Statistics → Overview.
   New dependency: `qrcode-generator` 2.0.4 (users app, no dependencies).
 
+- **"Did the garage ask you to book directly?"** (API 0052). Customer app: a
+  booking from the garage's acceptance until 30 days after completion shows
+  a quiet line under Help ("Did the garage ask you to book directly?"), and
+  Help gains the same question; both open a sheet with what happened (five
+  chips) and an optional note, saying the garage is never told who reported
+  it and, while Detlio credit is on, "If we confirm it, we add ₹100 to your
+  Detlio credit (once per garage)". Once sent, the booking page says where
+  the report stands; a confirmed reward is an Updates row ("Thanks — ₹100
+  added to your Detlio credit", opening Detlio credit) and a push. Garage
+  portal: Home ends with "Asking Detlio customers to book directly breaks
+  your agreement and can lead to suspension." Admin: a Bypass reports page
+  (header nav "Bypass"; linked from Complaints on a phone) with New /
+  Confirmed / Dismissed, each report's garage (with its strikes), booking,
+  customer, what happened and note, and Confirm / Dismiss with a typed
+  name; a Customer drop-off page (regulars who went quiet, per garage and
+  one by one, linked to the garage and the customer's last booking there);
+  a strike line on the garage card (red at 2+) and a strikes card on the
+  garage page; "Report rewards" on Gifts. The Detlio Certified sheet gains
+  "Has not been found asking customers to book or pay outside Detlio in the
+  last 180 days." Lawyer notes on the garage agreement's non-solicitation
+  clause: `apps/users/lib/legal/bypass-reports.ts` (not public copy).
+
+- **Contact windows: phone numbers only around the job** (API: no
+  migration; owner decision, 18 Oct 2026, no chat or masked calling).
+  Customer app: the booking's Help sheet offers the garage's Call and
+  WhatsApp only from 2 hours before the booking until an hour after the job
+  is done; otherwise it says "The garage's number shows 2 hours before your
+  booking." (or "…is hidden after your booking.") above the Detlio team's
+  Call and WhatsApp, which are always there. The address and Directions are
+  unchanged. Garage portal: a job card always names the customer; Call and
+  WhatsApp show inside the window (now also for the hour after completion),
+  otherwise "Customer's number shows 2 hours before the job." (or "…is hidden
+  after the job.") with "Need to reach the customer? Contact Detlio support"
+  (WhatsApp, booking reference typed in); a doorstep or pickup address stays
+  on the card. The "passed without being accepted" line no longer says to
+  call the customer. Help centre, Terms, Privacy and Service delivery say the
+  window (`apps/users/lib/legal/contact-window.ts`, with a lawyer note:
+  Detlio support is the channel outside it).
+
+- **Detlio Guarantee: a free redo within 48 hours, behind the API's
+  `GUARANTEE_ENABLED` (default off; every entry point hidden while off).**
+  - Customer app: on a completed wash or detailing inside its 48 hours, the
+    booking page offers "Not happy? Detlio Guarantee — free redo", opening
+    `/bookings/[id]/guarantee`: what is wrong (from a list), at least two
+    photos taken with the camera (metadata stripped in the browser), and the
+    garage's before and after photos alongside. Then the claim's status in
+    plain words (waiting for the garage, with Detlio, redo booked for …,
+    refund approved, not approved and why) and, once approved, a picker of
+    the garage's free times within 7 days to book the ₹0 redo. A redo
+    booking says "Free redo" and has no receipt. Checkout shows "Covered by
+    Detlio Guarantee" for washes and detailing; Help has a draft answer
+    (shown only while it is on); Updates has five new rows (`redo_*`).
+    Lawyer notes (never public copy) in `lib/legal/guarantee.ts`, in the
+    Terms' cancellations section.
+  - Garage portal: a Home card and `/guarantee` (owner seat): each claim with
+    the customer's photos beside the garage's before/after, the 12-hour
+    countdown, Accept and Dispute (with a note); "Free redo · ₹0" on the job
+    card.
+  - Admin: **Redo claims** (`/guarantee`, in the header while on): Needs
+    decision / Open / Closed, overdue highlighted, the customer's history and
+    flags (first booking, claims often, claims left); a claim's page with both
+    sides' photos and Decide (redo, refund instead, not approved) with a
+    typed name. The garage card says "N redo claims in 90 days"; the booking
+    detail badges a free redo and a refund instead.
+
 - **Gift a wash: Detlio gifts and Detlio credit** (API 0049, shown only
   while the API has `GIFTS_ENABLED` on; every entry point is hidden while it
   is off or its config is loading, and a gift page opened directly says

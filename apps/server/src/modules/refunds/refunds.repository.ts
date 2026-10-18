@@ -51,10 +51,17 @@ const anyRefunded = (column: AnyPgColumn) => sql`coalesce(${column}, 0) > 0`
  * journey spec (an owed booking shows, a customer no-show does not).
  */
 const BOOKING_PAYMENT_MAY_BE_OWED = and(
-  eq(bookings.status, 'cancelled'),
+  or(
+    and(
+      eq(bookings.status, 'cancelled'),
+      or(isNull(bookings.noShow), ne(bookings.noShow, 'customer')),
+      not(MOVED)
+    ),
+    // A refund instead of a free redo on a completed job (Detlio
+    // Guarantee, 0051).
+    and(eq(bookings.status, 'completed'), isNotNull(bookings.guaranteeRefundAt))
+  ),
   eq(payments.status, 'paid'),
-  or(isNull(bookings.noShow), ne(bookings.noShow, 'customer')),
-  not(MOVED),
   sql`coalesce(${payments.refundedAmount}, 0) < ${payments.amount}`
 )
 
@@ -105,6 +112,8 @@ function bookingPaymentRows(where: SQL | undefined, conn: Conn = db) {
       cancelledAt: bookings.cancelledAt,
       // Cancelled because the garage did not accept in time (0042).
       responseMissedAt: bookings.responseMissedAt,
+      // Detlio approved a refund instead of a free redo (0051).
+      guaranteeRefundAt: bookings.guaranteeRefundAt,
       moved: MOVED,
       ...CUSTOMER_AND_GARAGE,
     })

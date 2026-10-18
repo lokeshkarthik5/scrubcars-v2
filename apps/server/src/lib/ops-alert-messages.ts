@@ -14,6 +14,13 @@ const ADMIN_GIFTS_URL = 'https://admin.detlio.com/gifts'
 const ADMIN_PAYOUTS_URL = 'https://admin.detlio.com/payouts'
 const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
 const ADMIN_VENDORS_URL = 'https://admin.detlio.com/vendors'
+const ADMIN_BYPASS_REPORTS_URL = 'https://admin.detlio.com/bypass-reports'
+const ADMIN_GUARANTEE_URL = 'https://admin.detlio.com/guarantee'
+
+/** A free redo claim's page in admin (Detlio Guarantee, 0051). */
+export function adminClaimUrl(id: string): string {
+  return `${ADMIN_GUARANTEE_URL}/${id}`
+}
 
 /** A garage's Documents tab in admin, where its uploads are approved or rejected. */
 export function adminGarageDocumentsUrl(vendorId: string): string {
@@ -23,6 +30,11 @@ export function adminGarageDocumentsUrl(vendorId: string): string {
 /** A garage's Certification tab in admin: its standards, checks, Certify and Revoke. */
 export function adminGarageCertificationUrl(vendorId: string): string {
   return `${ADMIN_VENDORS_URL}/${vendorId}/edit?tab=certification`
+}
+
+/** A garage's page in admin (its strikes show at the top). */
+export function adminGarageUrl(vendorId: string): string {
+  return `${ADMIN_VENDORS_URL}/${vendorId}/edit`
 }
 
 /** A complaint's own page in admin, where it is acknowledged and answered. */
@@ -366,6 +378,35 @@ export type OpsAlert =
     }
   | {
       /**
+       * "Did the garage ask you to book directly?" (0052): a customer reported
+       * a garage. Never who reported it (the garage must never learn it, and
+       * the group chat keeps everything): the garage, the booking, what
+       * happened and the customer's note, quoted and scrubbed.
+       */
+      kind: 'bypass_report_received'
+      garage: string
+      bookingId: string | null
+      /** What happened, as the customer picked it. */
+      what: string
+      note: string | null
+      /** The garage's strikes before this report is looked at. */
+      strikes: number
+    }
+  | {
+      /**
+       * A confirmed report took a garage to 2 strikes (confirmed reports in
+       * the last 180 days): time to talk to it, or to suspend it.
+       */
+      kind: 'bypass_strikes_reached'
+      vendorId: string
+      garage: string
+      strikes: number
+      windowDays: number
+      /** Detlio Certified now: it will be at risk at the next nightly check. */
+      certified: boolean
+    }
+  | {
+      /**
        * Gift a wash (0049): a Razorpay payment for a gift that had already
        * been paid another way (two payments on one order), or for a gift the
        * team had cancelled. The gift itself is unchanged; the money is to
@@ -376,6 +417,35 @@ export type OpsAlert =
       paymentId: string
       amount: string
       why: 'already_paid' | 'cancelled'
+    }
+  | {
+      /**
+       * A customer asked for a free redo (Detlio Guarantee, 0051), and where
+       * it went: to the garage to answer, to Detlio (a review flag, or photos
+       * waived), or approved at once because the garage took no photos.
+       */
+      kind: 'guarantee_claim'
+      claimId: string
+      bookingId: string
+      garageName: string
+      route: 'garage' | 'detlio' | 'auto'
+      /** lib/guarantee.ts ROUTE_REASON_LABELS of its reasons. */
+      reasons: string[]
+      /** ISSUE_LABELS of what the customer picked. */
+      issues: string[]
+      respondBy: Date | null
+      decideBy: Date | null
+    }
+  | {
+      /** A claim now needs Detlio: the garage disputed it, or the redo did not happen on its side. */
+      kind: 'guarantee_needs_detlio'
+      claimId: string
+      bookingId: string
+      garageName: string
+      why: 'disputed' | 'redo_failed'
+      /** The garage's note on a dispute; quoted, scrubbed and cut short here. */
+      note: string | null
+      decideBy: Date
     }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
@@ -861,6 +931,56 @@ export function formatOpsAlert(alert: OpsAlert): string {
         alert.how === 'revoked' ? quoted('Reason', alert.reason) : null,
         'Customers no longer see the seal.',
         adminGarageCertificationUrl(alert.vendorId)
+      )
+
+    case 'bypass_report_received':
+      return lines(
+        `🚩 Bypass report: ${alert.garage}`,
+        [alert.bookingId ? `booking #${reference(alert.bookingId)}` : null, alert.what].filter(Boolean).join(' · '),
+        alert.note ? quoted('Customer wrote', alert.note) : null,
+        alert.strikes > 0
+          ? `This garage has ${alert.strikes} ${alert.strikes === 1 ? 'strike' : 'strikes'} already.`
+          : null,
+        'Look into it, then Confirm or Dismiss. The garage must never learn who reported it.',
+        ADMIN_BYPASS_REPORTS_URL
+      )
+
+    case 'bypass_strikes_reached':
+      return lines(
+        `⛔ ${alert.garage} reached ${alert.strikes} strikes`,
+        `${alert.strikes} confirmed reports of taking customers off Detlio in the last ${alert.windowDays} days.`,
+        alert.certified
+          ? 'It is Detlio Certified: the next nightly check puts the seal at risk.'
+          : null,
+        'Talk to the garage about its agreement, or pause or suspend it.',
+        adminGarageUrl(alert.vendorId)
+      )
+
+    case 'guarantee_claim':
+      return lines(
+        alert.route === 'auto'
+          ? `🔁 Free redo approved automatically — no garage photos · #${reference(alert.bookingId)}`
+          : alert.route === 'garage'
+            ? `🔁 New free redo claim · #${reference(alert.bookingId)} · with the garage`
+            : `🔁 New free redo claim · #${reference(alert.bookingId)} · needs Detlio`,
+        `Garage: ${alert.garageName}`,
+        `What's wrong: ${alert.issues.join(', ')}`,
+        alert.reasons.length > 0 ? `Why: ${alert.reasons.join(', ')}` : null,
+        alert.respondBy ? `Garage answers by ${when(alert.respondBy)}; no answer approves it.` : null,
+        alert.decideBy ? `Decide by ${when(alert.decideBy)}.` : null,
+        alert.route === 'auto' ? 'The garage took no before/after photos, so there was nothing to defend it with.' : null,
+        adminClaimUrl(alert.claimId)
+      )
+
+    case 'guarantee_needs_detlio':
+      return lines(
+        alert.why === 'disputed'
+          ? `⚖️ Free redo claim disputed by the garage · #${reference(alert.bookingId)}`
+          : `⚖️ Free redo did not happen on the garage's side · #${reference(alert.bookingId)}`,
+        `Garage: ${alert.garageName}`,
+        alert.why === 'disputed' ? quoted('Garage wrote', alert.note) : 'Approve another redo, a refund instead, or close it.',
+        `Decide by ${when(alert.decideBy)}, comparing both sides' photos.`,
+        adminClaimUrl(alert.claimId)
       )
 
     case 'gift_payment_stray':

@@ -49,6 +49,119 @@ reconstructing every change in them.
   - Usage events replace a `/verify/<token>` path's token with `:token`
     (`cleanPath`, both twins).
 
+- **"Did the garage ask you to book directly?" reports, garage strikes and
+  customer drop-off** (migration `0052_bypass_reports`, additive, after
+  0049; 0050–0051 belong to parallel branches and the migrations lint
+  reports the gap until they are merged: new table `bypass_reports` with
+  CHECKs and partial unique indexes, and a new Detlio credit lot kind,
+  `report_reward`, added to `gift_credit_entries`' kind and sign CHECKs).
+  Rules in `lib/bypass-reports.ts` and `lib/drop-off.ts` (pure,
+  unit-tested), words twinned in `packages/core/src/bypass-reports.ts`
+  (parity test).
+  - Customers (`modules/bypass-reports`, `/users/me/bypass-reports`,
+    `.strict()`, the session's own bookings only, anyone else's a 404):
+    `GET …/bookings/:bookingId` (can it be reported, and the report if it
+    was), `POST` (what happened — asked to book directly, a lower price
+    outside Detlio, cash/UPI directly, gave their number, other — and an
+    optional note of up to 500 characters), `GET` (their own). From the
+    garage's acceptance until 30 days after completion (or after a
+    cancellation, if the garage had accepted); one per reschedule chain;
+    at most 5 in any 365 days, counted under `bypass-reports:<userId>`
+    (409 `BYPASS_NOT_YET` / `BYPASS_WINDOW_CLOSED` /
+    `BYPASS_ALREADY_REPORTED` / `BYPASS_REPORT_LIMIT`). Never written to a
+    garage payload, a booking note or a garage push; Telegram
+    `bypass_report_received` names the garage, booking and what happened,
+    never the customer.
+  - Admin (`/admin/bypass-reports`, super-admin): list by New / Confirmed /
+    Dismissed with counts, Confirm (`{ actorName }`) and Dismiss
+    (`{ actorName, reason }`), each once from New (409
+    `BYPASS_REPORT_ANSWERED`), each with an audit row
+    (`bypass_report_confirmed` / `_dismissed`); a garage's strikes
+    (`/vendors/:vendorId`); customer drop-off (`/drop-off`).
+  - Reward only on confirm: ₹100 of Detlio credit, once per customer per
+    garage (partial unique index), a `report_reward` lot (12 months) written
+    through the ledger (`insertReportRewardLot`) under the customer's
+    credit lock, after the garage's `bypass-reports:garage:<id>` lock.
+    While `GIFTS_ENABLED` is off it is recorded as owed and the
+    pending-digest cron grants it once credit is on (20 a run). Push and
+    Updates: "Thanks — ₹100 added to your Detlio credit".
+  - Strikes: confirmed reports confirmed in the last 180 IST days, a
+    Test-marked booking's left out (`strikeCountsByGarage`, the one SQL
+    definition). On `GET /admin/vendors` rows (`bypassStrikes`); reaching 2
+    alerts the team (`bypass_strikes_reached`).
+  - Detlio Certified: a new standard, `bypass` ("Bypass reports (180
+    days)", `maxBypassStrikes: 0`, `bypassWindowDays: 180` in
+    `CERTIFICATION_RULES`): any strike makes a garage ineligible, and a
+    certified garage goes through the usual 14 days at risk before the seal
+    lapses.
+  - Customer drop-off: regulars (3+ completed at a garage in 180 IST days)
+    who have booked nothing anywhere on Detlio for over twice their usual
+    gap (the median gap between their completed bookings, at least 30
+    days); per garage the rate, flagged at 30%+ with 3+ regulars. Computed
+    on request from one bounded read-only query (10 s statement timeout,
+    503 `DROP_OFF_TIMEOUT`); nothing stored.
+  - Gifts summary: `credit.rewarded` (report rewards, Detlio's own money).
+
+- **Contact windows: customer and garage phone numbers only from 2 hours
+  before the job until it's done** (owner decision, 18 Oct 2026; no
+  migration). One pure rule, `lib/contact-window.ts` (`contactWindow`,
+  unit-tested; numbers twinned in `packages/core/src/contact-window.ts` with a
+  parity test): opens 2 hours before the slot (pickup & drop: the pickup
+  slot); in progress, and a pickup car between Picked up and Delivered, is
+  always inside; completed closes 1 hour after completion (Delivered for
+  pickup); a booking nobody started closes 2 hours after its slot; cancelled,
+  no-show or moved is closed at once.
+  - The customer's booking payloads (`GET /bookings/:id`, `/bookings/me`,
+    create, cancel, reschedule) send the garage's `vendor.phone` and
+    `vendor.whatsapp` as null outside the window; the address, pin and maps
+    link stay. The garage's (`toVendorBookingResponse`: `GET /bookings/vendor`,
+    `GET /bookings/:id`, every job action) send the customer's `user.phone` as
+    null outside it; the name stays, and so does a doorstep or pickup address.
+    Both carry `contactWindow { opensAt, closesAt, open }`.
+  - Admin is not windowed. The receipt never printed the garage's phone and
+    still doesn't; push and Updates carry no phone numbers.
+  - E2E fixtures: `VENDORS.contact`, `CUSTOMERS.contact`, `STAFF.contactOwner`
+    and four bookings (ids 3400–3499, phones 90000034xx).
+
+- **Detlio Guarantee: a free redo within 48 hours, decided on photos, with
+  limits against misuse, behind `GUARANTEE_ENABLED` (default off)**
+  (migration `0051_detlio_guarantee`, additive: `bookings.guarantee_redo`
+  (boolean, default false) and `bookings.guarantee_refund_at` (CHECK:
+  completed, not a redo); new tables `guarantee_claims` (one per booking,
+  statuses, route and reasons, the garage's answer and deadline, Detlio's
+  decision with the typed name and the customer-facing reason, `approved_at`,
+  the redo window and booking, how it closed; CHECKs) and
+  `guarantee_claim_photos`. Numbered 0051 after 0049: 0050 (Detlio Rewards)
+  comes from a parallel branch and is merged first; until then
+  `migrate.sh lint` reports the gap).
+  - Rules in `lib/guarantee.ts` (pure; every number in `GUARANTEE_RULES`,
+    twinned in `packages/core/src/guarantee.ts` with a parity test):
+    eligible jobs (completed, paid through Detlio, washes/detailing/packages
+    of them, not inspection, not Test, not a redo, one claim per booking),
+    the 48-hour window, 2–6 photos from the job's own claim folder, the route
+    (garage photos → garage reviews; none → approved at once; waived, a
+    first booking or a frequent claimer → Detlio), the garage's 12 hours of
+    opening hours (no answer = accepted), Detlio's decision, at most 2
+    approved claims per customer in 6 months (under `guarantee:<userId>`).
+  - `modules/guarantee`: customer `/users/me/guarantee` (eligibility,
+    photo upload URL, claim, redo slots, book the redo), garage
+    `/vendors/me/guarantee` (owner seat; support sessions read only),
+    admin `/admin/guarantee` (list, detail, decide with `admin_audit_log`),
+    public `/guarantee/config`.
+  - The redo: a ₹0 confirmed booking through the vehicle lock and
+    `checkGarageCanTake` (the claim row locked first), no receipt number,
+    never rescheduled; it earns nothing and is left out of Statistics,
+    commission's free 25, payouts and the pilot numbers.
+  - Refund instead: `lib/refunds.ts` owes a completed booking's payment when
+    `guarantee_refund_at` is set (Refunds page, `AUTO_REFUNDS` cause
+    `guarantee_refund`, credit back as credit); the garage earns nothing on
+    the job, so a payout already made becomes a negative line.
+  - Approved claims count toward Detlio Certified's complaint rate and the
+    admin garage card. Push and Updates rows for each step ("free redo",
+    as the copy rules require), Telegram `guarantee_claim` and
+    `guarantee_needs_detlio`; the pending-digest cron applies garage
+    timeouts, closes unbooked redo windows and follows redo bookings.
+
 - **Gift a wash: Detlio gifts, Detlio credit, and paying for a booking
   with credit, behind `GIFTS_ENABLED` (default off)** (migration
   `0049_gift_credit`, additive, after 0048: new

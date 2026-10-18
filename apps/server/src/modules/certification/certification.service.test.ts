@@ -70,6 +70,7 @@ beforeAll(() => {
   patch(certificationRepository, 'responseCounts', async () => [])
   patch(certificationRepository, 'complaintCounts', async () => [])
   patch(certificationRepository, 'garageNoShowCounts', async () => [])
+  patch(certificationRepository, 'bypassStrikeCounts', async () => [])
   patch(certificationRepository, 'photoComplianceJobs', async (ids: string[], since: Date) => {
     photosAsked.push({ vendorIds: ids, since })
     return ids.flatMap((vendorId) =>

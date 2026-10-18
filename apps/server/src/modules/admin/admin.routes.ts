@@ -13,6 +13,7 @@ import { adminCreditRoutes } from '../gift-credit/gift-credit.routes.js'
 import { adminGiftRoutes } from '../gifts/gifts.routes.js'
 import { adminCertificateRoutes } from '../certificates/certificates.routes.js'
 import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
+import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
@@ -29,6 +30,7 @@ import {
   addMemberSchema,
   updateMemberSchema,
 } from '../members/members.validation.js'
+import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -400,6 +402,13 @@ adminRoutes.route('/notices', adminNoticeRoutes)
 // Customers' complaints, with their numbers and the 24-hour / 7-day clock.
 // Nested here for the same cookie reason as discounts.
 adminRoutes.route('/complaints', adminComplaintRoutes)
+
+// "Did the garage ask you to book directly?" reports, garage strikes and
+// customer drop-off (0052). Nested here for the same cookie reason.
+adminRoutes.route('/bypass-reports', adminBypassReportRoutes)
+
+// Detlio Guarantee (0051): free redo claims, Detlio's decisions.
+adminRoutes.route('/guarantee', adminGuaranteeRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the
 // owner-phone lookup. Nested here for the same cookie reason as discounts.

@@ -32,6 +32,9 @@ function chainsCte(vendorId?: string): SQL {
       select b.*, coalesce(b.original_booking_id, b.id) as root_id
         from bookings b
        where not exists (select 1 from bookings moved_to where moved_to.rescheduled_from_id = b.id)
+         -- A free redo (Detlio Guarantee, 0051) is the same job again, at
+         -- ₹0: not a booking in any figure, nor in the free-25 queue.
+         and not b.guarantee_redo
          ${vendorId ? sql`and b.vendor_id = ${vendorId}` : sql``}
     ),
     chains as (
@@ -82,6 +85,7 @@ export function statsReads(tx: Tx) {
         refunds_recorded: string | null
         marked_test: boolean
         response_missed: boolean
+        guarantee_refund: boolean
       }>(sql`
         with ${chainsCte(vendorId)}
         select c.root_id,
@@ -122,7 +126,8 @@ export function statsReads(tx: Tx) {
                    and rr.gateway_status is distinct from 'failed'
                ) as refunds_recorded,
                c.marked_test_at is not null as marked_test,
-               c.response_missed_at is not null as response_missed
+               c.response_missed_at is not null as response_missed,
+               c.guarantee_refund_at is not null as guarantee_refund
           from chains c
           join vendors v on v.id = c.vendor_id
           left join payments p on p.booking_id = c.id
@@ -147,6 +152,7 @@ export function statsReads(tx: Tx) {
         refundsRecorded: row.refunds_recorded,
         markedTest: row.marked_test,
         responseMissed: row.response_missed,
+        guaranteeRefund: row.guarantee_refund,
       }))
     },
 

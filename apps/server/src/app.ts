@@ -27,6 +27,7 @@ import { opsRoutes } from './modules/ops/ops.routes.js'
 import { discountsRoutes } from './modules/discounts/discounts.routes.js'
 import { publicGiftRoutes } from './modules/gifts/gifts.routes.js'
 import { publicCertificateRoutes } from './modules/certificates/certificates.routes.js'
+import { publicGuaranteeRoutes } from './modules/guarantee/guarantee.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import { fakeStreamRoutes, webhookRoutes } from './modules/service-media/service-media.routes.js'
@@ -149,6 +150,8 @@ app.route('/api/v1/gifts', publicGiftRoutes)
 // Service History certificate (0053): the public /verify page's lookup and
 // the shared photos it shows. No sign-in.
 app.route('/api/v1/certificates', publicCertificateRoutes)
+// Detlio Guarantee (0051): /config, for the checkout badge and Help.
+app.route('/api/v1/guarantee', publicGuaranteeRoutes)
 app.route('/api/v1/geo', geoRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)

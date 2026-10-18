@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { IconChevronRight, IconCircleX, IconMessageReport } from '@tabler/icons-react'
+import { IconChevronRight, IconCircleX, IconFlag, IconMessageReport, IconPhoneOff } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -10,7 +10,13 @@ import { bookingReference } from '@repo/core/booking-types'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
 import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support'
 import { COMPLAINT_ACKNOWLEDGE_HOURS } from '@repo/core/complaints'
+import { contactWindowState, garageNumberHiddenLine } from '@repo/core/contact-window'
+import { useNow } from '@repo/core/hooks/use-now'
 import type { Booking } from '@repo/core/types'
+import { useBypassStatus } from '@repo/core/api/hooks/use-bypass-reports'
+import { BYPASS_QUESTION } from '@repo/core/bypass-reports'
+import { mayBeReportable } from '@/components/bypass/bypass-report-line'
+import { ReportBypassSheet } from '@/components/bypass/report-bypass-sheet'
 import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet'
 
 interface BookingHelpSheetProps {
@@ -20,16 +26,10 @@ interface BookingHelpSheetProps {
 }
 
 /**
- * The garage is reachable for as long as the job is on — including after it is
- * done, when a customer may need to ask about the work. A cancelled or moved
- * booking has no job left to talk to the garage about; Detlio handles those.
+ * A cancelled or moved booking has no job left to talk to the garage about;
+ * Detlio handles those, so the garage's part of the sheet is left out.
  */
-const GARAGE_REACHABLE: ReadonlySet<Booking['status']> = new Set([
-  'pending',
-  'confirmed',
-  'in_progress',
-  'completed',
-])
+const ENDED: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled'])
 
 /**
  * Who to talk to about this booking, one tap away: the garage for the job
@@ -39,13 +39,25 @@ const GARAGE_REACHABLE: ReadonlySet<Booking['status']> = new Set([
  * Below them, "Raise a complaint": a written complaint about this booking,
  * with a number and the 24-hour clock. It replaces this sheet with its own
  * (two sheets stacked would be two backdrops and two scroll locks); closing
- * it closes Help too.
+ * it closes Help too. While the booking can be reported, "Did the garage ask
+ * you to book directly?" (0052) works the same way.
  */
 export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetProps) {
   const [raising, setRaising] = useState(false)
+  // "Did the garage ask you to book directly?" (0052): the booking page's
+  // own read, shared (one request, one cache).
+  const [reporting, setReporting] = useState(false)
+  const bypass = useBypassStatus(booking.id, open && mayBeReportable(booking)).data
+  const now = useNow(30_000)
   const reference = `#${bookingReference(booking.id)}`
   const garage = booking.garage
-  const showGarage = GARAGE_REACHABLE.has(booking.status) && !!garage
+  // The contact window (owner decision, 18 Oct 2026): the server sends the
+  // garage's phone and WhatsApp only from 2 hours before the booking until
+  // an hour after it is done. Outside it the sheet says when they show, and
+  // the Detlio team below is the way through.
+  const windowState = contactWindowState(booking.contactWindow, now)
+  const showGarage = !ENDED.has(booking.status) && !!garage && windowState === 'open'
+  const garageHidden = !ENDED.has(booking.status) && windowState !== 'open' ? windowState : null
   const garageCall = showGarage ? telHref(garage?.phone) : null
   const garageMessage = `Hi, this is about my Detlio booking ${reference} with you for ${booking.scheduledAt}.`
   // The garage's WhatsApp number when it gave one, else its phone if that is
@@ -57,7 +69,7 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
   return (
     <>
       <ScSheet
-        open={open && !raising}
+        open={open && !raising && !reporting}
         onClose={onClose}
         aria-label="Help with this booking"
         className="px-4 pt-1"
@@ -102,6 +114,21 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
             </section>
           )}
 
+          {garageHidden && (
+            <section className="flex flex-col gap-1">
+              <h3 className="text-[13px] font-semibold text-text-primary">{booking.vendorName}</h3>
+              <p className="flex items-start gap-1.5 text-[12px] text-text-secondary">
+                <IconPhoneOff size={14} className="mt-px shrink-0" aria-hidden />
+                <span>
+                  {garageNumberHiddenLine(garageHidden)}{' '}
+                  {garageHidden === 'before'
+                    ? 'Until then, the Detlio team can pass a message on.'
+                    : 'The Detlio team can reach them for you.'}
+                </span>
+              </p>
+            </section>
+          )}
+
           <section className="flex flex-col gap-2">
             <div>
               <h3 className="text-[13px] font-semibold text-text-primary">Detlio team</h3>
@@ -135,6 +162,23 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
             </ScButton>
           </section>
 
+          {bypass?.canReport && (
+            <section className="flex flex-col gap-2">
+              <div>
+                <h3 className="text-[13px] font-semibold text-text-primary">{BYPASS_QUESTION}</h3>
+                <p className="text-[12px] text-text-secondary">
+                  Tell us in confidence. The garage is never told who reported it.
+                </p>
+              </div>
+              <ScButton variant="secondary" onClick={() => setReporting(true)} className="min-h-11">
+                <span className="flex items-center justify-center gap-2">
+                  <IconFlag size={18} aria-hidden />
+                  Tell us what happened
+                </span>
+              </ScButton>
+            </section>
+          )}
+
           {/* Answers to the usual questions (cancelling, refunds, pickup
               codes), for when there is no one to call about it. */}
           <Link
@@ -149,6 +193,19 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
           </Link>
         </div>
       </ScSheet>
+
+      {bypass?.canReport && (
+        <ReportBypassSheet
+          open={open && reporting}
+          onClose={() => {
+            setReporting(false)
+            onClose()
+          }}
+          booking={{ id: booking.id, reference, vendorName: booking.vendorName }}
+          rewardOffered={bypass.rewardOffered}
+          rewardAmount={bypass.rewardAmount}
+        />
+      )}
 
       <RaiseComplaintSheet
         open={open && raising}

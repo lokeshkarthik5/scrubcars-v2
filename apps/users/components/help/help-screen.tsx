@@ -9,12 +9,13 @@ import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
+import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { CustomerShell } from '@/components/customer-shell'
 import { countQuestions, searchHelp } from '@/lib/help-search'
 import {
   HELP_DRAFT,
-  HELP_GROUPS,
   HELP_INTRO,
+  helpGroupsFor,
   HELP_STILL_NEED,
   type HelpQuestion,
 } from './content'
@@ -32,7 +33,9 @@ export function HelpScreen() {
   const [query, setQuery] = useState('')
   const searched = useDebounced(query, 150)
   const searching = searched.trim().length > 0
-  const groups = searchHelp(HELP_GROUPS, searched)
+  // The Detlio Guarantee's answer only while it is on (0051).
+  const guaranteeOn = useGuaranteeConfig().data?.enabled === true
+  const groups = searchHelp(helpGroupsFor({ guarantee: guaranteeOn }), searched)
   const found = countQuestions(groups)
 
   // /help#cancel opens that answer, once after the first paint (the hash is

@@ -154,6 +154,8 @@ beforeAll(() => {
     responseCounts: async (vendorIds: string[]) => vendorIds.map((vendorId) => ({ vendorId, inTime: 24, missed: 1 })),
     complaintCounts: async () => [],
     garageNoShowCounts: async () => [],
+    // No confirmed bypass reports (0052): the standard is met.
+    bypassStrikeCounts: async () => [],
     // No completed jobs to grade for photos (0045): passes, as nothing to measure.
     photoComplianceJobs: async () => [],
   }

@@ -16,7 +16,10 @@ import {
 } from './common'
 import { BUSINESS, GOVERNING_COURTS } from './details'
 import { LEGAL_PATHS } from './routes'
+import { BYPASS_LAWYER_NOTES } from './bypass-reports'
 import { GIFTS_LAWYER_NOTES } from './gifts'
+import { CONTACT_WINDOW_HOURS, CONTACT_WINDOW_LAWYER_NOTE } from './contact-window'
+import { GUARANTEE_LAWYER_NOTES } from './guarantee'
 
 const COURTS = GOVERNING_COURTS ?? tbc('city whose courts have jurisdiction')
 
@@ -78,8 +81,9 @@ export const TERMS: LegalDoc = {
         },
         {
           kind: 'p',
-          text: `Before you book, the garage's page shows its name, area and rating. After you book, its address, phone and WhatsApp are on your booking page. You can also ask us in writing for the garage's full details (its legal name, address and contact details), and we will give them to you.`,
+          text: `Before you book, the garage's page shows its name, area and rating. After you book, its address is on your booking page, and its phone and WhatsApp are there ${CONTACT_WINDOW_HOURS}. At any other time, ${CONTACT_LINE} and we will pass your message on. You can also ask us in writing for the garage's full details (its legal name, address and contact details), and we will give them to you.`,
         },
+        CONTACT_WINDOW_LAWYER_NOTE,
         {
           kind: 'note',
           text: '**Seller details before purchase.** E-Commerce Rules rule 5(3)(a) requires the garage\'s business name, whether it is registered, its geographic address and its customer care number before purchase. The garage page shows only name, area (the city) and rating; the street address, phone and WhatsApp reach the customer only on the booking page, after paying. The server\'s vendor payload (vendors.service.ts toVendorResponse) carries phone, address, city, pincode and WhatsApp, but the customer app\'s public mapper keeps only the city (mappers.ts mapPublicVendor sets area from it); confirm the public garage endpoint returns them before showing them. No registration-status field exists. This must be fixed in the product before launch (show them on the garage page, or at least at checkout before Pay); the sentence above then changes back.',
@@ -169,6 +173,9 @@ export const TERMS: LegalDoc = {
             `Refunds are made by our team, normally to your original payment method, within ${RULES.refundDays}.`,
           ],
         },
+        // Detlio Guarantee (0051): notes for the lawyer only (notes are never
+        // public copy). The public guarantee terms go here once agreed.
+        ...GUARANTEE_LAWYER_NOTES,
       ],
     },
     {
@@ -205,7 +212,7 @@ export const TERMS: LegalDoc = {
             'Make sure the address and map pin are right. The garage comes to the pin.',
             'Be there at the booked time, or have someone there who can hand over the car and keys.',
             'Give the garage reasonable access to the car, with enough room to work safely, at a place where the car may lawfully be serviced (for example, your building or society allows it).',
-            'Some services may need water or a power point. If you are not sure what the garage needs from you, ask it before the visit (the booking page has the garage\'s phone and WhatsApp).',
+            `Some services may need water or a power point. If you are not sure what the garage needs from you, ask us before the visit, or ask the garage (the booking page has its phone and WhatsApp ${CONTACT_WINDOW_HOURS}).`,
           ],
         },
         {
@@ -377,6 +384,10 @@ export const TERMS: LegalDoc = {
           kind: 'note',
           text: '**Offers on Home and ranking.** Added because Home now shows garages\' promo codes in an order (apps/server/src/lib/offers.ts rankOffers: the team\'s priority, then, only once matching is on, the customer\'s tie to the garage, with Detlio\'s own codes after booked and nearby garages but before every other garage\'s, then the soonest end, then the newest). Detlio ranking its own offers above other garages\' is disclosed here because it is a ranking parameter; if the owner would rather not rank them first, offerTier can give Detlio-wide and other garages\' offers the same tier and this paragraph changes with it. Please confirm that no garage pays for an offer\'s place on Home; if one ever does, the offer must be labelled as sponsored, as the paragraph above promises for listings, and this paragraph must say so.',
         },
+        // "Did the garage ask you to book directly?" (0052): the garage
+        // agreement's non-solicitation clause and the reports, for the lawyer
+        // only (notes are never public copy).
+        ...BYPASS_LAWYER_NOTES,
       ],
     },
     {

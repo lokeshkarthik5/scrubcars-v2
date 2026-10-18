@@ -4,10 +4,12 @@ import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
+import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationService } from '../certification/certification.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { giftsService } from '../gifts/gifts.service.js'
+import { guaranteeService } from '../guarantee/guarantee.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
@@ -48,6 +50,17 @@ export const opsService = {
       .sweep({ dryRun: options.dryRun })
       .catch((err: unknown) => {
         log.error({ err }, 'ops:garage_response_sweep_failed')
+        return { enabled: true as const, error: true as const }
+      })
+
+    // Free redo claims (Detlio Guarantee, 0051): a garage's 12 hours run out
+    // (treated as accepted), a redo window run out (closed), a redo booking
+    // finished one way or another. Nothing at all while GUARANTEE_ENABLED is
+    // off. Quiet hours don't stop it. Never allowed to fail the digest.
+    const guarantee = await guaranteeService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:guarantee_sweep_failed')
         return { enabled: true as const, error: true as const }
       })
 
@@ -121,6 +134,15 @@ export const opsService = {
         log.error({ err }, 'ops:gift_credit_sweep_failed')
         return { error: true as const }
       })
+    // Bypass reports (0052): rewards confirmed while Detlio credit was off
+    // are granted once it is on. Nothing while off. Bounded, never allowed
+    // to fail the digest.
+    const bypassRewards = await bypassReportsService
+      .sweepOwedRewards({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:bypass_reward_sweep_failed')
+        return { error: true as const }
+      })
     const giftCodeAttemptsPurged = options.dryRun
       ? 0
       : await giftsService.purgeAttempts().catch((err: unknown) => {
@@ -179,6 +201,8 @@ export const opsService = {
       serviceReminders,
       slotAlerts,
       giftCredit,
+      bypassRewards,
+      guarantee,
       giftCodeAttemptsPurged,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }

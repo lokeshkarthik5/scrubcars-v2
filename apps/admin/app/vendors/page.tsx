@@ -10,6 +10,8 @@ import {
   IconArchiveOff,
   IconBuildingStore,
   IconCamera,
+  IconFlag,
+  IconRefresh,
   IconCheck,
   IconChevronDown,
   IconChevronRight,
@@ -78,6 +80,7 @@ import {
   useArchiveAdminVendor,
   useVerifyAdminVendor,
 } from '@repo/core/api/hooks/use-admin-vendors'
+import { strikesHighlighted, strikesLabel } from '@repo/core/bypass-reports'
 import { cn } from '@repo/core/utils'
 
 // The small actions on a garage's card: outline, 44px tall, never red.
@@ -651,6 +654,37 @@ function GarageCard({
             <span className="text-text-muted">
               (<Figures text={`${v.photoCompliance.compliant} of ${v.photoCompliance.jobs}, last 90 days`} />)
             </span>
+          </span>
+        </p>
+      )}
+
+      {/* Bypass reports (0052): confirmed reports of taking customers off
+          Detlio in the last 180 days. 2 or more in red. Straight to the
+          confirmed list. */}
+      {(v.bypassStrikes ?? 0) > 0 && (
+        <Link
+          href="/bypass-reports?show=confirmed"
+          className={cn(
+            'mt-1 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium underline-offset-2 hover:underline',
+            strikesHighlighted(v.bypassStrikes ?? 0) ? 'text-error' : 'text-text-primary'
+          )}
+        >
+          <IconFlag size={15} aria-hidden="true" className="shrink-0" />
+          <span className="font-numeric">{strikesLabel(v.bypassStrikes ?? 0)}</span>
+          <span className="text-text-muted">· bypass reports, last 180 days</span>
+          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+        </Link>
+      )}
+
+      {/* Detlio Guarantee (0051): approved free redo claims against it in
+          the last 90 days. Only while the guarantee is on, and only when
+          there are some. */}
+      {typeof v.redoClaims90d === 'number' && v.redoClaims90d > 0 && (
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
+          <IconRefresh size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <span className="truncate">
+            <span className={cn('font-numeric', v.redoClaims90d >= 3 && 'text-warning')}>{v.redoClaims90d}</span>{' '}
+            redo claim{v.redoClaims90d === 1 ? '' : 's'} in 90 days
           </span>
         </p>
       )}

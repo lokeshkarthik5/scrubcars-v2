@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import {
+  IconShieldCheck,
+  IconShieldX,
   IconArrowUpRight,
   IconBell,
   IconBuildingStore,
@@ -13,6 +15,7 @@ import {
   IconCircleCheck,
   IconClock,
   IconFileInvoice,
+  IconGift,
   IconMessageCheck,
   IconMessageDots,
   IconMessageX,
@@ -64,6 +67,14 @@ const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   service_reminder: IconSparkles,
   // "Notify me if a slot opens" (0047): it opens checkout on that day.
   slot_opened: IconBell,
+  // A confirmed bypass report's reward (0052), opening Detlio credit.
+  report_reward: IconGift,
+  // Free redo claims (Detlio Guarantee, 0051).
+  redo_claim: IconShieldCheck,
+  redo_approved: IconShieldCheck,
+  redo_refund: IconReceiptRefund,
+  redo_not_approved: IconShieldX,
+  redo_closed: IconShieldX,
 }
 
 export interface UpdateRowData {

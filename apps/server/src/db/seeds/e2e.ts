@@ -82,6 +82,8 @@ import {
   VENDORS,
   fillerVendorId,
   SERVICE_REMINDERS,
+  CONTACT_DOORSTEP,
+  CONTACT_GARAGE,
 } from './e2e-ids.js'
 
 // ─── time helpers ───────────────────────────────────────────────────────────
@@ -2383,6 +2385,73 @@ async function seedCertificateRows() {
     scheduledAt: daysAgo(5), status: 'cancelled', items: [item(SERVICES.certificateWash)],
     createdAt: daysAgo(7),
     cancellation: { by: 'user', reason: 'Plans changed', at: daysAgo(6) },
+    })
+}
+
+/**
+ * Contact windows: VENDORS.contact with its owner's seat, hours and one wash
+ * (pending and unverified, so no customer list shows it), CUSTOMERS.contact's
+ * car, and four paid washes there, one inside the window and three outside
+ * (see BOOKINGS.contactSoon). Every id and phone is in the 3400–3499 /
+ * 90000034xx range reserved for this feature.
+ */
+async function seedContactWindowRows() {
+  const garage = VENDORS.contact.id
+  const customer = CUSTOMERS.contact
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.contactOwner.id, businessName: VENDORS.contact.name,
+    phone: CONTACT_GARAGE.phone, whatsapp: CONTACT_GARAGE.whatsapp,
+    address: '3, Window Street, Adyar', city: 'Chennai', pincode: '600020',
+    lat: 13.0067, lng: 80.2571,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: true, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 2,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.contactOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.contactWash.id, vendorId: garage, name: SERVICES.contactWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.contactWash.price, durationMins: SERVICES.contactWash.durationMins, isActive: true,
+  })
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Hyundai', model: 'i20', color: 'White',
+    licensePlate: 'TN07CW0001', vehicleType: 'hatchback', isDefault: true,
+  })
+
+  const items = [{
+    id: SERVICES.contactWash.id, name: SERVICES.contactWash.name,
+    amount: SERVICES.contactWash.price, durationMins: SERVICES.contactWash.durationMins,
+  }]
+  const common = { userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId, items }
+
+  // In an hour: inside the window, so both numbers show.
+  await insertBooking({
+    ...common, id: BOOKINGS.contactSoon, scheduledAt: insideCutoff(), status: 'confirmed',
+    payment: { status: 'paid', txnId: 'pay_seed_contact_soon', gatewayMode: 'fake' },
+    createdAt: daysAgo(1), acceptedAt: hoursAgo(20),
+  })
+  // Two days ahead: the numbers show 2 hours before.
+  await insertBooking({
+    ...common, id: BOOKINGS.contactLater, scheduledAt: daysAheadAt(2, 11), status: 'confirmed',
+    payment: { status: 'paid', txnId: 'pay_seed_contact_later', gatewayMode: 'fake' },
+    createdAt: daysAgo(1), acceptedAt: hoursAgo(20),
+  })
+  // Done three hours ago: the hour after has passed, so both are hidden.
+  await insertBooking({
+    ...common, id: BOOKINGS.contactDone, scheduledAt: hoursAgo(4), status: 'completed',
+    payment: { status: 'paid', txnId: 'pay_seed_contact_done', gatewayMode: 'fake' },
+    createdAt: daysAgo(2), acceptedAt: daysAgo(1), startedAt: hoursAgo(4), completedAt: hoursAgo(3),
+  })
+  // Pending, at the customer's door, tomorrow: the garage plans the route
+  // from the address now, and calls from 2 hours before.
+  await insertBooking({
+    ...common, id: BOOKINGS.contactDoorstep, scheduledAt: tomorrowAt(15), status: 'pending',
+    doorstep: { ...CONTACT_DOORSTEP },
+    payment: { status: 'paid', txnId: 'pay_seed_contact_doorstep', gatewayMode: 'fake' },
+    createdAt: hoursAgo(1),
   })
 }
 
@@ -2439,6 +2508,8 @@ async function main() {
   await seedSlotAlertRows()
   console.log('[e2e-seed] service history certificate…')
   await seedCertificateRows()
+  console.log('[e2e-seed] contact windows…')
+  await seedContactWindowRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
