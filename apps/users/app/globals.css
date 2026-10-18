@@ -905,15 +905,15 @@ html:has(.legal-doc) {
 }
 .gift-card--midnight,
 .gift-card--diwali,
-.gift-card--thankyou {
+.gift-card--thank_you {
   --gc-texture:
     repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px),
     repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.06) 0 2px, transparent 2px 7px);
 }
 .gift-card--pearl {
   --gc-texture:
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.018) 0 2px, transparent 2px 7px);
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0 2px, transparent 2px 7px);
 }
 
 /* Shine: graphite and carbon, a red floor light and the red sweep. */
@@ -940,20 +940,25 @@ html:has(.legal-doc) {
   --car-glass: #050817;
   --car-floor: rgba(170, 195, 255, 0.4);
 }
-/* Pearl: soft pearl and silver with a faint iridescence, a dark car. */
+/*
+ * Pearl: a deeper pearl and brushed silver, toned down so it never outshines
+ * the dark page, with a faint iridescence and a dark car. The ink and the
+ * muted line are solid dark greys: at least 4.5:1 wherever text sits (the
+ * darkest corner, bottom right, is under the car).
+ */
 .gift-card--pearl {
   --gc-bg:
-    radial-gradient(90% 120% at 12% 0%, rgba(255, 255, 255, 0.75), transparent 60%),
-    radial-gradient(70% 90% at 100% 100%, rgba(196, 181, 253, 0.38), transparent 62%),
-    radial-gradient(60% 80% at 70% 15%, rgba(186, 230, 253, 0.40), transparent 60%),
-    linear-gradient(150deg, #E2E5EB 0%, #C6CBD5 55%, #A5ABB8 100%);
-  --gc-edge: rgba(255, 255, 255, 0.45);
+    radial-gradient(90% 120% at 12% 0%, rgba(255, 255, 255, 0.30), transparent 60%),
+    radial-gradient(70% 90% at 100% 100%, rgba(196, 181, 253, 0.22), transparent 62%),
+    radial-gradient(60% 80% at 70% 15%, rgba(186, 230, 253, 0.20), transparent 60%),
+    linear-gradient(150deg, #B4B9C3 0%, #979DA9 55%, #7A8190 100%);
+  --gc-edge: rgba(255, 255, 255, 0.28);
   --gc-ink: #111115;
-  --gc-muted: rgba(17, 17, 21, 0.66);
-  --gc-sheen: rgba(255, 255, 255, 0.9);
+  --gc-muted: #1E2026;
+  --gc-sheen: rgba(255, 255, 255, 0.55);
   --car-top: #3B3D47;
   --car-bottom: #0B0B0E;
-  --car-rim: rgba(255, 255, 255, 0.8);
+  --car-rim: rgba(255, 255, 255, 0.7);
   --car-floor: rgba(20, 20, 30, 0.35);
 }
 /* Birthday: plum, carbon, confetti, a warm sweep. */
@@ -983,7 +988,7 @@ html:has(.legal-doc) {
   --car-wheel: rgba(255, 226, 170, 0.75);
 }
 /* Thank you: deep teal, brushed, a satin ribbon. */
-.gift-card--thankyou {
+.gift-card--thank_you {
   --gc-bg:
     radial-gradient(100% 120% at 88% 0%, rgba(94, 234, 212, 0.20), transparent 55%),
     linear-gradient(155deg, #12352F 0%, #0B221F 55%, #061110 100%);

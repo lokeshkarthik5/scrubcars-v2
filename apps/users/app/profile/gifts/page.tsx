@@ -150,7 +150,7 @@ export default function SentGiftsPage() {
                 <ScCard className="flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-3">
                     {/* The card as sent, in its stored design. */}
-                    <GiftCardArt design={gift.design} variant="swatch" className="w-[64px] shrink-0" />
+                    <GiftCardArt design={gift.design} variant="thumb" className="w-[64px] shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[15px] font-semibold text-text-primary">
                         <span className="font-numeric">{giftRupees(gift.amount)}</span> for {gift.recipientName}

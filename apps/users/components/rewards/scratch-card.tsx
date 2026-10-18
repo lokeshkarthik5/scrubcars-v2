@@ -13,7 +13,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { livePendingCheckout, usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { cn } from '@repo/core/utils'
 import { CarSilhouette } from '@/components/car-silhouette'
-import { burstConfetti } from '@/lib/confetti'
+import { JACKPOT_CONFETTI_COLORS, burstConfetti } from '@/lib/confetti'
 import { isMoneyPrize, prizeLines, prizeTier, voucherEndsAt } from '@/lib/scratch-prize'
 
 /** The share of the foil scratched off before the rest falls away. */
@@ -167,7 +167,7 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
       // Not every browser lets a page buzz; the reveal is the same without it.
     }
     if (prizeTier(result.outcome) !== 'jackpot' || reduced || !confettiRef.current) return
-    return burstConfetti(confettiRef.current, { originY: 0.5, durationMs: 1500 })
+    return burstConfetti(confettiRef.current, { originY: 0.5, durationMs: 1500, colors: JACKPOT_CONFETTI_COLORS })
   }, [justRevealed, result, reduced])
 
   const ask = useCallback(() => {

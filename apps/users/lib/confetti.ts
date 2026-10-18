@@ -5,7 +5,14 @@
  * over the moment with `pointer-events: none`. Returns a stop function.
  */
 
-const DEFAULT_COLORS = ['#F7D58B', '#E2B451', '#FFF4D6', '#DCE1EC', '#FAFAFA', '#E4002B']
+/**
+ * The free wash's confetti bursts over a gold card, so no piece is gold or
+ * yellow (it would vanish into the card): Detlio red, white, graphite and
+ * silver, each of which stands out on the gold and on the dark page.
+ */
+export const JACKPOT_CONFETTI_COLORS = ['#E4002B', '#FAFAFA', '#2A2B33', '#C9CED8', '#B80022', '#8E94A0']
+
+const DEFAULT_COLORS = JACKPOT_CONFETTI_COLORS
 
 interface Piece {
   x: number

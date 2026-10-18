@@ -2,30 +2,19 @@ import { describe, expect, test } from 'bun:test'
 import { BADGE_CATALOG } from '@repo/core/achievements'
 import type { CabinetBadge } from '@repo/core/api/reward-extras'
 import { featuredBadges } from './featured-badges'
-import { GIFT_ARTS, giftArtFor, giftPathWithArt, occasionFromHash, storedGiftDesign } from './gifts'
+import { JACKPOT_CONFETTI_COLORS } from './confetti'
+import { GIFT_ARTS, giftArtFor } from './gifts'
 import { isMoneyPrize, prizeLines, prizeTier, voucherEndsAt } from './scratch-prize'
 import { splitBig } from './wrapped-image'
 
 describe('gift artwork', () => {
-  test('every artwork is stored as a design the server takes', () => {
-    for (const art of GIFT_ARTS) expect(['shine', 'midnight', 'fresh']).toContain(storedGiftDesign(art))
-    expect(storedGiftDesign('pearl')).toBe('fresh')
+  test('every card is a design the server stores as itself', () => {
+    expect([...GIFT_ARTS]).toEqual(['shine', 'midnight', 'pearl', 'birthday', 'diwali', 'thank_you'])
+    for (const art of GIFT_ARTS) expect(giftArtFor(art)).toBe(art)
   })
 
-  test('the stored look, or the occasion from the link when it matches', () => {
+  test('gifts bought before 0055 as fresh are drawn as Pearl', () => {
     expect(giftArtFor('fresh')).toBe('pearl')
-    expect(giftArtFor('midnight', 'diwali')).toBe('diwali')
-    // An occasion that does not go with the stored design is ignored.
-    expect(giftArtFor('shine', 'diwali')).toBe('shine')
-    expect(giftArtFor('shine', 'nonsense')).toBe('shine')
-  })
-
-  test('the occasion rides in the fragment only', () => {
-    expect(giftPathWithArt('/gift/ABC', 'birthday')).toBe('/gift/ABC#card=birthday')
-    expect(giftPathWithArt('/gift/ABC', 'shine')).toBe('/gift/ABC')
-    expect(occasionFromHash('#card=thankyou')).toBe('thankyou')
-    expect(occasionFromHash('#card=midnight')).toBeNull()
-    expect(occasionFromHash('')).toBeNull()
   })
 })
 
@@ -42,6 +31,18 @@ describe('scratch prizes', () => {
   test('the words', () => {
     expect(prizeLines({ outcome: 'medium_off', amount: '50.00' })).toEqual({ eyebrow: 'You won', big: '₹50', small: 'off your next booking' })
     expect(prizeLines({ outcome: 'free_wash', amount: '299.00' }).small).toBe('Up to ₹299 off a booking')
+  })
+
+  test('the free wash confetti has no gold or yellow piece to vanish into the gold card', () => {
+    for (const hex of JACKPOT_CONFETTI_COLORS) {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      const max = Math.max(r, g, b)
+      const min = Math.min(r, g, b)
+      const saturated = max > 0 && (max - min) / max > 0.25
+      // Gold and yellow: red and green both high, blue clearly lower.
+      const goldish = saturated && g > 0.45 && r - b > 0.25
+      expect(goldish).toBe(false)
+    }
   })
 
   test('a voucher ends at the end of its last day in India', () => {

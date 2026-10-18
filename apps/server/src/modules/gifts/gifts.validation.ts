@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { GIFT_DESIGNS, GIFT_MAX_AMOUNT, GIFT_MIN_AMOUNT } from '../../lib/gift-credit.js'
+import { GIFT_BUY_DESIGNS, GIFT_MAX_AMOUNT, GIFT_MIN_AMOUNT, giftDesignToStore } from '../../lib/gift-credit.js'
 
 export const giftIdParamSchema = z.object({ id: z.uuid() })
 
@@ -11,13 +11,16 @@ const plainText = (max: number) =>
     .max(max)
     .refine((value) => !/[\u0000-\u001f\u007f]/.test(value), 'Use plain text')
 
-/** Buying a gift: the amount in whole rupees, who it's for, a message, a card. */
+/**
+ * Buying a gift: the amount in whole rupees, who it's for, a message, a card.
+ * `fresh` (an app from before 0055) is taken and stored as `pearl`.
+ */
 export const buyGiftSchema = z
   .object({
     amount: z.number().int().min(GIFT_MIN_AMOUNT).max(GIFT_MAX_AMOUNT),
     recipientName: plainText(60).pipe(z.string().min(1, "Type the person's name")),
     message: plainText(200).optional(),
-    design: z.enum(GIFT_DESIGNS),
+    design: z.enum([...GIFT_BUY_DESIGNS, 'fresh']).transform(giftDesignToStore),
   })
   .strict()
 

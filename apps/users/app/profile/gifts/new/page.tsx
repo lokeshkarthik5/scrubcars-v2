@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { IconLoader2 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { useHeroShine } from '@repo/ui/sc/hero-shine'
 import { Chip } from '@repo/ui/sc/chip'
 import { SkeletonCard } from '@repo/ui/sc/empty-state'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
@@ -29,7 +30,6 @@ import {
   giftAmountProblem,
   giftRupees,
   parseGiftAmount,
-  storedGiftDesign,
   type GiftArt,
 } from '@/lib/gifts'
 
@@ -70,6 +70,9 @@ export default function NewGiftPage() {
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>({ kind: 'form' })
+  // Pay is the screen's one red action: Home's gradient pill, its shine run
+  // once per visit however often the button turns disabled and back.
+  const { attach: attachPayShine, className: payShineClass } = useHeroShine<HTMLButtonElement>()
 
   const title = phase.kind === 'shared' ? 'Share your gift' : 'Gift a wash'
   const header = <TopBar title={title} showBack backHref="/profile/gifts" large={isHomeHubEnabled()} />
@@ -113,8 +116,8 @@ export default function NewGiftPage() {
   }
 
   const limits = config.data
-  // Every artwork whose stored design the server takes (all six today).
-  const arts = GIFT_ARTS.filter((value) => limits.designs.includes(storedGiftDesign(value)))
+  // Every card the server offers (all six today), in the app's order.
+  const arts = GIFT_ARTS.filter((value) => limits.designs.includes(value))
   const amount = preset === 'other' ? parseGiftAmount(otherAmount) : preset
   const amountProblem = giftAmountProblem(amount, limits)
   const name = recipientName.trim()
@@ -129,7 +132,7 @@ export default function NewGiftPage() {
         amount,
         recipientName: name,
         message: message.trim() || undefined,
-        design: storedGiftDesign(art),
+        design: art,
       })
       await openRazorpayCheckout({
         order,
@@ -183,7 +186,7 @@ export default function NewGiftPage() {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
-        <GiftShare gift={phase.gift} link={phase.link} art={art} />
+        <GiftShare gift={phase.gift} link={phase.link} />
         <Link
           href="/profile/gifts"
           className="flex min-h-11 items-center justify-center text-[13px] font-medium text-text-secondary hover:text-text-primary"
@@ -321,16 +324,19 @@ export default function NewGiftPage() {
         </p>
       )}
 
-      <ScButton onClick={() => void pay()} disabled={!canPay} className="min-h-11">
-        {paying ? (
-          'Opening payment…'
-        ) : amount !== null && !amountProblem ? (
-          <>
-            Pay <span className="font-numeric font-bold">{giftRupees(amount)}</span>
-          </>
-        ) : (
-          'Pay'
-        )}
+      <ScButton ref={attachPayShine} variant="hero" onClick={() => void pay()} disabled={!canPay} className={payShineClass}>
+        {/* The label sits above the band of light only as an element of its own. */}
+        <span>
+          {paying ? (
+            'Opening payment…'
+          ) : amount !== null && !amountProblem ? (
+            <>
+              Pay <span className="font-numeric font-bold">{giftRupees(amount)}</span>
+            </>
+          ) : (
+            'Pay'
+          )}
+        </span>
       </ScButton>
     </CustomerShell>
   )

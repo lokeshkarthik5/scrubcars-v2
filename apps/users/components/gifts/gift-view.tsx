@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,14 +16,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
 import { GiftCardArt } from '@/components/gifts/gift-card-art'
 import { GiftsUnavailable } from '@/components/gifts/gifts-unavailable'
-import { formatGiftDate, giftArtFor, giftRupees, occasionFromHash } from '@/lib/gifts'
-
-function onHashChange(callback: () => void) {
-  window.addEventListener('hashchange', callback)
-  return () => window.removeEventListener('hashchange', callback)
-}
-const readHash = () => window.location.hash
-const noHash = () => ''
+import { formatGiftDate, giftArtFor, giftRupees } from '@/lib/gifts'
 
 /** What a gift that can't be redeemed says instead of the button. */
 function closedLine(gift: PublicGift): string | null {
@@ -70,15 +63,12 @@ export function GiftView({ code }: { code: string }) {
   const [redeeming, setRedeeming] = useState(false)
   const [redeemed, setRedeemed] = useState<RedeemResult | null>(null)
   const [redeemError, setRedeemError] = useState<string | null>(null)
-  // The occasion artwork, from the link's fragment (#card=diwali), which
-  // only the browser sees.
-  const occasion = occasionFromHash(useSyncExternalStore(onHashChange, readHash, noHash))
 
   const redeem = async () => {
     if (redeeming) return
     if (!user) {
-      // Back to this page after signing in, with the occasion kept.
-      router.push(`/login?next=${encodeURIComponent(`/gift/${code}${occasion ? `#card=${occasion}` : ''}`)}`)
+      // Back to this page after signing in.
+      router.push(`/login?next=${encodeURIComponent(`/gift/${code}`)}`)
       return
     }
     setRedeeming(true)
@@ -133,7 +123,8 @@ export function GiftView({ code }: { code: string }) {
 
     return (
       <>
-        <GiftCardArt design={giftArtFor(gift.design, occasion)} amount={gift.amount} recipientName={gift.recipientName} />
+        {/* The stored card (0055); an old link's #card= fragment is ignored. */}
+        <GiftCardArt design={giftArtFor(gift.design)} amount={gift.amount} recipientName={gift.recipientName} />
 
         <div className="flex flex-col gap-1">
           <h1 className="text-[20px] font-semibold leading-tight text-text-primary">

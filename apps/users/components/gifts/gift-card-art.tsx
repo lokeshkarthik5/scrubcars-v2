@@ -2,7 +2,7 @@ import { useId } from 'react'
 import type { GiftDesign } from '@repo/core/api/gifts'
 import { cn } from '@repo/core/utils'
 import { CarSilhouette } from '@/components/car-silhouette'
-import { giftRupees, type GiftArt } from '@/lib/gifts'
+import { giftArtFor, giftRupees, type GiftArt } from '@/lib/gifts'
 
 /** The small line top right: what kind of gift it is. */
 const KIND: Record<GiftArt, string> = {
@@ -11,7 +11,7 @@ const KIND: Record<GiftArt, string> = {
   pearl: 'Gift card',
   birthday: 'Happy birthday',
   diwali: 'Happy Diwali',
-  thankyou: 'Thank you',
+  thank_you: 'Thank you',
 }
 
 /** Birthday: confetti in soft gold, pink, silver and teal (never red: red is the page's button). */
@@ -121,9 +121,11 @@ function ThankYouMotif() {
  * sweeps across once (red on Shine, silver on Midnight and Pearl, warm on
  * the occasions); under reduced motion it rests, still.
  *
- * `swatch` is the small tile of the picker: the artwork only. A picture of
- * the card either way, so its words are hidden from screen readers; the
- * page around it says the same in text.
+ * `swatch` is the small tile of the picker: the artwork and the wordmark.
+ * `thumb` is the 64 px tile of "Gifts you sent": the artwork alone (the
+ * amount is in the line beside it; a wordmark that small is a smudge). A
+ * picture of the card either way, so its words are hidden from screen
+ * readers; the page around it says the same in text.
  */
 export function GiftCardArt({
   design,
@@ -132,15 +134,15 @@ export function GiftCardArt({
   className,
   variant = 'card',
 }: {
-  /** An artwork, or a stored design (`fresh` draws Pearl). */
-  design: GiftArt | GiftDesign
+  /** A stored design (`fresh`, from before 0055, draws Pearl). */
+  design: GiftDesign
   amount?: string | number | null
   recipientName?: string
   className?: string
-  variant?: 'card' | 'swatch'
+  variant?: 'card' | 'swatch' | 'thumb'
 }) {
-  const art: GiftArt = design === 'fresh' ? 'pearl' : design
-  const swatch = variant === 'swatch'
+  const art = giftArtFor(design)
+  const swatch = variant !== 'card'
   return (
     <div
       aria-hidden="true"
@@ -149,11 +151,11 @@ export function GiftCardArt({
       <span className="gift-card__texture" />
       {art === 'birthday' && <BirthdayMotif />}
       {art === 'diwali' && <DiwaliMotif />}
-      {art === 'thankyou' && <ThankYouMotif />}
+      {art === 'thank_you' && <ThankYouMotif />}
       <CarSilhouette className="gift-card__car" />
       {!swatch && <span className="gift-card__sheen" />}
 
-      {swatch ? (
+      {variant === 'thumb' ? null : swatch ? (
         <span className="gift-card__mark absolute left-2 top-1.5 text-[10px] font-semibold tracking-[-0.01em]">
           Detlio<span className="text-brand-red">.</span>
         </span>

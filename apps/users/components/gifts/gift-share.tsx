@@ -8,16 +8,7 @@ import { ScCard } from '@repo/ui/sc/card'
 import { Notice } from '@repo/ui/sc/notice'
 import type { GiftLink, SentGift } from '@repo/core/api/gifts'
 import { GiftCardArt } from '@/components/gifts/gift-card-art'
-import {
-  formatGiftCode,
-  formatGiftDate,
-  giftArtFor,
-  giftPathWithArt,
-  giftRupees,
-  giftShareText,
-  whatsAppShareUrl,
-  type GiftArt,
-} from '@/lib/gifts'
+import { formatGiftCode, formatGiftDate, giftArtFor, giftRupees, giftShareText, whatsAppShareUrl } from '@/lib/gifts'
 
 /**
  * While printing, only the printable card: the rest of the screen (the
@@ -40,15 +31,12 @@ type ShareGift = Pick<SentGift, 'number' | 'amount' | 'recipientName' | 'message
  * "Get a new link". The code is in the link and nowhere else the buyer can
  * see again, so this says so. Sharing is the buyer's own: the share sheet,
  * a copied link, WhatsApp, or a printed card with the code. Detlio sends no
- * SMS or email of its own.
- *
- * `art` is the artwork picked when buying: an occasion (Birthday, Diwali,
- * Thank you) rides in the link's fragment so the recipient sees it too.
+ * SMS or email of its own. The card is the gift's stored design (0055).
  */
-export function GiftShare({ gift, link, art }: { gift: ShareGift; link: GiftLink; art?: GiftArt }) {
+export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
   const [showPrint, setShowPrint] = useState(false)
-  const look = art ?? giftArtFor(gift.design)
-  const path = giftPathWithArt(link.path, look)
+  const look = giftArtFor(gift.design)
+  const path = link.path
   const url = typeof window === 'undefined' ? path : `${window.location.origin}${path}`
   const text = giftShareText({ amount: gift.amount, recipientName: gift.recipientName, url })
 
