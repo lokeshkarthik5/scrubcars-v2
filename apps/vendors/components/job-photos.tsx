@@ -172,6 +172,13 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
             : (booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage]}
         </p>
       )}
+      {/* While the standard is optional (the pilot default), a nudge rather
+          than a block: why the photos are worth taking. */}
+      {!required && !readOnly && own.length < MIN_GARAGE_PHOTOS && (
+        <p className="text-[11px] text-text-muted">
+          Photos protect you if a customer complains, and count toward Detlio Certified.
+        </p>
+      )}
       {readOnly && own.length > 0 && (
         <p className="text-[11px] text-text-muted">
           {stage === 'before'

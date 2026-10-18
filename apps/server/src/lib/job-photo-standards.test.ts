@@ -21,13 +21,13 @@ const HOUR = 60 * 60 * 1000
 const GARAGE = 'e2e00000-0000-4000-8000-000000002510'
 
 describe('the switch', () => {
-  test('JOB_PHOTOS_REQUIRED is on unless it says off', () => {
-    expect(parsePhotosRequired(undefined)).toBe(true)
-    expect(parsePhotosRequired('')).toBe(true)
-    expect(parsePhotosRequired('on')).toBe(true)
-    expect(parsePhotosRequired('yes')).toBe(true)
+  test('JOB_PHOTOS_REQUIRED is off unless it says on', () => {
+    expect(parsePhotosRequired(undefined)).toBe(false)
+    expect(parsePhotosRequired('')).toBe(false)
     expect(parsePhotosRequired('off')).toBe(false)
-    expect(parsePhotosRequired(' OFF ')).toBe(false)
+    expect(parsePhotosRequired('yes')).toBe(false)
+    expect(parsePhotosRequired('on')).toBe(true)
+    expect(parsePhotosRequired(' ON ')).toBe(true)
   })
 
   test('JOB_PHOTOS_REQUIRED_GARAGES keeps it on for the garages named, ids only', () => {
