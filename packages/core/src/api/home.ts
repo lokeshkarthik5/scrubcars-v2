@@ -1,5 +1,6 @@
 import type { BookingType } from '@repo/core/types'
 import type { PickupStage } from '@repo/core/pickup'
+import type { ServiceReminderKind } from './car-history'
 import { apiClient } from './client'
 
 /**
@@ -94,6 +95,27 @@ export type HomeActionCard =
       /** "C-000123". */
       number: string
       resolvedAt: string
+    }
+  | {
+      /**
+       * A coating or detailing follow-up coming due on one of their cars
+       * (API 0046): the softest card, only when the place is free.
+       */
+      kind: 'service_reminder'
+      reminderId: string
+      vehicleId: string
+      vehicleName: string
+      reminderKind: ServiceReminderKind
+      /** "Maintenance wash for your coating". */
+      title: string
+      /** "3 months since your coating at Shine Studio". */
+      reason: string
+      /** The due date in force, "YYYY-MM-DD". */
+      dueOn: string
+      state: 'due_soon' | 'due' | 'overdue'
+      daysLeft: number
+      /** What "Book" searches for. */
+      bookCategory: string
     }
 
 export interface HomeTileNotice {
@@ -215,6 +237,8 @@ export type UpdateKind =
   | 'extra_work_paid'
   | 'extra_work_declined'
   | 'extra_work_withdrawn'
+  | 'service_reminder'
+  | 'slot_opened'
 
 /** One row of Updates (lib/home-updates.ts UpdateItem). */
 export interface UpdateItem {
@@ -249,7 +273,10 @@ export interface HomeData {
   mustAct: HomeActionCard | null
   /** Up to three, ranked. Null when the offers could not be read. */
   offers: HomeOffer[] | null
-  /** "Rate your wash", only when there is no must-act card. */
+  /**
+   * "Rate your wash", only when there is no must-act card; else a resolved
+   * complaint, else a service reminder coming due, each only in a free place.
+   */
   softCard: HomeActionCard | null
   /** Default car first; empty means "Add your car". */
   cars: HomeCar[]

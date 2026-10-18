@@ -66,6 +66,7 @@ import { ServiceThumb } from '@/components/service-media/service-thumb'
 import { ClampedText } from '@/components/service-media/clamped-text'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { SAVE_PARAM, withoutSaveFlag } from '@/lib/saved-garages'
+import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts'
 
 type Tab = 'services' | 'photos' | 'reviews'
 
@@ -541,6 +542,10 @@ export default function GaragePage({
             Choose from what this garage offers now.
           </Notice>
         )}
+
+        {/* The days the customer is waiting on here (0047), with Stop
+            waiting. Nothing while signed out or when there are none. */}
+        <GarageSlotAlerts vendorId={vendor.id} />
       </div>
 
       <div

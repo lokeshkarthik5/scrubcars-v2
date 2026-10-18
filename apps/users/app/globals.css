@@ -68,6 +68,10 @@
   z-index: 2;
   padding: 20px 64px 0 20px;
 }
+/* A saved car has two discs at the top right (history, then edit). */
+.car-hero__slide .car-hero__head {
+  padding-right: 108px;
+}
 .car-hero__title {
   margin: 6px 0 8px;
   font-size: 34px;

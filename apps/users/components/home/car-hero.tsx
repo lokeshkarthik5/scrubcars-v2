@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { IconArrowUpRight, IconMapPin, IconPencil, IconPlus } from '@tabler/icons-react'
+import { IconArrowUpRight, IconHistory, IconMapPin, IconPencil, IconPlus } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import type { HomeCar } from '@repo/core/api/home'
 import { CAR_DEFAULT_PICTURE, carImageFor, type CarPicture as Picture } from '@repo/core/car-images'
@@ -120,6 +120,18 @@ export function CarHero({
             </div>
           ))}
         </div>
+        {/* The car on screen's history: every job, receipts, photos and its
+            next coating or detailing reminder (0046). A 40pt disc in a 44pt
+            target, beside the pencil. */}
+        <Link
+          href={`/profile/cars/${car.id}`}
+          aria-label={`History of your ${car.make} ${car.model}`}
+          className="absolute top-[18px] right-[60px] z-[2] grid size-11 place-items-center rounded-full text-text-primary"
+        >
+          <span aria-hidden className="grid size-10 place-items-center rounded-full border border-line">
+            <IconHistory size={20} stroke={1.5} />
+          </span>
+        </Link>
         {/* A 40pt disc, as drawn, in a 44pt target. */}
         <Link
           href="/profile#vehicles"

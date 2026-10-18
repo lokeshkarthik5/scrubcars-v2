@@ -1,6 +1,16 @@
 'use client'
 
+import { useState } from 'react'
+import { toast } from 'react-toastify'
 import { ScBadge } from '@repo/ui/sc/badge'
+import { ScButton } from '@repo/ui/sc/button'
+import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { ScModal } from '@repo/ui/sc/modal'
+import { BeforeAfterCompare } from '@repo/ui/features/before-after'
+import { errorMessage } from '@repo/core/api/hooks/use-discounts'
+import { useWaiveAdminJobPhotos } from '@repo/core/api/hooks/use-admin-bookings'
+import { angleLabel, photoByLabel } from '@repo/core/job-photo-standards'
+import type { JobPhoto } from '@repo/core/types'
 import { ScSection } from '@repo/ui/sc/section'
 import Link from 'next/link'
 import type {
@@ -205,16 +215,71 @@ export function FinalBillSection({ booking }: { booking: AdminBookingDetail }) {
   )
 }
 
+/** Admin's photos as the shared photo helpers read them (older servers: the garage's, no angle). */
+function asJobPhotos(booking: AdminBookingDetail): JobPhoto[] {
+  return (booking.photos ?? []).map((photo) => ({
+    id: photo.id,
+    stage: photo.stage,
+    url: photo.url,
+    createdAt: photo.createdAt,
+    angle: photo.angle ?? null,
+    by: photo.by ?? 'garage',
+  }))
+}
+
 /**
- * The garage's before and after photos of the job: its evidence if the
- * customer later questions the work. Each opens full size in a new tab.
+ * Every photo of the job (0045: the garage's and the customer's own), with
+ * the angle, who added it and when; a before/after slider of the angles
+ * photographed both times; and where the job stands against the photo
+ * standard, with Detlio's waiver. It is the record ops reads in a dispute,
+ * so each photo opens full size in a new tab.
  */
-export function JobPhotosSection({ booking }: { booking: AdminBookingDetail }) {
+export function JobPhotosSection({
+  booking,
+  allowWaive = true,
+}: {
+  booking: AdminBookingDetail
+  /** Off where the section is shown for reference (a complaint's page). */
+  allowWaive?: boolean
+}) {
+  const [waiving, setWaiving] = useState(false)
   const photos = booking.photos ?? []
-  if (photos.length === 0) return null
+  const standard = booking.photoStandard
+  const waiver = booking.photosWaiver ?? null
+  const ongoing = booking.status !== 'pending' && booking.status !== 'cancelled'
+  const showStandard = Boolean(standard?.required) && ongoing
+  if (photos.length === 0 && !showStandard && !waiver) return null
+
+  const met = standard ? !standard.startBlocked && !standard.finishBlocked : true
+  const canWaive = allowWaive && Boolean(standard?.required) && !waiver && booking.status !== 'cancelled'
 
   return (
-    <ScSection title="Job photos">
+    <ScSection
+      title="Job photos"
+      action={
+        waiver ? (
+          <ScBadge variant="muted">Waived</ScBadge>
+        ) : showStandard && standard ? (
+          <ScBadge variant={met ? 'success' : 'pending'}>{met ? 'Standard met' : 'Photos missing'}</ScBadge>
+        ) : undefined
+      }
+    >
+      {showStandard && standard && (
+        <p className="text-[12px] text-text-secondary">
+          Garage&apos;s photos: <span className="font-numeric">{standard.before.count}</span> before,{' '}
+          <span className="font-numeric">{standard.after.count}</span> after (
+          <span className="font-numeric">{standard.minimum}</span> of each needed to start and complete).
+        </p>
+      )}
+      {waiver && (
+        <p className="text-[12px] text-text-secondary">
+          Waived by <span className="font-medium text-text-primary">{waiver.by}</span>{' '}
+          <span className="font-numeric">{formatWhen(waiver.at)}</span>: {waiver.reason}
+        </p>
+      )}
+
+      <BeforeAfterCompare photos={asJobPhotos(booking)} className="max-w-[420px]" />
+
       {(['before', 'after'] as const).map((stage) => {
         const ofStage = photos.filter((photo) => photo.stage === stage)
         if (ofStage.length === 0) return null
@@ -222,27 +287,140 @@ export function JobPhotosSection({ booking }: { booking: AdminBookingDetail }) {
         return (
           <div key={stage} className="flex flex-col gap-1.5">
             <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
-            <ul className="flex flex-wrap gap-2">
-              {ofStage.map((photo, i) => (
-                <li key={photo.id}>
-                  <a
-                    href={photo.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Open ${label.toLowerCase()} photo ${i + 1}, taken ${formatWhen(photo.createdAt)}`}
-                    className="block size-20 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
-                  >
-                    {/* A plain <img>: the garage's phone already sized it. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.url} alt="" className="h-full w-full object-cover" />
-                  </a>
-                </li>
-              ))}
+            <ul className="flex flex-wrap gap-3">
+              {ofStage.map((photo, i) => {
+                const by = photoByLabel(photo.by ?? 'garage')
+                const who = photo.uploadedByName ? `${by} · ${photo.uploadedByName}` : by
+                return (
+                  <li key={photo.id} className="flex w-24 flex-col gap-1">
+                    <a
+                      href={photo.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Open ${label.toLowerCase()} photo ${i + 1}, ${angleLabel(photo.angle)}, by ${who}, taken ${formatWhen(photo.createdAt)}`}
+                      className="block size-20 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
+                    >
+                      {/* A plain <img>: the phone already sized it. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photo.url} alt="" className="h-full w-full object-cover" />
+                    </a>
+                    <p className="text-[11px] leading-[14px] text-text-primary">{angleLabel(photo.angle)}</p>
+                    <p className="truncate text-[11px] leading-[14px] text-text-secondary" title={who}>
+                      {who}
+                    </p>
+                    <p className="font-numeric text-[11px] leading-[14px] text-text-muted">
+                      {formatWhen(photo.createdAt)}
+                    </p>
+                  </li>
+                )
+              })}
             </ul>
           </div>
         )
       })}
+
+      {canWaive && (
+        <div>
+          <ScButton variant="secondary" onClick={() => setWaiving(true)} className="min-h-11">
+            Waive photos for this booking
+          </ScButton>
+        </div>
+      )}
+      <WaivePhotosDialog booking={booking} open={waiving} onClose={() => setWaiving(false)} />
     </ScSection>
+  )
+}
+
+/**
+ * Detlio waives the photo standard on one booking (0045), for a genuine
+ * case: Start and Complete stop waiting for the garage's photos, and the job
+ * leaves the garage's photo compliance. The typed name and the reason are
+ * stored on the booking and left as a note; it cannot be undone.
+ */
+function WaivePhotosDialog({
+  booking,
+  open,
+  onClose,
+}: {
+  booking: AdminBookingDetail
+  open: boolean
+  onClose: () => void
+}) {
+  const waive = useWaiveAdminJobPhotos()
+  const [actorName, setActorName] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+
+  const close = () => {
+    setReason('')
+    setError('')
+    onClose()
+  }
+
+  const submit = () => {
+    setError('')
+    waive.mutate(
+      { id: booking.id, input: { actorName: actorName.trim(), reason: reason.trim() } },
+      {
+        onSuccess: () => {
+          toast.success(`Photos waived for #${booking.reference}`)
+          close()
+        },
+        onError: (err) => setError(errorMessage(err, "Couldn't waive the photos")),
+      }
+    )
+  }
+
+  return (
+    <ScModal
+      open={open}
+      onClose={close}
+      dismissible={!waive.isPending}
+      aria-label={`Waive photos for booking #${booking.reference}`}
+      className="flex max-w-[420px] flex-col gap-4"
+    >
+      <div>
+        <h2 className="text-[15px] font-semibold text-text-primary">Waive photos for this booking</h2>
+        <p className="mt-1 text-[12px] text-text-secondary">
+          The garage can then start and complete it without its before and after photos, and it
+          leaves the garage&apos;s photo compliance. Only for a genuine reason, like a phone that
+          died. This can&apos;t be undone.
+        </p>
+      </div>
+      <ScInput
+        id="waive-photos-name"
+        label="Your name"
+        maxLength={100}
+        autoComplete="name"
+        value={actorName}
+        onChange={(e) => setActorName(e.target.value)}
+      />
+      <ScTextarea
+        id="waive-photos-reason"
+        label="Why"
+        rows={3}
+        maxLength={500}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      {error && (
+        <p role="alert" className="text-[12px] text-error">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <ScButton variant="secondary" onClick={close} disabled={waive.isPending} className="min-h-11">
+          Not now
+        </ScButton>
+        <ScButton
+          onClick={submit}
+          disabled={actorName.trim().length < 2 || reason.trim().length < 5 || waive.isPending}
+          className="min-h-11"
+        >
+          {waive.isPending ? 'Waiving…' : 'Waive photos'}
+        </ScButton>
+      </div>
+    </ScModal>
   )
 }
 

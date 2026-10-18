@@ -3,11 +3,13 @@ import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { analyticsService } from '../analytics/analytics.service.js'
+import { carHistoryService } from '../car-history/car-history.service.js'
 import { certificationService } from '../certification/certification.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
 
@@ -81,6 +83,31 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
+    // Coating and detailing follow-ups (0046): a catch-up for completions
+    // whose reminders were never written, then, in the 09:00 IST runs, the
+    // due date's notification, each claimed first so it goes once. Never
+    // allowed to fail the digest.
+    const serviceReminders = await carHistoryService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:service_reminder_sweep_failed')
+        return { error: true as const }
+      })
+
+    // "Notify me if a slot opens" (0047): every cancellation, decline,
+    // auto-cancel or move re-checks its garage's waiting alerts as it
+    // happens; this is the safety net for room freed some other way (a job
+    // finished early, a re-check that failed). The garage-days unchecked
+    // longest first, 20 a run within 10 seconds, then old rows deleted.
+    // Quiet hours don't stop it: a time freed at night is still news in the
+    // morning. Never allowed to fail the digest.
+    const slotAlerts = await slotAlertsService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:slot_alert_sweep_failed')
+        return { error: true as const }
+      })
+
     // The usage events' 180-day clean-up rides on it too: a bounded batch a
     // run, skipped on a dry run, and never allowed to fail the digest.
     const analyticsPurged = options.dryRun
@@ -129,6 +156,8 @@ export const opsService = {
       notAccepted,
       notifications,
       certification,
+      serviceReminders,
+      slotAlerts,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

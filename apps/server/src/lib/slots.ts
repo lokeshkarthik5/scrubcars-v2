@@ -348,3 +348,64 @@ export function filterByCapacity(
 ): string[] {
   return slots.filter((slot) => hasCapacity(new Date(slot), rule))
 }
+
+// ─── One job on one day, from facts already read ────────────────────────────
+
+/** Everything the slot rule reads about a garage's day, already loaded. */
+export interface DayFacts {
+  date: string
+  /** vendors.bookings_paused_at */
+  pausedAt: Date | null
+  /** A vendor_closures row for the date. */
+  isHoliday: boolean
+  /** That weekday's vendor_working_hours row, if any. */
+  hours: { openTime: string; closeTime: string; isClosed: boolean } | null | undefined
+  intervalMins: number
+  bays: number | null | undefined
+  jobsPerDay: number | null | undefined
+  /** The day's capacity holders (listCapacityHolders); may be empty when unread. */
+  busy: readonly BusyInterval[]
+}
+
+export interface DaySlots {
+  day: DayStatus
+  /** Every start whose whole job ends by closing; empty when the job does not fit. */
+  allDay: string[]
+  /** Of those, the ones with enough notice. */
+  noticed: string[]
+  /** Of those, the ones the garage still has room for: what the picker offers. */
+  slots: string[]
+}
+
+/**
+ * The whole slot rule for one job on one day, in its order: the day itself,
+ * the hours and the job's length, the notice, then the bays and the day's
+ * cap. vendors.service's jobSlots (the customer's picker and "Suggest
+ * another time") and the slot alerts' re-check (0047) both run it, so an
+ * alert only ever says a time is free when the picker would offer it.
+ */
+export function slotsForDay(
+  facts: DayFacts,
+  job: { durationMins: number; bookingType: NoticeBookingType },
+  now: number = Date.now()
+): DaySlots {
+  const day = dayStatus({ pausedAt: facts.pausedAt, isHoliday: facts.isHoliday, hours: facts.hours })
+  if (!day.open || !facts.hours) return { day, allDay: [], noticed: [], slots: [] }
+
+  const allDay = computeAvailableSlots({
+    date: facts.date,
+    openTime: facts.hours.openTime,
+    closeTime: facts.hours.closeTime,
+    intervalMins: facts.intervalMins,
+    isClosed: facts.hours.isClosed,
+    serviceDurationMins: job.durationMins,
+  })
+  const noticed = filterByMinNotice(allDay, job.bookingType, now)
+  const slots = filterByCapacity(noticed, {
+    durationMins: job.durationMins,
+    busy: facts.busy,
+    bays: facts.bays,
+    jobsPerDay: facts.jobsPerDay,
+  })
+  return { day, allDay, noticed, slots }
+}

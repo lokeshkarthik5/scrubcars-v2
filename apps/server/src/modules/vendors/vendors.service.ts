@@ -6,12 +6,10 @@ import {
   MIN_NOTICE_MS,
   addDaysToDateKey,
   closureDateProblem,
-  computeAvailableSlots,
-  dayStatus,
-  filterByCapacity,
-  filterByMinNotice,
   getDayOfWeekFromDate,
+  slotsForDay,
   todayDateKey,
+  type DayFacts,
 } from '../../lib/slots.js'
 import {
   createPresignedUpload,
@@ -45,6 +43,7 @@ import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
+import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import { summariesByVendor } from '../../lib/vendor-documents.js'
@@ -902,11 +901,21 @@ export async function jobSlots(
     minNoticeMins,
   }
 
-  const day = dayStatus({
+  const facts: DayFacts = {
+    date: job.date,
     pausedAt: vendor.bookingsPausedAt,
     isHoliday: !!closure,
     hours,
-  })
+    intervalMins: vendor.slotIntervalMins,
+    bays: vendor.bays,
+    jobsPerDay: vendor.jobsPerDay,
+    busy: [],
+  }
+  const rule = { durationMins, bookingType: job.bookingType }
+  // The day, the hours, the job's length and the notice first, with no
+  // bookings counted (lib/slots.ts slotsForDay).
+  const first = slotsForDay(facts, rule)
+  const day = first.day
 
   // A paused garage is not "closed on this day" — every day is the same to
   // it — so it says `paused` rather than borrowing isClosed. A holiday is a
@@ -923,36 +932,20 @@ export async function jobSlots(
     }
   }
 
-  const openHours = hours!
-  const allDay = computeAvailableSlots({
-    date: job.date,
-    openTime: openHours.openTime,
-    closeTime: openHours.closeTime,
-    intervalMins: vendor.slotIntervalMins,
-    isClosed: openHours.isClosed,
-    serviceDurationMins: durationMins,
-  })
-  // Past times and times too soon for the garage to accept (1h at the
-  // garage, 3h doorstep) are not offered at all.
-  const noticed = filterByMinNotice(allDay, job.bookingType)
-
   // Then the garage's room: a time at which it already has as many cars as
-  // bays, or a day that has reached its job cap, is not offered. Only read
-  // when there is something left to filter.
+  // bays, or a day that has reached its job cap, is not offered. Past times
+  // and times too soon for the garage to accept (1h at the garage, 3h
+  // doorstep) were dropped above; the bookings are only read when there is
+  // something left to filter.
   const busy =
-    noticed.length > 0
+    first.noticed.length > 0
       ? await bookingsRepository.listCapacityHolders({
           vendorId: vendor.id,
           date: job.date,
           excludeBookingId: options.excludeBookingId,
         })
       : []
-  const slots = filterByCapacity(noticed, {
-    durationMins,
-    busy,
-    bays: vendor.bays,
-    jobsPerDay: vendor.jobsPerDay,
-  })
+  const { allDay, noticed, slots } = busy.length > 0 ? slotsForDay({ ...facts, busy }, rule) : first
 
   log.debug({ vendorId: vendor.id, date: job.date, serviceIds: job.serviceIds, durationMins, bookingType: job.bookingType, count: slots.length, full: noticed.length - slots.length }, 'slots:computed')
 
@@ -1328,6 +1321,8 @@ export const vendorsService = {
     }
 
     log.info({ vendorId: vendor.id, date: deleted.date }, 'vendor:closure_removed')
+    // The day is open again: anyone waiting for it hears (0047).
+    slotAlertsService.dayChanged(vendor.id, deleted.date, 'holiday_removed')
     return toClosureResponse(deleted, 0)
   },
 
@@ -1350,6 +1345,7 @@ export const vendorsService = {
       bookingsPausedReason: null,
     })
     log.info({ vendorId: vendor.id }, 'vendor:bookings_resumed')
+    slotAlertsService.garageChanged(vendor.id, 'resumed')
     return toVendorResponse(updated)
   },
 
@@ -1358,6 +1354,7 @@ export const vendorsService = {
     const [updated] = await vendorsRepository.updateVendor(vendor.id, {
       slotIntervalMins: input.slotIntervalMins,
     })
+    slotAlertsService.garageChanged(vendor.id, 'slot_length_changed')
     return toVendorResponse(updated)
   },
 
@@ -1384,6 +1381,8 @@ export const vendorsService = {
       vendor.id,
       input.days
     )
+    // A day opened or longer hours may have made room (0047).
+    slotAlertsService.garageChanged(vendor.id, 'hours_changed')
 
     return hours.map(toWorkingHoursResponse)
   },

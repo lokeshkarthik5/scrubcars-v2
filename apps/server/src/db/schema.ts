@@ -32,6 +32,9 @@ import type {
   DocumentType,
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
+import type { SlotAlertWindow } from '../lib/slot-alerts.js'
+import type { ServiceReminderKind, ServiceReminderStatus } from '../lib/service-reminders.js'
+import type { PhotoAngle, PhotoRole } from '../lib/job-photo-standards.js'
 import type {
   EligibilitySnapshot,
   QualityCheckKind,
@@ -994,6 +997,12 @@ export const bookings = pgTable(
     // Its own column, not the reason text, so admin, the garage, the customer
     // and the morning roll-up tell it apart from a garage pressing Reject.
     responseMissedAt: timestamp('response_missed_at', { withTimezone: true }),
+    // Detlio waived the photo standard on this booking (0045): Start and
+    // Complete no longer wait for the garage's photos. The admin's typed
+    // name and the reason, like the Bin's; all three or none (CHECK).
+    photosWaivedAt: timestamp('photos_waived_at', { withTimezone: true }),
+    photosWaivedBy: varchar('photos_waived_by', { length: 100 }),
+    photosWaivedReason: varchar('photos_waived_reason', { length: 500 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1051,6 +1060,10 @@ export const bookings = pgTable(
       sql`${table.responseMissedAt} is null or (${table.status}::text = 'cancelled' and ${table.cancelledBy}::text = 'vendor' and ${table.respondBy} is not null)`
     ),
     check(
+      'bookings_photos_waived_check',
+      sql`(${table.photosWaivedAt} is null and ${table.photosWaivedBy} is null and ${table.photosWaivedReason} is null) or (${table.photosWaivedAt} is not null and ${table.photosWaivedBy} is not null and ${table.photosWaivedReason} is not null)`
+    ),
+    check(
       'bookings_handover_codes_check',
       sql`(${table.pickupCode} is null or ${table.pickupCode} ~ '^[0-9]{4}$') and (${table.deliveryCode} is null or ${table.deliveryCode} ~ '^[0-9]{4}$')`
     ),
@@ -1106,6 +1119,12 @@ export const jobPhotos = pgTable(
     uploadedBy: uuid('uploaded_by').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // Whose photo it is (0045): the garage's (every row before 0045) or the
+    // customer's own record of the car. Only the garage's count toward the
+    // photo standard (lib/job-photo-standards.ts).
+    uploadedByRole: text('uploaded_by_role').$type<PhotoRole>().default('garage').notNull(),
+    // The guided angle it was taken from (0045), or null for an extra photo.
+    angle: text('angle').$type<PhotoAngle>(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1117,6 +1136,18 @@ export const jobPhotos = pgTable(
       table.bookingId,
       table.stage,
       table.createdAt
+    ),
+    // The gates and the per-side caps count one side's photos of a stage
+    // (0045); photo compliance counts the garage's per job.
+    index('job_photos_booking_role_stage_idx').on(
+      table.bookingId,
+      table.uploadedByRole,
+      table.stage
+    ),
+    check('job_photos_uploaded_by_role_check', sql`${table.uploadedByRole} in ('garage', 'customer')`),
+    check(
+      'job_photos_angle_check',
+      sql`${table.angle} is null or ${table.angle} in ('front', 'back', 'left', 'right', 'interior')`
     ),
   ]
 )
@@ -2372,6 +2403,119 @@ export const notificationSends = pgTable(
     check(
       'notification_sends_kind_check',
       sql`${table.kind} in ('day_before', 'hour_before', 'respond_soon')`
+    ),
+  ]
+)
+
+// Coating and detailing follow-ups for a customer's car (0046,
+// lib/service-reminders.ts): a maintenance wash 3 months and a coating check
+// 12 months after a coating, another detailing 6 months after a detailing.
+// Written when the job completes, one per job per kind (unique), dated from
+// its IST completion date. `status` leaves 'open' exactly once (CHECK):
+// dismissed by the customer, done when a booking answered it, or superseded
+// by a newer job of the same kind. `snoozed_until` moves the due date in
+// force; `notified_on` is the date the browser notification went for, the
+// cron's claim (one per due date in force). Cascades with the customer, the
+// car (a car with bookings is archived, never deleted, so its reminders
+// stay and are not shown) and the job that scheduled it; the booking that
+// answered one is only a link (SET NULL).
+export const vehicleServiceReminders = pgTable(
+  'vehicle_service_reminders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vehicleId: uuid('vehicle_id')
+      .notNull()
+      .references(() => userVehicles.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<ServiceReminderKind>().notNull(),
+    dueOn: date('due_on', { mode: 'string' }).notNull(),
+    sourceBookingId: uuid('source_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    status: text('status').$type<ServiceReminderStatus>().default('open').notNull(),
+    snoozedUntil: date('snoozed_until', { mode: 'string' }),
+    notifiedOn: date('notified_on', { mode: 'string' }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    doneBookingId: uuid('done_booking_id').references(() => bookings.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('vehicle_service_reminders_source_kind_key').on(table.sourceBookingId, table.kind),
+    // A car's open reminders: its page, Home and each completion.
+    index('vehicle_service_reminders_open_vehicle_idx')
+      .on(table.vehicleId)
+      .where(sql`${table.status} = 'open'`),
+    // The cron's due-date runs.
+    index('vehicle_service_reminders_open_due_idx')
+      .on(table.dueOn)
+      .where(sql`${table.status} = 'open'`),
+    index('vehicle_service_reminders_user_id_idx').on(table.userId),
+    check(
+      'vehicle_service_reminders_kind_check',
+      sql`${table.kind} in ('maintenance_wash', 'coating_check', 'detailing_repeat')`
+    ),
+    check(
+      'vehicle_service_reminders_status_check',
+      sql`${table.status} in ('open', 'dismissed', 'done', 'superseded')`
+    ),
+    check(
+      'vehicle_service_reminders_closed_check',
+      sql`(${table.status} = 'open') = (${table.closedAt} is null)`
+    ),
+  ]
+)
+
+// "Notify me if a slot opens" (0047): a customer waiting for a time at one
+// garage on one IST date, for a job of `duration_mins` of this booking type,
+// in a part of the day (`time_window`). Re-checked with the slot list's own
+// rule whenever that garage frees capacity on that date (lib/slot-alerts.ts);
+// `notified_at` / `notified_slot_at` record the once it was told (the
+// earliest matching time then), which Updates reads. Waiting = not notified
+// and `expires_at` (the end of the date) still ahead. One waiting alert per
+// customer, garage and date (partial unique index). Cascades with the
+// customer and the garage. The CHECKs are in 0047_slot_alerts.sql.
+export const slotAlerts = pgTable(
+  'slot_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    date: date('date', { mode: 'string' }).notNull(),
+    timeWindow: text('time_window').$type<SlotAlertWindow>().default('any').notNull(),
+    bookingType: bookingTypeEnum('booking_type').notNull(),
+    // The services' total, as the picker added them up when it was set.
+    durationMins: integer('duration_mins').notNull(),
+    // For the link only (checkout with the same services); no FK.
+    serviceIds: uuid('service_ids').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    notifiedAt: timestamp('notified_at', { withTimezone: true }),
+    notifiedSlotAt: timestamp('notified_slot_at', { withTimezone: true }),
+    // When the cron's safety-net sweep last looked, so it goes round fairly.
+    lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('slot_alerts_waiting_key')
+      .on(table.userId, table.vendorId, table.date)
+      .where(sql`${table.notifiedAt} is null`),
+    index('slot_alerts_garage_day_idx')
+      .on(table.vendorId, table.date)
+      .where(sql`${table.notifiedAt} is null`),
+    index('slot_alerts_user_id_idx').on(table.userId),
+    index('slot_alerts_expires_at_idx').on(table.expiresAt),
+    check(
+      'slot_alerts_time_window_check',
+      sql`${table.timeWindow} in ('any', 'morning', 'afternoon', 'evening')`
     ),
   ]
 )

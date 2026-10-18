@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNow } from '@repo/core/hooks/use-now'
 import { IconCalendar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -73,6 +73,21 @@ function TimeGridSkeleton() {
   )
 }
 
+/**
+ * What the picker shows for the chosen day, for a screen that adds something
+ * under the times (checkout's "Notify me if a slot opens", 0047).
+ */
+export interface SlotDayState {
+  /** YYYY-MM-DD, IST. */
+  date: string
+  /** The times on offer, as ISO starts. */
+  slots: string[]
+  /** Every time with enough notice is taken. */
+  allBooked: boolean
+  /** Closed that day, paused, or the job does not fit it: nothing can open up. */
+  unavailable: boolean
+}
+
 interface SlotPickerProps {
   vendorId: string
   /**
@@ -109,6 +124,14 @@ interface SlotPickerProps {
    * already has rather than a new one.
    */
   rescheduleOf?: string
+  /**
+   * The day to open on (YYYY-MM-DD), from a link: a slot alert's
+   * notification opens checkout on its day. Ignored when it is before
+   * today; a day the garage is shut says so, as when tapped.
+   */
+  initialDate?: string | null
+  /** Drawn under the times once the chosen day's answer is in. */
+  renderDayExtra?: (state: SlotDayState) => ReactNode
 }
 
 /**
@@ -125,6 +148,8 @@ export function SlotPicker({
   onLapse,
   progressive = false,
   rescheduleOf,
+  initialDate = null,
+  renderDayExtra,
 }: SlotPickerProps) {
   // Ticks each minute: a picker left open keeps offering a slot only while it
   // still has enough notice.
@@ -132,10 +157,18 @@ export function SlotPicker({
   const dateOptions = buildDateOptions()
   const calendarMin = addDaysToKey(dateOptions[dateOptions.length - 1].value, 1)
 
+  // A date from the link opens the picker on it: one of the week's chips, or
+  // the calendar's own chip when it is further out. Not before today.
+  const linkedDate =
+    initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) && initialDate >= dateOptions[0].value
+      ? initialDate
+      : null
   const [selectedDate, setSelectedDate] = useState<string | null>(
-    progressive ? null : dateOptions[0].value
+    linkedDate ?? (progressive ? null : dateOptions[0].value)
   )
-  const [customDate, setCustomDate] = useState<string | null>(null)
+  const [customDate, setCustomDate] = useState<string | null>(
+    linkedDate && linkedDate >= calendarMin ? linkedDate : null
+  )
   const [showCalendar, setShowCalendar] = useState(false)
   const [calMonth, setCalMonth] = useState(() => {
     const [y, m] = calendarMin.split('-').map(Number)
@@ -337,6 +370,12 @@ export function SlotPicker({
               ))}
             </div>
           )}
+          {!slotsLoading && slotsQuery.isSuccess && renderDayExtra?.({
+            date: selectedDate,
+            slots: slots.map((slot) => slot.time),
+            allBooked,
+            unavailable: isPaused || isClosedDay || tooLongForTheDay,
+          })}
         </>
       )}
 

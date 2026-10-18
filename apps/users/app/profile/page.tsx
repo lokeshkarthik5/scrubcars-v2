@@ -40,6 +40,7 @@ import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { getPushConfig } from '@repo/core/api/push'
+import { useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
@@ -103,6 +104,8 @@ export default function ProfilePage() {
   const [promoting, setPromoting] = useState<string | null>(null)
   // Notifications shows only once the API has them set up (0044).
   const [pushOn, setPushOn] = useState(false)
+  // Slot alerts shows while any are waiting (0047).
+  const slotAlertCount = useSlotAlerts({ enabled: !!authUser }).data?.items.length ?? 0
 
   const user = profile ?? authUser
 
@@ -361,6 +364,17 @@ export default function ProfilePage() {
         <ScCard className="text-[13px] text-text-primary">Saved garages</ScCard>
       </Link>
 
+      {/* The days waited on with "Notify me if a slot opens" (0047), while
+          there are any. */}
+      {slotAlertCount > 0 && (
+        <Link href="/profile/slot-alerts">
+          <ScCard className="flex items-center justify-between text-[13px] text-text-primary">
+            Slot alerts
+            <span className="font-numeric text-[12px] text-text-secondary">{slotAlertCount}</span>
+          </ScCard>
+        </Link>
+      )}
+
       {/* Browser notifications on this device, and what to send (0044). */}
       {pushOn && (
         <Link href="/profile/notifications">
@@ -442,15 +456,26 @@ export default function ProfilePage() {
           ) : (
             vehicles.map((v) => (
               <ScCard key={v.id} className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
-                  <IconCar size={18} className="text-text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-text-primary">{v.make} {v.model}</p>
-                  {v.plate && (
-                    <p className="text-[11px] text-text-secondary">{v.plate}</p>
-                  )}
-                </div>
+                {/* The car opens its history: every job, receipts, photos
+                    and its next coating or detailing reminder. */}
+                <Link
+                  href={`/profile/cars/${v.id}`}
+                  aria-label={`${v.make} ${v.model}: history`}
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
+                    <IconCar size={18} className="text-text-primary" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-0.5 text-[13px] font-medium text-text-primary">
+                      <span className="truncate">{v.make} {v.model}</span>
+                      <IconChevronRight size={14} className="shrink-0 text-text-muted" aria-hidden="true" />
+                    </span>
+                    <span className="block text-[11px] text-text-secondary">
+                      {v.plate ? `${v.plate} · History` : 'History'}
+                    </span>
+                  </span>
+                </Link>
                 {v.isDefault ? (
                   <ScBadge variant="success">Default</ScBadge>
                 ) : (

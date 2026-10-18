@@ -8,13 +8,16 @@ import {
   IconCalendarOff,
   IconCalendarQuestion,
   IconMessageCheck,
+  IconCar,
   IconReceipt,
+  IconSparkles,
   IconStar,
   IconTool,
   IconX,
 } from '@tabler/icons-react'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
 import type { HomeActionCard } from '@repo/core/api/home'
+import { reminderBookHref, reminderDueLine } from '@repo/core/car-history'
 import { bookingDayLabel, istClock } from '@repo/core/home-display'
 import { formatRupees } from '@repo/core/job-records'
 import { cn } from '@repo/core/utils'
@@ -25,6 +28,7 @@ type ExtraWorkDueCard = Extract<HomeActionCard, { kind: 'extra_work_due' }>
 type ClosedCard = Extract<HomeActionCard, { kind: 'garage_closed' }>
 type RateCard = Extract<HomeActionCard, { kind: 'rate' }>
 type ComplaintCard = Extract<HomeActionCard, { kind: 'complaint_resolved' }>
+type ServiceReminderCardData = Extract<HomeActionCard, { kind: 'service_reminder' }>
 
 /** Profile's My complaints, where the team's answer is (lib/home-updates.ts MY_COMPLAINTS_PATH). */
 export const MY_COMPLAINTS_PATH = '/profile#my-complaints'
@@ -224,14 +228,17 @@ export function OutlineLink({
   href,
   children,
   className,
+  onClick,
 }: {
   href: string
   children: React.ReactNode
   className?: string
+  onClick?: () => void
 }) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={cn(
         'press inline-flex h-11 items-center justify-center rounded-pill border border-stroke bg-white/[0.015] px-5 text-[15px] font-medium tracking-[-0.005em] text-text-primary',
         className
@@ -322,6 +329,75 @@ export function ComplaintAnswerCard({ card }: { card: ComplaintCard }) {
         <OutlineLink href={MY_COMPLAINTS_PATH} className="shrink-0">
           See our answer
         </OutlineLink>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * A coating or detailing follow-up coming due on one of their cars (API
+ * 0046): the softest card, in Rate your wash's place only when nothing else
+ * wants it (the server decides: lib/home-cards.ts softCardWithReminder).
+ * Book searches the service that answers it, with that car chosen (booking
+ * it marks it done); "In 2 weeks" snoozes it; × dismisses it for good. All
+ * outlined or plain: the screen's red is still Book a wash. The car's page
+ * has the rest.
+ */
+export function ServiceReminderHomeCard({
+  card,
+  now,
+  onBook,
+  onSnooze,
+  onDismiss,
+  busy,
+}: {
+  card: ServiceReminderCardData
+  now: Date
+  onBook: () => void
+  onSnooze: () => void
+  onDismiss: () => void
+  busy?: boolean
+}) {
+  return (
+    <section aria-label={card.title} className="hub-card pt-1 pr-1.5 pb-4 pl-5">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1 pt-4">
+          <Link
+            href={`/profile/cars/${card.vehicleId}`}
+            className="flex h-5 min-w-0 items-center gap-1.5 text-[13px] text-dim"
+          >
+            <IconCar size={15} stroke={1.5} aria-hidden className="shrink-0 text-text-muted" />
+            <span className="truncate">{card.vehicleName}</span>
+          </Link>
+          <p className="mt-3 text-[17px] font-medium tracking-[-0.012em] text-text-primary">{card.title}</p>
+          <p className="mt-1 text-[13px] text-dim">
+            {reminderDueLine({ ...card, booked: null }, now)} · {card.reason}
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label={`Dismiss reminder: ${card.title}`}
+          disabled={busy}
+          onClick={onDismiss}
+          className="grid size-11 shrink-0 place-items-center text-dim"
+        >
+          <IconX size={20} stroke={1.5} aria-hidden />
+        </button>
+      </div>
+      <div className="mt-4 flex items-center gap-2 pr-3.5">
+        <OutlineLink href={reminderBookHref(card)} onClick={onBook}>
+          <IconSparkles size={16} stroke={1.5} aria-hidden className="mr-1.5" />
+          Book
+        </OutlineLink>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onSnooze}
+          aria-label="Remind me in 2 weeks"
+          className="inline-flex h-11 items-center px-3 text-[15px] text-dim disabled:opacity-40"
+        >
+          In 2 weeks
+        </button>
       </div>
     </section>
   )
