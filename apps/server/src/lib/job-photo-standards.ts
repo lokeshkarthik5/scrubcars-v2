@@ -71,12 +71,13 @@ export interface PhotoRequirementSetting {
 }
 
 /**
- * JOB_PHOTOS_REQUIRED: on unless it says `off` (any case, spaces trimmed).
- * On is the default on purpose: the standard is the product; `off` is the
- * owner's way to relax it, for every garage at once.
+ * JOB_PHOTOS_REQUIRED: off unless it says `on` (any case, spaces trimmed).
+ * Off by default for the pilot (owner decision, 18 Oct 2026): garages are
+ * nudged, not blocked, while they learn the habit; JOB_PHOTOS_REQUIRED_GARAGES
+ * turns it on garage by garage, and `on` for everyone once most are there.
  */
 export function parsePhotosRequired(raw: string | undefined): boolean {
-  return (raw ?? '').trim().toLowerCase() !== 'off'
+  return (raw ?? '').trim().toLowerCase() === 'on'
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

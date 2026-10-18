@@ -30,8 +30,8 @@ reconstructing every change in them.
     before photos of the garage's; Complete, and pickup & drop's Out for
     delivery and Delivered, 2 after photos: 409 `JOB_PHOTOS_REQUIRED`, also
     held in each conditional write. A passed gate's photos cannot drop below
-    2 (409 `JOB_PHOTO_MINIMUM`). `JOB_PHOTOS_REQUIRED` is **on unless
-    `off`**; `JOB_PHOTOS_REQUIRED_GARAGES` keeps it on for named garages.
+    2 (409 `JOB_PHOTO_MINIMUM`). `JOB_PHOTOS_REQUIRED` is **off unless
+    `on`** (pilot: nudged, not blocked); `JOB_PHOTOS_REQUIRED_GARAGES` turns it on for named garages.
   - Tightened garage windows (`lib/job-records.ts`): before photos until
     completion, after photos until 1 hour after it (no late fabrication);
     the 7-day outer freeze stays. Each side removes only its own photos.
