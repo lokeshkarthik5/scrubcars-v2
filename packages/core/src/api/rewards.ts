@@ -1,3 +1,4 @@
+import type { GaragePull } from '@repo/core/api/garage'
 import { apiClient } from '@repo/core/api/client'
 import type { RewardLevel, RewardsSettings, ScratchOutcome } from '@repo/core/rewards'
 import type { RewardExtrasSummary } from '@repo/core/api/reward-extras'
@@ -14,6 +15,8 @@ export interface RewardsConfig {
   enabled: boolean
   /** The live numbers (never the budget); null while off. */
   settings: Omit<RewardsSettings, 'monthlyCap'> | null
+  /** 0057: whether the Detlio Garage is live (its switch and a live series). Absent from an older API: off. */
+  garage?: { live: boolean; seriesName?: string }
 }
 
 export interface RewardStamp {
@@ -132,6 +135,8 @@ export interface ScratchResult {
   fellBack: boolean
   voucher: { id: string; code: string; amount: string; lastDay: string } | null
   shineVoucher: { id: string; amount: string } | null
+  /** 0057: a Garage card's car, for the reveal. */
+  garagePull?: GaragePull | null
 }
 
 export interface InviteOpened {

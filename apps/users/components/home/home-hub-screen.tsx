@@ -32,6 +32,8 @@ import { RewardsStrip } from '@/components/rewards/rewards-strip'
 import { BadgeCelebration } from '@/components/rewards/badge-celebration'
 import { ChallengeLine } from '@/components/rewards/challenge-line'
 import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import { garageLive, useGaragePulls } from '@repo/core/api/hooks/use-garage'
+import { PullRevealSheet } from '@/components/garage/pull-reveal-sheet'
 import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
 import { NearbyCard } from './nearby-card'
@@ -71,6 +73,8 @@ function HomeHubContent() {
   const rewardsConfig = useRewardsConfig()
   const rewardsOn = rewardsEnabled(rewardsConfig.data) && !!authUser
   const rewards = useRewardsSummary(rewardsOn)
+  // 0057: new Garage cards not seen yet, revealed in a sheet (not a card: the two-card rule holds).
+  const garagePulls = useGaragePulls(garageLive(rewardsConfig.data) && !!authUser)
   const clock = useNow()
 
   const [selectedCar, setSelectedCar] = useState(0)
@@ -213,6 +217,10 @@ function HomeHubContent() {
             {/* 0054: a live challenge as a line (not a card), and any badge to celebrate. */}
             {rewards.data?.extras?.challenge && <ChallengeLine challenge={rewards.data.extras.challenge} />}
             {rewards.data?.extras && rewards.data.extras.unseen.length > 0 && <BadgeCelebration badges={rewards.data.extras.unseen} />}
+            {/* Badges first; new cars on the next visit, so two sheets never open at once. */}
+            {garagePulls.data && garagePulls.data.unseen > 0 && !(rewards.data?.extras && rewards.data.extras.unseen.length > 0) && (
+              <PullRevealSheet pulls={garagePulls.data.pulls} firstName={authUser.name?.trim().split(/\s+/)[0] ?? null} />
+            )}
 
             {car ? (
               <div className="grid grid-cols-2 gap-3">

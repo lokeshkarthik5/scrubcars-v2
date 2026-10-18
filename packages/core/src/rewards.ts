@@ -8,17 +8,22 @@
  */
 
 import type { BadgeKey, BadgeSettings } from './achievements'
+import type { GarageSettings } from './garage'
 import { formatRupees } from './job-records'
 import { istDateLabel } from './payouts'
 
+/** The prizes drawn by weight (the odds table). */
 export const SCRATCH_OUTCOMES = ['small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash'] as const
-export type ScratchOutcome = (typeof SCRATCH_OUTCOMES)[number]
-export type MoneyOutcome = Exclude<ScratchOutcome, 'bonus_stamp'>
+export type WeightedOutcome = (typeof SCRATCH_OUTCOMES)[number]
+/** What a card can be: a weighted prize or (0057) a Detlio Garage card. */
+export const CARD_OUTCOMES = [...SCRATCH_OUTCOMES, 'garage_card'] as const
+export type ScratchOutcome = (typeof CARD_OUTCOMES)[number]
+export type MoneyOutcome = Exclude<WeightedOutcome, 'bonus_stamp'>
 
 export const LEVELS = ['member', 'silver', 'gold', 'platinum', 'diamond', 'icon'] as const
 export type RewardLevel = (typeof LEVELS)[number]
 
-export type ScratchWeights = Record<ScratchOutcome, number>
+export type ScratchWeights = Record<WeightedOutcome, number>
 
 export interface LevelSettings {
   key: RewardLevel
@@ -52,6 +57,8 @@ export interface RewardsSettings {
   expiryWarningDays: number
   /** Achievements (0054): each badge on or off and its bonus stamps; a badge left out reads as its default. */
   achievements?: Partial<Record<BadgeKey, BadgeSettings>>
+  /** The Detlio Garage (0057); left out reads as its defaults (`garageSettings`). */
+  garage?: Partial<GarageSettings>
 }
 
 export const DEFAULT_REWARDS_SETTINGS: RewardsSettings = {
@@ -183,6 +190,7 @@ export function rewardDate(iso: string): string {
 /** What a scratched card won, as the API says it (lib/rewards.ts scratchPrizeLabel). */
 export function scratchPrizeLabel(outcome: ScratchOutcome, amount: number | string | null): string {
   if (outcome === 'bonus_stamp') return 'A bonus stamp'
+  if (outcome === 'garage_card') return 'A Garage card'
   const rupee = rewardRupees(amount)
   return outcome === 'free_wash' ? `A free wash (up to ${rupee})` : `${rupee} off`
 }

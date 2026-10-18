@@ -359,6 +359,7 @@ function ChallengeForm({ existing, onDone }: { existing?: AdminChallenge; onDone
                 rewardStamps: kind === 'stamps' ? (values.rewardStamps ?? 2) : values.rewardStamps,
                 rewardAmount: kind === 'voucher' ? (values.rewardAmount ?? 100) : values.rewardAmount,
                 rewardMultiplier: kind === 'multiplier' ? (values.rewardMultiplier ?? 2) : values.rewardMultiplier,
+                rewardCards: kind === 'garage_cards' ? (values.rewardCards ?? 3) : values.rewardCards,
               })
             }}
           >
@@ -366,9 +367,11 @@ function ChallengeForm({ existing, onDone }: { existing?: AdminChallenge; onDone
             <option value="stamps">Bonus stamps</option>
             <option value="voucher">A ₹ voucher</option>
             <option value="badge">A badge</option>
+            <option value="garage_cards">Detlio Garage cards</option>
           </ScSelect>
           {values.rewardKind === 'stamps' && <NumberInput label="Bonus stamps (1–10)" value={values.rewardStamps} onChange={(v) => !started && set({ rewardStamps: v })} />}
           {values.rewardKind === 'voucher' && <NumberInput label="Voucher (₹1–₹2,000)" value={values.rewardAmount} onChange={(v) => !started && set({ rewardAmount: v })} />}
+          {values.rewardKind === 'garage_cards' && <NumberInput label="Garage cards (1–5)" value={values.rewardCards} onChange={(v) => !started && set({ rewardCards: v })} />}
           {values.rewardKind === 'multiplier' && (
             <ScSelect label="Stamps" disabled={started} value={String(values.rewardMultiplier ?? 2)} onChange={(e) => set({ rewardMultiplier: Number(e.target.value) })}>
               <option value="2">Double</option>

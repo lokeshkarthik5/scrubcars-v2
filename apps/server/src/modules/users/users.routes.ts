@@ -19,6 +19,7 @@ import { customerGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import { customerRewardRoutes } from '../rewards/rewards.routes.js'
 import { customerRewardExtrasRoutes } from '../reward-extras/reward-extras.routes.js'
+import { customerGarageRoutes } from '../garage/garage.routes.js'
 import * as usersController from './users.controller.js'
 import {
   avatarUploadUrlSchema,
@@ -85,6 +86,8 @@ usersRoutes.route('/me/guarantee', customerGuaranteeRoutes)
 usersRoutes.route('/me/rewards', customerRewardRoutes)
 // 0054: badges, challenges and Detlio Wrapped, under the same path and check.
 usersRoutes.route('/me/rewards', customerRewardExtrasRoutes)
+// 0057: the Detlio Garage (album, recent cards, seen), under the same check.
+usersRoutes.route('/me/rewards/garage', customerGarageRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

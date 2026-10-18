@@ -425,6 +425,9 @@ export const rewardsTx = {
   issueVoucher,
   convertFullCards,
   capCheck,
+  // 0057: the Garage's row voucher is weighed against the month's budget under the cap's lock.
+  lockCap,
+  issuedInMonthPaise: (tx: AnyTx, monthKey: string) => issuedInMonthPaise(tx, monthKey),
 }
 
 export const rewardsRepository = {
@@ -703,7 +706,21 @@ export const rewardsRepository = {
    * again); a bonus stamp goes on the Shine Card, which may fill it.
    * Scratching again answers the same prize.
    */
-  async scratch(input: { userId: string; cardId: string; now: Date; settings: RewardsSettings }): Promise<ScratchResult> {
+  async scratch(input: {
+    userId: string
+    cardId: string
+    now: Date
+    settings: RewardsSettings
+    /**
+     * 0057: a Garage card's pull, inside this transaction and lock. Answers
+     * the vouchers and cap alert its pull made, or null when the Garage is
+     * no longer live, and the card then gives a bonus stamp instead.
+     */
+    garageCard?: (
+      tx: AnyTx,
+      card: { id: string; rootBookingId: string }
+    ) => Promise<{ vouchers: IssuedVoucher[]; capAlert: { month: string; issuedPaise: number } | null } | null>
+  }): Promise<ScratchResult> {
     const { now, settings } = input
     return db.transaction(async (tx): Promise<ScratchResult> => {
       await lockRewards(tx, input.userId)
@@ -739,6 +756,30 @@ export const rewardsRepository = {
         }
       }
       if (card.expiresAt <= now) return { kind: 'expired' }
+
+      if (card.outcome === 'garage_card') {
+        const pulled = input.garageCard ? await input.garageCard(tx, { id: card.id, rootBookingId: card.rootBookingId }) : null
+        if (pulled) {
+          await tx
+            .update(rewardScratchCards)
+            .set({ scratchedAt: now })
+            .where(and(eq(rewardScratchCards.id, card.id), isNull(rewardScratchCards.scratchedAt)))
+          return {
+            kind: 'revealed',
+            already: false,
+            outcome: 'garage_card',
+            prizeAmount: null,
+            fellBack: false,
+            voucher: null,
+            vouchers: pulled.vouchers,
+            capAlert: pulled.capAlert,
+          }
+        }
+        // The Garage went off since the card was made: a bonus stamp instead.
+        await tx.update(rewardScratchCards).set({ outcome: 'bonus_stamp', fellBack: true }).where(eq(rewardScratchCards.id, card.id))
+        card.outcome = 'bonus_stamp'
+        card.fellBack = true
+      }
 
       let voucherId: string | null = null
       const vouchers: IssuedVoucher[] = []

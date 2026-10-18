@@ -22,14 +22,15 @@
  * bonus stamps on the Shine Card, a ₹ voucher (a Detlio-funded promo code,
  * counted toward the month's budget like every voucher), "double stamps"
  * (an extra stamp for each booking counted, those before the win included,
- * and each one after it until the window ends), or the challenge's badge.
+ * and each one after it until the window ends), the challenge's badge, or
+ * (0057) Detlio Garage cards, each a random pull.
  */
 import { addDays, daysBetween, istDateKey, istMidnight } from './ist.js'
 import { bannedPhraseIn } from './copy-rules.js'
 import { formatRupees } from './discounts.js'
 import { LEVELS, type RewardLevel } from './rewards.js'
 
-export const CHALLENGE_REWARD_KINDS = ['stamps', 'voucher', 'multiplier', 'badge'] as const
+export const CHALLENGE_REWARD_KINDS = ['stamps', 'voucher', 'multiplier', 'badge', 'garage_cards'] as const
 export type ChallengeRewardKind = (typeof CHALLENGE_REWARD_KINDS)[number]
 
 export const CHALLENGE_CATEGORIES = ['car_wash', 'detailing', 'coating', 'scratch_removal', 'others', 'package'] as const
@@ -45,6 +46,8 @@ export const CHALLENGE_LIMITS = {
   stamps: { min: 1, max: 10 },
   amount: { min: 1, max: 2000 },
   multiplier: { min: 2, max: 3 },
+  /** 0057: Detlio Garage cards won. */
+  cards: { min: 1, max: 5 },
   maxWinners: { min: 1, max: 100000 },
   /** A window of at most this many days. */
   windowDays: 92,
@@ -66,6 +69,8 @@ export interface Challenge {
   rewardStamps: number | null
   rewardAmount: number | null
   rewardMultiplier: number | null
+  /** 0057: Detlio Garage cards won ('garage_cards'). */
+  rewardCards: number | null
   audienceMinLevel: RewardLevel | null
   maxWinners: number | null
   publishedAt: Date | null
@@ -147,7 +152,7 @@ export function oneLeftDue(count: number, goal: number): boolean {
 }
 
 /** What winning gives, in the app's words. */
-export function rewardLabel(c: Pick<Challenge, 'rewardKind' | 'rewardStamps' | 'rewardAmount' | 'rewardMultiplier' | 'title'>): string {
+export function rewardLabel(c: Pick<Challenge, 'rewardKind' | 'rewardStamps' | 'rewardAmount' | 'rewardMultiplier' | 'title'> & { rewardCards?: number | null }): string {
   switch (c.rewardKind) {
     case 'stamps':
       return c.rewardStamps === 1 ? 'a bonus stamp' : `${c.rewardStamps ?? 0} bonus stamps`
@@ -157,6 +162,8 @@ export function rewardLabel(c: Pick<Challenge, 'rewardKind' | 'rewardStamps' | '
       return c.rewardMultiplier === 3 ? 'triple stamps' : 'double stamps'
     case 'badge':
       return `the ${c.title} badge`
+    case 'garage_cards':
+      return c.rewardCards === 1 ? 'a Garage card' : `${c.rewardCards ?? 0} Garage cards`
   }
 }
 
@@ -202,7 +209,9 @@ export function challengeWonWords(c: Challenge): { title: string; body: string }
       ? `${capitalise(rewardLabel(c))} on your washes in the challenge.`
       : c.rewardKind === 'voucher'
         ? `${rewardLabel(c)} your next booking is ready.`
-        : `${capitalise(rewardLabel(c))} ${c.rewardKind === 'badge' ? 'is in your cabinet' : 'on your Shine Card'}.`
+        : c.rewardKind === 'garage_cards'
+          ? `${capitalise(rewardLabel(c))} ${c.rewardCards === 1 ? 'is' : 'are'} in your Garage.`
+          : `${capitalise(rewardLabel(c))} ${c.rewardKind === 'badge' ? 'is in your cabinet' : 'on your Shine Card'}.`
   return { title: `You won ${c.title}`, body: what }
 }
 
@@ -231,6 +240,7 @@ export interface ChallengeInput {
   rewardStamps: number | null
   rewardAmount: number | null
   rewardMultiplier: number | null
+  rewardCards: number | null
   audienceMinLevel: RewardLevel | null
   maxWinners: number | null
 }
@@ -273,6 +283,9 @@ export function challengeProblems(input: ChallengeInput): string[] {
       if (!within(input.rewardMultiplier, L.multiplier)) problems.push('Stamps are doubled or tripled')
       break
     case 'badge':
+      break
+    case 'garage_cards':
+      if (!within(input.rewardCards, L.cards)) problems.push(`Garage cards are ${L.cards.min} to ${L.cards.max}`)
       break
   }
   if (input.maxWinners !== null && !within(input.maxWinners, L.maxWinners)) {
@@ -322,6 +335,7 @@ export function editRefusal(
     'rewardStamps',
     'rewardAmount',
     'rewardMultiplier',
+    'rewardCards',
     'audienceMinLevel',
   ]
   for (const key of fixed) if (c[key] !== next[key]) return 'Once a challenge has started, only its words and a higher winners limit can change'

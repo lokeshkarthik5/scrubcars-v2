@@ -1,5 +1,6 @@
 import { relations, sql, type AnyColumn } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -37,6 +38,7 @@ import type { SlotAlertWindow } from '../lib/slot-alerts.js'
 import type { CouponKind, CouponReward, RedeemChannel } from '../lib/coupons.js'
 import type { ChallengeBookingType, ChallengeCategory, ChallengeRewardKind } from '../lib/challenges.js'
 import type { WrappedStats } from '../lib/wrapped.js'
+import type { ArtSource, GarageRarity, GarageTone, PullForce, PullSource, SeriesStatus } from '../lib/garage.js'
 import type {
   BadgeKey,
   NudgeKind,
@@ -3095,7 +3097,7 @@ export const rewardVouchers = pgTable(
     index('reward_vouchers_expires_at_idx').on(table.expiresAt).where(sql`${table.cancelledAt} is null`),
     check(
       'reward_vouchers_kind_check',
-      sql`${table.kind} in ('shine', 'scratch', 'free_wash', 'referral', 'birthday', 'annual_detailing', 'adjustment', 'challenge')`
+      sql`${table.kind} in ('shine', 'scratch', 'free_wash', 'referral', 'birthday', 'annual_detailing', 'adjustment', 'challenge', 'garage_row')`
     ),
     check(
       'reward_vouchers_level_check',
@@ -3147,9 +3149,9 @@ export const rewardScratchCards = pgTable(
     index('reward_scratch_cards_created_at_idx').on(table.createdAt),
     check(
       'reward_scratch_cards_outcome_check',
-      sql`${table.outcome} in ('small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash') and ${table.drawnOutcome} in ('small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash')`
+      sql`${table.outcome} in ('small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash', 'garage_card') and ${table.drawnOutcome} in ('small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash', 'garage_card')`
     ),
-    check('reward_scratch_cards_prize_check', sql`(${table.outcome} = 'bonus_stamp') = (${table.prizeAmount} is null)`),
+    check('reward_scratch_cards_prize_check', sql`(${table.outcome} in ('bonus_stamp', 'garage_card')) = (${table.prizeAmount} is null)`),
     check(
       'reward_scratch_cards_fell_back_check',
       sql`not ${table.fellBack} or (${table.outcome} = 'bonus_stamp' and ${table.drawnOutcome} <> 'bonus_stamp')`
@@ -3186,6 +3188,8 @@ export const rewardStamps = pgTable(
     challengeId: uuid('challenge_id').references(() => rewardChallenges.id, { onDelete: 'cascade' }),
     // 0056: a printed coupon's bonus stamps.
     couponRedemptionId: uuid('coupon_redemption_id').references(() => couponRedemptions.id, { onDelete: 'cascade' }),
+    // 0057: the Detlio Garage's bonus stamps (duplicates, or a row past the budget).
+    garagePullId: uuid('garage_pull_id').references((): AnyPgColumn => garagePulls.id, { onDelete: 'cascade' }),
   },
   (table) => [
     uniqueIndex('reward_stamps_booking_key').on(table.bookingId).where(sql`${table.source} = 'booking'`),
@@ -3198,13 +3202,14 @@ export const rewardStamps = pgTable(
     index('reward_stamps_badge_award_idx').on(table.badgeAwardId).where(sql`${table.badgeAwardId} is not null`),
     index('reward_stamps_challenge_idx').on(table.challengeId).where(sql`${table.challengeId} is not null`),
     index('reward_stamps_coupon_redemption_idx').on(table.couponRedemptionId).where(sql`${table.source} = 'coupon'`),
+    index('reward_stamps_garage_pull_idx').on(table.garagePullId).where(sql`${table.source} = 'garage'`),
     check(
       'reward_stamps_source_check',
-      sql`${table.source} in ('booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge', 'coupon')`
+      sql`${table.source} in ('booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge', 'coupon', 'garage')`
     ),
     check(
       'reward_stamps_source_fields_check',
-      sql`(${table.source} = 'booking') = (${table.bookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'streak') = (${table.streakMonth} is not null) and (${table.source} = 'badge') = (${table.badgeAwardId} is not null) and (${table.source} = 'challenge') = (${table.challengeId} is not null) and (${table.source} = 'coupon') = (${table.couponRedemptionId} is not null) and (${table.source} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null))`
+      sql`(${table.source} = 'booking') = (${table.bookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'streak') = (${table.streakMonth} is not null) and (${table.source} = 'badge') = (${table.badgeAwardId} is not null) and (${table.source} = 'challenge') = (${table.challengeId} is not null) and (${table.source} = 'coupon') = (${table.couponRedemptionId} is not null) and (${table.source} = 'garage') = (${table.garagePullId} is not null) and (${table.source} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null))`
     ),
     check(
       'reward_stamps_voided_check',
@@ -3369,7 +3374,7 @@ export const rewardNudges = pgTable(
     index('reward_nudges_user_id_idx').on(table.userId, table.sentAt),
     check(
       'reward_nudges_kind_check',
-      sql`${table.kind} in ('expiring', 'one_away', 'wash_due', 'badge', 'challenge_start', 'challenge_one_left', 'challenge_won', 'wrapped')`
+      sql`${table.kind} in ('expiring', 'one_away', 'wash_due', 'badge', 'challenge_start', 'challenge_one_left', 'challenge_won', 'wrapped', 'garage_card', 'garage_row', 'garage_series')`
     ),
     check('reward_nudges_link_check', sql`${table.linkUrl} ~ '^/[A-Za-z0-9/_?=&.-]*$'`),
   ]
@@ -3412,6 +3417,8 @@ export const rewardChallenges = pgTable(
     rewardStamps: smallint('reward_stamps'),
     rewardAmount: decimal('reward_amount', { precision: 10, scale: 2 }),
     rewardMultiplier: smallint('reward_multiplier'),
+    // 0057: Garage cards won (1–5).
+    rewardCards: smallint('reward_cards'),
     audienceMinLevel: text('audience_min_level').$type<RewardLevel>(),
     maxWinners: integer('max_winners'),
     createdBy: varchar('created_by', { length: 100 }).notNull(),
@@ -3433,7 +3440,7 @@ export const rewardChallenges = pgTable(
     check('reward_challenges_booking_type_check', sql`${table.bookingType} is null or ${table.bookingType} in ('dropin', 'doorstep', 'pickup')`),
     check(
       'reward_challenges_reward_check',
-      sql`${table.rewardKind} in ('stamps', 'voucher', 'multiplier', 'badge') and (${table.rewardKind} = 'stamps') = (${table.rewardStamps} is not null) and (${table.rewardKind} = 'voucher') = (${table.rewardAmount} is not null) and (${table.rewardKind} = 'multiplier') = (${table.rewardMultiplier} is not null) and (${table.rewardStamps} is null or ${table.rewardStamps} between 1 and 10) and (${table.rewardAmount} is null or (${table.rewardAmount} > 0 and ${table.rewardAmount} <= 2000)) and (${table.rewardMultiplier} is null or ${table.rewardMultiplier} between 2 and 3) and (${table.rewardKind} <> 'voucher' or ${table.maxWinners} is not null)`
+      sql`${table.rewardKind} in ('stamps', 'voucher', 'multiplier', 'badge', 'garage_cards') and (${table.rewardKind} = 'stamps') = (${table.rewardStamps} is not null) and (${table.rewardKind} = 'voucher') = (${table.rewardAmount} is not null) and (${table.rewardKind} = 'multiplier') = (${table.rewardMultiplier} is not null) and (${table.rewardKind} = 'garage_cards') = (${table.rewardCards} is not null) and (${table.rewardCards} is null or ${table.rewardCards} between 1 and 5) and (${table.rewardStamps} is null or ${table.rewardStamps} between 1 and 10) and (${table.rewardAmount} is null or (${table.rewardAmount} > 0 and ${table.rewardAmount} <= 2000)) and (${table.rewardMultiplier} is null or ${table.rewardMultiplier} between 2 and 3) and (${table.rewardKind} <> 'voucher' or ${table.maxWinners} is not null)`
     ),
     check(
       'reward_challenges_audience_check',
@@ -3473,7 +3480,7 @@ export const rewardBadgeAwards = pgTable(
     index('reward_badge_awards_earned_at_idx').on(table.earnedAt),
     check(
       'reward_badge_awards_key_check',
-      sql`${table.badgeKey} in ('first_shine', 'washes_5', 'washes_25', 'washes_50', 'washes_100', 'streak_3', 'streak_6', 'streak_12', 'monsoon_shine', 'early_bird', 'night_owl', 'explorer', 'loyal_regular', 'pickup_pro', 'doorstep_devotee', 'reviewer', 'ambassador', 'detailing_devotee', 'coating_club', 'challenge')`
+      sql`${table.badgeKey} in ('first_shine', 'washes_5', 'washes_25', 'washes_50', 'washes_100', 'streak_3', 'streak_6', 'streak_12', 'monsoon_shine', 'early_bird', 'night_owl', 'explorer', 'loyal_regular', 'pickup_pro', 'doorstep_devotee', 'reviewer', 'ambassador', 'detailing_devotee', 'coating_club', 'challenge', 'garage_legend')`
     ),
     check('reward_badge_awards_challenge_check', sql`(${table.badgeKey} = 'challenge') = (${table.challengeId} is not null)`),
     check('reward_badge_awards_bonus_check', sql`${table.bonusStamps} between 0 and 10`),
@@ -3555,6 +3562,188 @@ export const rewardWrapped = pgTable(
     check('reward_wrapped_stats_check', sql`jsonb_typeof(${table.stats}) = 'object'`),
     check('reward_wrapped_counts_check', sql`${table.openedCount} >= 0 and ${table.sharedCount} >= 0`),
   ]
+)
+
+// ─── The Detlio Garage (0057) ────────────────────────────────────────────────
+//
+// Fictional hypercar cards earned by booking, on top of Detlio Rewards and
+// behind its switches plus the Garage's own. Rules in lib/garage.ts, module
+// modules/garage. Everything about a customer cascades with them; a pull
+// about a booking cascades with it.
+
+/** A series of cards: draft, live (pulls draw from it) or ended. Never deleted. */
+export const garageSeries = pgTable(
+  'garage_series',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    number: smallint('number').notNull(),
+    name: varchar('name', { length: 40 }).notNull(),
+    status: text('status').$type<SeriesStatus>().default('draft').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedBy: varchar('updated_by', { length: 100 }),
+  },
+  (table) => [
+    uniqueIndex('garage_series_number_key').on(table.number),
+    check('garage_series_number_check', sql`${table.number} between 1 and 999`),
+    check('garage_series_status_check', sql`${table.status} in ('draft', 'live', 'ended')`),
+    check('garage_series_window_check', sql`${table.startsAt} is null or ${table.endsAt} is null or ${table.endsAt} > ${table.startsAt}`),
+  ]
+)
+
+/**
+ * A fictional car of a series, numbered 1–40 (rows of five). Its picture
+ * is drawn from numbers (`default`, no URL) until the team chooses AI or
+ * uploaded art (a public R2 URL under garage/series-<n>/).
+ */
+export const garageCars = pgTable(
+  'garage_cars',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    seriesId: uuid('series_id')
+      .notNull()
+      .references(() => garageSeries.id, { onDelete: 'restrict' }),
+    number: smallint('number').notNull(),
+    name: varchar('name', { length: 28 }).notNull(),
+    rarity: text('rarity').$type<GarageRarity>().notNull(),
+    tone: text('tone').$type<GarageTone>().notNull(),
+    paint: varchar('paint', { length: 7 }).notNull(),
+    colour: varchar('colour', { length: 24 }).notNull(),
+    stats: text('stats').array().notNull(),
+    lore: varchar('lore', { length: 110 }).notNull(),
+    enabled: boolean('enabled').default(true).notNull(),
+    artSource: text('art_source').$type<ArtSource>().default('default').notNull(),
+    artUrl: text('art_url'),
+    artUpdatedAt: timestamp('art_updated_at', { withTimezone: true }),
+    artUpdatedBy: varchar('art_updated_by', { length: 100 }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedBy: varchar('updated_by', { length: 100 }),
+  },
+  (table) => [
+    uniqueIndex('garage_cars_series_number_key').on(table.seriesId, table.number),
+    check('garage_cars_number_check', sql`${table.number} between 1 and 40`),
+    check('garage_cars_rarity_check', sql`${table.rarity} in ('common', 'rare', 'epic', 'legendary')`),
+    check('garage_cars_tone_check', sql`${table.tone} in ('light', 'dark')`),
+    check('garage_cars_paint_check', sql`${table.paint} ~ '^#[0-9A-Fa-f]{6}$'`),
+    check('garage_cars_stats_check', sql`array_length(${table.stats}, 1) = 3`),
+    check('garage_cars_art_source_check', sql`${table.artSource} in ('default', 'ai', 'upload')`),
+    check('garage_cars_art_url_check', sql`(${table.artSource} = 'default') = (${table.artUrl} is null)`),
+  ]
+)
+
+/** Every card a customer got: one per stamp-earning chain, one per scratch card. */
+export const garagePulls = pgTable(
+  'garage_pulls',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seriesId: uuid('series_id')
+      .notNull()
+      .references(() => garageSeries.id, { onDelete: 'restrict' }),
+    carId: uuid('car_id')
+      .notNull()
+      .references(() => garageCars.id, { onDelete: 'restrict' }),
+    rarity: text('rarity').$type<GarageRarity>().notNull(),
+    source: text('source').$type<PullSource>().notNull(),
+    rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
+    scratchCardId: uuid('scratch_card_id').references(() => rewardScratchCards.id, { onDelete: 'cascade' }),
+    challengeId: uuid('challenge_id').references(() => rewardChallenges.id, { onDelete: 'cascade' }),
+    badgeAwardId: uuid('badge_award_id').references(() => rewardBadgeAwards.id, { onDelete: 'cascade' }),
+    actorName: varchar('actor_name', { length: 100 }),
+    reason: varchar('reason', { length: 300 }),
+    forced: text('forced').$type<PullForce>(),
+    wasDuplicate: boolean('was_duplicate').default(false).notNull(),
+    convertedAt: timestamp('converted_at', { withTimezone: true }),
+    pulledAt: timestamp('pulled_at', { withTimezone: true }).defaultNow().notNull(),
+    seenAt: timestamp('seen_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('garage_pulls_booking_key').on(table.rootBookingId).where(sql`${table.source} = 'booking'`),
+    uniqueIndex('garage_pulls_scratch_card_key').on(table.scratchCardId).where(sql`${table.source} = 'scratch'`),
+    index('garage_pulls_user_idx').on(table.userId, table.seriesId, table.pulledAt),
+    index('garage_pulls_pulled_at_idx').on(table.pulledAt),
+    index('garage_pulls_unseen_idx').on(table.userId).where(sql`${table.seenAt} is null`),
+    index('garage_pulls_duplicates_idx').on(table.userId).where(sql`${table.wasDuplicate} and ${table.convertedAt} is null`),
+    check('garage_pulls_rarity_check', sql`${table.rarity} in ('common', 'rare', 'epic', 'legendary')`),
+    check('garage_pulls_source_check', sql`${table.source} in ('booking', 'scratch', 'challenge', 'badge', 'admin')`),
+    check(
+      'garage_pulls_source_fields_check',
+      sql`(${table.source} <> 'booking' or ${table.rootBookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'challenge') = (${table.challengeId} is not null) and (${table.source} = 'badge') = (${table.badgeAwardId} is not null) and (${table.source} = 'admin') = (${table.actorName} is not null) and (${table.source} <> 'admin' or ${table.reason} is not null)`
+    ),
+    check('garage_pulls_forced_check', sql`${table.forced} is null or ${table.forced} in ('pity_rare', 'pity_legendary')`),
+    check('garage_pulls_converted_check', sql`${table.convertedAt} is null or ${table.wasDuplicate}`),
+  ]
+)
+
+/** What a customer owns: a count per car (kept in step with pulls by a trigger when one is deleted). */
+export const garageCollections = pgTable(
+  'garage_collections',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    carId: uuid('car_id')
+      .notNull()
+      .references(() => garageCars.id, { onDelete: 'restrict' }),
+    seriesId: uuid('series_id')
+      .notNull()
+      .references(() => garageSeries.id, { onDelete: 'restrict' }),
+    count: integer('count').notNull(),
+    firstPulledAt: timestamp('first_pulled_at', { withTimezone: true }).notNull(),
+    lastPulledAt: timestamp('last_pulled_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'garage_collections_pk', columns: [table.userId, table.carId] }),
+    index('garage_collections_series_idx').on(table.seriesId, table.userId),
+    check('garage_collections_count_check', sql`${table.count} >= 1`),
+  ]
+)
+
+/** A row of five finished: its voucher, or the bonus stamps past the budget. Once per customer. */
+export const garageRowCompletions = pgTable(
+  'garage_row_completions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seriesId: uuid('series_id')
+      .notNull()
+      .references(() => garageSeries.id, { onDelete: 'restrict' }),
+    row: smallint('row').notNull(),
+    pullId: uuid('pull_id').references(() => garagePulls.id, { onDelete: 'set null' }),
+    voucherId: uuid('voucher_id').references(() => rewardVouchers.id, { onDelete: 'set null' }),
+    fallbackStamps: smallint('fallback_stamps').default(0).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('garage_row_completions_key').on(table.userId, table.seriesId, table.row),
+    index('garage_row_completions_completed_at_idx').on(table.completedAt),
+    check('garage_row_completions_row_check', sql`${table.row} between 1 and 8`),
+    check('garage_row_completions_fallback_check', sql`${table.fallbackStamps} between 0 and 5`),
+  ]
+)
+
+/** A whole series collected: the Garage Legend badge, and the hook for any future prize. */
+export const garageSeriesCompletions = pgTable(
+  'garage_series_completions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seriesId: uuid('series_id')
+      .notNull()
+      .references(() => garageSeries.id, { onDelete: 'restrict' }),
+    pullId: uuid('pull_id').references(() => garagePulls.id, { onDelete: 'set null' }),
+    badgeAwardId: uuid('badge_award_id').references(() => rewardBadgeAwards.id, { onDelete: 'set null' }),
+    completedAt: timestamp('completed_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('garage_series_completions_key').on(table.userId, table.seriesId)]
 )
 
 // Cached geocoding responses, keyed "{provider}:{op}:{normalised-input}". Lives
