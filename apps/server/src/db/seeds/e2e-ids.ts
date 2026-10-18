@@ -345,6 +345,13 @@ export const CUSTOMERS = {
   /** Must not reach Admin → Alerts (specs/admin/alerts.spec.ts); its own phone, so it never races the above. */
   pushOutsider: { id: id(2404), phone: '9000002404', name: 'Push Outsider Om' },
   /**
+   * Job photo standards (0045; specs/journeys/job-photos-journey.spec.ts): adds
+   * a before photo of their car to BOOKINGS.photosJob and sees the garage's
+   * once the work starts. Ids 2500–2599 and phones 90000025xx are this
+   * feature's own range.
+   */
+  photos: { id: id(2502), phone: '9000002502', name: 'Photo Padmini', vehicleId: id(2503) },
+  /**
    * The garage response deadline (0042), at VENDORS.response only
    * (specs/journeys/response-deadline-journey.spec.ts). Ids 2200–2299 and
    * phones 90000022xx are this feature's own range. One car and one seeded
@@ -446,6 +453,8 @@ export const STAFF = {
   pushOwner: { id: id(2402), phone: '9000002402', name: 'Push Owner Pavan' },
   /** vendor_operator on VENDORS.push: may turn alerts on too (the counter needs them). */
   pushOperator: { id: id(2403), phone: '9000002403', name: 'Push Operator Padma' },
+  /** Owns VENDORS.photos only (0045; the 2500–2599 range): starts a job once its photos are in. */
+  photosOwner: { id: id(2501), phone: '9000002501', name: 'Photos Owner Prakash' },
   /** Owns VENDORS.response and VENDORS.responseOther only (0042; the 2200–2299 range). */
   responseOwner: { id: id(2201), phone: '9000002201', name: 'Response Owner Revathi' },
   /** Owns VENDORS.carHistory only (0046; the 2600–2699 range). */
@@ -626,6 +635,14 @@ export const VENDORS = {
    */
   carHistory: { id: id(2610), name: 'History Test Garage' },
   /**
+   * Job photo standards (0045). Pending and not verified, so no customer
+   * list ever shows it; its one booking is seeded. The only garage the
+   * standard is on for in E2E (JOB_PHOTOS_REQUIRED=off with
+   * JOB_PHOTOS_REQUIRED_GARAGES naming it, .env.e2e), so no other spec's
+   * Start or Complete waits for photos.
+   */
+  photos: { id: id(2510), name: 'Photo Standards Garage' },
+  /**
    * The garage response deadline (0042). Live, at the garage only, open
    * 06:00–22:00 every day, one ₹600 wash (SERVICES.responseWash), at
    * RESPONSE_PIN, far from every other test garage. It lets
@@ -772,6 +789,8 @@ export const SERVICES = {
   /** On PROPOSALS: its one service (0041). */
   proposalsWash: { id: id(2111), name: 'Proposals Foam Wash', price: '500.00', durationMins: 60 },
   documentsWash: { id: id(2311), name: 'Documents Foam Wash', price: '400.00', durationMins: 45 },
+  /** On PHOTOS (0045): its one service. */
+  photosWash: { id: id(2511), name: 'Photo Check Wash', price: '450.00', durationMins: 45 },
   /** On RESPONSE (0042): its one service. */
   responseWash: { id: id(2211), name: 'Slow Reply Wash', price: '600.00', durationMins: 60 },
   /** On RESPONSE_OTHER: a car wash too, so it matches the booking's kind of job. */
@@ -1060,6 +1079,12 @@ export const BOOKINGS = {
   carHistoryCoating: id(2620),
   carHistoryWash: id(2621),
   carHistoryCancelled: id(2622),
+  /**
+   * At VENDORS.photos (0045): CUSTOMERS.photos' paid ₹450 wash tomorrow at
+   * 11:00 IST, accepted, not started and with no photos. The garage cannot
+   * start it until it has two before photos.
+   */
+  photosJob: id(2520),
 } as const
 
 /** The coating's maintenance-wash reminder (0046), due in 3 days. */

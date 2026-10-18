@@ -35,6 +35,7 @@ import {
   listBookingsQuerySchema,
   markNoShowSchema,
   pickupStepOverrideSchema,
+  waiveJobPhotosSchema,
   pilotStatsQuerySchema,
   superAdminIdParamSchema,
   loginSchema,
@@ -460,6 +461,15 @@ adminRoutes.post(
   zValidator('json', pickupStepOverrideSchema),
   (c) =>
     adminController.overridePickupStep(c, c.req.valid('param').id, c.req.valid('json'))
+)
+// The photo standard (0045): Detlio waives it on one booking, with the typed
+// name and a reason, for a genuine case.
+adminRoutes.post(
+  '/bookings/:id/photos-waiver',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', waiveJobPhotosSchema),
+  (c) => adminController.waiveJobPhotos(c, c.req.valid('param').id, c.req.valid('json'))
 )
 adminRoutes.post(
   '/bookings/:id/notes',

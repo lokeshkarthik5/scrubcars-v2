@@ -276,12 +276,32 @@ export function customerPickupStep(booking: PushBooking, step: PickupStepPush): 
 }
 
 /**
- * The job is done (Mark completed, or Delivered for pickup & drop): Updates'
- * "completed" row, and the ask Home makes ("Rate your wash").
+ * The work started and the garage's before photos of the car are on the
+ * booking page (0045): sent with Mark in progress when the garage took any,
+ * since that is when the customer can see them (customerSeesPhotos).
  */
-export function customerCompleted(booking: PushBooking): PushMessage {
+export function customerBeforePhotos(booking: PushBooking): PushMessage {
   return message({
-    title: booking.bookingType === 'pickup' ? 'Your car is back' : 'Your car is done',
+    title: "Your car's before photos are in",
+    body: `${garageName(booking)} has started work. See them on your booking.`,
+    url: customerBookingPath(booking.id),
+    tag: bookingTag(booking.id),
+  })
+}
+
+/**
+ * The job is done (Mark completed, or Delivered for pickup & drop): Updates'
+ * "completed" row, and the ask Home makes ("Rate your wash"). With the
+ * garage's after photos on the booking (0045) the title points at them: one
+ * notification, not two at the same moment.
+ */
+export function customerCompleted(
+  booking: PushBooking,
+  options: { afterPhotos?: boolean } = {}
+): PushMessage {
+  const done = booking.bookingType === 'pickup' ? 'Your car is back' : 'Your car is done'
+  return message({
+    title: options.afterPhotos ? `${done} — see the after photos` : done,
     body: `How was it? Rate your wash at ${garageName(booking)}`,
     url: customerBookingPath(booking.id),
     tag: bookingTag(booking.id),

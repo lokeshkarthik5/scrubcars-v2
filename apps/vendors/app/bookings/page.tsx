@@ -33,6 +33,8 @@ import { JobPhotos } from '@/components/job-photos'
 import { PickupSteps } from '@/components/pickup-steps'
 import { ResponseCountdown, responseRunOut } from '@/components/response-countdown'
 import { jobStepTimes } from '@repo/core/job-records'
+import { GARAGE_AFTER_GRACE_MINUTES, photoGateMessage } from '@repo/core/job-photo-standards'
+import { BeforeAfterCompare } from '@repo/ui/features/before-after'
 import type { Booking } from '@repo/core/types'
 import { formatDuration } from '@repo/core/utils'
 
@@ -369,13 +371,19 @@ function VendorBookings() {
                 </div>
               )}
 
-              {/* Photos are optional: nothing below waits on them. Before
-                  photos from acceptance, after photos once work starts. */}
+              {/* Before photos from acceptance, after photos once work
+                  starts (0045: Start waits for two before photos and
+                  Complete for two after photos while the standard is on). */}
               {tab === 'upcoming' && (
                 <div className="flex flex-col gap-3 border-t border-border pt-3">
-                  <JobPhotos booking={b} stage="before" onChanged={refresh} />
+                  <JobPhotos booking={b} stage="before" onChanged={refresh} readOnly={!photosOpen(b, 'before', now)} />
                   {b.status === 'in_progress' && (
                     <JobPhotos booking={b} stage="after" onChanged={refresh} />
+                  )}
+                  {b.photoStandard?.required && b.photoStandard.waived && (
+                    <p className="text-[11px] text-text-muted">
+                      Detlio waived the photos for this job: Start and Complete don&apos;t wait for them.
+                    </p>
                   )}
                 </div>
               )}
@@ -406,38 +414,60 @@ function VendorBookings() {
                 />
               )}
 
+              {/* What Start waits for, said beside it (0045). */}
+              {/* Siblings on the card, not wrapped: a spec finds a job's card as
+                  the innermost element holding its button. */}
               {tab === 'upcoming' && b.bookingType !== 'pickup' && b.status === 'confirmed' && (
-                <ScButton
-                  aria-label={`Mark booking for ${b.customerName} in progress`}
-                  onClick={() => handleStatus(b.id, 'in_progress')}
-                >
-                  Mark in progress
-                </ScButton>
+                <>
+                  {b.photoStandard?.startBlocked && (
+                    <p id={`job-${b.id}-start-blocked`} className="text-[12px] text-warning">
+                      {photoGateMessage(b.photoStandard.startBlocked)}
+                    </p>
+                  )}
+                  <ScButton
+                    aria-label={`Mark booking for ${b.customerName} in progress`}
+                    aria-describedby={b.photoStandard?.startBlocked ? `job-${b.id}-start-blocked` : undefined}
+                    disabled={Boolean(b.photoStandard?.startBlocked)}
+                    onClick={() => handleStatus(b.id, 'in_progress')}
+                  >
+                    Mark in progress
+                  </ScButton>
+                </>
               )}
 
               {tab === 'upcoming' && b.bookingType !== 'pickup' && b.status === 'in_progress' && (
-                <ScButton
-                  aria-label={`Mark booking for ${b.customerName} completed`}
-                  disabled={b.completeBlockedByExtraWork}
-                  onClick={() => handleStatus(b.id, 'completed')}
-                >
-                  Mark completed
-                </ScButton>
+                <>
+                  {b.photoStandard?.finishBlocked && (
+                    <p id={`job-${b.id}-finish-blocked`} className="text-[12px] text-warning">
+                      {photoGateMessage(b.photoStandard.finishBlocked)}
+                    </p>
+                  )}
+                  <ScButton
+                    aria-label={`Mark booking for ${b.customerName} completed`}
+                    aria-describedby={b.photoStandard?.finishBlocked ? `job-${b.id}-finish-blocked` : undefined}
+                    disabled={b.completeBlockedByExtraWork || Boolean(b.photoStandard?.finishBlocked)}
+                    onClick={() => handleStatus(b.id, 'completed')}
+                  >
+                    Mark completed
+                  </ScButton>
+                </>
               )}
 
               {tab === 'completed' && (
                 <div className="flex flex-col gap-3 border-t border-border pt-3">
+                  {/* The finished job, side by side with how it came in. */}
+                  <BeforeAfterCompare photos={b.jobPhotos} />
                   <JobPhotos
                     booking={b}
                     stage="before"
                     onChanged={refresh}
-                    readOnly={!photosOpen(b, now)}
+                    readOnly={!photosOpen(b, 'before', now)}
                   />
                   <JobPhotos
                     booking={b}
                     stage="after"
                     onChanged={refresh}
-                    readOnly={!photosOpen(b, now)}
+                    readOnly={!photosOpen(b, 'after', now)}
                   />
                 </div>
               )}
@@ -512,15 +542,20 @@ function cancelledLabel(b: Booking): string {
 }
 
 /**
- * Whether a finished job's photos can still change: for a week after it was
- * completed (PHOTO_EDIT_WINDOW_DAYS on the server), counted from the slot on
- * jobs finished before completion times were kept.
+ * Whether the garage can still change a stage's photos, as the server says
+ * (`photoStandard`, 0045: before photos until the job is completed, after
+ * photos for an hour after). The card re-reads every 10 seconds, so the hour
+ * is counted here too, from the completion time, rather than waiting for it.
  */
-const PHOTO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+const AFTER_GRACE_MS = GARAGE_AFTER_GRACE_MINUTES * 60 * 1000
 
-function photosOpen(b: Booking, now: number): boolean {
-  const finished = new Date(b.completedAtIso ?? b.scheduledAtIso).getTime()
-  return now - finished <= PHOTO_WINDOW_MS
+function photosOpen(b: Booking, stage: 'before' | 'after', now: number): boolean {
+  if (b.photoStandard && !b.photoStandard[stage].canChange) return false
+  if (stage === 'after' && b.status === 'completed') {
+    const finished = new Date(b.completedAtIso ?? b.scheduledAtIso).getTime()
+    return now - finished <= AFTER_GRACE_MS
+  }
+  return b.status !== 'completed' || stage === 'after'
 }
 
 /** A pending job whose start time has come and gone: it can only be rejected. */

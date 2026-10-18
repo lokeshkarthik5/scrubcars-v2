@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScModal } from '@repo/ui/sc/modal'
+import { BeforeAfterCompare } from '@repo/ui/features/before-after'
 import type { JobPhoto } from '@repo/core/types'
 
 const STAGES: Array<{ stage: JobPhoto['stage']; label: string }> = [
@@ -15,14 +16,18 @@ const STAGES: Array<{ stage: JobPhoto['stage']; label: string }> = [
  * The garage's photos of the job: the car as it came in, and the work as it
  * was handed back. Shown once the work has started — the server leaves them
  * out before then — so the customer sees what the garage recorded, the same
- * record either side can point to if something is questioned later.
+ * record either side can point to if something is questioned later. Once
+ * the job is done, a before/after slider of the angles photographed both
+ * times leads the card (0045); the customer's own photos are in "Your car's
+ * condition", not here.
  *
  * Thumbnails open full size. Plain <img> on purpose: the photos are already
  * sized by the garage's phone before upload, and the image optimiser would
  * only fetch them again.
  */
-export function JobPhotosCard({ photos }: { photos: JobPhoto[] }) {
+export function JobPhotosCard({ photos: all, completed = false }: { photos: JobPhoto[]; completed?: boolean }) {
   const [open, setOpen] = useState<{ photo: JobPhoto; label: string } | null>(null)
+  const photos = all.filter((photo) => photo.by === 'garage')
 
   if (photos.length === 0) return null
 
@@ -30,6 +35,7 @@ export function JobPhotosCard({ photos }: { photos: JobPhoto[] }) {
     // #job-photos: a car's history links straight to them.
     <ScCard id="job-photos" className="flex scroll-mt-4 flex-col gap-3">
       <h2 className="text-sm font-semibold text-text-primary">Job photos</h2>
+      {completed && <BeforeAfterCompare photos={all} />}
       {STAGES.map(({ stage, label }) => {
         const ofStage = photos.filter((photo) => photo.stage === stage)
         if (ofStage.length === 0) return null

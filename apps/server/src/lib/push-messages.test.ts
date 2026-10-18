@@ -3,6 +3,7 @@ import { bannedPhraseIn } from './copy-rules.js'
 import {
   acceptWithin,
   customerAccepted,
+  customerBeforePhotos,
   customerComplaint,
   customerCompleted,
   customerDayBefore,
@@ -86,6 +87,8 @@ const ALL: Array<[string, PushMessage]> = [
   ['customer picked up', customerPickupStep({ ...booking, bookingType: 'pickup' }, 'picked_up')],
   ['customer out for delivery', customerPickupStep({ ...booking, bookingType: 'pickup' }, 'out_for_delivery')],
   ['customer completed', customerCompleted(booking)],
+  ['customer before photos', customerBeforePhotos(booking)],
+  ['customer completed with after photos', customerCompleted(booking, { afterPhotos: true })],
   ['customer refund started', customerRefund(booking, '799.00', true)],
   ['customer refund recorded', customerRefund(booking, '799.00', false)],
   ['customer complaint ack', customerComplaint({ id: 'c1', number: 123 }, 'acknowledged')],
@@ -175,6 +178,20 @@ describe('customer: the same words as Updates', () => {
   test('completed asks for a rating; pickup & drop says the car is back', () => {
     expect(customerCompleted(booking).body).toBe('How was it? Rate your wash at Marina Auto Spa')
     expect(customerCompleted({ ...booking, bookingType: 'pickup' }).title).toBe('Your car is back')
+  })
+
+  test('job photos (0045): before photos when the work starts, after photos with completion', () => {
+    const before = customerBeforePhotos(booking)
+    expect(before.title).toBe("Your car's before photos are in")
+    expect(before.body).toBe('Marina Auto Spa has started work. See them on your booking.')
+    expect(before.url).toBe(`/bookings/${booking.id}`)
+    expect(before.category).toBe('booking_update')
+    expect(customerCompleted(booking, { afterPhotos: true }).title).toBe('Your car is done — see the after photos')
+    expect(customerCompleted({ ...booking, bookingType: 'pickup' }, { afterPhotos: true }).title).toBe(
+      'Your car is back — see the after photos'
+    )
+    // One notification at completion, whichever it is.
+    expect(customerCompleted(booking, { afterPhotos: true }).tag).toBe(customerCompleted(booking).tag)
   })
 
   test('complaints open My complaints, by number only', () => {

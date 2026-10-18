@@ -247,6 +247,36 @@ export interface JobPhoto {
   stage: 'before' | 'after'
   url: string
   createdAt: string
+  /** The guided angle it was taken from (0045), or null for an extra. */
+  angle: 'front' | 'back' | 'left' | 'right' | 'interior' | null
+  /** Whose photo (0045): the garage's record, or the customer's own. */
+  by: 'garage' | 'customer'
+}
+
+/**
+ * Garage only (0045): the job's photo standard as the server decides it.
+ * `startBlocked` / `finishBlocked` say what Start and Complete (pickup &
+ * drop: Out for delivery and Delivered) wait for; null when nothing.
+ */
+export interface PhotoStandard {
+  required: boolean
+  waived: boolean
+  minimum: number
+  before: { count: number; canChange: boolean }
+  after: { count: number; canChange: boolean }
+  startBlocked: { stage: 'before' | 'after'; missing: number } | null
+  finishBlocked: { stage: 'before' | 'after'; missing: number } | null
+}
+
+/**
+ * Customer only (0045): when they may add their own photos of the car.
+ * Before photos until the work starts (pickup & drop: until collected),
+ * after photos until `after.closesAt` (24 hours after completion).
+ */
+export interface ConditionPhotos {
+  max: number
+  before: { open: boolean; count: number }
+  after: { open: boolean; count: number; closesAt: string | null }
 }
 
 /**
@@ -401,6 +431,10 @@ export interface Booking {
   paidAtBooking: number
   /** Before/after photos; empty where the payload does not carry them. */
   jobPhotos: JobPhoto[]
+  /** Garage only (0045): what Start and Complete wait for; null where not carried. */
+  photoStandard: PhotoStandard | null
+  /** Customer only (0045): when they may add their own photos; null where not carried. */
+  conditionPhotos: ConditionPhotos | null
   /** The final bill that stands, if the garage has raised one. */
   finalBill: FinalBill | null
   /** Garage only: the job card can offer "Raise final bill" now. */
