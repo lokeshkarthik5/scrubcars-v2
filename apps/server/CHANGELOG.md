@@ -18,6 +18,37 @@ reconstructing every change in them.
 
 ### Added
 
+- **"Notify me if a slot opens"** (migration `0047_slot_alerts`, additive:
+  new table `slot_alerts` — customer, garage, IST date, `time_window`
+  (`any`/`morning`/`afternoon`/`evening`, CHECK), booking type, the
+  services' total `duration_mins`, `service_ids`, `expires_at` (end of the
+  day), `notified_at`/`notified_slot_at` (both or neither, CHECK),
+  `last_checked_at`; one waiting per customer, garage and date (partial
+  unique index); cascades with the customer and the garage. Numbered after
+  0045/0046, which come from parallel branches).
+  - `modules/slot-alerts`: `GET`/`POST /users/me/slot-alerts`,
+    `DELETE /users/me/slot-alerts/:id` (the session's customer only;
+    anyone else's is 404 `SLOT_ALERT_NOT_FOUND`). At most 5 waiting
+    (409 `SLOT_ALERT_LIMIT`, under a per-customer lock); setting one again
+    for the same garage and day changes it. Refused when a time in the
+    window is free now (409 `SLOT_ALERT_SLOT_FREE`), the day is closed or
+    paused, the job is too long for it, or no time in the window has notice
+    left (409 `SLOT_ALERT_NO_TIMES`); today up to 60 days ahead.
+  - Matching runs the slot list's own rule: `slotsForDay` (new, in
+    `lib/slots.ts`; `jobSlots` now runs it too, same answers) for the
+    alert's job length and booking type, then its window.
+  - Re-checked after every write that frees capacity commits (customer
+    cancel, garage decline, admin cancel, no-show, not accepted in time,
+    suggested times declined or expired, a booking moved, a holiday
+    removed, a pause lifted, hours, slot length or admin's garage save),
+    in the background; the pending-digest cron sweeps 20 garage-days a run
+    as a safety net and deletes alerts whose day ended 31+ days ago. The
+    digest's summary gains `slotAlerts`.
+  - A match is claimed once, then pushed (`customerSlotOpened`, Booking
+    updates switch) and shown in Updates (`slot_opened`): "A slot opened at
+    <garage>", "Sat 24 Oct — 10:30 AM. Book before it goes.", opening
+    checkout on that day with the same services and mode. Nothing is held.
+
 - **Free browser notifications for garages and customers, booking
   reminders, and a Telegram test button** (migration
   `0044_push_notifications`, additive: new tables `push_subscriptions`

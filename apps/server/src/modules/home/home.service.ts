@@ -20,6 +20,7 @@ import {
   UPDATES_WINDOW_DAYS,
   type HubBooking,
   type HubComplaint,
+  type HubSlotAlert,
   type PausedGarage,
   type UpdateItem,
 } from '../../lib/home-updates.js'
@@ -32,6 +33,7 @@ import { rankOffers, toHomeOffer, type HomeOffer } from '../../lib/offers.js'
 import { isWashDue } from '../../lib/wash-status.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { discountsRepository } from '../discounts/discounts.repository.js'
+import { slotAlertsRepository } from '../slot-alerts/slot-alerts.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { toHubBooking } from './home.mappers.js'
 import { homeRepository } from './home.repository.js'
@@ -116,6 +118,16 @@ async function loadBookings(userId: string, now: Date): Promise<HubBooking[]> {
 /** The customer's complaints the team answered in the Updates window. */
 function loadComplaints(userId: string, now: Date): Promise<HubComplaint[]> {
   return homeRepository.listAnsweredComplaints(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
+}
+
+/** The customer's slot alerts that were told a time opened, in the Updates window (0047). */
+async function loadSlotAlerts(userId: string, now: Date): Promise<HubSlotAlert[]> {
+  const rows = await slotAlertsRepository.listToldSince(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
+  return rows.flatMap((row) =>
+    row.notifiedAt && row.notifiedSlotAt
+      ? [{ ...row, notifiedAt: row.notifiedAt, notifiedSlotAt: row.notifiedSlotAt }]
+      : []
+  )
 }
 
 /** Holidays and weekly hours for the garages of upcoming bookings only. */
@@ -212,6 +224,7 @@ export const homeService = {
     const lastJobs = (await part('last_jobs', () => loadLastJobs(userId, cars))) ?? new Map()
 
     const complaints = (await part('complaints', () => loadComplaints(userId, now))) ?? []
+    const slotAlerts = (await part('slot_alerts', () => loadSlotAlerts(userId, now))) ?? []
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     const homeCars = buildCars({ cars, bookings, lastWashAt, lastJobs, notices: bookingWindow, now })
@@ -248,6 +261,7 @@ export const homeService = {
       notices: bookingWindow,
       pausedGarages: pausedGaragesOf(lastJobs),
       complaints,
+      slotAlerts,
       seenAt,
       now,
     })
@@ -313,6 +327,7 @@ export const homeService = {
     // The same feed Home's bell counts from, so the two always agree.
     const lastJobs = await loadLastJobs(userId, await homeRepository.listCars(userId))
     const complaints = await loadComplaints(userId, now)
+    const slotAlerts = await loadSlotAlerts(userId, now)
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     return {
@@ -325,6 +340,7 @@ export const homeService = {
         notices: bookingWindow,
         pausedGarages: pausedGaragesOf(lastJobs),
         complaints,
+        slotAlerts,
         seenAt,
         now,
       }),

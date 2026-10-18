@@ -215,6 +215,7 @@ export type UpdateKind =
   | 'extra_work_paid'
   | 'extra_work_declined'
   | 'extra_work_withdrawn'
+  | 'slot_opened'
 
 /** One row of Updates (lib/home-updates.ts UpdateItem). */
 export interface UpdateItem {

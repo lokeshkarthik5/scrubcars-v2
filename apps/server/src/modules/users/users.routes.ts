@@ -9,6 +9,7 @@ import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
 import { favouritesRoutes } from '../favourites/favourites.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
 import { customerPushRoutes } from '../push/push.routes.js'
+import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import * as usersController from './users.controller.js'
 import {
   avatarUploadUrlSchema,
@@ -39,6 +40,10 @@ usersRoutes.route('/me', favouritesRoutes)
 // Browser notifications on the customer's own devices, and their two
 // switches: /me/push (0044). Same mounting, same check.
 usersRoutes.route('/me/push', customerPushRoutes)
+
+// "Notify me if a slot opens": /me/slot-alerts (0047). Same mounting, same
+// check.
+usersRoutes.route('/me', slotAlertsRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

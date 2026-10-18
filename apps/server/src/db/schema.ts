@@ -32,6 +32,7 @@ import type {
   DocumentType,
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
+import type { SlotAlertWindow } from '../lib/slot-alerts.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -2300,6 +2301,55 @@ export const notificationSends = pgTable(
     check(
       'notification_sends_kind_check',
       sql`${table.kind} in ('day_before', 'hour_before', 'respond_soon')`
+    ),
+  ]
+)
+
+// "Notify me if a slot opens" (0047): a customer waiting for a time at one
+// garage on one IST date, for a job of `duration_mins` of this booking type,
+// in a part of the day (`time_window`). Re-checked with the slot list's own
+// rule whenever that garage frees capacity on that date (lib/slot-alerts.ts);
+// `notified_at` / `notified_slot_at` record the once it was told (the
+// earliest matching time then), which Updates reads. Waiting = not notified
+// and `expires_at` (the end of the date) still ahead. One waiting alert per
+// customer, garage and date (partial unique index). Cascades with the
+// customer and the garage. The CHECKs are in 0047_slot_alerts.sql.
+export const slotAlerts = pgTable(
+  'slot_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    date: date('date', { mode: 'string' }).notNull(),
+    timeWindow: text('time_window').$type<SlotAlertWindow>().default('any').notNull(),
+    bookingType: bookingTypeEnum('booking_type').notNull(),
+    // The services' total, as the picker added them up when it was set.
+    durationMins: integer('duration_mins').notNull(),
+    // For the link only (checkout with the same services); no FK.
+    serviceIds: uuid('service_ids').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    notifiedAt: timestamp('notified_at', { withTimezone: true }),
+    notifiedSlotAt: timestamp('notified_slot_at', { withTimezone: true }),
+    // When the cron's safety-net sweep last looked, so it goes round fairly.
+    lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('slot_alerts_waiting_key')
+      .on(table.userId, table.vendorId, table.date)
+      .where(sql`${table.notifiedAt} is null`),
+    index('slot_alerts_garage_day_idx')
+      .on(table.vendorId, table.date)
+      .where(sql`${table.notifiedAt} is null`),
+    index('slot_alerts_user_id_idx').on(table.userId),
+    index('slot_alerts_expires_at_idx').on(table.expiresAt),
+    check(
+      'slot_alerts_time_window_check',
+      sql`${table.timeWindow} in ('any', 'morning', 'afternoon', 'evening')`
     ),
   ]
 )

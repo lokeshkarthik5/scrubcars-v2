@@ -13,12 +13,13 @@
  * Where a line exists in the customer's Updates feed (lib/home-updates.ts),
  * the notification says the same thing, so the app and the phone agree.
  */
-import { bookingTypeLabel } from './booking-types.js'
+import { bookingTypeLabel, isBookingType } from './booking-types.js'
 import { formatComplaintNumber } from './complaints.js'
 import { BANK_DAYS, MY_COMPLAINTS_PATH, rupees } from './home-updates.js'
 import { serviceLabelOf } from './home-cards.js'
 import { istDateKey, istSlotShortLabel, istTimeLabel } from './ist.js'
 import { DEFAULT_TTL_SECONDS, type PushMessage } from './push.js'
+import { slotAlertPath, slotOpenedWords } from './slot-alerts.js'
 
 const MINUTE_MS = 60 * 1000
 
@@ -328,6 +329,28 @@ export function customerNotAcceptedInTime(booking: PushBooking): PushMessage {
     url: customerBookingPath(booking.id),
     tag: bookingTag(booking.id),
     ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/**
+ * "Notify me if a slot opens" (0047): a time freed up at a garage on the day
+ * the customer was waiting for. Updates' row, word for word; opens checkout
+ * with that day picked. A booking update (the Booking updates switch), not
+ * held for them, and no use once the time has started.
+ */
+export function customerSlotOpened(
+  alert: { id: string; vendorId: string; date: string; bookingType: string; serviceIds: string[] },
+  garageName: string,
+  slotAt: Date,
+  now: Date
+): PushMessage {
+  const words = slotOpenedWords(garageName, slotAt)
+  return message({
+    ...words,
+    url: slotAlertPath({ ...alert, bookingType: isBookingType(alert.bookingType) ? alert.bookingType : 'dropin' }),
+    tag: `slot_alert:${alert.id}`,
+    urgency: 'high',
+    ttlSeconds: ttlUntil(slotAt, now),
   })
 }
 

@@ -353,6 +353,16 @@ export const CUSTOMERS = {
    */
   notAccepted: { id: id(2202), phone: '9000002202', name: 'Late Answer Lalitha', vehicleId: id(2203) },
   /**
+   * "Notify me if a slot opens" (0047; specs/platform/slot-alerts-api.spec.ts),
+   * at VENDORS.slotAlerts only. Ids 2700–2799 and phones 90000027xx are this
+   * feature's own range. `slotAlert` waits for the full day and is told when
+   * `slotHolder` cancels the booking that fills it; `slotAlertOther` must not
+   * see or cancel that alert.
+   */
+  slotAlert: { id: id(2701), phone: '9000002701', name: 'Slot Alert Sita' },
+  slotAlertOther: { id: id(2702), phone: '9000002702', name: 'Slot Alert Other Om' },
+  slotHolder: { id: id(2703), phone: '9000002703', name: 'Slot Holder Hari', vehicleId: id(2704) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -440,6 +450,8 @@ export const STAFF = {
   pushOperator: { id: id(2403), phone: '9000002403', name: 'Push Operator Padma' },
   /** Owns VENDORS.response and VENDORS.responseOther only (0042; the 2200–2299 range). */
   responseOwner: { id: id(2201), phone: '9000002201', name: 'Response Owner Revathi' },
+  /** Owns VENDORS.slotAlerts only (0047; the 2700–2799 range). */
+  slotAlertsOwner: { id: id(2705), phone: '9000002705', name: 'Slot Alerts Owner Selvi' },
 } as const
 
 export const VENDORS = {
@@ -623,6 +635,13 @@ export const VENDORS = {
    * the customer is shown. Booked by nobody.
    */
   responseOther: { id: id(2212), name: 'Quick Reply Garage' },
+  /**
+   * "Notify me if a slot opens" (0047). Live, at the garage only, open
+   * 06:00–22:00 every day, one bay and one job a day, one ₹500 wash
+   * (SERVICES.slotAlertsWash), at SLOT_ALERTS_PIN, far from every other test
+   * garage. BOOKINGS.slotAlertsHeld fills its day two days ahead.
+   */
+  slotAlerts: { id: id(2710), name: 'Full Day Garage' },
 } as const
 
 /** Where VENDORS.documents is: south-west, clear of every other test garage. */
@@ -638,6 +657,12 @@ export const PROPOSALS_PIN = { lat: 12.5, lng: 79.875 } as const
  */
 export const RESPONSE_PIN = { lat: 11.5, lng: 79 } as const
 export const RESPONSE_OTHER_PIN = { lat: 11.53125, lng: 79 } as const
+
+/**
+ * Where VENDORS.slotAlerts is (0047): far south, about 100 km from every
+ * other test garage, so it is in no other spec's lists or suggestions.
+ */
+export const SLOT_ALERTS_PIN = { lat: 11, lng: 79.75 } as const
 
 /**
  * Where VENDORS.pickup is, and CUSTOMERS.pickup's saved address ~1.7 km north
@@ -761,6 +786,8 @@ export const SERVICES = {
   responseWash: { id: id(2211), name: 'Slow Reply Wash', price: '600.00', durationMins: 60 },
   /** On RESPONSE_OTHER: a car wash too, so it matches the booking's kind of job. */
   responseOtherWash: { id: id(2213), name: 'Quick Reply Wash', price: '650.00', durationMins: 45 },
+  /** On SLOT_ALERTS (0047): its one service. */
+  slotAlertsWash: { id: id(2711), name: 'Full Day Wash', price: '500.00', durationMins: 60 },
 } as const
 
 export const DISCOUNTS = {
@@ -1034,6 +1061,13 @@ export const BOOKINGS = {
    * it as not accepted in time, with the payment owed back in full.
    */
   notAccepted: id(2220),
+  /**
+   * At VENDORS.slotAlerts (0047): CUSTOMERS.slotHolder's paid ₹500 wash two
+   * days ahead at 10:00 IST, pending (no deadline to accept, so the cron
+   * leaves it alone). The garage takes one job a day, so the day is full
+   * until the holder cancels it.
+   */
+  slotAlertsHeld: id(2720),
 } as const
 
 export const VEHICLES = {

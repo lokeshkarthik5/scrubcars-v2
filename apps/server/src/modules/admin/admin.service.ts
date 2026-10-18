@@ -56,6 +56,7 @@ import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
 import { adminRepository } from './admin.repository.js'
+import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import type {
   AdminCancelBookingInput,
   CreateBookingNoteInput,
@@ -823,6 +824,8 @@ export const adminService = {
       log.info({ vendorId: id, pickup: pickupPatch.pickup }, 'admin:vendor-pickup-updated')
     }
     log.info({ vendorId: id }, 'admin:vendor-updated')
+    // Hours, bays, the day's cap or the slot length may have made room (0047).
+    slotAlertsService.garageChanged(id, 'admin_garage_updated')
     return { ...updated, pickupEnabled: isPickupOffered(updated) }
   },
 
@@ -965,6 +968,7 @@ export const adminService = {
 
     const [updated] = await adminRepository.unarchiveVendor(id)
     log.info({ vendorId: id }, 'admin:vendor-unarchived')
+    slotAlertsService.garageChanged(id, 'admin_unarchived')
     return updated
   },
 
@@ -990,6 +994,7 @@ export const adminService = {
       bookingsPausedReason: null,
     })
     log.info({ vendorId: id }, 'admin:vendor-resumed')
+    slotAlertsService.garageChanged(id, 'admin_resumed')
     return updated
   },
 
@@ -1170,6 +1175,8 @@ export const adminService = {
     )
     // Recorded only if it was paid for (lib/analytics.ts bookingEventProps).
     analyticsService.bookingCancelled(id, 'detlio')
+    // Its time is free again: anyone waiting for that day hears (0047).
+    slotAlertsService.capacityFreed(booking, 'admin_cancelled')
 
     // Only a paid booking leaves anything to do: an unpaid one has no money
     // to return. With AUTO_REFUNDS on it goes back at once.
@@ -1244,6 +1251,8 @@ export const adminService = {
       { bookingId: id, from: booking.status, party: input.party, author },
       'admin:booking-no-show'
     )
+    // Whatever is left of its time is free again (0047).
+    slotAlertsService.capacityFreed(booking, 'no_show')
 
     if (input.party === 'garage') {
       const updated = await adminRepository.findBookingById(id)

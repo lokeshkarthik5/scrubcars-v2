@@ -71,6 +71,7 @@ import type {
 import { refundsService } from '../refunds/refunds.service.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
+import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
@@ -1705,6 +1706,8 @@ export const bookingsService = {
     // The garage's team (0044); never the customer's reason, which is typed text.
     pushService.notifyGarage(updated!.vendorId, pushMessages.garageCustomerCancelled(updated!))
     analyticsService.bookingCancelled(bookingId, 'customer')
+    // Its time is free again: anyone waiting for that day hears (0047).
+    slotAlertsService.capacityFreed(updated!, 'customer_cancelled')
     // Cancelled in the allowed time (the cutoff above): a paid one is
     // refunded at once when AUTO_REFUNDS is on.
     if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
@@ -1875,6 +1878,8 @@ export const bookingsService = {
       fullBooking!.vendorId,
       pushMessages.garageRescheduled(fullBooking!, booking.scheduledAt, new Date(), env.garageResponseMinutes)
     )
+    // The time it moved from is free again (0047).
+    slotAlertsService.capacityFreed(booking, 'moved')
     return toBookingResponse(fullBooking!)
   },
 
@@ -1987,6 +1992,7 @@ export const bookingsService = {
       pushMessages.customerDeclined(updated!, updated?.payment?.status === 'paid' ? updated.payment.amount : null)
     )
     analyticsService.bookingCancelled(bookingId, 'garage')
+    slotAlertsService.capacityFreed(updated!, 'garage_declined')
     // Declined by the garage: a paid one is refunded at once when
     // AUTO_REFUNDS is on.
     if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
