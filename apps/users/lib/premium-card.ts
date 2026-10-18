@@ -1,4 +1,5 @@
 import type { GiftDesign } from '@repo/core/api/gifts'
+import { PHOTO_ASPECT, pickCardCar, type CardCar, type CardCarTone } from '@repo/core/card-cars'
 import { istMonth, pickCarCareTip } from '@repo/core/car-care-tips'
 import { rewardDay, rewardRupees, type ScratchOutcome } from '@repo/core/rewards'
 import { giftArtFor, giftRupees, type GiftArt } from './gifts'
@@ -16,9 +17,10 @@ import { prizeTier, type PrizeTier } from './scratch-prize'
  * tall, whatever its size on screen (CSS container units) or in the image
  * (pixels ÷ 100).
  *
- * The car is always one of Detlio's own pictures (public/cars, see
- * SOURCES.md), cropped and lit by the card. No card names, badges or hints
- * at a make or model: the chips describe the gift, never the car.
+ * The car is a licensed photo (public/cards/cars, CREDITS.md) with every
+ * badge retouched out, picked for good per card from the photos of the
+ * card's tone (packages/core/src/card-cars.ts). No card names, badges or
+ * hints at a make or model: the chips describe the gift, never the car.
  */
 
 export type CardLook = GiftArt | 'prize_silver' | 'prize_gold' | 'prize_star' | 'prize_jackpot'
@@ -34,6 +36,8 @@ export interface CardChip {
 
 export interface PremiumCardSpec {
   look: CardLook
+  /** The photo on the card, picked for good from the photos of its tone. */
+  car: CardCar
   chips: CardChip[]
   /** Line one in ink, line two in grey: "Happy Diwali" / "₹2,000 of car care". */
   title: [string, string]
@@ -45,64 +49,79 @@ export const CARD = {
   height: 132,
   radius: 3.6,
   pad: 6.4,
-  /** The car's stage: the top of the card. */
-  stage: 76,
   mark: { x: 6.4, y: 6.6, size: 3.9 },
   chips: { top: 77.4, height: 6.8, font: 2.85, icon: 3, padX: 2.2, gap: 1.4, iconGap: 1 },
   title: { top: 89.4, size: 8.2, line: 8.9, maxWidth: 87.2 },
   tip: { top: 110.6, size: 3.3, line: 4.85, lines: 3, labelGap: 1.4 },
 } as const
 
-/** A car picture placed on the stage: its box in card units, mirrored or not. */
-export interface CarCut {
-  src: string
-  /** Width ÷ height of the picture file. */
-  aspect: number
-  flip: boolean
-  left: number
-  top: number
-  width: number
-  /** Where the tyres meet the floor, as a share of the picture's height (SOURCES.md: 90.7%). */
-  floor: number
-}
-
 /**
- * The crops: rear three-quarters, big, bleeding off the edge, like a
- * collector's card. Mirrored so the car faces right and its tail leads.
+ * The photo: across the top of the card, edge to edge and flush with the
+ * top, its own height at the files' aspect (16:13). Its lower part fades
+ * into the card's ground, so it reads as the card's hero image (the chips
+ * sit on the faded edge), and its top edge softens a little. A soft wash behind the wordmark keeps it legible
+ * on any photo.
  */
-export const CAR_CUTS = {
-  sedan: { src: '/cars/car-sedan-2400.webp', aspect: 2400 / 864, flip: true, left: -12, top: -12, width: 262, floor: 0.907 },
-  suv: { src: '/cars/car-suv-2400.webp', aspect: 2400 / 864, flip: true, left: -6, top: -14, width: 250, floor: 0.907 },
-} as const satisfies Record<string, CarCut>
-export type CarKey = keyof typeof CAR_CUTS
+export const PHOTO = {
+  height: 100 / PHOTO_ASPECT,
+  /**
+   * The fade's stops down the photo: [share of its height, opacity]. The
+   * top edge softens a little into the card too, under the wordmark.
+   */
+  fade: [
+    [0, 0.42],
+    [0.13, 0.84],
+    [0.24, 1],
+    [0.6, 1],
+    [0.76, 0.78],
+    [0.89, 0.3],
+    [1, 0],
+  ] as ReadonlyArray<readonly [number, number]>,
+  /** The wash behind the wordmark: an ellipse, centre and radii in card units. */
+  wash: { x: 12, y: 6.4, rx: 34, ry: 17 },
+} as const
+
+/** A card's tone picks its photos: light cards get light photos, Night cards dark ones. */
+export const PHOTO_TONE: Record<CardTone, CardCarTone> = { gallery: 'light', night: 'dark' }
 
 export interface LookStyle {
   tone: CardTone
-  car: CarKey
   /** The card's ground, top to bottom. */
   ground: [string, string, string]
   /** The light behind the car (a soft radial). */
   light: string
   /** A second, coloured light high on the card, or null. */
   glow: { x: number; y: number; color: string } | null
+  /** A colour laid over the photo in soft light (Diwali's gold), or null. */
+  tint: string | null
+  /** The wash behind the wordmark. */
+  wash: string
   accent: 'confetti' | 'sparks' | 'ribbon' | null
+  /** The sparks' colour, where there are sparks. */
+  spark?: string
   /** The share image's backdrop around the card: centre, edge. */
   backdrop: [string, string]
 }
 
 const GALLERY_GROUND: [string, string, string] = ['#F6F7F8', '#ECEDF0', '#E3E5E9']
 
+const LIGHT_WASH = 'rgba(246,247,248,0.72)'
+const DARK_WASH = 'rgba(8,9,11,0.78)'
+const NIGHT_GROUND: [string, string, string] = ['#1E2026', '#131418', '#0B0C0E']
+/** Diwali and the jackpot: Night cards lit warm, with gold sparks. */
+const WARM_GROUND: [string, string, string] = ['#261B0F', '#171009', '#0C0805']
+
 export const LOOKS: Record<CardLook, LookStyle> = {
-  shine: { tone: 'gallery', car: 'sedan', ground: GALLERY_GROUND, light: 'rgba(255,255,255,0.95)', glow: null, accent: null, backdrop: ['#F1F2F4', '#CDD0D6'] },
-  midnight: { tone: 'night', car: 'suv', ground: ['#1E2026', '#131418', '#0B0C0E'], light: 'rgba(150,165,195,0.30)', glow: { x: 78, y: 10, color: 'rgba(120,140,190,0.22)' }, accent: null, backdrop: ['#1C1D22', '#050506'] },
-  pearl: { tone: 'gallery', car: 'suv', ground: ['#F8F6F3', '#EFEBE6', '#E6E1DA'], light: 'rgba(255,253,250,0.95)', glow: { x: 88, y: 6, color: 'rgba(214,222,255,0.55)' }, accent: null, backdrop: ['#F4F1ED', '#D6D0C8'] },
-  birthday: { tone: 'gallery', car: 'sedan', ground: ['#F7F6F9', '#EEEDF2', '#E5E4EB'], light: 'rgba(255,255,255,0.95)', glow: { x: 86, y: 8, color: 'rgba(255,214,232,0.55)' }, accent: 'confetti', backdrop: ['#F3F1F6', '#D3D0DB'] },
-  diwali: { tone: 'gallery', car: 'sedan', ground: ['#FAF3E6', '#F1E5CE', '#E8D7B8'], light: 'rgba(255,226,160,0.85)', glow: { x: 80, y: 4, color: 'rgba(255,196,96,0.45)' }, accent: 'sparks', backdrop: ['#F7EEDC', '#D9C49C'] },
-  thank_you: { tone: 'gallery', car: 'suv', ground: ['#F4F6F7', '#EAEDEF', '#E0E4E7'], light: 'rgba(255,255,255,0.95)', glow: null, accent: 'ribbon', backdrop: ['#EFF2F4', '#C9D0D5'] },
-  prize_silver: { tone: 'gallery', car: 'sedan', ground: GALLERY_GROUND, light: 'rgba(255,255,255,0.95)', glow: null, accent: null, backdrop: ['#F1F2F4', '#CDD0D6'] },
-  prize_gold: { tone: 'gallery', car: 'suv', ground: ['#F9F4EA', '#F0E7D6', '#E7DBC3'], light: 'rgba(255,232,180,0.85)', glow: { x: 82, y: 6, color: 'rgba(255,206,120,0.40)' }, accent: null, backdrop: ['#F6EFE1', '#D8C7A4'] },
-  prize_star: { tone: 'night', car: 'suv', ground: ['#1E2026', '#131418', '#0B0C0E'], light: 'rgba(170,180,205,0.30)', glow: { x: 80, y: 8, color: 'rgba(220,225,236,0.18)' }, accent: 'sparks', backdrop: ['#1C1D22', '#050506'] },
-  prize_jackpot: { tone: 'gallery', car: 'sedan', ground: ['#FAF3E4', '#F1E4C8', '#E7D4AE'], light: 'rgba(255,224,150,0.9)', glow: { x: 80, y: 4, color: 'rgba(255,190,80,0.45)' }, accent: 'sparks', backdrop: ['#F7EDD8', '#D7BF8F'] },
+  shine: { tone: 'gallery', ground: GALLERY_GROUND, light: 'rgba(255,255,255,0.95)', glow: null, tint: null, wash: LIGHT_WASH, accent: null, backdrop: ['#F1F2F4', '#CDD0D6'] },
+  midnight: { tone: 'night', ground: NIGHT_GROUND, light: 'rgba(150,165,195,0.30)', glow: { x: 78, y: 10, color: 'rgba(120,140,190,0.22)' }, tint: 'rgba(110,130,190,0.35)', wash: DARK_WASH, accent: null, backdrop: ['#1C1D22', '#050506'] },
+  pearl: { tone: 'gallery', ground: ['#F8F6F3', '#EFEBE6', '#E6E1DA'], light: 'rgba(255,253,250,0.95)', glow: { x: 88, y: 6, color: 'rgba(214,222,255,0.55)' }, tint: 'rgba(255,232,206,0.45)', wash: 'rgba(248,246,243,0.72)', accent: null, backdrop: ['#F4F1ED', '#D6D0C8'] },
+  birthday: { tone: 'gallery', ground: ['#F7F6F9', '#EEEDF2', '#E5E4EB'], light: 'rgba(255,255,255,0.95)', glow: { x: 86, y: 8, color: 'rgba(255,214,232,0.55)' }, tint: 'rgba(255,170,215,0.30)', wash: 'rgba(247,246,249,0.72)', accent: 'confetti', backdrop: ['#F3F1F6', '#D3D0DB'] },
+  diwali: { tone: 'night', ground: WARM_GROUND, light: 'rgba(255,190,100,0.22)', glow: { x: 80, y: 4, color: 'rgba(255,176,72,0.30)' }, tint: 'rgba(255,158,56,0.60)', wash: 'rgba(14,9,4,0.78)', accent: 'sparks', spark: '#F2C46B', backdrop: ['#2B1E10', '#080503'] },
+  thank_you: { tone: 'gallery', ground: ['#F4F6F7', '#EAEDEF', '#E0E4E7'], light: 'rgba(255,255,255,0.95)', glow: null, tint: null, wash: 'rgba(244,246,247,0.72)', accent: 'ribbon', backdrop: ['#EFF2F4', '#C9D0D5'] },
+  prize_silver: { tone: 'gallery', ground: GALLERY_GROUND, light: 'rgba(255,255,255,0.95)', glow: null, tint: null, wash: LIGHT_WASH, accent: null, backdrop: ['#F1F2F4', '#CDD0D6'] },
+  prize_gold: { tone: 'gallery', ground: ['#F9F4EA', '#F0E7D6', '#E7DBC3'], light: 'rgba(255,232,180,0.85)', glow: { x: 82, y: 6, color: 'rgba(255,206,120,0.40)' }, tint: 'rgba(255,212,130,0.40)', wash: 'rgba(249,244,234,0.72)', accent: null, backdrop: ['#F6EFE1', '#D8C7A4'] },
+  prize_star: { tone: 'night', ground: NIGHT_GROUND, light: 'rgba(170,180,205,0.30)', glow: { x: 80, y: 8, color: 'rgba(220,225,236,0.18)' }, tint: 'rgba(170,185,220,0.30)', wash: DARK_WASH, accent: 'sparks', spark: '#DCE1EC', backdrop: ['#1C1D22', '#050506'] },
+  prize_jackpot: { tone: 'night', ground: WARM_GROUND, light: 'rgba(255,200,110,0.22)', glow: { x: 80, y: 4, color: 'rgba(255,190,80,0.30)' }, tint: 'rgba(255,186,90,0.45)', wash: 'rgba(14,9,4,0.78)', accent: 'sparks', spark: '#F2C46B', backdrop: ['#2A1D0F', '#080503'] },
 }
 
 /** The words' colours on each tone. */
@@ -129,11 +148,6 @@ export const INKS: Record<CardTone, { title: string; sub: string; tip: string; l
     chipIcon: '#A4A9B2',
     mark: '#F6F7F9',
   },
-}
-
-/** Where a car's tyres meet the floor on the stage, in card units. */
-export function floorLine(cut: CarCut): number {
-  return cut.top + (cut.width / cut.aspect) * cut.floor
 }
 
 /**
@@ -289,6 +303,10 @@ export function giftCardSpec(gift: {
   })
   return {
     look: art,
+    // The same words as the tip's seed, so the buyer's preview, the share
+    // screen and the recipient's page (which is never sent the gift's id)
+    // all show the same car.
+    car: pickCardCar({ seed: `gift|${art}|${hasAmount ? Number(gift.amount) : ''}|${name.toLowerCase()}`, tone: PHOTO_TONE[LOOKS[art].tone], look: art }),
     chips,
     title: [GIFT_TITLES[art], rupees ? `${rupees} of car care` : 'Car care, gifted'],
     tip: tip.text,
@@ -337,8 +355,10 @@ export function prizeCardSpec(card: {
   if (card.vendorName) chips.push({ icon: 'pin', text: card.vendorName, fluid: true })
   if (card.useBy) chips.push({ icon: 'calendar', text: `Use by ${rewardDay(card.useBy)}` })
   else if (card.outcome === 'bonus_stamp') chips.push({ icon: 'star', text: 'Shine Card' })
+  const look = PRIZE_LOOKS[prizeTier(card.outcome)]
   return {
-    look: PRIZE_LOOKS[prizeTier(card.outcome)],
+    look,
+    car: pickCardCar({ seed: `scratch|${card.id}`, tone: PHOTO_TONE[LOOKS[look].tone], look }),
     chips: chips.slice(0, 3),
     title: prizeTitle(card),
     tip: pickCarCareTip({ seed: `scratch|${card.id}`, month: istMonth(card.createdAt) }).text,
@@ -354,3 +374,10 @@ export type ShareFormat = keyof typeof SHARE_FORMATS
 
 /** The line every shared image carries, on its pill. */
 export const SHARE_LINE = 'Book on detlio.com'
+
+/**
+ * The line under a gift card on the share screen and the recipient's page
+ * (and in the gift terms): the photos are real cars, so the card must not
+ * read as a maker's offer.
+ */
+export const CARS_ILLUSTRATION_LINE = 'Cars shown for illustration only. Not affiliated with any car maker.'

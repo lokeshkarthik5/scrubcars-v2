@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
+import { existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { CARD_CARS, cardCarSrc } from '@repo/core/card-cars'
 import { CAR_CARE_TIPS } from '@repo/core/car-care-tips'
 import { GIFT_ARTS } from './gifts'
-import { CAR_CUTS, CARD, LOOKS, firstName, floorLine, giftCardSpec, prizeCardSpec, prizeTitle, titleSize } from './premium-card'
+import { CARD, CARS_ILLUSTRATION_LINE, LOOKS, PHOTO, PHOTO_TONE, firstName, giftCardSpec, prizeCardSpec, prizeTitle, titleSize } from './premium-card'
 
 const TIPS = new Set(CAR_CARE_TIPS.map((t) => t.text))
 
@@ -86,17 +89,70 @@ describe('scratch prize premium cards', () => {
   })
 })
 
-describe('card geometry', () => {
-  test('every car stands on the stage and fills it edge to edge', () => {
-    for (const look of Object.values(LOOKS)) {
-      const cut = CAR_CUTS[look.car]
-      expect(floorLine(cut)).toBeGreaterThan(55)
-      expect(floorLine(cut)).toBeLessThan(CARD.stage)
-      expect(cut.left).toBeLessThanOrEqual(0)
-      expect(cut.left + cut.width).toBeGreaterThanOrEqual(100)
+describe('the car photo on each card', () => {
+  const gift = { design: 'shine' as const, amount: 1000, recipientName: 'Meena Krishnan' }
+
+  test('a light card gets a light photo, a Night card a dark one', () => {
+    for (const art of GIFT_ARTS) {
+      for (const name of ['Meena', 'Ravi', 'Appa', 'Lakshmi', 'Priya']) {
+        const spec = giftCardSpec({ design: art, amount: 1500, recipientName: name })
+        expect({ art, tone: spec.car.tone }).toEqual({ art, tone: PHOTO_TONE[LOOKS[art].tone] })
+      }
+    }
+    for (const outcome of ['small_off', 'medium_off', 'big_off', 'free_wash', 'bonus_stamp'] as const) {
+      for (let i = 0; i < 10; i += 1) {
+        const spec = prizeCardSpec({ id: `sc-${i}`, createdAt: '2026-10-11T06:00:00Z', outcome, amount: '50.00' })
+        expect({ outcome, tone: spec.car.tone }).toEqual({ outcome, tone: PHOTO_TONE[LOOKS[spec.look].tone] })
+      }
     }
   })
 
+  test("the buyer's preview, the share screen and the recipient's page show the same car", () => {
+    const preview = giftCardSpec({ ...gift, validMonths: 12 })
+    const shared = giftCardSpec({ ...gift, amount: '1000.00', expiresAt: '2027-10-18T06:12:00Z', showName: true })
+    const recipient = giftCardSpec({ ...gift, amount: '1000.00', recipientName: ' Meena Krishnan ', expiresAt: '2027-10-18T06:12:00Z' })
+    const image = giftCardSpec({ ...gift, amount: '1000.00', expiresAt: '2027-10-18T06:12:00Z', showName: false })
+    expect(shared.car).toBe(preview.car)
+    expect(recipient.car).toBe(preview.car)
+    expect(image.car).toBe(preview.car)
+  })
+
+  test('a scratch card keeps its car; different cards and gifts vary', () => {
+    const base = { createdAt: '2026-10-11T06:00:00Z', outcome: 'free_wash' as const, amount: '299.00' }
+    expect(prizeCardSpec({ ...base, id: 'sc-9' }).car).toBe(prizeCardSpec({ ...base, id: 'sc-9', useBy: '2026-12-17' }).car)
+    const prizes = new Set(Array.from({ length: 60 }, (_, i) => prizeCardSpec({ ...base, id: `sc-${i}` }).car.id))
+    expect(prizes.size).toBeGreaterThan(1)
+    const gifts = new Set(Array.from({ length: 60 }, (_, i) => giftCardSpec({ design: 'shine', amount: 500 + i * 100 }).car.id))
+    expect(gifts.size).toBeGreaterThan(1)
+  })
+
+  test('every photo is in public/, at both widths, and small', () => {
+    const publicDir = join(import.meta.dir, '..', 'public')
+    let total = 0
+    for (const car of CARD_CARS) {
+      for (const width of [800, 1600] as const) {
+        const file = join(publicDir, cardCarSrc(car, width))
+        expect({ file, exists: existsSync(file) }).toEqual({ file, exists: true })
+        const bytes = statSync(file).size
+        expect({ file, small: bytes < (width === 800 ? 120_000 : 300_000) }).toEqual({ file, small: true })
+        total += bytes
+      }
+    }
+    expect(total).toBeLessThan(2_500_000)
+    expect(existsSync(join(publicDir, 'cards', 'cars', 'CREDITS.md'))).toBe(true)
+  })
+
+  test('the photo fades out above the title, and the illustration line', () => {
+    expect(PHOTO.height).toBeCloseTo(81.25)
+    expect(PHOTO.fade[0][0]).toBe(0)
+    expect(PHOTO.fade.some(([, a]) => a === 1)).toBe(true)
+    expect(PHOTO.fade[PHOTO.fade.length - 1]).toEqual([1, 0])
+    expect(PHOTO.height).toBeLessThan(CARD.title.top)
+    expect(CARS_ILLUSTRATION_LINE).toBe('Cars shown for illustration only. Not affiliated with any car maker.')
+  })
+})
+
+describe('card geometry', () => {
   test('a long title line is set smaller', () => {
     expect(titleSize('Free wash')).toBe(CARD.title.size)
     expect(titleSize('Off your next booking')).toBeLessThan(CARD.title.size)

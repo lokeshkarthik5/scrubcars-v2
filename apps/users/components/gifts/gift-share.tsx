@@ -11,7 +11,7 @@ import { useGiftsConfig } from '@repo/core/api/hooks/use-gifts'
 import { PremiumCard } from '@/components/premium-card/premium-card'
 import { ShareCardImage } from '@/components/premium-card/share-card-image'
 import { formatGiftCode, formatGiftDate, giftRupees, giftShareText, whatsAppShareUrl } from '@/lib/gifts'
-import { firstName, giftCardSpec } from '@/lib/premium-card'
+import { CARS_ILLUSTRATION_LINE, firstName, giftCardSpec } from '@/lib/premium-card'
 
 /**
  * While printing, only the printable card: the rest of the screen (the
@@ -73,7 +73,10 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
     <div className="flex flex-col gap-4">
       <style>{PRINT_CSS}</style>
 
-      <PremiumCard spec={cardSpec(true)} />
+      <div className="flex flex-col gap-1.5">
+        <PremiumCard spec={cardSpec(true)} />
+        <p className="text-center text-[11px] text-text-muted">{CARS_ILLUSTRATION_LINE}</p>
+      </div>
 
       <div>
         <h2 className="text-[17px] font-semibold text-text-primary">

@@ -7,20 +7,20 @@
  * sees. What is drawn is only the card's own words: never a gift code, a
  * link, a voucher code or a phone number.
  */
+import { cardCarSrc } from '@repo/core/card-cars'
 import {
-  CAR_CUTS,
   CARD,
   CHIP_ICON_PATHS,
   CONFETTI,
   FIGURES,
   INKS,
   LOOKS,
+  PHOTO,
   RIBBON,
   SHARE_FORMATS,
   SHARE_LINE,
   SPARKS,
   TIP_LABEL,
-  floorLine,
   sparkPath,
   titleSize,
   type CardChip,
@@ -43,7 +43,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
       img.onload = () => resolve(img)
       img.onerror = () => {
         images.delete(src)
-        reject(new Error("Couldn't load the car picture"))
+        reject(new Error("Couldn't load the car photo"))
       }
       img.src = src
     })
@@ -103,12 +103,20 @@ function ellipseLight(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx:
   ctx.translate(cx, cy)
   ctx.scale(1, ry / rx)
   const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx)
+  // Fade to the same colour, clear: a canvas fades through grey otherwise.
+  const clear = color.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^)]+\)/, 'rgba($1,$2,$3,0)')
   g.addColorStop(0, color)
-  g.addColorStop(fadeAt, 'rgba(0,0,0,0)')
-  g.addColorStop(1, 'rgba(0,0,0,0)')
+  g.addColorStop(fadeAt, clear)
+  g.addColorStop(1, clear)
   ctx.fillStyle = g
   ctx.fillRect(-rx, -rx, rx * 2, rx * 2)
   ctx.restore()
+}
+
+/** "50% 40%" as fractions, for placing a photo like CSS object-position. */
+function positionOf(position: string): [number, number] {
+  const [x, y] = position.split(/\s+/).map((part) => Number.parseFloat(part) / 100)
+  return [Number.isFinite(x) ? x : 0.5, Number.isFinite(y) ? y : 0.5]
 }
 
 /**
@@ -118,12 +126,10 @@ function ellipseLight(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx:
 export async function drawPremiumCard(ctx: CanvasRenderingContext2D, spec: PremiumCardSpec, x: number, y: number, width: number, fonts: Fonts): Promise<void> {
   const look = LOOKS[spec.look]
   const ink = INKS[look.tone]
-  const cut = CAR_CUTS[look.car]
-  const car = await loadImage(cut.src)
+  // The shared image is large: the 1600 px photo.
+  const photo = await loadImage(cardCarSrc(spec.car, 1600))
   const u = width / 100
   const H = CARD.height
-  const carH = cut.width / cut.aspect
-  const floor = floorLine(cut)
 
   ctx.save()
   ctx.translate(x, y)
@@ -141,56 +147,39 @@ export async function drawPremiumCard(ctx: CanvasRenderingContext2D, spec: Premi
   ellipseLight(ctx, 50, 40, 80, 50, look.light)
   if (look.glow) ellipseLight(ctx, look.glow.x, look.glow.y, 55, 45, look.glow.color, 0.7)
 
-  // The floor: a faint band, the shadow under the car, its reflection.
-  const band = ctx.createLinearGradient(0, floor - 9, 0, floor + 13)
-  const bandInk = look.tone === 'night' ? '200,210,235' : '20,22,28'
-  const bandA = look.tone === 'night' ? [0.05, 0.02] : [0.035, 0.015]
-  band.addColorStop(0, `rgba(${bandInk},0)`)
-  band.addColorStop(0.42, `rgba(${bandInk},${bandA[0]})`)
-  band.addColorStop(0.7, `rgba(${bandInk},${bandA[1]})`)
-  band.addColorStop(1, `rgba(${bandInk},0)`)
-  ctx.fillStyle = band
-  ctx.fillRect(0, floor - 9, 100, 22)
-  ctx.save()
-  ctx.translate(50, floor + 0.3)
-  ctx.scale(1, 2.5 / 56)
-  const shadow = ctx.createRadialGradient(0, 0, 0, 0, 0, 56)
-  const shade = look.tone === 'night' ? [0.7, 0.25] : [0.32, 0.1]
-  shadow.addColorStop(0, `rgba(10,12,16,${shade[0]})`)
-  shadow.addColorStop(0.6, `rgba(10,12,16,${shade[1]})`)
-  shadow.addColorStop(1, 'rgba(10,12,16,0)')
-  ctx.fillStyle = shadow
-  ctx.fillRect(-56, -56, 112, 112)
-  ctx.restore()
-
-  // The reflection: the car mirrored about the floor line, fading out
-  // over 11 units, drawn on its own canvas so the fade is the car's alone.
-  const reflH = 11
+  // The photo, on its own canvas so its tint and its fade are its alone:
+  // placed like CSS object-fit: cover at the car's position, the look's
+  // tint in soft light, then faded into the ground.
+  const photoH = PHOTO.height
   const off = document.createElement('canvas')
   off.width = Math.ceil(100 * u)
-  off.height = Math.ceil(reflH * u)
+  off.height = Math.ceil(photoH * u)
   const octx = off.getContext('2d')
   if (octx) {
     octx.scale(u, u)
-    octx.save()
-    const relTop = floor - cut.top - carH
-    octx.translate(cut.flip ? cut.left + cut.width : cut.left, relTop + carH)
-    octx.scale(cut.flip ? -1 : 1, -1)
-    octx.drawImage(car, 0, 0, cut.width, carH)
-    octx.restore()
+    const scale = Math.max(100 / photo.naturalWidth, photoH / photo.naturalHeight)
+    const dw = photo.naturalWidth * scale
+    const dh = photo.naturalHeight * scale
+    const [px, py] = positionOf(spec.car.position)
+    octx.imageSmoothingQuality = 'high'
+    octx.drawImage(photo, (100 - dw) * px, (photoH - dh) * py, dw, dh)
+    if (look.tint) {
+      octx.globalCompositeOperation = 'soft-light'
+      octx.fillStyle = look.tint
+      octx.fillRect(0, 0, 100, photoH)
+    }
     octx.globalCompositeOperation = 'destination-in'
-    const fade = octx.createLinearGradient(0, 0, 0, reflH)
-    fade.addColorStop(0, 'rgba(0,0,0,1)')
-    fade.addColorStop(1, 'rgba(0,0,0,0)')
+    const fade = octx.createLinearGradient(0, 0, 0, photoH)
+    for (const [at, a] of PHOTO.fade) fade.addColorStop(at, `rgba(0,0,0,${a})`)
     octx.fillStyle = fade
-    octx.fillRect(0, 0, 100, reflH)
-    ctx.save()
-    ctx.globalAlpha = look.tone === 'night' ? 0.22 : 0.16
-    ctx.drawImage(off, 0, floor, 100, reflH)
-    ctx.restore()
+    octx.fillRect(0, 0, 100, photoH)
+    ctx.drawImage(off, 0, 0, 100, photoH)
   }
 
-  // Confetti and sparks sit behind the car; the ribbon goes over it.
+  // The wash behind the wordmark.
+  ellipseLight(ctx, PHOTO.wash.x, PHOTO.wash.y, PHOTO.wash.rx, PHOTO.wash.ry, look.wash, 1)
+
+  // Confetti, sparks and the ribbon, over the photo.
   if (look.accent === 'confetti') {
     for (const p of CONFETTI) {
       ctx.fillStyle = p.c
@@ -209,20 +198,13 @@ export async function drawPremiumCard(ctx: CanvasRenderingContext2D, spec: Premi
     }
   }
   if (look.accent === 'sparks') {
-    ctx.fillStyle = look.tone === 'night' ? '#DCE1EC' : '#D9A441'
+    ctx.fillStyle = look.spark ?? (look.tone === 'night' ? '#DCE1EC' : '#D9A441')
     for (const s of SPARKS) {
       ctx.globalAlpha = s.o
       ctx.fill(new Path2D(sparkPath(s.x, s.y, s.s)))
     }
     ctx.globalAlpha = 1
   }
-
-  // The car.
-  ctx.save()
-  ctx.translate(cut.flip ? cut.left + cut.width : cut.left, cut.top)
-  ctx.scale(cut.flip ? -1 : 1, 1)
-  ctx.drawImage(car, 0, 0, cut.width, carH)
-  ctx.restore()
 
   if (look.accent === 'ribbon') {
     ctx.save()

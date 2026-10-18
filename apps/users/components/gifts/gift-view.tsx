@@ -18,7 +18,7 @@ import { GiftsUnavailable } from '@/components/gifts/gifts-unavailable'
 import { PremiumCard } from '@/components/premium-card/premium-card'
 import { ShareCardImage } from '@/components/premium-card/share-card-image'
 import { formatGiftDate, giftRupees } from '@/lib/gifts'
-import { firstName, giftCardSpec } from '@/lib/premium-card'
+import { CARS_ILLUSTRATION_LINE, firstName, giftCardSpec } from '@/lib/premium-card'
 
 /** What a gift that can't be redeemed says instead of the button. */
 function closedLine(gift: PublicGift): string | null {
@@ -128,7 +128,10 @@ export function GiftView({ code }: { code: string }) {
     return (
       <>
         {/* The stored card (0055); an old link's #card= fragment is ignored. */}
-        <PremiumCard spec={cardSpec(true)} />
+        <div className="flex flex-col gap-1.5">
+          <PremiumCard spec={cardSpec(true)} />
+          <p className="text-center text-[11px] text-text-muted">{CARS_ILLUSTRATION_LINE}</p>
+        </div>
 
         <div className="flex flex-col gap-1">
           <h1 className="text-[20px] font-semibold leading-tight text-text-primary">

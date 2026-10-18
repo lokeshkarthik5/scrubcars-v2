@@ -1,17 +1,17 @@
 import { Fragment, useId, type CSSProperties } from 'react'
+import { cardCarSrc, cardCarSrcSet } from '@repo/core/card-cars'
 import { cn } from '@repo/core/utils'
 import {
-  CAR_CUTS,
   CARD,
   CHIP_ICON_PATHS,
   CONFETTI,
   FIGURES,
   INKS,
   LOOKS,
+  PHOTO,
   RIBBON,
   SPARKS,
   TIP_LABEL,
-  floorLine,
   sparkPath,
   titleSize,
   type CardChip,
@@ -53,7 +53,7 @@ function Chip({ chip }: { chip: CardChip }) {
   )
 }
 
-/** Birthday confetti and the sparks: behind the car, in card units over the whole card. */
+/** Birthday confetti and the sparks, over the photo, in card units over the whole card. */
 function Scatter({ accent }: { accent: 'confetti' | 'sparks' }) {
   return (
     <svg viewBox={`0 0 100 ${CARD.height}`} className="premium-card__accent" aria-hidden>
@@ -99,18 +99,27 @@ function Ribbon({ id }: { id: string }) {
   )
 }
 
+/** The photo's fade into the card's ground, as a CSS mask. */
+const PHOTO_MASK = `linear-gradient(180deg, ${PHOTO.fade.map(([at, a]) => `rgba(0,0,0,${a}) ${at * 100}%`).join(', ')})`
+
+/** The photo's width on screen: the card is at most the page's column wide. */
+const PHOTO_SIZES: Record<'card' | 'mini' | 'thumb', string> = {
+  card: '(max-width: 520px) 92vw, 480px',
+  mini: '120px',
+  thumb: '64px',
+}
+
 /**
  * A premium card: Detlio's gift cards and revealed scratch prizes, drawn as
  * a collectible car card (lib/premium-card.ts has every number; the shared
- * image, lib/premium-card-image.ts, draws the same card from them). One of
- * Detlio's own car pictures, cropped big and lit on the card's floor with
- * its reflection; the chips; the two-line title; a car care tip; the
- * wordmark. Sized by its width alone (CSS container units), so the same
+ * image, lib/premium-card-image.ts, draws the same card from them). A
+ * licensed car photo across the top, fading into the card; the chips; the
+ * two-line title; a car care tip; the wordmark. Sized by its width alone (CSS container units), so the same
  * card works at 390 px, as the buyer's 110 px swatch and as the image.
  *
  * `size`: `card` the whole card; `mini` the stage and the title (the
- * picker's swatches); `thumb` the stage alone (a 64 px list tile). On
- * first view the car eases in and a sheen crosses once; under reduced
+ * picker's swatches); `thumb` the photo alone (a 64 px list tile). On
+ * first view the photo settles in and a sheen crosses once; under reduced
  * motion it is still. A picture of the card, so it is hidden from screen
  * readers: the page around it says the same in text.
  */
@@ -128,9 +137,7 @@ export function PremiumCard({
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const look = LOOKS[spec.look]
   const ink = INKS[look.tone]
-  const cut = CAR_CUTS[look.car]
-  const carHeight = cut.width / cut.aspect
-  const floor = floorLine(cut)
+  const car = spec.car
   const moving = animate && size === 'card'
   const vars = {
     '--pc-title': ink.title,
@@ -142,7 +149,7 @@ export function PremiumCard({
     '--pc-chip-text': ink.chipText,
     '--pc-chip-icon': ink.chipIcon,
     '--pc-mark': ink.mark,
-    '--pc-spark': look.tone === 'night' ? '#DCE1EC' : '#D9A441',
+    '--pc-spark': look.spark ?? (look.tone === 'night' ? '#DCE1EC' : '#D9A441'),
     background: [
       look.glow ? `radial-gradient(55cqw 45cqw at ${look.glow.x}cqw ${look.glow.y}cqw, ${look.glow.color}, transparent 70%)` : null,
       `radial-gradient(80cqw 50cqw at 50cqw 40cqw, ${look.light}, transparent 72%)`,
@@ -155,29 +162,31 @@ export function PremiumCard({
   return (
     <div aria-hidden="true" className={cn('premium-card', `premium-card--${size}`, className)}>
       <div className={cn('premium-card__face', `premium-card__face--${look.tone}`, moving && 'premium-card__face--enter')} style={vars}>
-        {/* The floor: a faint band, a soft shadow under the car and its reflection. */}
-        <span className="premium-card__floor" style={{ top: `${floor - 9}cqw` }} />
-        <span className="premium-card__shadow" style={{ top: `${floor - 2.2}cqw` }} />
-        <span className="premium-card__reflection" style={{ top: `${floor}cqw` }}>
+        {/* The photo, fading into the card's ground, lit by the look's tint. */}
+        <span
+          className="premium-card__photo"
+          style={{ height: `${PHOTO.height}cqw`, WebkitMaskImage: PHOTO_MASK, maskImage: PHOTO_MASK }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- prepared WebP with its own srcset; the canvas loads the same file */}
           <img
-            src={cut.src}
-            alt=""
+            src={cardCarSrc(car, 800)}
+            srcSet={cardCarSrcSet(car)}
+            sizes={PHOTO_SIZES[size]}
+            alt={car.alt}
             draggable={false}
-            className="premium-card__car-img"
-            // Mirrored about the floor line: the box's top sits floor − top − height below it.
-            style={{ left: `${cut.left}cqw`, top: `${floor - cut.top - carHeight}cqw`, width: `${cut.width}cqw`, transform: `scale(${cut.flip ? -1 : 1}, -1)` }}
+            decoding="async"
+            className="premium-card__photo-img"
+            style={{ objectPosition: car.position }}
           />
+          {look.tint && <span className="premium-card__tint" style={{ background: look.tint }} />}
         </span>
+        <span
+          className="premium-card__wash"
+          style={{
+            background: `radial-gradient(${PHOTO.wash.rx}cqw ${PHOTO.wash.ry}cqw at ${PHOTO.wash.x}cqw ${PHOTO.wash.y}cqw, ${look.wash}, transparent)`,
+          }}
+        />
         {(look.accent === 'confetti' || look.accent === 'sparks') && <Scatter accent={look.accent} />}
-        <span className="premium-card__car">
-          <img
-            src={cut.src}
-            alt=""
-            draggable={false}
-            className="premium-card__car-img"
-            style={{ left: `${cut.left}cqw`, top: `${cut.top}cqw`, width: `${cut.width}cqw`, transform: cut.flip ? 'scaleX(-1)' : undefined }}
-          />
-        </span>
         {look.accent === 'ribbon' && <Ribbon id={id} />}
 
         {size !== 'thumb' && (

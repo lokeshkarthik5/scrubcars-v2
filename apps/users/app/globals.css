@@ -825,12 +825,11 @@ html:has(.legal-doc) {
  *
  * A collectible car card (components/premium-card, numbers in
  * lib/premium-card.ts): a light "gallery" card or the darker "night" one,
- * one of Detlio's car pictures cropped big on the top of the card with a
- * soft floor shadow and reflection, chips, a two-line title and a car care
- * tip. Every length is in container units (cqw: the card is 100 wide), so
- * the card is the same at any width and matches the shared image. On first
- * view the car eases in and a sheen crosses once; under reduced motion the
- * card is still.
+ * a licensed car photo across the top fading into the card (public/cards/
+ * cars), chips, a two-line title and a car care tip. Every length is in
+ * container units (cqw: the card is 100 wide), so the card is the same at
+ * any width and matches the shared image. On first view the photo settles
+ * in and a sheen crosses once; under reduced motion the card is still.
  */
 .premium-card {
   container-type: inline-size;
@@ -859,54 +858,44 @@ html:has(.legal-doc) {
     inset 0 0 0 0.28cqw rgba(255, 255, 255, 0.08),
     0 4cqw 9cqw -5cqw rgba(0, 0, 0, 0.8);
 }
-.premium-card__floor {
+.premium-card__photo {
   position: absolute;
   left: 0;
   right: 0;
-  height: 22cqw;
-  background: linear-gradient(180deg, transparent 0%, rgba(20, 22, 28, 0.035) 42%, rgba(20, 22, 28, 0.015) 70%, transparent 100%);
-}
-.premium-card__face--night .premium-card__floor {
-  background: linear-gradient(180deg, transparent 0%, rgba(200, 210, 235, 0.05) 42%, rgba(200, 210, 235, 0.02) 70%, transparent 100%);
-}
-.premium-card__shadow {
-  position: absolute;
-  left: -6cqw;
-  right: -6cqw;
-  height: 5cqw;
-  background: radial-gradient(closest-side, rgba(10, 12, 16, 0.32), rgba(10, 12, 16, 0.1) 60%, transparent);
-}
-.premium-card__face--night .premium-card__shadow {
-  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.25) 60%, transparent);
-}
-.premium-card__reflection {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 11cqw;
+  top: 0;
   overflow: hidden;
-  opacity: 0.16;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+  isolation: isolate;
 }
-.premium-card__face--night .premium-card__reflection {
-  opacity: 0.22;
-}
-.premium-card__car {
+.premium-card__photo-img {
   position: absolute;
   inset: 0;
-}
-.premium-card__car-img {
-  position: absolute;
+  width: 100%;
+  height: 100%;
   max-width: none;
-  height: auto;
+  object-fit: cover;
   pointer-events: none;
 }
-.premium-card__face--enter .premium-card__car {
-  animation: premium-car-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) 80ms 1 both;
+/* The look's light on the photo (Diwali's gold), in soft light. */
+.premium-card__tint {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
 }
-@keyframes premium-car-in {
-  from { transform: translateX(-3.5cqw); opacity: 0.4; }
+/* A soft wash behind the wordmark, so it reads on any photo. */
+.premium-card__wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.premium-card--thumb .premium-card__wash {
+  display: none;
+}
+.premium-card__face--enter .premium-card__photo-img {
+  animation: premium-photo-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) 80ms 1 both;
+}
+@keyframes premium-photo-in {
+  from { transform: scale(1.06); opacity: 0.4; }
   to { transform: none; opacity: 1; }
 }
 .premium-card__accent {
@@ -1027,7 +1016,7 @@ html:has(.legal-doc) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .premium-card__face--enter .premium-card__car,
+  .premium-card__face--enter .premium-card__photo-img,
   .premium-card__sheen {
     animation: none;
   }
