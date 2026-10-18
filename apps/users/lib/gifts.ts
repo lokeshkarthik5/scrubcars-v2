@@ -100,11 +100,74 @@ export const GIFT_STATE_LABELS: Record<GiftState, string> = {
   cancelled: 'Cancelled',
 }
 
-/** The three card designs, in the order the buyer sees them. */
+/** The three stored designs' names (`fresh` is shown as Pearl since the redesign). */
 export const GIFT_DESIGN_LABELS: Record<GiftDesign, string> = {
   shine: 'Shine',
   midnight: 'Midnight',
-  fresh: 'Fresh',
+  fresh: 'Pearl',
+}
+
+/**
+ * The card artwork the buyer picks: three everyday looks and three
+ * occasions, in the order the buyer sees them.
+ *
+ * The server stores only `shine` / `midnight` / `fresh` (a CHECK on
+ * `gifts.design`, 0049), so each artwork is saved as one of those
+ * (`storedGiftDesign`). An occasion travels to the recipient in the gift
+ * link's fragment (`#card=diwali`), which never reaches a server; opened
+ * without it (or from "Get a new link"), the gift shows its stored look.
+ */
+export const GIFT_ARTS = ['shine', 'midnight', 'pearl', 'birthday', 'diwali', 'thankyou'] as const
+export type GiftArt = (typeof GIFT_ARTS)[number]
+
+export const GIFT_ART_LABELS: Record<GiftArt, string> = {
+  shine: 'Shine',
+  midnight: 'Midnight',
+  pearl: 'Pearl',
+  birthday: 'Birthday',
+  diwali: 'Diwali',
+  thankyou: 'Thank you',
+}
+
+const STORED_DESIGN: Record<GiftArt, GiftDesign> = {
+  shine: 'shine',
+  midnight: 'midnight',
+  pearl: 'fresh',
+  birthday: 'shine',
+  diwali: 'midnight',
+  thankyou: 'fresh',
+}
+
+/** The design the server stores for an artwork. */
+export function storedGiftDesign(art: GiftArt): GiftDesign {
+  return STORED_DESIGN[art]
+}
+
+/** The artworks that only ride in the link. */
+export function isOccasionArt(art: GiftArt): boolean {
+  return art === 'birthday' || art === 'diwali' || art === 'thankyou'
+}
+
+/**
+ * The artwork to draw for a gift: the occasion in the link when it goes
+ * with the stored design (anything else is ignored), else the stored look.
+ */
+export function giftArtFor(design: GiftDesign, occasion?: string | null): GiftArt {
+  const art = GIFT_ARTS.find((a) => a === occasion)
+  if (art && isOccasionArt(art) && STORED_DESIGN[art] === design) return art
+  return design === 'fresh' ? 'pearl' : design
+}
+
+/** The occasion named in a gift link's fragment ("#card=diwali"), or null. */
+export function occasionFromHash(hash: string | null | undefined): GiftArt | null {
+  const match = /(?:^#|&)card=([a-z]+)/.exec(hash ?? '')
+  const art = GIFT_ARTS.find((a) => a === match?.[1])
+  return art && isOccasionArt(art) ? art : null
+}
+
+/** A gift link's path with its occasion, if any, in the fragment. */
+export function giftPathWithArt(path: string, art: GiftArt | null | undefined): string {
+  return art && isOccasionArt(art) ? `${path}#card=${art}` : path
 }
 
 /**

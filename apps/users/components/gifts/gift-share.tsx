@@ -11,9 +11,12 @@ import { GiftCardArt } from '@/components/gifts/gift-card-art'
 import {
   formatGiftCode,
   formatGiftDate,
+  giftArtFor,
+  giftPathWithArt,
   giftRupees,
   giftShareText,
   whatsAppShareUrl,
+  type GiftArt,
 } from '@/lib/gifts'
 
 /**
@@ -38,10 +41,15 @@ type ShareGift = Pick<SentGift, 'number' | 'amount' | 'recipientName' | 'message
  * see again, so this says so. Sharing is the buyer's own: the share sheet,
  * a copied link, WhatsApp, or a printed card with the code. Detlio sends no
  * SMS or email of its own.
+ *
+ * `art` is the artwork picked when buying: an occasion (Birthday, Diwali,
+ * Thank you) rides in the link's fragment so the recipient sees it too.
  */
-export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
+export function GiftShare({ gift, link, art }: { gift: ShareGift; link: GiftLink; art?: GiftArt }) {
   const [showPrint, setShowPrint] = useState(false)
-  const url = typeof window === 'undefined' ? link.path : `${window.location.origin}${link.path}`
+  const look = art ?? giftArtFor(gift.design)
+  const path = giftPathWithArt(link.path, look)
+  const url = typeof window === 'undefined' ? path : `${window.location.origin}${path}`
   const text = giftShareText({ amount: gift.amount, recipientName: gift.recipientName, url })
 
   const copy = async () => {
@@ -70,7 +78,7 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
     <div className="flex flex-col gap-4">
       <style>{PRINT_CSS}</style>
 
-      <GiftCardArt design={gift.design} amount={gift.amount} recipientName={gift.recipientName} />
+      <GiftCardArt design={look} amount={gift.amount} recipientName={gift.recipientName} />
 
       <div>
         <h2 className="text-[17px] font-semibold text-text-primary">
