@@ -378,6 +378,13 @@ export const CUSTOMERS = {
   slotAlertOther: { id: id(2702), phone: '9000002702', name: 'Slot Alert Other Om' },
   slotHolder: { id: id(2703), phone: '9000002703', name: 'Slot Holder Hari', vehicleId: id(2704) },
   /**
+   * Contact windows (specs/users/contact-windows.spec.ts, booking-help.spec.ts,
+   * garage-privacy.spec.ts), at VENDORS.contact only. Ids 3400–3499 and
+   * phones 90000034xx are this feature's own range. Owns the four
+   * BOOKINGS.contact* jobs: one inside the window, three outside it.
+   */
+  contact: { id: id(3401), phone: '9000003401', name: 'Contact Chitra', vehicleId: id(3402) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -471,6 +478,8 @@ export const STAFF = {
   carHistoryOwner: { id: id(2602), phone: '9000002602', name: 'History Owner Hari' },
   /** Owns VENDORS.slotAlerts only (0047; the 2700–2799 range). */
   slotAlertsOwner: { id: id(2705), phone: '9000002705', name: 'Slot Alerts Owner Selvi' },
+  /** Owns VENDORS.contact only (contact windows; the 3400–3499 range). */
+  contactOwner: { id: id(3405), phone: '9000003405', name: 'Contact Owner Charu' },
 } as const
 
 export const VENDORS = {
@@ -674,7 +683,16 @@ export const VENDORS = {
    * garage. BOOKINGS.slotAlertsHeld fills its day two days ahead.
    */
   slotAlerts: { id: id(2710), name: 'Full Day Garage' },
+  /**
+   * Contact windows: pending and unverified (no customer finds it), open
+   * 06:00–22:00, one ₹400 wash (SERVICES.contactWash). Its phone and WhatsApp
+   * are CONTACT_GARAGE's, so a spec can look for them in a payload.
+   */
+  contact: { id: id(3410), name: 'Window Wash Garage' },
 } as const
+
+/** VENDORS.contact's own numbers (contact windows), different on purpose. */
+export const CONTACT_GARAGE = { phone: '9000003410', whatsapp: '9000003411' } as const
 
 /** Where VENDORS.documents is: south-west, clear of every other test garage. */
 export const DOCUMENTS_PIN = { lat: 12.625, lng: 79.625 } as const
@@ -825,6 +843,8 @@ export const SERVICES = {
   carHistoryCoating: { id: id(2612), name: 'History Ceramic Coating', price: '6000.00', durationMins: 240 },
   /** On SLOT_ALERTS (0047): its one service. */
   slotAlertsWash: { id: id(2711), name: 'Full Day Wash', price: '500.00', durationMins: 60 },
+  /** On VENDORS.contact (contact windows): its one service. */
+  contactWash: { id: id(3412), name: 'Window Foam Wash', price: '400.00', durationMins: 45 },
 } as const
 
 export const DISCOUNTS = {
@@ -1119,6 +1139,26 @@ export const BOOKINGS = {
    * start it until it has two before photos.
    */
   photosJob: id(2520),
+  /**
+   * Contact windows, CUSTOMERS.contact's paid ₹400 washes at VENDORS.contact:
+   * `contactSoon` confirmed, at the garage, in an hour (inside the window:
+   * both numbers show); `contactLater` confirmed two days ahead (outside:
+   * "shows 2 hours before"); `contactDone` completed three hours ago
+   * (outside: "hidden after the job"); `contactDoorstep` pending, doorstep,
+   * tomorrow (outside, with the address still on the garage's card). None
+   * is moved or cancelled by any spec.
+   */
+  contactSoon: id(3420),
+  contactLater: id(3421),
+  contactDone: id(3422),
+  contactDoorstep: id(3423),
+} as const
+
+/** Where BOOKINGS.contactDoorstep's crew goes (contact windows). */
+export const CONTACT_DOORSTEP = {
+  address: '14, Window Lane, Besant Nagar',
+  lat: 12.99,
+  lng: 80.27,
 } as const
 
 /** The coating's maintenance-wash reminder (0046), due in 3 days. */

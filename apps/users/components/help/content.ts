@@ -39,6 +39,7 @@ import { RECEIPT_NOT_TAX_INVOICE } from '@repo/core/receipts'
 import { BANK_DAYS } from '@repo/core/refunds'
 import { SUPPORT_PHONE_DISPLAY } from '@repo/core/support'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
+import { CONTACT_WINDOW_HOURS } from '@/lib/legal/contact-window'
 
 /** Waiting for the owner's sign-off: the page says "Draft" while true. */
 export const HELP_DRAFT = true
@@ -126,8 +127,8 @@ export const HELP_GROUPS: HelpGroup[] = [
         id: 'garage-contact',
         q: "Can I call the garage before I book?",
         a: [
-          "A garage's phone and WhatsApp are shown once you have booked it: on your booking page, under Help with this booking, along with directions.",
-          `Before you book, our team can answer your questions on ${SUPPORT_PHONE_DISPLAY}.`,
+          `A garage's address and directions are on your booking page once you have booked it. Its phone and WhatsApp are there too, under Help with this booking, ${CONTACT_WINDOW_HOURS}.`,
+          `Before you book, or outside those hours, our team can answer your questions and pass a message to the garage on ${SUPPORT_PHONE_DISPLAY}.`,
         ],
       },
       {

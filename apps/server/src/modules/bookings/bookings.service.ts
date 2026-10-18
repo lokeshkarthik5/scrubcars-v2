@@ -51,6 +51,7 @@ import {
 } from '../../lib/extra-work.js'
 import { buildReceipt, receiptAvailability, receiptIssuedAt } from '../../lib/receipts.js'
 import { responseDeadlineView } from '../../lib/response-deadline.js'
+import { contactWindow } from '../../lib/contact-window.js'
 import { assertCanStillAnswer } from '../garage-response/garage-response.rules.js'
 import {
   customerSeesPhotos,
@@ -513,11 +514,17 @@ function finalBillOf(charges: FinalBillRecord[]) {
  * it, so it is never shown as money owed back. False wherever the caller has
  * just written the booking, which cannot have been moved yet.
  */
-function toBookingResponse(
+export function toBookingResponse(
   booking: BookingWithRelations,
   moved = false,
   refundRecords: readonly CustomerRefundRecord[] = []
 ) {
+  // The contact window (lib/contact-window.ts): the garage's phone and
+  // WhatsApp ride on the customer's booking only from 2 hours before the
+  // slot until the job is done (plus an hour), and never on a cancelled
+  // one. The garage's mapper below applies the same window to the
+  // customer's phone.
+  const window = contactWindow(booking, new Date())
   return {
     id: booking.id,
     status: booking.status,
@@ -576,6 +583,9 @@ function toBookingResponse(
     // Cancelled by the cron because the garage did not answer in time:
     // "Not accepted in time", refunded in full.
     notAcceptedInTime: Boolean(booking.responseMissedAt),
+    // When the other side's number shows: both apps explain a hidden number
+    // from this ("shows 2 hours before…", "hidden after the job").
+    contactWindow: window,
     createdAt: booking.createdAt.toISOString(),
     review: booking.review
       ? {
@@ -599,17 +609,19 @@ function toBookingResponse(
     // phone, WhatsApp, street address or maps link, so a customer reaches the
     // garage through a booking, not around one. Every caller of this mapper
     // serves the booking's own customer (or, via toVendorBookingResponse, the
-    // garage itself).
+    // garage itself). The phone and WhatsApp are null outside the contact
+    // window (owner decision, 18 Oct 2026); the address, pin and maps link
+    // always stay, since the customer plans the trip from them.
     vendor: booking.vendor
       ? {
           id: booking.vendor.id,
           businessName: booking.vendor.businessName,
-          phone: booking.vendor.phone,
+          phone: window.open ? booking.vendor.phone : null,
           city: booking.vendor.city,
           address: booking.vendor.address,
           lat: booking.vendor.lat,
           lng: booking.vendor.lng,
-          whatsapp: booking.vendor.whatsapp,
+          whatsapp: window.open ? booking.vendor.whatsapp : null,
           // The garage's own Google Maps link, for directions when it has
           // no pin (the Directions sheet checks it is a Maps link).
           mapsUrl: booking.vendor.mapsUrl ?? null,
@@ -780,6 +792,18 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
   return {
     ...vendorView,
     payment,
+    // The customer's name always; their phone only inside the contact
+    // window (lib/contact-window.ts, the same window the customer's payload
+    // applies to the garage's number). `contactWindow` says when it shows.
+    user: vendorView.user
+      ? { ...vendorView.user, phone: vendorView.contactWindow.open ? vendorView.user.phone : null }
+      : null,
+    // The garage's own row: its own phone and WhatsApp are no secret from
+    // it, so the window that hides them from customers does not apply.
+    vendor:
+      vendorView.vendor && booking.vendor
+        ? { ...vendorView.vendor, phone: booking.vendor.phone, whatsapp: booking.vendor.whatsapp }
+        : vendorView.vendor,
     pickup: vendorPickupView(booking),
     // The garage sees every photo of the job, its own and, once it has
     // accepted the job, the customer's (0045: both sides share one record) —

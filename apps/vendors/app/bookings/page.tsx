@@ -280,7 +280,7 @@ function VendorBookings() {
                 </p>
               )}
 
-              <JobContact booking={b} />
+              <JobContact booking={b} now={now} />
 
               {/* When each step happened, as the garage recorded it. */}
               {b.status !== 'pending' && jobStepTimes(b, now).length > 0 && (
@@ -317,7 +317,7 @@ function VendorBookings() {
                 <div className="flex flex-col gap-2">
                   <p className="text-[12px] text-text-secondary">
                     This slot&apos;s time has passed without being accepted. Reject it so the
-                    customer can be refunded, or call them to rebook.
+                    customer can be refunded.
                   </p>
                   <ScButton
                     variant="secondary"

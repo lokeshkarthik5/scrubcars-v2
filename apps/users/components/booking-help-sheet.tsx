@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { IconChevronRight, IconCircleX, IconMessageReport } from '@tabler/icons-react'
+import { IconChevronRight, IconCircleX, IconMessageReport, IconPhoneOff } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -10,6 +10,8 @@ import { bookingReference } from '@repo/core/booking-types'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
 import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support'
 import { COMPLAINT_ACKNOWLEDGE_HOURS } from '@repo/core/complaints'
+import { contactWindowState, garageNumberHiddenLine } from '@repo/core/contact-window'
+import { useNow } from '@repo/core/hooks/use-now'
 import type { Booking } from '@repo/core/types'
 import { RaiseComplaintSheet } from '@/components/complaints/raise-complaint-sheet'
 
@@ -20,16 +22,10 @@ interface BookingHelpSheetProps {
 }
 
 /**
- * The garage is reachable for as long as the job is on — including after it is
- * done, when a customer may need to ask about the work. A cancelled or moved
- * booking has no job left to talk to the garage about; Detlio handles those.
+ * A cancelled or moved booking has no job left to talk to the garage about;
+ * Detlio handles those, so the garage's part of the sheet is left out.
  */
-const GARAGE_REACHABLE: ReadonlySet<Booking['status']> = new Set([
-  'pending',
-  'confirmed',
-  'in_progress',
-  'completed',
-])
+const ENDED: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled'])
 
 /**
  * Who to talk to about this booking, one tap away: the garage for the job
@@ -43,9 +39,16 @@ const GARAGE_REACHABLE: ReadonlySet<Booking['status']> = new Set([
  */
 export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetProps) {
   const [raising, setRaising] = useState(false)
+  const now = useNow(30_000)
   const reference = `#${bookingReference(booking.id)}`
   const garage = booking.garage
-  const showGarage = GARAGE_REACHABLE.has(booking.status) && !!garage
+  // The contact window (owner decision, 18 Oct 2026): the server sends the
+  // garage's phone and WhatsApp only from 2 hours before the booking until
+  // an hour after it is done. Outside it the sheet says when they show, and
+  // the Detlio team below is the way through.
+  const windowState = contactWindowState(booking.contactWindow, now)
+  const showGarage = !ENDED.has(booking.status) && !!garage && windowState === 'open'
+  const garageHidden = !ENDED.has(booking.status) && windowState !== 'open' ? windowState : null
   const garageCall = showGarage ? telHref(garage?.phone) : null
   const garageMessage = `Hi, this is about my Detlio booking ${reference} with you for ${booking.scheduledAt}.`
   // The garage's WhatsApp number when it gave one, else its phone if that is
@@ -99,6 +102,21 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
                 callHref={garageCall}
                 whatsAppHref={garageWhatsApp}
               />
+            </section>
+          )}
+
+          {garageHidden && (
+            <section className="flex flex-col gap-1">
+              <h3 className="text-[13px] font-semibold text-text-primary">{booking.vendorName}</h3>
+              <p className="flex items-start gap-1.5 text-[12px] text-text-secondary">
+                <IconPhoneOff size={14} className="mt-px shrink-0" aria-hidden />
+                <span>
+                  {garageNumberHiddenLine(garageHidden)}{' '}
+                  {garageHidden === 'before'
+                    ? 'Until then, the Detlio team can pass a message on.'
+                    : 'The Detlio team can reach them for you.'}
+                </span>
+              </p>
             </section>
           )}
 

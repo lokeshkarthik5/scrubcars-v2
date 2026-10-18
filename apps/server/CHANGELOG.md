@@ -18,6 +18,26 @@ reconstructing every change in them.
 
 ### Added
 
+- **Contact windows: customer and garage phone numbers only from 2 hours
+  before the job until it's done** (owner decision, 18 Oct 2026; no
+  migration). One pure rule, `lib/contact-window.ts` (`contactWindow`,
+  unit-tested; numbers twinned in `packages/core/src/contact-window.ts` with a
+  parity test): opens 2 hours before the slot (pickup & drop: the pickup
+  slot); in progress, and a pickup car between Picked up and Delivered, is
+  always inside; completed closes 1 hour after completion (Delivered for
+  pickup); a booking nobody started closes 2 hours after its slot; cancelled,
+  no-show or moved is closed at once.
+  - The customer's booking payloads (`GET /bookings/:id`, `/bookings/me`,
+    create, cancel, reschedule) send the garage's `vendor.phone` and
+    `vendor.whatsapp` as null outside the window; the address, pin and maps
+    link stay. The garage's (`toVendorBookingResponse`: `GET /bookings/vendor`,
+    `GET /bookings/:id`, every job action) send the customer's `user.phone` as
+    null outside it; the name stays, and so does a doorstep or pickup address.
+    Both carry `contactWindow { opensAt, closesAt, open }`.
+  - Admin is not windowed. The receipt never printed the garage's phone and
+    still doesn't; push and Updates carry no phone numbers.
+  - E2E fixtures: `VENDORS.contact`, `CUSTOMERS.contact`, `STAFF.contactOwner`
+    and four bookings (ids 3400–3499, phones 90000034xx).
 - **Gift a wash: Detlio gifts, Detlio credit, and paying for a booking
   with credit, behind `GIFTS_ENABLED` (default off)** (migration
   `0049_gift_credit`, additive, after 0048: new
