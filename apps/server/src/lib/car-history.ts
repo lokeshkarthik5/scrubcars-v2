@@ -16,7 +16,8 @@
  *   bookings, where it lives with its refund. Jobs still to happen or under
  *   way are not history yet.
  * - **Amount paid** is what the customer paid for the job and kept paying:
- *   the latest row's payment (paid, collected, or refunded since) less what
+ *   the latest row's payment (paid, collected, or refunded since; its
+ *   Razorpay part plus any Detlio credit part not given back, 0049) less what
  *   was refunded on it, plus the paid final bill and extra work on it less
  *   their refunds (`charges_paid`, net in SQL). A reschedule copies the
  *   payment to the new row, so only the latest row's is counted; the old

@@ -5,10 +5,8 @@
 -- structure (prepaid instrument rules; apps/users/lib/legal/gifts.ts). Rules in
 -- lib/gift-credit.ts.
 --
--- NUMBERING: this is 0049 on purpose. 0045–0048 belong to branches built in
--- parallel from the same base (photo standards, car history, slot alerts,
--- Detlio Certified) and are applied before this one when the stack is lined
--- up. On this branch alone `migrate.sh lint` reports the gap; nothing here
+-- NUMBERING: runs after 0045–0048 (photo standards, car history, slot
+-- alerts, Detlio Certified), which were built in parallel; nothing here
 -- depends on those four files, and they do not touch these tables.
 --
 -- Changes:

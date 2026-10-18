@@ -174,7 +174,10 @@ export const carHistoryRepository = {
                 WHERE bi.booking_id = b.id
              ) AS package_categories,
              ${bookingCategories()} AS categories,
-             p.amount::text AS payment_amount,
+             -- Razorpay's part plus the part paid with Detlio credit (0049)
+             -- until it went back as credit, as Statistics reads it.
+             (p.amount + CASE WHEN p.credit_returned_at IS NULL THEN p.credit_amount ELSE 0 END)::text
+               AS payment_amount,
              p.status::text AS payment_status,
              p.refunded_amount::text AS payment_refunded,
              (SELECT coalesce(sum(c.amount_due - coalesce(c.refunded_amount, 0)), 0)::text
