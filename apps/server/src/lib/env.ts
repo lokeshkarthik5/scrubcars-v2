@@ -351,14 +351,14 @@ export const env = {
   // ─── Job photo standards (lib/job-photo-standards.ts, 0045) ────────────────
   /**
    * Whether garages must add 2 before photos to start a job and 2 after
-   * photos to finish it: JOB_PHOTOS_REQUIRED, **on unless set to `off`**
-   * (the owner's way to relax it for every garage at once). Admin can still
-   * waive it on one booking.
+   * photos to finish it: JOB_PHOTOS_REQUIRED, **off unless set to `on`**
+   * (pilot: garages are nudged, not blocked; JOB_PHOTOS_REQUIRED_GARAGES turns
+   * it on garage by garage). Admin can still waive it on one booking.
    */
   jobPhotosRequired: parsePhotosRequired(process.env.JOB_PHOTOS_REQUIRED),
   /**
-   * Garage ids (comma separated) that keep the standard while
-   * JOB_PHOTOS_REQUIRED is off: a garage-by-garage roll-out, and how the E2E
+   * Garage ids (comma separated) that have the standard while
+   * JOB_PHOTOS_REQUIRED is off: the garage-by-garage roll-out, and how the E2E
    * suite turns it on for its own garage only. Ignored while it is on.
    */
   jobPhotosRequiredGarages: parseRequiredGarages(process.env.JOB_PHOTOS_REQUIRED_GARAGES),
