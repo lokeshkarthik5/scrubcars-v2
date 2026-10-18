@@ -399,6 +399,12 @@ export default function ProfilePage() {
               {rewardsSummary.data && (
                 <span className="block text-[12px] text-text-secondary">
                   <Figures text={stampsToGoLine(rewardsSummary.data.card.toGo)} />
+                  {/* 0054: the badge count. */}
+                  {rewardsSummary.data.extras && rewardsSummary.data.extras.badgesEarned > 0 && (
+                    <Figures
+                      text={` · ${rewardsSummary.data.extras.badgesEarned} ${rewardsSummary.data.extras.badgesEarned === 1 ? 'badge' : 'badges'}`}
+                    />
+                  )}
                 </span>
               )}
             </span>

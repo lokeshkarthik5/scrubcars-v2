@@ -7,6 +7,8 @@
  * before the config has loaded and for admin's "Reset to defaults".
  */
 
+import type { BadgeKey, BadgeSettings } from './achievements'
+
 export const SCRATCH_OUTCOMES = ['small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash'] as const
 export type ScratchOutcome = (typeof SCRATCH_OUTCOMES)[number]
 export type MoneyOutcome = Exclude<ScratchOutcome, 'bonus_stamp'>
@@ -46,6 +48,8 @@ export interface RewardsSettings {
   monthlyCap: number
   nudgeGapDays: number
   expiryWarningDays: number
+  /** Achievements (0054): each badge on or off and its bonus stamps; a badge left out reads as its default. */
+  achievements?: Partial<Record<BadgeKey, BadgeSettings>>
 }
 
 export const DEFAULT_REWARDS_SETTINGS: RewardsSettings = {

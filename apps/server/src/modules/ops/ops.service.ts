@@ -12,6 +12,7 @@ import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { rewardsService } from '../rewards/rewards.service.js'
+import { rewardExtrasService } from '../reward-extras/reward-extras.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
@@ -132,6 +133,16 @@ export const opsService = {
         log.error({ err }, 'ops:rewards_sweep_failed')
         return { error: true as const }
       })
+    // 0054: badges and challenges for stamps not yet counted, the nightly
+    // badge pass, celebrations that waited for the morning, challenge
+    // starts and "one more to go", and Wrapped's December push. Only while
+    // rewards are live; bounded, never fails the digest.
+    const rewardExtras = await rewardExtrasService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:reward_extras_sweep_failed')
+        return { error: true as const }
+      })
     const giftCodeAttemptsPurged = options.dryRun
       ? 0
       : await giftsService.purgeAttempts().catch((err: unknown) => {
@@ -192,6 +203,7 @@ export const opsService = {
       giftCredit,
       giftCodeAttemptsPurged,
       rewards,
+      rewardExtras,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

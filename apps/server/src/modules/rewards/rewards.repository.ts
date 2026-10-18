@@ -24,10 +24,12 @@ import {
 } from '../../db/schema.js'
 import { istDateKey, istParts } from '../../lib/ist.js'
 import {
+  CELEBRATORY_NUDGE_KINDS,
   capReached,
   discountPercent,
   eligibleAmountPaise,
   fullCards,
+  isCelebratoryNudge,
   istMonthKey,
   istMonthRange,
   istYearStart,
@@ -92,6 +94,15 @@ async function lockReferrer(tx: AnyTx, referrerId: string) {
 async function lockCap(tx: AnyTx) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext('rewards:cap')::bigint)`)
 }
+
+/**
+ * A nudge that holds the gap: every kind but the celebrations (0054). Over
+ * a column of `reward_nudges.kind`.
+ */
+function countsTowardGap(kindColumn: SQL | AnyColumnLike): SQL {
+  return sql`${kindColumn} not in (${sql.join(CELEBRATORY_NUDGE_KINDS.map((kind) => sql`${kind}`), sql`, `)})`
+}
+type AnyColumnLike = typeof rewardNudges.kind
 
 // ─── Shared reads ────────────────────────────────────────────────────────────
 
@@ -396,6 +407,21 @@ export type ScratchResult =
       vouchers: IssuedVoucher[]
       capAlert: { month: string; issuedPaise: number } | null
     }
+
+/**
+ * The rewards writes other rewards modules build on (0054: badges and
+ * challenges), so a stamp, a voucher, a full card and the budget work the
+ * same everywhere. Each runs inside the caller's transaction, after it took
+ * the customer's lock.
+ */
+export const rewardsTx = {
+  lockRewards,
+  levelOf,
+  levelFacts,
+  issueVoucher,
+  convertFullCards,
+  capCheck,
+}
 
 export const rewardsRepository = {
   // ─── Settings ─────────────────────────────────────────────────────────────
@@ -1271,7 +1297,7 @@ export const rewardsRepository = {
     const soon = new Date(now.getTime() + settings.expiryWarningDays * DAY_MS)
     const quietSince = new Date(now.getTime() - settings.nudgeGapDays * DAY_MS)
     const notRecentlyNudged = (userColumn: ReturnType<typeof sql.raw>) =>
-      sql`not exists (select 1 from reward_nudges n where n.user_id = ${userColumn} and n.sent_at > ${quietSince})`
+      sql`not exists (select 1 from reward_nudges n where n.user_id = ${userColumn} and n.sent_at > ${quietSince} and ${countsTowardGap(sql.raw('n.kind'))})`
 
     const vouchers = await db.execute<{ id: string; user_id: string; amount: string; expires_at: Date | string }>(sql`
       select v.id, v.user_id, v.amount, v.expires_at
@@ -1381,7 +1407,9 @@ export const rewardsRepository = {
   /**
    * Claims a nudge: written only if the customer had none within the gap and
    * this subject was never nudged, under their lock, so overlapping runs send
-   * it once and never two within the gap.
+   * it once and never two within the gap. A celebration (0054: a badge, a
+   * challenge won, Wrapped) skips the gap and is left out of it, but is
+   * still claimed once per subject.
    */
   async claimNudge(input: {
     userId: string
@@ -1395,13 +1423,15 @@ export const rewardsRepository = {
   }): Promise<boolean> {
     return db.transaction(async (tx) => {
       await lockRewards(tx, input.userId)
-      const quietSince = new Date(input.now.getTime() - input.gapDays * DAY_MS)
-      const [recent] = await tx
-        .select({ id: rewardNudges.id })
-        .from(rewardNudges)
-        .where(and(eq(rewardNudges.userId, input.userId), gt(rewardNudges.sentAt, quietSince)))
-        .limit(1)
-      if (recent) return false
+      if (!isCelebratoryNudge(input.kind)) {
+        const quietSince = new Date(input.now.getTime() - input.gapDays * DAY_MS)
+        const [recent] = await tx
+          .select({ id: rewardNudges.id })
+          .from(rewardNudges)
+          .where(and(eq(rewardNudges.userId, input.userId), gt(rewardNudges.sentAt, quietSince), countsTowardGap(rewardNudges.kind)))
+          .limit(1)
+        if (recent) return false
+      }
       const rows = await tx
         .insert(rewardNudges)
         .values({

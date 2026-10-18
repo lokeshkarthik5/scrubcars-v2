@@ -19,6 +19,21 @@ reconstructing every change in them.
 
 ### Added
 
+- **Badges, challenges and Detlio Wrapped** (API 0054, only while rewards
+  are live). Rewards page: the live challenges with a silver progress bar
+  ("1 of 3 — 4 days left"), the badge cabinet (earned in colour, locked ones
+  grey with how to earn and how far), and, from 1 December, "Your Detlio
+  Wrapped". A sheet celebrates each new badge once (Home and the Rewards
+  page; a push opens it). Home: the most pressing challenge as a line under
+  the rewards line, not a card. Profile: the badge count. Wrapped
+  (`/profile/rewards/wrapped`): 5–7 story cards; each shares as a 1080×1920
+  image drawn on the phone (Web Share, or a download), with the first name
+  (a switch hides it), garage names and "Book on detlio.com" only. All
+  motion stops under prefers-reduced-motion. Admin → Rewards gains
+  Achievements (badges on/off, bonus stamps, counts), Challenges (create,
+  publish, edit, end; participants, winners, cost; results CSV) and Wrapped
+  (made, told, opened, shared; any customer's preview).
+
 - **Detlio Rewards** (API 0050, shown only while the API says rewards are
   live; hidden while off or loading). Home: the Shine Card's stars under the
   car (a new stamp pops in once) and one line under it ("2 more washes to

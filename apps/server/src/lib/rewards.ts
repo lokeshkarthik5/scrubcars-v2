@@ -108,6 +108,83 @@ export interface RewardsSettings {
   nudgeGapDays: number
   /** "Ends soon" nudges this many days ahead. */
   expiryWarningDays: number
+  /**
+   * Achievements (0054): each badge on or off and the bonus stamps it
+   * gives. Optional: version 1 (0050) has none, and a badge missing here
+   * reads as its default (`achievementSettings`). Saved through the same
+   * versioned, audit-logged settings as everything else.
+   */
+  achievements?: Partial<Record<BadgeKey, BadgeSettings>>
+}
+
+// ─── Achievements settings (0054) ───────────────────────────────────────────
+//
+// The badges themselves (names, how to earn, the rules) are lib/achievements.ts;
+// only what the team edits lives here, beside the other settings, so the one
+// settings form, version and audit row cover it.
+
+export const BADGE_KEYS = [
+  'first_shine',
+  'washes_5',
+  'washes_25',
+  'washes_50',
+  'washes_100',
+  'streak_3',
+  'streak_6',
+  'streak_12',
+  'monsoon_shine',
+  'early_bird',
+  'night_owl',
+  'explorer',
+  'loyal_regular',
+  'pickup_pro',
+  'doorstep_devotee',
+  'reviewer',
+  'ambassador',
+  'detailing_devotee',
+  'coating_club',
+] as const
+export type BadgeKey = (typeof BADGE_KEYS)[number]
+
+export interface BadgeSettings {
+  enabled: boolean
+  /** Stamps on the Shine Card when the badge is earned (0 = none). */
+  bonusStamps: number
+}
+
+/**
+ * Every badge on; bonus stamps kept small (a full card is a ₹299+ voucher,
+ * so a stamp is worth about a fifth of one). Streak 3 gives none: the
+ * monthly streak already gives a bonus stamp at 3 months.
+ */
+export const DEFAULT_ACHIEVEMENT_SETTINGS: Record<BadgeKey, BadgeSettings> = {
+  first_shine: { enabled: true, bonusStamps: 1 },
+  washes_5: { enabled: true, bonusStamps: 1 },
+  washes_25: { enabled: true, bonusStamps: 2 },
+  washes_50: { enabled: true, bonusStamps: 3 },
+  washes_100: { enabled: true, bonusStamps: 5 },
+  streak_3: { enabled: true, bonusStamps: 0 },
+  streak_6: { enabled: true, bonusStamps: 1 },
+  streak_12: { enabled: true, bonusStamps: 2 },
+  monsoon_shine: { enabled: true, bonusStamps: 1 },
+  early_bird: { enabled: true, bonusStamps: 1 },
+  night_owl: { enabled: true, bonusStamps: 1 },
+  explorer: { enabled: true, bonusStamps: 1 },
+  loyal_regular: { enabled: true, bonusStamps: 1 },
+  pickup_pro: { enabled: true, bonusStamps: 1 },
+  doorstep_devotee: { enabled: true, bonusStamps: 1 },
+  reviewer: { enabled: true, bonusStamps: 1 },
+  ambassador: { enabled: true, bonusStamps: 1 },
+  detailing_devotee: { enabled: true, bonusStamps: 1 },
+  coating_club: { enabled: true, bonusStamps: 1 },
+}
+
+/** The badges as the settings in force say: stored values over the defaults, every key present. */
+export function achievementSettings(settings: Pick<RewardsSettings, 'achievements'>): Record<BadgeKey, BadgeSettings> {
+  const stored = settings.achievements ?? {}
+  return Object.fromEntries(
+    BADGE_KEYS.map((key) => [key, { ...DEFAULT_ACHIEVEMENT_SETTINGS[key], ...(stored[key] ?? {}) }])
+  ) as Record<BadgeKey, BadgeSettings>
 }
 
 export const DEFAULT_REWARDS_SETTINGS: RewardsSettings = {
@@ -179,6 +256,7 @@ export const SETTINGS_LIMITS = {
   nudgeGapDays: { min: 1, max: 30 },
   expiryWarningDays: { min: 1, max: 30 },
   labelLength: { min: 2, max: 20 },
+  badgeBonusStamps: { min: 0, max: 5 },
 } as const
 
 /** Rules that are not settings: the abuse flag, invites, manual changes. */
@@ -253,6 +331,17 @@ export function settingsProblems(s: RewardsSettings): string[] {
     problems.push(`Levels must be ${LEVELS.join(', ')}, in that order`)
     return problems
   }
+  for (const [key, badge] of Object.entries(s.achievements ?? {})) {
+    if (!(BADGE_KEYS as readonly string[]).includes(key)) {
+      problems.push(`Unknown badge: ${key}`)
+      continue
+    }
+    if (badge) {
+      range(`Badge ${key}: bonus stamps`, badge.bonusStamps, L.badgeBonusStamps)
+      check(typeof badge.enabled === 'boolean', `Badge ${key}: on or off`)
+    }
+  }
+
   s.levels.forEach((level, i) => {
     const name = level.label || level.key
     check(
@@ -323,6 +412,7 @@ export const VOUCHER_KINDS = [
   'birthday',
   'annual_detailing',
   'adjustment',
+  'challenge',
 ] as const
 export type VoucherKind = (typeof VOUCHER_KINDS)[number]
 
@@ -334,12 +424,13 @@ export const VOUCHER_LABELS: Record<VoucherKind, string> = {
   birthday: 'Birthday wash',
   annual_detailing: 'Annual detailing',
   adjustment: 'From Detlio',
+  challenge: 'Challenge prize',
 }
 
 /** Kinds whose amount is counted toward the cap when the card is made, not when the voucher is. */
 export const SCRATCH_VOUCHER_KINDS: readonly VoucherKind[] = ['scratch', 'free_wash']
 
-export const STAMP_SOURCES = ['booking', 'scratch', 'streak', 'adjustment'] as const
+export const STAMP_SOURCES = ['booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge'] as const
 export type StampSource = (typeof STAMP_SOURCES)[number]
 
 export const STAMP_LABELS: Record<StampSource, string> = {
@@ -347,6 +438,8 @@ export const STAMP_LABELS: Record<StampSource, string> = {
   scratch: 'Bonus stamp (scratch card)',
   streak: 'Bonus stamp (monthly streak)',
   adjustment: 'From Detlio',
+  badge: 'Bonus stamp (badge)',
+  challenge: 'Bonus stamp (challenge)',
 }
 
 /** Why a completed booking earned no stamp. Text + CHECK in 0050. */
@@ -889,8 +982,32 @@ export function referralOutcome(
 
 // ─── Habit nudges ───────────────────────────────────────────────────────────
 
-export const NUDGE_KINDS = ['expiring', 'one_away', 'wash_due'] as const
+export const NUDGE_KINDS = [
+  'expiring',
+  'one_away',
+  'wash_due',
+  // 0054: achievements, challenges and Detlio Wrapped.
+  'badge',
+  'challenge_start',
+  'challenge_one_left',
+  'challenge_won',
+  'wrapped',
+] as const
 export type NudgeKind = (typeof NUDGE_KINDS)[number]
+
+/**
+ * Good news, not a push to book (0054): a badge earned, a challenge won,
+ * the year's Wrapped. These are sent and shown in Updates like any nudge
+ * (one per subject), but they neither need nor use up the customer's
+ * nudge gap: a celebration never waits three days, and never makes the
+ * next reminder wait. A challenge starting or "one to go" is a reminder to
+ * book, so it counts like the 0050 nudges.
+ */
+export const CELEBRATORY_NUDGE_KINDS: readonly NudgeKind[] = ['badge', 'challenge_won', 'wrapped']
+
+export function isCelebratoryNudge(kind: NudgeKind): boolean {
+  return CELEBRATORY_NUDGE_KINDS.includes(kind)
+}
 
 /** The runs nudges and perks go out in: 10:00–17:59 IST, never at night. */
 export function isNudgeRun(now: Date): boolean {
@@ -990,12 +1107,20 @@ export function voucherIssuedWords(kind: VoucherKind, amount: number): { title: 
       return { title: 'Your yearly detailing is ready', body: `Up to ₹${amount} off a detailing, on us.` }
     case 'adjustment':
       return { title: 'A reward from Detlio', body: `₹${amount} off your next booking is ready.` }
+    case 'challenge':
+      return { title: 'Challenge won', body: `₹${amount} off your next booking is ready.` }
     default:
       return { title: 'You won a scratch card prize', body: `₹${amount} off your next booking is ready.` }
   }
 }
 
 // ─── Admin ──────────────────────────────────────────────────────────────────
+
+/** "••••••1234": enough for the team to match a caller, in admin lists and CSVs. */
+export function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  return digits.length >= 4 ? `••••••${digits.slice(-4)}` : '••••'
+}
 
 /**
  * The abuse flag: a customer whose stamps come mostly from bookings at
