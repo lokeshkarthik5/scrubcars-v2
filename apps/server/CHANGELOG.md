@@ -46,7 +46,10 @@ reconstructing every change in them.
   - The redo: a ₹0 confirmed booking through the vehicle lock and
     `checkGarageCanTake` (the claim row locked first), no receipt number,
     never rescheduled; it earns nothing and is left out of Statistics,
-    commission's free 25, payouts and the pilot numbers.
+    commission's free 25, payouts and the pilot numbers. Detlio Rewards
+    (0050) judges it `free_redo` (no stamp, scratch card or level progress;
+    0051 adds the value to `reward_bookings_refusal_check`), and a refund
+    instead takes the booking's stamp back at once like any refund.
   - Refund instead: `lib/refunds.ts` owes a completed booking's payment when
     `guarantee_refund_at` is set (Refunds page, `AUTO_REFUNDS` cause
     `guarantee_refund`, credit back as credit); the garage earns nothing on

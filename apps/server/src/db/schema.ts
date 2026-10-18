@@ -2784,7 +2784,8 @@ export const rewardBookings = pgTable(
       .where(sql`${table.earned} and ${table.revokedAt} is null`),
     check(
       'reward_bookings_refusal_check',
-      sql`${table.refusal} in ('not_completed', 'not_paid_online', 'refunded', 'test', 'under_minimum', 'same_day_car')`
+      // 'free_redo' added by 0051 (Detlio Guarantee).
+      sql`${table.refusal} in ('not_completed', 'not_paid_online', 'refunded', 'test', 'under_minimum', 'same_day_car', 'free_redo')`
     ),
     check('reward_bookings_earned_check', sql`${table.earned} = (${table.refusal} is null)`),
     check(
