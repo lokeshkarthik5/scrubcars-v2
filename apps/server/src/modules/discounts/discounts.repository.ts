@@ -22,6 +22,7 @@ import {
   discountRedemptions,
   discounts,
   payments,
+  rewardVouchers,
   services,
   userVehicles,
   vendors,
@@ -34,8 +35,25 @@ export const discountsRepository = {
     })
   },
 
+  /**
+   * A team-made code by id, for admin's edit and delete. A reward voucher's
+   * row (source 'reward', 0050) is never one: it is a 404 there.
+   */
   findById(id: string) {
-    return db.query.discounts.findFirst({ where: eq(discounts.id, id) })
+    return db.query.discounts.findFirst({ where: and(eq(discounts.id, id), eq(discounts.source, 'admin')) })
+  },
+
+  /**
+   * Whose reward voucher a 'reward' code is (0050): resolveDiscount lets
+   * only that customer use it, and not once the team cancelled it.
+   */
+  async findRewardVoucher(discountId: string) {
+    const [row] = await db
+      .select({ userId: rewardVouchers.userId, cancelledAt: rewardVouchers.cancelledAt })
+      .from(rewardVouchers)
+      .where(eq(rewardVouchers.discountId, discountId))
+      .limit(1)
+    return row
   },
 
   /**
@@ -144,6 +162,9 @@ export const discountsRepository = {
     const term = filters.q ? containsPattern(filters.q) : undefined
 
     const conditions = [
+      // Customers' reward vouchers (0050) are promo codes too, one each;
+      // they are Rewards' business, never listed here.
+      eq(discounts.source, 'admin'),
       filters.active === undefined
         ? undefined
         : eq(discounts.isActive, filters.active),
@@ -166,7 +187,7 @@ export const discountsRepository = {
 
   findDetailById(id: string) {
     return db.query.discounts.findFirst({
-      where: eq(discounts.id, id),
+      where: and(eq(discounts.id, id), eq(discounts.source, 'admin')),
       with: {
         vendor: { columns: { id: true, businessName: true } },
       },

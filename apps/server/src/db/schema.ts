@@ -34,6 +34,16 @@ import type {
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
 import type { SlotAlertWindow } from '../lib/slot-alerts.js'
+import type {
+  NudgeKind,
+  PerkKind,
+  RewardLevel,
+  RewardsSettings,
+  ScratchOutcome,
+  StampRefusal,
+  StampSource,
+  VoucherKind,
+} from '../lib/rewards.js'
 import type { ServiceReminderKind, ServiceReminderStatus } from '../lib/service-reminders.js'
 import type { PhotoAngle, PhotoRole } from '../lib/job-photo-standards.js'
 import type {
@@ -382,11 +392,22 @@ export const users = pgTable(
     // by default; a device that never subscribed gets nothing either way.
     pushBookingUpdates: boolean('push_booking_updates').default(true).notNull(),
     pushReminders: boolean('push_reminders').default(true).notNull(),
+    // Detlio Rewards (0050): an optional birthday, month and day only (no
+    // year), for the birthday voucher of the levels that have one. Both or
+    // neither (CHECK). Set from the Rewards page.
+    birthdayMonth: smallint('birthday_month'),
+    birthdayDay: smallint('birthday_day'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (table) => [index('users_phone_idx').on(table.phone)]
+  (table) => [
+    index('users_phone_idx').on(table.phone),
+    check(
+      'users_birthday_check',
+      sql`(${table.birthdayMonth} is null) = (${table.birthdayDay} is null) and (${table.birthdayMonth} is null or (${table.birthdayMonth} between 1 and 12 and ${table.birthdayDay} between 1 and 31))`
+    ),
+  ]
 )
 
 export const otpVerifications = pgTable(
@@ -1463,11 +1484,23 @@ export const discounts = pgTable(
     homeAudienceVehicleTypes: text('home_audience_vehicle_types')
       .array()
       .$type<Array<'hatchback' | 'sedan' | 'suv'>>(),
+    // Detlio Rewards (0050): 'reward' for a customer's own reward voucher
+    // (reward_vouchers names it), 'admin' for every code the team makes. A
+    // reward code is Detlio-funded, fixed ₹ off, once, for one customer, at
+    // every garage and never on Home (discounts_reward_shape_check); admin's
+    // Discounts page never lists one, and resolveDiscount lets only its owner
+    // use it, only while REWARDS_ENABLED is on.
+    source: text('source').$type<'admin' | 'reward'>().default('admin').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
+    check('discounts_source_check', sql`${table.source} in ('admin', 'reward')`),
+    check(
+      'discounts_reward_shape_check',
+      sql`${table.source} = 'admin' or (${table.fundedBy} = 'platform' and ${table.vendorId} is null and not ${table.showOnHome} and ${table.discountType} = 'fixed' and ${table.totalUsageLimit} = 1 and ${table.perUserLimit} = 1 and ${table.endsAt} is not null)`
+    ),
     // The case-insensitive unique index on lower(code) lives in the migration:
     // drizzle cannot express a functional index here. Do not add a plain
     // unique() to `code` — it would disagree with the database.
@@ -2773,6 +2806,381 @@ export const bypassReports = pgTable(
       sql`(${table.rewardStatus} = 'granted') = (${table.rewardEntryId} is not null and ${table.rewardGrantedAt} is not null)`
     ),
   ]
+)
+
+// ─── Detlio Rewards (0050) ───────────────────────────────────────────────────
+//
+// The Shine Card, scratch cards, streaks, levels and Invite a friend, behind
+// REWARDS_ENABLED. Rules and every number in lib/rewards.ts (REWARDS_RULES).
+// Everything cascades with the customer, and every row about a booking with
+// that booking (the pilot reset, Delete forever).
+
+/**
+ * Each completed booking chain, judged once for a stamp: earned, or why not.
+ * `revoked_at` when the chain was marked Test or money went back after it
+ * earned (the stamp is taken back if still on the card). One stamp per car
+ * per IST day (partial unique index).
+ */
+export const rewardBookings = pgTable(
+  'reward_bookings',
+  {
+    rootBookingId: uuid('root_booking_id')
+      .primaryKey()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vehicleId: uuid('vehicle_id')
+      .notNull()
+      .references(() => userVehicles.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    completedAt: timestamp('completed_at', { withTimezone: true }).notNull(),
+    istDay: date('ist_day').notNull(),
+    eligibleAmount: decimal('eligible_amount', { precision: 10, scale: 2 }).notNull(),
+    discountPercent: smallint('discount_percent').default(0).notNull(),
+    earned: boolean('earned').notNull(),
+    refusal: text('refusal').$type<StampRefusal>(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokeReason: text('revoke_reason').$type<'test' | 'refunded'>(),
+    judgedAt: timestamp('judged_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('reward_bookings_car_day_key').on(table.vehicleId, table.istDay).where(sql`${table.earned}`),
+    index('reward_bookings_user_id_idx').on(table.userId, table.completedAt),
+    index('reward_bookings_earned_idx')
+      .on(table.userId, table.completedAt)
+      .where(sql`${table.earned} and ${table.revokedAt} is null`),
+    check(
+      'reward_bookings_refusal_check',
+      // 'free_redo' added by 0051 (Detlio Guarantee).
+      sql`${table.refusal} in ('not_completed', 'not_paid_online', 'refunded', 'test', 'under_minimum', 'same_day_car', 'free_redo')`
+    ),
+    check('reward_bookings_earned_check', sql`${table.earned} = (${table.refusal} is null)`),
+    check(
+      'reward_bookings_revoked_check',
+      sql`(${table.revokedAt} is null) = (${table.revokeReason} is null) and (${table.revokedAt} is null or ${table.earned}) and (${table.revokeReason} is null or ${table.revokeReason} in ('test', 'refunded'))`
+    ),
+    check('reward_bookings_discount_percent_check', sql`${table.discountPercent} between 0 and 100`),
+  ]
+)
+
+/**
+ * A customer's reward voucher. It IS a promo code (`discount_id`, a
+ * `discounts` row with source 'reward'): checkout, DISCOUNT_HELD, receipts,
+ * commission and payouts treat it as a Detlio-funded promo. Spent, given
+ * back and lapsed are read from that row's redemptions and `ends_at`.
+ */
+export const rewardVouchers = pgTable(
+  'reward_vouchers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<VoucherKind>().notNull(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    discountId: uuid('discount_id')
+      .notNull()
+      .references(() => discounts.id, { onDelete: 'restrict' }),
+    // The level a Shine Card or perk voucher was issued at.
+    level: text('level').$type<RewardLevel>(),
+    // The booking that earned it, where one did (a full card's last stamp,
+    // a scratch card's, an invite's first booking): admin's timeline.
+    sourceBookingId: uuid('source_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    reason: varchar('reason', { length: 300 }),
+    actorName: varchar('actor_name', { length: 100 }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledBy: varchar('cancelled_by', { length: 100 }),
+    cancelReason: varchar('cancel_reason', { length: 300 }),
+  },
+  (table) => [
+    uniqueIndex('reward_vouchers_discount_id_key').on(table.discountId),
+    index('reward_vouchers_user_id_idx').on(table.userId, table.issuedAt),
+    index('reward_vouchers_issued_at_idx').on(table.issuedAt),
+    index('reward_vouchers_expires_at_idx').on(table.expiresAt).where(sql`${table.cancelledAt} is null`),
+    check(
+      'reward_vouchers_kind_check',
+      sql`${table.kind} in ('shine', 'scratch', 'free_wash', 'referral', 'birthday', 'annual_detailing', 'adjustment')`
+    ),
+    check(
+      'reward_vouchers_level_check',
+      sql`${table.level} is null or ${table.level} in ('member', 'silver', 'gold', 'platinum', 'diamond', 'icon')`
+    ),
+    check('reward_vouchers_amount_check', sql`${table.amount} > 0 and ${table.amount} <= 5000`),
+    check('reward_vouchers_expiry_check', sql`${table.expiresAt} > ${table.issuedAt}`),
+    check(
+      'reward_vouchers_adjustment_check',
+      sql`${table.kind} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null)`
+    ),
+    check(
+      'reward_vouchers_cancelled_check',
+      sql`(${table.cancelledAt} is null) = (${table.cancelledBy} is null) and (${table.cancelledAt} is null) = (${table.cancelReason} is null)`
+    ),
+  ]
+)
+
+/**
+ * One scratch card per stamp-earning chain. The prize is drawn when the
+ * card is made, never by the app; past the monthly cap a money prize is a
+ * bonus stamp instead (`fell_back`). Scratching applies it.
+ */
+export const rewardScratchCards = pgTable(
+  'reward_scratch_cards',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    rootBookingId: uuid('root_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    outcome: text('outcome').$type<ScratchOutcome>().notNull(),
+    prizeAmount: decimal('prize_amount', { precision: 10, scale: 2 }),
+    drawnOutcome: text('drawn_outcome').$type<ScratchOutcome>().notNull(),
+    fellBack: boolean('fell_back').default(false).notNull(),
+    // The level whose odds drew it.
+    level: text('level').$type<RewardLevel>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    scratchedAt: timestamp('scratched_at', { withTimezone: true }),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voucherId: uuid('voucher_id').references(() => rewardVouchers.id, { onDelete: 'set null' }),
+  },
+  (table) => [
+    uniqueIndex('reward_scratch_cards_root_booking_key').on(table.rootBookingId),
+    index('reward_scratch_cards_user_id_idx').on(table.userId, table.createdAt),
+    index('reward_scratch_cards_created_at_idx').on(table.createdAt),
+    check(
+      'reward_scratch_cards_outcome_check',
+      sql`${table.outcome} in ('small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash') and ${table.drawnOutcome} in ('small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash')`
+    ),
+    check('reward_scratch_cards_prize_check', sql`(${table.outcome} = 'bonus_stamp') = (${table.prizeAmount} is null)`),
+    check(
+      'reward_scratch_cards_fell_back_check',
+      sql`not ${table.fellBack} or (${table.outcome} = 'bonus_stamp' and ${table.drawnOutcome} <> 'bonus_stamp')`
+    ),
+    check('reward_scratch_cards_voucher_check', sql`${table.voucherId} is null or ${table.scratchedAt} is not null`),
+    check('reward_scratch_cards_level_check', sql`${table.level} in ('member', 'silver', 'gold', 'platinum', 'diamond', 'icon')`),
+  ]
+)
+
+/**
+ * The Shine Card's stamps. On the card while `voucher_id` and `voided_at`
+ * are null and `expires_at` is ahead; five on the card become a voucher.
+ */
+export const rewardStamps = pgTable(
+  'reward_stamps',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    source: text('source').$type<StampSource>().notNull(),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
+    scratchCardId: uuid('scratch_card_id').references(() => rewardScratchCards.id, { onDelete: 'cascade' }),
+    streakMonth: varchar('streak_month', { length: 7 }),
+    earnedAt: timestamp('earned_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    voucherId: uuid('voucher_id').references(() => rewardVouchers.id, { onDelete: 'set null' }),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidReason: varchar('void_reason', { length: 300 }),
+    reason: varchar('reason', { length: 300 }),
+    actorName: varchar('actor_name', { length: 100 }),
+  },
+  (table) => [
+    uniqueIndex('reward_stamps_booking_key').on(table.bookingId).where(sql`${table.source} = 'booking'`),
+    uniqueIndex('reward_stamps_scratch_card_key').on(table.scratchCardId).where(sql`${table.source} = 'scratch'`),
+    uniqueIndex('reward_stamps_streak_key').on(table.userId, table.streakMonth).where(sql`${table.source} = 'streak'`),
+    index('reward_stamps_user_id_idx').on(table.userId, table.earnedAt),
+    index('reward_stamps_on_card_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.voucherId} is null and ${table.voidedAt} is null`),
+    check('reward_stamps_source_check', sql`${table.source} in ('booking', 'scratch', 'streak', 'adjustment')`),
+    check(
+      'reward_stamps_source_fields_check',
+      sql`(${table.source} = 'booking') = (${table.bookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'streak') = (${table.streakMonth} is not null) and (${table.source} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null))`
+    ),
+    check(
+      'reward_stamps_voided_check',
+      sql`(${table.voidedAt} is null) = (${table.voidReason} is null) and (${table.voidedAt} is null or ${table.voucherId} is null)`
+    ),
+    check('reward_stamps_expiry_check', sql`${table.expiresAt} > ${table.earnedAt}`),
+  ]
+)
+
+/** A customer no-show, once per chain: one level off for 12 months. */
+export const rewardLevelDrops = pgTable(
+  'reward_level_drops',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    rootBookingId: uuid('root_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    fromLevel: text('from_level').$type<RewardLevel>().notNull(),
+    toLevel: text('to_level').$type<RewardLevel>().notNull(),
+    droppedAt: timestamp('dropped_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('reward_level_drops_root_booking_key').on(table.rootBookingId),
+    index('reward_level_drops_user_id_idx').on(table.userId, table.droppedAt),
+    check(
+      'reward_level_drops_levels_check',
+      sql`${table.fromLevel} in ('member', 'silver', 'gold', 'platinum', 'diamond', 'icon') and ${table.toLevel} in ('member', 'silver', 'gold', 'platinum', 'diamond', 'icon')`
+    ),
+  ]
+)
+
+/** A level's birthday or annual detailing voucher: once per customer per IST calendar year each. */
+export const rewardPerks = pgTable(
+  'reward_perks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<PerkKind>().notNull(),
+    year: smallint('year').notNull(),
+    level: text('level').$type<RewardLevel>().notNull(),
+    voucherId: uuid('voucher_id').references(() => rewardVouchers.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('reward_perks_user_kind_year_key').on(table.userId, table.kind, table.year),
+    check('reward_perks_kind_check', sql`${table.kind} in ('birthday', 'annual_detailing')`),
+    check('reward_perks_level_check', sql`${table.level} in ('member', 'silver', 'gold', 'platinum', 'diamond', 'icon')`),
+    check('reward_perks_year_check', sql`${table.year} between 2026 and 2200`),
+  ]
+)
+
+/** An invite page opened: the inviter and when, nothing about the visitor (the admin's funnel). */
+export const rewardInviteOpens = pgTable(
+  'reward_invite_opens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    referrerId: uuid('referrer_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    openedAt: timestamp('opened_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('reward_invite_opens_opened_at_idx').on(table.openedAt)]
+)
+
+/**
+ * Every number of the programme, versioned: each admin save is a new row
+ * (the latest is in force) with the typed name; version 1 is the defaults
+ * (DEFAULT_REWARDS_SETTINGS). Read through rewardsSettings.current(),
+ * cached briefly. Changes apply going forward only.
+ */
+export const rewardSettings = pgTable(
+  'reward_settings',
+  {
+    version: integer('version').primaryKey(),
+    settings: jsonb('settings').$type<RewardsSettings>().notNull(),
+    actorName: varchar('actor_name', { length: 100 }).notNull(),
+    actorSub: varchar('actor_sub', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check('reward_settings_version_check', sql`${table.version} >= 1`),
+    check('reward_settings_object_check', sql`jsonb_typeof(${table.settings}) = 'object'`),
+  ]
+)
+
+/** Each customer's invite code, made when they first ask for their link. */
+export const rewardReferralCodes = pgTable(
+  'reward_referral_codes',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    code: varchar('code', { length: 8 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('reward_referral_codes_code_key').on(table.code),
+    check('reward_referral_codes_code_check', sql`${table.code} ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$'`),
+  ]
+)
+
+/**
+ * An invite a new customer took up. Settled once, when their first
+ * stamp-earning booking completes: both rewarded, or refused (their car is
+ * one of the inviter's). The phone is kept only as a keyed hash, so a number
+ * is rewarded once even after the account is deleted (`referee_id` SET NULL).
+ */
+export const rewardReferrals = pgTable(
+  'reward_referrals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    referrerId: uuid('referrer_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    refereeId: uuid('referee_id').references(() => users.id, { onDelete: 'set null' }),
+    refereePhoneHash: varchar('referee_phone_hash', { length: 64 }).notNull(),
+    inviteOpenedAt: timestamp('invite_opened_at', { withTimezone: true }).notNull(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }).defaultNow().notNull(),
+    status: text('status').$type<'pending' | 'rewarded' | 'refused'>().default('pending').notNull(),
+    refusal: text('refusal').$type<'same_car'>(),
+    rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    referrerVoucherId: uuid('referrer_voucher_id').references(() => rewardVouchers.id, { onDelete: 'set null' }),
+    refereeVoucherId: uuid('referee_voucher_id').references(() => rewardVouchers.id, { onDelete: 'set null' }),
+  },
+  (table) => [
+    uniqueIndex('reward_referrals_referee_id_key').on(table.refereeId),
+    uniqueIndex('reward_referrals_phone_hash_key').on(table.refereePhoneHash),
+    index('reward_referrals_referrer_id_idx').on(table.referrerId, table.settledAt),
+    check('reward_referrals_status_check', sql`${table.status} in ('pending', 'rewarded', 'refused')`),
+    check(
+      'reward_referrals_refusal_check',
+      sql`(${table.status} = 'refused') = (${table.refusal} is not null) and (${table.refusal} is null or ${table.refusal} in ('same_car'))`
+    ),
+    check('reward_referrals_settled_check', sql`(${table.status} = 'pending') = (${table.settledAt} is null)`),
+    check('reward_referrals_self_check', sql`${table.refereeId} is null or ${table.refereeId} <> ${table.referrerId}`),
+  ]
+)
+
+/** A habit nudge sent: one per subject, at most one per customer per 3 days. Updates shows its words. */
+export const rewardNudges = pgTable(
+  'reward_nudges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<NudgeKind>().notNull(),
+    subjectKey: varchar('subject_key', { length: 120 }).notNull(),
+    title: varchar('title', { length: 120 }).notNull(),
+    body: varchar('body', { length: 200 }).notNull(),
+    linkUrl: varchar('link_url', { length: 200 }).notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('reward_nudges_subject_key').on(table.userId, table.kind, table.subjectKey),
+    index('reward_nudges_user_id_idx').on(table.userId, table.sentAt),
+    check('reward_nudges_kind_check', sql`${table.kind} in ('expiring', 'one_away', 'wash_due')`),
+    check('reward_nudges_link_check', sql`${table.linkUrl} ~ '^/[A-Za-z0-9/_?=&.-]*$'`),
+  ]
+)
+
+/** The IST months whose rewards issued reached the cap: one ops alert each. */
+export const rewardCapMonths = pgTable(
+  'reward_cap_months',
+  {
+    month: varchar('month', { length: 7 }).primaryKey(),
+    reachedAt: timestamp('reached_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [check('reward_cap_months_month_check', sql`${table.month} ~ '^[0-9]{4}-[0-9]{2}$'`)]
 )
 
 // Cached geocoding responses, keyed "{provider}:{op}:{normalised-input}". Lives
