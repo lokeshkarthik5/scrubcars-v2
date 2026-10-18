@@ -349,6 +349,19 @@ export const env = {
    */
   giftsEnabled: (process.env.GIFTS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
+  // ─── Detlio Guarantee (lib/guarantee.ts, 0051) ──────────────────────────────
+  /**
+   * Whether customers can ask for a free redo within 48 hours of a job:
+   * GUARANTEE_ENABLED=on. Off unless set to exactly `on`. While off every
+   * guarantee route but the two `/config` ones is a 404 before auth runs,
+   * the apps hide every entry point (the button, the checkout badge, the
+   * portal's and admin's pages), and the cron's sweep reads nothing. Claims
+   * already open stay as they are until it is on again; a refund Detlio
+   * already approved stays owed (lib/refunds.ts reads the booking, not the
+   * switch).
+   */
+  guaranteeEnabled: (process.env.GUARANTEE_ENABLED ?? '').trim().toLowerCase() === 'on',
+
   // ─── Garage response deadline (lib/response-deadline.ts, 0042) ─────────────
   /**
    * How many opening-hours minutes a garage has to accept (or reject, or

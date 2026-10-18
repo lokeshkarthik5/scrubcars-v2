@@ -499,6 +499,8 @@ export interface ApiBooking {
    * `open`. Absent from older servers.
    */
   contactWindow?: { opensAt: string; closesAt: string | null; open: boolean }
+  /** A free redo of an earlier job (Detlio Guarantee, 0051). Absent from older servers. */
+  guaranteeRedo?: boolean
   /** What the booking already covers toward a final bill, as a decimal string. */
   paidAtBooking?: string
   /**

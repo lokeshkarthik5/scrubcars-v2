@@ -128,6 +128,16 @@ describe('the garage’s booking payload', () => {
       whatsapp: GARAGE_WHATSAPP,
     })
   })
+
+  test('a free redo (Detlio Guarantee) follows the same window, around its own slot', () => {
+    const redo = booking({ guaranteeRedo: true, amount: '0.00' })
+    setSystemTime(IST('2026-10-19T10:00:00'))
+    expect(toVendorBookingResponse(redo).user?.phone).toBeNull()
+    expect(toBookingResponse(redo).vendor).toMatchObject({ phone: null, whatsapp: null })
+    setSystemTime(IST('2026-10-20T09:00:00'))
+    expect(toVendorBookingResponse(redo).user?.phone).toBe(CUSTOMER_PHONE)
+    expect(toBookingResponse(redo).vendor).toMatchObject({ phone: GARAGE_PHONE, whatsapp: GARAGE_WHATSAPP })
+  })
 })
 
 describe('GET /bookings/:id picks the shape by viewer', () => {

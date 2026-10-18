@@ -32,6 +32,7 @@ import {
 import type { Review } from '@repo/core/types'
 import { ActiveGarage } from '@/components/active-garage'
 import { CertifiedCard } from '@/components/certified-card'
+import { GuaranteeHomeCard } from '@/components/guarantee-home-card'
 import { PushBanner } from '@/components/push-banner'
 import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
@@ -298,6 +299,9 @@ export default function VendorHomePage() {
       {/* Detlio Certified (0048): where the garage stands against the
           standards, for the owner seat (the server refuses operators). After
           the jobs: it is something to work towards, not to act on now. */}
+      {/* Free redo claims (0051): what waits for an answer, owner seat only. */}
+      {isVendorAdmin && <GuaranteeHomeCard key={`guarantee-${vendor?.id}`} />}
+
       {isVendorAdmin && <CertifiedCard key={vendor?.id} />}
     </AppShell>
   )
