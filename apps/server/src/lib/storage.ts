@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
@@ -192,6 +193,32 @@ export async function copyObject(fromKey: string, toKey: string): Promise<string
     })
   )
   return publicUrlForKey(toKey)
+}
+
+/**
+ * An object's bytes, read by this server to pass on: the Service History
+ * certificate's public page (0053) shows job photos through the API rather
+ * than at their stored addresses. Null when nothing is stored there or the
+ * bucket can't be read; logged by kind only, never by key.
+ */
+export async function readObject(
+  key: string
+): Promise<{ body: Uint8Array; contentType: string | null } | null> {
+  try {
+    const client = getClient()
+    const object = await client.send(
+      new GetObjectCommand({ Bucket: env.r2Bucket, Key: key })
+    )
+    if (!object.Body) return null
+    return {
+      body: await object.Body.transformToByteArray(),
+      contentType: object.ContentType ?? null,
+    }
+  } catch (error) {
+    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+    log.warn({ status, name: (error as { name?: string }).name }, 'storage:read_failed')
+    return null
+  }
 }
 
 /** Best-effort delete of an object; logs but does not throw on failure. */

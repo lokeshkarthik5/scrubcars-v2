@@ -2321,6 +2321,71 @@ async function seedSlotAlertRows() {
   })
 }
 
+/**
+ * The Service History certificate (0053): VENDORS.certificate with its
+ * owner's seat and two services (pending and unverified, so no customer sees
+ * it), CUSTOMERS.certificate's car, two completed paid jobs on it (a polish,
+ * then a wash) and a cancelled one. No share link is seeded: the spec makes
+ * it. Every id and phone is in the 3300–3399 / 90000033xx range reserved for
+ * this feature.
+ */
+async function seedCertificateRows() {
+  const garage = VENDORS.certificate.id
+  const customer = CUSTOMERS.certificate
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.certificateOwner.id, businessName: VENDORS.certificate.name,
+    phone: '9000003310', address: '3, Record Street, Madurantakam', city: 'Chennai', pincode: '603306',
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.certificateOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(services).values([
+    {
+      id: SERVICES.certificateWash.id, vendorId: garage, name: SERVICES.certificateWash.name,
+      description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+      price: SERVICES.certificateWash.price, durationMins: SERVICES.certificateWash.durationMins, isActive: true,
+    },
+    {
+      id: SERVICES.certificatePolish.id, vendorId: garage, name: SERVICES.certificatePolish.name,
+      description: 'A machine polish of the paintwork.', category: 'detailing', pricingType: 'flat',
+      price: SERVICES.certificatePolish.price, durationMins: SERVICES.certificatePolish.durationMins, isActive: true,
+    },
+  ])
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Maruti', model: 'Baleno', color: 'Blue',
+    licensePlate: 'TN09AB3301', vehicleType: 'hatchback', isDefault: true,
+  })
+
+  const item = (service: { id: string; name: string; price: string; durationMins: number }) => ({
+    id: service.id, name: service.name, amount: service.price, durationMins: service.durationMins,
+  })
+  const done = (days: number) => ({
+    scheduledAt: daysAgo(days), createdAt: daysAgo(days + 2),
+    acceptedAt: daysAgo(days + 1), startedAt: daysAgo(days), completedAt: new Date(daysAgo(days).getTime() + 2 * HOUR),
+  })
+  await insertBooking({
+    id: BOOKINGS.certificatePolish, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    status: 'completed', items: [item(SERVICES.certificatePolish)],
+    payment: { status: 'paid', txnId: 'pay_seed_certificate_polish', gatewayMode: 'fake', paidAt: daysAgo(62) },
+    ...done(60),
+  })
+  await insertBooking({
+    id: BOOKINGS.certificateWash, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    status: 'completed', items: [item(SERVICES.certificateWash)],
+    payment: { status: 'paid', txnId: 'pay_seed_certificate_wash', gatewayMode: 'fake', paidAt: daysAgo(14) },
+    ...done(12),
+  })
+  await insertBooking({
+    id: BOOKINGS.certificateCancelled, userId: customer.id, vendorId: garage, vehicleId: customer.vehicleId,
+    scheduledAt: daysAgo(5), status: 'cancelled', items: [item(SERVICES.certificateWash)],
+    createdAt: daysAgo(7),
+    cancellation: { by: 'user', reason: 'Plans changed', at: daysAgo(6) },
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2372,6 +2437,8 @@ async function main() {
   await seedCarHistoryRows()
   console.log('[e2e-seed] slot alerts…')
   await seedSlotAlertRows()
+  console.log('[e2e-seed] service history certificate…')
+  await seedCertificateRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
