@@ -13,6 +13,7 @@ import {
 } from '@repo/core/api/bookings'
 import { MAX_CODE_ATTEMPTS, PICKUP_STEP_LABELS, type PickupNext } from '@repo/core/pickup'
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support'
+import { photoGateMessage } from '@repo/core/job-photo-standards'
 import type { Booking } from '@repo/core/types'
 
 /** What each step's button explains, under it. */
@@ -57,6 +58,15 @@ export function PickupSteps({
     step === 'picked_up' ? booking.pickup?.pickupCodeTriesLeft : booking.pickup?.deliveryCodeTriesLeft
   const outOfTries = locked || (needsCode && triesLeft === 0)
   const who = booking.customerName ?? 'this customer'
+  // The photo standard (0045): starting the work waits for the before
+  // photos, and the car leaves (and is delivered) only with its after photos.
+  const photoBlock =
+    step === 'start_work'
+      ? (booking.photoStandard?.startBlocked ?? null)
+      : step === 'out_for_delivery' || step === 'delivered'
+        ? (booking.photoStandard?.finishBlocked ?? null)
+        : null
+  const blockedId = `pickup-${booking.id}-photos`
 
   const run = async () => {
     setBusy(true)
@@ -103,9 +113,15 @@ export function PickupSteps({
         </p>
       ) : (
         <>
+          {photoBlock && (
+            <p id={blockedId} className="text-[12px] text-warning">
+              {photoGateMessage(photoBlock)}
+            </p>
+          )}
           <ScButton
             aria-label={`Mark ${PICKUP_STEP_LABELS[step]} for ${who}`}
-            disabled={busy || (needsCode && code.length !== 4)}
+            aria-describedby={photoBlock ? blockedId : undefined}
+            disabled={busy || (needsCode && code.length !== 4) || photoBlock !== null}
             onClick={run}
           >
             {busy

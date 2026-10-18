@@ -12,8 +12,9 @@
  *   2. The offers (lib/offers.ts).
  *   3. "Rate your wash", a soft card, only when there is no must-act card;
  *      or, when there is neither, a complaint the team just resolved ("see
- *      our answer", complaintAnswerCard). So at most two cards ever sit
- *      above the car.
+ *      our answer", complaintAnswerCard); or, when none of those, a coating
+ *      or detailing follow-up coming due (0046, serviceReminderCard). So at
+ *      most two cards ever sit above the car.
  *   4. The car, with its wash bar and one tile: the next booking (carrying a
  *      team notice about it as one short line), before & after photos, Book
  *      again, or nothing booked.
@@ -32,6 +33,15 @@ import type { BookingType } from './booking-types.js'
 import { customerPickupStage, type CustomerPickupStage } from './pickup.js'
 import { extraWorkPayable } from './extra-work.js'
 import { isProposalLive, liveOptions } from './time-proposals.js'
+import {
+  nearestFirst,
+  REMINDER_BOOK_CATEGORY,
+  REMINDER_TITLES,
+  reminderReason,
+  showsOnHome,
+  type HubServiceReminder,
+  type ServiceReminderKind,
+} from './service-reminders.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -122,6 +132,29 @@ export type ActionCard =
       /** "C-000123". */
       number: string
       resolvedAt: string
+    }
+  | {
+      /**
+       * A coating or detailing follow-up for one of the customer's cars,
+       * due within a week or overdue (0046, lib/service-reminders.ts). The
+       * softest card: only in a place nothing else wants.
+       */
+      kind: 'service_reminder'
+      reminderId: string
+      vehicleId: string
+      vehicleName: string
+      reminderKind: ServiceReminderKind
+      /** "Maintenance wash for your coating". */
+      title: string
+      /** "3 months since your coating at Shine Studio". */
+      reason: string
+      /** The due date in force, "YYYY-MM-DD" (after a snooze). */
+      dueOn: string
+      state: 'due_soon' | 'due' | 'overdue'
+      /** Days until due (0 = today), negative once overdue. */
+      daysLeft: number
+      /** What "Book" searches for (the search page's category). */
+      bookCategory: string
     }
 
 /** The garages' closed days, as the Home read loads them for upcoming bookings. */
@@ -339,6 +372,45 @@ export function softCardWithComplaint(
 ): ActionCard | null {
   if (picked.mustAct || picked.softCard) return picked.softCard
   return complaintAnswerCard(complaints, seenAt, now)
+}
+
+/**
+ * The service reminder for Home's soft card: the nearest one due within a
+ * week or overdue (lib/service-reminders.ts showsOnHome), on any of the
+ * customer's cars. Booked or answered ones never show.
+ */
+export function serviceReminderCard(
+  reminders: HubServiceReminder[]
+): Extract<ActionCard, { kind: 'service_reminder' }> | null {
+  const nearest = reminders.filter((r) => showsOnHome(r.standing)).sort(nearestFirst)[0]
+  if (!nearest || nearest.standing.kind !== 'open' || nearest.standing.state === 'upcoming') return null
+  return {
+    kind: 'service_reminder',
+    reminderId: nearest.id,
+    vehicleId: nearest.vehicleId,
+    vehicleName: nearest.vehicleName,
+    reminderKind: nearest.kind,
+    title: REMINDER_TITLES[nearest.kind],
+    reason: reminderReason(nearest.kind, nearest.vendorName),
+    dueOn: nearest.standing.dueOn,
+    state: nearest.standing.state,
+    daysLeft: nearest.standing.daysLeft,
+    bookCategory: REMINDER_BOOK_CATEGORY[nearest.kind],
+  }
+}
+
+/**
+ * Home's soft card, with a service reminder in the place only when it is
+ * free: a must-act card, Rate your wash or a resolved complaint keeps it, so
+ * there are never more than two cards above the car. Otherwise the reminder
+ * is in Updates (and on the car's page) alone.
+ */
+export function softCardWithReminder(
+  picked: { mustAct: ActionCard | null; softCard: ActionCard | null },
+  reminders: HubServiceReminder[]
+): ActionCard | null {
+  if (picked.mustAct || picked.softCard) return picked.softCard
+  return serviceReminderCard(reminders)
 }
 
 /**

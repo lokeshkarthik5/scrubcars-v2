@@ -21,6 +21,7 @@ import {
   IconReceipt,
   IconReceiptRefund,
   IconSpeakerphone,
+  IconSparkles,
   IconTool,
   IconToolsOff,
   IconTruckDelivery,
@@ -59,6 +60,8 @@ const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   extra_work_paid: IconTool,
   extra_work_declined: IconToolsOff,
   extra_work_withdrawn: IconToolsOff,
+  // A coating or detailing follow-up (0046), opening the car's page.
+  service_reminder: IconSparkles,
   // "Notify me if a slot opens" (0047): it opens checkout on that day.
   slot_opened: IconBell,
 }

@@ -27,6 +27,11 @@
  *     it or closes it, each opening My complaints, where the answer is.
  *     Resolving or closing an open one stamps the acknowledgement at the same
  *     moment; that is the answer, not a second step, so it is one row.
+ *   - A coating or detailing follow-up for one of their cars (0046,
+ *     lib/service-reminders.ts) adds a row on its due date, dated 09:00 IST
+ *     with its notification, opening the car's page. Snoozed, it moves to
+ *     the new date (a new row, so unread again); booked, answered or
+ *     dismissed, it goes.
  *   - "Notify me if a slot opens" (0047): an alert that was told a time
  *     freed up is a row at the moment it was told, saying the garage and the
  *     time, and opening checkout on that day. The time was not held, so the
@@ -47,6 +52,15 @@ import type { BookingType } from './booking-types.js'
 import { formatComplaintNumber, type ComplaintStatus } from './complaints.js'
 import { extraWorkPayable } from './extra-work.js'
 import { isProposalLive, liveOptions } from './time-proposals.js'
+import {
+  carPagePath,
+  inUpdates,
+  REMINDER_TITLES,
+  reminderMomentFor,
+  reminderReason,
+  serviceReminderRowId,
+  type HubServiceReminder,
+} from './service-reminders.js'
 import { slotAlertPath, slotOpenedWords } from './slot-alerts.js'
 
 export const UPDATES_WINDOW_DAYS = 30
@@ -179,6 +193,7 @@ export type UpdateKind =
   | 'extra_work_paid'
   | 'extra_work_declined'
   | 'extra_work_withdrawn'
+  | 'service_reminder'
   | 'slot_opened'
 
 export interface UpdateItem {
@@ -678,6 +693,23 @@ function complaintRows(complaints: HubComplaint[]): Draft[] {
   return rows
 }
 
+/** The rows of the customer's service reminders due by now (0046). */
+function serviceReminderRows(reminders: HubServiceReminder[], now: Date): Draft[] {
+  return reminders.flatMap((reminder) => {
+    const standing = reminder.standing
+    if (standing.kind !== 'open' || !inUpdates(standing, now)) return []
+    return [draft({
+      id: serviceReminderRowId(reminder, standing.dueOn),
+      kind: 'service_reminder',
+      at: reminderMomentFor(standing.dueOn),
+      title: REMINDER_TITLES[reminder.kind],
+      body: `${reminder.vehicleName} · ${reminderReason(reminder.kind, reminder.vendorName)}`,
+      vendorName: reminder.vendorName,
+      linkUrl: carPagePath(reminder.vehicleId),
+    })]
+  })
+}
+
 /** A slot alert that was told a time opened (0047), as Updates reads it. */
 export interface HubSlotAlert {
   id: string
@@ -747,6 +779,8 @@ export function deriveUpdates(input: {
   pausedGarages?: PausedGarage[]
   /** The customer's complaints the team has moved on (acknowledged, resolved or closed). */
   complaints?: HubComplaint[]
+  /** Open coating and detailing follow-ups on their current cars, with where each stands. */
+  serviceReminders?: HubServiceReminder[]
   /** The customer's slot alerts that were told a time opened (0047). */
   slotAlerts?: HubSlotAlert[]
   /** updates_seen_at, or the account's creation when never opened. */
@@ -773,6 +807,7 @@ export function deriveUpdates(input: {
     ...input.bookings.flatMap((booking) => bookingRows(booking, now)),
     ...pausedRows(input.bookings, input.pausedGarages ?? [], now),
     ...complaintRows(input.complaints ?? []),
+    ...serviceReminderRows(input.serviceReminders ?? [], now),
     ...slotAlertRows(input.slotAlerts ?? []),
   ]
     .filter(inWindow)

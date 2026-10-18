@@ -94,6 +94,7 @@ export const homeRepository = {
           sql`exists (
             select 1 from job_photos p
              where p.booking_id = ${bookings.id} and p.created_at >= ${sinceAt}
+               and p.uploaded_by_role = 'garage'
           )`
         )
       ),
@@ -159,7 +160,13 @@ export const homeRepository = {
             refundedAt: true,
           },
         },
-        photos: { columns: { stage: true, createdAt: true } },
+        // The garage's photos only (0045): "Photos of your car from <garage>"
+        // and the Before & after tile are the garage's record, never the
+        // customer's own uploads coming back to them.
+        photos: {
+          columns: { stage: true, createdAt: true },
+          where: (photo, { eq }) => eq(photo.uploadedByRole, 'garage'),
+        },
         // The newest time suggestion from the garage (0041): its times and
         // outcome only.
         timeProposals: {

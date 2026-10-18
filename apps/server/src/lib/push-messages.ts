@@ -19,6 +19,7 @@ import { BANK_DAYS, MY_COMPLAINTS_PATH, rupees } from './home-updates.js'
 import { serviceLabelOf } from './home-cards.js'
 import { istDateKey, istSlotShortLabel, istTimeLabel } from './ist.js'
 import { DEFAULT_TTL_SECONDS, type PushMessage } from './push.js'
+import { carPagePath, REMINDER_TITLES, reminderReason, type ServiceReminderKind } from './service-reminders.js'
 import { slotAlertPath, slotOpenedWords } from './slot-alerts.js'
 
 const MINUTE_MS = 60 * 1000
@@ -276,12 +277,32 @@ export function customerPickupStep(booking: PushBooking, step: PickupStepPush): 
 }
 
 /**
- * The job is done (Mark completed, or Delivered for pickup & drop): Updates'
- * "completed" row, and the ask Home makes ("Rate your wash").
+ * The work started and the garage's before photos of the car are on the
+ * booking page (0045): sent with Mark in progress when the garage took any,
+ * since that is when the customer can see them (customerSeesPhotos).
  */
-export function customerCompleted(booking: PushBooking): PushMessage {
+export function customerBeforePhotos(booking: PushBooking): PushMessage {
   return message({
-    title: booking.bookingType === 'pickup' ? 'Your car is back' : 'Your car is done',
+    title: "Your car's before photos are in",
+    body: `${garageName(booking)} has started work. See them on your booking.`,
+    url: customerBookingPath(booking.id),
+    tag: bookingTag(booking.id),
+  })
+}
+
+/**
+ * The job is done (Mark completed, or Delivered for pickup & drop): Updates'
+ * "completed" row, and the ask Home makes ("Rate your wash"). With the
+ * garage's after photos on the booking (0045) the title points at them: one
+ * notification, not two at the same moment.
+ */
+export function customerCompleted(
+  booking: PushBooking,
+  options: { afterPhotos?: boolean } = {}
+): PushMessage {
+  const done = booking.bookingType === 'pickup' ? 'Your car is back' : 'Your car is done'
+  return message({
+    title: options.afterPhotos ? `${done} — see the after photos` : done,
     body: `How was it? Rate your wash at ${garageName(booking)}`,
     url: customerBookingPath(booking.id),
     tag: bookingTag(booking.id),
@@ -386,6 +407,27 @@ export function customerHourBefore(booking: PushBooking, now: Date): PushMessage
     category: 'reminder',
     urgency: 'high',
     ttlSeconds: ttlUntil(booking.scheduledAt, now),
+  })
+}
+
+/**
+ * A coating or detailing follow-up is due today (0046,
+ * lib/service-reminders.ts): the reminder's name, and how long since the job
+ * at which garage. Never the car: its make or plate is the customer's own.
+ */
+export function customerServiceReminder(reminder: {
+  id: string
+  vehicleId: string
+  kind: ServiceReminderKind
+  vendorName: string | null
+}): PushMessage {
+  return message({
+    title: REMINDER_TITLES[reminder.kind],
+    body: `${reminderReason(reminder.kind, reminder.vendorName)}. Book it in Detlio.`,
+    url: carPagePath(reminder.vehicleId),
+    tag: `service_reminder:${reminder.id}`,
+    category: 'reminder',
+    ttlSeconds: 12 * 60 * 60,
   })
 }
 

@@ -3,6 +3,7 @@ import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { analyticsService } from '../analytics/analytics.service.js'
+import { carHistoryService } from '../car-history/car-history.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
@@ -70,6 +71,17 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
+    // Coating and detailing follow-ups (0046): a catch-up for completions
+    // whose reminders were never written, then, in the 09:00 IST runs, the
+    // due date's notification, each claimed first so it goes once. Never
+    // allowed to fail the digest.
+    const serviceReminders = await carHistoryService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:service_reminder_sweep_failed')
+        return { error: true as const }
+      })
+
     // "Notify me if a slot opens" (0047): every cancellation, decline,
     // auto-cancel or move re-checks its garage's waiting alerts as it
     // happens; this is the safety net for room freed some other way (a job
@@ -131,6 +143,7 @@ export const opsService = {
       timeProposals,
       notAccepted,
       notifications,
+      serviceReminders,
       slotAlerts,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }

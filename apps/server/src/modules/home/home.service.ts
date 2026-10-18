@@ -6,6 +6,7 @@ import {
   nextBookingWithoutCar,
   pickActionCards,
   softCardWithComplaint,
+  softCardWithReminder,
   type ActionCard,
   type GarageDays,
   type HomeCar,
@@ -30,8 +31,10 @@ import { logger } from '../../lib/logger.js'
 import { reportError } from '../../lib/monitoring.js'
 import { toNoticeView, type NoticeRow, type NoticeView } from '../../lib/notices.js'
 import { rankOffers, toHomeOffer, type HomeOffer } from '../../lib/offers.js'
+import { serviceReminderRowId, type HubServiceReminder } from '../../lib/service-reminders.js'
 import { isWashDue } from '../../lib/wash-status.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
+import { carHistoryService } from '../car-history/car-history.service.js'
 import { discountsRepository } from '../discounts/discounts.repository.js'
 import { slotAlertsRepository } from '../slot-alerts/slot-alerts.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
@@ -64,7 +67,8 @@ export interface HomeResponse {
   offers: HomeOffer[] | null
   /**
    * "Rate your wash", below the offers, only when there is no must-act card;
-   * with neither, a complaint the team just resolved ("see our answer").
+   * with neither, a complaint the team just resolved ("see our answer");
+   * with none of those, a coating or detailing follow-up coming due (0046).
    */
   softCard: ActionCard | null
   /** Default car first; empty means "Add your car". */
@@ -118,6 +122,15 @@ async function loadBookings(userId: string, now: Date): Promise<HubBooking[]> {
 /** The customer's complaints the team answered in the Updates window. */
 function loadComplaints(userId: string, now: Date): Promise<HubComplaint[]> {
   return homeRepository.listAnsweredComplaints(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
+}
+
+/**
+ * Open coating and detailing follow-ups on the customer's current cars, with
+ * where each stands (0046): one read, plus the cars' bookings only when there
+ * is a reminder.
+ */
+function loadServiceReminders(userId: string, now: Date): Promise<HubServiceReminder[]> {
+  return carHistoryService.remindersForHub(userId, now)
 }
 
 /** The customer's slot alerts that were told a time opened, in the Updates window (0047). */
@@ -224,15 +237,19 @@ export const homeService = {
     const lastJobs = (await part('last_jobs', () => loadLastJobs(userId, cars))) ?? new Map()
 
     const complaints = (await part('complaints', () => loadComplaints(userId, now))) ?? []
+    const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = (await part('slot_alerts', () => loadSlotAlerts(userId, now))) ?? []
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     const homeCars = buildCars({ cars, bookings, lastWashAt, lastJobs, notices: bookingWindow, now })
     const picked = pickActionCards(bookings, garageDays, now)
     const { mustAct } = picked
-    // A complaint the team just resolved takes the soft card's place only
-    // when it is free (lib/home-cards.ts).
-    const softCard = softCardWithComplaint(picked, complaints, seenAt, now)
+    // A complaint the team just resolved, then a service reminder coming
+    // due, take the soft card's place only when it is free (lib/home-cards.ts).
+    const softCard = softCardWithReminder(
+      { mustAct, softCard: softCardWithComplaint(picked, complaints, seenAt, now) },
+      serviceReminders
+    )
 
     const offers = await part('offers', async () => {
       const targeting = env.homeOfferTargeting
@@ -261,6 +278,7 @@ export const homeService = {
       notices: bookingWindow,
       pausedGarages: pausedGaragesOf(lastJobs),
       complaints,
+      serviceReminders,
       slotAlerts,
       seenAt,
       now,
@@ -271,7 +289,9 @@ export const homeService = {
     const shownRow =
       softCard?.kind === 'complaint_resolved'
         ? `complaint_resolved:${softCard.complaintId}`
-        : mustAct?.kind === 'time_proposal'
+        : softCard?.kind === 'service_reminder'
+          ? serviceReminderRowId({ id: softCard.reminderId }, softCard.dueOn)
+          : mustAct?.kind === 'time_proposal'
           ? `proposal:${mustAct.proposalId}`
           : null
     const rows = feed.filter(
@@ -327,6 +347,8 @@ export const homeService = {
     // The same feed Home's bell counts from, so the two always agree.
     const lastJobs = await loadLastJobs(userId, await homeRepository.listCars(userId))
     const complaints = await loadComplaints(userId, now)
+    // Isolated like Home's parts: a reminder read that fails leaves Updates whole.
+    const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = await loadSlotAlerts(userId, now)
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
@@ -340,6 +362,7 @@ export const homeService = {
         notices: bookingWindow,
         pausedGarages: pausedGaragesOf(lastJobs),
         complaints,
+        serviceReminders,
         slotAlerts,
         seenAt,
         now,

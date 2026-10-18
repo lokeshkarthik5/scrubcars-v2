@@ -57,6 +57,17 @@ import {
   toJobPhotoView,
   type JobPhotoStage,
 } from '../../lib/job-records.js'
+import {
+  GATE_STAGE,
+  MIN_GARAGE_PHOTOS,
+  customerPhotoWindowsView,
+  garagePhotoStandardView,
+  garageSeesCustomerPhotos,
+  photoGateMessage,
+  photoGateRefusal,
+  type PhotoGateStep,
+} from '../../lib/job-photo-standards.js'
+import { jobPhotosRequiredFor } from '../job-photos/job-photos.service.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { discountsService } from '../discounts/discounts.service.js'
 import { membersRepository } from '../members/members.repository.js'
@@ -71,6 +82,7 @@ import type {
 import { refundsService } from '../refunds/refunds.service.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
+import { carHistoryService } from '../car-history/car-history.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { bookingsRepository } from './bookings.repository.js'
 
@@ -131,6 +143,50 @@ function garageRefusalError(refusal: GarageRefusal) {
     case 'slot_full':
       return slotFull()
   }
+}
+
+/**
+ * The photo standard's gate for a job step (0045): throws the garage's words
+ * ("Add 2 before photos to start.") when the job cannot take it, and
+ * otherwise answers the guard its conditional write carries while the
+ * standard is on (undefined while off).
+ */
+function assertPhotoGate(
+  booking: BookingWithRelations & { vendorId: string },
+  step: PhotoGateStep,
+  options: { forDetlio?: boolean } = {}
+) {
+  const required = jobPhotosRequiredFor(booking.vendorId)
+  const stage = GATE_STAGE[step]
+  const refusal = photoGateRefusal({
+    step,
+    required,
+    waived: booking.photosWaivedAt != null,
+    garagePhotoCount: (booking.photos ?? []).filter(
+      (photo) => photo.stage === stage && (photo.uploadedByRole ?? 'garage') === 'garage'
+    ).length,
+  })
+  if (refusal) {
+    throw new AppError(
+      409,
+      options.forDetlio
+        ? `The garage has not added its ${stage} photos (${MIN_GARAGE_PHOTOS} needed). Ask it to, or waive the photos for this booking first.`
+        : photoGateMessage(refusal),
+      'JOB_PHOTOS_REQUIRED'
+    )
+  }
+  return required ? { stage, min: MIN_GARAGE_PHOTOS } : undefined
+}
+
+/**
+ * A conditional write that carried a photo guard came back empty: if the
+ * photos are why (one removed in between), say so; otherwise the booking
+ * changed some other way.
+ */
+async function photoGateOrStateChanged(bookingId: string, step: PhotoGateStep): Promise<never> {
+  const fresh = await bookingsRepository.findBookingById(bookingId)
+  if (fresh) assertPhotoGate(fresh, step)
+  throw stateChanged()
 }
 
 /** Someone else changed the booking between our read and our write. */
@@ -303,6 +359,10 @@ type BookingWithRelations = {
   // missing it (0042). Optional so a hand-built row still type-checks.
   respondBy?: Date | null
   responseMissedAt?: Date | null
+  // The garage the booking is with, and whether Detlio waived its photo
+  // standard on it (0045). Optional so a hand-built row still type-checks.
+  vendorId?: string
+  photosWaivedAt?: Date | null
   createdAt: Date
   review?: {
     id: string
@@ -347,7 +407,15 @@ type BookingWithRelations = {
   // Loaded only where one job is shown in full (JOB_RECORDS in the
   // repository). Absent from lists, and then absent from the payload too —
   // an empty list there would claim the job has none.
-  photos?: Array<{ id: string; stage: JobPhotoStage; url: string; createdAt: Date }>
+  photos?: Array<{
+    id: string
+    stage: JobPhotoStage
+    url: string
+    createdAt: Date
+    // 0045: whose photo, and the guided angle. Optional for hand-built rows.
+    uploadedByRole?: string | null
+    angle?: string | null
+  }>
   // Final bills and extra work (0041) alike; the mappers pick each out.
   charges?: Array<
     FinalBillRecord & {
@@ -600,12 +668,15 @@ function toBookingResponse(
     // the old row, and the customer's list leaves it out: the booking they
     // have is the new one, which carries the payment.
     moved,
-    // The customer sees the job's photos once the work has started, next to
-    // the step that says so (see customerSeesPhotos).
+    // The customer sees the garage's photos once the work has started, next
+    // to the step that says so (see customerSeesPhotos), and their own
+    // photos of the car always (0045). `conditionPhotos` says when they can
+    // add theirs.
     ...(booking.photos !== undefined && {
-      photos: customerSeesPhotos(booking.status)
-        ? booking.photos.map(toJobPhotoView)
-        : [],
+      photos: booking.photos
+        .filter((photo) => photo.uploadedByRole === 'customer' || customerSeesPhotos(booking.status))
+        .map(toJobPhotoView),
+      conditionPhotos: customerPhotoWindowsView(photoStandardJob(booking), Date.now()),
     }),
     // The final bill of an inspection job, if the garage has raised one: the
     // one that stands, not any it replaced.
@@ -624,6 +695,20 @@ function toBookingResponse(
     ...(booking.timeProposals !== undefined && {
       timeProposal: proposalViewOf(booking),
     }),
+  }
+}
+
+/** The facts the photo standard reads (0045), from a booking with its photos. */
+function photoStandardJob(booking: BookingWithRelations) {
+  return {
+    status: booking.status,
+    bookingType: booking.bookingType,
+    scheduledAt: booking.scheduledAt,
+    completedAt: booking.completedAt ?? null,
+    pickedUpAt: booking.pickedUpAt ?? null,
+    outForDeliveryAt: booking.outForDeliveryAt ?? null,
+    photosWaivedAt: booking.photosWaivedAt ?? null,
+    photos: booking.photos ?? [],
   }
 }
 
@@ -672,16 +757,28 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     // The customer's pickup view carries the handover codes, which the
     // garage must get from the customer, never from us.
     pickup: _customerPickup,
+    // When the customer may add their own photos is theirs to read.
+    conditionPhotos: _conditionPhotos,
     ...vendorView
   } = toBookingResponse(booking)
 
   return {
     ...vendorView,
     pickup: vendorPickupView(booking),
-    // The garage took the photos, so it always sees all of them — the
-    // customer's view waits for the work to start.
+    // The garage sees every photo of the job, its own and, once it has
+    // accepted the job, the customer's (0045: both sides share one record) —
+    // the customer's view of the garage's waits for the work to start. `photoStandard` is what Start
+    // and Complete wait for (lib/job-photo-standards.ts), so the portal never
+    // restates the rule.
     ...(booking.photos !== undefined && {
-      photos: booking.photos.map(toJobPhotoView),
+      photos: booking.photos
+        .filter((photo) => photo.uploadedByRole !== 'customer' || garageSeesCustomerPhotos(booking))
+        .map(toJobPhotoView),
+      photoStandard: garagePhotoStandardView(
+        photoStandardJob(booking),
+        jobPhotosRequiredFor(booking.vendorId ?? booking.vendor?.id ?? ''),
+        Date.now()
+      ),
     }),
     // Whether the job card offers "Raise final bill" now. Worked out here so
     // the portal never restates the rules (lib/final-bill.ts). The bill
@@ -2013,13 +2110,27 @@ export const bookingsService = {
     // Pickup & drop: the work starts once the car is at the garage.
     if (booking.bookingType === 'pickup') assertPickupStep(booking, 'start_work')
 
-    const [started] = await bookingsRepository.updateBookingStatus(bookingId, 'in_progress', 'confirmed', {
-      startedAt: new Date(),
-    })
-    if (!started) throw stateChanged()
+    // 0045: two before photos from the garage, unless waived or relaxed.
+    const garagePhotos = assertPhotoGate(booking, 'start')
+
+    const [started] = await bookingsRepository.updateBookingStatus(
+      bookingId,
+      'in_progress',
+      'confirmed',
+      { startedAt: new Date() },
+      { garagePhotos }
+    )
+    if (!started) {
+      if (garagePhotos) await photoGateOrStateChanged(bookingId, 'start')
+      throw stateChanged()
+    }
     log.info({ bookingId, vendorId, actorId, status: 'in_progress' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    // The customer sees the garage's photos from now on (customerSeesPhotos).
+    if (garagePhotoCount(updated!, 'before') > 0) {
+      pushService.notifyCustomer(updated!.userId, pushMessages.customerBeforePhotos(updated!))
+    }
     return toVendorBookingResponse(updated!)
   },
 
@@ -2042,21 +2153,32 @@ export const bookingsService = {
 
     if (completionBlockedByExtraWork(booking.charges)) throw extraWorkAwaiting()
 
+    // 0045: two after photos from the garage, unless waived or relaxed.
+    const garagePhotos = assertPhotoGate(booking, 'finish')
+
     const [completed] = await bookingsRepository.updateBookingStatus(
       bookingId,
       'completed',
       'in_progress',
       { completedBy: actorId, completedAt: new Date() },
-      { noOpenExtraWork: true }
+      { noOpenExtraWork: true, garagePhotos }
     )
-    if (!completed) throw stateChanged()
+    if (!completed) {
+      if (garagePhotos) await photoGateOrStateChanged(bookingId, 'finish')
+      throw stateChanged()
+    }
 
     await collectCashOnCompletion(booking)
 
     log.info({ bookingId, vendorId, actorId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
-    pushService.notifyCustomer(updated!.userId, pushMessages.customerCompleted(updated!))
+    pushService.notifyCustomer(
+      updated!.userId,
+      pushMessages.customerCompleted(updated!, { afterPhotos: garagePhotoCount(updated!, 'after') > 0 })
+    )
+    // Coating and detailing follow-ups for the car (0046), after the response.
+    carHistoryService.scheduleAfterCompletion(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2103,9 +2225,14 @@ export const bookingsService = {
   async markOutForDelivery(vendorId: string, actorId: string, bookingId: string) {
     const { booking } = await getBookingForVendor(vendorId, bookingId)
     assertPickupStep(booking, 'out_for_delivery')
+    // 0045: the car leaves with its after photos taken, at the garage.
+    const garagePhotos = assertPhotoGate(booking, 'finish')
 
-    const [row] = await bookingsRepository.markOutForDelivery(bookingId, new Date())
-    if (!row) throw stateChanged()
+    const [row] = await bookingsRepository.markOutForDelivery(bookingId, new Date(), garagePhotos)
+    if (!row) {
+      if (garagePhotos) await photoGateOrStateChanged(bookingId, 'finish')
+      throw stateChanged()
+    }
     log.info({ bookingId, vendorId, actorId, step: 'out_for_delivery' }, 'booking:pickup_step')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
@@ -2119,20 +2246,29 @@ export const bookingsService = {
     assertPickupStep(booking, 'delivered')
     // Before the code is checked, so a wrong try is not spent on it.
     if (completionBlockedByExtraWork(booking.charges)) throw extraWorkAwaiting()
+    const garagePhotos = assertPhotoGate(booking, 'finish')
     await assertHandoverCode(booking, 'delivery', code)
 
     const [row] = await bookingsRepository.markDelivered(bookingId, {
       at: new Date(),
       completedBy: actorId,
       maxAttempts: MAX_CODE_ATTEMPTS,
+      garagePhotos,
     })
-    if (!row) throw stateChanged()
+    if (!row) {
+      if (garagePhotos) await photoGateOrStateChanged(bookingId, 'finish')
+      throw stateChanged()
+    }
     await collectCashOnCompletion(booking)
     log.info({ bookingId, vendorId, actorId, step: 'delivered', status: 'completed' }, 'booking:pickup_step')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     // Delivered completes the job: "Your car is back", and the rating ask.
-    pushService.notifyCustomer(updated!.userId, pushMessages.customerCompleted(updated!))
+    pushService.notifyCustomer(
+      updated!.userId,
+      pushMessages.customerCompleted(updated!, { afterPhotos: garagePhotoCount(updated!, 'after') > 0 })
+    )
+    carHistoryService.scheduleAfterCompletion(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2152,6 +2288,9 @@ export const bookingsService = {
     if (!booking) throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND')
     assertPickupStep(booking, step)
     if (step === 'delivered' && completionBlockedByExtraWork(booking.charges)) throw extraWorkAwaiting()
+    // 0045: Detlio holds the same standard; it waives it on the booking first
+    // when there is a genuine reason.
+    const garagePhotos = step === 'delivered' ? assertPhotoGate(booking, 'finish', { forDetlio: true }) : undefined
 
     const at = new Date()
     const [row] =
@@ -2162,11 +2301,22 @@ export const bookingsService = {
             completedBy: null,
             maxAttempts: null,
             overrideBy: adminName,
+            garagePhotos,
           })
     if (!row) throw stateChanged()
-    if (step === 'delivered') await collectCashOnCompletion(booking)
+    if (step === 'delivered') {
+      await collectCashOnCompletion(booking)
+      carHistoryService.scheduleAfterCompletion(bookingId)
+    }
     log.info({ bookingId, step, adminName }, 'booking:pickup_step_confirmed_by_detlio')
   },
+}
+
+/** The garage's own photos of a stage on a booking read with its photos. */
+function garagePhotoCount(booking: BookingWithRelations, stage: JobPhotoStage): number {
+  return (booking.photos ?? []).filter(
+    (photo) => photo.stage === stage && (photo.uploadedByRole ?? 'garage') === 'garage'
+  ).length
 }
 
 /**

@@ -8,6 +8,7 @@ import { track } from '@repo/core/analytics'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { Toast } from '@repo/ui/sc/toast'
 import { invalidateHome, useDismissReviewPrompt, useHome } from '@repo/core/api/hooks/use-home'
+import { useServiceReminderAction } from '@repo/core/api/hooks/use-car-history'
 import type { HomeCar } from '@repo/core/api/home'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import { firstNameOf } from '@repo/core/home-display'
@@ -23,6 +24,7 @@ import {
   ExtraWorkHomeCard,
   GarageClosedCard,
   RateWashCard,
+  ServiceReminderHomeCard,
   TimeProposalHomeCard,
 } from './action-cards'
 import { CarHero } from './car-hero'
@@ -53,6 +55,7 @@ function HomeHubContent() {
   const location = useLocationStore((s) => s.location)
   const rememberCar = usePendingCheckoutStore((s) => s.rememberCar)
   const dismissRate = useDismissReviewPrompt()
+  const reminderAction = useServiceReminderAction()
 
   // Rounded to ~110 m before it leaves the phone: Nearby needs a
   // neighbourhood, not a doorstep. "All of Chennai" is a city choice, not a
@@ -105,6 +108,8 @@ function HomeHubContent() {
   // Only ever in a free place: the server sends it only with no must-act
   // card and no Rate your wash.
   const complaintCard = !mustAct && data?.softCard?.kind === 'complaint_resolved' ? data.softCard : null
+  // A coating or detailing follow-up (0046): only in a free place too.
+  const reminderCard = !mustAct && data?.softCard?.kind === 'service_reminder' ? data.softCard : null
 
   const bookWash = (picked: HomeCar) => {
     rememberCar({ userId: authUser.id, vehicleId: picked.id })
@@ -145,7 +150,8 @@ function HomeHubContent() {
           <>
             {/* At most two cards above the car: one must-act card, then the
                 offers; or the offers, then Rate your wash (or, in its place
-                when there is none, a complaint we just resolved). */}
+                when there is none, a complaint we just resolved, or else a
+                coating or detailing follow-up coming due). */}
             {mustAct?.kind === 'time_proposal' && <TimeProposalHomeCard card={mustAct} />}
             {mustAct?.kind === 'extra_work_due' && <ExtraWorkHomeCard card={mustAct} now={now} />}
             {mustAct?.kind === 'bill_due' && <BillDueCard card={mustAct} now={now} />}
@@ -170,6 +176,17 @@ function HomeHubContent() {
             )}
 
             {complaintCard && <ComplaintAnswerCard card={complaintCard} />}
+
+            {reminderCard && (
+              <ServiceReminderHomeCard
+                card={reminderCard}
+                now={now}
+                busy={reminderAction.isPending}
+                onBook={() => rememberCar({ userId: authUser.id, vehicleId: reminderCard.vehicleId })}
+                onSnooze={() => reminderAction.mutate({ reminderId: reminderCard.reminderId, action: 'snooze' })}
+                onDismiss={() => reminderAction.mutate({ reminderId: reminderCard.reminderId, action: 'dismiss' })}
+              />
+            )}
 
             <CarHero
               cars={cars}

@@ -5,6 +5,7 @@ import {
   requireCustomer,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
+import { carHistoryRoutes } from '../car-history/car-history.routes.js'
 import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
 import { favouritesRoutes } from '../favourites/favourites.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
@@ -36,6 +37,11 @@ usersRoutes.route('/me', customerComplaintRoutes)
 
 // The customer's saved garages: /me/favourites. Same mounting, same check.
 usersRoutes.route('/me', favouritesRoutes)
+
+// A car's history and its coating/detailing reminders (0046):
+// /me/vehicles/:vehicleId/history and /me/service-reminders/:id/{dismiss,
+// snooze}. Same mounting, same check; the session's own cars only.
+usersRoutes.route('/me', carHistoryRoutes)
 
 // Browser notifications on the customer's own devices, and their two
 // switches: /me/push (0044). Same mounting, same check.
