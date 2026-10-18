@@ -13,6 +13,7 @@ import { homeRoutes } from '../home/home.routes.js'
 import { customerPushRoutes } from '../push/push.routes.js'
 import { customerGiftRoutes } from '../gifts/gifts.routes.js'
 import { customerCreditRoutes } from '../gift-credit/gift-credit.routes.js'
+import { customerGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import * as usersController from './users.controller.js'
 import {
@@ -63,6 +64,8 @@ usersRoutes.route('/me', slotAlertsRoutes)
 // both are 404s while GIFTS_ENABLED is off.
 usersRoutes.route('/me/gifts', customerGiftRoutes)
 usersRoutes.route('/me/credit', customerCreditRoutes)
+// Detlio Guarantee (0051): a free redo claim on the customer's own booking.
+usersRoutes.route('/me/guarantee', customerGuaranteeRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

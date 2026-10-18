@@ -11,6 +11,7 @@ import {
   IconBuildingStore,
   IconCamera,
   IconFlag,
+  IconRefresh,
   IconCheck,
   IconChevronDown,
   IconChevronRight,
@@ -673,6 +674,19 @@ function GarageCard({
           <span className="text-text-muted">· bypass reports, last 180 days</span>
           <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
         </Link>
+      )}
+
+      {/* Detlio Guarantee (0051): approved free redo claims against it in
+          the last 90 days. Only while the guarantee is on, and only when
+          there are some. */}
+      {typeof v.redoClaims90d === 'number' && v.redoClaims90d > 0 && (
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
+          <IconRefresh size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <span className="truncate">
+            <span className={cn('font-numeric', v.redoClaims90d >= 3 && 'text-warning')}>{v.redoClaims90d}</span>{' '}
+            redo claim{v.redoClaims90d === 1 ? '' : 's'} in 90 days
+          </span>
+        </p>
       )}
 
       {v.readiness && (

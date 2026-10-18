@@ -101,6 +101,12 @@ export interface QueuedChain extends ReceivedFacts {
   bookedAt: Date
   /** Marked Test by ops (0032): never one of the garage's bookings. */
   markedTest: boolean
+  /**
+   * A free redo (Detlio Guarantee, 0051): the same job again, not a new
+   * booking, so it uses up none of the free 25. The reads leave redos out
+   * already; this holds it for any other caller. Optional: absent is false.
+   */
+  guaranteeRedo?: boolean
 }
 
 /**
@@ -113,7 +119,7 @@ export interface QueuedChain extends ReceivedFacts {
 export function queuePositions(chains: QueuedChain[]): Map<string, number> {
   const byGarage = new Map<string, QueuedChain[]>()
   for (const chain of chains) {
-    if (chain.markedTest || !wasReceived(chain)) continue
+    if (chain.markedTest || chain.guaranteeRedo || !wasReceived(chain)) continue
     const queue = byGarage.get(chain.vendorId) ?? []
     queue.push(chain)
     byGarage.set(chain.vendorId, queue)
@@ -152,11 +158,13 @@ export interface CommissionBooking {
   items: CommissionItem[]
   /** Final bills paid in the app on the chain, added up. */
   billsPaid: string | null
+  /** Refunded instead of redone (Detlio Guarantee, 0051). Optional: absent is false. */
+  guaranteeRefund?: boolean
 }
 
 /** Whether the booking earns the garage its payout (lib/earnings.ts). */
 export function earnsPayout(
-  booking: Pick<CommissionBooking, 'status' | 'noShow' | 'paymentStatus' | 'paymentRefunded'>
+  booking: Pick<CommissionBooking, 'status' | 'noShow' | 'paymentStatus' | 'paymentRefunded' | 'guaranteeRefund'>
 ): boolean {
   return (
     earningKind({
@@ -165,6 +173,7 @@ export function earnsPayout(
       payment: booking.paymentStatus
         ? { status: booking.paymentStatus, refundedAmount: booking.paymentRefunded }
         : null,
+      guaranteeRefund: booking.guaranteeRefund,
     }) !== null
   )
 }

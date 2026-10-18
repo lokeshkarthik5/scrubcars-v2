@@ -100,6 +100,12 @@ export interface EarningChain {
   cancelledAt: Date | null
   noShowMarkedAt: Date | null
   markedTest: boolean
+  /**
+   * Detlio approved a refund instead of a free redo (0051): the job earns
+   * nothing, so anything paid on it before is owed back. Optional so a
+   * hand-built chain (tests) needs no change.
+   */
+  guaranteeRefund?: boolean
 }
 
 /** What one booking earns, in paise. */
@@ -194,6 +200,7 @@ export function bookingEarning(chain: EarningChain, position: number | undefined
     payment: chain.paymentStatus
       ? { status: chain.paymentStatus, refundedAmount: chain.paymentRefunded }
       : null,
+    guaranteeRefund: chain.guaranteeRefund,
   })
   // Nothing earned: not done yet, cancelled, a garage no-show, never paid
   // for, or a Test booking.

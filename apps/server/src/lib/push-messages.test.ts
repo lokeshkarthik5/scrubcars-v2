@@ -26,6 +26,11 @@ import {
   garageProposalDeclined,
   garageRescheduled,
   garageRespondSoon,
+  garageClaimToAnswer,
+  garageClaimApproved,
+  garageClaimDecided,
+  garageRedoBooked,
+  customerClaimDecided,
   testMessage,
 } from './push-messages.js'
 import type { PushMessage } from './push.js'
@@ -115,6 +120,17 @@ const ALL: Array<[string, PushMessage]> = [
   })],
   ['customer slot opened', customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)],
   ['customer report reward', customerReportReward({ id: 'r1' }, '100.00')],
+  // Free redo claims (0051): never what anyone typed about it.
+  ['garage claim to answer', garageClaimToAnswer(booking, 'g0000000-0000-4000-8000-000000003101', IST('2026-10-17T12:00:00'))],
+  ['garage claim approved (no photos)', garageClaimApproved(booking, 'g1', 'no_photos')],
+  ['garage claim approved (timed out)', garageClaimApproved(booking, 'g1', 'timed_out')],
+  ['garage claim approved (Detlio)', garageClaimApproved(booking, 'g1', 'detlio')],
+  ['garage claim refund instead', garageClaimDecided(booking, 'g1', 'refund')],
+  ['garage claim not approved', garageClaimDecided(booking, 'g1', 'reject')],
+  ['garage redo booked', garageRedoBooked({ ...booking, status: 'confirmed' }, NOW)],
+  ['customer redo approved', customerClaimDecided(booking, 'redo')],
+  ['customer redo refund', customerClaimDecided(booking, 'refund')],
+  ['customer redo not approved', customerClaimDecided(booking, 'reject')],
   ['customer test', testMessage('customer')],
   ['garage test', testMessage('garage')],
 ]
@@ -266,5 +282,30 @@ describe('slot alerts (0047)', () => {
   test('at the garage is the default and is not spelled out', () => {
     const message = customerSlotOpened({ ...slotAlert, bookingType: 'dropin' }, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)
     expect(message.url).not.toContain('mode=')
+  })
+})
+
+describe('free redo claims (0051)', () => {
+  test("the garage's claim to answer says by when, and that silence approves it", () => {
+    const message = garageClaimToAnswer(booking, 'claim-1', IST('2026-10-17T12:00:00'))
+    expect(message.title).toBe('Redo claim to answer · Exterior Wash + 1 more')
+    expect(message.body).toBe('Answer by Sat 17 Oct, 12 PM. No answer means a free redo.')
+    expect(message.url).toBe('/guarantee#claim-claim-1')
+    expect(message.urgency).toBe('high')
+  })
+
+  test('the free redo booked shows on the garage job list at ₹0', () => {
+    const message = garageRedoBooked({ ...booking, status: 'confirmed' }, NOW)
+    expect(message.body).toContain('₹0')
+    expect(message.url).toBe(`/bookings?tab=upcoming#job-${booking.id}`)
+  })
+
+  test("the customer's decisions open the booking", () => {
+    expect(customerClaimDecided(booking, 'redo')).toMatchObject({
+      title: 'Free redo approved',
+      body: 'Pick a time at Marina Auto Spa.',
+      url: `/bookings/${booking.id}`,
+    })
+    expect(customerClaimDecided(booking, 'reject').body).toBe('See why on your booking.')
   })
 })

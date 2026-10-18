@@ -391,15 +391,27 @@ export interface Booking {
   scheduledAt: string
   scheduledAtIso: string
   customerName?: string
-  /** The customer's mobile, for the garage to call or WhatsApp. */
+  /**
+   * The customer's mobile, for the garage to call or WhatsApp. Garage
+   * payloads carry it only inside the contact window (see `contactWindow`).
+   */
   customerPhone?: string
   /**
    * Where a doorstep job happens: the address the customer booked to, with its
    * map pin when it has one. Absent for a job at the garage.
    */
   jobLocation?: JobLocation
-  /** Where the garage is and how to reach it. */
+  /**
+   * Where the garage is and how to reach it. The phone and WhatsApp are
+   * there only inside the contact window; the address always.
+   */
   garage?: GarageContact
+  /**
+   * When the other side's number shows (owner decision, 18 Oct 2026): from
+   * 2 hours before the slot until an hour after the job is done. Null from
+   * an older server, which windows nothing.
+   */
+  contactWindow: ContactWindow | null
   vehicle?: Vehicle
   paymentMethod: PaymentMethod
   paymentStatus: 'pending' | 'paid' | 'collected' | 'failed' | 'refunded'
@@ -464,6 +476,8 @@ export interface Booking {
   responseDeadline: ResponseDeadline | null
   /** Cancelled because the garage did not accept in time (refunded in full). */
   notAcceptedInTime: boolean
+  /** A free redo of an earlier job (Detlio Guarantee, 0051): ₹0, no receipt. */
+  guaranteeRedo: boolean
   /**
    * Customer only: money owed back on this booking, or given back. 'none'
    * on garage payloads, on older servers, and on a customer no-show.
@@ -492,6 +506,19 @@ export interface Booking {
  * server cancels the booking at it (AUTO_CANCEL_UNANSWERED), and the
  * window in opening-hours minutes (GARAGE_RESPONSE_MINUTES).
  */
+/**
+ * A booking's contact window, as the server sends it
+ * (apps/server/src/lib/contact-window.ts): `open` says whether the numbers
+ * are on the payload now; `closesAt` is null while it has no end yet (a job
+ * in progress, a car with the garage). Read with `contactWindowState`
+ * (@repo/core/contact-window).
+ */
+export interface ContactWindow {
+  opensAt: string
+  closesAt: string | null
+  open: boolean
+}
+
 export interface ResponseDeadline {
   respondBy: string
   enforced: boolean

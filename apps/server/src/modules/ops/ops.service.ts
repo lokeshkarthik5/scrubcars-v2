@@ -9,6 +9,7 @@ import { certificationService } from '../certification/certification.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { giftsService } from '../gifts/gifts.service.js'
+import { guaranteeService } from '../guarantee/guarantee.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
@@ -49,6 +50,17 @@ export const opsService = {
       .sweep({ dryRun: options.dryRun })
       .catch((err: unknown) => {
         log.error({ err }, 'ops:garage_response_sweep_failed')
+        return { enabled: true as const, error: true as const }
+      })
+
+    // Free redo claims (Detlio Guarantee, 0051): a garage's 12 hours run out
+    // (treated as accepted), a redo window run out (closed), a redo booking
+    // finished one way or another. Nothing at all while GUARANTEE_ENABLED is
+    // off. Quiet hours don't stop it. Never allowed to fail the digest.
+    const guarantee = await guaranteeService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:guarantee_sweep_failed')
         return { enabled: true as const, error: true as const }
       })
 
@@ -190,6 +202,7 @@ export const opsService = {
       slotAlerts,
       giftCredit,
       bypassRewards,
+      guarantee,
       giftCodeAttemptsPurged,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }

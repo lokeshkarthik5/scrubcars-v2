@@ -7,6 +7,7 @@
 import { type LegalDoc, tbc } from './doc-format'
 import { CONTACT_LINE, LINK, RULES } from './common'
 import { LEGAL_PATHS } from './routes'
+import { CONTACT_WINDOW_HOURS } from './contact-window'
 
 const GRACE = tbc('grace period after the booked time')
 
@@ -30,7 +31,7 @@ export const SERVICE_DELIVERY: LegalDoc = {
         {
           kind: 'list',
           items: [
-            '**At garage:** you take your car to the garage at the booked time. The garage\'s address, map location, phone and WhatsApp are on your booking page, with directions.',
+            `**At garage:** you take your car to the garage at the booked time. The garage's address and map location are on your booking page, with directions, and its phone and WhatsApp ${CONTACT_WINDOW_HOURS}.`,
             '**Doorstep:** the garage comes to the address and map pin you chose at checkout. Each garage sets the area it travels to, and we check your pin is inside it before you pay.',
           ],
         },

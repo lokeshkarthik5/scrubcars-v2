@@ -240,6 +240,11 @@ export type UpdateKind =
   | 'service_reminder'
   | 'slot_opened'
   | 'report_reward'
+  | 'redo_claim'
+  | 'redo_approved'
+  | 'redo_refund'
+  | 'redo_not_approved'
+  | 'redo_closed'
 
 /** One row of Updates (lib/home-updates.ts UpdateItem). */
 export interface UpdateItem {

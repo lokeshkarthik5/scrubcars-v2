@@ -1,35 +1,57 @@
 'use client'
 
-import { IconCar, IconHome, IconMapPin, IconNavigation } from '@tabler/icons-react'
+import {
+  IconBrandWhatsapp,
+  IconCar,
+  IconHome,
+  IconMapPin,
+  IconNavigation,
+  IconPhoneOff,
+} from '@tabler/icons-react'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
-import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
+import { BOOKING_TYPE_LABELS, bookingReference } from '@repo/core/booking-types'
 import { directionsHref, telHref, whatsAppHref } from '@repo/core/contact-links'
+import {
+  contactWindowState,
+  customerNumberHiddenLine,
+  garageSupportMessage,
+} from '@repo/core/contact-window'
+import { supportWhatsAppHref } from '@repo/core/support'
 import type { Booking } from '@repo/core/types'
 
-/** A job the garage may still have to reach the customer about, or travel to. */
+/** A job the garage may still travel to: its address stays on the card. */
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set([
   'pending',
   'confirmed',
   'in_progress',
 ])
 
+/** A job with no one left to reach: refused, cancelled or moved. */
+const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled'])
+
 /**
  * Where a job happens and how to reach its customer, on a job card.
  *
- * The API always sent the customer's phone and a doorstep job's address and
- * pin; the cards just never showed them, so a doorstep customer waited at home
- * for a garage that did not know where to go. The type is shown on every job;
- * the address and the Call / WhatsApp buttons only while the job is still
- * open — once it is done or cancelled, the garage has no need to hold onto a
- * customer's number on screen.
+ * The type is shown on every job; a doorstep or pickup address, with
+ * Directions, while the job is still open (the garage plans its route from
+ * it, whenever it likes).
+ *
+ * The customer's Call / WhatsApp follow the contact window (owner decision,
+ * 18 Oct 2026; apps/server/src/lib/contact-window.ts): the server sends the
+ * number only from 2 hours before the job until an hour after it is done,
+ * so garage and customer can't swap numbers and book around Detlio. Outside
+ * it the card says when the number shows and offers Detlio support, with
+ * the booking named. A cancelled job shows neither.
  *
  * A pickup & drop job shows the same: the address is where the car is
  * collected from and brought back to, with Directions.
  */
-export function JobContact({ booking }: { booking: Booking }) {
+export function JobContact({ booking, now }: { booking: Booking; now: number }) {
   const doorstep = booking.bookingType === 'doorstep'
   const pickup = booking.bookingType === 'pickup'
   const open = OPEN_STATUSES.has(booking.status)
+  const windowState = contactWindowState(booking.contactWindow, now)
+  const ended = ENDED_STATUSES.has(booking.status)
   const who = booking.customerName || 'the customer'
   const firstName = booking.customerName?.trim().split(/\s+/)[0]
   const location = (doorstep || pickup) && open ? booking.jobLocation : undefined
@@ -94,7 +116,7 @@ export function JobContact({ booking }: { booking: Booking }) {
         </div>
       )}
 
-      {open && (
+      {!ended && windowState === 'open' && (
         <ContactButtons
           who={who}
           callHref={telHref(booking.customerPhone)}
@@ -104,6 +126,32 @@ export function JobContact({ booking }: { booking: Booking }) {
             `Hi${firstName ? ` ${firstName}` : ''}, this is ${booking.vendorName || 'your garage'} about your Detlio booking for ${booking.scheduledAt}.`
           )}
         />
+      )}
+
+      {!ended && windowState !== 'open' && (
+        <div className="flex flex-col rounded-[10px] bg-surface-elevated px-3 pt-2.5">
+          <p className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+            <IconPhoneOff size={14} className="shrink-0" aria-hidden />
+            {customerNumberHiddenLine(windowState)}
+          </p>
+          {/* WhatsApp, so the message arrives with the booking named. */}
+          <a
+            href={supportWhatsAppHref(
+              garageSupportMessage(booking.vendorName, `#${bookingReference(booking.id)}`)
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-11 items-center gap-1.5 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+          >
+            <IconBrandWhatsapp size={14} className="shrink-0 text-[#25D366]" aria-hidden />
+            <span>
+              Need to reach the customer?{' '}
+              <span className="font-medium text-text-primary underline underline-offset-2">
+                Contact Detlio support
+              </span>
+            </span>
+          </a>
+        </div>
       )}
     </div>
   )

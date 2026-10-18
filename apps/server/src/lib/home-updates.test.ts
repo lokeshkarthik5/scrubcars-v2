@@ -11,6 +11,7 @@ import {
   type HubBooking,
   type HubComplaint,
   type HubSlotAlert,
+  type HubGuaranteeClaim,
 } from './home-updates.js'
 import { bannedPhraseIn } from './copy-rules.js'
 import type { NoticeRow } from './notices.js'
@@ -844,5 +845,83 @@ describe('Detlio credit (0049)', () => {
       payment: { ...paid(), amount: '199.00', creditAmount: '300.00', creditReturnedAt: null },
     })
     expect(feed([declined]).find((i) => i.kind === 'declined')).toMatchObject({ body: 'Refund due: ₹199', amount: '199.00' })
+  })
+})
+
+describe('free redo claims (0051)', () => {
+  const claim = (overrides: Partial<HubGuaranteeClaim> = {}): HubGuaranteeClaim => ({
+    id: 'g1',
+    bookingId: 'b1',
+    vendorId: 'v1',
+    vendorName: 'Next Level',
+    status: 'waiting_garage',
+    route: 'garage',
+    decision: null,
+    garageRespondBy: new Date('2026-10-12T10:30:00Z'),
+    approvedAt: null,
+    decidedAt: null,
+    closedAt: null,
+    closeReason: null,
+    createdAt: new Date('2026-10-11T10:30:00Z'),
+    refundAmount: '499.00',
+    ...overrides,
+  })
+  const claimFeed = (claims: HubGuaranteeClaim[]) =>
+    deriveUpdates({ bookings: [], notices: [], guaranteeClaims: claims, seenAt: LONG_AGO, now: NOW })
+
+  test('sent, then approved by the garage: two rows opening the booking', () => {
+    const items = claimFeed([
+      claim({ status: 'redo_approved', approvedAt: new Date('2026-10-11T12:00:00Z') }),
+    ])
+    expect(kinds(items)).toEqual(['redo_approved', 'redo_claim'])
+    expect(items[1]!.title).toBe('Redo claim sent')
+    expect(items[1]!.body).toBe('Next Level answers by Mon 12 Oct, 4 PM.')
+    expect(items[0]!.title).toBe('Free redo approved')
+    expect(items.every((item) => item.linkUrl === '/bookings/b1')).toBe(true)
+  })
+
+  test('approved the moment it was made (no garage photos) is one row', () => {
+    const at = new Date('2026-10-11T10:30:00Z')
+    const items = claimFeed([claim({ route: 'auto', status: 'redo_approved', approvedAt: at, createdAt: at, garageRespondBy: null })])
+    expect(kinds(items)).toEqual(['redo_approved'])
+  })
+
+  test('a refund instead says the refund is due; not approved points at the reason', () => {
+    const decidedAt = new Date('2026-10-11T12:00:00Z')
+    const refund = claimFeed([
+      claim({ route: 'detlio', status: 'refund_approved', decision: 'refund', approvedAt: decidedAt, decidedAt, closedAt: decidedAt }),
+    ])
+    expect(kinds(refund)).toEqual(['redo_refund', 'redo_claim'])
+    expect(refund[0]!.body).toBe('Next Level · Refund due: ₹499')
+    expect(refund[0]!.amount).toBe('499.00')
+    expect(refund[1]!.body).toBe('Detlio is reviewing it.')
+
+    const rejected = claimFeed([
+      claim({ route: 'detlio', status: 'rejected', decision: 'reject', decidedAt, closedAt: decidedAt }),
+    ])
+    expect(kinds(rejected)).toEqual(['redo_not_approved', 'redo_claim'])
+    expect(rejected[0]!.body).toBe('See why on your booking.')
+  })
+
+  test('closed without a redo is a row; no row says the banned word', () => {
+    const at = new Date('2026-10-11T12:00:00Z')
+    const items = claimFeed([
+      claim({ status: 'lapsed', approvedAt: at, closedAt: new Date('2026-10-12T01:00:00Z'), closeReason: 'redo_not_booked' }),
+    ])
+    expect(kinds(items)).toEqual(['redo_closed', 'redo_approved', 'redo_claim'])
+    for (const item of items) {
+      expect(bannedPhraseIn(item.title)).toBeNull()
+      expect(bannedPhraseIn(item.body ?? '')).toBeNull()
+    }
+  })
+
+  test("a free redo booking has no receipt row", () => {
+    const items = feed([
+      booking({
+        guaranteeRedo: true,
+        payment: { ...paid(), amount: '0.00' },
+      }),
+    ])
+    expect(items.find((item) => item.kind === 'receipt_ready')).toBeUndefined()
   })
 })

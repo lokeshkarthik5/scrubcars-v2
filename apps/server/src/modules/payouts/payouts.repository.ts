@@ -30,6 +30,9 @@ function earningCte(vendorId?: string): SQL {
       select b.*, coalesce(b.original_booking_id, b.id) as root_id
         from bookings b
        where not exists (select 1 from bookings moved_to where moved_to.rescheduled_from_id = b.id)
+         -- A free redo (Detlio Guarantee, 0051) earns nothing and is never
+         -- paid on: it is not on any statement.
+         and not b.guarantee_redo
          ${vendorId ? sql`and b.vendor_id = ${vendorId}` : sql``}
     ),
     earning as (
@@ -60,6 +63,8 @@ export interface EarningChainRow {
   cancelledAt: Date | null
   noShowMarkedAt: Date | null
   markedTest: boolean
+  /** Refunded instead of redone (0051): earns nothing. */
+  guaranteeRefund: boolean
   customerName: string | null
   bookingType: string
 }
@@ -121,6 +126,7 @@ export function payoutsReads(conn: Tx) {
         cancelled_at: Date | string | null
         no_show_marked_at: Date | string | null
         marked_test: boolean
+        guarantee_refund: boolean
         customer_name: string | null
         booking_type: string
       }>(sql`
@@ -150,6 +156,7 @@ export function payoutsReads(conn: Tx) {
                e.cancelled_at,
                e.no_show_marked_at,
                e.marked_test_at is not null as marked_test,
+               e.guarantee_refund_at is not null as guarantee_refund,
                u.name as customer_name,
                e.booking_type
           from earning e
@@ -174,6 +181,7 @@ export function payoutsReads(conn: Tx) {
         cancelledAt: toDate(row.cancelled_at),
         noShowMarkedAt: toDate(row.no_show_marked_at),
         markedTest: row.marked_test,
+        guaranteeRefund: row.guarantee_refund,
         customerName: row.customer_name,
         bookingType: row.booking_type,
       }))

@@ -63,6 +63,7 @@ import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
 import { adminRepository } from './admin.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
+import { guaranteeService } from '../guarantee/guarantee.service.js'
 import type {
   AdminCancelBookingInput,
   CreateBookingNoteInput,
@@ -348,6 +349,8 @@ function refundFlagsOf(booking: AdminBookingRecord, moved: boolean) {
     status: booking.status,
     noShow: booking.noShow,
     moved,
+    // A refund instead of a free redo (0051).
+    guaranteeRefund: booking.guaranteeRefundAt !== null,
     payment: booking.payment,
     charges: booking.charges,
   })
@@ -404,6 +407,10 @@ function toAdminBookingRow(
             : null,
         }
       : null,
+    // Detlio Guarantee (0051): a free redo of an earlier job (₹0), and when
+    // Detlio approved a refund instead of a redo on this one.
+    guaranteeRedo: booking.guaranteeRedo,
+    guaranteeRefundAt: booking.guaranteeRefundAt?.toISOString() ?? null,
     // Marked "Test" by ops: left out of the pilot numbers.
     markedTest: booking.markedTestAt
       ? { at: booking.markedTestAt.toISOString(), by: booking.markedTestBy }
@@ -668,6 +675,9 @@ export const adminService = {
     // Bypass reports (0052): each garage's strikes, confirmed reports of the
     // last 180 IST days. One grouped read; 2 or more are highlighted.
     const strikes = await bypassReportsService.strikesByGarage(now)
+    // Detlio Guarantee (0051): approved free redo claims per garage in the
+    // last 90 days, for the card's "N redo claims in 90 days". Null while off.
+    const redoClaims = await guaranteeService.approvedByGarage(now)
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
@@ -694,6 +704,7 @@ export const adminService = {
         certification: certificationSummary(certifications.get(vendor.id)),
         photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
         bypassStrikes: strikes.get(vendor.id) ?? 0,
+        redoClaims90d: redoClaims ? (redoClaims.get(vendor.id) ?? 0) : null,
         readiness: vendorReadiness({
           ...vendor,
           hasDoorstepArea,
@@ -1276,9 +1287,12 @@ export const adminService = {
       'admin:booking-cancelled'
     )
     // Recorded only if it was paid for (lib/analytics.ts bookingEventProps).
-    analyticsService.bookingCancelled(id, 'detlio')
+    // A free redo (0051) was never a booking anyone paid for: no usage event.
+    if (!booking.guaranteeRedo) analyticsService.bookingCancelled(id, 'detlio')
     // Its time is free again: anyone waiting for that day hears (0047).
     slotAlertsService.capacityFreed(booking, 'admin_cancelled')
+    // A free redo that did not happen (0051): its claim moves on.
+    if (booking.guaranteeRedo) guaranteeService.redoChanged(booking.id)
 
     // Only a paid booking leaves anything to do: an unpaid one has no money
     // to return. With AUTO_REFUNDS on it goes back at once.
@@ -1355,6 +1369,8 @@ export const adminService = {
     )
     // Whatever is left of its time is free again (0047).
     slotAlertsService.capacityFreed(booking, 'no_show')
+    // A free redo that did not happen (0051): its claim moves on.
+    if (booking.guaranteeRedo) guaranteeService.redoChanged(booking.id)
 
     if (input.party === 'garage') {
       const updated = await adminRepository.findBookingById(id)

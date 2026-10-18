@@ -887,3 +887,49 @@ describe('bypass reports (0052)', () => {
     ])
   })
 })
+
+describe('free redo claims (0051)', () => {
+  const base = {
+    kind: 'guarantee_claim' as const,
+    claimId: 'c1a10001-0000-4000-8000-000000003101',
+    bookingId: '3f2a9c1b-0000-4000-8000-000000003102',
+    garageName: 'Marina Auto Spa',
+    issues: ['Missed spots or dirt left', 'Water marks or streaks'],
+    reasons: ['Garage has before and after photos'],
+    // 04:30 UTC is 10:00 am in Chennai.
+    respondBy: new Date('2026-10-18T04:30:00Z'),
+    decideBy: null,
+  }
+
+  test('a new claim with the garage: what is wrong, by when, the link', () => {
+    expect(formatOpsAlert({ ...base, route: 'garage' }).split('\n')).toEqual([
+      '🔁 New free redo claim · #3F2A9C1B · with the garage',
+      'Garage: Marina Auto Spa',
+      "What's wrong: Missed spots or dirt left, Water marks or streaks",
+      'Why: Garage has before and after photos',
+      'Garage answers by Sun 18 Oct, 10:00 am; no answer approves it.',
+      'https://admin.detlio.com/guarantee/c1a10001-0000-4000-8000-000000003101',
+    ])
+  })
+
+  test('approved automatically because the garage took no photos says so', () => {
+    const text = formatOpsAlert({ ...base, route: 'auto', reasons: ['Garage skipped its photos'], respondBy: null })
+    expect(text).toContain('Free redo approved automatically — no garage photos')
+    expect(text).toContain('nothing to defend it with')
+  })
+
+  test('a dispute needing Detlio quotes the garage, scrubbed', () => {
+    const text = formatOpsAlert({
+      kind: 'guarantee_needs_detlio',
+      claimId: base.claimId,
+      bookingId: base.bookingId,
+      garageName: base.garageName,
+      why: 'disputed',
+      note: 'Car was clean, see photos. Call 98765 43210',
+      decideBy: new Date('2026-10-18T04:30:00Z'),
+    })
+    expect(text).toContain('disputed by the garage')
+    expect(text).toContain('Garage wrote: "Car was clean, see photos. Call [number]"')
+    expect(text).toContain('Decide by Sun 18 Oct, 10:00 am')
+  })
+})

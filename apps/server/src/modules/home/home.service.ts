@@ -22,6 +22,7 @@ import {
   type HubBooking,
   type HubComplaint,
   type HubReportReward,
+  type HubGuaranteeClaim,
   type HubSlotAlert,
   type PausedGarage,
   type UpdateItem,
@@ -42,6 +43,7 @@ import { slotAlertsRepository } from '../slot-alerts/slot-alerts.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { toHubBooking } from './home.mappers.js'
 import { homeRepository } from './home.repository.js'
+import { guaranteeRepository } from '../guarantee/guarantee.repository.js'
 import type { HomeQuery, MarkUpdatesSeenInput } from './home.validation.js'
 
 const log = logger.child({ module: 'home' })
@@ -133,6 +135,15 @@ function loadComplaints(userId: string, now: Date): Promise<HubComplaint[]> {
  */
 function loadServiceReminders(userId: string, now: Date): Promise<HubServiceReminder[]> {
   return carHistoryService.remindersForHub(userId, now)
+}
+
+/**
+ * The customer's free redo claims moved in the Updates window (0051): one
+ * bounded read (20 rows), and none at all while GUARANTEE_ENABLED is off.
+ */
+async function loadGuaranteeClaims(userId: string, now: Date): Promise<HubGuaranteeClaim[]> {
+  if (!env.guaranteeEnabled) return []
+  return guaranteeRepository.listCustomerClaimsSince(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
 }
 
 /** The customer's slot alerts that were told a time opened, in the Updates window (0047). */
@@ -247,6 +258,7 @@ export const homeService = {
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = (await part('slot_alerts', () => loadSlotAlerts(userId, now))) ?? []
     const reportRewards = (await part('report_rewards', () => loadReportRewards(userId, now))) ?? []
+    const guaranteeClaims = (await part('guarantee_claims', () => loadGuaranteeClaims(userId, now))) ?? []
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     const homeCars = buildCars({ cars, bookings, lastWashAt, lastJobs, notices: bookingWindow, now })
@@ -289,6 +301,7 @@ export const homeService = {
       serviceReminders,
       slotAlerts,
       reportRewards,
+      guaranteeClaims,
       seenAt,
       now,
     })
@@ -360,6 +373,7 @@ export const homeService = {
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = await loadSlotAlerts(userId, now)
     const reportRewards = (await part('report_rewards', () => loadReportRewards(userId, now))) ?? []
+    const guaranteeClaims = (await part('guarantee_claims', () => loadGuaranteeClaims(userId, now))) ?? []
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     return {
@@ -375,6 +389,7 @@ export const homeService = {
         serviceReminders,
         slotAlerts,
         reportRewards,
+        guaranteeClaims,
         seenAt,
         now,
       }),

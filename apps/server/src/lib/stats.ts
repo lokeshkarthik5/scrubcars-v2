@@ -116,6 +116,11 @@ export interface StatsChainRow {
    * (cancelled_by 'vendor'); this only tells it apart.
    */
   responseMissed?: boolean
+  /**
+   * Detlio approved a refund instead of a free redo on it (0051): no
+   * commission, as the garage earns nothing on it. Optional: absent is false.
+   */
+  guaranteeRefund?: boolean
 }
 
 /** A booking item, keyed by its chain. */
@@ -201,6 +206,7 @@ export function commissionBooking(row: StatsChainRow, items: CommissionItem[]): 
     discountFundedBy: row.discountFundedBy,
     items,
     billsPaid: row.billsPaid,
+    guaranteeRefund: row.guaranteeRefund ?? false,
   }
 }
 

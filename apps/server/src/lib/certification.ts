@@ -52,6 +52,8 @@ export const CERTIFICATION_RULES = {
   /**
    * Complaints about damage, the quality of the work or the garage not
    * turning up, as a share of completed bookings: strictly below this.
+   * Approved free redo claims (Detlio Guarantee, 0051) count as
+   * service-quality issues, one per booking with any complaint about it.
    */
   maxComplaintRate: 0.03,
   complaintCategories: ['damage', 'service_quality', 'garage_no_show'] as const,
@@ -173,7 +175,7 @@ export const RULE_LABELS: Record<RuleKey, string> = {
   rating: 'Rating',
   completed: 'Completed bookings (90 days)',
   response: 'Answered in time (90 days)',
-  complaints: 'Complaints (90 days)',
+  complaints: 'Complaints and redo claims (90 days)',
   no_shows: 'Garage no-shows (90 days)',
   photos: 'Before and after photos (90 days)',
   bypass: 'Bypass reports (180 days)',
