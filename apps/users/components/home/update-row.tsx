@@ -15,6 +15,7 @@ import {
   IconCircleCheck,
   IconClock,
   IconFileInvoice,
+  IconGift,
   IconMessageCheck,
   IconMessageDots,
   IconMessageX,
@@ -23,6 +24,7 @@ import {
   IconReceipt,
   IconReceiptRefund,
   IconSpeakerphone,
+  IconStar,
   IconSparkles,
   IconTool,
   IconToolsOff,
@@ -72,6 +74,10 @@ const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   redo_refund: IconReceiptRefund,
   redo_not_approved: IconShieldX,
   redo_closed: IconShieldX,
+  // Detlio Rewards (0050): each opens the Rewards page (a nudge, where it points).
+  reward_card: IconStar,
+  reward_voucher: IconGift,
+  reward_nudge: IconStar,
 }
 
 export interface UpdateRowData {

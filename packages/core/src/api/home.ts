@@ -244,6 +244,10 @@ export type UpdateKind =
   | 'redo_refund'
   | 'redo_not_approved'
   | 'redo_closed'
+  // Detlio Rewards (0050): a scratch card, a voucher, a habit nudge.
+  | 'reward_card'
+  | 'reward_voucher'
+  | 'reward_nudge'
 
 /** One row of Updates (lib/home-updates.ts UpdateItem). */
 export interface UpdateItem {

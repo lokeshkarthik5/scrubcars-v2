@@ -474,6 +474,12 @@ export interface ApiBooking {
   photos?: ApiJobPhoto[]
   /** Garage payloads only (0045): the job's photo standard. */
   photoStandard?: PhotoStandard
+  /**
+   * The garage's job list only (Detlio Rewards, 0050): the customer's level
+   * name when their level has the garage badge (Diamond, Detlio Icon), else
+   * null. Nothing else about the customer's rewards.
+   */
+  customerBadge?: string | null
   /** Customer payloads only (0045): when they may add their own photos. */
   conditionPhotos?: ConditionPhotos
   /** The final bill that stands, on payloads that carry job records. */

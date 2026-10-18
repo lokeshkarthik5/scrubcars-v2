@@ -59,6 +59,8 @@ import { slotKeys } from '@repo/core/api/hooks/use-slots'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useQueryClient } from '@tanstack/react-query'
+import { invalidateRewards, rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import { ScratchCardPanel } from '@/components/rewards/scratch-card'
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time'
 import { coarse, isStale, useLocationStore } from '@repo/core/stores/location-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
@@ -238,6 +240,17 @@ export default function BookingDetailPage({
   const rescheduleBooking = useBookingsStore((s) => s.rescheduleBooking)
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loadError, setLoadError] = useState(false)
+  // Detlio Rewards (0050): a scratch card waiting for this booking's chain.
+  const rewardsConfig = useRewardsConfig()
+  const rewardsSummary = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && booking?.status === 'completed')
+  const waitingCard =
+    booking && rewardsSummary.data
+      ? rewardsSummary.data.scratchCards.find((card) => card.bookingId === booking.id || card.rootBookingId === booking.id) ?? null
+      : null
+  // Kept once shown, so the prize stays on screen after the list refreshes
+  // without it (it is no longer waiting): remembered during render.
+  const [scratchCard, setScratchCard] = useState<typeof waitingCard>(null)
+  if (waitingCard && waitingCard.id !== scratchCard?.id) setScratchCard(waitingCard)
   // Where Home sent the customer, read once like ?celebrate below: ?then=pay
   // (a final bill), times (the garage suggested other times), extra (extra
   // work to approve), reschedule (the garage is shut that day) or help, and
@@ -470,6 +483,8 @@ export default function BookingDetailPage({
       setShowCancelConfirm(false)
       setCancelReason('')
       void invalidateHome(queryClient)
+      // A reward voucher spent on it comes back (0050).
+      void invalidateRewards(queryClient)
       toast.success('Booking cancelled')
     } catch (error) {
       if (error instanceof ApiError && error.code === 'CAR_WITH_GARAGE') {
@@ -880,6 +895,16 @@ export default function BookingDetailPage({
           }}
           customer={{ name: profile?.name, phone: profile?.phone }}
         />
+      )}
+
+      {/* Detlio Rewards (0050): the scratch card this job earned. */}
+      {booking.status === 'completed' && scratchCard && (
+        <section aria-labelledby="scratch-card" className="flex flex-col gap-2">
+          <h2 id="scratch-card" className="text-sm font-semibold text-text-primary">
+            You earned a stamp and a scratch card
+          </h2>
+          <ScratchCardPanel card={scratchCard} compact />
+        </section>
       )}
 
       <JobPhotosCard photos={booking.jobPhotos} completed={booking.status === 'completed'} />
