@@ -5,6 +5,7 @@ import Script from 'next/script'
 import { useEffect, useRef } from 'react'
 import { isVerifyPath } from '@repo/core/service-history-certificate'
 import { carriesGiftCode } from '@/lib/gifts'
+import { carriesCouponCode } from '@/lib/coupons'
 
 /** Detlio's Meta Pixel. Public by design — it ships in the page. */
 const PIXEL_ID = '891710590692874'
@@ -34,7 +35,8 @@ function trackPageView() {
  * code (0049): the gift page (/gift/<code>) and sign-in on the way to
  * redeem one (?next=/gift/<code>). The code is the gift, and Meta is sent
  * the page's full address. Likewise a shared Service History certificate's
- * page (/verify/<token>, 0053): the token opens the car's record. Mounted inside a Suspense boundary (the layout's)
+ * page (/verify/<token>, 0053): the token opens the car's record. And a
+ * printed coupon's page (/c/<code>, 0055) and sign-in on the way back to it. Mounted inside a Suspense boundary (the layout's)
  * for useSearchParams.
  *
  * The boot snippet records the first view. App Router navigations do not
@@ -44,7 +46,10 @@ function trackPageView() {
 export function MetaPixel() {
   const pathname = usePathname()
   const params = useSearchParams()
-  const hidden = carriesGiftCode(pathname, params.get('next')) || isVerifyPath(pathname)
+  const hidden =
+    carriesGiftCode(pathname, params.get('next')) ||
+    carriesCouponCode(pathname, params.get('next')) ||
+    isVerifyPath(pathname)
   const booted = useRef(false)
 
   useEffect(() => {

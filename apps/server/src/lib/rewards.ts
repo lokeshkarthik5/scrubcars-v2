@@ -430,7 +430,7 @@ export const VOUCHER_LABELS: Record<VoucherKind, string> = {
 /** Kinds whose amount is counted toward the cap when the card is made, not when the voucher is. */
 export const SCRATCH_VOUCHER_KINDS: readonly VoucherKind[] = ['scratch', 'free_wash']
 
-export const STAMP_SOURCES = ['booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge'] as const
+export const STAMP_SOURCES = ['booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge', 'coupon'] as const
 export type StampSource = (typeof STAMP_SOURCES)[number]
 
 export const STAMP_LABELS: Record<StampSource, string> = {
@@ -440,6 +440,8 @@ export const STAMP_LABELS: Record<StampSource, string> = {
   adjustment: 'From Detlio',
   badge: 'Bonus stamp (badge)',
   challenge: 'Bonus stamp (challenge)',
+  // 0055: a printed coupon's bonus stamps.
+  coupon: 'Bonus stamp (coupon)',
 }
 
 /**

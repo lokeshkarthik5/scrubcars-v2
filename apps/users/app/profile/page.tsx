@@ -47,6 +47,8 @@ import { stampsToGoLine } from '@repo/core/rewards'
 import { LevelBadge } from '@/components/rewards/level-badge'
 import { giftRupees } from '@/lib/gifts'
 import { useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts'
+import { useMyCoupons } from '@repo/core/api/hooks/use-coupons'
+import { couponsForCheckout } from '@/lib/coupons'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
@@ -121,6 +123,8 @@ export default function ProfilePage() {
 
   // Slot alerts shows while any are waiting (0047).
   const slotAlertCount = useSlotAlerts({ enabled: !!authUser }).data?.items.length ?? 0
+  // Coupons ready to use (0055), counted on the Coupons row.
+  const readyCoupons = couponsForCheckout(useMyCoupons(!!authUser).data).length
 
   const user = profile ?? authUser
 
@@ -389,6 +393,19 @@ export default function ProfilePage() {
           </ScCard>
         </Link>
       )}
+
+      {/* Printed coupons (0055): type or scan a coupon's code, and the
+          coupons added. Always there: a coupon works with or without
+          Rewards. */}
+      <Link href="/profile/coupons">
+        <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
+          <span className="min-w-0">
+            Coupons
+            <span className="block text-[12px] text-text-secondary">Have a coupon? Add it here</span>
+          </span>
+          {readyCoupons > 0 && <span className="font-numeric text-[12px] text-text-secondary">{readyCoupons}</span>}
+        </ScCard>
+      </Link>
 
       {/* Detlio Rewards (0050): the level badge and how far the Shine Card is. */}
       {rewardsOn && (

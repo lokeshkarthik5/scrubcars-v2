@@ -34,6 +34,7 @@ import type {
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
 import type { SlotAlertWindow } from '../lib/slot-alerts.js'
+import type { CouponKind, CouponReward, RedeemChannel } from '../lib/coupons.js'
 import type { ChallengeBookingType, ChallengeCategory, ChallengeRewardKind } from '../lib/challenges.js'
 import type { WrappedStats } from '../lib/wrapped.js'
 import type {
@@ -1493,16 +1494,29 @@ export const discounts = pgTable(
     // every garage and never on Home (discounts_reward_shape_check); admin's
     // Discounts page never lists one, and resolveDiscount lets only its owner
     // use it, only while REWARDS_ENABLED is on.
-    source: text('source').$type<'admin' | 'reward'>().default('admin').notNull(),
+    //
+    // Printed coupons (0055): 'coupon' for the personal voucher a coupon
+    // becomes (coupon_redemptions names it): Detlio-funded, once, for one
+    // customer, never on Home (discounts_coupon_shape_check); it may be a %
+    // off, name a garage, and be limited to one service type
+    // (`service_category`, null on every other code). resolveDiscount lets
+    // only its owner use it, whatever REWARDS_ENABLED says.
+    source: text('source').$type<'admin' | 'reward' | 'coupon'>().default('admin').notNull(),
+    serviceCategory: serviceCategoryEnum('service_category'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    check('discounts_source_check', sql`${table.source} in ('admin', 'reward')`),
+    check('discounts_source_check', sql`${table.source} in ('admin', 'reward', 'coupon')`),
+    check(
+      'discounts_coupon_shape_check',
+      sql`${table.source} <> 'coupon' or (${table.fundedBy} = 'platform' and not ${table.showOnHome} and ${table.totalUsageLimit} = 1 and ${table.perUserLimit} = 1 and ${table.endsAt} is not null)`
+    ),
+    check('discounts_service_category_check', sql`${table.serviceCategory} is null or ${table.source} = 'coupon'`),
     check(
       'discounts_reward_shape_check',
-      sql`${table.source} = 'admin' or (${table.fundedBy} = 'platform' and ${table.vendorId} is null and not ${table.showOnHome} and ${table.discountType} = 'fixed' and ${table.totalUsageLimit} = 1 and ${table.perUserLimit} = 1 and ${table.endsAt} is not null)`
+      sql`${table.source} <> 'reward' or (${table.fundedBy} = 'platform' and ${table.vendorId} is null and not ${table.showOnHome} and ${table.discountType} = 'fixed' and ${table.totalUsageLimit} = 1 and ${table.perUserLimit} = 1 and ${table.endsAt} is not null)`
     ),
     // The case-insensitive unique index on lower(code) lives in the migration:
     // drizzle cannot express a functional index here. Do not add a plain
@@ -2739,6 +2753,172 @@ export const giftCodeAttempts = pgTable(
   ]
 )
 
+// ─── Printed coupons (0055, lib/coupons.ts) ──────────────────────────────────
+
+/**
+ * A batch of printed coupons: a campaign, where it is given out (the
+ * location tag every redemption is attributed to), unique codes or one
+ * shared code, the reward and its conditions, the IST days it runs, and
+ * void. The codes themselves are never stored (coupon_codes keeps a keyed
+ * hash); `key_id` names the secret they were derived under, so a reprint
+ * under another secret is refused rather than printing dead codes.
+ */
+export const couponBatches = pgTable(
+  'coupon_batches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 80 }).notNull(),
+    location: varchar('location', { length: 120 }).notNull(),
+    kind: text('kind').$type<CouponKind>().notNull(),
+    reward: text('reward').$type<CouponReward>().notNull(),
+    amountOff: decimal('amount_off', { precision: 10, scale: 2 }),
+    percentOff: decimal('percent_off', { precision: 5, scale: 2 }),
+    maxDiscount: decimal('max_discount', { precision: 10, scale: 2 }),
+    stamps: smallint('stamps'),
+    minOrderAmount: decimal('min_order_amount', { precision: 10, scale: 2 }),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'cascade' }),
+    serviceCategory: serviceCategoryEnum('service_category'),
+    newCustomersOnly: boolean('new_customers_only').default(false).notNull(),
+    validFrom: timestamp('valid_from', { withTimezone: true }).notNull(),
+    validUntil: timestamp('valid_until', { withTimezone: true }).notNull(),
+    codeCount: integer('code_count').notNull(),
+    maxRedemptions: integer('max_redemptions'),
+    keyId: varchar('key_id', { length: 16 }).notNull(),
+    createdByName: varchar('created_by_name', { length: 100 }).notNull(),
+    createdBySub: varchar('created_by_sub', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedBy: varchar('voided_by', { length: 100 }),
+    voidReason: varchar('void_reason', { length: 300 }),
+  },
+  (table) => [
+    index('coupon_batches_created_at_idx').on(table.createdAt),
+    index('coupon_batches_vendor_id_idx').on(table.vendorId),
+    check(
+      'coupon_batches_kind_check',
+      sql`(${table.kind} = 'unique' and ${table.codeCount} between 1 and 5000 and ${table.maxRedemptions} is null) or (${table.kind} = 'shared' and ${table.codeCount} = 1 and (${table.maxRedemptions} is null or ${table.maxRedemptions} between 1 and 100000))`
+    ),
+    check(
+      'coupon_batches_reward_check',
+      sql`(${table.reward} = 'amount' and ${table.amountOff} > 0 and ${table.percentOff} is null and ${table.maxDiscount} is null and ${table.stamps} is null) or (${table.reward} = 'percent' and ${table.amountOff} is null and ${table.percentOff} > 0 and ${table.percentOff} <= 90 and ${table.maxDiscount} > 0 and ${table.stamps} is null) or (${table.reward} = 'free_wash' and ${table.amountOff} > 0 and ${table.percentOff} is null and ${table.maxDiscount} is null and ${table.stamps} is null and ${table.serviceCategory} = 'car_wash') or (${table.reward} = 'stamps' and ${table.amountOff} is null and ${table.percentOff} is null and ${table.maxDiscount} is null and ${table.stamps} between 1 and 5 and ${table.minOrderAmount} is null and ${table.vendorId} is null and ${table.serviceCategory} is null)`
+    ),
+    check(
+      'coupon_batches_amounts_check',
+      sql`(${table.amountOff} is null or ${table.amountOff} <= 2000) and (${table.maxDiscount} is null or ${table.maxDiscount} <= 2000) and (${table.minOrderAmount} is null or (${table.minOrderAmount} > 0 and ${table.minOrderAmount} <= 10000))`
+    ),
+    check('coupon_batches_window_check', sql`${table.validUntil} > ${table.validFrom}`),
+    check(
+      'coupon_batches_name_check',
+      sql`char_length(btrim(${table.name})) >= 3 and char_length(btrim(${table.location})) >= 3 and char_length(btrim(${table.createdByName})) >= 2`
+    ),
+    check(
+      'coupon_batches_void_check',
+      sql`(${table.voidedAt} is null) = (${table.voidedBy} is null) and (${table.voidedAt} is null) = (${table.voidReason} is null)`
+    ),
+  ]
+)
+
+/**
+ * One printed code. Only its keyed hash (unique across batches) and last
+ * four characters are kept; `seq` and `variant` re-derive it for a reprint.
+ * Scans are the /c page opened; a unique code names who redeemed it.
+ */
+export const couponCodes = pgTable(
+  'coupon_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    batchId: uuid('batch_id')
+      .notNull()
+      .references(() => couponBatches.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    variant: smallint('variant').default(0).notNull(),
+    codeHash: varchar('code_hash', { length: 64 }).notNull(),
+    suffix: varchar('suffix', { length: 4 }).notNull(),
+    scanCount: integer('scan_count').default(0).notNull(),
+    firstScannedAt: timestamp('first_scanned_at', { withTimezone: true }),
+    lastScannedAt: timestamp('last_scanned_at', { withTimezone: true }),
+    redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
+    redeemedBy: uuid('redeemed_by').references(() => users.id, { onDelete: 'set null' }),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedBy: varchar('voided_by', { length: 100 }),
+    voidReason: varchar('void_reason', { length: 300 }),
+  },
+  (table) => [
+    uniqueIndex('coupon_codes_code_hash_key').on(table.codeHash),
+    uniqueIndex('coupon_codes_batch_seq_key').on(table.batchId, table.seq),
+    check('coupon_codes_hash_check', sql`char_length(${table.codeHash}) = 64`),
+    check('coupon_codes_seq_check', sql`${table.seq} >= 0 and ${table.variant} between 0 and 20`),
+    check('coupon_codes_redeemed_check', sql`${table.redeemedBy} is null or ${table.redeemedAt} is not null`),
+    check('coupon_codes_scans_check', sql`${table.scanCount} >= 0 and (${table.scanCount} = 0) = (${table.firstScannedAt} is null)`),
+    check(
+      'coupon_codes_void_check',
+      sql`(${table.voidedAt} is null) = (${table.voidedBy} is null) and (${table.voidedAt} is null) = (${table.voidReason} is null)`
+    ),
+  ]
+)
+
+/**
+ * A customer adding a code: once per customer per code, once ever for a
+ * unique code. A voucher names its `discounts` row (source 'coupon'); bonus
+ * stamps say how many. Cancelled when the team voids the code or batch
+ * before the voucher was spent.
+ */
+export const couponRedemptions = pgTable(
+  'coupon_redemptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    batchId: uuid('batch_id')
+      .notNull()
+      .references(() => couponBatches.id, { onDelete: 'cascade' }),
+    codeId: uuid('code_id')
+      .notNull()
+      .references(() => couponCodes.id, { onDelete: 'cascade' }),
+    codeKind: text('code_kind').$type<CouponKind>().notNull(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    kind: text('kind').$type<'voucher' | 'stamps'>().notNull(),
+    discountId: uuid('discount_id').references(() => discounts.id, { onDelete: 'set null' }),
+    stamps: smallint('stamps'),
+    channel: text('channel').$type<RedeemChannel>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledBy: varchar('cancelled_by', { length: 100 }),
+    cancelReason: varchar('cancel_reason', { length: 300 }),
+  },
+  (table) => [
+    uniqueIndex('coupon_redemptions_code_user_key').on(table.codeId, table.userId),
+    uniqueIndex('coupon_redemptions_unique_code_key').on(table.codeId).where(sql`${table.codeKind} = 'unique'`),
+    uniqueIndex('coupon_redemptions_discount_id_key').on(table.discountId),
+    index('coupon_redemptions_batch_id_idx').on(table.batchId, table.createdAt),
+    index('coupon_redemptions_user_id_idx').on(table.userId, table.createdAt),
+    check('coupon_redemptions_code_kind_check', sql`${table.codeKind} in ('unique', 'shared')`),
+    check(
+      'coupon_redemptions_kind_check',
+      sql`(${table.kind} = 'voucher' and ${table.stamps} is null) or (${table.kind} = 'stamps' and ${table.discountId} is null and ${table.stamps} between 1 and 5)`
+    ),
+    check('coupon_redemptions_channel_check', sql`${table.channel} in ('link', 'typed', 'camera')`),
+    check(
+      'coupon_redemptions_cancelled_check',
+      sql`(${table.cancelledAt} is null) = (${table.cancelledBy} is null) and (${table.cancelledAt} is null) = (${table.cancelReason} is null)`
+    ),
+  ]
+)
+
+/** A wrong coupon code: per customer and per hashed network address, for the hourly limits. */
+export const couponCodeAttempts = pgTable(
+  'coupon_code_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    ipKey: varchar('ip_key', { length: 32 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('coupon_code_attempts_user_id_idx').on(table.userId, table.createdAt),
+    index('coupon_code_attempts_ip_key_idx').on(table.ipKey, table.createdAt),
+    index('coupon_code_attempts_created_at_idx').on(table.createdAt),
+  ]
+)
+
 // "Did the garage ask you to book directly?" (0052, lib/bypass-reports.ts):
 // a customer's report that a garage tried to take them off Detlio. One per
 // reschedule chain (`root_booking_id`). Customer, booking and garage are SET
@@ -3004,6 +3184,8 @@ export const rewardStamps = pgTable(
     // 0054: a badge's bonus stamps, and a challenge's prize or "double stamps".
     badgeAwardId: uuid('badge_award_id').references(() => rewardBadgeAwards.id, { onDelete: 'cascade' }),
     challengeId: uuid('challenge_id').references(() => rewardChallenges.id, { onDelete: 'cascade' }),
+    // 0055: a printed coupon's bonus stamps.
+    couponRedemptionId: uuid('coupon_redemption_id').references(() => couponRedemptions.id, { onDelete: 'cascade' }),
   },
   (table) => [
     uniqueIndex('reward_stamps_booking_key').on(table.bookingId).where(sql`${table.source} = 'booking'`),
@@ -3015,13 +3197,14 @@ export const rewardStamps = pgTable(
       .where(sql`${table.voucherId} is null and ${table.voidedAt} is null`),
     index('reward_stamps_badge_award_idx').on(table.badgeAwardId).where(sql`${table.badgeAwardId} is not null`),
     index('reward_stamps_challenge_idx').on(table.challengeId).where(sql`${table.challengeId} is not null`),
+    index('reward_stamps_coupon_redemption_idx').on(table.couponRedemptionId).where(sql`${table.source} = 'coupon'`),
     check(
       'reward_stamps_source_check',
-      sql`${table.source} in ('booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge')`
+      sql`${table.source} in ('booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge', 'coupon')`
     ),
     check(
       'reward_stamps_source_fields_check',
-      sql`(${table.source} = 'booking') = (${table.bookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'streak') = (${table.streakMonth} is not null) and (${table.source} = 'badge') = (${table.badgeAwardId} is not null) and (${table.source} = 'challenge') = (${table.challengeId} is not null) and (${table.source} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null))`
+      sql`(${table.source} = 'booking') = (${table.bookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'streak') = (${table.streakMonth} is not null) and (${table.source} = 'badge') = (${table.badgeAwardId} is not null) and (${table.source} = 'challenge') = (${table.challengeId} is not null) and (${table.source} = 'coupon') = (${table.couponRedemptionId} is not null) and (${table.source} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null))`
     ),
     check(
       'reward_stamps_voided_check',
@@ -3420,7 +3603,7 @@ export const analyticsEvents = pgTable(
       .where(sql`${table.userId} is not null`),
     check(
       'analytics_events_name_check',
-      sql`${table.name} in ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view', 'garage_view', 'service_add', 'checkout_start', 'slot_select', 'address_select', 'pay_click', 'booking_paid', 'booking_cancelled', 'review_submit', 'complaint_submit', 'help_view', 'favourite_add', 'favourite_remove')`
+      sql`${table.name} in ('app_open', 'home_view', 'garage_list_view', 'search', 'map_view', 'garage_view', 'service_add', 'checkout_start', 'slot_select', 'address_select', 'pay_click', 'booking_paid', 'booking_cancelled', 'review_submit', 'complaint_submit', 'help_view', 'favourite_add', 'favourite_remove', 'coupon_scan', 'coupon_redeem')`
     ),
     check(
       'analytics_events_device_check',

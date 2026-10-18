@@ -19,6 +19,8 @@ import { containsPattern } from '../../lib/search.js'
 import { WASH_CATEGORIES } from '../home/home.repository.js'
 import {
   bookings,
+  couponBatches,
+  couponRedemptions,
   discountRedemptions,
   discounts,
   payments,
@@ -54,6 +56,39 @@ export const discountsRepository = {
       .where(eq(rewardVouchers.discountId, discountId))
       .limit(1)
     return row
+  },
+
+  /**
+   * Whose voucher a 'coupon' code is (0055), whether the team cancelled it
+   * (a voided coupon), and whether its batch is for new customers only.
+   */
+  async findCouponVoucher(discountId: string) {
+    const [row] = await db
+      .select({
+        userId: couponRedemptions.userId,
+        cancelledAt: couponRedemptions.cancelledAt,
+        newCustomersOnly: couponBatches.newCustomersOnly,
+      })
+      .from(couponRedemptions)
+      .innerJoin(couponBatches, eq(couponBatches.id, couponRedemptions.batchId))
+      .where(eq(couponRedemptions.discountId, discountId))
+      .limit(1)
+    return row
+  },
+
+  /**
+   * Whether the customer has a booking whose money landed and was kept (not
+   * cancelled, or a customer no-show): DISCOUNT_REALIZED's rule. "New
+   * customers only" coupons (0055) read it.
+   */
+  async hasKeptBooking(userId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: bookings.id })
+      .from(bookings)
+      .innerJoin(payments, eq(payments.bookingId, bookings.id))
+      .where(and(eq(bookings.userId, userId), DISCOUNT_REALIZED))
+      .limit(1)
+    return row !== undefined
   },
 
   /**
@@ -386,6 +421,7 @@ export const discountsRepository = {
         priceSedan: services.priceSedan,
         priceSuv: services.priceSuv,
         isActive: services.isActive,
+        category: services.category,
       })
       .from(services)
       .where(

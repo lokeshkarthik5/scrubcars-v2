@@ -18,6 +18,38 @@ reconstructing every change in them.
 
 ### Added
 
+- **Printed coupons with QR codes: print a batch, scan to redeem in the
+  app, track each giveaway** (migration `0055_printed_coupons`, additive,
+  on top of 0054; new tables `coupon_batches`, `coupon_codes`,
+  `coupon_redemptions`, `coupon_code_attempts`; `discounts.source`
+  'coupon' with `discounts_coupon_shape_check` and
+  `discounts.service_category`; `reward_stamps` source 'coupon' with
+  `coupon_redemption_id`; `analytics_events` names `coupon_scan`,
+  `coupon_redeem`). Rules in `lib/coupons.ts`, module `modules/coupons`.
+  - Admin (`/admin/coupons`, super-admin, typed name, audit
+    `coupon_batch_created` / `coupon_batch_voided` / `coupon_code_voided`):
+    unique codes (up to 5,000, once each) or one shared code (once per
+    customer, optional cap); ₹ off, % off with a cap, a free car wash up
+    to ₹X, or bonus Shine stamps (Rewards live only); minimum, garage or
+    service type, new customers only, IST dates. Codes are 10 characters
+    with a check character (`DTL-XXXXX-XXXXX`), stored only as a keyed
+    hash and the last 4, re-derived from `COUPON_SECRET` (else
+    `JWT_SECRET`) for a reprint. Figures per batch: printed, scanned,
+    added, used at checkout, bookings, revenue, new customers, cost;
+    redemptions with masked phones; void a batch or one code.
+  - Public `POST /coupons/lookup` (the /c/<code> page; counts a scan) and
+    customer `GET /users/me/coupons`, `POST /users/me/coupons/redeem`
+    (under the code's row lock). Wrong codes: 10 an hour per account, 30
+    per hashed address, plus `COUPON_CODE_RATE_LIMIT` (20/min); typos are
+    caught by the check character and never counted.
+  - The coupon becomes a one-use, Detlio-funded promo code only its owner
+    can use (`resolveDiscount`), whether or not Rewards is on; a category
+    limit comes off those lines only (`computeDiscount`'s
+    `eligibleSubtotal`); new customers only is checked again at checkout.
+    A cancelled booking gives it back while it is valid (DISCOUNT_HELD).
+  - New env: `COUPON_SECRET` (set before the first print; never rotate),
+    `COUPON_SITE_URL` (default https://detlio.com), `COUPON_CODE_RATE_LIMIT`.
+
 - **Achievements, seasonal challenges and Detlio Wrapped, on top of Detlio
   Rewards and behind the same switches** (migration `0054_rewards_extras`,
   additive, written after 0050 with 0051–0053 still to land before it: new

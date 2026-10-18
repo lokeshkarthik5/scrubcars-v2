@@ -80,6 +80,8 @@ import {
 } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { invalidateRewards, rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import { invalidateCoupons, useMyCoupons } from '@repo/core/api/hooks/use-coupons'
+import { couponsForCheckout } from '@/lib/coupons'
 import {
   giftsEnabled,
   invalidateGiftData,
@@ -247,6 +249,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const rewardsConfig = useRewardsConfig()
   const rewardsSummary = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && !!userId)
   const rewardVouchers = (rewardsSummary.data?.vouchers ?? []).filter((v) => v.code)
+  // Printed coupons (0055): the customer's ready coupon vouchers, offered
+  // the same way, whether or not Rewards is on.
+  const myCoupons = couponsForCheckout(useMyCoupons(!!userId).data)
   const pending = usePendingCheckoutStore((s) => s.pending)
   const forgetPendingCode = usePendingCheckoutStore((s) => s.forgetCode)
   const clearPending = usePendingCheckoutStore((s) => s.clear)
@@ -484,6 +489,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const appliedReward = appliedDiscount
     ? rewardVouchers.find((v) => v.code?.toUpperCase() === appliedDiscount.code.toUpperCase())
     : undefined
+  const appliedCoupon = appliedDiscount
+    ? myCoupons.find((c) => c.code.toUpperCase() === appliedDiscount.code.toUpperCase())
+    : undefined
 
   const selectedVehicleType = vehicles.find((v) => v.id === selectedVehicle)?.vehicleType
   // The tier drives the price for per-vehicle services, so the summary names
@@ -622,7 +630,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         },
         onError: (error) => {
           setAppliedPromo(null)
-          toast.error(error instanceof Error ? error.message : "This reward can't be used here.")
+          toast.error(error instanceof Error ? error.message : "This can't be used on this booking.")
         },
       }
     )
@@ -799,6 +807,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         void invalidateHome(queryClient)
         void invalidateGiftData(queryClient)
         void invalidateRewards(queryClient)
+        void invalidateCoupons(queryClient)
         clearPending()
         router.push(`/bookings/${order.bookingId}?celebrate=1`)
         return
@@ -845,8 +854,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // the credit with a booking that used some.
           void invalidateHome(queryClient)
           if (creditApplied) void invalidateGiftData(queryClient)
-          // A reward voucher used on it leaves Your rewards (0050).
+          // A reward voucher used on it leaves Your rewards (0050), a coupon Your coupons (0055).
           void invalidateRewards(queryClient)
+          void invalidateCoupons(queryClient)
           if (outcome.kind === 'booked') {
             // The offer and car Home handed over have done their job.
             clearPending()
@@ -1317,7 +1327,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-medium text-text-primary">
-                      {appliedReward ? `${appliedReward.label} applied` : `${appliedDiscount.code} applied`}
+                      {appliedReward
+                        ? `${appliedReward.label} applied`
+                        : appliedCoupon
+                          ? `Coupon applied: ${appliedCoupon.title}`
+                          : `${appliedDiscount.code} applied`}
                     </p>
                     <p className="text-[11px] text-success">
                       You save{' '}
@@ -1399,6 +1413,26 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         >
                           <span className="font-numeric font-medium">₹{Math.round(Number(voucher.amount))} off</span>
                           <span className="text-text-secondary">· {voucher.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Printed coupons (0055) the customer added: one tap, the
+                    same check as a typed code. Quiet chips: red stays on Pay. */}
+                {myCoupons.length > 0 && (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <p className="text-[12px] text-text-secondary">Your coupons</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {myCoupons.slice(0, 4).map((coupon) => (
+                        <button
+                          key={coupon.id}
+                          type="button"
+                          disabled={applyPromo.isPending}
+                          onClick={() => handleApplyReward(coupon.code)}
+                          className="flex min-h-9 items-center gap-1.5 rounded-full border border-stroke px-3 text-[12px] text-text-primary disabled:opacity-50"
+                        >
+                          <span className="font-medium">{coupon.title}</span>
                         </button>
                       ))}
                     </div>
