@@ -14,9 +14,11 @@ import { lookupGift, redeemGift, type PublicGift, type RedeemResult } from '@rep
 import { giftKeys, giftsEnabled, invalidateGiftData, useGiftsConfig } from '@repo/core/api/hooks/use-gifts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
-import { GiftCardArt } from '@/components/gifts/gift-card-art'
 import { GiftsUnavailable } from '@/components/gifts/gifts-unavailable'
-import { formatGiftDate, giftArtFor, giftRupees } from '@/lib/gifts'
+import { PremiumCard } from '@/components/premium-card/premium-card'
+import { ShareCardImage } from '@/components/premium-card/share-card-image'
+import { formatGiftDate, giftRupees } from '@/lib/gifts'
+import { firstName, giftCardSpec } from '@/lib/premium-card'
 
 /** What a gift that can't be redeemed says instead of the button. */
 function closedLine(gift: PublicGift): string | null {
@@ -33,8 +35,8 @@ function closedLine(gift: PublicGift): string | null {
 }
 
 /**
- * The gift page's body: the card, who it is for and from, the message, and
- * "Redeem on Detlio". Signed out, Redeem goes to sign-in and back here;
+ * The gift page's body: the card, who it is for and from, the message,
+ * "Redeem on Detlio" and "Share to Instagram". Signed out, Redeem goes to sign-in and back here;
  * signed in, it adds the gift to the customer's Detlio credit.
  *
  * Looked up once (POST, the code in the body) and never again on focus or
@@ -120,11 +122,13 @@ export function GiftView({ code }: { code: string }) {
     const gift = lookup.data
     if (!gift) return null
     const closed = redeemed ? null : closedLine(gift)
+    const cardSpec = (showName: boolean) =>
+      giftCardSpec({ design: gift.design, amount: gift.amount, recipientName: gift.recipientName, expiresAt: gift.expiresAt, validMonths: config.data?.validMonths, showName })
 
     return (
       <>
         {/* The stored card (0055); an old link's #card= fragment is ignored. */}
-        <GiftCardArt design={giftArtFor(gift.design)} amount={gift.amount} recipientName={gift.recipientName} />
+        <PremiumCard spec={cardSpec(true)} />
 
         <div className="flex flex-col gap-1">
           <h1 className="text-[20px] font-semibold leading-tight text-text-primary">
@@ -189,6 +193,9 @@ export function GiftView({ code }: { code: string }) {
             )}
           </div>
         )}
+
+        {/* The card as a picture for Instagram: never the code or the link. */}
+        <ShareCardImage spec={cardSpec} firstName={firstName(gift.recipientName) || null} fileName="detlio-gift" />
       </>
     )
   })()

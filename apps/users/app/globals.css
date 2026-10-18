@@ -661,12 +661,14 @@ html:has(.legal-doc) {
   to { transform: translateX(120%); }
 }
 
-/* The scratch card: the foil is a canvas over the prize. */
+/* The scratch card: the foil is a canvas over the prize, a premium card
+   (its shape: 100 wide, 132 tall, corners 3.6% of the width). */
 .scratch-card {
+  container-type: inline-size;
   position: relative;
   overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid #2A2A2E;
+  aspect-ratio: 100 / 132;
+  border-radius: 3.6cqw;
   background: linear-gradient(160deg, #1C1D22, #121316);
   touch-action: none;
   user-select: none;
@@ -819,293 +821,218 @@ html:has(.legal-doc) {
   }
 }
 
-/* ─── Gift cards (0049): artwork ─────────────────────────────────────────────
+/* ─── Premium cards: gift cards and scratch prizes ───────────────────────────
  *
- * Each design is a ground, a fine texture (carbon or brushed metal, CSS
- * gradients only), the coupé (components/car-silhouette.tsx, lit through the
- * --car-* properties), an occasion motif, and a sheen that sweeps across
- * once on first view: red on Shine, silver on Midnight and Pearl, warm on
- * the occasions. Under reduced motion the sheen rests, still.
+ * A collectible car card (components/premium-card, numbers in
+ * lib/premium-card.ts): a light "gallery" card or the darker "night" one,
+ * one of Detlio's car pictures cropped big on the top of the card with a
+ * soft floor shadow and reflection, chips, a two-line title and a car care
+ * tip. Every length is in container units (cqw: the card is 100 wide), so
+ * the card is the same at any width and matches the shared image. On first
+ * view the car eases in and a sheen crosses once; under reduced motion the
+ * card is still.
  */
-.gift-card {
+.premium-card {
+  container-type: inline-size;
   position: relative;
+  aspect-ratio: 100 / 132;
+}
+.premium-card--mini {
+  aspect-ratio: 100 / 104;
+}
+.premium-card--thumb {
+  aspect-ratio: 100 / 76;
+}
+.premium-card__face {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   isolation: isolate;
-  border-radius: 16px;
-  border: 1px solid var(--gc-edge, rgba(255, 255, 255, 0.12));
-  background: var(--gc-bg);
-  color: var(--gc-ink, #FAFAFA);
+  border-radius: 3.6cqw;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 18px 36px -24px rgba(0, 0, 0, 0.9);
+    inset 0 0 0 0.28cqw rgba(255, 255, 255, 0.55),
+    0 4cqw 9cqw -5cqw rgba(0, 0, 0, 0.55);
+  user-select: none;
 }
-.gift-card--swatch {
-  border-radius: 10px;
+.premium-card__face--night {
+  box-shadow:
+    inset 0 0 0 0.28cqw rgba(255, 255, 255, 0.08),
+    0 4cqw 9cqw -5cqw rgba(0, 0, 0, 0.8);
 }
-.gift-card__muted {
-  color: var(--gc-muted, rgba(250, 250, 250, 0.7));
+.premium-card__floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 22cqw;
+  background: linear-gradient(180deg, transparent 0%, rgba(20, 22, 28, 0.035) 42%, rgba(20, 22, 28, 0.015) 70%, transparent 100%);
 }
-.gift-card__texture {
+.premium-card__face--night .premium-card__floor {
+  background: linear-gradient(180deg, transparent 0%, rgba(200, 210, 235, 0.05) 42%, rgba(200, 210, 235, 0.02) 70%, transparent 100%);
+}
+.premium-card__shadow {
+  position: absolute;
+  left: -6cqw;
+  right: -6cqw;
+  height: 5cqw;
+  background: radial-gradient(closest-side, rgba(10, 12, 16, 0.32), rgba(10, 12, 16, 0.1) 60%, transparent);
+}
+.premium-card__face--night .premium-card__shadow {
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.25) 60%, transparent);
+}
+.premium-card__reflection {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11cqw;
+  overflow: hidden;
+  opacity: 0.16;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+}
+.premium-card__face--night .premium-card__reflection {
+  opacity: 0.22;
+}
+.premium-card__car {
   position: absolute;
   inset: 0;
-  z-index: 0;
+}
+.premium-card__car-img {
+  position: absolute;
+  max-width: none;
+  height: auto;
   pointer-events: none;
-  background: var(--gc-texture);
 }
-.gift-card__motif {
+.premium-card__face--enter .premium-card__car {
+  animation: premium-car-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) 80ms 1 both;
+}
+@keyframes premium-car-in {
+  from { transform: translateX(-3.5cqw); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+.premium-card__accent {
   position: absolute;
   inset: 0;
-  z-index: 1;
   width: 100%;
   height: 100%;
   pointer-events: none;
 }
-.gift-card__car {
+.premium-card__mark {
   position: absolute;
-  right: -6%;
-  bottom: 6%;
-  z-index: 2;
-  width: 70%;
-  height: auto;
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+  left: 6.4cqw;
+  top: 5.4cqw;
+  font-size: 3.9cqw;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--pc-mark);
 }
-.gift-card--swatch .gift-card__car {
-  right: -8%;
-  bottom: 6%;
-  width: 80%;
-  filter: none;
-}
-.gift-card__mark {
-  z-index: 4;
-  color: var(--gc-ink, #FAFAFA);
-}
-.gift-card__sheen {
+.premium-card__chips {
   position: absolute;
-  top: -10%;
-  bottom: -10%;
-  left: -40%;
-  right: -40%;
-  z-index: 3;
+  left: 6.4cqw;
+  right: 6.4cqw;
+  top: 77.4cqw;
+  display: flex;
+  gap: 1.4cqw;
+  overflow: hidden;
+}
+.premium-card__chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 1cqw;
+  height: 6.8cqw;
+  padding: 0 2.2cqw;
+  border-radius: 999px;
+  background: var(--pc-chip-bg);
+  box-shadow: inset 0 0 0 0.28cqw var(--pc-chip-edge);
+  color: var(--pc-chip-text);
+  font-size: 2.85cqw;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+/* A name gives way first when the row is too long. */
+.premium-card__chip--fluid {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.premium-card__chip-icon {
+  flex: none;
+  width: 3cqw;
+  height: 3cqw;
+  color: var(--pc-chip-icon);
+}
+.premium-card__chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.premium-card__title {
+  position: absolute;
+  left: 6.4cqw;
+  right: 6.4cqw;
+  top: 89.4cqw;
+  color: var(--pc-title);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+.premium-card__title p {
+  height: 8.9cqw;
+  line-height: 8.9cqw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.premium-card__title-sub {
+  color: var(--pc-sub);
+}
+.premium-card--mini .premium-card__title {
+  top: 78.5cqw;
+}
+.premium-card__tip {
+  position: absolute;
+  left: 6.4cqw;
+  right: 6.4cqw;
+  top: 110.6cqw;
+  font-size: 3.3cqw;
+  line-height: 4.85cqw;
+  color: var(--pc-tip);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.premium-card__tip-label {
+  font-weight: 600;
+  color: var(--pc-label);
+}
+.premium-card__sheen {
+  position: absolute;
+  inset: -10% -40%;
   pointer-events: none;
-  background: linear-gradient(112deg, transparent 40%, var(--gc-sheen) 49%, transparent 58%);
-  mix-blend-mode: screen;
-  transform: translateX(-72%);
-  animation: gift-card-sheen 1700ms cubic-bezier(0.4, 0, 0.2, 1) 350ms 1 both;
+  background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, 0.5) 50%, transparent 58%);
+  transform: translateX(-80%);
+  animation: premium-sheen 1600ms cubic-bezier(0.4, 0, 0.2, 1) 450ms 1 both;
+  mix-blend-mode: soft-light;
 }
-@keyframes gift-card-sheen {
-  to { transform: translateX(72%); }
-}
-
-/* The textures. */
-.gift-card--shine,
-.gift-card--birthday {
-  --gc-texture:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 4px),
-    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.28) 0 2px, transparent 2px 4px);
-}
-.gift-card--midnight,
-.gift-card--diwali,
-.gift-card--thank_you {
-  --gc-texture:
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.06) 0 2px, transparent 2px 7px);
-}
-.gift-card--pearl {
-  --gc-texture:
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0 2px, transparent 2px 7px);
+@keyframes premium-sheen {
+  to { transform: translateX(80%); }
 }
 
-/* Shine: graphite and carbon, a red floor light and the red sweep. */
-.gift-card--shine {
-  --gc-bg:
-    radial-gradient(70% 90% at 78% 72%, rgba(228, 0, 43, 0.20), transparent 70%),
-    radial-gradient(120% 140% at 88% 0%, #3E3F4A 0%, transparent 55%),
-    linear-gradient(155deg, #2A2B33 0%, #17171C 52%, #0C0C0F 100%);
-  --gc-sheen: rgba(255, 60, 90, 0.55);
-  --car-top: #575864;
-  --car-bottom: #0E0E11;
-  --car-rim: rgba(255, 255, 255, 0.78);
-  --car-floor: rgba(228, 0, 43, 0.55);
+/* The design picker's tiles: the chosen one ringed in white. */
+.gift-swatch .premium-card__face {
+  box-shadow: inset 0 0 0 0.6cqw rgba(255, 255, 255, 0.4);
 }
-/* Midnight: deep navy, brushed, a silver sheen. */
-.gift-card--midnight {
-  --gc-bg:
-    radial-gradient(110% 120% at 92% 0%, rgba(130, 160, 240, 0.30), transparent 55%),
-    linear-gradient(160deg, #15255A 0%, #0B1636 50%, #050914 100%);
-  --gc-sheen: rgba(214, 226, 255, 0.5);
-  --car-top: #33447A;
-  --car-bottom: #060A18;
-  --car-rim: rgba(205, 220, 255, 0.85);
-  --car-glass: #050817;
-  --car-floor: rgba(170, 195, 255, 0.4);
-}
-/*
- * Pearl: a deeper pearl and brushed silver, toned down so it never outshines
- * the dark page, with a faint iridescence and a dark car. The ink and the
- * muted line are solid dark greys: at least 4.5:1 wherever text sits (the
- * darkest corner, bottom right, is under the car).
- */
-.gift-card--pearl {
-  --gc-bg:
-    radial-gradient(90% 120% at 12% 0%, rgba(255, 255, 255, 0.30), transparent 60%),
-    radial-gradient(70% 90% at 100% 100%, rgba(196, 181, 253, 0.22), transparent 62%),
-    radial-gradient(60% 80% at 70% 15%, rgba(186, 230, 253, 0.20), transparent 60%),
-    linear-gradient(150deg, #B4B9C3 0%, #979DA9 55%, #7A8190 100%);
-  --gc-edge: rgba(255, 255, 255, 0.28);
-  --gc-ink: #111115;
-  --gc-muted: #1E2026;
-  --gc-sheen: rgba(255, 255, 255, 0.55);
-  --car-top: #3B3D47;
-  --car-bottom: #0B0B0E;
-  --car-rim: rgba(255, 255, 255, 0.7);
-  --car-floor: rgba(20, 20, 30, 0.35);
-}
-/* Birthday: plum, carbon, confetti, a warm sweep. */
-.gift-card--birthday {
-  --gc-bg:
-    radial-gradient(100% 120% at 88% 0%, rgba(244, 114, 182, 0.30), transparent 55%),
-    radial-gradient(90% 110% at 0% 100%, rgba(251, 191, 36, 0.16), transparent 55%),
-    linear-gradient(155deg, #331A3D 0%, #1C1025 55%, #0E0912 100%);
-  --gc-sheen: rgba(255, 214, 180, 0.5);
-  --car-top: #5A3666;
-  --car-bottom: #120A16;
-  --car-rim: rgba(255, 224, 242, 0.8);
-  --car-floor: rgba(244, 114, 182, 0.4);
-}
-/* Diwali: deep ember, brushed, lit diyas, a gold sweep. */
-.gift-card--diwali {
-  --gc-bg:
-    radial-gradient(90% 110% at 70% 0%, rgba(251, 191, 36, 0.30), transparent 58%),
-    linear-gradient(155deg, #3F1D0C 0%, #24110A 55%, #120806 100%);
-  --gc-ink: #FFF8EA;
-  --gc-muted: rgba(255, 236, 200, 0.72);
-  --gc-sheen: rgba(255, 210, 120, 0.6);
-  --car-top: #6A3E1C;
-  --car-bottom: #140905;
-  --car-rim: rgba(255, 216, 140, 0.9);
-  --car-floor: rgba(251, 191, 36, 0.45);
-  --car-wheel: rgba(255, 226, 170, 0.75);
-}
-/* Thank you: deep teal, brushed, a satin ribbon. */
-.gift-card--thank_you {
-  --gc-bg:
-    radial-gradient(100% 120% at 88% 0%, rgba(94, 234, 212, 0.20), transparent 55%),
-    linear-gradient(155deg, #12352F 0%, #0B221F 55%, #061110 100%);
-  --gc-sheen: rgba(220, 255, 245, 0.45);
-  --car-top: #24544D;
-  --car-bottom: #051010;
-  --car-rim: rgba(210, 250, 240, 0.8);
-  --car-floor: rgba(94, 234, 212, 0.38);
-}
-
-/* The design picker's tiles. */
-.gift-swatch[aria-checked='true'] .gift-card {
+.gift-swatch[aria-checked='true'] .premium-card__face {
   box-shadow: 0 0 0 2px #0A0A0B, 0 0 0 3.5px #FAFAFA;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gift-card__sheen {
+  .premium-card__face--enter .premium-card__car,
+  .premium-card__sheen {
     animation: none;
-    transform: translateX(14%);
-    opacity: 0.45;
   }
-}
-
-/* ─── Scratch-card prizes (0050): a look per prize ───────────────────────────
- *
- * Silver for the small money prizes, gold for the big one, a red glow and a
- * star for a bonus stamp, gold for a free wash (with confetti, drawn by
- * lib/confetti.ts). A sheen crosses the prize once as it is revealed. Every
- * movement stops under prefers-reduced-motion.
- */
-.scratch-prize {
-  overflow: hidden;
-  isolation: isolate;
-}
-.scratch-prize--silver {
-  color: #121318;
-  background:
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px 3px),
-    radial-gradient(120% 140% at 15% 0%, #FFFFFF 0%, transparent 55%),
-    linear-gradient(150deg, #EEF0F4 0%, #C9CDD6 45%, #9DA3AF 100%);
-}
-.scratch-prize--gold,
-.scratch-prize--jackpot {
-  color: #2B1B04;
-  background:
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
-    radial-gradient(120% 140% at 15% 0%, #FFF3C4 0%, transparent 55%),
-    linear-gradient(150deg, #F9E3A0 0%, #E3B652 45%, #A8782A 100%);
-}
-.scratch-prize--stamp {
-  color: #FAFAFA;
-  background:
-    radial-gradient(60% 120% at 82% 50%, rgba(228, 0, 43, 0.55), transparent 70%),
-    linear-gradient(150deg, #24141A 0%, #150B0F 60%, #0D0709 100%);
-}
-.scratch-prize__eyebrow,
-.scratch-prize__small {
-  opacity: 0.72;
-}
-.scratch-prize__coin {
-  color: #FAFAFA;
-  background: radial-gradient(circle at 32% 28%, #5B5E68, #1D1E24 70%);
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.35),
-    inset 0 0 0 6px rgba(0, 0, 0, 0.25),
-    0 6px 14px -6px rgba(0, 0, 0, 0.6);
-}
-.scratch-prize--gold .scratch-prize__coin {
-  color: #FFF3C4;
-  background: radial-gradient(circle at 32% 28%, #8A6420, #3B2808 72%);
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 236, 170, 0.55),
-    inset 0 0 0 6px rgba(0, 0, 0, 0.25),
-    0 6px 14px -6px rgba(60, 35, 0, 0.7);
-}
-.scratch-prize__star {
-  color: #FFFFFF;
-  background: radial-gradient(circle, #FF2D55 0%, #E4002B 45%, #B80022 100%);
-  box-shadow:
-    0 0 0 6px rgba(228, 0, 43, 0.18),
-    0 0 34px 6px rgba(228, 0, 43, 0.55);
-}
-.scratch-prize__car {
-  --car-top: #3B2A10;
-  --car-bottom: #120C03;
-  --car-rim: rgba(255, 246, 214, 0.9);
-  --car-floor: rgba(80, 50, 0, 0.45);
-  --car-wheel: rgba(255, 236, 180, 0.85);
-  margin-right: -10%;
-}
-.scratch-prize__sheen {
-  position: absolute;
-  inset: -20% -40%;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(112deg, transparent 40%, rgba(255, 255, 255, 0.55) 50%, transparent 60%);
-  transform: translateX(-75%);
-  animation: gift-card-sheen 1200ms cubic-bezier(0.4, 0, 0.2, 1) 200ms 1 both;
-}
-.scratch-prize--stamp .scratch-prize__sheen {
-  background: linear-gradient(112deg, transparent 40%, rgba(255, 90, 120, 0.35) 50%, transparent 60%);
-}
-.scratch-prize--stamp .scratch-prize__star {
-  animation: scratch-star-glow 1600ms ease-out 200ms 1 both;
-}
-@keyframes scratch-star-glow {
-  0% { transform: scale(0.6); box-shadow: 0 0 0 0 rgba(228, 0, 43, 0); }
-  45% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(228, 0, 43, 0.22), 0 0 48px 12px rgba(228, 0, 43, 0.7); }
-  100% { transform: scale(1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scratch-prize__sheen {
+  .premium-card__sheen {
     display: none;
-  }
-  .scratch-prize--stamp .scratch-prize__star {
-    animation: none;
   }
 }
 

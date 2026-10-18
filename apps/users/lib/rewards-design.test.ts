@@ -4,7 +4,7 @@ import type { CabinetBadge } from '@repo/core/api/reward-extras'
 import { featuredBadges } from './featured-badges'
 import { JACKPOT_CONFETTI_COLORS } from './confetti'
 import { GIFT_ARTS, giftArtFor } from './gifts'
-import { isMoneyPrize, prizeLines, prizeTier, voucherEndsAt } from './scratch-prize'
+import { isMoneyPrize, prizeTier, voucherEndsAt } from './scratch-prize'
 import { splitBig } from './wrapped-image'
 
 describe('gift artwork', () => {
@@ -26,11 +26,6 @@ describe('scratch prizes', () => {
     expect(prizeTier('bonus_stamp')).toBe('stamp')
     expect(prizeTier('free_wash')).toBe('jackpot')
     expect(isMoneyPrize('bonus_stamp')).toBe(false)
-  })
-
-  test('the words', () => {
-    expect(prizeLines({ outcome: 'medium_off', amount: '50.00' })).toEqual({ eyebrow: 'You won', big: '₹50', small: 'off your next booking' })
-    expect(prizeLines({ outcome: 'free_wash', amount: '299.00' }).small).toBe('Up to ₹299 off a booking')
   })
 
   test('the free wash confetti has no gold or yellow piece to vanish into the gold card', () => {

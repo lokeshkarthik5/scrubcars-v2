@@ -20,11 +20,12 @@ import {
 } from '@repo/core/api/hooks/use-gifts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
-import { GiftCardArt } from '@/components/gifts/gift-card-art'
+import { PremiumCard } from '@/components/premium-card/premium-card'
 import { GiftShare } from '@/components/gifts/gift-share'
 import { GiftsUnavailable } from '@/components/gifts/gifts-unavailable'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { GIFT_STATE_LABELS, formatGiftDate, giftEvidenceLine, giftRupees } from '@/lib/gifts'
+import { giftCardSpec } from '@/lib/premium-card'
 
 const STATE_BADGE: Record<GiftState, 'success' | 'pending' | 'muted'> = {
   pending: 'pending',
@@ -150,7 +151,12 @@ export default function SentGiftsPage() {
                 <ScCard className="flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-3">
                     {/* The card as sent, in its stored design. */}
-                    <GiftCardArt design={gift.design} variant="thumb" className="w-[64px] shrink-0" />
+                    <PremiumCard
+                      spec={giftCardSpec({ design: gift.design, amount: gift.amount, recipientName: gift.recipientName, expiresAt: gift.expiresAt })}
+                      size="thumb"
+                      animate={false}
+                      className="w-[64px] shrink-0"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="text-[15px] font-semibold text-text-primary">
                         <span className="font-numeric">{giftRupees(gift.amount)}</span> for {gift.recipientName}
