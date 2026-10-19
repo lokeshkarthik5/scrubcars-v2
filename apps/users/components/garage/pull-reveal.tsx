@@ -10,7 +10,7 @@ import { RARITY_LOOKS, cardNumber } from '@repo/core/garage'
 import { rewardRupees } from '@repo/core/rewards'
 import { cn } from '@repo/core/utils'
 import { burstConfetti } from '@/lib/confetti'
-import { GarageCard, GarageCardBack } from './garage-card'
+import { GarageCard, GarageCardBack, IllustrationLine } from './garage-card'
 import { GarageShare } from './garage-share'
 
 export type RevealStage = 'back' | 'shaking' | 'turning' | 'front'
@@ -146,6 +146,7 @@ export function PullReveal({
               {pull.car.rarityLabel} · <span className="font-numeric">{cardNumber(pull.car.number, pull.car.total)}</span>
             </p>
             <h3 className="text-[22px] font-semibold leading-tight text-text-primary">{pull.car.name}</h3>
+            <IllustrationLine className="max-w-[300px]" />
             {news && (
               <p
                 className={cn(

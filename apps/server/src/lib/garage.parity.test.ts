@@ -12,7 +12,8 @@ type Core = {
   DEFAULT_GARAGE_SETTINGS: unknown
   GARAGE_LIMITS: unknown
   CAR_LIMITS: unknown
-  AI_IMAGE_COST_INR: number
+  ILLUSTRATION_LINE: string
+  PHOTO_SETTINGS: readonly string[]
   ROW_SIZE: number
   PULL_SOURCE_LABELS: Record<string, string>
   garageSettings: (s: unknown) => unknown
@@ -20,14 +21,15 @@ type Core = {
 }
 
 describe('garage parity', () => {
-  test('rarities, defaults, limits, costs and rows match', async () => {
+  test('rarities, defaults, limits, the illustration line, photo settings and rows match', async () => {
     const core = (await import(coreUrl)) as Core
     expect([...core.GARAGE_RARITIES]).toEqual([...server.GARAGE_RARITIES])
     expect(core.RARITY_LABELS).toEqual(server.RARITY_LABELS)
     expect(core.DEFAULT_GARAGE_SETTINGS).toEqual(server.DEFAULT_GARAGE_SETTINGS)
     expect(core.GARAGE_LIMITS).toEqual(server.GARAGE_LIMITS)
     expect(core.CAR_LIMITS).toEqual(server.CAR_LIMITS)
-    expect(core.AI_IMAGE_COST_INR).toBe(server.AI_IMAGE_COST_INR)
+    expect(core.ILLUSTRATION_LINE).toBe(server.ILLUSTRATION_LINE)
+    expect([...core.PHOTO_SETTINGS]).toEqual([...server.PHOTO_SETTINGS])
     expect(core.ROW_SIZE).toBe(server.ROW_SIZE)
     expect(core.PULL_SOURCE_LABELS).toEqual(server.PULL_SOURCE_LABELS)
     const stored = { garage: { enabled: true, rarityWeights: { common: 50, rare: 35, epic: 12, legendary: 3 } } }

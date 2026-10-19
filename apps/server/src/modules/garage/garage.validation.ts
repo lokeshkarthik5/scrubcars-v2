@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CAR_LIMITS, GARAGE_RARITIES, GARAGE_TONES, MAX_ART_BYTES, SERIES_STATUSES } from '../../lib/garage.js'
+import { CAR_LIMITS, GARAGE_RARITIES, MAX_ART_BYTES, SERIES_STATUSES } from '../../lib/garage.js'
 
 const actorName = z.string().trim().min(2, 'Type your name').max(100)
 
@@ -25,15 +25,14 @@ export const seriesSchema = z
   })
   .strict()
 
-/** A car as the team edits it. The rules (lengths, copy rules, no real car names) are lib/garage.ts `carProblems`. */
+/** A card as the team edits it. The rules (lengths, a pool photo id, copy rules, no real car names, no made-up figures) are lib/garage.ts `carProblems`. */
 export const carSchema = z
   .object({
     name: z.string().max(60),
     rarity: z.enum(GARAGE_RARITIES),
-    tone: z.enum(GARAGE_TONES),
-    paint: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'The paint is a colour like #0F7A78'),
+    photoId: z.string().max(60),
     colour: z.string().max(60),
-    stats: z.tuple([z.string().max(60), z.string().max(60), z.string().max(60)]),
+    setting: z.string().max(60),
     lore: z.string().max(200),
     enabled: z.boolean(),
     actorName,
@@ -41,10 +40,6 @@ export const carSchema = z
   .strict()
 
 export const actorSchema = z.object({ actorName }).strict()
-
-export const chooseArtSchema = z
-  .object({ key: z.string().min(1).max(200), otherKeys: z.array(z.string().max(200)).max(3).optional(), actorName })
-  .strict()
 
 /** Uploads are WebP only: the admin panel re-encodes the picture in the browser first. */
 export const uploadUrlSchema = z

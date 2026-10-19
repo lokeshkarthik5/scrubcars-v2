@@ -38,7 +38,7 @@ import type { SlotAlertWindow } from '../lib/slot-alerts.js'
 import type { CouponKind, CouponReward, RedeemChannel } from '../lib/coupons.js'
 import type { ChallengeBookingType, ChallengeCategory, ChallengeRewardKind } from '../lib/challenges.js'
 import type { WrappedStats } from '../lib/wrapped.js'
-import type { ArtSource, GarageRarity, GarageTone, PullForce, PullSource, SeriesStatus } from '../lib/garage.js'
+import type { ArtSource, GarageRarity, PullForce, PullSource, SeriesStatus } from '../lib/garage.js'
 import type {
   BadgeKey,
   NudgeKind,
@@ -3566,7 +3566,7 @@ export const rewardWrapped = pgTable(
 
 // ─── The Detlio Garage (0057) ────────────────────────────────────────────────
 //
-// Fictional hypercar cards earned by booking, on top of Detlio Rewards and
+// Supercar photo cards earned by booking, on top of Detlio Rewards and
 // behind its switches plus the Garage's own. Rules in lib/garage.ts, module
 // modules/garage. Everything about a customer cascades with them; a pull
 // about a booking cascades with it.
@@ -3594,9 +3594,11 @@ export const garageSeries = pgTable(
 )
 
 /**
- * A fictional car of a series, numbered 1–40 (rows of five). Its picture
- * is drawn from numbers (`default`, no URL) until the team chooses AI or
- * uploaded art (a public R2 URL under garage/series-<n>/).
+ * A card of a series, numbered 1–40 (rows of five): an invented name, its
+ * rarity, and its photo by id in the card photo pool (the licensed photos
+ * the premium cards use; never a URL), with the photo's colour and setting
+ * and a line. `upload` art (a public R2 URL under garage/series-<n>/) is for
+ * a future series with its own pictures.
  */
 export const garageCars = pgTable(
   'garage_cars',
@@ -3608,13 +3610,12 @@ export const garageCars = pgTable(
     number: smallint('number').notNull(),
     name: varchar('name', { length: 28 }).notNull(),
     rarity: text('rarity').$type<GarageRarity>().notNull(),
-    tone: text('tone').$type<GarageTone>().notNull(),
-    paint: varchar('paint', { length: 7 }).notNull(),
+    photoId: varchar('photo_id', { length: 60 }).notNull(),
     colour: varchar('colour', { length: 24 }).notNull(),
-    stats: text('stats').array().notNull(),
+    setting: varchar('setting', { length: 24 }).notNull(),
     lore: varchar('lore', { length: 110 }).notNull(),
     enabled: boolean('enabled').default(true).notNull(),
-    artSource: text('art_source').$type<ArtSource>().default('default').notNull(),
+    artSource: text('art_source').$type<ArtSource>().default('photo').notNull(),
     artUrl: text('art_url'),
     artUpdatedAt: timestamp('art_updated_at', { withTimezone: true }),
     artUpdatedBy: varchar('art_updated_by', { length: 100 }),
@@ -3625,11 +3626,9 @@ export const garageCars = pgTable(
     uniqueIndex('garage_cars_series_number_key').on(table.seriesId, table.number),
     check('garage_cars_number_check', sql`${table.number} between 1 and 40`),
     check('garage_cars_rarity_check', sql`${table.rarity} in ('common', 'rare', 'epic', 'legendary')`),
-    check('garage_cars_tone_check', sql`${table.tone} in ('light', 'dark')`),
-    check('garage_cars_paint_check', sql`${table.paint} ~ '^#[0-9A-Fa-f]{6}$'`),
-    check('garage_cars_stats_check', sql`array_length(${table.stats}, 1) = 3`),
-    check('garage_cars_art_source_check', sql`${table.artSource} in ('default', 'ai', 'upload')`),
-    check('garage_cars_art_url_check', sql`(${table.artSource} = 'default') = (${table.artUrl} is null)`),
+    check('garage_cars_photo_id_check', sql`${table.photoId} ~ '^[a-z0-9-]{2,60}$'`),
+    check('garage_cars_art_source_check', sql`${table.artSource} in ('photo', 'upload')`),
+    check('garage_cars_art_url_check', sql`(${table.artSource} = 'upload') = (${table.artUrl} is not null)`),
   ]
 )
 

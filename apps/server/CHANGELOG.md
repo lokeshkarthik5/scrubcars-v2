@@ -20,17 +20,19 @@ reconstructing every change in them.
 
 ### Added
 
-- **The Detlio Garage: collectible fictional hypercar cards earned by
+- **The Detlio Garage: collectible supercar photo cards earned by
   booking** (migration `0057_detlio_garage`, additive: new tables
-  `garage_series`, `garage_cars` (Series 1's 40 cars seeded),
-  `garage_pulls`, `garage_collections` (kept in step by a trigger when a
-  pull is deleted), `garage_row_completions`, `garage_series_completions`;
-  `reward_stamps.garage_pull_id` with source 'garage'; `reward_challenges.reward_cards`;
-  widened CHECKs: voucher kind 'garage_row', nudge kinds 'garage_card' /
-  'garage_row' / 'garage_series', badge 'garage_legend', scratch outcome
-  'garage_card', challenge reward 'garage_cards'). Rules in `lib/garage.ts`,
-  module `modules/garage`. Behind the rewards switches plus its own
-  (`settings.garage.enabled`, default off).
+  `garage_series`, `garage_cars` (Series 1's 40 cards seeded, each a
+  licensed card photo by `photo_id`), `garage_pulls`, `garage_collections`
+  (kept in step by a trigger when a pull is deleted),
+  `garage_row_completions`, `garage_series_completions`;
+  `reward_stamps.garage_pull_id` with source 'garage';
+  `reward_challenges.reward_cards`; widened CHECKs: voucher kind
+  'garage_row', nudge kinds 'garage_card' / 'garage_row' / 'garage_series',
+  badge 'garage_legend', scratch outcome 'garage_card', challenge reward
+  'garage_cards'). Rules in `lib/garage.ts`, module `modules/garage`.
+  Behind the rewards switches plus its own (`settings.garage.enabled`,
+  default off).
   - One card per stamp-earning booking (once per chain), plus a scratch
     card's Garage card (its own chance, default 3%, drawn before the prize
     table), a challenge's "Garage cards ×N" and a card per badge. Odds
@@ -40,19 +42,22 @@ reconstructing every change in them.
     (inside the monthly budget, else a bonus stamp); the series gives the
     Garage Legend badge and a completion record. Every number is a rewards
     setting (versioned, audit-logged).
+  - Cards are the licensed card photos (`packages/core/src/card-cars.ts`)
+    with names of Detlio's own (a deny-list of real makes and models is run
+    on every word) and honest photo facts (colour, setting); speeds, power
+    and times are refused.
   - Customer `GET /users/me/rewards/garage` (album: missing cards carry only
-    their number, rarity and tone), `GET …/pulls`, `POST …/pulls/seen`;
+    their number, rarity and photo id), `GET …/pulls`, `POST …/pulls/seen`;
     `GET /rewards/config` adds `garage.live`; a scratched Garage card answers
-    its car (`garagePull`). Pushes and Updates rows for a new car, a row and
+    its card (`garagePull`). Pushes and Updates rows for a new car, a row and
     the series (celebrations: no nudge gap), 08:00–20:59 IST or the cron's
     morning run; the cron also catches up missed pulls.
   - Admin `/admin/rewards/garage` (super-admin, typed name, audit
     `garage_series_updated` / `garage_car_updated` / `garage_art_changed` /
-    `garage_card_given`): series, cars (names checked against a deny-list of
-    real makes and models), art (AI with two options, a one-picture bulk
-    fill, WebP upload, reset), figures and the pulls CSV, a card by hand.
-  - `lib/ai-images.ts` `generatePictures` takes a count (the bulk fill makes
-    one); `lib/storage.ts` adds `createPresignedPutForKey`.
+    `garage_card_given`): series, cards (photo, name, rarity, colour,
+    setting, line, on/off; a WebP upload for a future series, reset to the
+    photo), figures and the pulls CSV, a card by hand. No AI art.
+  - `lib/storage.ts` adds `createPresignedPutForKey`.
 
 - **Printed coupons with QR codes: print a batch, scan to redeem in the
   app, track each giveaway** (migration `0056_printed_coupons`, additive,

@@ -2,25 +2,25 @@
  * A Detlio Garage card (0057) as an Instagram picture, drawn on the
  * customer's phone: a Story (1080×1920) or a Post (1080×1350), the card in
  * the middle on a backdrop lit in its rarity's colour, "Collected on Detlio"
- * above it and "Book on detlio.com" on the red pill under it. Drawn from the
- * same numbers as the screen (lib/garage-card.ts, card units: the card is
- * 100 wide). Only the card's own words go in it, and the sharer's first name
- * when they tick it: never a phone, a booking or a code. The car is the
- * card's fictional one (its drawn picture, or the team's art of it).
+ * above it, the illustration line and "Book on detlio.com" on the red pill
+ * under it. Drawn from the same numbers as the screen (lib/garage-card.ts,
+ * card units: the card is 100 wide). The photo is the card's licensed photo
+ * at 1600 px, same-origin, so the canvas stays exportable. Only the card's
+ * own words go in it, and the sharer's first name when they tick it: never a
+ * phone, a booking or a code.
  */
 import type { GarageOwnedCar } from '@repo/core/api/garage'
-import { garageCarDataUrl } from '@repo/core/garage-art'
-import { cardNumber, copiesLabel, RARITY_LOOKS } from '@repo/core/garage'
+import { cardCarSrc } from '@repo/core/card-cars'
+import { cardNumber, copiesLabel, ILLUSTRATION_LINE, RARITY_LOOKS } from '@repo/core/garage'
 import { SHARE_FORMATS, type ShareFormat } from './premium-card'
-import { carArtSrc, GARAGE_CARD as C, GARAGE_SHARE, TONE_LOOKS } from './garage-card'
+import { carArtSrc, cardPhoto, GARAGE_CARD as C, GARAGE_SHARE, TONE_LOOKS } from './garage-card'
 import { canvasFile, fontFamilies, roundRect, shareImageFile, type ShareOutcome } from './share-image'
 
 type Fonts = { text: string; figures: string }
 
-function loadImage(src: string, cors: boolean): Promise<HTMLImageElement> {
+function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    if (cors) img.crossOrigin = 'anonymous'
     img.decoding = 'async'
     img.onload = () => resolve(img)
     img.onerror = () => reject(new Error("Couldn't load the car picture"))
@@ -28,64 +28,47 @@ function loadImage(src: string, cors: boolean): Promise<HTMLImageElement> {
   })
 }
 
-/** The card's picture: the team's art (served for canvas use), else the drawn one, which always loads. */
-async function carPicture(car: GarageOwnedCar): Promise<{ img: HTMLImageElement; photo: boolean }> {
-  const src = carArtSrc(car)
-  if (car.art.url) {
+/** The card's picture: a future series' upload when it loads for a canvas, else the pool photo (same-origin, always). */
+async function carPicture(car: GarageOwnedCar): Promise<HTMLImageElement> {
+  if (car.art.source === 'upload' && car.art.url) {
     try {
-      return { img: await loadImage(src, true), photo: true }
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('upload'))
+        img.src = carArtSrc(car, 1600)
+      })
+      return img
     } catch {
-      // A bucket without CORS for canvases: the drawn picture of the same car instead.
+      // A bucket without CORS for canvases: the pool photo instead.
     }
   }
-  const drawn = garageCarDataUrl({ number: car.number, series: car.series, paint: car.paint, tone: car.tone, rarity: car.rarity })
-  return { img: await loadImage(drawn, false), photo: false }
+  return loadImage(cardCarSrc(cardPhoto(car.photoId), 1600))
 }
 
-/** Text with its figures in the numeric face. */
-function drawMixed(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, fonts: Fonts, weight: number, size: number) {
-  let at = x
-  text.split(/(\d[\d.,–]*)/).forEach((part, i) => {
-    if (!part) return
-    ctx.font = `${weight} ${size}px ${i % 2 === 1 ? fonts.figures : fonts.text}`
-    ctx.fillText(part, at, y)
-    at += ctx.measureText(part).width
-  })
-  return at - x
+/** "50% 40%" → [0.5, 0.4]. */
+function position(value: string): [number, number] {
+  const [x, y] = value.split(/\s+/).map((part) => Number.parseFloat(part) / 100)
+  return [Number.isFinite(x) ? x : 0.5, Number.isFinite(y) ? y : 0.5]
 }
 
-function measureMixed(ctx: CanvasRenderingContext2D, text: string, fonts: Fonts, weight: number, size: number) {
-  let width = 0
-  text.split(/(\d[\d.,–]*)/).forEach((part, i) => {
-    if (!part) return
-    ctx.font = `${weight} ${size}px ${i % 2 === 1 ? fonts.figures : fonts.text}`
-    width += ctx.measureText(part).width
-  })
-  return width
-}
-
-function wrap(ctx: CanvasRenderingContext2D, text: string, max: number, lines: number): string[] {
-  const words = text.split(' ')
-  const out: string[] = []
-  let line = ''
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word
-    if (ctx.measureText(next).width <= max) line = next
-    else {
-      out.push(line)
-      line = word
-      if (out.length === lines) break
-    }
-  }
-  if (out.length < lines && line) out.push(line)
-  return out.slice(0, lines)
+/** Draws `img` covering w × h at x, y, cropped at the CSS object-position. */
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, at: [number, number]) {
+  const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+  const sw = w / scale
+  const sh = h / scale
+  const sx = (img.naturalWidth - sw) * at[0]
+  const sy = (img.naturalHeight - sh) * at[1]
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h)
 }
 
 /** Draws the card at x, y, `width` px wide, in card units throughout (the CSS's numbers). */
 export async function drawGarageCard(ctx: CanvasRenderingContext2D, car: GarageOwnedCar, x: number, y: number, width: number, fonts: Fonts) {
-  const { img, photo } = await carPicture(car)
+  const img = await carPicture(car)
+  const photo = cardPhoto(car.photoId)
   const u = width / 100
-  const tone = TONE_LOOKS[car.tone]
+  const tone = TONE_LOOKS[photo.tone]
   const look = RARITY_LOOKS[car.rarity]
   ctx.save()
   ctx.translate(x, y)
@@ -103,7 +86,7 @@ export async function drawGarageCard(ctx: CanvasRenderingContext2D, car: GarageO
   ctx.fillStyle = metal
   ctx.fill()
 
-  // The face: ground, studio light, floor.
+  // The face: ground, then the photo fading into it.
   const f = C.frame
   const fw = 100 - f * 2
   const fh = C.height - f * 2
@@ -113,40 +96,35 @@ export async function drawGarageCard(ctx: CanvasRenderingContext2D, car: GarageO
   ctx.clip()
   const ground = ctx.createLinearGradient(0, 0, 0, fh)
   ground.addColorStop(0, tone.ground[0])
-  ground.addColorStop(0.48, tone.ground[1])
+  ground.addColorStop(0.55, tone.ground[1])
   ground.addColorStop(1, tone.ground[2])
   ctx.fillStyle = ground
   ctx.fillRect(0, 0, fw, fh)
-  ctx.save()
-  ctx.translate(fw / 2, 38)
-  ctx.scale(1, 34 / 70)
-  const light = ctx.createRadialGradient(0, 0, 0, 0, 0, 70)
-  light.addColorStop(0, tone.light)
-  light.addColorStop(0.72, 'rgba(0,0,0,0)')
-  ctx.fillStyle = light
-  ctx.fillRect(-70, -70, 140, 140)
-  ctx.restore()
-
-  // The car.
-  if (photo) {
-    ctx.drawImage(img, 0, 11 - f, fw, 50)
-  } else {
-    const artW = C.art.width
-    ctx.drawImage(img, C.art.left - f, C.art.top - f, artW, artW / C.art.aspect)
-  }
+  drawCover(ctx, img, 0, 0, fw, C.photo.height, position(photo.position))
+  const fade = ctx.createLinearGradient(0, C.photo.height * 0.72, 0, C.photo.height)
+  fade.addColorStop(0, 'rgba(0,0,0,0)')
+  fade.addColorStop(1, tone.ground[1])
+  ctx.fillStyle = fade
+  ctx.fillRect(0, C.photo.height * 0.72 - 0.5, fw, C.photo.height * 0.28 + 1)
+  const wash = ctx.createLinearGradient(0, 0, 0, 22)
+  wash.addColorStop(0, 'rgba(0,0,0,0.55)')
+  wash.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = wash
+  ctx.fillRect(0, 0, fw, 22)
 
   const L = C.pad - f
   ctx.textBaseline = 'alphabetic'
   // Wordmark and number.
-  ctx.fillStyle = tone.ink
+  ctx.fillStyle = '#F5F6F8'
   ctx.font = `600 3.4px ${fonts.text}`
   ctx.fillText('Detlio', L, 8.4)
   const markW = ctx.measureText('Detlio').width
   ctx.fillStyle = '#E4002B'
   ctx.fillText('.', L + markW, 8.4)
-  ctx.fillStyle = tone.sub
+  ctx.fillStyle = 'rgba(245,246,248,0.75)'
   ctx.font = `500 3.4px ${fonts.text}`
   ctx.fillText(' Garage', L + markW + ctx.measureText('.').width, 8.4)
+  ctx.fillStyle = 'rgba(245,246,248,0.85)'
   ctx.font = `600 3.4px ${fonts.figures}`
   ctx.textAlign = 'right'
   ctx.fillText(cardNumber(car.number, car.total), fw - L, 8.4)
@@ -180,15 +158,12 @@ export async function drawGarageCard(ctx: CanvasRenderingContext2D, car: GarageO
   ctx.font = `700 ${C.name.size}px ${fonts.text}`
   ctx.fillText(car.name, L, C.name.top - f + 7.4, fw - L * 2)
 
-  // The chips, wrapping onto a second row.
+  // Colour and setting.
   let chipX = L
-  let chipY = C.chips.top - f
-  for (const stat of car.stats) {
-    const w = measureMixed(ctx, stat, fonts, 500, C.chips.size) + 4.4
-    if (chipX + w > fw - L) {
-      chipX = L
-      chipY += C.chips.row
-    }
+  const chipY = C.chips.top - f
+  ctx.font = `500 ${C.chips.size}px ${fonts.text}`
+  for (const text of [car.colour, car.setting]) {
+    const w = ctx.measureText(text).width + 4.4
     roundRect(ctx, chipX, chipY, w, C.chips.height, C.chips.height / 2)
     ctx.fillStyle = tone.chipBg
     ctx.fill()
@@ -196,7 +171,7 @@ export async function drawGarageCard(ctx: CanvasRenderingContext2D, car: GarageO
     ctx.lineWidth = 0.28
     ctx.stroke()
     ctx.fillStyle = tone.chipText
-    drawMixed(ctx, stat, chipX + 2.2, chipY + 4.25, fonts, 500, C.chips.size)
+    ctx.fillText(text, chipX + 2.2, chipY + 4.25)
     chipX += w + C.chips.gap
   }
 
@@ -213,9 +188,26 @@ export async function drawGarageCard(ctx: CanvasRenderingContext2D, car: GarageO
   ctx.restore()
 }
 
+function wrap(ctx: CanvasRenderingContext2D, text: string, max: number, lines: number): string[] {
+  const words = text.split(' ')
+  const out: string[] = []
+  let line = ''
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word
+    if (ctx.measureText(next).width <= max) line = next
+    else {
+      out.push(line)
+      line = word
+      if (out.length === lines) break
+    }
+  }
+  if (out.length < lines && line) out.push(line)
+  return out.slice(0, lines)
+}
+
 const LAYOUT: Record<ShareFormat, { card: number; top: number; heading: number; pillGap: number; pillH: number; pillFont: number }> = {
-  story: { card: 760, top: 400, heading: 250, pillGap: 92, pillH: 96, pillFont: 38 },
-  post: { card: 640, top: 210, heading: 120, pillGap: 54, pillH: 84, pillFont: 34 },
+  story: { card: 760, top: 400, heading: 250, pillGap: 120, pillH: 96, pillFont: 38 },
+  post: { card: 620, top: 196, heading: 118, pillGap: 74, pillH: 80, pillFont: 32 },
 }
 
 /** The whole picture: backdrop, "Collected on Detlio", the card, the pill. */
@@ -290,6 +282,13 @@ export async function drawGarageShareImage(canvas: HTMLCanvasElement, car: Garag
   ctx.fill()
   ctx.restore()
   await drawGarageCard(ctx, car, x, y, cardW, fonts)
+
+  // The illustration line: the photo is of a real car.
+  ctx.fillStyle = 'rgba(200,204,212,0.75)'
+  ctx.font = `500 ${format === 'story' ? 26 : 22}px ${fonts.text}`
+  ctx.textAlign = 'center'
+  ctx.fillText(ILLUSTRATION_LINE, W / 2, y + cardH + (format === 'story' ? 58 : 40))
+  ctx.textAlign = 'left'
 
   // "Book on detlio.com": the red pill every Detlio picture carries.
   ctx.font = `600 ${layout.pillFont}px ${fonts.text}`

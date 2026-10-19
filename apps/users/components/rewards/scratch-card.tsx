@@ -13,7 +13,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { livePendingCheckout, usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { cn } from '@repo/core/utils'
 import { PremiumCard } from '@/components/premium-card/premium-card'
-import { GarageCard, GarageCardBack } from '@/components/garage/garage-card'
+import { GarageCard, GarageCardBack, IllustrationLine } from '@/components/garage/garage-card'
 import { ShareCardImage } from '@/components/premium-card/share-card-image'
 import { JACKPOT_CONFETTI_COLORS, burstConfetti } from '@/lib/confetti'
 import { prizeCardSpec, type PremiumCardSpec } from '@/lib/premium-card'
@@ -221,7 +221,10 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
           <div className="absolute inset-0" aria-live="polite">
             {garage ? (
               <div className={cn('absolute inset-0 grid place-items-center rounded-[12px] bg-[radial-gradient(70%_60%_at_50%_45%,#24262D,#0B0C0F)]', showPrize && 'scratch-card__prize--in')}>
-                <div className="w-[64%]">{result?.garagePull ? <GarageCard car={result.garagePull.car} /> : <GarageCardBack />}</div>
+                <div className="flex w-[64%] flex-col items-center gap-1.5">
+                  {result?.garagePull ? <GarageCard car={result.garagePull.car} /> : <GarageCardBack />}
+                  {result?.garagePull && <IllustrationLine className="text-[9px]" />}
+                </div>
               </div>
             ) : spec ? (
               <PrizeFace spec={spec} revealed={showPrize} />

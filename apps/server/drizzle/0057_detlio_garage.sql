@@ -1,5 +1,5 @@
--- The Detlio Garage: a collectible series of fictional hypercar cards
--- customers earn by booking through Detlio (owner, 18 Oct 2026). Rules in
+-- The Detlio Garage: a collectible series of supercar photo cards
+-- customers earn by booking through Detlio (owner, 18–19 Oct 2026). Rules in
 -- lib/garage.ts, Series 1 in lib/garage-series.ts, module modules/garage.
 -- On top of Detlio Rewards (0050) and its extras (0054), behind the same
 -- switches plus the Garage's own (settings.garage.enabled, off by
@@ -10,12 +10,13 @@
 --   - `garage_series`: a series (number, name, draft/live/ended, optional
 --     start and end). Series 1 is seeded live; the team turns the Garage on
 --     in admin.
---   - `garage_cars`: its cars, numbered 1–40 (rows of five by number):
---     invented name, rarity, the card's tone, paint (the drawn picture's
---     colour), colour name, three stat chips, a one-line story, on/off, and
---     the picture: `default` (drawn from numbers, no URL), `ai` or
---     `upload` (a public R2 URL under garage/series-<n>/). Series 1's 40
---     cars are seeded (20 Common, 12 Rare, 6 Epic, 2 Legendary).
+--   - `garage_cars`: its cars, numbered 1–40 (rows of five by number): an
+--     invented series name, rarity, the card's photo by its id in the card
+--     photo pool (the licensed photos the premium cards use; never a URL),
+--     the photo's colour and setting, a one-line story, on/off, and an
+--     uploaded picture (a public R2 URL under garage/series-<n>/) when the
+--     team gives a future series its own art. Series 1's 40 cars are seeded
+--     (20 Common, 12 Rare, 6 Epic, 2 Legendary).
 --   - `garage_pulls`: every card a customer got, with where it came from
 --     (a booking, a scratch card, a challenge, a badge, the team), its
 --     rarity, whether it was a duplicate (and when a duplicate went into a
@@ -70,13 +71,12 @@ CREATE TABLE IF NOT EXISTS "garage_cars" (
   "number" smallint NOT NULL,
   "name" varchar(28) NOT NULL,
   "rarity" text NOT NULL,
-  "tone" text NOT NULL,
-  "paint" varchar(7) NOT NULL,
+  "photo_id" varchar(60) NOT NULL,
   "colour" varchar(24) NOT NULL,
-  "stats" text[] NOT NULL,
+  "setting" varchar(24) NOT NULL,
   "lore" varchar(110) NOT NULL,
   "enabled" boolean DEFAULT true NOT NULL,
-  "art_source" text DEFAULT 'default' NOT NULL,
+  "art_source" text DEFAULT 'photo' NOT NULL,
   "art_url" text,
   "art_updated_at" timestamp with time zone,
   "art_updated_by" varchar(100),
@@ -87,12 +87,11 @@ CREATE TABLE IF NOT EXISTS "garage_cars" (
     ON DELETE restrict ON UPDATE no action,
   CONSTRAINT "garage_cars_number_check" CHECK ("number" BETWEEN 1 AND 40),
   CONSTRAINT "garage_cars_rarity_check" CHECK ("rarity" IN ('common', 'rare', 'epic', 'legendary')),
-  CONSTRAINT "garage_cars_tone_check" CHECK ("tone" IN ('light', 'dark')),
-  CONSTRAINT "garage_cars_paint_check" CHECK ("paint" ~ '^#[0-9A-Fa-f]{6}$'),
-  CONSTRAINT "garage_cars_stats_check" CHECK (array_length("stats", 1) = 3),
-  CONSTRAINT "garage_cars_art_source_check" CHECK ("art_source" IN ('default', 'ai', 'upload')),
-  -- A drawn picture has no URL; AI and uploaded ones always do.
-  CONSTRAINT "garage_cars_art_url_check" CHECK (("art_source" = 'default') = ("art_url" IS NULL))
+  -- The card photo pool's id (packages/core/src/card-cars.ts): never a URL.
+  CONSTRAINT "garage_cars_photo_id_check" CHECK ("photo_id" ~ '^[a-z0-9-]{2,60}$'),
+  CONSTRAINT "garage_cars_art_source_check" CHECK ("art_source" IN ('photo', 'upload')),
+  -- The pool photo has no URL here; an uploaded picture always does.
+  CONSTRAINT "garage_cars_art_url_check" CHECK (("art_source" = 'upload') = ("art_url" IS NOT NULL))
 );--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS "garage_cars_series_number_key" ON "garage_cars" ("series_id", "number");--> statement-breakpoint
@@ -344,95 +343,96 @@ ALTER TABLE "reward_challenges" ADD CONSTRAINT "reward_challenges_reward_check" 
   AND ("reward_kind" <> 'voucher' OR "max_winners" IS NOT NULL)
 );--> statement-breakpoint
 
--- ─── Series 1: 40 fictional hypercars ────────────────────────────────────────
--- Invented names only (garage-series.test.ts runs a deny-list of real makes
--- and models over every name and line, and holds these rows to the list in
--- lib/garage-series.ts). Edited by the team in admin afterwards.
+-- ─── Series 1: 40 cards ─────────────────────────────────────────────────────
+-- Each a licensed card photo by id. Names never hint at a maker or model
+-- (garage-series.test.ts runs a deny-list of real makes and models over every
+-- word, and holds these rows to the list in lib/garage-series.ts). Edited by
+-- the team in admin afterwards.
 
 INSERT INTO "garage_series" ("id", "number", "name", "status", "updated_by")
 VALUES ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 1, 'Series 1', 'live', 'Detlio (0057)')
 ON CONFLICT ("id") DO NOTHING;--> statement-breakpoint
 
-INSERT INTO "garage_cars" ("series_id", "number", "name", "rarity", "tone", "paint", "colour", "stats", "lore")
+INSERT INTO "garage_cars" ("series_id", "number", "name", "rarity", "photo_id", "colour", "setting", "lore")
 VALUES
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 1, 'Marina Drift', 'common', 'light', '#6FAFA6', 'Sea Glass',
-   ARRAY['0–100: 3.9 s', 'Top speed: 298 km/h', 'Colour: Sea Glass'], 'Built for slow evening laps along the beach road, windows down.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 2, 'Chai Racer', 'common', 'light', '#6E8B4E', 'Cardamom Green',
-   ARRAY['0–100: 4.1 s', 'Top speed: 286 km/h', 'Colour: Cardamom Green'], 'Never misses the four o’clock chai stop, however late the meeting runs.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 3, 'Saffron Arrow', 'rare', 'dark', '#F29A1F', 'Festival Saffron',
-   ARRAY['0–100: 3.2 s', 'Top speed: 322 km/h', 'Colour: Festival Saffron'], 'Painted the shade of a festival sky at dusk.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 4, 'Copper Kite', 'common', 'light', '#B8693D', 'Burnished Copper',
-   ARRAY['0–100: 3.8 s', 'Top speed: 301 km/h', 'Colour: Burnished Copper'], 'Light as a paper kite, and just as hard to catch on a windy day.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 5, 'Crimson Talon', 'epic', 'dark', '#A3172B', 'Temple Crimson',
-   ARRAY['0–100: 2.6 s', 'Top speed: 352 km/h', 'Colour: Temple Crimson'], 'Its headlights narrow like a hawk’s eyes at every green light.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 6, 'Coastal Glide', 'common', 'light', '#3B6FA8', 'Bay Blue',
-   ARRAY['0–100: 3.7 s', 'Top speed: 304 km/h', 'Colour: Bay Blue'], 'Tuned on the coast road, one sea breeze at a time.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 7, 'Monsoon GT', 'rare', 'dark', '#0F7A78', 'Monsoon Teal',
-   ARRAY['0–100: 3.1 s', 'Top speed: 326 km/h', 'Colour: Monsoon Teal'], 'Loves the first rain of June more than anyone in the city.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 8, 'Pebble Hopper', 'common', 'light', '#8E918C', 'River Pebble',
-   ARRAY['0–100: 4.2 s', 'Top speed: 280 km/h', 'Colour: River Pebble'], 'Small, round and cheerful, like a stone skipping across a lake.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 9, 'Neem Flicker', 'common', 'light', '#4E8A3A', 'Neem Green',
-   ARRAY['0–100: 3.9 s', 'Top speed: 292 km/h', 'Colour: Neem Green'], 'Parks in the shade of the same neem tree every afternoon.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 10, 'Kaveri Surge', 'rare', 'dark', '#566C7E', 'River Slate',
-   ARRAY['0–100: 3.0 s', 'Top speed: 331 km/h', 'Colour: River Slate'], 'Named after the river, and just as hard to hold back.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 11, 'Harbour Flash', 'common', 'light', '#4F5965', 'Harbour Grey',
-   ARRAY['0–100: 3.6 s', 'Top speed: 306 km/h', 'Colour: Harbour Grey'], 'Gone before the ferry horn has finished sounding.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 12, 'Mango Zing', 'common', 'dark', '#F2B705', 'Alphonso Yellow',
-   ARRAY['0–100: 3.8 s', 'Top speed: 296 km/h', 'Colour: Alphonso Yellow'], 'The colour of the first mango of summer.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 13, 'Peacock Blade', 'rare', 'dark', '#0B6FA4', 'Peacock Blue',
-   ARRAY['0–100: 3.1 s', 'Top speed: 328 km/h', 'Colour: Peacock Blue'], 'Shows off its colours whenever it rains.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 14, 'Kanjeevaram Silk', 'epic', 'dark', '#8E1F5C', 'Silk Magenta',
-   ARRAY['0–100: 2.5 s', 'Top speed: 348 km/h', 'Colour: Silk Magenta'], 'Woven like a wedding saree: every panel has a shine of its own.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 15, 'Kolam Swirl', 'common', 'dark', '#ECE7DC', 'Rice Flour White',
-   ARRAY['0–100: 4.0 s', 'Top speed: 289 km/h', 'Colour: Rice Flour White'], 'Leaves a neat pattern of tyre tracks at every sunrise.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 16, 'Ghat Road Rally', 'rare', 'light', '#5E7F6B', 'Eucalyptus',
-   ARRAY['0–100: 3.3 s', 'Top speed: 318 km/h', 'Colour: Eucalyptus'], 'Counts hairpin bends the way others count sheep.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 17, 'Filter Coffee GT', 'common', 'light', '#5A3A26', 'Decoction Brown',
-   ARRAY['0–100: 3.9 s', 'Top speed: 294 km/h', 'Colour: Decoction Brown'], 'Strong, smooth and best enjoyed early in the morning.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 18, 'Jasmine Glint', 'common', 'dark', '#F3EFE4', 'Jasmine White',
-   ARRAY['0–100: 4.1 s', 'Top speed: 284 km/h', 'Colour: Jasmine White'], 'Smells faintly of jasmine, and nobody knows why.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 19, 'Coromandel Flyer', 'rare', 'dark', '#13A3A0', 'Coast Turquoise',
-   ARRAY['0–100: 3.0 s', 'Top speed: 333 km/h', 'Colour: Coast Turquoise'], 'Races the sunrise up the coast, and usually wins.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 20, 'Chola Thunder', 'legendary', 'dark', '#B07A2A', 'Temple Bronze',
-   ARRAY['0–100: 2.1 s', 'Top speed: 404 km/h', 'Colour: Temple Bronze'], 'Carved like a temple chariot, built to cross an empire in an afternoon.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 21, 'Rangoli Twist', 'common', 'light', '#D9507F', 'Rangoli Pink',
-   ARRAY['0–100: 3.8 s', 'Top speed: 297 km/h', 'Colour: Rangoli Pink'], 'Comes alive at Diwali, like every doorstep in town.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 22, 'Teal Tide', 'common', 'light', '#2A9D8F', 'Lagoon Teal',
-   ARRAY['0–100: 3.7 s', 'Top speed: 302 km/h', 'Colour: Lagoon Teal'], 'Arrives quietly, then suddenly it is everywhere, like the evening tide.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 23, 'Midnight Current', 'rare', 'light', '#1B2A5C', 'Midnight Blue',
-   ARRAY['0–100: 3.1 s', 'Top speed: 329 km/h', 'Colour: Midnight Blue'], 'Hums along empty flyovers long after the city sleeps.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 24, 'Silver Sparrow', 'common', 'dark', '#B7BCC4', 'Sparrow Silver',
-   ARRAY['0–100: 4.0 s', 'Top speed: 288 km/h', 'Colour: Sparrow Silver'], 'Small, quick and never far from home.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 25, 'Solar Flare', 'epic', 'dark', '#FF5A1F', 'Flare Orange',
-   ARRAY['0–100: 2.7 s', 'Top speed: 356 km/h', 'Colour: Flare Orange'], 'So bright that the parking attendant reaches for sunglasses.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 26, 'Banyan Loop', 'common', 'light', '#6B6B3A', 'Banyan Olive',
-   ARRAY['0–100: 4.0 s', 'Top speed: 287 km/h', 'Colour: Banyan Olive'], 'Takes the long way round, under every banyan it can find.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 27, 'Emerald Parakeet', 'rare', 'dark', '#1E9E55', 'Parakeet Green',
-   ARRAY['0–100: 3.2 s', 'Top speed: 321 km/h', 'Colour: Parakeet Green'], 'A chatty exhaust and a bright green coat: impossible to ignore.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 28, 'Gulmohar Ember', 'common', 'light', '#C8402A', 'Gulmohar Red',
-   ARRAY['0–100: 3.6 s', 'Top speed: 305 km/h', 'Colour: Gulmohar Red'], 'Blooms red every May, right on time.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 29, 'Nilgiri Mist', 'rare', 'light', '#7F97AA', 'Hill Mist Blue',
-   ARRAY['0–100: 3.3 s', 'Top speed: 316 km/h', 'Colour: Hill Mist Blue'], 'Climbs into the clouds and comes back smelling of tea leaves.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 30, 'Obsidian Halo', 'epic', 'dark', '#17181D', 'Obsidian Black',
-   ARRAY['0–100: 2.4 s', 'Top speed: 361 km/h', 'Colour: Obsidian Black'], 'Seen only as a glow of headlights on a moonless night.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 31, 'Pearl Bay Skimmer', 'common', 'dark', '#E6E9EC', 'Pearl White',
-   ARRAY['0–100: 3.9 s', 'Top speed: 293 km/h', 'Colour: Pearl White'], 'Skims the coast road like a stone across still water.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 32, 'Tamarind Zip', 'common', 'light', '#7A4B2A', 'Tamarind Brown',
-   ARRAY['0–100: 3.7 s', 'Top speed: 299 km/h', 'Colour: Tamarind Brown'], 'A little sour, a little sweet, very quick off the line.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 33, 'Indigo Rapids', 'rare', 'dark', '#3A2E9C', 'Deep Indigo',
-   ARRAY['0–100: 3.0 s', 'Top speed: 334 km/h', 'Colour: Deep Indigo'], 'White-water quick, deep-indigo calm.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 34, 'Sandstone Roamer', 'common', 'dark', '#C8A77E', 'Desert Sandstone',
-   ARRAY['0–100: 4.1 s', 'Top speed: 285 km/h', 'Colour: Desert Sandstone'], 'Has seen every hill fort in the state, twice.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 35, 'Electric Firefly', 'epic', 'dark', '#A8D42A', 'Firefly Lime',
-   ARRAY['0–100: 2.6 s', 'Top speed: 350 km/h', 'Colour: Firefly Lime'], 'Glows a little brighter every time the power goes out.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 36, 'Rubyline', 'rare', 'light', '#9B111E', 'Ruby Red',
-   ARRAY['0–100: 3.1 s', 'Top speed: 327 km/h', 'Colour: Ruby Red'], 'Cut like a gemstone, with a red streak where its shadow should be.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 37, 'Moonlit Ferry', 'common', 'dark', '#A9B0BA', 'Moonstone Grey',
-   ARRAY['0–100: 3.8 s', 'Top speed: 295 km/h', 'Colour: Moonstone Grey'], 'Crosses town as calmly as the last ferry home.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 38, 'Himalayan Glacier', 'epic', 'dark', '#9FD3E6', 'Glacier Blue',
-   ARRAY['0–100: 2.5 s', 'Top speed: 358 km/h', 'Colour: Glacier Blue'], 'Cool under pressure, even in a Chennai May.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 39, 'Marina Nightfall', 'rare', 'light', '#4B2A5C', 'Dusk Purple',
-   ARRAY['0–100: 3.2 s', 'Top speed: 324 km/h', 'Colour: Dusk Purple'], 'Shows up just as the street lights come on along the beach.'),
-  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 40, 'Celestial Vimana', 'legendary', 'dark', '#D4AF37', 'Celestial Gold',
-   ARRAY['0–100: 1.9 s', 'Top speed: 418 km/h', 'Colour: Celestial Gold'], 'Said to have flown once, long ago. Nobody has proved otherwise.')
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 1, 'Marina Drift', 'common', 'red-rear', 'Colour', 'Studio',
+   'Built for slow evening laps along the beach road, windows down.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 2, 'Chai Racer', 'common', 'grey-coupe', 'Colour', 'Studio',
+   'Never misses the four o’clock chai stop, however late the meeting runs.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 3, 'Saffron Arrow', 'rare', 'silver-concept', 'Colour', 'Studio',
+   'Painted the shade of a festival sky at dusk.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 4, 'Copper Kite', 'common', 'white-track-rear', 'Colour', 'Studio',
+   'Light as a paper kite, and just as hard to catch on a windy day.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 5, 'Crimson Talon', 'epic', 'white-supercar-dark', 'Colour', 'Studio',
+   'Its headlights narrow like a hawk’s eyes at every green light.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 6, 'Coastal Glide', 'common', 'purple-hypercar', 'Colour', 'Studio',
+   'Tuned on the coast road, one sea breeze at a time.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 7, 'Monsoon GT', 'rare', 'red-rear', 'Colour', 'Studio',
+   'Loves the first rain of June more than anyone in the city.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 8, 'Pebble Hopper', 'common', 'grey-coupe', 'Colour', 'Studio',
+   'Small, round and cheerful, like a stone skipping across a lake.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 9, 'Neem Flicker', 'common', 'silver-concept', 'Colour', 'Studio',
+   'Parks in the shade of the same neem tree every afternoon.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 10, 'Kaveri Surge', 'rare', 'white-track-rear', 'Colour', 'Studio',
+   'Named after the river, and just as hard to hold back.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 11, 'Harbour Flash', 'common', 'white-supercar-dark', 'Colour', 'Studio',
+   'Gone before the ferry horn has finished sounding.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 12, 'Mango Zing', 'common', 'purple-hypercar', 'Colour', 'Studio',
+   'The colour of the first mango of summer.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 13, 'Peacock Blade', 'rare', 'red-rear', 'Colour', 'Studio',
+   'Shows off its colours whenever it rains.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 14, 'Kanjeevaram Silk', 'epic', 'grey-coupe', 'Colour', 'Studio',
+   'Woven like a wedding saree: every panel has a shine of its own.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 15, 'Kolam Swirl', 'common', 'silver-concept', 'Colour', 'Studio',
+   'Leaves a neat pattern of tyre tracks at every sunrise.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 16, 'Ghat Road Rally', 'rare', 'white-track-rear', 'Colour', 'Studio',
+   'Counts hairpin bends the way others count sheep.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 17, 'Filter Coffee GT', 'common', 'white-supercar-dark', 'Colour', 'Studio',
+   'Strong, smooth and best enjoyed early in the morning.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 18, 'Jasmine Glint', 'common', 'purple-hypercar', 'Colour', 'Studio',
+   'Smells faintly of jasmine, and nobody knows why.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 19, 'Coromandel Flyer', 'rare', 'red-rear', 'Colour', 'Studio',
+   'Races the sunrise up the coast, and usually wins.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 20, 'Chola Thunder', 'legendary', 'grey-coupe', 'Colour', 'Studio',
+   'Carved like a temple chariot, built to cross an empire in an afternoon.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 21, 'Rangoli Twist', 'common', 'silver-concept', 'Colour', 'Studio',
+   'Comes alive at Diwali, like every doorstep in town.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 22, 'Teal Tide', 'common', 'white-track-rear', 'Colour', 'Studio',
+   'Arrives quietly, then suddenly it is everywhere, like the evening tide.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 23, 'Midnight Current', 'rare', 'white-supercar-dark', 'Colour', 'Studio',
+   'Hums along empty flyovers long after the city sleeps.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 24, 'Silver Sparrow', 'common', 'purple-hypercar', 'Colour', 'Studio',
+   'Small, quick and never far from home.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 25, 'Solar Flare', 'epic', 'red-rear', 'Colour', 'Studio',
+   'So bright that the parking attendant reaches for sunglasses.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 26, 'Banyan Loop', 'common', 'grey-coupe', 'Colour', 'Studio',
+   'Takes the long way round, under every banyan it can find.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 27, 'Emerald Parakeet', 'rare', 'silver-concept', 'Colour', 'Studio',
+   'A chatty exhaust and a bright green coat: impossible to ignore.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 28, 'Gulmohar Ember', 'common', 'white-track-rear', 'Colour', 'Studio',
+   'Blooms red every May, right on time.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 29, 'Nilgiri Mist', 'rare', 'white-supercar-dark', 'Colour', 'Studio',
+   'Climbs into the clouds and comes back smelling of tea leaves.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 30, 'Obsidian Halo', 'epic', 'purple-hypercar', 'Colour', 'Studio',
+   'Seen only as a glow of headlights on a moonless night.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 31, 'Pearl Bay Skimmer', 'common', 'red-rear', 'Colour', 'Studio',
+   'Skims the coast road like a stone across still water.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 32, 'Tamarind Zip', 'common', 'grey-coupe', 'Colour', 'Studio',
+   'A little sour, a little sweet, very quick off the line.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 33, 'Indigo Rapids', 'rare', 'silver-concept', 'Colour', 'Studio',
+   'White-water quick, deep-indigo calm.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 34, 'Sandstone Roamer', 'common', 'white-track-rear', 'Colour', 'Studio',
+   'Has seen every hill fort in the state, twice.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 35, 'Electric Firefly', 'epic', 'white-supercar-dark', 'Colour', 'Studio',
+   'Glows a little brighter every time the power goes out.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 36, 'Rubyline', 'rare', 'purple-hypercar', 'Colour', 'Studio',
+   'Cut like a gemstone, with a red streak where its shadow should be.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 37, 'Moonlit Ferry', 'common', 'red-rear', 'Colour', 'Studio',
+   'Crosses town as calmly as the last ferry home.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 38, 'Himalayan Glacier', 'epic', 'grey-coupe', 'Colour', 'Studio',
+   'Cool under pressure, even in a Chennai May.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 39, 'Marina Nightfall', 'rare', 'silver-concept', 'Colour', 'Studio',
+   'Shows up just as the street lights come on along the beach.'),
+  ('5e1d0c4a-2b7e-4f39-9c1d-0057d1a10001', 40, 'Celestial Vimana', 'legendary', 'white-track-rear', 'Colour', 'Studio',
+   'Said to have flown once, long ago. Nobody has proved otherwise.')
 ON CONFLICT ("series_id", "number") DO NOTHING;

@@ -5,7 +5,7 @@ import {
   drawRarity,
   duplicateStars,
   garageArtKey,
-  garageArtPrompt,
+  ILLUSTRATION_LINE,
   garageSettings,
   garageSettingsProblems,
   GARAGE_RARITIES,
@@ -274,22 +274,24 @@ describe('fictional cars only', () => {
     expect(realCarNameIn('Tea leaves')).toBeNull()
   })
 
-  test('a car edit is held to the copy rules, the lengths and the deny-list', () => {
+  test('a card edit is held to the copy rules, the lengths, a pool photo id, the deny-list, and no made-up figures', () => {
     const ok = {
       name: 'Monsoon GT',
       rarity: 'rare' as const,
-      tone: 'dark' as const,
-      paint: '#0F7A78',
-      colour: 'Monsoon Teal',
-      stats: ['0–100: 3.1 s', 'Top speed: 326 km/h', 'Colour: Monsoon Teal'] as [string, string, string],
+      photoId: 'red-rear',
+      colour: 'Red',
+      setting: 'Studio',
       lore: 'Loves the first rain of June more than anyone in the city.',
       enabled: true,
     }
     expect(carProblems(ok)).toEqual([])
     expect(carProblems({ ...ok, name: 'Ferrari Rosso' }).join()).toContain('"ferrari" is a real car name')
-    expect(carProblems({ ...ok, lore: 'The cheapest hypercar in town, guaranteed.' }).join()).toContain("Detlio doesn't say")
-    expect(carProblems({ ...ok, paint: 'teal' }).join()).toContain('#0F7A78')
+    expect(carProblems({ ...ok, lore: 'The cheapest supercar in town, guaranteed.' }).join()).toContain("Detlio doesn't say")
+    expect(carProblems({ ...ok, photoId: 'https://x.test/a.webp' }).join()).toContain('Pick a photo')
     expect(carProblems({ ...ok, name: 'X' }).join()).toContain('The name is 2–28 characters')
+    // A recognisable car with invented numbers would mislead.
+    expect(carProblems({ ...ok, lore: 'Does 0–100 in 2.7 s and tops out at 342 km/h.' }).join()).toContain('No speeds, power or times')
+    expect(carProblems({ ...ok, setting: '800 hp' }).join()).toContain('No speeds, power or times')
   })
 })
 
@@ -303,21 +305,16 @@ describe('words', () => {
 })
 
 describe('art', () => {
-  test('the AI prompt is the fixed template: invented name, colour, tone; no logos or plates', () => {
-    const prompt = garageArtPrompt({ name: 'Monsoon GT', colour: 'Monsoon Teal', tone: 'dark' })
-    expect(prompt).toContain('fictional, unbranded hypercar named Monsoon GT')
-    expect(prompt).toContain('Monsoon Teal paint')
-    expect(prompt).toContain('no logos, no badges, no text, no letters, no number plate')
-    expect(prompt).toContain('dark charcoal seamless studio background')
-    expect(garageArtPrompt({ name: 'Kolam <b>Swirl</b> call 9000003701', colour: 'White', tone: 'light' })).not.toContain('<')
+  test('every card is shown with the illustration line', () => {
+    expect(ILLUSTRATION_LINE).toBe('Cars shown for illustration only. Not affiliated with any car maker.')
   })
 
-  test('keys: the chosen picture under garage/series-<n>/, waiting ones under ai-temp/garage/<car>/', () => {
+  test('keys: an uploaded picture under garage/series-<n>/, waiting uploads under ai-temp/garage/<car>/', () => {
     expect(garageArtKey(1, 7)).toBe('garage/series-1/07.webp')
     const car = 'e2e00000-0000-4000-8000-000000003701'
-    expect(isGarageTempKeyFor(`ai-temp/garage/${car}/e2e00000-0000-4000-8000-000000003799.webp`, car)).toBe(true)
     expect(isGarageTempKeyFor(`ai-temp/garage/${car}/upload-e2e00000-0000-4000-8000-000000003799.webp`, car)).toBe(true)
-    expect(isGarageTempKeyFor(`ai-temp/garage/other/e2e00000-0000-4000-8000-000000003799.webp`, car)).toBe(false)
+    expect(isGarageTempKeyFor(`ai-temp/garage/${car}/e2e00000-0000-4000-8000-000000003799.webp`, car)).toBe(false)
+    expect(isGarageTempKeyFor(`ai-temp/garage/other/upload-e2e00000-0000-4000-8000-000000003799.webp`, car)).toBe(false)
     expect(isGarageTempKeyFor(`ai-temp/garage/${car}/../x.webp`, car)).toBe(false)
   })
 
