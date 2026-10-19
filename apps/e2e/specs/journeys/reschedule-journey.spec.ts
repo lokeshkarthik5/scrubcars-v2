@@ -86,7 +86,9 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
   // the garage accepts the new time.
   await vendor.goto('/bookings?tab=new')
   await expect(
-    vendor.getByText(/The customer moved this booking to a new time/).first()
+    vendor
+      .locator(`#job-${movedId}`)
+      .getByText(/The customer moved this booking to a new time/)
   ).toBeVisible()
   await vendor
     .getByRole('button', {

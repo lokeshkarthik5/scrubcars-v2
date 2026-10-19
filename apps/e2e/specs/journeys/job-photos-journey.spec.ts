@@ -83,7 +83,7 @@ test.describe('job photo standards @p0', () => {
     await expect(start).toBeDisabled()
     // Listed beside the docked button, in the server's own words.
     await expect(
-      vendor.getByText('Add 2 before photos to start.')
+      vendor.getByText('Add 2 before photos to start.', { exact: true })
     ).toBeVisible()
     // The customer's photo is on the garage's page too: one record.
     await expect(
@@ -111,7 +111,9 @@ test.describe('job photo standards @p0', () => {
       .setInputFiles(PIXEL)
     await expect.poll(async () => (await byRole('garage')).length).toBe(1)
     await expect(
-      vendor.getByText('Add 1 more before photo to start.')
+      vendor.getByText('Add 1 more before photo to start.', {
+        exact: true,
+      })
     ).toBeVisible()
     await expect(start).toBeDisabled()
 

@@ -62,7 +62,7 @@ test.describe('garage Today view and job page @p0', () => {
     // Three hours to answer: further off than the window, so "By 1:15 pm".
     await expect(card.getByText(/^By \d{1,2}:\d{2} [ap]m$/)).toBeVisible()
     // The card says what the job is worth.
-    await expect(card.getByText('₹700')).toBeVisible()
+    await expect(card.getByText('₹700', { exact: true })).toBeVisible()
     await expect(
       card.getByRole('button', { name: `Accept booking for ${name}` })
     ).toBeVisible()
@@ -71,7 +71,9 @@ test.describe('garage Today view and job page @p0', () => {
     await expect(page.locator(`#job-${BOOKINGS.todayLater}`)).toBeVisible()
     await page.getByRole('radio', { name: /^Done/ }).click()
     await expect(
-      page.locator(`#job-${BOOKINGS.todayDone}`).getByText('Done')
+      page
+        .locator(`#job-${BOOKINGS.todayDone}`)
+        .getByText('Done', { exact: true })
     ).toBeVisible()
   })
 
@@ -84,8 +86,16 @@ test.describe('garage Today view and job page @p0', () => {
 
     await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
     const progress = page.getByRole('list', { name: 'Job progress' })
-    await expect(progress.getByText('Accepted')).toBeVisible()
-    await expect(progress.getByText('Done')).toBeVisible()
+    // Each step is named with its state; the one in hand is the current step.
+    await expect(
+      progress.getByRole('listitem', { name: 'Accepted: done' })
+    ).toBeVisible()
+    await expect(
+      progress.getByRole('listitem', { name: 'Before: now' })
+    ).toHaveAttribute('aria-current', 'step')
+    await expect(
+      progress.getByRole('listitem', { name: 'Done: to come' })
+    ).toBeVisible()
     // Only the photo step in hand: before photos, as two big tiles.
     await expect(
       page.getByRole('heading', { name: 'Before photos' })
@@ -99,7 +109,7 @@ test.describe('garage Today view and job page @p0', () => {
 
     // Start, then Undo inside the five seconds: nothing reaches the server.
     await page.getByRole('button', { name: `Start job for ${name}` }).click()
-    await expect(page.getByText('Job started')).toBeVisible()
+    await expect(page.getByText('Job started', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Undo' }).click()
     await page.waitForTimeout(PAST_UNDO_MS)
     expect(await statusOf(BOOKINGS.todayLate)).toBe('confirmed')
@@ -114,7 +124,7 @@ test.describe('garage Today view and job page @p0', () => {
       .getByRole('region', { name: 'Now' })
       .getByRole('button', { name: `Complete job for ${name}` })
       .click()
-    await expect(page.getByText('Job completed')).toBeVisible()
+    await expect(page.getByText('Job completed', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Undo' }).click()
     await page.waitForTimeout(PAST_UNDO_MS)
     expect(await statusOf(BOOKINGS.todayWorking)).toBe('in_progress')

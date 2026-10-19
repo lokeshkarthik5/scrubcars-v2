@@ -161,7 +161,14 @@ export function NewBookingCard({
             )}
             <span className="min-w-0">
               {BOOKING_TYPE_LABELS[b.bookingType]}
-              {b.jobLocation && ` · ${b.jobLocation.address}`}
+              {/* Its own element, so the address reads (and is found) as
+                  itself. On the job's page the address block below has it. */}
+              {b.jobLocation && !onPage && (
+                <>
+                  {' · '}
+                  <span>{b.jobLocation.address}</span>
+                </>
+              )}
               {km !== null && (
                 <span className="font-numeric">{` · ${km} km`}</span>
               )}

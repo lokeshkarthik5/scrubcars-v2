@@ -316,6 +316,12 @@ function Job({
   )
 }
 
+const STEP_STATE_WORDS = {
+  done: 'done',
+  current: 'now',
+  upcoming: 'to come',
+} as const
+
 /** Accepted → Before → Working → After → Done, or pickup & drop's own steps. */
 function Progress({
   booking: b,
@@ -344,6 +350,10 @@ function Progress({
       {steps.map((step, i) => (
         <li
           key={step.label}
+          // Named with its state ("Before: done"), and the one in hand is the
+          // current step, so the line reads the same without the picture.
+          aria-label={`${step.label}: ${STEP_STATE_WORDS[step.state]}`}
+          aria-current={step.state === 'current' ? 'step' : undefined}
           className="relative flex flex-1 flex-col items-center gap-1.5 text-center"
         >
           {i > 0 && (
@@ -383,13 +393,6 @@ function Progress({
             )}
           >
             {step.label}
-            <span className="sr-only">
-              {step.state === 'done'
-                ? ', done'
-                : step.state === 'current'
-                  ? ', now'
-                  : ''}
-            </span>
           </span>
         </li>
       ))}

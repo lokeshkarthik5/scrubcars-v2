@@ -48,7 +48,9 @@ test.describe('vendor booking lifecycle @p0', () => {
     // Tomorrow is outside the contact window: the card names the customer
     // and says, in one quiet line, when their number shows.
     const card = page.locator(`#job-${BOOKINGS.vendorIncoming}`)
-    await expect(card.getByText(CUSTOMERS.vendorJob.name).first()).toBeVisible()
+    await expect(
+      card.getByText(CUSTOMERS.vendorJob.name, { exact: true })
+    ).toBeVisible()
     await expect(
       card.getByText(/^Customer's number shows from \d{1,2}:\d{2} [ap]m/)
     ).toBeVisible()
@@ -66,7 +68,9 @@ test.describe('vendor booking lifecycle @p0', () => {
       new RegExp(`/bookings/${BOOKINGS.vendorIncoming}$`)
     )
     await expect(
-      page.getByText("Customer's number shows 2 hours before the job.")
+      page.getByText("Customer's number shows 2 hours before the job.", {
+        exact: true,
+      })
     ).toBeVisible()
     const support = await page
       .getByRole('link', {
@@ -89,7 +93,7 @@ test.describe('vendor booking lifecycle @p0', () => {
         name: `Start job for ${CUSTOMERS.vendorJob.name}`,
       })
       .click()
-    await expect(page.getByText('Job started')).toBeVisible()
+    await expect(page.getByText('Job started', { exact: true })).toBeVisible()
     await expect
       .poll(statusOf(BOOKINGS.vendorIncoming), AFTER_UNDO)
       .toBe('in_progress')
@@ -112,7 +116,9 @@ test.describe('vendor booking lifecycle @p0', () => {
     // contact-window tests below).
     await page.goto('/bookings?tab=done')
     await expect(
-      page.getByText(CUSTOMERS.vendorJob.name.split(' ')[0]).first()
+      page
+        .locator(`#job-${BOOKINGS.vendorIncoming}`)
+        .getByText('Done', { exact: true })
     ).toBeVisible()
     await page.goto(`/bookings/${BOOKINGS.vendorIncoming}`)
     await expect(
@@ -126,7 +132,11 @@ test.describe('vendor booking lifecycle @p0', () => {
     await page.goto('/bookings?tab=new')
 
     // Seeded pending and never touched, so it is always under New.
-    await expect(page.getByText('7, Lake View Road, Adyar')).toBeVisible()
+    await expect(
+      page
+        .locator(`#job-${BOOKINGS.vendorDoorstep}`)
+        .getByText('7, Lake View Road, Adyar', { exact: true })
+    ).toBeVisible()
 
     // To the customer's pin — deliberately not MAIN's own, so routing to the
     // garage by mistake would fail here.
@@ -144,7 +154,9 @@ test.describe('vendor booking lifecycle @p0', () => {
     // Tomorrow: outside the contact window, so no WhatsApp yet; the route
     // can be planned now and the customer called from 2 hours before.
     await expect(
-      page.getByText("Customer's number shows 2 hours before the job.")
+      page.getByText("Customer's number shows 2 hours before the job.", {
+        exact: true,
+      })
     ).toBeVisible()
     await expect(
       page.getByRole('link', {
@@ -160,7 +172,9 @@ test.describe('vendor booking lifecycle @p0', () => {
 
     // Seeded pending at MAIN an hour ago: Accept is gone, and the card says why.
     await expect(
-      page.getByText(/time has passed without being accepted/i).first()
+      page
+        .locator(`#job-${BOOKINGS.vendorStarted}`)
+        .getByText(/time has passed without being accepted/i)
     ).toBeVisible()
     await expect(
       page.getByRole('button', {
@@ -217,10 +231,10 @@ test.describe('vendor booking lifecycle @p0', () => {
     await expect(
       page
         .locator(`#job-${BOOKINGS.vendorRejectable}`)
-        .getByText('Rejected by you')
+        .getByText('Rejected by you', { exact: true })
     ).toBeVisible()
     await page.goto(`/bookings/${BOOKINGS.vendorRejectable}`)
-    await expect(page.getByText('Bay flooded')).toBeVisible()
+    await expect(page.getByText('Bay flooded', { exact: true })).toBeVisible()
     await expect(
       page.getByRole('link', { name: `Call ${CUSTOMERS.vendorReject.name}` })
     ).toHaveCount(0)
@@ -286,9 +300,13 @@ test.describe('job card contact windows @p0', () => {
       new RegExp(`/bookings/${BOOKINGS.contactLater}$`)
     )
     const card = page.locator('main')
-    await expect(card.getByText(CUSTOMERS.contact.name).first()).toBeVisible()
     await expect(
-      card.getByText("Customer's number shows 2 hours before the job.")
+      page.getByRole('heading', { level: 1, name: CUSTOMERS.contact.name })
+    ).toBeVisible()
+    await expect(
+      card.getByText("Customer's number shows 2 hours before the job.", {
+        exact: true,
+      })
     ).toBeVisible()
     await expect(
       card.getByRole('link', { name: `Call ${CUSTOMERS.contact.name}` })
@@ -309,14 +327,18 @@ test.describe('job card contact windows @p0', () => {
   }) => {
     await page.goto(`/bookings/${BOOKINGS.contactDoorstep}`)
     const card = page.locator('main')
-    await expect(card.getByText(CONTACT_DOORSTEP.address)).toBeVisible()
+    await expect(
+      card.getByText(CONTACT_DOORSTEP.address, { exact: true })
+    ).toBeVisible()
     await expect(
       card.getByRole('link', {
         name: `Open in Maps for ${CUSTOMERS.contact.name}`,
       })
     ).toBeVisible()
     await expect(
-      card.getByText("Customer's number shows 2 hours before the job.")
+      card.getByText("Customer's number shows 2 hours before the job.", {
+        exact: true,
+      })
     ).toBeVisible()
     await expect(
       card.getByRole('link', { name: `WhatsApp ${CUSTOMERS.contact.name}` })
@@ -327,7 +349,9 @@ test.describe('job card contact windows @p0', () => {
     await page.goto(`/bookings/${BOOKINGS.contactDone}`)
     const card = page.locator('main')
     await expect(
-      card.getByText("Customer's number is hidden after the job.")
+      card.getByText("Customer's number is hidden after the job.", {
+        exact: true,
+      })
     ).toBeVisible()
     await expect(
       card.getByRole('link', { name: `Call ${CUSTOMERS.contact.name}` })
