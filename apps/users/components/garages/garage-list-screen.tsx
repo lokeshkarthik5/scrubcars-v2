@@ -280,7 +280,10 @@ function GarageListContent() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="whitespace-nowrap text-[17px] font-medium text-text-primary">
+          {/* min-w-0, not whitespace-nowrap: at 360px the heading and the
+              Map and Sort pills don't fit on one line, so the heading wraps
+              rather than pushing the page sideways. */}
+          <h2 className="min-w-0 text-[17px] font-medium text-text-primary">
             Nearby garages
           </h2>
           <div className="flex shrink-0 items-center gap-2">
