@@ -7,14 +7,21 @@
  */
 import { test, expect } from '../../support/fixtures'
 import { openActors } from '../../support/journey'
-import { bookingsForUser, getBooking, getPayment, rescheduleChain } from '../../support/db'
+import {
+  bookingsForUser,
+  getBooking,
+  getPayment,
+  rescheduleChain,
+} from '../../support/db'
 import { CheckoutPage } from '../../pages/checkout.page'
 import { BookingPage } from '../../pages/booking.page'
 import { CUSTOMERS, SERVICES, VENDORS } from '../../support/seed-ids'
 
 test.describe.configure({ mode: 'serial' })
 
-test('a customer moves a booking and the garage sees the new slot @p0', async ({ browser }) => {
+test('a customer moves a booking and the garage sees the new slot @p0', async ({
+  browser,
+}) => {
   const { customer, vendor, close } = await openActors(
     browser,
     'customer-journeyMove',
@@ -32,11 +39,15 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
 
   // The garage accepts it before the customer moves it — the interesting case:
   // it agreed to the old time, so the move has to come back to it.
-  await vendor.goto('/bookings')
+  await vendor.goto('/bookings?tab=new')
   await vendor
-    .getByRole('button', { name: `Accept booking for ${CUSTOMERS.journeyMove.name}` })
+    .getByRole('button', {
+      name: `Accept booking for ${CUSTOMERS.journeyMove.name}`,
+    })
     .click()
-  await expect.poll(async () => (await getBooking(original.id))?.status).toBe('confirmed')
+  await expect
+    .poll(async () => (await getBooking(original.id))?.status)
+    .toBe('confirmed')
 
   // ── the move ─────────────────────────────────────────────────────────────
   const booking = new BookingPage(customer)
@@ -67,24 +78,36 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
 
   const chain = await rescheduleChain(original.id)
   expect(chain).toHaveLength(1)
-  expect(chain[0]).toMatchObject({ from_booking_id: original.id, to_booking_id: movedId })
+  expect(chain[0]).toMatchObject({
+    from_booking_id: original.id,
+    to_booking_id: movedId,
+  })
 
   // ── the garage's view ────────────────────────────────────────────────────
-  // The moved job is back under Incoming, saying the customer moved it, and
+  // The moved job is back under New, saying the customer moved it, and
   // the garage accepts the new time.
-  await vendor.goto('/bookings')
-  await expect(vendor.getByText(/The customer moved this booking to a new time/).first()).toBeVisible()
+  await vendor.goto('/bookings?tab=new')
+  await expect(
+    vendor
+      .locator(`#job-${movedId}`)
+      .getByText(/The customer moved this booking to a new time/)
+  ).toBeVisible()
   await vendor
-    .getByRole('button', { name: `Accept booking for ${CUSTOMERS.journeyMove.name}` })
+    .getByRole('button', {
+      name: `Accept booking for ${CUSTOMERS.journeyMove.name}`,
+    })
     .click()
-  await expect.poll(async () => (await getBooking(movedId))?.status).toBe('confirmed')
+  await expect
+    .poll(async () => (await getBooking(movedId))?.status)
+    .toBe('confirmed')
 
   // Exactly one live job for this customer: the moved one. The original must
   // not still be sitting in the list.
   await expect
     .poll(async () => {
       const rows = await bookingsForUser(CUSTOMERS.journeyMove.id)
-      return rows.filter((r) => ['pending', 'confirmed'].includes(r.status)).length
+      return rows.filter((r) => ['pending', 'confirmed'].includes(r.status))
+        .length
     })
     .toBe(1)
 

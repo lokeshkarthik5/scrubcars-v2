@@ -80,7 +80,9 @@ export default function VendorOnboardingStep2() {
       })
       router.push('/onboarding/step-3')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save. Please try again.')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save. Please try again.'
+      )
     } finally {
       setLoading(false)
     }
@@ -88,7 +90,11 @@ export default function VendorOnboardingStep2() {
 
   return (
     <AppShell className="gap-5 py-4">
-      <OnboardingHeader step={2} title="Your garage location" backHref="/onboarding/step-1" />
+      <OnboardingHeader
+        step={2}
+        title="Your garage location"
+        backHref="/onboarding/step-1"
+      />
 
       <section className="flex flex-col gap-3">
         <SectionHeader
@@ -123,7 +129,9 @@ export default function VendorOnboardingStep2() {
           placeholder="600001"
           className="font-numeric"
           value={pincode}
-          onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onChange={(e) =>
+            setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))
+          }
         />
 
         <ScInput
@@ -136,8 +144,16 @@ export default function VendorOnboardingStep2() {
       </ScCard>
 
       <ScButton
+        variant="main"
+        size="lg"
         className="mt-auto mb-4"
-        disabled={!pin || !address.trim() || !city.trim() || pincode.length !== 6 || loading}
+        disabled={
+          !pin ||
+          !address.trim() ||
+          !city.trim() ||
+          pincode.length !== 6 ||
+          loading
+        }
         onClick={handleContinue}
       >
         Continue

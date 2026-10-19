@@ -6,6 +6,7 @@ import { toast } from 'react-toastify'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { Chip } from '@repo/ui/sc/chip'
 import { EmptyState } from '@repo/ui/sc/empty-state'
 import { Figures } from '@repo/ui/sc/figures'
@@ -24,7 +25,12 @@ import { garageMediaApi, type MediaConfig } from '@repo/core/api/service-media'
 import { withMedia } from '@repo/core/service-media'
 import { ServiceMediaEditor } from '@repo/ui/features/service-media-editor'
 import { PRICING_TYPES, formatServicePrice } from '@repo/core/pricing'
-import type { PricingType, Service, ServiceMedia, ServicePackage } from '@repo/core/types'
+import type {
+  PricingType,
+  Service,
+  ServiceMedia,
+  ServicePackage,
+} from '@repo/core/types'
 import { RowAction } from './catalogue-row'
 
 type PackageForm = {
@@ -174,7 +180,8 @@ export function PackagesPanel({
         pkg.pricingType === 'flat' || pkg.pricingType === 'on_inspection'
           ? String(pkg.price)
           : '',
-      priceHatchback: pkg.priceHatchback != null ? String(pkg.priceHatchback) : '',
+      priceHatchback:
+        pkg.priceHatchback != null ? String(pkg.priceHatchback) : '',
       priceSedan: pkg.priceSedan != null ? String(pkg.priceSedan) : '',
       priceSuv: pkg.priceSuv != null ? String(pkg.priceSuv) : '',
       durationMins: String(pkg.durationMins),
@@ -196,6 +203,11 @@ export function PackagesPanel({
     setPackages((current) =>
       current.map((p) => (p.id === packageId ? withMedia(p, media) : p))
     )
+
+  // Delete asks first, as a service's does (UX audit, garage finding 5).
+  const [deleting, setDeleting] = useState<(typeof packages)[number] | null>(
+    null
+  )
 
   const remove = (id: string) =>
     runAction(`package-delete-${id}`, async () => {
@@ -256,7 +268,8 @@ export function PackagesPanel({
 
           <div>
             <p className="mb-2 text-[11px] font-medium text-text-secondary">
-              Services included (<span className="font-numeric">{form.serviceIds.length}</span>{' '}
+              Services included (
+              <span className="font-numeric">{form.serviceIds.length}</span>{' '}
               selected · minimum <span className="font-numeric">2</span>)
             </p>
             <div className="flex flex-wrap gap-2">
@@ -272,7 +285,9 @@ export function PackagesPanel({
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] font-medium text-text-secondary">Pricing</p>
+            <p className="mb-2 text-[11px] font-medium text-text-secondary">
+              Pricing
+            </p>
             <div className="flex flex-wrap gap-2">
               {PRICING_TYPES.map((pt) => (
                 <Chip
@@ -288,7 +303,8 @@ export function PackagesPanel({
             </p>
           </div>
 
-          {(form.pricingType === 'flat' || form.pricingType === 'on_inspection') && (
+          {(form.pricingType === 'flat' ||
+            form.pricingType === 'on_inspection') && (
             <ScInput
               label={
                 form.pricingType === 'on_inspection'
@@ -309,14 +325,18 @@ export function PackagesPanel({
                 type="number"
                 className="font-numeric"
                 value={form.priceHatchback}
-                onChange={(e) => setForm({ ...form, priceHatchback: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, priceHatchback: e.target.value })
+                }
               />
               <ScInput
                 label="Sedan (₹)"
                 type="number"
                 className="font-numeric"
                 value={form.priceSedan}
-                onChange={(e) => setForm({ ...form, priceSedan: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, priceSedan: e.target.value })
+                }
               />
               <ScInput
                 label="SUV (₹)"
@@ -334,18 +354,25 @@ export function PackagesPanel({
               type="number"
               className="font-numeric"
               value={form.durationMins}
-              onChange={(e) => setForm({ ...form, durationMins: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, durationMins: e.target.value })
+              }
             />
             {suggestedDuration > 0 &&
               Number(form.durationMins) !== suggestedDuration && (
                 <button
                   type="button"
                   onClick={() =>
-                    setForm({ ...form, durationMins: String(suggestedDuration) })
+                    setForm({
+                      ...form,
+                      durationMins: String(suggestedDuration),
+                    })
                   }
                   className="mt-1 min-h-11 text-[12px] font-medium text-text-primary underline underline-offset-2"
                 >
-                  Services add up to <span className="font-numeric">{suggestedDuration}</span> min — use that
+                  Services add up to{' '}
+                  <span className="font-numeric">{suggestedDuration}</span> min
+                  — use that
                 </button>
               )}
           </div>
@@ -356,21 +383,30 @@ export function PackagesPanel({
             // discount line is.
             <div className="rounded-[12px] bg-surface-elevated p-3">
               <p className="text-[11px] text-text-secondary">
-                Bought separately: <span className="font-numeric">₹{itemsTotal}</span>
+                Bought separately:{' '}
+                <span className="font-numeric">₹{itemsTotal}</span>
               </p>
               {previewSavings > 0 ? (
                 <p className="text-[12px] font-medium text-success">
-                  Customers save <span className="font-numeric">₹{previewSavings}</span>
+                  Customers save{' '}
+                  <span className="font-numeric">₹{previewSavings}</span>
                 </p>
               ) : (
                 <p className="text-[11px] text-text-muted">
-                  Price the package below <span className="font-numeric">₹{itemsTotal}</span> to show a savings badge.
+                  Price the package below{' '}
+                  <span className="font-numeric">₹{itemsTotal}</span> to show a
+                  savings badge.
                 </p>
               )}
             </div>
           )}
 
-          <ScButton disabled={!canSubmit || saving === 'package'} onClick={submit}>
+          <ScButton
+            variant="main"
+            size="lg"
+            disabled={!canSubmit || saving === 'package'}
+            onClick={submit}
+          >
             {saving === 'package'
               ? 'Saving...'
               : editingId
@@ -385,7 +421,9 @@ export function PackagesPanel({
           title="Your packages"
           action={
             packages.length > 0 ? (
-              <span className="font-numeric text-[12px] text-text-muted">{packages.length}</span>
+              <span className="font-numeric text-[12px] text-text-muted">
+                {packages.length}
+              </span>
             ) : undefined
           }
         />
@@ -402,7 +440,9 @@ export function PackagesPanel({
                 <ScCard className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-text-primary">{pkg.name}</p>
+                      <p className="text-[13px] font-semibold text-text-primary">
+                        {pkg.name}
+                      </p>
                       {pkg.description && (
                         <p className="line-clamp-2 text-[11px] text-text-muted">
                           {pkg.description}
@@ -410,25 +450,35 @@ export function PackagesPanel({
                       )}
                       <p className="mt-0.5 text-[12px] text-text-secondary">
                         <Figures text={formatServicePrice(pkg)} /> ·{' '}
-                        <span className="font-numeric">{pkg.durationMins}</span> min
+                        <span className="font-numeric">{pkg.durationMins}</span>{' '}
+                        min
                       </p>
                       <p className="mt-1 text-[11px] text-text-muted">
                         {pkg.items.map((item) => item.name).join(' + ')}
                       </p>
                       {pkg.savings !== null && (
                         <p className="mt-1 text-[11px] font-medium text-success">
-                          Saves <span className="font-numeric">₹{pkg.savings}</span> vs{' '}
-                          <span className="font-numeric">₹{pkg.itemsTotal}</span> separately
+                          Saves{' '}
+                          <span className="font-numeric">₹{pkg.savings}</span>{' '}
+                          vs{' '}
+                          <span className="font-numeric">
+                            ₹{pkg.itemsTotal}
+                          </span>{' '}
+                          separately
                         </p>
                       )}
                       {/* Amber: a problem to fix, not a button. */}
                       {pkg.hasInactiveItems && (
                         <p className="mt-1 text-[11px] text-warning">
-                          Contains a disabled service — customers still see it listed.
+                          Contains a disabled service — customers still see it
+                          listed.
                         </p>
                       )}
                     </div>
-                    <ScBadge variant={pkg.isActive ? 'success' : 'muted'} className="shrink-0">
+                    <ScBadge
+                      variant={pkg.isActive ? 'success' : 'muted'}
+                      className="shrink-0"
+                    >
                       {pkg.isActive ? 'Active' : 'Inactive'}
                     </ScBadge>
                   </div>
@@ -448,10 +498,14 @@ export function PackagesPanel({
 
                   <div className="flex flex-wrap gap-2 border-t border-border pt-3">
                     <RowAction onClick={() => startEdit(pkg)}>Edit</RowAction>
-                    <RowAction onClick={() => setPackageActive(pkg.id, !pkg.isActive)}>
+                    <RowAction
+                      onClick={() => setPackageActive(pkg.id, !pkg.isActive)}
+                    >
                       {pkg.isActive ? 'Disable' : 'Enable'}
                     </RowAction>
-                    <RowAction onClick={() => remove(pkg.id)}>Delete</RowAction>
+                    <RowAction onClick={() => setDeleting(pkg)}>
+                      Delete
+                    </RowAction>
                   </div>
                 </ScCard>
               </Reveal>
@@ -459,6 +513,19 @@ export function PackagesPanel({
           </div>
         )}
       </section>
+
+      <ConfirmSheet
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        level="firm"
+        title={deleting ? `Delete ${deleting.name}?` : 'Delete this package?'}
+        body="Customers can't book it any more, and it can't be undone. To stop it for a while, Disable it instead."
+        confirmLabel="Delete package"
+        onConfirm={async () => {
+          if (deleting) await remove(deleting.id)
+          setDeleting(null)
+        }}
+      />
     </div>
   )
 }
