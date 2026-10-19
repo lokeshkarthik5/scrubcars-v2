@@ -14,39 +14,59 @@ import { VENDORS } from '../../support/seed-ids'
 test.use({ storageState: asRole('admin') })
 
 test.describe('statistics page @p0', () => {
-  test('overview, breakdown with its CSV, and commission, for one garage', async ({ page }) => {
+  test('overview, breakdown with its CSV, and commission, for one garage', async ({
+    page,
+  }) => {
     // In the menu: the header's on a wide screen, the bottom bar's on a phone.
     await page.goto('/vendors')
     await page.locator('a[href="/statistics"]:visible').first().click()
     await expect(page).toHaveURL(/\/statistics$/)
-    await expect(page.getByRole('heading', { name: 'Statistics' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Statistics' })
+    ).toBeVisible()
 
     // Last 30 days by default, compared with the 30 before — or, on the
     // 30th of a 30-day month, when the 30 days are the whole month, with the
     // month before (as the API does: stats-range.ts).
     await expect(page.getByLabel('Period')).toHaveValue('last30')
     await expect(
-      page.getByRole('switch', { name: /^Compare with (previous 30 days|[A-Z][a-z]+)$/ })
+      page.getByRole('switch', {
+        name: /^Compare with (previous 30 days|[A-Z][a-z]+)$/,
+      })
     ).toHaveAttribute('aria-checked', 'true')
 
     await page.getByLabel('Garage').selectOption(VENDORS.stats.id)
     await expect(page).toHaveURL(new RegExp(`garage=${VENDORS.stats.id}`))
-    await expect(page.getByText('Collected after refunds', { exact: true })).toBeVisible()
+    await expect(
+      page.getByText('Collected after refunds', { exact: true })
+    ).toBeVisible()
     await expect(page.getByText('₹8,900', { exact: true })).toBeVisible()
     await expect(page.getByText('₹335', { exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Bookings per day' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Collected per week' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Bookings per day' })
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Collected per week' })
+    ).toBeVisible()
     // The pilot's card moved here from Vendors.
-    await expect(page.getByRole('heading', { name: 'Pilot numbers' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'How we count' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Pilot numbers' })
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'How we count' })
+    ).toBeVisible()
 
     // Breakdown keeps the garage.
     await page.getByRole('link', { name: 'Breakdown' }).click()
     await expect(page).toHaveURL(/tab=breakdown/)
     await expect(page.getByRole('heading', { name: 'Funnel' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'By garage' })).toBeVisible()
-    await expect(page.getByRole('rowheader', { name: new RegExp(VENDORS.stats.name) })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Busiest hours' })).toBeVisible()
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(VENDORS.stats.name) })
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Busiest hours' })
+    ).toBeVisible()
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
@@ -63,7 +83,9 @@ test.describe('statistics page @p0', () => {
     await page.getByRole('link', { name: 'Commission' }).click()
     await expect(page).toHaveURL(/tab=commission/)
     await expect(page.getByText('First 25 bookings are free')).toBeVisible()
-    await expect(page.getByText('Detailing, coating and scratch removal')).toBeVisible()
+    await expect(
+      page.getByText('Detailing, coating and scratch removal')
+    ).toBeVisible()
     await expect(page.getByText(/^Commission in \w+ so far$/)).toBeVisible()
   })
 })

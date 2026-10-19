@@ -7,7 +7,10 @@
  * this file is how a row is built, shown and sent. Pure, so it is tested
  * here rather than in a page.
  */
-import type { AdminVendorDetail, UpdateVendorServiceInput } from '@repo/core/api/admin'
+import type {
+  AdminVendorDetail,
+  UpdateVendorServiceInput,
+} from '@repo/core/api/admin'
 import type { ServiceTemplate } from '@repo/core/service-templates'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
 import type { PricingType, ServiceRowFields } from './service-rows'
@@ -32,7 +35,11 @@ export interface ServiceRow extends ServiceRowFields {
   media: ServiceMedia[]
 }
 
-const DURATION_FACTOR: Record<DurationUnit, number> = { min: 1, hour: 60, day: 1440 }
+const DURATION_FACTOR: Record<DurationUnit, number> = {
+  min: 1,
+  hour: 60,
+  day: 1440,
+}
 
 export const DURATION_UNITS: Array<{ value: DurationUnit; label: string }> = [
   { value: 'min', label: 'Minutes' },
@@ -44,21 +51,29 @@ export const DURATION_UNITS: Array<{ value: DurationUnit; label: string }> = [
 export const DURATION_PRESETS = [30, 45, 60, 90, 120] as const
 
 /** A value + unit as minutes to send; blank or zero is undefined (omitted). */
-export function durationToMins(value: string, unit: DurationUnit): number | undefined {
+export function durationToMins(
+  value: string,
+  unit: DurationUnit
+): number | undefined {
   const n = Number(value)
   return n > 0 ? Math.round(n * DURATION_FACTOR[unit]) : undefined
 }
 
 /** Stored minutes in the largest clean unit (120 → 2 hours), for editing. */
-export function minsToDuration(mins: number): Pick<ServiceRow, 'durationValue' | 'durationUnit'> {
-  if (mins > 0 && mins % 1440 === 0) return { durationValue: String(mins / 1440), durationUnit: 'day' }
-  if (mins > 0 && mins % 60 === 0) return { durationValue: String(mins / 60), durationUnit: 'hour' }
+export function minsToDuration(
+  mins: number
+): Pick<ServiceRow, 'durationValue' | 'durationUnit'> {
+  if (mins > 0 && mins % 1440 === 0)
+    return { durationValue: String(mins / 1440), durationUnit: 'day' }
+  if (mins > 0 && mins % 60 === 0)
+    return { durationValue: String(mins / 60), durationUnit: 'hour' }
   return { durationValue: mins > 0 ? String(mins) : '', durationUnit: 'min' }
 }
 
 /** The row's duration in minutes, or undefined when it is left to the slot. */
-export const rowDurationMins = (row: Pick<ServiceRow, 'durationValue' | 'durationUnit'>) =>
-  durationToMins(row.durationValue, row.durationUnit)
+export const rowDurationMins = (
+  row: Pick<ServiceRow, 'durationValue' | 'durationUnit'>
+) => durationToMins(row.durationValue, row.durationUnit)
 
 /**
  * A duration as the row's chip says it: minutes up to the presets ("90
@@ -91,13 +106,24 @@ export const SERVICE_GROUPS: ReadonlyArray<{
   label: string
   categories: readonly PlainCategory[]
 }> = [
-  { key: 'wash', label: 'Wash and standard', categories: ['car_wash', 'others'] },
-  { key: 'detailing', label: 'Detailing', categories: ['detailing', 'coating', 'scratch_removal'] },
+  {
+    key: 'wash',
+    label: 'Wash and standard',
+    categories: ['car_wash', 'others'],
+  },
+  {
+    key: 'detailing',
+    label: 'Detailing',
+    categories: ['detailing', 'coating', 'scratch_removal'],
+  },
 ]
 
 /** The group a category is listed under. */
 export function serviceGroupOf(category: PlainCategory) {
-  return SERVICE_GROUPS.find((group) => group.categories.includes(category)) ?? SERVICE_GROUPS[0]
+  return (
+    SERVICE_GROUPS.find((group) => group.categories.includes(category)) ??
+    SERVICE_GROUPS[0]
+  )
 }
 
 export interface GroupedRow {
@@ -161,10 +187,13 @@ export function serviceRowFromTemplate(template: ServiceTemplate): ServiceRow {
 }
 
 // Decimal columns arrive as strings; drop the trailing ".00" for display.
-const decToInput = (v: string | null): string => (v == null ? '' : String(Number(v)))
+const decToInput = (v: string | null): string =>
+  v == null ? '' : String(Number(v))
 
 /** A stored service as the editor holds it. */
-export function toServiceRow(s: AdminVendorDetail['services'][number]): ServiceRow {
+export function toServiceRow(
+  s: AdminVendorDetail['services'][number]
+): ServiceRow {
   return {
     key: s.id,
     id: s.id,

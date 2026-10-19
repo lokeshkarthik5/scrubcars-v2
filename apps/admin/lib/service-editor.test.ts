@@ -30,7 +30,10 @@ const stored = (patch: Partial<Parameters<typeof toServiceRow>[0]> = {}) => ({
   ...patch,
 })
 
-const row = (patch: Partial<ServiceRow> = {}): ServiceRow => ({ ...toServiceRow(stored()), ...patch })
+const row = (patch: Partial<ServiceRow> = {}): ServiceRow => ({
+  ...toServiceRow(stored()),
+  ...patch,
+})
 
 describe('durations', () => {
   test('the chip says minutes up to two hours, then hours, then days', () => {
@@ -43,9 +46,18 @@ describe('durations', () => {
   })
 
   test('value and unit round-trip through minutes', () => {
-    expect(minsToDuration(180)).toEqual({ durationValue: '3', durationUnit: 'hour' })
-    expect(minsToDuration(1440)).toEqual({ durationValue: '1', durationUnit: 'day' })
-    expect(minsToDuration(45)).toEqual({ durationValue: '45', durationUnit: 'min' })
+    expect(minsToDuration(180)).toEqual({
+      durationValue: '3',
+      durationUnit: 'hour',
+    })
+    expect(minsToDuration(1440)).toEqual({
+      durationValue: '1',
+      durationUnit: 'day',
+    })
+    expect(minsToDuration(45)).toEqual({
+      durationValue: '45',
+      durationUnit: 'min',
+    })
     expect(durationToMins('1.5', 'hour')).toBe(90)
     expect(durationToMins('', 'min')).toBeUndefined()
     expect(durationToMins('0', 'hour')).toBeUndefined()
@@ -61,15 +73,22 @@ describe('groupRows', () => {
       row({ key: 'd', name: 'Bike wash', category: 'others' }),
     ]
     const groups = groupRows(rows)
-    expect(groups.map((group) => group.label)).toEqual(['Wash and standard', 'Detailing'])
-    expect(groups[0].rows.map(({ row: r, number }) => [r.key, number])).toEqual([
-      ['b', 1],
-      ['d', 2],
+    expect(groups.map((group) => group.label)).toEqual([
+      'Wash and standard',
+      'Detailing',
     ])
-    expect(groups[1].rows.map(({ row: r, number }) => [r.key, number])).toEqual([
-      ['a', 3],
-      ['c', 4],
-    ])
+    expect(groups[0].rows.map(({ row: r, number }) => [r.key, number])).toEqual(
+      [
+        ['b', 1],
+        ['d', 2],
+      ]
+    )
+    expect(groups[1].rows.map(({ row: r, number }) => [r.key, number])).toEqual(
+      [
+        ['a', 3],
+        ['c', 4],
+      ]
+    )
   })
 
   test('which group a category is under, so a category change that moves a row can follow it', () => {
@@ -81,9 +100,11 @@ describe('groupRows', () => {
   })
 
   test('an empty group is left out', () => {
-    expect(groupRows([row({ category: 'scratch_removal' })]).map((group) => group.key)).toEqual([
-      'detailing',
-    ])
+    expect(
+      groupRows([row({ category: 'scratch_removal' })]).map(
+        (group) => group.key
+      )
+    ).toEqual(['detailing'])
     expect(groupRows([])).toEqual([])
   })
 })
@@ -94,11 +115,15 @@ describe('rows', () => {
     const b = emptyServiceRow()
     expect(a.key).not.toBe(b.key)
     expect(a.pricingType).toBe('per_vehicle')
-    expect(serviceRowProblem({ ...a, name: 'Wax' })).toBe('Add the hatchback, sedan and SUV prices')
+    expect(serviceRowProblem({ ...a, name: 'Wax' })).toBe(
+      'Add the hatchback, sedan and SUV prices'
+    )
   })
 
   test('a template fills everything but the prices', () => {
-    const template = SERVICE_TEMPLATES.find((t) => t.name === 'Ceramic coating')!
+    const template = SERVICE_TEMPLATES.find(
+      (t) => t.name === 'Ceramic coating'
+    )!
     const fromTemplate = serviceRowFromTemplate(template)
     expect(fromTemplate).toMatchObject({
       name: 'Ceramic coating',
@@ -110,7 +135,9 @@ describe('rows', () => {
       priceHatchback: '',
     })
     expect(fromTemplate.id).toBeUndefined()
-    expect(serviceRowProblem(fromTemplate)).toBe('Add the hatchback, sedan and SUV prices')
+    expect(serviceRowProblem(fromTemplate)).toBe(
+      'Add the hatchback, sedan and SUV prices'
+    )
   })
 
   test('a stored service keeps its id as its key and drops the trailing .00', () => {
@@ -138,7 +165,13 @@ describe('toServicePayload', () => {
     })
     expect(
       toServicePayload(
-        row({ id: undefined, pricingType: 'flat', price: '450', description: ' Rinse. ', durationValue: '' })
+        row({
+          id: undefined,
+          pricingType: 'flat',
+          price: '450',
+          description: ' Rinse. ',
+          durationValue: '',
+        })
       )
     ).toEqual({
       name: 'Foam wash',
