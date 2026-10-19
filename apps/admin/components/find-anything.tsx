@@ -24,6 +24,7 @@ function FindForm({
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
+  const hintId = useId()
   const targets = findTargets(text)
 
   useEffect(() => {
@@ -62,7 +63,9 @@ function FindForm({
       className="relative"
     >
       <label className="relative block">
-        <span className="sr-only">Find a booking, phone or garage</span>
+        {/* A short name, so it never answers for a field called "Garage"
+            or "Phone" elsewhere on the page; what it finds is its hint. */}
+        <span className="sr-only">Find anything</span>
         <IconSearch
           size={16}
           aria-hidden="true"
@@ -82,6 +85,7 @@ function FindForm({
             }
           }}
           aria-controls={targets.length > 0 ? listId : undefined}
+          aria-describedby={hintId}
           placeholder="Find anything"
           className="min-h-10 w-full rounded-[8px] border border-border bg-surface pl-9 pr-8 text-[14px] text-text-primary placeholder:text-text-muted focus:border-text-muted focus:outline-none"
         />
@@ -94,6 +98,9 @@ function FindForm({
           </kbd>
         )}
       </label>
+      <span id={hintId} className="sr-only">
+        A booking by reference, receipt, phone or name, or a garage by name
+      </span>
       {targets.length > 0 && (
         <ul
           id={listId}
@@ -127,7 +134,7 @@ export function FindAnything({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Find a booking, phone or garage"
+        aria-label="Find anything"
         className="flex min-h-11 min-w-11 items-center justify-center rounded-[8px] text-text-secondary hover:bg-surface hover:text-text-primary"
       >
         <IconSearch size={18} aria-hidden="true" />
@@ -135,7 +142,7 @@ export function FindAnything({ compact = false }: { compact?: boolean }) {
       <ScSheet
         open={open}
         onClose={() => setOpen(false)}
-        aria-label="Find a booking, phone or garage"
+        aria-label="Find anything"
       >
         <div className="px-4 pb-2">
           {open && <FindForm autoFocus onDone={() => setOpen(false)} />}

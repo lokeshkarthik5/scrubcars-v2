@@ -52,7 +52,6 @@ import {
   type AdminWorkingDay,
 } from '@repo/core/api/admin'
 import { useAdminDocumentsConfig } from '@repo/core/api/hooks/use-admin-documents'
-import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import {
   legacyVehicleTypes,
   VENDOR_VEHICLE_TYPE_OPTIONS,
@@ -69,6 +68,7 @@ import { SaveBar } from '@/components/save-bar'
 import { RestoreDialog } from '@/components/vendor-bin-dialogs'
 import { formatWhen } from '@/lib/bookings'
 import { ServicesEditor } from '@/components/services-editor'
+import { useMarkGaragesStale } from '@/hooks/use-admin-today'
 import { useWarnBeforeLeaving } from '@/hooks/use-warn-before-leaving'
 import {
   EDIT_TABS,
@@ -84,6 +84,9 @@ import {
   type TabValues,
 } from '@/lib/garage-edit'
 import {
+  restoreRow,
+  rowBefore,
+  rowHasUnsavedChanges,
   toServicePayload,
   toServiceRow,
   type ServiceRow,
@@ -289,7 +292,8 @@ export default function EditVendorPage({
   // service hidden or shown, how customers book — marks the garage list
   // stale, so Back lands on a list whose checklist and Live count already
   // show it.
-  const markListStale = useInvalidateAdminVendors()
+  // The garage list and the menu's counts (documents, blocked garages).
+  const markListStale = useMarkGaragesStale()
 
   const [tab, setTab] = useState<PageTab>(() => parsePageTab(query.tab))
   // Garage documents (0043) have their own tab, shown only while they are
@@ -711,37 +715,88 @@ export default function EditVendorPage({
     }
   }
 
+  // Read by an Undo, which runs from a toast long after the render that
+  // made it: the page as it is now, not as it was when the row was hidden.
+  const serviceBusyRef = useRef<string | null>(null)
+  const savingRef = useRef(false)
+  const describingRef = useRef(false)
+  const hiddenRef = useRef<AdminService[]>([])
+  useEffect(() => {
+    serviceBusyRef.current = serviceBusyId
+    savingRef.current = saving
+    describingRef.current = describing
+    hiddenRef.current = hiddenServices
+  }, [serviceBusyId, saving, describing, hiddenServices])
+
   /**
    * Takes a saved service off the garage page, straight away. Hidden, never
    * deleted: its bookings keep it, and it waits under Hidden services. Easy
    * to take back, so there is no question first: the toast offers Undo,
    * which is Show again (safe actions, level 1; never the browser pop-up).
+   * A row with edits not saved yet is not hidden: they would be lost.
    */
   const hideService = (row: ServiceRow) => {
     const serviceId = row.id
     if (!serviceId) return
+    if (
+      saved &&
+      draft &&
+      rowHasUnsavedChanges(saved.services, draft.services, serviceId)
+    ) {
+      setServiceErrors((prev) => ({
+        ...prev,
+        [serviceId]:
+          'This service has changes that are not saved. Save or discard them before hiding it.',
+      }))
+      return
+    }
+    // Where it stood, so Undo puts it back there rather than at the end.
+    const after = saved ? rowBefore(saved.services, serviceId) : null
     void runServiceSwitch(serviceId, async () => {
       const hidden = await setAdminServiceActive(id, serviceId, false)
       applyToBoth((rows) => rows.filter((s) => s.id !== serviceId))
       setHiddenServices((prev) =>
-        [...prev, hidden].sort((a, b) => a.name.localeCompare(b.name))
+        [...prev.filter((s) => s.id !== hidden.id), hidden].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        )
       )
       setServiceNotice(`Hidden “${hidden.name}”. It’s under Hidden services.`)
+      let undone = false
       showUndoToast(`“${hidden.name}” is off the garage page.`, {
-        onUndo: () => void showServiceAgain(hidden),
+        onUndo: () => {
+          // Once, whatever the toast does with a second press.
+          if (undone) return
+          undone = true
+          // Not while anything else is changing the list: a Save in flight
+          // would hide it again, and another switch shares the busy flag.
+          if (
+            serviceBusyRef.current !== null ||
+            savingRef.current ||
+            describingRef.current
+          ) {
+            toast.error(
+              `Couldn’t undo while the page is saving. “${hidden.name}” is under Hidden services: use Show again.`
+            )
+            return
+          }
+          // Shown again some other way already: nothing to undo.
+          if (!hiddenRef.current.some((s) => s.id === hidden.id)) return
+          void showServiceAgain(hidden, after)
+        },
       })
       return { to: 'hidden-toggle' }
     })
   }
 
-  const showServiceAgain = (service: AdminService) =>
+  const showServiceAgain = (service: AdminService, after?: string | null) =>
     runServiceSwitch(service.id, async () => {
       const shown = await setAdminServiceActive(id, service.id, true)
       setHiddenServices((prev) => prev.filter((s) => s.id !== service.id))
       // Into the editor as well, not only back on the garage page: "Save
       // changes" sends the full list, and the server hides any live service
       // the list leaves out — it would be hidden again by the next save.
-      applyToBoth((rows) => [...rows, toServiceRow(shown)])
+      // Where it stood (an Undo), or at the end; never a second copy.
+      applyToBoth((rows) => restoreRow(rows, toServiceRow(shown), after))
       // Open, so what it may still need (a size's price) and its Hide are
       // there to land on.
       setOpenRows((prev) => new Set(prev).add(shown.id))

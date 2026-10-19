@@ -11,6 +11,9 @@ import { AdminShell } from '@/components/admin-shell'
 import { adminTodayKeys, useAdminToday } from '@/hooks/use-admin-today'
 import { navCounts } from '@/lib/today'
 
+/** After an action, the menu's counts are read again at most this often. */
+const TODAY_REFRESH_AFTER_ACTION_MS = 3_000
+
 export function AdminScope({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -32,15 +35,23 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   const { data: today } = useAdminToday(authed)
 
   // Anything ops does on any page (accept, refund, acknowledge, verify) can
-  // change a count, so the summary is read again after every action that
-  // worked, not only on the minute.
+  // change a count, so the summary is read again after an action that
+  // worked: once, a few seconds after a burst of them, not once per press.
   const queryClient = useQueryClient()
   useEffect(() => {
-    return queryClient.getMutationCache().subscribe((event) => {
-      if (event.type === 'updated' && event.action.type === 'success') {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const unsubscribe = queryClient.getMutationCache().subscribe((event) => {
+      if (event.type !== 'updated' || event.action.type !== 'success') return
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
         void queryClient.invalidateQueries({ queryKey: adminTodayKeys.all })
-      }
+      }, TODAY_REFRESH_AFTER_ACTION_MS)
     })
+    return () => {
+      unsubscribe()
+      if (timer) clearTimeout(timer)
+    }
   }, [queryClient])
 
   useEffect(() => {

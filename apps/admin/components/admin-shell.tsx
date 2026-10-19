@@ -68,6 +68,19 @@ const COUNT_WORDS: Record<string, string> = {
   garages: 'need fixing',
 }
 
+/**
+ * What a count holds, on hover. The counts leave Test bookings out (as the
+ * pilot numbers do), so Bookings can be lower than the list's New chip.
+ */
+const COUNT_TITLE: Record<string, string> = {
+  today: 'Open tasks on Today. Test bookings are left out.',
+  bookings:
+    'Paid bookings waiting for their garage. Test bookings are left out.',
+  issues: 'Complaints, redo claims and bypass reports to act on',
+  refunds: 'Refunds owed',
+  garages: 'Garages with documents to review or blocked from going live',
+}
+
 const COUNT_TONE: Record<NavCount['tone'], string> = {
   late: 'bg-tone-late-tint text-tone-late-text',
   attention: 'bg-tone-attention-tint text-tone-attention-text',
@@ -87,6 +100,7 @@ function countFor(
 function CountPill({ item, count }: { item: NavItem; count: NavCount }) {
   return (
     <span
+      title={COUNT_TITLE[item.count ?? '']}
       className={cn(
         'ml-auto inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 font-numeric text-[12px] font-semibold leading-none',
         COUNT_TONE[count.tone]
@@ -282,6 +296,14 @@ function PhoneBar({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
+                // The name first, then the count: the badge is drawn before
+                // the word, but "Bookings, 2 waiting for the garage" is what
+                // is said.
+                aria-label={
+                  count
+                    ? `${item.label}, ${count.n} ${COUNT_WORDS[item.count ?? '']}`
+                    : item.label
+                }
                 className="relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-1"
               >
                 {active && (
@@ -298,12 +320,12 @@ function PhoneBar({
                     className={active ? 'text-text-primary' : 'text-text-muted'}
                   />
                   {count && (
-                    <span className="absolute -right-2.5 -top-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-brand-red px-1 font-numeric text-[12px] font-semibold leading-[18px] text-white">
+                    <span
+                      aria-hidden="true"
+                      title={COUNT_TITLE[item.count ?? '']}
+                      className="absolute -right-2.5 -top-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-brand-red px-1 font-numeric text-[12px] font-semibold leading-[18px] text-white"
+                    >
                       {count.n}
-                      <span className="sr-only">
-                        {' '}
-                        {COUNT_WORDS[item.count ?? '']}
-                      </span>
                     </span>
                   )}
                 </span>

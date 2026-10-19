@@ -26,6 +26,12 @@ interface ConfirmSheetProps {
   typeToConfirm?: string
   /** Working, from the caller's own state (a mutation's isPending). */
   busy?: boolean
+  /**
+   * Why the action didn't work, shown inside the sheet. A caller keeps the
+   * sheet open on a failure and sets this, so the reason is read where the
+   * button was pressed, not in a banner behind the sheet.
+   */
+  error?: string
 }
 
 /**
@@ -45,6 +51,7 @@ export function ConfirmSheet({
   cancelLabel = 'Keep it',
   typeToConfirm = '',
   busy = false,
+  error,
 }: ConfirmSheetProps) {
   const [pending, setPending] = useState(false)
   const [typed, setTyped] = useState('')
@@ -82,6 +89,9 @@ export function ConfirmSheet({
     setPending(true)
     try {
       await onConfirm()
+    } catch {
+      // A rejected onConfirm is the caller's to explain, through `error`;
+      // the sheet stays as it is rather than leaving an unhandled rejection.
     } finally {
       if (mounted.current) setPending(false)
     }
@@ -133,6 +143,12 @@ export function ConfirmSheet({
               className="mt-1.5 h-12 w-full rounded-[14px] border border-border bg-surface px-3.5 text-[16px] text-text-primary outline-none focus:border-text-primary"
             />
           </div>
+        )}
+
+        {error && (
+          <p role="alert" className="mt-4 text-[14px] leading-snug text-error">
+            {error}
+          </p>
         )}
 
         <div className="mt-5 flex flex-col gap-2.5">

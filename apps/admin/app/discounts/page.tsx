@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'react-toastify'
 import {
   IconDiscount2,
   IconPencil,
@@ -148,10 +149,9 @@ export default function AdminDiscountsPage() {
   // data is still good, only the action failed.
   const [actionError, setActionError] = useState('')
 
-  const toggleActive = useToggleDiscountActive({
-    onError: (err) =>
-      setActionError(errorMessage(err, 'Failed to update the code')),
-  })
+  // Each press reads its own promise (below), not the shared mutation's
+  // callbacks, which a second press would replace.
+  const toggleActive = useToggleDiscountActive()
   const deleteDiscount = useDeleteDiscount()
 
   // A dead admin session is a redirect, not an error message.
@@ -170,30 +170,40 @@ export default function AdminDiscountsPage() {
   // to take back, so it happens at once with an Undo that activates it again.
   const [deleting, setDeleting] = useState<AdminDiscount | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Why the delete was refused, said inside its sheet.
+  const [deleteError, setDeleteError] = useState('')
   const handleDelete = (discount: AdminDiscount) => {
     setActionError('')
+    setDeleteError('')
     setDeleting(discount)
     setDeleteOpen(true)
   }
 
-  const handleToggle = (discount: AdminDiscount) => {
+  const setActive = async (discount: AdminDiscount, isActive: boolean) => {
+    try {
+      await toggleActive.mutateAsync({ id: discount.id, isActive })
+      return true
+    } catch (err) {
+      setActionError(errorMessage(err, `Failed to update ${discount.code}`))
+      return false
+    }
+  }
+
+  const handleToggle = async (discount: AdminDiscount) => {
     setActionError('')
     const isActive = !discount.isActive
-    toggleActive.mutate(
-      { id: discount.id, isActive },
-      {
-        onSuccess: () => {
-          if (isActive) return
-          showUndoToast(
-            `${discount.code} deactivated. Customers can't use it.`,
-            {
-              onUndo: () =>
-                toggleActive.mutate({ id: discount.id, isActive: true }),
-            }
-          )
-        },
-      }
-    )
+    if (!(await setActive(discount, isActive)) || isActive) return
+    let undone = false
+    showUndoToast(`${discount.code} deactivated. Customers can't use it.`, {
+      onUndo: () => {
+        // Once, however many times the toast's button is pressed.
+        if (undone) return
+        undone = true
+        void setActive(discount, true).then((ok) => {
+          if (!ok) toast.error(`Couldn't undo: ${discount.code} is still off.`)
+        })
+      },
+    })
   }
 
   return (
@@ -203,15 +213,17 @@ export default function AdminDiscountsPage() {
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
           if (!deleting) return
+          setDeleteError('')
           try {
             await deleteDiscount.mutateAsync(deleting.id)
-          } catch (err) {
-            // The API refuses to delete a redeemed code; its reason, verbatim.
-            setActionError(errorMessage(err, 'Failed to delete the code'))
-          } finally {
             setDeleteOpen(false)
+          } catch (err) {
+            // The API refuses to delete a redeemed code: its reason, verbatim,
+            // in the sheet, which stays open.
+            setDeleteError(errorMessage(err, 'Failed to delete the code'))
           }
         }}
+        error={deleteError || undefined}
         level="firm"
         title={`Delete ${deleting?.code ?? 'this code'} for good?`}
         body="It has never been used, so nothing else changes. This can't be undone: to stop it for now, Deactivate it instead."
@@ -402,7 +414,7 @@ export default function AdminDiscountsPage() {
                       fullWidth={false}
                       variant="secondary"
                       disabled={busyId === discount.id}
-                      onClick={() => handleToggle(discount)}
+                      onClick={() => void handleToggle(discount)}
                       className={ROW_ACTION}
                     >
                       {discount.isActive ? 'Deactivate' : 'Activate'}

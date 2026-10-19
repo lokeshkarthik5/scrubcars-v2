@@ -236,3 +236,45 @@ export function toServicePayload(row: ServiceRow): UpdateVendorServiceInput {
       : { price: pos(row.price) }),
   }
 }
+
+// ─── Hide, and Undo ──────────────────────────────────────────────────────────
+
+/** The id of the saved row just before this one (null when it is first): where Undo puts it back. */
+export function rowBefore(
+  rows: ReadonlyArray<{ id?: string | null }>,
+  id: string
+): string | null {
+  const at = rows.findIndex((row) => row.id === id)
+  return at > 0 ? (rows[at - 1]?.id ?? null) : null
+}
+
+/**
+ * The row back in the list: after `afterId` (an Undo, where it stood), or
+ * first when that was the first row or the one before it has gone; at the
+ * end when there is no place to go back to (Show again). Never twice: a row
+ * already in the list (a second Undo, or Show again pressed too) leaves the
+ * list as it is.
+ */
+export function restoreRow<T extends { id?: string | null }>(
+  rows: T[],
+  row: T,
+  afterId?: string | null
+): T[] {
+  if (rows.some((r) => r.id === row.id)) return rows
+  if (afterId === undefined) return [...rows, row]
+  const after = afterId === null ? -1 : rows.findIndex((r) => r.id === afterId)
+  const at = after + 1
+  return [...rows.slice(0, at), row, ...rows.slice(at)]
+}
+
+/** Whether a saved service has edits in the draft that are not saved yet. */
+export function rowHasUnsavedChanges(
+  saved: ServiceRow[],
+  draft: ServiceRow[],
+  id: string
+): boolean {
+  const before = saved.find((row) => row.id === id)
+  const now = draft.find((row) => row.id === id)
+  if (!before || !now) return false
+  return JSON.stringify(before) !== JSON.stringify(now)
+}

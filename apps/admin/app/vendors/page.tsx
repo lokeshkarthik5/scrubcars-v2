@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'react-toastify'
 import {
   IconAdjustmentsHorizontal,
   IconAlertCircle,
@@ -242,43 +243,56 @@ function VendorsList() {
   // Apart from the garage, so the sheet keeps its words while it slides away.
   const [archiveOpen, setArchiveOpen] = useState(false)
 
-  const runArchive = (v: AdminVendor, archiving: boolean, withUndo: boolean) =>
-    archive.mutateAsync(
-      { id: v.id, archiving },
-      {
-        onSuccess: () => {
-          if (!withUndo) return
-          showUndoToast(
-            `${v.businessName} archived. Customers can't find it.`,
-            {
-              onUndo: () =>
-                archive.mutate(
-                  { id: v.id, archiving: false },
-                  {
-                    onError: () =>
-                      showRowError(v.id, 'Failed to restore vendor'),
-                  }
-                ),
-            }
-          )
-        },
-        onError: () =>
-          showRowError(
-            v.id,
-            `Failed to ${archiving ? 'archive' : 'restore'} vendor`
-          ),
-      }
-    )
+  // Why the confirmed archive failed, said inside its sheet.
+  const [archiveError, setArchiveError] = useState('')
+
+  /**
+   * Archives or unarchives, from this call's own promise rather than the
+   * shared mutation's callbacks (which a second press would replace), so each
+   * garage gets its own toast or its own error. True when it worked.
+   */
+  const runArchive = async (
+    v: AdminVendor,
+    archiving: boolean
+  ): Promise<boolean> => {
+    try {
+      await archive.mutateAsync({ id: v.id, archiving })
+      return true
+    } catch {
+      showRowError(
+        v.id,
+        `Failed to ${archiving ? 'archive' : 'restore'} vendor`
+      )
+      return false
+    }
+  }
+
+  const archiveWithUndo = async (v: AdminVendor) => {
+    if (!(await runArchive(v, true))) return
+    let undone = false
+    showUndoToast(`${v.businessName} archived. Customers can't find it.`, {
+      onUndo: () => {
+        // Once, however many times the toast's button is pressed.
+        if (undone) return
+        undone = true
+        void runArchive(v, false).then((ok) => {
+          if (!ok)
+            toast.error(`Couldn't undo: ${v.businessName} is still archived.`)
+        })
+      },
+    })
+  }
 
   const handleArchiveToggle = (v: AdminVendor) => {
     const archiving = v.status !== 'archived'
     clearRowError(v.id)
     if (archiving && v.status !== 'active') {
       setConfirmArchive(v)
+      setArchiveError('')
       setArchiveOpen(true)
       return
     }
-    void runArchive(v, archiving, archiving).catch(() => undefined)
+    void (archiving ? archiveWithUndo(v) : runArchive(v, false))
   }
 
   const openDialog = (kind: 'bin' | 'restore' | 'delete', v: AdminVendor) => {
@@ -320,14 +334,21 @@ function VendorsList() {
         onClose={() => setArchiveOpen(false)}
         onConfirm={async () => {
           if (!confirmArchive) return
+          setArchiveError('')
           try {
-            await runArchive(confirmArchive, true, false)
-          } catch {
-            // The card shows why.
-          } finally {
+            await archive.mutateAsync({
+              id: confirmArchive.id,
+              archiving: true,
+            })
             setArchiveOpen(false)
+          } catch (err) {
+            // Kept open, with the reason where the button was pressed.
+            setArchiveError(
+              errorMessage(err, 'Failed to archive the garage. Try again.')
+            )
           }
         }}
+        error={archiveError || undefined}
         level="light"
         title={`Archive ${confirmArchive?.businessName ?? 'this garage'}?`}
         body={

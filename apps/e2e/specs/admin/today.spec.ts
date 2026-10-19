@@ -134,7 +134,7 @@ test.describe('Today @p0', () => {
       const ref = reference(BOOKINGS.adminOpsWaiting)
       await page.goto('/today')
       const find = page.getByRole('searchbox', {
-        name: 'Find a booking, phone or garage',
+        name: 'Find anything',
       })
       await find.fill(`#${ref}`)
       await find.press('Enter')

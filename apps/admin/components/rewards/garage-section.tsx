@@ -643,6 +643,7 @@ function CarEditor({
   const named = actor.trim().length >= 2
   // The uploaded picture is not kept once reset, so it is asked first.
   const [resetOpen, setResetOpen] = useState(false)
+  const [resetError, setResetError] = useState('')
 
   const upload = async (file: File) => {
     if (!named) return toast.error('Type your name first')
@@ -823,7 +824,10 @@ function CarEditor({
             fullWidth={false}
             className="flex min-h-10 items-center gap-1.5 px-3"
             disabled={!named || reset.isPending}
-            onClick={() => setResetOpen(true)}
+            onClick={() => {
+              setResetError('')
+              setResetOpen(true)
+            }}
           >
             <IconRefresh size={16} aria-hidden="true" />
             Reset to the photo
@@ -838,15 +842,17 @@ function CarEditor({
         open={resetOpen}
         onClose={() => setResetOpen(false)}
         onConfirm={async () => {
+          setResetError('')
           try {
             await reset.mutateAsync({ id: car.id, actorName: actor.trim() })
+            setResetOpen(false)
             toast.success('Back to the photo')
           } catch (err) {
-            toast.error(errorMessage(err, "Couldn't reset"))
-          } finally {
-            setResetOpen(false)
+            // Kept open, with the reason where the button was pressed.
+            setResetError(errorMessage(err, "Couldn't reset"))
           }
         }}
+        error={resetError || undefined}
         level="firm"
         title={`Reset ${car.name} to the photo?`}
         body="Every customer who holds this card sees the photo again instead of the uploaded picture. The upload isn't kept: to bring it back, upload it again."

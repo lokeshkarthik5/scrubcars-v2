@@ -45,11 +45,8 @@ const ROW_ACTION = 'flex min-h-11 items-center gap-1 px-3 py-1.5 text-[12px]'
 export default function AdminNoticesPage() {
   const router = useRouter()
   const { data: notices = [], isPending, error, refetch } = useAdminNotices()
-  const [actionError, setActionError] = useState('')
-  const endNotice = useEndNotice({
-    onError: (err) =>
-      setActionError(errorMessage(err, 'Failed to end the notice')),
-  })
+  // Its failure is said in the sheet (below), from the call's own promise.
+  const endNotice = useEndNotice()
 
   useEffect(() => {
     if (isAuthError(error)) router.replace('/login')
@@ -70,8 +67,9 @@ export default function AdminNoticesPage() {
   const [ending, setEnding] = useState<AdminNotice | null>(null)
   // Apart from `ending`, so the sheet keeps its words while it slides away.
   const [endOpen, setEndOpen] = useState(false)
+  const [endError, setEndError] = useState('')
   const handleEnd = (notice: AdminNotice) => {
-    setActionError('')
+    setEndError('')
     setEnding(notice)
     setEndOpen(true)
   }
@@ -83,14 +81,16 @@ export default function AdminNoticesPage() {
         onClose={() => setEndOpen(false)}
         onConfirm={async () => {
           if (!ending) return
+          setEndError('')
           try {
             await endNotice.mutateAsync(ending.id)
-          } catch {
-            // Said above the list, by useEndNotice's onError.
-          } finally {
             setEndOpen(false)
+          } catch (err) {
+            // Kept open, with the reason where the button was pressed.
+            setEndError(errorMessage(err, 'Failed to end the notice'))
           }
         }}
+        error={endError || undefined}
         level="firm"
         title={
           ending?.state === 'live'
@@ -135,11 +135,6 @@ export default function AdminNoticesPage() {
         />
       ) : (
         <div className="flex flex-col gap-6">
-          {actionError && (
-            <p role="alert" className="text-[12px] text-error">
-              {actionError}
-            </p>
-          )}
           {grouped.map((section) => (
             <section
               key={section.state}

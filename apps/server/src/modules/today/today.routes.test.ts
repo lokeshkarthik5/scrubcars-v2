@@ -17,7 +17,7 @@ const { AppError } = await import('../../lib/errors.js')
 const { signAccessToken, signAdminToken } = await import('../../lib/jwt.js')
 const { membersRepository } = await import('../members/members.repository.js')
 const { adminTodayRoutes } = await import('./today.routes.js')
-const { todaySources } = await import('./today.service.js')
+const { todaySources, WAITING_LIMIT } = await import('./today.service.js')
 
 const CUSTOMER = 'e2e00000-0000-4000-8000-000000004150'
 const BOOKING = 'e2e00000-0000-4000-8000-000000004151'
@@ -48,6 +48,9 @@ beforeAll(() => {
       services: 'Foam wash + Interior',
     },
   ])
+  patch(todaySources, 'waitingBookingsCount', async () => {
+    throw new Error('only read when the list is cut short')
+  })
   patch(todaySources, 'day', async () => [
     {
       id: BOOKING,
@@ -176,6 +179,7 @@ describe('GET /admin/today', () => {
     expect(data.headline.openIssues).toEqual({ total: 1, complaintsLate: 1 })
     // Statistics timed out: the tile is empty, the inbox is still there.
     expect(data.headline.collectedToday).toBeNull()
+    expect(data.failed).toEqual(['collected'])
     expect(data.garages).toEqual({
       live: 0,
       blocked: 1,
@@ -189,5 +193,63 @@ describe('GET /admin/today', () => {
       headers: { Cookie: `access_token=${await signAdminToken()}` },
     })
     expect(res.status).toBe(400)
+  })
+
+  test('a list cut short says how many more there are, and the menu counts them', async () => {
+    const one = {
+      scheduledAt: new Date(Date.now() + 3 * HOUR),
+      amount: '499.00',
+      respondBy: new Date(Date.now() + HOUR),
+      garageName: 'Shine Auto Spa',
+      garagePhone: '9876543210',
+      customerName: 'A',
+      services: 'Foam wash',
+    }
+    const rows = Array.from({ length: WAITING_LIMIT }, (_, i) => ({
+      ...one,
+      id: `e2e00000-0000-4000-8000-${String(4160 + i).padStart(12, '0')}`,
+    }))
+    const before = [
+      todaySources.waitingBookings,
+      todaySources.waitingBookingsCount,
+    ]
+    todaySources.waitingBookings = (async () => rows) as never
+    todaySources.waitingBookingsCount = async () => WAITING_LIMIT + 30
+    try {
+      const res = await get(`access_token=${await signAdminToken()}`)
+      const { data } = await res.json()
+      expect(data.more).toEqual({ bookings: 30 })
+      expect(data.counts.bookings.n).toBe(WAITING_LIMIT + 30)
+      expect(
+        data.tasks.filter((t: { kind: string }) => t.kind === 'booking_waiting')
+      ).toHaveLength(WAITING_LIMIT)
+    } finally {
+      ;[todaySources.waitingBookings, todaySources.waitingBookingsCount] =
+        before as [
+          typeof todaySources.waitingBookings,
+          typeof todaySources.waitingBookingsCount,
+        ]
+    }
+  })
+
+  test('a source that fails leaves its section marked, not the whole inbox', async () => {
+    const before = todaySources.complaints
+    todaySources.complaints = async () => {
+      throw new Error('complaints table locked')
+    }
+    try {
+      const res = await get(`access_token=${await signAdminToken()}`)
+      expect(res.status).toBe(200)
+      const { data } = await res.json()
+      expect(data.failed).toEqual(['complaints', 'collected'])
+      // Everything else is still there.
+      expect(data.tasks.map((task: { kind: string }) => task.kind)).toEqual([
+        'booking_waiting',
+        'garage_blocked',
+      ])
+      expect(data.counts.bookings).toEqual({ n: 1, late: 0 })
+    } finally {
+      todaySources.complaints = before
+    }
   })
 })

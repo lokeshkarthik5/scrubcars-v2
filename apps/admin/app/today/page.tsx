@@ -33,10 +33,12 @@ import {
   filterTasks,
   inboxSubtitle,
   inboxTitle,
+  missingTasksLine,
   taskLine,
   TODAY_FILTERS,
   type AdminTodaySummary,
   type TodayFilter,
+  type TodaySection,
   type TodayTask,
   type TodayTaskKind,
 } from '@/lib/today'
@@ -92,9 +94,17 @@ function Tile({
   )
 }
 
+/** Whether a section's source failed, so it says "Couldn't load", never zero. */
+const failedIn = (summary: AdminTodaySummary) => {
+  const failed = new Set(summary.failed ?? [])
+  return (...sections: TodaySection[]) => sections.some((s) => failed.has(s))
+}
+
 function Headline({ summary }: { summary: AdminTodaySummary }) {
   const { bookingsToday, collectedToday, garages, openIssues } =
     summary.headline
+  const failed = failedIn(summary)
+  const LOST = 'Couldn’t load'
   return (
     <section
       aria-label="Today in numbers"
@@ -102,8 +112,14 @@ function Headline({ summary }: { summary: AdminTodaySummary }) {
     >
       <Tile
         label="Bookings today"
-        value={formatCount(bookingsToday.total)}
-        note={`${bookingsToday.done} done · ${bookingsToday.toCome} to come · ${bookingsToday.waiting} waiting for garage`}
+        value={failed('schedule') ? '—' : formatCount(bookingsToday.total)}
+        // Test bookings are left out here and in the menu's counts, though
+        // the Bookings list shows them: said, so the numbers don't look off.
+        note={
+          failed('schedule')
+            ? LOST
+            : `${bookingsToday.done} done · ${bookingsToday.toCome} to come · ${bookingsToday.waiting} waiting for garage · test bookings left out`
+        }
       />
       <Tile
         label="Collected today"
@@ -117,23 +133,37 @@ function Headline({ summary }: { summary: AdminTodaySummary }) {
       <Tile
         label="Garages customers can book"
         value={
-          <>
-            {garages.live}
-            <span className="text-[14px] font-medium text-text-secondary">
-              {' '}
-              of {garages.total}
-            </span>
-          </>
+          failed('garages') ? (
+            '—'
+          ) : (
+            <>
+              {garages.live}
+              <span className="text-[14px] font-medium text-text-secondary">
+                {' '}
+                of {garages.total}
+              </span>
+            </>
+          )
         }
-        note={`${summary.garages.blocked} blocked from going live`}
+        note={
+          failed('garages')
+            ? LOST
+            : `${summary.garages.blocked} blocked from going live`
+        }
       />
       <Tile
         label="Open issues"
-        value={formatCount(openIssues.total)}
+        value={
+          failed('complaints', 'claims', 'bypassReports')
+            ? '—'
+            : formatCount(openIssues.total)
+        }
         note={
-          openIssues.complaintsLate === 0
-            ? 'No complaint is late'
-            : `${openIssues.complaintsLate} ${openIssues.complaintsLate === 1 ? 'complaint' : 'complaints'} late`
+          failed('complaints', 'claims', 'bypassReports')
+            ? LOST
+            : openIssues.complaintsLate === 0
+              ? 'No complaint is late'
+              : `${openIssues.complaintsLate} ${openIssues.complaintsLate === 1 ? 'complaint' : 'complaints'} late`
         }
       />
     </section>
@@ -202,12 +232,18 @@ function TaskRow({ task, now }: { task: TodayTask; now: number }) {
         {action?.kind === 'acknowledge' && (
           <button
             type="button"
-            disabled={acknowledge.isPending}
+            // Done is done: it stays off once the complaint is acknowledged,
+            // until the refreshed list takes the row away.
+            disabled={acknowledge.isPending || acknowledge.isSuccess}
             onClick={() => acknowledge.mutate(action.complaintId)}
             aria-label={`Acknowledge complaint ${task.kind === 'complaint' ? task.number : ''}`.trim()}
             className={cn(ROW_BUTTON, 'flex-1 md:flex-none')}
           >
-            {acknowledge.isPending ? 'Acknowledging…' : action.label}
+            {acknowledge.isPending
+              ? 'Acknowledging…'
+              : acknowledge.isSuccess
+                ? 'Acknowledged'
+                : action.label}
           </button>
         )}
         {action?.kind === 'link' ? (
@@ -235,12 +271,20 @@ function TaskRow({ task, now }: { task: TodayTask; now: number }) {
 function NeedsAction({
   summary,
   now,
+  onRetry,
+  retrying,
 }: {
   summary: AdminTodaySummary
   now: number
+  onRetry: () => void
+  retrying: boolean
 }) {
   const [filter, setFilter] = useState<TodayFilter>('all')
   const tasks = filterTasks(summary.tasks, filter)
+  // A source that failed is said at the top of the list, so a short list
+  // never passes for a quiet day.
+  const missing = missingTasksLine(summary.failed ?? [])
+  const moreBookings = summary.more?.bookings ?? 0
   return (
     <section
       aria-labelledby="needs-action"
@@ -279,7 +323,15 @@ function NeedsAction({
           })}
         </div>
       </div>
-      {tasks.length === 0 ? (
+      {missing && (
+        <LoadError
+          what={missing}
+          onRetry={onRetry}
+          retrying={retrying}
+          className="m-3 rounded-[8px]"
+        />
+      )}
+      {tasks.length === 0 && !missing ? (
         <p className="px-4 py-8 text-center text-[14px] text-text-secondary">
           {filter === 'all'
             ? 'Nothing is waiting on the team. Well done.'
@@ -292,11 +344,29 @@ function NeedsAction({
           ))}
         </ul>
       )}
+      {/* The list is cut short by the API; the rest are a tap away. */}
+      {moreBookings > 0 && (filter === 'all' || filter === 'bookings') && (
+        <Link
+          href="/bookings?status=pending"
+          className="flex min-h-11 items-center justify-center gap-1 border-t border-border px-4 text-[13px] font-medium text-text-primary hover:underline"
+        >
+          +{formatCount(moreBookings)} more waiting for their garage
+          <IconArrowRight size={14} aria-hidden="true" />
+        </Link>
+      )}
     </section>
   )
 }
 
-function ComingUp({ summary }: { summary: AdminTodaySummary }) {
+function ComingUp({
+  summary,
+  onRetry,
+  retrying,
+}: {
+  summary: AdminTodaySummary
+  onRetry: () => void
+  retrying: boolean
+}) {
   return (
     <section
       aria-labelledby="coming-up"
@@ -316,7 +386,14 @@ function ComingUp({ summary }: { summary: AdminTodaySummary }) {
           All bookings <IconArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
-      {summary.schedule.length === 0 ? (
+      {failedIn(summary)('schedule') ? (
+        <LoadError
+          what="today’s bookings"
+          onRetry={onRetry}
+          retrying={retrying}
+          className="m-3 rounded-[8px]"
+        />
+      ) : summary.schedule.length === 0 ? (
         <p className="px-4 py-6 text-[13px] text-text-secondary">
           No bookings today.
         </p>
@@ -354,7 +431,15 @@ function ComingUp({ summary }: { summary: AdminTodaySummary }) {
   )
 }
 
-function GaragesCard({ summary }: { summary: AdminTodaySummary }) {
+function GaragesCard({
+  summary,
+  onRetry,
+  retrying,
+}: {
+  summary: AdminTodaySummary
+  onRetry: () => void
+  retrying: boolean
+}) {
   const cells: Array<{
     label: string
     value: number
@@ -399,29 +484,38 @@ function GaragesCard({ summary }: { summary: AdminTodaySummary }) {
           All garages <IconArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-2 p-3">
-        {cells.map((cell) => (
-          <Link
-            key={cell.label}
-            href={cell.href}
-            className="flex flex-col gap-0.5 rounded-[8px] border border-border p-3 transition-colors hover:bg-surface-elevated"
-          >
-            <span
-              className={cn(
-                'font-numeric text-[20px] font-semibold',
-                cell.warn && cell.value > 0
-                  ? 'text-warning'
-                  : 'text-text-primary'
-              )}
+      {failedIn(summary)('garages') ? (
+        <LoadError
+          what="the garages"
+          onRetry={onRetry}
+          retrying={retrying}
+          className="m-3 rounded-[8px]"
+        />
+      ) : (
+        <div className="grid grid-cols-2 gap-2 p-3">
+          {cells.map((cell) => (
+            <Link
+              key={cell.label}
+              href={cell.href}
+              className="flex flex-col gap-0.5 rounded-[8px] border border-border p-3 transition-colors hover:bg-surface-elevated"
             >
-              {cell.value}
-            </span>
-            <span className="text-[12px] text-text-secondary">
-              {cell.label}
-            </span>
-          </Link>
-        ))}
-      </div>
+              <span
+                className={cn(
+                  'font-numeric text-[20px] font-semibold',
+                  cell.warn && cell.value > 0
+                    ? 'text-warning'
+                    : 'text-text-primary'
+                )}
+              >
+                {cell.value}
+              </span>
+              <span className="text-[12px] text-text-secondary">
+                {cell.label}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -506,10 +600,23 @@ export default function TodayPage() {
       <Headline summary={data} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <NeedsAction summary={data} now={now} />
+        <NeedsAction
+          summary={data}
+          now={now}
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
         <div className="flex flex-col gap-4">
-          <ComingUp summary={data} />
-          <GaragesCard summary={data} />
+          <ComingUp
+            summary={data}
+            onRetry={() => void refetch()}
+            retrying={isRefetching}
+          />
+          <GaragesCard
+            summary={data}
+            onRetry={() => void refetch()}
+            retrying={isRefetching}
+          />
         </div>
       </div>
     </>

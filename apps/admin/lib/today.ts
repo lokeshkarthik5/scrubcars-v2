@@ -104,10 +104,26 @@ export interface TodayScheduleItem {
   services: string
 }
 
+/** The parts of the inbox the API reads on its own; a failed one is named in `failed`. */
+export type TodaySection =
+  | 'bookings'
+  | 'complaints'
+  | 'claims'
+  | 'bypassReports'
+  | 'refunds'
+  | 'payouts'
+  | 'garages'
+  | 'schedule'
+  | 'collected'
+
 export interface AdminTodaySummary {
   now: string
   day: string
   tasks: TodayTask[]
+  /** Sections whose source failed: said as "Couldn't load", never as none. */
+  failed: TodaySection[]
+  /** Open tasks counted but not listed: bookings past the API's limit. */
+  more: { bookings: number }
   counts: Record<
     'today' | 'bookings' | 'issues' | 'refunds' | 'garages',
     TodayCount
@@ -144,21 +160,76 @@ export type NavCounts = Partial<
   Record<'today' | 'bookings' | 'issues' | 'refunds' | 'garages', NavCount>
 >
 
+/** Which sections each count is made of: a count with a failed part is left off. */
+const COUNT_SOURCES: Record<keyof NavCounts, TodaySection[]> = {
+  today: [
+    'bookings',
+    'complaints',
+    'claims',
+    'bypassReports',
+    'refunds',
+    'payouts',
+    'garages',
+  ],
+  bookings: ['bookings'],
+  issues: ['complaints', 'claims', 'bypassReports'],
+  refunds: ['refunds'],
+  garages: ['garages'],
+}
+
+/**
+ * The menu's counts. A count whose source failed to load is left off rather
+ * than shown short: "Issues 0" while complaints failed would read as none.
+ */
 export function navCounts(
-  summary: Pick<AdminTodaySummary, 'counts'>
+  summary: Pick<AdminTodaySummary, 'counts'> &
+    Partial<Pick<AdminTodaySummary, 'failed'>>
 ): NavCounts {
   const tone = (
     count: TodayCount,
     calm: NavCount['tone'] = 'attention'
   ): NavCount['tone'] => (count.late > 0 ? 'late' : calm)
+  const failed = new Set(summary.failed ?? [])
   const { counts } = summary
-  return {
+  const all: NavCounts = {
     today: { n: counts.today.n, tone: tone(counts.today) },
     bookings: { n: counts.bookings.n, tone: tone(counts.bookings) },
     issues: { n: counts.issues.n, tone: tone(counts.issues) },
     refunds: { n: counts.refunds.n, tone: tone(counts.refunds) },
     garages: { n: counts.garages.n, tone: tone(counts.garages, 'neutral') },
   }
+  return Object.fromEntries(
+    Object.entries(all).filter(([key]) =>
+      COUNT_SOURCES[key as keyof NavCounts].every(
+        (section) => !failed.has(section)
+      )
+    )
+  ) as NavCounts
+}
+
+const SECTION_WORDS: Partial<Record<TodaySection, string>> = {
+  bookings: 'bookings waiting for their garage',
+  complaints: 'complaints',
+  claims: 'redo claims',
+  bypassReports: 'bypass reports',
+  refunds: 'refunds owed',
+  payouts: 'payouts',
+  garages: 'garages',
+}
+
+/**
+ * What the task list is missing, for its "Couldn't load …" line:
+ * "complaints and refunds owed". Null when every task source loaded.
+ */
+export function missingTasksLine(
+  failed: readonly TodaySection[]
+): string | null {
+  const words = failed
+    .map((section) => SECTION_WORDS[section])
+    .filter((w): w is string => Boolean(w))
+  if (words.length === 0) return null
+  if (words.length === 1) return words[0]!
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`
 }
 
 // ─── The inbox's filter tabs ────────────────────────────────────────────────
@@ -314,11 +385,11 @@ export function taskLine(task: TodayTask, now: number): TaskLine {
         chip: task.since
           ? ageText(task.since, now, 'Waiting')
           : { text: 'New', urgency: 'attention' },
-        href: `/bypass-reports/${task.reportId}`,
+        href: '/bypass-reports?show=new',
         action: {
           kind: 'link',
           label: 'Review',
-          href: `/bypass-reports/${task.reportId}`,
+          href: '/bypass-reports?show=new',
         },
       }
     case 'refund_owed':

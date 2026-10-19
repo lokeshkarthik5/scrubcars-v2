@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ScModal } from '@repo/ui/sc/modal'
 import type {
   AdjustRewardsPayload,
@@ -65,25 +66,39 @@ export function AdjustRewardsDialog({
           : 'Give the voucher'
         : (ACTIONS.find((a) => a.value === action)?.label ?? 'Save')
 
-  const submit = () => {
-    if (!valid || adjust.isPending) return
+  const payloadFor = (): AdjustRewardsPayload => {
+    const base = { reason: reason.trim(), actorName: name.trim() }
+    return action === 'cancel_voucher'
+      ? { action, voucherId, ...base }
+      : action === 'issue_voucher'
+        ? { action, amount: value, ...base }
+        : { action, stamps: value, ...base }
+  }
+
+  const send = async () => {
     setError('')
     rememberName(name.trim())
-    const base = { reason: reason.trim(), actorName: name.trim() }
-    const payload: AdjustRewardsPayload =
-      action === 'cancel_voucher'
-        ? { action, voucherId, ...base }
-        : action === 'issue_voucher'
-          ? { action, amount: value, ...base }
-          : { action, stamps: value, ...base }
-    adjust.mutate(payload, {
-      onSuccess: () => {
-        toast.success('Rewards adjusted')
-        onClose()
-      },
-      onError: (err) =>
-        setError(errorMessage(err, "Couldn't adjust the rewards")),
-    })
+    try {
+      await adjust.mutateAsync(payloadFor())
+      toast.success('Rewards adjusted')
+      setConfirmOpen(false)
+      onClose()
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't adjust the rewards"))
+    }
+  }
+
+  // Cancelling a voucher can't be undone (safe actions, level 3): the
+  // customer loses it for good, so its code is typed to confirm.
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const submit = () => {
+    if (!valid || adjust.isPending) return
+    if (action === 'cancel_voucher') {
+      setError('')
+      setConfirmOpen(true)
+      return
+    }
+    void send()
   }
 
   return (
@@ -204,6 +219,31 @@ export function AdjustRewardsDialog({
           {adjust.isPending ? 'Saving…' : effectLabel}
         </ScButton>
       </div>
+      {picked && (
+        <ConfirmSheet
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={send}
+          level="typed"
+          // Its code, or its amount for one with no code.
+          typeToConfirm={
+            picked.code ?? String(Math.round(Number(picked.amount)))
+          }
+          title={`Cancel the ₹${Math.round(Number(picked.amount))} voucher?`}
+          body={
+            <>
+              {data.customer.name} loses <strong>{picked.label}</strong>
+              {picked.code ? ` (${picked.code})` : ''} straight away. It
+              can&apos;t be put back as it was: to make up for a mistake, give a
+              new one.
+            </>
+          }
+          confirmLabel="Cancel the voucher"
+          cancelLabel="Keep the voucher"
+          busy={adjust.isPending}
+          error={error || undefined}
+        />
+      )}
     </ScModal>
   )
 }

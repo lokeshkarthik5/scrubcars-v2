@@ -14,7 +14,6 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSection } from '@repo/ui/sc/section'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { ScSwitch } from '@repo/ui/sc/switch'
-import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import type { AdminBookingDetail } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
@@ -283,52 +282,40 @@ function TestBookingSection({
   // Marking changes the pilot numbers, so it is confirmed first and the
   // sheet names what happens (safe actions, level 2). Unmarking puts the
   // booking back in the numbers at once, with an Undo that marks it again.
-  const [confirming, setConfirming] = useState(false)
+  const [confirming, setConfirming] = useState<'mark' | 'unmark' | null>(null)
+  // Apart from `confirming`, so the sheet keeps its words while it closes.
+  const [sheet, setSheet] = useState<'mark' | 'unmark'>('mark')
+  const [markError, setMarkError] = useState('')
   const livePaid =
     b.payment?.status === 'paid' && b.payment.gatewayMode === 'live'
 
-  const mark = () =>
-    setMark
-      .mutateAsync(
-        { id: b.id, marked: true },
-        {
-          onSuccess: () => {
-            setConfirming(false)
-            toast.success(`#${b.reference} marked as a test booking`)
-          },
-          onError: (err) =>
-            toast.error(errorMessage(err, "Couldn't change the test mark")),
-        }
-      )
-      .then(
-        () => undefined,
-        () => undefined
-      )
+  // Both ways change the pilot numbers, so both are asked first. Unmarking
+  // has no Undo: marking again would record a new time and name, not put
+  // the old mark back, and an Undo must undo.
+  const ask = (which: 'mark' | 'unmark') => {
+    setMarkError('')
+    setSheet(which)
+    setConfirming(which)
+  }
 
-  const unmark = () =>
-    setMark.mutate(
-      { id: b.id, marked: false },
-      {
-        onSuccess: () =>
-          showUndoToast(
-            'Test mark removed. It counts in the pilot numbers again.',
-            {
-              onUndo: () =>
-                setMark.mutate(
-                  { id: b.id, marked: true },
-                  {
-                    onError: (err) =>
-                      toast.error(errorMessage(err, "Couldn't mark it again")),
-                  }
-                ),
-            }
-          ),
-        onError: (err) =>
-          toast.error(errorMessage(err, "Couldn't change the test mark")),
-      }
-    )
+  const confirmChange = async () => {
+    const marking = sheet === 'mark'
+    setMarkError('')
+    try {
+      await setMark.mutateAsync({ id: b.id, marked: marking })
+      setConfirming(null)
+      toast.success(
+        marking
+          ? `#${b.reference} marked as a test booking`
+          : `#${b.reference} counts in the pilot numbers again`
+      )
+    } catch (err) {
+      // Kept open, with the reason where the button was pressed.
+      setMarkError(errorMessage(err, "Couldn't change the test mark"))
+    }
+  }
 
-  const change = (next: boolean) => (next ? setConfirming(true) : unmark())
+  const change = (next: boolean) => ask(next ? 'mark' : 'unmark')
 
   return (
     <ScSection title="Test booking">
@@ -354,43 +341,66 @@ function TestBookingSection({
         </ScButton>
       )}
       <ConfirmSheet
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        onConfirm={mark}
-        level="firm"
-        title={`Mark #${b.reference} as a test booking?`}
-        confirmLabel="Mark as test"
-        cancelLabel="Keep as real"
+        open={confirming !== null}
+        onClose={() => setConfirming(null)}
+        onConfirm={confirmChange}
+        error={markError || undefined}
         busy={setMark.isPending}
-        body={
-          <div className="flex flex-col gap-2.5">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-[12px] border border-border px-3 py-2.5 text-[13px]">
-              <dt className="text-text-secondary">Customer</dt>
-              <dd className="text-text-primary">{b.customer?.name ?? '—'}</dd>
-              <dt className="text-text-secondary">Paid</dt>
-              <dd className="text-text-primary">
-                {b.payment?.status === 'paid'
-                  ? `${formatMoney(b.payment.amount ?? b.amount)} · ${livePaid ? 'Razorpay live' : 'test mode'}`
-                  : paymentStatusLabel(b.payment?.status)}
-              </dd>
-            </dl>
-            {livePaid && (
-              <p className="flex gap-2 text-tone-attention-text">
-                <IconAlertTriangle
-                  size={18}
-                  aria-hidden="true"
-                  className="mt-0.5 shrink-0"
-                />
-                <span>
-                  This was paid with <strong>real money</strong>. Test bookings
-                  are usually paid in test mode.
-                </span>
-              </p>
-            )}
-            <p>It leaves Statistics and the pilot numbers.</p>
-            <p>You can unmark it any time from this page.</p>
-          </div>
-        }
+        {...(sheet === 'mark'
+          ? {
+              level: 'firm' as const,
+              title: `Mark #${b.reference} as a test booking?`,
+              confirmLabel: 'Mark as test',
+              cancelLabel: 'Keep as real',
+              body: (
+                <div className="flex flex-col gap-2.5">
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-[12px] border border-border px-3 py-2.5 text-[13px]">
+                    <dt className="text-text-secondary">Customer</dt>
+                    <dd className="text-text-primary">
+                      {b.customer?.name ?? '—'}
+                    </dd>
+                    <dt className="text-text-secondary">Paid</dt>
+                    <dd className="text-text-primary">
+                      {b.payment?.status === 'paid'
+                        ? `${formatMoney(b.payment.amount ?? b.amount)} · ${livePaid ? 'Razorpay live' : 'test mode'}`
+                        : paymentStatusLabel(b.payment?.status)}
+                    </dd>
+                  </dl>
+                  {livePaid && (
+                    <p className="flex gap-2 text-tone-attention-text">
+                      <IconAlertTriangle
+                        size={18}
+                        aria-hidden="true"
+                        className="mt-0.5 shrink-0"
+                      />
+                      <span>
+                        This was paid with <strong>real money</strong>. Test
+                        bookings are usually paid in test mode.
+                      </span>
+                    </p>
+                  )}
+                  <p>It leaves Statistics and the pilot numbers.</p>
+                  <p>You can unmark it any time from this page.</p>
+                </div>
+              ),
+            }
+          : {
+              level: 'light' as const,
+              title: `Count #${b.reference} in the pilot numbers again?`,
+              confirmLabel: 'Unmark',
+              cancelLabel: 'Keep it as test',
+              body: (
+                <div className="flex flex-col gap-2.5">
+                  <p>It goes back into Statistics and the pilot numbers.</p>
+                  <p>
+                    {b.markedTest?.by
+                      ? `The mark by ${b.markedTest.by} is cleared. `
+                      : 'The mark is cleared. '}
+                    Marking it again later records a new mark with your name.
+                  </p>
+                </div>
+              ),
+            })}
       />
     </ScSection>
   )

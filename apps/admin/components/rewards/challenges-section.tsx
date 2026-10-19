@@ -207,6 +207,7 @@ function ChallengeDetail({
   const [name, setName] = useState(rememberedName)
   const [downloading, setDownloading] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
+  const [endError, setEndError] = useState('')
 
   if (detail.isPending) return <SkeletonList />
   if (detail.isError || !detail.data)
@@ -250,15 +251,17 @@ function ChallengeDetail({
         onClose={() => setEndOpen(false)}
         onConfirm={async () => {
           rememberName(name.trim())
+          setEndError('')
           try {
             await end.mutateAsync(name.trim())
+            setEndOpen(false)
             toast.success('Ended')
           } catch (err) {
-            toast.error(errorMessage(err, "Couldn't end it"))
-          } finally {
-            setEndOpen(false)
+            // Kept open, with the reason where the button was pressed.
+            setEndError(errorMessage(err, "Couldn't end it"))
           }
         }}
+        error={endError || undefined}
         level="firm"
         title={`End “${c.title}” now?`}
         body="No one can win it from now on. Rewards already won are kept. It can't be started again: make a new challenge instead."
@@ -366,6 +369,7 @@ function ChallengeDetail({
               onClick={() => {
                 if (name.trim().length < 2)
                   return toast.error('Type your name first')
+                setEndError('')
                 setEndOpen(true)
               }}
             >

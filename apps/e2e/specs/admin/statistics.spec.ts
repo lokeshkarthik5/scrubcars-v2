@@ -35,7 +35,10 @@ test.describe('statistics page @p0', () => {
       })
     ).toHaveAttribute('aria-checked', 'true')
 
-    await page.getByLabel('Garage').selectOption(VENDORS.stats.id)
+    // Exact: the menu's search, and others, mention garages too.
+    await page
+      .getByLabel('Garage', { exact: true })
+      .selectOption(VENDORS.stats.id)
     await expect(page).toHaveURL(new RegExp(`garage=${VENDORS.stats.id}`))
     await expect(
       page.getByText('Collected after refunds', { exact: true })

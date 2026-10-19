@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   inboxSubtitle,
   inboxTitle,
+  missingTasksLine,
   navCounts,
   taskLine,
   type TodayTask,
@@ -96,5 +97,49 @@ describe('a task as a line', () => {
     expect(counts.today).toEqual({ n: 9, tone: 'late' })
     expect(counts.bookings).toEqual({ n: 3, tone: 'attention' })
     expect(counts.garages).toEqual({ n: 5, tone: 'neutral' })
+  })
+
+  test('a count with a part that failed to load is left off, not shown short', () => {
+    const counts = {
+      today: { n: 9, late: 0 },
+      bookings: { n: 3, late: 0 },
+      issues: { n: 4, late: 0 },
+      refunds: { n: 2, late: 0 },
+      garages: { n: 5, late: 0 },
+    }
+    const shown = navCounts({ counts, failed: ['complaints', 'collected'] })
+    expect(Object.keys(shown).sort()).toEqual([
+      'bookings',
+      'garages',
+      'refunds',
+    ])
+    expect(missingTasksLine(['complaints', 'refunds', 'collected'])).toBe(
+      'complaints and refunds owed'
+    )
+    expect(missingTasksLine(['schedule', 'collected'])).toBeNull()
+  })
+
+  test('a bypass report opens the reports to review: there is no page per report', () => {
+    const line = taskLine(
+      {
+        key: 'bypass_report:x',
+        kind: 'bypass_report',
+        group: 'issues',
+        dueAt: null,
+        since: new Date(NOW - 2 * 60 * MIN).toISOString(),
+        late: false,
+        reportId: 'x',
+        kindLabel: 'Asked me to pay cash',
+        customerName: 'Rahul',
+        garageName: 'Tambaram Wash Point',
+        strikes: 2,
+      },
+      NOW
+    )
+    expect(line.href).toBe('/bypass-reports?show=new')
+    expect(line.action).toMatchObject({
+      kind: 'link',
+      href: '/bypass-reports?show=new',
+    })
   })
 })

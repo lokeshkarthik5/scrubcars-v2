@@ -31,9 +31,17 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * Today exactly when its page would show it as open. On an object so the
  * route test can stand each one in without a database.
  */
+/** The most bookings waiting for their garage the inbox lists; the rest are counted. */
+export const WAITING_LIMIT = 200
+
 export const todaySources = {
   waitingBookings: (now: Date) =>
-    todayRepository.listWaitingBookings(new Date(now.getTime() - DAY_MS)),
+    todayRepository.listWaitingBookings(
+      new Date(now.getTime() - DAY_MS),
+      WAITING_LIMIT
+    ),
+  waitingBookingsCount: (now: Date) =>
+    todayRepository.countWaitingBookings(new Date(now.getTime() - DAY_MS)),
   day: (start: Date, end: Date) => todayRepository.listDay(start, end),
   complaints: (now: Date) => complaintsService.list({ show: 'open' }, now),
   // Redo claims only while the Guarantee is on; its route is a 404 otherwise.
@@ -49,18 +57,17 @@ export const todaySources = {
     statsService.overview({ from: day, to: day, compare: false }),
 }
 
-/** A read that may fail on its own without taking the whole inbox down. */
-async function optional<T>(
-  what: string,
-  read: () => Promise<T> | T
-): Promise<T | null> {
-  try {
-    return await read()
-  } catch (err) {
-    log.warn({ err, what }, 'today:source_failed')
-    return null
-  }
-}
+/** The parts of the inbox, each read on its own. */
+export type TodaySection =
+  | 'bookings'
+  | 'complaints'
+  | 'claims'
+  | 'bypassReports'
+  | 'refunds'
+  | 'payouts'
+  | 'garages'
+  | 'schedule'
+  | 'collected'
 
 const iso = (at: Date | string | null | undefined) =>
   at == null ? null : new Date(at).toISOString()
@@ -73,10 +80,40 @@ export const todayService = {
    */
   async summary(now = new Date()) {
     const tasks: TodayTask[] = []
+    // Each source is read on its own: one that fails leaves its section
+    // marked as not loaded, never the whole inbox (and the menu's counts).
+    const failed: TodaySection[] = []
+    const read = async <T, F>(
+      section: TodaySection,
+      fallback: F,
+      load: () => Promise<T> | T
+    ): Promise<T | F> => {
+      try {
+        return await load()
+      } catch (err) {
+        log.warn({ err, what: section }, 'today:source_failed')
+        failed.push(section)
+        return fallback
+      }
+    }
     const day = istDate(now)
     const { start, end } = istDateRange(day, day)
 
-    for (const b of await todaySources.waitingBookings(now)) {
+    const waiting = await read('bookings', [], () =>
+      todaySources.waitingBookings(now)
+    )
+    // Cut short at WAITING_LIMIT: the rest are counted, so nothing drops off
+    // the inbox without a word ("+N more" links to Bookings).
+    const moreBookings =
+      waiting.length >= WAITING_LIMIT
+        ? Math.max(
+            0,
+            (await read('bookings', waiting.length, () =>
+              todaySources.waitingBookingsCount(now)
+            )) - waiting.length
+          )
+        : 0
+    for (const b of waiting) {
       const respondBy = iso(b.respondBy)
       tasks.push({
         key: `booking_waiting:${b.id}`,
@@ -96,7 +133,9 @@ export const todayService = {
       })
     }
 
-    const complaints = await todaySources.complaints(now)
+    const complaints = await read('complaints', { complaints: [] }, () =>
+      todaySources.complaints(now)
+    )
     for (const c of complaints.complaints) {
       const stage = c.status === 'open' ? 'acknowledge' : 'resolve'
       tasks.push({
@@ -115,7 +154,7 @@ export const todayService = {
       })
     }
 
-    const claims = await todaySources.claims(now)
+    const claims = await read('claims', null, () => todaySources.claims(now))
     for (const claim of claims?.items ?? []) {
       tasks.push({
         key: `redo_claim:${claim.id}`,
@@ -134,7 +173,9 @@ export const todayService = {
       })
     }
 
-    const reports = await todaySources.bypassReports(now)
+    const reports = await read('bypassReports', { reports: [] }, () =>
+      todaySources.bypassReports(now)
+    )
     for (const report of reports.reports) {
       tasks.push({
         key: `bypass_report:${report.id}`,
@@ -151,7 +192,9 @@ export const todayService = {
       })
     }
 
-    for (const refund of await todaySources.refundsOwed()) {
+    for (const refund of await read('refunds', [], () =>
+      todaySources.refundsOwed()
+    )) {
       tasks.push({
         key: `refund_owed:${refund.id}`,
         kind: 'refund_owed',
@@ -169,7 +212,9 @@ export const todayService = {
       })
     }
 
-    const payouts = await todaySources.payoutsDue(now)
+    const payouts = await read('payouts', null, () =>
+      todaySources.payoutsDue(now)
+    )
     if (payouts && payouts.garages > 0) {
       tasks.push({
         key: 'payouts_due:all',
@@ -183,23 +228,38 @@ export const todayService = {
       })
     }
 
-    const vendors = await todaySources.garages()
+    const vendors = await read('garages', [] as GarageRow[], () =>
+      todaySources.garages()
+    )
     tasks.push(...garageTasks(vendors))
     const garages = garageFigures(vendors)
 
-    const schedule = start && end ? await todaySources.day(start, end) : []
+    const schedule =
+      start && end
+        ? await read('schedule', [], () => todaySources.day(start, end))
+        : []
     // As Statistics counts it, so the two pages never disagree. Optional: a
     // slow statistics read leaves the tile empty, not the inbox.
-    const overview = await optional('collected', () =>
+    const overview = await read('collected', null, () =>
       todaySources.collected(day)
     )
 
     const sorted = sortTasks(tasks)
-    const counts = taskCounts(sorted)
+    const listed = taskCounts(sorted)
+    // The menu counts the ones not listed too.
+    const counts = {
+      ...listed,
+      today: { ...listed.today, n: listed.today.n + moreBookings },
+      bookings: { ...listed.bookings, n: listed.bookings.n + moreBookings },
+    }
     return {
       now: now.toISOString(),
       day,
       tasks: sorted,
+      /** Sections whose source failed: shown as "Couldn't load", not as none. */
+      failed: [...new Set(failed)],
+      /** Open tasks counted but not listed: bookings past WAITING_LIMIT. */
+      more: { bookings: moreBookings },
       counts,
       headline: {
         bookingsToday: bookingsToday(schedule),

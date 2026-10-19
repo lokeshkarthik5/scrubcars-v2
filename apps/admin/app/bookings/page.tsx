@@ -234,6 +234,9 @@ function NeedsActionFirst() {
       >
         Needs action first{' '}
         <span className="font-numeric text-text-secondary">{tasks.length}</span>
+        <span className="ml-2 text-[12px] font-normal text-text-secondary">
+          Test bookings left out
+        </span>
       </h2>
       <ul>
         {tasks.map((task) => {
@@ -293,6 +296,17 @@ function BookingsList() {
 
   const [search, setSearch] = useState(params.get('q') ?? '')
   const q = useDebounced(search.trim(), 350)
+
+  // A search that arrives in the address while the page is open ("Find
+  // anything" from here, Back and Forward) fills the box too. Adjusted
+  // during render, as React advises for state that follows a prop; the
+  // page's own writes of its search come back equal and change nothing.
+  const urlQ = params.get('q') ?? ''
+  const [seenUrlQ, setSeenUrlQ] = useState(urlQ)
+  if (urlQ !== seenUrlQ) {
+    setSeenUrlQ(urlQ)
+    if (urlQ !== q) setSearch(urlQ)
+  }
 
   const setParams = useCallback(
     (updates: Record<string, string>) => {

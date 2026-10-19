@@ -6,6 +6,9 @@ import {
   emptyServiceRow,
   groupRows,
   minsToDuration,
+  restoreRow,
+  rowBefore,
+  rowHasUnsavedChanges,
   serviceGroupOf,
   serviceRowFromTemplate,
   toServicePayload,
@@ -180,5 +183,37 @@ describe('toServicePayload', () => {
       pricingType: 'flat',
       price: 450,
     })
+  })
+})
+
+describe('hide, and Undo', () => {
+  const a = row({ id: 'a', key: 'a' })
+  const b = row({ id: 'b', key: 'b' })
+  const c = row({ id: 'c', key: 'c' })
+
+  test('a hidden row comes back where it stood, and never twice', () => {
+    expect(rowBefore([a, b, c], 'b')).toBe('a')
+    expect(rowBefore([a, b, c], 'a')).toBeNull()
+    expect(restoreRow([a, c], b, 'a').map((r) => r.id)).toEqual(['a', 'b', 'c'])
+    expect(restoreRow([b, c], a, null).map((r) => r.id)).toEqual([
+      'a',
+      'b',
+      'c',
+    ])
+    // Show again, with no place to go back to: at the end.
+    expect(restoreRow([a, c], b).map((r) => r.id)).toEqual(['a', 'c', 'b'])
+    // The row it followed has gone too: first, rather than lost.
+    expect(restoreRow([c], b, 'a').map((r) => r.id)).toEqual(['b', 'c'])
+    // Already back (a second Undo, or Show again as well): unchanged.
+    const list = [a, b, c]
+    expect(restoreRow(list, b, 'a')).toBe(list)
+  })
+
+  test('a row with unsaved edits says so', () => {
+    expect(rowHasUnsavedChanges([a, b], [a, b], 'b')).toBe(false)
+    expect(
+      rowHasUnsavedChanges([a, b], [a, { ...b, name: 'Changed' }], 'b')
+    ).toBe(true)
+    expect(rowHasUnsavedChanges([a], [a], 'missing')).toBe(false)
   })
 })
