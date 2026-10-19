@@ -138,7 +138,8 @@ describe('the car photo on each card', () => {
         total += bytes
       }
     }
-    expect(total).toBeLessThan(2_500_000)
+    // About 150 KB a photo (both widths) on average, so the pool can grow without bloating the repo.
+    expect(total).toBeLessThan(CARD_CARS.length * 150_000)
     expect(existsSync(join(publicDir, 'cards', 'cars', 'CREDITS.md'))).toBe(true)
   })
 
