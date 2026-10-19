@@ -95,7 +95,23 @@ test.describe('operator role gating @p0', () => {
     await page.goto('/earnings')
 
     // Hiding the nav item is presentation; the page itself has to refuse, or
-    // the URL is the bypass.
-    await expect(page.getByText(/₹/).first()).toHaveCount(0)
+    // the URL is the bypass. It sends the operator Home, and only once Home
+    // has its bookings on screen does "no ₹" mean anything.
+    await expect(page).toHaveURL(/\/home$/)
+    await expect(
+      page.getByRole('heading', { name: /^Waiting for your answer/ })
+    ).toBeVisible()
+    await expect(page.locator('article[id^="job-"]').first()).toBeVisible()
+    await expect(page.getByText(/₹/)).toHaveCount(0)
+
+    // Nor on Bookings › New, where every new booking's card is: the
+    // doorstep job is seeded new at MAIN and never answered by any spec.
+    await page.goto('/bookings?tab=new')
+    await expect(
+      page.getByRole('article', {
+        name: `New booking from ${CUSTOMERS.vendorDoorstep.name}`,
+      })
+    ).toBeVisible()
+    await expect(page.getByText(/₹/)).toHaveCount(0)
   })
 })

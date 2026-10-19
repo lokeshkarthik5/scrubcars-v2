@@ -13,6 +13,7 @@ import {
   finalBillStatusLabel,
   formatRupees,
 } from '@repo/core/job-records'
+import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import type { StatusTone } from '@repo/core/status-tone'
 import type { Booking, FinalBill } from '@repo/core/types'
 import { JobSheetRow } from '@/components/job-sheet-row'
@@ -104,6 +105,7 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
   const [note, setNote] = useState(bill?.note ?? '')
   const [sending, setSending] = useState(false)
   const who = booking.customerName ?? 'this customer'
+  const isVendorAdmin = useIsVendorAdmin()
 
   if (!bill && !booking.canRaiseFinalBill) return null
 
@@ -163,8 +165,17 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
           icon={<IconReceipt size={22} stroke={1.6} />}
           title={
             <>
-              Final bill ·{' '}
-              <span className="font-numeric">{formatRupees(bill.total)}</span>
+              Final bill
+              {/* The figures in the row are the owner's; an operator who
+                  writes the bill still sees its lines in the sheet. */}
+              {isVendorAdmin && (
+                <>
+                  {' · '}
+                  <span className="font-numeric">
+                    {formatRupees(bill.total)}
+                  </span>
+                </>
+              )}
             </>
           }
           detail={
@@ -174,10 +185,15 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
               </StatusChip>
               {bill.amountDue > 0 && (
                 <span>
-                  {bill.status === 'paid' ? 'Paid in app' : 'Customer pays'}{' '}
-                  <span className="font-numeric text-text-primary">
-                    {formatRupees(bill.amountDue)}
-                  </span>
+                  {bill.status === 'paid' ? 'Paid in app' : 'Customer pays'}
+                  {isVendorAdmin && (
+                    <>
+                      {' '}
+                      <span className="font-numeric text-text-primary">
+                        {formatRupees(bill.amountDue)}
+                      </span>
+                    </>
+                  )}
                 </span>
               )}
             </span>

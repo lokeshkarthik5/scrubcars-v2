@@ -14,6 +14,7 @@ import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { formatINR, formatWhen } from '@repo/core/format'
+import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
@@ -67,6 +68,9 @@ export function NewBookingCard({
   const numberLine = customerNumberLine(b, now)
   const km = distanceKm(b)
   const price = jobPrice(b)
+  // Money is the owner's (as Earnings and Home's This week are): an
+  // operator's card shows the job without what it is worth.
+  const isVendorAdmin = useIsVendorAdmin()
 
   const accept = async () => {
     setAccepting(true)
@@ -174,9 +178,11 @@ export function NewBookingCard({
               )}
             </span>
           </p>
-          <p className="shrink-0 font-numeric text-[24px] font-bold leading-none tracking-tight text-text-primary">
-            {formatINR(price)}
-          </p>
+          {isVendorAdmin && (
+            <p className="shrink-0 font-numeric text-[24px] font-bold leading-none tracking-tight text-text-primary">
+              {formatINR(price)}
+            </p>
+          )}
         </div>
 
         {b.rescheduledFromId && !passed && (

@@ -9,6 +9,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { StatusChip } from '@repo/ui/sc/status-chip'
 import { askExtraWork, withdrawExtraWork } from '@repo/core/api/job-records'
 import { formatINR } from '@repo/core/format'
+import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import type { StatusTone } from '@repo/core/status-tone'
 import type { Booking, ExtraWork } from '@repo/core/types'
 import { JobSheetRow } from '@/components/job-sheet-row'
@@ -62,6 +63,7 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
   const [withdrawing, setWithdrawing] = useState<string | null>(null)
   const who = booking.customerName ?? 'the customer'
   const canAsk = booking.extraWorkRefusal === null
+  const isVendorAdmin = useIsVendorAdmin()
 
   // Asked for before, it stays on the card for good (paid, declined…); on a
   // job that is on, the card offers to ask.
@@ -104,7 +106,8 @@ export function ExtraWorkPanel({ booking, onChanged }: ExtraWorkPanelProps) {
         title={
           <>
             Extra work
-            {total > 0 && (
+            {/* The sum is the owner's; each request's own price stays in the sheet. */}
+            {isVendorAdmin && total > 0 && (
               <span className="font-numeric">{` · ${formatINR(total, { paise: true })}`}</span>
             )}
           </>
