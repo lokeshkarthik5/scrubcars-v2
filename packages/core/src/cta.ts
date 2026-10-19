@@ -4,10 +4,11 @@
  *
  * Owner decision D12: the guideline red #E4002B is the lightest stop, so white
  * text clears WCAG AA (4.5:1) everywhere on the button at rest. The old
- * #EF3240 does not (3.87:1), which is the known failure the accessibility
- * suite keeps on its report. axe cannot judge text on a gradient (it reports
- * it as "incomplete"), so cta.test.ts checks the lightest stop here, and that
- * packages/ui/styles/globals.css draws the button with exactly these stops.
+ * #EF3240 does not (3.87:1), so every flat red fill behind white text is
+ * this red too (`--color-brand-red-fill` in globals.css). axe cannot judge
+ * text on a gradient (it reports it as "incomplete"), so cta.test.ts checks
+ * the lightest stop here, and that packages/ui/styles/globals.css draws the
+ * button with exactly these stops.
  *
  * The light sweep that crosses the label twice when Home opens dips below
  * 4.5:1 for about 0.3 s each time; that is a conscious owner exception,

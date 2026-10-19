@@ -12,6 +12,14 @@
      dot — and never for errors, selection or status. See --color-error. */
   --color-brand-red: #EF3240;
   --color-brand-red-hover: #D42433;
+  /* Red behind white text: buttons, the selected map pin, a marker label.
+     The brand guideline's #E4002B, the CTA gradient's lightest stop (D12):
+     white on it is 4.85:1 (#FAFAFA 4.64:1), where white on #EF3240 is 3.87:1,
+     under AA. Hover goes darker, 5.82:1. #EF3240 stays for red with nothing
+     written on it (dots, the nav marker) and for red text on the canvas
+     (4.90:1), where the darker red would be 4.08:1. */
+  --color-brand-red-fill: #E4002B;
+  --color-brand-red-fill-hover: #C70026;
   /* The brand's canvas and graphite, from the Figma guideline: canvas #0A0A0B
      with #141416 for cards, and #272730 graphite for anything raised above a
      card (a selected segment, a pressed toggle, a popover). These were flat
@@ -41,7 +49,7 @@
   /* Brand red as small text on its own 12% tint (the garage's and admin's
      "New" badge). #EF3240 there is 4.1:1 on a card, under AA for 11px text;
      this is the same red a step lighter, 5.2:1 on a card and 5.6:1 on the
-     canvas. Text only: fills and buttons stay #EF3240. */
+     canvas. Text only: a fill behind white text is --color-brand-red-fill. */
   --color-accent-text: #F45A66;
   --color-success: #22C55E;
   --color-success-muted: rgba(34, 197, 94, 0.12);
@@ -57,6 +65,38 @@
   --color-error: #F5A524;
   --color-error-muted: rgba(245, 165, 36, 0.12);
   --color-info: #3B82F6;
+  /* The six status tones (StatusChip, packages/core/src/status-tone.ts):
+     a tint to sit on, a text colour, and a solid dot. One meaning each,
+     everywhere. Text on its own tint, over the canvas and over a card
+     (the same to two decimals for #0A0A0B / #0A0A0A and #141416 / #151515
+     but for "new", 5.26 on #151515); status-tone.test.ts reads these lines
+     and holds every pair to 4.5:1.
+       new        red, waiting for the garage   5.70 canvas · 5.31 card
+       progress   blue, accepted or underway    6.99 · 6.30
+       done       green, finished or paid       7.47 · 6.72
+       attention  amber, a problem to fix       8.14 · 7.36
+       late       coral, past its time          6.08 · 5.53
+       closed     grey, cancelled               7.94 · 7.14
+     Coral is its own token, so "late" stops sharing amber with "caution".
+     The dots are graphics (3:1), the brand red among them. */
+  --color-tone-new-tint: rgba(228, 0, 43, 0.14);
+  --color-tone-new-text: #F45A66;
+  --color-tone-new-dot: #EF3240;
+  --color-tone-progress-tint: rgba(59, 130, 246, 0.16);
+  --color-tone-progress-text: #6EA8FF;
+  --color-tone-progress-dot: #3B82F6;
+  --color-tone-done-tint: rgba(34, 197, 94, 0.12);
+  --color-tone-done-text: #22C55E;
+  --color-tone-done-dot: #22C55E;
+  --color-tone-attention-tint: rgba(245, 165, 36, 0.12);
+  --color-tone-attention-text: #F5A524;
+  --color-tone-attention-dot: #F5A524;
+  --color-tone-late-tint: rgba(255, 107, 87, 0.13);
+  --color-tone-late-text: #FF6B57;
+  --color-tone-late-dot: #FF6B57;
+  --color-tone-closed-tint: rgba(255, 255, 255, 0.07);
+  --color-tone-closed-text: #B0B0B0;
+  --color-tone-closed-dot: #8A8A93;
   /* The Home hub's surfaces (packages/ui "hub-card", apps/users Home and
      Updates): a card is a soft graphite gradient, top to bottom, with a
      hairline edge and a 28px radius; pills are fully round. Used only by

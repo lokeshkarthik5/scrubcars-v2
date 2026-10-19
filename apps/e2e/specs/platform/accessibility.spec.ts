@@ -74,49 +74,43 @@ const scan = (page: import('@playwright/test').Page) =>
 /**
  * Brand red at small text sizes.
  *
- * One pairing remains:
+ * White on red is no longer excluded: every red fill behind white text is
+ * the guideline red #E4002B (`brand-red-fill`, 4.85:1 with white; 4.64:1
+ * with #FAFAFA) — ScButton's primary and cta, the gradient pills, the
+ * garage page's Add, the map pins. White on the old #EF3240 was 3.87:1, and
+ * the test at the bottom of this file now fails if a fill like that comes
+ * back.
  *
- *   white on brand red #EF3240    3.87:1 (#FAFAFA) to 4.0:1 (#FFF) — ScButton's
- *                                 primary style and (Home hub look off) the
- *                                 garage page's Add buttons, so every primary
- *                                 action the hub's gradient pill has not
- *                                 replaced
+ * Red *text* (#EF3240, `brand-red`) stays excluded. It clears 4.5:1 on the
+ * canvas (4.9:1) and on a card (4.56:1), but red text on graphite (#272730)
+ * would be 3.66:1, so keep it off raised surfaces; small red words that
+ * must read anywhere use `accent-text` (#F45A66).
  *
- * It is not a page-level mistake and cannot be fixed where it appears: white
- * on #EF3240 cannot reach 4.5:1 at all without changing the red.
- *
- * There used to be a second — red text on a raised surface, from ScSegmented's
- * selected state. That went when red was kept for things to press: selected
- * states are now white on graphite, and the red that is left on customer
- * screens as text (Profile's Add, the coupon sheet's Apply) sits on the canvas,
- * where it clears 4.5:1. Red text on graphite (#272730) would be 3.66:1, so
- * keep it off raised surfaces.
- *
- * The usual remedy is an accessible variant of the brand colour — a darker red
- * behind white text (#D42433 gives 4.91:1) — keeping #EF3240 for fills and
- * large elements. That is a design decision about the brand, not a test
- * failure to patch away, so the pairing is excluded from the gate below and
- * kept on the report by the test at the bottom of this file.
- *
- * axe under-reports it: it exempts disabled controls, and most primary
+ * axe under-reports fills: it exempts disabled controls, and most primary
  * buttons are disabled until their form is valid.
  */
-const BRAND_RED = '#ef3240'
+const BRAND_RED_TEXT = '#ef3240'
+/** Any brand red a fill behind white text could be drawn in, old or new. */
+const BRAND_RED_FILLS = ['#ef3240', '#e4002b', '#c70026']
 
-const isBrandRedPairing = (node: { any?: Array<{ data?: unknown }> }) =>
-  (node.any ?? []).some((check) => {
+const contrastColours = (node: { any?: Array<{ data?: unknown }> }) =>
+  (node.any ?? []).map((check) => {
     const data = check.data as { fgColor?: string; bgColor?: string } | undefined
-    const fg = data?.fgColor?.toLowerCase()
-    const bg = data?.bgColor?.toLowerCase()
-    return fg === BRAND_RED || bg === BRAND_RED
+    return { fg: data?.fgColor?.toLowerCase(), bg: data?.bgColor?.toLowerCase() }
   })
+
+const isBrandRedText = (node: { any?: Array<{ data?: unknown }> }) =>
+  contrastColours(node).some(({ fg }) => fg === BRAND_RED_TEXT)
+
+const isOnBrandRedFill = (node: { any?: Array<{ data?: unknown }> }) =>
+  contrastColours(node).some(({ bg }) => bg !== undefined && BRAND_RED_FILLS.includes(bg))
 
 const serious = (results: Awaited<ReturnType<AxeBuilder['analyze']>>) =>
   results.violations
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
     .map((v) =>
       v.id === 'color-contrast'
-        ? { ...v, nodes: v.nodes.filter((n) => !isBrandRedPairing(n)) }
+        ? { ...v, nodes: v.nodes.filter((n) => !isBrandRedText(n)) }
         : v
     )
     .filter((v) => v.nodes.length > 0)
@@ -172,26 +166,22 @@ test.describe('accessibility', () => {
 })
 
 /**
- * Marked `fail` on purpose: known brand-level debt, not an unwritten test.
+ * White on a red fill meets AA. Was marked `fail` as brand-level debt while
+ * buttons were #EF3240 (3.87:1); red fills behind white text are #E4002B
+ * now, so this is the gate that keeps it that way.
  *
- * See the note on `isBrandRedPairing` above. This starts passing once brand red
- * has accessible variants, at which point Playwright reports the annotation as
- * stale — delete it and the exclusion together.
- *
- * Measured on the garage page, not home: home no longer has red text at all
- * (its selected chip, mode switch and nav item are white), so scanning it
- * would pass for the wrong reason. The garage page carries the pairing that
- * is still open — white on red, on the details popup's "Add to booking"
- * (ScButton's primary). With the Home hub look on, as in this suite, the
- * cards' own Add buttons are graphite, so the popup is opened first: scanning
- * the page alone would pass for the wrong reason too.
+ * Measured on the garage page, not home: home has no red text or flat red
+ * fill at all (its selected chip, mode switch and nav item are white), so
+ * scanning it would pass for the wrong reason. The garage page has white on
+ * red on the details popup's "Add to booking" (ScButton's primary). With
+ * the Home hub look on, as in this suite, the cards' own Add buttons are
+ * graphite, so the popup is opened first: scanning the page alone would
+ * pass for the wrong reason too.
  */
-test.describe('accessibility debt', () => {
+test.describe('accessibility: brand red', () => {
   test.use({ storageState: asRole('customer-browse') })
 
-  test('brand red should meet AA at small text sizes', async ({ page }) => {
-    test.fail()
-
+  test('white on brand red meets AA at small text sizes', async ({ page }) => {
     const garage = new GaragePage(page)
     await garage.goto(VENDORS.main.id)
     await garage.openDetails(SERVICES.wash.name)
@@ -201,7 +191,7 @@ test.describe('accessibility debt', () => {
     const results = await scan(page)
     const offenders = results.violations
       .filter((v) => v.id === 'color-contrast')
-      .flatMap((v) => v.nodes.filter(isBrandRedPairing))
+      .flatMap((v) => v.nodes.filter(isOnBrandRedFill))
 
     expect(offenders).toEqual([])
   })
