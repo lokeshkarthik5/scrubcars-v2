@@ -23,7 +23,11 @@ const REBOOK_DOORSTEP = new RegExp(
 test.describe('book again @p0', () => {
   test('opens checkout with the same services, in order, and the same mode', async ({ page }) => {
     await page.goto(`/bookings/${BOOKINGS.rebookDoorstep}`)
-    await page.getByRole('link', { name: 'Book again' }).click()
+    const bookAgain = page.getByRole('link', { name: 'Book again' })
+    // The link gains the saved address once the customer's addresses load;
+    // clicking before that reopens checkout on the default address instead.
+    await expect(bookAgain).toHaveAttribute('href', /&address=[0-9a-f-]{36}$/)
+    await bookAgain.click()
 
     await expect(page).toHaveURL(REBOOK_DOORSTEP)
     const checkout = new CheckoutPage(page)
