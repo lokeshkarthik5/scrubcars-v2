@@ -6,7 +6,11 @@ import { IconCards } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { TopBar } from '@repo/ui/sc/top-bar'
-import { garageLive, useGarageAlbum, useGaragePulls } from '@repo/core/api/hooks/use-garage'
+import {
+  garageLive,
+  useGarageAlbum,
+  useGaragePulls,
+} from '@repo/core/api/hooks/use-garage'
 import { useRewardsConfig } from '@repo/core/api/hooks/use-rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
@@ -39,15 +43,32 @@ function GarageScreen() {
   const on = garageLive(config.data)
   const album = useGarageAlbum(on && !!user)
   const pulls = useGaragePulls(on && !!user)
-  const header = <TopBar title="Detlio Garage" showBack backHref="/profile/rewards" large={isHomeHubEnabled()} />
+  const header = (
+    <TopBar
+      title="Detlio Garage"
+      showBack
+      backHref="/profile/rewards"
+      large={isHomeHubEnabled()}
+    />
+  )
 
   if (ready && !user) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to see your Garage</p>
-          <ScButton className="mt-2 w-auto px-8" onClick={() => router.push(`/login?next=${encodeURIComponent('/profile/rewards/garage')}`)}>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Sign in to see your Garage
+          </p>
+          <ScButton
+            variant="main"
+            className="mt-2 w-auto px-8"
+            onClick={() =>
+              router.push(
+                `/login?next=${encodeURIComponent('/profile/rewards/garage')}`
+              )
+            }
+          >
             Sign in
           </ScButton>
         </div>
@@ -58,7 +79,13 @@ function GarageScreen() {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
-        <EmptyState icon={<IconCards size={32} stroke={1.5} />} title="The Garage isn't open right now" subtitle="Your rewards are still on the Rewards page." actionLabel="Detlio Rewards" onAction={() => router.push('/profile/rewards')} />
+        <EmptyState
+          icon={<IconCards size={32} stroke={1.5} />}
+          title="The Garage isn't open right now"
+          subtitle="Your rewards are still on the Rewards page."
+          actionLabel="Detlio Rewards"
+          onAction={() => router.push('/profile/rewards')}
+        />
       </CustomerShell>
     )
   }
@@ -71,11 +98,23 @@ function GarageScreen() {
           <SkeletonCard />
         </div>
       ) : album.isError || !album.data ? (
-        <ErrorState message="Couldn't load your Garage. Check your connection." onRetry={() => void album.refetch()} />
+        <ErrorState
+          message="Couldn't load your Garage. Check your connection."
+          onRetry={() => void album.refetch()}
+        />
       ) : (
         <>
-          <GarageAlbumView album={album.data} firstName={firstNameOf(user?.name)} />
-          {pulls.data && pulls.data.unseen > 0 && <PullRevealSheet pulls={pulls.data.pulls} focusId={params.get('pull')} firstName={firstNameOf(user?.name)} />}
+          <GarageAlbumView
+            album={album.data}
+            firstName={firstNameOf(user?.name)}
+          />
+          {pulls.data && pulls.data.unseen > 0 && (
+            <PullRevealSheet
+              pulls={pulls.data.pulls}
+              focusId={params.get('pull')}
+              firstName={firstNameOf(user?.name)}
+            />
+          )}
         </>
       )}
     </CustomerShell>

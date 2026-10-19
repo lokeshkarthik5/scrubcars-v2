@@ -27,7 +27,7 @@
   position: relative;
   height: 314px;
   overflow: hidden;
-  background: linear-gradient(180deg, #1E1F24 0%, #131418 55%, #0C0D10 100%);
+  background: linear-gradient(180deg, #1e1f24 0%, #131418 55%, #0c0d10 100%);
 }
 .car-hero::before {
   content: '';
@@ -36,7 +36,12 @@
   right: -20%;
   top: 92px;
   height: 180px;
-  background: radial-gradient(42% 48% at 50% 56%, rgba(200, 210, 235, 0.15), rgba(200, 210, 235, 0.04) 55%, transparent 75%);
+  background: radial-gradient(
+    42% 48% at 50% 56%,
+    rgba(200, 210, 235, 0.15),
+    rgba(200, 210, 235, 0.04) 55%,
+    transparent 75%
+  );
   pointer-events: none;
 }
 .car-hero__track {
@@ -52,7 +57,7 @@
   display: none;
 }
 .car-hero__track:focus-visible {
-  outline: 2px solid #FAFAFA;
+  outline: 2px solid #fafafa;
   outline-offset: -4px;
   border-radius: inherit;
 }
@@ -78,7 +83,7 @@
   font-weight: 300;
   line-height: 1.08;
   letter-spacing: -0.03em;
-  color: #F5F5F6;
+  color: #f5f5f6;
 }
 .car-hero__car {
   position: absolute;
@@ -127,16 +132,88 @@
   margin-bottom: 4px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #2A2A2E;
+  border: 1px solid #2a2a2e;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.015);
   font-size: 15px;
   font-weight: 500;
   letter-spacing: -0.005em;
-  color: #F5F5F6;
+  color: #f5f5f6;
 }
 .car-hero--short {
   height: 294px;
+}
+/* The Shine Card under the car (F2): its name, the stamps as short bars and
+   what they add up to, above Book a wash. The stage grows to fit it. */
+.car-hero--shine {
+  height: 358px;
+}
+.car-hero--shine.car-hero--short {
+  height: 338px;
+}
+.car-hero__shine {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 78px;
+  z-index: 3;
+  display: flex;
+  min-height: 44px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.car-hero__shine:focus-visible {
+  outline: 2px solid #fafafa;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+/* ─── Home's offer as a dark ticket (F2) ──────────────────────────────────
+ * The same OfferCoupon (its names, notches and stub), drawn dark so the
+ * white ticket no longer outshines the screen's red button: graphite like
+ * the cards, white words, and only the figure in red. Below the car, in
+ * Home's one swipe row. The small print wraps instead of being cut off (F9).
+ */
+.offer-coupon.offer-coupon--dark {
+  --oc-ink: #f5f5f6;
+  --oc-ink2: #a1a1aa;
+  --oc-ink3: #8a8a93;
+  --oc-red: #ff5a6e;
+  filter: none;
+}
+.offer-coupon--dark .offer-coupon__hit {
+  background: linear-gradient(180deg, #1a1a1e 0%, #141417 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.offer-coupon--dark .offer-coupon__hit:active {
+  background: #1f1f24;
+}
+.offer-coupon--dark .offer-coupon__stub {
+  background: linear-gradient(180deg, #19191d 0%, #121215 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.offer-coupon--dark .offer-coupon__hit:active .offer-coupon__stub {
+  background: #1c1c21;
+}
+.offer-coupon--dark .offer-coupon__stub::before {
+  background: repeating-linear-gradient(
+    180deg,
+    #3a3a42 0 4px,
+    transparent 4px 8px
+  );
+}
+.offer-coupon--dark .offer-coupon__hit:focus-visible {
+  outline-color: #fafafa;
+}
+.offer-coupon--dark .offer-coupon__title {
+  font-size: 20px;
+  line-height: 24px;
+}
+.offer-coupon--dark .offer-coupon__meta > span {
+  white-space: normal;
 }
 .car-hero--short .car-hero__car {
   top: 118px;
@@ -186,7 +263,7 @@
   background: rgba(255, 255, 255, 0.1);
 }
 .wash-meter > i[data-on='true'] {
-  background: #F5F5F6;
+  background: #f5f5f6;
 }
 .wash-meter[data-over='true'] > i {
   background: --theme(--color-warning);
@@ -258,10 +335,14 @@ html:has(main[data-marketing-home]) {
    the first background layer; the second is the white-to-grey fill. */
 @keyframes mk-sheen {
   from {
-    background-position: 150% 0, 0 0;
+    background-position:
+      150% 0,
+      0 0;
   }
   to {
-    background-position: -60% 0, 0 0;
+    background-position:
+      -60% 0,
+      0 0;
   }
 }
 
@@ -297,9 +378,13 @@ html:has(main[data-marketing-home]) {
       transparent 58%
     ),
     linear-gradient(to bottom, #fff 35%, rgb(255 255 255 / 0.5));
-  background-size: 250% 100%, 100% 100%;
+  background-size:
+    250% 100%,
+    100% 100%;
   background-repeat: no-repeat;
-  background-position: -60% 0, 0 0;
+  background-position:
+    -60% 0,
+    0 0;
   animation: mk-sheen 1600ms cubic-bezier(0.4, 0, 0.2, 1) 1100ms backwards;
 }
 
@@ -411,15 +496,15 @@ html:has(main[data-marketing-home]) {
     opacity: 1;
     animation: mk-fill linear both;
     animation-timeline: --steps;
-    animation-range: cover calc(25% + var(--i, 0) * 9%)
-      cover calc(34% + var(--i, 0) * 9%);
+    animation-range: cover calc(25% + var(--i, 0) * 9%) cover
+      calc(34% + var(--i, 0) * 9%);
   }
 
   .mk-step-num {
     animation: mk-light linear both;
     animation-timeline: --steps;
-    animation-range: cover calc(25% + var(--i, 0) * 9%)
-      cover calc(34% + var(--i, 0) * 9%);
+    animation-range: cover calc(25% + var(--i, 0) * 9%) cover
+      calc(34% + var(--i, 0) * 9%);
   }
 }
 
@@ -609,16 +694,16 @@ html:has(.legal-doc) {
   border-radius: 999px;
 }
 .car-hero__stars:focus-visible {
-  outline: 2px solid #FAFAFA;
+  outline: 2px solid #fafafa;
   outline-offset: 2px;
 }
 .shine-star {
   display: block;
-  color: #3A3A42;
+  color: #3a3a42;
   transition: color 300ms ease;
 }
 .shine-star--on {
-  color: #ECEDF1;
+  color: #ecedf1;
   filter: drop-shadow(0 0 6px rgba(220, 228, 245, 0.45));
 }
 /* The newest stamp lands with a small pop and a glint. */
@@ -626,17 +711,30 @@ html:has(.legal-doc) {
   animation: shine-star-pop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 300ms both;
 }
 @keyframes shine-star-pop {
-  0% { transform: scale(0.4); opacity: 0; }
-  60% { transform: scale(1.25); opacity: 1; }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 /* A full card: the stars catch the light once, left to right. */
 .shine-stars--full .shine-star--on {
   animation: shine-star-glint 1600ms ease-in-out calc(var(--i, 0) * 90ms) 1 both;
 }
 @keyframes shine-star-glint {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(220, 228, 245, 0.35)); }
-  50% { filter: drop-shadow(0 0 12px rgba(240, 244, 255, 0.9)); }
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px rgba(220, 228, 245, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(240, 244, 255, 0.9));
+  }
 }
 
 /* The Shine Card on the Rewards page: a brushed-metal card. */
@@ -644,21 +742,32 @@ html:has(.legal-doc) {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(120% 90% at 0% 0%, rgba(230, 236, 250, 0.10), transparent 55%),
-    linear-gradient(160deg, #1F2026 0%, #15161A 60%, #101114 100%);
-  border: 1px solid #2A2A2E;
+    radial-gradient(
+      120% 90% at 0% 0%,
+      rgba(230, 236, 250, 0.1),
+      transparent 55%
+    ),
+    linear-gradient(160deg, #1f2026 0%, #15161a 60%, #101114 100%);
+  border: 1px solid #2a2a2e;
 }
 .shine-card::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.07) 50%, transparent 65%);
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.07) 50%,
+    transparent 65%
+  );
   transform: translateX(-120%);
   animation: shine-card-sweep 2400ms ease-out 500ms 1 both;
   pointer-events: none;
 }
 @keyframes shine-card-sweep {
-  to { transform: translateX(120%); }
+  to {
+    transform: translateX(120%);
+  }
 }
 
 /* The scratch card: the foil is a canvas over the prize, a premium card
@@ -669,7 +778,7 @@ html:has(.legal-doc) {
   overflow: hidden;
   aspect-ratio: 100 / 132;
   border-radius: 3.6cqw;
-  background: linear-gradient(160deg, #1C1D22, #121316);
+  background: linear-gradient(160deg, #1c1d22, #121316);
   touch-action: none;
   user-select: none;
 }
@@ -689,8 +798,14 @@ html:has(.legal-doc) {
   animation: scratch-prize-in 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 @keyframes scratch-prize-in {
-  0% { transform: scale(0.85); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* The level ladder's line between steps. */
@@ -700,11 +815,15 @@ html:has(.legal-doc) {
   bottom: 10px;
   left: 9px;
   width: 2px;
-  background: #2A2A2E;
+  background: #2a2a2e;
 }
 .level-badge--diamond,
 .level-badge--icon {
-  background: linear-gradient(135deg, rgba(220, 228, 245, 0.16), rgba(220, 228, 245, 0.04));
+  background: linear-gradient(
+    135deg,
+    rgba(220, 228, 245, 0.16),
+    rgba(220, 228, 245, 0.04)
+  );
   border-color: rgba(220, 228, 245, 0.35);
 }
 
@@ -736,16 +855,20 @@ html:has(.legal-doc) {
 .badge-medal--earned {
   color: var(--badge-tint);
   background:
-    radial-gradient(circle at 30% 25%, color-mix(in oklab, var(--badge-tint) 30%, transparent), transparent 60%),
-    linear-gradient(160deg, #1F2026, #131418);
+    radial-gradient(
+      circle at 30% 25%,
+      color-mix(in oklab, var(--badge-tint) 30%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(160deg, #1f2026, #131418);
   box-shadow:
     inset 0 0 0 1.5px color-mix(in oklab, var(--badge-tint) 55%, transparent),
     0 0 14px color-mix(in oklab, var(--badge-tint) 18%, transparent);
 }
 .badge-medal--locked {
-  color: #6B6B74;
-  background: #17171B;
-  box-shadow: inset 0 0 0 1.5px #2A2A2E;
+  color: #6b6b74;
+  background: #17171b;
+  box-shadow: inset 0 0 0 1.5px #2a2a2e;
 }
 .badge-medal--locked > span:first-child {
   opacity: 0.55;
@@ -756,21 +879,42 @@ html:has(.legal-doc) {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(236, 240, 250, 0.22) 0%, rgba(236, 240, 250, 0.06) 45%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(236, 240, 250, 0.22) 0%,
+    rgba(236, 240, 250, 0.06) 45%,
+    transparent 70%
+  );
   animation: badge-glow-in 1400ms ease-out both;
 }
 .badge-celebrate__medal {
   animation: badge-pop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
 }
 @keyframes badge-pop {
-  0% { transform: scale(0.3) rotate(-12deg); opacity: 0; }
-  60% { transform: scale(1.12) rotate(3deg); opacity: 1; }
-  100% { transform: scale(1) rotate(0deg); }
+  0% {
+    transform: scale(0.3) rotate(-12deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12) rotate(3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
 }
 @keyframes badge-glow-in {
-  0% { transform: scale(0.6); opacity: 0; }
-  50% { opacity: 1; }
-  100% { transform: scale(1); opacity: 0.8; }
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
 }
 
 .challenge-bar__fill {
@@ -779,11 +923,19 @@ html:has(.legal-doc) {
 
 /* Wrapped's way in on the Rewards page. */
 .wrapped-teaser {
-  border: 1px solid #2A2A2E;
+  border: 1px solid #2a2a2e;
   background:
-    radial-gradient(120% 120% at 100% 0%, rgba(165, 180, 252, 0.16), transparent 55%),
-    radial-gradient(120% 120% at 0% 100%, rgba(45, 212, 191, 0.12), transparent 55%),
-    linear-gradient(160deg, #1A1B21, #121316);
+    radial-gradient(
+      120% 120% at 100% 0%,
+      rgba(165, 180, 252, 0.16),
+      transparent 55%
+    ),
+    radial-gradient(
+      120% 120% at 0% 100%,
+      rgba(45, 212, 191, 0.12),
+      transparent 55%
+    ),
+    linear-gradient(160deg, #1a1b21, #121316);
 }
 
 /* The story cards: one gradient per card, the same ones the shared image draws. */
@@ -802,8 +954,14 @@ html:has(.legal-doc) {
   animation: wrapped-card-in 420ms ease-out both;
 }
 @keyframes wrapped-card-in {
-  0% { opacity: 0; transform: translateY(10px) scale(0.985); }
-  100% { opacity: 1; transform: none; }
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 .wrapped-segment__fill {
   transition: width 300ms ease;
@@ -895,8 +1053,14 @@ html:has(.legal-doc) {
   animation: premium-photo-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) 80ms 1 both;
 }
 @keyframes premium-photo-in {
-  from { transform: scale(1.06); opacity: 0.4; }
-  to { transform: none; opacity: 1; }
+  from {
+    transform: scale(1.06);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
 }
 .premium-card__accent {
   position: absolute;
@@ -998,13 +1162,20 @@ html:has(.legal-doc) {
   position: absolute;
   inset: -10% -40%;
   pointer-events: none;
-  background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, 0.5) 50%, transparent 58%);
+  background: linear-gradient(
+    112deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 58%
+  );
   transform: translateX(-80%);
   animation: premium-sheen 1600ms cubic-bezier(0.4, 0, 0.2, 1) 450ms 1 both;
   mix-blend-mode: soft-light;
 }
 @keyframes premium-sheen {
-  to { transform: translateX(80%); }
+  to {
+    transform: translateX(80%);
+  }
 }
 
 /* The design picker's tiles: the chosen one ringed in white. */
@@ -1012,7 +1183,9 @@ html:has(.legal-doc) {
   box-shadow: inset 0 0 0 0.6cqw rgba(255, 255, 255, 0.4);
 }
 .gift-swatch[aria-checked='true'] .premium-card__face {
-  box-shadow: 0 0 0 2px #0A0A0B, 0 0 0 3.5px #FAFAFA;
+  box-shadow:
+    0 0 0 2px #0a0a0b,
+    0 0 0 3.5px #fafafa;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1053,7 +1226,14 @@ html:has(.legal-doc) {
     0 5cqw 11cqw -6cqw rgba(0, 0, 0, 0.75);
 }
 .garage-card__frame--back {
-  background: linear-gradient(135deg, #5B606A 0%, #2A2D33 30%, #8C929C 55%, #23262B 80%, #50555E 100%);
+  background: linear-gradient(
+    135deg,
+    #5b606a 0%,
+    #2a2d33 30%,
+    #8c929c 55%,
+    #23262b 80%,
+    #50555e 100%
+  );
 }
 .garage-card__face {
   position: relative;
@@ -1076,7 +1256,12 @@ html:has(.legal-doc) {
   top: 0;
   height: 78cqw;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 72%,
+    transparent 100%
+  );
   mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
 }
 .garage-card__photo-img {
@@ -1110,7 +1295,7 @@ html:has(.legal-doc) {
   font-size: 3.4cqw;
   font-weight: 650;
   letter-spacing: -0.02em;
-  color: #F5F6F8;
+  color: #f5f6f8;
 }
 .garage-card__mark-sub {
   font-weight: 500;
@@ -1222,7 +1407,14 @@ html:has(.legal-doc) {
   position: absolute;
   inset: -10% -50%;
   pointer-events: none;
-  background: linear-gradient(110deg, transparent 40%, rgba(255, 236, 170, 0.55) 48%, rgba(255, 255, 255, 0.75) 50%, rgba(255, 236, 170, 0.55) 52%, transparent 60%);
+  background: linear-gradient(
+    110deg,
+    transparent 40%,
+    rgba(255, 236, 170, 0.55) 48%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(255, 236, 170, 0.55) 52%,
+    transparent 60%
+  );
   mix-blend-mode: soft-light;
   transform: translateX(-75%);
 }
@@ -1232,12 +1424,22 @@ html:has(.legal-doc) {
   animation: garage-sheen 5.2s cubic-bezier(0.4, 0, 0.2, 1) 600ms infinite;
 }
 .garage-card--epic .garage-card__sheen {
-  background: linear-gradient(110deg, transparent 42%, rgba(230, 210, 255, 0.45) 50%, transparent 58%);
+  background: linear-gradient(
+    110deg,
+    transparent 42%,
+    rgba(230, 210, 255, 0.45) 50%,
+    transparent 58%
+  );
   animation-duration: 7s;
 }
 @keyframes garage-sheen {
-  0% { transform: translateX(-75%); }
-  32%, 100% { transform: translateX(75%); }
+  0% {
+    transform: translateX(-75%);
+  }
+  32%,
+  100% {
+    transform: translateX(75%);
+  }
 }
 /* The frame's gold moves too: a slow shimmer across the metal. */
 .garage-card--legendary .garage-card__frame {
@@ -1245,8 +1447,12 @@ html:has(.legal-doc) {
   animation: garage-gold 6s ease-in-out infinite alternate;
 }
 @keyframes garage-gold {
-  from { background-position: 0% 0%; }
-  to { background-position: 100% 100%; }
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
 }
 
 /* The back: graphite with a fine engine-turned pattern and the wordmark. */
@@ -1254,13 +1460,16 @@ html:has(.legal-doc) {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(60cqw 60cqw at 50cqw 52cqw, #2B2E36, #121317 70%),
-    #0E0F12;
+    radial-gradient(60cqw 60cqw at 50cqw 52cqw, #2b2e36, #121317 70%), #0e0f12;
 }
 .garage-card__back-pattern {
   position: absolute;
   inset: 0;
-  background: repeating-radial-gradient(circle at 50cqw 71cqw, rgba(255, 255, 255, 0.05) 0 0.4cqw, transparent 0.4cqw 2.2cqw);
+  background: repeating-radial-gradient(
+    circle at 50cqw 71cqw,
+    rgba(255, 255, 255, 0.05) 0 0.4cqw,
+    transparent 0.4cqw 2.2cqw
+  );
 }
 .garage-card__back-ring {
   position: absolute;
@@ -1281,7 +1490,7 @@ html:has(.legal-doc) {
   font-size: 9cqw;
   font-weight: 700;
   letter-spacing: -0.04em;
-  color: #F5F6F8;
+  color: #f5f6f8;
   line-height: 1;
 }
 .garage-card__back-sub {
@@ -1293,7 +1502,7 @@ html:has(.legal-doc) {
   font-weight: 600;
   letter-spacing: 0.4em;
   text-transform: uppercase;
-  color: #9EA3AD;
+  color: #9ea3ad;
 }
 
 /* Album tiles: 100 wide, 132 tall, the photo filling the tile, the number
@@ -1321,7 +1530,7 @@ html:has(.legal-doc) {
   height: 100%;
   overflow: hidden;
   border-radius: 7cqw;
-  background: #0B0C0F;
+  background: #0b0c0f;
 }
 .garage-tile__photo {
   position: absolute;
@@ -1339,8 +1548,13 @@ html:has(.legal-doc) {
 .garage-tile__shade {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, transparent 30%, transparent 45%, rgba(0, 0, 0, 0.88) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.5) 0%,
+    transparent 30%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.88) 100%
+  );
   pointer-events: none;
 }
 .garage-tile__number {
@@ -1364,7 +1578,7 @@ html:has(.legal-doc) {
   line-height: 13cqw;
   font-weight: 650;
   letter-spacing: -0.02em;
-  color: #FFFFFF;
+  color: #ffffff;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1424,7 +1638,11 @@ html:has(.legal-doc) {
   opacity: 0;
   background:
     radial-gradient(closest-side, var(--gr-glow), transparent 70%),
-    repeating-conic-gradient(from 0deg, var(--gr-glow) 0deg 4deg, transparent 4deg 18deg);
+    repeating-conic-gradient(
+      from 0deg,
+      var(--gr-glow) 0deg 4deg,
+      transparent 4deg 18deg
+    );
   -webkit-mask-image: radial-gradient(closest-side, #000 30%, transparent 75%);
   mask-image: radial-gradient(closest-side, #000 30%, transparent 75%);
   transform: scale(0.6) rotate(0deg);
@@ -1436,31 +1654,63 @@ html:has(.legal-doc) {
   animation: garage-burst-gold 2600ms cubic-bezier(0.2, 0.8, 0.2, 1) 650ms both;
 }
 @keyframes garage-burst {
-  0% { opacity: 0; transform: scale(0.6) rotate(0deg); }
-  30% { opacity: 1; }
-  100% { opacity: 0.55; transform: scale(1.05) rotate(25deg); }
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotate(0deg);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(1.05) rotate(25deg);
+  }
 }
 @keyframes garage-burst-gold {
-  0% { opacity: 0; transform: scale(0.5) rotate(0deg); }
-  25% { opacity: 1; transform: scale(1.1) rotate(15deg); }
-  100% { opacity: 0.75; transform: scale(1.15) rotate(60deg); }
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(0deg);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.1) rotate(15deg);
+  }
+  100% {
+    opacity: 0.75;
+    transform: scale(1.15) rotate(60deg);
+  }
 }
 .garage-reveal__shake {
   animation: garage-shake 520ms ease-in-out 1 both;
 }
 @keyframes garage-shake {
-  0%, 100% { transform: none; }
-  20% { transform: rotate(-2deg) scale(1.01); }
-  40% { transform: rotate(2deg) scale(1.02); }
-  60% { transform: rotate(-1.5deg) scale(1.02); }
-  80% { transform: rotate(1deg) scale(1.01); }
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: rotate(-2deg) scale(1.01);
+  }
+  40% {
+    transform: rotate(2deg) scale(1.02);
+  }
+  60% {
+    transform: rotate(-1.5deg) scale(1.02);
+  }
+  80% {
+    transform: rotate(1deg) scale(1.01);
+  }
 }
 .garage-reveal__fade-in {
   animation: garage-fade 500ms ease-out both;
 }
 @keyframes garage-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* The album's header and the Rewards page's way in: graphite with a faint
@@ -1468,12 +1718,22 @@ html:has(.legal-doc) {
 .garage-hero,
 .garage-entry {
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(247, 208, 107, 0.09), transparent 60%),
-    linear-gradient(180deg, #18191E, #111215);
+    radial-gradient(
+      120% 90% at 100% 0%,
+      rgba(247, 208, 107, 0.09),
+      transparent 60%
+    ),
+    linear-gradient(180deg, #18191e, #111215);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 .garage-progress {
-  background: linear-gradient(90deg, #C9CED6 0%, #8EC1FF 45%, #C9A6FF 75%, #F7D06B 100%);
+  background: linear-gradient(
+    90deg,
+    #c9ced6 0%,
+    #8ec1ff 45%,
+    #c9a6ff 75%,
+    #f7d06b 100%
+  );
   box-shadow: 0 0 10px rgba(247, 208, 107, 0.35);
 }
 
@@ -1506,27 +1766,51 @@ html:has(.legal-doc) {
   --level-tint: 220, 225, 236;
   border: 1px solid rgba(var(--level-tint), 0.18);
   background:
-    radial-gradient(120% 120% at 100% 0%, rgba(var(--level-tint), 0.12), transparent 55%),
-    linear-gradient(160deg, #1C1D23 0%, #141519 60%, #101114 100%);
+    radial-gradient(
+      120% 120% at 100% 0%,
+      rgba(var(--level-tint), 0.12),
+      transparent 55%
+    ),
+    linear-gradient(160deg, #1c1d23 0%, #141519 60%, #101114 100%);
 }
-.level-card--gold { --level-tint: 227, 182, 82; }
-.level-card--platinum { --level-tint: 196, 215, 235; }
-.level-card--diamond { --level-tint: 165, 210, 255; }
-.level-card--icon { --level-tint: 240, 220, 170; }
+.level-card--gold {
+  --level-tint: 227, 182, 82;
+}
+.level-card--platinum {
+  --level-tint: 196, 215, 235;
+}
+.level-card--diamond {
+  --level-tint: 165, 210, 255;
+}
+.level-card--icon {
+  --level-tint: 240, 220, 170;
+}
 .level-card__fill {
-  background: linear-gradient(90deg, rgba(var(--level-tint), 0.55), rgb(var(--level-tint)));
+  background: linear-gradient(
+    90deg,
+    rgba(var(--level-tint), 0.55),
+    rgb(var(--level-tint))
+  );
   box-shadow: 0 0 10px rgba(var(--level-tint), 0.45);
   transition: width 600ms ease;
 }
 .level-badge--gold {
-  color: #F3D58A;
+  color: #f3d58a;
   border-color: rgba(227, 182, 82, 0.5);
-  background: linear-gradient(135deg, rgba(227, 182, 82, 0.18), rgba(227, 182, 82, 0.04));
+  background: linear-gradient(
+    135deg,
+    rgba(227, 182, 82, 0.18),
+    rgba(227, 182, 82, 0.04)
+  );
 }
 .level-badge--silver,
 .level-badge--platinum {
   border-color: rgba(220, 225, 236, 0.4);
-  background: linear-gradient(135deg, rgba(220, 225, 236, 0.14), rgba(220, 225, 236, 0.03));
+  background: linear-gradient(
+    135deg,
+    rgba(220, 225, 236, 0.14),
+    rgba(220, 225, 236, 0.03)
+  );
 }
 .level-ladder summary::-webkit-details-marker {
   display: none;
@@ -1534,12 +1818,12 @@ html:has(.legal-doc) {
 
 .voucher-row__mark--silver {
   color: #121318;
-  background: linear-gradient(150deg, #F1F3F6 0%, #C9CDD6 50%, #9DA3AF 100%);
+  background: linear-gradient(150deg, #f1f3f6 0%, #c9cdd6 50%, #9da3af 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 .voucher-row__mark--gold {
-  color: #2B1B04;
-  background: linear-gradient(150deg, #F9E3A0 0%, #E3B652 50%, #A8782A 100%);
+  color: #2b1b04;
+  background: linear-gradient(150deg, #f9e3a0 0%, #e3b652 50%, #a8782a 100%);
   box-shadow: inset 0 1px 0 rgba(255, 246, 214, 0.7);
 }
 
@@ -1561,25 +1845,47 @@ html:has(.legal-doc) {
   inset: -20%;
   pointer-events: none;
   background:
-    radial-gradient(40% 30% at 30% 70%, rgba(255, 255, 255, 0.07), transparent 70%),
-    radial-gradient(45% 35% at 75% 30%, rgba(255, 255, 255, 0.06), transparent 70%);
+    radial-gradient(
+      40% 30% at 30% 70%,
+      rgba(255, 255, 255, 0.07),
+      transparent 70%
+    ),
+    radial-gradient(
+      45% 35% at 75% 30%,
+      rgba(255, 255, 255, 0.06),
+      transparent 70%
+    );
   animation: wrapped-glow-drift 4500ms ease-in-out 1 both;
 }
 @keyframes wrapped-glow-drift {
-  0% { transform: translate3d(-6%, 4%, 0) scale(1); opacity: 0.4; }
-  50% { opacity: 1; }
-  100% { transform: translate3d(5%, -3%, 0) scale(1.08); opacity: 0.85; }
+  0% {
+    transform: translate3d(-6%, 4%, 0) scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(5%, -3%, 0) scale(1.08);
+    opacity: 0.85;
+  }
 }
 .wrapped-visual__car {
   --car-floor: rgba(255, 255, 255, 0.28);
   animation: wrapped-car-in 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms both;
 }
 .wrapped-visual--closing .wrapped-visual__car {
-  --car-light: #FFFFFF;
+  --car-light: #ffffff;
 }
 @keyframes wrapped-car-in {
-  0% { transform: translateX(18%); opacity: 0; }
-  100% { transform: none; opacity: 1; }
+  0% {
+    transform: translateX(18%);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
 }
 .wrapped-visual__beam {
   position: absolute;
@@ -1587,7 +1893,11 @@ html:has(.legal-doc) {
   bottom: 22%;
   width: 55%;
   height: 36%;
-  background: radial-gradient(100% 60% at 100% 55%, rgba(255, 255, 255, 0.28), transparent 70%);
+  background: radial-gradient(
+    100% 60% at 100% 55%,
+    rgba(255, 255, 255, 0.28),
+    transparent 70%
+  );
   clip-path: polygon(100% 45%, 0% 0%, 0% 100%, 100% 62%);
   animation: wrapped-fade-in 900ms ease-out 900ms both;
 }
@@ -1595,9 +1905,16 @@ html:has(.legal-doc) {
   animation: wrapped-drop 1100ms cubic-bezier(0.4, 0, 0.6, 1) both;
 }
 @keyframes wrapped-drop {
-  0% { transform: translateY(-12px); opacity: 0; }
-  60% { opacity: 1; }
-  100% { opacity: 1; }
+  0% {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 .wrapped-visual__spark {
   transform-box: fill-box;
@@ -1605,31 +1922,54 @@ html:has(.legal-doc) {
   animation: wrapped-spark 1200ms ease-out both;
 }
 @keyframes wrapped-spark {
-  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
-  50% { transform: scale(1.3) rotate(0deg); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.85; }
+  0% {
+    transform: scale(0) rotate(-45deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.3) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
 }
 .wrapped-visual__coin {
   animation: wrapped-coin 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 @keyframes wrapped-coin {
-  0% { transform: translateY(-24px); opacity: 0; }
-  100% { transform: none; opacity: 1; }
+  0% {
+    transform: translateY(-24px);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
 }
 .wrapped-visual__bar {
   transform-origin: bottom;
   animation: wrapped-bar 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 @keyframes wrapped-bar {
-  0% { transform: scaleY(0); }
-  100% { transform: none; }
+  0% {
+    transform: scaleY(0);
+  }
+  100% {
+    transform: none;
+  }
 }
 .wrapped-visual__medal {
   animation: badge-pop 800ms cubic-bezier(0.34, 1.56, 0.64, 1) 150ms both;
 }
 @keyframes wrapped-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

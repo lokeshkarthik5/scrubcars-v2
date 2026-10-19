@@ -4,11 +4,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconStar } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { EmptyState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { Figures } from '@repo/ui/sc/figures'
 import { openInvite, type InviteOpened } from '@repo/core/api/rewards'
-import { rewardsEnabled, useClaimInvite, useRewardsConfig } from '@repo/core/api/hooks/use-rewards'
+import {
+  rewardsEnabled,
+  useClaimInvite,
+  useRewardsConfig,
+} from '@repo/core/api/hooks/use-rewards'
 import { rewardRupees } from '@repo/core/rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
@@ -40,14 +44,22 @@ export function InviteView({ code }: { code: string }) {
         // A note from before signing up is the one that counts: keep it.
         if (!readStoredInvite(code)) storeInvite({ code, token: opened.token })
       })
-      .catch((error: unknown) => setFailed(error instanceof Error ? error.message : "This invite link isn't valid."))
+      .catch((error: unknown) =>
+        setFailed(
+          error instanceof Error
+            ? error.message
+            : "This invite link isn't valid."
+        )
+      )
   }, [on, code, invite])
 
   useEffect(() => {
     if (!ready || !user || !invite || claimed.current) return
     const stored = readStoredInvite(code)
     claimed.current = true
-    claim.mutate(stored?.token ?? invite.token, { onSettled: () => forgetInvite() })
+    claim.mutate(stored?.token ?? invite.token, {
+      onSettled: () => forgetInvite(),
+    })
   }, [ready, user, invite, code, claim])
 
   const next = `/invite/${encodeURIComponent(code)}`
@@ -63,7 +75,12 @@ export function InviteView({ code }: { code: string }) {
           onAction={() => router.push('/garages')}
         />
       ) : failed ? (
-        <EmptyState icon={<IconStar size={32} stroke={1.5} />} title={failed} actionLabel="Find garages" onAction={() => router.push('/garages')} />
+        <EmptyState
+          icon={<IconStar size={32} stroke={1.5} />}
+          title={failed}
+          actionLabel="Find garages"
+          onAction={() => router.push('/garages')}
+        />
       ) : !invite ? (
         <SkeletonCard />
       ) : (
@@ -73,30 +90,54 @@ export function InviteView({ code }: { code: string }) {
             {invite.referrerFirstName} invited you to Detlio
           </h1>
           <p className="text-[14px] text-text-secondary">
-            <Figures text={`Get ${rewardRupees(invite.amount)} off when your first booking of ${rewardRupees(invite.minAmount)} or more is done. ${invite.referrerFirstName} gets ${rewardRupees(invite.amount)} off too.`} />
+            <Figures
+              text={`Get ${rewardRupees(invite.amount)} off when your first booking of ${rewardRupees(invite.minAmount)} or more is done. ${invite.referrerFirstName} gets ${rewardRupees(invite.amount)} off too.`}
+            />
           </p>
           {!user ? (
-            <ScButton className="mt-2" onClick={() => router.push(`/login?next=${encodeURIComponent(next)}`)}>
+            <ScButton
+              className="mt-2"
+              onClick={() =>
+                router.push(`/login?next=${encodeURIComponent(next)}`)
+              }
+            >
               Sign up to join
             </ScButton>
           ) : claim.isPending ? (
-            <p className="text-[13px] text-text-secondary">Adding the invite to your account…</p>
+            <p className="text-[13px] text-text-secondary">
+              Adding the invite to your account…
+            </p>
           ) : claim.isSuccess ? (
             <>
-              <p className="text-[13px] text-success">You&apos;re in. Book your first wash to get your reward.</p>
-              <ScButton className="mt-1" onClick={() => router.push('/garages')}>
+              <p className="text-[13px] text-success">
+                You&apos;re in. Book your first wash to get your reward.
+              </p>
+              <ScButton
+                className="mt-1"
+                onClick={() => router.push('/garages')}
+              >
                 Book a wash
               </ScButton>
             </>
           ) : claim.isError ? (
             <>
-              <p className="text-[13px] text-warning">{claim.error instanceof Error ? claim.error.message : "Couldn't add the invite."}</p>
-              <ScButton variant="secondary" className="mt-1" onClick={() => router.push('/garages')}>
+              <p className="text-[13px] text-warning">
+                {claim.error instanceof Error
+                  ? claim.error.message
+                  : "Couldn't add the invite."}
+              </p>
+              <ScButton
+                variant="secondary"
+                className="mt-1"
+                onClick={() => router.push('/garages')}
+              >
                 Find garages
               </ScButton>
             </>
           ) : null}
-          <p className="text-[11px] text-text-muted">For people new to Detlio. One invite per person.</p>
+          <p className="text-[11px] text-text-muted">
+            For people new to Detlio. One invite per person.
+          </p>
         </ScCard>
       )}
     </CustomerShell>

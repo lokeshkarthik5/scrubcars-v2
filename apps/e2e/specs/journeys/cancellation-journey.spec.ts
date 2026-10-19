@@ -47,7 +47,7 @@ test('a garage rejects a booking and the customer is told why @p0', async ({ bro
   expect(row?.cancellation_reason).toBe('Ramp under repair')
 
   // The customer's page polls, so this arrives without a reload.
-  await expect(customer.getByText(/Rejected by|Cancelled by/i).first()).toBeVisible({
+  await expect(customer.getByText(/Declined by|Cancelled by/i).first()).toBeVisible({
     timeout: 15_000,
   })
   await expect(customer.getByText('Ramp under repair')).toBeVisible()

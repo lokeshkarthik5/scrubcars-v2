@@ -4,11 +4,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { EmptyState } from '@repo/ui/sc/empty-state'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { TopBar } from '@repo/ui/sc/top-bar'
-import { PushDeviceCard, usePushDevice } from '@repo/ui/features/push-notifications'
+import {
+  PushDeviceCard,
+  usePushDevice,
+} from '@repo/ui/features/push-notifications'
 import { setPushPreferences } from '@repo/core/api/push'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { IconBellOff } from '@tabler/icons-react'
@@ -17,11 +20,16 @@ import { isHomeHubEnabled } from '@/lib/home-hub'
 
 type Switches = { bookingUpdates: boolean; reminders: boolean }
 
-const SWITCHES: Array<{ key: keyof Switches; title: string; description: string }> = [
+const SWITCHES: Array<{
+  key: keyof Switches
+  title: string
+  description: string
+}> = [
   {
     key: 'bookingUpdates',
     title: 'Booking updates',
-    description: 'Accepted, other times suggested, extra work, your car on its way back, refunds',
+    description:
+      'Accepted, other times suggested, extra work, your car on its way back, refunds',
   },
   {
     key: 'reminders',
@@ -69,12 +77,24 @@ export default function NotificationsPage() {
   if (ready && !user) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
-        <TopBar title="Notifications" showBack backHref="/profile" large={isHomeHubEnabled()} />
+        <TopBar
+          title="Notifications"
+          showBack
+          backHref="/profile"
+          large={isHomeHubEnabled()}
+        />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to set up notifications</p>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Sign in to set up notifications
+          </p>
           <ScButton
+            variant="main"
             className="mt-2 w-auto px-8"
-            onClick={() => router.push(`/login?next=${encodeURIComponent('/profile/notifications')}`)}
+            onClick={() =>
+              router.push(
+                `/login?next=${encodeURIComponent('/profile/notifications')}`
+              )
+            }
           >
             Sign in
           </ScButton>
@@ -85,7 +105,12 @@ export default function NotificationsPage() {
 
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
-      <TopBar title="Notifications" showBack backHref="/profile" large={isHomeHubEnabled()} />
+      <TopBar
+        title="Notifications"
+        showBack
+        backHref="/profile"
+        large={isHomeHubEnabled()}
+      />
 
       {device.loaded && device.config && !device.config.enabled ? (
         <EmptyState
@@ -104,17 +129,30 @@ export default function NotificationsPage() {
           />
 
           {device.config?.enabled && (
-            <section aria-labelledby="notification-kinds" className="flex flex-col gap-2">
-              <h2 id="notification-kinds" className="text-sm font-semibold text-text-primary">
+            <section
+              aria-labelledby="notification-kinds"
+              className="flex flex-col gap-2"
+            >
+              <h2
+                id="notification-kinds"
+                className="text-sm font-semibold text-text-primary"
+              >
                 What to send
               </h2>
               <ScCard className="px-0 py-1">
                 <ul className="divide-y divide-border">
                   {SWITCHES.map((item) => (
-                    <li key={item.key} className="flex items-center gap-3 px-3.5 py-2">
+                    <li
+                      key={item.key}
+                      className="flex items-center gap-3 px-3.5 py-2"
+                    >
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] text-text-primary">{item.title}</p>
-                        <p className="text-[11px] text-text-secondary">{item.description}</p>
+                        <p className="text-[13px] text-text-primary">
+                          {item.title}
+                        </p>
+                        <p className="text-[11px] text-text-secondary">
+                          {item.description}
+                        </p>
                       </div>
                       <ScSwitch
                         label={item.title}
@@ -127,8 +165,9 @@ export default function NotificationsPage() {
                 </ul>
               </ScCard>
               <p className="text-[11px] text-text-muted">
-                For every device you turn notifications on for. A notification says the garage, the service and the
-                time, never your number or address. Your bookings&apos; news is in Updates too.
+                For every device you turn notifications on for. A notification
+                says the garage, the service and the time, never your number or
+                address. Your bookings&apos; news is in Updates too.
               </p>
             </section>
           )}

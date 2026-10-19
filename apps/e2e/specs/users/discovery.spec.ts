@@ -116,7 +116,7 @@ test.describe('discovery', () => {
 
     // 499 + 1999 = 2498 bought separately, 2299 as a package.
     await expect(page.getByText(SERVICES.packageDeal.name).first()).toBeVisible()
-    await expect(page.getByText('₹2299').first()).toBeVisible()
+    await expect(page.getByText('₹2,299').first()).toBeVisible()
     await expect(page.getByText(/Save ₹199/).first()).toBeVisible()
   })
 

@@ -5,11 +5,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { IconBell, IconCircleCheck } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { Chip } from '@repo/ui/sc/chip'
 import type { SlotDayState } from '@repo/ui/sc/slot-picker'
 import { ApiError } from '@repo/core/api/client'
-import { useCancelSlotAlert, useSetSlotAlert, useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts'
+import {
+  useCancelSlotAlert,
+  useSetSlotAlert,
+  useSlotAlerts,
+} from '@repo/core/api/hooks/use-slot-alerts'
 import {
   inSlotAlertWindow,
   SLOT_ALERT_WINDOW_HINTS,
@@ -56,26 +60,47 @@ export function SlotAlertAsk({
   const [problem, setProblem] = useState<string | null>(null)
 
   // A part of the day with a time on offer is for booking, not waiting.
-  const hasFreeTime = (option: SlotAlertWindow) => state.slots.some((slot) => inSlotAlertWindow(slot, option))
+  const hasFreeTime = (option: SlotAlertWindow) =>
+    state.slots.some((slot) => inSlotAlertWindow(slot, option))
   const waitable = SLOT_ALERT_WINDOWS.filter((option) => !hasFreeTime(option))
   const full = state.slots.length === 0 && state.allBooked
   // Nothing can open up (closed, paused, too long a job), nothing was taken
   // (no time left to give notice for), or every part of the day has a time.
-  if (state.unavailable || (!full && state.slots.length === 0) || waitable.length === 0) return null
+  if (
+    state.unavailable ||
+    (!full && state.slots.length === 0) ||
+    waitable.length === 0
+  )
+    return null
 
-  const part: SlotAlertWindow = picked && waitable.includes(picked) ? picked : waitable[0]
-  const waiting = alerts.data?.items.find((alert) => alert.vendorId === vendorId && alert.date === state.date) ?? null
+  const part: SlotAlertWindow =
+    picked && waitable.includes(picked) ? picked : waitable[0]
+  const waiting =
+    alerts.data?.items.find(
+      (alert) => alert.vendorId === vendorId && alert.date === state.date
+    ) ?? null
   const day = slotAlertDayLabel(state.date)
 
   if (waiting) {
     return (
       <ScCard className="mt-3 flex items-start gap-3" role="status">
-        <IconCircleCheck size={20} stroke={1.6} aria-hidden="true" className="mt-px shrink-0 text-text-primary" />
+        <IconCircleCheck
+          size={20}
+          stroke={1.6}
+          aria-hidden="true"
+          className="mt-px shrink-0 text-text-primary"
+        />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-text-primary">Waiting for a slot on {slotAlertSummary(waiting)}</p>
+          <p className="text-[13px] font-medium text-text-primary">
+            Waiting for a slot on {slotAlertSummary(waiting)}
+          </p>
           <p className="mt-0.5 text-[12px] text-text-secondary">
-            If one opens it shows in Updates, and as a notification if they&apos;re on. It isn&apos;t held for you.{' '}
-            <Link href="/profile/slot-alerts" className="font-medium text-text-primary underline">
+            If one opens it shows in Updates, and as a notification if
+            they&apos;re on. It isn&apos;t held for you.{' '}
+            <Link
+              href="/profile/slot-alerts"
+              className="font-medium text-text-primary underline"
+            >
               Slot alerts
             </Link>
           </p>
@@ -100,7 +125,10 @@ export function SlotAlertAsk({
         className="tap-target mt-3 flex items-center gap-1.5 text-[12px] text-text-secondary"
       >
         <IconBell size={14} stroke={1.6} aria-hidden="true" />
-        None of these suit you? <span className="font-medium text-text-primary underline">Notify me if one opens</span>
+        None of these suit you?{' '}
+        <span className="font-medium text-text-primary underline">
+          Notify me if one opens
+        </span>
       </button>
     )
   }
@@ -109,14 +137,20 @@ export function SlotAlertAsk({
     setProblem(null)
     if (!user) {
       // Back to this checkout, as it is, once signed in.
-      router.push(`/login?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`)
+      router.push(
+        `/login?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`
+      )
       return
     }
     setAlert.mutate(
       { vendorId, date: state.date, window: part, bookingType, serviceIds },
       {
         onError: (err) =>
-          setProblem(err instanceof ApiError ? err.message : "Couldn't set that up. Check your connection and try again."),
+          setProblem(
+            err instanceof ApiError
+              ? err.message
+              : "Couldn't set that up. Check your connection and try again."
+          ),
       }
     )
   }
@@ -126,14 +160,21 @@ export function SlotAlertAsk({
   return (
     <ScCard className="mt-3 flex flex-col gap-3">
       <div>
-        <h3 className="text-[13px] font-semibold text-text-primary">Notify me if a slot opens</h3>
+        <h3 className="text-[13px] font-semibold text-text-primary">
+          Notify me if a slot opens
+        </h3>
         <p className="mt-0.5 text-[12px] text-text-secondary">
-          If a time frees up on {day}, it shows in Updates, and as a notification if they&apos;re on. It isn&apos;t
-          held: the first to book gets it.
+          If a time frees up on {day}, it shows in Updates, and as a
+          notification if they&apos;re on. It isn&apos;t held: the first to book
+          gets it.
         </p>
       </div>
 
-      <div role="group" aria-label="Which part of the day" className="flex flex-wrap gap-2">
+      <div
+        role="group"
+        aria-label="Which part of the day"
+        className="flex flex-wrap gap-2"
+      >
         {SLOT_ALERT_WINDOWS.map((option) => (
           <Chip
             key={option}
@@ -151,7 +192,8 @@ export function SlotAlertAsk({
         <p className="-mt-1 text-[11px] text-text-muted">
           {hint && <span className="font-numeric">{hint}</span>}
           {hint && waitable.length < SLOT_ALERT_WINDOWS.length && ' · '}
-          {waitable.length < SLOT_ALERT_WINDOWS.length && 'Crossed out: a time is free then. Pick it above.'}
+          {waitable.length < SLOT_ALERT_WINDOWS.length &&
+            'Crossed out: a time is free then. Pick it above.'}
         </p>
       )}
 

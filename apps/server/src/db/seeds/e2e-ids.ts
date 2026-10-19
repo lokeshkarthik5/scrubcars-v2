@@ -393,6 +393,13 @@ export const CUSTOMERS = {
    */
   contact: { id: id(3401), phone: '9000003401', name: 'Contact Chitra', vehicleId: id(3402) },
   /**
+   * The six-tap checkout (specs/users/checkout-six-taps.spec.ts): Home → Book
+   * a wash → the garage → Add → Book Now → a time → Pay, with the day and the
+   * car already picked. One default car, no address, no bookings. Ids
+   * 4000–4099 and phones 90000040xx are the customer UX round's own range.
+   */
+  sixTap: { id: id(4001), phone: '9000004001', name: 'Six Tap Selvi', vehicleId: id(4002) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session

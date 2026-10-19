@@ -1,75 +1,117 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { IconArrowUpRight, IconHistory, IconMapPin, IconPencil, IconPlus } from '@tabler/icons-react'
+import {
+  IconArrowUpRight,
+  IconCheck,
+  IconChevronDown,
+  IconHistory,
+  IconPlus,
+} from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import type { HomeCar } from '@repo/core/api/home'
-import { CAR_DEFAULT_PICTURE, carImageFor, type CarPicture as Picture } from '@repo/core/car-images'
+import {
+  CAR_DEFAULT_PICTURE,
+  carImageFor,
+  type CarPicture as Picture,
+} from '@repo/core/car-images'
 import { cn } from '@repo/core/utils'
-import { stampsToGoLine } from '@repo/core/rewards'
-import { StampStars } from '@/components/rewards/stamp-stars'
+import { rewardRupees } from '@repo/core/rewards'
+import { ScSheet } from '@repo/ui/sc/modal'
+import { Figures } from '@repo/ui/sc/figures'
 
 interface CarHeroProps {
   cars: HomeCar[]
   selected: number
   onSelect: (index: number) => void
-  /** The customer's area, from their default address, when they have one. */
-  place: string | null
-  /** A must-act card sits above the offers: 20pt shorter, so Book a wash stays above the fold. */
+  /** A must-act card sits above: 20pt shorter, so Book a wash stays above the fold. */
   short: boolean
-  /** A bill is due: Pay is the screen's red action and Book a wash is outlined. */
+  /** A must-act card carries the screen's red: Book a wash is outlined. */
   quiet: boolean
   onBookWash: (car: HomeCar) => void
   onAddCar: () => void
-  /** Detlio Rewards (0050): the Shine Card's stars on the car's stage; null while rewards are off. */
-  shine?: { onCard: number; goal: number; toGo: number } | null
+  /** Detlio Rewards (0050): the Shine Card under the car; null while rewards are off. */
+  shine?: {
+    onCard: number
+    goal: number
+    toGo: number
+    rewardAmount: string | number
+  } | null
+}
+
+const TYPE_LABEL: Record<HomeCar['vehicleType'], string> = {
+  hatchback: 'Hatchback',
+  sedan: 'Sedan',
+  suv: 'SUV',
+}
+
+/** "TN 09 BX 4821 · White SUV". */
+export function carLine(
+  car: Pick<HomeCar, 'licensePlate' | 'color' | 'vehicleType'>
+): string {
+  const kind = [car.color, TYPE_LABEL[car.vehicleType]]
+    .filter(Boolean)
+    .join(' ')
+  return [car.licensePlate, kind].filter(Boolean).join(' · ')
+}
+
+/** "2 more washes = ₹349 off", or "₹349 off ready" once the card is full. */
+export function shineLine(toGo: number, rewardAmount: string | number): string {
+  const reward = `${rewardRupees(rewardAmount)} off`
+  return toGo <= 0
+    ? `${reward} ready`
+    : `${toGo} more ${toGo === 1 ? 'wash' : 'washes'} = ${reward}`
 }
 
 /**
  * The customer's car and the screen's main action, Book a wash.
  *
- * With more than one car, the car swipes (dots underneath) and the tiles
- * below follow the one on screen. With none, it asks for one: garages price
- * by car type, and the wash bar needs a car to count for.
+ * One car on the stage at a time. With more than one, the car's name is a
+ * button that opens the list of cars (F2: the offers row is Home's only swipe
+ * row); the tiles below follow the car chosen. With none, it asks for one:
+ * garages price by car type, and the wash bar needs a car to count for.
  */
 export function CarHero({
   cars,
   selected,
   onSelect,
-  place,
   short,
   quiet,
   onBookWash,
   onAddCar,
   shine = null,
 }: CarHeroProps) {
-  const trackRef = useRef<HTMLDivElement>(null)
-
-  const onScroll = useCallback(() => {
-    const track = trackRef.current
-    if (!track || track.clientWidth === 0) return
-    const index = Math.min(cars.length - 1, Math.max(0, Math.round(track.scrollLeft / track.clientWidth)))
-    if (index !== selected) onSelect(index)
-  }, [cars.length, selected, onSelect])
+  const [choosing, setChoosing] = useState(false)
 
   if (cars.length === 0) {
     return (
-      <section aria-label="Your car" className={cn('hub-card car-hero car-hero--empty', short && 'car-hero--short')}>
+      <section
+        aria-label="Your car"
+        className={cn(
+          'hub-card car-hero car-hero--empty',
+          short && 'car-hero--short'
+        )}
+      >
         <div className="car-hero__head">
           <div>
             <p className="text-[13px] text-dim">Get started</p>
             <h2 className="car-hero__title">Add your car</h2>
             <p className="max-w-[268px] text-[15px] leading-[1.42] text-[#A1A1AA]">
-              So garages quote the right price, and you&apos;ll see when it&apos;s due.
+              So garages quote the right price, and you&apos;ll see when
+              it&apos;s due.
             </p>
           </div>
         </div>
         <CarPicture picture={CAR_DEFAULT_PICTURE} ghost />
         <div className="car-hero__cta">
           {quiet ? (
-            <button type="button" onClick={onAddCar} className="car-hero__outline">
+            <button
+              type="button"
+              onClick={onAddCar}
+              className="car-hero__outline"
+            >
               Add car
             </button>
           ) : (
@@ -84,100 +126,162 @@ export function CarHero({
   }
 
   const car = cars[Math.min(selected, cars.length - 1)]
+  const name = `${car.make} ${car.model}`
 
   return (
-    <div>
-      <section aria-label="Your car" className={cn('hub-card car-hero', short && 'car-hero--short')}>
-        <div
-          ref={trackRef}
-          onScroll={cars.length > 1 ? onScroll : undefined}
-          // Scrollable by keyboard too, when there is more than one car.
-          tabIndex={cars.length > 1 ? 0 : undefined}
-          // aria-roledescription needs a role to describe.
-          role={cars.length > 1 ? 'region' : undefined}
-          aria-roledescription={cars.length > 1 ? 'carousel' : undefined}
-          aria-label={cars.length > 1 ? 'Your cars' : undefined}
-          className="car-hero__track"
-        >
-          {cars.map((each, i) => (
-            <div
-              key={each.id}
-              role={cars.length > 1 ? 'group' : undefined}
-              aria-roledescription={cars.length > 1 ? 'slide' : undefined}
-              aria-label={cars.length > 1 ? `Car ${i + 1} of ${cars.length}` : undefined}
-              className="car-hero__slide"
-            >
-              <div className="car-hero__head">
-                <div className="min-w-0">
-                  <p className="text-[13px] text-dim">Your car</p>
-                  <h2 className="car-hero__title truncate">
-                    {each.make} {each.model}
-                  </h2>
-                  {place && (
-                    <p className="flex items-center gap-1.5 text-[13px] text-dim">
-                      <IconMapPin size={15} stroke={1.4} aria-hidden />
-                      {place}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <CarPicture picture={carImageFor(each.vehicleType)} priority={i === 0} />
-            </div>
-          ))}
-        </div>
-        {/* The car on screen's history: every job, receipts, photos and its
-            next coating or detailing reminder (0046). A 40pt disc in a 44pt
-            target, beside the pencil. */}
-        <Link
-          href={`/profile/cars/${car.id}`}
-          aria-label={`History of your ${car.make} ${car.model}`}
-          className="absolute top-[18px] right-[60px] z-[2] grid size-11 place-items-center rounded-full text-text-primary"
-        >
-          <span aria-hidden className="grid size-10 place-items-center rounded-full border border-line">
-            <IconHistory size={20} stroke={1.5} />
-          </span>
-        </Link>
-        {/* The Shine Card (0050): one star per stamp, under the car. */}
-        {shine && (
-          <Link
-            href="/profile/rewards"
-            aria-label={`Shine Card: ${shine.onCard} of ${shine.goal} stamps. ${stampsToGoLine(shine.toGo)}.`}
-            className="car-hero__stars"
-          >
-            <StampStars onCard={shine.onCard} goal={shine.goal} remember />
-          </Link>
-        )}
-        {/* A 40pt disc, as drawn, in a 44pt target. */}
-        <Link
-          href="/profile#vehicles"
-          aria-label="Edit your cars"
-          className="absolute top-[18px] right-3 z-[2] grid size-11 place-items-center rounded-full text-text-primary"
-        >
-          <span aria-hidden className="grid size-10 place-items-center rounded-full border border-line">
-            <IconPencil size={20} stroke={1.5} />
-          </span>
-        </Link>
-        <div className="car-hero__cta">
-          {quiet ? (
-            <button type="button" onClick={() => onBookWash(car)} className="car-hero__outline">
-              Book a wash
-            </button>
-          ) : (
-            <ScButton variant="hero" onClick={() => onBookWash(car)}>
-              <span>Book a wash</span>
-              <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
-            </ScButton>
+    <section
+      aria-label="Your car"
+      className={cn(
+        'hub-card car-hero',
+        short && 'car-hero--short',
+        shine && 'car-hero--shine'
+      )}
+    >
+      <div className="car-hero__head">
+        <div className="min-w-0">
+          <p className="text-[13px] text-dim">Your car</p>
+          <h2 className="car-hero__title">
+            {cars.length > 1 ? (
+              // The name switches the car: a tap, not a swipe.
+              <button
+                type="button"
+                onClick={() => setChoosing(true)}
+                aria-haspopup="dialog"
+                aria-label={`${name}, switch car`}
+                className="-mx-1 inline-flex max-w-full items-center gap-1.5 rounded-[10px] px-1 text-left"
+              >
+                <span className="truncate">{name}</span>
+                <IconChevronDown
+                  size={22}
+                  stroke={1.5}
+                  aria-hidden
+                  className="shrink-0 text-dim"
+                />
+              </button>
+            ) : (
+              <span className="block truncate">{name}</span>
+            )}
+          </h2>
+          {carLine(car) && (
+            <p className="truncate text-[13px] text-dim">{carLine(car)}</p>
           )}
         </div>
-      </section>
-      {cars.length > 1 && (
-        <div aria-hidden className="offer-carousel__dots">
-          {cars.map((each, i) => (
-            <i key={each.id} data-on={i === selected} />
-          ))}
-        </div>
+      </div>
+      <CarPicture
+        key={car.id}
+        picture={carImageFor(car.vehicleType)}
+        priority
+      />
+      {/* The car's history: every job, receipts, photos and its next
+          coating or detailing reminder (0046). A 40pt disc, 44pt target. */}
+      <Link
+        href={`/profile/cars/${car.id}`}
+        aria-label={`History of your ${name}`}
+        className="absolute top-[18px] right-3 z-[2] grid size-11 place-items-center rounded-full text-text-primary"
+      >
+        <span
+          aria-hidden
+          className="grid size-10 place-items-center rounded-full border border-line"
+        >
+          <IconHistory size={20} stroke={1.5} />
+        </span>
+      </Link>
+      {/* The Shine Card (0050), named and explained (F2). */}
+      {shine && (
+        <Link
+          href="/profile/rewards"
+          aria-label={`Shine Card: ${shine.onCard} of ${shine.goal} stamps. ${shineLine(shine.toGo, shine.rewardAmount)}.`}
+          className="car-hero__shine"
+        >
+          <span className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[13px] text-dim">Shine Card</span>
+            <span aria-hidden className="flex gap-1.5">
+              {Array.from({ length: shine.goal }, (_, i) => (
+                <i
+                  key={i}
+                  className={cn(
+                    'h-1 w-6 rounded-full',
+                    i < shine.onCard ? 'bg-text-primary' : 'bg-white/[0.14]'
+                  )}
+                />
+              ))}
+            </span>
+          </span>
+          <span className="max-w-[200px] text-right text-[13px] leading-snug text-text-primary">
+            <Figures text={shineLine(shine.toGo, shine.rewardAmount)} />
+          </span>
+        </Link>
       )}
-    </div>
+      <div className="car-hero__cta">
+        {quiet ? (
+          <button
+            type="button"
+            onClick={() => onBookWash(car)}
+            className="car-hero__outline"
+          >
+            Book a wash
+          </button>
+        ) : (
+          <ScButton variant="hero" onClick={() => onBookWash(car)}>
+            <span>Book a wash</span>
+            <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
+          </ScButton>
+        )}
+      </div>
+
+      <ScSheet
+        open={choosing}
+        onClose={() => setChoosing(false)}
+        aria-label="Choose a car"
+        className="px-4"
+      >
+        <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
+          Your cars
+        </h2>
+        <div className="mt-4 flex flex-col gap-2">
+          {cars.map((each, i) => (
+            <button
+              key={each.id}
+              type="button"
+              aria-pressed={i === selected}
+              onClick={() => {
+                onSelect(i)
+                setChoosing(false)
+              }}
+              className={cn(
+                'press flex min-h-[60px] items-center justify-between gap-3 rounded-[18px] border px-4 text-left',
+                i === selected
+                  ? 'border-text-primary bg-white/[0.04]'
+                  : 'border-line'
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-[15px] text-text-primary">
+                  {each.make} {each.model}
+                </span>
+                <span className="block truncate text-[13px] text-dim">
+                  {carLine(each)}
+                </span>
+              </span>
+              {i === selected && (
+                <IconCheck
+                  size={18}
+                  stroke={1.8}
+                  aria-hidden
+                  className="shrink-0"
+                />
+              )}
+            </button>
+          ))}
+          <Link
+            href="/profile#vehicles"
+            className="flex min-h-11 items-center justify-center text-[15px] text-text-primary"
+          >
+            Add or edit cars
+          </Link>
+        </div>
+      </ScSheet>
+    </section>
   )
 }
 
@@ -202,7 +306,12 @@ function CarPicture({
   priority?: boolean
 }) {
   const [failed, setFailed] = useState<string | null>(null)
-  const shown = failed === null ? picture : failed === CAR_DEFAULT_PICTURE.src ? null : CAR_DEFAULT_PICTURE
+  const shown =
+    failed === null
+      ? picture
+      : failed === CAR_DEFAULT_PICTURE.src
+        ? null
+        : CAR_DEFAULT_PICTURE
   const onError = () => setFailed(shown?.src ?? null)
 
   return (

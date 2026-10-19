@@ -1,6 +1,13 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -14,7 +21,11 @@ import {
 } from '@tabler/icons-react'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { track } from '@repo/core/analytics'
-import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
+import {
+  coarse,
+  isCitywide,
+  useLocationStore,
+} from '@repo/core/stores/location-store'
 // From map-bounds, not map-controller: the controller imports the map and so
 // MapLibre, which a static import here put in the page's first load.
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-bounds'
@@ -29,8 +40,13 @@ import {
   straightLineKm,
 } from '@repo/core/map'
 import { SERVICE_CITY } from '@repo/core/service-city'
+import { categoryLabel } from '@repo/core/categories'
 import { cn } from '@repo/core/utils'
-import { BOOKING_TYPE_LABELS, bookingTypeParam, parseBookingType } from '@repo/core/booking-types'
+import {
+  BOOKING_TYPE_LABELS,
+  bookingTypeParam,
+  parseBookingType,
+} from '@repo/core/booking-types'
 import type { BookingType, Vendor } from '@repo/core/types'
 import { OpenStatus } from '@/components/open-status'
 import { HubNav } from '@/components/home/hub-nav'
@@ -115,18 +131,22 @@ function hasMovedMeaningfully(
   if (width === 0 || height === 0) return false
 
   const centreShiftX =
-    Math.abs((live.minLng + live.maxLng) / 2 - (searched.minLng + searched.maxLng) / 2) /
-    width
+    Math.abs(
+      (live.minLng + live.maxLng) / 2 - (searched.minLng + searched.maxLng) / 2
+    ) / width
   const centreShiftY =
-    Math.abs((live.minLat + live.maxLat) / 2 - (searched.minLat + searched.maxLat) / 2) /
-    height
+    Math.abs(
+      (live.minLat + live.maxLat) / 2 - (searched.minLat + searched.maxLat) / 2
+    ) / height
   const zoomChange = Math.abs(Math.abs(live.maxLng - live.minLng) / width - 1)
 
   // A quarter-screen pan, or a ~35% change in how much ground is visible.
   return centreShiftX > 0.25 || centreShiftY > 0.25 || zoomChange > 0.35
 }
 
-function hasPin(vendor: Vendor): vendor is Vendor & { lat: number; lng: number } {
+function hasPin(
+  vendor: Vendor
+): vendor is Vendor & { lat: number; lng: number } {
   return vendor.lat !== null && vendor.lng !== null
 }
 
@@ -140,7 +160,8 @@ function MapBrowseContent() {
   const requestGpsLocation = useLocationStore((s) => s.requestGpsLocation)
   const locating = useLocationStore((s) => s.locating)
 
-  const bookingType = parseBookingType(searchParams.get('bookingType')) ?? 'dropin'
+  const bookingType =
+    parseBookingType(searchParams.get('bookingType')) ?? 'dropin'
   const category = searchParams.get('category') ?? undefined
 
   useEffect(() => {
@@ -189,7 +210,11 @@ function MapBrowseContent() {
   const nearby = origin !== undefined && areaBounds === null
   const city = !hasOrigin && areaBounds === null
 
-  const { vendors: found, radiusKm, isLoading } = useVendorSearch(
+  const {
+    vendors: found,
+    radiusKm,
+    isLoading,
+  } = useVendorSearch(
     {
       bookingType,
       category,
@@ -274,7 +299,11 @@ function MapBrowseContent() {
     if (!node) return
 
     scrollingProgrammatically.current = true
-    node.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    node.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    })
     window.setTimeout(() => {
       scrollingProgrammatically.current = false
     }, 500)
@@ -335,11 +364,16 @@ function MapBrowseContent() {
   const getPadding = useCallback((): FitPadding => {
     const root = rootRef.current?.getBoundingClientRect()
     if (!root) return { top: 48, bottom: 48, left: 72, right: 72 }
-    const top = topRef.current ? topRef.current.getBoundingClientRect().bottom - root.top : 0
+    const top = topRef.current
+      ? topRef.current.getBoundingClientRect().bottom - root.top
+      : 0
     const bottom = resultsRef.current
       ? root.bottom - resultsRef.current.getBoundingClientRect().top
       : 0
-    return fitPadding({ width: root.width, height: root.height }, { top, bottom })
+    return fitPadding(
+      { width: root.width, height: root.height },
+      { top, bottom }
+    )
   }, [])
 
   // What the map frames once results land, keyed so it happens once per
@@ -354,7 +388,9 @@ function MapBrowseContent() {
   if (!isLoading && nearby && origin) {
     fitKey = `nearby:${origin.lat},${origin.lng}:${recentred}`
     fitTarget =
-      pins.length > 0 ? framingBounds([origin, ...pins], 3) : framingBounds([origin], 12)
+      pins.length > 0
+        ? framingBounds([origin, ...pins], 3)
+        : framingBounds([origin], 12)
   } else if (!isLoading && city && pins.length > 0) {
     fitKey = 'city'
     fitTarget = framingBounds(pins, 3)
@@ -371,7 +407,8 @@ function MapBrowseContent() {
       'No garages travel to this area yet.'
     ) : nearby && radiusKm !== null ? (
       <>
-        No garages within <span className="font-numeric">{radiusKm}</span> km of you yet.
+        No garages within <span className="font-numeric">{radiusKm}</span> km of
+        you yet.
       </>
     ) : (
       'No garages in this area. Try zooming out or moving the map.'
@@ -399,7 +436,11 @@ function MapBrowseContent() {
           <div className="flex items-center gap-2">
             {/* Back to the list in the same mode the map was opened in. */}
             <Link
-              href={bookingTypeParam(bookingType) ? `/garages?mode=${bookingTypeParam(bookingType)}` : '/garages'}
+              href={
+                bookingTypeParam(bookingType)
+                  ? `/garages?mode=${bookingTypeParam(bookingType)}`
+                  : '/garages'
+              }
               className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
             >
               <IconList size={15} aria-hidden="true" />
@@ -501,11 +542,13 @@ function MapBrowseContent() {
                 <p className="px-4 text-center text-[11px] text-text-muted">
                   {nearby ? (
                     <>
-                      Showing the nearest <span className="font-numeric">{PAGE_LIMIT}</span>.
+                      Showing the nearest{' '}
+                      <span className="font-numeric">{PAGE_LIMIT}</span>.
                     </>
                   ) : (
                     <>
-                      Showing the first <span className="font-numeric">{PAGE_LIMIT}</span> — zoom
+                      Showing the first{' '}
+                      <span className="font-numeric">{PAGE_LIMIT}</span> — zoom
                       in to narrow it down.
                     </>
                   )}
@@ -627,7 +670,8 @@ function MapVendorCard({
       // the chosen card opens the garage. A modified click (new tab) always
       // follows the link.
       onClick={(e) => {
-        if (selected || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+        if (selected || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0)
+          return
         e.preventDefault()
         onChoose()
       }}
@@ -683,7 +727,9 @@ function MapVendorCard({
               <span className="font-numeric font-medium text-text-primary">
                 {vendor.rating.toFixed(1)}
               </span>
-              <span className="text-text-secondary">({vendor.reviewCount})</span>
+              <span className="text-text-secondary">
+                ({vendor.reviewCount})
+              </span>
             </span>
           ) : (
             <span className="shrink-0 text-[12px] font-medium text-text-primary">
@@ -693,8 +739,9 @@ function MapVendorCard({
         </div>
 
         {vendor.serviceTags.length > 0 && (
-          <p className="truncate text-[12px] text-text-secondary">
-            {vendor.serviceTags.join(' · ')}
+          // The list's own category names, never the raw codes (F10).
+          <p className="truncate text-[13px] text-text-secondary">
+            {vendor.serviceTags.map(categoryLabel).join(' · ')}
           </p>
         )}
 
@@ -703,9 +750,14 @@ function MapVendorCard({
             the sign already names. */}
         {vendor.outsideServiceCity ? (
           <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
-            <OutsideCityChip outside={vendor.outsideServiceCity} className="min-w-0 bg-surface" />
+            <OutsideCityChip
+              outside={vendor.outsideServiceCity}
+              className="min-w-0 bg-surface"
+            />
             {vendor.distanceKm !== null && (
-              <span className="shrink-0 font-numeric">{formatDistance(vendor.distanceKm)}</span>
+              <span className="shrink-0 font-numeric">
+                {formatDistance(vendor.distanceKm)}
+              </span>
             )}
           </p>
         ) : (
@@ -713,7 +765,9 @@ function MapVendorCard({
             <Figures
               text={[
                 vendor.area,
-                vendor.distanceKm !== null ? formatDistance(vendor.distanceKm) : null,
+                vendor.distanceKm !== null
+                  ? formatDistance(vendor.distanceKm)
+                  : null,
               ]
                 .filter(Boolean)
                 .join(' · ')}

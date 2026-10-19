@@ -2,16 +2,31 @@
 
 import { useState } from 'react'
 import { toast } from 'react-toastify'
-import { IconBrandWhatsapp, IconCopy, IconPrinter, IconShare } from '@tabler/icons-react'
+import {
+  IconBrandWhatsapp,
+  IconCopy,
+  IconPrinter,
+  IconShare,
+} from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { Notice } from '@repo/ui/sc/notice'
 import type { GiftLink, SentGift } from '@repo/core/api/gifts'
 import { useGiftsConfig } from '@repo/core/api/hooks/use-gifts'
 import { PremiumCard } from '@/components/premium-card/premium-card'
 import { ShareCardImage } from '@/components/premium-card/share-card-image'
-import { formatGiftCode, formatGiftDate, giftRupees, giftShareText, whatsAppShareUrl } from '@/lib/gifts'
-import { CARS_ILLUSTRATION_LINE, firstName, giftCardSpec } from '@/lib/premium-card'
+import {
+  formatGiftCode,
+  formatGiftDate,
+  giftRupees,
+  giftShareText,
+  whatsAppShareUrl,
+} from '@/lib/gifts'
+import {
+  CARS_ILLUSTRATION_LINE,
+  firstName,
+  giftCardSpec,
+} from '@/lib/premium-card'
 
 /**
  * While printing, only the printable card: the rest of the screen (the
@@ -27,7 +42,10 @@ const PRINT_CSS = `
 }
 `
 
-type ShareGift = Pick<SentGift, 'number' | 'amount' | 'recipientName' | 'message' | 'design' | 'expiresAt'>
+type ShareGift = Pick<
+  SentGift,
+  'number' | 'amount' | 'recipientName' | 'message' | 'design' | 'expiresAt'
+>
 
 /**
  * The share screen, shown once a link is made: after a purchase, or after
@@ -42,17 +60,31 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
   const [showPrint, setShowPrint] = useState(false)
   const validMonths = useGiftsConfig().data?.validMonths ?? null
   const cardSpec = (showName: boolean) =>
-    giftCardSpec({ design: gift.design, amount: gift.amount, recipientName: gift.recipientName, expiresAt: gift.expiresAt, validMonths, showName })
+    giftCardSpec({
+      design: gift.design,
+      amount: gift.amount,
+      recipientName: gift.recipientName,
+      expiresAt: gift.expiresAt,
+      validMonths,
+      showName,
+    })
   const path = link.path
-  const url = typeof window === 'undefined' ? path : `${window.location.origin}${path}`
-  const text = giftShareText({ amount: gift.amount, recipientName: gift.recipientName, url })
+  const url =
+    typeof window === 'undefined' ? path : `${window.location.origin}${path}`
+  const text = giftShareText({
+    amount: gift.amount,
+    recipientName: gift.recipientName,
+    url,
+  })
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url)
       toast.success('Link copied')
     } catch {
-      toast.info("Couldn't copy the link. Press and hold it to copy it instead.")
+      toast.info(
+        "Couldn't copy the link. Press and hold it to copy it instead."
+      )
     }
   }
 
@@ -75,33 +107,45 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
 
       <div className="flex flex-col gap-1.5">
         <PremiumCard spec={cardSpec(true)} />
-        <p className="text-center text-[11px] text-text-muted">{CARS_ILLUSTRATION_LINE}</p>
+        <p className="text-center text-[11px] text-text-muted">
+          {CARS_ILLUSTRATION_LINE}
+        </p>
       </div>
 
       <div>
         <h2 className="text-[17px] font-semibold text-text-primary">
-          Your <span className="font-numeric">{giftRupees(gift.amount)}</span> gift for {gift.recipientName} is ready
+          Your <span className="font-numeric">{giftRupees(gift.amount)}</span>{' '}
+          gift for {gift.recipientName} is ready
         </h2>
         <p className="mt-1 text-[13px] text-text-secondary">
-          Send them this link. Whoever opens it can add the gift to their Detlio credit, so send it only to{' '}
-          {gift.recipientName}.
+          Send them this link. Whoever opens it can add the gift to their Detlio
+          credit, so send it only to {gift.recipientName}.
         </p>
       </div>
 
       <ScCard className="flex flex-col gap-1">
         <p className="text-[11px] font-medium text-text-secondary">Gift link</p>
         {/* Selectable, so it can still be copied by hand where the clipboard is blocked. */}
-        <p className="select-all break-all font-numeric text-[13px] text-text-primary">{url}</p>
+        <p className="select-all break-all font-numeric text-[13px] text-text-primary">
+          {url}
+        </p>
       </ScCard>
 
       <div className="flex flex-col gap-2">
         {/* The screen's one red button. */}
-        <ScButton onClick={() => void share()} className="flex min-h-11 items-center justify-center gap-2">
+        <ScButton
+          onClick={() => void share()}
+          className="flex min-h-11 items-center justify-center gap-2"
+        >
           <IconShare size={18} aria-hidden="true" />
           Share
         </ScButton>
         <div className="grid grid-cols-2 gap-2">
-          <ScButton variant="secondary" onClick={() => void copy()} className="flex min-h-11 items-center justify-center gap-2">
+          <ScButton
+            variant="secondary"
+            onClick={() => void copy()}
+            className="flex min-h-11 items-center justify-center gap-2"
+          >
             <IconCopy size={16} aria-hidden="true" />
             Copy link
           </ScButton>
@@ -125,7 +169,11 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
           {showPrint ? 'Hide the printable card' : 'Print a card instead'}
         </ScButton>
         {/* The card as a picture for Instagram: never the code or the link. */}
-        <ShareCardImage spec={cardSpec} firstName={firstName(gift.recipientName) || null} fileName="detlio-gift" />
+        <ShareCardImage
+          spec={cardSpec}
+          firstName={firstName(gift.recipientName) || null}
+          fileName="detlio-gift"
+        />
       </div>
 
       {showPrint && (
@@ -139,24 +187,41 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
               Detlio<span className="text-brand-red">.</span> gift
             </p>
             <p className="text-[15px]">
-              <span className="font-numeric text-[28px] font-bold">{giftRupees(gift.amount)}</span>
+              <span className="font-numeric text-[28px] font-bold">
+                {giftRupees(gift.amount)}
+              </span>
               <span className="block">for {gift.recipientName}</span>
             </p>
-            {gift.message && <p className="whitespace-pre-wrap break-words text-[13px] italic">“{gift.message}”</p>}
+            {gift.message && (
+              <p className="whitespace-pre-wrap break-words text-[13px] italic">
+                “{gift.message}”
+              </p>
+            )}
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">Gift code</p>
-              <p className="font-numeric text-[22px] font-bold tracking-[0.06em]">{formatGiftCode(link.code)}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+                Gift code
+              </p>
+              <p className="font-numeric text-[22px] font-bold tracking-[0.06em]">
+                {formatGiftCode(link.code)}
+              </p>
             </div>
             <p className="text-[12px] text-neutral-700">
-              To use it, open <span className="break-all font-numeric">{url}</span>, or sign in to Detlio and type the
-              code under Profile, Detlio credit.
-              {gift.expiresAt ? ` Use by ${formatGiftDate(gift.expiresAt)}.` : ''}
+              To use it, open{' '}
+              <span className="break-all font-numeric">{url}</span>, or sign in
+              to Detlio and type the code under Profile, Detlio credit.
+              {gift.expiresAt
+                ? ` Use by ${formatGiftDate(gift.expiresAt)}.`
+                : ''}
             </p>
             <p className="text-[11px] text-neutral-600">
               <span className="font-numeric">{gift.number}</span>
             </p>
           </section>
-          <ScButton variant="secondary" onClick={() => window.print()} className="flex min-h-11 items-center justify-center gap-2">
+          <ScButton
+            variant="secondary"
+            onClick={() => window.print()}
+            className="flex min-h-11 items-center justify-center gap-2"
+          >
             <IconPrinter size={16} aria-hidden="true" />
             Print
           </ScButton>
@@ -165,12 +230,16 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
 
       {/* The one thing to act on before leaving: amber, as the design system marks a caution. */}
       <Notice title="This link is shown only now">
-        If it is lost, use Get a new link in Gifts you sent: the new link replaces this one, and this one stops
-        working.
+        If it is lost, use Get a new link in Gifts you sent: the new link
+        replaces this one, and this one stops working.
         {gift.expiresAt ? (
           <>
             {' '}
-            The gift can be used until <span className="font-numeric">{formatGiftDate(gift.expiresAt)}</span>.
+            The gift can be used until{' '}
+            <span className="font-numeric">
+              {formatGiftDate(gift.expiresAt)}
+            </span>
+            .
           </>
         ) : null}
       </Notice>

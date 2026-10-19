@@ -92,10 +92,10 @@ test.describe('garage suggests another time @p0', () => {
     // ── the customer picks the first on their booking page ─────────────────
     await customer.goto(`/bookings/${bookingId}`)
     await expect(
-      customer.getByRole('heading', { name: /can't do 10:00 AM — pick another time/ })
+      customer.getByRole('heading', { name: /can't do 10:00 am — pick another time/ })
     ).toBeVisible()
     await expect(customer.getByText('Both bays are busy at 10')).toBeVisible()
-    await customer.getByRole('button', { name: /^Book .+, 2:00 PM$/ }).click()
+    await customer.getByRole('button', { name: /^Book .+, 2:00 pm$/ }).click()
 
     await expect.poll(async () => (await movedTo(bookingId))?.status).toBe('confirmed')
     const moved = (await movedTo(bookingId))!

@@ -59,7 +59,9 @@ export default function WelcomePage() {
           <h2 className="whitespace-pre-line text-[30px] font-bold leading-[1.15] tracking-tight text-text-primary">
             {active.title}
           </h2>
-          <p className="mt-3 text-[14px] leading-relaxed text-text-secondary">{active.body}</p>
+          <p className="mt-3 text-[14px] leading-relaxed text-text-secondary">
+            {active.body}
+          </p>
 
           <div className="mt-6 flex items-center gap-1.5">
             {SLIDES.map((s, i) => (
@@ -77,7 +79,11 @@ export default function WelcomePage() {
             ))}
           </div>
 
-          <ScButton className="mt-7 rounded-full py-4 text-[15px]" onClick={handleNext}>
+          <ScButton
+            variant="main"
+            className="mt-7 rounded-full py-4 text-[15px]"
+            onClick={handleNext}
+          >
             {isLast ? 'Get Started' : 'Next'}
           </ScButton>
         </div>

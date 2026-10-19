@@ -113,9 +113,14 @@ export function UpdateRow({
   onDismiss?: () => void
 }) {
   const Icon = KIND_ICONS[row.kind]
-  const when = updateTimeLabel(row.at, now)
+  // One way to write a time on every screen (F10): "6:00 pm", not "6:00 PM".
+  const when = updateTimeLabel(row.at, now).replace(
+    /\b(AM|PM)\b/g,
+    (meridiem) => meridiem.toLowerCase()
+  )
   const meta = [row.from, row.body, when].filter(Boolean).join(' · ')
-  const href = row.linkUrl ?? (row.bookingId ? `/bookings/${row.bookingId}` : null)
+  const href =
+    row.linkUrl ?? (row.bookingId ? `/bookings/${row.bookingId}` : null)
   const external = !!row.linkUrl && row.linkUrl.startsWith('https://')
 
   const content = (
@@ -139,7 +144,11 @@ export function UpdateRow({
           {row.title}
           {row.unread && <span className="sr-only"> (new)</span>}
         </span>
-        {meta && <span className="mt-1 line-clamp-2 block text-[13px] text-dim">{meta}</span>}
+        {meta && (
+          <span className="mt-1 line-clamp-2 block text-[13px] text-dim">
+            {meta}
+          </span>
+        )}
         {row.linkUrl && row.linkLabel && (
           <span className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-text-primary">
             {row.linkLabel}
@@ -153,7 +162,10 @@ export function UpdateRow({
   const main = 'flex min-w-0 flex-1 items-start gap-3.5 py-4 pl-4'
 
   return (
-    <li data-update={row.kind} className="update-row relative flex items-start pr-2">
+    <li
+      data-update={row.kind}
+      className="update-row relative flex items-start pr-2"
+    >
       {href === null ? (
         <div className={main}>{content}</div>
       ) : external ? (
@@ -167,7 +179,11 @@ export function UpdateRow({
       )}
       <span className="flex shrink-0 items-start pt-[13px]">
         {row.unread && (
-          <span aria-hidden data-testid="unread-dot" className="mt-[9px] mr-2 size-[7px] rounded-full bg-brand-red" />
+          <span
+            aria-hidden
+            data-testid="unread-dot"
+            className="mt-[9px] mr-2 size-[7px] rounded-full bg-brand-red"
+          />
         )}
         {onDismiss && (
           <button
@@ -186,12 +202,15 @@ export function UpdateRow({
 }
 
 /** A card of rows with hairlines between them, inset past the icon. */
-export function UpdateList({ children, label }: { children: React.ReactNode; label: string }) {
+export function UpdateList({
+  children,
+  label,
+}: {
+  children: React.ReactNode
+  label: string
+}) {
   return (
-    <ul
-      aria-label={label}
-      className="update-list hub-card py-1"
-    >
+    <ul aria-label={label} className="update-list hub-card py-1">
       {children}
     </ul>
   )

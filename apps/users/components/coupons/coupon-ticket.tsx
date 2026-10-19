@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { formatOfferFigure } from '@repo/core/offer-figure'
 import type { CouponReward } from '@repo/core/coupons'
 import { cn } from '@repo/core/utils'
@@ -25,13 +25,28 @@ interface CouponTicketProps {
 function figureOf(props: CouponTicketProps): { text: string; under: string } {
   switch (props.reward) {
     case 'amount':
-      return { text: formatOfferFigure({ kind: 'amount', rupees: props.amountOff ?? 0 }).text, under: 'off' }
+      return {
+        text: formatOfferFigure({
+          kind: 'amount',
+          rupees: props.amountOff ?? 0,
+        }).text,
+        under: 'off',
+      }
     case 'percent':
-      return { text: formatOfferFigure({ kind: 'percent', value: props.percentOff ?? 0 }).text, under: 'off' }
+      return {
+        text: formatOfferFigure({
+          kind: 'percent',
+          value: props.percentOff ?? 0,
+        }).text,
+        under: 'off',
+      }
     case 'free_wash':
       return { text: 'FREE', under: 'car wash' }
     case 'stamps':
-      return { text: `+${props.stamps ?? 0}`, under: props.stamps === 1 ? 'stamp' : 'stamps' }
+      return {
+        text: `+${props.stamps ?? 0}`,
+        under: props.stamps === 1 ? 'stamp' : 'stamps',
+      }
   }
 }
 
@@ -44,20 +59,35 @@ export function CouponTicket(props: CouponTicketProps) {
   const figure = figureOf(props)
   const Heading = props.as ?? 'h2'
   return (
-    <ScCard className={cn('flex items-stretch overflow-hidden p-0', props.dimmed && 'opacity-60')}>
+    <ScCard
+      className={cn(
+        'flex items-stretch overflow-hidden p-0',
+        props.dimmed && 'opacity-60'
+      )}
+    >
       <div className="flex w-[96px] shrink-0 flex-col items-center justify-center gap-0.5 border-r border-dashed border-border bg-surface-elevated px-2 py-4 text-center">
-        <span className="font-numeric text-[26px] font-bold leading-none text-text-primary">{figure.text}</span>
+        <span className="font-numeric text-[26px] font-bold leading-none text-text-primary">
+          {figure.text}
+        </span>
         <span className="text-[11px] text-text-secondary">{figure.under}</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-4 py-3.5">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Detlio coupon</p>
-        <Heading className="text-[15px] font-semibold leading-snug text-text-primary">{props.title}</Heading>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          Detlio coupon
+        </p>
+        <Heading className="text-[15px] font-semibold leading-snug text-text-primary">
+          {props.title}
+        </Heading>
         <ul className="flex flex-col gap-0.5 text-[12px] text-text-secondary">
           {props.conditions.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
-        {props.code && <p className="font-numeric text-[12px] tracking-wide text-text-primary">{props.code}</p>}
+        {props.code && (
+          <p className="font-numeric text-[12px] tracking-wide text-text-primary">
+            {props.code}
+          </p>
+        )}
         {props.children}
       </div>
     </ScCard>

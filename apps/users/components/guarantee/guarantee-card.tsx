@@ -3,8 +3,11 @@
 import Link from 'next/link'
 import { IconChevronRight, IconShieldCheck } from '@tabler/icons-react'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
-import { ScCard } from '@repo/ui/sc/card'
-import { useBookingGuarantee, useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
+import { ScCard } from '@/components/ui/card'
+import {
+  useBookingGuarantee,
+  useGuaranteeConfig,
+} from '@repo/core/api/hooks/use-guarantee'
 import { GUARANTEE_BUTTON, GUARANTEE_NAME } from '@repo/core/guarantee'
 import { formatStepTime } from '@repo/core/job-records'
 import type { Booking } from '@repo/core/types'
@@ -22,18 +25,28 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
   const config = useGuaranteeConfig()
   const on = config.data?.enabled === true
   const completed = booking.status === 'completed'
-  const guarantee = useBookingGuarantee(booking.id, on && completed && !booking.guaranteeRedo)
+  const guarantee = useBookingGuarantee(
+    booking.id,
+    on && completed && !booking.guaranteeRedo
+  )
 
   if (!on) return null
 
   if (booking.guaranteeRedo) {
     return (
       <ScCard className="flex items-start gap-3">
-        <IconShieldCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-text-primary" />
+        <IconShieldCheck
+          size={20}
+          aria-hidden
+          className="mt-0.5 shrink-0 text-text-primary"
+        />
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Free redo · {GUARANTEE_NAME}</h2>
+          <h2 className="text-sm font-semibold text-text-primary">
+            Free redo · {GUARANTEE_NAME}
+          </h2>
           <p className="mt-0.5 text-[12px] text-text-secondary">
-            This booking redoes an earlier job at no charge. There is nothing to pay and no receipt for it.
+            This booking redoes an earlier job at no charge. There is nothing to
+            pay and no receipt for it.
           </p>
         </div>
       </ScCard>
@@ -49,11 +62,23 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
     return (
       <ScCard className="flex flex-col gap-2">
         <div className="flex items-start gap-3">
-          <IconShieldCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-text-primary" />
+          <IconShieldCheck
+            size={20}
+            aria-hidden
+            className="mt-0.5 shrink-0 text-text-primary"
+          />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">{GUARANTEE_NAME}</p>
-            <h2 className="text-sm font-semibold text-text-primary">{claim.title}</h2>
-            {claim.body && <p className="mt-0.5 text-[12px] text-text-secondary">{claim.body}</p>}
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+              {GUARANTEE_NAME}
+            </p>
+            <h2 className="text-sm font-semibold text-text-primary">
+              {claim.title}
+            </h2>
+            {claim.body && (
+              <p className="mt-0.5 text-[12px] text-text-secondary">
+                {claim.body}
+              </p>
+            )}
           </div>
         </div>
         {claim.canBookRedo && (
@@ -66,12 +91,17 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
             href={`/bookings/${claim.redoBooking.id}`}
             className="flex min-h-11 items-center justify-between rounded-[10px] border border-border px-3 text-[13px] text-text-primary"
           >
-            <span>Free redo · {formatStepTime(claim.redoBooking.scheduledAt)}</span>
+            <span>
+              Free redo · {formatStepTime(claim.redoBooking.scheduledAt)}
+            </span>
             <IconChevronRight size={16} aria-hidden />
           </Link>
         )}
         {!claim.canBookRedo && (
-          <Link href={claimPath} className="text-[12px] text-text-secondary underline underline-offset-2">
+          <Link
+            href={claimPath}
+            className="text-[12px] text-text-secondary underline underline-offset-2"
+          >
             See your claim
           </Link>
         )}
@@ -83,7 +113,12 @@ export function GuaranteeCard({ booking }: { booking: Booking }) {
 
   return (
     <ScCard className="flex flex-col gap-2">
-      <ScButtonLink href={claimPath} variant="secondary" fullWidth className="gap-2">
+      <ScButtonLink
+        href={claimPath}
+        variant="secondary"
+        fullWidth
+        className="gap-2"
+      >
         <IconShieldCheck size={18} aria-hidden />
         {GUARANTEE_BUTTON}
       </ScButtonLink>

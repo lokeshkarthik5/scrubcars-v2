@@ -18,21 +18,15 @@ const TABS = [
   { item: 'map', label: 'Map', icon: IconMap2 },
   { item: 'bookings', label: 'Bookings', icon: IconCalendar },
   { item: 'profile', label: 'Profile', icon: IconUser },
-] as const satisfies ReadonlyArray<{ item: HubNavItem; label: string; icon: unknown }>
-
-/** The lit item's mark: one 4px red dot, the bar's only red, as on the old bar. */
-function LitDot() {
-  return (
-    <span
-      aria-hidden
-      className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-brand-red"
-    />
-  )
-}
+] as const satisfies ReadonlyArray<{
+  item: HubNavItem
+  label: string
+  icon: unknown
+}>
 
 /**
  * The floating pill nav of the Home hub look: Home, Map, the white +,
- * Bookings, Profile. Behind NEXT_PUBLIC_HOME_HUB, on every customer screen
+ * Bookings, Profile, each with its label. Behind NEXT_PUBLIC_HOME_HUB, on every customer screen
  * that shows a nav (CustomerShell, and the map, which draws its own), in
  * place of the flat bar.
  *
@@ -63,18 +57,25 @@ export function HubNav({
   const tab = ({ item, label, icon: Icon }: (typeof TABS)[number]) => {
     const active = current === item
     return (
+      // A label under every icon, and the current tab in white (F11): the
+      // map and + are not obvious on their own, and a dot alone was easy to
+      // miss.
       <Link
         key={item}
         href={HUB_NAV_HREF[item]}
         aria-label={label}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'relative grid size-11 place-items-center rounded-full transition-colors',
+          'flex min-h-12 min-w-[52px] flex-col items-center justify-center gap-0.5 rounded-[14px] transition-colors',
           active ? 'text-text-primary' : 'text-dim hover:text-text-primary'
         )}
       >
-        <Icon size={21} stroke={1.5} aria-hidden />
-        {active && <LitDot />}
+        <Icon size={21} stroke={active ? 1.8 : 1.5} aria-hidden />
+        <span
+          className={cn('text-[11px] leading-none', active && 'font-medium')}
+        >
+          {label}
+        </span>
       </Link>
     )
   }
@@ -89,7 +90,7 @@ export function HubNav({
       )}
       <nav
         aria-label="Main"
-        className="fixed left-1/2 z-40 flex h-[60px] w-[272px] -translate-x-1/2 items-center justify-between rounded-pill border border-line bg-[rgba(24,24,27,0.86)] px-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_18px_40px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl"
+        className="fixed left-1/2 z-40 flex h-16 w-[min(340px,calc(100%-32px))] -translate-x-1/2 items-center justify-between rounded-pill border border-line bg-[#18181B] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_18px_40px_-12px_rgba(0,0,0,0.7)]"
         style={{ bottom: 'calc(20px + env(safe-area-inset-bottom))' }}
       >
         {tab(home)}
@@ -100,7 +101,7 @@ export function HubNav({
         <Link
           href={HUB_NAV_HREF.new}
           aria-label="New booking"
-          className="press grid size-11 place-items-center rounded-full bg-[#F5F5F6] text-brand-black shadow-[0_6px_16px_-8px_rgba(0,0,0,0.6)]"
+          className="press grid size-12 place-items-center rounded-full bg-[#F5F5F6] text-brand-black shadow-[0_6px_16px_-8px_rgba(0,0,0,0.6)]"
         >
           <IconPlus size={20} stroke={1.75} aria-hidden />
         </Link>

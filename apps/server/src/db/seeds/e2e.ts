@@ -2395,6 +2395,19 @@ async function seedCertificateRows() {
  * (see BOOKINGS.contactSoon). Every id and phone is in the 3400–3499 /
  * 90000034xx range reserved for this feature.
  */
+/**
+ * The six-tap checkout (specs/users/checkout-six-taps.spec.ts): CUSTOMERS.sixTap
+ * and one default car, so Home's Book a wash opens checkout with the car
+ * chosen. Nothing else: the spec books MAIN's Express Wash itself.
+ */
+async function seedSixTapRows() {
+  const customer = CUSTOMERS.sixTap
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Hyundai', model: 'Venue', color: 'Grey',
+    licensePlate: 'TN09ST4001', vehicleType: 'hatchback', isDefault: true,
+  })
+}
+
 async function seedContactWindowRows() {
   const garage = VENDORS.contact.id
   const customer = CUSTOMERS.contact
@@ -2510,6 +2523,8 @@ async function main() {
   await seedCertificateRows()
   console.log('[e2e-seed] contact windows…')
   await seedContactWindowRows()
+  console.log('[e2e-seed] six-tap checkout…')
+  await seedSixTapRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
