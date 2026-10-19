@@ -268,7 +268,7 @@ describe('the customer', () => {
     expect(data.cars.length).toBe(40)
     expect(data.rows.length).toBe(8)
     const mine = data.cars.find((c) => c.number === 7)!
-    expect(mine).toMatchObject({ owned: true, name: 'Monsoon GT', rarity: 'rare', count: 2 })
+    expect(mine).toMatchObject({ owned: true, name: 'Rangoli Twist', rarity: 'common', photoId: 'purple-coupe-open-lot', count: 2 })
     const missing = data.cars.find((c) => c.number === 1)!
     expect(missing.owned).toBe(false)
     expect(missing).not.toHaveProperty('name')
@@ -296,7 +296,7 @@ describe('the customer', () => {
     const { body } = await call('GET', '/users/me/rewards/garage/pulls', 'me')
     const data = body.data as { unseen: number; pulls: Array<{ id: string; car: { name: string; number: number; total: number } }> }
     expect(data.unseen).toBe(1)
-    expect(data.pulls[0]).toMatchObject({ id: PULL_MINE, car: { name: 'Monsoon GT', number: 7, total: 40 } })
+    expect(data.pulls[0]).toMatchObject({ id: PULL_MINE, car: { name: 'Rangoli Twist', number: 7, total: 40 } })
   })
 })
 
