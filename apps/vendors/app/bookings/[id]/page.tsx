@@ -421,13 +421,9 @@ function DockedStep({
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[428px] border-t border-border bg-brand-black/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-      {b.bookingType === 'pickup' ? (
-        <PickupSteps
-          booking={b}
-          onStartWork={() => changeStatusWithUndo(b.id, 'in_progress')}
-          onChanged={onChanged}
-        />
-      ) : deferred ? (
+      {/* A step waiting behind its Undo, or on its way, holds every
+          button here, pickup's included: no second tap. */}
+      {deferred ? (
         <p
           role="status"
           className="flex min-h-14 items-center justify-center text-[16px] font-medium text-text-primary"
@@ -436,6 +432,12 @@ function DockedStep({
             ? 'Starting the job…'
             : 'Completing the job…'}
         </p>
+      ) : b.bookingType === 'pickup' ? (
+        <PickupSteps
+          booking={b}
+          onStartWork={() => changeStatusWithUndo(b.id, 'in_progress')}
+          onChanged={onChanged}
+        />
       ) : (
         <div className="flex flex-col gap-3">
           {missing.length > 0 && (

@@ -59,9 +59,10 @@ export function tabFromQuery(value: string | null): ListTab | null {
 /**
  * Which list a job is on. Waiting for an answer: New. Under way, or
  * accepted for today (or a day already gone, still not started): Today.
- * Accepted for a later day: Later. Finished, cancelled or moved: Done.
+ * Accepted for a later day: Later. Finished or cancelled: Done. A booking
+ * moved to a new time is on no list: its new booking is.
  */
-export function listTabOf(b: Booking, now: number): ListTab {
+export function listTabOf(b: Booking, now: number): ListTab | null {
   switch (b.status) {
     case 'pending':
       return 'new'
@@ -69,8 +70,11 @@ export function listTabOf(b: Booking, now: number): ListTab {
       return 'today'
     case 'confirmed':
       return istDay(at(b.scheduledAtIso)) <= istDay(now) ? 'today' : 'later'
-    default:
+    case 'completed':
+    case 'cancelled':
       return 'done'
+    default:
+      return null
   }
 }
 
@@ -176,9 +180,26 @@ export function todayView(
 
 /** "Mon 19 Oct", never "Today": the date itself, for a heading that already says now. */
 export function calendarDate(time: number): string {
-  // Against a clock a week on, formatDay can't say Today, Tomorrow or Yesterday.
-  return formatDay(new Date(time), time + 7 * DAY_MS)
+  // India's wall clock, read off a shifted UTC date, as @repo/core/format does.
+  const clock = new Date(time + IST_OFFSET_MS)
+  return `${WEEKDAYS[clock.getUTCDay()]} ${clock.getUTCDate()} ${MONTHS[clock.getUTCMonth()]}`
 }
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 /** Accepted jobs on later days, a group per day, in time order. */
 export function laterDays(
@@ -201,15 +222,10 @@ export function laterDays(
   return groups.map(({ day, jobs }) => ({ day, jobs }))
 }
 
-/** Finished and cancelled jobs, the most recent first. */
+/** Finished and cancelled jobs, the most recent first (a moved one's new booking stands for it). */
 export function doneJobs(bookings: readonly Booking[]): Booking[] {
   return bookings
-    .filter(
-      (b) =>
-        b.status === 'completed' ||
-        b.status === 'cancelled' ||
-        b.status === 'rescheduled'
-    )
+    .filter((b) => b.status === 'completed' || b.status === 'cancelled')
     .sort(
       (a, b) =>
         at(b.completedAtIso ?? b.scheduledAtIso) -

@@ -15,6 +15,8 @@ export function statusLabel(b: Booking): string {
       return 'In progress'
     case 'completed':
       return 'Done'
+    case 'rescheduled':
+      return 'Moved'
     default:
       return 'Cancelled'
   }

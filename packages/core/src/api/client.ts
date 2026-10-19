@@ -95,6 +95,12 @@ export class ApiError extends Error {
 export interface ApiClientOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
   auth?: boolean
+  /**
+   * Inherited from RequestInit, named here because it matters: true lets a
+   * request outlive the page (sent from pagehide). The 401 refresh and its
+   * retry are sent the same way.
+   */
+  keepalive?: boolean
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -107,12 +113,15 @@ async function parseError(response: Response): Promise<ApiError> {
   )
 }
 
-async function tryRefreshCookies(): Promise<boolean> {
+async function tryRefreshCookies(keepalive = false): Promise<boolean> {
   if (refreshPromise) return refreshPromise
 
   refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
+    // A request sent as the page goes away (keepalive) must be able to
+    // finish its refresh too, or the retry after a 401 is lost.
+    ...(keepalive ? { keepalive: true } : {}),
   })
     .then((r) => r.ok)
     .finally(() => {
@@ -153,7 +162,7 @@ export async function apiClient<T>(
   noteSupportSession(response)
 
   if (response.status === 401 && auth) {
-    const refreshed = await tryRefreshCookies()
+    const refreshed = await tryRefreshCookies(Boolean(rest.keepalive))
     if (refreshed) {
       response = await fetch(url.toString(), {
         ...rest,

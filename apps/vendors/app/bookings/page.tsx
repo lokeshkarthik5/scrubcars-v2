@@ -94,9 +94,16 @@ export default function VendorBookingsPage() {
 function VendorBookings() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<ListTab>(
-    () => tabFromQuery(searchParams.get('tab')) ?? 'today'
-  )
+  // The list follows ?tab= whenever it changes (a link or a notification
+  // to /bookings?tab=new while the page is open), not only on the first
+  // render; a tap sets it at once and writes it to the address.
+  const queryTab = tabFromQuery(searchParams.get('tab')) ?? 'today'
+  const [tab, setTab] = useState<ListTab>(queryTab)
+  const [seenQueryTab, setSeenQueryTab] = useState(queryTab)
+  if (queryTab !== seenQueryTab) {
+    setSeenQueryTab(queryTab)
+    setTab(queryTab)
+  }
   const { bookings, loaded, failed, reload } = useVendorBookings()
   const now = useNow(10_000)
 

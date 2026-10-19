@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { Booking } from '@repo/core/types'
 import {
   blockers,
+  calendarDate,
   customerNumberLine,
   distanceKm,
   doneJobs,
@@ -102,6 +103,8 @@ describe('listTabOf', () => {
     ).toBe('later')
     expect(listTabOf(job({ status: 'completed' }), NOW)).toBe('done')
     expect(listTabOf(job({ status: 'cancelled' }), NOW)).toBe('done')
+    // Moved: its new booking stands for it, so it is on no list.
+    expect(listTabOf(job({ status: 'rescheduled' }), NOW)).toBeNull()
   })
 })
 
@@ -174,10 +177,18 @@ describe('today and later', () => {
       status: 'cancelled',
       scheduledAtIso: iso(-HOUR),
     })
-    expect(doneJobs([old, recent, job()]).map((b) => b.id)).toEqual([
+    const moved = job({ id: 'moved', status: 'rescheduled' })
+    expect(doneJobs([old, recent, moved, job()]).map((b) => b.id)).toEqual([
       'recent',
       'old',
     ])
+  })
+
+  test('the date heading is the date, without a year, at the end of December too', () => {
+    expect(calendarDate(NOW)).toBe('Mon 19 Oct')
+    // 11:30 pm on 31 Dec in India is still 31 Dec there.
+    expect(calendarDate(Date.parse('2026-12-31T18:00:00Z'))).toBe('Thu 31 Dec')
+    expect(calendarDate(Date.parse('2026-12-28T06:00:00Z'))).toBe('Mon 28 Dec')
   })
 })
 
