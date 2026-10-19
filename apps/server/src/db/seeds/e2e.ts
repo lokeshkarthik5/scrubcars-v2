@@ -2631,6 +2631,8 @@ async function seedAdminLoginRows() {
       name: login.name,
       passwordHash: await hashPassword(login.password),
       status: login === ADMIN_LOGINS.off ? 'off' : 'active',
+      // E2E Admin is the owner; nobody else is.
+      isOwner: 'isOwner' in login && login.isOwner,
       sessionsFrom: longAgo,
       createdByName: 'E2E seed',
       createdAt: longAgo,

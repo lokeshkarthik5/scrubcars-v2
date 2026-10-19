@@ -1906,9 +1906,15 @@ export const adminLogins = pgTable(
     createdByName: varchar('created_by_name', { length: 100 }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    // The one login that runs the team (owner decision): only it adds
+    // logins, resets other people's passwords and turns logins on or off.
+    isOwner: boolean('is_owner').default(false).notNull(),
   },
   (table) => [
     uniqueIndex('admin_logins_username_idx').on(table.username),
+    // At most one owner, and never off, so the owner cannot be locked out.
+    uniqueIndex('admin_logins_one_owner_idx').on(table.isOwner).where(sql`${table.isOwner}`),
+    check('admin_logins_owner_active_check', sql`NOT ${table.isOwner} OR ${table.status} = 'active'`),
     // One person per name: many records keep only the name.
     uniqueIndex('admin_logins_name_idx').on(sql`lower(${table.name})`),
     check('admin_logins_username_check', sql`${table.username} ~ '^[a-z0-9][a-z0-9._-]{2,39}$'`),

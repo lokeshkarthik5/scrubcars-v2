@@ -10,6 +10,7 @@ const PUBLIC_COLUMNS = {
   username: adminLogins.username,
   name: adminLogins.name,
   status: adminLogins.status,
+  isOwner: adminLogins.isOwner,
   lastLoginAt: adminLogins.lastLoginAt,
   createdByName: adminLogins.createdByName,
   createdAt: adminLogins.createdAt,
@@ -20,6 +21,7 @@ export type AdminLoginRow = {
   username: string
   name: string
   status: 'active' | 'off'
+  isOwner: boolean
   lastLoginAt: Date | null
   createdByName: string
   createdAt: Date
@@ -59,6 +61,7 @@ export const adminLoginsRepository = {
         username: adminLogins.username,
         name: adminLogins.name,
         status: adminLogins.status,
+        isOwner: adminLogins.isOwner,
         sessionsFrom: adminLogins.sessionsFrom,
       })
       .from(adminLogins)
@@ -72,6 +75,12 @@ export const adminLoginsRepository = {
     return row
   },
 
+  /** Whether the team has an owner yet (the shared login's bootstrap). */
+  async ownerExists(): Promise<boolean> {
+    const [row] = await db.select({ id: adminLogins.id }).from(adminLogins).where(eq(adminLogins.isOwner, true)).limit(1)
+    return row !== undefined
+  },
+
   async list(): Promise<AdminLoginRow[]> {
     return db.select(PUBLIC_COLUMNS).from(adminLogins).orderBy(asc(adminLogins.name), asc(adminLogins.username))
   },
@@ -81,11 +90,11 @@ export const adminLoginsRepository = {
   },
 
   /**
-   * Undefined when the username or the name is taken (the unique indexes
-   * decide, not a read).
+   * Undefined when the username or the name is taken, or (`isOwner`) when
+   * there is an owner already: the unique indexes decide, not a read.
    */
   async create(
-    input: { username: string; name: string; passwordHash: string },
+    input: { username: string; name: string; passwordHash: string; isOwner: boolean },
     actor: Actor
   ): Promise<AdminLoginRow | undefined> {
     return db.transaction(async (tx) => {
@@ -95,7 +104,7 @@ export const adminLoginsRepository = {
         .onConflictDoNothing()
         .returning(PUBLIC_COLUMNS)
       if (!row) return undefined
-      await audit(tx, 'admin_login_created', actor, row, { name: row.name })
+      await audit(tx, 'admin_login_created', actor, row, { name: row.name, isOwner: row.isOwner })
       return row
     })
   },

@@ -73,7 +73,7 @@ export async function getMe(c: AdminContext) {
   const actor = signedInAdmin(c)
   return c.json({
     success: true,
-    data: { isSuperAdmin: true, kind: actor.kind, name: actor.name, username: actor.username },
+    data: { isSuperAdmin: true, kind: actor.kind, name: actor.name, username: actor.username, isOwner: actor.isOwner },
   })
 }
 

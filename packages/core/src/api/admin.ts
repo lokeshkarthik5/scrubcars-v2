@@ -698,6 +698,8 @@ export interface AdminMe {
   name: string
   /** A personal login's username; null for the other two kinds. */
   username: string | null
+  /** The owner's login: the only one that changes team logins. */
+  isOwner: boolean
 }
 
 /**
@@ -714,6 +716,7 @@ export async function getAdminMe(): Promise<AdminMe> {
     kind: me.kind ?? 'shared',
     name: me.name?.trim() || 'admin',
     username: me.username ?? null,
+    isOwner: me.isOwner ?? false,
   }
   setAdminSigner(full.name)
   return full
@@ -729,6 +732,8 @@ export interface AdminLogin {
   username: string
   name: string
   status: AdminLoginStatus
+  /** The owner's login (one at most). */
+  isOwner: boolean
   lastLoginAt: string | null
   createdByName: string
   createdAt: string
@@ -738,6 +743,14 @@ export interface AdminLoginList {
   logins: AdminLogin[]
   /** The signed-in person's own login; null on the shared login or a member. */
   youId: string | null
+  /** Whether the team has an owner yet. */
+  ownerExists: boolean
+  /**
+   * Whether you may add logins, reset passwords and turn logins on or off:
+   * the owner, or the shared login while there is no owner (the first login
+   * it adds becomes the owner). The server enforces it either way.
+   */
+  canManage: boolean
 }
 
 /** GET /admin/logins */

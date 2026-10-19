@@ -2,11 +2,14 @@
  * Personal admin logins (0058): Settings → Team logins, signing in with your
  * own login, and the panel signing every action with it.
  *
- * The shared env login (ADMIN, the 'admin-shared' state) is the bootstrap:
- * it signs as 'admin' and is how the first logins are made. Every other
- * admin spec runs as ADMIN_LOGINS.e2e ("E2E Admin"). The logins turned off
- * or reset here (ADMIN_LOGINS.resetMe, turnMeOff, changer) are this spec's
- * alone; nobody else signs in as them.
+ * Only the owner's login adds logins, resets other people's passwords and
+ * turns logins on or off (owner decision); everyone changes their own. The
+ * owner here is ADMIN_LOGINS.e2e ("E2E Admin", the 'admin' state every admin
+ * spec runs as). The shared env login (ADMIN, 'admin-shared') signs as
+ * 'admin'; it makes the first login, the owner, only while there is none,
+ * which the server's unit tests cover (here there is always one). The logins
+ * turned off, reset or looked through here (resetMe, turnMeOff, changer,
+ * viewer) are this spec's alone; nobody else signs in as them.
  */
 import { request, type APIRequestContext } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
@@ -55,6 +58,7 @@ test.describe('your own login @p0', () => {
       kind: 'personal',
       name: ADMIN_LOGINS.e2e.name,
       username: ADMIN_LOGINS.e2e.username,
+      isOwner: true,
     })
     await ctx.close()
   })
@@ -62,7 +66,11 @@ test.describe('your own login @p0', () => {
   test('the shared login still gets in, and signs as admin', async () => {
     const { status, ctx } = await signIn(ADMIN.username, ADMIN.password)
     expect(status).toBe(200)
-    expect((await (await ctx.get('/api/v1/admin/me')).json()).data).toMatchObject({ kind: 'shared', name: 'admin', username: null })
+    expect((await (await ctx.get('/api/v1/admin/me')).json()).data).toMatchObject({ kind: 'shared', name: 'admin', username: null, isOwner: false })
+    // There is an owner, so the shared login can no longer add logins.
+    const add = await ctx.post('/api/v1/admin/logins', { data: { username: 'e2e-sneaky', name: 'Sneaky E2E', password: 'sneaky-e2e-password' } })
+    expect(add.status()).toBe(403)
+    expect((await add.json()).code).toBe('ADMIN_OWNER_ONLY')
     await ctx.dispose()
   })
 
@@ -79,16 +87,15 @@ test.describe('your own login @p0', () => {
   })
 })
 
-test.describe('Team logins', () => {
-  test.use({ storageState: asRole('admin-shared') })
+test.describe('Team logins: the owner', () => {
+  test.use({ storageState: asRole('admin') })
 
-  test('the shared login adds a login for a person, who can then sign in', async ({ page }) => {
+  test('the owner adds a login for a person, who can then sign in', async ({ page }) => {
     await page.goto('/settings')
     await page.getByRole('link', { name: /Team logins/ }).click()
     await expect(page).toHaveURL(/\/settings\/team$/)
-    await expect(
-      page.getByText('You’re on the shared login. Add a login for each person, then sign in with your own.')
-    ).toBeVisible()
+    const owner = page.getByRole('list', { name: 'Team logins' }).getByRole('listitem').filter({ hasText: ADMIN_LOGINS.e2e.name })
+    await expect(owner.getByText('Owner', { exact: true })).toBeVisible()
 
     // A new name each try: a retry finds the first try's login still there.
     const tag = String(Date.now()).slice(-6)
@@ -111,7 +118,7 @@ test.describe('Team logins', () => {
       select actor_name, summary::text, detail::text from admin_audit_log
        where action = 'admin_login_created' and summary->>'username' = ${username}
     `
-    expect(audit.actor_name).toBe('admin')
+    expect(audit.actor_name).toBe(ADMIN_LOGINS.e2e.name)
     expect(audit.summary + audit.detail).not.toContain('kavya-e2e-password')
   })
 
@@ -134,7 +141,7 @@ test.describe('Team logins', () => {
     await ctx.dispose()
   })
 
-  test('a password reset signs the person out; the new password works', async ({ page }) => {
+  test('the owner resets a password: the person is signed out, the new password works @p0', async ({ page }) => {
     const login = ADMIN_LOGINS.resetMe
     await restore(login)
     const { ctx } = await signIn(login.username, login.password)
@@ -153,6 +160,42 @@ test.describe('Team logins', () => {
     const fresh = await signIn(login.username, 'raga-new-password')
     expect(fresh.status).toBe(200)
     await fresh.ctx.dispose()
+  })
+})
+
+test.describe('Team logins: anyone but the owner @p0', () => {
+  test('sees the list with no controls, and the API refuses them', async ({ browser }) => {
+    const login = ADMIN_LOGINS.viewer
+    const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+    const page = await ctx.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username').fill(login.username)
+    await page.getByLabel('Password').fill(login.password)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page).not.toHaveURL(/\/login/)
+
+    await page.goto('/settings/team')
+    await expect(page.getByText('Only the owner can add logins, reset passwords or turn logins on or off.')).toBeVisible()
+    const list = page.getByRole('list', { name: 'Team logins' })
+    await expect(list.getByRole('listitem').filter({ hasText: ADMIN_LOGINS.resetMe.name })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Reset password' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Turn off' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Add login' })).toHaveCount(0)
+    await expect(page.getByLabel('Temporary password')).toHaveCount(0)
+    // Their own password is still theirs to change.
+    await expect(page.getByRole('button', { name: 'Change password' })).toBeVisible()
+
+    // Hidden buttons are not the rule: the server refuses them too.
+    for (const [path, data] of [
+      [`/api/v1/admin/logins/${ADMIN_LOGINS.resetMe.id}/password`, { password: 'taken-over-e2e' }],
+      [`/api/v1/admin/logins/${ADMIN_LOGINS.e2e.id}/status`, { status: 'off' }],
+      ['/api/v1/admin/logins', { username: 'e2e-sneaky', name: 'Sneaky E2E', password: 'sneaky-e2e-password' }],
+    ] as const) {
+      const res = await ctx.request.post(`${API}${path}`, { data })
+      expect({ path, status: res.status(), code: (await res.json()).code }).toEqual({ path, status: 403, code: 'ADMIN_OWNER_ONLY' })
+    }
+    expect((await signIn(ADMIN_LOGINS.resetMe.username, 'taken-over-e2e')).status).toBe(401)
+    await ctx.close()
   })
 })
 

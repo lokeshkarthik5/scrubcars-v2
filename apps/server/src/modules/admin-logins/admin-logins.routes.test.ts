@@ -7,7 +7,9 @@
  * The rules: the env login still signs in and signs as 'admin'; a personal
  * login signs in with its own password and signs every write with its name,
  * whatever name the body carries; turning it off or resetting its password
- * ends its sessions at once; nobody turns off or resets themselves here.
+ * ends its sessions at once; only the owner adds logins, resets passwords and
+ * turns logins on or off (the shared login makes the first one, the owner,
+ * while there is none); everyone changes their own password.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { z } from 'zod'
@@ -37,6 +39,7 @@ type Row = {
   name: string
   passwordHash: string
   status: 'active' | 'off'
+  isOwner: boolean
   sessionsFrom: Date
   lastLoginAt: Date | null
   createdByName: string
@@ -56,7 +59,8 @@ function patch(target: object, key: string, value: unknown) {
 
 const LONG_AGO = new Date('2026-01-01T00:00:00Z')
 
-async function seed() {
+/** Raga and the owner (Mathew); `withOwner: false` is a team with no owner yet. */
+async function seed({ withOwner = true } = {}) {
   rows.clear()
   audits.length = 0
   for (const [id, username, name] of [
@@ -69,6 +73,7 @@ async function seed() {
       name,
       passwordHash: await hashPassword(PASSWORD),
       status: 'active',
+      isOwner: withOwner && id === OWNER,
       sessionsFrom: LONG_AGO,
       lastLoginAt: null,
       createdByName: 'admin',
@@ -86,13 +91,15 @@ beforeAll(() => {
   patch(repo, 'findSession', async (id: string) => rows.get(id))
   patch(repo, 'findById', async (id: string) => rows.get(id))
   patch(repo, 'list', async () => [...rows.values()].map(publicRow))
+  patch(repo, 'ownerExists', async () => [...rows.values()].some((r) => r.isOwner))
   patch(repo, 'recordLogin', async (id: string, at: Date) => {
     rows.get(id)!.lastLoginAt = at
   })
-  patch(repo, 'create', async (input: { username: string; name: string; passwordHash: string }, actor: { actorSub: string; actorName: string }) => {
-    // The two unique indexes: the username, and the name in any case.
-    if ([...rows.values()].some((r) => r.username === input.username || r.name.toLowerCase() === input.name.toLowerCase())) return undefined
-    const row: Row = { id: 'e2e00000-0000-4000-8000-000000004149', ...input, status: 'active', sessionsFrom: new Date(), lastLoginAt: null, createdByName: actor.actorName, createdAt: new Date(), updatedAt: new Date() }
+  patch(repo, 'create', async (input: { username: string; name: string; passwordHash: string; isOwner: boolean }, actor: { actorSub: string; actorName: string }) => {
+    // The unique indexes: the username, the name in any case, one owner.
+    const all = [...rows.values()]
+    if (all.some((r) => r.username === input.username || r.name.toLowerCase() === input.name.toLowerCase() || (input.isOwner && r.isOwner))) return undefined
+    const row: Row = { id: `e2e00000-0000-4000-8000-0000000041${40 + rows.size}`, ...input, status: 'active', sessionsFrom: new Date(), lastLoginAt: null, createdByName: actor.actorName, createdAt: new Date(), updatedAt: new Date() }
     rows.set(row.id, row)
     audits.push({ action: 'admin_login_created', ...actor })
     return publicRow(row)
@@ -163,7 +170,7 @@ describe('signing in', () => {
     await seed()
     const { status, token } = await signIn(env.adminUsername, env.adminPassword)
     expect(status).toBe(200)
-    expect((await call('GET', '/admin/me', token)).body.data).toEqual({ isSuperAdmin: true, kind: 'shared', name: 'admin', username: null })
+    expect((await call('GET', '/admin/me', token)).body.data).toEqual({ isSuperAdmin: true, kind: 'shared', name: 'admin', username: null, isOwner: false })
     const write = await call('POST', '/admin/test-signed', token, { actorName: 'Someone Else', note: 'x' })
     expect(write.body).toEqual({ data: { actorName: 'admin', note: 'x' }, sub: 'admin' })
   })
@@ -173,7 +180,7 @@ describe('signing in', () => {
     const { status, token } = await signIn(' Raga ', PASSWORD)
     expect(status).toBe(200)
     expect(rows.get(RAGA)!.lastLoginAt).not.toBeNull()
-    expect((await call('GET', '/admin/me', token)).body.data).toEqual({ isSuperAdmin: true, kind: 'personal', name: 'Raga', username: 'raga' })
+    expect((await call('GET', '/admin/me', token)).body.data).toEqual({ isSuperAdmin: true, kind: 'personal', name: 'Raga', username: 'raga', isOwner: false })
     const typed = await call('POST', '/admin/test-signed', token, { actorName: 'Mathew', note: 'x' })
     expect(typed.body).toEqual({ data: { actorName: 'Raga', note: 'x' }, sub: personalAdminSubject(RAGA) })
     const untyped = await call('POST', '/admin/test-signed', token, { note: 'y' })
@@ -227,42 +234,80 @@ describe('a personal session', () => {
   })
 })
 
-describe('Team logins', () => {
-  test('anyone signed in as admin adds a login; the username is the rule’s, unique, and never the shared one', async () => {
-    await seed()
+describe('Team logins: only the owner changes them', () => {
+  test('the shared login makes the first login, which is the owner; after that it cannot add another', async () => {
+    await seed({ withOwner: false })
     const shared = (await signIn(env.adminUsername, env.adminPassword)).token
+    expect((await call('GET', '/admin/logins', shared)).body.data).toMatchObject({ ownerExists: false, canManage: true })
     const made = await call('POST', '/admin/logins', shared, { username: 'Priya', name: '  Priya  Ops ', password: 'priya-password' })
     expect(made.status).toBe(201)
-    expect(made.body.data).toMatchObject({ username: 'priya', name: 'Priya Ops', status: 'active', createdByName: 'admin' })
+    expect(made.body.data).toMatchObject({ username: 'priya', name: 'Priya Ops', status: 'active', isOwner: true, createdByName: 'admin' })
     expect(JSON.stringify(made.body)).not.toContain('priya-password')
-    expect((await signIn('priya', 'priya-password')).status).toBe(200)
 
-    expect((await call('POST', '/admin/logins', shared, { username: 'raga', name: 'Raga 2', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
-    expect((await call('POST', '/admin/logins', shared, { username: 'raga2', name: 'RAGA', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
-    expect((await call('POST', '/admin/logins', shared, { username: env.adminUsername, name: 'Shadow', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
-    expect((await call('POST', '/admin/logins', shared, { username: 'ra ga', name: 'Raga', password: 'another-password' })).status).toBe(400)
-    expect((await call('POST', '/admin/logins', shared, { username: 'kavya', name: 'Kavya', password: 'short' })).status).toBe(400)
-    expect((await call('POST', '/admin/logins', shared, { username: 'kavya', name: 'Kavya', password: 'long-enough-1', status: 'off' })).status).toBe(400)
+    expect((await call('GET', '/admin/logins', shared)).body.data).toMatchObject({ ownerExists: true, canManage: false })
+    const second = await call('POST', '/admin/logins', shared, { username: 'kavya', name: 'Kavya', password: 'kavya-password' })
+    expect(second).toMatchObject({ status: 403, body: { code: 'ADMIN_OWNER_ONLY' } })
+
+    const owner = (await signIn('priya', 'priya-password')).token
+    expect((await call('GET', '/admin/me', owner)).body.data).toMatchObject({ kind: 'personal', isOwner: true })
   })
 
-  test('the list never carries a hash, and says which row is you', async () => {
+  test('the owner adds logins (never a second owner); the username and name are the rules’, and unique', async () => {
+    await seed()
+    const owner = (await signIn('owner', PASSWORD)).token
+    expect((await call('GET', '/admin/logins', owner)).body.data).toMatchObject({ canManage: true, ownerExists: true })
+    const made = await call('POST', '/admin/logins', owner, { username: 'kavya', name: 'Kavya', password: 'kavya-password' })
+    expect(made.status).toBe(201)
+    expect(made.body.data).toMatchObject({ username: 'kavya', isOwner: false, createdByName: 'Mathew' })
+    expect((await signIn('kavya', 'kavya-password')).status).toBe(200)
+
+    expect((await call('POST', '/admin/logins', owner, { username: 'raga', name: 'Raga 2', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
+    expect((await call('POST', '/admin/logins', owner, { username: 'raga2', name: 'RAGA', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
+    expect((await call('POST', '/admin/logins', owner, { username: env.adminUsername, name: 'Shadow', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
+    expect((await call('POST', '/admin/logins', owner, { username: 'ra ga', name: 'Ravi', password: 'another-password' })).status).toBe(400)
+    expect((await call('POST', '/admin/logins', owner, { username: 'ravi', name: 'Ravi', password: 'short' })).status).toBe(400)
+    expect((await call('POST', '/admin/logins', owner, { username: 'ravi', name: 'Ravi', password: 'long-enough-1', isOwner: true })).status).toBe(400)
+  })
+
+  test('anyone but the owner is refused (403) adding, resetting and turning logins on or off', async () => {
+    await seed()
+    const raga = (await signIn('raga', PASSWORD)).token
+    const shared = (await signIn(env.adminUsername, env.adminPassword)).token
+    for (const token of [raga, shared]) {
+      expect((await call('GET', '/admin/logins', token)).body.data).toMatchObject({ canManage: false })
+      for (const [path, body] of [
+        ['/admin/logins', { username: 'kavya', name: 'Kavya', password: 'kavya-password' }],
+        [`/admin/logins/${OWNER}/password`, { password: 'taken-over-1' }],
+        [`/admin/logins/${OWNER}/status`, { status: 'off' }],
+        [`/admin/logins/${RAGA}/status`, { status: 'off' }],
+      ] as const) {
+        const res = await call('POST', path, token, body)
+        expect({ path, status: res.status, code: res.body.code }).toEqual({ path, status: 403, code: 'ADMIN_OWNER_ONLY' })
+      }
+    }
+    expect(rows.get(OWNER)!.status).toBe('active')
+    expect((await signIn('owner', PASSWORD)).status).toBe(200)
+    expect(audits).toEqual([])
+  })
+
+  test('the list never carries a hash, says which row is you and who the owner is', async () => {
     await seed()
     const raga = (await signIn('raga', PASSWORD)).token
     const { body } = await call('GET', '/admin/logins', raga)
     expect(body.data!.youId).toBe(RAGA)
-    expect(body.data!.logins!.map((l) => l.username)).toEqual(['raga', 'owner'])
+    expect(body.data!.logins!.map((l) => [l.username, l.isOwner])).toEqual([['raga', false], ['owner', true]])
     expect(JSON.stringify(body)).not.toContain('scrypt')
   })
 
-  test('nobody turns off or resets their own login here', async () => {
+  test('the owner never turns off or resets their own login here', async () => {
     await seed()
-    const raga = (await signIn('raga', PASSWORD)).token
-    expect((await call('POST', `/admin/logins/${RAGA}/status`, raga, { status: 'off' })).body.code).toBe('ADMIN_LOGIN_SELF')
-    expect((await call('POST', `/admin/logins/${RAGA}/password`, raga, { password: 'new-password-1' })).body.code).toBe('ADMIN_LOGIN_SELF')
-    expect((await call('POST', `/admin/logins/e2e00000-0000-4000-8000-000000004148/status`, raga, { status: 'off' })).status).toBe(404)
+    const owner = (await signIn('owner', PASSWORD)).token
+    expect((await call('POST', `/admin/logins/${OWNER}/status`, owner, { status: 'off' })).body.code).toBe('ADMIN_LOGIN_SELF')
+    expect((await call('POST', `/admin/logins/${OWNER}/password`, owner, { password: 'new-password-1' })).body.code).toBe('ADMIN_LOGIN_SELF')
+    expect((await call('POST', `/admin/logins/e2e00000-0000-4000-8000-000000004148/status`, owner, { status: 'off' })).status).toBe(404)
   })
 
-  test('a reset signs the person out; the new password works', async () => {
+  test('an owner’s reset signs the person out; the new password works', async () => {
     await seed()
     const owner = (await signIn('owner', PASSWORD)).token
     const raga = (await signIn('raga', PASSWORD)).token
@@ -274,7 +319,7 @@ describe('Team logins', () => {
     expect(audits.at(-1)).toMatchObject({ action: 'admin_login_password_reset', actorName: 'Mathew' })
   })
 
-  test('your own password needs the current one, keeps this session, and is not for the shared login', async () => {
+  test('everyone changes their own password with the current one, keeping this session; not the shared login', async () => {
     await seed()
     const raga = (await signIn('raga', PASSWORD)).token
     const wrong = await call('POST', '/admin/me/password', raga, { currentPassword: 'nope', newPassword: 'fresh-password-2' })

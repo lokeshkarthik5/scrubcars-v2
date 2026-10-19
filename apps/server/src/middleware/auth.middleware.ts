@@ -96,7 +96,14 @@ export const requireSuperAdmin = createMiddleware<{ Variables: AuthVariables }>(
     const auth = c.get('auth')
 
     if (auth.sub === BREAK_GLASS_SUBJECT) {
-      c.set('adminActor', { sub: auth.sub, kind: 'shared', name: BREAK_GLASS_NAME, username: null, loginId: null })
+      c.set('adminActor', {
+        sub: auth.sub,
+        kind: 'shared',
+        name: BREAK_GLASS_NAME,
+        username: null,
+        loginId: null,
+        isOwner: false,
+      })
       await next()
       return
     }
@@ -133,6 +140,7 @@ export const requireSuperAdmin = createMiddleware<{ Variables: AuthVariables }>(
       name: (user?.name?.trim() || BREAK_GLASS_NAME).slice(0, 100),
       username: null,
       loginId: null,
+      isOwner: false,
     })
 
     await next()

@@ -51,6 +51,12 @@ export type AdminActor = {
   username: string | null
   /** The personal login's id; null for the other two kinds. */
   loginId: string | null
+  /**
+   * The owner's personal login (0058): the only one that adds logins, resets
+   * other people's passwords and turns logins on or off. False for the
+   * shared env login and for member admins.
+   */
+  isOwner: boolean
 }
 
 /**

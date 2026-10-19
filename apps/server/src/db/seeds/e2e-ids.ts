@@ -1325,16 +1325,19 @@ export const ADMIN = { username: 'admin', password: 'admin' } as const
 /**
  * Personal admin logins (0058), ids 4100–4149 only. `e2e` is the panel's
  * session in every admin spec (global-setup's 'admin' state), so every action
- * there is signed "E2E Admin". The rest belong to specs/admin/team-logins.spec.ts
+ * there is signed "E2E Admin", and it is the team's OWNER (`isOwner`): the
+ * only login that adds logins, resets passwords and turns logins on or off.
+ * The rest are not owners and belong to specs/admin/team-logins.spec.ts
  * alone, since it turns them off and changes their passwords: nobody else
- * signs in as them. `off` is seeded turned off.
+ * signs in as them. `off` is seeded turned off; `viewer` only looks.
  */
 export const ADMIN_LOGINS = {
-  e2e: { id: id(4100), username: 'e2e-admin', name: 'E2E Admin', password: 'e2e-admin-password' },
+  e2e: { id: id(4100), username: 'e2e-admin', name: 'E2E Admin', password: 'e2e-admin-password', isOwner: true },
   resetMe: { id: id(4101), username: 'e2e-raga', name: 'Raga E2E', password: 'raga-e2e-password' },
   turnMeOff: { id: id(4102), username: 'e2e-ops', name: 'Ops E2E', password: 'ops-e2e-password' },
   changer: { id: id(4103), username: 'e2e-owner', name: 'Owner E2E', password: 'owner-e2e-password' },
   off: { id: id(4104), username: 'e2e-gone', name: 'Gone E2E', password: 'gone-e2e-password' },
+  viewer: { id: id(4105), username: 'e2e-viewer', name: 'Viewer E2E', password: 'viewer-e2e-password' },
 } as const
 
 /** Chennai. Vendors sit within a few km of this so distance sorting is stable. */

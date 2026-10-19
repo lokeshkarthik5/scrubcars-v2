@@ -51,8 +51,14 @@ export default function TeamLoginsPage() {
         backHref="/settings"
       />
 
-      {me?.kind === 'shared' && (
-        <Notice tone="neutral" title="You’re on the shared login. Add a login for each person, then sign in with your own." />
+      {me?.kind === 'shared' && logins.data && !logins.data.ownerExists && (
+        <Notice
+          tone="neutral"
+          title="You’re on the shared login. Add your own login first: it becomes the owner. Then sign in with it and add the rest of the team."
+        />
+      )}
+      {logins.data && !logins.data.canManage && (
+        <Notice tone="neutral" title="Only the owner can add logins, reset passwords or turn logins on or off." />
       )}
 
       <section aria-labelledby="team-logins-list" className="flex flex-col gap-2">
@@ -68,18 +74,27 @@ export default function TeamLoginsPage() {
             retrying={logins.isFetching}
           />
         ) : (
-          <LoginList logins={logins.data.logins} youId={logins.data.youId} />
+          <LoginList logins={logins.data.logins} youId={logins.data.youId} canManage={logins.data.canManage} />
         )}
       </section>
 
-      <AddLoginForm />
+      {logins.data?.canManage && <AddLoginForm />}
 
       {me?.kind === 'personal' && <OwnPasswordForm />}
     </>
   )
 }
 
-function LoginList({ logins, youId }: { logins: AdminLogin[]; youId: string | null }) {
+function LoginList({
+  logins,
+  youId,
+  canManage,
+}: {
+  logins: AdminLogin[]
+  youId: string | null
+  /** Only the owner (or the shared login before there is one) gets the buttons. */
+  canManage: boolean
+}) {
   const reset = useResetAdminLoginPassword()
   const status = useSetAdminLoginStatus()
 
@@ -168,6 +183,11 @@ function LoginList({ logins, youId }: { logins: AdminLogin[]; youId: string | nu
                       You
                     </span>
                   )}
+                  {login.isOwner && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[12px] font-medium text-text-secondary">
+                      Owner
+                    </span>
+                  )}
                   <StatusChip tone={login.status === 'active' ? 'done' : 'closed'}>
                     {login.status === 'active' ? 'On' : 'Off'}
                   </StatusChip>
@@ -177,7 +197,7 @@ function LoginList({ logins, youId }: { logins: AdminLogin[]; youId: string | nu
                   {login.lastLoginAt ? `Last signed in ${formatRelative(login.lastLoginAt)}` : 'Never signed in'}
                 </span>
               </div>
-              {!you && (
+              {canManage && !you && (
                 <div className="flex flex-wrap gap-2">
                   <ScButton
                     type="button"
