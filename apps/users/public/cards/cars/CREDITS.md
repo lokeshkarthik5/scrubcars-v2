@@ -26,16 +26,17 @@ illustration only. Not affiliated with any car maker."
   shown in a photo. That is why the badges are removed, no make or model is
   named, and the illustration-only line is shown.
 - Downloaded at 2400 px wide and approved by the owner: the first six on
-  18 October 2026, the next 24 on 19 October 2026. The untouched downloads
-  are kept outside the repo (`Detlio-Dev/reference/cars-unsplash/raw` and
-  `raw-batch2`).
+  18 October 2026, the next 24 and then 13 more on 19 October 2026. The
+  untouched downloads are kept outside the repo
+  (`Detlio-Dev/reference/cars-unsplash/raw`, `raw-batch2` and `raw-batch3`).
 
 ## Files
 
 Each photo is cropped for the card's photo area (16:13, the car big and
 bleeding off the edge), retouched, and saved as WebP at 1600 px (the shared
 Story/Post image) and 800 px (the card on screen): quality 82, lowered
-(to no less than 62) where the 1600 px file would pass about 110 KB.
+(and, for a few busy photos, a very light blur) where the 1600 px file
+would pass about 110 KB.
 
 | Files | Source | Retouched |
 |---|---|---|
@@ -69,6 +70,19 @@ Story/Post image) and 800 px (the card on screen): quality 82, lowered
 | `black-coupe-silhouette-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/vRFub4wGFHs> | None needed: only the rim light shows. |
 | `grey-coupe-taillights-{800,1600}.webp` | Pexels: <https://www.pexels.com/photo/919073/> | Tyre lettering and the lettering on a wheel spoke removed. |
 | `white-roadster-garage-{800,1600}.webp` | Pexels: <https://www.pexels.com/photo/33268786/> | Maker badge on the grille, the wheel-centre logo and the model script on the side removed; a museum plate on the front and a maker's placard on the floor removed. |
+| `purple-coupe-open-lot-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/PgD0v-T10Tg> | Maker roundel on the bonnet, the model badge on the grille, an exhaust maker's decal on the door, the wheel-centre logo and the tyre lettering removed. |
+| `purple-coupe-dusk-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/CPz9xbSg7Yg> | Maker roundel on the bonnet and the model badge on the grille removed. Studio render. |
+| `purple-coupe-overcast-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/rLm86LJomfc> | Number plate removed (the intercooler behind it rebuilt); the model badge on the grille, the script under it, the lettering on the intercooler, a windscreen sticker, the logo and script on the wheel spokes and the tyre lettering removed; a car-park barrier and a road sign in the background removed. |
+| `lavender-coupe-head-on-{800,1600}.webp` | Pexels: <https://www.pexels.com/photo/34643052/> | Maker emblem on the nose and the badge on the grille removed. |
+| `yellow-coupe-stripes-{800,1600}.webp` | Pexels: <https://www.pexels.com/photo/575386/> | Model script on the wing and both wheel-centre emblems removed. |
+| `yellow-coupe-above-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/8UIIZZ0gDZE> | Maker emblem and badge on the tail, the model script on the roof and the wheel-centre emblem removed. |
+| `blue-coupe-white-studio-{800,1600}.webp` | Pexels: <https://www.pexels.com/photo/18499487/> | Dealer number plate and the dealer sticker removed; the maker roundel and both model badges on the boot lid removed. |
+| `blue-coupe-grey-street-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/ZgKU35QNDm8> | Number plate and dealer frame removed; the maker emblem and model script on the boot lid, the badge on the bumper and both wheel-centre emblems removed. A leasing sign at the right edge is cropped out. |
+| `blue-classic-coupe-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/ykMF3xMBcxQ> | Tyre lettering on both tyres, and its reflection in the floor, removed. Studio render. |
+| `orange-supercar-close-{800,1600}.webp` | Pexels: <https://www.pexels.com/photo/15713937/> | None needed: no badge or lettering in the crop. Another car at the top edge is cropped out. |
+| `green-coupe-rooftop-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/6yUvgDTV0sk> | Model decal on the wing and both wheel-centre logos removed. |
+| `green-coupe-from-above-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/SDelNts79cQ> | Maker emblem, a second faint emblem and faint script on the boot lid, and the number plate, removed. |
+| `white-gold-coupe-{800,1600}.webp` | Unsplash: <https://unsplash.com/photos/WXm46NGnqx8> | Number plate and frame removed; tyre lettering removed. A second car at the left edge is cropped out. |
 
 No photo shows a number plate: plates are removed or cropped out.
 
