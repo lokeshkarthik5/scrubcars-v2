@@ -3,6 +3,7 @@ import type { ClaimStatus, GuaranteeIssue } from '@repo/core/guarantee'
 import type { JobPhoto } from '@repo/core/types'
 import { prepareCarPhoto } from './job-records'
 import { mapSlots } from './mappers'
+import { signedBody } from './admin-signer'
 
 /**
  * Detlio Guarantee (0051): a free redo claim, from the customer
@@ -280,6 +281,6 @@ export interface DecideClaimInput {
 export function decideClaim(id: string, input: DecideClaimInput) {
   return apiClient<AdminClaimDetail>(`/admin/guarantee/claims/${id}/decide`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }

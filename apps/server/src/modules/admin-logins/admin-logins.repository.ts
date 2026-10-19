@@ -1,4 +1,4 @@
-import { asc, eq, sql } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { adminAuditLog, adminLogins } from '../../db/schema.js'
 
@@ -80,7 +80,10 @@ export const adminLoginsRepository = {
     await db.update(adminLogins).set({ lastLoginAt: at }).where(eq(adminLogins.id, id))
   },
 
-  /** Undefined when the username is taken (the unique index decides, not a read). */
+  /**
+   * Undefined when the username or the name is taken (the unique indexes
+   * decide, not a read).
+   */
   async create(
     input: { username: string; name: string; passwordHash: string },
     actor: Actor
@@ -89,7 +92,7 @@ export const adminLoginsRepository = {
       const [row] = await tx
         .insert(adminLogins)
         .values({ ...input, createdByName: actor.actorName })
-        .onConflictDoNothing({ target: adminLogins.username })
+        .onConflictDoNothing()
         .returning(PUBLIC_COLUMNS)
       if (!row) return undefined
       await audit(tx, 'admin_login_created', actor, row, { name: row.name })
@@ -145,12 +148,4 @@ export const adminLoginsRepository = {
     })
   },
 
-  /** How many logins are on, for the Settings line. */
-  async countActive(): Promise<number> {
-    const [row] = await db
-      .select({ value: sql<number>`count(*)::int` })
-      .from(adminLogins)
-      .where(eq(adminLogins.status, 'active'))
-    return row?.value ?? 0
-  },
 }

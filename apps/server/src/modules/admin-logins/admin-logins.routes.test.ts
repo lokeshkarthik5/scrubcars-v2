@@ -90,7 +90,8 @@ beforeAll(() => {
     rows.get(id)!.lastLoginAt = at
   })
   patch(repo, 'create', async (input: { username: string; name: string; passwordHash: string }, actor: { actorSub: string; actorName: string }) => {
-    if ([...rows.values()].some((r) => r.username === input.username)) return undefined
+    // The two unique indexes: the username, and the name in any case.
+    if ([...rows.values()].some((r) => r.username === input.username || r.name.toLowerCase() === input.name.toLowerCase())) return undefined
     const row: Row = { id: 'e2e00000-0000-4000-8000-000000004149', ...input, status: 'active', sessionsFrom: new Date(), lastLoginAt: null, createdByName: actor.actorName, createdAt: new Date(), updatedAt: new Date() }
     rows.set(row.id, row)
     audits.push({ action: 'admin_login_created', ...actor })
@@ -237,6 +238,7 @@ describe('Team logins', () => {
     expect((await signIn('priya', 'priya-password')).status).toBe(200)
 
     expect((await call('POST', '/admin/logins', shared, { username: 'raga', name: 'Raga 2', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
+    expect((await call('POST', '/admin/logins', shared, { username: 'raga2', name: 'RAGA', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
     expect((await call('POST', '/admin/logins', shared, { username: env.adminUsername, name: 'Shadow', password: 'another-password' })).body.code).toBe('ADMIN_USERNAME_TAKEN')
     expect((await call('POST', '/admin/logins', shared, { username: 'ra ga', name: 'Raga', password: 'another-password' })).status).toBe(400)
     expect((await call('POST', '/admin/logins', shared, { username: 'kavya', name: 'Kavya', password: 'short' })).status).toBe(400)

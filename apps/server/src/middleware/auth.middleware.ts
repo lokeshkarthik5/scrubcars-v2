@@ -129,7 +129,8 @@ export const requireSuperAdmin = createMiddleware<{ Variables: AuthVariables }>(
     c.set('adminActor', {
       sub: auth.sub,
       kind: 'member',
-      name: (user?.name?.trim() || user?.phone || BREAK_GLASS_NAME).slice(0, 100),
+      // Never the phone: the name lands in records and alerts.
+      name: (user?.name?.trim() || BREAK_GLASS_NAME).slice(0, 100),
       username: null,
       loginId: null,
     })

@@ -1,5 +1,6 @@
 import { apiClient } from '@repo/core/api/client'
 import type { ArtSource, GarageRarity, GarageSettings, PullSource, SeriesStatus } from '@repo/core/garage'
+import { signedBody } from './admin-signer'
 
 /**
  * The Detlio Garage (API 0057): collectible supercar photo cards earned
@@ -191,11 +192,11 @@ export function getAdminGaragePulls(month?: string) {
 }
 
 export function updateAdminGarageSeries(id: string, payload: { name: string; status: SeriesStatus; startsAt: string | null; endsAt: string | null }) {
-  return apiClient<AdminGarageOverview>(`/admin/rewards/garage/series/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return apiClient<AdminGarageOverview>(`/admin/rewards/garage/series/${id}`, { method: 'PATCH', body: signedBody(payload) })
 }
 
 export function updateAdminGarageCar(id: string, payload: GarageCarEdit) {
-  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}`, { method: 'PATCH', body: signedBody(payload) })
 }
 
 export function garageArtUploadUrl(id: string, sizeBytes: number) {
@@ -206,16 +207,16 @@ export function garageArtUploadUrl(id: string, sizeBytes: number) {
 }
 
 export function submitGarageArtUpload(id: string, payload: { key: string }) {
-  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/upload`, { method: 'POST', body: JSON.stringify(payload) })
+  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/upload`, { method: 'POST', body: signedBody(payload) })
 }
 
 export function resetGarageArt(id: string) {
-  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/reset`, { method: 'POST', body: JSON.stringify({}) })
+  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/reset`, { method: 'POST', body: signedBody({}) })
 }
 
 export function giveGarageCard(userId: string, payload: { reason: string }) {
   return apiClient<{ pullId: string; number: number; name: string; rarity: GarageRarity; duplicate: boolean }>(`/admin/rewards/garage/customers/${userId}/pull`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: signedBody(payload),
   })
 }

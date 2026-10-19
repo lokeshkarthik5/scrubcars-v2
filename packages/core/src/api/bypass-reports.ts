@@ -1,5 +1,6 @@
 import { apiClient } from '@repo/core/api/client'
 import type { BypassKind, BypassRewardStatus, BypassStatus } from '@repo/core/bypass-reports'
+import { signedBody } from './admin-signer'
 
 /**
  * "Did the garage ask you to book directly?" (0052). The customer's own
@@ -100,14 +101,14 @@ export function listAdminBypassReports(show: AdminBypassFilter): Promise<AdminBy
 export function confirmBypassReport(id: string): Promise<AdminBypassReport> {
   return apiClient<AdminBypassReport>(`/admin/bypass-reports/${id}/confirm`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: signedBody({}),
   })
 }
 
 export function dismissBypassReport(id: string, input: { reason: string }): Promise<AdminBypassReport> {
   return apiClient<AdminBypassReport>(`/admin/bypass-reports/${id}/dismiss`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 

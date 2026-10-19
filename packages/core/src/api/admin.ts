@@ -10,6 +10,7 @@ import type {
   LoggedComplaintSource,
 } from '@repo/core/complaints'
 import type { OutsideServiceCity } from '@repo/core/service-city'
+import { setAdminSigner, signedBody } from './admin-signer'
 
 export interface AdminVendor {
   id: string
@@ -679,6 +680,7 @@ export async function adminLogin(username: string, password: string) {
 
 /** POST /admin/logout */
 export async function adminLogout() {
+  setAdminSigner(null)
   return apiClient<void>('/admin/logout', { method: 'POST', auth: false })
 }
 
@@ -698,9 +700,23 @@ export interface AdminMe {
   username: string | null
 }
 
-/** GET /admin/me — the session check, and who every action is signed as. */
-export async function getAdminMe() {
-  return apiClient<AdminMe>('/admin/me')
+/**
+ * GET /admin/me — the session check, and who every action is signed as. An
+ * API from before 0058 answers only `{ isSuperAdmin }`, so the rest is filled
+ * in as the shared login, which is what that API signs as. It also sets the
+ * name the panel's writes carry for such an API (admin-signer.ts).
+ */
+export async function getAdminMe(): Promise<AdminMe> {
+  // Any answer but 200 throws: a 200 is a super-admin session.
+  const me = await apiClient<Partial<AdminMe>>('/admin/me')
+  const full: AdminMe = {
+    isSuperAdmin: true,
+    kind: me.kind ?? 'shared',
+    name: me.name?.trim() || 'admin',
+    username: me.username ?? null,
+  }
+  setAdminSigner(full.name)
+  return full
 }
 
 // ─── Team logins (0058) ──────────────────────────────────────────────────────
@@ -1192,7 +1208,7 @@ export async function getAdminVendorBinPreview(id: string) {
 export async function binAdminVendor(id: string, input: { reason?: string }) {
   return apiClient<AdminVendorBinResult>(`/admin/vendors/${id}/bin`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -1200,7 +1216,7 @@ export async function binAdminVendor(id: string, input: { reason?: string }) {
 export async function restoreAdminVendor(id: string) {
   return apiClient<{ garage: AdminBinGarage; auditId: string }>(`/admin/vendors/${id}/restore`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: signedBody({}),
   })
 }
 
@@ -1219,7 +1235,7 @@ export async function deleteAdminVendorForever(
 ) {
   return apiClient<AdminVendorDeleteResult>(`/admin/vendors/${id}`, {
     method: 'DELETE',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -1545,7 +1561,7 @@ export async function overrideAdminPickupStep(
 export async function waiveAdminJobPhotos(id: string, input: { reason: string }) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -1791,7 +1807,7 @@ export async function previewDataReset(input: DataResetPreviewInput) {
 export async function executeDataReset(input: DataResetExecuteInput) {
   return apiClient<DataResetResult>('/admin/data-reset/execute', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -2087,7 +2103,7 @@ export interface LogComplaintInput {
 export async function logAdminComplaint(input: LogComplaintInput): Promise<AdminComplaint> {
   return apiClient<AdminComplaint>('/admin/complaints', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input, 'loggedBy'),
   })
 }
 
@@ -2461,7 +2477,7 @@ export async function getAdminGaragePayouts(vendorId: string): Promise<AdminGara
 export async function recordAdminPayout(vendorId: string, input: RecordPayoutInput): Promise<AdminPayout> {
   return apiClient<AdminPayout>(`/admin/payouts/vendors/${vendorId}`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -2474,7 +2490,7 @@ export async function getAdminPayoutAccount(vendorId: string): Promise<PayoutAcc
 export async function saveAdminPayoutAccount(vendorId: string, input: PayoutAccountInput): Promise<PayoutAccount> {
   return apiClient<PayoutAccount>(`/admin/payouts/vendors/${vendorId}/account`, {
     method: 'PUT',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -2505,6 +2521,6 @@ export async function getTelegramAlertStatus() {
 export async function sendTelegramTestAlert() {
   return apiClient<{ sent: boolean; sentAt: string }>('/admin/alerts/telegram/test', {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: signedBody({}),
   })
 }

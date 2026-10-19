@@ -2,6 +2,7 @@ import type { GaragePull } from '@repo/core/api/garage'
 import { apiClient } from '@repo/core/api/client'
 import type { RewardLevel, RewardsSettings, ScratchOutcome } from '@repo/core/rewards'
 import type { RewardExtrasSummary } from '@repo/core/api/reward-extras'
+import { signedBody } from './admin-signer'
 
 /**
  * Detlio Rewards (0050): the Shine Card, scratch cards, streaks, levels and
@@ -287,7 +288,7 @@ export function getAdminRewardsSettings() {
 }
 
 export function saveAdminRewardsSettings(payload: { version: number; settings: RewardsSettings }) {
-  return apiClient<AdminRewardsSettings>('/admin/rewards/settings', { method: 'PUT', body: JSON.stringify(payload) })
+  return apiClient<AdminRewardsSettings>('/admin/rewards/settings', { method: 'PUT', body: signedBody(payload) })
 }
 
 export function getAdminRewardsSummary(month?: string) {
@@ -309,6 +310,6 @@ export function getCustomerRewards(userId: string) {
 export function adjustCustomerRewards(userId: string, payload: AdjustRewardsPayload) {
   return apiClient<AdminCustomerRewards>(`/admin/rewards/customers/${userId}/adjust`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: signedBody(payload),
   })
 }

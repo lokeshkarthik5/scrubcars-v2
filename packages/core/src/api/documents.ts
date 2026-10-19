@@ -1,6 +1,7 @@
 import { apiClient } from '@repo/core/api/client'
 import { stripImageMetadata } from '@repo/core/image-upload'
 import type { DocumentStatus, DocumentType } from '@repo/core/vendor-documents'
+import { signedBody } from './admin-signer'
 
 /**
  * Garage documents, from the garage's portal (its owner seat) and from admin.
@@ -160,7 +161,7 @@ export async function uploadAdminGarageDocument(
   const files = await uploadFiles(adminBase(vendorId), input.type, input.files)
   return apiClient<AdminGarageDocument>(adminBase(vendorId), {
     method: 'POST',
-    body: JSON.stringify({
+    body: signedBody({
       type: input.type,
       files,
       expiresOn: input.expiresOn || null,
@@ -180,7 +181,7 @@ export function reviewAdminGarageDocument(
 ): Promise<AdminGarageDocument> {
   return apiClient<AdminGarageDocument>(`${adminBase(vendorId)}/${documentId}/review`, {
     method: 'POST',
-    body: JSON.stringify(review),
+    body: signedBody(review),
   })
 }
 

@@ -11,6 +11,8 @@
 --     the password; lib/passwords.ts), on or off, and `sessions_from`:
 --     a session minted before it is refused, so turning a login off or
 --     resetting its password signs that person out everywhere at once.
+--     Usernames and names are each unique (a name in any case), since many
+--     records keep only the name.
 --
 -- The env-credential login (ADMIN_USERNAME / ADMIN_PASSWORD) stays as the
 -- bootstrap and break-glass door: it is how the first personal logins are
@@ -34,4 +36,7 @@ CREATE TABLE IF NOT EXISTS "admin_logins" (
   CONSTRAINT "admin_logins_status_check" CHECK ("status" IN ('active', 'off')),
   CONSTRAINT "admin_logins_password_hash_check" CHECK ("password_hash" LIKE 'scrypt$%')
 );--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "admin_logins_username_idx" ON "admin_logins" USING btree ("username");
+CREATE UNIQUE INDEX IF NOT EXISTS "admin_logins_username_idx" ON "admin_logins" USING btree ("username");--> statement-breakpoint
+-- One person per name: the name is what every action is signed with, and
+-- many records keep only the name.
+CREATE UNIQUE INDEX IF NOT EXISTS "admin_logins_name_idx" ON "admin_logins" USING btree (lower("name"));

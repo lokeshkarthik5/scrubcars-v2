@@ -2,6 +2,7 @@ import { apiClient } from '@repo/core/api/client'
 import type { BadgeKey } from '@repo/core/achievements'
 import type { RewardLevel } from '@repo/core/rewards'
 import type { WrappedStats } from '@repo/core/wrapped'
+import { signedBody } from './admin-signer'
 
 /**
  * Achievements, seasonal challenges and Detlio Wrapped (API 0054), on top
@@ -192,19 +193,19 @@ export function getAdminChallengeResults(id: string) {
 }
 
 export function createAdminChallenge(payload: ChallengeFormValues) {
-  return apiClient<AdminChallengeDetail>('/admin/rewards/challenges', { method: 'POST', body: JSON.stringify(payload) })
+  return apiClient<AdminChallengeDetail>('/admin/rewards/challenges', { method: 'POST', body: signedBody(payload) })
 }
 
 export function updateAdminChallenge(id: string, payload: ChallengeFormValues) {
-  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}`, { method: 'PUT', body: signedBody(payload) })
 }
 
 export function publishAdminChallenge(id: string) {
-  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/publish`, { method: 'POST', body: JSON.stringify({}) })
+  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/publish`, { method: 'POST', body: signedBody({}) })
 }
 
 export function endAdminChallenge(id: string) {
-  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/end`, { method: 'POST', body: JSON.stringify({}) })
+  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/end`, { method: 'POST', body: signedBody({}) })
 }
 
 export function getAdminWrappedStats(year: number) {

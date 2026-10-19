@@ -44,12 +44,14 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 /**
- * A hash of nothing anyone knows, for an unknown username: checking it costs
- * the same as checking a real one, so the time a refusal takes does not say
- * whether the username exists.
+ * For an unknown username: one scrypt, like checking a real password, so the
+ * time a refusal takes does not say whether the username exists. The first
+ * call makes the decoy (a hash of nothing anyone knows; making it costs one
+ * scrypt), every later one checks the password against it. Always false.
  */
-let decoy: Promise<string> | undefined
-export function decoyHash(): Promise<string> {
-  decoy ??= hashPassword(randomBytes(32).toString('base64'))
-  return decoy
+let decoy: string | undefined
+export async function decoyCheck(password: string): Promise<false> {
+  if (decoy === undefined) decoy = await hashPassword(randomBytes(32).toString('base64'))
+  else await verifyPassword(password, decoy)
+  return false
 }

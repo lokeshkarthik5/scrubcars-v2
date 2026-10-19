@@ -1,5 +1,6 @@
 import { apiClient } from '@repo/core/api/client'
 import type { QualityCheckKind, QualityCheckStatus } from '@repo/core/certification'
+import { signedBody } from './admin-signer'
 
 /**
  * Detlio Certified (0048): the garage's own standing (its portal, owner
@@ -98,20 +99,20 @@ export function getAdminCertification(vendorId: string): Promise<AdminCertificat
 export function recordQualityCheck(vendorId: string, input: QualityCheckInput): Promise<AdminCertification> {
   return apiClient<AdminCertification>(`${adminBase(vendorId)}/checks`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
 export function certifyGarage(vendorId: string): Promise<AdminCertification> {
   return apiClient<AdminCertification>(`${adminBase(vendorId)}/certify`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: signedBody({}),
   })
 }
 
 export function revokeCertification(vendorId: string, input: { reason: string }): Promise<AdminCertification> {
   return apiClient<AdminCertification>(`${adminBase(vendorId)}/revoke`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }

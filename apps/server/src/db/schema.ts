@@ -1909,6 +1909,8 @@ export const adminLogins = pgTable(
   },
   (table) => [
     uniqueIndex('admin_logins_username_idx').on(table.username),
+    // One person per name: many records keep only the name.
+    uniqueIndex('admin_logins_name_idx').on(sql`lower(${table.name})`),
     check('admin_logins_username_check', sql`${table.username} ~ '^[a-z0-9][a-z0-9._-]{2,39}$'`),
     check(
       'admin_logins_name_check',

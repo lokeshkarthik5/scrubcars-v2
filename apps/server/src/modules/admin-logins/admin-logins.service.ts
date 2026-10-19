@@ -9,7 +9,7 @@ import { normalizeAdminUsername } from '../../lib/admin-logins.js'
 import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
-import { decoyHash, hashPassword, verifyPassword } from '../../lib/passwords.js'
+import { decoyCheck, hashPassword, verifyPassword } from '../../lib/passwords.js'
 import { adminLoginsRepository, type AdminLoginRow } from './admin-logins.repository.js'
 import type {
   ChangeOwnPasswordInput,
@@ -51,8 +51,11 @@ export const adminLoginsService = {
   async signIn(usernameInput: string, password: string, now = new Date()): Promise<string | null> {
     const username = normalizeAdminUsername(usernameInput)
     const row = username ? await adminLoginsRepository.findByUsername(username) : undefined
-    const matches = await verifyPassword(password, row?.passwordHash ?? (await decoyHash()))
-    if (!row || !matches || row.status !== 'active') return null
+    if (!row) {
+      await decoyCheck(password)
+      return null
+    }
+    if (!(await verifyPassword(password, row.passwordHash)) || row.status !== 'active') return null
     await adminLoginsRepository.recordLogin(row.id, now)
     log.info({ loginId: row.id }, 'admin-logins:signed_in')
     return personalAdminSubject(row.id)
@@ -87,7 +90,9 @@ export const adminLoginsService = {
       { username: input.username, name: input.name, passwordHash: await hashPassword(input.password) },
       actorOf(actor)
     )
-    if (!row) throw new AppError(409, 'Someone already has that username. Pick another.', 'ADMIN_USERNAME_TAKEN')
+    if (!row) {
+      throw new AppError(409, 'Someone already has that username or name. Pick another.', 'ADMIN_USERNAME_TAKEN')
+    }
     log.info({ loginId: row.id, by: actor.sub }, 'admin-logins:created')
     return toResponse(row)
   },
@@ -124,12 +129,15 @@ export const adminLoginsService = {
    * session of theirs ends; the caller mints this one a fresh token.
    */
   async changeOwnPassword(actor: AdminActor, input: ChangeOwnPasswordInput, now = new Date()) {
-    if (!actor.loginId) {
+    if (actor.kind === 'shared') {
       throw new AppError(
         409,
         'The shared login’s password is set in the server settings, not here.',
         'ADMIN_LOGIN_SHARED'
       )
+    }
+    if (!actor.loginId) {
+      throw new AppError(409, 'You sign in with your phone, so there is no password to change.', 'ADMIN_LOGIN_NOT_PERSONAL')
     }
     const row = await adminLoginsRepository.findById(actor.loginId)
     if (!row || !(await verifyPassword(input.currentPassword, row.passwordHash))) {

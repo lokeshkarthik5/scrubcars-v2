@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { decoyHash, hashPassword, verifyPassword } from './passwords.js'
+import { decoyCheck, hashPassword, verifyPassword } from './passwords.js'
 
 describe('passwords', () => {
   test('a hash checks against its own password and no other', async () => {
@@ -23,9 +23,8 @@ describe('passwords', () => {
     }
   })
 
-  test('the decoy is a real hash nobody can match', async () => {
-    const decoy = await decoyHash()
-    expect(decoy).toBe(await decoyHash())
-    expect(await verifyPassword('', decoy)).toBe(false)
+  test('the decoy check always refuses, the first time and after', async () => {
+    expect(await decoyCheck('anything')).toBe(false)
+    expect(await decoyCheck('anything')).toBe(false)
   })
 })

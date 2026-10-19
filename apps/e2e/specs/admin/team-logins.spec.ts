@@ -13,8 +13,22 @@ import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
 import { sql } from '../../support/db'
 import { ADMIN, ADMIN_LOGINS } from '../../support/seed-ids'
+import { hashPassword } from '../../../server/src/lib/passwords'
 
 const ME = `${API}/api/v1/admin/me`
+
+/**
+ * Puts one of this spec's logins back as seeded (on, its own password, old
+ * sessions allowed), so a retry starts where the first try did.
+ */
+async function restore(login: { id: string; password: string }) {
+  await sql`
+    update admin_logins
+       set status = 'active', password_hash = ${await hashPassword(login.password)},
+           sessions_from = now() - interval '30 days'
+     where id = ${login.id}
+  `
+}
 
 /** A fresh API session for one login, or the status its sign-in got. */
 async function signIn(username: string, password: string): Promise<{ status: number; ctx: APIRequestContext }> {
@@ -76,22 +90,26 @@ test.describe('Team logins', () => {
       page.getByText('You’re on the shared login. Add a login for each person, then sign in with your own.')
     ).toBeVisible()
 
-    await page.getByLabel('Name', { exact: true }).fill('Kavya E2E')
-    await page.getByLabel('Username', { exact: true }).fill('e2e-kavya')
+    // A new name each try: a retry finds the first try's login still there.
+    const tag = String(Date.now()).slice(-6)
+    const name = `Kavya E2E ${tag}`
+    const username = `e2e-kavya-${tag}`
+    await page.getByLabel('Name', { exact: true }).fill(name)
+    await page.getByLabel('Username', { exact: true }).fill(username)
     await page.getByLabel('Temporary password', { exact: true }).fill('kavya-e2e-password')
     await page.getByRole('button', { name: 'Add login' }).click()
 
     const list = page.getByRole('list', { name: 'Team logins' })
-    await expect(list.getByRole('listitem').filter({ hasText: 'Kavya E2E' })).toBeVisible()
-    await expect(list.getByRole('listitem').filter({ hasText: '@e2e-kavya' })).toBeVisible()
+    await expect(list.getByRole('listitem').filter({ hasText: name })).toBeVisible()
+    await expect(list.getByRole('listitem').filter({ hasText: `@${username}` })).toBeVisible()
 
-    const { status, ctx } = await signIn('e2e-kavya', 'kavya-e2e-password')
+    const { status, ctx } = await signIn(username, 'kavya-e2e-password')
     expect(status).toBe(200)
     await ctx.dispose()
     // Who made it is in the history; never the password.
     const [audit] = await sql<{ actor_name: string; summary: string; detail: string }[]>`
       select actor_name, summary::text, detail::text from admin_audit_log
-       where action = 'admin_login_created' and summary->>'username' = 'e2e-kavya'
+       where action = 'admin_login_created' and summary->>'username' = ${username}
     `
     expect(audit.actor_name).toBe('admin')
     expect(audit.summary + audit.detail).not.toContain('kavya-e2e-password')
@@ -99,6 +117,7 @@ test.describe('Team logins', () => {
 
   test('turning a login off signs that person out at once', async ({ page }) => {
     const login = ADMIN_LOGINS.turnMeOff
+    await restore(login)
     const { ctx } = await signIn(login.username, login.password)
     expect((await ctx.get('/api/v1/admin/me')).status()).toBe(200)
 
@@ -117,6 +136,7 @@ test.describe('Team logins', () => {
 
   test('a password reset signs the person out; the new password works', async ({ page }) => {
     const login = ADMIN_LOGINS.resetMe
+    await restore(login)
     const { ctx } = await signIn(login.username, login.password)
 
     await page.goto('/settings/team')
@@ -139,6 +159,7 @@ test.describe('Team logins', () => {
 test.describe('your password', () => {
   test('a person changes their own password with the current one', async ({ browser }) => {
     const login = ADMIN_LOGINS.changer
+    await restore(login)
     const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
     const page = await ctx.newPage()
     await page.goto('/login')
