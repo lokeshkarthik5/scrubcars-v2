@@ -6,7 +6,11 @@
  * customer can actually buy. Three apps, one row.
  */
 import { test, expect, statePath } from '../../support/fixtures'
-import { blockThirdParties, dismissLocationPrompt, stubRazorpay } from '../../support/network'
+import {
+  blockThirdParties,
+  dismissLocationPrompt,
+  stubRazorpay,
+} from '../../support/network'
 import { bookingsForUser, getBooking, sql } from '../../support/db'
 import { CheckoutPage } from '../../pages/checkout.page'
 import { GaragePage } from '../../pages/garage.page'
@@ -14,7 +18,9 @@ import { CUSTOMERS, STAFF } from '../../support/seed-ids'
 
 test.describe.configure({ mode: 'serial' })
 
-test('a garage is verified by ops, lists a service, and takes a booking', async ({ browser }) => {
+test('a garage is verified by ops, lists a service, and takes a booking', async ({
+  browser,
+}) => {
   const name = `E2E Journey Garage ${Date.now().toString().slice(-5)}`
 
   // Created directly and owned by the vendor account that already has a
@@ -43,7 +49,10 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
       { role: 'vendor-owner', base: 'http://localhost:3001' },
       { role: 'admin', base: 'http://localhost:3002' },
     ].map(async ({ role, base }) => {
-      const ctx = await browser.newContext({ storageState: statePath(role), baseURL: base })
+      const ctx = await browser.newContext({
+        storageState: statePath(role),
+        baseURL: base,
+      })
       await stubRazorpay(ctx)
       await dismissLocationPrompt(ctx)
       await blockThirdParties(ctx)
@@ -51,10 +60,10 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
     })
   )
   const [customerCtx, vendorCtx, adminCtx] = contexts
-  await vendorCtx.addInitScript(
-    ([k, v]) => localStorage.setItem(k, v),
-    ['detlio.activeVendorId', garage.id] as const
-  )
+  await vendorCtx.addInitScript(([k, v]) => localStorage.setItem(k, v), [
+    'detlio.activeVendorId',
+    garage.id,
+  ] as const)
 
   const customer = await customerCtx.newPage()
   const vendor = await vendorCtx.newPage()
@@ -62,7 +71,9 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
 
   // ── 1. unverified means invisible ────────────────────────────────────────
   await customer.goto('/search')
-  await customer.getByRole('searchbox', { name: 'Search garages or services' }).fill(name)
+  await customer
+    .getByRole('searchbox', { name: 'Search garages or services' })
+    .fill(name)
   await expect(customer.getByText(name)).toHaveCount(0)
 
   // ── 2. ops lets it in ────────────────────────────────────────────────────
@@ -95,7 +106,9 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
 
   // ── 4. a customer finds it and books it ──────────────────────────────────
   await customer.goto('/search')
-  await customer.getByRole('searchbox', { name: 'Search garages or services' }).fill(name)
+  await customer
+    .getByRole('searchbox', { name: 'Search garages or services' })
+    .fill(name)
   await expect(customer.getByText(name).first()).toBeVisible()
 
   const garagePage = new GaragePage(customer)
@@ -114,12 +127,16 @@ test('a garage is verified by ops, lists a service, and takes a booking', async 
   expect(booking.amount).toBe('550.00')
 
   // ── 5. and the garage sees it ────────────────────────────────────────────
-  await vendor.goto('/bookings')
+  await vendor.goto('/bookings?tab=new')
   await vendor
-    .getByRole('button', { name: `Accept booking for ${CUSTOMERS.journey.name}` })
+    .getByRole('button', {
+      name: `Accept booking for ${CUSTOMERS.journey.name}`,
+    })
     .first()
     .click()
-  await expect.poll(async () => (await getBooking(booking.id))?.status).toBe('confirmed')
+  await expect
+    .poll(async () => (await getBooking(booking.id))?.status)
+    .toBe('confirmed')
 
   await Promise.all(contexts.map((c) => c.close()))
 

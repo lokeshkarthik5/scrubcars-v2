@@ -1,19 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconPlus, IconReceipt, IconTrash } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
-import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScSheet } from '@repo/ui/sc/modal'
+import { StatusChip } from '@repo/ui/sc/status-chip'
 import { raiseFinalBill } from '@repo/core/api/job-records'
 import {
   finalBillFigures,
   finalBillStatusLabel,
   formatRupees,
 } from '@repo/core/job-records'
+import type { StatusTone } from '@repo/core/status-tone'
 import type { Booking, FinalBill } from '@repo/core/types'
+import { JobSheetRow } from '@/components/job-sheet-row'
 
 /** Mirror the server's limits (lib/final-bill.ts) so the form refuses first. */
 const MAX_LINES = 20
@@ -21,11 +23,12 @@ const MAX_DESCRIPTION = 80
 
 type Line = { description: string; amount: string }
 
-const STATUS_BADGE: Record<FinalBill['status'], 'pending' | 'success' | 'muted'> = {
-  due: 'pending',
-  paid: 'success',
-  not_needed: 'muted',
-  cancelled: 'muted',
+/** One colour per meaning (UX audit, garage finding 7): green only once it is paid. */
+const STATUS_TONE: Record<FinalBill['status'], StatusTone> = {
+  due: 'progress',
+  paid: 'done',
+  not_needed: 'closed',
+  cancelled: 'closed',
 }
 
 /**
@@ -37,29 +40,40 @@ const STATUS_BADGE: Record<FinalBill['status'], 'pending' | 'success' | 'muted'>
  */
 function linesFrom(bill: FinalBill | null, booking: Booking): Line[] {
   if (bill) {
-    return bill.lines.map((line) => ({ description: line.description, amount: String(line.amount) }))
+    return bill.lines.map((line) => ({
+      description: line.description,
+      amount: String(line.amount),
+    }))
   }
-  const booked = booking.items
-    .slice(0, MAX_LINES)
-    .map((item) => ({ description: item.name.slice(0, MAX_DESCRIPTION), amount: String(item.amount) }))
+  const booked = booking.items.slice(0, MAX_LINES).map((item) => ({
+    description: item.name.slice(0, MAX_DESCRIPTION),
+    amount: String(item.amount),
+  }))
   return booked.length > 0 ? booked : [{ description: '', amount: '' }]
 }
 
 /** "Dent Inspection ₹299 · Foam wash ₹600": what the booking's payment was for. */
 function bookedSummary(booking: Booking): string {
-  return booking.items.map((item) => `${item.name} ${formatRupees(item.amount)}`).join(' · ')
+  return booking.items
+    .map((item) => `${item.name} ${formatRupees(item.amount)}`)
+    .join(' · ')
 }
 
 /** Why the form cannot be sent yet, in the garage's words; null when it can. */
 function formProblem(lines: Line[], total: number): string | null {
-  if (lines.some((line) => !line.description.trim())) return 'Describe every line.'
+  if (lines.some((line) => !line.description.trim()))
+    return 'Describe every line.'
   if (lines.some((line) => line.description.trim().length > MAX_DESCRIPTION)) {
     return `Keep each line under ${MAX_DESCRIPTION} characters.`
   }
   if (
     lines.some((line) => {
       const n = Number(line.amount)
-      return !Number.isFinite(n) || n <= 0 || Math.abs(n * 100 - Math.round(n * 100)) > 1e-6
+      return (
+        !Number.isFinite(n) ||
+        n <= 0 ||
+        Math.abs(n * 100 - Math.round(n * 100)) > 1e-6
+      )
     })
   ) {
     return 'Give every line an amount in rupees.'
@@ -107,7 +121,9 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
   }
 
   const updateLine = (index: number, patch: Partial<Line>) =>
-    setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)))
+    setLines((current) =>
+      current.map((line, i) => (i === index ? { ...line, ...patch } : line))
+    )
 
   const handleSend = async () => {
     if (problem || sending) return
@@ -130,7 +146,9 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
       )
       onChanged()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not send the bill')
+      toast.error(
+        error instanceof Error ? error.message : 'Could not send the bill'
+      )
       onChanged()
     } finally {
       setSending(false)
@@ -138,45 +156,51 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border pt-2">
+    <>
+      {/* One row on the job's page (garage mockup 03), opening the sheet. */}
       {bill ? (
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[12px] font-medium text-text-primary">Final bill</p>
-            <ScBadge variant={STATUS_BADGE[bill.status]}>{finalBillStatusLabel(bill.status)}</ScBadge>
-          </div>
-          <p className="text-[12px] text-text-secondary">
-            Total <span className="font-numeric text-text-primary">{formatRupees(bill.total)}</span>
-            {' · '}Paid at booking{' '}
-            <span className="font-numeric text-text-primary">{formatRupees(bill.paidBefore)}</span>
-            {bill.amountDue > 0 && (
-              <>
-                {' · '}
-                {bill.status === 'paid' ? 'Paid in app' : 'Customer pays'}{' '}
-                <span className="font-numeric text-text-primary">{formatRupees(bill.amountDue)}</span>
-              </>
-            )}
-          </p>
-          {bill.status !== 'paid' && booking.canRaiseFinalBill && (
-            <ScButton
-              variant="secondary"
-              onClick={openForm}
-              aria-label={`Replace final bill for ${who}`}
-              className="mt-1 min-h-11"
-            >
-              Replace bill
-            </ScButton>
-          )}
-        </div>
+        <JobSheetRow
+          icon={<IconReceipt size={22} stroke={1.6} />}
+          title={
+            <>
+              Final bill ·{' '}
+              <span className="font-numeric">{formatRupees(bill.total)}</span>
+            </>
+          }
+          detail={
+            <span className="flex flex-wrap items-center gap-2">
+              <StatusChip tone={STATUS_TONE[bill.status]}>
+                {finalBillStatusLabel(bill.status)}
+              </StatusChip>
+              {bill.amountDue > 0 && (
+                <span>
+                  {bill.status === 'paid' ? 'Paid in app' : 'Customer pays'}{' '}
+                  <span className="font-numeric text-text-primary">
+                    {formatRupees(bill.amountDue)}
+                  </span>
+                </span>
+              )}
+            </span>
+          }
+          aria-label={
+            bill.status !== 'paid' && booking.canRaiseFinalBill
+              ? `Replace final bill for ${who}`
+              : undefined
+          }
+          onOpen={
+            bill.status !== 'paid' && booking.canRaiseFinalBill
+              ? openForm
+              : undefined
+          }
+        />
       ) : (
-        <ScButton
-          variant="secondary"
-          onClick={openForm}
+        <JobSheetRow
+          icon={<IconReceipt size={22} stroke={1.6} />}
+          title="Raise final bill"
+          detail="Not sent yet · the job is priced on inspection"
           aria-label={`Raise final bill for ${who}`}
-          className="min-h-11"
-        >
-          Raise final bill
-        </ScButton>
+          onOpen={openForm}
+        />
       )}
 
       <ScSheet
@@ -186,21 +210,20 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
         aria-label={`Final bill for ${who}`}
         className="px-4"
       >
-        <h2 className="text-base font-semibold text-text-primary">Final bill</h2>
+        <h2 className="text-base font-semibold text-text-primary">
+          Final bill
+        </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
-          The bill is for the whole job: the services booked, plus the work and parts.{' '}
-          {paidBefore > 0 ? (
-            <>
-              {who} paid <span className="font-numeric">{formatRupees(paidBefore)}</span> at
-              booking and pays anything above that in the Detlio app.
-            </>
-          ) : (
-            <>{who} pays it in the Detlio app.</>
-          )}
+          The bill is for the whole job: the services booked, plus the work and
+          parts.{' '}
+          {paidBefore > 0
+            ? `${who} paid ${formatRupees(paidBefore)} at booking and pays anything above that in the Detlio app.`
+            : `${who} pays it in the Detlio app.`}
         </p>
         {paidBefore > 0 && booking.items.length > 0 && (
           <p className="mt-1 text-[12px] text-text-secondary">
-            Paid at booking for: <span className="font-numeric">{bookedSummary(booking)}</span>
+            Paid at booking for:{' '}
+            <span className="font-numeric">{bookedSummary(booking)}</span>
           </p>
         )}
 
@@ -213,7 +236,9 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
                   placeholder="e.g. Rear bumper dent repair"
                   maxLength={MAX_DESCRIPTION}
                   value={line.description}
-                  onChange={(e) => updateLine(i, { description: e.target.value })}
+                  onChange={(e) =>
+                    updateLine(i, { description: e.target.value })
+                  }
                 />
               </div>
               <div className="w-28 shrink-0">
@@ -224,13 +249,19 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
                   placeholder="0"
                   className="font-numeric"
                   value={line.amount}
-                  onChange={(e) => updateLine(i, { amount: e.target.value.replace(/[^\d.]/g, '') })}
+                  onChange={(e) =>
+                    updateLine(i, {
+                      amount: e.target.value.replace(/[^\d.]/g, ''),
+                    })
+                  }
                 />
               </div>
               {lines.length > 1 && (
                 <button
                   type="button"
-                  onClick={() => setLines((current) => current.filter((_, j) => j !== i))}
+                  onClick={() =>
+                    setLines((current) => current.filter((_, j) => j !== i))
+                  }
                   aria-label={`Remove line ${i + 1}`}
                   className="flex size-11 shrink-0 items-center justify-center text-text-muted hover:text-text-primary"
                 >
@@ -244,8 +275,13 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
         {lines.length < MAX_LINES && (
           <button
             type="button"
-            onClick={() => setLines((current) => [...current, { description: '', amount: '' }])}
-            className="mt-2 flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-text-primary"
+            onClick={() =>
+              setLines((current) => [
+                ...current,
+                { description: '', amount: '' },
+              ])
+            }
+            className="mt-2 flex min-h-12 items-center gap-1.5 text-[15px] font-medium text-text-primary"
           >
             <IconPlus size={15} aria-hidden />
             Add line
@@ -263,35 +299,60 @@ export function FinalBillPanel({ booking, onChanged }: FinalBillPanelProps) {
         </div>
 
         {/* Live, so the garage sees exactly what the customer will be asked. */}
-        <div aria-live="polite" className="mt-4 flex flex-col gap-1.5 border-t border-border pt-3 text-[13px]">
+        <div
+          aria-live="polite"
+          className="mt-4 flex flex-col gap-1.5 border-t border-border pt-3 text-[13px]"
+        >
           <div className="flex justify-between">
             <span className="text-text-secondary">Total</span>
-            <span className="font-numeric font-medium text-text-primary">{formatRupees(figures.total)}</span>
+            <span className="font-numeric font-medium text-text-primary">
+              {formatRupees(figures.total)}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-text-secondary">Paid at booking</span>
-            <span className="font-numeric font-medium text-text-primary">−{formatRupees(paidBefore)}</span>
+            <span className="font-numeric font-medium text-text-primary">
+              −{formatRupees(paidBefore)}
+            </span>
           </div>
           <div className="flex justify-between text-[15px] font-semibold text-text-primary">
-            <span>{figures.amountDue > 0 ? 'Customer pays in the app' : 'Nothing more to pay'}</span>
-            <span className="font-numeric">{formatRupees(figures.amountDue)}</span>
+            <span>
+              {figures.amountDue > 0
+                ? 'Customer pays in the app'
+                : 'Nothing more to pay'}
+            </span>
+            <span className="font-numeric">
+              {formatRupees(figures.amountDue)}
+            </span>
           </div>
         </div>
 
         {problem && lines.some((line) => line.description || line.amount) && (
           // Polite, not an alert: it changes as the lines are typed.
-          <p role="status" className="mt-2 text-[12px] text-error">{problem}</p>
+          <p role="status" className="mt-2 text-[12px] text-error">
+            {problem}
+          </p>
         )}
 
         <div className="mt-5 flex gap-2">
-          <ScButton variant="secondary" disabled={sending} onClick={() => setOpen(false)}>
+          <ScButton
+            variant="outline"
+            size="lg"
+            disabled={sending}
+            onClick={() => setOpen(false)}
+          >
             Cancel
           </ScButton>
-          <ScButton disabled={!!problem || sending} onClick={handleSend}>
+          <ScButton
+            variant="main"
+            size="lg"
+            disabled={!!problem || sending}
+            onClick={handleSend}
+          >
             {sending ? 'Sending…' : bill ? 'Send new bill' : 'Send final bill'}
           </ScButton>
         </div>
       </ScSheet>
-    </div>
+    </>
   )
 }

@@ -2455,6 +2455,152 @@ async function seedContactWindowRows() {
   })
 }
 
+/**
+ * The garage's Today view and job page (specs/vendors/today.spec.ts): one
+ * garage of its own, five jobs, one in each list (see BOOKINGS.today*).
+ * Ids 3900–3999 and phones 90000039xx only.
+ */
+async function seedTodayRows() {
+  const garage = VENDORS.today.id
+  const customer = CUSTOMERS.today
+  await db.insert(vendors).values({
+    id: garage,
+    ownerId: STAFF.todayOwner.id,
+    businessName: VENDORS.today.name,
+    phone: '9000003910',
+    address: '9, Today Street, Adyar',
+    city: 'Chennai',
+    pincode: '600020',
+    lat: 13.0067,
+    lng: 80.2571,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false,
+    doorstepEnabled: false,
+    dropinEnabled: true,
+    slotIntervalMins: 30,
+    status: 'pending',
+    bays: 2,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage,
+    userId: STAFF.todayOwner.id,
+    role: 'vendor_admin',
+    status: 'active',
+  })
+  await db
+    .insert(vendorWorkingHours)
+    .values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.todayWash.id,
+    vendorId: garage,
+    name: SERVICES.todayWash.name,
+    description: 'An exterior foam wash and dry.',
+    category: 'car_wash',
+    pricingType: 'flat',
+    price: SERVICES.todayWash.price,
+    durationMins: SERVICES.todayWash.durationMins,
+    isActive: true,
+  })
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId,
+    userId: customer.id,
+    make: 'Honda',
+    model: 'City',
+    color: 'Silver',
+    licensePlate: 'TN01BQ5521',
+    vehicleType: 'sedan',
+    isDefault: true,
+  })
+
+  const items = [
+    {
+      id: SERVICES.todayWash.id,
+      name: SERVICES.todayWash.name,
+      amount: SERVICES.todayWash.price,
+      durationMins: SERVICES.todayWash.durationMins,
+    },
+  ]
+  const common = {
+    userId: customer.id,
+    vendorId: garage,
+    vehicleId: customer.vehicleId,
+    items,
+  }
+
+  await insertBooking({
+    ...common,
+    id: BOOKINGS.todayWorking,
+    scheduledAt: hoursAgo(1),
+    status: 'in_progress',
+    payment: {
+      status: 'paid',
+      txnId: 'pay_seed_today_working',
+      gatewayMode: 'fake',
+    },
+    createdAt: daysAgo(1),
+    acceptedAt: hoursAgo(20),
+    startedAt: hoursAgo(1),
+  })
+  await insertBooking({
+    ...common,
+    id: BOOKINGS.todayLate,
+    scheduledAt: hoursAgo(1),
+    status: 'confirmed',
+    payment: {
+      status: 'paid',
+      txnId: 'pay_seed_today_late',
+      gatewayMode: 'fake',
+    },
+    createdAt: daysAgo(1),
+    acceptedAt: hoursAgo(20),
+  })
+  await insertBooking({
+    ...common,
+    id: BOOKINGS.todayAnswer,
+    scheduledAt: daysAheadAt(2, 11),
+    status: 'pending',
+    payment: {
+      status: 'paid',
+      txnId: 'pay_seed_today_answer',
+      gatewayMode: 'fake',
+    },
+    createdAt: hoursAgo(1),
+  })
+  // Three hours to answer: far enough that no run's cron reaches it.
+  await db
+    .update(bookings)
+    .set({ respondBy: new Date(now.getTime() + 3 * HOUR) })
+    .where(eq(bookings.id, BOOKINGS.todayAnswer))
+  await insertBooking({
+    ...common,
+    id: BOOKINGS.todayLater,
+    scheduledAt: daysAheadAt(4, 10),
+    status: 'confirmed',
+    payment: {
+      status: 'paid',
+      txnId: 'pay_seed_today_later',
+      gatewayMode: 'fake',
+    },
+    createdAt: daysAgo(1),
+    acceptedAt: hoursAgo(20),
+  })
+  await insertBooking({
+    ...common,
+    id: BOOKINGS.todayDone,
+    scheduledAt: daysAgo(1),
+    status: 'completed',
+    payment: {
+      status: 'paid',
+      txnId: 'pay_seed_today_done',
+      gatewayMode: 'fake',
+    },
+    createdAt: daysAgo(2),
+    acceptedAt: daysAgo(2),
+    startedAt: daysAgo(1),
+    completedAt: daysAgo(1),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2510,6 +2656,7 @@ async function main() {
   await seedCertificateRows()
   console.log('[e2e-seed] contact windows…')
   await seedContactWindowRows()
+  await seedTodayRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

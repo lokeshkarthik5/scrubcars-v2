@@ -76,7 +76,9 @@ export default function VendorMembersPage() {
         if (!cancelled) setMembers(rows)
       })
       .catch((err: unknown) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to load members')
+        toast.error(
+          err instanceof Error ? err.message : 'Failed to load members'
+        )
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -136,7 +138,9 @@ export default function VendorMembersPage() {
             value={phone}
             inputMode="numeric"
             className="font-numeric"
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            onChange={(e) =>
+              setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
+            }
           />
           <ScInput
             id="member-name"
@@ -158,10 +162,16 @@ export default function VendorMembersPage() {
           </ScSelect>
           {/* No invite step: being added grants access on their next login. */}
           <p className="text-[11px] text-text-secondary">
-            They get access the next time they log in with this number. Operators
-            can work on jobs but cannot see earnings or change settings.
+            They get access the next time they log in with this number.
+            Operators can work on jobs but cannot see earnings or change
+            settings.
           </p>
-          <ScButton onClick={handleAdd} disabled={adding}>
+          <ScButton
+            variant="main"
+            size="lg"
+            onClick={handleAdd}
+            disabled={adding}
+          >
             {adding ? 'Adding...' : 'Add member'}
           </ScButton>
         </ScCard>
@@ -172,7 +182,9 @@ export default function VendorMembersPage() {
           title="Members"
           action={
             !loading && members.length > 0 ? (
-              <span className="font-numeric text-[12px] text-text-muted">{members.length}</span>
+              <span className="font-numeric text-[12px] text-text-muted">
+                {members.length}
+              </span>
             ) : undefined
           }
         />
@@ -199,7 +211,9 @@ export default function VendorMembersPage() {
                       {member.isOwner ? (
                         <ScBadge variant="success">Owner</ScBadge>
                       ) : (
-                        <ScBadge variant="pending">{roleLabel(member.role)}</ScBadge>
+                        <ScBadge variant="pending">
+                          {roleLabel(member.role)}
+                        </ScBadge>
                       )}
                     </div>
                   </div>
@@ -208,7 +222,12 @@ export default function VendorMembersPage() {
                     // The owner's row is locked for everyone, including the owner.
                     // It is what guarantees the company always has an admin.
                     <p className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-                      <IconLock size={13} stroke={1.5} aria-hidden="true" className="shrink-0" />
+                      <IconLock
+                        size={13}
+                        stroke={1.5}
+                        aria-hidden="true"
+                        className="shrink-0"
+                      />
                       The owner cannot be changed or removed. Transfer ownership
                       first.
                     </p>
@@ -238,10 +257,11 @@ export default function VendorMembersPage() {
                       </ScSelect>
 
                       <ScButton
-                        variant="secondary"
+                        variant="outline"
+                        size="md"
                         fullWidth={false}
                         disabled={busyId === member.id}
-                        className="min-h-11 px-3.5 py-2 text-[12px]"
+                        className="px-3.5"
                         onClick={() =>
                           run(
                             member.id,
@@ -262,10 +282,11 @@ export default function VendorMembersPage() {
                       </ScButton>
 
                       <ScButton
-                        variant="secondary"
+                        variant="outline"
+                        size="md"
                         fullWidth={false}
                         disabled={busyId === member.id}
-                        className="flex min-h-11 items-center gap-1.5 px-3.5 py-2 text-[12px]"
+                        className="flex items-center gap-1.5 px-3.5"
                         onClick={() =>
                           run(
                             member.id,
@@ -274,15 +295,17 @@ export default function VendorMembersPage() {
                           )
                         }
                       >
-                        <IconTrash size={14} stroke={1.5} aria-hidden="true" /> Remove
+                        <IconTrash size={14} stroke={1.5} aria-hidden="true" />{' '}
+                        Remove
                       </ScButton>
 
                       {isOwner && member.status === 'active' && (
                         <ScButton
-                          variant="secondary"
+                          variant="outline"
+                          size="md"
                           fullWidth={false}
                           disabled={busyId === member.id}
-                          className="min-h-11 px-3.5 py-2 text-[12px]"
+                          className="px-3.5"
                           onClick={() => {
                             if (
                               !window.confirm(

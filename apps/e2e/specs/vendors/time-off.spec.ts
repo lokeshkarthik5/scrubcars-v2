@@ -15,9 +15,12 @@ test.use({ storageState: asRole('vendor-schedule') })
 
 /** An IST date some days out, the way the date input and the API write it. */
 const istDate = (offsetDays: number) =>
-  new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', {
-    timeZone: 'Asia/Kolkata',
-  })
+  new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000).toLocaleDateString(
+    'en-CA',
+    {
+      timeZone: 'Asia/Kolkata',
+    }
+  )
 
 // Whatever a failed run left behind, TIME_OFF goes back to an ordinary garage.
 test.afterAll(async () => {
@@ -30,7 +33,11 @@ test.afterAll(async () => {
 })
 
 test.describe('time off in the garage portal @p0', () => {
-  test('a holiday can be added and removed, and customers see it', async ({ page, context, request }) => {
+  test('a holiday can be added and removed, and customers see it', async ({
+    page,
+    context,
+    request,
+  }) => {
     await setActiveVendor(context, VENDORS.timeOff.id)
     await page.goto('/settings')
     await page.getByRole('tab', { name: 'Time off' }).click()
@@ -49,7 +56,9 @@ test.describe('time off in the garage portal @p0', () => {
     await expect.poll(closures).toEqual([{ date, reason: 'Pongal' }])
 
     // The customer's picker reads the same row.
-    const publicClosures = await request.get(`${API}/api/v1/vendors/${VENDORS.timeOff.id}/closures`)
+    const publicClosures = await request.get(
+      `${API}/api/v1/vendors/${VENDORS.timeOff.id}/closures`
+    )
     expect((await publicClosures.json()).data).toContain(date)
 
     // Nobody had booked that day, so there is nobody to warn about.
@@ -67,7 +76,9 @@ test.describe('time off in the garage portal @p0', () => {
     const pause = page.getByRole('switch', { name: 'Pause new bookings' })
     await expect(pause).toHaveAttribute('aria-checked', 'false')
 
-    await page.getByLabel('Reason (optional, customers see this)').fill('Away for a wedding')
+    await page
+      .getByLabel('Reason (optional, customers see this)')
+      .fill('Away for a wedding')
     await pause.click()
 
     await expect(page.getByText(/Paused since/)).toBeVisible()
@@ -79,10 +90,14 @@ test.describe('time off in the garage portal @p0', () => {
       `
       return row
     }
-    await expect.poll(state).toEqual({ paused: true, reason: 'Away for a wedding' })
+    await expect
+      .poll(state)
+      .toEqual({ paused: true, reason: 'Away for a wedding' })
 
     // The reason stays editable while paused, without resuming first.
-    await page.getByLabel('Reason (optional, customers see this)').fill('Back on Monday')
+    await page
+      .getByLabel('Reason (optional, customers see this)')
+      .fill('Back on Monday')
     await page.getByRole('button', { name: 'Update reason' }).click()
     await expect.poll(state).toEqual({ paused: true, reason: 'Back on Monday' })
     await expect(pause).toHaveAttribute('aria-checked', 'true')
@@ -97,23 +112,29 @@ test.describe('time off in the garage portal @p0', () => {
     )
     await page.getByRole('button', { name: 'Resume bookings' }).click()
     await expect.poll(state).toEqual({ paused: false, reason: null })
-    await expect(page.getByRole('switch', { name: 'Pause new bookings' })).toHaveAttribute(
-      'aria-checked',
-      'false'
-    )
+    await expect(
+      page.getByRole('switch', { name: 'Pause new bookings' })
+    ).toHaveAttribute('aria-checked', 'false')
   })
 
-  test('how many cars at once, and a daily limit, are saved', async ({ page, context }) => {
+  test('how many cars at once, and a daily limit, are saved', async ({
+    page,
+    context,
+  }) => {
     await setActiveVendor(context, VENDORS.timeOff.id)
     await page.goto('/settings')
     await page.getByRole('tab', { name: 'Hours' }).click()
 
-    await page.getByLabel('How many cars can you work on at the same time?').fill('3')
+    await page
+      .getByLabel('How many cars can you work on at the same time?')
+      .fill('3')
     await page.getByLabel('Most jobs in a day (optional)').fill('12')
     await page.getByRole('button', { name: 'Save capacity' }).click()
 
     const capacity = async () => {
-      const [row] = await sql<{ bays: number | null; jobs_per_day: number | null }[]>`
+      const [row] = await sql<
+        { bays: number | null; jobs_per_day: number | null }[]
+      >`
         select bays, jobs_per_day from vendors where id = ${VENDORS.timeOff.id}
       `
       return row
@@ -128,7 +149,10 @@ test.describe('time off in the garage portal @p0', () => {
 })
 
 test.describe('a booked service @p0', () => {
-  test('cannot be deleted, and the portal says to disable it', async ({ page, context }) => {
+  test('cannot be deleted, and the portal says to disable it', async ({
+    page,
+    context,
+  }) => {
     await setActiveVendor(context, VENDORS.capacity.id)
 
     // A fresh sign-in rather than the page's cookies: this file runs last, and
@@ -152,9 +176,18 @@ test.describe('a booked service @p0', () => {
     await owner.dispose()
 
     await page.goto('/services')
-    await expect(page.getByText(SERVICES.capacityWash.name).first()).toBeVisible()
+    await expect(
+      page.getByText(SERVICES.capacityWash.name).first()
+    ).toBeVisible()
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
-    await expect(page.getByText('This service has bookings. Disable it instead.')).toBeVisible()
+    // Delete asks first; confirming still meets the server's refusal.
+    const sheet = page.getByRole('dialog', {
+      name: `Delete ${SERVICES.capacityWash.name}?`,
+    })
+    await sheet.getByRole('button', { name: 'Delete service' }).click()
+    await expect(
+      page.getByText('This service has bookings. Disable it instead.')
+    ).toBeVisible()
 
     const [row] = await sql<{ n: string }[]>`
       select count(*)::text as n from services where id = ${SERVICES.capacityWash.id}

@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { IconBuildingStore, IconPhoto, IconTrash, IconUpload } from '@tabler/icons-react'
+import {
+  IconBuildingStore,
+  IconPhoto,
+  IconTrash,
+  IconUpload,
+} from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
@@ -53,7 +58,10 @@ export default function VendorPhotosPage() {
         setLogoUrl(vendor.logoUrl)
       })
       .catch((err) => {
-        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        if (
+          err instanceof ApiError &&
+          (err.status === 401 || err.status === 403)
+        ) {
           router.replace('/login')
           return
         }
@@ -155,21 +163,30 @@ export default function VendorPhotosPage() {
       />
 
       <section className="flex flex-col gap-3">
-        <SectionHeader title="Logo" subtitle="Shown next to your garage in customer listings." />
+        <SectionHeader
+          title="Logo"
+          subtitle="Shown next to your garage in customer listings."
+        />
         <ScCard className="flex items-center gap-4">
           <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface-elevated">
             {logoUrl ? (
-              <Image src={logoUrl} alt="Logo" fill sizes="64px" className="object-cover" />
+              <Image
+                src={logoUrl}
+                alt="Logo"
+                fill
+                sizes="64px"
+                className="object-cover"
+              />
             ) : (
               <IconBuildingStore size={26} className="text-text-muted" />
             )}
           </div>
           <div className="flex flex-1 flex-col items-start gap-1">
             <ScButton
-              variant="secondary"
+              variant="outline"
+              size="md"
               disabled={logoBusy}
               onClick={() => logoRef.current?.click()}
-              className="min-h-11 py-2 text-[13px]"
             >
               {logoBusy ? 'Working…' : logoUrl ? 'Change logo' : 'Add logo'}
             </ScButton>
@@ -195,13 +212,17 @@ export default function VendorPhotosPage() {
           subtitle="JPEG, PNG or WebP · up to 5 MB each. These show on your public listing."
           action={
             photos.length > 0 ? (
-              <span className="font-numeric text-[12px] text-text-muted">{photos.length}</span>
+              <span className="font-numeric text-[12px] text-text-muted">
+                {photos.length}
+              </span>
             ) : undefined
           }
         />
 
         {/* The screen's one main action. */}
         <ScButton
+          variant="main"
+          size="lg"
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
           className="flex items-center justify-center gap-2"
@@ -211,7 +232,11 @@ export default function VendorPhotosPage() {
         </ScButton>
 
         {loading ? (
-          <div role="status" aria-busy="true" className="grid grid-cols-2 gap-2">
+          <div
+            role="status"
+            aria-busy="true"
+            className="grid grid-cols-2 gap-2"
+          >
             <span className="sr-only">Loading</span>
             {Array.from({ length: 4 }, (_, i) => (
               <Skeleton key={i} className="aspect-square rounded-[12px]" />
@@ -220,8 +245,12 @@ export default function VendorPhotosPage() {
         ) : photos.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-border py-12 text-center">
             <IconPhoto size={28} stroke={1.5} className="text-text-muted" />
-            <p className="text-sm font-semibold text-text-primary">No photos yet</p>
-            <p className="text-[12px] text-text-secondary">Add photos of your garage and work</p>
+            <p className="text-sm font-semibold text-text-primary">
+              No photos yet
+            </p>
+            <p className="text-[12px] text-text-secondary">
+              Add photos of your garage and work
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">

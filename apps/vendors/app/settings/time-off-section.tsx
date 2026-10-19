@@ -70,10 +70,7 @@ export function PauseSection({
   const paused = vendor.bookingsPausedAt != null
   const savedReason = vendor.bookingsPausedReason ?? ''
 
-  const run = async (
-    action: () => Promise<ApiVendorProfile>,
-    done: string
-  ) => {
+  const run = async (action: () => Promise<ApiVendorProfile>, done: string) => {
     setBusy(true)
     try {
       const updated = await action()
@@ -110,7 +107,9 @@ export function PauseSection({
           onChange={(e) => setReason(e.target.value)}
         />
         <div className="flex min-h-11 items-center justify-between gap-3">
-          <p className="text-[13px] font-medium text-text-primary">Pause new bookings</p>
+          <p className="text-[13px] font-medium text-text-primary">
+            Pause new bookings
+          </p>
           {/* Amber when on: a paused garage is a state to notice, not an
               action to take. */}
           <ScSwitch
@@ -127,12 +126,15 @@ export function PauseSection({
             <p className="text-[12px] text-text-primary">
               Paused since{' '}
               <span className="font-numeric font-medium">
-                {new Date(vendor.bookingsPausedAt as string).toLocaleDateString('en-IN', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                  timeZone: APP_TIMEZONE,
-                })}
+                {new Date(vendor.bookingsPausedAt as string).toLocaleDateString(
+                  'en-IN',
+                  {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                    timeZone: APP_TIMEZONE,
+                  }
+                )}
               </span>
               .
               {savedReason && (
@@ -146,14 +148,21 @@ export function PauseSection({
               {/* Pausing again keeps the original start and only rewrites
                   the reason, so this is safe to press while paused. */}
               <ScButton
-                variant="secondary"
+                variant="outline"
+                size="md"
                 className="flex-1"
                 disabled={busy || reason.trim() === savedReason}
                 onClick={pause}
               >
                 Update reason
               </ScButton>
-              <ScButton className="flex-1" disabled={busy} onClick={toggle}>
+              <ScButton
+                variant="main"
+                size="lg"
+                className="flex-1"
+                disabled={busy}
+                onClick={toggle}
+              >
                 {busy ? 'Saving...' : 'Resume bookings'}
               </ScButton>
             </div>
@@ -198,7 +207,9 @@ export function HolidaysSection({
         ...(reason.trim() && { reason: reason.trim() }),
       })
       onChange(
-        [...closures, result.closure].sort((a, b) => a.date.localeCompare(b.date))
+        [...closures, result.closure].sort((a, b) =>
+          a.date.localeCompare(b.date)
+        )
       )
       setOnThatDay(
         result.bookings.length > 0
@@ -234,8 +245,8 @@ export function HolidaysSection({
       <SectionHeader title="Holidays" />
       <ScCard className="flex flex-col gap-3">
         <p className="text-[12px] text-text-secondary">
-          Days you&apos;re closed on top of your weekly hours. Customers can&apos;t
-          pick them.
+          Days you&apos;re closed on top of your weekly hours. Customers
+          can&apos;t pick them.
         </p>
         <ScInput
           id="settings-holiday-date"
@@ -257,12 +268,20 @@ export function HolidaysSection({
         />
         {/* Secondary: while paused, Resume above is this tab's one main
             action, and red is kept for that. */}
-        <ScButton variant="secondary" disabled={!date || busy === 'add'} onClick={add}>
+        <ScButton
+          variant="outline"
+          size="md"
+          disabled={!date || busy === 'add'}
+          onClick={add}
+        >
           {busy === 'add' ? 'Saving...' : 'Add holiday'}
         </ScButton>
 
         {onThatDay && (
-          <Notice role="status" title={bookingsSentence(onThatDay.bookings.length)}>
+          <Notice
+            role="status"
+            title={bookingsSentence(onThatDay.bookings.length)}
+          >
             {onThatDay.bookings.map((b) => (
               <span key={b.id} className="block">
                 {b.customerName ?? 'Customer'} ·{' '}
@@ -287,13 +306,19 @@ export function HolidaysSection({
                     {formatDay(closure.date)}
                   </p>
                   {closure.reason && (
-                    <p className="truncate text-[11px] text-text-secondary">{closure.reason}</p>
+                    <p className="truncate text-[11px] text-text-secondary">
+                      {closure.reason}
+                    </p>
                   )}
                   {closure.activeBookingCount > 0 && (
                     <p className="text-[11px] text-warning">
-                      <span className="font-numeric">{closure.activeBookingCount}</span>{' '}
-                      {closure.activeBookingCount === 1 ? 'booking' : 'bookings'} still on
-                      this day
+                      <span className="font-numeric">
+                        {closure.activeBookingCount}
+                      </span>{' '}
+                      {closure.activeBookingCount === 1
+                        ? 'booking'
+                        : 'bookings'}{' '}
+                      still on this day
                     </p>
                   )}
                 </div>

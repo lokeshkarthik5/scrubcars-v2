@@ -10,7 +10,13 @@ import { Chip } from '@repo/ui/sc/chip'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import { OnboardingHeader } from '@/components/onboarding-header'
 
-const YEARS = ['Under 1 year', '1–3 years', '3–5 years', '5–10 years', '10+ years']
+const YEARS = [
+  'Under 1 year',
+  '1–3 years',
+  '3–5 years',
+  '5–10 years',
+  '10+ years',
+]
 
 export default function VendorOnboardingStep1() {
   const router = useRouter()
@@ -24,7 +30,10 @@ export default function VendorOnboardingStep1() {
     yearsInOperation: '',
   })
   const [loading, setLoading] = useState(false)
-  const phone = typeof window !== 'undefined' ? sessionStorage.getItem('auth_phone') ?? '' : ''
+  const phone =
+    typeof window !== 'undefined'
+      ? (sessionStorage.getItem('auth_phone') ?? '')
+      : ''
 
   const handleContinue = async () => {
     setLoading(true)
@@ -65,7 +74,9 @@ export default function VendorOnboardingStep1() {
         />
         {/* The number just verified: shown, not editable. */}
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium text-text-secondary">Mobile number</span>
+          <span className="text-[11px] font-medium text-text-secondary">
+            Mobile number
+          </span>
           <div className="rounded-[10px] border border-border bg-brand-black px-3 py-2.5 font-numeric text-[13px] text-text-muted">
             +91 {phone}
           </div>
@@ -83,7 +94,10 @@ export default function VendorOnboardingStep1() {
           className="font-numeric"
           value={form.whatsapp}
           onChange={(e) =>
-            setForm({ ...form, whatsapp: e.target.value.replace(/\D/g, '').slice(0, 10) })
+            setForm({
+              ...form,
+              whatsapp: e.target.value.replace(/\D/g, '').slice(0, 10),
+            })
           }
         />
         <ScInput
@@ -115,8 +129,12 @@ export default function VendorOnboardingStep1() {
       </ScCard>
 
       <ScButton
+        variant="main"
+        size="lg"
         className="mt-auto mb-4"
-        disabled={!form.businessName || !form.ownerName || !form.city || loading}
+        disabled={
+          !form.businessName || !form.ownerName || !form.city || loading
+        }
         onClick={handleContinue}
       >
         Continue
