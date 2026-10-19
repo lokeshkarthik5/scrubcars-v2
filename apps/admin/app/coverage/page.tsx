@@ -73,8 +73,15 @@ export default function AdminCoveragePage() {
 
       {/* Amber, as errors are everywhere. */}
       {error && (
-        <p role="alert" className="flex items-start gap-1.5 text-[13px] text-error">
-          <IconAlertCircle size={16} className="mt-px shrink-0" aria-hidden="true" />
+        <p
+          role="alert"
+          className="flex items-start gap-1.5 text-[13px] text-error"
+        >
+          <IconAlertCircle
+            size={16}
+            className="mt-px shrink-0"
+            aria-hidden="true"
+          />
           {error}
         </p>
       )}
@@ -123,8 +130,8 @@ export default function AdminCoveragePage() {
         ) : gaps.length === 0 ? (
           <ScCard>
             <p className="text-[13px] text-text-secondary">
-              No cell has more doorstep bookings than garages yet. This fills in as
-              booking volume arrives.
+              No cell has more doorstep bookings than garages yet. This fills in
+              as booking volume arrives.
             </p>
           </ScCard>
         ) : (
@@ -140,9 +147,11 @@ export default function AdminCoveragePage() {
                   {cell.lat.toFixed(2)}, {cell.lng.toFixed(2)}
                 </span>
                 <span className="text-text-secondary">
-                  <span className="font-numeric">{cell.bookingCount}</span> booking
+                  <span className="font-numeric">{cell.bookingCount}</span>{' '}
+                  booking
                   {cell.bookingCount === 1 ? '' : 's'} ·{' '}
-                  <span className="font-numeric">{cell.vendorCount}</span> garage
+                  <span className="font-numeric">{cell.vendorCount}</span>{' '}
+                  garage
                   {cell.vendorCount === 1 ? '' : 's'}
                 </span>
               </Reveal>

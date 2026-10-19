@@ -65,7 +65,10 @@ export default function AlertsPage() {
     setResult(null)
     try {
       await sendTelegramTestAlert(actorName)
-      setResult({ ok: true, text: 'Sent. Check the team’s Telegram group for the test message.' })
+      setResult({
+        ok: true,
+        text: 'Sent. Check the team’s Telegram group for the test message.',
+      })
     } catch (error) {
       setResult({
         ok: false,
@@ -88,7 +91,10 @@ export default function AlertsPage() {
       <PageHeader title="Alerts" subtitle="The team’s Telegram alerts" />
 
       {failed ? (
-        <ErrorState message="Couldn't read the alert settings." onRetry={retry} />
+        <ErrorState
+          message="Couldn't read the alert settings."
+          onRetry={retry}
+        />
       ) : !status ? (
         <Skeleton className="h-40 rounded-[14px]" />
       ) : (
@@ -98,7 +104,9 @@ export default function AlertsPage() {
               <IconBrandTelegram size={18} aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-text-primary">Telegram</p>
+              <p className="text-[13px] font-semibold text-text-primary">
+                Telegram
+              </p>
               <p className="text-[12px] text-text-secondary">
                 {status.configured
                   ? status.liveHere
@@ -121,17 +129,33 @@ export default function AlertsPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
-            <ScButton variant="secondary" fullWidth={false} className="self-start px-4" disabled={sending} onClick={() => void send()}>
+            <ScButton
+              variant="secondary"
+              fullWidth={false}
+              className="self-start px-4"
+              disabled={sending}
+              onClick={() => void send()}
+            >
               <span className="flex items-center gap-2">
                 <IconSend size={16} aria-hidden="true" />
                 {sending ? 'Sending…' : 'Send test alert'}
               </span>
             </ScButton>
-            <p className="text-[11px] text-text-muted">Posts “✅ Detlio test alert from {name.trim() || 'your name'}” to the team’s group.</p>
+            <p className="text-[11px] text-text-muted">
+              Posts “✅ Detlio test alert from {name.trim() || 'your name'}” to
+              the team’s group.
+            </p>
           </div>
 
           {result && (
-            <p role="status" className={result.ok ? 'text-[12px] text-success' : 'text-[12px] text-warning'}>
+            <p
+              role="status"
+              className={
+                result.ok
+                  ? 'text-[12px] text-success'
+                  : 'text-[12px] text-warning'
+              }
+            >
               {result.text}
             </p>
           )}

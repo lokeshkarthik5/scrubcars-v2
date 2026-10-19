@@ -33,7 +33,8 @@ import { cn } from '@repo/core/utils'
  */
 
 // Asked once per page load, however many services the page shows.
-let configs: Promise<{ media: MediaConfig | null; pictures: boolean }> | null = null
+let configs: Promise<{ media: MediaConfig | null; pictures: boolean }> | null =
+  null
 function loadConfigs() {
   configs ??= Promise.all([
     adminMediaApi.config().catch(() => null),
@@ -165,7 +166,11 @@ function AiPictureSheet({
       const urls = pictures.map((p) => p.url)
       setOptions({ urls, picked: urls[0] ?? null })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Pictures could not be made. Try again.')
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Pictures could not be made. Try again.'
+      )
     } finally {
       setWorking(null)
     }
@@ -180,7 +185,9 @@ function AiPictureSheet({
       onUsed(await chooseAiPicture(serviceId, options.picked, others))
       setOptions(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That did not save. Try again.')
+      setError(
+        err instanceof Error ? err.message : 'That did not save. Try again.'
+      )
     } finally {
       setWorking(null)
     }
@@ -195,7 +202,9 @@ function AiPictureSheet({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[19px] font-semibold text-text-primary">Make a picture with AI</h2>
+          <h2 className="text-[19px] font-semibold text-text-primary">
+            Make a picture with AI
+          </h2>
           <p className="mt-1 text-[13px] text-text-secondary">
             For {serviceName}, which has no real photo yet
           </p>
@@ -212,7 +221,10 @@ function AiPictureSheet({
       </div>
 
       <div className="mt-5 flex items-baseline justify-between">
-        <label htmlFor={promptId} className="text-[13px] font-medium text-text-secondary">
+        <label
+          htmlFor={promptId}
+          className="text-[13px] font-medium text-text-secondary"
+        >
           Describe the picture
         </label>
         <span className="text-[12px] text-text-muted">You can edit this</span>
@@ -233,7 +245,9 @@ function AiPictureSheet({
       {options || working === 'generating' ? (
         <>
           <div className="mt-5 flex items-center justify-between gap-3">
-            <p className="text-[13px] font-medium text-text-secondary">Pick one</p>
+            <p className="text-[13px] font-medium text-text-secondary">
+              Pick one
+            </p>
             <button
               type="button"
               onClick={generate}
@@ -245,7 +259,11 @@ function AiPictureSheet({
             </button>
           </div>
 
-          <div role="radiogroup" aria-label="Pictures to choose from" className="mt-3 grid grid-cols-2 gap-3">
+          <div
+            role="radiogroup"
+            aria-label="Pictures to choose from"
+            className="mt-3 grid grid-cols-2 gap-3"
+          >
             {working === 'generating'
               ? [0, 1].map((i) => (
                   <div
@@ -268,7 +286,13 @@ function AiPictureSheet({
                         picked ? 'border-brand-white' : 'border-border'
                       )}
                     >
-                      <Image src={url} alt="" fill sizes="200px" className="object-cover" />
+                      <Image
+                        src={url}
+                        alt=""
+                        fill
+                        sizes="200px"
+                        className="object-cover"
+                      />
                       <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-medium text-white">
                         <IconSparkles size={12} aria-hidden="true" />
                         AI picture
@@ -277,7 +301,9 @@ function AiPictureSheet({
                         aria-hidden="true"
                         className={cn(
                           'absolute right-2 top-2 flex size-7 items-center justify-center rounded-full border-2',
-                          picked ? 'border-brand-white bg-brand-white text-brand-black' : 'border-white/70'
+                          picked
+                            ? 'border-brand-white bg-brand-white text-brand-black'
+                            : 'border-white/70'
                         )}
                       >
                         {picked && <IconCheck size={16} stroke={3} />}
@@ -293,15 +319,20 @@ function AiPictureSheet({
           )}
 
           <p className="mt-4 flex items-start gap-2 text-[13px] leading-snug text-text-secondary">
-            <IconInfoCircle size={16} stroke={1.6} className="mt-0.5 shrink-0" aria-hidden="true" />
-            Shown to customers with a ‘Sample image’ tag. It is removed by itself when a real photo
-            is added.
+            <IconInfoCircle
+              size={16}
+              stroke={1.6}
+              className="mt-0.5 shrink-0"
+              aria-hidden="true"
+            />
+            Shown to customers with a ‘Sample image’ tag. It is removed by
+            itself when a real photo is added.
           </p>
         </>
       ) : (
         <p className="mt-5 text-[13px] text-text-secondary">
-          Makes two pictures to choose from. About <span className="font-numeric">₹4</span> per
-          picture.
+          Makes two pictures to choose from. About{' '}
+          <span className="font-numeric">₹4</span> per picture.
         </p>
       )}
 
@@ -315,7 +346,8 @@ function AiPictureSheet({
       <ScButton
         className="mt-5 rounded-full py-4 text-[15px]"
         disabled={
-          working !== null || (options ? !options.picked : prompt.trim().length < 3)
+          working !== null ||
+          (options ? !options.picked : prompt.trim().length < 3)
         }
         onClick={options ? use : generate}
       >

@@ -102,7 +102,9 @@ function BookingRow({
           <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
           {b.markedTest && <TestBadge />}
           {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
-          {b.status === 'pending' && b.respondBy && <AcceptByBadge respondBy={b.respondBy} />}
+          {b.status === 'pending' && b.respondBy && (
+            <AcceptByBadge respondBy={b.respondBy} />
+          )}
           {b.notAcceptedInTime && <NotAcceptedBadge />}
           {b.noShow && <NoShowBadge party={b.noShow} />}
           {b.billDue && <BillDueBadge amount={b.billDue} />}
@@ -294,7 +296,9 @@ function BookingsList() {
     if (isAuthError(error)) router.replace('/login')
   }, [error, router])
 
-  const isFiltered = Boolean(q || status !== 'all' || vendorId || from || to || testOnly)
+  const isFiltered = Boolean(
+    q || status !== 'all' || vendorId || from || to || testOnly
+  )
   // Start pilot clean is reachable from here on a phone, where the bottom
   // bar has no room for it; only while it is switched on.
   const { data: resetConfig } = useDataResetConfig()
@@ -414,7 +418,9 @@ function BookingsList() {
               <option value="">All garages</option>
               {garages.map((garage) => (
                 <option key={garage.id} value={garage.id}>
-                  {isInBin(garage) ? `${garage.businessName} (in the Bin)` : garage.businessName}
+                  {isInBin(garage)
+                    ? `${garage.businessName} (in the Bin)`
+                    : garage.businessName}
                 </option>
               ))}
             </ScSelect>

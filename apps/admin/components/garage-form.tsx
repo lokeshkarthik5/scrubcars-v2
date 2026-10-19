@@ -6,14 +6,21 @@ import { useQuery } from '@tanstack/react-query'
 import { IconAlertTriangle, IconUserCheck } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
-import { LocationPicker, type PickedLocation } from '@repo/ui/features/location-picker'
+import {
+  LocationPicker,
+  type PickedLocation,
+} from '@repo/ui/features/location-picker'
 import { Chip } from '@repo/ui/sc/chip'
 import { ScField, ScTextarea } from '@repo/ui/sc/input'
 import { Notice } from '@repo/ui/sc/notice'
 import { ScSection } from '@repo/ui/sc/section'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
 import { ApiError } from '@repo/core/api/client'
-import { createAdminVendor, getOwnerAccount, type ImportFieldNote } from '@repo/core/api/admin'
+import {
+  createAdminVendor,
+  getOwnerAccount,
+  type ImportFieldNote,
+} from '@repo/core/api/admin'
 import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import { parsePickupRadius } from '@repo/core/pickup'
@@ -36,7 +43,11 @@ import {
   type GarageFormInitial,
   type GarageTextField,
 } from '@/lib/garage-form'
-import { visibleMark, type ImportMark, type ServiceRowNote } from '@/lib/garage-import'
+import {
+  visibleMark,
+  type ImportMark,
+  type ServiceRowNote,
+} from '@/lib/garage-import'
 import { toServicePayload, type ServiceRow } from '@/lib/service-editor'
 import { rowsToSave, servicesSaveBlock } from '@/lib/service-rows'
 
@@ -99,14 +110,26 @@ export function GarageForm({
   const [pin, setPin] = useState<PickedLocation | null>(null)
   // How customers book: the same card as the edit page, held here and sent
   // with Create rather than saved on tap — there is no garage to save to yet.
-  const [bookingMode, setBookingMode] = useState<BookingMode>(initial?.bookingMode ?? 'garage')
-  const [doorstepRadius, setDoorstepRadius] = useState(initial?.doorstepRadius ?? '')
+  const [bookingMode, setBookingMode] = useState<BookingMode>(
+    initial?.bookingMode ?? 'garage'
+  )
+  const [doorstepRadius, setDoorstepRadius] = useState(
+    initial?.doorstepRadius ?? ''
+  )
   const [slotIntervalMins, setSlotIntervalMins] = useState<30 | 45 | 60>(30)
-  const [workingDays, setWorkingDays] = useState<number[]>(initial?.workingDays ?? DEFAULT_WORKING_DAYS)
-  const [vehicleTypes, setVehicleTypes] = useState<string[]>(initial?.vehicleTypes ?? [])
-  const [status, setStatus] = useState<'pending' | 'active' | 'suspended'>('pending')
+  const [workingDays, setWorkingDays] = useState<number[]>(
+    initial?.workingDays ?? DEFAULT_WORKING_DAYS
+  )
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>(
+    initial?.vehicleTypes ?? []
+  )
+  const [status, setStatus] = useState<'pending' | 'active' | 'suspended'>(
+    'pending'
+  )
   const [isVerified, setIsVerified] = useState(false)
-  const [services, setServices] = useState<ServiceRow[]>(initial?.services ?? [])
+  const [services, setServices] = useState<ServiceRow[]>(
+    initial?.services ?? []
+  )
   const [openRows, setOpenRows] = useState<ReadonlySet<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -114,7 +137,8 @@ export function GarageForm({
   // the garage would be created without the text the admin is watching land.
   const [describing, setDescribing] = useState(false)
 
-  const set = (key: GarageTextField) => (v: string) => setForm((prev) => ({ ...prev, [key]: v }))
+  const set = (key: GarageTextField) => (v: string) =>
+    setForm((prev) => ({ ...prev, [key]: v }))
 
   // Every row typed into is sent, as on the edit screen: a service left out
   // here for a missing price would simply not exist, with nothing said. A row
@@ -142,7 +166,12 @@ export function GarageForm({
   const num = (v: string) => (v.trim() === '' ? undefined : Number(v))
 
   const canCreate =
-    !fieldsProblem && !servicesBlock && !radiusBlock && !pickupBlock && !describing && !loading
+    !fieldsProblem &&
+    !servicesBlock &&
+    !radiusBlock &&
+    !pickupBlock &&
+    !describing &&
+    !loading
 
   const handleSubmit = async () => {
     if (!canCreate) return
@@ -161,13 +190,15 @@ export function GarageForm({
         whatsapp: form.whatsapp.trim() || undefined,
         yearsInOperation: form.yearsInOperation.trim() || undefined,
         mapsUrl: form.mapsUrl.trim() || undefined,
-        ...(pickupOn && pickupRadiusParsed.ok && {
-          pickupEnabled: true,
-          pickupAgreementSigned: pickupAgreed,
-          pickupRadiusKm: pickupRadiusParsed.km ?? undefined,
-        }),
+        ...(pickupOn &&
+          pickupRadiusParsed.ok && {
+            pickupEnabled: true,
+            pickupAgreementSigned: pickupAgreed,
+            pickupRadiusKm: pickupRadiusParsed.km ?? undefined,
+          }),
         // Empty means the default distance, so nothing is sent for it.
-        doorstepRadiusKm: travels && radius.ok ? (radius.km ?? undefined) : undefined,
+        doorstepRadiusKm:
+          travels && radius.ok ? (radius.km ?? undefined) : undefined,
         lat: pin?.lat,
         lng: pin?.lng,
         ...bookingModeFlags(bookingMode),
@@ -181,29 +212,44 @@ export function GarageForm({
         status: pendingOnly ? 'pending' : status,
         isVerified: pendingOnly ? false : isVerified,
         notes: form.notes.trim() || undefined,
-        services: servicesToSave.length ? servicesToSave.map(toServicePayload) : undefined,
+        services: servicesToSave.length
+          ? servicesToSave.map(toServicePayload)
+          : undefined,
       })
       markListStale()
       router.replace(afterCreate)
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      if (
+        err instanceof ApiError &&
+        (err.status === 401 || err.status === 403)
+      ) {
         router.replace('/login')
         return
       }
-      setError(err instanceof ApiError ? err.message : 'Couldn’t create the garage. Try again.')
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'Couldn’t create the garage. Try again.'
+      )
     } finally {
       setLoading(false)
     }
   }
 
   /** The import's note on a field, while it has one to show. */
-  const markOf = (key: string): ImportMark | null => visibleMark(key, marks[key], form)
+  const markOf = (key: string): ImportMark | null =>
+    visibleMark(key, marks[key], form)
 
   /** A text field with the import's note under it, when it has one. */
   const field = (
     key: GarageTextField,
     label: string,
-    props: { placeholder?: string; type?: string; className?: string; inputMode?: 'numeric' | 'tel' | 'email' } = {},
+    props: {
+      placeholder?: string
+      type?: string
+      className?: string
+      inputMode?: 'numeric' | 'tel' | 'email'
+    } = {},
     after?: ReactNode
   ) => (
     <MarkedField
@@ -217,18 +263,31 @@ export function GarageForm({
     </MarkedField>
   )
 
-  const hoursMark = marks.workingHours?.confidence === 'check'
-    ? ({ kind: 'check', reason: marks.workingHours.reason } as const)
-    : marks.workingHours?.confidence === 'missing'
-      ? ({ kind: 'missing', reason: 'No hours given, so Mon–Sat 09:00–18:00 is set. Change it to the garage’s hours.' } as const)
-      : null
-  const bookingMark = marks.bookingTypes?.confidence === 'check'
-    ? ({ kind: 'check', reason: marks.bookingTypes.reason } as const)
-    : marks.bookingTypes?.confidence === 'missing'
-      ? ({ kind: 'missing', reason: 'Not said, so At the garage is set. Change it if the garage goes to customers.' } as const)
-      : null
+  const hoursMark =
+    marks.workingHours?.confidence === 'check'
+      ? ({ kind: 'check', reason: marks.workingHours.reason } as const)
+      : marks.workingHours?.confidence === 'missing'
+        ? ({
+            kind: 'missing',
+            reason:
+              'No hours given, so Mon–Sat 09:00–18:00 is set. Change it to the garage’s hours.',
+          } as const)
+        : null
+  const bookingMark =
+    marks.bookingTypes?.confidence === 'check'
+      ? ({ kind: 'check', reason: marks.bookingTypes.reason } as const)
+      : marks.bookingTypes?.confidence === 'missing'
+        ? ({
+            kind: 'missing',
+            reason:
+              'Not said, so At the garage is set. Change it if the garage goes to customers.',
+          } as const)
+        : null
   const markLine = (key: string) => {
-    const mark = marks[key]?.confidence === 'check' ? ({ kind: 'check', reason: marks[key].reason } as const) : null
+    const mark =
+      marks[key]?.confidence === 'check'
+        ? ({ kind: 'check', reason: marks[key].reason } as const)
+        : null
     return mark && <ImportNote mark={mark} />
   }
 
@@ -245,7 +304,10 @@ export function GarageForm({
       />
       {bookingMark && <ImportNote mark={bookingMark} />}
       {markLine('doorstepRadiusKm')}
-      <section aria-label="Pickup & drop" className="rounded-[16px] border border-border bg-surface p-4">
+      <section
+        aria-label="Pickup & drop"
+        className="rounded-[16px] border border-border bg-surface p-4"
+      >
         <PickupFields
           on={pickupOn}
           onSwitch={(next) => {
@@ -253,8 +315,14 @@ export function GarageForm({
             if (!next) setPickupAgreed(false)
           }}
           radius={form.pickupRadiusKm}
-          onRadiusChange={(value) => setForm((f) => ({ ...f, pickupRadiusKm: value }))}
-          radiusError={pickupOn && !pickupRadiusParsed.ok ? pickupRadiusParsed.message : null}
+          onRadiusChange={(value) =>
+            setForm((f) => ({ ...f, pickupRadiusKm: value }))
+          }
+          radiusError={
+            pickupOn && !pickupRadiusParsed.ok
+              ? pickupRadiusParsed.message
+              : null
+          }
           askAgreement={pickupOn}
           agreed={pickupAgreed}
           onAgreedChange={setPickupAgreed}
@@ -274,17 +342,34 @@ export function GarageForm({
         {field(
           'ownerPhone',
           'Owner phone',
-          { placeholder: '10 digits', inputMode: 'numeric', className: 'font-numeric' },
+          {
+            placeholder: '10 digits',
+            inputMode: 'numeric',
+            className: 'font-numeric',
+          },
           <OwnerAccountLine phone={form.ownerPhone.trim()} />
         )}
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {field('phone', 'Business phone', { placeholder: '10 digits', inputMode: 'numeric', className: 'font-numeric' })}
-        {field('whatsapp', 'WhatsApp (optional)', { placeholder: '10 digits', inputMode: 'numeric', className: 'font-numeric' })}
+        {field('phone', 'Business phone', {
+          placeholder: '10 digits',
+          inputMode: 'numeric',
+          className: 'font-numeric',
+        })}
+        {field('whatsapp', 'WhatsApp (optional)', {
+          placeholder: '10 digits',
+          inputMode: 'numeric',
+          className: 'font-numeric',
+        })}
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {field('email', 'Email (optional)', { type: 'email', inputMode: 'email' })}
-        {field('yearsInOperation', 'Years in operation (optional)', { placeholder: 'e.g. 5–10 years' })}
+        {field('email', 'Email (optional)', {
+          type: 'email',
+          inputMode: 'email',
+        })}
+        {field('yearsInOperation', 'Years in operation (optional)', {
+          placeholder: 'e.g. 5–10 years',
+        })}
       </div>
     </ScSection>
   )
@@ -301,16 +386,28 @@ export function GarageForm({
   ) : (
     <ScSection title="Onboarding status">
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium text-text-secondary">Stage</label>
+        <label className="text-[11px] font-medium text-text-secondary">
+          Stage
+        </label>
         <div className="flex flex-wrap gap-2">
           {STATUS_OPTIONS.map((o) => (
-            <Chip key={o.value} label={o.label} selected={status === o.value} onClick={() => setStatus(o.value)} />
+            <Chip
+              key={o.value}
+              label={o.label}
+              selected={status === o.value}
+              onClick={() => setStatus(o.value)}
+            />
           ))}
         </div>
       </div>
-      <ScCheckbox label="Mark as verified" checked={isVerified} onChange={setIsVerified} />
+      <ScCheckbox
+        label="Mark as verified"
+        checked={isVerified}
+        onChange={setIsVerified}
+      />
       <p className="text-[11px] text-text-muted">
-        A vendor is visible to customers only when stage is <b>Active</b> and it is <b>verified</b>.
+        A vendor is visible to customers only when stage is <b>Active</b> and it
+        is <b>verified</b>.
       </p>
       <ScTextarea
         label="Notes (optional)"
@@ -326,13 +423,27 @@ export function GarageForm({
       {field('address', 'Address')}
       <div className="grid grid-cols-2 gap-3">
         {field('city', 'City')}
-        {field('pincode', 'Pincode', { placeholder: '6 digits', inputMode: 'numeric', className: 'font-numeric' })}
+        {field('pincode', 'Pincode', {
+          placeholder: '6 digits',
+          inputMode: 'numeric',
+          className: 'font-numeric',
+        })}
       </div>
-      {field('mapsUrl', 'Google Maps link (optional)', { placeholder: 'https://maps.app.goo.gl/…' })}
+      {field('mapsUrl', 'Google Maps link (optional)', {
+        placeholder: 'https://maps.app.goo.gl/…',
+      })}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium text-text-secondary">Garage location</span>
-        <p className="text-[11px] text-text-muted">Optional now, required before this garage can be verified.</p>
-        <LocationPicker value={pin ? { lat: pin.lat, lng: pin.lng } : null} onChange={setPin} expectedCity={form.city} />
+        <span className="text-[11px] font-medium text-text-secondary">
+          Garage location
+        </span>
+        <p className="text-[11px] text-text-muted">
+          Optional now, required before this garage can be verified.
+        </p>
+        <LocationPicker
+          value={pin ? { lat: pin.lat, lng: pin.lng } : null}
+          onChange={setPin}
+          expectedCity={form.city}
+        />
       </div>
     </ScSection>
   )
@@ -340,7 +451,9 @@ export function GarageForm({
   const operationsSection = (
     <ScSection title="Operations">
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium text-text-secondary">Working days</label>
+        <label className="text-[11px] font-medium text-text-secondary">
+          Working days
+        </label>
         <div className="flex flex-wrap gap-2">
           {DAYS.map((label, day) => (
             <Chip
@@ -353,22 +466,53 @@ export function GarageForm({
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <ScField label="Opening time" value={form.openTime} onChange={set('openTime')} type="time" className={cn('font-numeric', hoursMark && MARKED_FIELD)} />
-        <ScField label="Closing time" value={form.closeTime} onChange={set('closeTime')} type="time" className={cn('font-numeric', hoursMark && MARKED_FIELD)} />
+        <ScField
+          label="Opening time"
+          value={form.openTime}
+          onChange={set('openTime')}
+          type="time"
+          className={cn('font-numeric', hoursMark && MARKED_FIELD)}
+        />
+        <ScField
+          label="Closing time"
+          value={form.closeTime}
+          onChange={set('closeTime')}
+          type="time"
+          className={cn('font-numeric', hoursMark && MARKED_FIELD)}
+        />
       </div>
       {hoursMark && <ImportNote mark={hoursMark} />}
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium text-text-secondary">Slot interval</label>
+        <label className="text-[11px] font-medium text-text-secondary">
+          Slot interval
+        </label>
         <div className="flex gap-2">
           {SLOT_INTERVALS.map((mins) => (
-            <Chip key={mins} label={`${mins} min`} selected={slotIntervalMins === mins} onClick={() => setSlotIntervalMins(mins)} />
+            <Chip
+              key={mins}
+              label={`${mins} min`}
+              selected={slotIntervalMins === mins}
+              onClick={() => setSlotIntervalMins(mins)}
+            />
           ))}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <ScField label="Bays (optional)" value={form.bays} onChange={set('bays')} type="number" placeholder="e.g. 10" />
-        <ScField label="Jobs per day (optional)" value={form.jobsPerDay} onChange={set('jobsPerDay')} type="number" placeholder="e.g. 15" />
+        <ScField
+          label="Bays (optional)"
+          value={form.bays}
+          onChange={set('bays')}
+          type="number"
+          placeholder="e.g. 10"
+        />
+        <ScField
+          label="Jobs per day (optional)"
+          value={form.jobsPerDay}
+          onChange={set('jobsPerDay')}
+          type="number"
+          placeholder="e.g. 15"
+        />
       </div>
     </ScSection>
   )
@@ -377,7 +521,12 @@ export function GarageForm({
     <ScSection title="Vehicle types">
       <div className="flex flex-wrap gap-2">
         {VENDOR_VEHICLE_TYPE_OPTIONS.map((v) => (
-          <Chip key={v} label={v} selected={vehicleTypes.includes(v)} onClick={() => setVehicleTypes((list) => toggle(list, v))} />
+          <Chip
+            key={v}
+            label={v}
+            selected={vehicleTypes.includes(v)}
+            onClick={() => setVehicleTypes((list) => toggle(list, v))}
+          />
         ))}
       </div>
       {markLine('vehicleTypes')}
@@ -400,8 +549,9 @@ export function GarageForm({
         footnote={
           servicesHelp ?? (
             <>
-              Each service needs a name and a price. Leave the duration on “Duration” to use one booking slot.
-              Photos can be added once the garage is created.
+              Each service needs a name and a price. Leave the duration on
+              “Duration” to use one booking slot. Photos can be added once the
+              garage is created.
             </>
           )
         }
@@ -468,8 +618,12 @@ export function GarageForm({
       )}
 
       {pendingOnly && (
-        <Notice tone="neutral" title="Saved as Pending — nothing goes live until you verify">
-          Customers can’t see or book it yet. Verify it from Vendors once it’s right.
+        <Notice
+          tone="neutral"
+          title="Saved as Pending — nothing goes live until you verify"
+        >
+          Customers can’t see or book it yet. Verify it from Vendors once it’s
+          right.
         </Notice>
       )}
 
@@ -481,13 +635,25 @@ export function GarageForm({
       )}
 
       {blockLine && (
-        <p id="create-block" className="flex items-center justify-center gap-1.5 text-center text-[13px] text-text-secondary">
-          <IconAlertTriangle size={15} stroke={1.8} aria-hidden="true" className="shrink-0 text-warning" />
+        <p
+          id="create-block"
+          className="flex items-center justify-center gap-1.5 text-center text-[13px] text-text-secondary"
+        >
+          <IconAlertTriangle
+            size={15}
+            stroke={1.8}
+            aria-hidden="true"
+            className="shrink-0 text-warning"
+          />
           {blockLine}
         </p>
       )}
 
-      <ScButton disabled={!canCreate} aria-describedby={blockLine ? 'create-block' : undefined} onClick={handleSubmit}>
+      <ScButton
+        disabled={!canCreate}
+        aria-describedby={blockLine ? 'create-block' : undefined}
+        onClick={handleSubmit}
+      >
         {loading ? 'Creating…' : 'Create garage'}
       </ScButton>
     </div>
@@ -554,7 +720,9 @@ function OwnerAccountLine({ phone }: { phone: string }) {
   let line: ReactNode = null
   if (account === null) {
     line = (
-      <span className="text-text-muted">No Detlio account has this number yet. Create sets one up for the owner.</span>
+      <span className="text-text-muted">
+        No Detlio account has this number yet. Create sets one up for the owner.
+      </span>
     )
   } else if (account) {
     const what = [
@@ -569,9 +737,15 @@ function OwnerAccountLine({ phone }: { phone: string }) {
       .join(' · ')
     line = (
       <span className="flex items-start gap-1.5 text-text-secondary">
-        <IconUserCheck size={14} stroke={1.8} aria-hidden="true" className="mt-[1.5px] shrink-0 text-warning" />
+        <IconUserCheck
+          size={14}
+          stroke={1.8}
+          aria-hidden="true"
+          className="mt-[1.5px] shrink-0 text-warning"
+        />
         <span>
-          Already a Detlio account: <span className="font-medium text-text-primary">{account.name}</span>
+          Already a Detlio account:{' '}
+          <span className="font-medium text-text-primary">{account.name}</span>
           {what && <> ({what})</>}. Create adds this garage to that account.
         </span>
       </span>

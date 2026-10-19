@@ -18,7 +18,11 @@ function GatewayId({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex min-w-0 items-center">
       <span className="truncate font-numeric text-text-primary">{value}</span>
-      <CopyButton value={value} label={`Copy ${label} ${value}`} className="-my-2 shrink-0" />
+      <CopyButton
+        value={value}
+        label={`Copy ${label} ${value}`}
+        className="-my-2 shrink-0"
+      />
     </div>
   )
 }
@@ -67,7 +71,9 @@ export function RefundCard({
                 #{r.reference}
               </Link>
             ) : (
-              <span className="font-numeric text-text-primary">#{r.reference}</span>
+              <span className="font-numeric text-text-primary">
+                #{r.reference}
+              </span>
             )}
           </p>
           <p className="text-[13px] text-text-primary">{r.reason}</p>
@@ -77,7 +83,9 @@ export function RefundCard({
             {formatRupees(owed ? r.amountOwed : r.amountRefunded)}
           </p>
           {owed ? (
-            <ScBadge variant={age.late ? 'danger' : 'pending'}>{age.label}</ScBadge>
+            <ScBadge variant={age.late ? 'danger' : 'pending'}>
+              {age.label}
+            </ScBadge>
           ) : (
             <ScBadge variant="muted">Refunded</ScBadge>
           )}
@@ -86,8 +94,11 @@ export function RefundCard({
 
       {owed && refunded && (
         <p className="text-[12px] text-text-secondary">
-          <span className="font-numeric text-text-primary">{formatRupees(r.amountRefunded)}</span> of{' '}
-          <span className="font-numeric">{formatRupees(r.amountPaid)}</span> refunded so far.
+          <span className="font-numeric text-text-primary">
+            {formatRupees(r.amountRefunded)}
+          </span>{' '}
+          of <span className="font-numeric">{formatRupees(r.amountPaid)}</span>{' '}
+          refunded so far.
         </p>
       )}
 
@@ -101,13 +112,18 @@ export function RefundCard({
         </Meta>
         <Meta label="Razorpay payment">
           {r.razorpayPaymentId ? (
-            <GatewayId value={r.razorpayPaymentId} label="Razorpay payment id" />
+            <GatewayId
+              value={r.razorpayPaymentId}
+              label="Razorpay payment id"
+            />
           ) : (
             <p>Not recorded</p>
           )}
         </Meta>
         <Meta label="Paid">
-          <p className="font-numeric text-text-primary">{formatRupees(r.amountPaid)}</p>
+          <p className="font-numeric text-text-primary">
+            {formatRupees(r.amountPaid)}
+          </p>
         </Meta>
       </div>
 
@@ -121,7 +137,9 @@ export function RefundCard({
             )}
           </Meta>
           <Meta label="Recorded">
-            {r.refundedAt && <p className="font-numeric">{formatWhen(r.refundedAt)}</p>}
+            {r.refundedAt && (
+              <p className="font-numeric">{formatWhen(r.refundedAt)}</p>
+            )}
             {r.refundedBy && <p>by {r.refundedBy}</p>}
           </Meta>
           {r.refundNote && (

@@ -24,10 +24,14 @@ export function Meta({
 }) {
   return (
     <div className={cn('min-w-0', className)}>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</p>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        {label}
+      </p>
       <div
         className={cn(
-          size === 'md' ? 'text-[13px] text-text-primary' : 'text-[12px] text-text-secondary',
+          size === 'md'
+            ? 'text-[13px] text-text-primary'
+            : 'text-[12px] text-text-secondary',
           truncate && 'truncate'
         )}
       >

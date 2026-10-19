@@ -1,4 +1,8 @@
-import type { AdminBooking, AdminBookingPickup, CancelledOnBehalfOf } from '@repo/core/api/admin'
+import type {
+  AdminBooking,
+  AdminBookingPickup,
+  CancelledOnBehalfOf,
+} from '@repo/core/api/admin'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { csvCell, downloadCsv } from '@repo/core/csv'
 import type { BookingType } from '@repo/core/types'
@@ -152,7 +156,8 @@ export function cancellationLabel(
   if (booking.noShow === 'garage') return 'Garage no-show'
   // The cron cancelled it for the garage (0042): its side, like a decline,
   // but nobody at the garage pressed anything.
-  if (booking.cancelledBy === 'vendor' && booking.notAcceptedInTime) return 'Not accepted in time'
+  if (booking.cancelledBy === 'vendor' && booking.notAcceptedInTime)
+    return 'Not accepted in time'
   switch (booking.cancelledBy) {
     case 'admin':
       // "At … request", the same words the customer and garage apps use,

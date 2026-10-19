@@ -1,7 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { IconBell, IconCalendar, IconChevronRight, IconInfoCircle, IconUsers } from '@tabler/icons-react'
+import {
+  IconBell,
+  IconCalendar,
+  IconChevronRight,
+  IconInfoCircle,
+  IconUsers,
+} from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
@@ -78,13 +84,29 @@ function toFormState(notice: AdminNotice): FormState {
 }
 
 /** A field label with a character counter on its right. */
-function CountedLabel({ htmlFor, label, length, max }: { htmlFor: string; label: string; length: number; max: number }) {
+function CountedLabel({
+  htmlFor,
+  label,
+  length,
+  max,
+}: {
+  htmlFor: string
+  label: string
+  length: number
+  max: number
+}) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <label htmlFor={htmlFor} className="text-[11px] font-medium text-text-secondary">
+      <label
+        htmlFor={htmlFor}
+        className="text-[11px] font-medium text-text-secondary"
+      >
         {label}
       </label>
-      <span aria-hidden="true" className="font-numeric text-[11px] text-text-muted">
+      <span
+        aria-hidden="true"
+        className="font-numeric text-[11px] text-text-muted"
+      >
         {length} / {max}
       </span>
     </div>
@@ -100,8 +122,16 @@ interface NoticeFormProps {
   onCancel: () => void
 }
 
-export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: NoticeFormProps) {
-  const [form, setForm] = useState<FormState>(notice ? toFormState(notice) : EMPTY)
+export function NoticeForm({
+  notice,
+  onSubmit,
+  isPending,
+  error,
+  onCancel,
+}: NoticeFormProps) {
+  const [form, setForm] = useState<FormState>(
+    notice ? toFormState(notice) : EMPTY
+  )
   const { data: vendors = [] } = useDiscountVendorOptions()
   const nowMs = useNow()
 
@@ -154,8 +184,11 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
     !windowProblem &&
     !endProblem
 
-  const vendorName = vendors.find((v) => v.id === form.vendorId)?.businessName ??
-    (form.vendorId && form.vendorId === notice?.vendorId ? notice.vendorName : null)
+  const vendorName =
+    vendors.find((v) => v.id === form.vendorId)?.businessName ??
+    (form.vendorId && form.vendorId === notice?.vendorId
+      ? notice.vendorName
+      : null)
 
   // "Reaches 14 customers", once the audience can be counted.
   const countParams: NoticeAudienceParams | null = !isWindow
@@ -203,9 +236,16 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
     <div className="grid gap-4 pb-8 lg:grid-cols-[minmax(0,1fr)_424px] lg:items-start lg:gap-6">
       <div className="flex min-w-0 flex-col gap-4">
         <ScCard className="flex flex-col gap-3">
-          <h2 className="text-[15px] font-semibold text-text-primary">Message</h2>
+          <h2 className="text-[15px] font-semibold text-text-primary">
+            Message
+          </h2>
           <div className="flex flex-col gap-1.5">
-            <CountedLabel htmlFor="notice-title" label="Title" length={form.title.length} max={TITLE_MAX} />
+            <CountedLabel
+              htmlFor="notice-title"
+              label="Title"
+              length={form.title.length}
+              max={TITLE_MAX}
+            />
             <ScInput
               id="notice-title"
               placeholder="Slot may move: rain"
@@ -215,12 +255,18 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
             />
             {titleBanned && (
               <p className="text-[11px] text-warning">
-                Notices can&apos;t say &ldquo;{titleBanned}&rdquo;. Say plainly what is happening.
+                Notices can&apos;t say &ldquo;{titleBanned}&rdquo;. Say plainly
+                what is happening.
               </p>
             )}
           </div>
           <div className="flex flex-col gap-1.5">
-            <CountedLabel htmlFor="notice-body" label="Message" length={form.body.length} max={BODY_MAX} />
+            <CountedLabel
+              htmlFor="notice-body"
+              label="Message"
+              length={form.body.length}
+              max={BODY_MAX}
+            />
             <ScTextarea
               id="notice-body"
               rows={3}
@@ -231,7 +277,8 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
             />
             {bodyBanned && (
               <p className="text-[11px] text-warning">
-                Notices can&apos;t say &ldquo;{bodyBanned}&rdquo;. Say plainly what is happening.
+                Notices can&apos;t say &ldquo;{bodyBanned}&rdquo;. Say plainly
+                what is happening.
               </p>
             )}
           </div>
@@ -267,7 +314,9 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
 
         <ScCard className="flex flex-col gap-3">
           <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-[15px] font-semibold text-text-primary">Who sees it</legend>
+            <legend className="mb-2 text-[15px] font-semibold text-text-primary">
+              Who sees it
+            </legend>
             {(
               [
                 {
@@ -286,7 +335,9 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
                 key={option.value}
                 className={cn(
                   'flex min-h-11 cursor-pointer items-start gap-3 rounded-[12px] border px-3 py-2.5',
-                  form.audience === option.value ? 'border-text-secondary bg-surface-elevated/50' : 'border-border'
+                  form.audience === option.value
+                    ? 'border-text-secondary bg-surface-elevated/50'
+                    : 'border-border'
                 )}
               >
                 <input
@@ -298,8 +349,12 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
                   className="mt-0.5 size-4 shrink-0 accent-brand-white"
                 />
                 <span className="min-w-0">
-                  <span className="block text-[13px] text-text-primary">{option.label}</span>
-                  <span className="block text-[11px] text-text-secondary">{option.hint}</span>
+                  <span className="block text-[13px] text-text-primary">
+                    {option.label}
+                  </span>
+                  <span className="block text-[11px] text-text-secondary">
+                    {option.hint}
+                  </span>
                 </span>
               </label>
             ))}
@@ -365,7 +420,9 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
             Times are India time (IST). There is no delete: End now on the list
             stops a notice and keeps the record.
           </p>
-          {endProblem && form.endsAt && <p className="text-[11px] text-warning">{endProblem}</p>}
+          {endProblem && form.endsAt && (
+            <p className="text-[11px] text-warning">{endProblem}</p>
+          )}
           <ScCheckbox
             label="Active"
             checked={form.isActive}
@@ -380,8 +437,12 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
       >
         <ScCard className="flex flex-col gap-3 px-4 py-4">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-[15px] font-semibold text-text-primary">Preview</h2>
-            <span className="text-[11px] text-text-muted">Live as you type</span>
+            <h2 className="text-[15px] font-semibold text-text-primary">
+              Preview
+            </h2>
+            <span className="text-[11px] text-text-muted">
+              Live as you type
+            </span>
           </div>
           <NoticePreview
             title={title}
@@ -405,7 +466,10 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
                 'Reaches: pick the window'
               ) : countData ? (
                 <>
-                  Reaches <span className="font-numeric">{countData.count.toLocaleString('en-IN')}</span>{' '}
+                  Reaches{' '}
+                  <span className="font-numeric">
+                    {countData.count.toLocaleString('en-IN')}
+                  </span>{' '}
                   {countData.count === 1 ? 'customer' : 'customers'}
                 </>
               ) : countError ? (
@@ -416,7 +480,10 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
             </p>
             <p className="text-[12px] text-text-secondary">
               {countError
-                ? errorMessage(countError, "Couldn't count the customers just now.")
+                ? errorMessage(
+                    countError,
+                    "Couldn't count the customers just now."
+                  )
                 : isWindow
                   ? 'Customers with a booking in that window now. Anyone who books into it later sees it too.'
                   : 'Every signed-up customer, counted now.'}
@@ -440,7 +507,13 @@ export function NoticeForm({ notice, onSubmit, isPending, error, onCancel }: Not
           <ScButton disabled={!isValid || isPending} onClick={handleSubmit}>
             {isPending ? 'Saving…' : notice ? 'Save changes' : 'Create notice'}
           </ScButton>
-          <ScButton variant="secondary" fullWidth={false} disabled={isPending} onClick={onCancel} className="px-4">
+          <ScButton
+            variant="secondary"
+            fullWidth={false}
+            disabled={isPending}
+            onClick={onCancel}
+            className="px-4"
+          >
             Cancel
           </ScButton>
         </div>
@@ -483,7 +556,9 @@ function NoticePreview({
     <div className="mx-auto flex w-full max-w-[390px] flex-col gap-4 rounded-[22px] border border-border bg-brand-black px-4 py-4">
       {isWindow && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] text-text-muted">On their Next booking tile</p>
+          <p className="text-[11px] text-text-muted">
+            On their Next booking tile
+          </p>
           <div className="flex flex-col gap-2 rounded-[18px] border border-border bg-surface px-3.5 py-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[13px] text-text-secondary">Next booking</p>
@@ -495,11 +570,17 @@ function NoticePreview({
               </span>
             </div>
             <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-text-primary">
-              <IconInfoCircle size={14} stroke={1.5} aria-hidden="true" className="shrink-0 text-text-muted" />
+              <IconInfoCircle
+                size={14}
+                stroke={1.5}
+                aria-hidden="true"
+                className="shrink-0 text-text-muted"
+              />
               <span className="truncate">{shownTitle}</span>
             </p>
             <p className="text-[12px] text-text-muted">
-              Their booking&apos;s day and time{vendorName ? ` · ${vendorName}` : ''}
+              Their booking&apos;s day and time
+              {vendorName ? ` · ${vendorName}` : ''}
             </p>
           </div>
         </div>
@@ -516,7 +597,9 @@ function NoticePreview({
             <IconBell size={18} stroke={1.5} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-medium text-text-primary">{shownTitle}</p>
+            <p className="text-[13px] font-medium text-text-primary">
+              {shownTitle}
+            </p>
             <p className="line-clamp-2 text-[12px] text-text-secondary">
               {body || 'The message shows here, on two lines at most.'}
             </p>

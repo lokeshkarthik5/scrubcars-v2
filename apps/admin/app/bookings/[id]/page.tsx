@@ -54,7 +54,11 @@ import {
   formatWhen,
   paymentStatusLabel,
 } from '@/lib/bookings'
-import { CancelBookingDialog, NoShowDialog, PickupStepDialog } from './booking-actions'
+import {
+  CancelBookingDialog,
+  NoShowDialog,
+  PickupStepDialog,
+} from './booking-actions'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { MAX_CODE_ATTEMPTS } from '@repo/core/pickup'
 import type { BookingType } from '@repo/core/types'
@@ -154,7 +158,8 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
         : 'with the customer’s code',
     })
   }
-  if (pickup?.atGarageAt) steps.push({ label: 'At the garage', at: pickup.atGarageAt })
+  if (pickup?.atGarageAt)
+    steps.push({ label: 'At the garage', at: pickup.atGarageAt })
   if (b.startedAt || b.status === 'in_progress' || b.status === 'completed') {
     steps.push({ label: 'Started', at: b.startedAt })
   }
@@ -208,7 +213,9 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
       label: (
         <>
           Refunded{' '}
-          <span className="font-numeric">{formatRupees(refund.amountRefunded)}</span>
+          <span className="font-numeric">
+            {formatRupees(refund.amountRefunded)}
+          </span>
           {refund.kind === 'bill' ? ' of a final bill payment' : ''}
         </>
       ),
@@ -275,8 +282,13 @@ function TestBookingSection({
       { id: b.id, marked: next },
       {
         onSuccess: () =>
-          toast.success(next ? `#${b.reference} marked as a test booking` : 'Test mark removed'),
-        onError: (err) => toast.error(errorMessage(err, "Couldn't change the test mark")),
+          toast.success(
+            next
+              ? `#${b.reference} marked as a test booking`
+              : 'Test mark removed'
+          ),
+        onError: (err) =>
+          toast.error(errorMessage(err, "Couldn't change the test mark")),
       }
     )
 
@@ -348,7 +360,10 @@ function BookingDetail({
   const pickupOverride: 'picked_up' | 'delivered' | null =
     b.pickup && b.status === 'confirmed' && !b.pickup.pickedUpAt
       ? 'picked_up'
-      : b.pickup && b.status === 'in_progress' && b.pickup.outForDeliveryAt && !b.pickup.deliveredAt
+      : b.pickup &&
+          b.status === 'in_progress' &&
+          b.pickup.outForDeliveryAt &&
+          !b.pickup.deliveredAt
         ? 'delivered'
         : null
   const directions =
@@ -382,13 +397,18 @@ function BookingDetail({
             <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
               {b.markedTest && <TestBadge />}
               {/* Detlio Guarantee (0051): a free redo, or refunded instead of one. */}
-              {b.guaranteeRedo && <ScBadge variant="accent">Free redo · ₹0</ScBadge>}
-              {b.guaranteeRefundAt && <ScBadge variant="accent">Refund instead of a redo</ScBadge>}
-              {(b.payment?.gatewayMode === 'test' || b.payment?.gatewayMode === 'fake') && (
-                <TestModePaymentBadge />
+              {b.guaranteeRedo && (
+                <ScBadge variant="accent">Free redo · ₹0</ScBadge>
               )}
+              {b.guaranteeRefundAt && (
+                <ScBadge variant="accent">Refund instead of a redo</ScBadge>
+              )}
+              {(b.payment?.gatewayMode === 'test' ||
+                b.payment?.gatewayMode === 'fake') && <TestModePaymentBadge />}
               {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
-              {b.status === 'pending' && b.respondBy && <AcceptByBadge respondBy={b.respondBy} />}
+              {b.status === 'pending' && b.respondBy && (
+                <AcceptByBadge respondBy={b.respondBy} />
+              )}
               {b.notAcceptedInTime && <NotAcceptedBadge />}
               {b.noShow && <NoShowBadge party={b.noShow} />}
               {b.billDue && <BillDueBadge amount={b.billDue} />}
@@ -402,7 +422,8 @@ function BookingDetail({
               {formatWhen(b.scheduledAt)}
             </p>
             <p className="text-[13px] text-text-secondary">
-              {BOOKING_TYPE_LABELS[b.bookingType as BookingType] ?? 'At garage'} ·{' '}
+              {BOOKING_TYPE_LABELS[b.bookingType as BookingType] ?? 'At garage'}{' '}
+              ·{' '}
               <span className="font-numeric">
                 {formatDuration(b.durationMins)}
               </span>
@@ -455,7 +476,13 @@ function BookingDetail({
                 )}
               </Field>
               {(b.bookingType === 'doorstep' || b.bookingType === 'pickup') && (
-                <Field label={b.bookingType === 'pickup' ? 'Pickup & return address' : 'Doorstep address'}>
+                <Field
+                  label={
+                    b.bookingType === 'pickup'
+                      ? 'Pickup & return address'
+                      : 'Doorstep address'
+                  }
+                >
                   <p>{b.address ?? 'Address missing'}</p>
                   {directions && (
                     <a
@@ -513,11 +540,15 @@ function BookingDetail({
                 {Number(b.payment?.creditAmount ?? 0) > 0 && (
                   <p className="text-[12px] text-text-secondary">
                     Paid with Detlio credit{' '}
-                    <span className="font-numeric">{formatRupees(b.payment?.creditAmount ?? 0)}</span>
+                    <span className="font-numeric">
+                      {formatRupees(b.payment?.creditAmount ?? 0)}
+                    </span>
                     {b.payment?.creditReturnedAt && (
                       <>
                         , returned as credit on{' '}
-                        <span className="font-numeric">{formatWhen(b.payment.creditReturnedAt)}</span>
+                        <span className="font-numeric">
+                          {formatWhen(b.payment.creditReturnedAt)}
+                        </span>
                       </>
                     )}
                   </p>
@@ -563,7 +594,9 @@ function BookingDetail({
                     onClick={() => setDialog(pickupOverride)}
                     className="min-h-11"
                   >
-                    {pickupOverride === 'picked_up' ? 'Confirm picked up…' : 'Confirm delivered…'}
+                    {pickupOverride === 'picked_up'
+                      ? 'Confirm picked up…'
+                      : 'Confirm delivered…'}
                   </ScButton>
                 )}
                 {showNoShow && (
@@ -606,7 +639,10 @@ function BookingDetail({
             </ScSection>
           )}
 
-          <TestBookingSection booking={b} onDelete={() => setDialog('delete-test')} />
+          <TestBookingSection
+            booking={b}
+            onDelete={() => setDialog('delete-test')}
+          />
 
           <NotesSection bookingId={b.id} notes={b.notes} />
         </div>

@@ -88,9 +88,30 @@ const ROW_ACTION = 'flex min-h-11 items-center gap-1 px-3 py-1.5 text-[12px]'
 
 // Each checklist group's mark: amber for what needs doing, grey for optional.
 const GROUP_ICON: Record<ReadinessItem['severity'], React.ReactNode> = {
-  blocking: <IconAlertCircle size={14} stroke={1.8} className="text-warning" aria-hidden="true" />,
-  fix: <IconCircle size={14} stroke={1.7} className="text-warning" aria-hidden="true" />,
-  optional: <IconCircleDashed size={14} stroke={1.7} className="text-text-muted" aria-hidden="true" />,
+  blocking: (
+    <IconAlertCircle
+      size={14}
+      stroke={1.8}
+      className="text-warning"
+      aria-hidden="true"
+    />
+  ),
+  fix: (
+    <IconCircle
+      size={14}
+      stroke={1.7}
+      className="text-warning"
+      aria-hidden="true"
+    />
+  ),
+  optional: (
+    <IconCircleDashed
+      size={14}
+      stroke={1.7}
+      className="text-text-muted"
+      aria-hidden="true"
+    />
+  ),
 }
 
 export default function AdminVendorsPage() {
@@ -127,7 +148,9 @@ function VendorsList() {
   // What the last Bin action did, read out politely above the list.
   const [notice, setNotice] = useState('')
 
-  const error = loadError ? errorMessage(loadError, 'Failed to load vendors') : ''
+  const error = loadError
+    ? errorMessage(loadError, 'Failed to load vendors')
+    : ''
 
   // Counted over the full list the page already has: the API returns every
   // garage, and other screens' garage pickers need it that way.
@@ -137,7 +160,9 @@ function VendorsList() {
   const shown = vendors.filter((v) => matchesShow(v, show))
 
   // Checklists open, by garage. A tap on the readiness line toggles one.
-  const [openChecklists, setOpenChecklists] = useState<ReadonlySet<string>>(new Set())
+  const [openChecklists, setOpenChecklists] = useState<ReadonlySet<string>>(
+    new Set()
+  )
   const toggleChecklist = (id: string) =>
     setOpenChecklists((prev) => {
       const next = new Set(prev)
@@ -203,7 +228,10 @@ function VendorsList() {
       { id: v.id, archiving },
       {
         onError: () =>
-          showRowError(v.id, `Failed to ${archiving ? 'archive' : 'restore'} vendor`),
+          showRowError(
+            v.id,
+            `Failed to ${archiving ? 'archive' : 'restore'} vendor`
+          ),
       }
     )
   }
@@ -271,7 +299,10 @@ function VendorsList() {
                   one chosen). */}
               {(toReview > 0 || show === REVIEW_FILTER) && (
                 <>
-                  <span aria-hidden="true" className="my-2 w-px shrink-0 bg-border" />
+                  <span
+                    aria-hidden="true"
+                    className="my-2 w-px shrink-0 bg-border"
+                  />
                   <FilterChip
                     label={REVIEW_LABEL}
                     count={toReview}
@@ -285,7 +316,10 @@ function VendorsList() {
                   every standard last night and waits for a quality check.
                   Apart from the stages, after a rule; Eligible only while
                   any are (or it is the one chosen). */}
-              <span aria-hidden="true" className="my-2 w-px shrink-0 bg-border" />
+              <span
+                aria-hidden="true"
+                className="my-2 w-px shrink-0 bg-border"
+              />
               <FilterChip
                 label={CERTIFIED_LABEL}
                 count={certification.certified}
@@ -306,15 +340,21 @@ function VendorsList() {
             <div className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
               {showHints(show).map((hint) => (
                 <p key={hint.term}>
-                  <span className="font-medium text-text-secondary">{hint.term}</span> ={' '}
-                  {hint.meaning}
+                  <span className="font-medium text-text-secondary">
+                    {hint.term}
+                  </span>{' '}
+                  = {hint.meaning}
                 </p>
               ))}
             </div>
           </div>
 
           {/* A failed refetch, with the last list still on screen. */}
-          {error && <p role="alert" className="text-[12px] text-error">{error}</p>}
+          {error && (
+            <p role="alert" className="text-[12px] text-error">
+              {error}
+            </p>
+          )}
           {notice && (
             <p role="status" className="text-[13px] text-text-primary">
               <Figures text={notice} />
@@ -385,7 +425,9 @@ function VendorsList() {
           onClose={() => setDialog(null)}
           onDone={() => {
             setDialog(null)
-            setNotice(`${dialog.vendor.businessName} is back, as it was before the Bin.`)
+            setNotice(
+              `${dialog.vendor.businessName} is back, as it was before the Bin.`
+            )
           }}
         />
       )}
@@ -418,12 +460,18 @@ function BinCard({
   onDelete: () => void
 }) {
   const preview = useAdminVendorDeletePreview(v.id)
-  const deleteLine = preview.data ? binDeleteLine(preview.data.bookings.deleted) : null
+  const deleteLine = preview.data
+    ? binDeleteLine(preview.data.bookings.deleted)
+    : null
   const meta = [{ text: v.city }, ...bookingParts(v)]
   const rows: Array<[string, string]> = [
     ['Binned', v.deletedAt ? formatWhen(v.deletedAt) : ''],
-    ...(v.deletedByName ? ([['By', v.deletedByName]] as Array<[string, string]>) : []),
-    ...(v.deletedReason ? ([['Reason', v.deletedReason]] as Array<[string, string]>) : []),
+    ...(v.deletedByName
+      ? ([['By', v.deletedByName]] as Array<[string, string]>)
+      : []),
+    ...(v.deletedReason
+      ? ([['Reason', v.deletedReason]] as Array<[string, string]>)
+      : []),
   ]
 
   return (
@@ -448,7 +496,9 @@ function BinCard({
             )}
             {part.text && <Figures text={part.text} />}
             {part.text && part.quiet && ' '}
-            {part.quiet && <span className="text-text-muted">{part.quiet}</span>}
+            {part.quiet && (
+              <span className="text-text-muted">{part.quiet}</span>
+            )}
           </span>
         ))}
       </p>
@@ -466,7 +516,12 @@ function BinCard({
 
       {deleteLine && (
         <p className="mt-3 flex items-center gap-2 text-[13px] text-warning">
-          <IconAlertTriangle size={16} stroke={1.7} aria-hidden="true" className="shrink-0" />
+          <IconAlertTriangle
+            size={16}
+            stroke={1.7}
+            aria-hidden="true"
+            className="shrink-0"
+          />
           <Figures text={deleteLine} />
         </p>
       )}
@@ -556,7 +611,10 @@ function GarageCard({
         ) : (
           // Absent from an older server, which doesn't send the count.
           v.bookingCount !== undefined && (
-            <span id={bookingsId} className="shrink-0 whitespace-nowrap text-[12px] text-text-muted">
+            <span
+              id={bookingsId}
+              className="shrink-0 whitespace-nowrap text-[12px] text-text-muted"
+            >
               <Figures text={bookingsLine(bookingCount)} />
             </span>
           )
@@ -591,7 +649,10 @@ function GarageCard({
           <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
           {v.outsideServiceCity.km !== null && (
             <span className="shrink-0">
-              <span className="font-numeric">{v.outsideServiceCity.km.toLocaleString('en-IN')}</span> km out
+              <span className="font-numeric">
+                {v.outsideServiceCity.km.toLocaleString('en-IN')}
+              </span>{' '}
+              km out
             </span>
           )}
         </p>
@@ -604,55 +665,92 @@ function GarageCard({
           href={editHref(v.id, back, 'documents')}
           className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
         >
-          <IconFileCertificate size={15} aria-hidden="true" className="shrink-0 text-text-secondary" />
+          <IconFileCertificate
+            size={15}
+            aria-hidden="true"
+            className="shrink-0 text-text-secondary"
+          />
           <Figures
             text={`${v.documents.toReview} ${v.documents.toReview === 1 ? 'document' : 'documents'} to review`}
           />
-          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+          <IconChevronRight
+            size={15}
+            aria-hidden="true"
+            className="text-text-muted"
+          />
         </Link>
       )}
 
       {/* Detlio Certified (0048): the seal, the days a certified garage has
           left to put a shortfall right, or that it met every standard and
           waits for a quality check. Straight to the Certification tab. */}
-      {v.certification && (v.certification.certified || v.certification.eligible) && (
-        <Link
-          href={editHref(v.id, back, 'certification')}
-          className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
-        >
-          {v.certification.certified ? (
-            <IconRosetteDiscountCheckFilled size={15} aria-hidden="true" className="shrink-0" />
-          ) : (
-            <IconRosetteDiscountCheck size={15} aria-hidden="true" className="shrink-0 text-text-secondary" />
-          )}
-          {v.certification.certified ? (
-            v.certification.keepsUntil ? (
-              <span className="text-warning">
-                Certified, falling short · keeps it until <span className="font-numeric">{v.certification.keepsUntil}</span>
-              </span>
+      {v.certification &&
+        (v.certification.certified || v.certification.eligible) && (
+          <Link
+            href={editHref(v.id, back, 'certification')}
+            className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
+          >
+            {v.certification.certified ? (
+              <IconRosetteDiscountCheckFilled
+                size={15}
+                aria-hidden="true"
+                className="shrink-0"
+              />
             ) : (
-              'Detlio Certified'
-            )
-          ) : (
-            'Eligible for Detlio Certified · record a check'
-          )}
-          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
-        </Link>
-      )}
+              <IconRosetteDiscountCheck
+                size={15}
+                aria-hidden="true"
+                className="shrink-0 text-text-secondary"
+              />
+            )}
+            {v.certification.certified ? (
+              v.certification.keepsUntil ? (
+                <span className="text-warning">
+                  Certified, falling short · keeps it until{' '}
+                  <span className="font-numeric">
+                    {v.certification.keepsUntil}
+                  </span>
+                </span>
+              ) : (
+                'Detlio Certified'
+              )
+            ) : (
+              'Eligible for Detlio Certified · record a check'
+            )}
+            <IconChevronRight
+              size={15}
+              aria-hidden="true"
+              className="text-text-muted"
+            />
+          </Link>
+        )}
 
       {/* Photo compliance (0045): how many of its jobs completed in the last
           90 days had 2 before and 2 after photos. Only once it has some. */}
       {v.photoCompliance && v.photoCompliance.percent !== null && (
         <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
-          <IconCamera size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <IconCamera
+            size={14}
+            aria-hidden="true"
+            className="shrink-0 text-text-muted"
+          />
           <span className="truncate">
             Photos on{' '}
-            <span className={cn('font-numeric', v.photoCompliance.percent < 80 && 'text-warning')}>
+            <span
+              className={cn(
+                'font-numeric',
+                v.photoCompliance.percent < 80 && 'text-warning'
+              )}
+            >
               {v.photoCompliance.percent}%
             </span>{' '}
             of jobs{' '}
             <span className="text-text-muted">
-              (<Figures text={`${v.photoCompliance.compliant} of ${v.photoCompliance.jobs}, last 90 days`} />)
+              (
+              <Figures
+                text={`${v.photoCompliance.compliant} of ${v.photoCompliance.jobs}, last 90 days`}
+              />
+              )
             </span>
           </span>
         </p>
@@ -666,13 +764,23 @@ function GarageCard({
           href="/bypass-reports?show=confirmed"
           className={cn(
             'mt-1 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium underline-offset-2 hover:underline',
-            strikesHighlighted(v.bypassStrikes ?? 0) ? 'text-error' : 'text-text-primary'
+            strikesHighlighted(v.bypassStrikes ?? 0)
+              ? 'text-error'
+              : 'text-text-primary'
           )}
         >
           <IconFlag size={15} aria-hidden="true" className="shrink-0" />
-          <span className="font-numeric">{strikesLabel(v.bypassStrikes ?? 0)}</span>
-          <span className="text-text-muted">· bypass reports, last 180 days</span>
-          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+          <span className="font-numeric">
+            {strikesLabel(v.bypassStrikes ?? 0)}
+          </span>
+          <span className="text-text-muted">
+            · bypass reports, last 180 days
+          </span>
+          <IconChevronRight
+            size={15}
+            aria-hidden="true"
+            className="text-text-muted"
+          />
         </Link>
       )}
 
@@ -681,9 +789,20 @@ function GarageCard({
           there are some. */}
       {typeof v.redoClaims90d === 'number' && v.redoClaims90d > 0 && (
         <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
-          <IconRefresh size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <IconRefresh
+            size={14}
+            aria-hidden="true"
+            className="shrink-0 text-text-muted"
+          />
           <span className="truncate">
-            <span className={cn('font-numeric', v.redoClaims90d >= 3 && 'text-warning')}>{v.redoClaims90d}</span>{' '}
+            <span
+              className={cn(
+                'font-numeric',
+                v.redoClaims90d >= 3 && 'text-warning'
+              )}
+            >
+              {v.redoClaims90d}
+            </span>{' '}
             redo claim{v.redoClaims90d === 1 ? '' : 's'} in 90 days
           </span>
         </p>
@@ -759,7 +878,11 @@ function GarageCard({
 
       {/* Amber, as errors are; announced, and on the card that was pressed. */}
       {rowError && (
-        <p id={`vendor-${v.id}-error`} role="alert" className="pb-3 text-[12px] text-error">
+        <p
+          id={`vendor-${v.id}-error`}
+          role="alert"
+          className="pb-3 text-[12px] text-error"
+        >
           {rowError}
         </p>
       )}
@@ -840,14 +963,26 @@ function CardMenu({
           <button
             type="button"
             disabled={busy}
-            aria-label={archived ? `Restore ${name} from the archive` : `Archive ${name}`}
+            aria-label={
+              archived ? `Restore ${name} from the archive` : `Archive ${name}`
+            }
             onClick={() => choose(onArchiveToggle)}
             className={item}
           >
             {archived ? (
-              <IconArchiveOff size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+              <IconArchiveOff
+                size={17}
+                stroke={1.6}
+                aria-hidden="true"
+                className="text-text-secondary"
+              />
             ) : (
-              <IconArchive size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+              <IconArchive
+                size={17}
+                stroke={1.6}
+                aria-hidden="true"
+                className="text-text-secondary"
+              />
             )}
             {archived ? 'Unarchive' : 'Archive'}
           </button>
@@ -857,7 +992,12 @@ function CardMenu({
             onClick={() => choose(onMoveToBin)}
             className={cn(item, 'border-t border-border')}
           >
-            <IconTrash size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+            <IconTrash
+              size={17}
+              stroke={1.6}
+              aria-hidden="true"
+              className="text-text-secondary"
+            />
             Move to Bin
           </button>
         </div>
@@ -891,9 +1031,19 @@ function Readiness({
   const line = (
     <>
       {summary.needsFixing ? (
-        <IconAlertCircle size={15} stroke={1.6} className="shrink-0 text-warning" aria-hidden="true" />
+        <IconAlertCircle
+          size={15}
+          stroke={1.6}
+          className="shrink-0 text-warning"
+          aria-hidden="true"
+        />
       ) : (
-        <IconCheck size={15} stroke={1.8} className="shrink-0 text-text-muted" aria-hidden="true" />
+        <IconCheck
+          size={15}
+          stroke={1.8}
+          className="shrink-0 text-text-muted"
+          aria-hidden="true"
+        />
       )}
       <span className="min-w-0 truncate">
         <Figures text={summary.main} />
@@ -911,7 +1061,16 @@ function Readiness({
 
   // Nothing at all to show: a quiet tick, nothing to open.
   if (items.length === 0) {
-    return <p className={cn('mt-2.5 flex min-h-5 items-center gap-2 text-[12.5px]', tone)}>{line}</p>
+    return (
+      <p
+        className={cn(
+          'mt-2.5 flex min-h-5 items-center gap-2 text-[12.5px]',
+          tone
+        )}
+      >
+        {line}
+      </p>
+    )
   }
 
   return (
@@ -921,7 +1080,10 @@ function Readiness({
         aria-expanded={open}
         aria-controls={checklistId}
         onClick={onToggle}
-        className={cn('mt-2 flex min-h-11 w-full items-center gap-2 text-left text-[12.5px]', tone)}
+        className={cn(
+          'mt-2 flex min-h-11 w-full items-center gap-2 text-left text-[12.5px]',
+          tone
+        )}
       >
         {line}
         <IconChevronDown
@@ -949,11 +1111,16 @@ function Readiness({
                     {GROUP_ICON[group.severity]}
                     {group.title}
                   </p>
-                  <span className="text-[12px] text-text-muted">{group.note}</span>
+                  <span className="text-[12px] text-text-muted">
+                    {group.note}
+                  </span>
                 </div>
                 <ul className="overflow-hidden rounded-xl border border-border bg-brand-black">
                   {group.items.map((item) => (
-                    <li key={item.key} className="border-t border-border first:border-t-0">
+                    <li
+                      key={item.key}
+                      className="border-t border-border first:border-t-0"
+                    >
                       <Link
                         href={editHref(vendorId, back, item.tab)}
                         className="flex min-h-12 items-center gap-2.5 py-2 pl-3.5 pr-2 transition-colors hover:bg-surface"

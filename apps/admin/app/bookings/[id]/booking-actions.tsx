@@ -164,8 +164,9 @@ export function CancelBookingDialog({
       {/* Pickup & drop: cancelling does not bring the car back. */}
       {booking.pickup?.pickedUpAt && !booking.pickup.deliveredAt && (
         <p role="alert" className="text-[12px] text-error">
-          The garage has the customer&apos;s car. Make sure it is returned before or after
-          cancelling: the garage is responsible for it until then.
+          The garage has the customer&apos;s car. Make sure it is returned
+          before or after cancelling: the garage is responsible for it until
+          then.
         </p>
       )}
 
@@ -176,8 +177,8 @@ export function CancelBookingDialog({
               {formatRupees(booking.amount)}
             </span>{' '}
             was paid online. Refund it in Razorpay after cancelling, then mark
-            it refunded on this booking or the Refunds page. The team also
-            gets a Telegram reminder.
+            it refunded on this booking or the Refunds page. The team also gets
+            a Telegram reminder.
           </>
         ) : (
           "Nothing was paid online, so there's nothing to refund."
@@ -287,10 +288,9 @@ export function NoShowDialog({
               <span className="font-numeric">
                 {formatRupees(booking.amount)}
               </span>{' '}
-              goes back to the customer in full: use Refund now on this
-              booking (or, with automatic refunds on, it goes by itself). The
-              garage earns nothing for it. The team also gets a Telegram
-              reminder.
+              goes back to the customer in full: use Refund now on this booking
+              (or, with automatic refunds on, it goes by itself). The garage
+              earns nothing for it. The team also gets a Telegram reminder.
             </>
           ) : party === 'garage' ? (
             "Nothing was paid online, so there's nothing to refund. The garage earns nothing for it."
@@ -372,7 +372,8 @@ export function PickupStepDialog({
           toast.success(`${label} confirmed for #${booking.reference}`)
           close()
         },
-        onError: (err) => setError(errorMessage(err, `Couldn't confirm ${label}`)),
+        onError: (err) =>
+          setError(errorMessage(err, `Couldn't confirm ${label}`)),
       }
     )
   }
@@ -386,7 +387,9 @@ export function PickupStepDialog({
       className="flex max-w-[420px] flex-col gap-4"
     >
       <div>
-        <h2 className="text-[15px] font-semibold text-text-primary">Confirm {label.toLowerCase()}</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">
+          Confirm {label.toLowerCase()}
+        </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
           {step === 'picked_up'
             ? 'For when the customer handed the car over but could not give the pickup code. From now the car is the garage’s responsibility.'
@@ -404,13 +407,20 @@ export function PickupStepDialog({
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
-        <p className="text-[11px] text-text-muted">Goes in the notes with your name.</p>
+        <p className="text-[11px] text-text-muted">
+          Goes in the notes with your name.
+        </p>
       </div>
 
       <DialogError message={error} />
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
-        <ScButton variant="secondary" onClick={close} disabled={override.isPending} className="min-h-11">
+        <ScButton
+          variant="secondary"
+          onClick={close}
+          disabled={override.isPending}
+          className="min-h-11"
+        >
           Not now
         </ScButton>
         <ScButton
@@ -418,7 +428,9 @@ export function PickupStepDialog({
           disabled={note.trim().length === 0 || override.isPending}
           className="min-h-11"
         >
-          {override.isPending ? 'Confirming…' : `Confirm ${label.toLowerCase()}`}
+          {override.isPending
+            ? 'Confirming…'
+            : `Confirm ${label.toLowerCase()}`}
         </ScButton>
       </div>
     </ScModal>

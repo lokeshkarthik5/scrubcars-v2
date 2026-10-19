@@ -1,6 +1,11 @@
 import { ScBadge } from '@repo/ui/sc/badge'
 import type { BookingParty } from '@repo/core/api/admin'
-import { formatRupees, formatWaiting, formatWhen, WAITING_ALERT_MINS } from '@/lib/bookings'
+import {
+  formatRupees,
+  formatWaiting,
+  formatWhen,
+  WAITING_ALERT_MINS,
+} from '@/lib/bookings'
 
 /**
  * How long a pending booking has waited for its garage. Amber from 30
@@ -23,7 +28,8 @@ export function WaitingBadge({ mins }: { mins: number }) {
 export function AcceptByBadge({ respondBy }: { respondBy: string }) {
   return (
     <ScBadge variant="muted">
-      Accept by&nbsp;<span className="font-numeric">{formatWhen(respondBy)}</span>
+      Accept by&nbsp;
+      <span className="font-numeric">{formatWhen(respondBy)}</span>
     </ScBadge>
   )
 }
@@ -60,7 +66,8 @@ export function BillDueBadge({ amount }: { amount: string }) {
 export function RefundOwedBadge({ amount }: { amount: string }) {
   return (
     <ScBadge variant="danger">
-      Refund owed&nbsp;<span className="font-numeric">{formatRupees(amount)}</span>
+      Refund owed&nbsp;
+      <span className="font-numeric">{formatRupees(amount)}</span>
     </ScBadge>
   )
 }

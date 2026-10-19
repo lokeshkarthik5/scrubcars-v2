@@ -29,7 +29,10 @@ import {
 // panel, as on the other tabs.
 const NewRepeatChart = dynamic(
   () => import('@/components/statistics/charts').then((m) => m.NewRepeatChart),
-  { ssr: false, loading: () => <Skeleton className="mt-3.5 h-[160px] rounded-[10px]" /> }
+  {
+    ssr: false,
+    loading: () => <Skeleton className="mt-3.5 h-[160px] rounded-[10px]" />,
+  }
 )
 
 const HOW_WE_COUNT = [
@@ -44,7 +47,11 @@ const HOW_WE_COUNT = [
 function Note({ children }: { children: React.ReactNode }) {
   return (
     <p className="flex items-start gap-2.5 rounded-[14px] border border-border bg-surface px-3.5 py-3 text-[12px] leading-[1.45] text-text-secondary">
-      <IconInfoCircle size={18} aria-hidden="true" className="mt-px shrink-0 text-text-secondary" />
+      <IconInfoCircle
+        size={18}
+        aria-hidden="true"
+        className="mt-px shrink-0 text-text-secondary"
+      />
       <span>{children}</span>
     </p>
   )
@@ -70,7 +77,11 @@ function Funnel({ funnel }: { funnel: StatsFunnelReport['funnel'] }) {
                     isDrop ? 'font-medium text-warning' : 'text-text-muted'
                   )}
                 >
-                  <IconArrowDown size={14} aria-hidden="true" className="shrink-0" />
+                  <IconArrowDown
+                    size={14}
+                    aria-hidden="true"
+                    className="shrink-0"
+                  />
                   <span>
                     {percent(step.ofPrevious)} went on
                     {isDrop && <> · biggest drop</>}
@@ -96,7 +107,10 @@ function Funnel({ funnel }: { funnel: StatsFunnelReport['funnel'] }) {
                     </b>
                   </span>
                 </div>
-                <ShareBar share={visits > 0 ? step.count / visits : 0} className="mt-2 h-2" />
+                <ShareBar
+                  share={visits > 0 ? step.count / visits : 0}
+                  className="mt-2 h-2"
+                />
               </div>
             </li>
           )
@@ -107,24 +121,38 @@ function Funnel({ funnel }: { funnel: StatsFunnelReport['funnel'] }) {
   )
 }
 
-function Categories({ categories }: { categories: StatsFunnelReport['categories'] }) {
+function Categories({
+  categories,
+}: {
+  categories: StatsFunnelReport['categories']
+}) {
   const most = Math.max(0, ...categories.map((c) => c.visits))
   return (
     <ScCard className="px-4 py-4">
-      <CardHeading title="Categories browsed" subtitle="Visits that picked each one on the list or in search" />
+      <CardHeading
+        title="Categories browsed"
+        subtitle="Visits that picked each one on the list or in search"
+      />
       {most === 0 ? (
-        <p className="pt-4 text-[13px] text-text-secondary">No category picked in this period.</p>
+        <p className="pt-4 text-[13px] text-text-secondary">
+          No category picked in this period.
+        </p>
       ) : (
         <ul className="mt-4 flex flex-col gap-3.5">
           {categories.map((row) => (
             <li key={row.category}>
               <div className="flex items-baseline justify-between gap-2.5 text-[13px]">
-                <span className="text-text-primary">{SERVICE_TYPE_LABELS[row.category]}</span>
+                <span className="text-text-primary">
+                  {SERVICE_TYPE_LABELS[row.category]}
+                </span>
                 <b className="font-numeric font-medium tabular-nums text-text-primary">
                   {row.visits.toLocaleString('en-IN')}
                 </b>
               </div>
-              <ShareBar share={most > 0 ? row.visits / most : 0} className="mt-1.5 h-1.5" />
+              <ShareBar
+                share={most > 0 ? row.visits / most : 0}
+                className="mt-1.5 h-1.5"
+              />
             </li>
           ))}
         </ul>
@@ -137,9 +165,14 @@ function Garages({ garages }: { garages: StatsFunnelReport['garages'] }) {
   const figure = 'text-right font-numeric tabular-nums text-text-primary'
   return (
     <ScCard className="px-4 pb-1.5 pt-4">
-      <CardHeading title="Garages by views" subtitle="Page views against paid bookings" />
+      <CardHeading
+        title="Garages by views"
+        subtitle="Page views against paid bookings"
+      />
       {garages.length === 0 ? (
-        <p className="py-4 text-[13px] text-text-secondary">No garage pages opened in this period.</p>
+        <p className="py-4 text-[13px] text-text-secondary">
+          No garage pages opened in this period.
+        </p>
       ) : (
         <table className="mt-3.5 w-full table-fixed border-collapse text-[13px]">
           <colgroup>
@@ -168,14 +201,21 @@ function Garages({ garages }: { garages: StatsFunnelReport['garages'] }) {
           </thead>
           <tbody>
             {garages.map((garage) => (
-              <tr key={garage.vendorId} className="border-b border-border last:border-b-0">
+              <tr
+                key={garage.vendorId}
+                className="border-b border-border last:border-b-0"
+              >
                 <th scope="row" className="py-2.5 pr-2 text-left font-normal">
                   <span className="block truncate leading-[18px] text-text-primary">
                     {garage.name ?? 'A garage since deleted'}
                   </span>
                 </th>
-                <td className={figure}>{garage.views.toLocaleString('en-IN')}</td>
-                <td className={figure}>{garage.bookings.toLocaleString('en-IN')}</td>
+                <td className={figure}>
+                  {garage.views.toLocaleString('en-IN')}
+                </td>
+                <td className={figure}>
+                  {garage.bookings.toLocaleString('en-IN')}
+                </td>
                 <td className={figure}>{percent(garage.viewToBooking)}</td>
               </tr>
             ))}
@@ -200,7 +240,9 @@ function Devices({ devices }: { devices: StatsFunnelReport['devices'] }) {
                   {plural(row.visits, 'visit', 'visits')}
                 </em>
               </span>
-              <b className="font-numeric font-medium tabular-nums text-text-primary">{percent(row.share)}</b>
+              <b className="font-numeric font-medium tabular-nums text-text-primary">
+                {percent(row.share)}
+              </b>
             </div>
             <ShareBar share={row.share ?? 0} className="mt-1.5 h-1.5" />
           </li>
@@ -218,7 +260,10 @@ function Returning({
   weeks: StatsFunnelReport['weeks']
 }) {
   const totals = weeks.reduce(
-    (sum, week) => ({ new: sum.new + week.new, repeat: sum.repeat + week.repeat }),
+    (sum, week) => ({
+      new: sum.new + week.new,
+      repeat: sum.repeat + week.repeat,
+    }),
     { new: 0, repeat: 0 }
   )
   return (
@@ -229,32 +274,49 @@ function Returning({
       />
       <div className="mt-3.5 grid grid-cols-2 gap-2">
         {returning.windows.map((window) => (
-          <div key={window.days} className="min-w-0 rounded-[14px] border border-border bg-surface px-3.5 py-3">
-            <p className="text-[11px] font-medium text-text-secondary">Booked again within {window.days} days</p>
+          <div
+            key={window.days}
+            className="min-w-0 rounded-[14px] border border-border bg-surface px-3.5 py-3"
+          >
+            <p className="text-[11px] font-medium text-text-secondary">
+              Booked again within {window.days} days
+            </p>
             <p className="mt-1 font-numeric text-[24px] font-medium leading-[30px] tracking-tight text-text-primary">
               {percent(window.rate)}
             </p>
-            <p className="mt-0.5 text-[11px] leading-[15px] text-text-muted">{returnWindowLine(window)}</p>
+            <p className="mt-0.5 text-[11px] leading-[15px] text-text-muted">
+              {returnWindowLine(window)}
+            </p>
           </div>
         ))}
       </div>
 
       <figure className="mt-5">
         <figcaption>
-          <p className="text-[13px] font-medium text-text-primary">New and repeat bookings per week</p>
+          <p className="text-[13px] font-medium text-text-primary">
+            New and repeat bookings per week
+          </p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted">
             <span className="flex items-center gap-1.5">
-              <i aria-hidden="true" className="block size-2.5 rounded-[2px] bg-[#E4E4E7]" />
+              <i
+                aria-hidden="true"
+                className="block size-2.5 rounded-[2px] bg-[#E4E4E7]"
+              />
               Returning customer · {totals.repeat.toLocaleString('en-IN')}
             </span>
             <span className="flex items-center gap-1.5">
-              <i aria-hidden="true" className="block size-2.5 rounded-[2px] bg-[#5C5C68]" />
+              <i
+                aria-hidden="true"
+                className="block size-2.5 rounded-[2px] bg-[#5C5C68]"
+              />
               First booking · {totals.new.toLocaleString('en-IN')}
             </span>
           </p>
         </figcaption>
         {totals.new + totals.repeat === 0 ? (
-          <p className="pt-4 text-[13px] text-text-secondary">No paid bookings in this period.</p>
+          <p className="pt-4 text-[13px] text-text-secondary">
+            No paid bookings in this period.
+          </p>
         ) : (
           <div aria-hidden="true">
             <NewRepeatChart weeks={weeks} />
@@ -279,7 +341,13 @@ function Returning({
  * against bookings and devices; and, from the bookings themselves, how many
  * customers come back.
  */
-export function FunnelTab({ range, mode }: { range: DateRange; mode: StatsFunnelMode }) {
+export function FunnelTab({
+  range,
+  mode,
+}: {
+  range: DateRange
+  mode: StatsFunnelMode
+}) {
   const router = useRouter()
   const stats = useStatsFunnel({ ...range, mode })
 
@@ -309,7 +377,10 @@ export function FunnelTab({ range, mode }: { range: DateRange; mode: StatsFunnel
     <>
       <div
         aria-busy={stats.isFetching || undefined}
-        className={cn('flex flex-col gap-5 transition-opacity', stats.isPlaceholderData && 'opacity-60')}
+        className={cn(
+          'flex flex-col gap-5 transition-opacity',
+          stats.isPlaceholderData && 'opacity-60'
+        )}
       >
         {startNote && <Note>{startNote}</Note>}
         <Funnel funnel={report.funnel} />

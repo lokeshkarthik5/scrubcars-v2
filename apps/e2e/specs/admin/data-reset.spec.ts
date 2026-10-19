@@ -23,28 +23,40 @@ const bookingExists = async (id: string) =>
 test.use({ storageState: asRole('admin') })
 
 test.describe('start pilot clean, screens @p0', () => {
-  test('a booking is marked Test on its page and deleted from there', async ({ page }) => {
+  test('a booking is marked Test on its page and deleted from there', async ({
+    page,
+  }) => {
     const id = BOOKINGS.resetUiSingle
     const ref = reference(id)
 
     await page.goto(`/bookings/${id}`)
-    await expect(page.getByRole('heading', { name: `Booking #${ref}` })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: `Booking #${ref}` })
+    ).toBeVisible()
     // Paid through the E2E stand-in for Razorpay: no real money moved.
     await expect(page.getByText('Test-mode payment')).toBeVisible()
 
     const mark = page.getByRole('switch', { name: 'Mark as test' })
     await expect(mark).toHaveAttribute('aria-checked', 'false')
-    await expect(page.getByRole('button', { name: 'Delete test booking…' })).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: 'Delete test booking…' })
+    ).toHaveCount(0)
     await mark.click()
     await expect(mark).toHaveAttribute('aria-checked', 'true')
-    await expect(page.getByText('Left out of the pilot numbers. Marked by admin.')).toBeVisible()
+    await expect(
+      page.getByText('Left out of the pilot numbers. Marked by admin.')
+    ).toBeVisible()
     // Its note, like every action ops takes on a booking.
     await expect(
-      page.getByText('Marked as a test booking. It is left out of the pilot numbers.')
+      page.getByText(
+        'Marked as a test booking. It is left out of the pilot numbers.'
+      )
     ).toBeVisible()
 
     await page.getByRole('button', { name: 'Delete test booking…' }).click()
-    const dialog = page.getByRole('dialog', { name: `Delete test booking #${ref}` })
+    const dialog = page.getByRole('dialog', {
+      name: `Delete test booking #${ref}`,
+    })
     await expect(dialog.getByText('This deletes, for good:')).toBeVisible()
     await expect(dialog.getByText('1 booking', { exact: true })).toBeVisible()
 
@@ -53,9 +65,13 @@ test.describe('start pilot clean, screens @p0', () => {
     await expect(confirm).toBeDisabled()
     await dialog.getByLabel('Your name').fill('E2E Admin')
     await dialog.getByLabel('I have a database backup from today').check()
-    await dialog.getByLabel('Type DELETE 1 BOOKING to confirm').fill('delete 1 booking')
+    await dialog
+      .getByLabel('Type DELETE 1 BOOKING to confirm')
+      .fill('delete 1 booking')
     await expect(confirm).toBeDisabled()
-    await dialog.getByLabel('Type DELETE 1 BOOKING to confirm').fill('DELETE 1 BOOKING')
+    await dialog
+      .getByLabel('Type DELETE 1 BOOKING to confirm')
+      .fill('DELETE 1 BOOKING')
     await confirm.click()
 
     await expect(dialog.getByText('Done. Deleted by E2E Admin.')).toBeVisible()
@@ -73,10 +89,16 @@ test.describe('start pilot clean, screens @p0', () => {
 
     await page.goto('/bookings')
     // While the switch is on, the page is in the menu and linked from Bookings.
-    await expect(page.getByRole('link', { name: 'Start pilot clean' }).first()).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: 'Start pilot clean' }).first()
+    ).toBeVisible()
     await page.goto('/data-reset')
-    await expect(page.getByRole('heading', { name: 'Start pilot clean' })).toBeVisible()
-    await expect(page.getByText('Real payments are always kept.', { exact: false })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Start pilot clean' })
+    ).toBeVisible()
+    await expect(
+      page.getByText('Real payments are always kept.', { exact: false })
+    ).toBeVisible()
 
     // 1. Scope: the bookings marked Test, then only this one ticked.
     await page.getByRole('radio', { name: 'Only bookings marked Test' }).click()
@@ -90,7 +112,9 @@ test.describe('start pilot clean, screens @p0', () => {
 
     // Loading the list again keeps the owner's unticks: a real booking they
     // protected is never quietly ticked again.
-    const keepBox = page.getByRole('checkbox', { name: `Delete booking #${reference(keep)}` })
+    const keepBox = page.getByRole('checkbox', {
+      name: `Delete booking #${reference(keep)}`,
+    })
     await expect(keepBox).not.toBeChecked()
     await page.getByRole('button', { name: 'Load again' }).click()
     await expect(page.getByRole('button', { name: 'Load again' })).toBeEnabled()
@@ -117,7 +141,9 @@ test.describe('start pilot clean, screens @p0', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Download list (CSV)' }).click(),
     ])
-    expect(download.suggestedFilename()).toMatch(/^detlio-test-data-\d{4}-\d{2}-\d{2}\.csv$/)
+    expect(download.suggestedFilename()).toMatch(
+      /^detlio-test-data-\d{4}-\d{2}-\d{2}\.csv$/
+    )
     const csv = readFileSync((await download.path())!, 'utf8')
     expect(csv).toContain('Reference,Outcome')
     expect(csv).toContain(`#${ref},Deleted`)
@@ -128,7 +154,9 @@ test.describe('start pilot clean, screens @p0', () => {
     // 3. Confirm: a name, the backup, the phrase. The one red button.
     await page.getByLabel('Your name').fill('E2E Owner')
     await page.getByLabel('I have a database backup from today').check()
-    await page.getByLabel('Type DELETE 1 BOOKING to confirm').fill('DELETE 1 BOOKING')
+    await page
+      .getByLabel('Type DELETE 1 BOOKING to confirm')
+      .fill('DELETE 1 BOOKING')
     await page.getByRole('button', { name: 'Delete 1 booking' }).click()
 
     await expect(page.getByText('Done. Deleted by E2E Owner.')).toBeVisible()

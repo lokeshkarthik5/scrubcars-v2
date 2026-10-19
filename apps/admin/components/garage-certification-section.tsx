@@ -14,7 +14,10 @@ import { ScSection } from '@repo/ui/sc/section'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ScSelect } from '@repo/ui/sc/select'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
-import type { AdminCertification, CertifyBlockedBy } from '@repo/core/api/certification'
+import type {
+  AdminCertification,
+  CertifyBlockedBy,
+} from '@repo/core/api/certification'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import {
   useAdminCertification,
@@ -22,7 +25,11 @@ import {
   useRecordQualityCheck,
   useRevokeCertification,
 } from '@repo/core/api/hooks/use-admin-certification'
-import { QUALITY_CHECK_KIND_LABELS, dateKeyLabel, type QualityCheckKind } from '@repo/core/certification'
+import {
+  QUALITY_CHECK_KIND_LABELS,
+  dateKeyLabel,
+  type QualityCheckKind,
+} from '@repo/core/certification'
 import { istDateKey } from '@repo/core/payouts'
 import { istDateTimeLabel } from '@repo/core/ist-input'
 import { cn } from '@repo/core/utils'
@@ -32,11 +39,16 @@ import { rememberName, rememberedName } from '@/lib/actor-name'
 const BLOCKED: Record<CertifyBlockedBy, string> = {
   in_bin: 'The garage is in the Bin.',
   already_certified: 'Already certified.',
-  not_eligible: 'It does not meet every standard yet (the lines marked not met above).',
-  no_passing_check: 'Record a passing quality check from the last 6 months first.',
+  not_eligible:
+    'It does not meet every standard yet (the lines marked not met above).',
+  no_passing_check:
+    'Record a passing quality check from the last 6 months first.',
 }
 
-const CHECK_STATUS: Record<AdminCertification['qualityCheck']['status'], string> = {
+const CHECK_STATUS: Record<
+  AdminCertification['qualityCheck']['status'],
+  string
+> = {
   passed: 'Passed',
   failed: 'Latest check failed',
   expired: 'Last pass is over 6 months old',
@@ -50,9 +62,17 @@ const CHECK_STATUS: Record<AdminCertification['qualityCheck']['status'], string>
  * Each action saves on its own, like Documents: never part of "Save
  * changes". In the Bin everything still shows and nothing can be changed.
  */
-export function GarageCertificationSection({ vendorId, readOnly }: { vendorId: string; readOnly: boolean }) {
+export function GarageCertificationSection({
+  vendorId,
+  readOnly,
+}: {
+  vendorId: string
+  readOnly: boolean
+}) {
   const { data, isLoading, error } = useAdminCertification(vendorId)
-  const [actorName, setActorName] = useState(() => (typeof window === 'undefined' ? '' : rememberedName()))
+  const [actorName, setActorName] = useState(() =>
+    typeof window === 'undefined' ? '' : rememberedName()
+  )
   const name = actorName.trim().length >= 2 ? actorName.trim() : null
   const setName = (value: string) => {
     setActorName(value)
@@ -84,7 +104,11 @@ export function GarageCertificationSection({ vendorId, readOnly }: { vendorId: s
         action={
           data.certified ? (
             <ScBadge variant="success">
-              <IconRosetteDiscountCheckFilled size={12} aria-hidden="true" className="mr-1" />
+              <IconRosetteDiscountCheckFilled
+                size={12}
+                aria-hidden="true"
+                className="mr-1"
+              />
               Certified
             </ScBadge>
           ) : eligibility.eligible ? (
@@ -96,10 +120,13 @@ export function GarageCertificationSection({ vendorId, readOnly }: { vendorId: s
       >
         <StatusLines data={data} />
         <p className="text-[11px] text-text-muted">
-          Eligible = every standard below over the last {data.rules.windowDays} days (Test-marked bookings left out).
-          Certified = eligible, a passing quality check from the last {data.rules.qualityCheckMonths} months, and
-          Certify pressed. Checked every night: a certified garage that falls short for {data.rules.graceDays} days
-          loses the seal on its own. Customers see only the seal. Saved immediately — not part of “Save changes”.
+          Eligible = every standard below over the last {data.rules.windowDays}{' '}
+          days (Test-marked bookings left out). Certified = eligible, a passing
+          quality check from the last {data.rules.qualityCheckMonths} months,
+          and Certify pressed. Checked every night: a certified garage that
+          falls short for {data.rules.graceDays} days loses the seal on its own.
+          Customers see only the seal. Saved immediately — not part of “Save
+          changes”.
         </p>
         {!readOnly && (
           <ScField
@@ -115,18 +142,46 @@ export function GarageCertificationSection({ vendorId, readOnly }: { vendorId: s
       <ScSection title="Standards">
         <ul className="flex flex-col divide-y divide-border">
           {eligibility.rules.map((rule) => (
-            <li key={rule.key} className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
+            <li
+              key={rule.key}
+              className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0"
+            >
               {rule.met ? (
-                <IconCircleCheckFilled size={17} aria-label="Met" className="mt-px shrink-0 text-success" />
+                <IconCircleCheckFilled
+                  size={17}
+                  aria-label="Met"
+                  className="mt-px shrink-0 text-success"
+                />
               ) : (
-                <IconCircleXFilled size={17} aria-label="Not met" className="mt-px shrink-0 text-error" />
+                <IconCircleXFilled
+                  size={17}
+                  aria-label="Not met"
+                  className="mt-px shrink-0 text-error"
+                />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium text-text-primary">{rule.label}</p>
+                <p className="text-[13px] font-medium text-text-primary">
+                  {rule.label}
+                </p>
                 <p className="text-[12px] text-text-secondary">
-                  <span className={cn('font-numeric', rule.met ? 'text-success' : 'text-error')}>{rule.value}</span>
-                  <span className="text-text-muted"> · needs {rule.target.toLowerCase()}</span>
-                  {!rule.measured && <span className="text-text-muted"> (not measured, passes)</span>}
+                  <span
+                    className={cn(
+                      'font-numeric',
+                      rule.met ? 'text-success' : 'text-error'
+                    )}
+                  >
+                    {rule.value}
+                  </span>
+                  <span className="text-text-muted">
+                    {' '}
+                    · needs {rule.target.toLowerCase()}
+                  </span>
+                  {!rule.measured && (
+                    <span className="text-text-muted">
+                      {' '}
+                      (not measured, passes)
+                    </span>
+                  )}
                 </p>
               </div>
             </li>
@@ -134,13 +189,25 @@ export function GarageCertificationSection({ vendorId, readOnly }: { vendorId: s
         </ul>
         <p className="text-[11px] text-text-muted">
           Measured {istDateTimeLabel(eligibility.measuredAt)}
-          {data.lastEvaluatedAt && <> · nightly check last ran {istDateTimeLabel(data.lastEvaluatedAt)}</>}
+          {data.lastEvaluatedAt && (
+            <>
+              {' '}
+              · nightly check last ran {istDateTimeLabel(data.lastEvaluatedAt)}
+            </>
+          )}
         </p>
       </ScSection>
 
-      <QualityChecks vendorId={vendorId} data={data} readOnly={readOnly} actorName={name} />
+      <QualityChecks
+        vendorId={vendorId}
+        data={data}
+        readOnly={readOnly}
+        actorName={name}
+      />
 
-      {!readOnly && <Decision vendorId={vendorId} data={data} actorName={name} />}
+      {!readOnly && (
+        <Decision vendorId={vendorId} data={data} actorName={name} />
+      )}
     </div>
   )
 }
@@ -155,9 +222,12 @@ function StatusLines({ data }: { data: AdminCertification }) {
         </p>
         {data.atRisk && (
           <p role="status" className="text-[12px] text-warning">
-            Falling short since {istDateTimeLabel(data.atRisk.since)}. It keeps the seal until{' '}
-            <span className="font-numeric">{dateKeyLabel(data.atRisk.keepsUntil)}</span>, then loses it unless it is
-            put right.
+            Falling short since {istDateTimeLabel(data.atRisk.since)}. It keeps
+            the seal until{' '}
+            <span className="font-numeric">
+              {dateKeyLabel(data.atRisk.keepsUntil)}
+            </span>
+            , then loses it unless it is put right.
           </p>
         )}
       </div>
@@ -174,7 +244,9 @@ function StatusLines({ data }: { data: AdminCertification }) {
       </p>
       {data.revoked && (
         <p className="text-[12px] text-text-secondary">
-          {data.revoked.kind === 'lapsed' ? 'Lost automatically' : `Revoked by ${data.revoked.by ?? 'admin'}`}{' '}
+          {data.revoked.kind === 'lapsed'
+            ? 'Lost automatically'
+            : `Revoked by ${data.revoked.by ?? 'admin'}`}{' '}
           {istDateTimeLabel(data.revoked.at)}
           {data.revoked.reason && <>: {data.revoked.reason}</>}
         </p>
@@ -204,13 +276,24 @@ function QualityChecks({
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
   const notesOk = result === 'pass' || notes.trim().length >= 5
-  const ready = Boolean(actorName) && checkerName.trim().length >= 2 && notesOk && checkedOn !== ''
+  const ready =
+    Boolean(actorName) &&
+    checkerName.trim().length >= 2 &&
+    notesOk &&
+    checkedOn !== ''
 
   const save = () => {
     if (!actorName || !ready) return
     setError('')
     record.mutate(
-      { checkedOn, kind, checkerName: checkerName.trim(), result, notes: notes.trim() || null, actorName },
+      {
+        checkedOn,
+        kind,
+        checkerName: checkerName.trim(),
+        result,
+        notes: notes.trim() || null,
+        actorName,
+      },
       {
         onSuccess: () => {
           setOpen(false)
@@ -218,9 +301,12 @@ function QualityChecks({
           setNotes('')
           setResult('pass')
           setCheckedOn(today)
-          toast.success(`Quality check recorded (${result === 'pass' ? 'pass' : 'fail'})`)
+          toast.success(
+            `Quality check recorded (${result === 'pass' ? 'pass' : 'fail'})`
+          )
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't record the check")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't record the check")),
       }
     )
   }
@@ -229,20 +315,32 @@ function QualityChecks({
     <ScSection
       title="Quality checks"
       action={
-        <ScBadge variant={data.qualityCheck.valid ? 'success' : data.qualityCheck.status === 'failed' ? 'danger' : 'muted'}>
+        <ScBadge
+          variant={
+            data.qualityCheck.valid
+              ? 'success'
+              : data.qualityCheck.status === 'failed'
+                ? 'danger'
+                : 'muted'
+          }
+        >
           {CHECK_STATUS[data.qualityCheck.status]}
         </ScBadge>
       }
     >
       <p className="text-[11px] text-text-muted">
-        A mystery visit or an inspection by Detlio. The latest one from the last {data.rules.qualityCheckMonths} months
-        must be a pass
+        A mystery visit or an inspection by Detlio. The latest one from the last{' '}
+        {data.rules.qualityCheckMonths} months must be a pass
         {data.qualityCheck.validUntil && (
           <>
-            ; this garage’s counts until <span className="font-numeric">{dateKeyLabel(data.qualityCheck.validUntil)}</span>
+            ; this garage’s counts until{' '}
+            <span className="font-numeric">
+              {dateKeyLabel(data.qualityCheck.validUntil)}
+            </span>
           </>
         )}
-        . The garage sees only whether and when it passed, never who checked or the notes.
+        . The garage sees only whether and when it passed, never who checked or
+        the notes.
       </p>
 
       {data.checks.length === 0 ? (
@@ -250,19 +348,33 @@ function QualityChecks({
       ) : (
         <ul className="flex flex-col gap-2">
           {data.checks.map((check) => (
-            <li key={check.id} className="rounded-[10px] border border-border p-2.5">
+            <li
+              key={check.id}
+              className="rounded-[10px] border border-border p-2.5"
+            >
               <div className="flex items-start justify-between gap-2">
                 <p className="text-[13px] font-medium text-text-primary">
-                  {check.kindLabel} · <span className="font-numeric">{dateKeyLabel(check.checkedOn)}</span>
+                  {check.kindLabel} ·{' '}
+                  <span className="font-numeric">
+                    {dateKeyLabel(check.checkedOn)}
+                  </span>
                 </p>
-                <ScBadge variant={check.result === 'pass' ? 'success' : 'danger'} className="shrink-0">
+                <ScBadge
+                  variant={check.result === 'pass' ? 'success' : 'danger'}
+                  className="shrink-0"
+                >
                   {check.result === 'pass' ? 'Pass' : 'Fail'}
                 </ScBadge>
               </div>
               <p className="text-[11px] text-text-secondary">
-                Checked by {check.checkerName} · recorded by {check.recordedBy}, {istDateTimeLabel(check.createdAt)}
+                Checked by {check.checkerName} · recorded by {check.recordedBy},{' '}
+                {istDateTimeLabel(check.createdAt)}
               </p>
-              {check.notes && <p className="mt-1 whitespace-pre-line text-[12px] text-text-primary">{check.notes}</p>}
+              {check.notes && (
+                <p className="mt-1 whitespace-pre-line text-[12px] text-text-primary">
+                  {check.notes}
+                </p>
+              )}
             </li>
           ))}
         </ul>
@@ -280,17 +392,30 @@ function QualityChecks({
                 onChange={(e) => setCheckedOn(e.target.value)}
                 className="font-numeric"
               />
-              <ScSelect label="Kind" value={kind} onChange={(e) => setKind(e.target.value as QualityCheckKind)}>
-                {(Object.keys(QUALITY_CHECK_KIND_LABELS) as QualityCheckKind[]).map((value) => (
+              <ScSelect
+                label="Kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as QualityCheckKind)}
+              >
+                {(
+                  Object.keys(QUALITY_CHECK_KIND_LABELS) as QualityCheckKind[]
+                ).map((value) => (
                   <option key={value} value={value}>
                     {QUALITY_CHECK_KIND_LABELS[value]}
                   </option>
                 ))}
               </ScSelect>
             </div>
-            <ScField label="Checked by" value={checkerName} onChange={setCheckerName} placeholder="Who visited" />
+            <ScField
+              label="Checked by"
+              value={checkerName}
+              onChange={setCheckerName}
+              placeholder="Who visited"
+            />
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-medium text-text-secondary">Result</span>
+              <span className="text-[11px] font-medium text-text-secondary">
+                Result
+              </span>
               <ScSegmented
                 aria-label="Result"
                 value={result}
@@ -302,7 +427,11 @@ function QualityChecks({
               />
             </div>
             <ScTextarea
-              label={result === 'fail' ? 'What was wrong (required)' : 'Notes (optional)'}
+              label={
+                result === 'fail'
+                  ? 'What was wrong (required)'
+                  : 'Notes (optional)'
+              }
               rows={3}
               maxLength={1000}
               value={notes}
@@ -329,7 +458,11 @@ function QualityChecks({
                 Cancel
               </ScButton>
             </div>
-            {!actorName && <p className="text-[11px] text-text-muted">Type your name above first.</p>}
+            {!actorName && (
+              <p className="text-[11px] text-text-muted">
+                Type your name above first.
+              </p>
+            )}
             {error && (
               <p role="alert" className="text-[12px] text-error">
                 {error}
@@ -350,7 +483,15 @@ function QualityChecks({
   )
 }
 
-function Decision({ vendorId, data, actorName }: { vendorId: string; data: AdminCertification; actorName: string | null }) {
+function Decision({
+  vendorId,
+  data,
+  actorName,
+}: {
+  vendorId: string
+  data: AdminCertification
+  actorName: string | null
+}) {
   const certify = useCertifyGarage(vendorId)
   const revoke = useRevokeCertification(vendorId)
   const [revoking, setRevoking] = useState(false)
@@ -362,8 +503,10 @@ function Decision({ vendorId, data, actorName }: { vendorId: string; data: Admin
     if (!actorName) return
     setError('')
     certify.mutate(actorName, {
-      onSuccess: () => toast.success(`${data.garage.businessName} is Detlio Certified`),
-      onError: (err) => setError(errorMessage(err, "Couldn't certify the garage")),
+      onSuccess: () =>
+        toast.success(`${data.garage.businessName} is Detlio Certified`),
+      onError: (err) =>
+        setError(errorMessage(err, "Couldn't certify the garage")),
     })
   }
 
@@ -378,7 +521,8 @@ function Decision({ vendorId, data, actorName }: { vendorId: string; data: Admin
           setReason('')
           toast.success('Certification revoked')
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't revoke the certification")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't revoke the certification")),
       }
     )
   }
@@ -423,7 +567,8 @@ function Decision({ vendorId, data, actorName }: { vendorId: string; data: Admin
         ) : (
           <>
             <p className="text-[12px] text-text-secondary">
-              Takes the seal away now. Customers stop seeing it at once; the garage can earn it again.
+              Takes the seal away now. Customers stop seeing it at once; the
+              garage can earn it again.
             </p>
             <ScButton
               variant="secondary"
@@ -439,8 +584,8 @@ function Decision({ vendorId, data, actorName }: { vendorId: string; data: Admin
       ) : (
         <>
           <p className="text-[12px] text-text-secondary">
-            Records your name and the time. Customers see the seal on its card and page, and can find it with
-            “Certified only”.
+            Records your name and the time. Customers see the seal on its card
+            and page, and can find it with “Certified only”.
           </p>
           <ScButton
             variant="secondary"
@@ -449,13 +594,25 @@ function Decision({ vendorId, data, actorName }: { vendorId: string; data: Admin
             onClick={doCertify}
             className="min-h-11 self-start px-3.5 text-[12px]"
           >
-            <IconRosetteDiscountCheckFilled size={15} aria-hidden="true" className="mr-1.5" />
+            <IconRosetteDiscountCheckFilled
+              size={15}
+              aria-hidden="true"
+              className="mr-1.5"
+            />
             {certify.isPending ? 'Certifying…' : 'Certify'}
           </ScButton>
-          {data.certifyBlockedBy && <p className="text-[11px] text-text-muted">{BLOCKED[data.certifyBlockedBy]}</p>}
+          {data.certifyBlockedBy && (
+            <p className="text-[11px] text-text-muted">
+              {BLOCKED[data.certifyBlockedBy]}
+            </p>
+          )}
         </>
       )}
-      {!actorName && <p className="text-[11px] text-text-muted">Type your name above first.</p>}
+      {!actorName && (
+        <p className="text-[11px] text-text-muted">
+          Type your name above first.
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-[12px] text-error">
           {error}

@@ -13,7 +13,10 @@ import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminClaim } from '@repo/core/api/guarantee'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
-import { useAdminClaims, useAdminGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
+import {
+  useAdminClaims,
+  useAdminGuaranteeConfig,
+} from '@repo/core/api/hooks/use-guarantee'
 import { CLAIM_STATUS_LABELS, GUARANTEE_RULES } from '@repo/core/guarantee'
 import { cn } from '@repo/core/utils'
 import { Meta } from '@/components/meta'
@@ -47,7 +50,9 @@ function ClaimRow({ claim, back }: { claim: AdminClaim; back: string }) {
           >
             #{claim.bookingRef}
           </Link>
-          <ScBadge variant={claim.closed ? 'muted' : 'pending'}>{CLAIM_STATUS_LABELS[claim.status]}</ScBadge>
+          <ScBadge variant={claim.closed ? 'muted' : 'pending'}>
+            {CLAIM_STATUS_LABELS[claim.status]}
+          </ScBadge>
           {claim.overdue && (
             <ScBadge variant="danger">
               <IconAlertTriangle size={11} aria-hidden className="mr-1" />
@@ -61,11 +66,20 @@ function ClaimRow({ claim, back }: { claim: AdminClaim; back: string }) {
           ))}
         </div>
         {clock && (
-          <p className={cn('font-numeric text-[12px]', claim.overdue ? 'text-warning' : 'text-text-secondary')}>{clock}</p>
+          <p
+            className={cn(
+              'font-numeric text-[12px]',
+              claim.overdue ? 'text-warning' : 'text-text-secondary'
+            )}
+          >
+            {clock}
+          </p>
         )}
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-4">
-        <Meta label="What's wrong">{claim.issues.map((issue) => issue.label).join(', ')}</Meta>
+        <Meta label="What's wrong">
+          {claim.issues.map((issue) => issue.label).join(', ')}
+        </Meta>
         <Meta label="Customer" truncate>
           {claim.customer.name}
         </Meta>
@@ -74,10 +88,14 @@ function ClaimRow({ claim, back }: { claim: AdminClaim; back: string }) {
         </Meta>
         <Meta label="Made">
           <span className="font-numeric">{formatWhen(claim.createdAt)}</span>
-          <span className="block text-[12px] text-text-muted">{claim.routeReasons.map((reason) => reason.label).join(' · ')}</span>
+          <span className="block text-[12px] text-text-muted">
+            {claim.routeReasons.map((reason) => reason.label).join(' · ')}
+          </span>
         </Meta>
       </div>
-      <p className="text-[12px] text-text-muted">{customerFiguresLine(claim.customerFigures)}</p>
+      <p className="text-[12px] text-text-muted">
+        {customerFiguresLine(claim.customerFigures)}
+      </p>
     </ScCard>
   )
 }
@@ -100,7 +118,9 @@ function ClaimsList() {
     return (
       <>
         <PageHeader title="Redo claims" />
-        <p className="text-[13px] text-text-secondary">The Detlio Guarantee is switched off (GUARANTEE_ENABLED).</p>
+        <p className="text-[13px] text-text-secondary">
+          The Detlio Guarantee is switched off (GUARANTEE_ENABLED).
+        </p>
       </>
     )
   }
@@ -113,8 +133,11 @@ function ClaimsList() {
         subtitle={
           <>
             Detlio Guarantee: decide disputes within{' '}
-            <span className="font-numeric">{GUARANTEE_RULES.detlioDecideHours}</span> hours, comparing the customer&apos;s
-            photos with the garage&apos;s before and after.
+            <span className="font-numeric">
+              {GUARANTEE_RULES.detlioDecideHours}
+            </span>{' '}
+            hours, comparing the customer&apos;s photos with the garage&apos;s
+            before and after.
           </>
         }
       />
@@ -129,10 +152,15 @@ function ClaimsList() {
             label={CLAIM_TAB_LABELS[value]}
             count={data?.counts[value]}
             active={tab === value}
-            onClick={() => router.replace(claimTabHref(value), { scroll: false })}
+            onClick={() =>
+              router.replace(claimTabHref(value), { scroll: false })
+            }
             className={cn(
               'min-h-11 rounded-[10px] text-[13px]',
-              value === 'needs_decision' && (data?.counts.needs_decision ?? 0) > 0 && tab !== value && 'border-warning/60 text-warning'
+              value === 'needs_decision' &&
+                (data?.counts.needs_decision ?? 0) > 0 &&
+                tab !== value &&
+                'border-warning/60 text-warning'
             )}
           />
         ))}
@@ -141,15 +169,27 @@ function ClaimsList() {
       {isPending ? (
         <SkeletonList count={3} itemClassName="h-36" />
       ) : error && items.length === 0 ? (
-        <ErrorState message={errorMessage(error, 'Failed to load claims')} onRetry={() => void refetch()} />
+        <ErrorState
+          message={errorMessage(error, 'Failed to load claims')}
+          onRetry={() => void refetch()}
+        />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<IconShieldCheck size={32} stroke={1.5} />}
-          title={tab === 'needs_decision' ? 'Nothing to decide' : tab === 'open' ? 'No open claims' : 'No closed claims'}
+          title={
+            tab === 'needs_decision'
+              ? 'Nothing to decide'
+              : tab === 'open'
+                ? 'No open claims'
+                : 'No closed claims'
+          }
           subtitle="Claims customers make for a free redo show up here and in the team’s Telegram group."
         />
       ) : (
-        <ul className="flex flex-col gap-2" aria-label={`${CLAIM_TAB_LABELS[tab]} claims`}>
+        <ul
+          className="flex flex-col gap-2"
+          aria-label={`${CLAIM_TAB_LABELS[tab]} claims`}
+        >
           {items.map((claim, i) => (
             <Reveal as="li" key={claim.id} index={i}>
               <ClaimRow claim={claim} back={back} />

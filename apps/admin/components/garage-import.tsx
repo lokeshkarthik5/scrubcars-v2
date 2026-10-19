@@ -17,10 +17,17 @@ import {
 import { ScButton } from '@repo/ui/sc/button'
 import type { ImportedGarage } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
-import { importFileKind, importFilesMeta, tallyRowMeta, tallyRowTitle, type ImportSummary } from '@/lib/garage-import'
+import {
+  importFileKind,
+  importFilesMeta,
+  tallyRowMeta,
+  tallyRowTitle,
+  type ImportSummary,
+} from '@/lib/garage-import'
 
 /** Accepted by the photo picker. HEIC is let through to be explained, not silently hidden. */
-const PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf'
+const PHOTO_ACCEPT =
+  'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf'
 
 /**
  * Add garage's first card: import from a form or poster. Nothing is saved
@@ -76,11 +83,15 @@ export function ImportStartCard({
           <IconFileImport size={19} stroke={1.5} aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h2 id={titleId} className="text-[17px] font-medium leading-[22px] tracking-[-0.012em] text-text-primary">
+          <h2
+            id={titleId}
+            className="text-[17px] font-medium leading-[22px] tracking-[-0.012em] text-text-primary"
+          >
             Import from a form or poster
           </h2>
           <p className="mt-1 text-[13px] leading-[19px] text-text-secondary">
-            We read it and fill in the form for you. You check everything before it’s saved.
+            We read it and fill in the form for you. You check everything before
+            it’s saved.
           </p>
         </div>
       </div>
@@ -97,8 +108,12 @@ export function ImportStartCard({
             <IconCamera size={19} stroke={1.6} aria-hidden="true" />
             Upload photo or PDF
           </ScButton>
-          <p id={`${titleId}-photo-hint`} className="px-2 text-center text-[12px] leading-[17px] text-text-muted">
-            Poster or price list · up to <span className="font-numeric">5</span> photos or PDFs
+          <p
+            id={`${titleId}-photo-hint`}
+            className="px-2 text-center text-[12px] leading-[17px] text-text-muted"
+          >
+            Poster or price list · up to <span className="font-numeric">5</span>{' '}
+            photos or PDFs
           </p>
         </div>
       )}
@@ -114,8 +129,12 @@ export function ImportStartCard({
           <IconFileSpreadsheet size={18} stroke={1.5} aria-hidden="true" />
           Upload Tally responses (CSV)
         </ScButton>
-        <p id={`${titleId}-csv-hint`} className="px-2 text-center text-[12px] leading-[17px] text-text-muted [text-wrap:balance]">
-          The responses file you download from Tally. If it has several garages, you pick one next.
+        <p
+          id={`${titleId}-csv-hint`}
+          className="px-2 text-center text-[12px] leading-[17px] text-text-muted [text-wrap:balance]"
+        >
+          The responses file you download from Tally. If it has several garages,
+          you pick one next.
         </p>
       </div>
 
@@ -123,20 +142,34 @@ export function ImportStartCard({
       <div role="status" className={reading ? 'mt-4' : 'sr-only'}>
         {reading && (
           <p className="flex items-center justify-center gap-2 text-[13px] text-text-secondary">
-            <IconLoader2 size={16} className="shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            <IconLoader2
+              size={16}
+              className="shrink-0 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
             Reading {reading}… This can take up to a minute.
           </p>
         )}
       </div>
       {error && (
-        <p role="alert" className="mt-4 text-center text-[13px] leading-[18px] text-error">
+        <p
+          role="alert"
+          className="mt-4 text-center text-[13px] leading-[18px] text-error"
+        >
           {error}
         </p>
       )}
 
       <p className="mt-[18px] flex items-center justify-center gap-1.5 border-t border-border pt-3.5 text-[12px] leading-[17px] text-text-muted">
-        <IconLock size={14} stroke={1.6} aria-hidden="true" className="shrink-0" />
-        {photosOn ? 'Read by an AI service; the file isn’t stored' : 'The file isn’t stored'}
+        <IconLock
+          size={14}
+          stroke={1.6}
+          aria-hidden="true"
+          className="shrink-0"
+        />
+        {photosOn
+          ? 'Read by an AI service; the file isn’t stored'
+          : 'The file isn’t stored'}
       </p>
 
       <input
@@ -171,16 +204,26 @@ export function ImportStartCard({
 export function FillByHandLink() {
   return (
     <>
-      <div aria-hidden="true" className="mx-1 flex items-center gap-3 text-[12px] text-text-muted before:flex-1 before:border-t before:border-border after:flex-1 after:border-t after:border-border">
+      <div
+        aria-hidden="true"
+        className="mx-1 flex items-center gap-3 text-[12px] text-text-muted before:flex-1 before:border-t before:border-border after:flex-1 after:border-t after:border-border"
+      >
         or
       </div>
       <Link
         href="/vendors/new?by=hand"
         className="press flex min-h-16 items-center gap-3 rounded-[14px] border border-border pl-3.5 pr-1.5 transition-colors hover:bg-surface"
       >
-        <IconPencil size={18} stroke={1.5} aria-hidden="true" className="shrink-0 text-text-secondary" />
+        <IconPencil
+          size={18}
+          stroke={1.5}
+          aria-hidden="true"
+          className="shrink-0 text-text-secondary"
+        />
         <span className="min-w-0 flex-1">
-          <span className="block text-[14px] font-medium leading-[19px] text-text-primary">Fill in by hand</span>
+          <span className="block text-[14px] font-medium leading-[19px] text-text-primary">
+            Fill in by hand
+          </span>
           <span className="block truncate text-[12px] leading-4 text-text-muted">
             Details, location, operations and services
           </span>
@@ -241,7 +284,12 @@ export function ImportSourceCard({
         // eslint-disable-next-line @next/next/no-img-element -- a local object URL, which next/image cannot load
         <img src={url} alt="" className="size-full object-cover" />
       ) : (
-        <Icon size={28} stroke={1.4} aria-hidden="true" className="text-text-secondary" />
+        <Icon
+          size={28}
+          stroke={1.4}
+          aria-hidden="true"
+          className="text-text-secondary"
+        />
       )}
       {url && (
         <span className="absolute bottom-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/70">
@@ -252,24 +300,40 @@ export function ImportSourceCard({
   )
 
   return (
-    <section aria-label="What was read" className="flex flex-col gap-3.5 rounded-[16px] border border-border bg-surface p-4">
+    <section
+      aria-label="What was read"
+      className="flex flex-col gap-3.5 rounded-[16px] border border-border bg-surface p-4"
+    >
       <div className="flex items-center gap-3.5">
         {url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`View ${first?.name ?? 'the file'}`} className="shrink-0">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View ${first?.name ?? 'the file'}`}
+            className="shrink-0"
+          >
             {thumb}
           </a>
         ) : (
           thumb
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-medium leading-[19px] text-text-primary">{name}</p>
+          <p className="truncate text-[14px] font-medium leading-[19px] text-text-primary">
+            {name}
+          </p>
           <p className="mt-0.5 text-[12px] leading-4 text-text-muted">{meta}</p>
           <button
             type="button"
             onClick={onChangeFile}
             className="-mb-3 -ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-1 text-[13px] font-medium text-text-primary transition-colors hover:text-text-secondary"
           >
-            <IconReplace size={15} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+            <IconReplace
+              size={15}
+              stroke={1.6}
+              aria-hidden="true"
+              className="text-text-secondary"
+            />
             Change file
           </button>
         </div>
@@ -284,10 +348,20 @@ export function ImportSourceCard({
   )
 }
 
-function Stat({ label, value, warn = false }: { label: string; value: number; warn?: boolean }) {
+function Stat({
+  label,
+  value,
+  warn = false,
+}: {
+  label: string
+  value: number
+  warn?: boolean
+}) {
   return (
     <div className="min-w-0">
-      <dt className="whitespace-nowrap text-[11px] font-medium leading-[14px] text-text-secondary">{label}</dt>
+      <dt className="whitespace-nowrap text-[11px] font-medium leading-[14px] text-text-secondary">
+        {label}
+      </dt>
       <dd
         className={cn(
           'mt-0.5 font-numeric text-[22px] font-bold leading-7 tracking-[-0.02em]',
@@ -314,11 +388,15 @@ export function TallyPickList({
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
       <div>
-        <h2 id={headingId} className="text-[15px] font-medium tracking-[-0.01em] text-text-primary">
+        <h2
+          id={headingId}
+          className="text-[15px] font-medium tracking-[-0.01em] text-text-primary"
+        >
           Pick a garage
         </h2>
         <p className="mt-0.5 text-[12.5px] text-text-muted">
-          <span className="font-numeric">{garages.length}</span> garages in {fileName}. You can come back for the others.
+          <span className="font-numeric">{garages.length}</span> garages in{' '}
+          {fileName}. You can come back for the others.
         </p>
       </div>
       <ul className="flex flex-col gap-2">
@@ -335,7 +413,11 @@ export function TallyPickList({
                   <span className="block truncate text-[14px] font-medium leading-[19px] text-text-primary">
                     {tallyRowTitle(garage.label, index)}
                   </span>
-                  {meta && <span className="block truncate text-[12px] leading-4 text-text-muted">{meta}</span>}
+                  {meta && (
+                    <span className="block truncate text-[12px] leading-4 text-text-muted">
+                      {meta}
+                    </span>
+                  )}
                 </span>
                 <span className="flex size-11 items-center justify-center text-text-muted">
                   <IconChevronRight size={18} aria-hidden="true" />

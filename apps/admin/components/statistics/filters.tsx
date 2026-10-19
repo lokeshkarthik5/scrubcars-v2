@@ -1,7 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { IconBuildingStore, IconCalendar, IconCar, IconChevronDown } from '@tabler/icons-react'
+import {
+  IconBuildingStore,
+  IconCalendar,
+  IconCar,
+  IconChevronDown,
+} from '@tabler/icons-react'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { cn } from '@repo/core/utils'
@@ -88,7 +93,9 @@ export function GarageSelect({
   onChange: (vendorId: string) => void
 }) {
   const { data: vendors = [] } = useAdminVendors()
-  const sorted = [...vendors].sort((a, b) => a.businessName.localeCompare(b.businessName))
+  const sorted = [...vendors].sort((a, b) =>
+    a.businessName.localeCompare(b.businessName)
+  )
   // A garage in the URL that the list doesn't have (yet, or any more) still
   // shows as picked rather than silently reading "All garages".
   const unknown = value !== '' && !sorted.some((vendor) => vendor.id === value)
@@ -122,7 +129,12 @@ export function ModeSelect({
   onChange: (value: string) => void
 }) {
   return (
-    <IconSelect icon={<IconCar size={16} stroke={1.5} />} label="Booking type" value={value} onChange={onChange}>
+    <IconSelect
+      icon={<IconCar size={16} stroke={1.5} />}
+      label="Booking type"
+      value={value}
+      onChange={onChange}
+    >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}

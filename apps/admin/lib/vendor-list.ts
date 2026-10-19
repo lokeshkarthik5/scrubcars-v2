@@ -17,7 +17,15 @@ import { DEFAULT_DOORSTEP_RADIUS_KM } from './garage-edit'
  * The chips, in order. All is every garage not in the Bin, so the stages add
  * up to it; the Bin is apart, last, and in no other chip or count.
  */
-export const SHOW_FILTERS = ['all', 'live', 'active', 'pending', 'suspended', 'archived', 'bin'] as const
+export const SHOW_FILTERS = [
+  'all',
+  'live',
+  'active',
+  'pending',
+  'suspended',
+  'archived',
+  'bin',
+] as const
 export type ShowFilter = (typeof SHOW_FILTERS)[number]
 
 export const SHOW_LABELS: Record<ShowFilter, string> = {
@@ -51,7 +59,11 @@ export const CERTIFIED_LABEL = 'Certified'
 export const ELIGIBLE_FILTER = 'eligible' as const
 export const ELIGIBLE_LABEL = 'Eligible, not yet certified'
 
-export type ListFilter = ShowFilter | typeof REVIEW_FILTER | typeof CERTIFIED_FILTER | typeof ELIGIBLE_FILTER
+export type ListFilter =
+  | ShowFilter
+  | typeof REVIEW_FILTER
+  | typeof CERTIFIED_FILTER
+  | typeof ELIGIBLE_FILTER
 
 /** What the list opens on: the garages customers can find. */
 export const DEFAULT_SHOW: ShowFilter = 'live'
@@ -71,7 +83,10 @@ export function listHref(show: ListFilter): string {
   return show === DEFAULT_SHOW ? '/vendors' : `/vendors?show=${show}`
 }
 
-type ListedFields = Pick<AdminVendor, 'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'> &
+type ListedFields = Pick<
+  AdminVendor,
+  'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'
+> &
   Partial<Pick<AdminVendor, 'documents' | 'certification'>>
 
 /** Detlio Certified now, and not in the Bin. */
@@ -81,11 +96,18 @@ export function isCertifiedGarage(v: ListedFields): boolean {
 
 /** Met every standard at its last evaluation, not certified, not in the Bin. */
 export function isEligibleNotCertified(v: ListedFields): boolean {
-  return !isInBin(v) && v.certification?.certified !== true && v.certification?.eligible === true
+  return (
+    !isInBin(v) &&
+    v.certification?.certified !== true &&
+    v.certification?.eligible === true
+  )
 }
 
 /** How many garages the two certification chips hold. */
-export function certificationCounts(vendors: ListedFields[]): { certified: number; eligible: number } {
+export function certificationCounts(vendors: ListedFields[]): {
+  certified: number
+  eligible: number
+} {
   return {
     certified: vendors.filter(isCertifiedGarage).length,
     eligible: vendors.filter(isEligibleNotCertified).length,
@@ -114,7 +136,13 @@ export function isInBin(v: Pick<AdminVendor, 'deletedAt'>): boolean {
  * paused, not in the Bin), and the server's flag wins whenever it is there.
  */
 export function isLive(v: ListedFields): boolean {
-  return v.live ?? (v.status === 'active' && v.isVerified && !v.bookingsPausedAt && !isInBin(v))
+  return (
+    v.live ??
+    (v.status === 'active' &&
+      v.isVerified &&
+      !v.bookingsPausedAt &&
+      !isInBin(v))
+  )
 }
 
 /** A garage in the Bin is under the Bin chip and no other. */
@@ -130,8 +158,13 @@ export function matchesShow(v: ListedFields, show: ListFilter): boolean {
 }
 
 /** Each chip's count, over the full list the page already has. */
-export function showCounts(vendors: ListedFields[]): Record<ShowFilter, number> {
-  const counts = Object.fromEntries(SHOW_FILTERS.map((s) => [s, 0])) as Record<ShowFilter, number>
+export function showCounts(
+  vendors: ListedFields[]
+): Record<ShowFilter, number> {
+  const counts = Object.fromEntries(SHOW_FILTERS.map((s) => [s, 0])) as Record<
+    ShowFilter,
+    number
+  >
   for (const v of vendors) {
     for (const show of SHOW_FILTERS) if (matchesShow(v, show)) counts[show] += 1
   }
@@ -143,24 +176,55 @@ export function showCounts(vendors: ListedFields[]): Record<ShowFilter, number> 
  * Active are told apart wherever either could be meant, since to the owner
  * they sound like the same thing.
  */
-export function showHints(show: ListFilter): Array<{ term: string; meaning: string }> {
+export function showHints(
+  show: ListFilter
+): Array<{ term: string; meaning: string }> {
   switch (show) {
     case REVIEW_FILTER:
-      return [{ term: REVIEW_LABEL, meaning: 'uploaded by the garage, waiting for Detlio to check them' }]
+      return [
+        {
+          term: REVIEW_LABEL,
+          meaning: 'uploaded by the garage, waiting for Detlio to check them',
+        },
+      ]
     case CERTIFIED_FILTER:
-      return [{ term: 'Detlio Certified', meaning: 'customers see the seal; checked every night' }]
+      return [
+        {
+          term: 'Detlio Certified',
+          meaning: 'customers see the seal; checked every night',
+        },
+      ]
     case ELIGIBLE_FILTER:
       return [
-        { term: 'Eligible', meaning: 'met every standard last night; record a quality check, then Certify' },
+        {
+          term: 'Eligible',
+          meaning:
+            'met every standard last night; record a quality check, then Certify',
+        },
       ]
     case 'pending':
       return [{ term: 'Pending', meaning: 'added, not shown to customers yet' }]
     case 'suspended':
-      return [{ term: 'Suspended', meaning: 'stopped by Detlio, not shown to customers' }]
+      return [
+        {
+          term: 'Suspended',
+          meaning: 'stopped by Detlio, not shown to customers',
+        },
+      ]
     case 'archived':
-      return [{ term: 'Archived', meaning: 'put away, not shown to customers; its bookings are kept' }]
+      return [
+        {
+          term: 'Archived',
+          meaning: 'put away, not shown to customers; its bookings are kept',
+        },
+      ]
     case 'bin':
-      return [{ term: 'Bin', meaning: 'off the app. Restore it, or delete it forever.' }]
+      return [
+        {
+          term: 'Bin',
+          meaning: 'off the app. Restore it, or delete it forever.',
+        },
+      ]
     default:
       return [
         { term: 'Live', meaning: 'customers can find it' },
@@ -208,7 +272,10 @@ export type MetaPart = { text?: string; quiet?: string }
  * Nothing when no booking type is on: the checklist says so, in amber.
  */
 export function bookingParts(
-  v: Pick<AdminVendor, 'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea'> &
+  v: Pick<
+    AdminVendor,
+    'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea'
+  > &
     Partial<Pick<AdminVendor, 'pickupEnabled'>>
 ): MetaPart[] {
   // Pickup & drop, when on, comes last: "At the garage · Pickup & drop".
@@ -217,7 +284,10 @@ export function bookingParts(
 }
 
 function bookingModeParts(
-  v: Pick<AdminVendor, 'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea'>
+  v: Pick<
+    AdminVendor,
+    'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea'
+  >
 ): MetaPart[] {
   const reach: MetaPart = v.hasDoorstepArea
     ? { quiet: 'drawn area' }
@@ -229,7 +299,9 @@ function bookingModeParts(
     // "Doorstep 8 km" reads as one piece; the quiet ones follow the word.
     return [
       { text: 'At the garage' },
-      reach.text ? { text: `Doorstep ${reach.text}` } : { text: 'Doorstep', quiet: reach.quiet },
+      reach.text
+        ? { text: `Doorstep ${reach.text}` }
+        : { text: 'Doorstep', quiet: reach.quiet },
     ]
   }
   if (v.doorstepEnabled) return [{ text: 'Doorstep only' }, reach]
@@ -244,7 +316,11 @@ export const READINESS_GROUPS: Array<{
   title: string
   note: string
 }> = [
-  { severity: 'blocking', title: 'Blocking', note: 'Needed before it can be booked' },
+  {
+    severity: 'blocking',
+    title: 'Blocking',
+    note: 'Needed before it can be booked',
+  },
   { severity: 'fix', title: 'Fix', note: 'Works, but fix soon' },
   { severity: 'optional', title: 'Optional', note: 'Nice to have' },
 ]
@@ -266,7 +342,8 @@ export interface ReadinessSummary {
   optional: string | null
 }
 
-const uniqueShorts = (items: ReadinessItem[]) => [...new Set(items.map((i) => i.short))].join(', ')
+const uniqueShorts = (items: ReadinessItem[]) =>
+  [...new Set(items.map((i) => i.short))].join(', ')
 
 /**
  * The card's one readiness line. Only blocking and fix items count as
@@ -283,7 +360,10 @@ export function readinessSummary(items: ReadinessItem[]): ReadinessSummary {
     return {
       needsFixing: false,
       main: 'Ready',
-      optional: optional.length > 0 ? `${optional.length} optional: ${uniqueShorts(optional)}` : null,
+      optional:
+        optional.length > 0
+          ? `${optional.length} optional: ${uniqueShorts(optional)}`
+          : null,
     }
   }
 
@@ -293,7 +373,10 @@ export function readinessSummary(items: ReadinessItem[]): ReadinessSummary {
   ].filter(Boolean)
   return {
     needsFixing: true,
-    main: blocking.length > 0 ? counts.join(' · ') : `${counts[0]}: ${uniqueShorts(fix)}`,
+    main:
+      blocking.length > 0
+        ? counts.join(' · ')
+        : `${counts[0]}: ${uniqueShorts(fix)}`,
     optional: optional.length > 0 ? `${optional.length} optional` : null,
   }
 }
@@ -302,7 +385,11 @@ export function readinessSummary(items: ReadinessItem[]): ReadinessSummary {
  * Where a checklist row goes: the garage's edit page on the tab the item is
  * fixed on, with the list as it was (its chip) for the back arrow.
  */
-export function editHref(vendorId: string, back: string, tab?: ReadinessItem['tab'] | 'certification'): string {
+export function editHref(
+  vendorId: string,
+  back: string,
+  tab?: ReadinessItem['tab'] | 'certification'
+): string {
   const query = new URLSearchParams()
   if (tab) query.set('tab', tab)
   query.set('back', back)

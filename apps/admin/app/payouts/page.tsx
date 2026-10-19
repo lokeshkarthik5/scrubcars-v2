@@ -25,7 +25,16 @@ type GarageRow = AdminPayoutsList['garages'][number]
 
 function exportList(rows: GarageRow[]) {
   const csv = toCsv(
-    ['Garage', 'Balance due', 'Bookings', 'Oldest unpaid (IST)', 'Past 24 hours', 'Last payout', 'Last payout date', 'Pay to'],
+    [
+      'Garage',
+      'Balance due',
+      'Bookings',
+      'Oldest unpaid (IST)',
+      'Past 24 hours',
+      'Last payout',
+      'Last payout date',
+      'Pay to',
+    ],
     rows.map((row) => [
       row.garage.name,
       row.balanceDue.toFixed(2),
@@ -34,7 +43,9 @@ function exportList(rows: GarageRow[]) {
       row.overdue ? 'Yes' : 'No',
       row.lastPayout ? row.lastPayout.amount.toFixed(2) : '',
       row.lastPayout ? istDateLabel(row.lastPayout.paidAt) : '',
-      row.account ? `${row.account.method === 'bank' ? 'Bank' : 'UPI'} ${row.account.masked}` : '',
+      row.account
+        ? `${row.account.method === 'bank' ? 'Bank' : 'UPI'} ${row.account.masked}`
+        : '',
     ])
   )
   downloadCsv(csv, `detlio-payouts-${todayIst()}.csv`)
@@ -64,8 +75,15 @@ function GarageCard({ row, now }: { row: GarageRow; now: Date }) {
             {row.oldestUnpaidAt && (
               <>
                 {' '}
-                · oldest <span className="font-numeric">{istDateLabel(row.oldestUnpaidAt)}</span> (
-                <span className="font-numeric">{waitedLabel(row.oldestUnpaidAt, now)}</span>)
+                · oldest{' '}
+                <span className="font-numeric">
+                  {istDateLabel(row.oldestUnpaidAt)}
+                </span>{' '}
+                (
+                <span className="font-numeric">
+                  {waitedLabel(row.oldestUnpaidAt, now)}
+                </span>
+                )
               </>
             )}
           </p>
@@ -81,8 +99,14 @@ function GarageCard({ row, now }: { row: GarageRow; now: Date }) {
             {row.lastPayout && (
               <>
                 {' '}
-                · last paid <span className="font-numeric">{rupeesLabel(row.lastPayout.amount)}</span> on{' '}
-                <span className="font-numeric">{istDateLabel(row.lastPayout.paidAt)}</span>
+                · last paid{' '}
+                <span className="font-numeric">
+                  {rupeesLabel(row.lastPayout.amount)}
+                </span>{' '}
+                on{' '}
+                <span className="font-numeric">
+                  {istDateLabel(row.lastPayout.paidAt)}
+                </span>
               </>
             )}
           </p>
@@ -95,7 +119,9 @@ function GarageCard({ row, now }: { row: GarageRow; now: Date }) {
                 row.overdue ? 'text-warning' : 'text-text-primary'
               )}
             >
-              {owesDetlio ? `−${rupeesLabel(-row.balanceDue)}` : rupeesLabel(row.balanceDue)}
+              {owesDetlio
+                ? `−${rupeesLabel(-row.balanceDue)}`
+                : rupeesLabel(row.balanceDue)}
             </p>
             {row.overdue ? (
               <ScBadge variant="danger">Past 24 hours</ScBadge>
@@ -103,7 +129,11 @@ function GarageCard({ row, now }: { row: GarageRow; now: Date }) {
               <ScBadge variant="muted">Owes Detlio</ScBadge>
             ) : null}
           </div>
-          <IconChevronRight size={16} aria-hidden="true" className="text-text-muted" />
+          <IconChevronRight
+            size={16}
+            aria-hidden="true"
+            className="text-text-muted"
+          />
         </div>
       </ScCard>
     </Link>
@@ -141,13 +171,25 @@ export default function AdminPayoutsPage() {
 
       {totals && (
         <div className="grid grid-cols-3 gap-2">
-          <StatTile label="Due now" tone={totals.totalDue > 0 ? 'warning' : 'default'} value={rupeesLabel(totals.totalDue)} />
+          <StatTile
+            label="Due now"
+            tone={totals.totalDue > 0 ? 'warning' : 'default'}
+            value={rupeesLabel(totals.totalDue)}
+          />
           <StatTile label="Garages" value={totals.garagesDue} />
           <StatTile
             label="Oldest"
             tone={totals.overdueGarages > 0 ? 'warning' : 'default'}
-            value={totals.oldestUnpaidAt ? waitedLabel(totals.oldestUnpaidAt, now) : '—'}
-            hint={totals.overdueGarages > 0 ? `${totals.overdueGarages} past 24 hours` : undefined}
+            value={
+              totals.oldestUnpaidAt
+                ? waitedLabel(totals.oldestUnpaidAt, now)
+                : '—'
+            }
+            hint={
+              totals.overdueGarages > 0
+                ? `${totals.overdueGarages} past 24 hours`
+                : undefined
+            }
           />
         </div>
       )}
@@ -155,7 +197,10 @@ export default function AdminPayoutsPage() {
       {isPending ? (
         <SkeletonList count={3} itemClassName="h-24" />
       ) : error && !data ? (
-        <ErrorState message={errorMessage(error, "Couldn't load payouts")} onRetry={() => void refetch()} />
+        <ErrorState
+          message={errorMessage(error, "Couldn't load payouts")}
+          onRetry={() => void refetch()}
+        />
       ) : !data || data.garages.length === 0 ? (
         <EmptyState
           icon={<IconCash size={32} stroke={1.5} />}

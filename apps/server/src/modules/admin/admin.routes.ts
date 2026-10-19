@@ -128,7 +128,12 @@ adminRoutes.patch(
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
   zValidator('json', updateVendorSchema),
-  (c) => adminController.updateVendor(c, c.req.valid('param').id, c.req.valid('json'))
+  (c) =>
+    adminController.updateVendor(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.patch(
   '/vendors/:id/verify',
@@ -283,7 +288,11 @@ adminRoutes.put(
   zValidator('param', vendorIdParamSchema),
   zValidator('json', mediaUrlSchema),
   (c) =>
-    adminController.setVendorLogo(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.setVendorLogo(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.delete(
   '/vendors/:id/logo',
@@ -466,7 +475,11 @@ adminRoutes.post(
   zValidator('param', bookingIdParamSchema),
   zValidator('json', adminCancelBookingSchema),
   (c) =>
-    adminController.cancelBooking(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.cancelBooking(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.post(
   '/bookings/:id/no-show',
@@ -502,7 +515,11 @@ adminRoutes.post(
   zValidator('param', bookingIdParamSchema),
   zValidator('json', pickupStepOverrideSchema),
   (c) =>
-    adminController.overridePickupStep(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.overridePickupStep(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 // The photo standard (0045): Detlio waives it on one booking, with the typed
 // name and a reason, for a genuine case.
@@ -511,7 +528,12 @@ adminRoutes.post(
   ...adminMiddleware,
   zValidator('param', bookingIdParamSchema),
   zValidator('json', waiveJobPhotosSchema),
-  (c) => adminController.waiveJobPhotos(c, c.req.valid('param').id, c.req.valid('json'))
+  (c) =>
+    adminController.waiveJobPhotos(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.post(
   '/bookings/:id/notes',
@@ -519,5 +541,9 @@ adminRoutes.post(
   zValidator('param', bookingIdParamSchema),
   zValidator('json', createBookingNoteSchema),
   (c) =>
-    adminController.addBookingNote(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.addBookingNote(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )

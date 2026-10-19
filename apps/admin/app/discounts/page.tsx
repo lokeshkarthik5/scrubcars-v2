@@ -78,18 +78,34 @@ type Stage = (typeof STAGES)[number]
  */
 function stageBadge(discount: AdminDiscount) {
   if (!discount.isActive) {
-    return { stage: 'inactive' as const, label: 'Inactive', variant: 'muted' as const }
+    return {
+      stage: 'inactive' as const,
+      label: 'Inactive',
+      variant: 'muted' as const,
+    }
   }
 
   const now = Date.now()
 
   if (discount.startsAt && now < Date.parse(discount.startsAt)) {
-    return { stage: 'scheduled' as const, label: 'Scheduled', variant: 'pending' as const }
+    return {
+      stage: 'scheduled' as const,
+      label: 'Scheduled',
+      variant: 'pending' as const,
+    }
   }
   if (discount.endsAt && now > Date.parse(discount.endsAt)) {
-    return { stage: 'expired' as const, label: 'Expired', variant: 'muted' as const }
+    return {
+      stage: 'expired' as const,
+      label: 'Expired',
+      variant: 'muted' as const,
+    }
   }
-  return { stage: 'active' as const, label: 'Active', variant: 'success' as const }
+  return {
+    stage: 'active' as const,
+    label: 'Active',
+    variant: 'success' as const,
+  }
 }
 
 // The small actions on a code's card: outline, 44px tall, never red.
@@ -99,7 +115,12 @@ export default function AdminDiscountsPage() {
   const router = useRouter()
   const { data: rewardsConfig } = useAdminRewardsConfig()
 
-  const { data: discounts = [], isPending, error, refetch } = useAdminDiscounts()
+  const {
+    data: discounts = [],
+    isPending,
+    error,
+    refetch,
+  } = useAdminDiscounts()
 
   const [search, setSearch] = useState('')
   const [stage, setStage] = useState<Stage>('all')
@@ -126,7 +147,8 @@ export default function AdminDiscountsPage() {
   const [actionError, setActionError] = useState('')
 
   const toggleActive = useToggleDiscountActive({
-    onError: (err) => setActionError(errorMessage(err, 'Failed to update the code')),
+    onError: (err) =>
+      setActionError(errorMessage(err, 'Failed to update the code')),
   })
   const deleteDiscount = useDeleteDiscount()
 
@@ -210,11 +232,19 @@ export default function AdminDiscountsPage() {
             className="min-h-11"
           />
 
-          <div role="group" aria-label="Status" className="flex flex-wrap gap-1.5">
+          <div
+            role="group"
+            aria-label="Status"
+            className="flex flex-wrap gap-1.5"
+          >
             {STAGES.map((option) => (
               <FilterChip
                 key={option}
-                label={option === 'all' ? 'All' : option[0].toUpperCase() + option.slice(1)}
+                label={
+                  option === 'all'
+                    ? 'All'
+                    : option[0].toUpperCase() + option.slice(1)
+                }
                 active={stage === option}
                 onClick={() => setStage(option)}
               />
@@ -253,7 +283,9 @@ export default function AdminDiscountsPage() {
         <div className="flex flex-col gap-2">
           {/* Amber, as errors are: red is the Add discount button's. */}
           {actionError && (
-            <p role="alert" className="text-[12px] text-error">{actionError}</p>
+            <p role="alert" className="text-[12px] text-error">
+              {actionError}
+            </p>
           )}
 
           {visible.map((discount, i) => {
@@ -287,14 +319,20 @@ export default function AdminDiscountsPage() {
                           discount.fundedBy === 'platform' ? 'pending' : 'muted'
                         }
                       >
-                        {discount.fundedBy === 'platform' ? 'Detlio pays' : 'Garage pays'}
+                        {discount.fundedBy === 'platform'
+                          ? 'Detlio pays'
+                          : 'Garage pays'}
                       </ScBadge>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-                    <Meta label="Effect" truncate>{effectLabel(discount)}</Meta>
-                    <Meta label="Conditions" truncate>{conditionLabel(discount)}</Meta>
+                    <Meta label="Effect" truncate>
+                      {effectLabel(discount)}
+                    </Meta>
+                    <Meta label="Conditions" truncate>
+                      {conditionLabel(discount)}
+                    </Meta>
                     <Meta label="Used" truncate>
                       {discount.heldCount > 0 ? (
                         <>
@@ -309,7 +347,11 @@ export default function AdminDiscountsPage() {
                           </span>
                           <span className="text-text-muted">
                             {' '}
-                            · <span className="font-numeric">{rupees(discount.totalSaved)}</span> saved
+                            ·{' '}
+                            <span className="font-numeric">
+                              {rupees(discount.totalSaved)}
+                            </span>{' '}
+                            saved
                           </span>
                         </>
                       ) : (

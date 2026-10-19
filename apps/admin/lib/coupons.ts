@@ -1,4 +1,8 @@
-import type { AdminCouponBatch, CouponRedemption, PrintedCode } from '@repo/core/api/coupons'
+import type {
+  AdminCouponBatch,
+  CouponRedemption,
+  PrintedCode,
+} from '@repo/core/api/coupons'
 import { toCsv } from '@repo/core/csv'
 
 /**
@@ -9,7 +13,10 @@ import { toCsv } from '@repo/core/csv'
 export type BatchStage = 'void' | 'scheduled' | 'running' | 'ended'
 
 /** Where a batch stands today (IST date keys compare as text). */
-export function batchStage(batch: Pick<AdminCouponBatch, 'voided' | 'validFromDate' | 'validToDate'>, todayKey: string): BatchStage {
+export function batchStage(
+  batch: Pick<AdminCouponBatch, 'voided' | 'validFromDate' | 'validToDate'>,
+  todayKey: string
+): BatchStage {
   if (batch.voided) return 'void'
   if (todayKey < batch.validFromDate) return 'scheduled'
   if (todayKey > batch.validToDate) return 'ended'
@@ -23,7 +30,10 @@ export const STAGE_LABELS: Record<BatchStage, string> = {
   ended: 'Ended',
 }
 
-export const STAGE_BADGES: Record<BatchStage, 'danger' | 'pending' | 'success' | 'muted'> = {
+export const STAGE_BADGES: Record<
+  BatchStage,
+  'danger' | 'pending' | 'success' | 'muted'
+> = {
   void: 'danger',
   scheduled: 'pending',
   running: 'success',
@@ -37,14 +47,23 @@ export function rate(part: number, of: number): string {
 }
 
 /** What "scanned" means for the kind: codes opened at least once, or the shared code's opens. */
-export function scannedFigure(batch: Pick<AdminCouponBatch, 'kind' | 'figures'>): number {
-  return batch.kind === 'unique' ? batch.figures.scannedCodes : batch.figures.scans
+export function scannedFigure(
+  batch: Pick<AdminCouponBatch, 'kind' | 'figures'>
+): number {
+  return batch.kind === 'unique'
+    ? batch.figures.scannedCodes
+    : batch.figures.scans
 }
 
 /** What was handed out: the codes printed, or (one shared code) the customers who added it. */
-export function printedLabel(batch: Pick<AdminCouponBatch, 'kind' | 'codeCount' | 'maxRedemptions'>): string {
-  if (batch.kind === 'unique') return `${batch.codeCount.toLocaleString('en-IN')} codes`
-  return batch.maxRedemptions ? `1 shared code · up to ${batch.maxRedemptions.toLocaleString('en-IN')}` : '1 shared code'
+export function printedLabel(
+  batch: Pick<AdminCouponBatch, 'kind' | 'codeCount' | 'maxRedemptions'>
+): string {
+  if (batch.kind === 'unique')
+    return `${batch.codeCount.toLocaleString('en-IN')} codes`
+  return batch.maxRedemptions
+    ? `1 shared code · up to ${batch.maxRedemptions.toLocaleString('en-IN')}`
+    : '1 shared code'
 }
 
 export interface LocationRow {
@@ -65,13 +84,25 @@ export interface LocationRow {
  * spaces at the ends; the first spelling seen names the row. Most bookings
  * first, then most added. A shared code counts as one printed piece.
  */
-export function byLocation(batches: readonly AdminCouponBatch[]): LocationRow[] {
+export function byLocation(
+  batches: readonly AdminCouponBatch[]
+): LocationRow[] {
   const rows = new Map<string, LocationRow>()
   for (const batch of batches) {
     const key = batch.location.trim().toLowerCase()
     let row = rows.get(key)
     if (!row) {
-      row = { location: batch.location.trim(), batches: 0, printed: 0, scanned: 0, redeemed: 0, bookings: 0, revenue: 0, cost: 0, newCustomers: 0 }
+      row = {
+        location: batch.location.trim(),
+        batches: 0,
+        printed: 0,
+        scanned: 0,
+        redeemed: 0,
+        bookings: 0,
+        revenue: 0,
+        cost: 0,
+        newCustomers: 0,
+      }
       rows.set(key, row)
     }
     row.batches += 1
@@ -83,10 +114,18 @@ export function byLocation(batches: readonly AdminCouponBatch[]): LocationRow[] 
     row.cost += Number(batch.figures.cost)
     row.newCustomers += batch.figures.newCustomers
   }
-  return [...rows.values()].sort((a, b) => b.bookings - a.bookings || b.redeemed - a.redeemed || a.location.localeCompare(b.location))
+  return [...rows.values()].sort(
+    (a, b) =>
+      b.bookings - a.bookings ||
+      b.redeemed - a.redeemed ||
+      a.location.localeCompare(b.location)
+  )
 }
 
-export const STATE_LABELS: Record<PrintedCode['state'] | CouponRedemption['state'], string> = {
+export const STATE_LABELS: Record<
+  PrintedCode['state'] | CouponRedemption['state'],
+  string
+> = {
   new: 'Not scanned',
   scanned: 'Scanned',
   redeemed: 'Added',
@@ -105,10 +144,21 @@ export const CHANNEL_LABELS: Record<CouponRedemption['channel'], string> = {
 }
 
 /** The batch's codes as a CSV, for a print shop or a mail merge. */
-export function codesCsv(batch: Pick<AdminCouponBatch, 'name' | 'title' | 'validToDate'>, codes: readonly PrintedCode[]): string {
+export function codesCsv(
+  batch: Pick<AdminCouponBatch, 'name' | 'title' | 'validToDate'>,
+  codes: readonly PrintedCode[]
+): string {
   return toCsv(
     ['#', 'Code', 'Link (QR)', 'Offer', 'Valid till', 'State', 'Scans'],
-    codes.map((code) => [code.seq, code.code, code.link, batch.title, batch.validToDate, STATE_LABELS[code.state], code.scans])
+    codes.map((code) => [
+      code.seq,
+      code.code,
+      code.link,
+      batch.title,
+      batch.validToDate,
+      STATE_LABELS[code.state],
+      code.scans,
+    ])
   )
 }
 
@@ -118,7 +168,19 @@ export function redemptionsCsv(
   redemptions: readonly CouponRedemption[]
 ): string {
   return toCsv(
-    ['Added', 'Campaign', 'Location', 'How', 'Code ends', 'Customer', 'Phone', 'State', 'Booking', 'Paid', 'Saved'],
+    [
+      'Added',
+      'Campaign',
+      'Location',
+      'How',
+      'Code ends',
+      'Customer',
+      'Phone',
+      'State',
+      'Booking',
+      'Paid',
+      'Saved',
+    ],
     redemptions.map((r) => [
       r.addedAt.slice(0, 10),
       batch.name,
@@ -138,9 +200,13 @@ export function redemptionsCsv(
 /** The print sheet's pages: 10 coupons to an A4 page (2 across, 5 down). */
 export const COUPONS_PER_PAGE = 10
 
-export function sheetPages<T>(codes: readonly T[], perPage = COUPONS_PER_PAGE): T[][] {
+export function sheetPages<T>(
+  codes: readonly T[],
+  perPage = COUPONS_PER_PAGE
+): T[][] {
   const pages: T[][] = []
-  for (let i = 0; i < codes.length; i += perPage) pages.push(codes.slice(i, i + perPage))
+  for (let i = 0; i < codes.length; i += perPage)
+    pages.push(codes.slice(i, i + perPage))
   return pages
 }
 
@@ -154,10 +220,29 @@ export function wholeOrNull(typed: string): number | null {
 
 /** A filename-safe slug of the campaign's name. */
 export function fileSlug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'coupons'
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40) || 'coupons'
+  )
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 /** "30 Nov 2026" from an IST date key, as printed on a coupon. */
 export function printDate(dateKey: string): string {
@@ -167,6 +252,12 @@ export function printDate(dateKey: string): string {
 }
 
 /** What goes on the sheet: never a void code; codes already added only when asked. */
-export function codesToPrint<T extends { state: PrintedCode['state'] }>(codes: readonly T[], includeAdded: boolean): T[] {
-  return codes.filter((code) => code.state !== 'void' && (includeAdded || code.state !== 'redeemed'))
+export function codesToPrint<T extends { state: PrintedCode['state'] }>(
+  codes: readonly T[],
+  includeAdded: boolean
+): T[] {
+  return codes.filter(
+    (code) =>
+      code.state !== 'void' && (includeAdded || code.state !== 'redeemed')
+  )
 }

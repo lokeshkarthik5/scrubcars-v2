@@ -74,7 +74,9 @@ function NameField({
         onChange={(e) => onChange(e.target.value)}
         className="min-h-11"
       />
-      <p className="text-[11px] text-text-muted">Kept with the record of who did this.</p>
+      <p className="text-[11px] text-text-muted">
+        Kept with the record of who did this.
+      </p>
     </div>
   )
 }
@@ -112,10 +114,17 @@ export function MoveToBinDialog({
     setError('')
     rememberName(name.trim())
     bin.mutate(
-      { id: vendor.id, actorName: name.trim(), reason: reason.trim() || undefined },
+      {
+        id: vendor.id,
+        actorName: name.trim(),
+        reason: reason.trim() || undefined,
+      },
       {
         onSuccess: onDone,
-        onError: (err) => setError(errorMessage(err, "Couldn't move it to the Bin. Nothing changed.")),
+        onError: (err) =>
+          setError(
+            errorMessage(err, "Couldn't move it to the Bin. Nothing changed.")
+          ),
       }
     )
   }
@@ -132,13 +141,18 @@ export function MoveToBinDialog({
           <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-text-primary">
             Move {vendor.businessName} to the Bin?
           </h2>
-          <p className="mt-1 text-[13px] text-text-secondary">It stays there until someone restores it or deletes it forever.</p>
+          <p className="mt-1 text-[13px] text-text-secondary">
+            It stays there until someone restores it or deletes it forever.
+          </p>
         </div>
 
         <ul className="flex flex-col gap-1.5 text-[13px] leading-[18px] text-text-primary">
           {BIN_EFFECTS.map((effect) => (
             <li key={effect} className="flex gap-2">
-              <span aria-hidden="true" className="mt-[7px] size-1 shrink-0 rounded-full bg-text-secondary" />
+              <span
+                aria-hidden="true"
+                className="mt-[7px] size-1 shrink-0 rounded-full bg-text-secondary"
+              />
               {effect}
             </li>
           ))}
@@ -153,9 +167,17 @@ export function MoveToBinDialog({
             <SkeletonList count={1} itemClassName="h-14" />
           )
         ) : (
-          <section aria-labelledby="bin-upcoming-title" className="flex flex-col gap-2">
-            <p id="bin-upcoming-title" className="text-[13px] font-medium text-text-primary">
-              <span className="font-numeric">{upcomingLine(data.upcomingCount, data.paidCount)}</span>
+          <section
+            aria-labelledby="bin-upcoming-title"
+            className="flex flex-col gap-2"
+          >
+            <p
+              id="bin-upcoming-title"
+              className="text-[13px] font-medium text-text-primary"
+            >
+              <span className="font-numeric">
+                {upcomingLine(data.upcomingCount, data.paidCount)}
+              </span>
             </p>
             {data.upcoming.length > 0 && (
               <ul className="overflow-hidden rounded-xl border border-border">
@@ -165,15 +187,21 @@ export function MoveToBinDialog({
                     className="flex min-h-11 items-center gap-2 border-t border-border px-3 py-2 text-[12px] first:border-t-0"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="font-numeric font-semibold text-text-primary">#{booking.reference}</span>
+                      <span className="font-numeric font-semibold text-text-primary">
+                        #{booking.reference}
+                      </span>
                       <span className="text-text-secondary">
                         {' · '}
                         {booking.customerName ?? 'Customer'} ·{' '}
-                        <span className="font-numeric">{formatWhen(booking.scheduledAt)}</span>
+                        <span className="font-numeric">
+                          {formatWhen(booking.scheduledAt)}
+                        </span>
                       </span>
                     </span>
                     {booking.paid && <ScBadge variant="pending">Paid</ScBadge>}
-                    <span className="font-numeric text-text-primary">{formatRupees(booking.amount)}</span>
+                    <span className="font-numeric text-text-primary">
+                      {formatRupees(booking.amount)}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -198,11 +226,21 @@ export function MoveToBinDialog({
           </p>
         )}
 
-        <ScButton variant="secondary" onClick={submit} disabled={!ready} className={DESTRUCTIVE}>
+        <ScButton
+          variant="secondary"
+          onClick={submit}
+          disabled={!ready}
+          className={DESTRUCTIVE}
+        >
           <IconTrash size={18} aria-hidden="true" />
           {busy ? 'Moving…' : 'Move to bin'}
         </ScButton>
-        <ScButton variant="secondary" onClick={onClose} disabled={busy} className="min-h-11 border-0">
+        <ScButton
+          variant="secondary"
+          onClick={onClose}
+          disabled={busy}
+          className="min-h-11 border-0"
+        >
           Cancel
         </ScButton>
       </div>
@@ -235,7 +273,8 @@ export function RestoreDialog({
       { id: vendor.id, actorName: name.trim() },
       {
         onSuccess: onDone,
-        onError: (err) => setError(errorMessage(err, "Couldn't restore it. Nothing changed.")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't restore it. Nothing changed.")),
       }
     )
   }
@@ -249,10 +288,12 @@ export function RestoreDialog({
       className="flex flex-col gap-4"
     >
       <div>
-        <h2 className="text-[15px] font-semibold text-text-primary">Restore {vendor.businessName}?</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">
+          Restore {vendor.businessName}?
+        </h2>
         <p className="mt-1 text-[12px] leading-[17px] text-text-secondary">
-          It comes back exactly as it was before the Bin, and its team can sign in again. Bookings
-          cancelled when it went to the Bin stay cancelled.
+          It comes back exactly as it was before the Bin, and its team can sign
+          in again. Bookings cancelled when it went to the Bin stay cancelled.
         </p>
       </div>
       <NameField id="restore-name" value={name} onChange={setName} />
@@ -270,7 +311,12 @@ export function RestoreDialog({
         <IconRestore size={16} aria-hidden="true" />
         {busy ? 'Restoring…' : 'Restore'}
       </ScButton>
-      <ScButton variant="secondary" onClick={onClose} disabled={busy} className="min-h-11 border-0">
+      <ScButton
+        variant="secondary"
+        onClick={onClose}
+        disabled={busy}
+        className="min-h-11 border-0"
+      >
         Cancel
       </ScButton>
     </ScModal>
@@ -306,24 +352,40 @@ export function DeleteForeverSheet({
   const remove = useDeleteAdminVendorForever()
   const [name, setName] = useState(rememberedName)
   const [typed, setTyped] = useState('')
-  const [error, setError] = useState<{ message: string; stale: boolean } | null>(null)
+  const [error, setError] = useState<{
+    message: string
+    stale: boolean
+  } | null>(null)
 
   const data = preview.data
   const busy = remove.isPending
   const nameTyped = confirmNameMatches(typed, vendor.businessName)
-  const ready = Boolean(data) && nameReady(name) && nameTyped && !busy && !preview.isFetching
+  const ready =
+    Boolean(data) &&
+    nameReady(name) &&
+    nameTyped &&
+    !busy &&
+    !preview.isFetching
 
   const submit = () => {
     if (!ready || !data) return
     setError(null)
     rememberName(name.trim())
     remove.mutate(
-      { id: vendor.id, actorName: name.trim(), confirmName: typed, selectionHash: data.selectionHash },
+      {
+        id: vendor.id,
+        actorName: name.trim(),
+        confirmName: typed,
+        selectionHash: data.selectionHash,
+      },
       {
         onSuccess: onDone,
         onError: (err) =>
           setError({
-            message: errorMessage(err, "Couldn't delete it. Nothing was deleted."),
+            message: errorMessage(
+              err,
+              "Couldn't delete it. Nothing was deleted."
+            ),
             stale: err instanceof ApiError && err.code === 'PREVIEW_STALE',
           }),
       }
@@ -344,32 +406,45 @@ export function DeleteForeverSheet({
           <h2 className="text-[20px] font-semibold tracking-[-0.01em] text-text-primary">
             Delete {vendor.businessName} forever?
           </h2>
-          <p className="mt-1 text-[14px] text-text-secondary">This can&apos;t be undone. These go with it:</p>
+          <p className="mt-1 text-[14px] text-text-secondary">
+            This can&apos;t be undone. These go with it:
+          </p>
         </div>
 
         {!data ? (
           preview.error ? (
             <p role="alert" className="text-[12px] text-error">
-              {errorMessage(preview.error, "Couldn't work out what would be deleted.")}
+              {errorMessage(
+                preview.error,
+                "Couldn't work out what would be deleted."
+              )}
             </p>
           ) : (
             <SkeletonList count={1} itemClassName="h-36" />
           )
         ) : (
           <>
-            <ul aria-label="Deleted" className="overflow-hidden rounded-[14px] border border-border">
+            <ul
+              aria-label="Deleted"
+              className="overflow-hidden rounded-[14px] border border-border"
+            >
               {deleteLines(data).map((line) => (
                 <li
                   key={line.key}
                   className="flex min-h-12 items-center gap-3 border-t border-border px-4 py-3 text-[14px] text-text-primary first:border-t-0"
                 >
-                  <span className="text-text-secondary">{LINE_ICON[line.key]}</span>
+                  <span className="text-text-secondary">
+                    {LINE_ICON[line.key]}
+                  </span>
                   <span className="font-numeric">{line.text}</span>
                 </li>
               ))}
             </ul>
 
-            <section aria-labelledby="delete-kept-title" className="flex flex-col gap-2">
+            <section
+              aria-labelledby="delete-kept-title"
+              className="flex flex-col gap-2"
+            >
               <div className="flex items-baseline justify-between gap-2">
                 <p
                   id="delete-kept-title"
@@ -377,35 +452,55 @@ export function DeleteForeverSheet({
                 >
                   Kept
                 </p>
-                <span className="text-[12px] text-text-muted">For the accounts</span>
-              </div>
-              <div className="flex items-center gap-3 rounded-[14px] border border-border px-4 py-3">
-                <IconReceipt size={20} stroke={1.6} aria-hidden="true" className="shrink-0 text-text-secondary" />
-                <span className="text-[14px] text-text-primary">
-                  Payments, refunds and receipt numbers
-                  <span className="block text-[12px] text-text-secondary">Real money only</span>
+                <span className="text-[12px] text-text-muted">
+                  For the accounts
                 </span>
               </div>
-              {kept && <p className="text-[12px] text-text-secondary">{kept}</p>}
+              <div className="flex items-center gap-3 rounded-[14px] border border-border px-4 py-3">
+                <IconReceipt
+                  size={20}
+                  stroke={1.6}
+                  aria-hidden="true"
+                  className="shrink-0 text-text-secondary"
+                />
+                <span className="text-[14px] text-text-primary">
+                  Payments, refunds and receipt numbers
+                  <span className="block text-[12px] text-text-secondary">
+                    Real money only
+                  </span>
+                </span>
+              </div>
+              {kept && (
+                <p className="text-[12px] text-text-secondary">{kept}</p>
+              )}
               {data.kept.length > 0 && (
-                <ul aria-label="Kept bookings" className="flex flex-col gap-1 text-[12px] text-text-secondary">
+                <ul
+                  aria-label="Kept bookings"
+                  className="flex flex-col gap-1 text-[12px] text-text-secondary"
+                >
                   {data.kept.map((row) => (
                     <li key={row.id}>
-                      <span className="font-numeric text-text-primary">#{row.reference}</span> · {row.moneyLabel}.{' '}
-                      {row.detail}
+                      <span className="font-numeric text-text-primary">
+                        #{row.reference}
+                      </span>{' '}
+                      · {row.moneyLabel}. {row.detail}
                     </li>
                   ))}
                 </ul>
               )}
               {data.receiptPlan.map((year) => (
-                <p key={year.financialYear} className="font-numeric text-[12px] text-text-secondary">
+                <p
+                  key={year.financialYear}
+                  className="font-numeric text-[12px] text-text-secondary"
+                >
                   {year.words}.
                 </p>
               ))}
               {data.outcome === 'partial' && (
                 <p className="text-[12px] text-text-primary">
-                  This garage has more bookings than one go deletes. The oldest go now; it stays in the
-                  Bin, and you press Delete forever again for the rest.
+                  This garage has more bookings than one go deletes. The oldest
+                  go now; it stays in the Bin, and you press Delete forever
+                  again for the rest.
                 </p>
               )}
             </section>
@@ -434,7 +529,10 @@ export function DeleteForeverSheet({
         </div>
 
         {error && (
-          <div role="alert" className="flex flex-col gap-2 text-[12px] text-error">
+          <div
+            role="alert"
+            className="flex flex-col gap-2 text-[12px] text-error"
+          >
             <p>{error.message}</p>
             {error.stale && (
               <ScButton
@@ -452,11 +550,21 @@ export function DeleteForeverSheet({
           </div>
         )}
 
-        <ScButton variant="secondary" onClick={submit} disabled={!ready} className={cn(DESTRUCTIVE, 'text-[16px]')}>
+        <ScButton
+          variant="secondary"
+          onClick={submit}
+          disabled={!ready}
+          className={cn(DESTRUCTIVE, 'text-[16px]')}
+        >
           <IconTrash size={18} aria-hidden="true" />
           {busy ? 'Deleting…' : 'Delete forever'}
         </ScButton>
-        <ScButton variant="secondary" onClick={onClose} disabled={busy} className="min-h-11 border-0 text-[15px]">
+        <ScButton
+          variant="secondary"
+          onClick={onClose}
+          disabled={busy}
+          className="min-h-11 border-0 text-[15px]"
+        >
           Cancel
         </ScButton>
       </div>

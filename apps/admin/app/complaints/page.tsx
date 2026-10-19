@@ -3,7 +3,11 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconAlertTriangle, IconMessageReport, IconPlus } from '@tabler/icons-react'
+import {
+  IconAlertTriangle,
+  IconMessageReport,
+  IconPlus,
+} from '@tabler/icons-react'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -38,26 +42,37 @@ import {
 } from '@/lib/complaints'
 
 /** Waiting on the team is the neutral outline; done is green or grey. Amber is for overdue alone. */
-const STATUS_BADGE: Record<AdminComplaint['status'], 'pending' | 'success' | 'muted'> = {
+const STATUS_BADGE: Record<
+  AdminComplaint['status'],
+  'pending' | 'success' | 'muted'
+> = {
   open: 'pending',
   acknowledged: 'pending',
   resolved: 'success',
   closed: 'muted',
 }
 
-const EMPTY: Record<AdminComplaintFilter, { title: string; subtitle: string }> = {
-  open: {
-    title: 'No open complaints',
-    subtitle:
-      'A complaint raised in the app, or logged here from a call or a message, shows up here and in the team’s Telegram group.',
-  },
-  overdue: { title: 'Nothing overdue', subtitle: 'Every open complaint is inside its time.' },
-  resolved: { title: 'Nothing resolved yet', subtitle: 'Resolved and closed complaints show up here.' },
-  all: {
-    title: 'No complaints yet',
-    subtitle: 'Customers raise them from a booking’s Help or the Contact page; log one that came another way with Log a complaint.',
-  },
-}
+const EMPTY: Record<AdminComplaintFilter, { title: string; subtitle: string }> =
+  {
+    open: {
+      title: 'No open complaints',
+      subtitle:
+        'A complaint raised in the app, or logged here from a call or a message, shows up here and in the team’s Telegram group.',
+    },
+    overdue: {
+      title: 'Nothing overdue',
+      subtitle: 'Every open complaint is inside its time.',
+    },
+    resolved: {
+      title: 'Nothing resolved yet',
+      subtitle: 'Resolved and closed complaints show up here.',
+    },
+    all: {
+      title: 'No complaints yet',
+      subtitle:
+        'Customers raise them from a booking’s Help or the Contact page; log one that came another way with Log a complaint.',
+    },
+  }
 
 function ComplaintRow({
   complaint: c,
@@ -88,7 +103,9 @@ function ComplaintRow({
           >
             {c.number}
           </Link>
-          <ScBadge variant={STATUS_BADGE[c.status]}>{COMPLAINT_ADMIN_STATUS_LABELS[c.status]}</ScBadge>
+          <ScBadge variant={STATUS_BADGE[c.status]}>
+            {COMPLAINT_ADMIN_STATUS_LABELS[c.status]}
+          </ScBadge>
           {overdue && (
             <ScBadge variant="danger">
               <IconAlertTriangle size={11} aria-hidden className="mr-1" />
@@ -96,8 +113,16 @@ function ComplaintRow({
             </ScBadge>
           )}
         </div>
-        <p className={cn('font-numeric text-[12px]', overdue ? 'text-warning' : 'text-text-secondary')}>
-          {complaintClockLine({ status: c.status, receivedAt: new Date(c.receivedAt) }, now)}
+        <p
+          className={cn(
+            'font-numeric text-[12px]',
+            overdue ? 'text-warning' : 'text-text-secondary'
+          )}
+        >
+          {complaintClockLine(
+            { status: c.status, receivedAt: new Date(c.receivedAt) },
+            now
+          )}
         </p>
       </div>
 
@@ -109,16 +134,23 @@ function ComplaintRow({
         <Meta label="Garage" truncate>
           {c.garage?.name ?? '—'}
           {c.booking && (
-            <span className="font-numeric text-text-muted"> · #{c.booking.reference}</span>
+            <span className="font-numeric text-text-muted">
+              {' '}
+              · #{c.booking.reference}
+            </span>
           )}
         </Meta>
         <Meta label="Received">
           <span className="font-numeric">{formatWhen(c.receivedAt)}</span>
-          <span className="block text-[12px] text-text-muted">{complaintSourceLine(c)}</span>
+          <span className="block text-[12px] text-text-muted">
+            {complaintSourceLine(c)}
+          </span>
         </Meta>
       </div>
 
-      <p className="line-clamp-2 whitespace-pre-wrap break-words text-[12px] text-text-primary">{c.message}</p>
+      <p className="line-clamp-2 whitespace-pre-wrap break-words text-[12px] text-text-primary">
+        {c.message}
+      </p>
     </ScCard>
   )
 }
@@ -131,7 +163,8 @@ function ComplaintsList() {
   const { data: guaranteeConfig } = useAdminGuaranteeConfig()
   const back = complaintsListHref(show)
 
-  const { data, isPending, isPlaceholderData, error, refetch, dataUpdatedAt } = useAdminComplaints(show)
+  const { data, isPending, isPlaceholderData, error, refetch, dataUpdatedAt } =
+    useAdminComplaints(show)
 
   // A dead admin session is a redirect, not an error message.
   useEffect(() => {
@@ -151,9 +184,11 @@ function ComplaintsList() {
         title="Complaints"
         subtitle={
           <>
-            Acknowledge each within <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span>{' '}
-            hours and resolve it within <span className="font-numeric">{COMPLAINT_RESOLVE_DAYS}</span>{' '}
-            days of when it was received: the Contact page promises both.
+            Acknowledge each within{' '}
+            <span className="font-numeric">{COMPLAINT_ACKNOWLEDGE_HOURS}</span>{' '}
+            hours and resolve it within{' '}
+            <span className="font-numeric">{COMPLAINT_RESOLVE_DAYS}</span> days
+            of when it was received: the Contact page promises both.
           </>
         }
         actions={
@@ -173,7 +208,11 @@ function ComplaintsList() {
         }
       />
 
-      <LogComplaintDialog key={logging} open={logOpen} onClose={() => setLogOpen(false)} />
+      <LogComplaintDialog
+        key={logging}
+        open={logOpen}
+        onClose={() => setLogOpen(false)}
+      />
 
       <div>
         {/* One row that scrolls sideways on a phone, like the garage list's. */}
@@ -188,16 +227,23 @@ function ComplaintsList() {
               label={COMPLAINT_FILTER_LABELS[filter]}
               count={data?.counts[filter]}
               active={show === filter}
-              onClick={() => router.replace(complaintsListHref(filter), { scroll: false })}
+              onClick={() =>
+                router.replace(complaintsListHref(filter), { scroll: false })
+              }
               className={cn(
                 'min-h-11 rounded-[10px] text-[13px]',
                 // Overdue with anything in it is the one chip that is a problem.
-                filter === 'overdue' && (data?.counts.overdue ?? 0) > 0 && show !== 'overdue' && 'border-warning/60 text-warning'
+                filter === 'overdue' &&
+                  (data?.counts.overdue ?? 0) > 0 &&
+                  show !== 'overdue' &&
+                  'border-warning/60 text-warning'
               )}
             />
           ))}
         </div>
-        <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">{complaintFilterHint(show)}</p>
+        <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
+          {complaintFilterHint(show)}
+        </p>
         {/* Pages beside Complaints with no room in the phone's bottom bar:
             bypass reports (0052) always, and redo claims (0051) on a phone
             while they are on (the header has them on a wider screen). */}
@@ -242,7 +288,10 @@ function ComplaintsList() {
       ) : (
         // The last chip's list stays up, dimmed, until the new one lands.
         <ul
-          className={cn('flex flex-col gap-2 transition-opacity', isPlaceholderData && 'opacity-50')}
+          className={cn(
+            'flex flex-col gap-2 transition-opacity',
+            isPlaceholderData && 'opacity-50'
+          )}
           aria-busy={isPlaceholderData}
           aria-label={`${COMPLAINT_FILTER_LABELS[show]} complaints`}
         >

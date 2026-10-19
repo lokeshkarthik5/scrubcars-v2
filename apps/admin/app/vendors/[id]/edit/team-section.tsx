@@ -94,8 +94,8 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
   return (
     <ScSection title="Team">
       <p className="text-[11px] text-text-muted">
-        Saved immediately — these do not wait for “Save changes”. A phone with no
-        account yet gets access the next time it logs in.
+        Saved immediately — these do not wait for “Save changes”. A phone with
+        no account yet gets access the next time it logs in.
       </p>
 
       {/* Amber, as errors are: red on this page is Save changes. */}
@@ -121,12 +121,15 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
                     <ScBadge variant="danger">Suspended</ScBadge>
                   )}
                 </p>
-                <p className="font-numeric text-[12px] text-text-muted">{member.phone}</p>
+                <p className="font-numeric text-[12px] text-text-muted">
+                  {member.phone}
+                </p>
               </div>
 
               {member.isOwner ? (
                 <span className="flex items-center gap-1 text-[11px] text-text-muted">
-                  <IconLock size={13} stroke={1.5} aria-hidden="true" /> Owner — locked
+                  <IconLock size={13} stroke={1.5} aria-hidden="true" /> Owner —
+                  locked
                 </span>
               ) : (
                 <>
@@ -198,11 +201,7 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
           onChange={(value) => setPhone(value.replace(/\D/g, '').slice(0, 10))}
           placeholder="10 digits"
         />
-        <ScField
-          label="Name (optional)"
-          value={name}
-          onChange={setName}
-        />
+        <ScField label="Name (optional)" value={name} onChange={setName} />
       </div>
       <div className="flex items-end gap-3">
         <ScSelect

@@ -29,7 +29,10 @@ const NAV: PanelNavItem[] = [
 // Only while the API has it switched on (ADMIN_DATA_RESET); otherwise the
 // API answers 404 and the item is not there. On a phone the bottom bar has
 // no room for a seventh tab, so the Bookings page links to it instead.
-const RESET_NAV: PanelNavItem = { href: '/data-reset', label: 'Start pilot clean' }
+const RESET_NAV: PanelNavItem = {
+  href: '/data-reset',
+  label: 'Start pilot clean',
+}
 
 // Gift a wash (0049): only while the API has it on (GIFTS_ENABLED). Header
 // only, after Payouts, money's other page; the phone's bottom bar is full.
@@ -51,7 +54,9 @@ const REWARDS_NAV: PanelNavItem = { href: '/rewards', label: 'Rewards' }
 
 function withRewards(items: PanelNavItem[]): PanelNavItem[] {
   const gifts = items.findIndex((item) => item.href === '/gifts')
-  const at = (gifts >= 0 ? gifts : items.findIndex((item) => item.href === '/payouts')) + 1
+  const at =
+    (gifts >= 0 ? gifts : items.findIndex((item) => item.href === '/payouts')) +
+    1
   return [...items.slice(0, at), REWARDS_NAV, ...items.slice(at)]
 }
 
@@ -117,7 +122,9 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
       navItems={(() => {
         const base = guaranteeConfig?.enabled ? withGuarantee(NAV) : NAV
         const withGift = giftsConfig?.enabled ? withGifts(base) : base
-        const items = rewardsConfig?.masterSwitch ? withRewards(withGift) : withGift
+        const items = rewardsConfig?.masterSwitch
+          ? withRewards(withGift)
+          : withGift
         return resetConfig?.enabled ? [...items, RESET_NAV] : items
       })()}
       navType="admin"

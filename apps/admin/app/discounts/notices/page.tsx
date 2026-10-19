@@ -18,7 +18,11 @@ import { istDateTimeLabel, istWindowLabel } from '@repo/core/ist-input'
 import { DiscountsTabs } from '@/components/discounts-tabs'
 import { Meta } from '@/components/meta'
 
-const SECTIONS: { state: NoticeState; title: string; badge: 'success' | 'pending' | 'muted' }[] = [
+const SECTIONS: {
+  state: NoticeState
+  title: string
+  badge: 'success' | 'pending' | 'muted'
+}[] = [
   { state: 'live', title: 'Live', badge: 'success' },
   { state: 'scheduled', title: 'Scheduled', badge: 'pending' },
   { state: 'ended', title: 'Ended', badge: 'muted' },
@@ -42,7 +46,8 @@ export default function AdminNoticesPage() {
   const { data: notices = [], isPending, error, refetch } = useAdminNotices()
   const [actionError, setActionError] = useState('')
   const endNotice = useEndNotice({
-    onError: (err) => setActionError(errorMessage(err, 'Failed to end the notice')),
+    onError: (err) =>
+      setActionError(errorMessage(err, 'Failed to end the notice')),
   })
 
   useEffect(() => {
@@ -101,38 +106,62 @@ export default function AdminNoticesPage() {
       ) : (
         <div className="flex flex-col gap-6">
           {actionError && (
-            <p role="alert" className="text-[12px] text-error">{actionError}</p>
+            <p role="alert" className="text-[12px] text-error">
+              {actionError}
+            </p>
           )}
           {grouped.map((section) => (
-            <section key={section.state} aria-labelledby={`notices-${section.state}`} className="flex flex-col gap-2">
-              <h2 id={`notices-${section.state}`} className="text-[15px] font-semibold text-text-primary">
+            <section
+              key={section.state}
+              aria-labelledby={`notices-${section.state}`}
+              className="flex flex-col gap-2"
+            >
+              <h2
+                id={`notices-${section.state}`}
+                className="text-[15px] font-semibold text-text-primary"
+              >
                 {section.title}{' '}
-                <span className="font-numeric text-text-muted">{section.rows.length}</span>
+                <span className="font-numeric text-text-muted">
+                  {section.rows.length}
+                </span>
               </h2>
               {section.rows.length === 0 ? (
                 <p className="text-[12px] text-text-muted">None.</p>
               ) : (
                 section.rows.map((notice, i) => (
                   <Reveal key={notice.id} index={i}>
-                    <ScCard className="flex flex-col gap-3" data-notice-id={notice.id}>
+                    <ScCard
+                      className="flex flex-col gap-3"
+                      data-notice-id={notice.id}
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
                         <div className="min-w-0">
-                          <p className="truncate text-[14px] font-semibold text-text-primary">{notice.title}</p>
-                          <p className="line-clamp-2 text-[12px] text-text-secondary">{notice.body}</p>
+                          <p className="truncate text-[14px] font-semibold text-text-primary">
+                            {notice.title}
+                          </p>
+                          <p className="line-clamp-2 text-[12px] text-text-secondary">
+                            {notice.body}
+                          </p>
                         </div>
                         <ScBadge variant={section.badge}>
                           {/* Switched off before it started: still "Ended", said plainly. */}
-                          {notice.state === 'ended' && !notice.isActive ? 'Switched off' : section.title}
+                          {notice.state === 'ended' && !notice.isActive
+                            ? 'Switched off'
+                            : section.title}
                         </ScBadge>
                       </div>
 
                       <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
                         <Meta label="Who sees it">{audienceLabel(notice)}</Meta>
                         <Meta label="When">
-                          <span className="font-numeric">{istWindowLabel(notice.startsAt, notice.endsAt)}</span>
+                          <span className="font-numeric">
+                            {istWindowLabel(notice.startsAt, notice.endsAt)}
+                          </span>
                         </Meta>
                         <Meta label="Closed by">
-                          <span className="font-numeric">{notice.dismissals}</span>{' '}
+                          <span className="font-numeric">
+                            {notice.dismissals}
+                          </span>{' '}
                           {notice.dismissals === 1 ? 'customer' : 'customers'}
                         </Meta>
                       </div>
@@ -156,7 +185,10 @@ export default function AdminNoticesPage() {
                           <ScButton
                             fullWidth={false}
                             variant="secondary"
-                            disabled={endNotice.isPending && endNotice.variables === notice.id}
+                            disabled={
+                              endNotice.isPending &&
+                              endNotice.variables === notice.id
+                            }
                             onClick={() => handleEnd(notice)}
                             aria-label={`End now: ${notice.title}`}
                             className={ROW_ACTION}

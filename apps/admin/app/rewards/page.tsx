@@ -41,7 +41,10 @@ function RewardsContent() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Rewards" subtitle="Detlio Rewards: Shine Card, scratch cards, levels, invites, badges, challenges, the Garage and Wrapped" />
+      <PageHeader
+        title="Rewards"
+        subtitle="Detlio Rewards: Shine Card, scratch cards, levels, invites, badges, challenges, the Garage and Wrapped"
+      />
       {config.isPending ? (
         <SkeletonList />
       ) : !config.data?.masterSwitch ? (
@@ -54,11 +57,25 @@ function RewardsContent() {
         <>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(TAB_LABELS) as RewardsTab[]).map((key) => (
-              <FilterChip key={key} label={TAB_LABELS[key]} active={tab === key} onClick={() => go(key)} />
+              <FilterChip
+                key={key}
+                label={TAB_LABELS[key]}
+                active={tab === key}
+                onClick={() => go(key)}
+              />
             ))}
           </div>
-          {tab === 'overview' && <RewardsOverview onOpenCustomer={(id) => go('customers', { customer: id })} />}
-          {tab === 'customers' && <CustomerRewardsSection userId={customer} onUserId={(id) => go('customers', { customer: id })} />}
+          {tab === 'overview' && (
+            <RewardsOverview
+              onOpenCustomer={(id) => go('customers', { customer: id })}
+            />
+          )}
+          {tab === 'customers' && (
+            <CustomerRewardsSection
+              userId={customer}
+              onUserId={(id) => go('customers', { customer: id })}
+            />
+          )}
           {tab === 'achievements' && <AchievementsSettings />}
           {tab === 'challenges' && <ChallengesSection />}
           {tab === 'garage' && <GarageSection />}
