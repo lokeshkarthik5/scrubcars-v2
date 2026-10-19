@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense, useCallback } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
@@ -96,20 +95,7 @@ function Statistics() {
 
   return (
     <>
-      <PageHeader
-        title="Statistics"
-        subtitle="Bookings, money and garages"
-        // On a phone the bottom bar has no room for Alerts; the header has it
-        // on a wider screen.
-        actions={
-          <Link
-            href="/alerts"
-            className="tap-target text-[12px] text-text-secondary hover:text-text-primary md:hidden"
-          >
-            Telegram alerts
-          </Link>
-        }
-      />
+      <PageHeader title="Statistics" subtitle="Bookings, money and garages" />
       <StatsTabs
         current={tab}
         hrefFor={(next) => hrefWith({ tab: next === 'overview' ? '' : next })}

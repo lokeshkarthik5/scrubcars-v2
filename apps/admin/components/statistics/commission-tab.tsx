@@ -79,7 +79,7 @@ function Rules({ rules }: { rules: StatsCommission['rules'] }) {
 
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="border-b border-border pb-2 pt-5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+    <h3 className="border-b border-border pb-2 pt-5 text-[12px] font-medium text-text-secondary">
       {children}
     </h3>
   )
@@ -96,7 +96,7 @@ function Month({
   const { active, free, rules } = commission
   return (
     <ScCard className="px-4 pb-1 pt-4">
-      <p className="text-[11px] font-medium text-text-secondary">{title}</p>
+      <p className="text-[12px] font-medium text-text-secondary">{title}</p>
       <p className="mt-1 font-numeric text-[34px] font-medium leading-10 tracking-tight text-text-primary">
         {rupees(commission.commission)}
       </p>
@@ -122,7 +122,7 @@ function Month({
                   <b className="block truncate text-[13px] font-normal leading-[18px] text-text-primary">
                     {garage.name}
                   </b>
-                  <small className="mt-0.5 block text-[11px] text-text-muted">
+                  <small className="mt-0.5 block text-[12px] text-text-muted">
                     {plural(garage.bookings, 'booking', 'bookings')}
                     {garage.activeSince &&
                       ` · active since ${dayLabel(garage.activeSince)}`}
@@ -163,7 +163,7 @@ function Month({
                       }}
                     />
                   </span>
-                  <small className="mt-1.5 block text-[11px] text-text-muted">
+                  <small className="mt-1.5 block text-[12px] text-text-muted">
                     <span className="font-numeric">
                       {garage.used} of {rules.freeBookings}
                     </span>{' '}

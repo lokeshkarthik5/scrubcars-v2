@@ -43,13 +43,14 @@ describe('redo claims page', () => {
   })
 
   test('the clock line says whose move it is', () => {
+    // Far from any run's today, so the day is named rather than "Today".
     const base = {
-      detlioDecideBy: '2026-10-18T04:30:00Z',
-      garageRespondBy: '2026-10-18T04:30:00Z',
+      detlioDecideBy: '2027-03-18T04:30:00Z',
+      garageRespondBy: '2027-03-18T04:30:00Z',
       redoBookBy: null,
     }
     expect(claimClockLine({ ...base, status: 'needs_detlio' })).toMatch(
-      /^Decide by .*18 Oct/
+      /^Decide by Thu 18 Mar( 2027)? · 10:00 am$/
     )
     expect(claimClockLine({ ...base, status: 'waiting_garage' })).toMatch(
       /^Garage answers by/

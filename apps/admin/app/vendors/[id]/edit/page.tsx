@@ -32,6 +32,8 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSection } from '@repo/ui/sc/section'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
+import { showUndoToast } from '@repo/ui/sc/undo-toast'
+import { formatDay as formatDayOf } from '@repo/core/format'
 import { ApiError } from '@repo/core/api/client'
 import {
   deleteAdminVendorLogo,
@@ -56,7 +58,7 @@ import {
   VENDOR_VEHICLE_TYPE_OPTIONS,
 } from '@repo/core/vehicles'
 import type { ServiceMedia } from '@repo/core/types'
-import { APP_TIMEZONE, cn } from '@repo/core/utils'
+import { cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
 import { GarageCertificationSection } from '@/components/garage-certification-section'
@@ -711,18 +713,13 @@ export default function EditVendorPage({
 
   /**
    * Takes a saved service off the garage page, straight away. Hidden, never
-   * deleted: its bookings keep it, and it waits under Hidden services.
+   * deleted: its bookings keep it, and it waits under Hidden services. Easy
+   * to take back, so there is no question first: the toast offers Undo,
+   * which is Show again (safe actions, level 1; never the browser pop-up).
    */
   const hideService = (row: ServiceRow) => {
     const serviceId = row.id
     if (!serviceId) return
-    if (
-      !window.confirm(
-        `Hide "${row.name.trim() || 'this service'}"?\n\nCustomers won't see it; you can show it again from Hidden services.`
-      )
-    ) {
-      return
-    }
     void runServiceSwitch(serviceId, async () => {
       const hidden = await setAdminServiceActive(id, serviceId, false)
       applyToBoth((rows) => rows.filter((s) => s.id !== serviceId))
@@ -730,6 +727,9 @@ export default function EditVendorPage({
         [...prev, hidden].sort((a, b) => a.name.localeCompare(b.name))
       )
       setServiceNotice(`Hidden “${hidden.name}”. It’s under Hidden services.`)
+      showUndoToast(`“${hidden.name}” is off the garage page.`, {
+        onUndo: () => void showServiceAgain(hidden),
+      })
       return { to: 'hidden-toggle' }
     })
   }
@@ -1092,7 +1092,7 @@ export default function EditVendorPage({
                 <PayoutAccountSection vendorId={id} />
 
                 <ScSection title="Logo & photos">
-                  <p className="text-[11px] text-text-muted">
+                  <p className="text-[12px] text-text-muted">
                     Saved immediately — these do not wait for “Save changes”.
                     JPEG, PNG or WebP, up to 5 MB each.
                   </p>
@@ -1179,7 +1179,7 @@ export default function EditVendorPage({
                       className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-text-muted transition-colors hover:border-text-secondary hover:text-text-secondary disabled:opacity-50"
                     >
                       <IconPhotoPlus size={18} />
-                      <span className="text-[11px]">
+                      <span className="text-[12px]">
                         {mediaBusy === 'photos' ? 'Uploading…' : 'Add'}
                       </span>
                     </button>
@@ -1188,7 +1188,7 @@ export default function EditVendorPage({
 
                 <ScSection title="Onboarding status">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-medium text-text-secondary">
+                    <label className="text-[12px] font-medium text-text-secondary">
                       Stage
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -1207,7 +1207,7 @@ export default function EditVendorPage({
                     checked={draft.isVerified}
                     onChange={(isVerified) => patch({ isVerified })}
                   />
-                  <p className="text-[11px] text-text-muted">
+                  <p className="text-[12px] text-text-muted">
                     A vendor is visible to customers only when stage is{' '}
                     <b>Active</b> and it is <b>verified</b>.
                   </p>
@@ -1247,15 +1247,15 @@ export default function EditVendorPage({
                     placeholder="https://maps.app.goo.gl/…"
                   />
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium text-text-secondary">
+                    <span className="text-[12px] font-medium text-text-secondary">
                       Garage location
                     </span>
                     {/* Verification is the one moment a human already looks at this
                     garage, so it is the natural place to sanity-check the pin.
                     The Maps link above is the cross-check: does it land here? */}
-                    <p className="text-[11px] text-text-muted">
+                    <p className="text-[12px] text-text-muted">
                       {geoConfirmedAt
-                        ? `Confirmed ${new Date(geoConfirmedAt).toLocaleDateString('en-IN')}`
+                        ? `Confirmed ${formatDayOf(geoConfirmedAt)}`
                         : geoSource === 'unset'
                           ? 'Not set — this garage cannot be found by distance until it is pinned.'
                           : 'Set by the vendor, never confirmed. Check it against the Maps link, then confirm.'}
@@ -1300,7 +1300,7 @@ export default function EditVendorPage({
                   tabs, and save on their own. */}
 
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium text-text-secondary">
+                    <span className="text-[12px] font-medium text-text-secondary">
                       Working hours
                     </span>
                     {/* The garage's own week, day by day — the same rows the owner
@@ -1371,7 +1371,7 @@ export default function EditVendorPage({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-medium text-text-secondary">
+                    <label className="text-[12px] font-medium text-text-secondary">
                       Slot interval
                     </label>
                     <div className="flex gap-2">
@@ -1412,12 +1412,7 @@ export default function EditVendorPage({
                       <p className="text-[12px] text-text-primary">
                         Paused since{' '}
                         <span className="font-numeric font-medium">
-                          {new Date(pausedAt).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            timeZone: APP_TIMEZONE,
-                          })}
+                          {formatDayOf(pausedAt)}
                         </span>
                         . Hidden from customers; existing bookings carry on.
                       </p>
@@ -1458,7 +1453,7 @@ export default function EditVendorPage({
                   )}
 
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium text-text-secondary">
+                    <span className="text-[12px] font-medium text-text-secondary">
                       Upcoming holidays
                     </span>
                     {closures.length === 0 ? (
@@ -1480,7 +1475,7 @@ export default function EditVendorPage({
                         ))}
                       </ul>
                     )}
-                    <p className="text-[11px] text-text-muted">
+                    <p className="text-[12px] text-text-muted">
                       The garage sets these in its own Settings.
                     </p>
                   </div>
@@ -1499,7 +1494,7 @@ export default function EditVendorPage({
                       />
                     ))}
                   </div>
-                  <p className="text-[11px] text-text-muted">
+                  <p className="text-[12px] text-text-muted">
                     These are the tiers a service prices against and a customer
                     can book for.
                   </p>
@@ -1508,7 +1503,7 @@ export default function EditVendorPage({
                   ever price. Shown so they can be cleared, not offered again. */}
                   {legacyVehicleTypes(draft.vehicleTypes).length > 0 && (
                     <>
-                      <p className="text-[11px] text-warning">
+                      <p className="text-[12px] text-warning">
                         No longer offered — tap to remove:
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -1776,9 +1771,13 @@ function BinBanner({
           {bin.deletedAt && (
             <span className="font-numeric">{formatWhen(bin.deletedAt)}</span>
           )}
-          {bin.deletedByName && <> by {bin.deletedByName}</>}.
-          {bin.deletedReason && <> Reason: {bin.deletedReason}.</>} Customers
-          and its team can&apos;t see it. Restore it to make changes.
+          {bin.deletedByName && <> by {bin.deletedByName}</>}.{' '}
+          {/* Each sentence carries its own space, so a reason never runs
+              into the next one ("demo.Customers"). */}
+          {bin.deletedReason && (
+            <>Reason: {bin.deletedReason.replace(/\.\s*$/, '')}. </>
+          )}
+          Customers and its team can&apos;t see it. Restore it to make changes.
         </p>
       </div>
       <ScButton

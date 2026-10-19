@@ -134,7 +134,7 @@ function Body({ stats }: { stats: PilotStats }) {
       )}
 
       <div>
-        <p className="pb-2 text-[11px] font-medium text-text-secondary">
+        <p className="pb-2 text-[12px] font-medium text-text-secondary">
           Top garages by paid bookings
         </p>
         {stats.topGarages.length === 0 ? (
@@ -179,7 +179,7 @@ function Body({ stats }: { stats: PilotStats }) {
       </div>
 
       {/* Said rather than left out silently: someone will look for older ones. */}
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         Accept times are recorded from this release on, so bookings accepted
         before it aren&apos;t in the median.
       </p>

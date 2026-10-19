@@ -163,7 +163,7 @@ export function CustomerCreditSection() {
                           {entry.reason}
                         </p>
                       )}
-                      <p className="font-numeric text-[11px] text-text-muted">
+                      <p className="font-numeric text-[12px] text-text-muted">
                         {formatDay(entry.at)}
                         {entry.expiresAt && Number(entry.amount) > 0
                           ? ` · expires ${formatDay(entry.expiresAt)}`
@@ -205,7 +205,7 @@ export function CustomerCreditSection() {
         ) : (
           <div className="overflow-x-auto rounded-[14px] border border-border">
             <table className="w-full text-left text-[12px]">
-              <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+              <thead className="text-[12px] text-text-secondary">
                 <tr>
                   <th className="px-3 py-2 font-medium">Customer</th>
                   <th className="px-3 py-2 font-medium">Phone</th>

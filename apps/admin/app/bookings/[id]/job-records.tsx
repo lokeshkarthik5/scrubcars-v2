@@ -37,9 +37,7 @@ const STATUS_VARIANT: Record<
 function GatewayId({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-        {label}
-      </p>
+      <p className="text-[12px] font-medium text-text-secondary">{label}</p>
       <div className="flex min-w-0 items-center">
         <span className="truncate font-numeric text-[13px] text-text-primary">
           {value}
@@ -349,7 +347,7 @@ export function JobPhotosSection({
         const label = stage === 'before' ? 'Before' : 'After'
         return (
           <div key={stage} className="flex flex-col gap-1.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <p className="text-[12px] font-medium text-text-secondary">
               {label}
             </p>
             <ul className="flex flex-wrap gap-3">
@@ -375,16 +373,16 @@ export function JobPhotosSection({
                         className="h-full w-full object-cover"
                       />
                     </a>
-                    <p className="text-[11px] leading-[14px] text-text-primary">
+                    <p className="text-[12px] leading-[14px] text-text-primary">
                       {angleLabel(photo.angle)}
                     </p>
                     <p
-                      className="truncate text-[11px] leading-[14px] text-text-secondary"
+                      className="truncate text-[12px] leading-[14px] text-text-secondary"
                       title={who}
                     >
                       {who}
                     </p>
-                    <p className="font-numeric text-[11px] leading-[14px] text-text-muted">
+                    <p className="font-numeric text-[12px] leading-[14px] text-text-muted">
                       {formatWhen(photo.createdAt)}
                     </p>
                   </li>

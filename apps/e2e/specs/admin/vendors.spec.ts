@@ -85,6 +85,21 @@ test.describe('admin vendors', () => {
       })
       .toBe('archived')
 
+    // An Active garage archives at once, with an Undo that is the real
+    // Unarchive: it is Active again, exactly as it was.
+    const toast = page
+      .getByRole('status')
+      .filter({ hasText: `${name} archived.` })
+    await toast.getByRole('button', { name: 'Undo' }).click()
+    await expect
+      .poll(async () => {
+        const rows = await sql<{ status: string }[]>`
+          select status from vendors where id = ${id}
+        `
+        return rows[0]?.status
+      })
+      .toBe('active')
+
     await sql`delete from vendors where id = ${id}`
   })
 
@@ -292,9 +307,9 @@ test.describe('admin garage list: chips and checklist', () => {
     await page.goto('/vendors')
 
     await expect(chip(page, 'Live')).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByText('Live = customers can find it')).toBeVisible()
+    // One line saying what the chosen chip means, in the owner's words.
     await expect(
-      page.getByText('Active = approved by Detlio, even if paused')
+      page.getByText('Live = customers can find it and book it')
     ).toBeVisible()
     // Live is what customers can find: MAIN is, the pending checklist garage isn't.
     await expect(
@@ -304,15 +319,15 @@ test.describe('admin garage list: chips and checklist', () => {
       page.getByRole('group', { name: LIST.name, exact: true })
     ).toHaveCount(0)
 
-    for (const label of [
-      'All',
-      'Live',
-      'Active',
-      'Pending',
-      'Suspended',
-      'Archived',
-      'Bin',
-    ]) {
+    // Five states and All, nothing else in the row: the filters that cut
+    // across them are under More filters.
+    const labels = ['All', 'Live', 'Not live yet', 'Paused', 'Archived', 'Bin']
+    await expect(
+      page
+        .getByRole('group', { name: 'Show' })
+        .getByRole('button', { name: / \d+$/ })
+    ).toHaveCount(labels.length)
+    for (const label of labels) {
       await chip(page, label).click()
       await expect(chip(page, label)).toHaveAttribute('aria-pressed', 'true')
       await expect(cards(page)).toHaveCount(await countOf(page, label))
@@ -322,16 +337,41 @@ test.describe('admin garage list: chips and checklist', () => {
       page.getByText('Bin = off the app. Restore it, or delete it forever.')
     ).toBeVisible()
 
-    // All is every garage not in the Bin, so the stages add up to it.
-    const stages = await Promise.all(
-      ['Active', 'Pending', 'Suspended', 'Archived'].map((label) =>
+    // All is every garage not in the Bin, so the states add up to it, and
+    // the header says the same number.
+    const states = await Promise.all(
+      ['Live', 'Not live yet', 'Paused', 'Archived'].map((label) =>
         countOf(page, label)
       )
     )
-    expect(stages.reduce((a, b) => a + b, 0)).toBe(await countOf(page, 'All'))
+    const all = await countOf(page, 'All')
+    expect(states.reduce((a, b) => a + b, 0)).toBe(all)
+    await expect(page.getByText(new RegExp(`^${all} garages?`))).toBeVisible()
 
-    await chip(page, 'Pending').click()
-    await expect(page).toHaveURL(/\/vendors\?show=pending$/)
+    // The checklist garage is set up but for its services: not live yet.
+    await chip(page, 'Not live yet').click()
+    await expect(page).toHaveURL(/\/vendors\?show=notlive$/)
+    await expect(
+      page.getByText(
+        /^Not live yet = added, not verified yet, or something blocks it/
+      )
+    ).toBeVisible()
+    await expect(
+      page.getByRole('group', { name: LIST.name, exact: true })
+    ).toBeVisible()
+
+    // More filters holds the cross-cutting ones; Certified is there.
+    const more = page.getByRole('button', { name: /^More filters/ })
+    await expect(more).toHaveAttribute('aria-expanded', 'false')
+    await more.click()
+    const extra = page.getByRole('group', { name: 'More filters' })
+    await extra.getByRole('button', { name: /^Certified \d+$/ }).click()
+    await expect(page).toHaveURL(/\/vendors\?show=certified$/)
+    await expect(more).toHaveAttribute('aria-expanded', 'true')
+
+    // An old link to a stage still opens it, as a chip of its own.
+    await page.goto('/vendors?show=pending')
+    await expect(chip(page, 'Pending')).toHaveAttribute('aria-pressed', 'true')
     await expect(
       page.getByText('Pending = added, not shown to customers yet')
     ).toBeVisible()

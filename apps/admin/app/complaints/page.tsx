@@ -14,12 +14,12 @@ import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { IssuesTabs } from '@/components/issues-tabs'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminComplaint, AdminComplaintFilter } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminComplaints } from '@repo/core/api/hooks/use-admin-complaints'
-import { useAdminGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import {
   COMPLAINT_ACKNOWLEDGE_HOURS,
   COMPLAINT_ADMIN_STATUS_LABELS,
@@ -40,6 +40,8 @@ import {
   overdueLabel,
   parseComplaintFilter,
 } from '@/lib/complaints'
+import { deadlineText, URGENCY_TEXT } from '@/lib/format'
+import { StatusChip } from '@repo/ui/sc/status-chip'
 
 /** Waiting on the team is the neutral outline; done is green or grey. Amber is for overdue alone. */
 const STATUS_BADGE: Record<
@@ -86,12 +88,25 @@ function ComplaintRow({
   back: string
 }) {
   const overdue = overdueLabel(c)
+  // The clock line on the panel's one scale (quick win 1): coral once late
+  // or inside 15 minutes, amber when it falls due today, grey otherwise.
+  const due =
+    c.status === 'open'
+      ? c.acknowledgeBy
+      : c.status === 'acknowledged'
+        ? c.resolveBy
+        : null
+  const urgency = overdue
+    ? 'late'
+    : due
+      ? deadlineText(due, now.getTime()).urgency
+      : 'neutral'
   return (
     // The number is a stretched link: the whole card opens the complaint.
     <ScCard
       className={cn(
         'relative flex flex-col gap-2.5 transition-colors hover:border-text-muted',
-        overdue && 'border-warning/60'
+        overdue && 'border-tone-late-text/60'
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
@@ -107,18 +122,13 @@ function ComplaintRow({
             {COMPLAINT_ADMIN_STATUS_LABELS[c.status]}
           </ScBadge>
           {overdue && (
-            <ScBadge variant="danger">
-              <IconAlertTriangle size={11} aria-hidden className="mr-1" />
+            <StatusChip tone="late" dot={false}>
+              <IconAlertTriangle size={12} aria-hidden />
               {overdue}
-            </ScBadge>
+            </StatusChip>
           )}
         </div>
-        <p
-          className={cn(
-            'font-numeric text-[12px]',
-            overdue ? 'text-warning' : 'text-text-secondary'
-          )}
-        >
+        <p className={cn('font-numeric text-[12px]', URGENCY_TEXT[urgency])}>
           {complaintClockLine(
             { status: c.status, receivedAt: new Date(c.receivedAt) },
             now
@@ -160,7 +170,6 @@ function ComplaintsList() {
   const params = useSearchParams()
   // The chip lives in the URL, so Back from a complaint returns to it.
   const show = parseComplaintFilter(params.get('show'))
-  const { data: guaranteeConfig } = useAdminGuaranteeConfig()
   const back = complaintsListHref(show)
 
   const { data, isPending, isPlaceholderData, error, refetch, dataUpdatedAt } =
@@ -180,6 +189,7 @@ function ComplaintsList() {
 
   return (
     <>
+      <IssuesTabs />
       <PageHeader
         title="Complaints"
         subtitle={
@@ -244,25 +254,6 @@ function ComplaintsList() {
         <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
           {complaintFilterHint(show)}
         </p>
-        {/* Pages beside Complaints with no room in the phone's bottom bar:
-            bypass reports (0052) always, and redo claims (0051) on a phone
-            while they are on (the header has them on a wider screen). */}
-        <div className="mt-1 flex flex-wrap gap-x-4">
-          <Link
-            href="/bypass-reports"
-            className="inline-flex min-h-11 items-center gap-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
-          >
-            Garage asked a customer to book directly? Bypass reports
-          </Link>
-          {guaranteeConfig?.enabled && (
-            <Link
-              href="/guarantee"
-              className="inline-flex min-h-11 items-center gap-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline md:hidden"
-            >
-              Free redo claims
-            </Link>
-          )}
-        </div>
       </div>
 
       {refreshFailed && (

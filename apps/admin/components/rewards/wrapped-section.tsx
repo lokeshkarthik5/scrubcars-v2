@@ -153,7 +153,7 @@ export function WrappedSection() {
                     <p className="font-numeric text-[18px] font-semibold leading-tight text-text-primary">
                       {card.big}
                     </p>
-                    <p className="text-[11px] text-text-secondary">
+                    <p className="text-[12px] text-text-secondary">
                       {card.caption}
                     </p>
                     {card.extra.map((line) => (

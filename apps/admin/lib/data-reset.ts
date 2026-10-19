@@ -5,7 +5,7 @@ import type {
 } from '@repo/core/api/admin'
 import {
   csvCell,
-  formatWhen,
+  formatWhenForSheet,
   paymentStatusLabel,
   phoneForSheet,
 } from '@/lib/bookings'
@@ -31,8 +31,8 @@ const CHAIN_COLUMNS: Array<
   ['Reference', (c) => `#${c.reference}`],
   ['Outcome', outcomeLabel],
   ['Why kept', (c) => c.kept?.detail ?? null],
-  ['Booked (IST)', (c) => formatWhen(c.createdAt)],
-  ['Scheduled (IST)', (c) => formatWhen(c.scheduledAt)],
+  ['Booked (IST)', (c) => formatWhenForSheet(c.createdAt)],
+  ['Scheduled (IST)', (c) => formatWhenForSheet(c.scheduledAt)],
   ['Status', (c) => c.status],
   ['Garage', (c) => c.garage.name],
   ['Customer', (c) => c.customer.name],
@@ -56,7 +56,7 @@ const CHECKOUT_CELLS: Record<
   Reference: (c) => `#${c.reference}`,
   Outcome: outcomeLabel,
   'Why kept': (c) => c.kept?.detail ?? null,
-  'Booked (IST)': (c) => formatWhen(c.createdAt),
+  'Booked (IST)': (c) => formatWhenForSheet(c.createdAt),
   Status: (c) => c.status,
   Garage: (c) => c.garageName,
   Customer: (c) => c.customer.name,

@@ -149,8 +149,8 @@ export function RecordPayoutDialog({
         <p
           className={
             refProblem
-              ? 'text-[11px] text-error'
-              : 'text-[11px] text-text-muted'
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
           }
         >
           {refProblem ?? 'Required. Copy it from the bank or UPI app.'}

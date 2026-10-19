@@ -105,7 +105,7 @@ function DueRow({ line }: { line: PayoutLine }) {
           <span className="font-numeric">#{line.reference}</span> ·{' '}
           {line.services.join(' + ') || 'Booking'}
         </p>
-        <p className="text-[11px] text-text-secondary">
+        <p className="text-[12px] text-text-secondary">
           <span className="font-numeric">
             {istDateTimeLabel(line.payableFrom)}
           </span>{' '}
@@ -137,7 +137,7 @@ function DueRow({ line }: { line: PayoutLine }) {
         >
           {rupeesLabel(line.balance)}
         </p>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           {LINE_STATUS_LABEL[line.status]}
         </p>
       </div>
@@ -156,7 +156,7 @@ function PayoutCard({ payout }: { payout: AdminPayout }) {
               {istDateTimeLabel(payout.paidAt)}
             </span>
           </p>
-          <p className="truncate text-[11px] text-text-secondary">
+          <p className="truncate text-[12px] text-text-secondary">
             Ref{' '}
             <span className="font-numeric text-text-primary">
               {payout.reference}
@@ -352,7 +352,7 @@ function GaragePayouts({ id }: { id: string }) {
             ))}
           </ul>
         )}
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Commission-free bookings used:{' '}
           <span className="font-numeric">{data.freeBookings.used}</span> of{' '}
           <span className="font-numeric">{data.freeBookings.of}</span>.

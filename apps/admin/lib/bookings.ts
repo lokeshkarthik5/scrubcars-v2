@@ -6,7 +6,12 @@ import type {
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { csvCell, downloadCsv } from '@repo/core/csv'
 import type { BookingType } from '@repo/core/types'
+import {
+  formatClock as sharedFormatClock,
+  formatWhen as sharedFormatWhen,
+} from '@repo/core/format'
 import { APP_TIMEZONE } from '@repo/core/utils'
+import { formatMoney } from './format'
 
 /**
  * Wording and small rules shared by the admin bookings list and detail pages.
@@ -49,9 +54,10 @@ export function formatWaiting(mins: number): string {
 }
 
 /**
- * "Sun 4 Oct, 3:30 pm" in Chennai time. Assembled from parts, as the Telegram
- * alerts do, because whole-string toLocaleString punctuation differs between
- * browsers.
+ * "Sun 4 Oct, 3:30 pm" in Chennai time, for a spreadsheet: always the date,
+ * never "Today", since a sheet is read on another day. Assembled from parts,
+ * as the Telegram alerts do, because whole-string toLocaleString punctuation
+ * differs between browsers.
  */
 const WHEN_PARTS = new Intl.DateTimeFormat('en-IN', {
   weekday: 'short',
@@ -63,25 +69,29 @@ const WHEN_PARTS = new Intl.DateTimeFormat('en-IN', {
   timeZone: APP_TIMEZONE,
 })
 
-export function formatWhen(iso: string): string {
+export function formatWhenForSheet(iso: string): string {
   const parts = WHEN_PARTS.formatToParts(new Date(iso))
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value ?? ''
   return `${part('weekday')} ${part('day')} ${part('month')}, ${part('hour')}:${part('minute')} ${part('dayPeriod').toLowerCase()}`
 }
 
-/** "3:42 pm" in Chennai: when a screen last heard from the server. */
-export function formatClock(at: number): string {
-  return new Date(at).toLocaleTimeString('en-IN', {
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: APP_TIMEZONE,
-  })
+/**
+ * On screen: "Today · 3:30 pm", "Tomorrow · 9:00 am", "Sun 4 Oct · 3:30 pm",
+ * the shared rule of every app (@repo/core/format, quick win 7).
+ */
+export function formatWhen(iso: string): string {
+  return sharedFormatWhen(iso)
 }
 
-/** "₹1,299" — whole rupees with Indian grouping, paise only when there are any. */
+/** "3:42 pm" in Chennai: when a screen last heard from the server. */
+export function formatClock(at: number): string {
+  return sharedFormatClock(new Date(at))
+}
+
+/** "₹1,299", "₹758.40": whole rupees with Indian grouping, paise only when there are any. */
 export function formatRupees(amount: string | number): string {
-  return `₹${Number(amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+  return formatMoney(amount)
 }
 
 /** The list's own URL params: its search and filters, and nothing else. */
@@ -217,8 +227,8 @@ const CSV_COLUMNS: Array<
   ['Reference', (b) => `#${b.reference}`],
   ['Status', (b) => b.status],
   ['Type', (b) => bookingTypeLabel(b.bookingType)],
-  ['Scheduled (IST)', (b) => formatWhen(b.scheduledAt)],
-  ['Booked (IST)', (b) => formatWhen(b.createdAt)],
+  ['Scheduled (IST)', (b) => formatWhenForSheet(b.scheduledAt)],
+  ['Booked (IST)', (b) => formatWhenForSheet(b.createdAt)],
   ['Waiting (min)', (b) => b.waitingMins],
   ['Garage', (b) => b.garage?.name ?? null],
   ['Garage phone', (b) => phoneForSheet(b.garage?.phone)],

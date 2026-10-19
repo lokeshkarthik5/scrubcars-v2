@@ -176,6 +176,13 @@ describe('change', () => {
 
   test('nothing to compare with is no arrow at all', () => {
     expect(change(5, 0, 'amount')).toBeNull()
+    // Against the soft launch: "↑1547%" says nothing, so it is left out.
+    expect(change(1647, 100, 'amount')).toBeNull()
+    expect(change(400, 100, 'amount')).toEqual({
+      direction: 'up',
+      text: '300%',
+      good: true,
+    })
     expect(change(null, 0.5, 'rate')).toBeNull()
     expect(change(0.5, null, 'rate')).toBeNull()
     expect(change(10, 10, 'amount')).toEqual({

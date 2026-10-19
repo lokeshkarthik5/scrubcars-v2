@@ -160,7 +160,7 @@ export function CompareToggle({
     <div className="flex min-h-[52px] items-center justify-between gap-3 rounded-[10px] border border-border py-1 pl-3 pr-1.5">
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-text-primary">{title}</p>
-        <p className="font-numeric text-[11px] text-text-muted">{dates}</p>
+        <p className="font-numeric text-[12px] text-text-muted">{dates}</p>
       </div>
       <ScSwitch checked={checked} onChange={onChange} label={title} />
     </div>

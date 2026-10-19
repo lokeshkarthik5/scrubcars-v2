@@ -140,8 +140,8 @@ test.describe('admin garage import', () => {
     await expect(create).toBeEnabled()
     await create.click()
 
-    // Back to the list, on Pending, where the new garage is.
-    await expect(page).toHaveURL(/\/vendors\?show=pending/)
+    // Back to the list, on Not live yet, where the new garage is.
+    await expect(page).toHaveURL(/\/vendors\?show=notlive/)
     const card = page.getByRole('group', { name, exact: true })
     await expect(card).toContainText('Pending')
     await expect(

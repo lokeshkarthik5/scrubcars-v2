@@ -16,7 +16,9 @@ import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { ScInput } from '@repo/ui/sc/input'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
@@ -163,26 +165,61 @@ export default function AdminDiscountsPage() {
       ? deleteDiscount.variables
       : null
 
+  // Deleting a code can't be taken back, so it is confirmed on a sheet that
+  // says so (safe actions; never the browser's pop-up). Deactivating is easy
+  // to take back, so it happens at once with an Undo that activates it again.
+  const [deleting, setDeleting] = useState<AdminDiscount | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const handleDelete = (discount: AdminDiscount) => {
-    if (
-      !window.confirm(
-        `Permanently delete "${discount.code}"?\n\nOnly codes that have never been used can be deleted. Deactivate instead if you just want to stop it.`
-      )
-    ) {
-      return
-    }
     setActionError('')
-    deleteDiscount.mutate(discount.id, {
-      // The API refuses to delete a redeemed code; show its reason verbatim.
-      onError: (err) =>
-        setActionError(errorMessage(err, 'Failed to delete the code')),
-    })
+    setDeleting(discount)
+    setDeleteOpen(true)
+  }
+
+  const handleToggle = (discount: AdminDiscount) => {
+    setActionError('')
+    const isActive = !discount.isActive
+    toggleActive.mutate(
+      { id: discount.id, isActive },
+      {
+        onSuccess: () => {
+          if (isActive) return
+          showUndoToast(
+            `${discount.code} deactivated. Customers can't use it.`,
+            {
+              onUndo: () =>
+                toggleActive.mutate({ id: discount.id, isActive: true }),
+            }
+          )
+        },
+      }
+    )
   }
 
   return (
     <>
+      <ConfirmSheet
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          if (!deleting) return
+          try {
+            await deleteDiscount.mutateAsync(deleting.id)
+          } catch (err) {
+            // The API refuses to delete a redeemed code; its reason, verbatim.
+            setActionError(errorMessage(err, 'Failed to delete the code'))
+          } finally {
+            setDeleteOpen(false)
+          }
+        }}
+        level="firm"
+        title={`Delete ${deleting?.code ?? 'this code'} for good?`}
+        body="It has never been used, so nothing else changes. This can't be undone: to stop it for now, Deactivate it instead."
+        confirmLabel="Delete code"
+        busy={deleteDiscount.isPending}
+      />
       <PageHeader
-        title="Discounts"
+        title="Offers"
         subtitle={
           !isPending && !error && discounts.length > 0 ? (
             isFiltered ? (
@@ -301,7 +338,7 @@ export default function AdminDiscountsPage() {
                       <p className="truncate font-numeric text-[14px] font-bold tracking-wide text-text-primary">
                         {discount.code}
                       </p>
-                      <p className="truncate text-[11px] text-text-secondary">
+                      <p className="truncate text-[12px] text-text-secondary">
                         {discount.description || effectLabel(discount)}
                       </p>
                     </div>
@@ -365,13 +402,7 @@ export default function AdminDiscountsPage() {
                       fullWidth={false}
                       variant="secondary"
                       disabled={busyId === discount.id}
-                      onClick={() => {
-                        setActionError('')
-                        toggleActive.mutate({
-                          id: discount.id,
-                          isActive: !discount.isActive,
-                        })
-                      }}
+                      onClick={() => handleToggle(discount)}
                       className={ROW_ACTION}
                     >
                       {discount.isActive ? 'Deactivate' : 'Activate'}

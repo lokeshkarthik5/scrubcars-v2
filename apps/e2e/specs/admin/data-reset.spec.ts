@@ -41,7 +41,20 @@ test.describe('start pilot clean, screens @p0', () => {
     await expect(
       page.getByRole('button', { name: 'Delete test booking…' })
     ).toHaveCount(0)
+    // Marking changes the pilot numbers, so it is confirmed first, on a
+    // sheet that says what happens; the switch waits for the answer.
     await mark.click()
+    const sheet = page.getByRole('dialog', {
+      name: `Mark #${ref} as a test booking?`,
+    })
+    await expect(
+      sheet.getByText('It leaves Statistics and the pilot numbers.')
+    ).toBeVisible()
+    // Paid in test mode, so no real-money warning.
+    await expect(sheet.getByText('real money', { exact: false })).toHaveCount(0)
+    await expect(mark).toHaveAttribute('aria-checked', 'false')
+    await sheet.getByRole('button', { name: 'Mark as test' }).click()
+    await expect(sheet).toBeHidden()
     await expect(mark).toHaveAttribute('aria-checked', 'true')
     await expect(
       page.getByText('Left out of the pilot numbers. Marked by admin.')
@@ -87,12 +100,11 @@ test.describe('start pilot clean, screens @p0', () => {
     const ref = reference(id)
     const keep = BOOKINGS.resetUiKeep
 
-    await page.goto('/bookings')
-    // While the switch is on, the page is in the menu and linked from Bookings.
-    await expect(
-      page.getByRole('link', { name: 'Start pilot clean' }).first()
-    ).toBeVisible()
-    await page.goto('/data-reset')
+    // While the switch is on, the page is in Settings' danger zone, out of
+    // the daily menu.
+    await page.goto('/settings')
+    await page.getByRole('link', { name: /^Start pilot clean/ }).click()
+    await expect(page).toHaveURL(/\/data-reset$/)
     await expect(
       page.getByRole('heading', { name: 'Start pilot clean' })
     ).toBeVisible()

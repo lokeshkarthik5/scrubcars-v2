@@ -93,7 +93,7 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
 
   return (
     <ScSection title="Team">
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         Saved immediately — these do not wait for “Save changes”. A phone with
         no account yet gets access the next time it logs in.
       </p>
@@ -114,7 +114,9 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
               key={member.id}
               className="flex flex-wrap items-center gap-2 rounded-[12px] bg-surface px-3 py-2"
             >
-              <div className="min-w-0 flex-1">
+              {/* The whole line for the name and phone on a phone, so neither
+                  is cut off by the role picker beside it (quick win 2). */}
+              <div className="min-w-0 flex-1 max-sm:basis-full">
                 <p className="flex items-center gap-2 truncate text-[13px] font-medium text-text-primary">
                   <span className="truncate">{member.name}</span>
                   {member.status === 'suspended' && (
@@ -127,7 +129,7 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
               </div>
 
               {member.isOwner ? (
-                <span className="flex items-center gap-1 text-[11px] text-text-muted">
+                <span className="flex items-center gap-1 text-[12px] text-text-muted">
                   <IconLock size={13} stroke={1.5} aria-hidden="true" /> Owner —
                   locked
                 </span>

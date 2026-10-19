@@ -293,7 +293,7 @@ function AiPictureSheet({
                         sizes="200px"
                         className="object-cover"
                       />
-                      <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-medium text-white">
+                      <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[12px] font-medium text-white">
                         <IconSparkles size={12} aria-hidden="true" />
                         AI picture
                       </span>

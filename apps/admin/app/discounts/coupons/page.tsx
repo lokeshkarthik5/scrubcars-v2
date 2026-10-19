@@ -119,7 +119,7 @@ export default function CouponBatchesPage() {
   return (
     <>
       <PageHeader
-        title="Discounts"
+        title="Offers"
         subtitle="Printed coupons with QR codes: each customer who scans one gets a one-use coupon in the app. Detlio pays for them."
         actions={
           <ScButtonLink href="/discounts/coupons/new">
@@ -159,7 +159,7 @@ export default function CouponBatchesPage() {
               </h2>
               <ScCard className="overflow-x-auto p-0">
                 <table className="w-full min-w-[560px] text-left text-[12px]">
-                  <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+                  <thead className="text-[12px] text-text-secondary">
                     <tr>
                       <th className="px-4 py-2 font-medium">Where</th>
                       <th className="px-3 py-2 text-right font-medium">

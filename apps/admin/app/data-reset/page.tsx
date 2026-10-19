@@ -334,7 +334,7 @@ function StartPilotClean({
                 }
                 className="min-h-11 font-numeric"
               />
-              <p className="text-[11px] text-text-muted">
+              <p className="text-[12px] text-text-muted">
                 Bookings made before this, and checkouts opened before it that
                 never became a booking. Pick the moment the pilot starts, or the
                 moment the live Razorpay keys went in.
@@ -452,7 +452,7 @@ function StartPilotClean({
 
               {listing.checkouts.length > 0 && (
                 <>
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                  <p className="text-[12px] font-semibold text-text-secondary">
                     Checkouts that never became a booking
                   </p>
                   <ul
@@ -473,7 +473,7 @@ function StartPilotClean({
 
               {hasComplaints && (
                 <>
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                  <p className="text-[12px] font-semibold text-text-secondary">
                     Customer complaints
                   </p>
                   <ul
@@ -494,7 +494,7 @@ function StartPilotClean({
 
               {hasAnalytics && listing.analyticsEvents && (
                 <>
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                  <p className="text-[12px] font-semibold text-text-secondary">
                     Usage events
                   </p>
                   <ul
@@ -522,7 +522,7 @@ function StartPilotClean({
                 Dry run
               </ScButton>
               {nothingTicked && (
-                <p className="text-[11px] text-text-muted">
+                <p className="text-[12px] text-text-muted">
                   Tick at least one row for a dry run.
                 </p>
               )}
@@ -622,7 +622,7 @@ function StartPilotClean({
             </ScButton>
           </div>
           {dryRun && !downloaded && (
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[12px] text-text-muted">
               Download the list to continue.
             </p>
           )}

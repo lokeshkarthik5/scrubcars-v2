@@ -1,11 +1,11 @@
+'use client'
+
 import { ScBadge } from '@repo/ui/sc/badge'
 import type { BookingParty } from '@repo/core/api/admin'
-import {
-  formatRupees,
-  formatWaiting,
-  formatWhen,
-  WAITING_ALERT_MINS,
-} from '@/lib/bookings'
+import { useNow } from '@repo/core/hooks/use-now'
+import { UrgencyChip } from '@/components/urgency-chip'
+import { formatRupees, formatWaiting, WAITING_ALERT_MINS } from '@/lib/bookings'
+import { deadlineText } from '@/lib/format'
 
 /**
  * How long a pending booking has waited for its garage. Amber from 30
@@ -21,16 +21,15 @@ export function WaitingBadge({ mins }: { mins: number }) {
 }
 
 /**
- * A pending booking's deadline for the garage to accept (0042). Neutral:
- * the Waiting badge beside it is the one that turns amber, and the cron
- * cancels it at this time when AUTO_CANCEL_UNANSWERED is on.
+ * A pending booking's deadline for the garage to accept (0042), on the
+ * panel's one clock scale (quick win 1): coral inside 15 minutes or past it,
+ * amber when it is today, grey otherwise. The cron cancels it at this time
+ * when AUTO_CANCEL_UNANSWERED is on.
  */
 export function AcceptByBadge({ respondBy }: { respondBy: string }) {
+  const now = useNow(30_000)
   return (
-    <ScBadge variant="muted">
-      Accept by&nbsp;
-      <span className="font-numeric">{formatWhen(respondBy)}</span>
-    </ScBadge>
+    <UrgencyChip label={deadlineText(respondBy, now, { verb: 'Accept' })} />
   )
 }
 

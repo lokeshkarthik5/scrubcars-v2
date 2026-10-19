@@ -82,6 +82,8 @@ describe('coupon batches in the panel', () => {
     expect(scannedFigure(batch({ kind: 'shared', codeCount: 1 }))).toBe(55)
     expect(rate(20, 100)).toBe('20%')
     expect(rate(1, 0)).toBe('—')
+    // A shared code: one printed, added 97 times. Not 9700%.
+    expect(rate(97, 1)).toBe('—')
   })
 
   test('by location: case and spaces ignored, most bookings first', () => {

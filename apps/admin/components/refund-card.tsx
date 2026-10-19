@@ -12,6 +12,9 @@ import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import { formatRupees, formatWhen } from '@/lib/bookings'
 import { refundKindLabel } from '@/lib/refunds'
+import { formatMoney } from '@/lib/format'
+import { refundUrgency } from '@/lib/today'
+import { UrgencyChip } from '@/components/urgency-chip'
 
 /** A Razorpay id ops pastes into the dashboard, with a copy button. */
 function GatewayId({ value, label }: { value: string; label: string }) {
@@ -83,9 +86,9 @@ export function RefundCard({
             {formatRupees(owed ? r.amountOwed : r.amountRefunded)}
           </p>
           {owed ? (
-            <ScBadge variant={age.late ? 'danger' : 'pending'}>
-              {age.label}
-            </ScBadge>
+            <UrgencyChip
+              label={{ text: age.label, urgency: refundUrgency(r.since, now) }}
+            />
           ) : (
             <ScBadge variant="muted">Refunded</ScBadge>
           )}
@@ -156,13 +159,17 @@ export function RefundCard({
         <div className="flex flex-wrap gap-2">
           {/* Only a Razorpay payment (pay_…) can be refunded from here. */}
           {onRefundNow && r.razorpayPaymentId?.startsWith('pay_') && (
+            // Outline with the amount in it, not a filled red button per card:
+            // five refunds owed are five lines of work, not five alarms
+            // (quick win 5).
             <ScButton
+              variant="outline"
               fullWidth={false}
               onClick={() => onRefundNow(r)}
               aria-label={`Refund now: #${r.reference}, ${formatRupees(r.amountOwed)} owed`}
-              className="min-h-11 px-4 text-[13px]"
+              className="h-11 rounded-[8px] px-4 text-[13px]"
             >
-              Refund now…
+              Refund {formatMoney(r.amountOwed)}…
             </ScButton>
           )}
           <ScButton

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  IconAdjustmentsHorizontal,
   IconAlertCircle,
   IconAlertTriangle,
   IconArchive,
@@ -29,6 +30,8 @@ import {
 import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { ScCard } from '@repo/ui/sc/card'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
+import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { Figures } from '@repo/ui/sc/figures'
@@ -53,6 +56,9 @@ import {
   REVIEW_LABEL,
   SHOW_FILTERS,
   SHOW_LABELS,
+  isMoreFilter,
+  isStageFilter,
+  matchesSearch,
   binDeleteLine,
   bookingParts,
   bookingsLine,
@@ -130,6 +136,8 @@ function VendorsList() {
 
   // The chosen chip lives in the URL, so Back from a garage returns to it.
   const show = parseShow(params.get('show'))
+  // "Garages matching …" from Find anything: a name, phone or area.
+  const q = params.get('q') ?? ''
   // What a card's links carry as `back`: this list, as it is now.
   const back = listHref(show)
 
@@ -157,7 +165,12 @@ function VendorsList() {
   const counts = showCounts(vendors)
   const toReview = documentsToReviewCount(vendors)
   const certification = certificationCounts(vendors)
-  const shown = vendors.filter((v) => matchesShow(v, show))
+  const shown = vendors.filter(
+    (v) => matchesShow(v, show) && matchesSearch(v, q)
+  )
+  // More filters is open while one of its filters is chosen, or on request.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreShown = moreOpen || isMoreFilter(show)
 
   // Checklists open, by garage. A tap on the readiness line toggles one.
   const [openChecklists, setOpenChecklists] = useState<ReadonlySet<string>>(
@@ -221,12 +234,34 @@ function VendorsList() {
     })
   }
 
-  const handleArchiveToggle = (v: AdminVendor) => {
-    const archiving = v.status !== 'archived'
-    clearRowError(v.id)
-    archive.mutate(
+  // Archive is easy to take back for an Active garage, so it happens at
+  // once with an Undo (safe actions, level 1): Unarchive puts it back to
+  // Active, exactly as it was. Any other stage would come back as Active,
+  // not as it was, so those are confirmed first and offer no Undo.
+  const [confirmArchive, setConfirmArchive] = useState<AdminVendor | null>(null)
+  // Apart from the garage, so the sheet keeps its words while it slides away.
+  const [archiveOpen, setArchiveOpen] = useState(false)
+
+  const runArchive = (v: AdminVendor, archiving: boolean, withUndo: boolean) =>
+    archive.mutateAsync(
       { id: v.id, archiving },
       {
+        onSuccess: () => {
+          if (!withUndo) return
+          showUndoToast(
+            `${v.businessName} archived. Customers can't find it.`,
+            {
+              onUndo: () =>
+                archive.mutate(
+                  { id: v.id, archiving: false },
+                  {
+                    onError: () =>
+                      showRowError(v.id, 'Failed to restore vendor'),
+                  }
+                ),
+            }
+          )
+        },
         onError: () =>
           showRowError(
             v.id,
@@ -234,6 +269,16 @@ function VendorsList() {
           ),
       }
     )
+
+  const handleArchiveToggle = (v: AdminVendor) => {
+    const archiving = v.status !== 'archived'
+    clearRowError(v.id)
+    if (archiving && v.status !== 'active') {
+      setConfirmArchive(v)
+      setArchiveOpen(true)
+      return
+    }
+    void runArchive(v, archiving, archiving).catch(() => undefined)
   }
 
   const openDialog = (kind: 'bin' | 'restore' | 'delete', v: AdminVendor) => {
@@ -247,10 +292,18 @@ function VendorsList() {
       <PageHeader
         title="Garages"
         subtitle={
+          // The same number as the All chip: the Bin is not counted.
           !loading && !error && vendors.length > 0 ? (
             <>
-              <span className="font-numeric">{vendors.length}</span> garage
-              {vendors.length === 1 ? '' : 's'}
+              <span className="font-numeric">{counts.all}</span> garage
+              {counts.all === 1 ? '' : 's'}
+              {counts.bin > 0 && (
+                <>
+                  {' '}
+                  · <span className="font-numeric">{counts.bin}</span> in the
+                  Bin
+                </>
+              )}
             </>
           ) : undefined
         }
@@ -260,6 +313,37 @@ function VendorsList() {
             <IconPlus size={16} aria-hidden="true" /> Add garage
           </ScButtonLink>
         }
+      />
+
+      <ConfirmSheet
+        open={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        onConfirm={async () => {
+          if (!confirmArchive) return
+          try {
+            await runArchive(confirmArchive, true, false)
+          } catch {
+            // The card shows why.
+          } finally {
+            setArchiveOpen(false)
+          }
+        }}
+        level="light"
+        title={`Archive ${confirmArchive?.businessName ?? 'this garage'}?`}
+        body={
+          <>
+            It is put away and customers can&apos;t find it; its bookings are
+            kept. Unarchiving it later makes it{' '}
+            <span className="font-medium text-text-primary">Active</span>, not{' '}
+            {confirmArchive
+              ? confirmArchive.status.charAt(0).toUpperCase() +
+                confirmArchive.status.slice(1)
+              : ''}{' '}
+            as it is now.
+          </>
+        }
+        confirmLabel="Archive"
+        busy={archive.isPending}
       />
 
       {loading ? (
@@ -278,7 +362,9 @@ function VendorsList() {
         <div className="flex flex-col gap-3">
           <div>
             {/* One row that scrolls sideways on a phone, to the screen's
-                edge, rather than wrapping into a block of buttons. */}
+                edge, rather than wrapping into a block of buttons. Five
+                states and All (quick win 3); the filters that cut across
+                them are under More filters. */}
             <div
               role="group"
               aria-label="Show"
@@ -291,52 +377,86 @@ function VendorsList() {
                   count={counts[s]}
                   active={show === s}
                   onClick={() => chooseShow(s)}
-                  className="min-h-11 rounded-[10px] text-[13px]"
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
                 />
               ))}
-              {/* Garage documents waiting for Detlio (0043). Apart from the
-                  stages, after a rule, and only while any wait (or it is the
-                  one chosen). */}
-              {(toReview > 0 || show === REVIEW_FILTER) && (
-                <>
-                  <span
-                    aria-hidden="true"
-                    className="my-2 w-px shrink-0 bg-border"
-                  />
-                  <FilterChip
-                    label={REVIEW_LABEL}
-                    count={toReview}
-                    active={show === REVIEW_FILTER}
-                    onClick={() => chooseShow(REVIEW_FILTER)}
-                    className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
-                  />
-                </>
+              {/* An old link's stage (Pending, Active, Suspended) still
+                  opens, as one more chip while it is chosen. */}
+              {isStageFilter(show) && (
+                <FilterChip
+                  label={SHOW_LABELS[show]}
+                  count={counts[show]}
+                  active
+                  onClick={() => chooseShow(show)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
               )}
-              {/* Detlio Certified (0048): who has the seal, and who met
-                  every standard last night and waits for a quality check.
-                  Apart from the stages, after a rule; Eligible only while
-                  any are (or it is the one chosen). */}
-              <span
-                aria-hidden="true"
-                className="my-2 w-px shrink-0 bg-border"
-              />
-              <FilterChip
-                label={CERTIFIED_LABEL}
-                count={certification.certified}
-                active={show === CERTIFIED_FILTER}
-                onClick={() => chooseShow(CERTIFIED_FILTER)}
-                className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
-              />
-              {(certification.eligible > 0 || show === ELIGIBLE_FILTER) && (
+              <button
+                type="button"
+                onClick={() => setMoreOpen((open) => !open)}
+                aria-expanded={moreShown}
+                aria-controls="garage-more-filters"
+                className={cn(
+                  'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] font-medium transition-colors',
+                  isMoreFilter(show)
+                    ? 'border-text-primary text-text-primary'
+                    : 'border-border text-text-secondary hover:text-text-primary'
+                )}
+              >
+                <IconAdjustmentsHorizontal size={15} aria-hidden="true" />
+                More filters
+                {toReview > 0 && !isMoreFilter(show) && (
+                  <span className="font-numeric text-tone-attention-text">
+                    · {toReview} to review
+                  </span>
+                )}
+              </button>
+            </div>
+            {moreShown && (
+              <div
+                id="garage-more-filters"
+                role="group"
+                aria-label="More filters"
+                className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
+              >
+                {/* Garage documents waiting for Detlio (0043), and Detlio
+                    Certified (0048): who has the seal, and who met every
+                    standard last night and waits for a quality check. */}
+                <FilterChip
+                  label={REVIEW_LABEL}
+                  count={toReview}
+                  active={show === REVIEW_FILTER}
+                  onClick={() => chooseShow(REVIEW_FILTER)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
+                <FilterChip
+                  label={CERTIFIED_LABEL}
+                  count={certification.certified}
+                  active={show === CERTIFIED_FILTER}
+                  onClick={() => chooseShow(CERTIFIED_FILTER)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
                 <FilterChip
                   label={ELIGIBLE_LABEL}
                   count={certification.eligible}
                   active={show === ELIGIBLE_FILTER}
                   onClick={() => chooseShow(ELIGIBLE_FILTER)}
-                  className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
                 />
-              )}
-            </div>
+              </div>
+            )}
+            {q && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 text-[13px] text-text-secondary">
+                Garages matching{' '}
+                <span className="font-medium text-text-primary">“{q}”</span>
+                <Link
+                  href={listHref(show)}
+                  className="inline-flex min-h-11 items-center font-medium text-text-primary underline underline-offset-2"
+                >
+                  Clear
+                </Link>
+              </p>
+            )}
             <div className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
               {showHints(show).map((hint) => (
                 <p key={hint.term}>
@@ -371,7 +491,9 @@ function VendorsList() {
                     ? 'No Detlio Certified garages yet.'
                     : show === ELIGIBLE_FILTER
                       ? 'No garage is waiting to be certified.'
-                      : `No ${SHOW_LABELS[show].toLowerCase()} garages.`}
+                      : q
+                        ? `No garages match “${q}” here.`
+                        : `No garages are ${SHOW_LABELS[show].toLowerCase()}.`}
             </p>
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -645,7 +767,7 @@ function GarageCard({
           the wrong place. No km on an unpinned garage, signed from its city
           field alone. */}
       {v.outsideServiceCity && (
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-muted">
           <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
           {v.outsideServiceCity.km !== null && (
             <span className="shrink-0">
@@ -1106,7 +1228,7 @@ function Readiness({
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p
                     id={titleId}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-text-secondary"
                   >
                     {GROUP_ICON[group.severity]}
                     {group.title}

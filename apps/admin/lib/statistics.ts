@@ -269,8 +269,13 @@ export function plural(count: number, one: string, many: string): string {
  * A tile's change from the period before: "↑ 18%" for counts and money, "↑ 4
  * pts" for rates, and whether that is good news. `better` says which way is
  * good — fewer cancellations is. Null when there is nothing to compare: no
- * earlier figure, or an earlier zero, where a percentage would be infinite.
+ * earlier figure, or an earlier zero, where a percentage would be infinite;
+ * and null past ±300% (quick win 6), which only says the period before was
+ * the soft launch ("↑1547%"), not how the business moved.
  */
+/** A change bigger than this, in percent, is left out rather than shown. */
+export const MAX_SHOWN_CHANGE = 300
+
 export function change(
   current: number | null,
   previous: number | null,
@@ -291,6 +296,7 @@ export function change(
   } else {
     if (previous === 0) return null
     size = Math.round((current / previous - 1) * 100)
+    if (Math.abs(size) > MAX_SHOWN_CHANGE) return null
     unit = '%'
   }
   if (size === 0) return { direction: 'same', text: 'no change', good: null }

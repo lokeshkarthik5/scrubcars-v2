@@ -118,11 +118,11 @@ export function RefundNowDialog({
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
         <div>
-          <dt className="text-[11px] text-text-muted">Customer</dt>
+          <dt className="text-[12px] text-text-muted">Customer</dt>
           <dd className="truncate text-text-primary">{refund.customer.name}</dd>
         </div>
         <div>
-          <dt className="text-[11px] text-text-muted">
+          <dt className="text-[12px] text-text-muted">
             {refund.bookingId ? 'Booking' : 'Checkout'}
           </dt>
           <dd className="font-numeric text-text-primary">
@@ -130,13 +130,13 @@ export function RefundNowDialog({
           </dd>
         </div>
         <div>
-          <dt className="text-[11px] text-text-muted">Owed</dt>
+          <dt className="text-[12px] text-text-muted">Owed</dt>
           <dd className="font-numeric text-text-primary">
             {formatRupees(refund.amountOwed)}
           </dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-[11px] text-text-muted">Razorpay payment</dt>
+          <dt className="text-[12px] text-text-muted">Razorpay payment</dt>
           <dd className="truncate font-numeric text-text-primary">
             {refund.razorpayPaymentId}
           </dd>
@@ -157,8 +157,8 @@ export function RefundNowDialog({
         <p
           className={
             amountProblem
-              ? 'text-[11px] text-error'
-              : 'text-[11px] text-text-muted'
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
           }
         >
           {amountProblem ??

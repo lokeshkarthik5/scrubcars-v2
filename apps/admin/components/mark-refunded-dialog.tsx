@@ -189,8 +189,8 @@ export function MarkRefundedDialog({
         <p
           className={
             amountProblem
-              ? 'text-[11px] text-error'
-              : 'text-[11px] text-text-muted'
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
           }
         >
           {amountProblem ??
@@ -232,8 +232,8 @@ export function MarkRefundedDialog({
           <p
             className={
               refProblem
-                ? 'text-[11px] text-error'
-                : 'text-[11px] text-text-muted'
+                ? 'text-[12px] text-error'
+                : 'text-[12px] text-text-muted'
             }
           >
             {refProblem ?? 'Copy it from the refund in the Razorpay dashboard.'}

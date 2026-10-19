@@ -119,7 +119,7 @@ export function GarageCertificationSection({
         }
       >
         <StatusLines data={data} />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Eligible = every standard below over the last {data.rules.windowDays}{' '}
           days (Test-marked bookings left out). Certified = eligible, a passing
           quality check from the last {data.rules.qualityCheckMonths} months,
@@ -187,7 +187,7 @@ export function GarageCertificationSection({
             </li>
           ))}
         </ul>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Measured {istDateTimeLabel(eligibility.measuredAt)}
           {data.lastEvaluatedAt && (
             <>
@@ -328,7 +328,7 @@ function QualityChecks({
         </ScBadge>
       }
     >
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         A mystery visit or an inspection by Detlio. The latest one from the last{' '}
         {data.rules.qualityCheckMonths} months must be a pass
         {data.qualityCheck.validUntil && (
@@ -366,7 +366,7 @@ function QualityChecks({
                   {check.result === 'pass' ? 'Pass' : 'Fail'}
                 </ScBadge>
               </div>
-              <p className="text-[11px] text-text-secondary">
+              <p className="text-[12px] text-text-secondary">
                 Checked by {check.checkerName} · recorded by {check.recordedBy},{' '}
                 {istDateTimeLabel(check.createdAt)}
               </p>
@@ -413,7 +413,7 @@ function QualityChecks({
               placeholder="Who visited"
             />
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-medium text-text-secondary">
+              <span className="text-[12px] font-medium text-text-secondary">
                 Result
               </span>
               <ScSegmented
@@ -459,7 +459,7 @@ function QualityChecks({
               </ScButton>
             </div>
             {!actorName && (
-              <p className="text-[11px] text-text-muted">
+              <p className="text-[12px] text-text-muted">
                 Type your name above first.
               </p>
             )}
@@ -602,14 +602,14 @@ function Decision({
             {certify.isPending ? 'Certifying…' : 'Certify'}
           </ScButton>
           {data.certifyBlockedBy && (
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[12px] text-text-muted">
               {BLOCKED[data.certifyBlockedBy]}
             </p>
           )}
         </>
       )}
       {!actorName && (
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Type your name above first.
         </p>
       )}

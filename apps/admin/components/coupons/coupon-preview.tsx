@@ -20,7 +20,7 @@ export function CouponPreview({
 }) {
   return (
     <ScCard className="flex flex-col gap-1.5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+      <p className="text-[12px] font-medium text-text-secondary">
         Customers read
       </p>
       <p className="text-[15px] font-semibold text-text-primary">

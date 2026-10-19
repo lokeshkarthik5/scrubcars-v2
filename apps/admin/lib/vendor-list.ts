@@ -14,42 +14,51 @@ import { DEFAULT_DOORSTEP_RADIUS_KM } from './garage-edit'
 // ─── Chips ───────────────────────────────────────────────────────────────────
 
 /**
- * The chips, in order. All is every garage not in the Bin, so the stages add
- * up to it; the Bin is apart, last, and in no other chip or count.
+ * The chips, in order (quick win 3): five that tell a garage's state apart
+ * in words the owner uses, and All. All is every garage not in the Bin, and
+ * Live, Not live yet, Paused and Archived split it with nothing left over;
+ * the Bin is apart, last, and in no other chip or count.
  */
 export const SHOW_FILTERS = [
   'all',
   'live',
-  'active',
-  'pending',
-  'suspended',
+  'notlive',
+  'paused',
   'archived',
   'bin',
 ] as const
 export type ShowFilter = (typeof SHOW_FILTERS)[number]
 
-export const SHOW_LABELS: Record<ShowFilter, string> = {
+/**
+ * The old stage chips. No longer drawn, but a link or bookmark that names
+ * one still opens it, shown as one more chip while chosen.
+ */
+export const STAGE_FILTERS = ['active', 'pending', 'suspended'] as const
+export type StageFilter = (typeof STAGE_FILTERS)[number]
+
+export const SHOW_LABELS: Record<ShowFilter | StageFilter, string> = {
   all: 'All',
   live: 'Live',
+  notlive: 'Not live yet',
+  paused: 'Paused',
+  archived: 'Archived',
+  bin: 'Bin',
   active: 'Active',
   pending: 'Pending',
   suspended: 'Suspended',
-  archived: 'Archived',
-  bin: 'Bin',
 }
 
 /**
  * "Documents to review": garages (not in the Bin) with documents waiting for
- * Detlio to check (0043). A chip of its own after the stages, shown while
- * any wait or while chosen; it cuts across the stages, so it is not one of
- * SHOW_FILTERS and its garages are counted there too.
+ * Detlio to check (0043). It cuts across the states, so it is not one of
+ * SHOW_FILTERS and its garages are counted there too. Under More filters.
  */
 export const REVIEW_FILTER = 'documents' as const
 export const REVIEW_LABEL = 'Documents to review'
 
 /**
- * Detlio Certified (0048): two more chips that cut across the stages, after
- * the documents one. "Certified": customers see the seal now. "Eligible,
+ * Detlio Certified (0048): two more filters that cut across the states,
+ * under More filters. "Certified": customers see the seal now. "Eligible,
  * not yet certified": met every standard at its last evaluation (nightly,
  * or the last Certify), so a quality check is the next thing to do. Neither
  * holds a garage in the Bin.
@@ -59,23 +68,41 @@ export const CERTIFIED_LABEL = 'Certified'
 export const ELIGIBLE_FILTER = 'eligible' as const
 export const ELIGIBLE_LABEL = 'Eligible, not yet certified'
 
-export type ListFilter =
-  | ShowFilter
-  | typeof REVIEW_FILTER
-  | typeof CERTIFIED_FILTER
-  | typeof ELIGIBLE_FILTER
+/** The filters behind "More filters", in order. */
+export const MORE_FILTERS = [
+  REVIEW_FILTER,
+  CERTIFIED_FILTER,
+  ELIGIBLE_FILTER,
+] as const
+export type MoreFilter = (typeof MORE_FILTERS)[number]
+
+export const MORE_LABELS: Record<MoreFilter, string> = {
+  documents: REVIEW_LABEL,
+  certified: CERTIFIED_LABEL,
+  eligible: ELIGIBLE_LABEL,
+}
+
+export type ListFilter = ShowFilter | StageFilter | MoreFilter
+
+export function isMoreFilter(show: ListFilter): show is MoreFilter {
+  return (MORE_FILTERS as readonly string[]).includes(show)
+}
+
+export function isStageFilter(show: ListFilter): show is StageFilter {
+  return (STAGE_FILTERS as readonly string[]).includes(show)
+}
 
 /** What the list opens on: the garages customers can find. */
 export const DEFAULT_SHOW: ShowFilter = 'live'
 
 /** The chip a `?show=` asks for, or Live. An allow-list, like `?tab=`. */
 export function parseShow(value: string | null | undefined): ListFilter {
-  if (value === REVIEW_FILTER) return REVIEW_FILTER
-  if (value === CERTIFIED_FILTER) return CERTIFIED_FILTER
-  if (value === ELIGIBLE_FILTER) return ELIGIBLE_FILTER
-  return value && (SHOW_FILTERS as readonly string[]).includes(value)
-    ? (value as ShowFilter)
-    : DEFAULT_SHOW
+  const known: readonly string[] = [
+    ...SHOW_FILTERS,
+    ...STAGE_FILTERS,
+    ...MORE_FILTERS,
+  ]
+  return value && known.includes(value) ? (value as ListFilter) : DEFAULT_SHOW
 }
 
 /** The list with a chip chosen: `/vendors` for the default, so Back is tidy. */
@@ -124,6 +151,21 @@ export function documentsToReviewCount(vendors: ListedFields[]): number {
   return vendors.filter(hasDocumentsToReview).length
 }
 
+/** Stopped by Detlio (suspended), or taking no new bookings for now (paused). */
+export function isPausedGarage(v: ListedFields): boolean {
+  if (isInBin(v) || v.status === 'archived') return false
+  return v.status === 'suspended' || Boolean(v.bookingsPausedAt)
+}
+
+/**
+ * On its way in: added (Pending) or Active, not paused, and not yet
+ * something customers can find (not verified, or something blocking).
+ */
+export function isNotLiveYet(v: ListedFields): boolean {
+  if (isInBin(v) || v.status === 'archived' || isPausedGarage(v)) return false
+  return !isLive(v)
+}
+
 /** Moved to the Bin by admin, and not restored. */
 export function isInBin(v: Pick<AdminVendor, 'deletedAt'>): boolean {
   return v.deletedAt != null
@@ -154,27 +196,51 @@ export function matchesShow(v: ListedFields, show: ListFilter): boolean {
   if (isInBin(v)) return false
   if (show === 'all') return true
   if (show === 'live') return isLive(v)
+  if (show === 'notlive') return isNotLiveYet(v)
+  if (show === 'paused') return isPausedGarage(v)
   return v.status === show
+}
+
+/**
+ * "Garages matching …" from Find anything: the name, a phone (digits only,
+ * so "98765 43210" finds "+919876543210"), or the area. Empty matches all.
+ */
+export function matchesSearch(
+  v: Partial<
+    Pick<AdminVendor, 'businessName' | 'phone' | 'city' | 'address' | 'pincode'>
+  >,
+  q: string
+): boolean {
+  const text = q.trim().toLowerCase()
+  if (!text) return true
+  const digits = text.replace(/\D/g, '')
+  const fields = [v.businessName, v.city, v.address, v.pincode].map((f) =>
+    (f ?? '').toLowerCase()
+  )
+  if (fields.some((f) => f.includes(text))) return true
+  return (
+    digits.length >= 4 && (v.phone ?? '').replace(/\D/g, '').includes(digits)
+  )
 }
 
 /** Each chip's count, over the full list the page already has. */
 export function showCounts(
   vendors: ListedFields[]
-): Record<ShowFilter, number> {
-  const counts = Object.fromEntries(SHOW_FILTERS.map((s) => [s, 0])) as Record<
-    ShowFilter,
+): Record<ShowFilter | StageFilter, number> {
+  const all = [...SHOW_FILTERS, ...STAGE_FILTERS]
+  const counts = Object.fromEntries(all.map((s) => [s, 0])) as Record<
+    ShowFilter | StageFilter,
     number
   >
   for (const v of vendors) {
-    for (const show of SHOW_FILTERS) if (matchesShow(v, show)) counts[show] += 1
+    for (const show of all) if (matchesShow(v, show)) counts[show] += 1
   }
   return counts
 }
 
 /**
- * The two short lines under the chips: what the chosen one means. Live and
- * Active are told apart wherever either could be meant, since to the owner
- * they sound like the same thing.
+ * The short line under the chips: what the chosen one means, in the owner's
+ * words ("Live = customers can book it"). One line, not a two-line legend.
  */
 export function showHints(
   show: ListFilter
@@ -202,8 +268,31 @@ export function showHints(
             'met every standard last night; record a quality check, then Certify',
         },
       ]
+    case 'notlive':
+      return [
+        {
+          term: 'Not live yet',
+          meaning:
+            'added, not verified yet, or something blocks it. Its checklist says what.',
+        },
+      ]
+    case 'paused':
+      return [
+        {
+          term: 'Paused',
+          meaning:
+            'taking no new bookings for now, or stopped by Detlio (suspended)',
+        },
+      ]
     case 'pending':
       return [{ term: 'Pending', meaning: 'added, not shown to customers yet' }]
+    case 'active':
+      return [
+        {
+          term: 'Active',
+          meaning: 'approved by Detlio, even if paused or not live',
+        },
+      ]
     case 'suspended':
       return [
         {
@@ -225,11 +314,10 @@ export function showHints(
           meaning: 'off the app. Restore it, or delete it forever.',
         },
       ]
+    case 'all':
+      return [{ term: 'All', meaning: 'every garage but the Bin' }]
     default:
-      return [
-        { term: 'Live', meaning: 'customers can find it' },
-        { term: 'Active', meaning: 'approved by Detlio, even if paused' },
-      ]
+      return [{ term: 'Live', meaning: 'customers can find it and book it' }]
   }
 }
 

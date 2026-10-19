@@ -60,7 +60,7 @@ function NumberField({
         }}
         className="min-h-10 font-numeric"
       />
-      {hint && <p className="text-[11px] text-text-muted">{hint}</p>}
+      {hint && <p className="text-[12px] text-text-muted">{hint}</p>}
     </div>
   )
 }
@@ -90,8 +90,8 @@ function WeightsEditor({
       <p
         className={
           total === 100
-            ? 'text-[11px] text-text-muted'
-            : 'text-[11px] text-error'
+            ? 'text-[12px] text-text-muted'
+            : 'text-[12px] text-error'
         }
       >
         Adds up to <span className="font-numeric">{total}</span>% (must be 100).
@@ -231,7 +231,7 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
             onChange={(v) => set({ voucherValidDays: v ?? 0 })}
           />
         </div>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           The card&apos;s reward is set per level below.
         </p>
       </Group>
@@ -429,7 +429,7 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Saved as a new version with your name; every change is in the audit
           log. It applies from now on: vouchers, scratch cards and stamps
           already issued keep their values.
@@ -458,13 +458,24 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
               name.trim().length < 2 ||
               save.isPending
             }
+            disabledReason={
+              save.isPending
+                ? undefined
+                : !dirty
+                  ? 'Nothing changed yet'
+                  : problems.length > 0
+                    ? 'Fix the settings marked above first'
+                    : name.trim().length < 2
+                      ? 'Type your name first'
+                      : undefined
+            }
             onClick={submit}
           >
             {save.isPending ? 'Saving…' : 'Save settings'}
           </ScButton>
         </div>
         {current.versions.length > 1 && (
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             Earlier:{' '}
             {current.versions
               .slice(1, 6)

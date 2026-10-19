@@ -99,8 +99,8 @@ export function AdjustCreditDialog({
         <p
           className={
             amountProblem
-              ? 'text-[11px] text-error'
-              : 'text-[11px] text-text-muted'
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
           }
         >
           {amountProblem ??
@@ -126,7 +126,7 @@ export function AdjustCreditDialog({
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         Recorded in the audit log with your name and reason. The customer sees
         it as &ldquo;Adjusted by Detlio&rdquo;, without the reason.
       </p>

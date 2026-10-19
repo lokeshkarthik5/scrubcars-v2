@@ -74,7 +74,7 @@ function NameField({
         onChange={(e) => onChange(e.target.value)}
         className="min-h-11"
       />
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         Kept with the record of who did this.
       </p>
     </div>
@@ -448,7 +448,7 @@ export function DeleteForeverSheet({
               <div className="flex items-baseline justify-between gap-2">
                 <p
                   id="delete-kept-title"
-                  className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-secondary"
+                  className="text-[12px] font-semibold text-text-secondary"
                 >
                   Kept
                 </p>

@@ -31,7 +31,7 @@ function Section({
     <section className="flex flex-col gap-2">
       <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
       {children}
-      {note && <p className="text-[11px] text-text-muted">{note}</p>}
+      {note && <p className="text-[12px] text-text-muted">{note}</p>}
     </section>
   )
 }

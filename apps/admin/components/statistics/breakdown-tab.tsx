@@ -105,7 +105,7 @@ function Step({
         <span className="text-text-primary">{label}</span>
         <span className="flex items-baseline gap-2.5">
           {note && (
-            <em className="not-italic text-[11px] text-text-muted">{note}</em>
+            <em className="not-italic text-[12px] text-text-muted">{note}</em>
           )}
           <b className="font-numeric text-[17px] font-medium tabular-nums text-text-primary">
             {count.toLocaleString('en-IN')}
@@ -197,7 +197,7 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
             <col className="w-[96px]" />
           </colgroup>
           <thead>
-            <tr className="border-b border-border text-[11px] text-text-muted">
+            <tr className="border-b border-border text-[12px] text-text-muted">
               <th scope="col" className="pb-2 text-left font-medium">
                 Garage
               </th>
@@ -219,7 +219,7 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
                   <span className="block leading-[18px] text-text-primary">
                     {garage.name}
                   </span>
-                  <span className="mt-0.5 flex items-center gap-1 text-[11px] text-text-muted">
+                  <span className="mt-0.5 flex items-center gap-1 text-[12px] text-text-muted">
                     {garage.rating === null ? (
                       'No ratings yet'
                     ) : (
@@ -243,7 +243,7 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
                   {/* Paid bookings it let run out (0042): cancelled and
                       refunded by the cron, already among the cancellations. */}
                   {(garage.notAcceptedInTime ?? 0) > 0 && (
-                    <span className="mt-0.5 block text-[11px] text-text-secondary">
+                    <span className="mt-0.5 block text-[12px] text-text-secondary">
                       <span className="font-numeric">
                         {garage.notAcceptedInTime}
                       </span>{' '}
@@ -317,7 +317,7 @@ function ServiceTypes({ services }: { services: StatsBreakdown['services'] }) {
             <div className="flex items-baseline justify-between gap-2.5 text-[13px]">
               <span className="text-text-primary">
                 {SERVICE_TYPE_LABELS[service.category]}{' '}
-                <em className="ml-1 not-italic text-[11px] text-text-muted">
+                <em className="ml-1 not-italic text-[12px] text-text-muted">
                   {plural(service.bookings, 'booking', 'bookings')}
                 </em>
               </span>
@@ -382,7 +382,7 @@ function BusyHours({ busy }: { busy: StatsBreakdown['busyHours'] }) {
             >
               {WEEKDAY_LABELS.map((day, i) => (
                 <div key={day} className="contents">
-                  <span className="text-[11px] text-text-muted">{day}</span>
+                  <span className="text-[12px] text-text-muted">{day}</span>
                   {hours.map((hour) => {
                     const bookings = count(i + 1, hour)
                     return (
@@ -410,7 +410,7 @@ function BusyHours({ busy }: { busy: StatsBreakdown['busyHours'] }) {
             </div>
             <div
               aria-hidden="true"
-              className="mt-3 flex items-center justify-end gap-[3px] text-[11px] text-text-muted"
+              className="mt-3 flex items-center justify-end gap-[3px] text-[12px] text-text-muted"
             >
               <span className="mr-1.5">Fewer</span>
               {HEAT_SHADES.map((shade) => (

@@ -391,7 +391,7 @@ export function DryRunSummary({
         >
           <IconDownload size={16} aria-hidden /> Download list (CSV)
         </ScButton>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           {downloaded
             ? 'Downloaded. Keep it with today’s database backup.'
             : 'Every row in scope, deleted or kept, and why. Keep it with today’s database backup.'}
@@ -501,7 +501,7 @@ export function ConfirmDelete({
           onChange={(e) => setPhrase(e.target.value)}
           className="min-h-11 font-numeric"
         />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           This can&apos;t be undone from here.
         </p>
       </div>
@@ -529,6 +529,19 @@ export function ConfirmDelete({
       <ScButton
         onClick={submit}
         disabled={!ready || execute.isPending}
+        // Grey with what is missing, not a faded red that reads as an error.
+        disabledReason={
+          ready
+            ? undefined
+            : `Still to do: ${[
+                name.trim().length < 2 && 'your name',
+                !backup && 'the backup tick',
+                !phraseTyped(phrase, preview.confirmPhrase) &&
+                  'the typed words',
+              ]
+                .filter(Boolean)
+                .join(', ')}`
+        }
         className="min-h-11"
       >
         {execute.isPending ? 'Deleting…' : deleteLabel(preview.confirmPhrase)}

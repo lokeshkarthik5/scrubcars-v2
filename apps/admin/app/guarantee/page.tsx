@@ -9,6 +9,7 @@ import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { IssuesTabs } from '@/components/issues-tabs'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminClaim } from '@repo/core/api/guarantee'
@@ -30,15 +31,36 @@ import {
   customerFlags,
   parseClaimTab,
 } from '@/lib/guarantee'
+import { deadlineText, URGENCY_TEXT } from '@/lib/format'
+import { StatusChip } from '@repo/ui/sc/status-chip'
+import { useNow } from '@repo/core/hooks/use-now'
 
-function ClaimRow({ claim, back }: { claim: AdminClaim; back: string }) {
+function ClaimRow({
+  claim,
+  back,
+  now,
+}: {
+  claim: AdminClaim
+  back: string
+  now: number
+}) {
   const clock = claimClockLine(claim)
   const flags = customerFlags(claim.customerFigures)
+  // The clock line on the panel's one scale (quick win 1).
+  const due =
+    claim.status === 'needs_detlio'
+      ? claim.detlioDecideBy
+      : claim.garageRespondBy
+  const urgency = claim.overdue
+    ? 'late'
+    : due && !claim.closed
+      ? deadlineText(due, now).urgency
+      : 'neutral'
   return (
     <ScCard
       className={cn(
         'relative flex flex-col gap-2.5 transition-colors hover:border-text-muted',
-        claim.overdue && 'border-warning/60'
+        claim.overdue && 'border-tone-late-text/60'
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
@@ -54,10 +76,10 @@ function ClaimRow({ claim, back }: { claim: AdminClaim; back: string }) {
             {CLAIM_STATUS_LABELS[claim.status]}
           </ScBadge>
           {claim.overdue && (
-            <ScBadge variant="danger">
-              <IconAlertTriangle size={11} aria-hidden className="mr-1" />
+            <StatusChip tone="late" dot={false}>
+              <IconAlertTriangle size={12} aria-hidden />
               Overdue
-            </ScBadge>
+            </StatusChip>
           )}
           {flags.map((flag) => (
             <ScBadge key={flag} variant="accent">
@@ -66,12 +88,7 @@ function ClaimRow({ claim, back }: { claim: AdminClaim; back: string }) {
           ))}
         </div>
         {clock && (
-          <p
-            className={cn(
-              'font-numeric text-[12px]',
-              claim.overdue ? 'text-warning' : 'text-text-secondary'
-            )}
-          >
+          <p className={cn('font-numeric text-[12px]', URGENCY_TEXT[urgency])}>
             {clock}
           </p>
         )}
@@ -108,6 +125,7 @@ function ClaimsList() {
   const config = useAdminGuaranteeConfig()
   const on = config.data?.enabled === true
   const { data, isPending, error, refetch } = useAdminClaims(tab, on)
+  const now = useNow(30_000)
 
   useEffect(() => {
     if (isAuthError(error)) router.replace('/login')
@@ -117,6 +135,7 @@ function ClaimsList() {
   if (!on) {
     return (
       <>
+        <IssuesTabs />
         <PageHeader title="Redo claims" />
         <p className="text-[13px] text-text-secondary">
           The Detlio Guarantee is switched off (GUARANTEE_ENABLED).
@@ -128,6 +147,7 @@ function ClaimsList() {
   const items = data?.items ?? []
   return (
     <>
+      <IssuesTabs />
       <PageHeader
         title="Redo claims"
         subtitle={
@@ -192,7 +212,7 @@ function ClaimsList() {
         >
           {items.map((claim, i) => (
             <Reveal as="li" key={claim.id} index={i}>
-              <ClaimRow claim={claim} back={back} />
+              <ClaimRow claim={claim} back={back} now={now} />
             </Reveal>
           ))}
         </ul>

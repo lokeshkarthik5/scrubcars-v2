@@ -253,7 +253,7 @@ export default function NewVendorPage({
             review.garage.draft.services.length
           )}
           pendingOnly
-          afterCreate={listHref('pending')}
+          afterCreate={listHref('notlive')}
         />
       </div>
     )

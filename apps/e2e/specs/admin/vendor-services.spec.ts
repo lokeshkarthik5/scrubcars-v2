@@ -159,7 +159,7 @@ test.describe('admin garage services', () => {
     expect((await service(SERVICES.adminHidden.id)).is_active).toBe(false)
   })
 
-  test('a hidden service can be shown again, and hidden again after a confirm @p0', async ({
+  test('a hidden service can be shown again, hidden again at once, and Undo shows it again @p0', async ({
     page,
   }) => {
     await resetServices()
@@ -197,7 +197,6 @@ test.describe('admin garage services', () => {
     await page
       .getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` })
       .click()
-    page.once('dialog', (dialog) => dialog.accept())
     await page
       .getByRole('button', { name: `Hide ${SERVICES.adminFlat.name}` })
       .click()
@@ -210,19 +209,18 @@ test.describe('admin garage services', () => {
     )
     expect((await service(SERVICES.adminFlat.id)).is_active).toBe(true)
 
-    // Hiding asks first, then takes it off the garage page straight away.
+    // Hiding is easy to take back, so it happens at once, with no browser
+    // pop-up, and the toast offers Undo.
     let asked = ''
-    page.once('dialog', (dialog) => {
+    page.on('dialog', (dialog) => {
       asked = dialog.message()
-      void dialog.accept()
+      void dialog.dismiss()
     })
     await hideRestored.click()
     await expect
       .poll(async () => (await service(SERVICES.adminHidden.id)).is_active)
       .toBe(false)
-    expect(asked).toContain(
-      "Customers won't see it; you can show it again from Hidden services."
-    )
+    expect(asked).toBe('')
     // Its row is gone, so focus lands on where it went.
     await expect(
       page.getByRole('button', { name: 'Hidden services (1)' })
@@ -231,6 +229,18 @@ test.describe('admin garage services', () => {
       page.getByText(
         `Hidden “${SERVICES.adminHidden.name}”. It’s under Hidden services.`
       )
+    ).toBeVisible()
+
+    // Undo is real: it is Show again, so the service is back on sale.
+    const toast = page.getByRole('status').filter({
+      hasText: `“${SERVICES.adminHidden.name}” is off the garage page.`,
+    })
+    await toast.getByRole('button', { name: 'Undo' }).click()
+    await expect
+      .poll(async () => (await service(SERVICES.adminHidden.id)).is_active)
+      .toBe(true)
+    await expect(
+      page.getByRole('button', { name: `Hide ${SERVICES.adminHidden.name}` })
     ).toBeVisible()
   })
 })

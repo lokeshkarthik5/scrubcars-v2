@@ -30,8 +30,13 @@ test.describe('notices @p0', () => {
     const liveTitle = `Slot may move: rain ${tag}`
     const laterTitle = `Diwali hours ${tag}`
 
-    // "End now" asks first.
-    page.on('dialog', (dialog) => void dialog.accept())
+    // "End now" asks first, on the panel's own sheet: never the browser's
+    // pop-up, so one would fail the test.
+    let popUp = ''
+    page.on('dialog', (dialog) => {
+      popUp = dialog.message()
+      void dialog.dismiss()
+    })
 
     try {
       // A live notice about bookings in a window at one garage.
@@ -92,9 +97,30 @@ test.describe('notices @p0', () => {
 
       // End now: the live one ends, the scheduled one is switched off.
       await live.getByRole('button', { name: `End now: ${liveTitle}` }).click()
+      const endLive = page.getByRole('dialog', {
+        name: `End “${liveTitle}” now?`,
+      })
+      await expect(
+        endLive.getByText('Customers stop seeing it straight away.', {
+          exact: false,
+        })
+      ).toBeVisible()
+      await endLive
+        .getByRole('button', { name: 'End now', exact: true })
+        .click()
+      await expect(endLive).toBeHidden()
+
       await scheduled
         .getByRole('button', { name: `End now: ${laterTitle}` })
         .click()
+      const switchOff = page.getByRole('dialog', {
+        name: `Switch off “${laterTitle}”?`,
+      })
+      await switchOff
+        .getByRole('button', { name: 'Switch off', exact: true })
+        .click()
+      await expect(switchOff).toBeHidden()
+      expect(popUp).toBe('')
 
       const ended = page.getByRole('region', { name: /^Ended/ })
       await expect(ended.getByText(liveTitle)).toBeVisible()

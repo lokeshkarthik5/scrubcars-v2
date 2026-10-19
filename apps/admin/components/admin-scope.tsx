@@ -2,68 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { PanelShell, type PanelNavItem } from '@repo/ui/sc/panel-shell'
+import { useQueryClient } from '@tanstack/react-query'
 import { adminLogout, getAdminMe } from '@repo/core/api/admin'
-import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { useAdminGiftsConfig } from '@repo/core/api/hooks/use-admin-gifts'
 import { useAdminGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { useAdminRewardsConfig } from '@repo/core/api/hooks/use-admin-rewards'
-
-const NAV: PanelNavItem[] = [
-  { href: '/vendors', label: 'Vendors' },
-  { href: '/bookings', label: 'Bookings' },
-  { href: '/complaints', label: 'Complaints' },
-  // "Did the garage ask you to book directly?" reports and customer drop-off
-  // (0052). Header only on a phone-full bottom bar: Complaints links to it.
-  { href: '/bypass-reports', label: 'Bypass' },
-  { href: '/refunds', label: 'Refunds' },
-  { href: '/payouts', label: 'Payouts' },
-  { href: '/discounts', label: 'Discounts' },
-  { href: '/coverage', label: 'Coverage' },
-  { href: '/statistics', label: 'Statistics' },
-  // The team's Telegram alerts and "Send test alert" (0044). Header only: the
-  // phone's bottom bar is full, so Statistics links to it there.
-  { href: '/alerts', label: 'Alerts' },
-]
-
-// Only while the API has it switched on (ADMIN_DATA_RESET); otherwise the
-// API answers 404 and the item is not there. On a phone the bottom bar has
-// no room for a seventh tab, so the Bookings page links to it instead.
-const RESET_NAV: PanelNavItem = {
-  href: '/data-reset',
-  label: 'Start pilot clean',
-}
-
-// Gift a wash (0049): only while the API has it on (GIFTS_ENABLED). Header
-// only, after Payouts, money's other page; the phone's bottom bar is full.
-const GIFTS_NAV: PanelNavItem = { href: '/gifts', label: 'Gifts' }
-
-// Detlio Guarantee (0051): free redo claims, only while the API has it on
-// (GUARANTEE_ENABLED). Header only, after Complaints, its sibling; the
-// phone's bottom bar is full.
-const GUARANTEE_NAV: PanelNavItem = { href: '/guarantee', label: 'Redo claims' }
-
-function withGuarantee(items: PanelNavItem[]): PanelNavItem[] {
-  const at = items.findIndex((item) => item.href === '/complaints') + 1
-  return [...items.slice(0, at), GUARANTEE_NAV, ...items.slice(at)]
-}
-
-// Detlio Rewards (0050): only while REWARDS_ENABLED is on at the API. Header
-// only, after Gifts (or Payouts).
-const REWARDS_NAV: PanelNavItem = { href: '/rewards', label: 'Rewards' }
-
-function withRewards(items: PanelNavItem[]): PanelNavItem[] {
-  const gifts = items.findIndex((item) => item.href === '/gifts')
-  const at =
-    (gifts >= 0 ? gifts : items.findIndex((item) => item.href === '/payouts')) +
-    1
-  return [...items.slice(0, at), REWARDS_NAV, ...items.slice(at)]
-}
-
-function withGifts(items: PanelNavItem[]): PanelNavItem[] {
-  const at = items.findIndex((item) => item.href === '/payouts') + 1
-  return [...items.slice(0, at), GIFTS_NAV, ...items.slice(at)]
-}
+import { AdminShell } from '@/components/admin-shell'
+import { adminTodayKeys, useAdminToday } from '@/hooks/use-admin-today'
+import { navCounts } from '@/lib/today'
 
 export function AdminScope({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -78,10 +24,24 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   // missing or invalid. Hold the UI back until the session check resolves so
   // the chrome/content never flashes for signed-out visitors.
   const [authed, setAuthed] = useState(false)
-  const { data: resetConfig } = useDataResetConfig(authed)
   const { data: giftsConfig } = useAdminGiftsConfig(authed)
   const { data: guaranteeConfig } = useAdminGuaranteeConfig(authed)
   const { data: rewardsConfig } = useAdminRewardsConfig(authed)
+  // The menu's counts: the same summary the Today page lists, refreshed every
+  // minute. A failed load leaves the counts off rather than showing zeros.
+  const { data: today } = useAdminToday(authed)
+
+  // Anything ops does on any page (accept, refund, acknowledge, verify) can
+  // change a count, so the summary is read again after every action that
+  // worked, not only on the minute.
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    return queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'success') {
+        void queryClient.invalidateQueries({ queryKey: adminTodayKeys.all })
+      }
+    })
+  }, [queryClient])
 
   useEffect(() => {
     if (isLogin) return
@@ -117,21 +77,16 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <PanelShell
-      brandLabel="Admin"
-      navItems={(() => {
-        const base = guaranteeConfig?.enabled ? withGuarantee(NAV) : NAV
-        const withGift = giftsConfig?.enabled ? withGifts(base) : base
-        const items = rewardsConfig?.masterSwitch
-          ? withRewards(withGift)
-          : withGift
-        return resetConfig?.enabled ? [...items, RESET_NAV] : items
-      })()}
-      navType="admin"
+    <AdminShell
+      features={{
+        gifts: giftsConfig?.enabled === true,
+        rewards: rewardsConfig?.masterSwitch === true,
+        guarantee: guaranteeConfig?.enabled === true,
+      }}
+      counts={today ? navCounts(today) : undefined}
       onLogout={handleLogout}
-      className="gap-5"
     >
       {children}
-    </PanelShell>
+    </AdminShell>
   )
 }

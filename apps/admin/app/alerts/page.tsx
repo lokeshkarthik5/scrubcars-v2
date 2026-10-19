@@ -141,7 +141,7 @@ export default function AlertsPage() {
                 {sending ? 'Sending…' : 'Send test alert'}
               </span>
             </ScButton>
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[12px] text-text-muted">
               Posts “✅ Detlio test alert from {name.trim() || 'your name'}” to
               the team’s group.
             </p>

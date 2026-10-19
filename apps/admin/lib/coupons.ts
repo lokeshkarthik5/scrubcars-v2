@@ -40,9 +40,13 @@ export const STAGE_BADGES: Record<
   ended: 'muted',
 }
 
-/** "38%" of `of`, or "—" when there is nothing to divide by. */
+/**
+ * "38%" of `of`, or "—" when there is nothing to divide by, or when the part
+ * is more than the whole: a shared code is one printed code added by many
+ * customers, where "97 · 9700%" was simply wrong (quick win 7).
+ */
 export function rate(part: number, of: number): string {
-  if (!(of > 0)) return '—'
+  if (!(of > 0) || part > of) return '—'
   return `${Math.round((part / of) * 100)}%`
 }
 

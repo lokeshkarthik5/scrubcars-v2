@@ -57,9 +57,12 @@ function KpiTile({
   delta,
   was,
   note,
+  lead = false,
 }: {
   label: string
   value: string
+  /** One of the two headline figures: wider and larger (quick win 6). */
+  lead?: boolean
   delta?: Change
   /** The earlier figure, shown when comparing. */
   was?: string
@@ -67,13 +70,23 @@ function KpiTile({
   note?: string
 }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-border bg-surface px-3.5 py-3">
-      <p className="text-[11px] font-medium text-text-secondary">{label}</p>
-      <p className="mt-1 truncate font-numeric text-[24px] font-medium leading-[30px] tracking-tight text-text-primary">
+    <div
+      className={cn(
+        'min-w-0 rounded-[12px] border border-border bg-surface px-3.5 py-3',
+        lead && 'col-span-2'
+      )}
+    >
+      <p className="text-[12px] font-medium text-text-secondary">{label}</p>
+      <p
+        className={cn(
+          'mt-1 truncate font-numeric font-medium tracking-tight text-text-primary',
+          lead ? 'text-[30px] leading-[36px]' : 'text-[24px] leading-[30px]'
+        )}
+      >
         {value}
       </p>
       {was !== undefined && (
-        <p className="mt-0.5 flex gap-1.5 whitespace-nowrap text-[11px] text-text-muted">
+        <p className="mt-0.5 flex gap-1.5 whitespace-nowrap text-[12px] text-text-muted">
           {delta && (
             <b
               className={cn(
@@ -104,7 +117,7 @@ function KpiTile({
         </p>
       )}
       {was !== undefined && note && (
-        <p className="mt-0.5 text-[11px] leading-[15px] text-text-muted">
+        <p className="mt-0.5 text-[12px] leading-[16px] text-text-muted">
           {note}
         </p>
       )}
@@ -140,18 +153,21 @@ function Tiles({
     k.averageBooking === null ? '–' : rupees(k.averageBooking)
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* The headline: money in, then bookings (quick win 6). */}
       <KpiTile
-        label="Bookings"
-        value={kpis.bookings.toLocaleString('en-IN')}
-        delta={previous && change(kpis.bookings, previous.bookings, 'amount')}
-        was={was((k) => k.bookings.toLocaleString('en-IN'))}
-      />
-      <KpiTile
+        lead
         label="Collected after refunds"
         value={rupees(kpis.collected)}
         delta={previous && change(kpis.collected, previous.collected, 'amount')}
         was={was((k) => rupees(k.collected))}
+      />
+      <KpiTile
+        lead
+        label="Bookings"
+        value={kpis.bookings.toLocaleString('en-IN')}
+        delta={previous && change(kpis.bookings, previous.bookings, 'amount')}
+        was={was((k) => k.bookings.toLocaleString('en-IN'))}
       />
       <KpiTile
         label="Detlio commission"
@@ -227,7 +243,7 @@ function ChartCard({
         {/* Drawn for the eye; the caption says the same for a screen reader. */}
         <div aria-hidden="true">{children}</div>
         <figcaption className="sr-only">{summary}</figcaption>
-        {foot && <p className="mt-2.5 text-[11px] text-text-muted">{foot}</p>}
+        {foot && <p className="mt-2.5 text-[12px] text-text-muted">{foot}</p>}
       </figure>
     </ScCard>
   )
@@ -273,7 +289,7 @@ function PerDay({
       summary={summary}
     >
       {previous && (
-        <div className="mt-3 flex gap-4 text-[11px] text-text-secondary">
+        <div className="mt-3 flex gap-4 text-[12px] text-text-secondary">
           <span className="flex items-center gap-1.5">
             <i className="block h-0.5 w-3.5 rounded-full bg-[#E4E4E7]" />
             {periodName}

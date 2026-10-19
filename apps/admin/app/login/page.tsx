@@ -27,7 +27,7 @@ export default function AdminLoginPage() {
     setError('')
     try {
       await adminLogin(username.trim(), password)
-      router.replace('/vendors')
+      router.replace('/today')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to sign in')
     } finally {

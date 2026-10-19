@@ -10,6 +10,7 @@ import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { IssuesTabs } from '@/components/issues-tabs'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type {
@@ -232,6 +233,7 @@ function BypassReportsList() {
 
   return (
     <>
+      <IssuesTabs />
       <PageHeader
         title="Bypass reports"
         subtitle="Customers telling us a garage asked them to book directly or pay outside Detlio. The garage is never told who reported it."

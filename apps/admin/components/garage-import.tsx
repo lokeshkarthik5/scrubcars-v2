@@ -359,7 +359,7 @@ function Stat({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="whitespace-nowrap text-[11px] font-medium leading-[14px] text-text-secondary">
+      <dt className="whitespace-nowrap text-[12px] font-medium leading-[14px] text-text-secondary">
         {label}
       </dt>
       <dd

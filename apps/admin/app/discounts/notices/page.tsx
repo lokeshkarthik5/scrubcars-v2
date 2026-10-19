@@ -8,6 +8,7 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
@@ -63,18 +64,47 @@ export default function AdminNoticesPage() {
     [notices]
   )
 
+  // Ending changes what every customer sees, so it is confirmed on a sheet
+  // that says what happens (safe actions, level 2), never the browser's
+  // pop-up. The notice is kept either way.
+  const [ending, setEnding] = useState<AdminNotice | null>(null)
+  // Apart from `ending`, so the sheet keeps its words while it slides away.
+  const [endOpen, setEndOpen] = useState(false)
   const handleEnd = (notice: AdminNotice) => {
-    const question =
-      notice.state === 'live'
-        ? `End "${notice.title}" now?\n\nCustomers stop seeing it straight away. The notice is kept, not deleted.`
-        : `Switch off "${notice.title}"?\n\nIt will not go live. The notice is kept, not deleted.`
-    if (!window.confirm(question)) return
     setActionError('')
-    endNotice.mutate(notice.id)
+    setEnding(notice)
+    setEndOpen(true)
   }
 
   return (
     <>
+      <ConfirmSheet
+        open={endOpen}
+        onClose={() => setEndOpen(false)}
+        onConfirm={async () => {
+          if (!ending) return
+          try {
+            await endNotice.mutateAsync(ending.id)
+          } catch {
+            // Said above the list, by useEndNotice's onError.
+          } finally {
+            setEndOpen(false)
+          }
+        }}
+        level="firm"
+        title={
+          ending?.state === 'live'
+            ? `End “${ending.title}” now?`
+            : `Switch off “${ending?.title ?? ''}”?`
+        }
+        body={
+          ending?.state === 'live'
+            ? 'Customers stop seeing it straight away. The notice is kept on this list, not deleted.'
+            : 'It will not go live. The notice is kept on this list, not deleted.'
+        }
+        confirmLabel={ending?.state === 'live' ? 'End now' : 'Switch off'}
+        busy={endNotice.isPending}
+      />
       <PageHeader
         title="Notices"
         subtitle="Messages from the team on customers' Home and in Updates"

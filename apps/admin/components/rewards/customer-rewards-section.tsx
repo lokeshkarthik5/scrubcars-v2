@@ -14,18 +14,11 @@ import {
   useFindCustomerRewards,
 } from '@repo/core/api/hooks/use-admin-rewards'
 import { levelLine } from '@repo/core/rewards'
-import { formatRupees } from '@/lib/bookings'
+import { formatRupees, formatWhen } from '@/lib/bookings'
 import { AdjustRewardsDialog } from './adjust-rewards-dialog'
 
 function when(iso: string) {
-  return new Date(iso).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'Asia/Kolkata',
-  })
+  return formatWhen(iso)
 }
 
 const TYPE_LABELS: Record<string, string> = {

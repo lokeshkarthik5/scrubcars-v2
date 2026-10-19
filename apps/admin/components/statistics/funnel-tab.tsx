@@ -98,7 +98,7 @@ function Funnel({ funnel }: { funnel: StatsFunnelReport['funnel'] }) {
                   <span className="text-text-primary">{step.label}</span>
                   <span className="flex items-baseline gap-2.5">
                     {i > 0 && (
-                      <em className="not-italic text-[11px] text-text-muted">
+                      <em className="not-italic text-[12px] text-text-muted">
                         {percent(step.ofVisits, 1)} of visits
                       </em>
                     )}
@@ -182,7 +182,7 @@ function Garages({ garages }: { garages: StatsFunnelReport['garages'] }) {
             <col className="w-[60px]" />
           </colgroup>
           <thead>
-            <tr className="border-b border-border text-[11px] text-text-muted">
+            <tr className="border-b border-border text-[12px] text-text-muted">
               <th scope="col" className="pb-2 text-left font-medium">
                 Garage
               </th>
@@ -236,7 +236,7 @@ function Devices({ devices }: { devices: StatsFunnelReport['devices'] }) {
             <div className="flex items-baseline justify-between gap-2.5 text-[13px]">
               <span className="text-text-primary">
                 {DEVICE_LABELS[row.device]}{' '}
-                <em className="ml-1 not-italic text-[11px] text-text-muted">
+                <em className="ml-1 not-italic text-[12px] text-text-muted">
                   {plural(row.visits, 'visit', 'visits')}
                 </em>
               </span>
@@ -278,13 +278,13 @@ function Returning({
             key={window.days}
             className="min-w-0 rounded-[14px] border border-border bg-surface px-3.5 py-3"
           >
-            <p className="text-[11px] font-medium text-text-secondary">
+            <p className="text-[12px] font-medium text-text-secondary">
               Booked again within {window.days} days
             </p>
             <p className="mt-1 font-numeric text-[24px] font-medium leading-[30px] tracking-tight text-text-primary">
               {percent(window.rate)}
             </p>
-            <p className="mt-0.5 text-[11px] leading-[15px] text-text-muted">
+            <p className="mt-0.5 text-[12px] leading-[15px] text-text-muted">
               {returnWindowLine(window)}
             </p>
           </div>
@@ -296,7 +296,7 @@ function Returning({
           <p className="text-[13px] font-medium text-text-primary">
             New and repeat bookings per week
           </p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted">
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-text-muted">
             <span className="flex items-center gap-1.5">
               <i
                 aria-hidden="true"

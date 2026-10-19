@@ -5,6 +5,7 @@ import { toast } from 'react-toastify'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScSelect } from '@repo/ui/sc/select'
@@ -29,6 +30,7 @@ import {
 import { useAdminRewardsSettings } from '@repo/core/api/hooks/use-admin-rewards'
 import { LEVELS, DEFAULT_REWARDS_SETTINGS } from '@repo/core/rewards'
 import { downloadCsv } from '@repo/core/csv'
+import { formatDay, formatWhen } from '@repo/core/format'
 import { formatRupees } from '@/lib/bookings'
 import { rememberName, rememberedName } from '@/lib/actor-name'
 import {
@@ -63,26 +65,13 @@ const CATEGORY_LABELS: Record<
   package: 'Package',
 }
 
+/** "2026-10-20", a calendar day, as "Tue 20 Oct" (the shared rule; noon IST keeps it on its day). */
 function day(key: string) {
-  const [y, m, d] = key.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return formatDay(`${key}T12:00:00+05:30`)
 }
 
 function when(iso: string | null) {
-  return iso
-    ? new Date(iso).toLocaleString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZone: 'Asia/Kolkata',
-      })
-    : '—'
+  return iso ? formatWhen(iso) : '—'
 }
 
 type View =
@@ -217,6 +206,7 @@ function ChallengeDetail({
   const end = useEndChallenge(id)
   const [name, setName] = useState(rememberedName)
   const [downloading, setDownloading] = useState(false)
+  const [endOpen, setEndOpen] = useState(false)
 
   if (detail.isPending) return <SkeletonList />
   if (detail.isError || !detail.data)
@@ -228,20 +218,12 @@ function ChallengeDetail({
     )
   const { challenge: c, results } = detail.data
 
-  const act = (which: 'publish' | 'end') => {
+  const act = () => {
     if (name.trim().length < 2) return toast.error('Type your name first')
     rememberName(name.trim())
-    const mutation = which === 'publish' ? publish : end
-    mutation.mutate(name.trim(), {
-      onSuccess: () =>
-        toast.success(which === 'publish' ? 'Published' : 'Ended'),
-      onError: (err) =>
-        toast.error(
-          errorMessage(
-            err,
-            which === 'publish' ? "Couldn't publish it" : "Couldn't end it"
-          )
-        ),
+    publish.mutate(name.trim(), {
+      onSuccess: () => toast.success('Published'),
+      onError: (err) => toast.error(errorMessage(err, "Couldn't publish it")),
     })
   }
 
@@ -263,6 +245,26 @@ function ChallengeDetail({
   const running = c.status === 'live' || c.status === 'scheduled'
   return (
     <div className="flex flex-col gap-4">
+      <ConfirmSheet
+        open={endOpen}
+        onClose={() => setEndOpen(false)}
+        onConfirm={async () => {
+          rememberName(name.trim())
+          try {
+            await end.mutateAsync(name.trim())
+            toast.success('Ended')
+          } catch (err) {
+            toast.error(errorMessage(err, "Couldn't end it"))
+          } finally {
+            setEndOpen(false)
+          }
+        }}
+        level="firm"
+        title={`End “${c.title}” now?`}
+        body="No one can win it from now on. Rewards already won are kept. It can't be started again: make a new challenge instead."
+        confirmLabel="End the challenge"
+        busy={end.isPending}
+      />
       <button
         type="button"
         onClick={onBack}
@@ -293,7 +295,7 @@ function ChallengeDetail({
             ? ` · up to ${c.maxWinners} winners`
             : ' · no limit on winners'}
         </p>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Made by {c.createdBy}
           {c.publishedBy
             ? ` · published by ${c.publishedBy} ${when(c.publishedAt)}`
@@ -349,17 +351,23 @@ function ChallengeDetail({
             <ScButton
               className="min-h-11"
               disabled={publish.isPending}
-              onClick={() => act('publish')}
+              onClick={act}
             >
               {publish.isPending ? 'Publishing…' : 'Publish (schedule)'}
             </ScButton>
           )}
           {running && (
+            // Apart from Edit, in the risky outline, and asked first: ending
+            // stops entries and payouts for everyone (safe actions, level 2).
             <ScButton
-              variant="secondary"
-              className="min-h-11"
+              variant="danger-outline"
+              className="h-11 rounded-[8px] sm:ml-auto"
               disabled={end.isPending}
-              onClick={() => act('end')}
+              onClick={() => {
+                if (name.trim().length < 2)
+                  return toast.error('Type your name first')
+                setEndOpen(true)
+              }}
             >
               {end.isPending ? 'Ending…' : 'End now'}
             </ScButton>
@@ -373,7 +381,7 @@ function ChallengeDetail({
             {downloading ? 'Preparing…' : 'Download results (CSV)'}
           </ScButton>
         </div>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Publishing schedules it: customers see it from its start date and hear
           once when it starts. Ending it stops counting bookings that start
           after now; winners keep their prizes.
@@ -426,7 +434,7 @@ function ChallengeDetail({
           </ScCard>
         )}
         {results.length === 200 && (
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             The first 200 shown; the CSV has everyone.
           </p>
         )}

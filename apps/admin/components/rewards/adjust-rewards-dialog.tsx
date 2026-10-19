@@ -53,6 +53,18 @@ export function AdjustRewardsDialog({
     reason.trim().length >= 3 &&
     name.trim().length >= 2
 
+  const picked = unspent.find((v) => v.id === voucherId)
+  const effectLabel =
+    action === 'cancel_voucher'
+      ? picked
+        ? `Cancel the ₹${Math.round(Number(picked.amount))} voucher`
+        : 'Cancel the voucher'
+      : action === 'issue_voucher'
+        ? Number.isInteger(value) && value > 0
+          ? `Give a ₹${value} voucher`
+          : 'Give the voucher'
+        : (ACTIONS.find((a) => a.value === action)?.label ?? 'Save')
+
   const submit = () => {
     if (!valid || adjust.isPending) return
     setError('')
@@ -145,6 +157,12 @@ export function AdjustRewardsDialog({
           className="min-h-11 font-numeric"
         />
       )}
+      {action === 'cancel_voucher' && picked && (
+        <p className="text-[12px] text-tone-attention-text">
+          The customer loses this voucher straight away, and it can&apos;t be
+          put back as it was: to make up for a mistake, give a new one.
+        </p>
+      )}
       <ScTextarea
         label="Reason"
         rows={2}
@@ -159,7 +177,7 @@ export function AdjustRewardsDialog({
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         Recorded in the audit log with your name and reason. A voucher from the
         team is Detlio-funded, like every reward.
       </p>
@@ -177,12 +195,13 @@ export function AdjustRewardsDialog({
         >
           Go back
         </ScButton>
+        {/* The button says the effect, never a bare "Save" (safe actions). */}
         <ScButton
           onClick={submit}
           disabled={!valid || adjust.isPending}
           className="min-h-11"
         >
-          {adjust.isPending ? 'Saving…' : 'Save'}
+          {adjust.isPending ? 'Saving…' : effectLabel}
         </ScButton>
       </div>
     </ScModal>

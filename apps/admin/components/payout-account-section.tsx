@@ -127,7 +127,7 @@ function PayoutAccountForm({
 
   return (
     <ScSection title="Payout details">
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         Where Detlio sends this garage its share. Saved immediately — not part
         of “Save changes”. Only the team sees these; the garage list shows the
         last four digits.
@@ -171,7 +171,7 @@ function PayoutAccountForm({
         autoComplete="name"
       />
       {changed && problem && (
-        <p className="text-[11px] text-error">{problem}</p>
+        <p className="text-[12px] text-error">{problem}</p>
       )}
       {error && (
         <p role="alert" className="text-[12px] text-error">
@@ -179,7 +179,7 @@ function PayoutAccountForm({
         </p>
       )}
       {account && (
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Last changed by {account.updatedBy},{' '}
           {istDateTimeLabel(account.updatedAt)}
         </p>

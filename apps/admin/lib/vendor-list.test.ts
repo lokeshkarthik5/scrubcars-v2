@@ -10,6 +10,7 @@ import {
   isLive,
   documentsToReviewCount,
   listHref,
+  matchesSearch,
   matchesShow,
   parseShow,
   readinessGroups,
@@ -46,6 +47,8 @@ describe('the chips', () => {
     expect(parseShow('trash')).toBe('live')
     expect(parseShow('ALL')).toBe('live')
     expect(parseShow('documents')).toBe('documents')
+    expect(parseShow('notlive')).toBe('notlive')
+    expect(parseShow('paused')).toBe('paused')
   })
 
   test('the list address carries the chip, and Live is the bare list', () => {
@@ -54,6 +57,32 @@ describe('the chips', () => {
     // The edit page's back arrow accepts every one of them.
     for (const show of SHOW_FILTERS)
       expect(safeBackHref(listHref(show))).toBe(listHref(show))
+  })
+
+  test('Not live yet is on its way in; Paused is paused or suspended', () => {
+    const pausedActive = garage({
+      live: false,
+      bookingsPausedAt: '2026-10-10T04:30:00Z',
+    })
+    const unverified = garage({ live: false, isVerified: false })
+    const pending = garage({
+      live: false,
+      status: 'pending',
+      isVerified: false,
+    })
+    const suspended = garage({ live: false, status: 'suspended' })
+    const archivedPaused = garage({
+      live: false,
+      status: 'archived',
+      bookingsPausedAt: '2026-10-10T04:30:00Z',
+    })
+    expect(matchesShow(unverified, 'notlive')).toBe(true)
+    expect(matchesShow(pending, 'notlive')).toBe(true)
+    expect(matchesShow(pausedActive, 'notlive')).toBe(false)
+    expect(matchesShow(pausedActive, 'paused')).toBe(true)
+    expect(matchesShow(suspended, 'paused')).toBe(true)
+    expect(matchesShow(archivedPaused, 'paused')).toBe(false)
+    expect(matchesShow(garage(), 'notlive')).toBe(false)
   })
 
   test('Live is the server’s flag; Active is the stage, paused or unverified included', () => {
@@ -98,12 +127,18 @@ describe('the chips', () => {
     expect(counts).toEqual({
       all: 5,
       live: 2,
+      notlive: 1,
+      paused: 1,
+      archived: 1,
+      bin: 0,
       active: 3,
       pending: 1,
       suspended: 0,
-      archived: 1,
-      bin: 0,
     })
+    // The chips drawn split All with nothing over, and so do the old stages.
+    expect(counts.live + counts.notlive + counts.paused + counts.archived).toBe(
+      counts.all
+    )
     expect(
       counts.active + counts.pending + counts.suspended + counts.archived
     ).toBe(counts.all)
@@ -131,21 +166,22 @@ describe('the chips', () => {
     expect(counts).toEqual({
       all: 1,
       live: 1,
+      notlive: 0,
+      paused: 0,
+      archived: 0,
+      bin: 2,
       active: 1,
       pending: 0,
       suspended: 0,
-      archived: 0,
-      bin: 2,
     })
   })
 
-  test('the hint says what the chosen chip means, Live and Active apart', () => {
+  test('the hint is one line saying what the chosen chip means', () => {
     expect(showHints('live')).toEqual([
-      { term: 'Live', meaning: 'customers can find it' },
-      { term: 'Active', meaning: 'approved by Detlio, even if paused' },
+      { term: 'Live', meaning: 'customers can find it and book it' },
     ])
-    expect(showHints('all')).toEqual(showHints('live'))
-    expect(showHints('active')).toEqual(showHints('live'))
+    expect(showHints('notlive')[0].term).toBe('Not live yet')
+    expect(showHints('paused')[0].meaning).toContain('suspended')
     expect(showHints('pending')).toEqual([
       { term: 'Pending', meaning: 'added, not shown to customers yet' },
     ])
@@ -155,6 +191,7 @@ describe('the chips', () => {
         meaning: 'off the app. Restore it, or delete it forever.',
       },
     ])
+    for (const show of SHOW_FILTERS) expect(showHints(show)).toHaveLength(1)
   })
 })
 
@@ -397,5 +434,23 @@ describe('Detlio Certified chips', () => {
     expect(editHref('v1', '/vendors?show=eligible', 'certification')).toBe(
       '/vendors/v1/edit?tab=certification&back=%2Fvendors%3Fshow%3Deligible'
     )
+  })
+})
+
+describe('find a garage', () => {
+  test('by name, area or phone digits; empty finds every garage', () => {
+    const v = {
+      businessName: 'Shine Auto Spa',
+      phone: '+919876543210',
+      city: 'Chennai',
+      address: '4, Velachery Main Rd',
+      pincode: '600042',
+    }
+    expect(matchesSearch(v, '')).toBe(true)
+    expect(matchesSearch(v, 'shine')).toBe(true)
+    expect(matchesSearch(v, 'velachery')).toBe(true)
+    expect(matchesSearch(v, '98765 43210')).toBe(true)
+    expect(matchesSearch(v, 'Adyar')).toBe(false)
+    expect(matchesSearch(v, '12')).toBe(false)
   })
 })

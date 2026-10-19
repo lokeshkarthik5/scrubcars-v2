@@ -105,7 +105,7 @@ function Clock({ c }: { c: AdminComplaint }) {
               : 'border-border bg-surface'
           )}
         >
-          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          <p className="text-[12px] font-medium text-text-secondary">
             {row.label}
           </p>
           <p
@@ -483,7 +483,7 @@ function ComplaintDetail({ id }: { id: string }) {
         </div>
 
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          <p className="text-[12px] font-medium text-text-secondary">
             In their words
           </p>
           <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-primary">
@@ -493,7 +493,7 @@ function ComplaintDetail({ id }: { id: string }) {
 
         {c.resolutionNote && (
           <div className="rounded-[10px] border border-border bg-surface px-3 py-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <p className="text-[12px] font-medium text-text-secondary">
               What the customer reads
             </p>
             <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-text-primary">

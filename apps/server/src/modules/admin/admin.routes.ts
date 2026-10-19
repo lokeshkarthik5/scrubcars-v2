@@ -35,6 +35,7 @@ import {
   updateMemberSchema,
 } from '../members/members.validation.js'
 import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
+import { adminTodayRoutes } from '../today/today.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -434,6 +435,10 @@ adminRoutes.route('/bypass-reports', adminBypassReportRoutes)
 
 // Detlio Guarantee (0051): free redo claims, Detlio's decisions.
 adminRoutes.route('/guarantee', adminGuaranteeRoutes)
+
+// The Today inbox and the menu's counts: every open task, read from the
+// pages' own services. Nested here for the same cookie reason as discounts.
+adminRoutes.route('/today', adminTodayRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the
 // owner-phone lookup. Nested here for the same cookie reason as discounts.

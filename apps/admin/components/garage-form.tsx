@@ -386,7 +386,7 @@ export function GarageForm({
   ) : (
     <ScSection title="Onboarding status">
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium text-text-secondary">
+        <label className="text-[12px] font-medium text-text-secondary">
           Stage
         </label>
         <div className="flex flex-wrap gap-2">
@@ -405,7 +405,7 @@ export function GarageForm({
         checked={isVerified}
         onChange={setIsVerified}
       />
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         A vendor is visible to customers only when stage is <b>Active</b> and it
         is <b>verified</b>.
       </p>
@@ -433,10 +433,10 @@ export function GarageForm({
         placeholder: 'https://maps.app.goo.gl/…',
       })}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium text-text-secondary">
+        <span className="text-[12px] font-medium text-text-secondary">
           Garage location
         </span>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Optional now, required before this garage can be verified.
         </p>
         <LocationPicker
@@ -451,7 +451,7 @@ export function GarageForm({
   const operationsSection = (
     <ScSection title="Operations">
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium text-text-secondary">
+        <label className="text-[12px] font-medium text-text-secondary">
           Working days
         </label>
         <div className="flex flex-wrap gap-2">
@@ -484,7 +484,7 @@ export function GarageForm({
       {hoursMark && <ImportNote mark={hoursMark} />}
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium text-text-secondary">
+        <label className="text-[12px] font-medium text-text-secondary">
           Slot interval
         </label>
         <div className="flex gap-2">

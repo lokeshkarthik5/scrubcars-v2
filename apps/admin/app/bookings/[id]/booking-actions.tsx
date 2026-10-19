@@ -41,7 +41,7 @@ function RadioOptions<T extends string>({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 text-[11px] font-medium text-text-secondary">
+      <legend className="mb-2 text-[12px] font-medium text-text-secondary">
         {legend}
       </legend>
       {options.map((option) => {
@@ -156,7 +156,7 @@ export function CancelBookingDialog({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           The customer and the garage both see this reason.
         </p>
       </div>
@@ -176,9 +176,11 @@ export function CancelBookingDialog({
             <span className="font-numeric text-text-primary">
               {formatRupees(booking.amount)}
             </span>{' '}
-            was paid online. Refund it in Razorpay after cancelling, then mark
-            it refunded on this booking or the Refunds page. The team also gets
-            a Telegram reminder.
+            was paid online. Refund it in Razorpay after cancelling: press{' '}
+            <span className="font-medium text-text-primary">Refund now</span> on
+            the Refunds page, which sends it through Razorpay and records it.
+            Only if it was refunded in the Razorpay dashboard instead, use Mark
+            refunded there. The team also gets a Telegram reminder.
           </>
         ) : (
           "Nothing was paid online, so there's nothing to refund."
@@ -407,7 +409,7 @@ export function PickupStepDialog({
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Goes in the notes with your name.
         </p>
       </div>

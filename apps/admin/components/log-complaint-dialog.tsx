@@ -192,7 +192,7 @@ export function LogComplaintDialog({
           onChange={(e) => setPhone(e.target.value)}
           className="min-h-11 font-numeric"
         />
-        <p className="text-[11px] text-text-muted" aria-live="polite">
+        <p className="text-[12px] text-text-muted" aria-live="polite">
           {!mobile
             ? 'Ten digits. +91 and spaces are fine.'
             : lookupFailed
@@ -271,8 +271,8 @@ export function LogComplaintDialog({
           <p
             className={
               booking.problem
-                ? 'text-[11px] text-error'
-                : 'text-[11px] text-text-muted'
+                ? 'text-[12px] text-error'
+                : 'text-[12px] text-text-muted'
             }
             aria-live="polite"
           >
@@ -296,7 +296,7 @@ export function LogComplaintDialog({
           onChange={(e) => setReceivedAt(e.target.value)}
           className="min-h-11 font-numeric"
         />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           When the call, message or visit came, up to {MAX_RECEIVED_DAYS_BACK}{' '}
           days back.
         </p>

@@ -113,7 +113,7 @@ export function GarageDocumentsSection({
           </>
         )}
       </p>
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         When the four required ones are approved, customers see a Documents
         verified badge. It does not decide whether the garage is listed (that is
         Verify). Files open in a new tab on a link that works for 5 minutes;
@@ -249,7 +249,7 @@ function DocumentRow({
           >
             {doc.label}
           </p>
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             {doc.required ? 'Required' : 'Optional'} ·{' '}
             {DOCUMENT_HINTS[doc.type]}
             {doc.type === 'owner_id' && ` ${AADHAAR_MASK_NOTE}.`}
@@ -261,7 +261,7 @@ function DocumentRow({
       </div>
 
       {doc.status !== 'missing' && (
-        <p className="text-[11px] text-text-secondary">
+        <p className="text-[12px] text-text-secondary">
           Uploaded by {doc.uploadedBy}
           {doc.submittedAt && <>, {istDateTimeLabel(doc.submittedAt)}</>}
           {doc.reviewedBy && doc.reviewedAt && (
@@ -335,7 +335,7 @@ function DocumentRow({
             </ScButton>
           )}
           {!actorName && (
-            <p className="self-center text-[11px] text-text-muted">
+            <p className="self-center text-[12px] text-text-muted">
               Type your name above first.
             </p>
           )}
@@ -433,7 +433,7 @@ function DocumentRow({
                 onChange={setApproveUpload}
               />
               {pickProblem && (
-                <p className="text-[11px] text-error">{pickProblem}</p>
+                <p className="text-[12px] text-error">{pickProblem}</p>
               )}
               <div className="flex flex-wrap gap-2">
                 <ScButton
@@ -458,7 +458,7 @@ function DocumentRow({
                 </ScButton>
               </div>
               {!actorName && (
-                <p className="text-[11px] text-text-muted">
+                <p className="text-[12px] text-text-muted">
                   Type your name above first.
                 </p>
               )}

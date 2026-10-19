@@ -87,7 +87,7 @@ function GarageCard({ row, now }: { row: GarageRow; now: Date }) {
               </>
             )}
           </p>
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             {row.account ? (
               <>
                 {row.account.method === 'bank' ? 'Bank' : 'UPI'}{' '}
@@ -170,11 +170,14 @@ export default function AdminPayoutsPage() {
       />
 
       {totals && (
-        <div className="grid grid-cols-3 gap-2">
+        // "Due now ₹21,464.08" takes the full width on a phone rather than
+        // being cut off in a third of it (quick win 2).
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <StatTile
             label="Due now"
             tone={totals.totalDue > 0 ? 'warning' : 'default'}
             value={rupeesLabel(totals.totalDue)}
+            className="col-span-2 sm:col-span-1"
           />
           <StatTile label="Garages" value={totals.garagesDue} />
           <StatTile

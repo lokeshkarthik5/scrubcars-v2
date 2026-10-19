@@ -22,7 +22,9 @@ const TAB_LABELS: Record<RewardsTab, string> = {
   customers: 'Customers',
   achievements: 'Achievements',
   challenges: 'Challenges',
-  garage: 'Garage',
+  // The collectible car photo cards: "Garage" means a workshop everywhere
+  // else in the panel (quick win 7).
+  garage: 'Car cards',
   wrapped: 'Wrapped',
   settings: 'Settings',
 }

@@ -304,7 +304,7 @@ export default function CouponBatchPage({
         ) : (
           <ScCard className="overflow-x-auto p-0">
             <table className="w-full min-w-[640px] text-left text-[12px]">
-              <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+              <thead className="text-[12px] text-text-secondary">
                 <tr>
                   <th className="px-4 py-2 font-medium">Added</th>
                   <th className="px-3 py-2 font-medium">Customer</th>

@@ -99,13 +99,13 @@ function CountedLabel({
     <div className="flex items-baseline justify-between gap-2">
       <label
         htmlFor={htmlFor}
-        className="text-[11px] font-medium text-text-secondary"
+        className="text-[12px] font-medium text-text-secondary"
       >
         {label}
       </label>
       <span
         aria-hidden="true"
-        className="font-numeric text-[11px] text-text-muted"
+        className="font-numeric text-[12px] text-text-muted"
       >
         {length} / {max}
       </span>
@@ -254,7 +254,7 @@ export function NoticeForm({
               onChange={(e) => set('title', e.target.value)}
             />
             {titleBanned && (
-              <p className="text-[11px] text-warning">
+              <p className="text-[12px] text-warning">
                 Notices can&apos;t say &ldquo;{titleBanned}&rdquo;. Say plainly
                 what is happening.
               </p>
@@ -276,7 +276,7 @@ export function NoticeForm({
               onChange={(e) => set('body', e.target.value)}
             />
             {bodyBanned && (
-              <p className="text-[11px] text-warning">
+              <p className="text-[12px] text-warning">
                 Notices can&apos;t say &ldquo;{bodyBanned}&rdquo;. Say plainly
                 what is happening.
               </p>
@@ -300,13 +300,13 @@ export function NoticeForm({
             />
           </div>
           {(linkProblem || labelBanned) && (
-            <p className="text-[11px] text-warning">
+            <p className="text-[12px] text-warning">
               {labelBanned
                 ? `Notices can't say "${labelBanned}". Say plainly what is happening.`
                 : linkProblem}
             </p>
           )}
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             Notices show in the app only. They are not how customers are told
             about changes to the terms: that is a WhatsApp message or a call.
           </p>
@@ -352,7 +352,7 @@ export function NoticeForm({
                   <span className="block text-[13px] text-text-primary">
                     {option.label}
                   </span>
-                  <span className="block text-[11px] text-text-secondary">
+                  <span className="block text-[12px] text-text-secondary">
                     {option.hint}
                   </span>
                 </span>
@@ -392,7 +392,7 @@ export function NoticeForm({
                 ))}
               </ScSelect>
               {windowProblem && (form.bookingFrom || form.bookingTo) && (
-                <p className="text-[11px] text-warning">{windowProblem}</p>
+                <p className="text-[12px] text-warning">{windowProblem}</p>
               )}
             </>
           )}
@@ -416,12 +416,12 @@ export function NoticeForm({
               onChange={(value) => set('endsAt', value)}
             />
           </div>
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             Times are India time (IST). There is no delete: End now on the list
             stops a notice and keeps the record.
           </p>
           {endProblem && form.endsAt && (
-            <p className="text-[11px] text-warning">{endProblem}</p>
+            <p className="text-[12px] text-warning">{endProblem}</p>
           )}
           <ScCheckbox
             label="Active"
@@ -440,7 +440,7 @@ export function NoticeForm({
             <h2 className="text-[15px] font-semibold text-text-primary">
               Preview
             </h2>
-            <span className="text-[11px] text-text-muted">
+            <span className="text-[12px] text-text-muted">
               Live as you type
             </span>
           </div>
@@ -556,7 +556,7 @@ function NoticePreview({
     <div className="mx-auto flex w-full max-w-[390px] flex-col gap-4 rounded-[22px] border border-border bg-brand-black px-4 py-4">
       {isWindow && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             On their Next booking tile
           </p>
           <div className="flex flex-col gap-2 rounded-[18px] border border-border bg-surface px-3.5 py-3">
@@ -586,7 +586,7 @@ function NoticePreview({
         </div>
       )}
       <div className="flex flex-col gap-1.5">
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           {isWindow ? 'First in their Updates' : 'Pinned at the top of Updates'}
         </p>
         <div className="flex items-start gap-3 rounded-[18px] border border-border bg-surface px-3.5 py-3">

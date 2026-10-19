@@ -7,6 +7,7 @@ import { IconDownload, IconRefresh, IconUpload } from '@tabler/icons-react'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScSelect } from '@repo/ui/sc/select'
@@ -124,7 +125,7 @@ function Num({
         }
         className="min-h-10 font-numeric"
       />
-      {hint && <p className="text-[11px] text-text-muted">{hint}</p>}
+      {hint && <p className="text-[12px] text-text-muted">{hint}</p>}
     </div>
   )
 }
@@ -269,7 +270,7 @@ function GarageSettingsCard({ current }: { current: AdminRewardsSettings }) {
         >
           {save.isPending ? 'Saving…' : 'Save Garage settings'}
         </ScButton>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Saved as a new version of the rewards settings, with your name in the
           audit log. Going forward only.
         </p>
@@ -363,7 +364,7 @@ function SeriesCard({
         >
           Save series
         </ScButton>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           A series finished by a customer is recorded (the hook for any future
           prize); nothing else hangs on it yet.
         </p>
@@ -505,7 +506,7 @@ function Figure({
       <p className="font-numeric text-[18px] font-semibold text-text-primary">
         {value.toLocaleString('en-IN')}
       </p>
-      {hint && <p className="text-[11px] text-text-muted">{hint}</p>}
+      {hint && <p className="text-[12px] text-text-muted">{hint}</p>}
     </div>
   )
 }
@@ -595,7 +596,7 @@ function CarRow({
             {car.name}
             {!car.enabled && <span className="text-text-muted"> · off</span>}
           </p>
-          <p className="text-[11px] text-text-secondary">
+          <p className="text-[12px] text-text-secondary">
             {RARITY_LABELS[car.rarity]} · {car.colour} · {car.setting} · photo{' '}
             {car.artSource === 'upload' ? '(uploaded)' : car.photoId} ·{' '}
             <span className="font-numeric">{car.pulls}</span> pulled,{' '}
@@ -640,6 +641,8 @@ function CarEditor({
     enabled: car.enabled,
   })
   const named = actor.trim().length >= 2
+  // The uploaded picture is not kept once reset, so it is asked first.
+  const [resetOpen, setResetOpen] = useState(false)
 
   const upload = async (file: File) => {
     if (!named) return toast.error('Type your name first')
@@ -820,26 +823,36 @@ function CarEditor({
             fullWidth={false}
             className="flex min-h-10 items-center gap-1.5 px-3"
             disabled={!named || reset.isPending}
-            onClick={() =>
-              reset.mutate(
-                { id: car.id, actorName: actor.trim() },
-                {
-                  onSuccess: () => toast.success('Back to the photo'),
-                  onError: (err) =>
-                    toast.error(errorMessage(err, "Couldn't reset")),
-                }
-              )
-            }
+            onClick={() => setResetOpen(true)}
           >
             <IconRefresh size={16} aria-hidden="true" />
             Reset to the photo
           </ScButton>
         )}
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           An upload must be licensed for Detlio, with every badge, logo,
           lettering and plate removed.
         </p>
       </div>
+      <ConfirmSheet
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        onConfirm={async () => {
+          try {
+            await reset.mutateAsync({ id: car.id, actorName: actor.trim() })
+            toast.success('Back to the photo')
+          } catch (err) {
+            toast.error(errorMessage(err, "Couldn't reset"))
+          } finally {
+            setResetOpen(false)
+          }
+        }}
+        level="firm"
+        title={`Reset ${car.name} to the photo?`}
+        body="Every customer who holds this card sees the photo again instead of the uploaded picture. The upload isn't kept: to bring it back, upload it again."
+        confirmLabel="Reset to the photo"
+        busy={reset.isPending}
+      />
     </div>
   )
 }

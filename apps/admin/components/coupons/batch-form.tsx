@@ -183,7 +183,7 @@ export function BatchForm({
             value={location}
             onChange={(e) => setLocation(e.target.value)}
           />
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             Only the team sees these. Every coupon added is counted against this
             place.
           </p>
@@ -209,7 +209,7 @@ export function BatchForm({
                 value={count}
                 onChange={(e) => setCount(e.target.value)}
               />
-              <p className="text-[11px] text-text-muted">
+              <p className="text-[12px] text-text-muted">
                 Each card or flyer gets its own QR, used once.
               </p>
             </>
@@ -223,7 +223,7 @@ export function BatchForm({
                 value={cap}
                 onChange={(e) => setCap(e.target.value)}
               />
-              <p className="text-[11px] text-text-muted">
+              <p className="text-[12px] text-text-muted">
                 For a poster or standee: one QR, once per customer.
               </p>
             </>
@@ -247,7 +247,7 @@ export function BatchForm({
             ))}
           </ScSelect>
           {!config.rewardsLive && (
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[12px] text-text-muted">
               Bonus stamps can be offered while Detlio Rewards is on.
             </p>
           )}
@@ -357,7 +357,7 @@ export function BatchForm({
               onChange={(e) => setValidTo(e.target.value)}
             />
           </div>
-          <p className="text-[11px] text-text-muted">
+          <p className="text-[12px] text-text-muted">
             Customers can add it and use it from the first day to the end of the
             last (Chennai time). A coupon added on the last day still has to be
             used that day.
@@ -397,7 +397,7 @@ export function BatchForm({
 
       <div className="flex flex-col gap-3 md:sticky md:top-20">
         <CouponPreview offer={offer} validTo={validTo} />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Detlio pays for every coupon: the garage is paid its full price.{' '}
           {kind === 'unique' && (offer.amountOff ?? offer.maxDiscount)
             ? `If every code is used, it costs up to ₹${((wholeOrNull(count) ?? 0) * (offer.amountOff ?? offer.maxDiscount ?? 0)).toLocaleString('en-IN')}.`

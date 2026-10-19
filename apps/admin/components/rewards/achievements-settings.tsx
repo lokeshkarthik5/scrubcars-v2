@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from '@repo/core/utils'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
@@ -127,9 +128,12 @@ function Editor({
         <span className="font-numeric">{counts.challengeBadges}</span> challenge
         badges.
       </p>
+      {/* Below 640px each badge is a two-line row (its name, then its switch,
+          bonus and figures) instead of a table that hides three columns and
+          the switch off the edge (quick win 2). */}
       <ScCard className="overflow-x-auto px-0 py-1">
-        <table className="w-full min-w-[640px] text-left text-[12px]">
-          <thead>
+        <table className="w-full text-left text-[12px] sm:min-w-[640px]">
+          <thead className="max-sm:hidden">
             <tr className="text-text-secondary">
               <th className="px-3.5 py-2 font-medium">Badge</th>
               <th className="px-3 py-2 font-medium">On</th>
@@ -138,24 +142,27 @@ function Editor({
               <th className="px-3 py-2 text-right font-medium">This month</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className="divide-y divide-border max-sm:block">
             {counts.badges.map((badge) => (
               <tr
                 key={badge.key}
-                className={draft[badge.key].enabled ? '' : 'opacity-60'}
+                className={cn(
+                  'max-sm:grid max-sm:grid-cols-[auto_90px_1fr] max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-2 max-sm:px-3.5 max-sm:py-3',
+                  !draft[badge.key].enabled && 'opacity-60'
+                )}
               >
-                <td className="px-3.5 py-2.5">
+                <td className="px-3.5 py-2.5 max-sm:col-span-3 max-sm:p-0">
                   <p className="text-[13px] text-text-primary">{badge.label}</p>
                   <p className="text-text-muted">{badge.howTo}</p>
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 max-sm:p-0">
                   <ScSwitch
                     label={`${badge.label} on`}
                     checked={draft[badge.key].enabled}
                     onChange={(enabled) => set(badge.key, { enabled })}
                   />
                 </td>
-                <td className="w-[110px] px-3 py-2.5">
+                <td className="w-[110px] px-3 py-2.5 max-sm:w-auto max-sm:p-0">
                   <ScInput
                     aria-label={`${badge.label}: bonus stamps`}
                     inputMode="numeric"
@@ -171,10 +178,18 @@ function Editor({
                     className="min-h-9 font-numeric"
                   />
                 </td>
-                <td className="px-3 py-2.5 text-right font-numeric">
+                <td className="px-3 py-2.5 text-right font-numeric max-sm:p-0 max-sm:text-left max-sm:text-text-secondary">
                   {badge.earned}
+                  <span className="font-sans sm:hidden">
+                    {' '}
+                    earned ·{' '}
+                    <span className="font-numeric">
+                      {badge.earnedThisMonth}
+                    </span>{' '}
+                    this month
+                  </span>
                 </td>
-                <td className="px-3 py-2.5 text-right font-numeric">
+                <td className="px-3 py-2.5 text-right font-numeric max-sm:hidden">
                   {badge.earnedThisMonth}
                 </td>
               </tr>
@@ -196,7 +211,7 @@ function Editor({
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Saved as a new version of the rewards settings with your name; every
           change is in the audit log. A badge already earned keeps what it gave.
         </p>
