@@ -13,7 +13,9 @@ import { CUSTOMERS, SERVICES, VENDORS } from '../../support/seed-ids'
 
 test.describe.configure({ mode: 'serial' })
 
-test('a garage rejects a booking and the customer is told why @p0', async ({ browser }) => {
+test('a garage rejects a booking and the customer is told why @p0', async ({
+  browser,
+}) => {
   const { customer, vendor, close } = await openActors(
     browser,
     'customer-journeyCancel',
@@ -31,14 +33,23 @@ test('a garage rejects a booking and the customer is told why @p0', async ({ bro
   expect(booking.status).toBe('pending')
 
   // The garage turns it down with a reason.
-  await vendor.goto('/bookings')
+  await vendor.goto('/bookings?tab=new')
   await vendor
-    .getByRole('button', { name: `Reject booking for ${CUSTOMERS.journeyCancel.name}` })
+    .getByRole('button', {
+      name: `Reject booking for ${CUSTOMERS.journeyCancel.name}`,
+    })
     .click()
-  await vendor.getByPlaceholder('Reason for rejecting (optional)').fill('Ramp under repair')
-  await vendor.getByRole('button', { name: 'Confirm reject' }).click()
+  const sheet = vendor.getByRole('dialog', { name: "Can't do this booking?" })
+  await sheet
+    .getByPlaceholder('Reason for rejecting (optional)')
+    .fill('Ramp under repair')
+  await sheet
+    .getByRole('button', { name: 'Reject booking', exact: true })
+    .click()
 
-  await expect.poll(async () => (await getBooking(booking.id))?.status).toBe('cancelled')
+  await expect
+    .poll(async () => (await getBooking(booking.id))?.status)
+    .toBe('cancelled')
 
   const row = await getBooking(booking.id)
   // 'vendor', not 'user': the customer's page renders the two differently, and
