@@ -47,9 +47,9 @@ export function useRecordQualityCheck(vendorId: string) {
 }
 
 export function useCertifyGarage(vendorId: string) {
-  return useWrite(vendorId, (actorName: string) => certifyGarage(vendorId, actorName))
+  return useWrite<void>(vendorId, () => certifyGarage(vendorId))
 }
 
 export function useRevokeCertification(vendorId: string) {
-  return useWrite(vendorId, (input: { actorName: string; reason: string }) => revokeCertification(vendorId, input))
+  return useWrite(vendorId, (input: { reason: string }) => revokeCertification(vendorId, input))
 }

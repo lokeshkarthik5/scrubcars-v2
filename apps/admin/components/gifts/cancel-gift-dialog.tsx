@@ -3,34 +3,32 @@
 import { useState } from 'react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import type { AdminGift } from '@repo/core/api/gifts'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useCancelAdminGift } from '@repo/core/api/hooks/use-admin-gifts'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import { formatRupees } from '@/lib/bookings'
 
 /**
  * Cancel gift: for a gift whose buyer is being refunded by hand in the
  * Razorpay dashboard. Nothing is refunded from here; the gift's link stops
- * working and it can no longer be redeemed. The name and reason go to the
- * audit log. Mounted fresh for each gift (keyed by the caller).
+ * working and it can no longer be redeemed. The reason goes to the audit
+ * log, signed with the admin's name. Mounted fresh for each gift (keyed by the caller).
  */
 export function CancelGiftDialog({ gift, onClose }: { gift: AdminGift; onClose: () => void }) {
   const cancel = useCancelAdminGift()
-  const [name, setName] = useState(rememberedName)
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
 
-  const canSubmit = name.trim().length >= 2 && reason.trim().length >= 3 && !cancel.isPending
+  const canSubmit = reason.trim().length >= 3 && !cancel.isPending
 
   const submit = () => {
     if (!canSubmit) return
     setError('')
-    rememberName(name.trim())
     cancel.mutate(
-      { giftId: gift.id, actorName: name.trim(), reason: reason.trim() },
+      { giftId: gift.id, reason: reason.trim() },
       {
         onSuccess: () => {
           toast.success(`Gift ${gift.number} cancelled`)
@@ -70,14 +68,6 @@ export function CancelGiftDialog({ gift, onClose }: { gift: AdminGift; onClose: 
         </p>
       )}
 
-      <ScInput
-        id="cancel-gift-name"
-        label="Your name"
-        autoComplete="name"
-        maxLength={100}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
       <ScTextarea
         id="cancel-gift-reason"
         label="Why"
@@ -86,6 +76,7 @@ export function CancelGiftDialog({ gift, onClose }: { gift: AdminGift; onClose: 
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
+      <SignedAs />
 
       {error && (
         <p role="alert" className="text-[12px] text-error">

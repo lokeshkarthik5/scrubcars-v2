@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { toast } from 'react-toastify'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { BeforeAfterCompare } from '@repo/ui/features/before-after'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
@@ -21,6 +21,7 @@ import type {
 } from '@repo/core/api/admin'
 import { finalBillStatusLabel } from '@repo/core/job-records'
 import { CopyButton } from '@/components/copy-button'
+import { SignedAs } from '@/components/signed-as'
 import { formatRupees, formatWhen } from '@/lib/bookings'
 
 const STATUS_VARIANT: Record<
@@ -429,7 +430,6 @@ function WaivePhotosDialog({
   onClose: () => void
 }) {
   const waive = useWaiveAdminJobPhotos()
-  const [actorName, setActorName] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
 
@@ -444,7 +444,7 @@ function WaivePhotosDialog({
     waive.mutate(
       {
         id: booking.id,
-        input: { actorName: actorName.trim(), reason: reason.trim() },
+        input: { reason: reason.trim() },
       },
       {
         onSuccess: () => {
@@ -475,14 +475,6 @@ function WaivePhotosDialog({
           genuine reason, like a phone that died. This can&apos;t be undone.
         </p>
       </div>
-      <ScInput
-        id="waive-photos-name"
-        label="Your name"
-        maxLength={100}
-        autoComplete="name"
-        value={actorName}
-        onChange={(e) => setActorName(e.target.value)}
-      />
       <ScTextarea
         id="waive-photos-reason"
         label="Why"
@@ -491,6 +483,7 @@ function WaivePhotosDialog({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
+      <SignedAs />
       {error && (
         <p role="alert" className="text-[12px] text-error">
           {error}
@@ -507,11 +500,7 @@ function WaivePhotosDialog({
         </ScButton>
         <ScButton
           onClick={submit}
-          disabled={
-            actorName.trim().length < 2 ||
-            reason.trim().length < 5 ||
-            waive.isPending
-          }
+          disabled={reason.trim().length < 5 || waive.isPending}
           className="min-h-11"
         >
           {waive.isPending ? 'Waiving…' : 'Waive photos'}

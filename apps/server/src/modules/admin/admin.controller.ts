@@ -1,7 +1,8 @@
 import type { Context } from 'hono'
 import { deleteCookie, setCookie } from 'hono/cookie'
 import { env } from '../../lib/env.js'
-import type { AuthVariables } from '../../middleware/auth.middleware.js'
+import { userIdFromSubject } from '../../lib/admin-actor.js'
+import { signedInAdmin, type AuthVariables } from '../../middleware/auth.middleware.js'
 import { membersService } from '../members/members.service.js'
 import { adminService } from './admin.service.js'
 import type {
@@ -38,7 +39,7 @@ const ADMIN_TOKEN_MAX_AGE = 12 * 60 * 60 // keep in sync with env.adminTokenExpi
 // → findUserById('admin') → invalid UUID → 500.
 const ADMIN_COOKIE_PATH = '/api/v1/admin'
 
-function setAccessCookie(c: AdminContext, token: string) {
+export function setAccessCookie(c: AdminContext, token: string) {
   setCookie(c, ACCESS_COOKIE, token, {
     httpOnly: true,
     secure: !env.isDev,
@@ -67,8 +68,13 @@ export async function logout(c: AdminContext) {
   return c.json({ success: true })
 }
 
+/** Who is signed in: the name the panel shows and signs every action with. */
 export async function getMe(c: AdminContext) {
-  return c.json({ success: true, data: { isSuperAdmin: true } })
+  const actor = signedInAdmin(c)
+  return c.json({
+    success: true,
+    data: { isSuperAdmin: true, kind: actor.kind, name: actor.name, username: actor.username },
+  })
 }
 
 export async function listVendors(c: AdminContext) {
@@ -302,9 +308,9 @@ export async function grantSuperAdmin(
   c: AdminContext,
   input: GrantSuperAdminInput
 ) {
-  // The env-credential session has no users row, so it cannot be attributed.
-  const sub = c.get('auth').sub
-  const grantedBy = sub === 'admin' ? null : sub
+  // Only a users id can be attributed here (a users FK): not the env login,
+  // nor a personal admin login (0058).
+  const grantedBy = userIdFromSubject(c.get('auth').sub)
 
   const grant = await adminService.grantSuperAdmin(input, grantedBy)
   return c.json({ success: true, data: grant }, 201)
@@ -325,11 +331,11 @@ export async function revokeSuperAdmin(c: AdminContext, id: string) {
 /**
  * Who made this change. The break-glass session has no `users` row, so its
  * changes land with `added_by = null` — "someone with the admin password". A
- * named super-admin is attributable; the shared credential is not.
+ * named super-admin is attributable; the shared credential is not, and nor is
+ * a personal admin login (0058), which is no users row either.
  */
 function getAdminActorId(c: AdminContext): string | null {
-  const sub = c.get('auth').sub
-  return sub === 'admin' ? null : sub
+  return userIdFromSubject(c.get('auth').sub)
 }
 
 export async function listVendorMembers(c: AdminContext, vendorId: string) {

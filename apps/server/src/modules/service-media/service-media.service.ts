@@ -46,6 +46,7 @@ import type {
   StartVideoInput,
   UseAiPictureInput,
 } from './service-media.validation.js'
+import { adminSubjectName } from '../admin-logins/admin-logins.service.js'
 
 const log = logger.child({ module: 'service-media' })
 
@@ -56,8 +57,6 @@ const log = logger.child({ module: 'service-media' })
  */
 export type MediaActor = { kind: 'garage'; vendorId: string } | { kind: 'admin'; sub: string }
 
-/** The shared break-glass admin login (see auth.middleware). */
-const BREAK_GLASS_SUBJECT = 'admin'
 
 const aiLimit = createKeyedLimit(env.aiPicturesPerHour, 60 * 60 * 1000)
 
@@ -109,7 +108,8 @@ async function resolveService(actor: MediaActor, serviceId: string, change = tru
 /** `uploaded_by`: the admin's name, or 'garage' for the garage's own app. */
 async function uploaderName(actor: MediaActor): Promise<string> {
   if (actor.kind === 'garage') return 'garage'
-  if (actor.sub === BREAK_GLASS_SUBJECT) return 'admin'
+  const adminName = await adminSubjectName(actor.sub)
+  if (adminName) return adminName
   const user = await serviceMediaRepository.findUserName(actor.sub)
   return (user?.name.trim() || 'admin').slice(0, 100)
 }

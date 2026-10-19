@@ -170,7 +170,7 @@ function useInvalidateAfterBin() {
 export function useBinAdminVendor() {
   const invalidate = useInvalidateAfterBin()
   return useMutation({
-    mutationFn: ({ id, ...input }: { id: string; actorName: string; reason?: string }) =>
+    mutationFn: ({ id, ...input }: { id: string; reason?: string }) =>
       binAdminVendor(id, input),
     onSuccess: () => invalidate(),
   })
@@ -179,8 +179,7 @@ export function useBinAdminVendor() {
 export function useRestoreAdminVendor() {
   const invalidate = useInvalidateAfterBin()
   return useMutation({
-    mutationFn: ({ id, ...input }: { id: string; actorName: string }) =>
-      restoreAdminVendor(id, input),
+    mutationFn: ({ id }: { id: string }) => restoreAdminVendor(id),
     onSuccess: () => invalidate(),
   })
 }
@@ -194,7 +193,6 @@ export function useDeleteAdminVendorForever() {
       ...input
     }: {
       id: string
-      actorName: string
       confirmName: string
       selectionHash: string
     }) => deleteAdminVendorForever(id, input),

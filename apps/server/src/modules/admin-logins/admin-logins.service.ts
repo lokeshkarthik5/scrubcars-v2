@@ -1,0 +1,162 @@
+import {
+  BREAK_GLASS_NAME,
+  BREAK_GLASS_SUBJECT,
+  personalAdminSubject,
+  personalLoginId,
+  type AdminActor,
+} from '../../lib/admin-actor.js'
+import { normalizeAdminUsername } from '../../lib/admin-logins.js'
+import { env } from '../../lib/env.js'
+import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
+import { decoyHash, hashPassword, verifyPassword } from '../../lib/passwords.js'
+import { adminLoginsRepository, type AdminLoginRow } from './admin-logins.repository.js'
+import type {
+  ChangeOwnPasswordInput,
+  CreateAdminLoginInput,
+  ResetAdminPasswordInput,
+  SetAdminLoginStatusInput,
+} from './admin-logins.validation.js'
+
+const log = logger.child({ module: 'admin-logins' })
+
+function toResponse(row: AdminLoginRow) {
+  return {
+    id: row.id,
+    username: row.username,
+    name: row.name,
+    status: row.status,
+    lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
+    createdByName: row.createdByName,
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+export type AdminLoginResponse = ReturnType<typeof toResponse>
+
+function notFound() {
+  return new AppError(404, 'That login does not exist', 'ADMIN_LOGIN_NOT_FOUND')
+}
+
+function actorOf(actor: AdminActor) {
+  return { actorSub: actor.sub, actorName: actor.name }
+}
+
+export const adminLoginsService = {
+  /**
+   * A personal login's sign-in: its subject, or null for a wrong username,
+   * a wrong password or a login that is off, all alike. An unknown username
+   * still checks a password (the decoy), so the refusal takes as long.
+   */
+  async signIn(usernameInput: string, password: string, now = new Date()): Promise<string | null> {
+    const username = normalizeAdminUsername(usernameInput)
+    const row = username ? await adminLoginsRepository.findByUsername(username) : undefined
+    const matches = await verifyPassword(password, row?.passwordHash ?? (await decoyHash()))
+    if (!row || !matches || row.status !== 'active') return null
+    await adminLoginsRepository.recordLogin(row.id, now)
+    log.info({ loginId: row.id }, 'admin-logins:signed_in')
+    return personalAdminSubject(row.id)
+  },
+
+  /**
+   * A personal login's session, checked on every admin request: the login is
+   * still on, and the token was minted at or after `sessions_from` (a reset
+   * or turning it off ends every older session). Null otherwise.
+   */
+  async sessionActor(sub: string, mintedAt: number | undefined): Promise<AdminActor | null> {
+    const id = personalLoginId(sub)
+    if (!id || mintedAt === undefined) return null
+    const row = await adminLoginsRepository.findSession(id)
+    if (!row || row.status !== 'active') return null
+    if (mintedAt < row.sessionsFrom.getTime()) return null
+    return { sub, kind: 'personal', name: row.name, username: row.username, loginId: row.id }
+  },
+
+  async list(actor: AdminActor) {
+    const rows = await adminLoginsRepository.list()
+    return { logins: rows.map(toResponse), youId: actor.loginId }
+  },
+
+  async create(actor: AdminActor, input: CreateAdminLoginInput) {
+    // The env login is checked first at sign-in, so a personal login with
+    // its username could never sign in.
+    if (input.username === normalizeAdminUsername(env.adminUsername)) {
+      throw new AppError(409, 'That username is the shared login’s. Pick another.', 'ADMIN_USERNAME_TAKEN')
+    }
+    const row = await adminLoginsRepository.create(
+      { username: input.username, name: input.name, passwordHash: await hashPassword(input.password) },
+      actorOf(actor)
+    )
+    if (!row) throw new AppError(409, 'Someone already has that username. Pick another.', 'ADMIN_USERNAME_TAKEN')
+    log.info({ loginId: row.id, by: actor.sub }, 'admin-logins:created')
+    return toResponse(row)
+  },
+
+  /** Someone else's password. Your own goes through changeOwnPassword, which asks for the current one. */
+  async resetPassword(actor: AdminActor, id: string, input: ResetAdminPasswordInput, now = new Date()) {
+    if (id === actor.loginId) {
+      throw new AppError(409, 'Change your own password under Your password, with your current one.', 'ADMIN_LOGIN_SELF')
+    }
+    const row = await adminLoginsRepository.setPassword(
+      id,
+      await hashPassword(input.password),
+      actorOf(actor),
+      'admin_login_password_reset',
+      now
+    )
+    if (!row) throw notFound()
+    log.info({ loginId: id, by: actor.sub }, 'admin-logins:password_reset')
+    return toResponse(row)
+  },
+
+  async setStatus(actor: AdminActor, id: string, input: SetAdminLoginStatusInput, now = new Date()) {
+    if (id === actor.loginId) {
+      throw new AppError(409, 'You can’t turn off your own login. Ask someone else on the team.', 'ADMIN_LOGIN_SELF')
+    }
+    const row = await adminLoginsRepository.setStatus(id, input.status, actorOf(actor), now)
+    if (!row) throw notFound()
+    log.info({ loginId: id, status: input.status, by: actor.sub }, 'admin-logins:status')
+    return toResponse(row)
+  },
+
+  /**
+   * The signed-in person's own password, with the current one. Every other
+   * session of theirs ends; the caller mints this one a fresh token.
+   */
+  async changeOwnPassword(actor: AdminActor, input: ChangeOwnPasswordInput, now = new Date()) {
+    if (!actor.loginId) {
+      throw new AppError(
+        409,
+        'The shared login’s password is set in the server settings, not here.',
+        'ADMIN_LOGIN_SHARED'
+      )
+    }
+    const row = await adminLoginsRepository.findById(actor.loginId)
+    if (!row || !(await verifyPassword(input.currentPassword, row.passwordHash))) {
+      throw new AppError(400, 'Your current password is not right', 'ADMIN_PASSWORD_WRONG')
+    }
+    await adminLoginsRepository.setPassword(
+      row.id,
+      await hashPassword(input.newPassword),
+      actorOf(actor),
+      'admin_password_changed',
+      now
+    )
+    log.info({ loginId: row.id }, 'admin-logins:password_changed')
+    return personalAdminSubject(row.id)
+  },
+}
+
+/**
+ * The name an admin subject signs with, for code that has only the subject
+ * (booking notes, notices, complaints, refunds, service pictures): 'admin'
+ * for the shared login, the login's name for a personal one, and null for a
+ * users id, which the caller looks up in users as before.
+ */
+export async function adminSubjectName(sub: string): Promise<string | null> {
+  if (sub === BREAK_GLASS_SUBJECT) return BREAK_GLASS_NAME
+  const id = personalLoginId(sub)
+  if (!id) return null
+  const row = await adminLoginsRepository.findSession(id)
+  return row?.name ?? 'admin (removed login)'
+}

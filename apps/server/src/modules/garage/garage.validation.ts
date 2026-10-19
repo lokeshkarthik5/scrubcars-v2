@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { CAR_LIMITS, GARAGE_RARITIES, MAX_ART_BYTES, SERIES_STATUSES } from '../../lib/garage.js'
 
-const actorName = z.string().trim().min(2, 'Type your name').max(100)
+const actorName = signedActorName
 
 export const idParamSchema = z.object({ id: z.uuid() })
 export const userIdParamSchema = z.object({ userId: z.uuid() })

@@ -82,14 +82,12 @@ function useAnswer<Input>(answer: (input: Input) => Promise<unknown>) {
 }
 
 export function useConfirmBypassReport() {
-  return useAnswer((input: { id: string; actorName: string }) =>
-    confirmBypassReport(input.id, { actorName: input.actorName })
-  )
+  return useAnswer((input: { id: string }) => confirmBypassReport(input.id))
 }
 
 export function useDismissBypassReport() {
-  return useAnswer((input: { id: string; actorName: string; reason: string }) =>
-    dismissBypassReport(input.id, { actorName: input.actorName, reason: input.reason })
+  return useAnswer((input: { id: string; reason: string }) =>
+    dismissBypassReport(input.id, { reason: input.reason })
   )
 }
 

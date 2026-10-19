@@ -75,13 +75,12 @@ import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { pushService } from '../push/push.service.js'
 
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
+import { adminSubjectName } from '../admin-logins/admin-logins.service.js'
 const log = logger.child({ module: 'refunds' })
 
 /** How many refunds the Done tab shows, of each kind, newest first. */
 const DONE_LIMIT = 100
 
-/** The subject of the env-credential break-glass login; see auth.middleware. */
-const BREAK_GLASS_SUBJECT = 'admin'
 
 /**
  * One refund to do, or done, as ops sees it on the Refunds page and on a
@@ -256,11 +255,12 @@ const time = (iso: string | null) => (iso ? Date.parse(iso) : Number.POSITIVE_IN
 
 /**
  * Who recorded it, as a name — the same rule as an admin's booking notes:
- * the shared break-glass login signs as 'admin', a named super-admin as
- * themselves.
+ * the shared break-glass login signs as 'admin', a personal admin login
+ * (0058) with its name, a named super-admin as themselves.
  */
 async function resolveActorName(sub: string): Promise<string> {
-  if (sub === BREAK_GLASS_SUBJECT) return 'admin'
+  const adminName = await adminSubjectName(sub)
+  if (adminName) return adminName
   const user = await refundsRepository.findUserById(sub)
   return (user?.name.trim() || user?.phone || sub).slice(0, 100)
 }

@@ -4,6 +4,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import {
   requireVendorRole,
@@ -58,7 +59,7 @@ adminPayoutRoutes.post(
   '/vendors/:vendorId',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', recordPayoutSchema),
+  adminSignedJson(recordPayoutSchema),
   (c) => payoutsController.recordPayout(c, c.req.valid('param').vendorId, c.req.valid('json'))
 )
 
@@ -75,7 +76,7 @@ adminPayoutRoutes.put(
   '/vendors/:vendorId/account',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', payoutAccountSchema),
+  adminSignedJson(payoutAccountSchema),
   (c) => payoutsController.savePayoutAccount(c, c.req.valid('param').vendorId, c.req.valid('json'))
 )
 

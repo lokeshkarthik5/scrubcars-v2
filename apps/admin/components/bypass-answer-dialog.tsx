@@ -3,17 +3,17 @@
 import { useState } from 'react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import type { AdminBypassReport } from '@repo/core/api/bypass-reports'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useConfirmBypassReport, useDismissBypassReport } from '@repo/core/api/hooks/use-bypass-reports'
 import { BYPASS_NUMBERS } from '@repo/core/bypass-reports'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 
 /**
- * Confirm or Dismiss a bypass report (0052), with the name typed, as every
- * money action asks (the audit log keeps it). Confirming adds a strike to the
+ * Confirm or Dismiss a bypass report (0052), signed with the admin's name,
+ * as every money action is (the audit log keeps it). Confirming adds a strike to the
  * garage and, once per customer per garage, the reward; dismissing needs a
  * reason, for the team only. Mounted fresh for each press (keyed by the
  * caller).
@@ -35,17 +35,15 @@ export function BypassAnswerDialog({
   const confirm = useConfirmBypassReport()
   const dismiss = useDismissBypassReport()
   const pending = confirm.isPending || dismiss.isPending
-  const [name, setName] = useState(rememberedName)
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
 
-  const canSubmit = name.trim().length >= 2 && (action === 'confirm' || reason.trim().length >= 3) && !pending
+  const canSubmit = (action === 'confirm' || reason.trim().length >= 3) && !pending
   const reward = `₹${Number(rewardAmount).toLocaleString('en-IN')}`
 
   const submit = () => {
     if (!canSubmit) return
     setError('')
-    rememberName(name.trim())
     const done = {
       onSuccess: (answered: unknown) => {
         const after = answered as AdminBypassReport
@@ -62,8 +60,8 @@ export function BypassAnswerDialog({
       },
       onError: (err: unknown) => setError(errorMessage(err, "Couldn't save this")),
     }
-    if (action === 'confirm') confirm.mutate({ id: report.id, actorName: name.trim() }, done)
-    else dismiss.mutate({ id: report.id, actorName: name.trim(), reason: reason.trim() }, done)
+    if (action === 'confirm') confirm.mutate({ id: report.id }, done)
+    else dismiss.mutate({ id: report.id, reason: reason.trim() }, done)
   }
 
   return (
@@ -106,14 +104,6 @@ export function BypassAnswerDialog({
         </p>
       )}
 
-      <ScInput
-        id="bypass-answer-name"
-        label="Your name"
-        autoComplete="name"
-        maxLength={100}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
       {action === 'dismiss' && (
         <ScTextarea
           id="bypass-answer-reason"
@@ -124,6 +114,8 @@ export function BypassAnswerDialog({
           onChange={(e) => setReason(e.target.value)}
         />
       )}
+
+      <SignedAs />
 
       {error && (
         <p role="alert" className="text-[12px] text-error">

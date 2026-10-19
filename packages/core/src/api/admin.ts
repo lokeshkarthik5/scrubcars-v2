@@ -682,9 +682,86 @@ export async function adminLogout() {
   return apiClient<void>('/admin/logout', { method: 'POST', auth: false })
 }
 
-/** GET /admin/me — session check */
+/**
+ * Who is signed in to the panel (0058). 'shared' is the one env login (the
+ * bootstrap, signs as "admin"); 'personal' a login of one's own
+ * (admin_logins); 'member' a super-admin customer account.
+ */
+export type AdminMeKind = 'shared' | 'personal' | 'member'
+
+export interface AdminMe {
+  isSuperAdmin: true
+  kind: AdminMeKind
+  /** What every action is signed with. */
+  name: string
+  /** A personal login's username; null for the other two kinds. */
+  username: string | null
+}
+
+/** GET /admin/me — the session check, and who every action is signed as. */
 export async function getAdminMe() {
-  return apiClient<{ isSuperAdmin: boolean }>('/admin/me')
+  return apiClient<AdminMe>('/admin/me')
+}
+
+// ─── Team logins (0058) ──────────────────────────────────────────────────────
+
+export type AdminLoginStatus = 'active' | 'off'
+
+/** A personal admin login, as Settings → Team logins lists it. */
+export interface AdminLogin {
+  id: string
+  username: string
+  name: string
+  status: AdminLoginStatus
+  lastLoginAt: string | null
+  createdByName: string
+  createdAt: string
+}
+
+export interface AdminLoginList {
+  logins: AdminLogin[]
+  /** The signed-in person's own login; null on the shared login or a member. */
+  youId: string | null
+}
+
+/** GET /admin/logins */
+export async function listAdminLogins() {
+  return apiClient<AdminLoginList>('/admin/logins')
+}
+
+/** POST /admin/logins — 409 ADMIN_USERNAME_TAKEN; 400 for a rule failure. */
+export async function createAdminLogin(input: { username: string; name: string; password: string }) {
+  return apiClient<AdminLogin>('/admin/logins', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** POST /admin/logins/:id/password — someone else's; ends their sessions. */
+export async function resetAdminLoginPassword(id: string, password: string) {
+  return apiClient<AdminLogin>(`/admin/logins/${id}/password`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  })
+}
+
+/** POST /admin/logins/:id/status — 'off' ends their sessions. */
+export async function setAdminLoginStatus(id: string, status: AdminLoginStatus) {
+  return apiClient<AdminLogin>(`/admin/logins/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  })
+}
+
+/**
+ * POST /admin/me/password — your own. 400 ADMIN_PASSWORD_WRONG; 409
+ * ADMIN_LOGIN_SHARED on the shared login. This session stays signed in.
+ */
+export async function changeOwnAdminPassword(input: { currentPassword: string; newPassword: string }) {
+  return apiClient<void>('/admin/me/password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
 }
 
 /** GET /admin/vendors */
@@ -1112,7 +1189,7 @@ export async function getAdminVendorBinPreview(id: string) {
 }
 
 /** POST /admin/vendors/:id/bin */
-export async function binAdminVendor(id: string, input: { actorName: string; reason?: string }) {
+export async function binAdminVendor(id: string, input: { reason?: string }) {
   return apiClient<AdminVendorBinResult>(`/admin/vendors/${id}/bin`, {
     method: 'POST',
     body: JSON.stringify(input),
@@ -1120,10 +1197,10 @@ export async function binAdminVendor(id: string, input: { actorName: string; rea
 }
 
 /** POST /admin/vendors/:id/restore — back as it was, team access included. */
-export async function restoreAdminVendor(id: string, input: { actorName: string }) {
+export async function restoreAdminVendor(id: string) {
   return apiClient<{ garage: AdminBinGarage; auditId: string }>(`/admin/vendors/${id}/restore`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({}),
   })
 }
 
@@ -1138,7 +1215,7 @@ export async function getAdminVendorDeletePreview(id: string) {
  */
 export async function deleteAdminVendorForever(
   id: string,
-  input: { actorName: string; confirmName: string; selectionHash: string }
+  input: { confirmName: string; selectionHash: string }
 ) {
   return apiClient<AdminVendorDeleteResult>(`/admin/vendors/${id}`, {
     method: 'DELETE',
@@ -1463,9 +1540,9 @@ export async function overrideAdminPickupStep(
 
 /**
  * POST /admin/bookings/:id/photos-waiver — Detlio waives the photo standard
- * on one booking (0045), with the typed name and why. Once only.
+ * on one booking (0045), with why; signed with the admin's name. Once only.
  */
-export async function waiveAdminJobPhotos(id: string, input: { actorName: string; reason: string }) {
+export async function waiveAdminJobPhotos(id: string, input: { reason: string }) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver`, {
     method: 'POST',
     body: JSON.stringify(input),
@@ -1680,7 +1757,6 @@ export interface DataResetPreviewInput {
 export interface DataResetExecuteInput extends DataResetPreviewInput {
   selectionHash: string
   confirmText: string
-  actorName: string
   backupConfirmed: true
 }
 
@@ -1967,7 +2043,7 @@ export interface AdminComplaint {
   closedBy: string | null
   /** 'app' when the customer raised it; otherwise how the team heard it. */
   source: ComplaintSource
-  /** Who in the team logged it (the name typed); null for 'app'. */
+  /** Who in the team logged it (the signed-in admin's name); null for 'app'. */
   loggedBy: string | null
   /** When Detlio received it: the clock runs from here. */
   receivedAt: string
@@ -2005,8 +2081,6 @@ export interface LogComplaintInput {
   bookingRef?: string
   /** When Detlio received it (ISO); up to 7 days back. Left out, now. */
   receivedAt?: string
-  /** The name of whoever is logging it. */
-  loggedBy: string
 }
 
 /** POST /admin/complaints — answers with the complaint as admin sees it. */
@@ -2364,7 +2438,6 @@ export interface RecordPayoutInput {
   reference: string
   paidAt: string
   note?: string
-  actorName: string
 }
 
 export interface PayoutAccountInput {
@@ -2372,7 +2445,6 @@ export interface PayoutAccountInput {
   accountNumber: string | null
   ifsc: string | null
   upiId: string | null
-  actorName: string
 }
 
 /** GET /admin/payouts */
@@ -2430,9 +2502,9 @@ export async function getTelegramAlertStatus() {
  * POST /admin/alerts/telegram/test: posts "✅ Detlio test alert from <name>"
  * to the team's chat, whatever the Production-only rule says. Rate limited.
  */
-export async function sendTelegramTestAlert(actorName: string) {
+export async function sendTelegramTestAlert() {
   return apiClient<{ sent: boolean; sentAt: string }>('/admin/alerts/telegram/test', {
     method: 'POST',
-    body: JSON.stringify({ actorName }),
+    body: JSON.stringify({}),
   })
 }

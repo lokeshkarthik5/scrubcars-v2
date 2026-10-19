@@ -1,18 +1,14 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 
 /**
- * "Send test alert": the name the admin types, as the Bin's dialogs take it
- * (the shared admin login has no name of its own). Strict: nothing else.
+ * "Send test alert": signed with the signed-in admin's name (0058; personal
+ * login names are one line, so the plain-text alert stays one line). Strict:
+ * nothing else.
  */
 export const telegramTestSchema = z
   .object({
-    actorName: z
-      .string()
-      .trim()
-      .min(2, 'Type your name')
-      .max(60)
-      // One line: the alert is plain text, and a name has no line breaks.
-      .transform((name) => name.replace(/\s+/g, ' ')),
+    actorName: signedActorName,
   })
   .strict()
 

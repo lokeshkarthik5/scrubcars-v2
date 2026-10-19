@@ -15,10 +15,10 @@ import { useDiscountVendorOptions } from '@repo/core/api/hooks/use-discounts'
 import { CATEGORY_LABELS } from '@repo/core/categories'
 import type { CouponKind, CouponOffer, CouponReward } from '@repo/core/coupons'
 import type { ServiceCategory } from '@repo/core/types'
-import { rememberName, rememberedName } from '@/lib/actor-name'
 import { todayIst } from '@/lib/bookings'
 import { wholeOrNull } from '@/lib/coupons'
 import { CouponPreview } from '@/components/coupons/coupon-preview'
+import { SignedAs } from '@/components/signed-as'
 
 const REWARD_LABELS: Record<CouponReward, string> = {
   amount: '₹ off',
@@ -79,7 +79,6 @@ export function BatchForm({
   const [newOnly, setNewOnly] = useState(false)
   const [validFrom, setValidFrom] = useState(today)
   const [validTo, setValidTo] = useState(plusDays(today, 60))
-  const [actorName, setActorName] = useState(rememberedName)
 
   const isStamps = reward === 'stamps'
   const vendorName =
@@ -122,12 +121,10 @@ export function BatchForm({
   const canSubmit =
     name.trim().length >= 3 &&
     location.trim().length >= 3 &&
-    actorName.trim().length >= 2 &&
     !isPending
 
   const submit = () => {
     if (!canSubmit) return
-    rememberName(actorName.trim())
     onSubmit({
       name: name.trim(),
       location: location.trim(),
@@ -146,7 +143,6 @@ export function BatchForm({
       newCustomersOnly: newOnly,
       validFrom,
       validTo,
-      actorName: actorName.trim(),
     })
   }
 
@@ -365,14 +361,7 @@ export function BatchForm({
         </ScCard>
 
         <ScCard className="flex flex-col gap-3">
-          <ScInput
-            id="coupon-actor"
-            label="Your name"
-            autoComplete="name"
-            maxLength={100}
-            value={actorName}
-            onChange={(e) => setActorName(e.target.value)}
-          />
+          <SignedAs />
           {error && (
             <p role="alert" className="text-[12px] text-error">
               {error}

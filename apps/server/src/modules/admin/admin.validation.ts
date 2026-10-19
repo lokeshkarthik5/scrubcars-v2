@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import {
   isCalendarDate,
   parseBookingListCursor,
@@ -339,11 +340,11 @@ export const pickupStepOverrideSchema = z.object({
   note: z.string().trim().min(1, 'Say why the code could not be used').max(500),
 })
 
-// Detlio waives the photo standard on one booking (0045): the typed name, as
-// the Bin records it, and why.
+// Detlio waives the photo standard on one booking (0045): who (the signed-in
+// admin, 0058), and why.
 export const waiveJobPhotosSchema = z
   .object({
-    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    actorName: signedActorName,
     reason: z.string().trim().min(5, 'Say why the photos are waived').max(500),
   })
   .strict()

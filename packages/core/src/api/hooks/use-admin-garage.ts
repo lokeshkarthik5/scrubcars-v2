@@ -37,19 +37,19 @@ function useInvalidating<TArgs, TResult>(fn: (args: TArgs) => Promise<TResult>) 
 }
 
 export function useUpdateGarageSeries() {
-  return useInvalidating((input: { id: string; name: string; status: SeriesStatus; startsAt: string | null; endsAt: string | null; actorName: string }) =>
-    updateAdminGarageSeries(input.id, { name: input.name, status: input.status, startsAt: input.startsAt, endsAt: input.endsAt, actorName: input.actorName })
+  return useInvalidating((input: { id: string; name: string; status: SeriesStatus; startsAt: string | null; endsAt: string | null }) =>
+    updateAdminGarageSeries(input.id, { name: input.name, status: input.status, startsAt: input.startsAt, endsAt: input.endsAt })
   )
 }
 
 export function useUpdateGarageCar() {
-  return useInvalidating((input: { id: string; car: GarageCarEdit; actorName: string }) => updateAdminGarageCar(input.id, { ...input.car, actorName: input.actorName }))
+  return useInvalidating((input: { id: string; car: GarageCarEdit }) => updateAdminGarageCar(input.id, input.car))
 }
 
 export function useResetGarageArt() {
-  return useInvalidating((input: { id: string; actorName: string }) => resetGarageArt(input.id, input.actorName))
+  return useInvalidating((input: { id: string }) => resetGarageArt(input.id))
 }
 
 export function useGiveGarageCard() {
-  return useMutation({ mutationFn: (input: { userId: string; actorName: string; reason: string }) => giveGarageCard(input.userId, { actorName: input.actorName, reason: input.reason }) })
+  return useMutation({ mutationFn: (input: { userId: string; reason: string }) => giveGarageCard(input.userId, { reason: input.reason }) })
 }

@@ -164,7 +164,6 @@ export interface CreateCouponBatchPayload {
   newCustomersOnly: boolean
   validFrom: string
   validTo: string
-  actorName: string
 }
 
 export function getAdminCouponConfig() {
@@ -195,14 +194,14 @@ export function listCouponRedemptions(batchId: string) {
   return apiClient<{ redemptions: CouponRedemption[]; location: string }>(`/admin/coupons/batches/${batchId}/redemptions`)
 }
 
-export function voidCouponBatch(batchId: string, payload: { actorName: string; reason: string; cancelUnspent: boolean }) {
+export function voidCouponBatch(batchId: string, payload: { reason: string; cancelUnspent: boolean }) {
   return apiClient<{ batch: AdminCouponBatch; cancelledVouchers: number }>(`/admin/coupons/batches/${batchId}/void`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
-export function voidCouponCode(batchId: string, payload: { code: string; actorName: string; reason: string }) {
+export function voidCouponCode(batchId: string, payload: { code: string; reason: string }) {
   return apiClient<{ suffix: string; cancelledVouchers: number }>(`/admin/coupons/batches/${batchId}/codes/void`, {
     method: 'POST',
     body: JSON.stringify(payload),

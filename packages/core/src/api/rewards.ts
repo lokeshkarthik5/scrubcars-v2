@@ -274,9 +274,9 @@ export interface AdminCustomerRewards {
 }
 
 export type AdjustRewardsPayload =
-  | { action: 'add_stamps' | 'remove_stamps'; stamps: number; reason: string; actorName: string }
-  | { action: 'issue_voucher'; amount: number; reason: string; actorName: string }
-  | { action: 'cancel_voucher'; voucherId: string; reason: string; actorName: string }
+  | { action: 'add_stamps' | 'remove_stamps'; stamps: number; reason: string }
+  | { action: 'issue_voucher'; amount: number; reason: string }
+  | { action: 'cancel_voucher'; voucherId: string; reason: string }
 
 export function getAdminRewardsConfig() {
   return apiClient<{ masterSwitch: boolean }>('/admin/rewards/config')
@@ -286,7 +286,7 @@ export function getAdminRewardsSettings() {
   return apiClient<AdminRewardsSettings>('/admin/rewards/settings')
 }
 
-export function saveAdminRewardsSettings(payload: { version: number; settings: RewardsSettings; actorName: string }) {
+export function saveAdminRewardsSettings(payload: { version: number; settings: RewardsSettings }) {
   return apiClient<AdminRewardsSettings>('/admin/rewards/settings', { method: 'PUT', body: JSON.stringify(payload) })
 }
 

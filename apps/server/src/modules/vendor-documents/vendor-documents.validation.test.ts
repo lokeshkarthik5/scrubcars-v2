@@ -69,20 +69,21 @@ describe('submitDocumentSchema', () => {
 })
 
 describe('adminSubmitDocumentSchema', () => {
-  test('the admin says who they are and whether they approve it as they upload it', () => {
+  test('the admin says whether they approve it as they upload it; the session signs it', () => {
     const input = { type: 'agreement', files: [{ side: 'front', key: KEY }], actorName: 'Lokesh', approve: true }
-    expect<unknown>(adminSubmitDocumentSchema.parse(input)).toEqual(input)
-    expect(adminSubmitDocumentSchema.safeParse({ ...input, actorName: ' ' }).success).toBe(false)
+    // A typed name is ignored: adminSignedJson signs it with the session (0058).
+    expect<unknown>(adminSubmitDocumentSchema.parse(input)).toEqual({ ...input, actorName: '' })
+    expect(adminSubmitDocumentSchema.safeParse({ ...input, actorName: undefined }).success).toBe(true)
     expect(adminSubmitDocumentSchema.safeParse({ ...input, approve: undefined }).success).toBe(false)
   })
 })
 
 describe('reviewDocumentSchema', () => {
-  test('approve with the version seen and a name', () => {
+  test('approve with the version seen; the session signs it', () => {
     expect<unknown>(reviewDocumentSchema.parse({ action: 'approve', version: 2, actorName: 'Lokesh' })).toEqual({
       action: 'approve',
       version: 2,
-      actorName: 'Lokesh',
+      actorName: '',
     })
     expect(reviewDocumentSchema.safeParse({ action: 'approve', actorName: 'Lokesh' }).success).toBe(false)
   })

@@ -185,6 +185,7 @@ test.describe('complaints @p0', () => {
         message: PHONE_MESSAGE,
         bookingRef: `#${reference(BOOKINGS.complaintDone)}`,
         receivedAt,
+        // A name a panel from before 0058 would send: ignored, the session signs it.
         loggedBy: 'Ravi',
       },
     })
@@ -193,7 +194,7 @@ test.describe('complaints @p0', () => {
     expect(complaint).toMatchObject({
       status: 'open',
       source: 'phone',
-      loggedBy: 'Ravi',
+      loggedBy: 'E2E Admin',
       receivedAt,
       customer: { id: CUSTOMERS.complaints.id, name: CUSTOMERS.complaints.name, accountDeleted: false },
       booking: { id: BOOKINGS.complaintDone, reference: reference(BOOKINGS.complaintDone) },
@@ -205,7 +206,7 @@ test.describe('complaints @p0', () => {
 
     // A number with no account keeps the name typed, and needs one.
     const nameless = await admin.ctx.request.post(ADMIN_COMPLAINTS, {
-      data: { phone: NO_ACCOUNT_PHONE, source: 'whatsapp', category: 'other', message: PHONE_MESSAGE, loggedBy: 'Ravi' },
+      data: { phone: NO_ACCOUNT_PHONE, source: 'whatsapp', category: 'other', message: PHONE_MESSAGE },
     })
     expect(nameless.status()).toBe(400)
     expect((await nameless.json()).code).toBe('COMPLAINT_NAME_REQUIRED')
@@ -216,7 +217,6 @@ test.describe('complaints @p0', () => {
         source: 'in_person',
         category: 'other',
         message: PHONE_MESSAGE,
-        loggedBy: 'Ravi',
       },
     })
     expect(named.status()).toBe(201)
@@ -247,7 +247,7 @@ test.describe('complaints @p0', () => {
 
     // Only the team logs complaints this way.
     const refused = await customer.ctx.request.post(ADMIN_COMPLAINTS, {
-      data: { phone: CUSTOMERS.complaints.phone, source: 'phone', category: 'other', message: PHONE_MESSAGE, loggedBy: 'Me' },
+      data: { phone: CUSTOMERS.complaints.phone, source: 'phone', category: 'other', message: PHONE_MESSAGE },
     })
     expect([401, 403]).toContain(refused.status())
 

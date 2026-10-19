@@ -14,6 +14,7 @@ import {
   useSavePayoutAccount,
 } from '@repo/core/api/hooks/use-admin-payouts'
 import { istDateTimeLabel } from '@repo/core/ist-input'
+import { SignedAs } from '@/components/signed-as'
 
 /** Same shapes as the API (lib/payouts.ts). */
 const ACCOUNT_NUMBER = /^[0-9]{9,18}$/
@@ -97,7 +98,6 @@ function PayoutAccountForm({
   const save = useSavePayoutAccount(vendorId)
   const remove = useRemovePayoutAccount(vendorId)
   const [draft, setDraft] = useState<Draft>(() => draftOf(account))
-  const [actorName, setActorName] = useState('')
   const [error, setError] = useState('')
   const set = (key: keyof Draft) => (value: string) =>
     setDraft((d) => ({ ...d, [key]: value }))
@@ -107,7 +107,7 @@ function PayoutAccountForm({
   const busy = save.isPending || remove.isPending
 
   const submit = () => {
-    if (problem || actorName.trim().length < 2) return
+    if (problem) return
     setError('')
     save.mutate(
       {
@@ -115,7 +115,6 @@ function PayoutAccountForm({
         accountNumber: draft.accountNumber.replace(/\s+/g, '') || null,
         ifsc: draft.ifsc.trim().toUpperCase() || null,
         upiId: draft.upiId.trim() || null,
-        actorName: actorName.trim(),
       },
       {
         onSuccess: () => toast.success('Payout details saved'),
@@ -164,12 +163,7 @@ function PayoutAccountForm({
         autoComplete="off"
         spellCheck={false}
       />
-      <ScField
-        label="Your name"
-        value={actorName}
-        onChange={setActorName}
-        autoComplete="name"
-      />
+      <SignedAs />
       {changed && problem && (
         <p className="text-[12px] text-error">{problem}</p>
       )}
@@ -188,9 +182,7 @@ function PayoutAccountForm({
         <ScButton
           variant="secondary"
           onClick={submit}
-          disabled={
-            !changed || Boolean(problem) || actorName.trim().length < 2 || busy
-          }
+          disabled={!changed || Boolean(problem) || busy}
           className="min-h-11"
           fullWidth={false}
         >

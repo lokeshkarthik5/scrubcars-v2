@@ -87,7 +87,6 @@ export interface QualityCheckInput {
   checkerName: string
   result: 'pass' | 'fail'
   notes: string | null
-  actorName: string
 }
 
 const adminBase = (vendorId: string) => `/admin/certification/vendors/${vendorId}`
@@ -103,14 +102,14 @@ export function recordQualityCheck(vendorId: string, input: QualityCheckInput): 
   })
 }
 
-export function certifyGarage(vendorId: string, actorName: string): Promise<AdminCertification> {
+export function certifyGarage(vendorId: string): Promise<AdminCertification> {
   return apiClient<AdminCertification>(`${adminBase(vendorId)}/certify`, {
     method: 'POST',
-    body: JSON.stringify({ actorName }),
+    body: JSON.stringify({}),
   })
 }
 
-export function revokeCertification(vendorId: string, input: { actorName: string; reason: string }): Promise<AdminCertification> {
+export function revokeCertification(vendorId: string, input: { reason: string }): Promise<AdminCertification> {
   return apiClient<AdminCertification>(`${adminBase(vendorId)}/revoke`, {
     method: 'POST',
     body: JSON.stringify(input),

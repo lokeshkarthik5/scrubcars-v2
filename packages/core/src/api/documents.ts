@@ -152,10 +152,10 @@ export function getAdminGarageDocuments(vendorId: string): Promise<AdminGarageDo
   return apiClient<AdminGarageDocuments>(adminBase(vendorId))
 }
 
-/** Uploads on the garage's behalf, with the admin's name, approved at once if they say so. */
+/** Uploads on the garage's behalf, signed with the admin's name, approved at once if they say so. */
 export async function uploadAdminGarageDocument(
   vendorId: string,
-  input: DocumentUpload & { actorName: string; approve: boolean }
+  input: DocumentUpload & { approve: boolean }
 ): Promise<AdminGarageDocument> {
   const files = await uploadFiles(adminBase(vendorId), input.type, input.files)
   return apiClient<AdminGarageDocument>(adminBase(vendorId), {
@@ -164,15 +164,14 @@ export async function uploadAdminGarageDocument(
       type: input.type,
       files,
       expiresOn: input.expiresOn || null,
-      actorName: input.actorName,
       approve: input.approve,
     }),
   })
 }
 
 export type DocumentReview =
-  | { action: 'approve'; version: number; actorName: string }
-  | { action: 'reject'; version: number; actorName: string; reason: string }
+  | { action: 'approve'; version: number }
+  | { action: 'reject'; version: number; reason: string }
 
 export function reviewAdminGarageDocument(
   vendorId: string,

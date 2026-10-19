@@ -191,20 +191,20 @@ export function getAdminChallengeResults(id: string) {
   )
 }
 
-export function createAdminChallenge(payload: ChallengeFormValues & { actorName: string }) {
+export function createAdminChallenge(payload: ChallengeFormValues) {
   return apiClient<AdminChallengeDetail>('/admin/rewards/challenges', { method: 'POST', body: JSON.stringify(payload) })
 }
 
-export function updateAdminChallenge(id: string, payload: ChallengeFormValues & { actorName: string }) {
+export function updateAdminChallenge(id: string, payload: ChallengeFormValues) {
   return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
 }
 
-export function publishAdminChallenge(id: string, actorName: string) {
-  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/publish`, { method: 'POST', body: JSON.stringify({ actorName }) })
+export function publishAdminChallenge(id: string) {
+  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/publish`, { method: 'POST', body: JSON.stringify({}) })
 }
 
-export function endAdminChallenge(id: string, actorName: string) {
-  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/end`, { method: 'POST', body: JSON.stringify({ actorName }) })
+export function endAdminChallenge(id: string) {
+  return apiClient<AdminChallengeDetail>(`/admin/rewards/challenges/${id}/end`, { method: 'POST', body: JSON.stringify({}) })
 }
 
 export function getAdminWrappedStats(year: number) {

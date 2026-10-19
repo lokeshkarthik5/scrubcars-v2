@@ -97,14 +97,14 @@ export function listAdminBypassReports(show: AdminBypassFilter): Promise<AdminBy
   return apiClient<AdminBypassList>('/admin/bypass-reports', { params: { show } })
 }
 
-export function confirmBypassReport(id: string, input: { actorName: string }): Promise<AdminBypassReport> {
+export function confirmBypassReport(id: string): Promise<AdminBypassReport> {
   return apiClient<AdminBypassReport>(`/admin/bypass-reports/${id}/confirm`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({}),
   })
 }
 
-export function dismissBypassReport(id: string, input: { actorName: string; reason: string }): Promise<AdminBypassReport> {
+export function dismissBypassReport(id: string, input: { reason: string }): Promise<AdminBypassReport> {
   return apiClient<AdminBypassReport>(`/admin/bypass-reports/${id}/dismiss`, {
     method: 'POST',
     body: JSON.stringify(input),

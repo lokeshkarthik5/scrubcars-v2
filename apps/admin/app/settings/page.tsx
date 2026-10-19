@@ -1,7 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { IconBell, IconChevronRight, IconTrash } from '@tabler/icons-react'
+import {
+  IconBell,
+  IconChevronRight,
+  IconTrash,
+  IconUsers,
+} from '@tabler/icons-react'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { cn } from '@repo/core/utils'
 import { PageHeader } from '@repo/ui/sc/page-header'
@@ -70,6 +75,12 @@ export default function SettingsPage() {
         >
           Team
         </h2>
+        <SettingsLink
+          href="/settings/team"
+          icon={IconUsers}
+          title="Team logins"
+          body="A login for each person, so every action is signed."
+        />
         <SettingsLink
           href="/alerts"
           icon={IconBell}

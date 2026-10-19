@@ -1,6 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { authMiddleware, requireSuperAdmin, type AuthVariables } from '../../middleware/auth.middleware.js'
+import { authMiddleware, requireSuperAdmin, type AuthVariables, adminSignedJson } from '../../middleware/auth.middleware.js'
 import { rewardsMasterOn, rewardsOn } from '../rewards/rewards.guards.js'
 import * as controller from './reward-extras.controller.js'
 import {
@@ -47,7 +47,7 @@ const admin = [rewardsMasterOn, authMiddleware, requireSuperAdmin] as const
 
 adminRewardExtrasRoutes.get('/achievements', ...admin, controller.adminAchievements)
 adminRewardExtrasRoutes.get('/challenges', ...admin, controller.adminChallenges)
-adminRewardExtrasRoutes.post('/challenges', ...admin, zValidator('json', challengeSchema), (c) =>
+adminRewardExtrasRoutes.post('/challenges', ...admin, adminSignedJson(challengeSchema), (c) =>
   controller.createChallenge(c, c.req.valid('json'))
 )
 adminRewardExtrasRoutes.get('/challenges/:id', ...admin, zValidator('param', challengeIdParamSchema), (c) =>
@@ -57,21 +57,21 @@ adminRewardExtrasRoutes.put(
   '/challenges/:id',
   ...admin,
   zValidator('param', challengeIdParamSchema),
-  zValidator('json', challengeSchema),
+  adminSignedJson(challengeSchema),
   (c) => controller.updateChallenge(c, c.req.valid('param').id, c.req.valid('json'))
 )
 adminRewardExtrasRoutes.post(
   '/challenges/:id/publish',
   ...admin,
   zValidator('param', challengeIdParamSchema),
-  zValidator('json', challengeActionSchema),
+  adminSignedJson(challengeActionSchema),
   (c) => controller.publishChallenge(c, c.req.valid('param').id, c.req.valid('json').actorName)
 )
 adminRewardExtrasRoutes.post(
   '/challenges/:id/end',
   ...admin,
   zValidator('param', challengeIdParamSchema),
-  zValidator('json', challengeActionSchema),
+  adminSignedJson(challengeActionSchema),
   (c) => controller.endChallenge(c, c.req.valid('param').id, c.req.valid('json').actorName)
 )
 adminRewardExtrasRoutes.get('/challenges/:id/results', ...admin, zValidator('param', challengeIdParamSchema), (c) =>

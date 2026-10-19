@@ -190,11 +190,11 @@ export function getAdminGaragePulls(month?: string) {
   return apiClient<{ month: string; rows: AdminGaragePullRow[] }>('/admin/rewards/garage/pulls', { params: { month } })
 }
 
-export function updateAdminGarageSeries(id: string, payload: { name: string; status: SeriesStatus; startsAt: string | null; endsAt: string | null; actorName: string }) {
+export function updateAdminGarageSeries(id: string, payload: { name: string; status: SeriesStatus; startsAt: string | null; endsAt: string | null }) {
   return apiClient<AdminGarageOverview>(`/admin/rewards/garage/series/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
 }
 
-export function updateAdminGarageCar(id: string, payload: GarageCarEdit & { actorName: string }) {
+export function updateAdminGarageCar(id: string, payload: GarageCarEdit) {
   return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
 }
 
@@ -205,15 +205,15 @@ export function garageArtUploadUrl(id: string, sizeBytes: number) {
   })
 }
 
-export function submitGarageArtUpload(id: string, payload: { key: string; actorName: string }) {
+export function submitGarageArtUpload(id: string, payload: { key: string }) {
   return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/upload`, { method: 'POST', body: JSON.stringify(payload) })
 }
 
-export function resetGarageArt(id: string, actorName: string) {
-  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/reset`, { method: 'POST', body: JSON.stringify({ actorName }) })
+export function resetGarageArt(id: string) {
+  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/reset`, { method: 'POST', body: JSON.stringify({}) })
 }
 
-export function giveGarageCard(userId: string, payload: { actorName: string; reason: string }) {
+export function giveGarageCard(userId: string, payload: { reason: string }) {
   return apiClient<{ pullId: string; number: number; name: string; rarity: GarageRarity; duplicate: boolean }>(`/admin/rewards/garage/customers/${userId}/pull`, {
     method: 'POST',
     body: JSON.stringify(payload),

@@ -153,7 +153,7 @@ test.describe('refunds @p0', () => {
     const payment = await getPayment(id)
     expect(payment?.refunded_amount).toBe('499.00')
     expect(payment?.refund_ref).toBe(REFUND_ID)
-    expect(payment?.refunded_by).toBe('admin')
+    expect(payment?.refunded_by).toBe('E2E Admin')
     expect(payment?.refunded_at).not.toBeNull()
     expect(payment?.refund_note).toBe('Refunded after the call')
     // And the booking's notes say so, as every ops action does.
@@ -169,7 +169,7 @@ test.describe('refunds @p0', () => {
       .getByRole('listitem')
       .filter({ has: page.getByRole('link', { name: `Open booking #${ref}` }) })
     await expect(done.getByText(REFUND_ID)).toBeVisible()
-    await expect(done.getByText('by admin')).toBeVisible()
+    await expect(done.getByText('by E2E Admin')).toBeVisible()
 
     // A second record of the same refund is refused, not added on.
     const again = await ctx.request.post(REFUNDS, {
@@ -239,14 +239,14 @@ test.describe('refunds @p0', () => {
     const payment = await getPayment(id)
     expect(payment?.refunded_amount).toBe('499.00')
     expect(payment?.refund_ref).toMatch(/^rfnd_e2e_[0-9a-f]{32}$/)
-    expect(payment?.refunded_by).toBe('admin')
-    expect(payment?.refund_note).toBe('Sent through Razorpay from the app by admin.')
+    expect(payment?.refunded_by).toBe('E2E Admin')
+    expect(payment?.refund_note).toBe('Sent through Razorpay from the app by E2E Admin.')
     expect(await refundRecordsFor(id)).toEqual([
       {
         kind: 'booking',
         amount: '499.00',
         refund_ref: payment?.refund_ref ?? null,
-        recorded_by: 'admin',
+        recorded_by: 'E2E Admin',
         source: 'admin',
         gateway_status: 'pending',
       },

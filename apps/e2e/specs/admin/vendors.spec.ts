@@ -141,7 +141,6 @@ test.describe('admin vendors', () => {
       `${API}/api/v1/admin/vendors/${VENDORS.capacity.id}`,
       {
         data: {
-          actorName: 'E2E Admin',
           confirmName: VENDORS.capacity.name,
           selectionHash: 'a'.repeat(64),
         },

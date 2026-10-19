@@ -8,6 +8,12 @@ export type AccessTokenPayload = {
   aud: TokenAudience
   isCustomer: boolean
   isVendorOwner: boolean
+  /**
+   * When the token was minted, in milliseconds (`iat` is only to the
+   * second). Only admin tokens carry it: a personal admin login refuses one
+   * minted before its `sessions_from`.
+   */
+  mintedAt?: number
 }
 
 type JwtPayload = AccessTokenPayload & {
@@ -61,17 +67,21 @@ export async function signAccessToken(
 // mapping table per request, so a grant can be revoked without waiting out a
 // token. This is the break-glass path — do not retire it in the same deploy
 // that moves /admin onto the mapping table.
-export async function signAdminToken(): Promise<string> {
-  const exp = Math.floor(
-    Date.now() / 1000 + parseExpiryToSeconds(env.adminTokenExpiresIn)
-  )
+//
+// A personal admin login (0058) gets the same token with its own subject,
+// 'admin:<id>' (lib/admin-actor.ts), checked against admin_logins per
+// request, so turning it off or resetting its password ends it at once.
+export async function signAdminToken(sub = 'admin'): Promise<string> {
+  const mintedAt = Date.now()
+  const exp = Math.floor(mintedAt / 1000) + parseExpiryToSeconds(env.adminTokenExpiresIn)
 
   return sign(
     {
-      sub: 'admin',
+      sub,
       aud: 'customer',
       isCustomer: false,
       isVendorOwner: false,
+      mintedAt,
       exp,
     },
     env.jwtSecret
@@ -88,5 +98,6 @@ export async function verifyAccessToken(
     aud: payload.aud,
     isCustomer: payload.isCustomer,
     isVendorOwner: payload.isVendorOwner,
+    ...(typeof payload.mintedAt === 'number' ? { mintedAt: payload.mintedAt } : {}),
   }
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { GIFT_BUY_DESIGNS, GIFT_MAX_AMOUNT, GIFT_MIN_AMOUNT, giftDesignToStore } from '../../lib/gift-credit.js'
 
 export const giftIdParamSchema = z.object({ id: z.uuid() })
@@ -35,7 +36,7 @@ export const verifyGiftSchema = z
 /** A code as typed or linked; normalised and checked by lib/gift-credit.ts. */
 export const giftCodeSchema = z.object({ code: z.string().min(1).max(40) }).strict()
 
-const actorName = z.string().trim().min(2, 'Type your name').max(100)
+const actorName = signedActorName
 
 export const cancelGiftSchema = z
   .object({ actorName, reason: z.string().trim().min(3, 'Say why').max(300) })

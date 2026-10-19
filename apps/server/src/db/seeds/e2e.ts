@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../index.js'
 import {
   adminAuditLog,
+  adminLogins,
   bookingCharges,
   bookingIntentItems,
   bookingIntents,
@@ -84,7 +85,9 @@ import {
   SERVICE_REMINDERS,
   CONTACT_DOORSTEP,
   CONTACT_GARAGE,
+  ADMIN_LOGINS,
 } from './e2e-ids.js'
+import { hashPassword } from '../../lib/passwords.js'
 
 // ─── time helpers ───────────────────────────────────────────────────────────
 
@@ -2614,6 +2617,28 @@ async function seedTodayRows() {
   })
 }
 
+/**
+ * Personal admin logins (0058; ADMIN_LOGINS, ids 4100–4149): the panel's
+ * own E2E session and the team-logins spec's logins. Hashed here, as the
+ * panel would, so signing in checks a real hash.
+ */
+async function seedAdminLoginRows() {
+  const longAgo = daysAgo(30)
+  for (const login of Object.values(ADMIN_LOGINS)) {
+    await db.insert(adminLogins).values({
+      id: login.id,
+      username: login.username,
+      name: login.name,
+      passwordHash: await hashPassword(login.password),
+      status: login === ADMIN_LOGINS.off ? 'off' : 'active',
+      sessionsFrom: longAgo,
+      createdByName: 'E2E seed',
+      createdAt: longAgo,
+      updatedAt: longAgo,
+    })
+  }
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2672,6 +2697,8 @@ async function main() {
   console.log('[e2e-seed] six-tap checkout…')
   await seedSixTapRows()
   await seedTodayRows()
+  console.log('[e2e-seed] admin logins…')
+  await seedAdminLoginRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

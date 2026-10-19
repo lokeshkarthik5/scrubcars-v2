@@ -47,7 +47,7 @@ test.describe('service sample pictures', () => {
        where service_id = ${SERVICES.mediaAi.id}
     `
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ source: 'ai', kind: 'image', uploaded_by: 'admin' })
+    expect(rows[0]).toMatchObject({ source: 'ai', kind: 'image', uploaded_by: 'E2E Admin' })
     // Moved out of the temp prefix, which a lifecycle rule empties.
     expect(rows[0].storage_key).toMatch(
       new RegExp(`^vendors/${VENDORS.media.id}/services/${SERVICES.mediaAi.id}/`)

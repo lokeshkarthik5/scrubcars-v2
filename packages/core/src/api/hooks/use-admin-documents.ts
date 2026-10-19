@@ -59,7 +59,7 @@ export function useReviewDocument(vendorId: string) {
 export function useUploadAdminDocument(vendorId: string) {
   const refresh = useRefresh(vendorId)
   return useMutation({
-    mutationFn: (input: DocumentUpload & { actorName: string; approve: boolean }) =>
+    mutationFn: (input: DocumentUpload & { approve: boolean }) =>
       uploadAdminGarageDocument(vendorId, input),
     onSettled: refresh,
   })

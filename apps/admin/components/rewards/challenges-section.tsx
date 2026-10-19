@@ -32,7 +32,7 @@ import { LEVELS, DEFAULT_REWARDS_SETTINGS } from '@repo/core/rewards'
 import { downloadCsv } from '@repo/core/csv'
 import { formatDay, formatWhen } from '@repo/core/format'
 import { formatRupees } from '@/lib/bookings'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import {
   CHALLENGE_STATUS_LABELS,
   challengeFormProblems,
@@ -204,7 +204,6 @@ function ChallengeDetail({
   const detail = useAdminChallenge(id)
   const publish = usePublishChallenge(id)
   const end = useEndChallenge(id)
-  const [name, setName] = useState(rememberedName)
   const [downloading, setDownloading] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
   const [endError, setEndError] = useState('')
@@ -220,9 +219,7 @@ function ChallengeDetail({
   const { challenge: c, results } = detail.data
 
   const act = () => {
-    if (name.trim().length < 2) return toast.error('Type your name first')
-    rememberName(name.trim())
-    publish.mutate(name.trim(), {
+    publish.mutate(undefined, {
       onSuccess: () => toast.success('Published'),
       onError: (err) => toast.error(errorMessage(err, "Couldn't publish it")),
     })
@@ -250,10 +247,9 @@ function ChallengeDetail({
         open={endOpen}
         onClose={() => setEndOpen(false)}
         onConfirm={async () => {
-          rememberName(name.trim())
           setEndError('')
           try {
-            await end.mutateAsync(name.trim())
+            await end.mutateAsync()
             setEndOpen(false)
             toast.success('Ended')
           } catch (err) {
@@ -333,13 +329,7 @@ function ChallengeDetail({
       </div>
 
       <ScCard className="flex flex-col gap-3 px-4 py-4">
-        <ScInput
-          label="Your name"
-          autoComplete="name"
-          maxLength={100}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <SignedAs />
         <div className="flex flex-col gap-2 sm:flex-row">
           {c.status !== 'finished' && c.status !== 'ended' && (
             <ScButton
@@ -367,8 +357,6 @@ function ChallengeDetail({
               className="h-11 rounded-[8px] sm:ml-auto"
               disabled={end.isPending}
               onClick={() => {
-                if (name.trim().length < 2)
-                  return toast.error('Type your name first')
                 setEndError('')
                 setEndOpen(true)
               }}
@@ -489,7 +477,6 @@ function ChallengeForm({
   const [values, setValues] = useState<ChallengeFormValues>(() =>
     existing ? challengeFormValues(existing) : emptyChallenge()
   )
-  const [name, setName] = useState(rememberedName)
   const set = (patch: Partial<ChallengeFormValues>) =>
     setValues({ ...values, ...patch })
   const problems = challengeFormProblems(values)
@@ -497,9 +484,8 @@ function ChallengeForm({
   const pending = create.isPending || update.isPending
 
   const submit = () => {
-    if (problems.length > 0 || name.trim().length < 2) return
-    rememberName(name.trim())
-    const payload = { ...challengePayload(values), actorName: name.trim() }
+    if (problems.length > 0) return
+    const payload = challengePayload(values)
     const handlers = {
       onSuccess: (data: { challenge: AdminChallenge }) => {
         toast.success(existing ? 'Saved' : 'Saved as a draft')
@@ -717,16 +703,10 @@ function ChallengeForm({
             ))}
           </ul>
         )}
-        <ScInput
-          label="Your name"
-          autoComplete="name"
-          maxLength={100}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <SignedAs />
         <ScButton
           className="min-h-11"
-          disabled={problems.length > 0 || name.trim().length < 2 || pending}
+          disabled={problems.length > 0 || pending}
           onClick={submit}
         >
           {pending ? 'Saving…' : existing ? 'Save changes' : 'Save as a draft'}

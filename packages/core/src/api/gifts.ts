@@ -252,7 +252,7 @@ export function listAdminGifts(status: AdminGiftFilter = 'all') {
   return apiClient<{ gifts: AdminGift[] }>(`/admin/gifts?status=${status}`)
 }
 
-export function cancelAdminGift(giftId: string, payload: { actorName: string; reason: string }) {
+export function cancelAdminGift(giftId: string, payload: { reason: string }) {
   return apiClient<{ gift: SentGift }>(`/admin/gifts/${giftId}/cancel`, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -275,8 +275,8 @@ export function getCustomerCredit(userId: string) {
   return apiClient<AdminCustomerCredit>(`/admin/gifts/credit/customers/${userId}`)
 }
 
-/** A manual adjustment: signed rupees, why, and the name of who made it (audit log). */
-export function adjustCustomerCredit(userId: string, payload: { amount: number; reason: string; actorName: string }) {
+/** A manual adjustment: signed rupees and why; signed with the admin's name (audit log). */
+export function adjustCustomerCredit(userId: string, payload: { amount: number; reason: string }) {
   return apiClient<AdminCustomerCredit>(`/admin/gifts/credit/customers/${userId}/adjust`, {
     method: 'POST',
     body: JSON.stringify(payload),

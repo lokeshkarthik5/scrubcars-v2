@@ -109,7 +109,6 @@ export function logComplaintProblems(
     message: string
     bookingRef: string
     receivedAt: string | null
-    loggedBy: string
   },
   now: Date
 ): string[] {
@@ -136,6 +135,5 @@ export function logComplaintProblems(
       problems.push(`It can be dated at most ${MAX_RECEIVED_DAYS_BACK} days back.`)
     }
   }
-  if (form.loggedBy.trim().length < 2) problems.push('Type your name.')
   return problems
 }

@@ -13,7 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AUTH_DIR, saveAdminState, saveState } from './support/auth'
 import { closeDb } from './support/db'
-import { CUSTOMERS, STAFF } from './support/seed-ids'
+import { ADMIN, CUSTOMERS, STAFF } from './support/seed-ids'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 loadEnv({ path: path.join(dir, '.env.e2e') })
@@ -58,6 +58,7 @@ async function globalSetup() {
   await saveState('vendor-operator', STAFF.operator.phone, 'vendor')
   await saveState('super-admin', STAFF.superAdmin.phone, 'vendor')
   await saveAdminState('admin')
+  await saveAdminState('admin-shared', ADMIN)
 
   await closeDb()
   console.log('[e2e] ready.')

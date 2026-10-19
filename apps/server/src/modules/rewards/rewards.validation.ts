@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { GARAGE_RARITIES } from '../../lib/garage.js'
 import { BADGE_KEYS, LEVELS, REWARDS_FIXED, SCRATCH_OUTCOMES, SETTINGS_LIMITS } from '../../lib/rewards.js'
 
@@ -29,7 +30,7 @@ export const findCustomerSchema = z
 
 /**
  * A team adjustment: stamps on or off the card, a voucher, or cancelling an
- * unspent voucher; always why, and the typed name.
+ * unspent voucher; always why, signed by the session (0058).
  */
 export const adjustRewardsSchema = z
   .object({
@@ -38,7 +39,7 @@ export const adjustRewardsSchema = z
     amount: z.number().int().min(1).max(REWARDS_FIXED.maxAdjustmentVoucher).optional(),
     voucherId: z.uuid().optional(),
     reason: z.string().trim().min(3, 'Say why').max(300),
-    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    actorName: signedActorName,
   })
   .strict()
   .refine(
@@ -142,7 +143,7 @@ export const saveSettingsSchema = z
   .object({
     version: z.number().int().min(0),
     settings: rewardsSettingsSchema,
-    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    actorName: signedActorName,
   })
   .strict()
 

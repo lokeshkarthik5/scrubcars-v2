@@ -272,7 +272,6 @@ export function getAdminClaim(id: string) {
 
 export interface DecideClaimInput {
   decision: 'redo' | 'refund' | 'reject'
-  actorName: string
   reason?: string
   note?: string
 }

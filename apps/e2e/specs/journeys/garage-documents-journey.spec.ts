@@ -187,7 +187,6 @@ test.describe.serial('garage documents @p0', () => {
     expect(signed.frame().page()).toBe(tab)
     await tab.close()
 
-    await panel.getByLabel('Your name').fill('E2E Admin')
     for (const { label } of REQUIRED) {
       const group = panel.getByRole('group', { name: label, exact: true })
       await group.getByRole('button', { name: 'Approve' }).click()

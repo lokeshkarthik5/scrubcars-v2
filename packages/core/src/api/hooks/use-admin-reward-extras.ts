@@ -52,19 +52,19 @@ function useChallengeWrite<T>(mutationFn: (input: T) => Promise<AdminChallengeDe
 }
 
 export function useCreateChallenge() {
-  return useChallengeWrite((payload: ChallengeFormValues & { actorName: string }) => createAdminChallenge(payload))
+  return useChallengeWrite((payload: ChallengeFormValues) => createAdminChallenge(payload))
 }
 
 export function useUpdateChallenge(id: string) {
-  return useChallengeWrite((payload: ChallengeFormValues & { actorName: string }) => updateAdminChallenge(id, payload))
+  return useChallengeWrite((payload: ChallengeFormValues) => updateAdminChallenge(id, payload))
 }
 
 export function usePublishChallenge(id: string) {
-  return useChallengeWrite((actorName: string) => publishAdminChallenge(id, actorName))
+  return useChallengeWrite<void>(() => publishAdminChallenge(id))
 }
 
 export function useEndChallenge(id: string) {
-  return useChallengeWrite((actorName: string) => endAdminChallenge(id, actorName))
+  return useChallengeWrite<void>(() => endAdminChallenge(id))
 }
 
 export function useAdminWrappedStats(year: number, enabled: boolean) {

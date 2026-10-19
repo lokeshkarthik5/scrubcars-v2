@@ -6,7 +6,6 @@ import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
-import { ScInput } from '@repo/ui/sc/input'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { Skeleton } from '@repo/ui/sc/skeleton'
 import { ApiError } from '@repo/core/api/client'
@@ -15,7 +14,8 @@ import {
   sendTelegramTestAlert,
   type TelegramAlertStatus,
 } from '@repo/core/api/admin'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { useAdminMe } from '@repo/core/api/hooks/use-admin-logins'
+import { SignedAs } from '@/components/signed-as'
 
 type Result = { ok: boolean; text: string }
 
@@ -29,7 +29,7 @@ type Result = { ok: boolean; text: string }
 export default function AlertsPage() {
   const [status, setStatus] = useState<TelegramAlertStatus | null>(null)
   const [failed, setFailed] = useState(false)
-  const [name, setName] = useState(rememberedName)
+  const { data: me } = useAdminMe()
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
 
@@ -55,16 +55,10 @@ export default function AlertsPage() {
   }
 
   const send = async () => {
-    const actorName = name.trim()
-    if (actorName.length < 2) {
-      setResult({ ok: false, text: 'Type your name first.' })
-      return
-    }
-    rememberName(actorName)
     setSending(true)
     setResult(null)
     try {
-      await sendTelegramTestAlert(actorName)
+      await sendTelegramTestAlert()
       setResult({
         ok: true,
         text: 'Sent. Check the team’s Telegram group for the test message.',
@@ -121,14 +115,7 @@ export default function AlertsPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <ScInput
-              id="alert-test-name"
-              label="Your name"
-              autoComplete="name"
-              maxLength={60}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <SignedAs />
             <ScButton
               variant="secondary"
               fullWidth={false}
@@ -142,7 +129,7 @@ export default function AlertsPage() {
               </span>
             </ScButton>
             <p className="text-[12px] text-text-muted">
-              Posts “✅ Detlio test alert from {name.trim() || 'your name'}” to
+              Posts “✅ Detlio test alert from {me?.name ?? 'your name'}” to
               the team’s group.
             </p>
           </div>

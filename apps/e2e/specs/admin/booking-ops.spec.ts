@@ -114,9 +114,9 @@ test.describe('admin bookings @p0', () => {
     await page.getByRole('button', { name: 'Add note' }).click()
     await expect(page.getByText(body)).toBeVisible()
 
-    // Persisted, and signed by the break-glass session the admin state uses.
+    // Persisted, and signed by the personal E2E login the admin state uses (0058).
     await expect.poll(async () => (await bookingNotes(id))[0]?.body).toBe(body)
-    expect((await bookingNotes(id))[0].author).toBe('admin')
+    expect((await bookingNotes(id))[0].author).toBe('E2E Admin')
 
     await page.reload()
     await expect(page.getByText(body)).toBeVisible()

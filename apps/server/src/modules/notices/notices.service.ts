@@ -9,18 +9,19 @@ import type {
   ListNoticesQuery,
   UpdateNoticeInput,
 } from './notices.validation.js'
+import { adminSubjectName } from '../admin-logins/admin-logins.service.js'
 
 const log = logger.child({ module: 'notices' })
 
-/** The subject minted by the break-glass admin login, which has no users row. */
-const BREAK_GLASS_SUBJECT = 'admin'
 
 /**
  * Who wrote a notice, as a name. The shared break-glass login signs as
- * 'admin', a named super-admin as themselves.
+ * 'admin', a personal admin login (0058) with its name, a named super-admin
+ * as themselves.
  */
 async function resolveActorName(sub: string): Promise<string> {
-  if (sub === BREAK_GLASS_SUBJECT) return 'admin'
+  const adminName = await adminSubjectName(sub)
+  if (adminName) return adminName
   const user = await noticesRepository.findUserById(sub)
   return (user?.name.trim() || user?.phone || sub).slice(0, 100)
 }

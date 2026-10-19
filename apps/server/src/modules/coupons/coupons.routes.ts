@@ -5,6 +5,7 @@ import {
   optionalAuthMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { couponCodeRateLimiter } from '../../middleware/rate-limit.middleware.js'
 import * as couponsController from './coupons.controller.js'
@@ -64,7 +65,7 @@ adminCouponRoutes.use('*', authMiddleware, requireSuperAdmin)
 
 adminCouponRoutes.get('/config', couponsController.adminConfig)
 adminCouponRoutes.get('/batches', couponsController.listBatches)
-adminCouponRoutes.post('/batches', zValidator('json', createBatchSchema), (c) =>
+adminCouponRoutes.post('/batches', adminSignedJson(createBatchSchema), (c) =>
   couponsController.createBatch(c, c.req.valid('json'))
 )
 adminCouponRoutes.get('/batches/:id', zValidator('param', batchIdParamSchema), (c) =>
@@ -79,12 +80,12 @@ adminCouponRoutes.get('/batches/:id/redemptions', zValidator('param', batchIdPar
 adminCouponRoutes.post(
   '/batches/:id/void',
   zValidator('param', batchIdParamSchema),
-  zValidator('json', voidBatchSchema),
+  adminSignedJson(voidBatchSchema),
   (c) => couponsController.voidBatch(c, c.req.valid('param').id, c.req.valid('json'))
 )
 adminCouponRoutes.post(
   '/batches/:id/codes/void',
   zValidator('param', batchIdParamSchema),
-  zValidator('json', voidCodeSchema),
+  adminSignedJson(voidCodeSchema),
   (c) => couponsController.voidCode(c, c.req.valid('param').id, c.req.valid('json'))
 )
