@@ -4,15 +4,17 @@ import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-toastify'
-import { IconMapPin } from '@tabler/icons-react'
+import { IconAlertTriangle, IconMapPin } from '@tabler/icons-react'
 import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { ScSection } from '@repo/ui/sc/section'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { ScSwitch } from '@repo/ui/sc/switch'
+import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import type { AdminBookingDetail } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
@@ -44,6 +46,7 @@ import {
 import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
+import { formatMoney } from '@/lib/format'
 import {
   bookingsListHref,
   canCancel,
@@ -54,7 +57,11 @@ import {
   formatWhen,
   paymentStatusLabel,
 } from '@/lib/bookings'
-import { CancelBookingDialog, NoShowDialog, PickupStepDialog } from './booking-actions'
+import {
+  CancelBookingDialog,
+  NoShowDialog,
+  PickupStepDialog,
+} from './booking-actions'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { MAX_CODE_ATTEMPTS } from '@repo/core/pickup'
 import type { BookingType } from '@repo/core/types'
@@ -154,7 +161,8 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
         : 'with the customer’s code',
     })
   }
-  if (pickup?.atGarageAt) steps.push({ label: 'At the garage', at: pickup.atGarageAt })
+  if (pickup?.atGarageAt)
+    steps.push({ label: 'At the garage', at: pickup.atGarageAt })
   if (b.startedAt || b.status === 'in_progress' || b.status === 'completed') {
     steps.push({ label: 'Started', at: b.startedAt })
   }
@@ -208,7 +216,9 @@ function buildTimeline(b: AdminBookingDetail): TimelineStep[] {
       label: (
         <>
           Refunded{' '}
-          <span className="font-numeric">{formatRupees(refund.amountRefunded)}</span>
+          <span className="font-numeric">
+            {formatRupees(refund.amountRefunded)}
+          </span>
           {refund.kind === 'bill' ? ' of a final bill payment' : ''}
         </>
       ),
@@ -270,15 +280,55 @@ function TestBookingSection({
   const { data: resetConfig } = useDataResetConfig()
   const marked = Boolean(b.markedTest)
 
-  const change = (next: boolean) =>
+  // Marking changes the pilot numbers, so it is confirmed first and the
+  // sheet names what happens (safe actions, level 2). Unmarking puts the
+  // booking back in the numbers at once, with an Undo that marks it again.
+  const [confirming, setConfirming] = useState(false)
+  const livePaid =
+    b.payment?.status === 'paid' && b.payment.gatewayMode === 'live'
+
+  const mark = () =>
+    setMark
+      .mutateAsync(
+        { id: b.id, marked: true },
+        {
+          onSuccess: () => {
+            setConfirming(false)
+            toast.success(`#${b.reference} marked as a test booking`)
+          },
+          onError: (err) =>
+            toast.error(errorMessage(err, "Couldn't change the test mark")),
+        }
+      )
+      .then(
+        () => undefined,
+        () => undefined
+      )
+
+  const unmark = () =>
     setMark.mutate(
-      { id: b.id, marked: next },
+      { id: b.id, marked: false },
       {
         onSuccess: () =>
-          toast.success(next ? `#${b.reference} marked as a test booking` : 'Test mark removed'),
-        onError: (err) => toast.error(errorMessage(err, "Couldn't change the test mark")),
+          showUndoToast(
+            'Test mark removed. It counts in the pilot numbers again.',
+            {
+              onUndo: () =>
+                setMark.mutate(
+                  { id: b.id, marked: true },
+                  {
+                    onError: (err) =>
+                      toast.error(errorMessage(err, "Couldn't mark it again")),
+                  }
+                ),
+            }
+          ),
+        onError: (err) =>
+          toast.error(errorMessage(err, "Couldn't change the test mark")),
       }
     )
+
+  const change = (next: boolean) => (next ? setConfirming(true) : unmark())
 
   return (
     <ScSection title="Test booking">
@@ -303,6 +353,45 @@ function TestBookingSection({
           Delete test booking…
         </ScButton>
       )}
+      <ConfirmSheet
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={mark}
+        level="firm"
+        title={`Mark #${b.reference} as a test booking?`}
+        confirmLabel="Mark as test"
+        cancelLabel="Keep as real"
+        busy={setMark.isPending}
+        body={
+          <div className="flex flex-col gap-2.5">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-[12px] border border-border px-3 py-2.5 text-[13px]">
+              <dt className="text-text-secondary">Customer</dt>
+              <dd className="text-text-primary">{b.customer?.name ?? '—'}</dd>
+              <dt className="text-text-secondary">Paid</dt>
+              <dd className="text-text-primary">
+                {b.payment?.status === 'paid'
+                  ? `${formatMoney(b.payment.amount ?? b.amount)} · ${livePaid ? 'Razorpay live' : 'test mode'}`
+                  : paymentStatusLabel(b.payment?.status)}
+              </dd>
+            </dl>
+            {livePaid && (
+              <p className="flex gap-2 text-tone-attention-text">
+                <IconAlertTriangle
+                  size={18}
+                  aria-hidden="true"
+                  className="mt-0.5 shrink-0"
+                />
+                <span>
+                  This was paid with <strong>real money</strong>. Test bookings
+                  are usually paid in test mode.
+                </span>
+              </p>
+            )}
+            <p>It leaves Statistics and the pilot numbers.</p>
+            <p>You can unmark it any time from this page.</p>
+          </div>
+        }
+      />
     </ScSection>
   )
 }
@@ -348,7 +437,10 @@ function BookingDetail({
   const pickupOverride: 'picked_up' | 'delivered' | null =
     b.pickup && b.status === 'confirmed' && !b.pickup.pickedUpAt
       ? 'picked_up'
-      : b.pickup && b.status === 'in_progress' && b.pickup.outForDeliveryAt && !b.pickup.deliveredAt
+      : b.pickup &&
+          b.status === 'in_progress' &&
+          b.pickup.outForDeliveryAt &&
+          !b.pickup.deliveredAt
         ? 'delivered'
         : null
   const directions =
@@ -382,13 +474,18 @@ function BookingDetail({
             <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
               {b.markedTest && <TestBadge />}
               {/* Detlio Guarantee (0051): a free redo, or refunded instead of one. */}
-              {b.guaranteeRedo && <ScBadge variant="accent">Free redo · ₹0</ScBadge>}
-              {b.guaranteeRefundAt && <ScBadge variant="accent">Refund instead of a redo</ScBadge>}
-              {(b.payment?.gatewayMode === 'test' || b.payment?.gatewayMode === 'fake') && (
-                <TestModePaymentBadge />
+              {b.guaranteeRedo && (
+                <ScBadge variant="accent">Free redo · ₹0</ScBadge>
               )}
+              {b.guaranteeRefundAt && (
+                <ScBadge variant="accent">Refund instead of a redo</ScBadge>
+              )}
+              {(b.payment?.gatewayMode === 'test' ||
+                b.payment?.gatewayMode === 'fake') && <TestModePaymentBadge />}
               {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
-              {b.status === 'pending' && b.respondBy && <AcceptByBadge respondBy={b.respondBy} />}
+              {b.status === 'pending' && b.respondBy && (
+                <AcceptByBadge respondBy={b.respondBy} />
+              )}
               {b.notAcceptedInTime && <NotAcceptedBadge />}
               {b.noShow && <NoShowBadge party={b.noShow} />}
               {b.billDue && <BillDueBadge amount={b.billDue} />}
@@ -402,7 +499,8 @@ function BookingDetail({
               {formatWhen(b.scheduledAt)}
             </p>
             <p className="text-[13px] text-text-secondary">
-              {BOOKING_TYPE_LABELS[b.bookingType as BookingType] ?? 'At garage'} ·{' '}
+              {BOOKING_TYPE_LABELS[b.bookingType as BookingType] ?? 'At garage'}{' '}
+              ·{' '}
               <span className="font-numeric">
                 {formatDuration(b.durationMins)}
               </span>
@@ -455,7 +553,13 @@ function BookingDetail({
                 )}
               </Field>
               {(b.bookingType === 'doorstep' || b.bookingType === 'pickup') && (
-                <Field label={b.bookingType === 'pickup' ? 'Pickup & return address' : 'Doorstep address'}>
+                <Field
+                  label={
+                    b.bookingType === 'pickup'
+                      ? 'Pickup & return address'
+                      : 'Doorstep address'
+                  }
+                >
                   <p>{b.address ?? 'Address missing'}</p>
                   {directions && (
                     <a
@@ -513,11 +617,15 @@ function BookingDetail({
                 {Number(b.payment?.creditAmount ?? 0) > 0 && (
                   <p className="text-[12px] text-text-secondary">
                     Paid with Detlio credit{' '}
-                    <span className="font-numeric">{formatRupees(b.payment?.creditAmount ?? 0)}</span>
+                    <span className="font-numeric">
+                      {formatRupees(b.payment?.creditAmount ?? 0)}
+                    </span>
                     {b.payment?.creditReturnedAt && (
                       <>
                         , returned as credit on{' '}
-                        <span className="font-numeric">{formatWhen(b.payment.creditReturnedAt)}</span>
+                        <span className="font-numeric">
+                          {formatWhen(b.payment.creditReturnedAt)}
+                        </span>
                       </>
                     )}
                   </p>
@@ -563,7 +671,9 @@ function BookingDetail({
                     onClick={() => setDialog(pickupOverride)}
                     className="min-h-11"
                   >
-                    {pickupOverride === 'picked_up' ? 'Confirm picked up…' : 'Confirm delivered…'}
+                    {pickupOverride === 'picked_up'
+                      ? 'Confirm picked up…'
+                      : 'Confirm delivered…'}
                   </ScButton>
                 )}
                 {showNoShow && (
@@ -606,7 +716,10 @@ function BookingDetail({
             </ScSection>
           )}
 
-          <TestBookingSection booking={b} onDelete={() => setDialog('delete-test')} />
+          <TestBookingSection
+            booking={b}
+            onDelete={() => setDialog('delete-test')}
+          />
 
           <NotesSection bookingId={b.id} notes={b.notes} />
         </div>

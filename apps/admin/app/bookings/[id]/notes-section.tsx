@@ -89,7 +89,7 @@ export function NotesSection({
               key={note.id}
               className="rounded-[10px] border border-border bg-surface px-3 py-2"
             >
-              <p className="text-[11px] text-text-muted">
+              <p className="text-[12px] text-text-muted">
                 {note.author} ·{' '}
                 <span className="font-numeric">
                   {formatWhen(note.createdAt)}

@@ -10,12 +10,20 @@ import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { IssuesTabs } from '@/components/issues-tabs'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
-import type { AdminBypassFilter, AdminBypassReport } from '@repo/core/api/bypass-reports'
+import type {
+  AdminBypassFilter,
+  AdminBypassReport,
+} from '@repo/core/api/bypass-reports'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminBypassReports } from '@repo/core/api/hooks/use-bypass-reports'
-import { BYPASS_REWARD_LABELS, BYPASS_STATUS_LABELS, strikesLabel } from '@repo/core/bypass-reports'
+import {
+  BYPASS_REWARD_LABELS,
+  BYPASS_STATUS_LABELS,
+  strikesLabel,
+} from '@repo/core/bypass-reports'
 import { cn } from '@repo/core/utils'
 import { BypassAnswerDialog } from '@/components/bypass-answer-dialog'
 import { Meta } from '@/components/meta'
@@ -29,7 +37,10 @@ import {
   parseBypassFilter,
 } from '@/lib/bypass-reports'
 
-const STATUS_BADGE: Record<AdminBypassReport['status'], 'pending' | 'success' | 'muted'> = {
+const STATUS_BADGE: Record<
+  AdminBypassReport['status'],
+  'pending' | 'success' | 'muted'
+> = {
   new: 'pending',
   confirmed: 'success',
   dismissed: 'muted',
@@ -41,8 +52,14 @@ const EMPTY: Record<AdminBypassFilter, { title: string; subtitle: string }> = {
     subtitle:
       'Customers report a garage that asked them to book directly or pay outside Detlio from their booking. Each one shows up here and in the team’s Telegram group.',
   },
-  confirmed: { title: 'Nothing confirmed yet', subtitle: 'Confirmed reports, and the strikes they add, show up here.' },
-  dismissed: { title: 'Nothing dismissed', subtitle: 'Reports the team looked into and set aside show up here.' },
+  confirmed: {
+    title: 'Nothing confirmed yet',
+    subtitle: 'Confirmed reports, and the strikes they add, show up here.',
+  },
+  dismissed: {
+    title: 'Nothing dismissed',
+    subtitle: 'Reports the team looked into and set aside show up here.',
+  },
 }
 
 function ReportCard({
@@ -53,7 +70,12 @@ function ReportCard({
   onAnswer: (action: 'confirm' | 'dismiss') => void
 }) {
   return (
-    <ScCard className={cn('flex flex-col gap-2.5', r.garage.highlighted && 'border-warning/60')}>
+    <ScCard
+      className={cn(
+        'flex flex-col gap-2.5',
+        r.garage.highlighted && 'border-warning/60'
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {r.garage.id ? (
@@ -64,17 +86,25 @@ function ReportCard({
               {r.garage.name}
             </Link>
           ) : (
-            <span className="truncate text-[14px] font-semibold text-text-primary">{r.garage.name}</span>
+            <span className="truncate text-[14px] font-semibold text-text-primary">
+              {r.garage.name}
+            </span>
           )}
-          <ScBadge variant={STATUS_BADGE[r.status]}>{BYPASS_STATUS_LABELS[r.status]}</ScBadge>
+          <ScBadge variant={STATUS_BADGE[r.status]}>
+            {BYPASS_STATUS_LABELS[r.status]}
+          </ScBadge>
           {r.garage.strikes > 0 && (
             <ScBadge variant={r.garage.highlighted ? 'danger' : 'muted'}>
-              <span className="font-numeric">{strikesLabel(r.garage.strikes)}</span>
+              <span className="font-numeric">
+                {strikesLabel(r.garage.strikes)}
+              </span>
             </ScBadge>
           )}
           {r.booking.markedTest && <ScBadge variant="muted">Test</ScBadge>}
         </div>
-        <p className="font-numeric text-[12px] text-text-secondary">{formatWhen(r.createdAt)}</p>
+        <p className="font-numeric text-[12px] text-text-secondary">
+          {formatWhen(r.createdAt)}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-4">
@@ -91,7 +121,9 @@ function ReportCard({
             <span className="font-numeric">#{r.booking.reference}</span>
           )}
           {r.booking.scheduledAt && (
-            <span className="block font-numeric text-[12px] text-text-muted">{formatWhen(r.booking.scheduledAt)}</span>
+            <span className="block font-numeric text-[12px] text-text-muted">
+              {formatWhen(r.booking.scheduledAt)}
+            </span>
           )}
         </Meta>
         <Meta label="Customer" truncate>
@@ -100,7 +132,10 @@ function ReportCard({
               {r.customer.name ?? '—'}
               {r.customer.phone && (
                 <span className="block">
-                  <PhoneLink phone={r.customer.phone} name={r.customer.name ?? 'the customer'} />
+                  <PhoneLink
+                    phone={r.customer.phone}
+                    name={r.customer.name ?? 'the customer'}
+                  />
                 </span>
               )}
             </>
@@ -108,18 +143,32 @@ function ReportCard({
             'Account deleted'
           )}
         </Meta>
-        <Meta label={r.status === 'dismissed' ? 'Dismissed' : r.status === 'confirmed' ? 'Confirmed' : 'Reward'}>
+        <Meta
+          label={
+            r.status === 'dismissed'
+              ? 'Dismissed'
+              : r.status === 'confirmed'
+                ? 'Confirmed'
+                : 'Reward'
+          }
+        >
           {r.status === 'confirmed' ? (
             <>
-              <span className="font-numeric">{r.confirmedAt ? formatWhen(r.confirmedAt) : ''}</span>
+              <span className="font-numeric">
+                {r.confirmedAt ? formatWhen(r.confirmedAt) : ''}
+              </span>
               <span className="block text-[12px] text-text-muted">
                 by {r.confirmedBy} · {BYPASS_REWARD_LABELS[r.reward.status]}
               </span>
             </>
           ) : r.status === 'dismissed' ? (
             <>
-              <span className="font-numeric">{r.dismissedAt ? formatWhen(r.dismissedAt) : ''}</span>
-              <span className="block text-[12px] text-text-muted">by {r.dismissedBy}</span>
+              <span className="font-numeric">
+                {r.dismissedAt ? formatWhen(r.dismissedAt) : ''}
+              </span>
+              <span className="block text-[12px] text-text-muted">
+                by {r.dismissedBy}
+              </span>
             </>
           ) : (
             'On confirm'
@@ -142,7 +191,11 @@ function ReportCard({
 
       {r.status === 'new' && (
         <div className="flex flex-col gap-2 sm:flex-row">
-          <ScButton onClick={() => onAnswer('confirm')} fullWidth={false} className="min-h-11 px-4 text-[13px]">
+          <ScButton
+            onClick={() => onAnswer('confirm')}
+            fullWidth={false}
+            className="min-h-11 px-4 text-[13px]"
+          >
             Confirm
           </ScButton>
           <ScButton
@@ -163,10 +216,13 @@ function BypassReportsList() {
   const router = useRouter()
   const params = useSearchParams()
   const show = parseBypassFilter(params.get('show'))
-  const { data, isPending, isPlaceholderData, error, refetch } = useAdminBypassReports(show)
-  const [answering, setAnswering] = useState<{ report: AdminBypassReport; action: 'confirm' | 'dismiss'; key: number } | null>(
-    null
-  )
+  const { data, isPending, isPlaceholderData, error, refetch } =
+    useAdminBypassReports(show)
+  const [answering, setAnswering] = useState<{
+    report: AdminBypassReport
+    action: 'confirm' | 'dismiss'
+    key: number
+  } | null>(null)
 
   // A dead admin session is a redirect, not an error message.
   useEffect(() => {
@@ -177,6 +233,7 @@ function BypassReportsList() {
 
   return (
     <>
+      <IssuesTabs />
       <PageHeader
         title="Bypass reports"
         subtitle="Customers telling us a garage asked them to book directly or pay outside Detlio. The garage is never told who reported it."
@@ -186,7 +243,11 @@ function BypassReportsList() {
             className="flex min-h-11 items-center gap-1 text-[13px] font-medium text-text-primary underline-offset-2 hover:underline"
           >
             Customer drop-off
-            <IconChevronRight size={15} aria-hidden className="text-text-muted" />
+            <IconChevronRight
+              size={15}
+              aria-hidden
+              className="text-text-muted"
+            />
           </Link>
         }
       />
@@ -203,23 +264,37 @@ function BypassReportsList() {
               label={BYPASS_FILTER_LABELS[filter]}
               count={data?.counts[filter]}
               active={show === filter}
-              onClick={() => router.replace(bypassListHref(filter), { scroll: false })}
+              onClick={() =>
+                router.replace(bypassListHref(filter), { scroll: false })
+              }
               className="min-h-11 rounded-[10px] text-[13px]"
             />
           ))}
         </div>
-        <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">{bypassFilterHint(show, data?.rules)}</p>
+        <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
+          {bypassFilterHint(show, data?.rules)}
+        </p>
       </div>
 
       {isPending ? (
         <SkeletonList count={3} itemClassName="h-36" />
       ) : error && reports.length === 0 ? (
-        <ErrorState message={errorMessage(error, 'Failed to load reports')} onRetry={() => void refetch()} />
+        <ErrorState
+          message={errorMessage(error, 'Failed to load reports')}
+          onRetry={() => void refetch()}
+        />
       ) : reports.length === 0 ? (
-        <EmptyState icon={<IconFlag size={32} stroke={1.5} />} title={EMPTY[show].title} subtitle={EMPTY[show].subtitle} />
+        <EmptyState
+          icon={<IconFlag size={32} stroke={1.5} />}
+          title={EMPTY[show].title}
+          subtitle={EMPTY[show].subtitle}
+        />
       ) : (
         <ul
-          className={cn('flex flex-col gap-2 transition-opacity', isPlaceholderData && 'opacity-50')}
+          className={cn(
+            'flex flex-col gap-2 transition-opacity',
+            isPlaceholderData && 'opacity-50'
+          )}
           aria-busy={isPlaceholderData}
           aria-label={`${BYPASS_FILTER_LABELS[show]} reports`}
         >
@@ -227,7 +302,13 @@ function BypassReportsList() {
             <Reveal as="li" key={report.id} index={i}>
               <ReportCard
                 report={report}
-                onAnswer={(action) => setAnswering((last) => ({ report, action, key: (last?.key ?? 0) + 1 }))}
+                onAnswer={(action) =>
+                  setAnswering((last) => ({
+                    report,
+                    action,
+                    key: (last?.key ?? 0) + 1,
+                  }))
+                }
               />
             </Reveal>
           ))}

@@ -18,7 +18,13 @@ import { parseAdjustment, signedRupees } from '@/lib/gifts'
  * audit log. A deduction can't go below what the customer has (the server
  * refuses with CREDIT_ADJUSTMENT_OVER_BALANCE). Mounted fresh each time.
  */
-export function AdjustCreditDialog({ data, onClose }: { data: AdminCustomerCredit; onClose: () => void }) {
+export function AdjustCreditDialog({
+  data,
+  onClose,
+}: {
+  data: AdminCustomerCredit
+  onClose: () => void
+}) {
   const adjust = useAdjustCustomerCredit()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
@@ -29,20 +35,31 @@ export function AdjustCreditDialog({ data, onClose }: { data: AdminCustomerCredi
   const amountProblem = parsed && 'problem' in parsed ? parsed.problem : null
   const value = parsed && 'amount' in parsed ? parsed.amount : null
   const canSubmit =
-    value !== null && reason.trim().length >= 3 && name.trim().length >= 2 && !adjust.isPending
+    value !== null &&
+    reason.trim().length >= 3 &&
+    name.trim().length >= 2 &&
+    !adjust.isPending
 
   const submit = () => {
     if (!canSubmit || value === null) return
     setError('')
     rememberName(name.trim())
     adjust.mutate(
-      { userId: data.customer.id, amount: value, reason: reason.trim(), actorName: name.trim() },
+      {
+        userId: data.customer.id,
+        amount: value,
+        reason: reason.trim(),
+        actorName: name.trim(),
+      },
       {
         onSuccess: (updated) => {
-          toast.success(`Credit adjusted. Balance ${formatRupees(updated.credit.balance)}`)
+          toast.success(
+            `Credit adjusted. Balance ${formatRupees(updated.credit.balance)}`
+          )
           onClose()
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't adjust the credit")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't adjust the credit")),
       }
     )
   }
@@ -56,10 +73,14 @@ export function AdjustCreditDialog({ data, onClose }: { data: AdminCustomerCredi
       className="flex max-w-[440px] flex-col gap-4"
     >
       <div>
-        <h2 className="text-[15px] font-semibold text-text-primary">Adjust credit</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">
+          Adjust credit
+        </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
           {data.customer.name} · balance{' '}
-          <span className="font-numeric text-text-primary">{formatRupees(data.credit.balance)}</span>
+          <span className="font-numeric text-text-primary">
+            {formatRupees(data.credit.balance)}
+          </span>
         </p>
       </div>
 
@@ -75,7 +96,13 @@ export function AdjustCreditDialog({ data, onClose }: { data: AdminCustomerCredi
           aria-invalid={Boolean(amountProblem)}
           className="min-h-11 font-numeric"
         />
-        <p className={amountProblem ? 'text-[11px] text-error' : 'text-[11px] text-text-muted'}>
+        <p
+          className={
+            amountProblem
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
+          }
+        >
           {amountProblem ??
             (value !== null
               ? `${signedRupees(value)} to the customer's credit.`
@@ -99,9 +126,9 @@ export function AdjustCreditDialog({ data, onClose }: { data: AdminCustomerCredi
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      <p className="text-[11px] text-text-muted">
-        Recorded in the audit log with your name and reason. The customer sees it as &ldquo;Adjusted by Detlio&rdquo;,
-        without the reason.
+      <p className="text-[12px] text-text-muted">
+        Recorded in the audit log with your name and reason. The customer sees
+        it as &ldquo;Adjusted by Detlio&rdquo;, without the reason.
       </p>
 
       {error && (
@@ -111,7 +138,12 @@ export function AdjustCreditDialog({ data, onClose }: { data: AdminCustomerCredi
       )}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
-        <ScButton variant="secondary" onClick={onClose} disabled={adjust.isPending} className="min-h-11">
+        <ScButton
+          variant="secondary"
+          onClick={onClose}
+          disabled={adjust.isPending}
+          className="min-h-11"
+        >
           Go back
         </ScButton>
         <ScButton onClick={submit} disabled={!canSubmit} className="min-h-11">

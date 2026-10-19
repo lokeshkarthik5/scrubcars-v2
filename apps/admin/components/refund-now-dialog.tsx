@@ -66,7 +66,10 @@ export function RefundNowDialog({
           : null
   const canSubmit = !amountProblem && !send.isPending
   const part = amountPaise !== null && amountPaise < owedPaise
-  const shown = amountPaise !== null && amountPaise > 0 ? formatRupees(amountPaise / 100) : '₹0'
+  const shown =
+    amountPaise !== null && amountPaise > 0
+      ? formatRupees(amountPaise / 100)
+      : '₹0'
 
   const submit = () => {
     if (!canSubmit || amountPaise === null) return
@@ -90,7 +93,8 @@ export function RefundNowDialog({
           onClose()
           onDone?.()
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't send this refund")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't send this refund")),
       }
     )
   }
@@ -114,20 +118,28 @@ export function RefundNowDialog({
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
         <div>
-          <dt className="text-[11px] text-text-muted">Customer</dt>
+          <dt className="text-[12px] text-text-muted">Customer</dt>
           <dd className="truncate text-text-primary">{refund.customer.name}</dd>
         </div>
         <div>
-          <dt className="text-[11px] text-text-muted">{refund.bookingId ? 'Booking' : 'Checkout'}</dt>
-          <dd className="font-numeric text-text-primary">#{refund.reference}</dd>
+          <dt className="text-[12px] text-text-muted">
+            {refund.bookingId ? 'Booking' : 'Checkout'}
+          </dt>
+          <dd className="font-numeric text-text-primary">
+            #{refund.reference}
+          </dd>
         </div>
         <div>
-          <dt className="text-[11px] text-text-muted">Owed</dt>
-          <dd className="font-numeric text-text-primary">{formatRupees(refund.amountOwed)}</dd>
+          <dt className="text-[12px] text-text-muted">Owed</dt>
+          <dd className="font-numeric text-text-primary">
+            {formatRupees(refund.amountOwed)}
+          </dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-[11px] text-text-muted">Razorpay payment</dt>
-          <dd className="truncate font-numeric text-text-primary">{refund.razorpayPaymentId}</dd>
+          <dt className="text-[12px] text-text-muted">Razorpay payment</dt>
+          <dd className="truncate font-numeric text-text-primary">
+            {refund.razorpayPaymentId}
+          </dd>
         </div>
       </dl>
 
@@ -142,7 +154,13 @@ export function RefundNowDialog({
           aria-invalid={Boolean(amountProblem)}
           className="min-h-11 font-numeric"
         />
-        <p className={amountProblem ? 'text-[11px] text-error' : 'text-[11px] text-text-muted'}>
+        <p
+          className={
+            amountProblem
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
+          }
+        >
           {amountProblem ??
             (part
               ? 'A part refund. The rest stays on the Owed list.'
@@ -160,10 +178,12 @@ export function RefundNowDialog({
       />
 
       <div className="flex flex-col gap-1 rounded-[10px] border border-border px-3 py-2 text-[12px] text-text-secondary">
-        <p className="text-text-primary">Refunds take {BANK_DAYS} to reach the customer.</p>
+        <p className="text-text-primary">
+          Refunds take {BANK_DAYS} to reach the customer.
+        </p>
         <p>
-          The money goes back through Razorpay, from Detlio&apos;s balance, to how the customer
-          paid. It can&apos;t be undone.
+          The money goes back through Razorpay, from Detlio&apos;s balance, to
+          how the customer paid. It can&apos;t be undone.
         </p>
       </div>
 
@@ -174,7 +194,12 @@ export function RefundNowDialog({
       )}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
-        <ScButton variant="secondary" onClick={onClose} disabled={send.isPending} className="min-h-11">
+        <ScButton
+          variant="secondary"
+          onClick={onClose}
+          disabled={send.isPending}
+          className="min-h-11"
+        >
           Go back
         </ScButton>
         <ScButton onClick={submit} disabled={!canSubmit} className="min-h-11">

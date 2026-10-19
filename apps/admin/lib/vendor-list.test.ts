@@ -10,6 +10,7 @@ import {
   isLive,
   documentsToReviewCount,
   listHref,
+  matchesSearch,
   matchesShow,
   parseShow,
   readinessGroups,
@@ -46,23 +47,60 @@ describe('the chips', () => {
     expect(parseShow('trash')).toBe('live')
     expect(parseShow('ALL')).toBe('live')
     expect(parseShow('documents')).toBe('documents')
+    expect(parseShow('notlive')).toBe('notlive')
+    expect(parseShow('paused')).toBe('paused')
   })
 
   test('the list address carries the chip, and Live is the bare list', () => {
     expect(listHref('live')).toBe('/vendors')
     expect(listHref('pending')).toBe('/vendors?show=pending')
     // The edit page's back arrow accepts every one of them.
-    for (const show of SHOW_FILTERS) expect(safeBackHref(listHref(show))).toBe(listHref(show))
+    for (const show of SHOW_FILTERS)
+      expect(safeBackHref(listHref(show))).toBe(listHref(show))
+  })
+
+  test('Not live yet is on its way in; Paused is paused or suspended', () => {
+    const pausedActive = garage({
+      live: false,
+      bookingsPausedAt: '2026-10-10T04:30:00Z',
+    })
+    const unverified = garage({ live: false, isVerified: false })
+    const pending = garage({
+      live: false,
+      status: 'pending',
+      isVerified: false,
+    })
+    const suspended = garage({ live: false, status: 'suspended' })
+    const archivedPaused = garage({
+      live: false,
+      status: 'archived',
+      bookingsPausedAt: '2026-10-10T04:30:00Z',
+    })
+    expect(matchesShow(unverified, 'notlive')).toBe(true)
+    expect(matchesShow(pending, 'notlive')).toBe(true)
+    expect(matchesShow(pausedActive, 'notlive')).toBe(false)
+    expect(matchesShow(pausedActive, 'paused')).toBe(true)
+    expect(matchesShow(suspended, 'paused')).toBe(true)
+    expect(matchesShow(archivedPaused, 'paused')).toBe(false)
+    expect(matchesShow(garage(), 'notlive')).toBe(false)
   })
 
   test('Live is the server’s flag; Active is the stage, paused or unverified included', () => {
-    const pausedActive = garage({ live: false, bookingsPausedAt: '2026-10-10T04:30:00Z' })
+    const pausedActive = garage({
+      live: false,
+      bookingsPausedAt: '2026-10-10T04:30:00Z',
+    })
     const unverified = garage({ live: false, isVerified: false })
     expect(matchesShow(pausedActive, 'live')).toBe(false)
     expect(matchesShow(pausedActive, 'active')).toBe(true)
     expect(matchesShow(unverified, 'active')).toBe(true)
     expect(matchesShow(garage(), 'live')).toBe(true)
-    expect(matchesShow(garage({ live: false, status: 'pending', isVerified: false }), 'pending')).toBe(true)
+    expect(
+      matchesShow(
+        garage({ live: false, status: 'pending', isVerified: false }),
+        'pending'
+      )
+    ).toBe(true)
   })
 
   test('the server’s flag wins; the stand-in is only for a server without it', () => {
@@ -70,7 +108,11 @@ describe('the chips', () => {
     expect(isLive(garage({ live: false }))).toBe(false)
     expect(isLive(garage({ live: undefined }))).toBe(true)
     expect(isLive(garage({ live: undefined, isVerified: false }))).toBe(false)
-    expect(isLive(garage({ live: undefined, bookingsPausedAt: '2026-10-10T04:30:00Z' }))).toBe(false)
+    expect(
+      isLive(
+        garage({ live: undefined, bookingsPausedAt: '2026-10-10T04:30:00Z' })
+      )
+    ).toBe(false)
   })
 
   test('counts: All is every garage, and the stages add up to it', () => {
@@ -82,47 +124,102 @@ describe('the chips', () => {
       garage({ live: false, status: 'archived' }),
     ]
     const counts = showCounts(list)
-    expect(counts).toEqual({ all: 5, live: 2, active: 3, pending: 1, suspended: 0, archived: 1, bin: 0 })
-    expect(counts.active + counts.pending + counts.suspended + counts.archived).toBe(counts.all)
+    expect(counts).toEqual({
+      all: 5,
+      live: 2,
+      notlive: 1,
+      paused: 1,
+      archived: 1,
+      bin: 0,
+      active: 3,
+      pending: 1,
+      suspended: 0,
+    })
+    // The chips drawn split All with nothing over, and so do the old stages.
+    expect(counts.live + counts.notlive + counts.paused + counts.archived).toBe(
+      counts.all
+    )
+    expect(
+      counts.active + counts.pending + counts.suspended + counts.archived
+    ).toBe(counts.all)
   })
 
   test('a garage in the Bin is under Bin alone, whatever its stage, and in no other count', () => {
     const binned = garage({ live: false, deletedAt: '2026-10-14T12:42:00Z' })
-    const binnedArchived = garage({ live: false, status: 'archived', deletedAt: '2026-10-14T12:42:00Z' })
+    const binnedArchived = garage({
+      live: false,
+      status: 'archived',
+      deletedAt: '2026-10-14T12:42:00Z',
+    })
     expect(isInBin(binned)).toBe(true)
-    expect(SHOW_FILTERS.filter((show) => matchesShow(binned, show))).toEqual(['bin'])
-    expect(SHOW_FILTERS.filter((show) => matchesShow(binnedArchived, show))).toEqual(['bin'])
+    expect(SHOW_FILTERS.filter((show) => matchesShow(binned, show))).toEqual([
+      'bin',
+    ])
+    expect(
+      SHOW_FILTERS.filter((show) => matchesShow(binnedArchived, show))
+    ).toEqual(['bin'])
     // An older server sends no `live`: the stand-in leaves the Bin out too.
-    expect(isLive(garage({ live: undefined, deletedAt: '2026-10-14T12:42:00Z' }))).toBe(false)
+    expect(
+      isLive(garage({ live: undefined, deletedAt: '2026-10-14T12:42:00Z' }))
+    ).toBe(false)
     const counts = showCounts([garage(), binned, binnedArchived])
-    expect(counts).toEqual({ all: 1, live: 1, active: 1, pending: 0, suspended: 0, archived: 0, bin: 2 })
+    expect(counts).toEqual({
+      all: 1,
+      live: 1,
+      notlive: 0,
+      paused: 0,
+      archived: 0,
+      bin: 2,
+      active: 1,
+      pending: 0,
+      suspended: 0,
+    })
   })
 
-  test('the hint says what the chosen chip means, Live and Active apart', () => {
+  test('the hint is one line saying what the chosen chip means', () => {
     expect(showHints('live')).toEqual([
-      { term: 'Live', meaning: 'customers can find it' },
-      { term: 'Active', meaning: 'approved by Detlio, even if paused' },
+      { term: 'Live', meaning: 'customers can find it and book it' },
     ])
-    expect(showHints('all')).toEqual(showHints('live'))
-    expect(showHints('active')).toEqual(showHints('live'))
+    expect(showHints('notlive')[0].term).toBe('Not live yet')
+    expect(showHints('paused')[0].meaning).toContain('suspended')
     expect(showHints('pending')).toEqual([
       { term: 'Pending', meaning: 'added, not shown to customers yet' },
     ])
     expect(showHints('bin')).toEqual([
-      { term: 'Bin', meaning: 'off the app. Restore it, or delete it forever.' },
+      {
+        term: 'Bin',
+        meaning: 'off the app. Restore it, or delete it forever.',
+      },
     ])
+    for (const show of SHOW_FILTERS) expect(showHints(show)).toHaveLength(1)
   })
 })
 
 describe('the card', () => {
   test('a garage customers can’t find says why; a live one says nothing here', () => {
     expect(stateWord(garage())).toBeNull()
-    expect(stateWord(garage({ live: false, status: 'pending' }))).toBe('Pending')
-    expect(stateWord(garage({ live: false, status: 'archived' }))).toBe('Archived')
-    expect(stateWord(garage({ live: false, isVerified: false }))).toBe('Not verified')
-    expect(stateWord(garage({ live: false, bookingsPausedAt: '2026-10-10T04:30:00Z' }))).toBe('Paused')
+    expect(stateWord(garage({ live: false, status: 'pending' }))).toBe(
+      'Pending'
+    )
+    expect(stateWord(garage({ live: false, status: 'archived' }))).toBe(
+      'Archived'
+    )
+    expect(stateWord(garage({ live: false, isVerified: false }))).toBe(
+      'Not verified'
+    )
     expect(
-      stateWord(garage({ live: false, isVerified: false, bookingsPausedAt: '2026-10-10T04:30:00Z' }))
+      stateWord(
+        garage({ live: false, bookingsPausedAt: '2026-10-10T04:30:00Z' })
+      )
+    ).toBe('Paused')
+    expect(
+      stateWord(
+        garage({
+          live: false,
+          isVerified: false,
+          bookingsPausedAt: '2026-10-10T04:30:00Z',
+        })
+      )
     ).toBe('Paused · not verified')
   })
 
@@ -139,35 +236,52 @@ describe('the card', () => {
   })
 
   test('how it books, as in the mockup', () => {
-    const modes = { dropinEnabled: true, doorstepEnabled: true, doorstepRadiusKm: 8, hasDoorstepArea: false }
-    expect(bookingParts(modes)).toEqual([{ text: 'At the garage' }, { text: 'Doorstep 8 km' }])
+    const modes = {
+      dropinEnabled: true,
+      doorstepEnabled: true,
+      doorstepRadiusKm: 8,
+      hasDoorstepArea: false,
+    }
+    expect(bookingParts(modes)).toEqual([
+      { text: 'At the garage' },
+      { text: 'Doorstep 8 km' },
+    ])
     expect(bookingParts({ ...modes, doorstepRadiusKm: null })).toEqual([
       { text: 'At the garage' },
       { text: 'Doorstep', quiet: '10 km default' },
     ])
-    expect(bookingParts({ ...modes, dropinEnabled: false, doorstepRadiusKm: 7.5 })).toEqual([
-      { text: 'Doorstep only' },
-      { text: '7.5 km' },
-    ])
-    expect(bookingParts({ ...modes, dropinEnabled: false, doorstepRadiusKm: null })).toEqual([
-      { text: 'Doorstep only' },
-      { quiet: '10 km default' },
-    ])
+    expect(
+      bookingParts({ ...modes, dropinEnabled: false, doorstepRadiusKm: 7.5 })
+    ).toEqual([{ text: 'Doorstep only' }, { text: '7.5 km' }])
+    expect(
+      bookingParts({ ...modes, dropinEnabled: false, doorstepRadiusKm: null })
+    ).toEqual([{ text: 'Doorstep only' }, { quiet: '10 km default' }])
     expect(bookingParts({ ...modes, hasDoorstepArea: true })).toEqual([
       { text: 'At the garage' },
       { text: 'Doorstep', quiet: 'drawn area' },
     ])
-    expect(bookingParts({ ...modes, doorstepEnabled: false })).toEqual([{ text: 'At the garage' }])
-    expect(bookingParts({ ...modes, dropinEnabled: false, doorstepEnabled: false })).toEqual([])
+    expect(bookingParts({ ...modes, doorstepEnabled: false })).toEqual([
+      { text: 'At the garage' },
+    ])
+    expect(
+      bookingParts({ ...modes, dropinEnabled: false, doorstepEnabled: false })
+    ).toEqual([])
   })
 
   test('pickup & drop, when on, comes last', () => {
-    const garage = { dropinEnabled: true, doorstepEnabled: false, doorstepRadiusKm: null, hasDoorstepArea: false }
+    const garage = {
+      dropinEnabled: true,
+      doorstepEnabled: false,
+      doorstepRadiusKm: null,
+      hasDoorstepArea: false,
+    }
     expect(bookingParts({ ...garage, pickupEnabled: true })).toEqual([
       { text: 'At the garage' },
       { text: 'Pickup & drop' },
     ])
-    expect(bookingParts({ ...garage, pickupEnabled: false })).toEqual([{ text: 'At the garage' }])
+    expect(bookingParts({ ...garage, pickupEnabled: false })).toEqual([
+      { text: 'At the garage' },
+    ])
     // An older server that does not say.
     expect(bookingParts(garage)).toEqual([{ text: 'At the garage' }])
   })
@@ -175,11 +289,17 @@ describe('the card', () => {
 
 describe('the readiness line', () => {
   test('nothing at all: Ready', () => {
-    expect(readinessSummary([])).toEqual({ needsFixing: false, main: 'Ready', optional: null })
+    expect(readinessSummary([])).toEqual({
+      needsFixing: false,
+      main: 'Ready',
+      optional: null,
+    })
   })
 
   test('only optional items: still Ready, with them named in grey', () => {
-    expect(readinessSummary([item('optional', 'logo'), item('optional', 'photos')])).toEqual({
+    expect(
+      readinessSummary([item('optional', 'logo'), item('optional', 'photos')])
+    ).toEqual({
       needsFixing: false,
       main: 'Ready',
       optional: '2 optional: logo, photos',
@@ -202,19 +322,30 @@ describe('the readiness line', () => {
         item('fix', 'bays'),
         item('optional', 'logo'),
       ])
-    ).toEqual({ needsFixing: true, main: '1 blocking · 2 to fix', optional: '1 optional' })
-    expect(readinessSummary([item('blocking', 'services')]).main).toBe('1 blocking')
+    ).toEqual({
+      needsFixing: true,
+      main: '1 blocking · 2 to fix',
+      optional: '1 optional',
+    })
+    expect(readinessSummary([item('blocking', 'services')]).main).toBe(
+      '1 blocking'
+    )
   })
 
   test('the checklist is grouped Blocking, Fix, Optional, leaving out empty groups', () => {
-    const groups = readinessGroups([item('optional', 'logo'), item('blocking', 'services')])
+    const groups = readinessGroups([
+      item('optional', 'logo'),
+      item('blocking', 'services'),
+    ])
     expect(groups.map((g) => g.title)).toEqual(['Blocking', 'Optional'])
     expect(groups[0].items.map((i) => i.short)).toEqual(['services'])
   })
 
   test('a row opens its tab, and brings the list back with its chip', () => {
     const href = editHref('v1', '/vendors?show=pending', 'services')
-    expect(href).toBe('/vendors/v1/edit?tab=services&back=%2Fvendors%3Fshow%3Dpending')
+    expect(href).toBe(
+      '/vendors/v1/edit?tab=services&back=%2Fvendors%3Fshow%3Dpending'
+    )
     const back = new URLSearchParams(href.split('?')[1]).get('back')
     expect(safeBackHref(back)).toBe('/vendors?show=pending')
     expect(editHref('v1', '/vendors')).toBe('/vendors/v1/edit?back=%2Fvendors')
@@ -237,9 +368,15 @@ describe('documents to review', () => {
     expect(matchesShow(garage({ documents: docs(0) }), 'documents')).toBe(false)
     expect(matchesShow(garage({ documents: null }), 'documents')).toBe(false)
     expect(matchesShow(garage(), 'documents')).toBe(false)
-    const binned = garage({ documents: docs(1), deletedAt: '2026-10-16T05:00:00Z', live: false })
+    const binned = garage({
+      documents: docs(1),
+      deletedAt: '2026-10-16T05:00:00Z',
+      live: false,
+    })
     expect(matchesShow(binned, 'documents')).toBe(false)
-    expect(documentsToReviewCount([waiting, binned, garage({ documents: docs(0) })])).toBe(1)
+    expect(
+      documentsToReviewCount([waiting, binned, garage({ documents: docs(0) })])
+    ).toBe(1)
   })
 
   test('its own link, and a hint that says what it is', () => {
@@ -265,10 +402,25 @@ describe('Detlio Certified chips', () => {
     const eligible = garage({ certification: cert(false, true) })
     const neither = garage({ certification: cert(false, false) })
     const unknown = garage({ certification: null })
-    const binned = garage({ certification: cert(true, true), deletedAt: '2026-10-16T05:00:00Z', live: false })
-    const all = [certified, slipping, eligible, neither, unknown, binned, garage()]
+    const binned = garage({
+      certification: cert(true, true),
+      deletedAt: '2026-10-16T05:00:00Z',
+      live: false,
+    })
+    const all = [
+      certified,
+      slipping,
+      eligible,
+      neither,
+      unknown,
+      binned,
+      garage(),
+    ]
 
-    expect(all.filter((v) => matchesShow(v, 'certified'))).toEqual([certified, slipping])
+    expect(all.filter((v) => matchesShow(v, 'certified'))).toEqual([
+      certified,
+      slipping,
+    ])
     expect(all.filter((v) => matchesShow(v, 'eligible'))).toEqual([eligible])
     expect(certificationCounts(all)).toEqual({ certified: 2, eligible: 1 })
   })
@@ -282,5 +434,23 @@ describe('Detlio Certified chips', () => {
     expect(editHref('v1', '/vendors?show=eligible', 'certification')).toBe(
       '/vendors/v1/edit?tab=certification&back=%2Fvendors%3Fshow%3Deligible'
     )
+  })
+})
+
+describe('find a garage', () => {
+  test('by name, area or phone digits; empty finds every garage', () => {
+    const v = {
+      businessName: 'Shine Auto Spa',
+      phone: '+919876543210',
+      city: 'Chennai',
+      address: '4, Velachery Main Rd',
+      pincode: '600042',
+    }
+    expect(matchesSearch(v, '')).toBe(true)
+    expect(matchesSearch(v, 'shine')).toBe(true)
+    expect(matchesSearch(v, 'velachery')).toBe(true)
+    expect(matchesSearch(v, '98765 43210')).toBe(true)
+    expect(matchesSearch(v, 'Adyar')).toBe(false)
+    expect(matchesSearch(v, '12')).toBe(false)
   })
 })

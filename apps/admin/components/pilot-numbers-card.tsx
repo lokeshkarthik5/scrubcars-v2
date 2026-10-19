@@ -105,7 +105,11 @@ function Body({ stats }: { stats: PilotStats }) {
         />
         <Figure
           label="Cancelled"
-          value={stats.cancelledByCustomer + stats.cancelledByGarage + stats.cancelledByDetlio}
+          value={
+            stats.cancelledByCustomer +
+            stats.cancelledByGarage +
+            stats.cancelledByDetlio
+          }
           hint={`Customer ${stats.cancelledByCustomer} · Garage ${stats.cancelledByGarage} · Detlio ${stats.cancelledByDetlio}`}
         />
       </div>
@@ -130,18 +134,29 @@ function Body({ stats }: { stats: PilotStats }) {
       )}
 
       <div>
-        <p className="pb-2 text-[11px] font-medium text-text-secondary">
+        <p className="pb-2 text-[12px] font-medium text-text-secondary">
           Top garages by paid bookings
         </p>
         {stats.topGarages.length === 0 ? (
-          <p className="text-[12px] text-text-secondary">No paid bookings in this window yet.</p>
+          <p className="text-[12px] text-text-secondary">
+            No paid bookings in this window yet.
+          </p>
         ) : (
           <ol className="flex flex-col divide-y divide-border">
             {stats.topGarages.map((garage, i) => (
-              <li key={garage.vendorId} className="flex items-center gap-3 py-2 text-[13px]">
-                <span className="font-numeric w-4 text-text-muted">{i + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-text-primary">{garage.name}</span>
-                <span className="font-numeric text-text-primary">{garage.paidBookings}</span>
+              <li
+                key={garage.vendorId}
+                className="flex items-center gap-3 py-2 text-[13px]"
+              >
+                <span className="font-numeric w-4 text-text-muted">
+                  {i + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-text-primary">
+                  {garage.name}
+                </span>
+                <span className="font-numeric text-text-primary">
+                  {garage.paidBookings}
+                </span>
                 <span className="font-numeric w-20 text-right text-text-secondary">
                   {rupees(garage.revenue)}
                 </span>
@@ -155,14 +170,16 @@ function Body({ stats }: { stats: PilotStats }) {
         <Figure
           label="Payment to accept"
           value={
-            stats.medianAcceptMins == null ? 'Not enough data' : `${stats.medianAcceptMins} min`
+            stats.medianAcceptMins == null
+              ? 'Not enough data'
+              : `${stats.medianAcceptMins} min`
           }
           hint={acceptHint(stats.acceptSamples ?? 0)}
         />
       </div>
 
       {/* Said rather than left out silently: someone will look for older ones. */}
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[12px] text-text-muted">
         Accept times are recorded from this release on, so bookings accepted
         before it aren&apos;t in the median.
       </p>
@@ -187,10 +204,12 @@ export function PilotNumbersCard() {
         {/* It sits under the Statistics filters but follows none of them:
             said here, so its figures are not read as the filtered ones. */}
         <div>
-          <h2 className="text-[15px] font-semibold text-text-primary">Pilot numbers</h2>
+          <h2 className="text-[15px] font-semibold text-text-primary">
+            Pilot numbers
+          </h2>
           <p className="mt-0.5 text-[12px] text-text-secondary">
-            All garages · the last {days} days to now, not the filters above · counted
-            as before, so its figures can differ from the tiles
+            All garages · the last {days} days to now, not the filters above ·
+            counted as before, so its figures can differ from the tiles
           </p>
         </div>
         {/* Full size, not `sm`: it is the card's only control and is used on
@@ -207,15 +226,25 @@ export function PilotNumbersCard() {
       {stats.data ? (
         <div
           aria-busy={stats.isFetching || undefined}
-          className={cn('transition-opacity', stats.isPlaceholderData && 'opacity-60')}
+          className={cn(
+            'transition-opacity',
+            stats.isPlaceholderData && 'opacity-60'
+          )}
         >
           <Body stats={stats.data} />
         </div>
       ) : stats.isError ? (
-        <ErrorState message="Couldn't load the pilot numbers." onRetry={() => void stats.refetch()} />
+        <ErrorState
+          message="Couldn't load the pilot numbers."
+          onRetry={() => void stats.refetch()}
+        />
       ) : (
         // The card's first rows of figures, as placeholders.
-        <div role="status" aria-busy="true" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div
+          role="status"
+          aria-busy="true"
+          className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+        >
           <span className="sr-only">Loading</span>
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} className="h-[60px] rounded-[10px]" />

@@ -3,7 +3,12 @@ import type {
   DataResetCheckout,
   DataResetPreview,
 } from '@repo/core/api/admin'
-import { csvCell, formatWhen, paymentStatusLabel, phoneForSheet } from '@/lib/bookings'
+import {
+  csvCell,
+  formatWhenForSheet,
+  paymentStatusLabel,
+  phoneForSheet,
+} from '@/lib/bookings'
 
 /**
  * Wording and the CSV for "Start pilot clean" (the test-data reset), shared
@@ -11,19 +16,23 @@ import { csvCell, formatWhen, paymentStatusLabel, phoneForSheet } from '@/lib/bo
  */
 
 /** What happens to a row, in the CSV and on screen. */
-export function outcomeLabel(row: Pick<DataResetChain, 'kept' | 'selected'>): string {
+export function outcomeLabel(
+  row: Pick<DataResetChain, 'kept' | 'selected'>
+): string {
   if (row.kept) return row.kept.label
   return row.selected ? 'Deleted' : 'Unticked — kept'
 }
 
-const CHAIN_COLUMNS: Array<[string, (c: DataResetChain) => string | number | null]> = [
+const CHAIN_COLUMNS: Array<
+  [string, (c: DataResetChain) => string | number | null]
+> = [
   ['What', () => 'Booking'],
   // With its "#": see the bookings export.
   ['Reference', (c) => `#${c.reference}`],
   ['Outcome', outcomeLabel],
   ['Why kept', (c) => c.kept?.detail ?? null],
-  ['Booked (IST)', (c) => formatWhen(c.createdAt)],
-  ['Scheduled (IST)', (c) => formatWhen(c.scheduledAt)],
+  ['Booked (IST)', (c) => formatWhenForSheet(c.createdAt)],
+  ['Scheduled (IST)', (c) => formatWhenForSheet(c.scheduledAt)],
   ['Status', (c) => c.status],
   ['Garage', (c) => c.garage.name],
   ['Customer', (c) => c.customer.name],
@@ -39,12 +48,15 @@ const CHAIN_COLUMNS: Array<[string, (c: DataResetChain) => string | number | nul
 ]
 
 /** A checkout row in the same columns, so the file is one table. */
-const CHECKOUT_CELLS: Record<string, (c: DataResetCheckout) => string | number | null> = {
+const CHECKOUT_CELLS: Record<
+  string,
+  (c: DataResetCheckout) => string | number | null
+> = {
   What: () => 'Checkout, no booking',
   Reference: (c) => `#${c.reference}`,
   Outcome: outcomeLabel,
   'Why kept': (c) => c.kept?.detail ?? null,
-  'Booked (IST)': (c) => formatWhen(c.createdAt),
+  'Booked (IST)': (c) => formatWhenForSheet(c.createdAt),
   Status: (c) => c.status,
   Garage: (c) => c.garageName,
   Customer: (c) => c.customer.name,
@@ -59,7 +71,10 @@ const CHECKOUT_CELLS: Record<string, (c: DataResetCheckout) => string | number |
  * A cutoff run's complaints, as one line in the same columns: they go or
  * stay together. None when there are none in scope.
  */
-function complaintsCsvRow(preview: DataResetPreview, headers: string[]): string[] {
+function complaintsCsvRow(
+  preview: DataResetPreview,
+  headers: string[]
+): string[] {
   const { complaints } = preview
   if (!complaints || complaints.count === 0) return []
   const cells: Record<string, string | number | null> = {
@@ -74,7 +89,10 @@ function complaintsCsvRow(preview: DataResetPreview, headers: string[]): string[
 }
 
 /** A cutoff run's usage events, as one line in the same columns. None when there are none. */
-function analyticsCsvRow(preview: DataResetPreview, headers: string[]): string[] {
+function analyticsCsvRow(
+  preview: DataResetPreview,
+  headers: string[]
+): string[] {
   const events = preview.analyticsEvents
   if (!events || events.count === 0) return []
   const cells: Record<string, string | number | null> = {
@@ -93,9 +111,13 @@ export function dataResetCsv(preview: DataResetPreview): string {
   const headers = CHAIN_COLUMNS.map(([header]) => header)
   const lines = [
     headers.map(csvCell).join(','),
-    ...preview.chains.map((chain) => CHAIN_COLUMNS.map(([, read]) => csvCell(read(chain))).join(',')),
+    ...preview.chains.map((chain) =>
+      CHAIN_COLUMNS.map(([, read]) => csvCell(read(chain))).join(',')
+    ),
     ...preview.checkouts.map((checkout) =>
-      headers.map((header) => csvCell(CHECKOUT_CELLS[header]?.(checkout) ?? null)).join(',')
+      headers
+        .map((header) => csvCell(CHECKOUT_CELLS[header]?.(checkout) ?? null))
+        .join(',')
     ),
     ...complaintsCsvRow(preview, headers),
     ...analyticsCsvRow(preview, headers),
@@ -108,7 +130,10 @@ export function dataResetCsv(preview: DataResetPreview): string {
  * order a run takes them in), up to what one run deletes. `left` is how many
  * wait for the next run. Ticking more would only be cut back by the server.
  */
-export function tickAll(deletableIds: string[], cap: number): { ticked: Set<string>; left: number } {
+export function tickAll(
+  deletableIds: string[],
+  cap: number
+): { ticked: Set<string>; left: number } {
   return {
     ticked: new Set(deletableIds.slice(0, cap)),
     left: Math.max(0, deletableIds.length - cap),
@@ -120,7 +145,10 @@ export function tickAll(deletableIds: string[], cap: number): { ticked: Set<stri
  * every row the owner unticked. Unticking a real booking is how the owner
  * protects it, so a reload must never quietly tick it again.
  */
-export function ticksAfterReload(serverSelected: string[], unticked: ReadonlySet<string>): Set<string> {
+export function ticksAfterReload(
+  serverSelected: string[],
+  unticked: ReadonlySet<string>
+): Set<string> {
   return new Set(serverSelected.filter((id) => !unticked.has(id)))
 }
 

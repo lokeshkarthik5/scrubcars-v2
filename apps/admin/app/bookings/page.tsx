@@ -11,7 +11,13 @@ import {
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
-import { IconCalendar, IconDownload, IconNotes } from '@tabler/icons-react'
+import {
+  IconAdjustmentsHorizontal,
+  IconCalendar,
+  IconDownload,
+  IconNotes,
+} from '@tabler/icons-react'
+import { cn } from '@repo/core/utils'
 import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
@@ -30,7 +36,6 @@ import {
 } from '@repo/core/api/hooks/use-admin-bookings'
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { isInBin } from '@/lib/vendor-list'
-import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
 import {
   BillDueBadge,
@@ -45,6 +50,10 @@ import {
 import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
+import { UrgencyChip } from '@/components/urgency-chip'
+import { useAdminToday } from '@/hooks/use-admin-today'
+import { taskLine } from '@/lib/today'
+import { useNow } from '@repo/core/hooks/use-now'
 import {
   bookingTypeLabel,
   bookingsCsv,
@@ -102,7 +111,9 @@ function BookingRow({
           <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
           {b.markedTest && <TestBadge />}
           {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
-          {b.status === 'pending' && b.respondBy && <AcceptByBadge respondBy={b.respondBy} />}
+          {b.status === 'pending' && b.respondBy && (
+            <AcceptByBadge respondBy={b.respondBy} />
+          )}
           {b.notAcceptedInTime && <NotAcceptedBadge />}
           {b.noShow && <NoShowBadge party={b.noShow} />}
           {b.billDue && <BillDueBadge amount={b.billDue} />}
@@ -194,6 +205,67 @@ function BookingRow({
         </div>
       )}
     </ScCard>
+  )
+}
+
+/**
+ * "Needs action first" (quick win 1): bookings waiting for their garage,
+ * then refunds owed on a booking, each on the panel's one clock scale, above
+ * the list (which is ordered by slot time). From the Today summary, so it
+ * is the same as Today's list; shown only on the unfiltered list.
+ */
+function NeedsActionFirst() {
+  const { data } = useAdminToday()
+  const now = useNow(30_000)
+  const tasks = (data?.tasks ?? []).filter(
+    (task) =>
+      task.kind === 'booking_waiting' ||
+      (task.kind === 'refund_owed' && task.bookingId)
+  )
+  if (tasks.length === 0) return null
+  return (
+    <section
+      aria-labelledby="bookings-needs-action"
+      className="rounded-[12px] border border-border bg-surface"
+    >
+      <h2
+        id="bookings-needs-action"
+        className="border-b border-border px-4 py-2.5 text-[14px] font-semibold text-text-primary"
+      >
+        Needs action first{' '}
+        <span className="font-numeric text-text-secondary">{tasks.length}</span>
+      </h2>
+      <ul>
+        {tasks.map((task) => {
+          const line = taskLine(task, now)
+          return (
+            <li
+              key={task.key}
+              className="flex flex-col gap-1.5 border-b border-border px-4 py-2.5 last:border-b-0 md:flex-row md:items-center md:gap-3"
+            >
+              <UrgencyChip
+                label={line.chip}
+                className="self-start md:self-center"
+              />
+              <Link
+                href={line.href}
+                className="min-w-0 flex-1 truncate text-[13px] text-text-primary hover:underline"
+              >
+                {line.title}
+                <span className="text-text-secondary"> · {line.detail}</span>
+              </Link>
+              {task.kind === 'booking_waiting' && (
+                <PhoneLink
+                  phone={task.garage.phone}
+                  name={task.garage.name}
+                  className="text-[13px]"
+                />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -294,11 +366,14 @@ function BookingsList() {
     if (isAuthError(error)) router.replace('/login')
   }, [error, router])
 
-  const isFiltered = Boolean(q || status !== 'all' || vendorId || from || to || testOnly)
-  // Start pilot clean is reachable from here on a phone, where the bottom
-  // bar has no room for it; only while it is switched on.
-  const { data: resetConfig } = useDataResetConfig()
-
+  const isFiltered = Boolean(
+    q || status !== 'all' || vendorId || from || to || testOnly
+  )
+  // The phone's Filter button: how many of the folded filters are on.
+  const activeFilters = [status !== 'all', testOnly, vendorId, from, to].filter(
+    Boolean
+  ).length
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const clearFilters = () => {
     setSearch('')
     router.replace(pathname, { scroll: false })
@@ -346,16 +421,6 @@ function BookingsList() {
     <>
       <PageHeader
         title="Bookings"
-        subtitle={
-          resetConfig?.enabled ? (
-            <Link
-              href="/data-reset"
-              className="inline-flex min-h-11 items-center font-medium text-text-primary underline underline-offset-2"
-            >
-              Start pilot clean
-            </Link>
-          ) : undefined
-        }
         actions={
           <ScButton
             variant="secondary"
@@ -382,61 +447,90 @@ function BookingsList() {
           className="min-h-11"
         />
 
-        <div
-          role="group"
-          aria-label="Status"
-          className="flex flex-wrap gap-1.5"
+        {/* On a phone the chips and the three filters fold behind one
+            button, so the first booking is on the first screen (quick win
+            2). On a laptop they are always out. */}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          aria-controls="booking-filters"
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-[8px] border border-border px-4 text-[13px] font-medium text-text-primary md:hidden"
         >
-          {STATUSES.map((s) => (
-            <FilterChip
-              key={s}
-              label={s === 'all' ? 'All' : bookingStatusBadge(s).label}
-              active={status === s}
-              onClick={() => setParams({ status: s === 'all' ? '' : s })}
-            />
-          ))}
-          <FilterChip
-            label="Test bookings"
-            active={testOnly}
-            onClick={() => setParams({ test: testOnly ? '' : 'only' })}
-          />
-        </div>
+          <IconAdjustmentsHorizontal size={16} aria-hidden />
+          Filter
+          {activeFilters > 0 && (
+            <span className="font-numeric text-text-secondary">
+              · {activeFilters}
+            </span>
+          )}
+        </button>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-[2fr_1fr_1fr]">
-          <div className="col-span-2 md:col-span-1">
-            <ScSelect
-              id="booking-garage"
-              label="Garage"
-              value={vendorId}
-              onChange={(e) => setParams({ garage: e.target.value })}
-              className="min-h-11"
-            >
-              <option value="">All garages</option>
-              {garages.map((garage) => (
-                <option key={garage.id} value={garage.id}>
-                  {isInBin(garage) ? `${garage.businessName} (in the Bin)` : garage.businessName}
-                </option>
-              ))}
-            </ScSelect>
+        <div
+          id="booking-filters"
+          className={cn(
+            'flex-col gap-3 md:flex',
+            filtersOpen ? 'flex' : 'hidden'
+          )}
+        >
+          <div
+            role="group"
+            aria-label="Status"
+            className="flex flex-wrap gap-1.5"
+          >
+            {STATUSES.map((s) => (
+              <FilterChip
+                key={s}
+                label={s === 'all' ? 'All' : bookingStatusBadge(s).label}
+                active={status === s}
+                onClick={() => setParams({ status: s === 'all' ? '' : s })}
+              />
+            ))}
+            <FilterChip
+              label="Test bookings"
+              active={testOnly}
+              onClick={() => setParams({ test: testOnly ? '' : 'only' })}
+            />
           </div>
-          <ScInput
-            id="booking-from"
-            type="date"
-            label="From"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setParams({ from: e.target.value })}
-            className="min-h-11"
-          />
-          <ScInput
-            id="booking-to"
-            type="date"
-            label="To"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setParams({ to: e.target.value })}
-            className="min-h-11"
-          />
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-[2fr_1fr_1fr]">
+            <div className="col-span-2 md:col-span-1">
+              <ScSelect
+                id="booking-garage"
+                label="Garage"
+                value={vendorId}
+                onChange={(e) => setParams({ garage: e.target.value })}
+                className="min-h-11"
+              >
+                <option value="">All garages</option>
+                {garages.map((garage) => (
+                  <option key={garage.id} value={garage.id}>
+                    {isInBin(garage)
+                      ? `${garage.businessName} (in the Bin)`
+                      : garage.businessName}
+                  </option>
+                ))}
+              </ScSelect>
+            </div>
+            <ScInput
+              id="booking-from"
+              type="date"
+              label="From"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setParams({ from: e.target.value })}
+              className="min-h-11"
+            />
+            <ScInput
+              id="booking-to"
+              type="date"
+              label="To"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setParams({ to: e.target.value })}
+              className="min-h-11"
+            />
+          </div>
         </div>
 
         {rangeReversed && (
@@ -454,7 +548,7 @@ function BookingsList() {
         )}
 
         {!isPending && !(error && bookings.length === 0) && (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-text-secondary">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-text-secondary">
             <p>
               <span className="font-numeric">{bookings.length}</span>
               {hasNextPage ? '+' : ''} shown
@@ -481,6 +575,8 @@ function BookingsList() {
           </div>
         )}
       </div>
+
+      {!isFiltered && !search.trim() && <NeedsActionFirst />}
 
       {isPending ? (
         <SkeletonList count={3} itemClassName="h-44" />
