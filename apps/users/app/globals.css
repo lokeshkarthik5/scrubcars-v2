@@ -74,7 +74,8 @@
   padding: 20px 64px 0 20px;
 }
 /* A saved car has two discs at the top right (history, then edit). */
-.car-hero__slide .car-hero__head {
+.car-hero__slide .car-hero__head,
+.car-hero__head--two-discs {
   padding-right: 108px;
 }
 .car-hero__title {

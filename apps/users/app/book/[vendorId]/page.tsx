@@ -46,6 +46,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { formatClock } from '@repo/core/format'
 import { money } from '@/lib/money'
 import { servicePriceText } from '@/lib/price'
+import { bookingCarId } from '@/lib/booking-car'
+import { guaranteeCovers } from '@/lib/guarantee-cover'
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
 import { ScSwitch } from '@repo/ui/sc/switch'
@@ -180,6 +182,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
+  // Each of the garage's services' category, by id: a package's members are
+  // looked up here to tell whether the Guarantee covers it.
+  const [categoryById, setCategoryById] = useState<Record<string, string>>({})
   // Detlio Guarantee (0051): the checkout badge shows only while it is on.
   const guaranteeOn = useGuaranteeConfig().data?.enabled === true
   // Set when the link asked for services the garage no longer sells (Book
@@ -315,6 +320,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           return
         }
         setVendor(garage.vendor)
+        setCategoryById(
+          Object.fromEntries(
+            garage.services.map((service) => [service.id, service.category])
+          )
+        )
         const svcs = garage.services
         const catalogue: Service[] = [...garage.services, ...garage.packages]
 
@@ -380,14 +390,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Derived rather than written back by an effect, for the same reason
   // `appliedDiscount` below is: there is no render where the selection is
   // still empty, and nothing has to re-fire when the car list arrives.
-  const homeVehicle = vehicles.some((v) => v.id === livePending?.vehicleId)
-    ? livePending!.vehicleId
-    : null
+  // The shared rule (lib/booking-car.ts), the same one the garage page
+  // priced with, so the price quoted there is the price charged here.
   const selectedVehicle =
-    pickedVehicle ??
-    homeVehicle ??
-    vehicles.find((v) => v.isDefault)?.id ??
-    (vehicles.length === 1 ? vehicles[0].id : null)
+    pickedVehicle ?? bookingCarId(vehicles, livePending?.vehicleId)
 
   // Derived rather than set when the garage loads, for the same reason the car
   // is: the choice carried in from the garage page stands unless this garage
@@ -786,7 +792,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
           setAppliedPromo({ discount: applied, serviceKey: key, vehicleId })
           setSuggestedCode(applied.code)
         },
-        onError: () => undefined,
+        // A suggestion the server refused is not the customer's error: the
+        // Coupons sheet must not show it for a code they never typed.
+        onError: () => applyPromo.reset(),
       }
     )
     // As with Home's code above: the key says everything that matters.
@@ -884,6 +892,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   const handleConfirm = async () => {
     if (paidRef.current || bookingLockRef.current || loading) return
+    // A code still being checked would otherwise be left off a fast Pay.
+    if (applyPromo.isPending) return
     if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle)
       return
     if (!addressReady) return
@@ -1145,14 +1155,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   }
 
   const selectedCar = vehicles.find((v) => v.id === selectedVehicle) ?? null
+  // The server's rule (lib/guarantee-cover.ts): only when every line is a
+  // wash or detailing, or a package made only of those.
   const guaranteeApplies =
     guaranteeOn &&
-    selectedServices.length > 0 &&
-    selectedServices.every(
-      (service) =>
-        service.pricingType !== 'on_inspection' &&
-        ['car_wash', 'detailing', 'package'].includes(service.category)
-    )
+    guaranteeCovers(selectedServices, (serviceId) => categoryById[serviceId])
   // Applied for the customer (F1) and still standing.
   const suggestionApplied =
     !!appliedReward && appliedReward.code === suggestedCode
@@ -1745,7 +1752,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
               <div className="flex items-center justify-between gap-3">
                 <span className="text-text-secondary">Subtotal</span>
                 <span className="font-numeric text-text-primary">
-                  {subtotal == null ? '—' : money(subtotal)}
+                  {subtotal == null || !selectedVehicle ? '—' : money(subtotal)}
                 </span>
               </div>
             )}
@@ -2052,6 +2059,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
             >
               {loading ? (
                 'Processing payment...'
+              ) : !nextStep && applyPromo.isPending ? (
+                // Pay waits for the code being checked (see handleConfirm).
+                'Checking…'
               ) : nextStep ? (
                 stepLabels[nextStep]
               ) : toPay == null ? (

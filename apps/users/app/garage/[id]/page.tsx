@@ -60,6 +60,7 @@ import { resolveServiceAmount, tierPriceFor } from '@repo/core/pricing'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { money } from '@/lib/money'
 import { pricedForCar, servicePriceText } from '@/lib/price'
+import { useBookingCar } from '@/lib/use-booking-car'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration } from '@repo/core/utils'
@@ -189,16 +190,14 @@ export default function GaragePage({
   const offerCode = searchParams.get('code')?.trim() || null
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
-  // The customer's own car (their default, else their only one), so prices
-  // read "₹599 for your Creta" rather than a range (F13).
-  const vehicles = useUserStore((s) => s.vehicles)
+  // The car this booking is for (lib/booking-car.ts: Home's pick, else the
+  // default, else the only car), so prices read "₹599 for your Creta" rather
+  // than a range (F13), and checkout charges for the same car.
   const fetchVehicles = useUserStore((s) => s.fetchVehicles)
   useEffect(() => {
     if (user) void fetchVehicles()
   }, [user, fetchVehicles])
-  const myCar =
-    vehicles.find((v) => v.isDefault) ??
-    (vehicles.length === 1 ? vehicles[0] : null)
+  const { car: myCar } = useBookingCar()
   const carType = myCar?.vehicleType ?? null
   // Named to avoid shadowing the DOM's global `location`.
   const activeLocation = useLocationStore((s) => s.location)

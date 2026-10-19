@@ -23,6 +23,17 @@ test.describe('the six-tap checkout @p0', () => {
   test('Home to a paid booking in six taps, the day and the car already picked', async ({
     page,
   }) => {
+    // Retry-safe: a first attempt that got as far as paying left a live
+    // booking on this car at the very time this run will pick, and the
+    // server refuses a car in two places at once (VEHICLE_DOUBLE_BOOKED).
+    // Cancelled bookings hold nothing, so that one is cancelled first.
+    await sql`
+      update bookings
+         set status = 'cancelled', cancelled_by = 'user', cancelled_at = now(),
+             cancellation_reason = 'E2E retry clean-up'
+       where user_id = ${CUSTOMERS.sixTap.id}
+         and status in ('pending', 'confirmed', 'in_progress')
+    `
     const before = await countBookingsForUser(CUSTOMERS.sixTap.id)
     let taps = 0
     const tap = async (target: Locator) => {

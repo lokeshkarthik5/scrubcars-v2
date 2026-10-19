@@ -8,6 +8,7 @@ import {
   IconCheck,
   IconChevronDown,
   IconHistory,
+  IconPencil,
   IconPlus,
 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
@@ -137,7 +138,12 @@ export function CarHero({
         shine && 'car-hero--shine'
       )}
     >
-      <div className="car-hero__head">
+      <div
+        className={cn(
+          'car-hero__head',
+          cars.length === 1 && 'car-hero__head--two-discs'
+        )}
+      >
         <div className="min-w-0">
           <p className="text-[13px] text-dim">Your car</p>
           <h2 className="car-hero__title">
@@ -177,7 +183,10 @@ export function CarHero({
       <Link
         href={`/profile/cars/${car.id}`}
         aria-label={`History of your ${name}`}
-        className="absolute top-[18px] right-3 z-[2] grid size-11 place-items-center rounded-full text-text-primary"
+        className={cn(
+          'absolute top-[18px] z-[2] grid size-11 place-items-center rounded-full text-text-primary',
+          cars.length === 1 ? 'right-[60px]' : 'right-3'
+        )}
       >
         <span
           aria-hidden
@@ -186,6 +195,22 @@ export function CarHero({
           <IconHistory size={20} stroke={1.5} />
         </span>
       </Link>
+      {/* With one car there is no switcher sheet, so adding or editing a car
+          keeps its own way out of the hero: a 40pt disc, 44pt target. */}
+      {cars.length === 1 && (
+        <Link
+          href="/profile#vehicles"
+          aria-label="Add or edit cars"
+          className="absolute top-[18px] right-3 z-[2] grid size-11 place-items-center rounded-full text-text-primary"
+        >
+          <span
+            aria-hidden
+            className="grid size-10 place-items-center rounded-full border border-line"
+          >
+            <IconPencil size={20} stroke={1.5} />
+          </span>
+        </Link>
+      )}
       {/* The Shine Card (0050), named and explained (F2). */}
       {shine && (
         <Link
