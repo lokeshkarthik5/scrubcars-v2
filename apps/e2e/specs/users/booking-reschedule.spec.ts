@@ -41,6 +41,10 @@ test.describe('reschedule @p0', () => {
 
     // The picker opens non-progressively here: the date list is already shown.
     await checkout.pickTomorrow()
+    // The last time of the day, late evening: the morning shows first, so
+    // the rest of the day is opened. An earlier pick would run into this
+    // car's 13:00 job (BOOKINGS.rescheduleExhausted).
+    await checkout.showAllTimes()
     await checkout.slots().last().click()
     await booking.confirmReschedule()
 
@@ -58,7 +62,7 @@ test.describe('reschedule @p0', () => {
     // The garage agreed to the old time, not this one: the move goes back to
     // it as a request.
     expect(moved?.status).toBe('pending')
-    await expect(page.getByText('Awaiting garage')).toBeVisible()
+    await expect(page.getByText('Waiting for garage')).toBeVisible()
 
     // Money is unchanged and already settled — the customer is not asked again.
     expect(moved?.amount).toBe(original?.amount)
@@ -136,8 +140,9 @@ test.describe('reschedule @p0', () => {
     await expect(page.getByRole('button', { name: 'Too close to your slot to move' })).toHaveCount(0)
     await booking.openReschedule()
     await checkout.pickTomorrow()
-    // The first slot: this customer's car already has a late-evening job
-    // tomorrow from the first test, and the last slot would clash with it.
+    // The first slot, early morning (the picker shows mornings first): this
+    // customer's car already has a late-evening job tomorrow from the first
+    // test, and the last slot of the day would clash with it.
     await checkout.slots().first().click()
     await booking.confirmReschedule()
 

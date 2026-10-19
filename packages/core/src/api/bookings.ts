@@ -151,11 +151,23 @@ const STATUS_ENDPOINTS: Partial<Record<Booking['status'], string>> = {
   completed: 'complete',
 }
 
+/**
+ * How a status change is sent, when the caller must pin it down: the
+ * garage it acts for (captured when the button was pressed, so a switch
+ * of garage in between cannot send it to another), and keepalive for one
+ * sent as the page goes away.
+ */
+export interface StatusRequestOptions {
+  vendorId?: string | null
+  keepalive?: boolean
+}
+
 /** PATCH /bookings/:id/:action */
 export async function updateBookingStatus(
   id: string,
   status: Booking['status'],
-  reason?: string
+  reason?: string,
+  options: StatusRequestOptions = {}
 ): Promise<Booking> {
   const action = STATUS_ENDPOINTS[status]
   if (!action) {
@@ -165,6 +177,8 @@ export async function updateBookingStatus(
   const booking = await apiClient<ApiBooking>(`/bookings/${id}/${action}`, {
     method: 'PATCH',
     ...(reason ? { body: JSON.stringify({ reason }) } : {}),
+    ...(options.vendorId ? { headers: { 'X-Vendor-Id': options.vendorId } } : {}),
+    ...(options.keepalive ? { keepalive: true } : {}),
   })
   return mapBooking(booking)
 }

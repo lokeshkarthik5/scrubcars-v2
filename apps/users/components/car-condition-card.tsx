@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { IconCamera, IconLoader2 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { ScModal } from '@repo/ui/sc/modal'
 import { deleteMyCarPhoto, uploadMyCarPhoto } from '@repo/core/api/job-records'
 import {
@@ -19,7 +19,10 @@ import { formatStepTime } from '@repo/core/job-records'
 import type { Booking, JobPhoto } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 
-const STAGE_WORD: Record<JobPhoto['stage'], string> = { before: 'before', after: 'after' }
+const STAGE_WORD: Record<JobPhoto['stage'], string> = {
+  before: 'before',
+  after: 'after',
+}
 
 /**
  * "Your car's condition" (0045): the customer's own photos of their car, on
@@ -44,23 +47,37 @@ export function CarConditionCard({
 }) {
   const windows = booking.conditionPhotos
   const [uploading, setUploading] = useState<string | null>(null)
-  const [viewing, setViewing] = useState<{ photo: JobPhoto; name: string; canRemove: boolean } | null>(null)
+  const [viewing, setViewing] = useState<{
+    photo: JobPhoto
+    name: string
+    canRemove: boolean
+  } | null>(null)
   const [removing, setRemoving] = useState(false)
 
   if (!windows) return null
   const stages = (['before', 'after'] as const).filter(
-    (stage) => windows[stage].open || photosOf(booking.jobPhotos, 'customer', stage).length > 0
+    (stage) =>
+      windows[stage].open ||
+      photosOf(booking.jobPhotos, 'customer', stage).length > 0
   )
   if (stages.length === 0) return null
 
-  const upload = async (stage: JobPhoto['stage'], file: File | undefined, angle: PhotoAngle | undefined) => {
+  const upload = async (
+    stage: JobPhoto['stage'],
+    file: File | undefined,
+    angle: PhotoAngle | undefined
+  ) => {
     if (!file) return
     setUploading(`${stage}:${angle ?? 'extra'}`)
     try {
       await uploadMyCarPhoto(booking.id, stage, file, angle)
       await onChanged()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Your photo did not upload. Please try again.')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Your photo did not upload. Please try again.'
+      )
     } finally {
       setUploading(null)
     }
@@ -73,7 +90,9 @@ export function CarConditionCard({
       setViewing(null)
       await onChanged()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't remove this photo")
+      toast.error(
+        error instanceof Error ? error.message : "Couldn't remove this photo"
+      )
     } finally {
       setRemoving(false)
     }
@@ -83,14 +102,18 @@ export function CarConditionCard({
     ? `Optional: add up to ${windows.max} photos of your car before the work starts, close up on any scratches or dents. The garage sees them too, and they stay with this booking.`
     : windows.after.open
       ? `Your car is done. Add up to ${windows.max} photos of how it came back${
-          windows.after.closesAt ? `, until ${formatStepTime(windows.after.closesAt)}` : ''
+          windows.after.closesAt
+            ? `, until ${formatStepTime(windows.after.closesAt)}`
+            : ''
         }.`
       : 'Your photos of your car, kept with this booking.'
 
   return (
     <ScCard className="flex flex-col gap-3">
       <div>
-        <h2 className="text-sm font-semibold text-text-primary">Your car&apos;s condition</h2>
+        <h2 className="text-sm font-semibold text-text-primary">
+          Your car&apos;s condition
+        </h2>
         <p className="mt-0.5 text-[12px] text-text-secondary">{intro}</p>
       </div>
 
@@ -109,7 +132,11 @@ export function CarConditionCard({
             className="block size-16 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.url} alt="" className="h-full w-full object-cover" />
+            <img
+              src={photo.url}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           </button>
         )
 
@@ -128,16 +155,27 @@ export function CarConditionCard({
                 const label = PHOTO_ANGLE_LABELS[angle]
                 if (photo) {
                   return (
-                    <li key={angle} className="flex w-16 flex-col items-center gap-0.5">
-                      {thumb(photo, `your ${label.toLowerCase()} photo, ${word} the work`)}
-                      <span className="text-[10px] text-text-secondary">{label}</span>
+                    <li
+                      key={angle}
+                      className="flex w-16 flex-col items-center gap-0.5"
+                    >
+                      {thumb(
+                        photo,
+                        `your ${label.toLowerCase()} photo, ${word} the work`
+                      )}
+                      <span className="text-[10px] text-text-secondary">
+                        {label}
+                      </span>
                     </li>
                   )
                 }
                 if (room <= 0) return null
                 const key = `${stage}:${angle}`
                 return (
-                  <li key={angle} className="flex w-16 flex-col items-center gap-0.5">
+                  <li
+                    key={angle}
+                    className="flex w-16 flex-col items-center gap-0.5"
+                  >
                     {/* The input inside its label: the whole tile opens the
                         camera (the back one, on a phone). */}
                     <label
@@ -160,7 +198,11 @@ export function CarConditionCard({
                         }}
                       />
                       {uploading === key ? (
-                        <IconLoader2 size={18} className="animate-spin" aria-hidden />
+                        <IconLoader2
+                          size={18}
+                          className="animate-spin"
+                          aria-hidden
+                        />
                       ) : (
                         <IconCamera size={18} aria-hidden />
                       )}
@@ -170,9 +212,14 @@ export function CarConditionCard({
                 )
               })}
               {extras.map((photo, i) => (
-                <li key={photo.id} className="flex w-16 flex-col items-center gap-0.5">
+                <li
+                  key={photo.id}
+                  className="flex w-16 flex-col items-center gap-0.5"
+                >
                   {thumb(photo, `your extra photo ${i + 1}, ${word} the work`)}
-                  <span className="text-[10px] text-text-secondary">{angleLabel(photo.angle)}</span>
+                  <span className="text-[10px] text-text-secondary">
+                    {angleLabel(photo.angle)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -196,7 +243,11 @@ export function CarConditionCard({
               className="max-h-[60vh] w-full rounded-[12px] object-contain"
             />
             <div className="flex gap-2">
-              <ScButton variant="secondary" onClick={() => setViewing(null)} className="min-h-11">
+              <ScButton
+                variant="secondary"
+                onClick={() => setViewing(null)}
+                className="min-h-11"
+              >
                 Close
               </ScButton>
               {viewing.canRemove && (

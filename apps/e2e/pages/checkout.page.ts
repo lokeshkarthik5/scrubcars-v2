@@ -3,9 +3,10 @@ import { expect, type Page } from '@playwright/test'
 /**
  * /book/[vendorId] — checkout.
  *
- * The page reveals itself progressively: the car step only mounts once a slot
- * is chosen, and the summary only once a car is. Methods here follow that
- * order, and each waits for its own section rather than for a fixed timeout.
+ * The page opens with the earliest day that has a time already picked, the
+ * customer's default car chosen and the running total in the bottom bar
+ * (F1). A time is the one thing it still asks for. Methods here wait for
+ * their own section rather than for a fixed timeout.
  */
 export class CheckoutPage {
   constructor(private readonly page: Page) {}
@@ -19,13 +20,22 @@ export class CheckoutPage {
     this.page.getByRole('button', { name: label, exact: true })
 
   /** Tomorrow, never today: it keeps the run independent of the wall clock and
-   *  clear of the 2-hour cancel/reschedule cutoff. */
+   *  clear of the 2-hour cancel/reschedule cutoff. The chip reads "Tue 20"
+   *  and is named "Tue 20 Oct, tomorrow". */
   async pickTomorrow() {
-    await this.page.getByRole('button', { name: /Tmrw/ }).click()
+    await this.page.getByRole('button', { name: /, tomorrow$/ }).click()
   }
 
-  /** Every time button in the grid — the app renders them as "06:00 AM". */
-  slots = () => this.page.getByRole('button', { name: /^\d{1,2}:\d{2}\s(AM|PM)$/ })
+  /** Every time button shown — the app writes them as "6:00 am". Morning
+   *  first; the rest of the day is behind "Show afternoon and evening". */
+  slots = () => this.page.getByRole('button', { name: /^\d{1,2}:\d{2}\s(am|pm)$/ })
+
+  /** Shows the afternoon and evening times too, when the day has both. */
+  async showAllTimes() {
+    await this.slots().first().waitFor({ state: 'visible' })
+    const more = this.page.getByRole('button', { name: 'Show afternoon and evening' })
+    if (await more.isVisible()) await more.click()
+  }
 
   /** The first bookable time. Asserts the selection landed, so a later failure
    *  points at the real problem rather than at a slot that never took. */
@@ -42,6 +52,7 @@ export class CheckoutPage {
     await this.pickFirstSlot()
   }
 
+  /** A car chip; the default car is pressed from the start. */
   vehicleCard = (label: string | RegExp) =>
     this.page.getByRole('button', { name: label })
 

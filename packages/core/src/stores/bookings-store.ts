@@ -9,10 +9,19 @@ import {
   getVendorBookings,
   updateBookingStatus,
   type CreateBookingPayload,
+  type StatusRequestOptions,
 } from '@repo/core/api/bookings'
 import type { Booking } from '@repo/core/types'
 
 const bookingRequests = new Map<string, Promise<Booking>>()
+
+/**
+ * Bumped as a status change starts and again as it lands. A job-list read
+ * that started before the latest change carries the status from before it,
+ * so it is dropped rather than put back over the change (a 10-second poll
+ * landing just after an Accept used to restore the old status).
+ */
+let statusWrites = 0
 
 function bookingRequestKey(payload: CreateBookingPayload) {
   return [
@@ -39,7 +48,12 @@ interface BookingsState {
   createBooking: (payload: CreateBookingPayload) => Promise<Booking>
   cancelBooking: (id: string, reason?: string) => Promise<Booking>
   rescheduleBooking: (id: string, scheduledAt: string, reason?: string) => Promise<Booking>
-  updateStatus: (id: string, status: Booking['status'], reason?: string) => Promise<Booking>
+  updateStatus: (
+    id: string,
+    status: Booking['status'],
+    reason?: string,
+    options?: StatusRequestOptions
+  ) => Promise<Booking>
   reset: () => void
 }
 
@@ -61,9 +75,10 @@ export const useBookingsStore = create<BookingsState>((set) => ({
 
   async fetchVendorBookings() {
     set({ isLoading: true })
+    const startedAt = statusWrites
     try {
       const bookings = await getVendorBookings()
-      set({ vendorBookings: bookings })
+      if (startedAt === statusWrites) set({ vendorBookings: bookings })
       return bookings
     } finally {
       set({ isLoading: false })
@@ -117,8 +132,11 @@ export const useBookingsStore = create<BookingsState>((set) => ({
     return booking
   },
 
-  async updateStatus(id, status, reason) {
-    const booking = await updateBookingStatus(id, status, reason)
+  async updateStatus(id, status, reason, options) {
+    statusWrites++
+    const booking = await updateBookingStatus(id, status, reason, options).finally(() => {
+      statusWrites++
+    })
     set((state) => ({
       vendorBookings: state.vendorBookings.map((b) =>
         b.id === id ? booking : b

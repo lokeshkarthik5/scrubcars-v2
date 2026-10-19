@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { IconStar } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState } from '@repo/ui/sc/empty-state'
+import { LoadError } from '@repo/ui/sc/load-error'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Skeleton, SkeletonList } from '@repo/ui/sc/skeleton'
 import { Stars } from '@repo/ui/sc/stars'
@@ -19,14 +20,26 @@ export default function VendorReviewsPage() {
   // Placeholders until the reviews arrive, rather than "no reviews" for a
   // moment on a garage that has plenty.
   const [loaded, setLoaded] = useState(false)
-  const vendor = useAuthStore((s) => s.vendor)
+  // A failed read is not "No reviews yet" (UX audit, garage finding 4): an
+  // owner reading zero reviews would think the customers' words were lost.
+  const [failed, setFailed] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const vendorId = useAuthStore((s) => s.vendor?.id)
+
+  const load = useCallback(() => {
+    if (!vendorId) return Promise.resolve()
+    return getVendorReviews(vendorId)
+      .then((list) => {
+        setReviews(list)
+        setFailed(false)
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoaded(true))
+  }, [vendorId])
 
   useEffect(() => {
-    if (!vendor?.id) return
-    getVendorReviews(vendor.id)
-      .then(setReviews)
-      .finally(() => setLoaded(true))
-  }, [vendor?.id])
+    void load()
+  }, [load])
 
   const avgRating =
     reviews.length > 0
@@ -61,6 +74,15 @@ export default function VendorReviewsPage() {
           given, and the empty state below already says so. */}
       {!loaded ? (
         <SkeletonList count={3} itemClassName="h-[92px]" />
+      ) : failed ? (
+        <LoadError
+          what="your reviews"
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true)
+            void load().finally(() => setRetrying(false))
+          }}
+        />
       ) : reviews.length === 0 ? (
         <EmptyState
           icon={<IconStar size={28} stroke={1.5} />}
@@ -85,15 +107,21 @@ export default function VendorReviewsPage() {
                     <p className="truncate text-[13px] font-medium text-text-primary">
                       {review.userName}
                     </p>
-                    <p className="font-numeric text-[11px] text-text-muted">{review.date}</p>
+                    <p className="font-numeric text-[11px] text-text-muted">
+                      {review.date}
+                    </p>
                   </div>
                   <Stars rating={review.rating} size={12} />
                 </div>
                 {review.comment && (
-                  <p className="mt-2 text-[13px] text-text-secondary">{review.comment}</p>
+                  <p className="mt-2 text-[13px] text-text-secondary">
+                    {review.comment}
+                  </p>
                 )}
                 {review.bookingContext && (
-                  <p className="mt-1 text-[11px] text-text-muted">{review.bookingContext}</p>
+                  <p className="mt-1 text-[11px] text-text-muted">
+                    {review.bookingContext}
+                  </p>
                 )}
               </ScCard>
             </Reveal>

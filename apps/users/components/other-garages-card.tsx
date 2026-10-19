@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { IconBuildingStore } from '@tabler/icons-react'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { SkeletonCard } from '@repo/ui/sc/empty-state'
 import { VendorCard } from '@repo/ui/features/vendor-card'
 import { getOtherGarages } from '@repo/core/api/bookings'
@@ -31,13 +31,20 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
   const vendors = others.data?.vendors ?? []
 
   return (
-    <section aria-labelledby="other-garages-title" className="flex flex-col gap-3">
+    <section
+      aria-labelledby="other-garages-title"
+      className="flex flex-col gap-3"
+    >
       <div>
-        <h2 id="other-garages-title" className="text-sm font-semibold text-text-primary">
+        <h2
+          id="other-garages-title"
+          className="text-sm font-semibold text-text-primary"
+        >
           Book another garage
         </h2>
         <p className="mt-0.5 text-[12px] text-text-secondary">
-          Nearby garages that do this kind of job{vendors.length > 0 ? ', nearest first' : ''}.
+          Nearby garages that do this kind of job
+          {vendors.length > 0 ? ', nearest first' : ''}.
         </p>
       </div>
 
@@ -55,9 +62,15 @@ export function OtherGaragesCard({ booking }: { booking: Booking }) {
         </ul>
       ) : (
         <ScCard className="flex items-center gap-3 px-4 py-3">
-          <IconBuildingStore size={20} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <IconBuildingStore
+            size={20}
+            aria-hidden="true"
+            className="shrink-0 text-text-muted"
+          />
           <p className="text-[13px] text-text-secondary">
-            {others.isError ? "Couldn't load garages near you." : 'No other garage nearby does this job right now.'}
+            {others.isError
+              ? "Couldn't load garages near you."
+              : 'No other garage nearby does this job right now.'}
           </p>
         </ScCard>
       )}

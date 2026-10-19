@@ -7,16 +7,29 @@ import { toast } from 'react-toastify'
 import { useQueryClient } from '@tanstack/react-query'
 import { IconLoader2 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { useHeroShine } from '@repo/ui/sc/hero-shine'
 import { Chip } from '@repo/ui/sc/chip'
 import { SkeletonCard } from '@repo/ui/sc/empty-state'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
-import { buyGift, makeGiftLink, verifyGiftPayment, type GiftLink, type SentGift } from '@repo/core/api/gifts'
-import { giftsEnabled, invalidateGiftData, useGiftsConfig } from '@repo/core/api/hooks/use-gifts'
-import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
+import {
+  buyGift,
+  makeGiftLink,
+  verifyGiftPayment,
+  type GiftLink,
+  type SentGift,
+} from '@repo/core/api/gifts'
+import {
+  giftsEnabled,
+  invalidateGiftData,
+  useGiftsConfig,
+} from '@repo/core/api/hooks/use-gifts'
+import {
+  openRazorpayCheckout,
+  RazorpayReportedError,
+} from '@repo/core/razorpay'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { CustomerShell } from '@/components/customer-shell'
@@ -73,20 +86,35 @@ export default function NewGiftPage() {
   const [phase, setPhase] = useState<Phase>({ kind: 'form' })
   // Pay is the screen's one red action: Home's gradient pill, its shine run
   // once per visit however often the button turns disabled and back.
-  const { attach: attachPayShine, className: payShineClass } = useHeroShine<HTMLButtonElement>()
+  const { attach: attachPayShine, className: payShineClass } =
+    useHeroShine<HTMLButtonElement>()
 
   const title = phase.kind === 'shared' ? 'Share your gift' : 'Gift a wash'
-  const header = <TopBar title={title} showBack backHref="/profile/gifts" large={isHomeHubEnabled()} />
+  const header = (
+    <TopBar
+      title={title}
+      showBack
+      backHref="/profile/gifts"
+      large={isHomeHubEnabled()}
+    />
+  )
 
   if (ready && !user) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to gift a wash</p>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Sign in to gift a wash
+          </p>
           <ScButton
+            variant="main"
             className="mt-2 w-auto px-8"
-            onClick={() => router.push(`/login?next=${encodeURIComponent('/profile/gifts/new')}`)}
+            onClick={() =>
+              router.push(
+                `/login?next=${encodeURIComponent('/profile/gifts/new')}`
+              )
+            }
           >
             Sign in
           </ScButton>
@@ -161,7 +189,11 @@ export default function NewGiftPage() {
           try {
             // Once, here: a second call would end this link.
             const link = await makeGiftLink(gift.id)
-            setPhase({ kind: 'shared', gift: { ...gift, linkMade: true }, link })
+            setPhase({
+              kind: 'shared',
+              gift: { ...gift, linkMade: true },
+              link,
+            })
           } catch {
             setPhase({ kind: 'unconfirmed', paid: true })
           }
@@ -177,7 +209,8 @@ export default function NewGiftPage() {
       // GIFT_DAILY_LIMIT and the rest come with a sentence for the customer.
       // What the payment sheet reported has been shown once already.
       if (err instanceof ApiError) setError(err.message)
-      else if (!(err instanceof RazorpayReportedError) && err instanceof Error) setError(err.message)
+      else if (!(err instanceof RazorpayReportedError) && err instanceof Error)
+        setError(err.message)
     } finally {
       setPaying(false)
     }
@@ -203,8 +236,15 @@ export default function NewGiftPage() {
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         {phase.kind === 'confirming' ? (
-          <p role="status" className="flex items-center gap-2 py-8 text-[13px] text-text-secondary">
-            <IconLoader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+          <p
+            role="status"
+            className="flex items-center gap-2 py-8 text-[13px] text-text-secondary"
+          >
+            <IconLoader2
+              size={16}
+              className="shrink-0 animate-spin"
+              aria-hidden="true"
+            />
             Payment received. Getting your gift ready…
           </p>
         ) : (
@@ -215,10 +255,15 @@ export default function NewGiftPage() {
                 : "Payment received. We couldn't confirm it here yet."}
             </p>
             <p className="text-[12px] text-text-secondary">
-              Your gift shows in Gifts you sent once the payment is confirmed, usually within a few minutes. Tap Get
-              the link there to share it. You won&apos;t be charged again.
+              Your gift shows in Gifts you sent once the payment is confirmed,
+              usually within a few minutes. Tap Get the link there to share it.
+              You won&apos;t be charged again.
             </p>
-            <ScButton variant="secondary" className="min-h-11" onClick={() => router.push('/profile/gifts')}>
+            <ScButton
+              variant="secondary"
+              className="min-h-11"
+              onClick={() => router.push('/profile/gifts')}
+            >
               Go to Gifts you sent
             </ScButton>
           </ScCard>
@@ -234,15 +279,27 @@ export default function NewGiftPage() {
       {/* The card as it will look, a little smaller than on the share screen so the form stays near. */}
       <PremiumCard
         key={art}
-        spec={giftCardSpec({ design: art, amount, recipientName: name, validMonths: limits.validMonths })}
+        spec={giftCardSpec({
+          design: art,
+          amount,
+          recipientName: name,
+          validMonths: limits.validMonths,
+        })}
         className="mx-auto max-w-[300px]"
       />
 
       <section aria-labelledby="gift-design" className="flex flex-col gap-2">
-        <h2 id="gift-design" className="text-sm font-semibold text-text-primary">
+        <h2
+          id="gift-design"
+          className="text-sm font-semibold text-text-primary"
+        >
           Card
         </h2>
-        <div role="radiogroup" aria-labelledby="gift-design" className="grid grid-cols-3 gap-x-2.5 gap-y-3">
+        <div
+          role="radiogroup"
+          aria-labelledby="gift-design"
+          className="grid grid-cols-3 gap-x-2.5 gap-y-3"
+        >
           {arts.map((value) => (
             <button
               key={value}
@@ -252,8 +309,22 @@ export default function NewGiftPage() {
               onClick={() => setArt(value)}
               className="gift-swatch flex flex-col gap-1.5 rounded-[12px] text-left focus-visible:outline-2 focus-visible:outline-offset-4"
             >
-              <PremiumCard spec={giftCardSpec({ design: value, amount, validMonths: limits.validMonths })} size="mini" animate={false} />
-              <span className={art === value ? 'text-[12px] font-semibold text-text-primary' : 'text-[12px] text-text-secondary'}>
+              <PremiumCard
+                spec={giftCardSpec({
+                  design: value,
+                  amount,
+                  validMonths: limits.validMonths,
+                })}
+                size="mini"
+                animate={false}
+              />
+              <span
+                className={
+                  art === value
+                    ? 'text-[12px] font-semibold text-text-primary'
+                    : 'text-[12px] text-text-secondary'
+                }
+              >
                 {GIFT_ART_LABELS[value]}
               </span>
             </button>
@@ -262,7 +333,10 @@ export default function NewGiftPage() {
       </section>
 
       <section aria-labelledby="gift-amount" className="flex flex-col gap-2">
-        <h2 id="gift-amount" className="text-sm font-semibold text-text-primary">
+        <h2
+          id="gift-amount"
+          className="text-sm font-semibold text-text-primary"
+        >
           Amount
         </h2>
         <div className="flex flex-wrap gap-2">
@@ -275,7 +349,11 @@ export default function NewGiftPage() {
               className="font-numeric"
             />
           ))}
-          <Chip label="Other amount" selected={preset === 'other'} onClick={() => setPreset('other')} />
+          <Chip
+            label="Other amount"
+            selected={preset === 'other'}
+            onClick={() => setPreset('other')}
+          />
         </div>
         {preset === 'other' && (
           <div className="flex flex-col gap-1">
@@ -284,10 +362,14 @@ export default function NewGiftPage() {
               inputMode="numeric"
               placeholder={String(limits.min)}
               value={otherAmount}
-              onChange={(e) => setOtherAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+              onChange={(e) =>
+                setOtherAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 5))
+              }
               className="font-numeric"
             />
-            {otherAmount && amountProblem && <p className="text-[11px] text-error">{amountProblem}</p>}
+            {otherAmount && amountProblem && (
+              <p className="text-[11px] text-error">{amountProblem}</p>
+            )}
           </div>
         )}
       </section>
@@ -309,19 +391,23 @@ export default function NewGiftPage() {
             rows={3}
             maxLength={MESSAGE_MAX}
             value={message}
-            onChange={(e) => setMessage(e.target.value.replace(/[\r\n]+/g, ' '))}
+            onChange={(e) =>
+              setMessage(e.target.value.replace(/[\r\n]+/g, ' '))
+            }
           />
           <p className="text-right text-[11px] text-text-muted">
-            <span className="font-numeric">{message.length}</span>/<span className="font-numeric">{MESSAGE_MAX}</span>
+            <span className="font-numeric">{message.length}</span>/
+            <span className="font-numeric">{MESSAGE_MAX}</span>
           </p>
         </div>
       </section>
 
-
       <p className="text-[12px] text-text-secondary">
-        They can use it on any booking on Detlio for <span className="font-numeric">{limits.validMonths}</span> months
-        from today. You get a link to send them after paying. Up to{' '}
-        <span className="font-numeric">{giftRupees(limits.dailyLimit)}</span> of gifts a day.
+        They can use it on any booking on Detlio for{' '}
+        <span className="font-numeric">{limits.validMonths}</span> months from
+        today. You get a link to send them after paying. Up to{' '}
+        <span className="font-numeric">{giftRupees(limits.dailyLimit)}</span> of
+        gifts a day.
       </p>
 
       {error && (
@@ -330,14 +416,23 @@ export default function NewGiftPage() {
         </p>
       )}
 
-      <ScButton ref={attachPayShine} variant="hero" onClick={() => void pay()} disabled={!canPay} className={payShineClass}>
+      <ScButton
+        ref={attachPayShine}
+        variant="hero"
+        onClick={() => void pay()}
+        disabled={!canPay}
+        className={payShineClass}
+      >
         {/* The label sits above the band of light only as an element of its own. */}
         <span>
           {paying ? (
             'Opening payment…'
           ) : amount !== null && !amountProblem ? (
             <>
-              Pay <span className="font-numeric font-bold">{giftRupees(amount)}</span>
+              Pay{' '}
+              <span className="font-numeric font-bold">
+                {giftRupees(amount)}
+              </span>
             </>
           ) : (
             'Pay'

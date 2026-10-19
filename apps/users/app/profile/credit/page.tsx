@@ -4,10 +4,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { IconChevronRight } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { TopBar } from '@repo/ui/sc/top-bar'
-import { giftsEnabled, useGiftsConfig, useMyCredit } from '@repo/core/api/hooks/use-gifts'
+import {
+  giftsEnabled,
+  useGiftsConfig,
+  useMyCredit,
+} from '@repo/core/api/hooks/use-gifts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { CustomerShell } from '@/components/customer-shell'
@@ -31,17 +35,31 @@ export default function CreditPage() {
   const on = giftsEnabled(config.data)
   const credit = useMyCredit(on && !!user)
 
-  const header = <TopBar title="Detlio credit" showBack backHref="/profile" large={isHomeHubEnabled()} />
+  const header = (
+    <TopBar
+      title="Detlio credit"
+      showBack
+      backHref="/profile"
+      large={isHomeHubEnabled()}
+    />
+  )
 
   if (ready && !user) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to see your Detlio credit</p>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Sign in to see your Detlio credit
+          </p>
           <ScButton
+            variant="main"
             className="mt-2 w-auto px-8"
-            onClick={() => router.push(`/login?next=${encodeURIComponent('/profile/credit')}`)}
+            onClick={() =>
+              router.push(
+                `/login?next=${encodeURIComponent('/profile/credit')}`
+              )
+            }
           >
             Sign in
           </ScButton>
@@ -85,17 +103,24 @@ export default function CreditPage() {
             </p>
             {view.nextExpiry && (
               <p className="mt-2 text-[12px] text-text-secondary">
-                <span className="font-numeric">{giftRupees(view.nextExpiry.amount)}</span> expires on{' '}
-                <span className="font-numeric">{formatGiftDate(view.nextExpiry.at)}</span>
+                <span className="font-numeric">
+                  {giftRupees(view.nextExpiry.amount)}
+                </span>{' '}
+                expires on{' '}
+                <span className="font-numeric">
+                  {formatGiftDate(view.nextExpiry.at)}
+                </span>
               </p>
             )}
             {soon > 0 && (
               <p className="text-[12px] text-warning">
-                <span className="font-numeric">{giftRupees(soon)}</span> expires in the next 30 days
+                <span className="font-numeric">{giftRupees(soon)}</span> expires
+                in the next 30 days
               </p>
             )}
             <p className="mt-2 text-[11px] text-text-muted">
-              Used on your next booking at checkout, after any coupon. You can turn it off there.
+              Used on your next booking at checkout, after any coupon. You can
+              turn it off there.
             </p>
           </ScCard>
 
@@ -104,12 +129,22 @@ export default function CreditPage() {
           <Link href="/profile/gifts/new">
             <ScCard className="flex items-center justify-between text-[13px] text-text-primary">
               Gift a wash
-              <IconChevronRight size={16} className="text-text-muted" aria-hidden="true" />
+              <IconChevronRight
+                size={16}
+                className="text-text-muted"
+                aria-hidden="true"
+              />
             </ScCard>
           </Link>
 
-          <section aria-labelledby="credit-history" className="flex flex-col gap-2">
-            <h2 id="credit-history" className="text-sm font-semibold text-text-primary">
+          <section
+            aria-labelledby="credit-history"
+            className="flex flex-col gap-2"
+          >
+            <h2
+              id="credit-history"
+              className="text-sm font-semibold text-text-primary"
+            >
               History
             </h2>
             {view.entries.length === 0 ? (
@@ -126,8 +161,12 @@ export default function CreditPage() {
                     const row = (
                       <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
                         <div className="min-w-0">
-                          <p className="text-[13px] text-text-primary">{entry.label}</p>
-                          <p className="font-numeric text-[11px] text-text-muted">{formatGiftDate(entry.at)}</p>
+                          <p className="text-[13px] text-text-primary">
+                            {entry.label}
+                          </p>
+                          <p className="font-numeric text-[11px] text-text-muted">
+                            {formatGiftDate(entry.at)}
+                          </p>
                         </div>
                         <span
                           className={cn(

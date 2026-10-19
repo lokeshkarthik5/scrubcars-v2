@@ -8,7 +8,11 @@
  * are on the database, because that is the only place all three agree.
  */
 import { test, expect, statePath } from '../../support/fixtures'
-import { blockThirdParties, dismissLocationPrompt, stubRazorpay } from '../../support/network'
+import {
+  blockThirdParties,
+  dismissLocationPrompt,
+  stubRazorpay,
+} from '../../support/network'
 import {
   bookingsForUser,
   countRedemptions,
@@ -26,7 +30,9 @@ const VENDORS_APP = 'http://localhost:3001'
 
 test.describe.configure({ mode: 'serial' })
 
-test('a booking is made, worked, completed and reviewed @p0', async ({ browser }) => {
+test('a booking is made, worked, completed and reviewed @p0', async ({
+  browser,
+}) => {
   // Three sessions, because three different people are involved. A single
   // context would let one app's cookies stand in for another's.
   const customerCtx = await browser.newContext({
@@ -43,10 +49,10 @@ test('a booking is made, worked, completed and reviewed @p0', async ({ browser }
     await dismissLocationPrompt(ctx)
     await blockThirdParties(ctx)
   }
-  await vendorCtx.addInitScript(
-    ([k, v]) => localStorage.setItem(k, v),
-    ['detlio.activeVendorId', VENDORS.main.id] as const
-  )
+  await vendorCtx.addInitScript(([k, v]) => localStorage.setItem(k, v), [
+    'detlio.activeVendorId',
+    VENDORS.main.id,
+  ] as const)
 
   const customer = await customerCtx.newPage()
   const vendor = await vendorCtx.newPage()
@@ -79,35 +85,53 @@ test('a booking is made, worked, completed and reviewed @p0', async ({ browser }
   // Paid, but not yet accepted: the customer is told it is a request, and
   // nothing on the page claims a confirmation the garage has not given — the
   // post-payment moment included, which used to say "Booking confirmed".
-  await expect(customer.getByText('Awaiting garage')).toBeVisible()
+  await expect(customer.getByText('Waiting for garage')).toBeVisible()
   await expect(customer.getByText(/Confirmed/i)).toHaveCount(0)
 
   // ── 2. the garage sees it, accepts, works it, finishes it ────────────────
-  await vendor.goto('/bookings')
+  await vendor.goto('/bookings?tab=new')
   const acceptLabel = `Accept booking for ${CUSTOMERS.journey.name}`
-  await expect(vendor.getByRole('button', { name: acceptLabel }).first()).toBeVisible()
+  await expect(
+    vendor.getByRole('button', { name: acceptLabel }).first()
+  ).toBeVisible()
   await vendor.getByRole('button', { name: acceptLabel }).first().click()
-  await expect.poll(async () => (await getBooking(created.id))?.status).toBe('confirmed')
+  await expect
+    .poll(async () => (await getBooking(created.id))?.status)
+    .toBe('confirmed')
 
   // The customer's page polls every 5s, so the change reaches them without a
   // reload — which is the actual promise the status stepper makes.
-  await expect(customer.getByText('Your slot is reserved')).toBeVisible({ timeout: 15_000 })
+  await expect(customer.getByText('Your slot is reserved')).toBeVisible({
+    timeout: 15_000,
+  })
 
-  await vendor.getByRole('radio', { name: /^Upcoming/ }).click()
+  // The work happens on the job's own page; Start and Complete each wait
+  // five seconds behind an Undo before they reach the server.
+  await vendor.goto(`/bookings/${created.id}`)
   await vendor
-    .getByRole('button', { name: `Mark booking for ${CUSTOMERS.journey.name} in progress` })
+    .getByRole('button', { name: `Start job for ${CUSTOMERS.journey.name}` })
     .click()
-  await expect.poll(async () => (await getBooking(created.id))?.status).toBe('in_progress')
+  await expect
+    .poll(async () => (await getBooking(created.id))?.status, {
+      timeout: 15_000,
+    })
+    .toBe('in_progress')
 
   await vendor
-    .getByRole('button', { name: `Mark booking for ${CUSTOMERS.journey.name} completed` })
+    .getByRole('button', { name: `Complete job for ${CUSTOMERS.journey.name}` })
     .click()
-  await expect.poll(async () => (await getBooking(created.id))?.status).toBe('completed')
+  await expect
+    .poll(async () => (await getBooking(created.id))?.status, {
+      timeout: 15_000,
+    })
+    .toBe('completed')
 
   // ── 3. the customer reviews the completed job ────────────────────────────
   await customer.reload()
   await customer.getByRole('button', { name: 'Rate 5 stars' }).click()
-  await customer.getByPlaceholder('Tell us about your experience').fill('Spotless, thank you.')
+  await customer
+    .getByPlaceholder('Tell us about your experience')
+    .fill('Spotless, thank you.')
   await customer.getByRole('button', { name: /Submit/i }).click()
 
   await expect
@@ -127,7 +151,10 @@ test('a booking is made, worked, completed and reviewed @p0', async ({ browser }
   expect(final?.discount_code).toBe(DISCOUNTS.percentCapped.code)
 
   const items = await getBookingItems(created.id)
-  expect(items.map((i) => i.service_id)).toEqual([SERVICES.wash.id, SERVICES.tiered.id])
+  expect(items.map((i) => i.service_id)).toEqual([
+    SERVICES.wash.id,
+    SERVICES.tiered.id,
+  ])
   // The tiered line is charged at the hatchback rate the customer's car earns.
   expect(items.map((i) => i.amount)).toEqual(['499.00', '599.00'])
 

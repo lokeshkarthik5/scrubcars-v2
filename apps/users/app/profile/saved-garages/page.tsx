@@ -30,12 +30,24 @@ export default function SavedGaragesPage() {
   if (ready && !user) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
-        <TopBar title="Saved garages" showBack backHref="/profile" large={isHomeHubEnabled()} />
+        <TopBar
+          title="Saved garages"
+          showBack
+          backHref="/profile"
+          large={isHomeHubEnabled()}
+        />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to see your saved garages</p>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Sign in to see your saved garages
+          </p>
           <ScButton
+            variant="main"
             className="mt-2 w-auto px-8"
-            onClick={() => router.push(`/login?next=${encodeURIComponent('/profile/saved-garages')}`)}
+            onClick={() =>
+              router.push(
+                `/login?next=${encodeURIComponent('/profile/saved-garages')}`
+              )
+            }
           >
             Sign in
           </ScButton>
@@ -48,7 +60,12 @@ export default function SavedGaragesPage() {
 
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
-      <TopBar title="Saved garages" showBack backHref="/profile" large={isHomeHubEnabled()} />
+      <TopBar
+        title="Saved garages"
+        showBack
+        backHref="/profile"
+        large={isHomeHubEnabled()}
+      />
 
       {!ready || saved.isPending ? (
         <div className="flex flex-col gap-3" aria-busy="true">
@@ -69,13 +86,18 @@ export default function SavedGaragesPage() {
           onAction={() => router.push('/garages')}
         />
       ) : (
-        <ul aria-label="Saved garages, newest first" className="flex flex-col gap-3">
+        <ul
+          aria-label="Saved garages, newest first"
+          className="flex flex-col gap-3"
+        >
           {vendors.map((vendor, i) => (
             <Reveal as="li" key={vendor.id} index={i}>
               <VendorCard
                 vendor={vendor}
                 action={<SaveGarageButton vendor={vendor} />}
-                note={vendor.bookingsPaused ? 'Not taking bookings right now' : null}
+                note={
+                  vendor.bookingsPaused ? 'Not taking bookings right now' : null
+                }
               />
             </Reveal>
           ))}

@@ -16,7 +16,7 @@ import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { ScInput } from '@repo/ui/sc/input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
@@ -40,9 +40,17 @@ import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { getPushConfig } from '@repo/core/api/push'
-import { giftsEnabled, useGiftsConfig, useMyCredit } from '@repo/core/api/hooks/use-gifts'
+import {
+  giftsEnabled,
+  useGiftsConfig,
+  useMyCredit,
+} from '@repo/core/api/hooks/use-gifts'
 import { Figures } from '@repo/ui/sc/figures'
-import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import {
+  rewardsEnabled,
+  useRewardsConfig,
+  useRewardsSummary,
+} from '@repo/core/api/hooks/use-rewards'
 import { stampsToGoLine } from '@repo/core/rewards'
 import { LevelBadge } from '@/components/rewards/level-badge'
 import { giftRupees } from '@/lib/gifts'
@@ -122,7 +130,8 @@ export default function ProfilePage() {
   const rewardsSummary = useRewardsSummary(rewardsOn)
 
   // Slot alerts shows while any are waiting (0047).
-  const slotAlertCount = useSlotAlerts({ enabled: !!authUser }).data?.items.length ?? 0
+  const slotAlertCount =
+    useSlotAlerts({ enabled: !!authUser }).data?.items.length ?? 0
   // Coupons ready to use (0056), counted on the Coupons row.
   const readyCoupons = couponsForCheckout(useMyCoupons(!!authUser).data).length
 
@@ -150,12 +159,22 @@ export default function ProfilePage() {
 
   if (!authUser) {
     return (
-      <CustomerShell showNav showBrand className="gap-4 py-4">
+      <CustomerShell showNav className="gap-4 py-4">
         <TopBar title="Profile" large={isHomeHubEnabled()} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Login to view your profile</p>
-          <p className="text-[13px] text-text-secondary">Sign in to manage your vehicles and addresses</p>
-          <ScButton className="mt-2 w-auto px-8" onClick={() => (window.location.href = '/login')}>Login</ScButton>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Login to view your profile
+          </p>
+          <p className="text-[13px] text-text-secondary">
+            Sign in to manage your vehicles and addresses
+          </p>
+          <ScButton
+            variant="main"
+            className="mt-2 w-auto px-8"
+            onClick={() => (window.location.href = '/login')}
+          >
+            Login
+          </ScButton>
         </div>
       </CustomerShell>
     )
@@ -224,7 +243,13 @@ export default function ProfilePage() {
   }
 
   const submitAddress = async () => {
-    if (!addressForm.label || !addressForm.address || !addressForm.city || !addressForm.pincode) return
+    if (
+      !addressForm.label ||
+      !addressForm.address ||
+      !addressForm.city ||
+      !addressForm.pincode
+    )
+      return
     if (!/^\d{6}$/.test(addressForm.pincode)) {
       toast.error('Enter a valid 6-digit pincode')
       return
@@ -268,7 +293,9 @@ export default function ProfilePage() {
       void invalidateHome(queryClient)
       toast.success('Default vehicle updated')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to set default vehicle')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to set default vehicle'
+      )
     } finally {
       setPromoting(null)
     }
@@ -283,7 +310,9 @@ export default function ProfilePage() {
       }))
       toast.success('Default address updated')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to set default address')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to set default address'
+      )
     } finally {
       setPromoting(null)
     }
@@ -293,11 +322,15 @@ export default function ProfilePage() {
     setDeleting(id)
     try {
       await deleteVehicle(id)
-      useUserStore.setState((s) => ({ vehicles: s.vehicles.filter((v) => v.id !== id) }))
+      useUserStore.setState((s) => ({
+        vehicles: s.vehicles.filter((v) => v.id !== id),
+      }))
       void invalidateHome(queryClient)
       toast.success('Vehicle removed')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove vehicle')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to remove vehicle'
+      )
     } finally {
       setDeleting(null)
     }
@@ -307,17 +340,21 @@ export default function ProfilePage() {
     setDeleting(id)
     try {
       await deleteAddress(id)
-      useUserStore.setState((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) }))
+      useUserStore.setState((s) => ({
+        addresses: s.addresses.filter((a) => a.id !== id),
+      }))
       toast.success('Address removed')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove address')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to remove address'
+      )
     } finally {
       setDeleting(null)
     }
   }
 
   return (
-    <CustomerShell showNav showBrand className="gap-4 py-4">
+    <CustomerShell showNav className="gap-4 py-4">
       <TopBar title="Profile" large={isHomeHubEnabled()} />
 
       <ScCard className="flex items-center gap-3">
@@ -356,10 +393,14 @@ export default function ProfilePage() {
           </span>
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-semibold text-text-primary">{user?.name}</p>
+          <p className="text-[15px] font-semibold text-text-primary">
+            {user?.name}
+          </p>
           <p className="text-[12px] text-text-secondary">+91 {user?.phone}</p>
           {user?.area && (
-            <p className="text-[11px] text-text-muted">{user.area} – {user.pincode}</p>
+            <p className="text-[11px] text-text-muted">
+              {user.area} – {user.pincode}
+            </p>
           )}
           {user?.avatarUrl && (
             <button
@@ -389,7 +430,9 @@ export default function ProfilePage() {
         <Link href="/profile/slot-alerts">
           <ScCard className="flex items-center justify-between text-[13px] text-text-primary">
             Slot alerts
-            <span className="font-numeric text-[12px] text-text-secondary">{slotAlertCount}</span>
+            <span className="font-numeric text-[12px] text-text-secondary">
+              {slotAlertCount}
+            </span>
           </ScCard>
         </Link>
       )}
@@ -401,9 +444,15 @@ export default function ProfilePage() {
         <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
           <span className="min-w-0">
             Coupons
-            <span className="block text-[12px] text-text-secondary">Have a coupon? Add it here</span>
+            <span className="block text-[12px] text-text-secondary">
+              Have a coupon? Add it here
+            </span>
           </span>
-          {readyCoupons > 0 && <span className="font-numeric text-[12px] text-text-secondary">{readyCoupons}</span>}
+          {readyCoupons > 0 && (
+            <span className="font-numeric text-[12px] text-text-secondary">
+              {readyCoupons}
+            </span>
+          )}
         </ScCard>
       </Link>
 
@@ -415,18 +464,24 @@ export default function ProfilePage() {
               Detlio Rewards
               {rewardsSummary.data && (
                 <span className="block text-[12px] text-text-secondary">
-                  <Figures text={stampsToGoLine(rewardsSummary.data.card.toGo)} />
+                  <Figures
+                    text={stampsToGoLine(rewardsSummary.data.card.toGo)}
+                  />
                   {/* 0054: the badge count. */}
-                  {rewardsSummary.data.extras && rewardsSummary.data.extras.badgesEarned > 0 && (
-                    <Figures
-                      text={` · ${rewardsSummary.data.extras.badgesEarned} ${rewardsSummary.data.extras.badgesEarned === 1 ? 'badge' : 'badges'}`}
-                    />
-                  )}
+                  {rewardsSummary.data.extras &&
+                    rewardsSummary.data.extras.badgesEarned > 0 && (
+                      <Figures
+                        text={` · ${rewardsSummary.data.extras.badgesEarned} ${rewardsSummary.data.extras.badgesEarned === 1 ? 'badge' : 'badges'}`}
+                      />
+                    )}
                 </span>
               )}
             </span>
             {rewardsSummary.data && (
-              <LevelBadge level={rewardsSummary.data.level.level} label={rewardsSummary.data.level.label} />
+              <LevelBadge
+                level={rewardsSummary.data.level.level}
+                label={rewardsSummary.data.level.label}
+              />
             )}
           </ScCard>
         </Link>
@@ -440,12 +495,16 @@ export default function ProfilePage() {
             <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
               Detlio credit
               {credit.data && (
-                <span className="font-numeric text-[13px] text-text-secondary">{giftRupees(credit.data.balance)}</span>
+                <span className="font-numeric text-[13px] text-text-secondary">
+                  {giftRupees(credit.data.balance)}
+                </span>
               )}
             </ScCard>
           </Link>
           <Link href="/profile/gifts">
-            <ScCard className="text-[13px] text-text-primary">Gift a wash</ScCard>
+            <ScCard className="text-[13px] text-text-primary">
+              Gift a wash
+            </ScCard>
           </Link>
         </>
       )}
@@ -453,7 +512,9 @@ export default function ProfilePage() {
       {/* Browser notifications on this device, and what to send (0044). */}
       {pushOn && (
         <Link href="/profile/notifications">
-          <ScCard className="text-[13px] text-text-primary">Notifications</ScCard>
+          <ScCard className="text-[13px] text-text-primary">
+            Notifications
+          </ScCard>
         </Link>
       )}
 
@@ -467,7 +528,7 @@ export default function ProfilePage() {
             // Both section headers render a button reading "Add", which on its
             // own tells a screen reader nothing about what is being added.
             aria-label="Add vehicle"
-            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[12px] text-brand-red"
+            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[13px] text-text-primary"
           >
             <IconPlus size={14} aria-hidden="true" />
             Add
@@ -481,42 +542,63 @@ export default function ProfilePage() {
                 label="Make"
                 placeholder="e.g. Maruti"
                 value={vehicleForm.make}
-                onChange={(e) => setVehicleForm({ ...vehicleForm, make: e.target.value })}
+                onChange={(e) =>
+                  setVehicleForm({ ...vehicleForm, make: e.target.value })
+                }
               />
               <ScInput
                 label="Model"
                 placeholder="e.g. Swift"
                 value={vehicleForm.model}
-                onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })}
+                onChange={(e) =>
+                  setVehicleForm({ ...vehicleForm, model: e.target.value })
+                }
               />
             </div>
             <ScInput
               label="License plate (optional)"
               placeholder="e.g. TN 01 AB 1234"
               value={vehicleForm.licensePlate}
-              onChange={(e) => setVehicleForm({ ...vehicleForm, licensePlate: e.target.value.toUpperCase() })}
+              onChange={(e) =>
+                setVehicleForm({
+                  ...vehicleForm,
+                  licensePlate: e.target.value.toUpperCase(),
+                })
+              }
             />
             <div>
-              <p className="mb-2 text-[11px] font-medium text-text-secondary">Type</p>
+              <p className="mb-2 text-[11px] font-medium text-text-secondary">
+                Type
+              </p>
               <div className="flex gap-2">
                 {VEHICLE_TYPES.map((t) => (
                   <Chip
                     key={t.value}
                     label={t.label}
                     selected={vehicleForm.vehicleType === t.value}
-                    onClick={() => setVehicleForm({ ...vehicleForm, vehicleType: t.value })}
+                    onClick={() =>
+                      setVehicleForm({ ...vehicleForm, vehicleType: t.value })
+                    }
                   />
                 ))}
               </div>
             </div>
             <div className="flex gap-2">
               <ScButton
-                disabled={!vehicleForm.make || !vehicleForm.model || saving === 'vehicle'}
+                variant="main"
+                disabled={
+                  !vehicleForm.make ||
+                  !vehicleForm.model ||
+                  saving === 'vehicle'
+                }
                 onClick={submitVehicle}
               >
                 {saving === 'vehicle' ? 'Saving...' : 'Save vehicle'}
               </ScButton>
-              <ScButton variant="secondary" onClick={() => setShowVehicleForm(false)}>
+              <ScButton
+                variant="secondary"
+                onClick={() => setShowVehicleForm(false)}
+              >
                 Cancel
               </ScButton>
             </div>
@@ -526,7 +608,9 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-2">
           {vehicles.length === 0 && !showVehicleForm ? (
             <ScCard>
-              <p className="text-[12px] text-text-secondary">No vehicles added yet.</p>
+              <p className="text-[12px] text-text-secondary">
+                No vehicles added yet.
+              </p>
             </ScCard>
           ) : (
             vehicles.map((v) => (
@@ -539,12 +623,22 @@ export default function ProfilePage() {
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
-                    <IconCar size={18} className="text-text-primary" aria-hidden="true" />
+                    <IconCar
+                      size={18}
+                      className="text-text-primary"
+                      aria-hidden="true"
+                    />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-0.5 text-[13px] font-medium text-text-primary">
-                      <span className="truncate">{v.make} {v.model}</span>
-                      <IconChevronRight size={14} className="shrink-0 text-text-muted" aria-hidden="true" />
+                      <span className="truncate">
+                        {v.make} {v.model}
+                      </span>
+                      <IconChevronRight
+                        size={14}
+                        className="shrink-0 text-text-muted"
+                        aria-hidden="true"
+                      />
                     </span>
                     <span className="block text-[11px] text-text-secondary">
                       {v.plate ? `${v.plate} · History` : 'History'}
@@ -588,7 +682,7 @@ export default function ProfilePage() {
             type="button"
             onClick={() => setShowAddressForm((a) => !a)}
             aria-label="Add address"
-            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[12px] text-brand-red"
+            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-[13px] text-text-primary"
           >
             <IconPlus size={14} aria-hidden="true" />
             Add
@@ -601,7 +695,9 @@ export default function ProfilePage() {
               label="Label"
               placeholder="e.g. Home, Work"
               value={addressForm.label}
-              onChange={(e) => setAddressForm({ ...addressForm, label: e.target.value })}
+              onChange={(e) =>
+                setAddressForm({ ...addressForm, label: e.target.value })
+              }
             />
             <div className="flex flex-col gap-1.5">
               <span className="text-[11px] font-medium text-text-secondary">
@@ -644,14 +740,18 @@ export default function ProfilePage() {
               label="Address"
               placeholder="Street, area"
               value={addressForm.address}
-              onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })}
+              onChange={(e) =>
+                setAddressForm({ ...addressForm, address: e.target.value })
+              }
             />
             <div className="grid grid-cols-2 gap-2">
               <ScInput
                 label="City"
                 placeholder="e.g. Chennai"
                 value={addressForm.city}
-                onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                onChange={(e) =>
+                  setAddressForm({ ...addressForm, city: e.target.value })
+                }
               />
               <ScInput
                 label="Pincode"
@@ -659,17 +759,32 @@ export default function ProfilePage() {
                 maxLength={6}
                 placeholder="600001"
                 value={addressForm.pincode}
-                onChange={(e) => setAddressForm({ ...addressForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                onChange={(e) =>
+                  setAddressForm({
+                    ...addressForm,
+                    pincode: e.target.value.replace(/\D/g, '').slice(0, 6),
+                  })
+                }
               />
             </div>
             <div className="flex gap-2">
               <ScButton
-                disabled={!addressForm.label || !addressForm.address || !addressForm.city || !addressForm.pincode || saving === 'address'}
+                variant="main"
+                disabled={
+                  !addressForm.label ||
+                  !addressForm.address ||
+                  !addressForm.city ||
+                  !addressForm.pincode ||
+                  saving === 'address'
+                }
                 onClick={submitAddress}
               >
                 {saving === 'address' ? 'Saving...' : 'Save address'}
               </ScButton>
-              <ScButton variant="secondary" onClick={() => setShowAddressForm(false)}>
+              <ScButton
+                variant="secondary"
+                onClick={() => setShowAddressForm(false)}
+              >
                 Cancel
               </ScButton>
             </div>
@@ -679,7 +794,9 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-2">
           {addresses.length === 0 && !showAddressForm ? (
             <ScCard>
-              <p className="text-[12px] text-text-secondary">No addresses added yet.</p>
+              <p className="text-[12px] text-text-secondary">
+                No addresses added yet.
+              </p>
             </ScCard>
           ) : (
             addresses.map((a) => (
@@ -688,9 +805,15 @@ export default function ProfilePage() {
                   <IconMapPin size={18} className="text-text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-text-primary">{a.label}</p>
-                  <p className="text-[11px] text-text-secondary truncate">{a.address}</p>
-                  {a.pincode && <p className="text-[11px] text-text-muted">{a.pincode}</p>}
+                  <p className="text-[13px] font-medium text-text-primary">
+                    {a.label}
+                  </p>
+                  <p className="text-[11px] text-text-secondary truncate">
+                    {a.address}
+                  </p>
+                  {a.pincode && (
+                    <p className="text-[11px] text-text-muted">{a.pincode}</p>
+                  )}
                 </div>
                 {a.isDefault ? (
                   <ScBadge variant="success">Default</ScBadge>
@@ -731,7 +854,11 @@ export default function ProfilePage() {
             className="flex items-center justify-between px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
           >
             Help centre
-            <IconChevronRight size={16} className="text-text-muted" aria-hidden="true" />
+            <IconChevronRight
+              size={16}
+              className="text-text-muted"
+              aria-hidden="true"
+            />
           </Link>
         </ScCard>
         <SupportCard />
@@ -755,7 +882,11 @@ export default function ProfilePage() {
                   className="flex items-center justify-between px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
                 >
                   {link.label}
-                  <IconChevronRight size={16} className="text-text-muted" aria-hidden="true" />
+                  <IconChevronRight
+                    size={16}
+                    className="text-text-muted"
+                    aria-hidden="true"
+                  />
                 </Link>
               </li>
             ))}

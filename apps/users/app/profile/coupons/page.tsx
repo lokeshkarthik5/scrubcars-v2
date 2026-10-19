@@ -31,17 +31,31 @@ export default function CouponsPage() {
   const coupons = useMyCoupons(!!user)
   const rememberOffer = usePendingCheckoutStore((s) => s.rememberOffer)
 
-  const header = <TopBar title="Coupons" showBack backHref="/profile" large={isHomeHubEnabled()} />
+  const header = (
+    <TopBar
+      title="Coupons"
+      showBack
+      backHref="/profile"
+      large={isHomeHubEnabled()}
+    />
+  )
 
   if (ready && !user) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to add a coupon</p>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Sign in to add a coupon
+          </p>
           <ScButton
+            variant="main"
             className="mt-2 w-auto px-8"
-            onClick={() => router.push(`/login?next=${encodeURIComponent('/profile/coupons')}`)}
+            onClick={() =>
+              router.push(
+                `/login?next=${encodeURIComponent('/profile/coupons')}`
+              )
+            }
           >
             Sign in
           </ScButton>
@@ -52,7 +66,13 @@ export default function CouponsPage() {
 
   const use = (coupon: MyCoupon) => {
     if (user && coupon.code && coupon.expiresAt) {
-      rememberOffer({ userId: user.id, code: coupon.code, vendorId: coupon.vendorId, vehicleId: null, endsAt: coupon.expiresAt })
+      rememberOffer({
+        userId: user.id,
+        code: coupon.code,
+        vendorId: coupon.vendorId,
+        vehicleId: null,
+        endsAt: coupon.expiresAt,
+      })
     }
     router.push(couponBookPath(coupon))
   }
@@ -66,7 +86,10 @@ export default function CouponsPage() {
       <CouponCodeBox />
 
       <section aria-labelledby="my-coupons" className="flex flex-col gap-3">
-        <h2 id="my-coupons" className="text-[15px] font-semibold text-text-primary">
+        <h2
+          id="my-coupons"
+          className="text-[15px] font-semibold text-text-primary"
+        >
           Your coupons
         </h2>
         {!ready || coupons.isPending ? (
@@ -74,7 +97,10 @@ export default function CouponsPage() {
             <SkeletonCard />
           </div>
         ) : coupons.isError ? (
-          <ErrorState message="Couldn't load your coupons. Check your connection." onRetry={() => void coupons.refetch()} />
+          <ErrorState
+            message="Couldn't load your coupons. Check your connection."
+            onRetry={() => void coupons.refetch()}
+          />
         ) : list.length === 0 ? (
           <EmptyState
             icon={<IconTicket size={32} stroke={1.5} />}
@@ -95,7 +121,9 @@ export default function CouponsPage() {
                   stamps={coupon.stamps}
                   dimmed={coupon.state !== 'ready' && coupon.state !== 'added'}
                 >
-                  <p className="text-[12px] text-text-secondary">{myCouponStateLine(coupon)}</p>
+                  <p className="text-[12px] text-text-secondary">
+                    {myCouponStateLine(coupon)}
+                  </p>
                   {coupon.state === 'ready' && (
                     <ScButton
                       variant="secondary"

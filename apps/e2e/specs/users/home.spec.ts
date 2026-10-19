@@ -51,6 +51,15 @@ const offerButton = (page: Page, code = OFFER_CODE) =>
 // Exact: with two cars the swipe track inside is "Your cars".
 const carHero = (page: Page) => page.getByRole('region', { name: 'Your car', exact: true })
 
+/** Switches the car on Home: a tap on its name, then the car in the sheet. */
+async function switchCar(page: Page, name: string) {
+  await carHero(page).getByRole('button', { name: /switch car$/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'Choose a car' })
+  await sheet.getByRole('button', { name: new RegExp(`^${name}`) }).click()
+  await expect(sheet).toBeHidden()
+  await expect(carHero(page).getByRole('heading', { name })).toBeVisible()
+}
+
 /** True when `first` comes before `second` in the document. */
 async function comesBefore(first: Locator, second: Locator) {
   const a = await first.elementHandle()
@@ -80,7 +89,7 @@ test.describe('Home hub @p0', () => {
   test.describe('an offer that is live', () => {
     test.use({ storageState: asRole('customer-homeOffer') })
 
-    test('comes first, above the car; Book a wash is the one red button', async ({ page }) => {
+    test('sits below the car as a dark ticket; Book a wash is the one red button', async ({ page }) => {
       await page.goto('/home?welcome=1')
 
       await expect(page.getByText('Welcome, Hub! Find your first car wash.')).toBeVisible()
@@ -88,7 +97,10 @@ test.describe('Home hub @p0', () => {
       await expect(offer).toBeVisible()
       await expect(offer).toHaveAccessibleName(new RegExp(DISCOUNTS.homeBooked.homeTitle))
       await expect(carHero(page)).toBeVisible()
-      expect(await comesBefore(offer, carHero(page))).toBe(true)
+      // The approved Home (F2): the car first, the offer one card down, so
+      // the ticket never outshines the screen's red button.
+      expect(await comesBefore(carHero(page), offer)).toBe(true)
+      await expect(page.locator('.offer-coupon').filter({ has: offer })).toHaveClass(/offer-coupon--dark/)
 
       // One red action on the screen, and it is Book a wash.
       await expect(page.locator('.cta-hero')).toHaveCount(1)
@@ -120,7 +132,8 @@ test.describe('Home hub @p0', () => {
       // A smaller cart: checked again, and still applied, at 25% of 450.
       await checkout.removeLine(SERVICES.homePromoInspect.name).click()
       await expect(checkout.appliedBanner(OFFER_CODE)).toBeVisible()
-      await expect(checkout.cta()).toHaveText('Pay ₹337.5')
+      // Paise only when there are any, and then both digits (F7).
+      await expect(checkout.cta()).toHaveText('Pay ₹337.50')
 
       // Remove is for good: off the link too, so a reload does not bring it back.
       await checkout.removePromo()
@@ -250,10 +263,10 @@ test.describe('Home hub @p0', () => {
       await expect(tile).toContainText(new RegExp(`${first}\\s*days ago`))
       await expect(tile).toContainText(`Due in ${days(10 - first)}`)
 
-      // Two cars: the hero swipes, and the tiles follow the car on screen.
-      const cars = page.getByRole('region', { name: 'Your cars' })
-      await expect(cars.getByRole('heading', { name: 'Honda Amaze' })).toBeVisible()
-      await cars.evaluate((track) => track.scrollTo({ left: track.clientWidth }))
+      // Two cars: a tap on the car's name switches it (F2: the offers are
+      // Home's only swipe row), and the tiles follow the car chosen.
+      await expect(carHero(page).getByRole('heading', { name: 'Honda Amaze' })).toBeVisible()
+      await switchCar(page, 'Tata Nexon')
       // 13 days into 10: overdue by 3.
       await expect(tile).toContainText(`Overdue by ${days(second - 10)}`)
 
@@ -272,55 +285,55 @@ test.describe('Home hub @p0', () => {
     // needs no change here.
     test("each car shows its body type's picture, standing on the approved line", async ({ page }) => {
       await page.goto('/home')
-      const cars = page.getByRole('region', { name: 'Your cars' })
-      const picture = (n: number) =>
-        cars.getByRole('group', { name: `Car ${n} of 2` }).locator('img.car-hero__car')
+      const hero = carHero(page)
+      // One car on the stage at a time.
+      const picture = () => hero.locator('img.car-hero__car')
       // What the browser actually drew, not what the markup asked for: if a
       // body-type file fails, the hero swaps in car-default under the same
       // class, so only currentSrc tells the two apart.
-      const drawn = (n: number) =>
-        picture(n).evaluate((img: HTMLImageElement) =>
-          img.complete && img.naturalWidth > 0 ? img.currentSrc : ''
-        )
+      const drawn = () =>
+        picture().evaluate((img: HTMLImageElement) => (img.complete && img.naturalWidth > 0 ? img.currentSrc : ''))
 
       // As seeded: the Honda Amaze is a sedan, the Tata Nexon an SUV / MUV.
-      await expect(cars.getByRole('heading', { name: 'Honda Amaze' })).toBeVisible()
+      await expect(hero.getByRole('heading', { name: 'Honda Amaze' })).toBeVisible()
 
       if (!CAR_PICTURES_BY_TYPE) {
         // One picture for every car, through next/image as Home launched.
-        for (const n of [1, 2]) {
-          if (n === 2) await cars.evaluate((track) => track.scrollTo({ left: track.clientWidth }))
-          await expect(picture(n)).not.toHaveClass(/car-hero__car--body-type/)
-          await expect.poll(() => drawn(n)).toContain('car-default.webp')
+        for (const name of ['Honda Amaze', 'Tata Nexon']) {
+          if (name === 'Tata Nexon') await switchCar(page, name)
+          await expect(picture()).not.toHaveClass(/car-hero__car--body-type/)
+          await expect.poll(drawn).toContain('car-default.webp')
         }
         return
       }
 
-      await expect(picture(1)).toHaveAttribute('src', '/cars/car-sedan-1200.webp')
-      await expect(picture(1)).toHaveAttribute(
+      await expect(picture()).toHaveAttribute('src', '/cars/car-sedan-1200.webp')
+      await expect(picture()).toHaveAttribute(
         'srcset',
         '/cars/car-sedan-1200.webp 1200w, /cars/car-sedan-2400.webp 2400w'
       )
-      await expect(picture(2)).toHaveAttribute('src', '/cars/car-suv-1200.webp')
-
-      // Loaded and still the body-type file (the second is lazy until
-      // swiped to), so a missing or broken file cannot pass as the fallback.
-      await expect.poll(() => drawn(1)).toContain('/cars/car-sedan-')
-      await cars.evaluate((track) => track.scrollTo({ left: track.clientWidth }))
-      await expect.poll(() => drawn(2)).toContain('/cars/car-suv-')
-      for (const n of [1, 2]) await expect(picture(n)).toHaveClass(/car-hero__car--body-type/)
+      // Loaded and still the body-type file, so a missing or broken file
+      // cannot pass as the fallback.
+      await expect.poll(drawn).toContain('/cars/car-sedan-')
+      await expect(picture()).toHaveClass(/car-hero__car--body-type/)
 
       // Placed by the tyres, not the top: they stand 217pt down the hero
       // (201pt when a must-act card makes it short), the SUV as the sedan.
-      // Measured from the track, which sits inside the card's 1px border,
-      // as the CSS `top` is.
-      const short = await carHero(page).evaluate((el) => el.classList.contains('car-hero--short'))
+      // Measured from inside the card's 1px border, as the CSS `top` is.
+      const short = await hero.evaluate((el) => el.classList.contains('car-hero--short'))
       const line = short ? 201 : 217
-      const trackBox = (await cars.boundingBox())!
-      for (const n of [1, 2]) {
-        const box = (await picture(n).boundingBox())!
-        expect(Math.abs(box.y + box.height * 0.907 - (trackBox.y + line))).toBeLessThan(0.75)
+      const onTheLine = async () => {
+        const heroBox = (await hero.boundingBox())!
+        const box = (await picture().boundingBox())!
+        expect(Math.abs(box.y + box.height * 0.907 - (heroBox.y + 1 + line))).toBeLessThan(0.75)
       }
+      await onTheLine()
+
+      await switchCar(page, 'Tata Nexon')
+      await expect(picture()).toHaveAttribute('src', '/cars/car-suv-1200.webp')
+      await expect.poll(drawn).toContain('/cars/car-suv-')
+      await expect(picture()).toHaveClass(/car-hero__car--body-type/)
+      await onTheLine()
     })
   })
 
