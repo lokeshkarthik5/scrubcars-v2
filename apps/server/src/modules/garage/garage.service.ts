@@ -1,22 +1,19 @@
 import { randomUUID } from 'node:crypto'
-import { generatePictures, isAiPicturesEnabled, PICTURES_PER_REQUEST } from '../../lib/ai-images.js'
 import { isCelebrationHour } from '../../lib/achievements.js'
 import { runInBackground } from '../../lib/background.js'
 import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import {
-  AI_IMAGE_COST_INR,
-  artCostEstimate,
   carProblems,
   CAR_LIMITS,
   GARAGE_RARITIES,
   garageArtKey,
-  garageArtPrompt,
   garageSettings,
   garageTempPrefix,
   isGarageTempKeyFor,
   isWebp,
   MAX_ART_BYTES,
+  PHOTO_SETTINGS,
   PULL_SOURCE_LABELS,
   PULL_SOURCES,
   pullsWords,
@@ -36,8 +33,7 @@ import { bannedPhraseIn } from '../../lib/copy-rules.js'
 import { istMonthKey, maskPhone, type NudgeKind, type RewardsSettings } from '../../lib/rewards.js'
 import { logger } from '../../lib/logger.js'
 import { customerRewardNudge } from '../../lib/push-messages.js'
-import { createPresignedPutForKey, deleteObject, keyFromPublicUrl, putObject, readObject, copyObject, publicUrlForKey } from '../../lib/storage.js'
-import { createKeyedLimit } from '../../lib/throttle.js'
+import { createPresignedPutForKey, deleteObject, keyFromPublicUrl, putObject, readObject, publicUrlForKey } from '../../lib/storage.js'
 import { pushService } from '../push/push.service.js'
 import { announceRewards } from '../rewards/rewards.announce.js'
 import type { IssuedVoucher } from '../rewards/rewards.repository.js'
@@ -59,17 +55,10 @@ const CSV_LIMIT = 20_000
 /** The album, where every Garage push and Updates row opens. */
 export const GARAGE_PAGE = '/profile/rewards/garage'
 
-/**
- * AI pictures for the Garage, per admin per hour: enough to fill a whole
- * series in one sitting (40 one-picture runs plus some two-option tries),
- * still a wall for a stuck button (each is about ₹4).
- */
-const GARAGE_AI_PER_HOUR = 80
-const aiLimit = createKeyedLimit(GARAGE_AI_PER_HOUR, 60 * 60 * 1000)
 
 // ─── Views ───────────────────────────────────────────────────────────────────
 
-/** A card as the customer sees it once owned: everything on it. */
+/** A card as the customer sees it once owned: everything on it. The app finds the photo by `photoId` in its pool. */
 function ownedCarView(car: GarageCarRow, seriesNumber: number, total: number, owned: { count: number; firstPulledAt: Date | null }) {
   return {
     id: car.id,
@@ -79,11 +68,10 @@ function ownedCarView(car: GarageCarRow, seriesNumber: number, total: number, ow
     owned: true as const,
     rarity: car.rarity,
     rarityLabel: RARITY_LABELS[car.rarity],
-    tone: car.tone,
     name: car.name,
-    paint: car.paint,
+    photoId: car.photoId,
     colour: car.colour,
-    stats: car.stats,
+    setting: car.setting,
     lore: car.lore,
     art: { source: car.artSource, url: car.artUrl },
     count: owned.count,
@@ -91,9 +79,13 @@ function ownedCarView(car: GarageCarRow, seriesNumber: number, total: number, ow
   }
 }
 
-/** A card not collected yet: its number, rarity and tone only (the silhouette). Never its name or picture. */
+/**
+ * A card not collected yet: its number, rarity and photo id only (the app
+ * shows that photo blurred and darkened, never the card's name, words or
+ * uploaded art).
+ */
 function missingCarView(car: GarageCarRow, seriesNumber: number, total: number) {
-  return { id: null, number: car.number, total, series: seriesNumber, owned: false as const, rarity: car.rarity, rarityLabel: RARITY_LABELS[car.rarity], tone: car.tone }
+  return { id: null, number: car.number, total, series: seriesNumber, owned: false as const, rarity: car.rarity, rarityLabel: RARITY_LABELS[car.rarity], photoId: car.photoId }
 }
 
 export type OwnedCarView = ReturnType<typeof ownedCarView>
@@ -405,7 +397,7 @@ export const garageService = {
 
   // ─── Admin ────────────────────────────────────────────────────────────────
 
-  /** Rewards → Garage: the settings in force, every series, the chosen series' cars with their figures, and what AI art would cost. */
+  /** Rewards → Garage: the settings in force, every series, the chosen series' cards with their figures. */
   async adminOverview(seriesId: string | undefined, now = new Date()) {
     const { settings, version } = await currentSettings(0)
     const g = garageSettings(settings)
@@ -414,7 +406,6 @@ export const garageService = {
     const cars = chosen ? await garageRepository.seriesCars(chosen.id) : []
     const figures = chosen ? await garageRepository.carFigures(chosen.id) : new Map()
     const live = await garageRepository.liveSeries(now)
-    const missingArt = cars.filter((car) => car.enabled && car.artSource === 'default').length
     return {
       masterSwitch: env.rewardsEnabled,
       rewardsLive: env.rewardsEnabled && settings.enabled,
@@ -424,12 +415,7 @@ export const garageService = {
       series: series.map((s) => ({ ...s, startsAt: s.startsAt?.toISOString() ?? null, endsAt: s.endsAt?.toISOString() ?? null, createdAt: s.createdAt.toISOString(), updatedAt: s.updatedAt.toISOString() })),
       seriesId: chosen?.id ?? null,
       cars: cars.map((car) => adminCarView(car, figures.get(car.id))),
-      ai: {
-        pictures: isAiPicturesEnabled(),
-        costPerImage: AI_IMAGE_COST_INR,
-        missing: missingArt,
-        estimate: artCostEstimate(missingArt),
-      },
+      settings: PHOTO_SETTINGS,
       limits: CAR_LIMITS,
     }
   },
@@ -461,9 +447,9 @@ export const garageService = {
       ...input.car,
       name: input.car.name.trim(),
       colour: input.car.colour.trim(),
+      setting: input.car.setting.trim(),
       lore: input.car.lore.trim(),
-      paint: input.car.paint.toUpperCase(),
-      stats: input.car.stats.map((s) => s.trim()) as [string, string, string],
+      photoId: input.car.photoId.trim(),
     }
     const problems = carProblems(car)
     if (problems.length > 0) throw new AppError(400, problems.join(' · '), 'GARAGE_CAR_INVALID')
@@ -473,64 +459,9 @@ export const garageService = {
   },
 
   // ─── Art (admin) ──────────────────────────────────────────────────────────
-
-  /**
-   * "Generate art with AI": two options from the fixed style prompt (the
-   * car's invented name, its colour, the card's tone; nothing about any
-   * person), parked under ai-temp/garage/<car>/ for the admin to pick.
-   */
-  async generateArt(actorSub: string, carId: string) {
-    if (!isAiPicturesEnabled()) throw notLive()
-    const found = await garageRepository.findCar(carId)
-    if (!found) throw new AppError(404, 'Car not found', 'GARAGE_CAR_NOT_FOUND')
-    const allowed = aiLimit(actorSub)
-    if (!allowed.ok) throw new AppError(429, 'That is the most pictures for this hour. Try again later.', 'AI_PICTURE_LIMIT', { retryAfterSeconds: allowed.retryAfterSeconds })
-    const pictures = await generatePictures(garageArtPrompt(found.car), PICTURES_PER_REQUEST)
-    const options = await Promise.all(
-      pictures.slice(0, PICTURES_PER_REQUEST).map(async (picture) => {
-        const key = `${garageTempPrefix(carId)}${randomUUID()}.webp`
-        const url = await putObject(key, picture.bytes, 'image/webp')
-        return { key, url }
-      })
-    )
-    log.info({ carId, count: options.length }, 'garage:art_generated')
-    return { options }
-  },
-
-  /** The picked option becomes the card's picture (garage/series-<n>/<NN>.webp); the other is removed. */
-  async chooseArt(input: { carId: string; key: string; otherKeys: string[]; actorName: string; actorSub: string }, now = new Date()) {
-    if (!isAiPicturesEnabled()) throw notLive()
-    const found = await garageRepository.findCar(input.carId)
-    if (!found) throw new AppError(404, 'Car not found', 'GARAGE_CAR_NOT_FOUND')
-    if (!isGarageTempKeyFor(input.key, input.carId) || input.key.slice(garageTempPrefix(input.carId).length).startsWith('upload-')) {
-      throw new AppError(400, "That is not one of this car's pictures", 'GARAGE_ART_INVALID')
-    }
-    const finalKey = garageArtKey(found.seriesNumber, found.car.number)
-    await copyObject(input.key, finalKey)
-    const saved = await garageRepository.setArt({ id: input.carId, source: 'ai', url: versioned(finalKey, now), actorName: input.actorName, actorSub: input.actorSub, now })
-    const others = input.otherKeys.filter((key) => isGarageTempKeyFor(key, input.carId))
-    runInBackground('garage:art_temp_cleanup', async () => {
-      for (const key of [input.key, ...others]) await deleteObject(key)
-    })
-    return adminCarView(saved!, undefined)
-  },
-
-  /** Bulk "Generate missing art": one picture, used at once, for a car still on its drawn picture. */
-  async autoArt(input: { carId: string; actorName: string; actorSub: string }, now = new Date()) {
-    if (!isAiPicturesEnabled()) throw notLive()
-    const found = await garageRepository.findCar(input.carId)
-    if (!found) throw new AppError(404, 'Car not found', 'GARAGE_CAR_NOT_FOUND')
-    if (found.car.artSource !== 'default') return adminCarView(found.car, undefined)
-    const allowed = aiLimit(input.actorSub)
-    if (!allowed.ok) throw new AppError(429, 'That is the most pictures for this hour. Try again later.', 'AI_PICTURE_LIMIT', { retryAfterSeconds: allowed.retryAfterSeconds })
-    const [picture] = await generatePictures(garageArtPrompt(found.car), 1)
-    if (!picture) throw new AppError(503, 'Pictures could not be made right now. Try again in a few minutes.', 'AI_UNAVAILABLE')
-    const finalKey = garageArtKey(found.seriesNumber, found.car.number)
-    await putObject(finalKey, picture.bytes, 'image/webp')
-    const saved = await garageRepository.setArt({ id: input.carId, source: 'ai', url: versioned(finalKey, now), actorName: input.actorName, actorSub: input.actorSub, now })
-    log.info({ carId: input.carId }, 'garage:art_auto')
-    return adminCarView(saved!, undefined)
-  },
+  //
+  // Series 1 is the card photo pool. A future series with its own pictures
+  // can upload them here; "Reset to the photo" goes back to the pool photo.
 
   /** "Upload art": a presigned PUT for one WebP of that exact size, waiting under ai-temp/garage/<car>/. */
   async artUploadUrl(carId: string, sizeBytes: number) {
@@ -560,12 +491,12 @@ export const garageService = {
     return adminCarView(saved!, undefined)
   },
 
-  /** "Reset to default art": back to the drawn picture; the stored file is removed. */
+  /** "Reset to the photo": back to the card's pool photo; the uploaded file is removed. */
   async resetArt(input: { carId: string; actorName: string; actorSub: string }, now = new Date()) {
     const found = await garageRepository.findCar(input.carId)
     if (!found) throw new AppError(404, 'Car not found', 'GARAGE_CAR_NOT_FOUND')
     const oldKey = found.car.artUrl ? keyFromPublicUrl(found.car.artUrl.split('?')[0]) : null
-    const saved = await garageRepository.setArt({ id: input.carId, source: 'default', url: null, actorName: input.actorName, actorSub: input.actorSub, now })
+    const saved = await garageRepository.setArt({ id: input.carId, source: 'photo', url: null, actorName: input.actorName, actorSub: input.actorSub, now })
     if (oldKey) runInBackground('garage:art_reset_cleanup', () => deleteObject(oldKey))
     return adminCarView(saved!, undefined)
   },

@@ -1,5 +1,5 @@
 /**
- * The Detlio Garage (0057): a collectible series of fictional hypercar
+ * The Detlio Garage (0057): a collectible series of supercar photo
  * cards customers earn by booking through Detlio (owner, 18 Oct 2026).
  * Pure, with the settings, the facts and the randomness passed in, so
  * every rule is unit-tested (garage.test.ts); modules/garage reads and
@@ -23,9 +23,17 @@
  *     badge and a completion record (the hook for any future prize).
  *
  * Every number is in the versioned rewards settings (`settings.garage`,
- * optional: a version saved before 0057 reads as the defaults). Fictional
- * cars only: `realCarNameIn` keeps real makes and models out of every name
- * and line the team types.
+ * optional: a version saved before 0057 reads as the defaults).
+ *
+ * **The cards are the licensed card photos** (packages/core/src/card-cars.ts,
+ * the same pool as the premium cards: Unsplash photos with every badge
+ * retouched out), each card naming its photo by the pool's id. A card's
+ * name is an evocative series name that never hints at a maker or model
+ * (`realCarNameIn` keeps real makes and models out of every word the team
+ * types), and its facts are honest photo facts (colour, setting), never
+ * made-up performance figures for a car people can recognise. Every place a
+ * card is shown says "Cars shown for illustration only. Not affiliated with
+ * any car maker."
  */
 import { randomInt } from 'node:crypto'
 import { bannedPhraseIn } from './copy-rules.js'
@@ -44,11 +52,11 @@ export const RARITY_LABELS: Record<GarageRarity, string> = {
   legendary: 'Legendary',
 }
 
-export const GARAGE_TONES = ['light', 'dark'] as const
-export type GarageTone = (typeof GARAGE_TONES)[number]
-
-/** Where a car's picture comes from: drawn from numbers, made with AI, or uploaded by the team. */
-export const ART_SOURCES = ['default', 'ai', 'upload'] as const
+/**
+ * Where a card's picture comes from: its photo from the shared pool (by id),
+ * or a picture the team uploaded (for a future series).
+ */
+export const ART_SOURCES = ['photo', 'upload'] as const
 export type ArtSource = (typeof ART_SOURCES)[number]
 
 export const PULL_SOURCES = ['booking', 'scratch', 'challenge', 'badge', 'admin'] as const
@@ -364,12 +372,13 @@ export function seriesWords(seriesName: string): { title: string; body: string }
   return { title: 'Series complete!', body: `Every car in ${seriesName} is in your Garage. The Garage Legend badge is yours.` }
 }
 
-// ─── Fictional names only ────────────────────────────────────────────────────
+// ─── Names never hint at a maker or model ────────────────────────────────────
 
 /**
  * Real makes and models (and words that read as one), lower case. A card's
- * name, colour, stats and line must name none: the cars are invented. Whole
- * words, so "Granite" passes and "Ram" alone does not.
+ * name, colour, setting and line must name none: the photos are of real
+ * cars, so the words must never say which. Whole words, so "Granite" passes
+ * and "Ram" alone does not.
  */
 export const REAL_CAR_NAMES: readonly string[] = [
   // Makes
@@ -413,18 +422,26 @@ export function realCarNameIn(text: string): string | null {
 export const CAR_LIMITS = {
   name: { min: 2, max: 28 },
   colour: { min: 2, max: 24 },
-  stat: { min: 2, max: 32 },
+  setting: { min: 2, max: 24 },
   lore: { min: 10, max: 110 },
   seriesName: { min: 2, max: 40 },
 } as const
 
+/** A photo's id in the shared pool (packages/core/src/card-cars.ts): lower case, digits and hyphens. */
+export const PHOTO_ID = /^[a-z0-9-]{2,60}$/
+
+/** Settings a photo is taken in, offered by the admin form (any short words are allowed). */
+export const PHOTO_SETTINGS = ['Studio', 'Track', 'Night street', 'Open road', 'City', 'Coast', 'Garage', 'Showroom'] as const
+
 export interface CarEdit {
   name: string
   rarity: GarageRarity
-  tone: GarageTone
-  paint: string
+  /** The card's photo, by its id in the pool. */
+  photoId: string
+  /** What the photo shows: "Red", "Matte grey". */
   colour: string
-  stats: [string, string, string]
+  /** Where it was taken: "Studio", "Track", "Night street". */
+  setting: string
   lore: string
   enabled: boolean
 }
@@ -439,61 +456,39 @@ export function carProblems(input: CarEdit): string[] {
   }
   length('The name', input.name, L.name)
   length('The colour', input.colour, L.colour)
-  input.stats.forEach((stat, i) => length(`Stat ${i + 1}`, stat, L.stat))
+  length('The setting', input.setting, L.setting)
   length('The line', input.lore, L.lore)
-  if (!/^#[0-9A-Fa-f]{6}$/.test(input.paint)) problems.push('The paint is a colour like #0F7A78')
+  if (!PHOTO_ID.test(input.photoId)) problems.push('Pick a photo')
   if (!(GARAGE_RARITIES as readonly string[]).includes(input.rarity)) problems.push('Pick a rarity')
-  if (!(GARAGE_TONES as readonly string[]).includes(input.tone)) problems.push('Pick light or dark')
-  const words = [input.name, input.colour, ...input.stats, input.lore].join(' · ')
+  const words = [input.name, input.colour, input.setting, input.lore].join(' · ')
   const banned = bannedPhraseIn(words)
   if (banned) problems.push(`Detlio doesn't say "${banned}"`)
   const real = realCarNameIn(words)
-  if (real) problems.push(`"${real}" is a real car name. Garage cars are invented: pick another word.`)
+  if (real) problems.push(`"${real}" is a real car name. Garage names never hint at a maker or model: pick another word.`)
+  // Made-up figures for a car people can recognise would mislead (owner, 19 Oct 2026).
+  if (/\d\s*(km\/h|kmph|mph|kph|bhp|hp|ps|nm|s\b|sec)|0\s*[-–]\s*100/i.test(words)) problems.push('No speeds, power or times: Garage cards show only what the photo shows')
   return problems
 }
 
 // ─── Art ─────────────────────────────────────────────────────────────────────
 
-/** What one AI picture costs, roughly, in ₹ (the admin's estimate, not a bill). */
-export const AI_IMAGE_COST_INR = 4
+/** The illustration line every Garage card is shown with (detail, reveal, shared image). */
+export const ILLUSTRATION_LINE = 'Cars shown for illustration only. Not affiliated with any car maker.'
 
-/** The estimate the bulk button shows: "N pictures, about ₹X". */
-export function artCostEstimate(pictures: number): { pictures: number; rupees: number } {
-  return { pictures, rupees: pictures * AI_IMAGE_COST_INR }
-}
-
-/**
- * The prompt for a card's picture: a fixed template with the car's
- * invented name, its colour and the card's tone. Nothing about any person
- * is ever in it (these are the team's words about a fictional car).
- */
-export function garageArtPrompt(input: { name: string; colour: string; tone: GarageTone }): string {
-  const clean = (text: string) => text.replace(/[^\p{L}\p{N} '’-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)
-  const background = input.tone === 'dark' ? 'dark charcoal' : 'light grey'
-  return [
-    `Photo-real studio shot of a fictional, unbranded hypercar named ${clean(input.name)}`,
-    `${clean(input.colour)} paint`,
-    'side profile at a slight three-quarter angle, facing right',
-    'no logos, no badges, no text, no letters, no number plate',
-    `${background} seamless studio background, soft reflections on a polished floor`,
-    'premium collectible card art, sharp focus',
-  ].join(', ')
-}
-
-/** Where a card's chosen picture lives in the public bucket. */
+/** Where a card's uploaded picture lives in the public bucket (a future series' own art). */
 export function garageArtKey(seriesNumber: number, carNumber: number): string {
   return `garage/series-${seriesNumber}/${String(carNumber).padStart(2, '0')}.webp`
 }
 
-/** Where a car's AI options and uploads wait (the 1-day `ai-temp/` lifecycle rule clears leftovers). */
+/** Where a car's uploads wait (the 1-day `ai-temp/` lifecycle rule clears leftovers). */
 export function garageTempPrefix(carId: string): string {
   return `ai-temp/garage/${carId}/`
 }
 
-/** Whether a key is one of this car's waiting pictures. */
+/** Whether a key is one of this car's waiting uploads. */
 export function isGarageTempKeyFor(key: string, carId: string): boolean {
   const prefix = garageTempPrefix(carId)
-  return key.startsWith(prefix) && /^(upload-)?[0-9a-f-]{36}\.webp$/.test(key.slice(prefix.length))
+  return key.startsWith(prefix) && /^upload-[0-9a-f-]{36}\.webp$/.test(key.slice(prefix.length))
 }
 
 /** The bytes of a WebP picture ("RIFF" … "WEBP"), the only kind a card takes. */

@@ -3,8 +3,8 @@
  * settings' shape and defaults, the limits and the words the customer app
  * and admin share. The twin of apps/server/src/lib/garage.ts
  * (garage.parity.test.ts): the API draws every card and decides every
- * reward; these are the names and numbers the screens show. The pictures
- * are packages/core/src/garage-art.ts.
+ * reward; these are the names and numbers the screens show. Every card is
+ * one of the licensed card photos (./card-cars.ts), by id.
  */
 
 export const GARAGE_RARITIES = ['common', 'rare', 'epic', 'legendary'] as const
@@ -17,8 +17,7 @@ export const RARITY_LABELS: Record<GarageRarity, string> = {
   legendary: 'Legendary',
 }
 
-export type GarageTone = 'light' | 'dark'
-export type ArtSource = 'default' | 'ai' | 'upload'
+export type ArtSource = 'photo' | 'upload'
 export type PullSource = 'booking' | 'scratch' | 'challenge' | 'badge' | 'admin'
 export type SeriesStatus = 'draft' | 'live' | 'ended'
 
@@ -72,13 +71,16 @@ export const GARAGE_LIMITS = {
 export const CAR_LIMITS = {
   name: { min: 2, max: 28 },
   colour: { min: 2, max: 24 },
-  stat: { min: 2, max: 32 },
+  setting: { min: 2, max: 24 },
   lore: { min: 10, max: 110 },
   seriesName: { min: 2, max: 40 },
 } as const
 
-/** What one AI picture costs, roughly, in ₹ (an estimate for the admin). */
-export const AI_IMAGE_COST_INR = 4
+/** Settings a photo is taken in, offered by the admin form. */
+export const PHOTO_SETTINGS = ['Studio', 'Track', 'Night street', 'Open road', 'City', 'Coast', 'Garage', 'Showroom'] as const
+
+/** The line every Garage card is shown with: the photos are of real cars. */
+export const ILLUSTRATION_LINE = 'Cars shown for illustration only. Not affiliated with any car maker.'
 
 export const ROW_SIZE = 5
 

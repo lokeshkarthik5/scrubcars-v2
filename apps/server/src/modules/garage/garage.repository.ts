@@ -601,7 +601,7 @@ export const garageRepository = {
       if (!before) return null
       const [after] = await tx
         .update(garageCars)
-        .set({ ...input.patch, stats: [...input.patch.stats], updatedAt: input.now, updatedBy: input.actorName })
+        .set({ ...input.patch, updatedAt: input.now, updatedBy: input.actorName })
         .where(eq(garageCars.id, input.id))
         .returning()
       const changed = (Object.keys(input.patch) as Array<keyof CarEdit>).filter(
@@ -618,7 +618,7 @@ export const garageRepository = {
     })
   },
 
-  /** A car's picture changed (AI, upload or back to the drawn one), with the audit row. */
+  /** A car's picture changed (an upload, or back to its pool photo), with the audit row. */
   async setArt(input: { id: string; source: ArtSource; url: string | null; actorName: string; actorSub: string; now: Date }) {
     return db.transaction(async (tx) => {
       const [before] = await tx.select().from(garageCars).where(eq(garageCars.id, input.id)).for('update').limit(1)

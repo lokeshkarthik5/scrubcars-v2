@@ -6,7 +6,6 @@ import * as garage from './garage.controller.js'
 import {
   actorSchema,
   carSchema,
-  chooseArtSchema,
   givePullSchema,
   idParamSchema,
   monthQuerySchema,
@@ -34,9 +33,9 @@ customerGarageRoutes.get('/pulls', garage.pulls)
 customerGarageRoutes.post('/pulls/seen', zValidator('json', seenSchema), (c) => garage.markSeen(c, c.req.valid('json').ids))
 
 /**
- * Admin → Rewards → Garage: series, the cars (words, rarity, look, on/off,
- * art: AI with two options, a one-picture bulk fill, upload, reset), the
- * figures and the CSV, and a card given by hand. Super-admin only, every
+ * Admin → Rewards → Garage: series, the cards (name, rarity, pool photo,
+ * colour, setting, line, on/off; an uploaded picture for a future series, or
+ * back to the photo), the figures and the CSV, and a card given by hand. Super-admin only, every
  * write with the typed name in admin_audit_log. Like every Rewards admin
  * route: only the master switch (REWARDS_ENABLED) is needed, so the team
  * can set it up before going live. Mounted at /admin/rewards/garage.
@@ -52,13 +51,6 @@ adminGarageRoutes.patch('/series/:id', zValidator('param', idParamSchema), zVali
 )
 adminGarageRoutes.patch('/cars/:id', zValidator('param', idParamSchema), zValidator('json', carSchema), (c) =>
   garage.adminUpdateCar(c, c.req.valid('param').id, c.req.valid('json'))
-)
-adminGarageRoutes.post('/cars/:id/art/generate', zValidator('param', idParamSchema), (c) => garage.generateArt(c, c.req.valid('param').id))
-adminGarageRoutes.post('/cars/:id/art/choose', zValidator('param', idParamSchema), zValidator('json', chooseArtSchema), (c) =>
-  garage.chooseArt(c, c.req.valid('param').id, c.req.valid('json'))
-)
-adminGarageRoutes.post('/cars/:id/art/auto', zValidator('param', idParamSchema), zValidator('json', actorSchema), (c) =>
-  garage.autoArt(c, c.req.valid('param').id, c.req.valid('json').actorName)
 )
 adminGarageRoutes.post('/cars/:id/art/upload-url', zValidator('param', idParamSchema), zValidator('json', uploadUrlSchema), (c) =>
   garage.artUploadUrl(c, c.req.valid('param').id, c.req.valid('json').sizeBytes)

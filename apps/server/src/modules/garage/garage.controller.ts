@@ -36,19 +36,6 @@ export async function adminUpdateCar(c: AuthContext, id: string, input: CarInput
   return ok(c, await garageService.adminUpdateCar({ id, car, actorName, actorSub: c.get('auth').sub }))
 }
 
-export async function generateArt(c: AuthContext, id: string) {
-  c.header('Cache-Control', 'no-store')
-  return ok(c, await garageService.generateArt(c.get('auth').sub, id))
-}
-
-export async function chooseArt(c: AuthContext, id: string, input: { key: string; otherKeys?: string[]; actorName: string }) {
-  return ok(c, await garageService.chooseArt({ carId: id, key: input.key, otherKeys: input.otherKeys ?? [], actorName: input.actorName, actorSub: c.get('auth').sub }))
-}
-
-export async function autoArt(c: AuthContext, id: string, actorName: string) {
-  return ok(c, await garageService.autoArt({ carId: id, actorName, actorSub: c.get('auth').sub }))
-}
-
 export async function artUploadUrl(c: AuthContext, id: string, sizeBytes: number) {
   c.header('Cache-Control', 'no-store')
   return ok(c, await garageService.artUploadUrl(id, sizeBytes))

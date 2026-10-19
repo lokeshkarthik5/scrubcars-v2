@@ -1025,15 +1025,14 @@ html:has(.legal-doc) {
   }
 }
 
-/* ─── The Detlio Garage: collectible fictional hypercar cards (0057) ─────────
+/* ─── The Detlio Garage: collectible supercar photo cards (0057) ──────────────
  *
  * components/garage/garage-card.tsx, numbers in lib/garage-card.ts. The card
- * is 100 wide (container units) and 134 tall; a metal frame in the rarity's
+ * is 100 wide (container units) and 134 tall: a metal frame in the rarity's
  * colours (Common silver, Rare blue, Epic purple, Legendary gold) around a
- * studio card in the car's tone. The cars are drawn (garage-art.ts) or the
- * team's AI or uploaded art of the same fictional cars: never a photo of a
- * real car. A Legendary's sheen crosses every few seconds and Epic and
- * Legendary glow softly; under reduced motion everything is still.
+ * card in its photo's tone, the licensed photo across the top fading into
+ * it. Epic and Legendary glow and a sheen crosses every few seconds; under
+ * reduced motion everything is still.
  */
 .garage-card {
   container-type: inline-size;
@@ -1069,14 +1068,32 @@ html:has(.legal-doc) {
 .garage-card__face--light {
   box-shadow: inset 0 0 0 0.3cqw rgba(255, 255, 255, 0.6);
 }
-.garage-card__floor {
+/* The photo: edge to edge across the top, fading into the card's ground. */
+.garage-card__photo {
   position: absolute;
   left: 0;
   right: 0;
-  top: 44cqw;
-  height: 18cqw;
-  background: radial-gradient(60cqw 7cqw at 50cqw 12cqw, var(--gc-glow-floor, transparent), transparent 70%), linear-gradient(180deg, transparent, var(--gc-chip-bg) 40%, transparent);
-  opacity: 0.8;
+  top: 0;
+  height: 78cqw;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
+}
+.garage-card__photo-img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  pointer-events: none;
+}
+/* A soft wash behind the wordmark and number, so they read on any photo. */
+.garage-card__wash {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22cqw;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent);
   pointer-events: none;
 }
 .garage-card__top {
@@ -1093,42 +1110,23 @@ html:has(.legal-doc) {
   font-size: 3.4cqw;
   font-weight: 650;
   letter-spacing: -0.02em;
-  color: var(--gc-ink);
+  color: #F5F6F8;
 }
 .garage-card__mark-sub {
   font-weight: 500;
-  color: var(--gc-sub);
+  color: rgba(245, 246, 248, 0.75);
 }
 .garage-card__number {
   font-size: 3.4cqw;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--gc-sub);
-}
-.garage-card__art {
-  position: absolute;
-  left: -11cqw;
-  top: 12.5cqw;
-  width: 122cqw;
-  max-width: none;
-  height: auto;
-  pointer-events: none;
-}
-/* The team's AI or uploaded art: a photo-like picture, cropped to the stage. */
-.garage-card__art--photo {
-  left: 0;
-  top: 11cqw;
-  width: 100cqw;
-  height: 50cqw;
-  object-fit: cover;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 80%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 80%, transparent 100%);
+  color: rgba(245, 246, 248, 0.85);
 }
 .garage-card__pill-row {
   position: absolute;
   left: 6cqw;
   right: 6cqw;
-  top: 62cqw;
+  top: 69cqw;
   display: flex;
   align-items: center;
   gap: 1.6cqw;
@@ -1144,6 +1142,7 @@ html:has(.legal-doc) {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
+  box-shadow: 0 1cqw 3cqw rgba(0, 0, 0, 0.3);
 }
 .garage-card__copies {
   font-size: 3cqw;
@@ -1154,7 +1153,7 @@ html:has(.legal-doc) {
   position: absolute;
   left: 6cqw;
   right: 6cqw;
-  top: 70.5cqw;
+  top: 77cqw;
   font-size: 8.6cqw;
   line-height: 9.6cqw;
   font-weight: 700;
@@ -1168,7 +1167,7 @@ html:has(.legal-doc) {
   position: absolute;
   left: 6cqw;
   right: 6cqw;
-  top: 83.5cqw;
+  top: 90cqw;
   display: flex;
   flex-wrap: wrap;
   gap: 1.4cqw;
@@ -1197,7 +1196,7 @@ html:has(.legal-doc) {
   position: absolute;
   left: 6cqw;
   right: 6cqw;
-  top: 101cqw;
+  top: 100.5cqw;
   font-size: 3.25cqw;
   line-height: 4.7cqw;
   color: var(--gc-sub);
@@ -1297,7 +1296,10 @@ html:has(.legal-doc) {
   color: #9EA3AD;
 }
 
-/* Album tiles: 100 wide, 132 tall, the car big, the number on top. */
+/* Album tiles: 100 wide, 132 tall, the photo filling the tile, the number
+ * on top and the name on a dark gradient, so a light photo still reads. A
+ * card not collected yet: the photo blurred and darkened, its number and a
+ * question mark, the frame dimmed. */
 .garage-tile {
   container-type: inline-size;
   position: relative;
@@ -1310,7 +1312,7 @@ html:has(.legal-doc) {
   padding: 3cqw;
 }
 .garage-tile--missing .garage-tile__frame {
-  opacity: 0.38;
+  opacity: 0.45;
   filter: saturate(0.6);
 }
 .garage-tile__face {
@@ -1319,11 +1321,27 @@ html:has(.legal-doc) {
   height: 100%;
   overflow: hidden;
   border-radius: 7cqw;
+  background: #0B0C0F;
 }
-.garage-tile__face--missing {
+.garage-tile__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  pointer-events: none;
+}
+.garage-tile--missing .garage-tile__photo {
+  filter: blur(4px) brightness(0.38) saturate(0.4);
+  transform: scale(1.18);
+}
+.garage-tile__shade {
+  position: absolute;
+  inset: 0;
   background:
-    radial-gradient(70cqw 50cqw at 50cqw 55cqw, #1F2127, #0B0C0F 75%),
-    #0B0C0F;
+    linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, transparent 30%, transparent 45%, rgba(0, 0, 0, 0.88) 100%);
+  pointer-events: none;
 }
 .garage-tile__number {
   position: absolute;
@@ -1332,22 +1350,10 @@ html:has(.legal-doc) {
   font-size: 15cqw;
   font-weight: 600;
   line-height: 1;
-  color: var(--gc-sub, #6E737C);
+  color: rgba(255, 255, 255, 0.9);
 }
-.garage-tile__art {
-  position: absolute;
-  left: -14cqw;
-  top: 27cqw;
-  width: 128cqw;
-  max-width: none;
-  height: auto;
-  pointer-events: none;
-}
-.garage-tile__art.garage-card__art--photo {
-  left: 0;
-  top: 30cqw;
-  width: 100cqw;
-  height: 60cqw;
+.garage-tile--missing .garage-tile__number {
+  color: rgba(255, 255, 255, 0.45);
 }
 .garage-tile__name {
   position: absolute;
@@ -1358,21 +1364,22 @@ html:has(.legal-doc) {
   line-height: 13cqw;
   font-weight: 650;
   letter-spacing: -0.02em;
-  color: var(--gc-ink);
+  color: #FFFFFF;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 .garage-tile__q {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 10cqw;
+  top: 42%;
   text-align: center;
-  font-size: 16cqw;
+  font-size: 18cqw;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.3);
 }
 .garage-tile__copies {
   position: absolute;
@@ -1381,7 +1388,7 @@ html:has(.legal-doc) {
   font-size: 12cqw;
   font-weight: 600;
   line-height: 1;
-  color: var(--gc-sub);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 /* The reveal: the card turns over in 3D, a burst in the rarity's colour

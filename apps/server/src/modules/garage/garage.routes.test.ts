@@ -6,7 +6,7 @@
  *
  * The rules: while REWARDS_ENABLED is off every route is a 404; with
  * rewards live but the Garage off (its default), customers get 404s and
- * admin still works. Customers read and mark only their own (the session's
+ * admin still works. Cards are pool photos by id: no AI art routes. Customers read and mark only their own (the session's
  * id). Every admin route (series, cars, art, figures, CSV, a card given by
  * hand) is super-admin only; a customer or a garage owner gets nothing. A
  * card is told once, however often the hooks run.
@@ -70,13 +70,12 @@ const carRows = SERIES_ONE.cars.map((c, i) => ({
   number: c.number,
   name: c.name,
   rarity: c.rarity,
-  tone: c.tone,
-  paint: c.paint,
+  photoId: c.photoId,
   colour: c.colour,
-  stats: [...c.stats],
+  setting: c.setting,
   lore: c.lore,
   enabled: true,
-  artSource: 'default' as const,
+  artSource: 'photo' as const,
   artUrl: null,
   artUpdatedAt: null,
   artUpdatedBy: null,
@@ -195,10 +194,9 @@ async function call(method: string, path: string, who: Who, body?: unknown) {
 const CAR = () => ({
   name: 'Monsoon GT',
   rarity: 'rare',
-  tone: 'dark',
-  paint: '#0F7A78',
-  colour: 'Monsoon Teal',
-  stats: ['0–100: 3.1 s', 'Top speed: 326 km/h', 'Colour: Monsoon Teal'],
+  photoId: 'red-rear',
+  colour: 'Red',
+  setting: 'Studio',
   lore: 'Loves the first rain of June more than anyone in the city.',
   enabled: true,
   actorName: 'Asha',
@@ -215,9 +213,6 @@ const ADMIN_ROUTES: Array<[string, string, unknown?]> = [
   ['GET', '/admin/rewards/garage/pulls'],
   ['PATCH', `/admin/rewards/garage/series/${SERIES_ID}`, { name: 'Series 1', status: 'live', startsAt: null, endsAt: null, actorName: 'Asha' }],
   ['PATCH', `/admin/rewards/garage/cars/${CAR_ID}`, CAR()],
-  ['POST', `/admin/rewards/garage/cars/${CAR_ID}/art/generate`],
-  ['POST', `/admin/rewards/garage/cars/${CAR_ID}/art/choose`, { key: 'ai-temp/garage/x/y.webp', actorName: 'Asha' }],
-  ['POST', `/admin/rewards/garage/cars/${CAR_ID}/art/auto`, { actorName: 'Asha' }],
   ['POST', `/admin/rewards/garage/cars/${CAR_ID}/art/upload-url`, { contentType: 'image/webp', sizeBytes: 1000 }],
   ['POST', `/admin/rewards/garage/cars/${CAR_ID}/art/upload`, { key: 'ai-temp/garage/x/upload-y.webp', actorName: 'Asha' }],
   ['POST', `/admin/rewards/garage/cars/${CAR_ID}/art/reset`, { actorName: 'Asha' }],
@@ -273,12 +268,13 @@ describe('the customer', () => {
     expect(data.cars.length).toBe(40)
     expect(data.rows.length).toBe(8)
     const mine = data.cars.find((c) => c.number === 7)!
-    expect(mine).toMatchObject({ owned: true, name: 'Monsoon GT', rarity: 'rare', count: 2 })
+    expect(mine).toMatchObject({ owned: true, name: 'Rangoli Twist', rarity: 'common', photoId: 'purple-coupe-open-lot', count: 2 })
     const missing = data.cars.find((c) => c.number === 1)!
     expect(missing.owned).toBe(false)
     expect(missing).not.toHaveProperty('name')
     expect(missing).not.toHaveProperty('art')
     expect(missing).not.toHaveProperty('lore')
+    expect(missing).toHaveProperty('photoId')
     expect(data.odds).toEqual({ common: 55, rare: 30, epic: 12, legendary: 3 })
     expect(data.duplicates).toEqual({ waiting: 1, perStar: 3 })
   })
@@ -300,7 +296,7 @@ describe('the customer', () => {
     const { body } = await call('GET', '/users/me/rewards/garage/pulls', 'me')
     const data = body.data as { unseen: number; pulls: Array<{ id: string; car: { name: string; number: number; total: number } }> }
     expect(data.unseen).toBe(1)
-    expect(data.pulls[0]).toMatchObject({ id: PULL_MINE, car: { name: 'Monsoon GT', number: 7, total: 40 } })
+    expect(data.pulls[0]).toMatchObject({ id: PULL_MINE, car: { name: 'Rangoli Twist', number: 7, total: 40 } })
   })
 })
 
@@ -315,24 +311,17 @@ describe('admin', () => {
     expect(carUpdates[0]).toMatchObject({ id: CAR_ID, actorName: 'Asha', actorSub: PEOPLE.superAdmin })
   })
 
-  test('without OPENAI_API_KEY the AI buttons are a 404, and the overview says so', async () => {
-    const savedKey = envValues.openaiApiKey
-    const savedFake = envValues.aiFake
-    envValues.openaiApiKey = undefined
-    envValues.aiFake = false
-    try {
-      const { status } = await call('POST', `/admin/rewards/garage/cars/${CAR_ID}/art/generate`, 'superAdmin')
-      expect(status).toBe(404)
-      const overview = await call('GET', '/admin/rewards/garage', 'superAdmin')
-      expect((overview.body.data as { ai: { pictures: boolean; missing: number; estimate: unknown } }).ai).toMatchObject({
-        pictures: false,
-        missing: 40,
-        estimate: { pictures: 40, rupees: 160 },
+  test('no AI art for Garage cards: the old routes are gone, and a missing card never carries its name', async () => {
+    for (const path of ['generate', 'choose', 'auto']) {
+      const response = await app.request(`/admin/rewards/garage/cars/${CAR_ID}/art/${path}`, {
+        method: 'POST',
+        headers: { ...(await cookieFor('superAdmin')), 'content-type': 'application/json' },
+        body: JSON.stringify({ actorName: 'Asha' }),
       })
-    } finally {
-      envValues.openaiApiKey = savedKey
-      envValues.aiFake = savedFake
+      expect({ path, status: response.status }).toEqual({ path, status: 404 })
     }
+    const bad = await call('PATCH', `/admin/rewards/garage/cars/${CAR_ID}`, 'superAdmin', { ...CAR(), lore: 'Does 0–100 in 2.7 s.' })
+    expect(bad.status).toBe(400)
   })
 
   test('figures mask phones; the CSV too', async () => {

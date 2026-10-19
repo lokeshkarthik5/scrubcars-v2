@@ -9,7 +9,7 @@ import type { GarageAlbum, GarageAlbumCar, GarageOwnedCar } from '@repo/core/api
 import { cardNumber, collectedLine, duplicatesLine, GARAGE_RARITIES, RARITY_LABELS, RARITY_LOOKS, type GarageRarity } from '@repo/core/garage'
 import { rewardDate, rewardRupees } from '@repo/core/rewards'
 import { cn } from '@repo/core/utils'
-import { GarageCard, GarageTile } from './garage-card'
+import { GarageCard, GarageTile, IllustrationLine } from './garage-card'
 import { GarageShare } from './garage-share'
 
 type Filter = 'all' | GarageRarity
@@ -57,7 +57,7 @@ export function GarageAlbumView({ album, firstName, openNumber = null }: { album
       <section aria-labelledby="garage-progress" className="garage-hero flex flex-col gap-3 rounded-card px-4 py-4">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[12px] text-text-secondary">{album.series.name} · fictional hypercars</p>
+            <p className="text-[12px] text-text-secondary">{album.series.name} · supercar cards</p>
             <h2 id="garage-progress" className="mt-1 text-[30px] font-semibold leading-none tracking-[-0.03em] text-text-primary">
               <span className="font-numeric">{collectedLine(album.collected, total)}</span>
             </h2>
@@ -134,7 +134,7 @@ export function GarageAlbumView({ album, firstName, openNumber = null }: { album
           <li>
             <Figures text={`Every ${album.duplicates.perStar} duplicates make a bonus Shine Card stamp. Finish a row of 5 for ${rewardRupees(album.rowReward)} off your next booking.`} />
           </li>
-          <li>The cars are invented for Detlio. They are not real makes or models.</li>
+          <li>Cars shown for illustration only. Not affiliated with any car maker. Card names are Detlio&apos;s own.</li>
         </ul>
       </details>
 
@@ -163,12 +163,13 @@ function OwnedDetail({ car, firstName }: { car: GarageOwnedCar; firstName: strin
           {car.rarityLabel} · <span className="font-numeric">{cardNumber(car.number, car.total)}</span>
         </p>
         <h2 className="text-[20px] font-semibold text-text-primary">{car.name}</h2>
+        <IllustrationLine className="max-w-[300px]" />
         <p className="text-[12px] text-text-secondary">
           <Figures text={car.count > 1 ? `You have ${car.count} of these` : 'You have 1 of these'} />
           {car.firstPulledAt && <> · first on {rewardDate(car.firstPulledAt)}</>}
         </p>
         <p className="sr-only">
-          {car.stats.join('. ')}. {car.lore}
+          {car.colour}. {car.setting}. {car.lore}
         </p>
       </div>
       <div className="w-full max-w-[320px]">

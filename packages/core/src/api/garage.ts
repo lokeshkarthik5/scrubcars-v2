@@ -1,8 +1,8 @@
 import { apiClient } from '@repo/core/api/client'
-import type { ArtSource, GarageRarity, GarageSettings, GarageTone, PullSource, SeriesStatus } from '@repo/core/garage'
+import type { ArtSource, GarageRarity, GarageSettings, PullSource, SeriesStatus } from '@repo/core/garage'
 
 /**
- * The Detlio Garage (API 0057): collectible fictional hypercar cards earned
+ * The Detlio Garage (API 0057): collectible supercar photo cards earned
  * by booking. Live only while rewards are and the Garage's own switch is on
  * (`RewardsConfig.garage.live`); every customer call is a 404 otherwise.
  */
@@ -16,18 +16,19 @@ export interface GarageOwnedCar {
   owned: true
   rarity: GarageRarity
   rarityLabel: string
-  tone: GarageTone
   name: string
-  paint: string
+  /** The card's photo: an id in the card photo pool (card-cars.ts). */
+  photoId: string
   colour: string
-  stats: string[]
+  setting: string
   lore: string
+  /** A future series' uploaded picture, used over the photo. */
   art: { source: ArtSource; url: string | null }
   count: number
   firstPulledAt: string | null
 }
 
-/** A card not collected yet: its number, rarity and tone only (drawn as a silhouette). */
+/** A card not collected yet: its number, rarity and photo id (shown blurred and darkened). */
 export interface GarageMissingCar {
   id: null
   number: number
@@ -36,7 +37,7 @@ export interface GarageMissingCar {
   owned: false
   rarity: GarageRarity
   rarityLabel: string
-  tone: GarageTone
+  photoId: string
 }
 
 export type GarageAlbumCar = GarageOwnedCar | GarageMissingCar
@@ -115,10 +116,9 @@ export interface AdminGarageCar {
   number: number
   name: string
   rarity: GarageRarity
-  tone: GarageTone
-  paint: string
+  photoId: string
   colour: string
-  stats: string[]
+  setting: string
   lore: string
   enabled: boolean
   artSource: ArtSource
@@ -140,7 +140,8 @@ export interface AdminGarageOverview {
   series: AdminGarageSeries[]
   seriesId: string | null
   cars: AdminGarageCar[]
-  ai: { pictures: boolean; costPerImage: number; missing: number; estimate: { pictures: number; rupees: number } }
+  /** Suggested photo settings for the form. */
+  settings: string[]
 }
 
 export interface AdminGarageStats {
@@ -170,10 +171,9 @@ export interface AdminGaragePullRow {
 export interface GarageCarEdit {
   name: string
   rarity: GarageRarity
-  tone: GarageTone
-  paint: string
+  photoId: string
   colour: string
-  stats: [string, string, string]
+  setting: string
   lore: string
   enabled: boolean
 }
@@ -196,18 +196,6 @@ export function updateAdminGarageSeries(id: string, payload: { name: string; sta
 
 export function updateAdminGarageCar(id: string, payload: GarageCarEdit & { actorName: string }) {
   return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
-}
-
-export function generateGarageArt(id: string) {
-  return apiClient<{ options: Array<{ key: string; url: string }> }>(`/admin/rewards/garage/cars/${id}/art/generate`, { method: 'POST' })
-}
-
-export function chooseGarageArt(id: string, payload: { key: string; otherKeys: string[]; actorName: string }) {
-  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/choose`, { method: 'POST', body: JSON.stringify(payload) })
-}
-
-export function autoGarageArt(id: string, actorName: string) {
-  return apiClient<AdminGarageCar>(`/admin/rewards/garage/cars/${id}/art/auto`, { method: 'POST', body: JSON.stringify({ actorName }) })
 }
 
 export function garageArtUploadUrl(id: string, sizeBytes: number) {

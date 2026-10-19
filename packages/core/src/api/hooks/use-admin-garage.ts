@@ -2,9 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  autoGarageArt,
-  chooseGarageArt,
-  generateGarageArt,
   getAdminGarage,
   getAdminGarageStats,
   giveGarageCard,
@@ -47,22 +44,6 @@ export function useUpdateGarageSeries() {
 
 export function useUpdateGarageCar() {
   return useInvalidating((input: { id: string; car: GarageCarEdit; actorName: string }) => updateAdminGarageCar(input.id, { ...input.car, actorName: input.actorName }))
-}
-
-/** Two AI options: nothing changes until one is chosen. */
-export function useGenerateGarageArt() {
-  return useMutation({ mutationFn: (id: string) => generateGarageArt(id) })
-}
-
-export function useChooseGarageArt() {
-  return useInvalidating((input: { id: string; key: string; otherKeys: string[]; actorName: string }) =>
-    chooseGarageArt(input.id, { key: input.key, otherKeys: input.otherKeys, actorName: input.actorName })
-  )
-}
-
-/** One car at a time, for the bulk fill's loop: the list refreshes when the loop ends. */
-export function useAutoGarageArt() {
-  return useMutation({ mutationFn: (input: { id: string; actorName: string }) => autoGarageArt(input.id, input.actorName) })
 }
 
 export function useResetGarageArt() {
