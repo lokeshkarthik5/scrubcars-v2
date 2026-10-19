@@ -58,7 +58,7 @@ test.describe('reschedule @p0', () => {
     // The garage agreed to the old time, not this one: the move goes back to
     // it as a request.
     expect(moved?.status).toBe('pending')
-    await expect(page.getByText('Awaiting garage')).toBeVisible()
+    await expect(page.getByText('Waiting for garage')).toBeVisible()
 
     // Money is unchanged and already settled — the customer is not asked again.
     expect(moved?.amount).toBe(original?.amount)

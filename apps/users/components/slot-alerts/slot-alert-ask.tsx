@@ -7,7 +7,7 @@ import { IconBell, IconCircleCheck } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@/components/ui/card'
 import { Chip } from '@repo/ui/sc/chip'
-import type { SlotDayState } from '@repo/ui/sc/slot-picker'
+import type { SlotDayState } from '@/lib/when-picker'
 import { ApiError } from '@repo/core/api/client'
 import {
   useCancelSlotAlert,

@@ -21,6 +21,21 @@ const MONTH_NAMES = [
 ]
 const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
 
+/**
+ * What the picker shows for the chosen day, for a screen that adds something
+ * under the times (checkout's "Notify me if a slot opens", 0047).
+ */
+export interface SlotDayState {
+  /** YYYY-MM-DD, IST. */
+  date: string
+  /** The times on offer, as ISO starts. */
+  slots: string[]
+  /** Every time with enough notice is taken. */
+  allBooked: boolean
+  /** Closed that day, paused, or the job does not fit it: nothing can open up. */
+  unavailable: boolean
+}
+
 export interface DayChip {
   value: string
   dayOfWeek: number

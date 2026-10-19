@@ -79,7 +79,7 @@ test('a booking is made, worked, completed and reviewed @p0', async ({ browser }
   // Paid, but not yet accepted: the customer is told it is a request, and
   // nothing on the page claims a confirmation the garage has not given — the
   // post-payment moment included, which used to say "Booking confirmed".
-  await expect(customer.getByText('Awaiting garage')).toBeVisible()
+  await expect(customer.getByText('Waiting for garage')).toBeVisible()
   await expect(customer.getByText(/Confirmed/i)).toHaveCount(0)
 
   // ── 2. the garage sees it, accepts, works it, finishes it ────────────────

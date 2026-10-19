@@ -8,7 +8,7 @@ import {
   IconChevronRight,
 } from '@tabler/icons-react'
 import { ScSheet } from '@repo/ui/sc/modal'
-import type { SlotDayState } from '@repo/ui/sc/slot-picker'
+import type { SlotDayState } from '@/lib/when-picker'
 import {
   useAvailableSlots,
   useVendorClosures,
