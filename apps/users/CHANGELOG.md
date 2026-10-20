@@ -412,7 +412,8 @@ reconstructing every change in them.
   the row moves to Done. Mark refunded stays for refunds done in the
   dashboard. Customer app: while such a refund is on its way, the booking
   page says "Refund of ₹X started on <date>. It reaches your account in 5–7
-  working days."
+  working days." When part had already gone back before it, that comes
+  first: "Refunded ₹Y so far. A further refund of ₹X started on <date>. …"
 
 - **Pickup & drop, part 2 of 2 (customer app).** The garage list, the map
   and a garage's page have a third mode, "Pickup & drop" (the 3-way switch
