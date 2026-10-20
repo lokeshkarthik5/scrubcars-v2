@@ -14,6 +14,7 @@ import {
   planReceipts,
   payoutGroups,
   planReset,
+  untickedRows,
   type GatewayModeValue,
   type PlanInput,
   type ResetBooking,
@@ -761,6 +762,14 @@ describe('complaints made before the cutoff', () => {
     expect(some).not.toBe(none)
     const fewer = planReset(input({ bookings: [booking(1)], complaints: complaints.slice(1) })).selectionHash
     expect(fewer).not.toBe(some)
+  })
+
+  test('the audit names unticked complaints beside unticked chains', () => {
+    const none = planReset(input({ bookings: [booking(1)], complaints, only: { chainIds: [], checkoutIds: [] } }))
+    expect(untickedRows(none)).toEqual({ rowIds: [uuid(1)], complaintIds: [uuid(501), uuid(502)] })
+
+    const all = planReset(input({ bookings: [booking(1)], complaints }))
+    expect(untickedRows(all)).toEqual({ rowIds: [], complaintIds: [] })
   })
 
   test('the phrase for a run of complaints alone', () => {

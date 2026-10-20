@@ -180,7 +180,10 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                     key={value}
                     label={COMPLAINT_CATEGORY_LABELS[value]}
                     selected={category === value}
-                    onClick={() => setCategory(value)}
+                    onClick={() => {
+                      setCategory(value)
+                      setError('')
+                    }}
                     className="min-h-11"
                   />
                 ))}
@@ -195,7 +198,10 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                 maxLength={COMPLAINT_MESSAGE_MAX}
                 placeholder="What went wrong, and what you would like us to do"
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value)
+                  setError('')
+                }}
                 // The length rule and the counter below, and a refusal once
                 // sent, are read with the field.
                 aria-describedby={error ? 'complaint-message-hint complaint-error' : 'complaint-message-hint'}
