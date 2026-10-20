@@ -138,7 +138,10 @@ export function RefundNowDialog({
           inputMode="decimal"
           autoComplete="off"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => {
+            setAmount(e.target.value)
+            setError('')
+          }}
           aria-invalid={Boolean(amountProblem)}
           className="min-h-11 font-numeric"
         />

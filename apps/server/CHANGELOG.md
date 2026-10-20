@@ -50,13 +50,18 @@ reconstructing every change in them.
     no-show, customer cancelled in time, Detlio cancelled, checkout paid
     with no booking) are refunded right after the cancel commits
     (`waitUntil`), and `POST /ops/pending-digest` retries what was missed or
-    failed (20 a run; its answer gains `autoRefunds`). Never final-bill
+    failed (20 a run; its answer gains `autoRefunds`; a sweep that fails as
+    a whole alerts `auto_refund_sweep_failed`, at most once an hour). Never final-bill
     money, never part amounts, never a booking with an open or acknowledged
     complaint, only money owed in the last 3 days, at most 3 failed tries.
     `AUTO_REFUND_DAILY_CAP_INR` (default 20000) stops them for the IST day,
     with one alert.
+  - A refund still pending at Razorpay is not on the receipt until it is
+    processed.
   - Telegram: `refund_sent` ("💸 Refund ₹X started for booking #… · auto"
-    or "· admin"), `refund_failed`, `auto_refund_cap_reached`.
+    or "· admin"), `refund_failed`, `refund_gateway_mismatch` (a refund on
+    Razorpay that doesn't fit: reconcile first, don't refund again),
+    `auto_refund_cap_reached`.
   - The customer's booking payload gains `refund.started { amount, at }`
     while a refund the app sent is pending at Razorpay (left out otherwise).
   - `E2E_FAKE_PAYMENTS` mints `rfnd_e2e_…` refunds in memory.

@@ -581,16 +581,15 @@ async function syncWithRazorpay(money: Money, conn: Conn, now: Date): Promise<Sy
       checkRefund({ refundable: current.refundable, paid: current.paid, refunded: current.refunded, amount }) === 'ok'
     if (!current || !fits) {
       log.error({ ...money.target, paymentId: money.paymentId, refundRef: found.id, amount }, 'refund:razorpay_mismatch')
+      // Not a failure: nothing is owed again, and refunding again could pay
+      // the customer twice. Its own alert says to reconcile first.
       alerts.push({
-        kind: 'refund_failed',
+        kind: 'refund_gateway_mismatch',
         what: money.target.kind,
         bookingId: money.bookingId,
         amount,
         refundRef: found.id,
         paymentId: money.paymentId,
-        reason: `Razorpay holds a refund on this payment that doesn't fit what is owed here, so nothing more was sent. Check the payment in Razorpay and record it by hand.`,
-        auto: false,
-        gaveUp: true,
       })
       return { kind: 'mismatch', alerts, refundRef: found.id }
     }
@@ -786,6 +785,38 @@ async function sendThroughRazorpay(
 
       const attempt = await refundsRepository.countFailedAttempts(target.kind, target.id, tx)
       const refundedBefore = rupeesOf(paiseOf(money.refundedColumn))
+      const amount = decision.amount
+      // A refusal: no money moved. Recorded as a failed try, so the
+      // automatic mode counts it, and the team is told.
+      const refused = async (reason: string, refundRef: string | null): Promise<SendOutcome> => {
+        await refundsRepository.recordFailedAttempt(
+          {
+            kind: target.kind,
+            targetId: target.id,
+            bookingId: money.bookingId,
+            amount,
+            refundedBefore,
+            source,
+            by: options.by,
+            reason,
+            at: now,
+          },
+          tx
+        )
+        alerts.push({
+          kind: 'refund_failed',
+          what: target.kind,
+          bookingId: money.bookingId,
+          amount,
+          refundRef,
+          paymentId: money.paymentId,
+          reason,
+          auto: source === 'auto',
+          gaveUp: source === 'auto' && attempt + 1 >= AUTO_REFUND_MAX_ATTEMPTS,
+        })
+        return { kind: 'gateway_refused', reason }
+      }
+
       let refund: RazorpayRefund
       try {
         refund = await createRazorpayRefund({
@@ -805,33 +836,14 @@ async function sendThroughRazorpay(
         if (!(error instanceof RazorpayRefundError)) throw error
         log.error({ ...target, status: error.status, description: error.description, source }, 'refund:razorpay_refused')
         if (!refusalIsDefinite(error.status)) return { kind: 'gateway_unknown' }
-        const reason = failureReasonFor(error.description, 'Razorpay refused the refund.')
-        await refundsRepository.recordFailedAttempt(
-          {
-            kind: target.kind,
-            targetId: target.id,
-            bookingId: money.bookingId,
-            amount: decision.amount,
-            refundedBefore,
-            source,
-            by: options.by,
-            reason,
-            at: now,
-          },
-          tx
-        )
-        alerts.push({
-          kind: 'refund_failed',
-          what: target.kind,
-          bookingId: money.bookingId,
-          amount: decision.amount,
-          refundRef: null,
-          paymentId: money.paymentId,
-          reason,
-          auto: source === 'auto',
-          gaveUp: source === 'auto' && attempt + 1 >= AUTO_REFUND_MAX_ATTEMPTS,
-        })
-        return { kind: 'gateway_refused', reason }
+        return refused(failureReasonFor(error.description, 'Razorpay refused the refund.'), null)
+      }
+      // Made, but failed already: no money moved, so it is a refusal like
+      // the one above, and nothing goes on the running total (a failed row
+      // written there could never be taken back).
+      if (refund.status === 'failed') {
+        log.error({ ...target, refundRef: refund.id, source }, 'refund:razorpay_created_failed')
+        return refused(`Razorpay failed the refund (${refund.id}) as it was made.`, refund.id)
       }
 
       const write = await writeRefund(

@@ -28,7 +28,8 @@ reconstructing every change in them.
   the row moves to Done. Mark refunded stays for refunds done in the
   dashboard. Customer app: while such a refund is on its way, the booking
   page says "Refund of ₹X started on <date>. It reaches your account in 5–7
-  working days."
+  working days." When part had already gone back before it, that comes
+  first: "Refunded ₹Y so far. A further refund of ₹X started on <date>. …"
 
 - **Complaints with a number and a 24-hour clock.** Customer app: a
   booking's Help sheet ends with "Make a complaint · Raise a complaint",
