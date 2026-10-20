@@ -1112,6 +1112,19 @@ export function planReset(input: PlanInput): ResetPlan {
  * The dry run's counts in plain words, the biggest first, leaving out what
  * is zero: "143 bookings", "12 refunds recorded", "38 job photos".
  */
+/**
+ * What a run leaves alone though it could delete it: the chains and checkouts
+ * not ticked (or past the run's cap), by id, and the complaints when their one
+ * tick is off. The audit row names them, so it accounts for every row in scope.
+ */
+export function untickedRows(plan: ResetPlan): { rowIds: string[]; complaintIds: string[] } {
+  const rowIds = [
+    ...plan.chains.filter((chain) => !chain.kept && !chain.selected).map((chain) => chain.rootId),
+    ...plan.checkouts.filter((checkout) => !checkout.kept && !checkout.selected).map((checkout) => checkout.id),
+  ]
+  return { rowIds, complaintIds: plan.complaints.selected ? [] : plan.complaints.ids }
+}
+
 export function countLines(counts: ResetCounts): string[] {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
   const lines: Array<[number, string]> = [

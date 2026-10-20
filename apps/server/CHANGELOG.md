@@ -72,8 +72,12 @@ reconstructing every change in them.
     else's is 404 `BOOKING_NOT_FOUND`) and brings its garage; the schema is
     `.strict()`, so no garage, status or user id can be sent. Name, phone,
     booking reference and garage name are snapshotted on the row, and every
-    foreign key is `ON DELETE SET NULL`, so `DELETE /users/me`, the
-    test-data reset and Delete forever from the Bin keep the complaint.
+    foreign key is `ON DELETE SET NULL`, so deleting the account, the
+    booking or the garage (`DELETE /users/me`, the test-data reset's
+    booking deletes, Delete forever from the Bin) only sets that link to
+    null and the complaint stays. The one exception is Start pilot clean's
+    cutoff run, below, which deletes the complaints made before the cutoff
+    while their tick is on.
   - The number (`C-000123`) comes from a sequence: concurrent complaints
     never wait on each other, and a rolled-back insert leaves a gap (a
     receipt number could not; a complaint number can).
@@ -103,7 +107,9 @@ reconstructing every change in them.
     look, unticked when `only` leaves it out), counts them (`complaints`,
     "3 complaints"), deletes them before the bookings, puts their ids in
     the fingerprint (only when there are any) and their ids in the audit
-    row. A run of complaints alone types `DELETE 3 COMPLAINTS`.
+    row; unticked, they stay and the audit row names them
+    (`untickedComplaintIds`). A run of complaints alone types
+    `DELETE 3 COMPLAINTS`. No other run deletes a complaint.
 
 - **The garage Bin: move to bin, restore, delete forever** (migration
   `0034_garage_bin`, additive: `vendors.deleted_at`, `deleted_by_name`,
