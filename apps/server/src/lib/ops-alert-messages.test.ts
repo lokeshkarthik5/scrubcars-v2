@@ -662,10 +662,36 @@ describe('refunds through Razorpay', () => {
     expect(text).toContain('https://admin.detlio.com/refunds')
   })
 
-  test('the daily cap', () => {
+  test('the daily cap promises tomorrow only to eligible automatic refunds', () => {
     const text = formatOpsAlert({ kind: 'auto_refund_cap_reached', cap: '20000.00', sentToday: '19800.00' })
     expect(text).toContain('Automatic refunds paused for today')
     expect(text).toContain('₹19,800 refunded automatically today; the daily cap is ₹20,000.')
+    expect(text).toContain('Eligible automatic refunds resume tomorrow.')
+    expect(text).toContain('needs a manual review')
+    expect(text).not.toContain('goes automatically tomorrow')
+  })
+
+  test('a refund on Razorpay that does not fit says reconcile first, never that money is owed again', () => {
+    const text = formatOpsAlert({
+      kind: 'refund_gateway_mismatch',
+      what: 'booking',
+      bookingId: booking.id,
+      amount: '600.00',
+      refundRef: 'rfnd_FOUND0001',
+      paymentId: 'pay_SEED',
+    })
+    expect(text).toContain("🛑 Razorpay refund doesn't match booking #3F2A9C1B")
+    expect(text).toContain('Razorpay holds refund rfnd_FOUND0001 of ₹600 on pay_SEED')
+    expect(text).toContain('Do not refund this again: reconcile the payment in Razorpay first')
+    expect(text).not.toContain('owed again')
+    expect(text).toContain(adminBookingUrl(booking.id))
+  })
+
+  test('a failed automatic-refund sweep, throttled', () => {
+    const text = formatOpsAlert({ kind: 'auto_refund_sweep_failed', quietMinutes: 60 })
+    expect(text).toContain("Automatic refunds' check failed")
+    expect(text).toContain("Further failures in the next 60 minutes won't be alerted.")
+    expect(text).toContain('https://admin.detlio.com/refunds')
   })
 })
 
