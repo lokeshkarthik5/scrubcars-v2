@@ -23,7 +23,8 @@ const scopeSchema = z.discriminatedUnion('kind', [
  * The dry run.
  *
  * `only` is the ticked rows once the owner has reviewed the list; without
- * it every deletable row in scope is ticked. More ticked than one run takes
+ * it every deletable row in scope is ticked (complaints made before a cutoff
+ * included; with it, those only when `complaints` is true). More ticked than one run takes
  * is not refused: the planner takes the oldest up to its cap and reports
  * the rest (`overCap`), so the owner can run it again for them. `unknownIds` are the Razorpay
  * ids an earlier call of the same dry run could not get an answer for: they
@@ -35,6 +36,9 @@ export const previewSchema = z.object({
     .object({
       chainIds: z.array(z.string().uuid()).max(MAX_TICKED_IDS),
       checkoutIds: z.array(z.string().uuid()).max(MAX_TICKED_IDS),
+      // The one tick for every complaint made before the cutoff. Left out is
+      // unticked, so a request from before complaints existed deletes none.
+      complaints: z.boolean().optional(),
     })
     .optional(),
   unknownIds: z.array(z.string().max(64)).max(5000).default([]),

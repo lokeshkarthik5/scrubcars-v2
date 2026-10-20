@@ -16,6 +16,7 @@ import {
   type ResetPlan,
   type ResetScope,
 } from '../../lib/data-reset.js'
+import { formatComplaintNumber } from '../../lib/complaints.js'
 import { AppError, hasPgCode } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
@@ -149,6 +150,8 @@ export async function loadPlanInput(
   const bookingChildCounts = await repo.bookingChildCounts(bookingIds)
   const reschedulesByChain = await repo.reschedulesByChain(keys)
   const intentChildCounts = await repo.intentChildCounts(intents.map((intent) => intent.id))
+  // Only a cutoff run takes complaints; the planner ticks them as one.
+  const complaints = scope.kind === 'before_cutoff' ? await repo.complaintsMadeBefore(scope.cutoff) : []
 
   const receipts = await repo.receipts(keys)
   const years = [...new Set(receipts.map((receipt) => receipt.financialYear))]
@@ -168,6 +171,7 @@ export async function loadPlanInput(
     bookingChildCounts,
     reschedulesByChain,
     intentChildCounts,
+    complaints,
     receipts,
     yearReceipts,
     unnumberedReceipts,
@@ -248,10 +252,22 @@ function toCheckoutView(checkout: CheckoutPlan) {
   }
 }
 
+/** The complaints in scope as one row of the list: how many, which numbers, ticked or not. */
+function toComplaintsView(plan: ResetPlan) {
+  const { ids, first, last, selected } = plan.complaints
+  return {
+    count: ids.length,
+    firstNumber: first === null ? null : formatComplaintNumber(first),
+    lastNumber: last === null ? null : formatComplaintNumber(last),
+    selected,
+  }
+}
+
 function toPlanView(plan: ResetPlan) {
   return {
     chains: plan.chains.map(toChainView),
     checkouts: plan.checkouts.map(toCheckoutView),
+    complaints: toComplaintsView(plan),
     counts: plan.counts,
     countLines: countLines(plan.counts),
     receiptPlan: plan.receiptPlan,
@@ -317,10 +333,11 @@ export function isBusyError(error: unknown): boolean {
 /**
  * Steps 5 and 6 of the delete (see execute): the deleted chains' receipt
  * numbers (voided, or gone with a restarting year), the checkouts' refund
- * records, the checkouts, then the bookings with everything that cascades
- * from them. Returns the job photos' storage keys, to remove after the
- * commit, and the restarting years, whose counters the caller locks and
- * deletes last of all (finishRestarts), after anything else it deletes.
+ * records, the checkouts, the ticked complaints (a cutoff run's), then the
+ * bookings with everything that cascades from them. Returns the job photos'
+ * storage keys, to remove after the commit, and the restarting years, whose
+ * counters the caller locks and deletes last of all (finishRestarts), after
+ * anything else it deletes.
  *
  * Shared with deleting a garage forever (modules/vendor-bin), so the two can
  * never treat receipts or money differently.
@@ -346,6 +363,8 @@ export async function deletePlannedRows(
   await repo.deleteCheckoutRefunds(plan.selectedIntentIds)
   const photoKeys = await repo.photoKeys(plan.selectedBookingIds)
   await repo.deleteIntents(plan.selectedIntentIds)
+  // Before the bookings, so their delete has no complaint to set null.
+  await repo.deleteComplaints(plan.selectedComplaintIds)
   await repo.deleteBookings(plan.selectedBookingIds)
   return { photoKeys, restartYears }
 }
@@ -457,8 +476,9 @@ export const dataResetService = {
    *   4. the audit row, with the full snapshot;
    *   5. receipt numbers: copied to the voids in a 'void' year, then
    *      deleted; a 'restart' year's voids deleted too;
-   *   6. the checkouts' refund records (no foreign key), the checkouts, then
-   *      the bookings with everything that cascades from them;
+   *   6. the checkouts' refund records (no foreign key), the checkouts, the
+   *      ticked complaints, then the bookings with everything that cascades
+   *      from them;
    *   7. last of all, a restarting year's counter row, FOR UPDATE, checked
    *      to have no receipt left in the year (a payment numbered one in the
    *      meantime: 409, all rolled back), then deleted.
@@ -494,7 +514,11 @@ export const dataResetService = {
           await loadPlanInput(repo, scope, input.only, lookups, lookupsUnavailable, now)
         )
         if (plan.selectionHash !== input.selectionHash) throw previewStale()
-        if (plan.selectedChainIds.length === 0 && plan.selectedCheckoutIds.length === 0) {
+        if (
+          plan.selectedChainIds.length === 0 &&
+          plan.selectedCheckoutIds.length === 0 &&
+          plan.selectedComplaintIds.length === 0
+        ) {
           throw nothingToDelete()
         }
         if (!phraseMatches(input.confirmText, plan.confirmPhrase)) {
@@ -552,6 +576,9 @@ export const dataResetService = {
                 refunded: checkout.refunded,
               })),
             intentIds: plan.selectedIntentIds,
+            // Ids only: a complaint's name, phone and words are not copied
+            // into the audit log.
+            complaintIds: plan.selectedComplaintIds,
             receiptPlan: plan.receiptPlan,
             kept: kept.map((row) => ({ id: rowId(row), reason: row.kept })),
             unticked: unticked.map(rowId),

@@ -129,6 +129,9 @@ test.describe('start pilot clean, API @p0', () => {
       checkouts: 3,
       checkoutItems: 3,
       receiptNumbers: 2,
+      // Complaints made before the cutoff go only with their own tick, which
+      // this dry run leaves off: the complaint journey's must survive it.
+      complaints: 0,
     })
     expect(plan.receiptPlan).toEqual([
       {

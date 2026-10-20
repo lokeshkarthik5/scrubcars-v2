@@ -11,6 +11,7 @@ import {
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
+import { MyComplaints } from '@/components/complaints/my-complaints'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { ScBadge } from '@repo/ui/sc/badge'
@@ -592,6 +593,8 @@ export default function ProfilePage() {
         <h2 className="mb-2 text-sm font-semibold">Support</h2>
         <SupportCard />
       </section>
+
+      <MyComplaints />
 
       {/* The five legal pages, one tap from the account they govern. Plain
           links in one card, like My bookings above: nothing here is an

@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
   real,
@@ -21,6 +22,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+import type { ComplaintCategory, ComplaintStatus } from '../lib/complaints.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
 //
@@ -1683,6 +1685,102 @@ export const offerDismissals = pgTable(
   ]
 )
 
+/**
+ * The complaint's number (C-000123 as printed). A sequence, so customers
+ * complaining at the same moment never wait on each other; a rolled-back
+ * insert leaves a gap, which a complaint number can live with (a receipt
+ * number cannot: see receiptCounters). Owned by complaints.number.
+ */
+export const complaintNumberSeq = pgSequence('complaint_number_seq', {
+  startWith: 1,
+  maxValue: 2147483647,
+})
+
+// A customer's complaint, with its number and the response clock: acknowledge
+// within 24 hours, resolve within 7 days of `createdAt` (lib/complaints.ts).
+// Raised from a booking's Help sheet (booking and garage attached, always the
+// customer's own booking) or from the Contact page (neither).
+//
+// Nothing it points at can take it with it: the account, the booking and the
+// garage each set their column to null when deleted, and the snapshot
+// columns (name, phone, booking reference, garage name) keep what it was
+// about. `resolutionNote` is what the customer reads; `adminNote` is the
+// team's and never leaves admin. The CHECKs are in 0035_complaints.sql.
+export const complaints = pgTable(
+  'complaints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    number: integer('number')
+      .notNull()
+      .default(sql`nextval('complaint_number_seq')`),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    customerName: varchar('customer_name', { length: 255 }).notNull(),
+    customerPhone: varchar('customer_phone', { length: 20 }).notNull(),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    bookingRef: varchar('booking_ref', { length: 8 }),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    garageName: varchar('garage_name', { length: 255 }),
+    category: text('category').$type<ComplaintCategory>().notNull(),
+    message: varchar('message', { length: 1000 }).notNull(),
+    status: text('status')
+      .$type<ComplaintStatus>()
+      .default('open')
+      .notNull(),
+    resolutionNote: varchar('resolution_note', { length: 1000 }),
+    adminNote: varchar('admin_note', { length: 2000 }),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    acknowledgedBy: varchar('acknowledged_by', { length: 100 }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: varchar('resolved_by', { length: 100 }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedBy: varchar('closed_by', { length: 100 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('complaints_number_unique').on(table.number),
+    index('complaints_status_created_at_idx').on(table.status, table.createdAt),
+    index('complaints_created_at_idx').on(table.createdAt),
+    index('complaints_user_id_created_at_idx').on(table.userId, table.createdAt),
+    index('complaints_booking_id_idx')
+      .on(table.bookingId)
+      .where(sql`${table.bookingId} is not null`),
+    index('complaints_vendor_id_idx')
+      .on(table.vendorId)
+      .where(sql`${table.vendorId} is not null`),
+    check('complaints_number_check', sql`${table.number} > 0`),
+    check(
+      'complaints_category_check',
+      sql`${table.category} in ('payment_or_refund', 'service_quality', 'garage_no_show', 'damage', 'app_problem', 'other')`
+    ),
+    check(
+      'complaints_status_check',
+      sql`${table.status} in ('open', 'acknowledged', 'resolved', 'closed')`
+    ),
+    check('complaints_message_check', sql`char_length(btrim(${table.message})) > 0`),
+    check(
+      'complaints_acknowledged_check',
+      sql`(${table.status} = 'open') = (${table.acknowledgedAt} is null)`
+    ),
+    check(
+      'complaints_resolved_check',
+      sql`${table.status} <> 'resolved' or (${table.resolvedAt} is not null and ${table.resolutionNote} is not null and char_length(btrim(${table.resolutionNote})) > 0)`
+    ),
+    check(
+      'complaints_resolved_at_check',
+      sql`${table.resolvedAt} is null or ${table.status} in ('resolved', 'closed')`
+    ),
+    check(
+      'complaints_closed_check',
+      sql`(${table.status} = 'closed') = (${table.closedAt} is not null)`
+    ),
+  ]
+)
+
 // Cached geocoding responses, keyed "{provider}:{op}:{normalised-input}". Lives
 // in Postgres rather than process memory because the API is serverless — an
 // in-process cache would be cold on most requests and would multiply by
@@ -2035,3 +2133,18 @@ export const offerDismissalsRelations = relations(
     }),
   })
 )
+
+export const complaintsRelations = relations(complaints, ({ one }) => ({
+  user: one(users, {
+    fields: [complaints.userId],
+    references: [users.id],
+  }),
+  booking: one(bookings, {
+    fields: [complaints.bookingId],
+    references: [bookings.id],
+  }),
+  vendor: one(vendors, {
+    fields: [complaints.vendorId],
+    references: [vendors.id],
+  }),
+}))

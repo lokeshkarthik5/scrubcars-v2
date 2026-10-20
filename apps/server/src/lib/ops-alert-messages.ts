@@ -8,6 +8,12 @@
 const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
 const ADMIN_REFUNDS_URL = 'https://admin.detlio.com/refunds'
+const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
+
+/** A complaint's own page in admin, where it is acknowledged and answered. */
+export function adminComplaintUrl(id: string): string {
+  return `${ADMIN_COMPLAINTS_URL}/${id}`
+}
 
 /**
  * The booking's own page in admin. Whoever picks an alert up goes straight to
@@ -156,6 +162,26 @@ export type OpsAlert =
       keptBookings: number
       outcome: 'hard_delete' | 'tombstone' | 'partial'
       auditId: string
+    }
+  | {
+      /**
+       * A customer raised a complaint in the app. The clock has started: it
+       * must be acknowledged by `acknowledgeBy` (24 hours, the Contact
+       * page's promise), and the admin link is where that is done.
+       */
+      kind: 'complaint_received'
+      complaintId: string
+      /** "C-000123". */
+      number: string
+      /** The category as the customer picked it ("Payment or refund"). */
+      category: string
+      /** The booking it is about, if it came from one. */
+      bookingId: string | null
+      garageName: string | null
+      customerName: string
+      /** The customer's own words; quoted, scrubbed and cut short here. */
+      message: string
+      acknowledgeBy: Date
     }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
@@ -411,6 +437,23 @@ export function formatOpsAlert(alert: OpsAlert): string {
           ? 'More bookings than one run deletes: the garage is still in the Bin, and Delete forever must be pressed again.'
           : null,
         `Audit record ${alert.auditId}.`
+      )
+
+    case 'complaint_received':
+      return lines(
+        `📣 New complaint ${alert.number} · ${alert.category}`,
+        alert.garageName || alert.bookingId
+          ? [
+              alert.garageName ? `Garage: ${alert.garageName}` : null,
+              alert.bookingId ? `booking #${reference(alert.bookingId)}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : 'Not about a booking.',
+        `Customer: ${firstName(alert.customerName)}`,
+        quoted('Customer wrote', alert.message),
+        `Acknowledge by ${when(alert.acknowledgeBy)}.`,
+        adminComplaintUrl(alert.complaintId)
       )
   }
 }

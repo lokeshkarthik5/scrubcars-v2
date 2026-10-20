@@ -8,6 +8,7 @@ import {
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminAiRoutes } from '../ai/ai.routes.js'
+import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
@@ -358,6 +359,10 @@ adminRoutes.route('/refunds', adminRefundRoutes)
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.
 adminRoutes.route('/notices', adminNoticeRoutes)
+
+// Customers' complaints, with their numbers and the 24-hour / 7-day clock.
+// Nested here for the same cookie reason as discounts.
+adminRoutes.route('/complaints', adminComplaintRoutes)
 
 // Add garage's import from a poster, photo, PDF or Tally file, and the
 // owner-phone lookup. Nested here for the same cookie reason as discounts.

@@ -28,7 +28,7 @@ export const CONTACT: LegalDoc = {
   intro: [
     {
       kind: 'p',
-      text: 'For help with a booking, the quickest way is **Help with this booking** on the booking page: it reaches the garage or our team with your booking details filled in.',
+      text: 'For help with a booking, the quickest way is **Help with this booking** on the booking page: it reaches the garage or our team with your booking details filled in, and lets you raise a complaint about it.',
     },
   ],
   sections: [
@@ -115,7 +115,7 @@ export const CONTACT: LegalDoc = {
         },
         {
           kind: 'note',
-          text: `**Which timelines.** E-Commerce Rules rule 4(5): acknowledge within 48 hours, redress within one month; from 1 Jan 2027, also give the complainant "a copy of the complaint as recorded". IT Rules 3(2) as amended from 20 Feb 2026 (from commentary, Gazette not read): acknowledge within 24 hours, resolve within 7 days (was 15); content complaints under rule 3(1)(b) within 36 hours (was 72); intimate-image/impersonation within 2 hours (was 24) — these bind only if Detlio relies on intermediary status (see the note on Terms section 14). The page publishes the stricter set, with one month as the outer limit (SPDI rule 5(9); DPDP rule 14(3) allows up to 90 days). They are one setting in details.ts (GRIEVANCE_TIMELINES). **Operational:** there is no complaint-number system today (no ticket table; only internal booking notes). The complaint number is required (rule 5(3)(b)), so the promise stays: before publishing, set up a numbered complaint log, even a spreadsheet issuing IDs like DTL-C-0001, and a habit of sending the complainant the number and a copy of the complaint by WhatsApp or email. Keep GRIEVANCE_TIMELINES only at levels the team can actually meet.`,
+          text: `**Which timelines.** E-Commerce Rules rule 4(5): acknowledge within 48 hours, redress within one month; from 1 Jan 2027, also give the complainant "a copy of the complaint as recorded". IT Rules 3(2) as amended from 20 Feb 2026 (from commentary, Gazette not read): acknowledge within 24 hours, resolve within 7 days (was 15); content complaints under rule 3(1)(b) within 36 hours (was 72); intimate-image/impersonation within 2 hours (was 24) — these bind only if Detlio relies on intermediary status (see the note on Terms section 14). The page publishes the stricter set, with one month as the outer limit (SPDI rule 5(9); DPDP rule 14(3) allows up to 90 days). They are one setting in details.ts (GRIEVANCE_TIMELINES). **Operational:** complaints raised in the app (from a booking's Help, or from this page when signed in) get a number like C-000123 at once, and the customer sees it, their words as recorded, and the team's answer under Profile → My complaints; admin's Complaints tab counts down the 24 hours and 7 days and flags what is overdue. Complaints that arrive by phone, WhatsApp or email still need entering by hand: there is no admin form for that yet, so until there is, ask the customer to raise it in the app, or log it in the booking's notes. The acknowledge and resolve numbers come from packages/core/src/complaints.ts (the clock's own), so this page and the clock cannot disagree. Keep them only at levels the team can actually meet.`,
         },
       ],
     },

@@ -56,6 +56,24 @@ const CHECKOUT_CELLS: Record<string, (c: DataResetCheckout) => string | number |
 }
 
 /**
+ * A cutoff run's complaints, as one line in the same columns: they go or
+ * stay together. None when there are none in scope.
+ */
+function complaintsCsvRow(preview: DataResetPreview, headers: string[]): string[] {
+  const { complaints } = preview
+  if (!complaints || complaints.count === 0) return []
+  const cells: Record<string, string | number | null> = {
+    What: `Complaints made before the cutoff (${complaints.count})`,
+    Reference:
+      complaints.firstNumber === complaints.lastNumber
+        ? complaints.firstNumber
+        : `${complaints.firstNumber} to ${complaints.lastNumber}`,
+    Outcome: complaints.selected ? 'Deleted' : 'Unticked — kept',
+  }
+  return [headers.map((header) => csvCell(cells[header] ?? null)).join(',')]
+}
+
+/**
  * The dry run's list as a CSV: every row in scope, deleted or kept, with
  * what happens to it and why. Kept alongside the database backup, it is the
  * owner's own record of what went.
@@ -68,6 +86,7 @@ export function dataResetCsv(preview: DataResetPreview): string {
     ...preview.checkouts.map((checkout) =>
       headers.map((header) => csvCell(CHECKOUT_CELLS[header]?.(checkout) ?? null)).join(',')
     ),
+    ...complaintsCsvRow(preview, headers),
   ]
   return `${lines.join('\r\n')}\r\n`
 }
