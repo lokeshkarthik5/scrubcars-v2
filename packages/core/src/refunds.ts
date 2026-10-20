@@ -48,7 +48,8 @@ export type RefundFor = 'payment' | 'earlier_bill'
  * refunded).
  *
  * - Started through Razorpay from the app, not finished there yet: how
- *   much, the day it started, and when it reaches the account.
+ *   much, the day it started, and when it reaches the account; with what
+ *   went back before it first, when something did.
  * - Owed, nothing sent yet: our team will refund it, and how long that takes.
  * - Partly sent: how much of how much, and when. Nothing about the rest: ops
  *   may have kept part on purpose, and there is no state yet that says so,
@@ -114,9 +115,16 @@ function moneyRefundLine(refund: BookingRefund, what: RefundFor, partOnline: boo
   const showing = `It can take ${BANK_DAYS} to show in your account.`
 
   // Sent through Razorpay from the app and still on its way: said as
-  // started, with the day it was, until Razorpay finishes it.
+  // started, with the day it was, until Razorpay finishes it. What went back
+  // before it (counted in amountRefunded too) is said first, so it doesn't
+  // vanish while the new one is on its way.
   if (refund.started && refund.started.amount > 0) {
-    return `Refund of ${formatRupees(refund.started.amount)}${forBill} started on ${formatDate(refund.started.at)}. It reaches your account in ${BANK_DAYS}.`
+    const startedLine = `started on ${formatDate(refund.started.at)}. It reaches your account in ${BANK_DAYS}.`
+    const donePaise = Math.round(refund.amountRefunded * 100) - Math.round(refund.started.amount * 100)
+    if (donePaise > 0) {
+      return `Refunded ${formatRupees(donePaise / 100)}${forBill} so far. A further refund of ${formatRupees(refund.started.amount)} ${startedLine}`
+    }
+    return `Refund of ${formatRupees(refund.started.amount)}${forBill} ${startedLine}`
   }
 
   if (refund.status === 'refunded') {
