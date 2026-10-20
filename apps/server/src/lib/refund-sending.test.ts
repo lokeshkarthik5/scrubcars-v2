@@ -15,6 +15,8 @@ import {
   refusalIsDefinite,
   sourceOfFoundRefund,
   unrecordedGatewayRefunds,
+  settledByGateway,
+  distinctTargets,
   type GatewayRefund,
 } from './refund-sending.js'
 import { afterRefund } from './refunds.js'
@@ -44,6 +46,39 @@ const clearCut = (overrides: Partial<Parameters<typeof autoRefundHold>[0]> = {})
     now: NOW,
     ...overrides,
   })
+
+describe('settling our pending refunds from what Razorpay lists', () => {
+  const record = (refundRef: string | null) => ({ id: `rec_${refundRef}`, refundRef })
+
+  test('processed and failed ones are settled; one still pending or not listed stays', () => {
+    const pending = [record('rfnd_A'), record('rfnd_B'), record('rfnd_C'), record('rfnd_D'), record(null)]
+    const listed = [
+      gateway({ id: 'rfnd_A', status: 'processed' }),
+      gateway({ id: 'rfnd_B', status: 'failed' }),
+      gateway({ id: 'rfnd_C', status: 'pending' }),
+    ]
+    expect(settledByGateway(pending, listed)).toEqual({
+      processed: [record('rfnd_A')],
+      failed: [record('rfnd_B')],
+    })
+    expect(settledByGateway(pending, [])).toEqual({ processed: [], failed: [] })
+  })
+
+  test('each piece of money is checked once, however many of its refunds are pending', () => {
+    expect(
+      distinctTargets([
+        { kind: 'booking', targetId: 'b1' },
+        { kind: 'checkout', targetId: 'b1' },
+        { kind: 'booking', targetId: 'b1' },
+        { kind: 'bill', targetId: 'c1' },
+      ])
+    ).toEqual([
+      { kind: 'booking', id: 'b1' },
+      { kind: 'checkout', id: 'b1' },
+      { kind: 'bill', id: 'c1' },
+    ])
+  })
+})
 
 describe('what Razorpay already has', () => {
   test('a refund done in the dashboard that we have no record of is found', () => {

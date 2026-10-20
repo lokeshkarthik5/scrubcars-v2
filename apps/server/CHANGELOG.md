@@ -160,13 +160,23 @@ reconstructing every change in them.
     no-show, customer cancelled in time, Detlio cancelled, checkout paid
     with no booking) are refunded right after the cancel commits
     (`waitUntil`), and `POST /ops/pending-digest` retries what was missed or
-    failed (20 a run; its answer gains `autoRefunds`). Never final-bill
+    failed (20 a run; its answer gains `autoRefunds`; a sweep that fails as
+    a whole alerts `auto_refund_sweep_failed`, at most once an hour). Never final-bill
     money, never part amounts, never a booking with an open or acknowledged
     complaint, only money owed in the last 3 days, at most 3 failed tries.
     `AUTO_REFUND_DAILY_CAP_INR` (default 20000) stops them for the IST day,
     with one alert.
+  - The webhook takes the payment's refund lock before it looks the
+    refund up, so an answer that arrives while the send is still recording
+    it is not lost. As a backstop, the pending-digest run checks refunds
+    still pending 15 minutes after they were sent against Razorpay (20 a
+    run; its answer gains `refundChecks`) and settles them the same way.
+  - A refund still pending at Razorpay is not on the receipt until it is
+    processed.
   - Telegram: `refund_sent` ("💸 Refund ₹X started for booking #… · auto"
-    or "· admin"), `refund_failed`, `auto_refund_cap_reached`.
+    or "· admin"), `refund_failed`, `refund_gateway_mismatch` (a refund on
+    Razorpay that doesn't fit: reconcile first, don't refund again),
+    `auto_refund_cap_reached`.
   - The customer's booking payload gains `refund.started { amount, at }`
     while a refund the app sent is pending at Razorpay (left out otherwise).
   - `E2E_FAKE_PAYMENTS` mints `rfnd_e2e_…` refunds in memory.
@@ -276,8 +286,12 @@ reconstructing every change in them.
     else's is 404 `BOOKING_NOT_FOUND`) and brings its garage; the schema is
     `.strict()`, so no garage, status or user id can be sent. Name, phone,
     booking reference and garage name are snapshotted on the row, and every
-    foreign key is `ON DELETE SET NULL`, so `DELETE /users/me`, the
-    test-data reset and Delete forever from the Bin keep the complaint.
+    foreign key is `ON DELETE SET NULL`, so deleting the account, the
+    booking or the garage (`DELETE /users/me`, the test-data reset's
+    booking deletes, Delete forever from the Bin) only sets that link to
+    null and the complaint stays. The one exception is Start pilot clean's
+    cutoff run, below, which deletes the complaints made before the cutoff
+    while their tick is on.
   - The number (`C-000123`) comes from a sequence: concurrent complaints
     never wait on each other, and a rolled-back insert leaves a gap (a
     receipt number could not; a complaint number can).
@@ -307,7 +321,9 @@ reconstructing every change in them.
     look, unticked when `only` leaves it out), counts them (`complaints`,
     "3 complaints"), deletes them before the bookings, puts their ids in
     the fingerprint (only when there are any) and their ids in the audit
-    row. A run of complaints alone types `DELETE 3 COMPLAINTS`.
+    row; unticked, they stay and the audit row names them
+    (`untickedComplaintIds`). A run of complaints alone types
+    `DELETE 3 COMPLAINTS`. No other run deletes a complaint.
 
 - **The garage Bin: move to bin, restore, delete forever** (migration
   `0034_garage_bin`, additive: `vendors.deleted_at`, `deleted_by_name`,
