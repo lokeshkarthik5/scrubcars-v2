@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, not, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, not, or, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -564,6 +564,19 @@ export const refundsRepository = {
           eq(refundRecords.gatewayStatus, 'pending')
         )
       )
+  },
+
+  /**
+   * The app's refunds still pending at Razorpay that were sent before
+   * `before`, oldest first: the cron's check for a missed webhook.
+   */
+  listStalePending(before: Date, limit: number, conn: Conn = db) {
+    return conn
+      .select({ kind: refundRecords.kind, targetId: refundRecords.targetId })
+      .from(refundRecords)
+      .where(and(eq(refundRecords.gatewayStatus, 'pending'), lt(refundRecords.recordedAt, before)))
+      .orderBy(asc(refundRecords.recordedAt), asc(refundRecords.id))
+      .limit(limit)
   },
 
   /** How many sends through Razorpay of this money have failed. */
