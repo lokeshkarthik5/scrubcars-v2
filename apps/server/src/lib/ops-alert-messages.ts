@@ -205,6 +205,31 @@ export type OpsAlert =
     }
   | {
       /**
+       * Razorpay holds a refund on this payment that doesn't fit what is owed
+       * here (found while checking before a send). Nothing more was sent, and
+       * nothing is owed again: a person reconciles it in Razorpay first,
+       * since refunding again could pay the customer twice.
+       */
+      kind: 'refund_gateway_mismatch'
+      what: 'booking' | 'checkout' | 'bill'
+      bookingId: string | null
+      /** The refund found on Razorpay. */
+      amount: string
+      refundRef: string
+      paymentId: string | null
+    }
+  | {
+      /**
+       * The automatic refunds' retry in the pending-digest cron failed as a
+       * whole (not one refund: those have their own alert). The digest still
+       * ran. Throttled, so a stuck sweep doesn't post every run.
+       */
+      kind: 'auto_refund_sweep_failed'
+      /** How long further failures stay quiet, so the message can say so. */
+      quietMinutes: number
+    }
+  | {
+      /**
        * The automatic mode reached its daily cap: no more automatic refunds
        * until tomorrow (IST). Sent once a day at most.
        */
@@ -679,11 +704,29 @@ export function formatOpsAlert(alert: OpsAlert): string {
         alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
       )
 
+    case 'refund_gateway_mismatch':
+      return lines(
+        `🛑 Razorpay refund doesn't match${alert.bookingId ? ` booking #${reference(alert.bookingId)}` : ' a payment with no booking'}`,
+        REFUND_WHAT[alert.what],
+        `Razorpay holds refund ${alert.refundRef} of ${rupees(alert.amount)}${alert.paymentId ? ` on ${alert.paymentId}` : ''}, which doesn't fit what is owed here.`,
+        'Nothing more was sent. Do not refund this again: reconcile the payment in Razorpay first, then record what it shows with Mark refunded.',
+        alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
+      )
+
+    case 'auto_refund_sweep_failed':
+      return lines(
+        `⚠️ Automatic refunds' check failed`,
+        "The retry of automatic refunds in the pending-booking job didn't run through, so refunds it would have sent are still owed. The digest itself still ran.",
+        'Check the server logs (ops:auto_refund_sweep_failed). Meanwhile refund from the Refunds page.',
+        `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`,
+        ADMIN_REFUNDS_URL
+      )
+
     case 'auto_refund_cap_reached':
       return lines(
         `🛑 Automatic refunds paused for today`,
         `${rupees(alert.sentToday)} refunded automatically today; the daily cap is ${rupees(alert.cap)}.`,
-        'Anything else owed today waits on the Refunds page: use Refund now, or it goes automatically tomorrow.',
+        'Eligible automatic refunds resume tomorrow. Anything else owed (final bills, part refunds, bookings with an open complaint, money owed over 3 days) needs a manual review: use Refund now on the Refunds page.',
         ADMIN_REFUNDS_URL
       )
 
