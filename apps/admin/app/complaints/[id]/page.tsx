@@ -116,13 +116,14 @@ function Actions({ c }: { c: AdminComplaint }) {
   const [resolution, setResolution] = useState('')
   const [closing, setClosing] = useState(false)
   const [closeNote, setCloseNote] = useState('')
-  const [error, setError] = useState('')
 
   const busy = acknowledge.isPending || resolve.isPending || close.isPending
 
   if (!can.acknowledge && !can.resolve && !can.close) return null
 
-  const onError = (fallback: string) => (err: Error) => setError(errorMessage(err, fallback))
+  // A toast, not text in this section: a refused action refetches the complaint,
+  // and a failure must still be seen when the complaint has moved on meanwhile.
+  const onError = (fallback: string) => (err: Error) => toast.error(errorMessage(err, fallback))
 
   return (
     <ScSection title="Respond">
@@ -137,7 +138,6 @@ function Actions({ c }: { c: AdminComplaint }) {
             fullWidth={false}
             disabled={busy}
             onClick={() => {
-              setError('')
               acknowledge.mutate(undefined, {
                 onSuccess: () => toast.success(`${c.number} acknowledged`),
                 onError: onError("Couldn't acknowledge it"),
@@ -157,7 +157,6 @@ function Actions({ c }: { c: AdminComplaint }) {
             event.preventDefault()
             const note = resolution.trim()
             if (!note) return
-            setError('')
             resolve.mutate(note, {
               onSuccess: () => {
                 setResolution('')
@@ -198,12 +197,6 @@ function Actions({ c }: { c: AdminComplaint }) {
         </button>
       )}
 
-      {error && (
-        <p role="alert" className="text-[12px] text-error">
-          {error}
-        </p>
-      )}
-
       <ScModal
         open={closing}
         onClose={() => setClosing(false)}
@@ -237,7 +230,6 @@ function Actions({ c }: { c: AdminComplaint }) {
             variant="secondary"
             disabled={close.isPending}
             onClick={() => {
-              setError('')
               close.mutate(closeNote.trim() || undefined, {
                 onSuccess: () => {
                   setClosing(false)
@@ -246,7 +238,7 @@ function Actions({ c }: { c: AdminComplaint }) {
                 },
                 onError: (err) => {
                   setClosing(false)
-                  setError(errorMessage(err, "Couldn't close it"))
+                  onError("Couldn't close it")(err)
                 },
               })
             }}
@@ -439,7 +431,7 @@ function ComplaintDetail({ id }: { id: string }) {
         )}
       </ScSection>
 
-      <Actions key={c.status} c={c} />
+      <Actions key={c.id} c={c} />
 
       <InternalNote key={c.id} c={c} />
     </>
