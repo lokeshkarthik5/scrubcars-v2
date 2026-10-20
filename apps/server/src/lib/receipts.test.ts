@@ -461,6 +461,26 @@ describe('buildReceipt: refunds', () => {
     expect(receipt.netPaid).toBe('0.00')
   })
 
+  test('a refund still pending at Razorpay is not on the receipt until it is processed', () => {
+    // ₹200 went back earlier; ₹299 more was sent from the app and is on its
+    // way. The payment row's total counts both.
+    const payment = { ...booking().payment!, status: 'refunded', refundedAmount: '499.00' }
+    const first = record({ amount: '200.00', refundRef: 'rfnd_First00000001', gatewayStatus: 'processed' })
+    const second = record({
+      amount: '299.00',
+      refundRef: 'rfnd_Second0000002',
+      recordedAt: new Date('2026-10-05T06:00:00Z'),
+      gatewayStatus: 'pending',
+    })
+    const pending = receiptOf(booking({ ...cancelled, payment }), [first, second])
+    expect(pending.refunds.map((refund) => refund.reference)).toEqual(['rfnd_First00000001'])
+    expect(pending).toMatchObject({ totalPaid: '499.00', totalRefunded: '200.00', netPaid: '299.00' })
+
+    const processed = receiptOf(booking({ ...cancelled, payment }), [first, { ...second, gatewayStatus: 'processed' }])
+    expect(processed.refunds).toHaveLength(2)
+    expect(processed).toMatchObject({ totalRefunded: '499.00', netPaid: '0.00' })
+  })
+
   test('a refund made outside Razorpay shows no reference, and never the team’s note', () => {
     const payment = { ...booking().payment!, refundedAmount: '499.00', status: 'refunded' }
     const receipt = receiptOf(booking({ ...cancelled, payment }), [record({ refundRef: null })])
