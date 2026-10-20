@@ -2,6 +2,7 @@ import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
+import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
@@ -22,6 +23,11 @@ const log = logger.child({ module: 'ops' })
 
 /** How long after its start time a still-pending booking keeps being listed. */
 const MISSED_LOOKBACK_MS = 24 * 60 * 60 * 1000
+
+// A sweep that fails tends to fail every run until someone fixes it; the
+// first alert says it all, and one an hour keeps it from being forgotten.
+const SWEEP_ALERT_QUIET_MINUTES = 60
+const sweepAlertDue = createThrottle(SWEEP_ALERT_QUIET_MINUTES * 60_000)
 
 export const opsService = {
   /**
@@ -67,12 +73,30 @@ export const opsService = {
 
     // The automatic refunds' retry rides on this run (AUTO_REFUNDS; nothing
     // happens while it is off). First, and never allowed to fail the digest:
-    // a refund problem is alerted on its own, and the digest still posts.
+    // a refund problem is alerted on its own (one refund's failure by the
+    // refunds service, the whole sweep's here), and the digest still posts.
     const autoRefunds = await refundsService
       .sweepAutoRefunds({ dryRun: options.dryRun })
       .catch((err: unknown) => {
         log.error({ err }, 'ops:auto_refund_sweep_failed')
         return { enabled: true as const, error: true as const }
+      })
+    if ('error' in autoRefunds && !options.dryRun && sweepAlertDue()) {
+      // Awaited, like the digest: the cron's function may be frozen once it
+      // answers. A failed send is logged and the digest still runs.
+      await sendOpsAlertNow({ kind: 'auto_refund_sweep_failed', quietMinutes: SWEEP_ALERT_QUIET_MINUTES }).catch(
+        (err: unknown) => log.error({ err }, 'ops:auto_refund_sweep_alert_failed')
+      )
+    }
+
+    // Then the webhook's backstop: refunds still pending at Razorpay well
+    // after they were sent are checked there (whatever AUTO_REFUNDS says, as
+    // Refund now's are too). Never allowed to fail the digest either.
+    const refundChecks = await refundsService
+      .recheckPendingRefunds({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:refund_recheck_failed')
+        return { error: true as const }
       })
 
     // Browser notifications on a schedule (0044): the customers' reminders
@@ -204,6 +228,7 @@ export const opsService = {
       posted: false,
       payoutsDue: payouts ? payouts.garages : null,
       autoRefunds,
+      refundChecks,
       analyticsPurged,
       timeProposals,
       notAccepted,
