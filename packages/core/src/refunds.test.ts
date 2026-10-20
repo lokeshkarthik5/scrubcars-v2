@@ -78,6 +78,33 @@ describe('customerRefundLine', () => {
     ).toBe('Refund of ₹300 for the earlier final bill started on 5 Oct 2026. It reaches your account in 5–7 working days.')
   })
 
+  test('started on top of a part already refunded: both are said', () => {
+    expect(
+      customerRefundLine({
+        status: 'owed',
+        amount: 499,
+        amountRefunded: 300,
+        refundedAt: '2026-10-05T06:00:00Z',
+        started: { amount: 100, at: '2026-10-05T06:00:00Z' },
+      })
+    ).toBe(
+      'Refunded ₹200 so far. A further refund of ₹100 started on 5 Oct 2026. It reaches your account in 5–7 working days.'
+    )
+    expect(
+      customerRefundLine(
+        {
+          status: 'refunded',
+          amount: 300,
+          amountRefunded: 300,
+          started: { amount: 100.5, at: '2026-10-05T06:00:00Z' },
+        },
+        'earlier_bill'
+      )
+    ).toBe(
+      'Refunded ₹199.50 for the earlier final bill so far. A further refund of ₹100.50 started on 5 Oct 2026. It reaches your account in 5–7 working days.'
+    )
+  })
+
   test('nothing to say when nothing is coming back', () => {
     expect(customerRefundLine({ status: 'none', amount: 0, amountRefunded: 0 })).toBeNull()
     expect(customerRefundLine(undefined)).toBeNull()
