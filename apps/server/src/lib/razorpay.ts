@@ -304,6 +304,46 @@ function toRefund(entity: RazorpayRefundEntity): RazorpayRefund {
   }
 }
 
+/** A refund as Razorpay sends it, or null when the body isn't shaped like one. */
+function refundEntityOf(value: unknown): RazorpayRefundEntity | null {
+  if (!value || typeof value !== 'object') return null
+  const entity = value as Partial<RazorpayRefundEntity>
+  return typeof entity.id === 'string' && typeof entity.amount === 'number' ? (entity as RazorpayRefundEntity) : null
+}
+
+/**
+ * The body of a refund call Razorpay answered with a 2xx: the refund it
+ * made, or the payment's list of them. A body that can't be read (the time
+ * ran out mid-read, it was cut off, it isn't JSON, it isn't shaped like a
+ * refund) is no answer, the same RazorpayRefundError(null, null) as a call
+ * that never came back: a create is then unknown (the next check of the
+ * payment finds out), and a list unavailable.
+ */
+async function refundBodyOf(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    throw new RazorpayRefundError(null, null)
+  }
+}
+
+export async function readCreatedRefund(response: Response): Promise<RazorpayRefund> {
+  const entity = refundEntityOf(await refundBodyOf(response))
+  if (!entity) throw new RazorpayRefundError(null, null)
+  return toRefund(entity)
+}
+
+export async function readRefundList(response: Response): Promise<RazorpayRefund[]> {
+  const body = await refundBodyOf(response)
+  const items = body && typeof body === 'object' ? ((body as { items?: unknown }).items ?? []) : null
+  if (!Array.isArray(items)) throw new RazorpayRefundError(null, null)
+  return items.map((item) => {
+    const entity = refundEntityOf(item)
+    if (!entity) throw new RazorpayRefundError(null, null)
+    return toRefund(entity)
+  })
+}
+
 async function razorpayErrorDescription(response: Response): Promise<string | null> {
   const body = (await response.json().catch(() => null)) as { error?: { description?: string } } | null
   return body?.error?.description ?? null
@@ -369,7 +409,7 @@ export async function createRazorpayRefund(input: {
   if (!response.ok) {
     throw new RazorpayRefundError(response.status, await razorpayErrorDescription(response))
   }
-  return toRefund((await response.json()) as RazorpayRefundEntity)
+  return readCreatedRefund(response)
 }
 
 /**
@@ -401,6 +441,5 @@ export async function listRazorpayRefunds(paymentId: string): Promise<RazorpayRe
   if (!response.ok) {
     throw new RazorpayRefundError(response.status, await razorpayErrorDescription(response))
   }
-  const body = (await response.json()) as { items?: RazorpayRefundEntity[] }
-  return (body.items ?? []).map(toRefund)
+  return readRefundList(response)
 }

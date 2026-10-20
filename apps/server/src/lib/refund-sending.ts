@@ -57,6 +57,47 @@ export function unrecordedGatewayRefunds(
 }
 
 /**
+ * Our refunds still pending at Razorpay, against its list of the payment's
+ * refunds: those it has processed and those it has failed (a missed or lost
+ * webhook). One it still holds as pending, or doesn't list, stays as it is.
+ */
+export function settledByGateway<R extends { refundRef: string | null }>(
+  pending: readonly R[],
+  gateway: readonly Pick<GatewayRefund, 'id' | 'status'>[]
+): { processed: R[]; failed: R[] } {
+  const statusOf = (record: R) => gateway.find((refund) => refund.id === record.refundRef)?.status
+  return {
+    processed: pending.filter((record) => record.refundRef !== null && statusOf(record) === 'processed'),
+    failed: pending.filter((record) => record.refundRef !== null && statusOf(record) === 'failed'),
+  }
+}
+
+/**
+ * A refund the app recorded as pending this long ago with no word from
+ * Razorpay is checked by the pending-digest cron, in case its webhook was
+ * missed. Razorpay usually settles a normal refund well within this.
+ */
+export const PENDING_REFUND_RECHECK_AFTER_MS = 15 * 60 * 1000
+
+/** The most pending refunds one cron run checks. */
+export const PENDING_REFUND_RECHECK_LIMIT = 20
+
+/** The money behind some refund records, each once, in the order first named. */
+export function distinctTargets<T extends { kind: RefundKind; targetId: string }>(
+  records: readonly T[]
+): Array<{ kind: RefundKind; id: string }> {
+  const seen = new Set<string>()
+  const targets: Array<{ kind: RefundKind; id: string }> = []
+  for (const record of records) {
+    const key = `${record.kind}:${record.targetId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    targets.push({ kind: record.kind, id: record.targetId })
+  }
+  return targets
+}
+
+/**
  * The source a refund found on Razorpay is recorded with. Ours, when its
  * notes say the app sent it for this very money (see razorpayRefundNotes);
  * anything else was done in the dashboard.
