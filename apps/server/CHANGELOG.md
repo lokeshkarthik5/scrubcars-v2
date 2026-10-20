@@ -56,6 +56,11 @@ reconstructing every change in them.
     complaint, only money owed in the last 3 days, at most 3 failed tries.
     `AUTO_REFUND_DAILY_CAP_INR` (default 20000) stops them for the IST day,
     with one alert.
+  - The webhook takes the payment's refund lock before it looks the
+    refund up, so an answer that arrives while the send is still recording
+    it is not lost. As a backstop, the pending-digest run checks refunds
+    still pending 15 minutes after they were sent against Razorpay (20 a
+    run; its answer gains `refundChecks`) and settles them the same way.
   - A refund still pending at Razorpay is not on the receipt until it is
     processed.
   - Telegram: `refund_sent` ("💸 Refund ₹X started for booking #… · auto"

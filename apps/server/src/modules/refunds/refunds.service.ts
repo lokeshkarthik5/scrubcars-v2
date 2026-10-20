@@ -23,12 +23,16 @@ import {
   autoRefundCause,
   autoRefundFitsCap,
   autoRefundHold,
+  distinctTargets,
   failureReasonFor,
   FOUND_REFUND_BY,
+  PENDING_REFUND_RECHECK_AFTER_MS,
+  PENDING_REFUND_RECHECK_LIMIT,
   razorpayRefundNotes,
   refundIdempotencyKey,
   refundToSend,
   refusalIsDefinite,
+  settledByGateway,
   sourceOfFoundRefund,
   unrecordedGatewayRefunds,
   type AutoRefundCause,
@@ -534,6 +538,29 @@ async function takeBack(record: RefundRecordRow, reason: string, conn: Conn, now
   }
 }
 
+/**
+ * Settles the money's refunds still pending here from Razorpay's list of the
+ * payment's refunds (a missed webhook): processed ones marked so, failed ones
+ * taken back. Inside the refund lock. Returns how many it settled and the
+ * team's alerts for those taken back.
+ */
+async function settlePending(
+  target: Target,
+  gateway: readonly RazorpayRefund[],
+  conn: Conn,
+  now: Date
+): Promise<{ settled: number; alerts: OpsAlert[] }> {
+  const pending = await refundsRepository.listPendingForTarget(target.kind, target.id, conn)
+  const { processed, failed } = settledByGateway(pending, gateway)
+  const alerts: OpsAlert[] = []
+  for (const record of processed) await refundsRepository.markProcessed(record.id, now, conn)
+  for (const record of failed) {
+    const alert = await takeBack(record, 'Razorpay could not complete the refund.', conn, now)
+    if (alert) alerts.push(alert)
+  }
+  return { settled: processed.length + failed.length, alerts }
+}
+
 /** What a check of Razorpay came to, inside the lock. */
 type SyncResult =
   | { kind: 'ok'; alerts: OpsAlert[] }
@@ -562,14 +589,7 @@ async function syncWithRazorpay(money: Money, conn: Conn, now: Date): Promise<Sy
     throw error
   }
 
-  for (const record of await refundsRepository.listPendingForTarget(money.target.kind, money.target.id, conn)) {
-    const there = gateway.find((refund) => refund.id === record.refundRef)
-    if (there?.status === 'processed') await refundsRepository.markProcessed(record.id, now, conn)
-    if (there?.status === 'failed') {
-      const alert = await takeBack(record, 'Razorpay could not complete the refund.', conn, now)
-      if (alert) alerts.push(alert)
-    }
-  }
+  alerts.push(...(await settlePending(money.target, gateway, conn, now)).alerts)
 
   const recorded = await refundsRepository.findRecordedRefs(gateway.map((refund) => refund.id), conn)
   // Razorpay lists newest first; recorded oldest first, as they were made.
@@ -969,6 +989,12 @@ export type AutoRefundOutcome = 'off' | 'sent' | AutoRefundHold | 'busy' | 'fail
  */
 const SWEEP_BUDGET_MS = 15_000
 
+/**
+ * How long one cron run keeps checking pending refunds, after the sweep and
+ * before the digest. Rarely more than a call: most runs have nothing waiting.
+ */
+const RECHECK_BUDGET_MS = 5_000
+
 export const refundsService = {
   /**
    * The Refunds page. Owed: everything still to give back, oldest first, so
@@ -1323,6 +1349,66 @@ export const refundsService = {
   },
 
   /**
+   * The webhook's backstop, run by the pending-digest cron: the app's refunds
+   * still pending at Razorpay PENDING_REFUND_RECHECK_AFTER_MS after they were
+   * sent (a webhook missed, or lost) are checked against Razorpay's list of
+   * the payment's refunds and settled like the webhook would (processed, or
+   * taken back with its alert). Oldest first, at most
+   * PENDING_REFUND_RECHECK_LIMIT a run and within a time budget; a payment
+   * whose refund lock is busy is left for the next run, and the run stops
+   * when Razorpay can't be read. Nothing is read from Razorpay when nothing
+   * is waiting. A dry run only counts.
+   */
+  async recheckPendingRefunds(options: { dryRun: boolean }, now = new Date()) {
+    const stale = await refundsRepository.listStalePending(
+      new Date(now.getTime() - PENDING_REFUND_RECHECK_AFTER_MS),
+      PENDING_REFUND_RECHECK_LIMIT
+    )
+    const targets = distinctTargets(stale)
+    const summary = {
+      waiting: targets.length,
+      checked: 0,
+      settled: 0,
+      stopped: null as null | 'unavailable' | 'time',
+    }
+    if (options.dryRun || targets.length === 0) return summary
+
+    const started = Date.now()
+    for (const target of targets) {
+      if (Date.now() - started > RECHECK_BUDGET_MS) {
+        summary.stopped = 'time'
+        break
+      }
+      try {
+        const locked = await refundsRepository.withRefundLock(await lockKeyFor(target), { wait: false }, async (tx) => {
+          const money = await readMoney(target, tx)
+          if (!money?.paymentId) return { kind: 'skipped' as const }
+          let gateway: RazorpayRefund[]
+          try {
+            gateway = await listRazorpayRefunds(money.paymentId)
+          } catch (error) {
+            if (error instanceof RazorpayRefundError) return { kind: 'unavailable' as const }
+            throw error
+          }
+          return { kind: 'checked' as const, ...(await settlePending(target, gateway, tx, now)) }
+        })
+        if (locked.kind === 'busy' || locked.value.kind === 'skipped') continue
+        if (locked.value.kind === 'unavailable') {
+          summary.stopped = 'unavailable'
+          break
+        }
+        summary.checked += 1
+        summary.settled += locked.value.settled
+        for (const alert of locked.value.alerts) alertOps(alert)
+      } catch (err) {
+        log.error({ err, ...target }, 'refund:recheck_item_failed')
+      }
+    }
+    log.info(summary, 'refund:pending_recheck')
+    return summary
+  },
+
+  /**
    * Razorpay's refund.processed and refund.failed, from the signed webhook.
    * Only refunds recorded here are touched: a refund done in the dashboard
    * and not yet marked is left for Mark refunded (or the next Refund now,
@@ -1338,24 +1424,38 @@ export const refundsService = {
       return { handled: false, event }
     }
     const refundRef = entity.id
-    const record = await refundsRepository.findRecordByRef(refundRef)
+
+    // The lock first, then the look-up inside it. Razorpay can call back
+    // before the send that made this refund has committed its record (the
+    // send holds this lock across the call and the write), so a record
+    // looked for before waiting could be missing and the outcome lost. Only
+    // without a payment id is the record needed to find the lock's key.
+    let key = refundablePaymentId(entity.payment_id)
+    if (!key) {
+      const record = await refundsRepository.findRecordByRef(refundRef)
+      if (!record) {
+        log.info({ event, refundRef, paymentId: entity.payment_id }, 'webhook:refund_not_recorded')
+        return { handled: true, event }
+      }
+      key = await lockKeyFor({ kind: record.kind, id: record.targetId })
+    }
+
+    const locked = await refundsRepository.withRefundLock(key, { wait: true }, async (tx) => {
+      const record = await refundsRepository.findRecordByRef(refundRef, tx)
+      if (!record) return { record: null, alert: null }
+      if (event === 'refund.processed') {
+        await refundsRepository.markProcessed(record.id, now, tx)
+        return { record, alert: null }
+      }
+      return { record, alert: await takeBack(record, 'Razorpay could not complete the refund.', tx, now) }
+    })
+    if (locked.kind !== 'done') return { handled: true, event }
+    const { record, alert } = locked.value
     if (!record) {
       log.info({ event, refundRef, paymentId: entity.payment_id }, 'webhook:refund_not_recorded')
       return { handled: true, event }
     }
-
-    const key =
-      refundablePaymentId(entity.payment_id) ?? (await lockKeyFor({ kind: record.kind, id: record.targetId }))
-    const locked = await refundsRepository.withRefundLock(key, { wait: true }, async (tx) => {
-      const fresh = await refundsRepository.findRecordByRef(refundRef, tx)
-      if (!fresh) return null
-      if (event === 'refund.processed') {
-        await refundsRepository.markProcessed(fresh.id, now, tx)
-        return null
-      }
-      return takeBack(fresh, 'Razorpay could not complete the refund.', tx, now)
-    })
-    if (locked.kind === 'done' && locked.value) alertOps(locked.value)
+    if (alert) alertOps(alert)
     log.info({ event, refundRef, kind: record.kind, targetId: record.targetId }, 'webhook:refund_settled')
     return { handled: true, event }
   },

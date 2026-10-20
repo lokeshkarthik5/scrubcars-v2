@@ -42,6 +42,16 @@ export const opsService = {
       )
     }
 
+    // Then the webhook's backstop: refunds still pending at Razorpay well
+    // after they were sent are checked there (whatever AUTO_REFUNDS says, as
+    // Refund now's are too). Never allowed to fail the digest either.
+    const refundChecks = await refundsService
+      .recheckPendingRefunds({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:refund_recheck_failed')
+        return { error: true as const }
+      })
+
     const now = Date.now()
     const rows = await opsRepository.listPaidPendingBookings(new Date(now - MISSED_LOOKBACK_MS))
     const plan = planPendingDigest(now, rows)
@@ -51,6 +61,7 @@ export const opsService = {
       reason: plan.reason as string,
       posted: false,
       autoRefunds,
+      refundChecks,
     }
 
     if (!plan.post || options.dryRun) return summary
