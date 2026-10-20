@@ -9,6 +9,7 @@ import {
   idsToLookUp,
   phraseMatches,
   planReset,
+  untickedRows,
   type ChainPlan,
   type CheckoutPlan,
   type PlanInput,
@@ -542,10 +543,9 @@ export const dataResetService = {
 
         const selected = plan.chains.filter((chain) => chain.selected)
         const kept = [...plan.chains, ...plan.checkouts].filter((row) => row.kept)
-        // In scope and deletable, but not ticked (or past the run's cap).
-        const unticked = [...plan.chains, ...plan.checkouts].filter(
-          (row) => !row.kept && !row.selected
-        )
+        // In scope and deletable, but not ticked (or past the run's cap), and
+        // the complaints when their tick is off.
+        const unticked = untickedRows(plan)
         const rowId = (row: ChainPlan | CheckoutPlan) => ('rootId' in row ? row.rootId : row.id)
         const audit = await repo.insertAudit({
           action: AUDIT_ACTION,
@@ -556,7 +556,8 @@ export const dataResetService = {
             counts: plan.counts,
             receipts: plan.receiptPlan.map((year) => year.words),
             kept: kept.length,
-            unticked: unticked.length,
+            unticked: unticked.rowIds.length,
+            untickedComplaints: unticked.complaintIds.length,
           },
           // Ids, references and Razorpay ids, never phone numbers.
           detail: {
@@ -600,7 +601,8 @@ export const dataResetService = {
             payoutIds: plan.selectedPayoutIds,
             receiptPlan: plan.receiptPlan,
             kept: kept.map((row) => ({ id: rowId(row), reason: row.kept })),
-            unticked: unticked.map(rowId),
+            unticked: unticked.rowIds,
+            untickedComplaintIds: unticked.complaintIds,
             selectionHash: plan.selectionHash,
           },
         })
