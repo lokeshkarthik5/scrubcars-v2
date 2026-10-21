@@ -116,8 +116,6 @@ export interface VendorProfileInput {
   email?: string
   yearsInOperation?: string
   mapsUrl?: string
-  pickup?: 'yes' | 'nearby' | 'no'
-  pickupRadiusKm?: number
   /**
    * How far this garage will travel for doorstep work. Null clears it, and
    * the garage then covers the default (DEFAULT_DOORSTEP_RADIUS_KM).
@@ -165,6 +163,14 @@ export async function updateVendorJobTypes(data: {
    * DEFAULT_DOORSTEP_RADIUS_KM from its pin.
    */
   doorstepRadiusKm?: number
+  /**
+   * Pickup & drop. Turning it on needs `pickupTermsAccepted: true`, the
+   * owner's tick (PICKUP_TERMS_GARAGE); off never does. A null radius is the
+   * 10 km default.
+   */
+  pickupEnabled?: boolean
+  pickupRadiusKm?: number | null
+  pickupTermsAccepted?: boolean
 }): Promise<ApiVendorProfile> {
   return apiClient<ApiVendorProfile>('/vendors/me/job-types', {
     method: 'PATCH',

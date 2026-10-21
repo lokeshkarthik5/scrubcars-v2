@@ -142,6 +142,15 @@ export type MetaPart = { text?: string; quiet?: string }
  * Nothing when no booking type is on: the checklist says so, in amber.
  */
 export function bookingParts(
+  v: Pick<AdminVendor, 'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea'> &
+    Partial<Pick<AdminVendor, 'pickupEnabled'>>
+): MetaPart[] {
+  // Pickup & drop, when on, comes last: "At the garage · Pickup & drop".
+  const parts = bookingModeParts(v)
+  return v.pickupEnabled ? [...parts, { text: 'Pickup & drop' }] : parts
+}
+
+function bookingModeParts(
   v: Pick<AdminVendor, 'dropinEnabled' | 'doorstepEnabled' | 'doorstepRadiusKm' | 'hasDoorstepArea'>
 ): MetaPart[] {
   const reach: MetaPart = v.hasDoorstepArea

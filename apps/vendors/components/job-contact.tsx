@@ -1,6 +1,6 @@
 'use client'
 
-import { IconHome, IconMapPin, IconNavigation } from '@tabler/icons-react'
+import { IconCar, IconHome, IconMapPin, IconNavigation } from '@tabler/icons-react'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { directionsHref, telHref, whatsAppHref } from '@repo/core/contact-links'
@@ -22,13 +22,17 @@ const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set([
  * the address and the Call / WhatsApp buttons only while the job is still
  * open — once it is done or cancelled, the garage has no need to hold onto a
  * customer's number on screen.
+ *
+ * A pickup & drop job shows the same: the address is where the car is
+ * collected from and brought back to, with Directions.
  */
 export function JobContact({ booking }: { booking: Booking }) {
   const doorstep = booking.bookingType === 'doorstep'
+  const pickup = booking.bookingType === 'pickup'
   const open = OPEN_STATUSES.has(booking.status)
   const who = booking.customerName || 'the customer'
   const firstName = booking.customerName?.trim().split(/\s+/)[0]
-  const location = doorstep && open ? booking.jobLocation : undefined
+  const location = (doorstep || pickup) && open ? booking.jobLocation : undefined
   // An unpinned address goes to Maps as text, which searches better with the
   // city on the end; the garage's own city is the customer's too.
   const city = booking.garage?.city
@@ -44,14 +48,26 @@ export function JobContact({ booking }: { booking: Booking }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="flex items-center gap-1.5 text-[12px] font-medium text-text-primary">
-        {doorstep ? <IconHome size={14} aria-hidden /> : <IconMapPin size={14} aria-hidden />}
-        {BOOKING_TYPE_LABELS[booking.bookingType]}
-      </span>
+      {pickup ? (
+        // Its own badge: a pickup job has steps the others don't, and the
+        // car is the garage's responsibility from the moment it is collected.
+        <span className="flex w-fit items-center gap-1.5 rounded-full border border-border bg-surface-elevated px-2.5 py-1 text-[12px] font-medium text-text-primary">
+          <IconCar size={14} aria-hidden />
+          {BOOKING_TYPE_LABELS.pickup}
+        </span>
+      ) : (
+        <span className="flex items-center gap-1.5 text-[12px] font-medium text-text-primary">
+          {doorstep ? <IconHome size={14} aria-hidden /> : <IconMapPin size={14} aria-hidden />}
+          {BOOKING_TYPE_LABELS[booking.bookingType]}
+        </span>
+      )}
 
       {location && (
         <div className="flex flex-col gap-2 rounded-[10px] bg-surface-elevated px-3 py-2.5">
           <div>
+            {pickup && (
+              <p className="text-[11px] text-text-secondary">Collect from and return to</p>
+            )}
             <p className="text-[12px] text-text-primary">{location.address}</p>
             {/* An address saved before pins were required has none: the text
                 still gets Maps close, but the exact gate is worth a call. */}

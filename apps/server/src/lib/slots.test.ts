@@ -92,6 +92,13 @@ describe('minimum notice', () => {
     expect(slots[0]).toBe(ist('13:30:00'))
   })
 
+  it('offers pickup & drop slots from three hours out, as doorstep', () => {
+    const slots = filterByMinNotice(day, 'pickup', NOW)
+    expect(slots[0]).toBe(ist('13:30:00'))
+    expect(meetsMinNotice(new Date(NOW + 3 * 3_600_000), 'pickup', NOW)).toBe(true)
+    expect(meetsMinNotice(new Date(NOW + 3 * 3_600_000 - 1), 'pickup', NOW)).toBe(false)
+  })
+
   it('counts a start exactly on the line as enough notice', () => {
     expect(meetsMinNotice(new Date(NOW + 3_600_000), 'dropin', NOW)).toBe(true)
     expect(meetsMinNotice(new Date(NOW + 3_600_000 - 1), 'dropin', NOW)).toBe(false)
@@ -129,6 +136,9 @@ describe('minimum notice', () => {
   it('says how much notice each kind of booking needs', () => {
     expect(minNoticeMessage('dropin')).toContain("at least 1 hour's notice")
     expect(minNoticeMessage('doorstep')).toContain('3 hours')
+    expect(minNoticeMessage('pickup')).toBe(
+      "Pickup & drop needs at least 3 hours' notice. Please pick a later time."
+    )
   })
 })
 

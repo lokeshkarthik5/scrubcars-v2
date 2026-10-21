@@ -16,8 +16,10 @@ import { ApiError } from '@repo/core/api/client'
 import { createAdminVendor, getOwnerAccount, type ImportFieldNote } from '@repo/core/api/admin'
 import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
+import { parsePickupRadius } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
 import { BookingModeCard } from '@/components/booking-mode-card'
+import { PickupFields } from '@/components/pickup-card'
 import { ImportNote, MARKED_FIELD } from '@/components/import-note'
 import { ServicesEditor } from '@/components/services-editor'
 import {
@@ -39,11 +41,6 @@ import { toServicePayload, type ServiceRow } from '@/lib/service-editor'
 import { rowsToSave, servicesSaveBlock } from '@/lib/service-rows'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const PICKUP_OPTIONS = [
-  { value: 'yes' as const, label: 'Yes' },
-  { value: 'nearby' as const, label: 'Nearby only' },
-  { value: 'no' as const, label: 'No' },
-]
 const SLOT_INTERVALS = [30, 45, 60] as const
 const STATUS_OPTIONS = [
   { value: 'pending' as const, label: 'Pending' },
@@ -92,7 +89,10 @@ export function GarageForm({
   const router = useRouter()
   const markListStale = useInvalidateAdminVendors()
   const [form, setForm] = useState({ ...EMPTY_GARAGE_TEXT, ...initial?.text })
-  const [pickup, setPickup] = useState<'yes' | 'nearby' | 'no' | ''>('')
+  // Pickup & drop: off unless the garage signed the agreement to be
+  // responsible for the car, which the admin ticks here.
+  const [pickupOn, setPickupOn] = useState(false)
+  const [pickupAgreed, setPickupAgreed] = useState(false)
   // Optional here, unlike the vendor's own onboarding: staff often create a
   // garage from a phone call and pin it later. The consequence lands at
   // verification, which the server refuses without coordinates.
@@ -125,6 +125,14 @@ export function GarageForm({
   const travels = bookingMode !== 'garage'
   const radius = parseRadiusInput(doorstepRadius)
   const radiusBlock = travels && !radius.ok ? radius.message : null
+  const pickupRadiusParsed = parsePickupRadius(form.pickupRadiusKm)
+  const pickupBlock = !pickupOn
+    ? null
+    : !pickupRadiusParsed.ok
+      ? pickupRadiusParsed.message
+      : !pickupAgreed
+        ? 'Tick that the garage signed the pickup & drop agreement, or turn pickup off.'
+        : null
   const fieldsProblem = garageFieldsProblem(form)
   const missing = missingForCreate(form, services)
 
@@ -133,7 +141,8 @@ export function GarageForm({
 
   const num = (v: string) => (v.trim() === '' ? undefined : Number(v))
 
-  const canCreate = !fieldsProblem && !servicesBlock && !radiusBlock && !describing && !loading
+  const canCreate =
+    !fieldsProblem && !servicesBlock && !radiusBlock && !pickupBlock && !describing && !loading
 
   const handleSubmit = async () => {
     if (!canCreate) return
@@ -152,8 +161,11 @@ export function GarageForm({
         whatsapp: form.whatsapp.trim() || undefined,
         yearsInOperation: form.yearsInOperation.trim() || undefined,
         mapsUrl: form.mapsUrl.trim() || undefined,
-        pickup: pickup || undefined,
-        pickupRadiusKm: num(form.pickupRadiusKm),
+        ...(pickupOn && pickupRadiusParsed.ok && {
+          pickupEnabled: true,
+          pickupAgreementSigned: pickupAgreed,
+          pickupRadiusKm: pickupRadiusParsed.km ?? undefined,
+        }),
         // Empty means the default distance, so nothing is sent for it.
         doorstepRadiusKm: travels && radius.ok ? (radius.km ?? undefined) : undefined,
         lat: pin?.lat,
@@ -233,6 +245,23 @@ export function GarageForm({
       />
       {bookingMark && <ImportNote mark={bookingMark} />}
       {markLine('doorstepRadiusKm')}
+      <section aria-label="Pickup & drop" className="rounded-[16px] border border-border bg-surface p-4">
+        <PickupFields
+          on={pickupOn}
+          onSwitch={(next) => {
+            setPickupOn(next)
+            if (!next) setPickupAgreed(false)
+          }}
+          radius={form.pickupRadiusKm}
+          onRadiusChange={(value) => setForm((f) => ({ ...f, pickupRadiusKm: value }))}
+          radiusError={pickupOn && !pickupRadiusParsed.ok ? pickupRadiusParsed.message : null}
+          askAgreement={pickupOn}
+          agreed={pickupAgreed}
+          onAgreedChange={setPickupAgreed}
+          pinned={pin != null}
+        />
+      </section>
+      {markLine('pickupRadiusKm')}
     </div>
   )
 
@@ -311,30 +340,6 @@ export function GarageForm({
   const operationsSection = (
     <ScSection title="Operations">
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium text-text-secondary">Pickup &amp; drop (optional)</label>
-        <div className="flex flex-wrap gap-2">
-          {PICKUP_OPTIONS.map((o) => (
-            <Chip
-              key={o.value}
-              label={o.label}
-              selected={pickup === o.value}
-              onClick={() => setPickup(pickup === o.value ? '' : o.value)}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <ScField
-          label="Pickup radius km (optional)"
-          value={form.pickupRadiusKm}
-          onChange={set('pickupRadiusKm')}
-          type="number"
-          placeholder="e.g. 5"
-          className="font-numeric"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
         <label className="text-[11px] font-medium text-text-secondary">Working days</label>
         <div className="flex flex-wrap gap-2">
           {DAYS.map((label, day) => (
@@ -410,14 +415,21 @@ export function GarageForm({
   // thing to fix is named with its tab, as on the edit page.
   const blockLine =
     layout === 'stacked'
-      ? (missingLine(missing) ?? (radiusBlock ? 'Check the doorstep distance above.' : null))
+      ? (missingLine(missing) ??
+        (radiusBlock
+          ? 'Check the doorstep distance above.'
+          : pickupBlock
+            ? `${pickupBlock} (Pickup & drop, above)`
+            : null))
       : fieldsProblem
         ? fieldsProblem
         : servicesBlock
           ? `${servicesBlock} — see the Services tab.`
           : radiusBlock
             ? 'Check the doorstep distance above.'
-            : null
+            : pickupBlock
+              ? `${pickupBlock} (Pickup & drop, above)`
+              : null
 
   return (
     <div className="space-y-4">

@@ -1,4 +1,6 @@
-import type { AdminBooking, CancelledOnBehalfOf } from '@repo/core/api/admin'
+import type { AdminBooking, AdminBookingPickup, CancelledOnBehalfOf } from '@repo/core/api/admin'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
+import type { BookingType } from '@repo/core/types'
 import { APP_TIMEZONE } from '@repo/core/utils'
 
 /**
@@ -12,6 +14,26 @@ import { APP_TIMEZONE } from '@repo/core/utils'
  * the screen and the alert agree about what "too long" means.
  */
 export const WAITING_ALERT_MINS = 30
+
+/** "At garage", "Doorstep", "Pickup & drop", for a type as the API sends it. */
+export function bookingTypeLabel(type: string): string {
+  return BOOKING_TYPE_LABELS[type as BookingType] ?? BOOKING_TYPE_LABELS.dropin
+}
+
+/**
+ * Where a pickup & drop car is, for the list row: its latest handover step
+ * and when ("Out for delivery · Sun 4 Oct, 3:30 pm"). Null before pickup.
+ */
+export function pickupStepLine(pickup: AdminBookingPickup): string | null {
+  const latest: Array<[string, string | null]> = [
+    ['Delivered', pickup.deliveredAt],
+    ['Out for delivery', pickup.outForDeliveryAt],
+    ['At garage', pickup.atGarageAt],
+    ['Picked up', pickup.pickedUpAt],
+  ]
+  const step = latest.find(([, at]) => at)
+  return step ? `${step[0]} · ${formatWhen(step[1]!)}` : null
+}
 
 /** "45 min", "1 h 20 min", "3 h". */
 export function formatWaiting(mins: number): string {
@@ -190,7 +212,7 @@ const CSV_COLUMNS: Array<
   // text: a bare "12E45678" opens as 1.2E+46, and "01234567" loses its 0.
   ['Reference', (b) => `#${b.reference}`],
   ['Status', (b) => b.status],
-  ['Type', (b) => (b.bookingType === 'doorstep' ? 'Doorstep' : 'At garage')],
+  ['Type', (b) => bookingTypeLabel(b.bookingType)],
   ['Scheduled (IST)', (b) => formatWhen(b.scheduledAt)],
   ['Booked (IST)', (b) => formatWhen(b.createdAt)],
   ['Waiting (min)', (b) => b.waitingMins],

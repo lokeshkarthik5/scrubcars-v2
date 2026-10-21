@@ -134,7 +134,11 @@ export const servicePricingTypeEnum = pgEnum('service_pricing_type', [
   'on_inspection',
 ])
 
-export const bookingTypeEnum = pgEnum('booking_type', ['doorstep', 'dropin'])
+// How the car and the work meet. 'pickup' (0037) is pickup & drop: the garage
+// collects the car from the customer's address, does the work at the garage
+// and brings it back (lib/pickup.ts). Labels and every rule keyed on the type
+// live in lib/booking-types.ts.
+export const bookingTypeEnum = pgEnum('booking_type', ['doorstep', 'dropin', 'pickup'])
 
 export const bookingStatusEnum = pgEnum('booking_status', [
   'pending',
@@ -453,8 +457,23 @@ export const vendors = pgTable(
     email: varchar('email', { length: 255 }),
     yearsInOperation: varchar('years_in_operation', { length: 20 }),
     mapsUrl: varchar('maps_url', { length: 2048 }),
+    // Pickup & drop (0037): the garage collects the car from the customer and
+    // brings it back. On is `pickup` 'yes' (a legacy 'nearby' reads as yes)
+    // AND the responsibility terms accepted — see isPickupOffered in
+    // lib/pickup.ts and PICKUP_OFFERED in vendors.predicates.ts. 'yes' set at
+    // onboarding before 0037, with no terms on file, is not on.
     pickup: vendorPickupEnum('pickup'),
+    // How far it collects from, measured from the pin. Null is the default,
+    // DEFAULT_PICKUP_RADIUS_KM (10 km), as for doorstep.
     pickupRadiusKm: real('pickup_radius_km'),
+    // The garage's tick when pickup was last turned on: "We are responsible
+    // for the customer's car from pickup until it is returned". `by` is a
+    // name: the garage member who ticked it in the portal, or the admin who
+    // recorded the signed agreement ("admin: <name>").
+    pickupTermsAcceptedAt: timestamp('pickup_terms_accepted_at', {
+      withTimezone: true,
+    }),
+    pickupTermsAcceptedBy: varchar('pickup_terms_accepted_by', { length: 120 }),
     // How far this garage will travel to a customer for doorstep work.
     // Deliberately separate from pickupRadiusKm, which is pickup-and-drop of the
     // vehicle. The doorstep listing asks "who will come to me", so this is the
@@ -881,6 +900,30 @@ export const bookings = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    // Pickup & drop (0037). Only a 'pickup' booking has any of these (CHECK).
+    // The handover steps, each written by the conditional update that takes
+    // it (lib/pickup.ts pickupStepRefusal): Picked up and At garage while the
+    // booking is confirmed, then the normal work (in progress), then Out for
+    // delivery and Delivered, which completes it.
+    pickedUpAt: timestamp('picked_up_at', { withTimezone: true }),
+    atGarageAt: timestamp('at_garage_at', { withTimezone: true }),
+    outForDeliveryAt: timestamp('out_for_delivery_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    // The customer's 4-digit handover codes, made by the server when the
+    // booking is written. The garage types the pickup code to take the car
+    // and the delivery code to hand it back; only the customer's own booking
+    // payload carries them — never the garage's, never admin's. Plain, not
+    // hashed, because the customer's app has to show them. Wrong tries are
+    // counted, and at MAX_CODE_ATTEMPTS the step needs Detlio (an admin
+    // override, which records who).
+    pickupCode: varchar('pickup_code', { length: 4 }),
+    deliveryCode: varchar('delivery_code', { length: 4 }),
+    pickupCodeAttempts: smallint('pickup_code_attempts').default(0).notNull(),
+    deliveryCodeAttempts: smallint('delivery_code_attempts').default(0).notNull(),
+    // Set when Detlio confirmed a code step in admin because the customer
+    // could not give the code: the admin's name, like booking_notes.author.
+    pickupOverrideBy: varchar('pickup_override_by', { length: 100 }),
+    deliveryOverrideBy: varchar('delivery_override_by', { length: 100 }),
     // The customer closed the "Rate your wash" card on Home without rating.
     // Only hides the prompt: they can still review from the booking.
     reviewPromptDismissedAt: timestamp('review_prompt_dismissed_at', {
@@ -929,6 +972,16 @@ export const bookings = pgTable(
     check(
       'bookings_no_show_admin_check',
       sql`${table.noShow} is null or ${table.cancelledBy}::text = 'admin'`
+    ),
+    // Handover steps and codes belong to pickup & drop only (0037; ::text
+    // for the same reason as above: 'pickup' is added in the same file).
+    check(
+      'bookings_pickup_fields_check',
+      sql`${table.bookingType}::text = 'pickup' or (${table.pickupCode} is null and ${table.deliveryCode} is null and ${table.pickedUpAt} is null and ${table.atGarageAt} is null and ${table.outForDeliveryAt} is null and ${table.deliveredAt} is null)`
+    ),
+    check(
+      'bookings_handover_codes_check',
+      sql`(${table.pickupCode} is null or ${table.pickupCode} ~ '^[0-9]{4}$') and (${table.deliveryCode} is null or ${table.deliveryCode} ~ '^[0-9]{4}$')`
     ),
   ]
 )

@@ -260,6 +260,13 @@
       "when": 1787834189714,
       "tag": "0036_razorpay_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787834189715,
+      "tag": "0037_pickup_drop",
+      "breakpoints": true
     }
   ]
 }

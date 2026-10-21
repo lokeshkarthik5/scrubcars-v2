@@ -14,7 +14,8 @@ import {
   vendorWorkingHours,
 } from '../../db/schema.js'
 import type { HomeOfferRow } from '../../lib/offers.js'
-import { LISTED_TO_CUSTOMERS, NOT_IN_BIN } from '../vendors/vendors.predicates.js'
+import type { BookingType } from '../../lib/booking-types.js'
+import { LISTED_TO_CUSTOMERS, NOT_IN_BIN, PICKUP_OFFERED } from '../vendors/vendors.predicates.js'
 
 // Issued one at a time on purpose. Production keeps a single connection
 // (db/index.ts); overlapping them would not run any faster there. Home makes
@@ -210,8 +211,9 @@ export const homeRepository = {
       vendor_pinned: boolean
       vendor_dropin_enabled: boolean
       vendor_doorstep_enabled: boolean
+      vendor_pickup_offered: boolean
       vendor_paused_at: Date | string | null
-      booking_type: 'dropin' | 'doorstep'
+      booking_type: BookingType
     }>(sql`
       SELECT DISTINCT ON (b.vehicle_id)
              b.id AS booking_id,
@@ -225,6 +227,7 @@ export const homeRepository = {
              (v.geo IS NOT NULL) AS vendor_pinned,
              v.dropin_enabled AS vendor_dropin_enabled,
              v.doorstep_enabled AS vendor_doorstep_enabled,
+             ${PICKUP_OFFERED} AS vendor_pickup_offered,
              v.bookings_paused_at AS vendor_paused_at,
              b.booking_type
         FROM bookings b

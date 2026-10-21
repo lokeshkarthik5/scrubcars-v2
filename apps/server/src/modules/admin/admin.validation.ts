@@ -3,6 +3,7 @@ import {
   isCalendarDate,
   parseBookingListCursor,
 } from '../../lib/booking-ops.js'
+import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 
 const phoneSchema = z
   .string()
@@ -108,8 +109,15 @@ export const createVendorSchema = z.object({
   lat: z.number().finite().min(-90).max(90).optional(),
   lng: z.number().finite().min(-180).max(180).optional(),
   // Operations
+  // Pickup & drop (0037). `pickupEnabled: true` needs `pickupAgreementSigned:
+  // true`: the admin's tick that the garage signed the agreement to be
+  // responsible for the customer's car from pickup until it is returned.
+  // The legacy `pickup` answer is still read from an older panel, under the
+  // same rule (lib/pickup.ts legacyPickupIntent).
+  pickupEnabled: z.boolean().optional(),
+  pickupAgreementSigned: z.boolean().optional(),
   pickup: z.enum(['yes', 'nearby', 'no']).optional(),
-  pickupRadiusKm: z.number().positive().optional(),
+  pickupRadiusKm: z.number().min(MIN_PICKUP_RADIUS_KM).max(MAX_PICKUP_RADIUS_KM).optional(),
   // How far this garage travels for doorstep work. Distinct from
   // pickupRadiusKm, which is pickup-and-drop of the vehicle.
   doorstepRadiusKm: z.number().positive().max(100).optional(),
@@ -171,8 +179,17 @@ export const updateVendorSchema = z.object({
   whatsapp: phoneSchema.nullable().optional(),
   yearsInOperation: z.string().trim().max(20).nullable().optional(),
   mapsUrl: z.string().trim().url().max(2048).nullable().optional(),
+  // Pickup & drop, as on create. The edit page saves these on their own, on
+  // tap, never with Save changes.
+  pickupEnabled: z.boolean().optional(),
+  pickupAgreementSigned: z.boolean().optional(),
   pickup: z.enum(['yes', 'nearby', 'no']).nullable().optional(),
-  pickupRadiusKm: z.number().positive().nullable().optional(),
+  pickupRadiusKm: z
+    .number()
+    .min(MIN_PICKUP_RADIUS_KM)
+    .max(MAX_PICKUP_RADIUS_KM)
+    .nullable()
+    .optional(),
   doorstepRadiusKm: z.number().positive().max(100).nullable().optional(),
   // Staff correcting a pin on the map. Both or neither — a half-set pair is
   // never anything but a bug.
@@ -318,6 +335,16 @@ export const markNoShowSchema = z.object({
   note: z.string().trim().max(2000).optional(),
 })
 
+/**
+ * Detlio confirming a pickup & drop handover for a customer who cannot give
+ * the code (lost phone, code locked after wrong tries). Why is required: it
+ * goes in the booking's notes with the admin's name.
+ */
+export const pickupStepOverrideSchema = z.object({
+  step: z.enum(['picked_up', 'delivered']),
+  note: z.string().trim().min(1, 'Say why the code could not be used').max(500),
+})
+
 export const createBookingNoteSchema = z.object({
   body: z.string().trim().min(1, 'Write a note').max(2000),
 })
@@ -345,6 +372,7 @@ export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>
 export type AdminCancelBookingInput = z.infer<typeof adminCancelBookingSchema>
 export type MarkNoShowInput = z.infer<typeof markNoShowSchema>
 export type CreateBookingNoteInput = z.infer<typeof createBookingNoteSchema>
+export type PickupStepOverrideInput = z.infer<typeof pickupStepOverrideSchema>
 export type UploadUrlInput = z.infer<typeof uploadUrlSchema>
 export type MediaUrlInput = z.infer<typeof mediaUrlSchema>
 

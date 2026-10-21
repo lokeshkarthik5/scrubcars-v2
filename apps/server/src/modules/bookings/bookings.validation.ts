@@ -9,10 +9,12 @@ export const bookingStatusSchema = z.enum([
   'rescheduled',
 ])
 
-export const bookingTypeSchema = z.enum(['doorstep', 'dropin'])
-// Both modes are bookable. Doorstep additionally requires `addressId`, which
-// `createBookingSchema` enforces below rather than leaving to the service — a
-// doorstep request with no address is malformed, not a business-rule failure.
+export const bookingTypeSchema = z.enum(['doorstep', 'dropin', 'pickup'])
+// Every mode is bookable. Doorstep and pickup & drop additionally require
+// `addressId` (where the crew goes, or where the car is collected from),
+// which `createBookingSchema` enforces below rather than leaving to the
+// service — a request with no address is malformed, not a business-rule
+// failure.
 export const createBookingTypeSchema = bookingTypeSchema
 
 export const paymentMethodSchema = z.enum(['online', 'cash'])
@@ -64,7 +66,8 @@ export const createBookingSchema = z
     scheduledAt: z.string().datetime(),
     // All bookings prepay online via Razorpay; cash is no longer accepted.
     paymentMethod: z.literal('online').default('online'),
-    // Required for doorstep and meaningless for drop-in; see the refine below.
+    // Required for doorstep and pickup & drop, meaningless for drop-in; see
+    // the refine below.
     addressId: z.string().uuid().optional(),
     // Optional promo code. Only the shape is validated here — whether it
     // applies is decided by the discount engine at write time, never by the
@@ -94,6 +97,24 @@ export const createBookingSchema = z
       path: ['addressId'],
     }
   )
+  .refine(
+    (input) => input.bookingType !== 'pickup' || input.addressId !== undefined,
+    {
+      message: 'Choose the address we should collect the car from',
+      path: ['addressId'],
+    }
+  )
+
+/**
+ * The customer's 4-digit code, as the garage types it at pickup or delivery.
+ * Spaces are forgiven ("12 34" read off a phone screen).
+ */
+export const handoverCodeSchema = z.object({
+  code: z
+    .string()
+    .transform((value) => value.replace(/\s+/g, ''))
+    .pipe(z.string().regex(/^\d{4}$/, 'Enter the 4-digit code from the customer')),
+})
 
 export type ListMyBookingsQuery = z.infer<typeof listMyBookingsQuerySchema>
 export type ListVendorBookingsQuery = z.infer<
@@ -102,3 +123,4 @@ export type ListVendorBookingsQuery = z.infer<
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>
 export type RescheduleBookingInput = z.infer<typeof rescheduleBookingSchema>
+export type HandoverCodeInput = z.infer<typeof handoverCodeSchema>

@@ -22,6 +22,8 @@
 // functions, so the picker never offers a time the write then refuses for a
 // different reason than "someone just took it".
 
+import type { BookingType } from './booking-types.js'
+
 function parseTimeToMinutes(time: string): number {
   const parts = time.split(':')
   const hours = Number(parts[0])
@@ -118,16 +120,20 @@ export function getDayOfWeekFromDate(date: string): number {
 
 // ─── Minimum notice ─────────────────────────────────────────────────────────
 // How far ahead a booking must start: time for the garage to see and accept
-// it, and for a doorstep crew to get there. Mirrored for the customer app in
-// packages/core/src/booking-types.ts (MIN_NOTICE_MINS) — change both together.
+// it, and for a doorstep crew (or a pickup driver) to get there. Mirrored for
+// the customer app in packages/core/src/booking-types.ts (MIN_NOTICE_MINS) —
+// change both together.
 
 const HOUR_MS = 60 * 60 * 1000
 
-export type NoticeBookingType = 'dropin' | 'doorstep'
+export type NoticeBookingType = BookingType
 
 export const MIN_NOTICE_MS: Record<NoticeBookingType, number> = {
   dropin: 1 * HOUR_MS,
   doorstep: 3 * HOUR_MS,
+  // Owner decision (17 Oct 2026): the same as doorstep. Someone has to drive
+  // to the customer either way.
+  pickup: 3 * HOUR_MS,
 }
 
 /** The earliest a booking of this type may start, seen from `now`. */
@@ -161,9 +167,14 @@ export function filterByMinNotice(
 export function minNoticeMessage(type: NoticeBookingType): string {
   const hours = MIN_NOTICE_MS[type] / HOUR_MS
   const notice = hours === 1 ? "1 hour's notice" : `${hours} hours' notice`
-  return type === 'doorstep'
-    ? `Doorstep visits need at least ${notice}. Please pick a later time.`
-    : `At-garage bookings need at least ${notice}. Please pick a later time.`
+  switch (type) {
+    case 'doorstep':
+      return `Doorstep visits need at least ${notice}. Please pick a later time.`
+    case 'pickup':
+      return `Pickup & drop needs at least ${notice}. Please pick a later time.`
+    case 'dropin':
+      return `At-garage bookings need at least ${notice}. Please pick a later time.`
+  }
 }
 
 // ─── Days the garage is shut ────────────────────────────────────────────────

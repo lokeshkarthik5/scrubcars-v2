@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { planPendingDigest, type PendingBookingRow } from './pending-digest.js'
+import {
+  digestLookbacks,
+  planPendingDigest,
+  type PendingBookingRow,
+} from './pending-digest.js'
 
 const IST = (time: string, date = '2026-10-05') => new Date(`${date}T${time}+05:30`)
 const MIN = 60_000
@@ -109,5 +113,70 @@ describe('planPendingDigest', () => {
       reason: 'morning',
     })
   })
-})
 
+  describe('pickup & drop not collected', () => {
+    // A pickup job whose slot is 11:00, accepted and paid, never picked up.
+    const pickup = (scheduledAt: Date, id = 'p1') => ({
+      ...row(scheduledAt, scheduledAt, id),
+      bookingType: 'pickup',
+    })
+
+    test('posts on the run where it is 30 minutes past its time', () => {
+      const rows = [pickup(IST('11:00:00'))]
+      // 11:20: late, but not yet the 30 minutes the digest waits.
+      expect(planPendingDigest(IST('11:20:00').getTime(), [], rows)).toMatchObject({
+        post: false,
+        reason: 'empty',
+      })
+      const due = planPendingDigest(IST('11:30:00').getTime(), [], rows)
+      expect(due).toMatchObject({ post: true, reason: 'new_late_pickup' })
+      expect(due.latePickups.map((r) => r.id)).toEqual(['p1'])
+      // Then it is listed on the hour until someone acts.
+      expect(planPendingDigest(IST('11:40:00').getTime(), [], rows)).toMatchObject({
+        post: false,
+        reason: 'nothing_new',
+      })
+      expect(planPendingDigest(IST('12:00:00').getTime(), [], rows)).toMatchObject({
+        post: true,
+        reason: 'hourly',
+      })
+    })
+
+    test('rides along with the waiting bookings, one message for everything', () => {
+      const plan = planPendingDigest(
+        IST('12:00:00').getTime(),
+        [row(IST('11:05:00'), start)],
+        [pickup(IST('10:00:00'))]
+      )
+      expect(plan.post).toBe(true)
+      expect(plan.waiting).toHaveLength(1)
+      expect(plan.latePickups).toHaveLength(1)
+    })
+
+    test('stays quiet at night like the rest', () => {
+      const rows = [pickup(IST('21:30:00'))]
+      expect(planPendingDigest(IST('22:00:00').getTime(), [], rows).reason).toBe('quiet_hours')
+    })
+
+    test('a pickup nobody collected is still listed days later, not dropped after a day', () => {
+      const now = IST('12:00:00', '2026-10-08')
+      const rows = [pickup(IST('11:00:00'))]
+      // Three days old: past the pending bookings' one-day lookback…
+      const { bookingsSince, pickupsSince } = digestLookbacks(now.getTime())
+      expect(rows[0].scheduledAt.getTime()).toBeLessThan(bookingsSince.getTime())
+      // …but inside the pickups' own, so the query still returns it.
+      expect(rows[0].scheduledAt.getTime()).toBeGreaterThan(pickupsSince.getTime())
+      expect(planPendingDigest(now.getTime(), [], rows)).toMatchObject({
+        post: true,
+        reason: 'hourly',
+      })
+    })
+
+    test('the pickups look back 14 days, the pending bookings one', () => {
+      const now = IST('12:00:00').getTime()
+      const { bookingsSince, pickupsSince } = digestLookbacks(now)
+      expect(now - bookingsSince.getTime()).toBe(24 * 60 * MIN)
+      expect(now - pickupsSince.getTime()).toBe(14 * 24 * 60 * MIN)
+    })
+  })
+})

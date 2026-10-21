@@ -44,6 +44,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import {
+  bookingTypeLabel,
   bookingsCsv,
   cancellationLabel,
   downloadCsv,
@@ -52,6 +53,7 @@ import {
   formatWhen,
   listQueryForDetail,
   paymentStatusLabel,
+  pickupStepLine,
   todayIst,
 } from '@/lib/bookings'
 
@@ -136,12 +138,15 @@ function BookingRow({
             <PhoneLink phone={b.customer.phone} name={b.customer.name} />
           )}
         </Meta>
-        <Meta label={b.bookingType === 'doorstep' ? 'Doorstep' : 'At garage'}>
+        <Meta label={bookingTypeLabel(b.bookingType)}>
           <p className="line-clamp-2">
-            {b.bookingType === 'doorstep'
+            {b.bookingType === 'doorstep' || b.bookingType === 'pickup'
               ? (b.address ?? 'Address missing')
               : 'Customer comes in'}
           </p>
+          {b.pickup && pickupStepLine(b.pickup) && (
+            <p className="text-text-muted">{pickupStepLine(b.pickup)}</p>
+          )}
         </Meta>
         <Meta label="Car">
           <p className="truncate">

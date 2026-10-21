@@ -71,6 +71,86 @@ reconstructing every change in them.
     while a refund the app sent is pending at Razorpay (left out otherwise).
   - `E2E_FAKE_PAYMENTS` mints `rfnd_e2e_…` refunds in memory.
 
+- **Pickup & drop, part 1 of 2: garages, bookings and job steps** (migration
+  `0037_pickup_drop`, additive: `booking_type` gains `'pickup'`; on
+  `vendors`, `pickup_terms_accepted_at` / `_by`; on `bookings`,
+  `picked_up_at`, `at_garage_at`, `out_for_delivery_at`, `delivered_at`,
+  `pickup_code`, `delivery_code`, `pickup_code_attempts`,
+  `delivery_code_attempts`, `pickup_override_by`, `delivery_override_by`,
+  and two CHECKs keeping them to pickup bookings and the codes to 4 digits;
+  no data step). Owner decisions, 17 Oct 2026: the garage collects the car
+  from the customer's address, does the work at the garage and brings it
+  back; only garages that turn it on, within their own pickup radius; 3
+  hours' notice, as doorstep; the garage is responsible for the car from
+  pickup until it is returned and must accept that when it turns pickup on;
+  no pickup fee for now. The customer's booking screens are part 2.
+  - The rules are `lib/pickup.ts` (pure, unit-tested; core twin
+    `packages/core/src/pickup.ts`, parity test). **On** is `vendors.pickup`
+    `'yes'` (a legacy `'nearby'` counts) **and** the terms on file
+    (`isPickupOffered`, SQL twin `PICKUP_OFFERED` in
+    `vendors.predicates.ts`, pinned by its test). A `'yes'` from onboarding
+    before today has no terms, so it is not on until accepted. Labels and
+    every rule keyed on the type are `lib/booking-types.ts`.
+  - Turning it on: the garage's own tick in `PATCH /vendors/me/job-types
+    { pickupEnabled, pickupRadiusKm, pickupTermsAccepted }` (owner/admin
+    seat; a Detlio support session is refused, 403
+    `PICKUP_TERMS_GARAGE_ONLY`), or admin's "the garage has agreed to this
+    (signed agreement)" on `POST/PATCH /admin/vendors`
+    (`pickupEnabled`, `pickupAgreementSigned`, `pickupRadiusKm`; the legacy
+    `pickup` answer is read under the same rule, and only when it differs
+    from what is stored). Without the tick: 400 `PICKUP_TERMS_REQUIRED`.
+    The tick is taken afresh every time it is turned on, recorded with who
+    (the member's name, or `admin: <name>`) and when. Off never needs it.
+    `pickup` and `pickupRadiusKm` are no longer profile fields on
+    `PATCH /vendors/me` (dropped if sent), so nothing turns it on without
+    the tick. Responses: `pickupEnabled`, `pickupTermsAcceptedAt` on the
+    garage, the public garage and list items; admin's list and detail also.
+  - Reach: `GET /vendors?bookingType=pickup` lists only garages offering it
+    whose pickup radius from their pin covers the customer
+    (`COALESCE(pickup_radius_km, 10)` km; no customer radius, no widening,
+    as doorstep). Slots take `booking_type=pickup` with 3 hours' notice.
+    A pickup booking (`POST /bookings`, `POST /booking-intents`) needs
+    `addressId`, a saved address with a pin inside the radius (400
+    `PICKUP_NOT_OFFERED`, `ADDRESS_REQUIRED`, 422
+    `ADDRESS_LOCATION_REQUIRED`, 400 `OUTSIDE_PICKUP_RADIUS`), snapshots it
+    like doorstep, and books the garage's services as drop-in does (they
+    are the same services). Price: the services; `bookingTypeFee` is the
+    one place a fee goes (0 today).
+  - Codes: two different 4-digit codes made with `crypto.randomInt` when a
+    pickup booking is written (all three insert paths; a reschedule carries
+    them over). Only the customer's own booking payload has them
+    (`pickup.pickupCode` until picked up, `pickup.deliveryCode` until
+    delivered, none once the booking is off); the garage's payload has
+    `pickup.nextStep` and the tries left instead, admin's the tries left and
+    who overrode. 5 wrong tries lock a code (counted by a capped atomic
+    increment, and the step's own write re-checks the cap).
+  - Steps (garage, operators included): `PATCH /bookings/:id/picked-up
+    { code }` → `/at-garage` → the normal `/progress` (refused before At
+    garage) → `/out-for-delivery` → `/delivered { code }`, which completes
+    the job (and collects a legacy cash payment, as Mark completed does).
+    `/complete` is refused for pickup. Each step is a conditional update on
+    the state checked (`pickupStepRefusal`): 409 `PICKUP_STEP_DONE` or
+    `PICKUP_STEP_OUT_OF_ORDER`, 400 `HANDOVER_CODE_WRONG` (tries left), 409
+    `HANDOVER_CODE_LOCKED`. Once the car is collected the customer can no
+    longer cancel or reschedule (409 `CAR_WITH_GARAGE`; also in the
+    conditional writes), and admin cannot mark a customer no-show.
+  - Admin: `POST /admin/bookings/:id/pickup-step { step: 'picked_up' |
+    'delivered', note }` confirms a code step for a customer who cannot give
+    the code, in the job's order, storing the admin's name on the booking
+    and the reason in the notes. Admin booking rows carry `pickup` (steps,
+    tries left, overrides) and the pickup address.
+  - Readiness: pickup on with no map pin (fix), a yes from onboarding with
+    no terms (fix, "Pickup & drop not agreed"), pickup on with no radius
+    (optional, 10 km default).
+  - Ops alerts name the type ("Pickup & drop"). The pending-booking digest
+    gains a section: an accepted, paid pickup job 30 minutes past its slot
+    with no Picked up (posts when it crosses, then in the hourly reminders).
+  - Home's Book again treats a pickup job like doorstep (needs the pin, and
+    the garage still offering it).
+  - Note: the doorstep "empty radius is 10 km" default is still only in PR
+    #42; on this base an empty doorstep radius still matches no address.
+    Pickup applies its 10 km default here already.
+
 - **Complaint reference numbers with a response clock** (migration
   `0035_complaints`, additive: a `complaint_number_seq` sequence and a
   `complaints` table; no data step). Owner decision, 17 Oct 2026: every

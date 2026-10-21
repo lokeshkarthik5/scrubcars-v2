@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isCalendarDate } from '../../lib/booking-ops.js'
+import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { ServicePricingType } from '../../lib/pricing.js'
 
 const phoneSchema = z
@@ -30,10 +31,10 @@ export const slotsQuerySchema = z
   .object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
     service_id: z.string().min(1),
-    // Doorstep needs more notice than at-garage. A client that does not say
-    // gets the stricter doorstep list, so it is never offered a time that
-    // checkout would then refuse.
-    booking_type: z.enum(['dropin', 'doorstep']).optional(),
+    // Doorstep and pickup & drop need more notice than at-garage. A client
+    // that does not say gets the stricter doorstep list, so it is never
+    // offered a time that checkout would then refuse.
+    booking_type: z.enum(['dropin', 'doorstep', 'pickup']).optional(),
   })
   .transform(({ service_id, booking_type, ...rest }) => ({
     ...rest,
@@ -57,8 +58,6 @@ export const slotsQuerySchema = z
     { message: 'service_id must be one or more service UUIDs', path: ['service_id'] }
   )
 
-const pickupSchema = z.enum(['yes', 'nearby', 'no'])
-
 const vehicleTypesSchema = z.array(z.string().trim().min(1).max(100)).max(20)
 
 // Where the garage's pin came from. 'map_pin' is what the onboarding picker
@@ -78,8 +77,9 @@ const vendorProfileFields = {
   email: z.string().trim().email().max(255).optional(),
   yearsInOperation: z.string().trim().max(20).optional(),
   mapsUrl: z.string().trim().url().max(2048).optional(),
-  pickup: pickupSchema.optional(),
-  pickupRadiusKm: z.number().positive().optional(),
+  // Pickup & drop is not a profile field any more: it is switched on with
+  // the responsibility tick through PATCH /vendors/me/job-types (0037), so a
+  // profile save can never turn it on without one.
   // How many cars the garage can work on at once. The slot list and checkout
   // both read it, so a garage claiming 0 would be a garage nobody can book —
   // 1 is the floor, and 20 is past any single site we have seen.
@@ -134,10 +134,30 @@ export const updateJobTypesSchema = z
     // same breath (onboarding does), so the two land together. Optional: left
     // out, the garage covers DEFAULT_DOORSTEP_RADIUS_KM (lib/doorstep.ts).
     doorstepRadiusKm: z.number().min(1).max(30).optional(),
+    // Pickup & drop (0037). Turning it on needs `pickupTermsAccepted: true`,
+    // the owner's tick: "We are responsible for the customer's car from
+    // pickup until it is returned" (lib/pickup.ts). Off never needs it.
+    pickupEnabled: z.boolean().optional(),
+    // Null clears it to the default (10 km).
+    pickupRadiusKm: z
+      .number()
+      .min(MIN_PICKUP_RADIUS_KM)
+      .max(MAX_PICKUP_RADIUS_KM)
+      .nullable()
+      .optional(),
+    pickupTermsAccepted: z.boolean().optional(),
   })
-  .refine((data) => data.dropinEnabled !== undefined || data.doorstepEnabled !== undefined, {
-    message: 'At least one of dropinEnabled or doorstepEnabled must be provided',
-  })
+  .refine(
+    (data) =>
+      data.dropinEnabled !== undefined ||
+      data.doorstepEnabled !== undefined ||
+      data.pickupEnabled !== undefined ||
+      data.pickupRadiusKm !== undefined,
+    {
+      message:
+        'At least one of dropinEnabled, doorstepEnabled, pickupEnabled or pickupRadiusKm must be provided',
+    }
+  )
 
 export const updateSlotIntervalSchema = z.object({
   slotIntervalMins: z.union([z.literal(30), z.literal(45), z.literal(60)]),
@@ -282,16 +302,17 @@ export const listPublicVendorsQuerySchema = z
   .object({
     category: serviceCategorySchema.optional(),
     q: z.string().trim().min(1).optional(),
-    bookingType: z.enum(['dropin', 'doorstep']).optional(),
+    bookingType: z.enum(['dropin', 'doorstep', 'pickup']).optional(),
     // Origin. Optional throughout — the list must render for someone who has
     // declined location permission, just without distances.
     lat: z.coerce.number().finite().min(-90).max(90).optional(),
     lng: z.coerce.number().finite().min(-180).max(180).optional(),
     // Drop-in only. Doorstep deliberately ignores this and uses the *vendor's*
     // doorstepRadiusKm instead: the question is "who will come to me", and the
-    // garage is the one that decides how far it travels. Left out, the list
-    // reaches LIST_RADIUS_KM (lib/discovery.ts), which is also the most a
-    // caller may ask for. A typed search (`q`) ignores it: no radius applies.
+    // garage is the one that decides how far it travels. Pickup & drop, the
+    // same, with the garage's pickupRadiusKm. Left out, the list reaches
+    // LIST_RADIUS_KM (lib/discovery.ts), which is also the most a caller may
+    // ask for. A typed search (`q`) ignores it: no radius applies.
     radiusKm: z.coerce.number().positive().max(50).optional(),
     bbox: bboxSchema.optional(),
     sort: vendorSortSchema.optional(),

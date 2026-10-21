@@ -49,6 +49,14 @@ describe('listScope', () => {
     expect(listScope({ hasOrigin: false, bookingType: 'doorstep' }).includeUnlocated).toBe(false)
   })
 
+  test('pickup & drop is bounded like doorstep: by each garage, pinned ones only', () => {
+    expect(listScope({ hasOrigin: true, bookingType: 'pickup' })).toEqual({
+      radiusKm: null,
+      includeUnlocated: false,
+    })
+    expect(listScope({ hasOrigin: false, bookingType: 'pickup' }).includeUnlocated).toBe(false)
+  })
+
   test('the map view can ask for nearby mode: a radius, no unpinned garages', () => {
     expect(listScope({ hasOrigin: true, includeUnlocated: false })).toEqual({
       radiusKm: 50,

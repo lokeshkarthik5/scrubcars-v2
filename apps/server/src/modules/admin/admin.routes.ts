@@ -30,6 +30,7 @@ import {
   grantSuperAdminSchema,
   listBookingsQuerySchema,
   markNoShowSchema,
+  pickupStepOverrideSchema,
   pilotStatsQuerySchema,
   superAdminIdParamSchema,
   loginSchema,
@@ -431,6 +432,16 @@ adminRoutes.delete(
   ...adminMiddleware,
   zValidator('param', bookingIdParamSchema),
   (c) => adminController.setBookingTestMark(c, c.req.valid('param').id, false)
+)
+// Pickup & drop: Detlio confirms Picked up or Delivered for a customer who
+// cannot give the code. Leaves a note with the reason, like the rest.
+adminRoutes.post(
+  '/bookings/:id/pickup-step',
+  ...adminMiddleware,
+  zValidator('param', bookingIdParamSchema),
+  zValidator('json', pickupStepOverrideSchema),
+  (c) =>
+    adminController.overridePickupStep(c, c.req.valid('param').id, c.req.valid('json'))
 )
 adminRoutes.post(
   '/bookings/:id/notes',

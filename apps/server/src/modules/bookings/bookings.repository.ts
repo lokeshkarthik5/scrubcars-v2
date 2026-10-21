@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -28,6 +28,7 @@ import {
 } from '../../lib/slots.js'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { financialYearOf, formatReceiptSerial } from '../../lib/receipts.js'
+import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import { DISCOUNT_HELD } from '../discounts/discounts.predicates.js'
 import { isInBin, vendorPageOpen } from '../vendors/vendors.predicates.js'
 
@@ -39,6 +40,15 @@ type BookingType = (typeof bookingTypeEnum.enumValues)[number]
 
 export type BookingRecord = typeof bookings.$inferSelect
 export type PaymentRecord = typeof payments.$inferSelect
+
+/** A pickup & drop booking's two handover codes (lib/pickup.ts newHandoverCodes). */
+export interface HandoverCodes {
+  pickupCode: string
+  deliveryCode: string
+}
+
+/** Which of a pickup booking's two codes. */
+export type HandoverCodeKind = 'pickup' | 'delivery'
 
 // One line of a booking, already priced against the customer's vehicle. Name,
 // amount and duration are snapshots — see booking_items in schema.ts.
@@ -555,6 +565,27 @@ export const bookingsRepository = {
     return Array.from(rows)[0]?.covered === true
   },
 
+  /**
+   * Will this garage collect a car from this point? Pickup & drop (0037)
+   * asks the doorstep question with the garage's own pickup radius, measured
+   * from its pin; an empty radius is DEFAULT_PICKUP_RADIUS_KM. No drawn area:
+   * that is the doorstep crew's coverage, not the pickup driver's.
+   */
+  async isWithinPickupRadius(vendorId: string, lat: number, lng: number): Promise<boolean> {
+    const rows = await db.execute<{ covered: boolean }>(sql`
+      SELECT gis.ST_DWithin(
+               v.geo,
+               gis.ST_SetSRID(gis.ST_MakePoint(${lng}, ${lat}), 4326)::gis.geography,
+               COALESCE(v.pickup_radius_km, ${DEFAULT_PICKUP_RADIUS_KM}) * 1000,
+               false
+             ) AS covered
+        FROM vendors v
+       WHERE v.id = ${vendorId} AND v.geo IS NOT NULL
+    `)
+    // No pin, no pickup: there is nothing to measure from.
+    return Array.from(rows)[0]?.covered === true
+  },
+
   /** Hides Home's "Rate your wash" prompt for a booking; the first time stands. */
   async dismissReviewPrompt(bookingId: string) {
     await db
@@ -726,6 +757,8 @@ export const bookingsRepository = {
     lng?: number | null
     address?: string | null
     discount?: BookingDiscount | null
+    // Pickup & drop only: the customer's codes, made by the service.
+    handoverCodes?: HandoverCodes | null
   }) {
     return db.transaction(async (tx) => {
       await lockVehicle(tx, data.vehicleId)
@@ -819,6 +852,8 @@ export const bookingsRepository = {
           lat: data.lat ?? null,
           lng: data.lng ?? null,
           address: data.address ?? null,
+          pickupCode: data.handoverCodes?.pickupCode ?? null,
+          deliveryCode: data.handoverCodes?.deliveryCode ?? null,
         })
         .returning()
 
@@ -892,6 +927,9 @@ export const bookingsRepository = {
     lat: number | null
     lng: number | null
     address: string | null
+    // A pickup booking's codes, carried to the new booking unchanged: the
+    // customer may already have them written down.
+    handoverCodes: HandoverCodes | null
     sourcePayment: {
       gateway: 'razorpay'
       gatewayTxnId: string | null
@@ -927,15 +965,18 @@ export const bookingsRepository = {
       // between. Locked, so those wait for this move and then find nothing
       // left to change.
       const [source] = await tx
-        .select({ status: bookings.status })
+        .select({ status: bookings.status, pickedUpAt: bookings.pickedUpAt })
         .from(bookings)
         .where(eq(bookings.id, data.sourceBookingId))
         .for('update')
 
+      // A pickup job whose car the garage has collected in the meantime is
+      // not movable any more either (lib/pickup.ts customerChangeRefusal).
       if (
         !source ||
         !MOVABLE_STATUSES.includes(source.status) ||
-        source.status !== data.expectedStatus
+        source.status !== data.expectedStatus ||
+        source.pickedUpAt !== null
       ) {
         return {
           booking: null,
@@ -1032,6 +1073,8 @@ export const bookingsRepository = {
           lat: data.lat,
           lng: data.lng,
           address: data.address,
+          pickupCode: data.handoverCodes?.pickupCode ?? null,
+          deliveryCode: data.handoverCodes?.deliveryCode ?? null,
           originalBookingId: data.rootBookingId,
           rescheduledFromId: data.sourceBookingId,
           rescheduleCount: existing + 1,
@@ -1143,7 +1186,12 @@ export const bookingsRepository = {
       .returning()
   },
 
-  /** Cancels only from the status the caller saw; empty if it changed. */
+  /**
+   * Cancels only from the status the caller saw; empty if it changed. Never
+   * a pickup job whose car the garage has collected: the customer and the
+   * garage cannot call it off with the car away from home (Detlio can, from
+   * admin). A pickup landing between the check and this write is caught here.
+   */
   cancelBooking(
     bookingId: string,
     cancelledBy: 'user' | 'vendor',
@@ -1158,8 +1206,135 @@ export const bookingsRepository = {
         cancellationReason: reason ?? null,
         cancelledAt: new Date(),
       })
-      .where(and(eq(bookings.id, bookingId), eq(bookings.status, from)))
+      .where(
+        and(eq(bookings.id, bookingId), eq(bookings.status, from), isNull(bookings.pickedUpAt))
+      )
       .returning()
+  },
+
+  // ─── Pickup & drop steps (0037) ────────────────────────────────────────────
+  //
+  // Each step is one conditional update from the state the service checked
+  // (lib/pickup.ts pickupStepRefusal): the status, the step's own column
+  // still empty and the one before it set. Two phones pressing the same
+  // step, or a cancel landing in between, leave one winner; an empty result
+  // means someone else got there first. The code steps also require the
+  // code's tries to be under the cap at the moment of writing, unless
+  // Detlio is confirming it from admin.
+
+  /** Picked up: the garage has the car. Confirmed, not yet picked up. */
+  markPickedUp(
+    bookingId: string,
+    params: { at: Date; maxAttempts: number | null; overrideBy?: string | null }
+  ) {
+    return db
+      .update(bookings)
+      .set({ pickedUpAt: params.at, pickupOverrideBy: params.overrideBy ?? null })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.bookingType, 'pickup'),
+          eq(bookings.status, 'confirmed'),
+          isNull(bookings.pickedUpAt),
+          params.maxAttempts === null
+            ? undefined
+            : sql`${bookings.pickupCodeAttempts} < ${params.maxAttempts}`
+        )
+      )
+      .returning()
+  },
+
+  /** At garage: the car has arrived. Confirmed and picked up. */
+  markAtGarage(bookingId: string, at: Date) {
+    return db
+      .update(bookings)
+      .set({ atGarageAt: at })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.bookingType, 'pickup'),
+          eq(bookings.status, 'confirmed'),
+          isNotNull(bookings.pickedUpAt),
+          isNull(bookings.atGarageAt)
+        )
+      )
+      .returning()
+  },
+
+  /** Out for delivery: the work is done and the car is on its way back. */
+  markOutForDelivery(bookingId: string, at: Date) {
+    return db
+      .update(bookings)
+      .set({ outForDeliveryAt: at })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.bookingType, 'pickup'),
+          eq(bookings.status, 'in_progress'),
+          isNull(bookings.outForDeliveryAt)
+        )
+      )
+      .returning()
+  },
+
+  /**
+   * Delivered: the customer has the car back, which completes the booking,
+   * stamped as markCompleted stamps any job.
+   */
+  markDelivered(
+    bookingId: string,
+    params: {
+      at: Date
+      completedBy: string | null
+      maxAttempts: number | null
+      overrideBy?: string | null
+    }
+  ) {
+    return db
+      .update(bookings)
+      .set({
+        status: 'completed',
+        deliveredAt: params.at,
+        completedAt: params.at,
+        completedBy: params.completedBy,
+        deliveryOverrideBy: params.overrideBy ?? null,
+      })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.bookingType, 'pickup'),
+          eq(bookings.status, 'in_progress'),
+          isNotNull(bookings.outForDeliveryAt),
+          isNull(bookings.deliveredAt),
+          params.maxAttempts === null
+            ? undefined
+            : sql`${bookings.deliveryCodeAttempts} < ${params.maxAttempts}`
+        )
+      )
+      .returning()
+  },
+
+  /**
+   * Counts a wrong code, only while under the cap, so racing guesses can
+   * never take more than the cap between them. Returns the new count, or
+   * null when the code was already locked.
+   */
+  async recordWrongCode(
+    bookingId: string,
+    kind: HandoverCodeKind,
+    maxAttempts: number
+  ): Promise<number | null> {
+    const column = kind === 'pickup' ? bookings.pickupCodeAttempts : bookings.deliveryCodeAttempts
+    const [row] = await db
+      .update(bookings)
+      .set(
+        kind === 'pickup'
+          ? { pickupCodeAttempts: sql`${bookings.pickupCodeAttempts} + 1` }
+          : { deliveryCodeAttempts: sql`${bookings.deliveryCodeAttempts} + 1` }
+      )
+      .where(and(eq(bookings.id, bookingId), sql`${column} < ${maxAttempts}`))
+      .returning({ attempts: column })
+    return row ? row.attempts : null
   },
 
   /**

@@ -47,6 +47,7 @@ import { useUserStore } from '@repo/core/stores/user-store'
 import { useVendorOnboardingStore } from '@repo/core/stores/vendor-onboarding-store'
 import { cn } from '@repo/core/utils'
 import { ActiveGarage } from '@/components/active-garage'
+import { PickupSection } from './pickup-section'
 import { HolidaysSection, PauseSection } from './time-off-section'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -782,6 +783,8 @@ function VendorSettings() {
               </ScCard>
             </section>
           )}
+
+          {vendor && <PickupSection key={vendor.id} vendor={vendor} onChange={setVendor} />}
         </TabsContent>
 
         <TabsContent value="time-off">

@@ -1,15 +1,12 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
-import { planPendingDigest } from '../../lib/pending-digest.js'
+import { digestLookbacks, planPendingDigest } from '../../lib/pending-digest.js'
 import { createThrottle } from '../../lib/throttle.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { opsRepository } from './ops.repository.js'
 
 const log = logger.child({ module: 'ops' })
-
-/** How long after its start time a still-pending booking keeps being listed. */
-const MISSED_LOOKBACK_MS = 24 * 60 * 60 * 1000
 
 // A sweep that fails tends to fail every run until someone fixes it; the
 // first alert says it all, and one an hour keeps it from being forgotten.
@@ -53,11 +50,18 @@ export const opsService = {
       })
 
     const now = Date.now()
-    const rows = await opsRepository.listPaidPendingBookings(new Date(now - MISSED_LOOKBACK_MS))
-    const plan = planPendingDigest(now, rows)
+    // Pending bookings drop off a day after their time; uncollected pickups
+    // stay until collected or cancelled (lib/pending-digest.ts).
+    const { bookingsSince, pickupsSince } = digestLookbacks(now)
+    const [rows, pickups] = await Promise.all([
+      opsRepository.listPaidPendingBookings(bookingsSince),
+      opsRepository.listUncollectedPickups(pickupsSince, new Date(now)),
+    ])
+    const plan = planPendingDigest(now, rows, pickups)
     const summary = {
       waiting: plan.waiting.length,
       missed: plan.missed.length,
+      latePickups: plan.latePickups.length,
       reason: plan.reason as string,
       posted: false,
       autoRefunds,
@@ -72,10 +76,14 @@ export const opsService = {
         now: new Date(now),
         waiting: plan.waiting,
         missed: plan.missed,
+        latePickups: plan.latePickups,
       })
       if (outcome === 'off') return { ...summary, reason: 'alerts_off' }
     } catch (err) {
-      log.error({ err, waiting: summary.waiting, missed: summary.missed }, 'ops:pending_digest_send_failed')
+      log.error(
+        { err, waiting: summary.waiting, missed: summary.missed, latePickups: summary.latePickups },
+        'ops:pending_digest_send_failed'
+      )
       // A failed run must show as failed to the scheduler, which emails on it.
       throw new AppError(502, 'Could not post the pending-booking digest', 'OPS_ALERT_SEND_FAILED')
     }

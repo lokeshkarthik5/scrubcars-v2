@@ -13,6 +13,10 @@ const ready = (overrides: Partial<ReadinessInput> = {}): ReadinessInput => ({
   doorstepEnabled: true,
   doorstepRadiusKm: 8,
   hasDoorstepArea: false,
+  // Pickup & drop off, as most garages: its own tests turn it on.
+  pickup: null,
+  pickupRadiusKm: null,
+  pickupTermsAcceptedAt: null,
   lat: 13.0827,
   lng: 80.2707,
   geoConfirmedAt: new Date('2026-10-01T04:30:00Z'),
@@ -156,6 +160,9 @@ describe('vendorReadiness', () => {
       doorstepEnabled: false,
       doorstepRadiusKm: null,
       hasDoorstepArea: false,
+      pickup: null,
+      pickupRadiusKm: null,
+      pickupTermsAcceptedAt: null,
       lat: null,
       lng: null,
       geoConfirmedAt: null,
@@ -181,5 +188,57 @@ describe('vendorReadiness', () => {
   test('distance from Chennai is never flagged: a garage in another town is fine', () => {
     // Vellore, about 125 km out, as the Home hub's seeded garage is.
     expect(vendorReadiness(ready({ lat: 12.9165, lng: 79.1325 }))).toEqual([])
+  })
+
+  describe('pickup & drop', () => {
+    const on = (overrides: Partial<ReadinessInput> = {}) =>
+      ready({
+        pickup: 'yes',
+        pickupRadiusKm: 6,
+        pickupTermsAcceptedAt: new Date('2026-10-17T04:30:00Z'),
+        ...overrides,
+      })
+
+    test('a garage with pickup on and everything done has nothing on its list', () => {
+      expect(vendorReadiness(on())).toEqual([])
+    })
+
+    test('on with no map pin needs fixing: the radius is measured from it', () => {
+      expect(item(on({ lat: null, lng: null }), 'pickup_no_pin')).toMatchObject({
+        severity: 'fix',
+        label: 'Pickup & drop on, no map pin',
+        tab: 'location',
+      })
+      // Off, the missing pin is only the general one.
+      expect(keys(on({ lat: null, lng: null, pickup: 'no' }))).not.toContain('pickup_no_pin')
+    })
+
+    test('on with no radius is optional: the 10 km default is used', () => {
+      expect(item(on({ pickupRadiusKm: null }), 'no_pickup_radius')).toEqual({
+        key: 'no_pickup_radius',
+        severity: 'optional',
+        label: 'Pickup & drop on, no pickup radius',
+        detail: 'Default 10 km used',
+        short: 'pickup radius',
+        tab: 'operations',
+      })
+      expect(keys(on({ pickup: 'no', pickupRadiusKm: null }))).not.toContain('no_pickup_radius')
+    })
+
+    test('a yes from onboarding without the terms is not on, and says so', () => {
+      for (const pickup of ['yes', 'nearby'] as const) {
+        const input = on({ pickup, pickupTermsAcceptedAt: null, pickupRadiusKm: null, lat: null, lng: null })
+        expect(item(input, 'pickup_terms_missing')?.severity).toBe('fix')
+        // Not on, so neither of the "on" items.
+        expect(keys(input)).not.toContain('pickup_no_pin')
+        expect(keys(input)).not.toContain('no_pickup_radius')
+      }
+      expect(keys(on({ pickup: 'no', pickupTermsAcceptedAt: null }))).not.toContain(
+        'pickup_terms_missing'
+      )
+      expect(keys(ready({ pickup: null, pickupTermsAcceptedAt: null }))).not.toContain(
+        'pickup_terms_missing'
+      )
+    })
   })
 })

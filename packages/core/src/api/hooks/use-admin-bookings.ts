@@ -13,6 +13,7 @@ import {
   getAdminBooking,
   listAdminBookings,
   markAdminBookingNoShow,
+  overrideAdminPickupStep,
   type AdminBooking,
   type AdminBookingDetail,
   type AdminBookingFilters,
@@ -158,6 +159,14 @@ export function useMarkAdminBookingNoShow() {
   return useBookingAction(
     (id: string, input: { party: BookingParty; note?: string }) =>
       markAdminBookingNoShow(id, input)
+  )
+}
+
+/** Pickup & drop: Detlio confirms Picked up or Delivered without the customer's code. */
+export function useOverrideAdminPickupStep() {
+  return useBookingAction(
+    (id: string, input: { step: 'picked_up' | 'delivered'; note: string }) =>
+      overrideAdminPickupStep(id, input)
   )
 }
 

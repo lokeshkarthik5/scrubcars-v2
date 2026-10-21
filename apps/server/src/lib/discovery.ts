@@ -23,7 +23,7 @@ export interface ListScopeQuery {
   hasOrigin: boolean
   /** The map's viewport, when the map is asking. */
   bbox?: unknown
-  bookingType?: 'dropin' | 'doorstep'
+  bookingType?: 'dropin' | 'doorstep' | 'pickup'
   /** A typed search. */
   q?: string
   /** A radius the caller asked for itself. Validation caps it at 50. */
@@ -42,16 +42,21 @@ export interface ListScope {
   includeUnlocated: boolean
 }
 
+/** Doorstep and pickup: the garage comes to the customer, as far as it says. */
+function comesToCustomer(bookingType: ListScopeQuery['bookingType']): boolean {
+  return bookingType === 'doorstep' || bookingType === 'pickup'
+}
+
 export function listScope(query: ListScopeQuery): ListScope {
   // A radius needs somewhere to measure from. The map is bounded by its
-  // viewport instead, and doorstep by each garage's own travel radius (the
-  // question there is "who will come to me"). A typed search has no radius
+  // viewport instead, and doorstep and pickup by each garage's own travel
+  // radius (the question there is "who will come to me"). A typed search has no radius
   // either (owner decision): someone typing a garage's name wants that garage,
   // wherever it is, and still gets it nearest first.
   const usesRadius =
     query.hasOrigin &&
     query.bbox === undefined &&
-    query.bookingType !== 'doorstep' &&
+    !comesToCustomer(query.bookingType) &&
     query.q === undefined
 
   return {
@@ -61,11 +66,12 @@ export function listScope(query: ListScopeQuery): ListScope {
     // many are still unpinned, and a geo filter they cannot satisfy would
     // show "no garages" for a city full of them. Two places cannot use them.
     // The map cannot draw a garage with no pin. And the Doorstep tab cannot
-    // book one: a doorstep booking checks the garage travels to the address
-    // from its pin (bookingsRepository.isWithinDoorstepRadius), so an
-    // unpinned garage listed there would refuse every booking.
+    // book one, nor Pickup & drop: both check the garage travels to the
+    // address from its pin (bookingsRepository.isWithinDoorstepRadius, and
+    // the pickup radius), so an unpinned garage listed there would refuse
+    // every booking.
     includeUnlocated:
-      query.bbox !== undefined || query.bookingType === 'doorstep'
+      query.bbox !== undefined || comesToCustomer(query.bookingType)
         ? false
         : (query.includeUnlocated ?? true),
   }

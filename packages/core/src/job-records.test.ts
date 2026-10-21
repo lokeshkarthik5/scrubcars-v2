@@ -40,6 +40,33 @@ describe('jobStepTimes', () => {
     ).toEqual(['Accepted 9:15 am', 'Started 10:42 am'])
     expect(jobStepTimes({}, NOW)).toEqual([])
   })
+
+  test('a pickup & drop job lists its handover steps in their place', () => {
+    expect(
+      jobStepTimes(
+        {
+          acceptedAtIso: '2026-10-05T03:45:00Z',
+          startedAtIso: '2026-10-05T05:12:00Z',
+          completedAtIso: '2026-10-05T07:00:00Z',
+          pickup: {
+            pickedUpAtIso: '2026-10-05T04:30:00Z',
+            atGarageAtIso: '2026-10-05T05:00:00Z',
+            outForDeliveryAtIso: '2026-10-05T06:30:00Z',
+            deliveredAtIso: '2026-10-05T07:00:00Z',
+          },
+        },
+        NOW
+      )
+    ).toEqual([
+      'Accepted 9:15 am',
+      'Picked up 10:00 am',
+      'At garage 10:30 am',
+      'Started 10:42 am',
+      'Out for delivery 12:00 pm',
+      // Delivered is its completion, said once.
+      'Delivered 12:30 pm',
+    ])
+  })
 })
 
 describe('finalBillFigures', () => {

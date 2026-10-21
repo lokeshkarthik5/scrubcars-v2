@@ -10,7 +10,13 @@
  *   fix       it works, but something is wrong or missing that should be put
  *             right soon: the map pin, service descriptions, car types, bays.
  *   optional  nice to have: a logo, photos, a doorstep travel radius (empty
- *             means the 10 km default, which the owner is happy with).
+ *             means the 10 km default, which the owner is happy with), a
+ *             pickup radius (the same 10 km default).
+ *
+ * Pickup & drop (0037) adds two fix items: pickup on with no map pin (the
+ * radius is measured from it, so no customer can be matched), and a garage
+ * that answered yes to pickup at onboarding but has not accepted the
+ * responsibility terms, so it is not on.
  *
  * Only blocking and fix count as "needs fixing"; a garage with nothing but
  * optional items is Ready.
@@ -20,6 +26,8 @@
  * garage is verified (that is the Verify button, not a form to fill), and the
  * stage (Pending, Archived…), which the list's chips already say.
  */
+
+import { DEFAULT_PICKUP_RADIUS_KM, isPickupOffered, type VendorPickupAnswer } from './pickup.js'
 
 export type ReadinessSeverity = 'blocking' | 'fix' | 'optional'
 
@@ -45,6 +53,10 @@ export interface ReadinessInput {
   doorstepRadiusKm: number | null
   /** The garage drew its own doorstep area, which then replaces the radius. */
   hasDoorstepArea: boolean
+  /** Pickup & drop: the stored answer, radius and terms (lib/pickup.ts). */
+  pickup: VendorPickupAnswer | null
+  pickupRadiusKm: number | null
+  pickupTermsAcceptedAt: Date | string | null
   lat: number | null
   lng: number | null
   geoConfirmedAt: Date | string | null
@@ -181,6 +193,31 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
     })
   }
 
+  const pickupOn = isPickupOffered(v)
+  if (pickupOn && (v.lat === null || v.lng === null)) {
+    items.push({
+      key: 'pickup_no_pin',
+      severity: 'fix',
+      label: 'Pickup & drop on, no map pin',
+      detail: 'The pickup radius is measured from the pin, so no customer can book it',
+      short: 'pickup pin',
+      tab: 'location',
+    })
+  }
+
+  // A yes from onboarding before the terms existed: not on, and the panel's
+  // switch says off, which would otherwise read as the garage's choice.
+  if (!pickupOn && (v.pickup === 'yes' || v.pickup === 'nearby')) {
+    items.push({
+      key: 'pickup_terms_missing',
+      severity: 'fix',
+      label: 'Pickup & drop not agreed',
+      detail: 'Said yes at onboarding, but has not accepted responsibility for the car',
+      short: 'pickup agreement',
+      tab: 'operations',
+    })
+  }
+
   // Empty (or 0) bays is read as one car at a time (lib/slots.ts), which may
   // be less than the garage can take.
   if (!v.bays) {
@@ -204,6 +241,17 @@ export function vendorReadiness(v: ReadinessInput): ReadinessItem[] {
       label: 'Doorstep on, no travel radius',
       detail: `Default ${DEFAULT_DOORSTEP_RADIUS_KM} km used`,
       short: 'travel radius',
+      tab: 'operations',
+    })
+  }
+
+  if (pickupOn && v.pickupRadiusKm == null) {
+    items.push({
+      key: 'no_pickup_radius',
+      severity: 'optional',
+      label: 'Pickup & drop on, no pickup radius',
+      detail: `Default ${DEFAULT_PICKUP_RADIUS_KM} km used`,
+      short: 'pickup radius',
       tab: 'operations',
     })
   }
