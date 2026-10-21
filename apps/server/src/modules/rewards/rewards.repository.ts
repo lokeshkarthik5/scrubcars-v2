@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, inArray, isNull, lt, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gt, gte, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -111,6 +111,8 @@ async function findJob(conn: Conn, bookingId: string) {
       discountAmount: bookings.discountAmount,
       discountFundedBy: bookings.discountFundedBy,
       markedTestAt: bookings.markedTestAt,
+      guaranteeRedo: bookings.guaranteeRedo,
+      guaranteeRefundAt: bookings.guaranteeRefundAt,
       noShow: bookings.noShow,
       completedAt: bookings.completedAt,
       deliveredAt: bookings.deliveredAt,
@@ -136,6 +138,8 @@ function jobForRules(job: Job) {
       ? { status: job.paymentStatus, paidAt: job.paidAt, refundedAmount: job.refundedAmount, creditReturnedAt: job.creditReturnedAt }
       : null,
     markedTest: job.markedTestAt !== null,
+    guaranteeRedo: job.guaranteeRedo,
+    guaranteeRefund: job.guaranteeRefundAt !== null,
     amount: job.amount,
     subtotalAmount: job.subtotalAmount,
     discountAmount: job.discountAmount,
@@ -868,9 +872,10 @@ export const rewardsRepository = {
   },
 
   /**
-   * Stamp-earning bookings since marked Test or with money gone back: the
-   * stamp is taken back if still on the card, an unscratched card voided. A
-   * voucher the stamp already helped fill stays.
+   * Stamp-earning bookings since marked Test or with money gone back (or
+   * a Detlio Guarantee refund instead approved, 0051): the stamp is taken
+   * back if still on the card, an unscratched card voided. A voucher the
+   * stamp already helped fill stays.
    */
   async listToRevoke(limit: number) {
     const rows = await db.execute<{ root_booking_id: string; user_id: string }>(sql`
@@ -882,6 +887,7 @@ export const rewardsRepository = {
          and rb.revoked_at is null
          and (
            b.marked_test_at is not null
+           or b.guarantee_refund_at is not null
            or p.status = 'refunded'
            or coalesce(p.refunded_amount, 0) > 0
            or p.credit_returned_at is not null
@@ -889,6 +895,22 @@ export const rewardsRepository = {
        limit ${limit}
     `)
     return Array.from(rows).map((row) => ({ rootBookingId: row.root_booking_id, userId: row.user_id }))
+  },
+
+  /** A booking's stamp-earning judgement still standing (to revoke it at once), or null. */
+  async findEarnedForBooking(bookingId: string) {
+    const [row] = await db
+      .select({ rootBookingId: rewardBookings.rootBookingId, userId: rewardBookings.userId })
+      .from(rewardBookings)
+      .where(
+        and(
+          or(eq(rewardBookings.bookingId, bookingId), eq(rewardBookings.rootBookingId, bookingId)),
+          eq(rewardBookings.earned, true),
+          isNull(rewardBookings.revokedAt)
+        )
+      )
+      .limit(1)
+    return row ?? null
   },
 
   async revoke(input: { rootBookingId: string; userId: string; now: Date }) {

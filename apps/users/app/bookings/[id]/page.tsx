@@ -73,6 +73,7 @@ import { TimeProposalCard } from '@/components/time-proposal-card'
 import { OtherGaragesCard } from '@/components/other-garages-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { CarConditionCard } from '@/components/car-condition-card'
+import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
 
@@ -907,6 +908,10 @@ export default function BookingDetailPage({
       )}
 
       <JobPhotosCard photos={booking.jobPhotos} completed={booking.status === 'completed'} />
+
+      {/* Detlio Guarantee (0051): "Not happy?" on a completed job inside its
+          48 hours, the claim's status once made, or "Free redo" on a redo. */}
+      <GuaranteeCard booking={booking} />
 
       {/* The customer's own photos of their car (0045): before the work,
           and for a day after it. */}

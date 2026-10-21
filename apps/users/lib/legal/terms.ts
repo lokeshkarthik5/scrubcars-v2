@@ -17,6 +17,7 @@ import {
 import { BUSINESS, GOVERNING_COURTS } from './details'
 import { LEGAL_PATHS } from './routes'
 import { GIFTS_LAWYER_NOTES } from './gifts'
+import { GUARANTEE_LAWYER_NOTES } from './guarantee'
 
 const COURTS = GOVERNING_COURTS ?? tbc('city whose courts have jurisdiction')
 
@@ -169,6 +170,9 @@ export const TERMS: LegalDoc = {
             `Refunds are made by our team, normally to your original payment method, within ${RULES.refundDays}.`,
           ],
         },
+        // Detlio Guarantee (0051): notes for the lawyer only (notes are never
+        // public copy). The public guarantee terms go here once agreed.
+        ...GUARANTEE_LAWYER_NOTES,
       ],
     },
     {

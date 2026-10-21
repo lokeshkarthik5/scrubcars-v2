@@ -1,3 +1,4 @@
+import { IconRefresh } from '@tabler/icons-react'
 import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import type { Booking } from '@repo/core/types'
 
@@ -32,6 +33,14 @@ export function JobCardHeader({ booking }: { booking: Booking }) {
         <p className="mt-0.5 font-numeric text-[12px] font-medium text-text-primary">
           {booking.scheduledAt}
         </p>
+        {/* Detlio Guarantee (0051): a free redo of an earlier job of yours.
+            Nothing to collect, and no payout on it. */}
+        {booking.guaranteeRedo && (
+          <p className="mt-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-text-primary">
+            <IconRefresh size={12} aria-hidden="true" />
+            Free redo · ₹0, nothing to collect
+          </p>
+        )}
       </div>
       <ScBadge variant={badge.variant} className="shrink-0">
         {badge.label}

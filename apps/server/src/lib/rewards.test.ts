@@ -42,6 +42,7 @@ import {
   stampAdjustmentRefusal,
   stampExpiresAt,
   stampRefusal,
+  stampRefusalLabel,
   stampRevocation,
   stampsOnCard,
   streakBonusDue,
@@ -216,6 +217,19 @@ describe('which bookings earn a stamp', () => {
     expect(stampRefusal(job({ payment: { status: 'paid', paidAt: NOW, refundedAmount: null, creditReturnedAt: NOW } }), { sameDayCar: false }, S)).toBe('refunded')
     // A no-show is a cancelled booking: never completed.
     expect(stampRefusal(job({ status: 'cancelled' }), { sameDayCar: false }, S)).toBe('not_completed')
+  })
+
+  test('a Detlio Guarantee free redo (0051) never earns, even with the minimum at ₹0', () => {
+    const redo = job({ guaranteeRedo: true, amount: '0.00', subtotalAmount: '0.00', payment: { status: 'paid', paidAt: NOW, refundedAmount: null } })
+    expect(stampRefusal(redo, { sameDayCar: false }, S)).toBe('free_redo')
+    expect(stampRefusal(redo, { sameDayCar: false }, { ...S, minPaidAmount: 0 })).toBe('free_redo')
+    expect(stampRefusalLabel('free_redo', S)).toBe('Free redo')
+  })
+
+  test('a guarantee refund instead counts as refunded before the money is sent, and takes the stamp back', () => {
+    expect(stampRefusal(job({ guaranteeRefund: true }), { sameDayCar: false }, S)).toBe('refunded')
+    expect(stampRevocation(job({ guaranteeRefund: true }))).toBe('refunded')
+    expect(stampRevocation(job({ guaranteeRefund: false }))).toBeNull()
   })
 
   test('one per car per IST day; the same garage again in a week still earns (rule removed, 18 Oct)', () => {

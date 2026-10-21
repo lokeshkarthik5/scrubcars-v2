@@ -62,6 +62,7 @@ import {
   type HubServiceReminder,
 } from './service-reminders.js'
 import { slotAlertPath, slotOpenedWords } from './slot-alerts.js'
+import { REDO_WORDS, type ClaimStatus } from './guarantee.js'
 import { voucherIssuedWords, type VoucherKind } from './rewards.js'
 
 export const UPDATES_WINDOW_DAYS = 30
@@ -96,6 +97,12 @@ export interface HubBooking {
    * (0042). Optional so a hand-built booking (tests) needs no change.
    */
   responseMissedAt?: Date | null
+  /**
+   * A free redo of an earlier job, and a refund Detlio approved instead of a
+   * redo (0051). Optional so a hand-built booking (tests) needs no change.
+   */
+  guaranteeRedo?: boolean
+  guaranteeRefundAt?: Date | null
   rescheduledFromId: string | null
   rescheduleCount: number
   /** Another booking was rescheduled from this one: its payment went with it. */
@@ -199,6 +206,11 @@ export type UpdateKind =
   | 'extra_work_withdrawn'
   | 'service_reminder'
   | 'slot_opened'
+  | 'redo_claim'
+  | 'redo_approved'
+  | 'redo_refund'
+  | 'redo_not_approved'
+  | 'redo_closed'
   | 'reward_card'
   | 'reward_voucher'
   | 'reward_nudge'
@@ -433,8 +445,12 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
 
   if (
     booking.payment?.paidAt &&
-    receiptAvailability({ status: booking.status, moved: booking.moved, payment: booking.payment }) ===
-      'available'
+    receiptAvailability({
+      status: booking.status,
+      moved: booking.moved,
+      payment: booking.payment,
+      guaranteeRedo: booking.guaranteeRedo,
+    }) === 'available'
   ) {
     rows.push(draft({
       ...about,
@@ -760,6 +776,104 @@ function slotAlertRows(alerts: HubSlotAlert[]): Draft[] {
 }
 
 /**
+ * A free redo claim of theirs (Detlio Guarantee, 0051), as Updates reads it:
+ * its times and outcome only, never what anyone typed (the customer's words,
+ * the garage's note, Detlio's reason, which the booking page shows).
+ */
+export interface HubGuaranteeClaim {
+  id: string
+  bookingId: string
+  vendorId: string
+  vendorName: string
+  status: ClaimStatus
+  route: 'garage' | 'detlio' | 'auto'
+  decision: 'redo' | 'refund' | 'reject' | null
+  garageRespondBy: Date | null
+  approvedAt: Date | null
+  decidedAt: Date | null
+  closedAt: Date | null
+  closeReason: string | null
+  createdAt: Date
+  /** What the booking was paid (Razorpay's part and any credit), for "Refund due". */
+  refundAmount: string | null
+}
+
+/**
+ * One row per step of a claim, each opening the booking it is about: sent,
+ * approved for a redo (by the garage, its silence, Detlio or no photos), a
+ * refund instead, not approved, or closed without a redo. A claim approved
+ * the moment it was made says so in one row, not two. "Free redo", never
+ * the word the copy rules ban.
+ */
+function guaranteeClaimRows(claims: HubGuaranteeClaim[]): Draft[] {
+  const rows: Draft[] = []
+  for (const claim of claims) {
+    const about = {
+      bookingId: claim.bookingId,
+      vendorId: claim.vendorId,
+      vendorName: claim.vendorName,
+      linkUrl: `/bookings/${claim.bookingId}`,
+    }
+    const approvedAtOnce = claim.approvedAt !== null && claim.approvedAt.getTime() === claim.createdAt.getTime()
+    if (!approvedAtOnce) {
+      rows.push(draft({
+        ...about,
+        id: `redo_claim:${claim.id}`,
+        kind: 'redo_claim',
+        at: claim.createdAt,
+        title: REDO_WORDS.sentTitle,
+        body: claim.route === 'garage'
+          ? REDO_WORDS.sentBodyGarage(claim.vendorName, claim.garageRespondBy)
+          : REDO_WORDS.sentBodyDetlio,
+      }))
+    }
+    if (claim.approvedAt && claim.decision !== 'refund') {
+      rows.push(draft({
+        ...about,
+        id: `redo_approved:${claim.id}`,
+        kind: 'redo_approved',
+        at: claim.approvedAt,
+        title: REDO_WORDS.approvedTitle,
+        body: REDO_WORDS.approvedBody(claim.vendorName),
+      }))
+    }
+    if (claim.decision === 'refund' && claim.decidedAt) {
+      const amount = claim.refundAmount && Number(claim.refundAmount) > 0 ? claim.refundAmount : null
+      rows.push(draft({
+        ...about,
+        id: `redo_refund:${claim.id}`,
+        kind: 'redo_refund',
+        at: claim.decidedAt,
+        title: REDO_WORDS.refundTitle,
+        body: amount ? `${claim.vendorName} · Refund due: ${rupees(amount)}` : claim.vendorName,
+        amount,
+      }))
+    }
+    if (claim.decision === 'reject' && claim.decidedAt) {
+      rows.push(draft({
+        ...about,
+        id: `redo_not_approved:${claim.id}`,
+        kind: 'redo_not_approved',
+        at: claim.decidedAt,
+        title: REDO_WORDS.notApprovedTitle,
+        body: REDO_WORDS.notApprovedBody,
+      }))
+    }
+    if (claim.status === 'lapsed' && claim.closedAt) {
+      rows.push(draft({
+        ...about,
+        id: `redo_closed:${claim.id}`,
+        kind: 'redo_closed',
+        at: claim.closedAt,
+        title: REDO_WORDS.closedTitle,
+        body: REDO_WORDS.closedBody(claim.vendorName),
+      }))
+    }
+  }
+  return rows
+}
+
+/**
  * Detlio Rewards news (0050), only while rewards are live (the caller
  * passes nothing otherwise): a scratch card with every stamp, a voucher
  * that arrived without the customer scratching for it (a full Shine Card,
@@ -857,6 +971,8 @@ export function deriveUpdates(input: {
   serviceReminders?: HubServiceReminder[]
   /** The customer's slot alerts that were told a time opened (0047). */
   slotAlerts?: HubSlotAlert[]
+  /** The customer's free redo claims (0051). */
+  guaranteeClaims?: HubGuaranteeClaim[]
   /** Detlio Rewards news (0050), null while rewards are not live. */
   rewards?: HubRewards | null
   /** updates_seen_at, or the account's creation when never opened. */
@@ -885,6 +1001,7 @@ export function deriveUpdates(input: {
     ...complaintRows(input.complaints ?? []),
     ...serviceReminderRows(input.serviceReminders ?? [], now),
     ...slotAlertRows(input.slotAlerts ?? []),
+    ...guaranteeClaimRows(input.guaranteeClaims ?? []),
     ...rewardRows(input.rewards),
   ]
     .filter(inWindow)

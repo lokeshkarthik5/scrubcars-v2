@@ -44,6 +44,8 @@ export function toHubBooking(row: HubBookingRecord, moved: Set<string>): HubBook
     cancelledOnBehalfOf: row.cancelledOnBehalfOf,
     noShow: row.noShow,
     responseMissedAt: row.responseMissedAt,
+    guaranteeRedo: row.guaranteeRedo,
+    guaranteeRefundAt: row.guaranteeRefundAt,
     rescheduledFromId: row.rescheduledFromId,
     rescheduleCount: row.rescheduleCount,
     moved: moved.has(row.id),

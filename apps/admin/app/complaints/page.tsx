@@ -15,6 +15,7 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminComplaint, AdminComplaintFilter } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useAdminComplaints } from '@repo/core/api/hooks/use-admin-complaints'
+import { useAdminGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import {
   COMPLAINT_ACKNOWLEDGE_HOURS,
   COMPLAINT_ADMIN_STATUS_LABELS,
@@ -127,6 +128,7 @@ function ComplaintsList() {
   const params = useSearchParams()
   // The chip lives in the URL, so Back from a complaint returns to it.
   const show = parseComplaintFilter(params.get('show'))
+  const { data: guaranteeConfig } = useAdminGuaranteeConfig()
   const back = complaintsListHref(show)
 
   const { data, isPending, isPlaceholderData, error, refetch, dataUpdatedAt } = useAdminComplaints(show)
@@ -196,6 +198,16 @@ function ComplaintsList() {
           ))}
         </div>
         <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">{complaintFilterHint(show)}</p>
+        {/* Redo claims (0051), the sibling page, have no room in the phone's
+            bottom bar; the header has them on a wider screen. */}
+        {guaranteeConfig?.enabled && (
+          <Link
+            href="/guarantee"
+            className="mt-1 inline-flex min-h-11 items-center gap-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline md:hidden"
+          >
+            Free redo claims
+          </Link>
+        )}
       </div>
 
       {refreshFailed && (

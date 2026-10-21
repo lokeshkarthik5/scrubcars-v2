@@ -34,6 +34,7 @@ import {
   MIN_NOTICE_MINS,
 } from '@repo/core/booking-types'
 import { COMPLAINT_ACKNOWLEDGE_HOURS, COMPLAINT_RESOLVE_DAYS } from '@repo/core/complaints'
+import { GUARANTEE_RULES } from '@repo/core/guarantee'
 import { DEFAULT_PICKUP_RADIUS_KM, MAX_CODE_ATTEMPTS, PICKUP_RESPONSIBILITY_LINE } from '@repo/core/pickup'
 import { RECEIPT_NOT_TAX_INVOICE } from '@repo/core/receipts'
 import { BANK_DAYS } from '@repo/core/refunds'
@@ -56,6 +57,12 @@ export interface HelpQuestion {
   a: string[]
   /** Where to go next, under the answer. */
   links?: HelpLink[]
+  /**
+   * Shown only while that feature is on at the API: the Detlio Guarantee's
+   * answer (0051, GUARANTEE_ENABLED) says nothing while customers cannot use
+   * it. Left out is always shown.
+   */
+  feature?: 'free_redo'
 }
 
 export interface HelpGroup {
@@ -357,6 +364,19 @@ export const HELP_GROUPS: HelpGroup[] = [
         links: [REFUND_POLICY],
       },
       {
+        // Draft, like the whole page (HELP_DRAFT), and shown only while the
+        // guarantee is on (0051). Numbers from @repo/core/guarantee, the
+        // server's twin.
+        id: 'free-redo',
+        feature: 'free_redo',
+        q: 'What is the Detlio Guarantee?',
+        a: [
+          `Not happy with a wash or detailing paid on Detlio? Within ${GUARANTEE_RULES.claimWindowHours} hours of completion, open the booking, tap Not happy?, pick what is wrong and take ${GUARANTEE_RULES.minPhotos} or more photos.`,
+          `We compare them with the garage's before and after photos. The garage answers within ${GUARANTEE_RULES.garageReviewHours} hours of its opening hours, or Detlio decides. Once approved, book a free redo at the same garage within ${GUARANTEE_RULES.redoWithinDays} days. Coating and inspection jobs are not covered.`,
+        ],
+        links: [MY_BOOKINGS],
+      },
+      {
         id: 'escalate',
         q: 'What if I am not happy with the answer?',
         a: [
@@ -367,6 +387,14 @@ export const HELP_GROUPS: HelpGroup[] = [
     ],
   },
 ]
+
+/** The groups as shown now: a feature's questions only while it is on. */
+export function helpGroupsFor(features: { guarantee: boolean }): HelpGroup[] {
+  return HELP_GROUPS.map((group) => ({
+    ...group,
+    questions: group.questions.filter((question) => question.feature !== 'free_redo' || features.guarantee),
+  }))
+}
 
 /** The end of the page: still stuck, here is a person. */
 export const HELP_STILL_NEED = {

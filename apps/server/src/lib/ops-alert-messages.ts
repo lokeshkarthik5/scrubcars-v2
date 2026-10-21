@@ -15,6 +15,12 @@ const ADMIN_REWARDS_URL = 'https://admin.detlio.com/rewards'
 const ADMIN_PAYOUTS_URL = 'https://admin.detlio.com/payouts'
 const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
 const ADMIN_VENDORS_URL = 'https://admin.detlio.com/vendors'
+const ADMIN_GUARANTEE_URL = 'https://admin.detlio.com/guarantee'
+
+/** A free redo claim's page in admin (Detlio Guarantee, 0051). */
+export function adminClaimUrl(id: string): string {
+  return `${ADMIN_GUARANTEE_URL}/${id}`
+}
 
 /** A garage's Documents tab in admin, where its uploads are approved or rejected. */
 export function adminGarageDocumentsUrl(vendorId: string): string {
@@ -402,6 +408,35 @@ export type OpsAlert =
       paymentId: string
       amount: string
       why: 'already_paid' | 'cancelled'
+    }
+  | {
+      /**
+       * A customer asked for a free redo (Detlio Guarantee, 0051), and where
+       * it went: to the garage to answer, to Detlio (a review flag, or photos
+       * waived), or approved at once because the garage took no photos.
+       */
+      kind: 'guarantee_claim'
+      claimId: string
+      bookingId: string
+      garageName: string
+      route: 'garage' | 'detlio' | 'auto'
+      /** lib/guarantee.ts ROUTE_REASON_LABELS of its reasons. */
+      reasons: string[]
+      /** ISSUE_LABELS of what the customer picked. */
+      issues: string[]
+      respondBy: Date | null
+      decideBy: Date | null
+    }
+  | {
+      /** A claim now needs Detlio: the garage disputed it, or the redo did not happen on its side. */
+      kind: 'guarantee_needs_detlio'
+      claimId: string
+      bookingId: string
+      garageName: string
+      why: 'disputed' | 'redo_failed'
+      /** The garage's note on a dispute; quoted, scrubbed and cut short here. */
+      note: string | null
+      decideBy: Date
     }
   | {
       /**
@@ -917,6 +952,33 @@ export function formatOpsAlert(alert: OpsAlert): string {
         alert.how === 'revoked' ? quoted('Reason', alert.reason) : null,
         'Customers no longer see the seal.',
         adminGarageCertificationUrl(alert.vendorId)
+      )
+
+    case 'guarantee_claim':
+      return lines(
+        alert.route === 'auto'
+          ? `🔁 Free redo approved automatically — no garage photos · #${reference(alert.bookingId)}`
+          : alert.route === 'garage'
+            ? `🔁 New free redo claim · #${reference(alert.bookingId)} · with the garage`
+            : `🔁 New free redo claim · #${reference(alert.bookingId)} · needs Detlio`,
+        `Garage: ${alert.garageName}`,
+        `What's wrong: ${alert.issues.join(', ')}`,
+        alert.reasons.length > 0 ? `Why: ${alert.reasons.join(', ')}` : null,
+        alert.respondBy ? `Garage answers by ${when(alert.respondBy)}; no answer approves it.` : null,
+        alert.decideBy ? `Decide by ${when(alert.decideBy)}.` : null,
+        alert.route === 'auto' ? 'The garage took no before/after photos, so there was nothing to defend it with.' : null,
+        adminClaimUrl(alert.claimId)
+      )
+
+    case 'guarantee_needs_detlio':
+      return lines(
+        alert.why === 'disputed'
+          ? `⚖️ Free redo claim disputed by the garage · #${reference(alert.bookingId)}`
+          : `⚖️ Free redo did not happen on the garage's side · #${reference(alert.bookingId)}`,
+        `Garage: ${alert.garageName}`,
+        alert.why === 'disputed' ? quoted('Garage wrote', alert.note) : 'Approve another redo, a refund instead, or close it.',
+        `Decide by ${when(alert.decideBy)}, comparing both sides' photos.`,
+        adminClaimUrl(alert.claimId)
       )
 
     case 'gift_payment_stray':

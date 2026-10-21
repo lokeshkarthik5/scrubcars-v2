@@ -18,6 +18,47 @@ reconstructing every change in them.
 
 ### Added
 
+- **Detlio Guarantee: a free redo within 48 hours, decided on photos, with
+  limits against misuse, behind `GUARANTEE_ENABLED` (default off)**
+  (migration `0051_detlio_guarantee`, additive: `bookings.guarantee_redo`
+  (boolean, default false) and `bookings.guarantee_refund_at` (CHECK:
+  completed, not a redo); new tables `guarantee_claims` (one per booking,
+  statuses, route and reasons, the garage's answer and deadline, Detlio's
+  decision with the typed name and the customer-facing reason, `approved_at`,
+  the redo window and booking, how it closed; CHECKs) and
+  `guarantee_claim_photos`. Numbered 0051, after 0050 (Detlio Rewards),
+  which this branch now sits on; migrations run 0049 → 0050 → 0051 with no
+  gap).
+  - Rules in `lib/guarantee.ts` (pure; every number in `GUARANTEE_RULES`,
+    twinned in `packages/core/src/guarantee.ts` with a parity test):
+    eligible jobs (completed, paid through Detlio, washes/detailing/packages
+    of them, not inspection, not Test, not a redo, one claim per booking),
+    the 48-hour window, 2–6 photos from the job's own claim folder, the route
+    (garage photos → garage reviews; none → approved at once; waived, a
+    first booking or a frequent claimer → Detlio), the garage's 12 hours of
+    opening hours (no answer = accepted), Detlio's decision, at most 2
+    approved claims per customer in 6 months (under `guarantee:<userId>`).
+  - `modules/guarantee`: customer `/users/me/guarantee` (eligibility,
+    photo upload URL, claim, redo slots, book the redo), garage
+    `/vendors/me/guarantee` (owner seat; support sessions read only),
+    admin `/admin/guarantee` (list, detail, decide with `admin_audit_log`),
+    public `/guarantee/config`.
+  - The redo: a ₹0 confirmed booking through the vehicle lock and
+    `checkGarageCanTake` (the claim row locked first), no receipt number,
+    never rescheduled; it earns nothing and is left out of Statistics,
+    commission's free 25, payouts and the pilot numbers. Detlio Rewards
+    (0050) judges it `free_redo` (no stamp, scratch card or level progress;
+    0051 adds the value to `reward_bookings_refusal_check`), and a refund
+    instead takes the booking's stamp back at once like any refund.
+  - Refund instead: `lib/refunds.ts` owes a completed booking's payment when
+    `guarantee_refund_at` is set (Refunds page, `AUTO_REFUNDS` cause
+    `guarantee_refund`, credit back as credit); the garage earns nothing on
+    the job, so a payout already made becomes a negative line.
+  - Approved claims count toward Detlio Certified's complaint rate and the
+    admin garage card. Push and Updates rows for each step ("free redo",
+    as the copy rules require), Telegram `guarantee_claim` and
+    `guarantee_needs_detlio`; the pending-digest cron applies garage
+    timeouts, closes unbooked redo windows and follows redo bookings.
 - **Detlio Rewards: the Shine Card, scratch cards, monthly streaks, levels
   and Invite a friend, behind `REWARDS_ENABLED` (default off) and an admin
   switch** (migration `0050_detlio_rewards`, additive, after 0049: new

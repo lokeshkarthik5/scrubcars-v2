@@ -466,6 +466,8 @@ export interface Booking {
   responseDeadline: ResponseDeadline | null
   /** Cancelled because the garage did not accept in time (refunded in full). */
   notAcceptedInTime: boolean
+  /** A free redo of an earlier job (Detlio Guarantee, 0051): ₹0, no receipt. */
+  guaranteeRedo: boolean
   /**
    * Customer only: money owed back on this booking, or given back. 'none'
    * on garage payloads, on older servers, and on a customer no-show.

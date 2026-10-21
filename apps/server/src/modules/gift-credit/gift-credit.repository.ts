@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { PgTransaction } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
@@ -135,6 +135,7 @@ export const giftCreditRepository = {
           originalBookingId: bookings.originalBookingId,
           status: bookings.status,
           noShow: bookings.noShow,
+          guaranteeRefundAt: bookings.guaranteeRefundAt,
           paymentId: payments.id,
           paymentStatus: payments.status,
           creditAmount: payments.creditAmount,
@@ -152,7 +153,13 @@ export const giftCreditRepository = {
         .where(eq(bookings.rescheduledFromId, bookingId))
         .limit(1)
       const refundable = isBookingPaymentRefundable(
-        { status: row.status, noShow: row.noShow ?? null, moved: Boolean(next) },
+        {
+          status: row.status,
+          noShow: row.noShow ?? null,
+          moved: Boolean(next),
+          // A refund instead of a free redo (0051) gives the credit back too.
+          guaranteeRefund: row.guaranteeRefundAt !== null,
+        },
         { status: row.paymentStatus }
       )
       if (!refundable) return { kind: 'nothing' }
@@ -228,12 +235,18 @@ export const giftCreditRepository = {
           gt(payments.creditAmount, '0'),
           isNull(payments.creditReturnedAt),
           inArray(payments.status, ['paid', 'refunded']),
-          eq(bookings.status, 'cancelled'),
-          sql`${bookings.noShow} is distinct from 'customer'`,
-          sql`not exists (select 1 from bookings n where n.rescheduled_from_id = ${bookings.id})`
+          or(
+            and(
+              eq(bookings.status, 'cancelled'),
+              sql`${bookings.noShow} is distinct from 'customer'`,
+              sql`not exists (select 1 from bookings n where n.rescheduled_from_id = ${bookings.id})`
+            ),
+            // A refund instead of a free redo on a completed job (0051).
+            and(eq(bookings.status, 'completed'), isNotNull(bookings.guaranteeRefundAt))
+          )
         )
       )
-      .orderBy(asc(bookings.cancelledAt))
+      .orderBy(asc(sql`coalesce(${bookings.cancelledAt}, ${bookings.guaranteeRefundAt})`))
       .limit(limit)
     return rows.map((row) => row.bookingId)
   },
