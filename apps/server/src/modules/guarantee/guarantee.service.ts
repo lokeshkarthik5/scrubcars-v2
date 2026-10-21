@@ -56,7 +56,7 @@ import { newHandoverCodes } from '../../lib/pickup.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import type { PushMessage } from '../../lib/push.js'
 import { getDateKeyFromScheduledAt, isScheduledAtAvailable } from '../../lib/slots.js'
-import { createPresignedUpload, publicUrlForKey } from '../../lib/storage.js'
+import { createJobPhotoUpload, jobPhotoLink, storedJobPhotoUrl } from '../../lib/job-photo-storage.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
@@ -106,8 +106,9 @@ function garageUnavailable() {
 
 // ─── Views ───────────────────────────────────────────────────────────────────
 
+/** A claim photo with a short-lived link (lib/job-photo-storage.ts), never its key. */
 function photoView(photo: { id: string; url: string; createdAt: Date }) {
-  return { id: photo.id, url: photo.url, createdAt: photo.createdAt.toISOString() }
+  return { id: photo.id, url: jobPhotoLink(photo.url), createdAt: photo.createdAt.toISOString() }
 }
 
 function iso(date: Date | null | undefined): string | null {
@@ -162,7 +163,7 @@ type ClaimBooking = Awaited<ReturnType<typeof guaranteeRepository.bookingsForCla
 function garagePhotosOf(booking: ClaimBooking | undefined) {
   return (booking?.photos ?? [])
     .filter((photo) => photo.uploadedByRole !== 'customer')
-    .map(toJobPhotoView)
+    .map((photo) => toJobPhotoView(photo, jobPhotoLink))
 }
 
 function serviceLabel(booking: ClaimBooking | undefined): string {
@@ -321,12 +322,8 @@ export const guaranteeService = {
    */
   async createUploadUrl(userId: string, bookingId: string, input: ClaimPhotoUploadInput, now = new Date()) {
     const booking = await guaranteeService.assertClaimable(userId, bookingId, now)
-    const { uploadUrl, key, publicUrl } = await createPresignedUpload(
-      booking.vendorId,
-      input.contentType,
-      claimPhotoFolder(booking.id)
-    )
-    return { uploadUrl, key, publicUrl }
+    // The private bucket while it is on: the key only, no address.
+    return createJobPhotoUpload(booking.vendorId, input.contentType, claimPhotoFolder(booking.id))
   },
 
   /**
@@ -367,7 +364,7 @@ export const guaranteeService = {
       booking,
       issues,
       otherText,
-      photos: input.photoKeys.map((key) => ({ key, url: publicUrlForKey(key) })),
+      photos: input.photoKeys.map((key) => ({ key, url: storedJobPhotoUrl(key) })),
       now,
       route: (history) => {
         const routed = routeClaim({

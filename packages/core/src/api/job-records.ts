@@ -103,7 +103,6 @@ async function uploadAndRecord(
   const { uploadUrl, key } = await apiClient<{
     uploadUrl: string
     key: string
-    publicUrl: string
   }>(`${base}/upload-url`, {
     method: 'POST',
     body: JSON.stringify({ stage, contentType }),
@@ -196,7 +195,7 @@ export async function askExtraWork(bookingId: string, input: ExtraWorkInput): Pr
   const photoKeys: string[] = []
   for (const file of input.photos) {
     const contentType = file.type as UploadContentType
-    const { uploadUrl, key } = await apiClient<{ uploadUrl: string; key: string; publicUrl: string }>(
+    const { uploadUrl, key } = await apiClient<{ uploadUrl: string; key: string }>(
       `/vendors/me/bookings/${bookingId}/extra-work/upload-url`,
       { method: 'POST', body: JSON.stringify({ contentType }) }
     )

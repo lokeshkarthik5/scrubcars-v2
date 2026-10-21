@@ -85,7 +85,7 @@ let job: {
   photosWaivedAt: Date | null
 }
 
-const STORAGE_KEYS = ['r2AccountId', 'r2AccessKeyId', 'r2SecretAccessKey', 'r2Bucket', 'r2PublicBaseUrl', 'r2Endpoint'] as const
+const STORAGE_KEYS = ['r2AccountId', 'r2AccessKeyId', 'r2SecretAccessKey', 'r2Bucket', 'r2PublicBaseUrl', 'r2Endpoint', 'r2DocsBucket'] as const
 const savedEnv = Object.fromEntries(STORAGE_KEYS.map((key) => [key, env[key]]))
 const savedRequired = env.jobPhotosRequired
 function storageOn(on: boolean) {
@@ -98,6 +98,16 @@ function storageOn(on: boolean) {
   // keys a delete's best-effort removal from storage just logs.
   values.r2PublicBaseUrl = 'https://photos.test'
   values.r2Endpoint = on ? 'http://localhost:9000' : undefined
+  // The private bucket is off unless a test turns it on (privateOn).
+  values.r2DocsBucket = undefined
+}
+
+/** The private bucket (R2_DOCS_BUCKET) on, on R2's own endpoint. */
+function privateOn() {
+  storageOn(true)
+  const values = env as unknown as Record<string, string | undefined>
+  values.r2DocsBucket = 'detlio-private-test'
+  values.r2Endpoint = undefined
 }
 
 beforeAll(() => {
@@ -426,5 +436,113 @@ describe("the customer's side: their own booking only", () => {
     })
     expect(status).toBe(200)
     expect((body.data as { key: string }).key.startsWith(`${CUSTOMER_FOLDER}/`)).toBe(true)
+  })
+})
+
+describe('private photos (R2_DOCS_BUCKET set): short-lived links, only for whoever may see the job', () => {
+  const PRIVATE_HOST = 'detlio-private-test.test-account.r2.cloudflarestorage.com'
+
+  function expectSignedLink(url: string, key: string) {
+    const link = new URL(url)
+    expect(link.host).toBe(PRIVATE_HOST)
+    expect(decodeURIComponent(link.pathname)).toBe(`/${key}`)
+    expect(link.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/)
+    expect(Number(link.searchParams.get('X-Amz-Expires'))).toBe(15 * 60)
+  }
+
+  function seedPrivate(role: 'garage' | 'customer', stage: 'before' | 'after'): Row {
+    const row = seedPhoto(role, stage)
+    row.url = row.storageKey // what a private row stores: the key, no address
+    return row
+  }
+
+  /** Nothing in an answer that could open a photo. */
+  function expectNoPhoto(body: unknown) {
+    const text = JSON.stringify(body)
+    expect(text).not.toContain('X-Amz-Signature')
+    expect(text).not.toContain('job-photos')
+    expect(text).not.toContain('photos.test')
+  }
+
+  beforeEach(() => privateOn())
+
+  test('an upload goes to the private bucket, and only the key comes back', async () => {
+    const { status, body } = await call('POST', `${GARAGE_PHOTOS}/upload-url`, 'owner', {
+      stage: 'before',
+      contentType: 'image/jpeg',
+    })
+    expect(status).toBe(200)
+    const data = body.data as { uploadUrl: string; key: string }
+    expect(Object.keys(data).sort()).toEqual(['key', 'uploadUrl'])
+    expect(new URL(data.uploadUrl).host).toBe(PRIVATE_HOST)
+    expect(data.key.startsWith(`${GARAGE_FOLDER}/`)).toBe(true)
+  })
+
+  test('a recorded photo stores its key, never an address, and comes back as a link', async () => {
+    const key = `${GARAGE_FOLDER}/${FILE}.jpg`
+    const { status, body } = await call('POST', GARAGE_PHOTOS, 'operator', { stage: 'before', key })
+    expect(status).toBe(201)
+    expect(rows[0]?.url).toBe(key)
+    expectSignedLink((body.data as { url: string }).url, key)
+  })
+
+  test("the garage's own seats get links; another garage and a customer get a 404 and nothing to open", async () => {
+    const garages = seedPrivate('garage', 'before')
+    const customers = seedPrivate('customer', 'before')
+    for (const who of ['owner', 'operator'] as const) {
+      const photos = (await call('GET', GARAGE_PHOTOS, who)).body.data as Array<{ id: string; url: string }>
+      expectSignedLink(photos.find((p) => p.id === garages.id)!.url, garages.storageKey)
+      expectSignedLink(photos.find((p) => p.id === customers.id)!.url, customers.storageKey)
+    }
+
+    const other = await call('GET', GARAGE_PHOTOS, 'otherOwner')
+    expect(other.status).toBe(404)
+    expectNoPhoto(other.body)
+    const asThisGarage = await call('GET', GARAGE_PHOTOS, 'otherOwner', undefined, { 'X-Vendor-Id': GARAGE })
+    expect(asThisGarage.status).toBe(404)
+    expectNoPhoto(asThisGarage.body)
+    const removed = await call('DELETE', `${GARAGE_PHOTOS}/${garages.id}`, 'otherOwner')
+    expect(removed.status).toBe(404)
+    expectNoPhoto(removed.body)
+
+    const customer = await call('GET', GARAGE_PHOTOS, 'customer')
+    expect(customer.status).toBe(404)
+    expectNoPhoto(customer.body)
+    expect((await call('GET', GARAGE_PHOTOS, null)).status).toBe(401)
+  })
+
+  test("the customer gets a link to their own photo; another customer gets a 404 and nothing to open", async () => {
+    const key = `${CUSTOMER_FOLDER}/${FILE}.jpg`
+    const mine = await call('POST', CUSTOMER_PHOTOS, 'customer', { stage: 'before', key })
+    expect(mine.status).toBe(201)
+    expect(rows[0]?.url).toBe(key)
+    expectSignedLink((mine.body.data as { url: string }).url, key)
+
+    const again = await call('POST', CUSTOMER_PHOTOS, 'otherCustomer', { stage: 'before', key })
+    expect(again.status).toBe(404)
+    expectNoPhoto(again.body)
+    const removed = await call('DELETE', `${CUSTOMER_PHOTOS}/${rows[0]!.id}`, 'otherCustomer')
+    expect(removed.status).toBe(404)
+    expectNoPhoto(removed.body)
+    const upload = await call('POST', `${CUSTOMER_PHOTOS}/upload-url`, 'otherCustomer', { stage: 'before', contentType: 'image/jpeg' })
+    expect(upload.status).toBe(404)
+    expectNoPhoto(upload.body)
+    expect(rows).toHaveLength(1)
+  })
+
+  test('an older photo at its public address is passed through as it was', async () => {
+    const old = seedPhoto('garage', 'before')
+    const photos = (await call('GET', GARAGE_PHOTOS, 'owner')).body.data as Array<{ url: string }>
+    expect(photos[0]?.url).toBe(old.url)
+  })
+
+  test('with the private bucket unset, uploads and rows are as before: the public address', async () => {
+    storageOn(true)
+    const key = `${GARAGE_FOLDER}/${FILE}.jpg`
+    const { body } = await call('POST', GARAGE_PHOTOS, 'owner', { stage: 'before', key })
+    expect(rows[0]?.url).toBe(`https://photos.test/${key}`)
+    expect((body.data as { url: string }).url).toBe(`https://photos.test/${key}`)
+    const upload = await call('POST', `${GARAGE_PHOTOS}/upload-url`, 'owner', { stage: 'before', contentType: 'image/jpeg' })
+    expect(new URL((upload.body.data as { uploadUrl: string }).uploadUrl).pathname.startsWith('/detlio-test/')).toBe(true)
   })
 })

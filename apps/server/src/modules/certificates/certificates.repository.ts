@@ -40,6 +40,8 @@ const LINK_COLUMNS = {
 export interface SharedPhotoRow {
   photoId: string
   storageKey: string
+  /** The stored `url` column: a public address (older rows) or the key of a private photo. */
+  url: string
   uploadedByRole: string
   bookingStatus: string
   bookingMarkedTest: boolean
@@ -315,6 +317,7 @@ export const certificatesRepository = {
     const rows = await db.execute<{
       photo_id: string
       storage_key: string
+      url: string
       uploaded_by_role: string
       booking_status: string
       booking_marked_test: boolean
@@ -324,7 +327,7 @@ export const certificatesRepository = {
       expires_at: Date | string | null
       revoked_at: Date | string | null
     }>(sql`
-      SELECT jp.id AS photo_id, jp.storage_key, jp.uploaded_by_role,
+      SELECT jp.id AS photo_id, jp.storage_key, jp.url, jp.uploaded_by_role,
              b.status::text AS booking_status, (b.marked_test_at IS NOT NULL) AS booking_marked_test,
              b.guarantee_redo AS booking_guarantee_redo,
              l.id AS link_id, l.include_photos, l.expires_at, l.revoked_at
@@ -345,6 +348,7 @@ export const certificatesRepository = {
     return {
       photoId: row.photo_id,
       storageKey: row.storage_key,
+      url: row.url,
       uploadedByRole: row.uploaded_by_role,
       bookingStatus: row.booking_status,
       bookingMarkedTest: row.booking_marked_test,
