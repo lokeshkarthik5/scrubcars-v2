@@ -12,6 +12,7 @@ import { giftsService } from '../gifts/gifts.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { rewardsService } from '../rewards/rewards.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
@@ -142,6 +143,16 @@ export const opsService = {
         log.error({ err }, 'ops:gift_credit_sweep_failed')
         return { error: true as const }
       })
+    // Detlio Rewards (0050), only while live: completions and no-shows the
+    // after-response hooks missed, stamps of bookings since marked Test or
+    // refunded taken back, then (10:00–17:59 IST) level perks and the habit
+    // nudges, each claimed once. Bounded, never allowed to fail the digest.
+    const rewards = await rewardsService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:rewards_sweep_failed')
+        return { error: true as const }
+      })
     const giftCodeAttemptsPurged = options.dryRun
       ? 0
       : await giftsService.purgeAttempts().catch((err: unknown) => {
@@ -204,6 +215,7 @@ export const opsService = {
       slotAlerts,
       giftCredit,
       giftCodeAttemptsPurged,
+      rewards,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

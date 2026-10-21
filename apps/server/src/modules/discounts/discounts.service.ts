@@ -26,6 +26,7 @@ import { countReach, reachSettings, type ReachCustomer } from '../../lib/offer-r
 import { computeServiceAmount, sumAmounts } from '../../lib/pricing.js'
 import { isWashDue, washStatus } from '../../lib/wash-status.js'
 import { discountsRepository } from './discounts.repository.js'
+import { rewardsLive } from '../rewards/rewards.settings.js'
 import type {
   CreateDiscountInput,
   HomeReachQuery,
@@ -97,6 +98,22 @@ export async function resolveDiscount(input: {
 
   if (!discount) {
     throw new AppError(400, "This code isn't valid.", 'DISCOUNT_NOT_FOUND')
+  }
+
+  // A Detlio Rewards voucher (0050) is a promo code that belongs to one
+  // customer: anyone else gets the same answer as a code that does not
+  // exist, so a voucher code is worth nothing to anyone it is passed to.
+  // Only while rewards are live (REWARDS_ENABLED and the admin switch); a voucher the team cancelled is gone. Its
+  // once-only limit, expiry and Detlio funding are its discounts row's,
+  // checked below like any code.
+  if (discount.source === 'reward') {
+    if (!(await rewardsLive())) {
+      throw new AppError(400, "Rewards are paused right now, so this voucher can't be used.", 'REWARDS_PAUSED')
+    }
+    const voucher = await discountsRepository.findRewardVoucher(discount.id)
+    if (!voucher || voucher.userId !== input.userId || voucher.cancelledAt) {
+      throw new AppError(400, "This code isn't valid.", 'DISCOUNT_NOT_FOUND')
+    }
   }
 
   // Everything judgeable from the row alone: active, window, vendor scope,

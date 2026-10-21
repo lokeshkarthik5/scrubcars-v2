@@ -239,6 +239,10 @@ export type UpdateKind =
   | 'extra_work_withdrawn'
   | 'service_reminder'
   | 'slot_opened'
+  // Detlio Rewards (0050): a scratch card, a voucher, a habit nudge.
+  | 'reward_card'
+  | 'reward_voucher'
+  | 'reward_nudge'
 
 /** One row of Updates (lib/home-updates.ts UpdateItem). */
 export interface UpdateItem {

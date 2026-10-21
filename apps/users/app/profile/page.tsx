@@ -41,6 +41,10 @@ import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-stor
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { getPushConfig } from '@repo/core/api/push'
 import { giftsEnabled, useGiftsConfig, useMyCredit } from '@repo/core/api/hooks/use-gifts'
+import { Figures } from '@repo/ui/sc/figures'
+import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import { stampsToGoLine } from '@repo/core/rewards'
+import { LevelBadge } from '@/components/rewards/level-badge'
 import { giftRupees } from '@/lib/gifts'
 import { useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts'
 import { useQueryClient } from '@tanstack/react-query'
@@ -111,6 +115,9 @@ export default function ProfilePage() {
   const giftsConfig = useGiftsConfig()
   const giftsOn = giftsEnabled(giftsConfig.data)
   const credit = useMyCredit(giftsOn && !!authUser)
+  const rewardsConfig = useRewardsConfig()
+  const rewardsOn = rewardsEnabled(rewardsConfig.data) && !!authUser
+  const rewardsSummary = useRewardsSummary(rewardsOn)
 
   // Slot alerts shows while any are waiting (0047).
   const slotAlertCount = useSlotAlerts({ enabled: !!authUser }).data?.items.length ?? 0
@@ -379,6 +386,25 @@ export default function ProfilePage() {
           <ScCard className="flex items-center justify-between text-[13px] text-text-primary">
             Slot alerts
             <span className="font-numeric text-[12px] text-text-secondary">{slotAlertCount}</span>
+          </ScCard>
+        </Link>
+      )}
+
+      {/* Detlio Rewards (0050): the level badge and how far the Shine Card is. */}
+      {rewardsOn && (
+        <Link href="/profile/rewards">
+          <ScCard className="flex items-center justify-between gap-3 text-[13px] text-text-primary">
+            <span className="min-w-0">
+              Detlio Rewards
+              {rewardsSummary.data && (
+                <span className="block text-[12px] text-text-secondary">
+                  <Figures text={stampsToGoLine(rewardsSummary.data.card.toGo)} />
+                </span>
+              )}
+            </span>
+            {rewardsSummary.data && (
+              <LevelBadge level={rewardsSummary.data.level.level} label={rewardsSummary.data.level.label} />
+            )}
           </ScCard>
         </Link>
       )}
