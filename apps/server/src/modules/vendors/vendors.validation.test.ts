@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   createClosureSchema,
   createVendorSchema,
+  listPublicVendorsQuerySchema,
   updateJobTypesSchema,
   updateVendorSchema,
 } from './vendors.validation.js'
@@ -95,5 +96,19 @@ describe('pickup & drop on PATCH /vendors/me/job-types', () => {
 
   test('the profile save cannot set pickup any more: it is dropped', () => {
     expect(updateVendorSchema.parse({ bays: 2, pickup: 'yes' } as never)).toEqual({ bays: 2 })
+  })
+})
+
+describe('"Certified only" on GET /vendors', () => {
+  test('certified=true filters, false or absent does not, anything else is refused', () => {
+    expect(listPublicVendorsQuerySchema.parse({ certified: 'true' }).certified).toBe(true)
+    expect(listPublicVendorsQuerySchema.parse({ certified: 'false' }).certified).toBe(false)
+    expect(listPublicVendorsQuerySchema.parse({}).certified).toBeUndefined()
+    expect(listPublicVendorsQuerySchema.safeParse({ certified: '1' }).success).toBe(false)
+  })
+
+  test('it goes with sorting and paging', () => {
+    const query = listPublicVendorsQuerySchema.parse({ certified: 'true', sort: 'rating', limit: '10', cursor: 'abc' })
+    expect(query).toMatchObject({ certified: true, sort: 'rating', limit: 10, cursor: 'abc' })
   })
 })

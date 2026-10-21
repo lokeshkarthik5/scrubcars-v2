@@ -18,6 +18,61 @@ reconstructing every change in them.
 
 ### Added
 
+- **Detlio Certified garages: standards, quality checks, a seal and a
+  filter** (migration `0048_detlio_certified`, additive: new tables
+  `vendor_quality_checks` (IST date of the visit, `mystery_visit` /
+  `inspection`, checker's name, `pass` / `fail`, notes required on a fail,
+  who recorded it; CHECKs) and `vendor_certifications` (one row per garage:
+  certified at/by, revoked at/by/reason/kind `revoked` | `lapsed`, the last
+  evaluation's `eligible`, `eligibility` JSON snapshot and
+  `last_evaluated_at`, `ineligible_since`, `eligible_alerted_at`; CHECKs);
+  both cascade with the garage. Numbered 0048, after 0045–0047 from branches
+  built in parallel; migrations run 0045 → 0048 in order).
+  - Rules in `lib/certification.ts` (pure, unit-tested; thresholds in one
+    object, `CERTIFICATION_RULES`, twinned with
+    `packages/core/src/certification.ts` by a parity test). **Eligible**,
+    over the last 90 IST days with Test-marked bookings left out: documents
+    verified (0043); rating 4.5+ from 10+ reviews (all-time); 20+ completed
+    bookings; 90%+ of paid bookings with a deadline (0042) answered in time
+    (a miss is `response_missed_at` or an accept after `respond_by`;
+    declines are answers; none yet passes); complaints in damage /
+    service_quality / garage_no_show under 3% of completed (every status
+    counts: complaints have no "upheld" flag); no garage no-shows; photo
+    compliance 90%+ (0045's `lib/photo-compliance.ts` over its 90 days,
+    the figure admin's garage card shows: `photoComplianceByGarage` in
+    `modules/certification` reads the batch's jobs
+    (`certificationRepository.photoComplianceJobs`) and
+    `fromPhotoCompliance` turns the lib's whole percent into the rule's
+    rate; no job to grade passes). **Certified** = eligible
+    + the latest quality check of the last 6 months a pass + Certify
+    pressed.
+  - `modules/certification`: admin (super-admin) `GET
+    /admin/certification/vendors/:id` (standards measured now, checks,
+    why Certify is off), `POST …/checks`, `POST …/certify { actorName }`,
+    `POST …/revoke { actorName, reason }` (409 `VENDOR_IN_BIN`,
+    `ALREADY_CERTIFIED`, `CERTIFICATION_NOT_ELIGIBLE`,
+    `CERTIFICATION_NO_PASSING_CHECK`, `NOT_CERTIFIED`; 400
+    `CHECK_DATE_IN_FUTURE` / `CHECK_DATE_TOO_OLD`); audit rows
+    `garage_certified`, `garage_certification_revoked`,
+    `garage_certification_lapsed`. Garage (owner seat) `GET
+    /vendors/me/certification`: its own figures, never a checker or notes.
+    Every write under `pg_advisory_xact_lock('certification:<garage>')`.
+  - Nightly on the pending-digest cron (`certificationService.sweep`): each
+    garage on the app or certified, once per daily run from 05:00 IST, 20 a
+    run; a certified garage short (or whose check ran out or failed) for 14
+    IST days loses the seal on its own. Nothing runs while garage documents
+    are off. The digest summary gains `certification`.
+  - Telegram: `certification_eligible` (arrange a check),
+    `certification_at_risk` (first night short, with the last day it keeps
+    the seal), `certification_lost` (lapsed, or revoked by name with the
+    reason quoted).
+  - Customers: `certified: boolean` on `GET /vendors/:id` (public
+    allow-list) and on every card (`vendorCardsFor`); `GET
+    /vendors?certified=true` filters in SQL (`CERTIFIED_GARAGE`, twin
+    `isCertified`, pinned by the predicates test), so it holds across sort
+    and pages. `GET /admin/vendors` rows carry `certification` (from the
+    last evaluation). A tombstone deletes its checks and certification.
+
 - **"Notify me if a slot opens"** (migration `0047_slot_alerts`, additive:
   new table `slot_alerts` — customer, garage, IST date, `time_window`
   (`any`/`morning`/`afternoon`/`evening`, CHECK), booking type, the

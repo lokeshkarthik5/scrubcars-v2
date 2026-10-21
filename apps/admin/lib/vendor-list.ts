@@ -38,7 +38,20 @@ export const SHOW_LABELS: Record<ShowFilter, string> = {
  */
 export const REVIEW_FILTER = 'documents' as const
 export const REVIEW_LABEL = 'Documents to review'
-export type ListFilter = ShowFilter | typeof REVIEW_FILTER
+
+/**
+ * Detlio Certified (0048): two more chips that cut across the stages, after
+ * the documents one. "Certified": customers see the seal now. "Eligible,
+ * not yet certified": met every standard at its last evaluation (nightly,
+ * or the last Certify), so a quality check is the next thing to do. Neither
+ * holds a garage in the Bin.
+ */
+export const CERTIFIED_FILTER = 'certified' as const
+export const CERTIFIED_LABEL = 'Certified'
+export const ELIGIBLE_FILTER = 'eligible' as const
+export const ELIGIBLE_LABEL = 'Eligible, not yet certified'
+
+export type ListFilter = ShowFilter | typeof REVIEW_FILTER | typeof CERTIFIED_FILTER | typeof ELIGIBLE_FILTER
 
 /** What the list opens on: the garages customers can find. */
 export const DEFAULT_SHOW: ShowFilter = 'live'
@@ -46,6 +59,8 @@ export const DEFAULT_SHOW: ShowFilter = 'live'
 /** The chip a `?show=` asks for, or Live. An allow-list, like `?tab=`. */
 export function parseShow(value: string | null | undefined): ListFilter {
   if (value === REVIEW_FILTER) return REVIEW_FILTER
+  if (value === CERTIFIED_FILTER) return CERTIFIED_FILTER
+  if (value === ELIGIBLE_FILTER) return ELIGIBLE_FILTER
   return value && (SHOW_FILTERS as readonly string[]).includes(value)
     ? (value as ShowFilter)
     : DEFAULT_SHOW
@@ -57,7 +72,25 @@ export function listHref(show: ListFilter): string {
 }
 
 type ListedFields = Pick<AdminVendor, 'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'> &
-  Partial<Pick<AdminVendor, 'documents'>>
+  Partial<Pick<AdminVendor, 'documents' | 'certification'>>
+
+/** Detlio Certified now, and not in the Bin. */
+export function isCertifiedGarage(v: ListedFields): boolean {
+  return !isInBin(v) && v.certification?.certified === true
+}
+
+/** Met every standard at its last evaluation, not certified, not in the Bin. */
+export function isEligibleNotCertified(v: ListedFields): boolean {
+  return !isInBin(v) && v.certification?.certified !== true && v.certification?.eligible === true
+}
+
+/** How many garages the two certification chips hold. */
+export function certificationCounts(vendors: ListedFields[]): { certified: number; eligible: number } {
+  return {
+    certified: vendors.filter(isCertifiedGarage).length,
+    eligible: vendors.filter(isEligibleNotCertified).length,
+  }
+}
 
 /** Has documents waiting for Detlio, and is not in the Bin. */
 export function hasDocumentsToReview(v: ListedFields): boolean {
@@ -87,6 +120,8 @@ export function isLive(v: ListedFields): boolean {
 /** A garage in the Bin is under the Bin chip and no other. */
 export function matchesShow(v: ListedFields, show: ListFilter): boolean {
   if (show === REVIEW_FILTER) return hasDocumentsToReview(v)
+  if (show === CERTIFIED_FILTER) return isCertifiedGarage(v)
+  if (show === ELIGIBLE_FILTER) return isEligibleNotCertified(v)
   if (show === 'bin') return isInBin(v)
   if (isInBin(v)) return false
   if (show === 'all') return true
@@ -112,6 +147,12 @@ export function showHints(show: ListFilter): Array<{ term: string; meaning: stri
   switch (show) {
     case REVIEW_FILTER:
       return [{ term: REVIEW_LABEL, meaning: 'uploaded by the garage, waiting for Detlio to check them' }]
+    case CERTIFIED_FILTER:
+      return [{ term: 'Detlio Certified', meaning: 'customers see the seal; checked every night' }]
+    case ELIGIBLE_FILTER:
+      return [
+        { term: 'Eligible', meaning: 'met every standard last night; record a quality check, then Certify' },
+      ]
     case 'pending':
       return [{ term: 'Pending', meaning: 'added, not shown to customers yet' }]
     case 'suspended':
@@ -261,7 +302,7 @@ export function readinessSummary(items: ReadinessItem[]): ReadinessSummary {
  * Where a checklist row goes: the garage's edit page on the tab the item is
  * fixed on, with the list as it was (its chip) for the back arrow.
  */
-export function editHref(vendorId: string, back: string, tab?: ReadinessItem['tab']): string {
+export function editHref(vendorId: string, back: string, tab?: ReadinessItem['tab'] | 'certification'): string {
   const query = new URLSearchParams()
   if (tab) query.set('tab', tab)
   query.set('back', back)

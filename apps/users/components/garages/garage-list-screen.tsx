@@ -8,6 +8,7 @@ import {
   IconChevronDown,
   IconMap,
   IconMapPin,
+  IconRosetteDiscountCheckFilled,
   IconSearch,
 } from '@tabler/icons-react'
 import { CustomerShell } from '@/components/customer-shell'
@@ -37,6 +38,7 @@ import {
 } from '@repo/core/stores/location-store'
 import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
+import { CERTIFIED_FILTER_LABEL } from '@repo/core/certification'
 import { BOOKING_TYPES, parseBookingType } from '@repo/core/booking-types'
 import type { BookingType } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
@@ -60,6 +62,9 @@ function GarageListContent() {
     () => parseBookingType(searchParams.get('mode')) ?? 'dropin'
   )
   const [category, setCategory] = useState<CategoryKey>('all')
+  // "Certified only" (0048): a filter on the server, like the category, so
+  // it holds across sorting and every page.
+  const [certifiedOnly, setCertifiedOnly] = useState(false)
   // `null` means "the customer has not chosen", which is what lets the default
   // follow whether we know where they are. Derived rather than set from an
   // effect, so a location fix cannot race a tap on the sort sheet.
@@ -108,6 +113,7 @@ function GarageListContent() {
     {
       bookingType: serviceMode,
       category: category === 'all' ? undefined : category,
+      certified: certifiedOnly || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
       sort: origin ? sort : sort === 'distance' ? 'relevance' : sort,
@@ -220,6 +226,22 @@ function GarageListContent() {
       {/* py-2 -my-2: room inside the scroller for the chips' 44px touch
           areas, which it would otherwise clip at its edge. */}
       <div className="-mx-4 -my-2 flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* "Certified only" comes first, a switch rather than one of the
+            categories: on, it narrows whichever category is chosen. White
+            when on, like the chosen category. */}
+        <button
+          type="button"
+          aria-pressed={certifiedOnly}
+          onClick={() => setCertifiedOnly((on) => !on)}
+          className={cn(
+            'tap-target flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
+            certifiedOnly ? 'bg-brand-white text-brand-black' : 'bg-surface text-text-primary'
+          )}
+        >
+          <IconRosetteDiscountCheckFilled size={15} aria-hidden="true" className="shrink-0" />
+          {CERTIFIED_FILTER_LABEL}
+        </button>
+        <span aria-hidden="true" className="my-1.5 w-px shrink-0 bg-border" />
         {CATEGORIES.map((c) => (
           <button
             key={c.key}
@@ -319,7 +341,9 @@ function GarageListContent() {
             />
           ) : vendors.length === 0 ? (
             <p className="py-8 text-center text-[13px] text-text-secondary">
-              {serviceMode === 'pickup'
+              {certifiedOnly
+                ? 'No Detlio Certified garages here yet. Turn off “Certified only” to see every garage.'
+                : serviceMode === 'pickup'
                 ? 'No garages pick up near you yet — try At garage or Doorstep.'
                 : serviceMode === 'doorstep' && !citywide
                   ? 'No garages travel to your area yet.'

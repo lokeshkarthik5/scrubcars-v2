@@ -21,7 +21,7 @@ import { DEFAULT_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
 import { containsPattern } from '../../lib/search.js'
 import { DEFAULT_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 import type { BookingType } from '../../lib/booking-types.js'
-import { LISTED_TO_CUSTOMERS, PICKUP_OFFERED, vendorPageOpen } from './vendors.predicates.js'
+import { CERTIFIED_GARAGE, LISTED_TO_CUSTOMERS, PICKUP_OFFERED, vendorPageOpen } from './vendors.predicates.js'
 import type {
   serviceCategoryEnum,
   servicePricingTypeEnum,
@@ -127,6 +127,8 @@ export const vendorsRepository = {
     anyCategory?: ServiceCategory[]
     /** Garages left out by id (the one that did not accept in time). */
     excludeIds?: string[]
+    /** Only Detlio Certified garages (0048, CERTIFIED_GARAGE). */
+    certifiedOnly?: boolean
     q?: string
     sort: VendorSort
     /**
@@ -200,6 +202,8 @@ export const vendorsRepository = {
     if (params.excludeIds && params.excludeIds.length > 0) {
       conditions.push(sql`v.id NOT IN (${sql.join(params.excludeIds.map((id) => sql`${id}::uuid`), sql`, `)})`)
     }
+
+    if (params.certifiedOnly) conditions.push(CERTIFIED_GARAGE)
 
     if (bookingType === 'dropin') conditions.push(sql`v.dropin_enabled = true`)
 

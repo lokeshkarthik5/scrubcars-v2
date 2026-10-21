@@ -17,6 +17,7 @@ import { vendorEarningsRoutes } from '../payouts/payouts.routes.js'
 import { garageMediaRoutes } from '../service-media/service-media.routes.js'
 import { garageDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
 import { garagePushRoutes } from '../push/push.routes.js'
+import { garageCertificationRoutes } from '../certification/certification.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -150,6 +151,11 @@ vendorsRoutes.route('/me/documents', garageDocumentRoutes)
 // file (the people at the counter need them), every route but /config a 404
 // while VAPID is unset. Nested for the same reason as the team screen.
 vendorsRoutes.route('/me/push', garagePushRoutes)
+
+// Detlio Certified (0048): the garage's own standing against the standards,
+// owner seat only, in its own file. Nested for the same reason as the team
+// screen.
+vendorsRoutes.route('/me/certification', garageCertificationRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',
