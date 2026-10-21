@@ -12,6 +12,7 @@ import {
   IconMapPin,
   IconPercentage,
   IconPlus,
+  IconShieldCheck,
   IconShoppingCart,
   IconX,
 } from '@tabler/icons-react'
@@ -57,7 +58,7 @@ import {
   intentPollResult,
   realClock,
 } from '@repo/core/payment-confirmation'
-import { updateAddress } from '@repo/core/api/users'
+import { getAddresses, updateAddress } from '@repo/core/api/users'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorServices } from '@repo/core/api/services'
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
@@ -78,36 +79,49 @@ import { useNow } from '@repo/core/hooks/use-now'
 import {
   BOOKING_TYPE_LABELS,
   bookingTypeParam,
+  offeredBookingTypes,
   parseBookingType,
   resolveBookingType,
   noticeSentence,
 } from '@repo/core/booking-types'
+import {
+  PICKUP_RESPONSIBILITY_LINE,
+  insidePickupReach,
+  pickupFeeLabel,
+} from '@repo/core/pickup'
 import type { BookingType, Service, Vendor } from '@repo/core/types'
 import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
 
-const BOOKING_TYPE_OPTIONS = (['dropin', 'doorstep'] as const).map((value) => ({
-  value,
-  label: BOOKING_TYPE_LABELS[value],
-}))
-
 /**
  * What checkout can still be waiting on, in the order the page asks for it.
- * `address` and `pin` are doorstep-only; `unpriced` is a service the garage has
- * not priced for the chosen car, which only shows once a car is picked.
+ * `address` and `pin` are for doorstep and pickup & drop; `outside` is a
+ * pickup address the garage does not collect from; `unpriced` is a service
+ * the garage has not priced for the chosen car, which only shows once a car
+ * is picked.
  */
-type CheckoutStep = 'slot' | 'car' | 'address' | 'pin' | 'unpriced'
+type CheckoutStep = 'slot' | 'car' | 'address' | 'pin' | 'outside' | 'unpriced'
+
+/** "a doorstep visit", as the mode-withdrawn notice ends its sentence. */
+const BOOKED_AS: Record<BookingType, string> = {
+  dropin: 'at the garage',
+  doorstep: 'a doorstep visit',
+  pickup: 'pickup & drop',
+}
 
 function BookContent({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   // Comma-separated, in the order they were added on the garage page.
   const serviceIdsParam = searchParams.get('service')
-  // At garage or Doorstep, as chosen on home or the garage page. Absent means
-  // no choice was made, which checkout takes as At garage.
+  // At garage, Doorstep or Pickup & drop, as chosen on home or the garage
+  // page. Absent means no choice was made, which checkout takes as At garage.
   const modeParam = searchParams.get('mode')
+  // The saved address to open on, from Book again on a doorstep or pickup &
+  // drop booking. Used only if it is still one of the customer's addresses.
+  const addressParam = searchParams.get('address')
   // An offer code from Home: a garage's own offer rides in the link
   // (/garage/:id?code= passes it on); a Detlio-wide one, and the car picked
   // on Home, come from the pending-checkout store.
@@ -137,6 +151,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const [pickedAddress, setPickedAddress] = useState<string | null>(null)
   // Set while an address saved without a pin is being given one, inline.
   const [pinningAddress, setPinningAddress] = useState(false)
+  // Addresses the server said this garage does not collect from
+  // (OUTSIDE_PICKUP_RADIUS), whatever the early check below thought.
+  const [refusedAddressIds, setRefusedAddressIds] = useState<string[]>([])
   const [chosenType, setChosenType] = useState<BookingType | null>(() =>
     parseBookingType(modeParam)
   )
@@ -300,18 +317,26 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // is: the choice carried in from the garage page stands unless this garage
   // cannot do it, and there is no render where the toggle shows the wrong one.
   const bookingType = resolveBookingType(chosenType, vendor)
-  // The mode the link asked for, when this garage no longer offers it: Book
-  // again on a doorstep job at a garage that has since stopped travelling.
+  // The mode asked for, when this garage no longer offers it: Book again on
+  // a doorstep job at a garage that has since stopped travelling, or one that
+  // stopped collecting while the customer was here (PICKUP_NOT_OFFERED).
   // Checkout books the mode the garage does offer, and says so up top.
-  const modeWithdrawn = unofferedMode(parseBookingType(modeParam), vendor)
+  const modeWithdrawn = unofferedMode(chosenType, vendor)
+  // The switch, when the garage offers more than one mode.
+  const modeOptions = vendor
+    ? offeredBookingTypes(vendor).map((value) => ({ value, label: BOOKING_TYPE_LABELS[value] }))
+    : []
 
-  // Doorstep only. Unlike the car, the default *is* preselected: the customer
-  // chose it as "where I am" in their profile, so re-asking adds a step
-  // without adding a decision. Falls back to the only address when there is
-  // one and none is marked default.
-  const isDoorstep = bookingType === 'doorstep'
-  const selectedAddress = isDoorstep
+  // Doorstep and pickup & drop. Unlike the car, the default *is* preselected:
+  // the customer chose it as "where I am" in their profile, so re-asking adds
+  // a step without adding a decision. Book again's address comes first, then
+  // the default, then the only address when there is one.
+  const isPickup = bookingType === 'pickup'
+  const usesAddress = bookingType === 'doorstep' || isPickup
+  const linkedAddress = addresses.some((a) => a.id === addressParam) ? addressParam : null
+  const selectedAddress = usesAddress
     ? (pickedAddress ??
+      linkedAddress ??
       addresses.find((a) => a.isDefault)?.id ??
       (addresses.length === 1 ? addresses[0].id : null))
     : null
@@ -331,22 +356,42 @@ function BookContent({ vendorId }: { vendorId: string }) {
     (selectedAddressRecord.lat == null ||
       selectedAddressRecord.lng == null ||
       (selectedAddressRecord.lat === 0 && selectedAddressRecord.lng === 0))
+  // Pickup & drop: whether the garage collects from an address. The early
+  // check is straight-line km against the garage's pickup radius, so the
+  // customer hears it at the address step rather than after Pay; the server
+  // (OUTSIDE_PICKUP_RADIUS) has the last word, and an address it refused
+  // stays refused here.
+  const outsidePickup = (address: (typeof addresses)[number]) =>
+    isPickup &&
+    vendor != null &&
+    (refusedAddressIds.includes(address.id) ||
+      // 0,0 is no pin (see addressNeedsPin), not a point in the sea.
+      (!(address.lat === 0 && address.lng === 0) && insidePickupReach(vendor, address) === false))
+  const addressOutside = selectedAddressRecord != null && !addressNeedsPin && outsidePickup(selectedAddressRecord)
+  // The way forward when this garage cannot collect: another mode it offers.
+  const otherMode = vendor ? offeredBookingTypes(vendor).find((type) => type !== 'pickup') ?? null : null
+  const outsideAdvice = `This garage doesn't pick up from this address. Try another address${
+    otherMode ? ` or choose ${BOOKING_TYPE_LABELS[otherMode]}` : ''
+  }.`
   /**
-   * Why doorstep cannot be paid for yet, if it cannot.
+   * Why a doorstep or pickup & drop booking cannot be paid for yet, if it
+   * cannot.
    *
-   * Named rather than a boolean because the CTA has to say which of the two it
-   * is — the bottom bar is always on screen, so an unexplained dead button is
-   * the one outcome worse than no button at all. Same shape as
-   * `unpricedForVehicle` below, which already disables and explains.
+   * Named rather than a boolean because the CTA has to say which it is — the
+   * bottom bar is always on screen, so an unexplained dead button is the one
+   * outcome worse than no button at all. Same shape as `unpricedForVehicle`
+   * below, which already disables and explains.
    */
-  const doorstepBlocker: 'address' | 'pin' | null = !isDoorstep
+  const addressBlocker: 'address' | 'pin' | 'outside' | null = !usesAddress
     ? null
     : selectedAddress == null
       ? 'address'
       : addressNeedsPin
         ? 'pin'
-        : null
-  const doorstepReady = doorstepBlocker === null
+        : addressOutside
+          ? 'outside'
+          : null
+  const addressReady = addressBlocker === null
 
   // Identifies the exact cart a code was validated against. Removing a service
   // changes it, which retires the code — the total it was checked against no
@@ -399,7 +444,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     ? 'slot'
     : !selectedVehicle
       ? 'car'
-      : (doorstepBlocker ?? (unpricedForVehicle ? 'unpriced' : null))
+      : (addressBlocker ?? (unpricedForVehicle ? 'unpriced' : null))
 
   const stepLabels: Record<CheckoutStep, string> = {
     slot: 'Pick a time',
@@ -408,6 +453,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     car: vehicles.length === 0 ? 'Add your car' : 'Choose your car',
     address: addresses.length === 0 ? 'Add your address' : 'Choose an address',
     pin: 'Pin your address on the map',
+    outside: 'Choose another address',
     unpriced: 'Remove the unpriced service',
   }
 
@@ -421,6 +467,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
       car: carStepRef,
       address: addressStepRef,
       pin: pinStepRef,
+      outside: addressStepRef,
       unpriced: summaryStepRef,
     }[step].current
     if (!target) return
@@ -581,7 +628,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       ? promoError
       : ''
 
-  // An address saved without a pin is normal — only doorstep needs one. Rather
+  // An address saved without a pin is normal — only doorstep and pickup &
+  // drop need one. Rather
   // than sending the customer to their profile (which would lose the slot and
   // any applied code), the pin is dropped here and saved onto the address.
   const handlePinAddress = async (picked: PickedLocation) => {
@@ -607,7 +655,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const handleConfirm = async () => {
     if (paidRef.current || bookingLockRef.current || loading) return
     if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle) return
-    if (!doorstepReady) return
+    if (!addressReady) return
     bookingLockRef.current = true
     setLoading(true)
     try {
@@ -622,7 +670,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
         bookingType,
         vehicleId: selectedVehicle,
         paymentMethod: 'online',
-        // Only ever sent for doorstep; drop-in has nowhere to travel to.
+        // Only ever sent for doorstep and pickup & drop; drop-in has nowhere
+        // to travel to.
         addressId: selectedAddress ?? undefined,
         discountCode: appliedDiscount?.code,
       })
@@ -695,8 +744,47 @@ function BookContent({ vendorId }: { vendorId: string }) {
         // it, fetch fresh times, and take the customer back to choose again.
         setSelectedSlot(null)
         void queryClient.invalidateQueries({ queryKey: slotKeys.all })
-        toast.error(error.message)
+        toast.error(
+          error.code === 'SLOT_TOO_SOON' && isPickup
+            ? `That time is too soon now. ${noticeSentence('pickup')} Pick a later time.`
+            : error.message
+        )
         goToStep('slot')
+      } else if (error instanceof ApiError && error.code === 'PICKUP_NOT_OFFERED') {
+        // The garage switched pickup & drop off since this page loaded.
+        // Reloading it moves the switch to a mode it still offers, and the
+        // notice at the top says so; nothing was charged.
+        toast.error(
+          `This garage has stopped offering pickup & drop.${
+            otherMode ? ` You can book ${BOOKED_AS[otherMode]} instead, or pick another garage.` : ' Pick another garage.'
+          }`
+        )
+        void getVendor(vendorId).then((v) => v && setVendor(v))
+      } else if (error instanceof ApiError && error.code === 'OUTSIDE_PICKUP_RADIUS') {
+        if (selectedAddress) {
+          setRefusedAddressIds((current) => [...new Set([...current, selectedAddress])])
+        }
+        toast.error(outsideAdvice)
+        goToStep('address')
+      } else if (error instanceof ApiError && error.code === 'ADDRESS_REQUIRED') {
+        toast.error(
+          isPickup ? 'Choose the address we should collect your car from.' : 'Choose the address we should come to.'
+        )
+        goToStep('address')
+      } else if (error instanceof ApiError && error.code === 'ADDRESS_LOCATION_REQUIRED') {
+        // The saved copy here thought it had a pin. Fetch the addresses
+        // again, so the pin step shows for the one that has none.
+        toast.error(
+          isPickup
+            ? 'Pin your address on the map so the garage can find your car.'
+            : 'Pin your address on the map so the garage can find you.'
+        )
+        void getAddresses()
+          .then((fresh) => {
+            useUserStore.setState({ addresses: fresh })
+            requestAnimationFrame(() => goToStep('pin'))
+          })
+          .catch(() => undefined)
       } else if (!(error instanceof RazorpayReportedError) && error instanceof Error) {
         // Anything the sheet already reported — a dismissal, a declined card —
         // has been shown once already.
@@ -788,9 +876,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           tone="neutral"
           title={`${BOOKING_TYPE_LABELS[modeWithdrawn]} isn't offered here now`}
         >
-          {modeWithdrawn === 'doorstep'
-            ? 'This booking will be at the garage.'
-            : 'This booking will be a doorstep visit.'}
+          {`This booking will be ${BOOKED_AS[bookingType]}.`}
         </Notice>
       )}
 
@@ -834,14 +920,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </ScCard>
       )}
 
-      {vendor && vendor.dropinEnabled && vendor.doorstepEnabled && (
+      {modeOptions.length > 1 && (
         <section>
           <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Service type</h2>
+          {/* Two or three choices; "Pickup & drop" fits a third of a 360px
+              phone without its label wrapping. */}
           <ScToggle
-            options={BOOKING_TYPE_OPTIONS}
+            options={modeOptions}
             value={bookingType}
             onChange={setChosenType}
+            className="whitespace-nowrap"
           />
+          {isPickup && (
+            <p className="mt-2 text-[12px] leading-relaxed text-text-secondary">
+              {vendor?.name ?? 'The garage'} collects your car from your address, works on it at
+              the garage and brings it back.
+            </p>
+          )}
         </section>
       )}
 
@@ -926,25 +1021,33 @@ function BookContent({ vendorId }: { vendorId: string }) {
         </Reveal>
       )}
 
-      {/* Doorstep only: the garage has to be told where to come, and the
-          address is picked from the customer's saved ones so the server can
-          check it against the garage's travel radius. */}
-      {selectedSlot && isDoorstep && (
+      {/* Doorstep and pickup & drop: the garage has to be told where to come
+          (or collect the car from), and the address is picked from the
+          customer's saved ones so the server can check it against the
+          garage's travel or pickup radius. */}
+      {selectedSlot && usesAddress && (
         <Reveal as="section">
           <h2
             ref={addressStepRef}
             tabIndex={-1}
             className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
           >
-            Where should we come?
+            {isPickup ? 'Where should we collect your car?' : 'Where should we come?'}
           </h2>
+          {isPickup && addresses.length > 0 && (
+            <p className="-mt-1 mb-2 text-[12px] text-text-secondary">
+              The garage brings your car back to the same address.
+            </p>
+          )}
           {addresses.length === 0 ? (
             <ScCard className="flex flex-col items-start gap-2 border-warning bg-warning-muted/20">
               <p className="text-[13px] font-medium text-text-primary">
                 Add an address to continue
               </p>
               <p className="text-[12px] text-text-secondary">
-                Doorstep service needs somewhere to go.
+                {isPickup
+                  ? 'Pickup & drop needs the address your car is collected from.'
+                  : 'Doorstep service needs somewhere to go.'}
               </p>
               {/* In place, as with cars: sign-up no longer asks for an
                   address, so this is where a new customer gives one, and a
@@ -981,10 +1084,38 @@ function BookContent({ vendorId }: { vendorId: string }) {
                       <span className="block truncate text-[11px] text-text-secondary">
                         {a.address}
                       </span>
+                      {/* Said on every address it applies to, so the customer
+                          can see which of theirs would work before tapping. */}
+                      {outsidePickup(a) && (
+                        <span className="mt-0.5 block text-[11px] text-error">
+                          Outside this garage&apos;s pickup area
+                        </span>
+                      )}
                     </span>
                   </ScCard>
                 </button>
               ))}
+
+              {addressOutside && (
+                <ScCard role="status" className="flex flex-col gap-2 border-warning bg-warning-muted/20">
+                  <p className="text-[13px] font-medium text-text-primary">
+                    This garage doesn&apos;t pick up from this address
+                  </p>
+                  <p className="text-[12px] text-text-secondary">
+                    Try another address{otherMode ? `, or book ${BOOKED_AS[otherMode]} instead` : ''}.
+                  </p>
+                  {otherMode && (
+                    <ScButton
+                      fullWidth={false}
+                      variant="secondary"
+                      onClick={() => setChosenType(otherMode)}
+                      className="mt-1 self-start px-3 py-1.5 text-[12px]"
+                    >
+                      Choose {BOOKING_TYPE_LABELS[otherMode]}
+                    </ScButton>
+                  )}
+                </ScCard>
+              )}
 
               {addressNeedsPin && (
                 <ScCard className="flex flex-col gap-2 border-warning bg-warning-muted/20">
@@ -996,7 +1127,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
                     Pin the exact spot
                   </p>
                   <p className="text-[12px] text-text-secondary">
-                    We need it to check this garage travels to you.
+                    {isPickup
+                      ? 'We need it to check this garage collects from you, and so the driver finds your car.'
+                      : 'We need it to check this garage travels to you.'}
                     {pinningAddress ? ' Saving...' : ''}
                   </p>
                   <LocationPicker showSearch onChange={handlePinAddress} />
@@ -1020,7 +1153,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
           the saving reads as a strike-through on the line it applies to
           instead of its own subtotal/discount block. With a single service
           that says the same thing in two rows fewer. */}
-      {selectedServices.length > 0 && selectedSlot && selectedVehicle && doorstepReady && (
+      {selectedServices.length > 0 && selectedSlot && selectedVehicle && addressReady && (
         <Reveal as="section" className="flex flex-col gap-4">
           <ScCard className="py-3.5">
             {appliedDiscount ? (
@@ -1156,6 +1289,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 </div>
               ))}
 
+              {/* Pickup & drop's own line: free for now (owner decision), and
+                  where a fee would show once one is set (bookingTypeFee on
+                  the server). With the address, so the customer checks it
+                  once more before paying. */}
+              {isPickup && (
+                <div className="flex items-start justify-between gap-3 text-[13px]">
+                  <span className="min-w-0 text-text-secondary">
+                    <span className="block">Pickup &amp; drop</span>
+                    {selectedAddressRecord && (
+                      <span className="block truncate text-[11px] text-text-muted">
+                        From and back to {selectedAddressRecord.address}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 font-medium text-success">{pickupFeeLabel(0)}</span>
+                </div>
+              )}
+
               {/* The subtotal only earns its row once there is more than one
                   line to add up. */}
               {selectedServices.length > 1 && (
@@ -1193,6 +1344,15 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </div>
             </ScCard>
 
+            {/* Before paying, on purpose (owner decision): who has the car
+                while it is away. */}
+            {isPickup && (
+              <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-text-primary">
+                <IconShieldCheck size={15} className="mt-px shrink-0 text-text-secondary" aria-hidden="true" />
+                <span>{PICKUP_RESPONSIBILITY_LINE}</span>
+              </p>
+            )}
+
             {/* An inspection fee is not the whole price, and the customer
                 should know before paying how the rest is charged: the garage
                 raises the final bill after the work and it is paid in the
@@ -1221,6 +1381,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
               to 2 times; each new time goes back to the garage to accept, and
               if it can&apos;t take it, the booking is cancelled. If you
               don&apos;t turn up for an accepted booking, it isn&apos;t refunded.
+              {isPickup &&
+                ' Once the garage has collected your car, the booking can’t be cancelled or moved in the app.'}
             </p>
           </div>
         </Reveal>
@@ -1240,6 +1402,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         open={addAddressOpen}
         onClose={() => setAddAddressOpen(false)}
         onAdded={(address) => setPickedAddress(address.id)}
+        pickup={isPickup}
       />
 
       <ScSheet
@@ -1390,11 +1553,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
             >
               {nextStep === 'address'
                 ? addresses.length === 0
-                  ? 'Add the address we should come to.'
-                  : 'Pick the address we should come to.'
+                  ? isPickup
+                    ? 'Add the address we should collect your car from.'
+                    : 'Add the address we should come to.'
+                  : isPickup
+                    ? 'Pick the address we should collect your car from.'
+                    : 'Pick the address we should come to.'
                 : nextStep === 'pin'
-                  ? 'We need the exact spot to check this garage travels to you.'
-                  : nextStep === 'unpriced'
+                  ? isPickup
+                    ? 'We need the exact spot to check this garage collects from you.'
+                    : 'We need the exact spot to check this garage travels to you.'
+                  : nextStep === 'outside'
+                    ? outsideAdvice
+                    : nextStep === 'unpriced'
                     ? `${unpricedLines
                         .map((line) => line.service.name)
                         .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`

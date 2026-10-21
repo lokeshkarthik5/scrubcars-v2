@@ -16,7 +16,10 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { formatBookingAmount } from '@repo/core/pricing'
-import { bookAgainPath } from '@repo/core/book-again'
+import { bookAgainPath, matchSavedAddress } from '@repo/core/book-again'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
+import { PICKUP_STAGE_NOW, pickupStageOf } from '@repo/core/pickup'
+import { useUserStore } from '@repo/core/stores/user-store'
 import {
   DEFAULT_BOOKING_LIST_TAB,
   parseBookingListTab,
@@ -24,7 +27,30 @@ import {
   type BookingListTab,
 } from '@repo/core/my-bookings'
 import { cn } from '@repo/core/utils'
-import type { Booking } from '@repo/core/types'
+import type { Address, Booking } from '@repo/core/types'
+
+/**
+ * "Pickup & drop · Car collected": a pickup job's card says the mode, and
+ * where the car is while it is away. Null for the other modes, whose cards
+ * are unchanged.
+ */
+function pickupLine(booking: Booking): string | null {
+  if (booking.bookingType !== 'pickup') return null
+  const live = ['pending', 'confirmed', 'in_progress'].includes(booking.status)
+  const stage = live
+    ? pickupStageOf({
+        status: booking.status,
+        pickedUpAt: booking.pickup?.pickedUpAtIso,
+        atGarageAt: booking.pickup?.atGarageAtIso,
+        startedAt: booking.startedAtIso,
+        outForDeliveryAt: booking.pickup?.outForDeliveryAtIso,
+        deliveredAt: booking.pickup?.deliveredAtIso,
+      })
+    : 'booked'
+  return stage === 'booked'
+    ? BOOKING_TYPE_LABELS.pickup
+    : `${BOOKING_TYPE_LABELS.pickup} · ${PICKUP_STAGE_NOW[stage]}`
+}
 
 /**
  * The card's own link, stretched over the whole card by its ::after (the card
@@ -40,9 +66,19 @@ const CARD_LINK = cn(
   'focus-visible:after:ring-2 focus-visible:after:ring-text-primary/70'
 )
 
-function BookingCard({ booking, tab }: { booking: Booking; tab: BookingListTab }) {
+function BookingCard({
+  booking,
+  tab,
+  addresses,
+}: {
+  booking: Booking
+  tab: BookingListTab
+  /** For Book again's address on a doorstep or pickup & drop booking. */
+  addresses: Address[]
+}) {
   const badge = customerBookingStatusBadge(booking.status)
   const refunded = booking.status === 'cancelled' && booking.refund.status === 'refunded'
+  const pickup = pickupLine(booking)
 
   return (
     <ScCard className="press relative flex flex-col gap-2">
@@ -60,6 +96,7 @@ function BookingCard({ booking, tab }: { booking: Booking; tab: BookingListTab }
             </Link>
           </p>
           <p className="text-[11px] text-text-secondary">{booking.vendorName}</p>
+          {pickup && <p className="text-[11px] text-text-secondary">{pickup}</p>}
         </div>
         <span className="flex shrink-0 items-center gap-1.5">
           {/* Said on the list too, so a customer checking on their money
@@ -94,7 +131,7 @@ function BookingCard({ booking, tab }: { booking: Booking; tab: BookingListTab }
       {tab === 'past' && (
         <div className="-mb-2 flex justify-end border-t border-border pt-0.5">
           <Link
-            href={bookAgainPath(booking)}
+            href={bookAgainPath(booking, matchSavedAddress(booking, addresses))}
             aria-label={`Book again: ${booking.serviceSummary} at ${booking.vendorName}`}
             className="relative z-10 -mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2 text-[12px] font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
           >
@@ -115,12 +152,22 @@ function BookingsContent() {
   const user = useAuthStore((s) => s.user)
   const customerBookings = useBookingsStore((s) => s.customerBookings)
   const fetchCustomerBookings = useBookingsStore((s) => s.fetchCustomerBookings)
+  const addresses = useUserStore((s) => s.addresses)
+  const fetchAddresses = useUserStore((s) => s.fetchAddresses)
   // Whether this visit has an answer yet. Until it does, an empty list means
   // "not loaded", and saying "No upcoming bookings" would be a guess.
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   // Bumped by Retry to fetch again.
   const [attempt, setAttempt] = useState(0)
+
+  // Book again on a past doorstep or pickup & drop booking opens on the
+  // address it went to, so the saved ones are read once there is one.
+  const needsAddresses =
+    addresses.length === 0 && customerBookings.some((b) => b.bookingType !== 'dropin')
+  useEffect(() => {
+    if (user && needsAddresses) void fetchAddresses().catch(() => undefined)
+  }, [user, needsAddresses, fetchAddresses])
 
   useEffect(() => {
     if (!user) return
@@ -202,7 +249,7 @@ function BookingsContent() {
       <div className="flex flex-col gap-2">
         {list.map((booking, i) => (
           <Reveal key={booking.id} index={i}>
-            <BookingCard booking={booking} tab={which} />
+            <BookingCard booking={booking} tab={which} addresses={addresses} />
           </Reveal>
         ))}
       </div>

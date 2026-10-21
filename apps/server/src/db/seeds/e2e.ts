@@ -61,6 +61,8 @@ import {
   NOTICES,
   ORIGIN,
   OTP_LIMITED_CUSTOMER,
+  PICKUP_HOME,
+  PICKUP_PIN,
   REVIEWS,
   SERVICES,
   STAFF,
@@ -1706,6 +1708,48 @@ async function seedComplaintRows() {
     payment: { status: 'paid', txnId: 'pay_e2e_complaint_done', paidAt: daysAgo(3), gatewayMode: 'fake' } })
 }
 
+// ─── pickup & drop ──────────────────────────────────────────────────────────
+
+/**
+ * Pickup & drop (0037): VENDORS.pickup, on with the responsibility terms on
+ * file (pickup 'yes' alone is not on), collecting within 8 km of PICKUP_PIN;
+ * and CUSTOMERS.pickup, whose one car and pinned default address
+ * (ADDRESSES.pickupHome, ~1.7 km away) are what a pickup booking needs.
+ * After the people it names, like every garage seeded on its own.
+ */
+async function seedPickupRows() {
+  const garage = VENDORS.pickup.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.pickupOwner.id, businessName: VENDORS.pickup.name,
+    phone: '9000004800', address: '1, Pickup Road, Kelambakkam', city: 'Chennai', pincode: '603103',
+    lat: PICKUP_PIN.lat, lng: PICKUP_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    pickup: 'yes', pickupRadiusKm: 8,
+    pickupTermsAcceptedAt: daysAgo(1), pickupTermsAcceptedBy: 'admin: E2E seed',
+    slotIntervalMins: 30, status: 'active', bays: 5,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.pickupOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.pickupWash.id, vendorId: garage, name: SERVICES.pickupWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.pickupWash.price, durationMins: SERVICES.pickupWash.durationMins, isActive: true,
+  })
+
+  await db.insert(userVehicles).values({
+    id: CUSTOMERS.pickup.vehicleId, userId: CUSTOMERS.pickup.id, make: 'Tata', model: 'Altroz',
+    color: 'Black', licensePlate: 'TN24PD0001', vehicleType: 'hatchback', isDefault: true,
+  })
+  await db.insert(userAddresses).values({
+    id: ADDRESSES.pickupHome, userId: CUSTOMERS.pickup.id, label: PICKUP_HOME.label,
+    address: PICKUP_HOME.address, city: 'Chennai',
+    lat: PICKUP_HOME.lat, lng: PICKUP_HOME.lng, geoSource: 'map_pin', isDefault: true,
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -1737,6 +1781,8 @@ async function main() {
   await seedGarageBinRows()
   console.log('[e2e-seed] complaints…')
   await seedComplaintRows()
+  console.log('[e2e-seed] pickup & drop…')
+  await seedPickupRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

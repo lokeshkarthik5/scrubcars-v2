@@ -1,4 +1,5 @@
 import type { BookingType } from '@repo/core/types'
+import type { PickupStage } from '@repo/core/pickup'
 import { apiClient } from './client'
 
 /**
@@ -82,6 +83,11 @@ export type HomeRightTile =
       vehicleId: string
       /** A team notice about this booking, shown as one short line. */
       notice: HomeTileNotice | null
+      /**
+       * Pickup & drop only: the latest handover step reached. Null on other
+       * types; absent from servers older than it.
+       */
+      pickupStage?: PickupStage | null
     }
   | { kind: 'photos'; bookingId: string; before: number; after: number; vendorName: string; at: string }
   | {
@@ -163,6 +169,9 @@ export type UpdateKind =
   | 'refunded'
   | 'moved'
   | 'garage_paused'
+  | 'picked_up'
+  | 'at_garage'
+  | 'out_for_delivery'
 
 /** One row of Updates (lib/home-updates.ts UpdateItem). */
 export interface UpdateItem {

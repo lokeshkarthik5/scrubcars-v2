@@ -31,6 +31,31 @@ reconstructing every change in them.
   working days." When part had already gone back before it, that comes
   first: "Refunded ₹Y so far. A further refund of ₹X started on <date>. …"
 
+- **Pickup & drop, part 2 of 2 (customer app).** The garage list, the map
+  and a garage's page have a third mode, "Pickup & drop" (the 3-way switch
+  drops its icons below 400px wide so it fits a 360px phone), offered on a
+  garage's page only when that garage collects; an empty list says "No
+  garages pick up near you yet — try At garage or Doorstep." `?mode=pickup`
+  is now carried from Home, the list, the map and the garage page into
+  checkout. Checkout asks "Where should we collect your car?" from the
+  saved addresses (add one or pin one in place, as for doorstep), marks an
+  address outside the garage's pickup area and offers its other mode, and
+  takes the 3 hours' notice; the summary has "Pickup & drop · Free" with
+  the address and "The garage is responsible for your car from pickup
+  until it's returned." before Pay. Each refusal at Pay has its own line
+  and next step (garage stopped collecting, address needed, pin needed,
+  outside the area, too soon). The booking page shows "Collected from and
+  returned to" with the address, a timeline Booked → Picked up → At garage
+  → Being worked on → Out for delivery → Delivered with times, and a code
+  card: "Give this code to the garage when they collect your car:" with
+  the pickup code, then the delivery code until the car is back. Once the
+  car is collected, Reschedule and Cancel give way to "Your car is with the
+  garage" and Get help. Home's Next booking tile names the step ("Car
+  collected", "On its way back"); Updates has "<garage> collected your
+  car", "Your car is at <garage>", "Your car is on its way back" and "Your
+  car is back". My bookings shows "Pickup & drop · <step>"; Book again (and
+  doorstep's) keeps the mode and opens on the same saved address.
+
 - **Pickup & drop, part 1 of 2 (garage portal and admin).** Garage
   portal: Settings → Hours has a Pickup & drop switch; turning it on asks
   for the distance (empty is 10 km from the pin) and the owner's tick "We

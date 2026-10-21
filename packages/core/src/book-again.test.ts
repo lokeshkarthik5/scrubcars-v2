@@ -3,6 +3,7 @@ import {
   bookAgainPath,
   bookAgainPathFor,
   canBookAgain,
+  matchSavedAddress,
   pickRequestedServices,
   unofferedMode,
   withdrawnPathFor,
@@ -74,6 +75,69 @@ describe('bookAgainPathFor', () => {
     expect(bookAgainPathFor({ vendorId: GARAGE, bookingType: 'dropin', serviceIds: [] })).toBe(
       `/garage/${GARAGE}`
     )
+  })
+})
+
+describe('pickup & drop', () => {
+  test('Book again keeps the mode and the address', () => {
+    expect(
+      bookAgainPath({ vendorId: GARAGE, bookingType: 'pickup', items: [item('s1')] }, 'addr-1')
+    ).toBe(`/book/${GARAGE}?service=s1&mode=pickup&address=addr-1`)
+    expect(withdrawnPathFor({ vendorId: GARAGE, bookingType: 'pickup' })).toBe(
+      `/garage/${GARAGE}?withdrawn=1&mode=pickup`
+    )
+  })
+
+  test('without a saved address to match, checkout picks the default', () => {
+    expect(
+      bookAgainPath({ vendorId: GARAGE, bookingType: 'pickup', items: [item('s1')] }, null)
+    ).toBe(`/book/${GARAGE}?service=s1&mode=pickup`)
+  })
+
+  test('an at-garage booking never carries an address', () => {
+    expect(
+      bookAgainPath({ vendorId: GARAGE, bookingType: 'dropin', items: [item('s1')] }, 'addr-1')
+    ).toBe(`/book/${GARAGE}?service=s1`)
+  })
+
+  test('a garage that stopped collecting is said like one that stopped travelling', () => {
+    expect(unofferedMode('pickup', { dropinEnabled: true, doorstepEnabled: false, pickupEnabled: false })).toBe(
+      'pickup'
+    )
+    expect(unofferedMode('pickup', { dropinEnabled: true, doorstepEnabled: false })).toBe('pickup')
+    expect(unofferedMode('pickup', { dropinEnabled: true, doorstepEnabled: false, pickupEnabled: true })).toBeNull()
+  })
+})
+
+describe('matchSavedAddress', () => {
+  const saved = [
+    { id: 'home', address: '14, Gandhi Nagar, Adyar', lat: 13.0012, lng: 80.2565 },
+    { id: 'office', address: 'Tidel Park, Taramani', lat: null, lng: null },
+  ]
+
+  test('by the pin the booking snapshotted', () => {
+    expect(
+      matchSavedAddress(
+        { bookingType: 'pickup', jobLocation: { address: 'renamed since', lat: 13.0012, lng: 80.2565 } },
+        saved
+      )
+    ).toBe('home')
+  })
+
+  test('by the text when the pin moved', () => {
+    expect(
+      matchSavedAddress(
+        { bookingType: 'doorstep', jobLocation: { address: ' tidel park, taramani', lat: 12.9, lng: 80.2 } },
+        saved
+      )
+    ).toBe('office')
+  })
+
+  test('none when the address is gone, and never for at the garage', () => {
+    expect(
+      matchSavedAddress({ bookingType: 'pickup', jobLocation: { address: 'Elsewhere', lat: 1, lng: 1 } }, saved)
+    ).toBeNull()
+    expect(matchSavedAddress({ bookingType: 'dropin', jobLocation: undefined }, saved)).toBeNull()
   })
 })
 

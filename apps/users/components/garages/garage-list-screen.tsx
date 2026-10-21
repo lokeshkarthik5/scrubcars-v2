@@ -5,15 +5,13 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconArrowsSort,
-  IconBuildingStore,
   IconChevronDown,
-  IconHome,
   IconMap,
   IconMapPin,
   IconSearch,
 } from '@tabler/icons-react'
 import { CustomerShell } from '@/components/customer-shell'
-import { ScSegmented } from '@repo/ui/sc/segmented'
+import { ModeSwitch } from '@/components/mode-switch'
 import {
   SortSheet,
   canSortByRating,
@@ -36,10 +34,11 @@ import {
 } from '@repo/core/stores/location-store'
 import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
-import { BOOKING_TYPE_LABELS, parseBookingType } from '@repo/core/booking-types'
+import { BOOKING_TYPES, parseBookingType } from '@repo/core/booking-types'
+import type { BookingType } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 
-type ServiceMode = 'dropin' | 'doorstep'
+type ServiceMode = BookingType
 
 const CATEGORIES = CATEGORY_FILTERS
 
@@ -53,7 +52,7 @@ function GarageListContent() {
   const fetchProfile = useUserStore((s) => s.fetchProfile)
 
   // Opens on the mode a link asked for (Home's Book a wash for a car last
-  // done at the door), and At garage otherwise.
+  // done at the door, or picked up), and At garage otherwise.
   const [serviceMode, setServiceMode] = useState<ServiceMode>(
     () => parseBookingType(searchParams.get('mode')) ?? 'dropin'
   )
@@ -192,23 +191,7 @@ function GarageListContent() {
         onDismiss={() => setToastDismissed(true)}
       />
 
-      <ScSegmented
-        aria-label="Service mode"
-        value={serviceMode}
-        onChange={setServiceMode}
-        options={[
-          {
-            value: 'dropin',
-            label: BOOKING_TYPE_LABELS.dropin,
-            icon: <IconBuildingStore size={15} />,
-          },
-          {
-            value: 'doorstep',
-            label: BOOKING_TYPE_LABELS.doorstep,
-            icon: <IconHome size={15} />,
-          },
-        ]}
-      />
+      <ModeSwitch modes={BOOKING_TYPES} value={serviceMode} onChange={setServiceMode} />
 
       <button
         type="button"
@@ -270,6 +253,16 @@ function GarageListContent() {
           </div>
         </div>
 
+        {/* Pickup & drop is bounded by each garage's own reach from where the
+            car is. Without a location the list cannot know that, so it says
+            checkout will. */}
+        {serviceMode === 'pickup' && !origin && vendors.length > 0 && (
+          <p className="text-[11px] text-text-muted">
+            Set your location to see only garages that collect from your area. Checkout checks your
+            address either way.
+          </p>
+        )}
+
         {/* How far the list reaches, said once above it. Without it a 45 km
             garage high on a "Top Rated" list reads as a nearby one; and a list
             of only unpinned garages needs to say none is within reach. */}
@@ -312,16 +305,18 @@ function GarageListContent() {
             />
           ) : vendors.length === 0 ? (
             <p className="py-8 text-center text-[13px] text-text-secondary">
-              {serviceMode === 'doorstep' && !citywide
-                ? 'No garages travel to your area yet.'
-                : origin && radiusKm !== null
-                  ? (
-                    <>
-                      No garages within <span className="font-numeric">{radiusKm}</span> km of
-                      you yet.
-                    </>
-                  )
-                  : 'No garages found.'}
+              {serviceMode === 'pickup'
+                ? 'No garages pick up near you yet — try At garage or Doorstep.'
+                : serviceMode === 'doorstep' && !citywide
+                  ? 'No garages travel to your area yet.'
+                  : origin && radiusKm !== null
+                    ? (
+                      <>
+                        No garages within <span className="font-numeric">{radiusKm}</span> km of
+                        you yet.
+                      </>
+                    )
+                    : 'No garages found.'}
             </p>
           ) : (
             <>

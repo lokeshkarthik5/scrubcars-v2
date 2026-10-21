@@ -288,11 +288,19 @@ export const CUSTOMERS = {
   binBrowse: { id: id(156), phone: '9000000056', name: 'Bin Browse Bala', vehicleId: id(765) },
   /**
    * Raises a complaint about BOOKINGS.complaintDone (a finished job at MAIN)
+  /**
    * in the complaint journey, and is refused one about someone else's
    * booking. Its own customer, so the per-customer limits and My
    * complaints hold only this spec's complaints.
    */
   complaints: { id: id(157), phone: '9000000057', name: 'Complaint Kavitha', vehicleId: id(766) },
+  /**
+   * Books pickup & drop at VENDORS.pickup (specs/users/booking-pickup.spec.ts).
+   * One car and one pinned default address (ADDRESSES.pickupHome, at
+   * PICKUP_HOME), inside that garage's 8 km pickup radius. No seeded
+   * bookings, so the one the spec makes is the customer's only one.
+   */
+  pickup: { id: id(178), phone: '9000000078', name: 'Pickup Padma', vehicleId: id(787) },
   /**
    * Customers whose *session* is the thing under test.
    *
@@ -362,6 +370,8 @@ export const STAFF = {
   binOwner: { id: id(209), phone: '9000001010', name: 'Bin Owner Bhuvana' },
   /** vendor_operator on VENDORS.binTeam alone: no company at all while it is in the Bin. */
   binOperator: { id: id(210), phone: '9000001011', name: 'Bin Operator Oscar' },
+  /** Owns VENDORS.pickup only, so a pickup job's garage session has one company. */
+  pickupOwner: { id: id(228), phone: '9000001028', name: 'Pickup Owner Prabhu' },
 } as const
 
 export const VENDORS = {
@@ -445,6 +455,7 @@ export const VENDORS = {
    * The garage editor's own spec (specs/admin/garage-editor.spec.ts): how
    * customers book, the save bar, ?tab=, templates and Write with AI. At the
    * garage only, no radius; a "Foam wash" (so that template is not offered)
+  /**
    * and a service with no description for the AI to fill. Pending and
    * unpinned, so no customer sees it; nobody books it.
    */
@@ -490,6 +501,28 @@ export const VENDORS = {
   binHard: { id: id(343), name: 'Bin Hard Delete Garage' },
   /** Seeded in the Bin with a live-money booking: Delete forever keeps a tombstone. */
   binTomb: { id: id(344), name: 'Bin Tombstone Garage' },
+  /**
+   * Pickup & drop (0037): at the garage and pickup, on with the responsibility
+   * terms on file, collecting within 8 km of its pin (PICKUP_PIN). Live, open
+   * 06:00–22:00 every day, one service (SERVICES.pickupWash). Far south-west
+   * like the other single-purpose garages, so it never comes between MAIN and
+   * the fillers in a sort, and no customer at ORIGIN is within its reach.
+   * Booked only by CUSTOMERS.pickup.
+   */
+  pickup: { id: id(358), name: 'Pickup Drop Test Garage' },
+} as const
+
+/**
+ * Where VENDORS.pickup is, and CUSTOMERS.pickup's saved address ~1.7 km north
+ * of it. Exact in binary (multiples of 1/64), like DOORSTEP_JOB_PIN, so the
+ * float4 snapshot on bookings hands them back unchanged.
+ */
+export const PICKUP_PIN = { lat: 12.25, lng: 80.125 } as const
+export const PICKUP_HOME = {
+  label: 'Home',
+  address: '7, Pickup Lane, Kelambakkam',
+  lat: 12.265625,
+  lng: 80.125,
 } as const
 
 /** Where VENDORS.homePromo is, and where "near it" is asked from. */
@@ -586,6 +619,8 @@ export const SERVICES = {
   binHardWash: { id: id(433), name: 'Bin Gone Wash', price: '499.00', durationMins: 30 },
   binHardPackage: { id: id(434), name: 'Bin Gone Combo', price: '899.00', durationMins: 60 },
   binTombWash: { id: id(435), name: 'Bin Kept Wash', price: '499.00', durationMins: 30 },
+  /** On PICKUP: its one service, at a price no other garage charges. */
+  pickupWash: { id: id(456), name: 'Pickup Shine Wash', price: '549.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -867,6 +902,8 @@ export const ADDRESSES = {
   /** Saved with no lat/lng. Doorstep checkout must prompt for a pin rather
    *  than letting the booking fail the server's coverage check. */
   doorstepUnpinned: id(902),
+  /** CUSTOMERS.pickup's default, pinned at PICKUP_HOME: inside VENDORS.pickup's reach. */
+  pickupHome: id(903),
   /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_COVERED: inside the default 10 km. */
   reachCovered: id(913),
   /** CUSTOMERS.doorstepReach's, at UNSET_RADIUS_OUTSIDE: outside it. */

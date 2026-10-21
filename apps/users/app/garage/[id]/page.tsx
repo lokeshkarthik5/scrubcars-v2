@@ -10,7 +10,6 @@ import {
   IconBuildingStore,
   IconCheck,
   IconClock,
-  IconHome,
   IconMapPin,
   IconPlus,
   IconSearch,
@@ -21,7 +20,6 @@ import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
-import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
@@ -32,8 +30,8 @@ import { useGarage } from '@repo/core/api/hooks/use-vendors'
 import { categoryLabel } from '@repo/core/categories'
 import { outsideCityLine } from '@repo/core/service-city'
 import {
-  BOOKING_TYPE_LABELS,
   bookingTypeParam,
+  offeredBookingTypes,
   parseBookingType,
   resolveBookingType,
 } from '@repo/core/booking-types'
@@ -57,6 +55,7 @@ import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration } from '@repo/core/utils'
 import { OpenStatus } from '@/components/open-status'
 import { MainAction } from '@/components/main-action'
+import { ModeSwitch } from '@/components/mode-switch'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { ServiceMediaArea } from '@/components/service-media/service-media-area'
 import { ServiceThumb } from '@/components/service-media/service-thumb'
@@ -178,8 +177,9 @@ export default function GaragePage({
   const packages = garage.data?.packages ?? NO_PACKAGES
   const [reviews, setReviews] = useState<Review[]>([])
   const [tab, setTab] = useState<Tab>('services')
-  // The At garage / Doorstep choice, as made on home or here. Null until one
-  // is made; `mode` below is what the garage can actually do with it.
+  // The At garage / Doorstep / Pickup & drop choice, as made on home or here.
+  // Null until one is made; `mode` below is what the garage can actually do
+  // with it (Pickup & drop only where the garage offers it).
   const [chosenMode, setChosenMode] = useState<BookingType | null>(() =>
     parseBookingType(modeParam)
   )
@@ -354,7 +354,8 @@ export default function GaragePage({
   // hero too would repeat the same image.
   const hero = vendor.photos[0] ?? null
   const hasDistance = /\d/.test(vendor.distance)
-  const bothModes = vendor.dropinEnabled && vendor.doorstepEnabled
+  // The switch only when there is a choice to make: two or three modes.
+  const modes = offeredBookingTypes(vendor)
   // A paused garage's page still loads — someone may have it saved, or be
   // checking on it — but nothing on it can be added to a booking, and the bar
   // where Book Now would be says why.
@@ -465,25 +466,18 @@ export default function GaragePage({
           <OutsideCityLine text={outsideCityLine(vendor.outsideServiceCity)} />
         )}
 
-        {bothModes && (
-          <ScSegmented
-            aria-label="Service mode"
-            className="mt-1"
-            value={mode}
-            onChange={changeMode}
-            options={[
-              {
-                value: 'dropin',
-                label: BOOKING_TYPE_LABELS.dropin,
-                icon: <IconBuildingStore size={15} />,
-              },
-              {
-                value: 'doorstep',
-                label: BOOKING_TYPE_LABELS.doorstep,
-                icon: <IconHome size={15} />,
-              },
-            ]}
-          />
+        {modes.length > 1 && (
+          <ModeSwitch modes={modes} className="mt-1" value={mode} onChange={changeMode} />
+        )}
+
+        {/* What the choice means, before any service is added: the garage
+            comes for the car and brings it back. Free for now (owner
+            decision); checkout shows a fee line if one is ever set. */}
+        {mode === 'pickup' && (
+          <p className="text-[12px] leading-relaxed text-text-secondary">
+            Free pickup &amp; drop: {vendor.name} collects your car from your address, works on it
+            at the garage and brings it back.
+          </p>
         )}
 
         {servicesWithdrawn && (

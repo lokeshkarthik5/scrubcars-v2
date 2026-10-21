@@ -23,6 +23,7 @@ import { isPaid, type HubBooking } from './home-updates.js'
 import { noticeMatchesBooking, type NoticeRow } from './notices.js'
 import { washStatus, type WashStatus } from './wash-status.js'
 import type { BookingType } from './booking-types.js'
+import { customerPickupStage, type CustomerPickupStage } from './pickup.js'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -272,6 +273,11 @@ export type RightTile =
       vehicleId: string
       /** A team notice about this booking, as one short line. */
       notice: { noticeId: string; title: string; linkUrl: string | null; linkLabel: string | null } | null
+      /**
+       * Pickup & drop only: the latest handover step reached, so the tile can
+       * say "Car collected" or "On its way back". Null on other types.
+       */
+      pickupStage: CustomerPickupStage | null
     }
   /**
    * Raised only when the garage took at least one after photo, so the tile
@@ -399,6 +405,10 @@ function nextBookingTile(next: HubBooking, notices: NoticeRow[]): NextBookingTil
     notice: notice
       ? { noticeId: notice.id, title: notice.title, linkUrl: notice.linkUrl, linkLabel: notice.linkLabel }
       : null,
+    pickupStage:
+      next.bookingType === 'pickup'
+        ? customerPickupStage({ status: next.status, startedAt: next.startedAt, ...next.pickup })
+        : null,
   }
 }
 
