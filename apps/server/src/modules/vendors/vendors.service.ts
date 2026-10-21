@@ -853,9 +853,10 @@ export async function vendorCardsFor(
 /**
  * The garages, of these, with the "Documents verified" badge: every required
  * document approved (lib/vendor-documents.ts). Nothing is read, and nobody
- * has the badge, while garage documents are off (no R2_DOCS_BUCKET).
+ * has the badge, while garage documents are off (no R2_DOCS_BUCKET). Also
+ * read by the Service History certificate (0053).
  */
-async function documentsVerifiedIds(vendorIds: string[]): Promise<Set<string>> {
+export async function documentsVerifiedIds(vendorIds: string[]): Promise<Set<string>> {
   if (vendorIds.length === 0 || !isDocumentStorageConfigured()) return new Set()
   const rows = await vendorsRepository.listApprovedDocumentTypes(vendorIds)
   return new Set(

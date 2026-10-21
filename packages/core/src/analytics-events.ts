@@ -135,8 +135,8 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * A page's path as it is sent: no query string or hash, every id replaced
  * by ":id" (a booking's id is a way back to a person), a gift link's code
  * by ":code" (0049: the code is the gift; only its hash is ever stored),
- * anything but plain path characters dropped, at most MAX_PATH_LENGTH
- * characters.
+ * a shared certificate's token by ":token" (0053, likewise), anything but
+ * plain path characters dropped, at most MAX_PATH_LENGTH characters.
  */
 export function cleanPath(raw: string): string {
   const path = raw.split(/[?#]/)[0] ?? ''
@@ -146,9 +146,11 @@ export function cleanPath(raw: string): string {
     .map((segment, index, all) =>
       index > 0 && all[index - 1] === 'gift'
         ? ':code'
-        : UUID_SEGMENT.test(segment)
-          ? ':id'
-          : segment.replace(/[^A-Za-z0-9_-]/g, '')
+        : index > 0 && all[index - 1] === 'verify'
+          ? ':token'
+          : UUID_SEGMENT.test(segment)
+            ? ':id'
+            : segment.replace(/[^A-Za-z0-9_-]/g, '')
     )
     .filter((segment) => segment.length > 0)
   return `/${segments.join('/')}`.slice(0, MAX_PATH_LENGTH)

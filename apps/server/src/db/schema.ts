@@ -3332,6 +3332,49 @@ export const guaranteeClaimPhotos = pgTable(
   ]
 )
 
+// ─── Detlio Service History certificate (0053) ───────────────────────────────
+
+// A customer's share links for a car's Service History certificate
+// (lib/service-history-certificate.ts, modules/certificates). The public page
+// /verify/<token> finds a link by `token_hash` (SHA-256 of the token; the
+// token itself is never stored). A link works while `revoked_at` is null and
+// `expires_at` (optional) is ahead; a car has at most one link not revoked
+// (partial unique index), and making a new one revokes the old in the same
+// transaction. `view_count` / `last_viewed_at` count successful public
+// lookups. Cascades with the car and the customer.
+export const vehicleCertificateLinks = pgTable(
+  'vehicle_certificate_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vehicleId: uuid('vehicle_id')
+      .notNull()
+      .references(() => userVehicles.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    includePhotos: boolean('include_photos').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastViewedAt: timestamp('last_viewed_at', { withTimezone: true }),
+    viewCount: integer('view_count').default(0).notNull(),
+  },
+  (table) => [
+    uniqueIndex('vehicle_certificate_links_token_hash_idx').on(table.tokenHash),
+    uniqueIndex('vehicle_certificate_links_one_live_idx')
+      .on(table.vehicleId)
+      .where(sql`${table.revokedAt} is null`),
+    index('vehicle_certificate_links_user_id_idx').on(table.userId),
+    check('vehicle_certificate_links_token_hash_check', sql`char_length(${table.tokenHash}) = 64`),
+    check('vehicle_certificate_links_view_count_check', sql`${table.viewCount} >= 0`),
+    check(
+      'vehicle_certificate_links_expiry_check',
+      sql`${table.expiresAt} is null or ${table.expiresAt} > ${table.createdAt}`
+    ),
+  ]
+)
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({

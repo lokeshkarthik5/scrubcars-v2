@@ -11,6 +11,7 @@ import { adminAiRoutes } from '../ai/ai.routes.js'
 import { adminAlertRoutes } from '../alerts/alerts.routes.js'
 import { adminCreditRoutes } from '../gift-credit/gift-credit.routes.js'
 import { adminGiftRoutes } from '../gifts/gifts.routes.js'
+import { adminCertificateRoutes } from '../certificates/certificates.routes.js'
 import { adminRewardRoutes } from '../rewards/rewards.routes.js'
 import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
@@ -101,6 +102,9 @@ adminRoutes.get(
   zValidator('query', pilotStatsQuerySchema),
   (c) => adminController.getPilotStats(c, c.req.valid('query'))
 )
+// Service History certificates shared and viewed (0053): totals only, on
+// Statistics' Overview.
+adminRoutes.route('/stats/certificates', adminCertificateRoutes)
 // Statistics: overview, breakdown and commission over a range of days.
 // Nested here for the same cookie reason as discounts (below).
 adminRoutes.route('/stats', adminStatsRoutes)

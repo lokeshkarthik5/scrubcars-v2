@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   IconCalendarCheck,
   IconCar,
+  IconCertificate,
   IconChevronRight,
   IconFileInvoice,
   IconHistory,
@@ -137,6 +138,25 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
 
           {data.reminder && (
             <ReminderCard reminder={data.reminder} now={now} onBook={chooseThisCar} />
+          )}
+
+          {/* The Service History certificate (0053): a printable, shareable
+              record of these jobs, for when the car is sold. Only once
+              there is a job to list. */}
+          {data.categories.length > 0 && (
+            <Link
+              href={`/profile/cars/${id}/certificate`}
+              className="press flex min-h-11 items-center gap-3 rounded-[14px] border border-border bg-surface px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
+            >
+              <IconCertificate size={20} aria-hidden="true" className="shrink-0 text-text-primary" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold text-text-primary">Service history certificate</span>
+                <span className="block text-[11px] text-text-secondary">
+                  Print it or share a link a buyer can check
+                </span>
+              </span>
+              <IconChevronRight size={16} aria-hidden="true" className="shrink-0 text-text-secondary" />
+            </Link>
           )}
 
           {/* Totals of what is listed: with a filter on, of that service.

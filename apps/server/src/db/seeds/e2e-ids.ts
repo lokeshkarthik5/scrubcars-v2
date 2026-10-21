@@ -378,6 +378,14 @@ export const CUSTOMERS = {
   slotAlertOther: { id: id(2702), phone: '9000002702', name: 'Slot Alert Other Om' },
   slotHolder: { id: id(2703), phone: '9000002703', name: 'Slot Holder Hari', vehicleId: id(2704) },
   /**
+   * The Service History certificate (0053; specs/users/service-history-certificate.spec.ts),
+   * at VENDORS.certificate only. Ids 3300–3399 and phones 90000033xx are this
+   * feature's own range. One car (plate TN09AB3301) with two completed, paid
+   * jobs and one cancelled; the spec shares it, opens /verify/<token> signed
+   * out, then stops sharing.
+   */
+  certificate: { id: id(3301), phone: '9000003301', name: 'Certificate Chitra', vehicleId: id(3303) },
+  /**
    * Contact windows (specs/users/contact-windows.spec.ts, booking-help.spec.ts,
    * garage-privacy.spec.ts), at VENDORS.contact only. Ids 3400–3499 and
    * phones 90000034xx are this feature's own range. Owns the four
@@ -478,6 +486,8 @@ export const STAFF = {
   carHistoryOwner: { id: id(2602), phone: '9000002602', name: 'History Owner Hari' },
   /** Owns VENDORS.slotAlerts only (0047; the 2700–2799 range). */
   slotAlertsOwner: { id: id(2705), phone: '9000002705', name: 'Slot Alerts Owner Selvi' },
+  /** Owns VENDORS.certificate only (0053; the 3300–3399 range). */
+  certificateOwner: { id: id(3302), phone: '9000003302', name: 'Certificate Owner Kannan' },
   /** Owns VENDORS.contact only (contact windows; the 3400–3499 range). */
   contactOwner: { id: id(3405), phone: '9000003405', name: 'Contact Owner Charu' },
 } as const
@@ -684,6 +694,12 @@ export const VENDORS = {
    */
   slotAlerts: { id: id(2710), name: 'Full Day Garage' },
   /**
+   * The Service History certificate (0053). Pending and not verified, so no
+   * customer list shows it and nobody books it: it only did
+   * CUSTOMERS.certificate's past jobs.
+   */
+  certificate: { id: id(3310), name: 'Record Keeping Garage' },
+  /**
    * Contact windows: pending and unverified (no customer finds it), open
    * 06:00–22:00, one ₹400 wash (SERVICES.contactWash). Its phone and WhatsApp
    * are CONTACT_GARAGE's, so a spec can look for them in a payload.
@@ -843,6 +859,9 @@ export const SERVICES = {
   carHistoryCoating: { id: id(2612), name: 'History Ceramic Coating', price: '6000.00', durationMins: 240 },
   /** On SLOT_ALERTS (0047): its one service. */
   slotAlertsWash: { id: id(2711), name: 'Full Day Wash', price: '500.00', durationMins: 60 },
+  /** On VENDORS.certificate (0053): a wash and a polish. */
+  certificateWash: { id: id(3311), name: 'Record Foam Wash', price: '500.00', durationMins: 45 },
+  certificatePolish: { id: id(3312), name: 'Record Machine Polish', price: '2500.00', durationMins: 180 },
   /** On VENDORS.contact (contact windows): its one service. */
   contactWash: { id: id(3412), name: 'Window Foam Wash', price: '400.00', durationMins: 45 },
 } as const
@@ -1133,6 +1152,14 @@ export const BOOKINGS = {
   carHistoryCoating: id(2620),
   carHistoryWash: id(2621),
   carHistoryCancelled: id(2622),
+  /**
+   * CUSTOMERS.certificate's car at VENDORS.certificate (0053): a polish
+   * completed ~60 days ago, a wash completed ~12 days ago, and a wash
+   * cancelled by the customer (not on the certificate).
+   */
+  certificatePolish: id(3320),
+  certificateWash: id(3321),
+  certificateCancelled: id(3322),
   /**
    * At VENDORS.photos (0045): CUSTOMERS.photos' paid ₹450 wash tomorrow at
    * 11:00 IST, accepted, not started and with no photos. The garage cannot

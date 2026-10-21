@@ -18,6 +18,38 @@ reconstructing every change in them.
 
 ### Added
 
+- **Detlio Service History certificate: a printable record of a car's jobs
+  through Detlio, with a public verification link** (migration
+  `0053_service_history_certificates`, additive; runs after 0050–0052 with
+  no gap: new table
+  `vehicle_certificate_links` with CHECKs, a unique index on `token_hash` and
+  a partial unique index of one live link per car).
+  - `modules/certificates`, rules in `lib/service-history-certificate.ts`:
+    every completed reschedule chain on the car (latest row), newest first;
+    cancelled, no-show and Test-marked chains and Detlio Guarantee free
+    redos (0051; the job they re-did stays listed) left out. Per job the IST
+    date, the garage's name and today's Certified / Documents verified
+    marks, the services and whether the garage took before/after photos.
+    Registration masked (`TN09 ** ** 1234`); certificate number
+    `DSH-XXXX-XXXX` from the car's id.
+  - Customer: `GET /users/me/vehicles/:vehicleId/certificate`, `POST`/
+    `PATCH`/`DELETE …/certificate/share` (a new link ends the old one; photos
+    on or off; Stop sharing). Only the car's owner; anyone else's car is a
+    404. Tokens are 32 characters (an HMAC of the link id), only their
+    SHA-256 stored; optional expiry of 7, 30 or 90 days, none by default.
+  - Public: `POST /certificates/verify { token }` (per-IP limiter,
+    `CERTIFICATE_LOOKUP_RATE_LIMIT`, default 60/min) returns an allow-listed
+    payload with no personal data; unknown, revoked, replaced and expired
+    tokens are one 404 `CERTIFICATE_NOT_FOUND`. Views are counted.
+  - Photos (off by default): one before/after pair per job through
+    `GET /certificates/photos/:photoId?e=&s=`, an HMAC path valid 10 minutes
+    and only while the link stands and includes photos; bytes streamed from
+    R2 (`readObject`), never the stored URL.
+  - Admin: `GET /admin/stats/certificates` (links made, live, cars shared,
+    views).
+  - Usage events replace a `/verify/<token>` path's token with `:token`
+    (`cleanPath`, both twins).
+
 - **"Did the garage ask you to book directly?" reports, garage strikes and
   customer drop-off** (migration `0052_bypass_reports`, additive, after
   0051 with no gap: new table `bypass_reports` with

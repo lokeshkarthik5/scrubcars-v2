@@ -11,6 +11,7 @@ import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import { useStatsOverview } from '@repo/core/api/hooks/use-admin-stats'
 import { cn } from '@repo/core/utils'
 import { PilotNumbersCard } from '@/components/pilot-numbers-card'
+import { CertificateSharesCard } from '@/components/statistics/certificate-shares-card'
 import { HowWeCount } from '@/components/statistics/how-we-count'
 import {
   busiestWeekday,
@@ -348,6 +349,8 @@ export function OverviewTab({
 
       {/* The pilot's own card, with its 7 / 30 day windows, as it was on Vendors. */}
       <PilotNumbersCard />
+      {/* Service History certificates shared and opened (0053), all time. */}
+      <CertificateSharesCard />
       <HowWeCount lines={HOW_WE_COUNT} />
     </>
   )

@@ -103,9 +103,15 @@ const PAID_PAYMENT = new Set(['paid', 'collected', 'refunded'])
 const toPaise = (amount: string | null | undefined) => Math.round(Number(amount ?? 0) * 100)
 const fromPaise = (paise: number) => (paise / 100).toFixed(2)
 
-/** Each chain's latest row: the highest reschedule count, then the newest. */
-export function latestOfChains(rows: CarHistoryRow[]): CarHistoryRow[] {
-  const latest = new Map<string, CarHistoryRow>()
+/**
+ * Each chain's latest row: the highest reschedule count, then the newest.
+ * Also read by the Service History certificate (0053), so it takes any row
+ * that names its chain.
+ */
+export function latestOfChains<Row extends Pick<CarHistoryRow, 'chainId' | 'rescheduleCount' | 'createdAt'>>(
+  rows: Row[]
+): Row[] {
+  const latest = new Map<string, Row>()
   for (const row of rows) {
     const held = latest.get(row.chainId)
     if (
