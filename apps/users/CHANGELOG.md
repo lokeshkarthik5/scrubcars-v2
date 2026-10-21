@@ -19,6 +19,23 @@ reconstructing every change in them.
 
 ### Added
 
+- **Contact windows: phone numbers only around the job** (API: no
+  migration; owner decision, 18 Oct 2026, no chat or masked calling).
+  Customer app: the booking's Help sheet offers the garage's Call and
+  WhatsApp only from 2 hours before the booking until an hour after the job
+  is done; otherwise it says "The garage's number shows 2 hours before your
+  booking." (or "…is hidden after your booking.") above the Detlio team's
+  Call and WhatsApp, which are always there. The address and Directions are
+  unchanged. Garage portal: a job card always names the customer; Call and
+  WhatsApp show inside the window (now also for the hour after completion),
+  otherwise "Customer's number shows 2 hours before the job." (or "…is hidden
+  after the job.") with "Need to reach the customer? Contact Detlio support"
+  (WhatsApp, booking reference typed in); a doorstep or pickup address stays
+  on the card. The "passed without being accepted" line no longer says to
+  call the customer. Help centre, Terms, Privacy and Service delivery say the
+  window (`apps/users/lib/legal/contact-window.ts`, with a lawyer note:
+  Detlio support is the channel outside it).
+
 - **Detlio Guarantee: a free redo within 48 hours, behind the API's
   `GUARANTEE_ENABLED` (default off; every entry point hidden while off).**
   - Customer app: on a completed wash or detailing inside its 48 hours, the

@@ -226,7 +226,7 @@ export default function VendorHomePage() {
               <Reveal key={b.id} index={i}>
                 <ScCard className="flex flex-col gap-3">
                   <JobCardHeader booking={b} />
-                  <JobContact booking={b} />
+                  <JobContact booking={b} now={now} />
                   {/* Past its time unaccepted: only declining is left (the
                       server refuses a late accept). */}
                   {new Date(b.scheduledAtIso).getTime() <= now && (
