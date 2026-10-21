@@ -65,9 +65,25 @@ export const GIFT_CHECKOUT_MINUTES = 30
 /** Razorpay's smallest order: a part payment never leaves less than this. */
 export const MIN_GATEWAY_PAISE = 100
 
-/** The card designs, in the order the buyer sees them. */
-export const GIFT_DESIGNS = ['shine', 'midnight', 'fresh'] as const
+/**
+ * Every card design `gifts.design` may hold (0055 widened the CHECK). `fresh`
+ * is the 0049 name of what is now Pearl: kept for rows bought before 0055,
+ * never stored again.
+ */
+export const GIFT_DESIGNS = ['shine', 'midnight', 'fresh', 'pearl', 'birthday', 'diwali', 'thank_you'] as const
 export type GiftDesign = (typeof GIFT_DESIGNS)[number]
+
+/** The designs a buyer may pick, in the order the app shows them. */
+export const GIFT_BUY_DESIGNS = ['shine', 'midnight', 'pearl', 'birthday', 'diwali', 'thank_you'] as const satisfies readonly GiftDesign[]
+export type GiftBuyDesign = (typeof GIFT_BUY_DESIGNS)[number]
+
+/**
+ * The design a purchase stores. An app from before 0055 still sends `fresh`
+ * for Pearl; it is stored as `pearl`, so new rows never hold `fresh`.
+ */
+export function giftDesignToStore(design: GiftBuyDesign | 'fresh'): GiftBuyDesign {
+  return design === 'fresh' ? 'pearl' : design
+}
 
 export const GIFT_STATUSES = ['pending', 'paid', 'redeemed', 'cancelled'] as const
 /** As stored: pending until Razorpay says paid, then redeemed once, or cancelled by the team. */

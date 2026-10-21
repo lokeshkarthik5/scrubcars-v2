@@ -8,19 +8,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { IconLoader2 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { useHeroShine } from '@repo/ui/sc/hero-shine'
 import { Chip } from '@repo/ui/sc/chip'
 import { SkeletonCard } from '@repo/ui/sc/empty-state'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
-import {
-  buyGift,
-  makeGiftLink,
-  verifyGiftPayment,
-  type GiftDesign,
-  type GiftLink,
-  type SentGift,
-} from '@repo/core/api/gifts'
+import { buyGift, makeGiftLink, verifyGiftPayment, type GiftLink, type SentGift } from '@repo/core/api/gifts'
 import { giftsEnabled, invalidateGiftData, useGiftsConfig } from '@repo/core/api/hooks/use-gifts'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import { useAuthStore } from '@repo/core/stores/auth-store'
@@ -30,7 +24,14 @@ import { GiftCardArt } from '@/components/gifts/gift-card-art'
 import { GiftShare } from '@/components/gifts/gift-share'
 import { GiftsUnavailable } from '@/components/gifts/gifts-unavailable'
 import { isHomeHubEnabled } from '@/lib/home-hub'
-import { GIFT_DESIGN_LABELS, giftAmountProblem, giftRupees, parseGiftAmount } from '@/lib/gifts'
+import {
+  GIFT_ART_LABELS,
+  GIFT_ARTS,
+  giftAmountProblem,
+  giftRupees,
+  parseGiftAmount,
+  type GiftArt,
+} from '@/lib/gifts'
 
 const NAME_MAX = 60
 const MESSAGE_MAX = 200
@@ -65,10 +66,13 @@ export default function NewGiftPage() {
   const [otherAmount, setOtherAmount] = useState('')
   const [recipientName, setRecipientName] = useState('')
   const [message, setMessage] = useState('')
-  const [design, setDesign] = useState<GiftDesign>('shine')
+  const [art, setArt] = useState<GiftArt>('shine')
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>({ kind: 'form' })
+  // Pay is the screen's one red action: Home's gradient pill, its shine run
+  // once per visit however often the button turns disabled and back.
+  const { attach: attachPayShine, className: payShineClass } = useHeroShine<HTMLButtonElement>()
 
   const title = phase.kind === 'shared' ? 'Share your gift' : 'Gift a wash'
   const header = <TopBar title={title} showBack backHref="/profile/gifts" large={isHomeHubEnabled()} />
@@ -112,6 +116,8 @@ export default function NewGiftPage() {
   }
 
   const limits = config.data
+  // Every card the server offers (all six today), in the app's order.
+  const arts = GIFT_ARTS.filter((value) => limits.designs.includes(value))
   const amount = preset === 'other' ? parseGiftAmount(otherAmount) : preset
   const amountProblem = giftAmountProblem(amount, limits)
   const name = recipientName.trim()
@@ -126,7 +132,7 @@ export default function NewGiftPage() {
         amount,
         recipientName: name,
         message: message.trim() || undefined,
-        design,
+        design: art,
       })
       await openRazorpayCheckout({
         order,
@@ -224,7 +230,30 @@ export default function NewGiftPage() {
     <CustomerShell showNav showBrand className="gap-4 py-4">
       {header}
 
-      <GiftCardArt design={design} amount={amount} recipientName={name} />
+      <GiftCardArt key={art} design={art} amount={amount} recipientName={name} />
+
+      <section aria-labelledby="gift-design" className="flex flex-col gap-2">
+        <h2 id="gift-design" className="text-sm font-semibold text-text-primary">
+          Card
+        </h2>
+        <div role="radiogroup" aria-labelledby="gift-design" className="grid grid-cols-3 gap-x-2.5 gap-y-3">
+          {arts.map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={art === value}
+              onClick={() => setArt(value)}
+              className="gift-swatch flex flex-col gap-1.5 rounded-[12px] text-left focus-visible:outline-2 focus-visible:outline-offset-4"
+            >
+              <GiftCardArt design={value} variant="swatch" className="w-full" />
+              <span className={art === value ? 'text-[12px] font-semibold text-text-primary' : 'text-[12px] text-text-secondary'}>
+                {GIFT_ART_LABELS[value]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section aria-labelledby="gift-amount" className="flex flex-col gap-2">
         <h2 id="gift-amount" className="text-sm font-semibold text-text-primary">
@@ -282,21 +311,6 @@ export default function NewGiftPage() {
         </div>
       </section>
 
-      <section aria-labelledby="gift-design" className="flex flex-col gap-2">
-        <h2 id="gift-design" className="text-sm font-semibold text-text-primary">
-          Card
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {limits.designs.map((value) => (
-            <Chip
-              key={value}
-              label={GIFT_DESIGN_LABELS[value] ?? value}
-              selected={design === value}
-              onClick={() => setDesign(value)}
-            />
-          ))}
-        </div>
-      </section>
 
       <p className="text-[12px] text-text-secondary">
         They can use it on any booking on Detlio for <span className="font-numeric">{limits.validMonths}</span> months
@@ -310,16 +324,19 @@ export default function NewGiftPage() {
         </p>
       )}
 
-      <ScButton onClick={() => void pay()} disabled={!canPay} className="min-h-11">
-        {paying ? (
-          'Opening payment…'
-        ) : amount !== null && !amountProblem ? (
-          <>
-            Pay <span className="font-numeric font-bold">{giftRupees(amount)}</span>
-          </>
-        ) : (
-          'Pay'
-        )}
+      <ScButton ref={attachPayShine} variant="hero" onClick={() => void pay()} disabled={!canPay} className={payShineClass}>
+        {/* The label sits above the band of light only as an element of its own. */}
+        <span>
+          {paying ? (
+            'Opening payment…'
+          ) : amount !== null && !amountProblem ? (
+            <>
+              Pay <span className="font-numeric font-bold">{giftRupees(amount)}</span>
+            </>
+          ) : (
+            'Pay'
+          )}
+        </span>
       </ScButton>
     </CustomerShell>
   )

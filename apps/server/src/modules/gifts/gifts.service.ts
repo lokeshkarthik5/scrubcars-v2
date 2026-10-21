@@ -2,9 +2,9 @@ import { AppError } from '../../lib/errors.js'
 import { env } from '../../lib/env.js'
 import {
   EXPIRING_SOON_DAYS,
+  GIFT_BUY_DESIGNS,
   GIFT_CHECKOUT_MINUTES,
   GIFT_DAILY_LIMIT,
-  GIFT_DESIGNS,
   GIFT_MAX_AMOUNT,
   GIFT_MIN_AMOUNT,
   GIFT_PRESET_AMOUNTS,
@@ -178,7 +178,7 @@ export const giftsService = {
       max: GIFT_MAX_AMOUNT,
       dailyLimit: GIFT_DAILY_LIMIT,
       validMonths: GIFT_VALID_MONTHS,
-      designs: [...GIFT_DESIGNS],
+      designs: [...GIFT_BUY_DESIGNS],
     }
   },
 

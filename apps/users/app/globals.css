@@ -818,3 +818,442 @@ html:has(.legal-doc) {
     transition: none;
   }
 }
+
+/* ─── Gift cards (0049): artwork ─────────────────────────────────────────────
+ *
+ * Each design is a ground, a fine texture (carbon or brushed metal, CSS
+ * gradients only), the coupé (components/car-silhouette.tsx, lit through the
+ * --car-* properties), an occasion motif, and a sheen that sweeps across
+ * once on first view: red on Shine, silver on Midnight and Pearl, warm on
+ * the occasions. Under reduced motion the sheen rests, still.
+ */
+.gift-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 16px;
+  border: 1px solid var(--gc-edge, rgba(255, 255, 255, 0.12));
+  background: var(--gc-bg);
+  color: var(--gc-ink, #FAFAFA);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 18px 36px -24px rgba(0, 0, 0, 0.9);
+}
+.gift-card--swatch {
+  border-radius: 10px;
+}
+.gift-card__muted {
+  color: var(--gc-muted, rgba(250, 250, 250, 0.7));
+}
+.gift-card__texture {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--gc-texture);
+}
+.gift-card__motif {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.gift-card__car {
+  position: absolute;
+  right: -6%;
+  bottom: 6%;
+  z-index: 2;
+  width: 70%;
+  height: auto;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+.gift-card--swatch .gift-card__car {
+  right: -8%;
+  bottom: 6%;
+  width: 80%;
+  filter: none;
+}
+.gift-card__mark {
+  z-index: 4;
+  color: var(--gc-ink, #FAFAFA);
+}
+.gift-card__sheen {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: -40%;
+  right: -40%;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(112deg, transparent 40%, var(--gc-sheen) 49%, transparent 58%);
+  mix-blend-mode: screen;
+  transform: translateX(-72%);
+  animation: gift-card-sheen 1700ms cubic-bezier(0.4, 0, 0.2, 1) 350ms 1 both;
+}
+@keyframes gift-card-sheen {
+  to { transform: translateX(72%); }
+}
+
+/* The textures. */
+.gift-card--shine,
+.gift-card--birthday {
+  --gc-texture:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 4px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.28) 0 2px, transparent 2px 4px);
+}
+.gift-card--midnight,
+.gift-card--diwali,
+.gift-card--thank_you {
+  --gc-texture:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.06) 0 2px, transparent 2px 7px);
+}
+.gift-card--pearl {
+  --gc-texture:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0 2px, transparent 2px 7px);
+}
+
+/* Shine: graphite and carbon, a red floor light and the red sweep. */
+.gift-card--shine {
+  --gc-bg:
+    radial-gradient(70% 90% at 78% 72%, rgba(228, 0, 43, 0.20), transparent 70%),
+    radial-gradient(120% 140% at 88% 0%, #3E3F4A 0%, transparent 55%),
+    linear-gradient(155deg, #2A2B33 0%, #17171C 52%, #0C0C0F 100%);
+  --gc-sheen: rgba(255, 60, 90, 0.55);
+  --car-top: #575864;
+  --car-bottom: #0E0E11;
+  --car-rim: rgba(255, 255, 255, 0.78);
+  --car-floor: rgba(228, 0, 43, 0.55);
+}
+/* Midnight: deep navy, brushed, a silver sheen. */
+.gift-card--midnight {
+  --gc-bg:
+    radial-gradient(110% 120% at 92% 0%, rgba(130, 160, 240, 0.30), transparent 55%),
+    linear-gradient(160deg, #15255A 0%, #0B1636 50%, #050914 100%);
+  --gc-sheen: rgba(214, 226, 255, 0.5);
+  --car-top: #33447A;
+  --car-bottom: #060A18;
+  --car-rim: rgba(205, 220, 255, 0.85);
+  --car-glass: #050817;
+  --car-floor: rgba(170, 195, 255, 0.4);
+}
+/*
+ * Pearl: a deeper pearl and brushed silver, toned down so it never outshines
+ * the dark page, with a faint iridescence and a dark car. The ink and the
+ * muted line are solid dark greys: at least 4.5:1 wherever text sits (the
+ * darkest corner, bottom right, is under the car).
+ */
+.gift-card--pearl {
+  --gc-bg:
+    radial-gradient(90% 120% at 12% 0%, rgba(255, 255, 255, 0.30), transparent 60%),
+    radial-gradient(70% 90% at 100% 100%, rgba(196, 181, 253, 0.22), transparent 62%),
+    radial-gradient(60% 80% at 70% 15%, rgba(186, 230, 253, 0.20), transparent 60%),
+    linear-gradient(150deg, #B4B9C3 0%, #979DA9 55%, #7A8190 100%);
+  --gc-edge: rgba(255, 255, 255, 0.28);
+  --gc-ink: #111115;
+  --gc-muted: #1E2026;
+  --gc-sheen: rgba(255, 255, 255, 0.55);
+  --car-top: #3B3D47;
+  --car-bottom: #0B0B0E;
+  --car-rim: rgba(255, 255, 255, 0.7);
+  --car-floor: rgba(20, 20, 30, 0.35);
+}
+/* Birthday: plum, carbon, confetti, a warm sweep. */
+.gift-card--birthday {
+  --gc-bg:
+    radial-gradient(100% 120% at 88% 0%, rgba(244, 114, 182, 0.30), transparent 55%),
+    radial-gradient(90% 110% at 0% 100%, rgba(251, 191, 36, 0.16), transparent 55%),
+    linear-gradient(155deg, #331A3D 0%, #1C1025 55%, #0E0912 100%);
+  --gc-sheen: rgba(255, 214, 180, 0.5);
+  --car-top: #5A3666;
+  --car-bottom: #120A16;
+  --car-rim: rgba(255, 224, 242, 0.8);
+  --car-floor: rgba(244, 114, 182, 0.4);
+}
+/* Diwali: deep ember, brushed, lit diyas, a gold sweep. */
+.gift-card--diwali {
+  --gc-bg:
+    radial-gradient(90% 110% at 70% 0%, rgba(251, 191, 36, 0.30), transparent 58%),
+    linear-gradient(155deg, #3F1D0C 0%, #24110A 55%, #120806 100%);
+  --gc-ink: #FFF8EA;
+  --gc-muted: rgba(255, 236, 200, 0.72);
+  --gc-sheen: rgba(255, 210, 120, 0.6);
+  --car-top: #6A3E1C;
+  --car-bottom: #140905;
+  --car-rim: rgba(255, 216, 140, 0.9);
+  --car-floor: rgba(251, 191, 36, 0.45);
+  --car-wheel: rgba(255, 226, 170, 0.75);
+}
+/* Thank you: deep teal, brushed, a satin ribbon. */
+.gift-card--thank_you {
+  --gc-bg:
+    radial-gradient(100% 120% at 88% 0%, rgba(94, 234, 212, 0.20), transparent 55%),
+    linear-gradient(155deg, #12352F 0%, #0B221F 55%, #061110 100%);
+  --gc-sheen: rgba(220, 255, 245, 0.45);
+  --car-top: #24544D;
+  --car-bottom: #051010;
+  --car-rim: rgba(210, 250, 240, 0.8);
+  --car-floor: rgba(94, 234, 212, 0.38);
+}
+
+/* The design picker's tiles. */
+.gift-swatch[aria-checked='true'] .gift-card {
+  box-shadow: 0 0 0 2px #0A0A0B, 0 0 0 3.5px #FAFAFA;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gift-card__sheen {
+    animation: none;
+    transform: translateX(14%);
+    opacity: 0.45;
+  }
+}
+
+/* ─── Scratch-card prizes (0050): a look per prize ───────────────────────────
+ *
+ * Silver for the small money prizes, gold for the big one, a red glow and a
+ * star for a bonus stamp, gold for a free wash (with confetti, drawn by
+ * lib/confetti.ts). A sheen crosses the prize once as it is revealed. Every
+ * movement stops under prefers-reduced-motion.
+ */
+.scratch-prize {
+  overflow: hidden;
+  isolation: isolate;
+}
+.scratch-prize--silver {
+  color: #121318;
+  background:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 140% at 15% 0%, #FFFFFF 0%, transparent 55%),
+    linear-gradient(150deg, #EEF0F4 0%, #C9CDD6 45%, #9DA3AF 100%);
+}
+.scratch-prize--gold,
+.scratch-prize--jackpot {
+  color: #2B1B04;
+  background:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 140% at 15% 0%, #FFF3C4 0%, transparent 55%),
+    linear-gradient(150deg, #F9E3A0 0%, #E3B652 45%, #A8782A 100%);
+}
+.scratch-prize--stamp {
+  color: #FAFAFA;
+  background:
+    radial-gradient(60% 120% at 82% 50%, rgba(228, 0, 43, 0.55), transparent 70%),
+    linear-gradient(150deg, #24141A 0%, #150B0F 60%, #0D0709 100%);
+}
+.scratch-prize__eyebrow,
+.scratch-prize__small {
+  opacity: 0.72;
+}
+.scratch-prize__coin {
+  color: #FAFAFA;
+  background: radial-gradient(circle at 32% 28%, #5B5E68, #1D1E24 70%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.35),
+    inset 0 0 0 6px rgba(0, 0, 0, 0.25),
+    0 6px 14px -6px rgba(0, 0, 0, 0.6);
+}
+.scratch-prize--gold .scratch-prize__coin {
+  color: #FFF3C4;
+  background: radial-gradient(circle at 32% 28%, #8A6420, #3B2808 72%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 236, 170, 0.55),
+    inset 0 0 0 6px rgba(0, 0, 0, 0.25),
+    0 6px 14px -6px rgba(60, 35, 0, 0.7);
+}
+.scratch-prize__star {
+  color: #FFFFFF;
+  background: radial-gradient(circle, #FF2D55 0%, #E4002B 45%, #B80022 100%);
+  box-shadow:
+    0 0 0 6px rgba(228, 0, 43, 0.18),
+    0 0 34px 6px rgba(228, 0, 43, 0.55);
+}
+.scratch-prize__car {
+  --car-top: #3B2A10;
+  --car-bottom: #120C03;
+  --car-rim: rgba(255, 246, 214, 0.9);
+  --car-floor: rgba(80, 50, 0, 0.45);
+  --car-wheel: rgba(255, 236, 180, 0.85);
+  margin-right: -10%;
+}
+.scratch-prize__sheen {
+  position: absolute;
+  inset: -20% -40%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(112deg, transparent 40%, rgba(255, 255, 255, 0.55) 50%, transparent 60%);
+  transform: translateX(-75%);
+  animation: gift-card-sheen 1200ms cubic-bezier(0.4, 0, 0.2, 1) 200ms 1 both;
+}
+.scratch-prize--stamp .scratch-prize__sheen {
+  background: linear-gradient(112deg, transparent 40%, rgba(255, 90, 120, 0.35) 50%, transparent 60%);
+}
+.scratch-prize--stamp .scratch-prize__star {
+  animation: scratch-star-glow 1600ms ease-out 200ms 1 both;
+}
+@keyframes scratch-star-glow {
+  0% { transform: scale(0.6); box-shadow: 0 0 0 0 rgba(228, 0, 43, 0); }
+  45% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(228, 0, 43, 0.22), 0 0 48px 12px rgba(228, 0, 43, 0.7); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scratch-prize__sheen {
+    display: none;
+  }
+  .scratch-prize--stamp .scratch-prize__star {
+    animation: none;
+  }
+}
+
+/* ─── The Rewards page's level card and voucher marks ────────────────────────
+ *
+ * The level card takes a faint tint of its level (silver, gold, platinum,
+ * diamond, icon); its bar fills in the same metal. Voucher marks are silver
+ * or gold by what the voucher is. Never red: red stays the page's action.
+ */
+.level-card {
+  --level-tint: 220, 225, 236;
+  border: 1px solid rgba(var(--level-tint), 0.18);
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(var(--level-tint), 0.12), transparent 55%),
+    linear-gradient(160deg, #1C1D23 0%, #141519 60%, #101114 100%);
+}
+.level-card--gold { --level-tint: 227, 182, 82; }
+.level-card--platinum { --level-tint: 196, 215, 235; }
+.level-card--diamond { --level-tint: 165, 210, 255; }
+.level-card--icon { --level-tint: 240, 220, 170; }
+.level-card__fill {
+  background: linear-gradient(90deg, rgba(var(--level-tint), 0.55), rgb(var(--level-tint)));
+  box-shadow: 0 0 10px rgba(var(--level-tint), 0.45);
+  transition: width 600ms ease;
+}
+.level-badge--gold {
+  color: #F3D58A;
+  border-color: rgba(227, 182, 82, 0.5);
+  background: linear-gradient(135deg, rgba(227, 182, 82, 0.18), rgba(227, 182, 82, 0.04));
+}
+.level-badge--silver,
+.level-badge--platinum {
+  border-color: rgba(220, 225, 236, 0.4);
+  background: linear-gradient(135deg, rgba(220, 225, 236, 0.14), rgba(220, 225, 236, 0.03));
+}
+.level-ladder summary::-webkit-details-marker {
+  display: none;
+}
+
+.voucher-row__mark--silver {
+  color: #121318;
+  background: linear-gradient(150deg, #F1F3F6 0%, #C9CDD6 50%, #9DA3AF 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.voucher-row__mark--gold {
+  color: #2B1B04;
+  background: linear-gradient(150deg, #F9E3A0 0%, #E3B652 50%, #A8782A 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 246, 214, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .level-card__fill {
+    transition: none;
+  }
+}
+
+/* ─── Detlio Wrapped: fuller story cards ─────────────────────────────────────
+ *
+ * Each card's light drifts once as it opens (4.5 s, inside WCAG 2.2.2's 5 s,
+ * then still), and its picture settles in: the car rolls in, drops fall,
+ * coins stack, the months rise, the medal lands, sparkles twinkle once. All
+ * of it is off under prefers-reduced-motion; the picture is there either way.
+ */
+.wrapped-story__glow {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 30% at 30% 70%, rgba(255, 255, 255, 0.07), transparent 70%),
+    radial-gradient(45% 35% at 75% 30%, rgba(255, 255, 255, 0.06), transparent 70%);
+  animation: wrapped-glow-drift 4500ms ease-in-out 1 both;
+}
+@keyframes wrapped-glow-drift {
+  0% { transform: translate3d(-6%, 4%, 0) scale(1); opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { transform: translate3d(5%, -3%, 0) scale(1.08); opacity: 0.85; }
+}
+.wrapped-visual__car {
+  --car-floor: rgba(255, 255, 255, 0.28);
+  animation: wrapped-car-in 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms both;
+}
+.wrapped-visual--closing .wrapped-visual__car {
+  --car-light: #FFFFFF;
+}
+@keyframes wrapped-car-in {
+  0% { transform: translateX(18%); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+.wrapped-visual__beam {
+  position: absolute;
+  left: -6%;
+  bottom: 22%;
+  width: 55%;
+  height: 36%;
+  background: radial-gradient(100% 60% at 100% 55%, rgba(255, 255, 255, 0.28), transparent 70%);
+  clip-path: polygon(100% 45%, 0% 0%, 0% 100%, 100% 62%);
+  animation: wrapped-fade-in 900ms ease-out 900ms both;
+}
+.wrapped-visual__drop {
+  animation: wrapped-drop 1100ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+@keyframes wrapped-drop {
+  0% { transform: translateY(-12px); opacity: 0; }
+  60% { opacity: 1; }
+  100% { opacity: 1; }
+}
+.wrapped-visual__spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wrapped-spark 1200ms ease-out both;
+}
+@keyframes wrapped-spark {
+  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+  50% { transform: scale(1.3) rotate(0deg); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.85; }
+}
+.wrapped-visual__coin {
+  animation: wrapped-coin 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes wrapped-coin {
+  0% { transform: translateY(-24px); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+.wrapped-visual__bar {
+  transform-origin: bottom;
+  animation: wrapped-bar 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes wrapped-bar {
+  0% { transform: scaleY(0); }
+  100% { transform: none; }
+}
+.wrapped-visual__medal {
+  animation: badge-pop 800ms cubic-bezier(0.34, 1.56, 0.64, 1) 150ms both;
+}
+@keyframes wrapped-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrapped-story__glow,
+  .wrapped-visual__car,
+  .wrapped-visual__beam,
+  .wrapped-visual__drop,
+  .wrapped-visual__spark,
+  .wrapped-visual__coin,
+  .wrapped-visual__bar,
+  .wrapped-visual__medal {
+    animation: none;
+  }
+}
