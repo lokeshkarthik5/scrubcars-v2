@@ -1,7 +1,7 @@
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
-import { isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
+import { digestLookbacks, isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
@@ -20,9 +20,6 @@ import { timeProposalsService } from '../time-proposals/time-proposals.service.j
 import { opsRepository } from './ops.repository.js'
 
 const log = logger.child({ module: 'ops' })
-
-/** How long after its start time a still-pending booking keeps being listed. */
-const MISSED_LOOKBACK_MS = 24 * 60 * 60 * 1000
 
 // A sweep that fails tends to fail every run until someone fixes it; the
 // first alert says it all, and one an hour keeps it from being forgotten.
@@ -195,10 +192,12 @@ export const opsService = {
         })
 
     const now = Date.now()
-    const since = new Date(now - MISSED_LOOKBACK_MS)
+    // Pending bookings drop off a day after their time; uncollected pickups
+    // stay until collected or cancelled (lib/pending-digest.ts).
+    const { bookingsSince, pickupsSince } = digestLookbacks(now)
     const [rows, pickups] = await Promise.all([
-      opsRepository.listPaidPendingBookings(since),
-      opsRepository.listUncollectedPickups(since, new Date(now)),
+      opsRepository.listPaidPendingBookings(bookingsSince),
+      opsRepository.listUncollectedPickups(pickupsSince, new Date(now)),
     ])
     // The morning roll-up also says what Detlio owes garages. Read only at
     // 07:00, and never allowed to fail the digest: without it the line is
