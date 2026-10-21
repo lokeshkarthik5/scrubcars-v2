@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ScBadge } from '@repo/ui/sc/badge'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import type { CustomerComplaint } from '@repo/core/api/complaints'
 import { useMyComplaints } from '@repo/core/api/hooks/use-complaints'
 import {
@@ -27,7 +27,8 @@ const STATUS_BADGE: Record<ComplaintStatus, 'pending' | 'success' | 'muted'> = {
 }
 
 function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
-  const answered = complaint.status === 'resolved' || complaint.status === 'closed'
+  const answered =
+    complaint.status === 'resolved' || complaint.status === 'closed'
   return (
     <li>
       <ScCard className="flex flex-col gap-1.5">
@@ -47,7 +48,8 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
           {complaint.bookingRef && (
             <>
               {' '}
-              · booking <span className="font-numeric">#{complaint.bookingRef}</span>
+              · booking{' '}
+              <span className="font-numeric">#{complaint.bookingRef}</span>
             </>
           )}
           {complaint.garageName && <> · {complaint.garageName}</>}
@@ -55,7 +57,9 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
         {/* One the team logged from a call or a message: said, so a
             complaint they never typed here makes sense. */}
         {complaint.source !== 'app' && (
-          <p className="text-[12px] text-text-muted">{COMPLAINT_SOURCE_CUSTOMER_LINES[complaint.source]}</p>
+          <p className="text-[12px] text-text-muted">
+            {COMPLAINT_SOURCE_CUSTOMER_LINES[complaint.source]}
+          </p>
         )}
         {/* Their words as recorded: the copy of the complaint the rules ask
             them to be given. */}
@@ -83,13 +87,25 @@ function ComplaintRow({ complaint }: { complaint: CustomerComplaint }) {
  * not about a booking starts here too.
  */
 export function MyComplaints() {
-  const { data: complaints = [], isPending, isError, refetch } = useMyComplaints()
+  const {
+    data: complaints = [],
+    isPending,
+    isError,
+    refetch,
+  } = useMyComplaints()
   const [raising, setRaising] = useState(false)
 
   return (
-    <section id="my-complaints" aria-labelledby="my-complaints-heading" className="scroll-mt-4">
+    <section
+      id="my-complaints"
+      aria-labelledby="my-complaints-heading"
+      className="scroll-mt-4"
+    >
       <div className="mb-2 flex items-center justify-between">
-        <h2 id="my-complaints-heading" className="text-sm font-semibold text-text-primary">
+        <h2
+          id="my-complaints-heading"
+          className="text-sm font-semibold text-text-primary"
+        >
           My complaints
         </h2>
         {/* Neutral, not red: nothing on Profile asks to be pressed. */}
@@ -108,7 +124,9 @@ export function MyComplaints() {
         </ScCard>
       ) : isError && complaints.length === 0 ? (
         <ScCard className="flex items-center justify-between gap-3">
-          <p className="text-[12px] text-text-secondary">Couldn&apos;t load your complaints.</p>
+          <p className="text-[12px] text-text-secondary">
+            Couldn&apos;t load your complaints.
+          </p>
           <button
             type="button"
             onClick={() => void refetch()}
@@ -120,18 +138,26 @@ export function MyComplaints() {
       ) : complaints.length === 0 ? (
         <ScCard>
           <p className="text-[12px] text-text-secondary">
-            None so far. About a booking? Use Help with this booking on its page.
+            None so far. About a booking? Use Help with this booking on its
+            page.
           </p>
         </ScCard>
       ) : (
-        <ul aria-label="My complaints, newest first" className="flex flex-col gap-2">
+        <ul
+          aria-label="My complaints, newest first"
+          className="flex flex-col gap-2"
+        >
           {complaints.map((complaint) => (
             <ComplaintRow key={complaint.id} complaint={complaint} />
           ))}
         </ul>
       )}
 
-      <RaiseComplaintSheet open={raising} onClose={() => setRaising(false)} booking={null} />
+      <RaiseComplaintSheet
+        open={raising}
+        onClose={() => setRaising(false)}
+        booking={null}
+      />
     </section>
   )
 }

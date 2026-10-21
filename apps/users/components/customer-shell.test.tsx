@@ -43,7 +43,9 @@ function shellAt(path: string, hub: string | undefined, showNav = true) {
 
 /** The lit item of the floating nav, by its accessible name. */
 function litItems(html: string) {
-  return [...html.matchAll(/<a aria-label="([^"]+)" aria-current="page"/g)].map((m) => m[1])
+  return [...html.matchAll(/<a aria-label="([^"]+)" aria-current="page"/g)].map(
+    (m) => m[1]
+  )
 }
 
 describe('CustomerShell with the Home hub off (production)', () => {
@@ -58,7 +60,9 @@ describe('CustomerShell with the Home hub off (production)', () => {
       )
       expect(html).toBe(before)
       expect(html).toContain('>Search</span>')
-      expect(html).toContain('padding-bottom:calc(5rem + env(safe-area-inset-bottom))')
+      expect(html).toContain(
+        'padding-bottom:calc(5rem + env(safe-area-inset-bottom))'
+      )
       expect(html).not.toContain('aria-label="Main"')
       expect(html).not.toContain('New booking')
     }
@@ -66,7 +70,9 @@ describe('CustomerShell with the Home hub off (production)', () => {
 
   test('the old Home tab still stands for the garage list', () => {
     const html = shellAt('/garages', undefined)
-    expect(html).toMatch(/<a aria-current="page" class="[^"]*" href="\/garages">/)
+    expect(html).toMatch(
+      /<a aria-current="page" class="[^"]*" href="\/garages">/
+    )
   })
 })
 
@@ -75,12 +81,20 @@ describe('CustomerShell with the Home hub on', () => {
     const html = shellAt('/bookings', 'on')
     expect(html).toContain('aria-label="Main"')
     expect(html).not.toContain('>Search</span>')
-    expect(html).toContain('padding-bottom:calc(112px + env(safe-area-inset-bottom))')
+    expect(html).toContain(
+      'padding-bottom:calc(112px + env(safe-area-inset-bottom))'
+    )
     for (const name of ['Home', 'Map', 'New booking', 'Bookings', 'Profile']) {
       expect(html).toContain(`aria-label="${name}"`)
     }
-    // Every item is a 44pt target.
-    expect(html.match(/size-11/g)?.length).toBe(5)
+    // Every item is a 44pt target or more: four labelled tabs 48pt tall,
+    // and the 48pt +.
+    expect(html.match(/min-h-12 min-w-\[52px\]/g)?.length).toBe(4)
+    expect(html.match(/size-12/g)?.length).toBe(1)
+    // Each tab says its name under its icon (F11).
+    for (const name of ['Home', 'Map', 'Bookings', 'Profile']) {
+      expect(html).toContain(`>${name}</span>`)
+    }
   })
 
   test('lights the right item, and only that one', () => {
@@ -96,21 +110,27 @@ describe('CustomerShell with the Home hub on', () => {
     for (const user of [null, { id: 'customer' }]) {
       session = { isSessionReady: user !== null, user }
       expect(litItems(shellAt('/garages', 'on'))).toEqual([])
-      expect(shellAt('/garages', 'on')).not.toMatch(/aria-label="New booking"[^>]*aria-current/)
+      expect(shellAt('/garages', 'on')).not.toMatch(
+        /aria-label="New booking"[^>]*aria-current/
+      )
     }
 
     session = { isSessionReady: true, user: null }
     try {
       expect(litItems(shellAt('/garages', 'on'))).toEqual(['Home'])
       // Home still goes to /home, which sends a visitor back here.
-      expect(shellAt('/garages', 'on')).toMatch(/aria-label="Home" aria-current="page"[^>]*href="\/home"/)
+      expect(shellAt('/garages', 'on')).toMatch(
+        /aria-label="Home" aria-current="page"[^>]*href="\/home"/
+      )
     } finally {
       session = { isSessionReady: false, user: null }
     }
   })
 
   test('+ opens the list of garages', () => {
-    expect(shellAt('/profile', 'on')).toMatch(/aria-label="New booking"[^>]*href="\/garages"/)
+    expect(shellAt('/profile', 'on')).toMatch(
+      /aria-label="New booking"[^>]*href="\/garages"/
+    )
   })
 
   test('a screen without a nav gets none, and no padding for one', () => {

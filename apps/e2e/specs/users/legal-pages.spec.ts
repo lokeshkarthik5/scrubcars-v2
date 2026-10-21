@@ -171,8 +171,8 @@ test.describe('legal pages @p0', () => {
 
     test('checkout links the Terms and the refund policy in a new tab', async ({ page, context }) => {
       await page.goto(`/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`)
-      await page.getByRole('button', { name: /Tmrw/ }).click()
-      const slot = page.getByRole('button', { name: /^\d{1,2}:\d{2}\s(AM|PM)$/ }).first()
+      await page.getByRole('button', { name: /, tomorrow$/ }).click()
+      const slot = page.getByRole('button', { name: /^\d{1,2}:\d{2}\s(am|pm)$/ }).first()
       await slot.click()
       await expect(slot).toHaveAttribute('aria-pressed', 'true')
 

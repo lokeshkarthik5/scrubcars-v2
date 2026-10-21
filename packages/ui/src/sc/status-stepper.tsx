@@ -24,7 +24,10 @@ interface Step {
  * customer saw after paying read as a promise of a slot nobody had accepted.
  *
  * Labels and captions follow the step's state, so a step says what is true
- * now: "Awaiting garage" while the request is open, "Confirmed" once it isn't.
+ * now: "Waiting for garage" while the request is open, "Accepted" once it
+ * isn't. The words are the customer app's status words, the same as its
+ * status bar, chips and list (Requested → Accepted → In progress → Done);
+ * only the customer app draws this timeline.
  */
 const STEPS: Step[] = [
   {
@@ -38,7 +41,7 @@ const STEPS: Step[] = [
   },
   {
     key: 'confirmed',
-    label: { current: 'Awaiting garage', upcoming: 'Confirmed' },
+    label: { current: 'Waiting for garage', upcoming: 'Accepted' },
     caption: {
       done: 'Your slot is reserved',
       current: 'Shows here as soon as the garage accepts',
@@ -56,7 +59,7 @@ const STEPS: Step[] = [
   },
   {
     key: 'completed',
-    label: { upcoming: 'Completed' },
+    label: { upcoming: 'Done' },
     caption: {
       done: 'Your car is ready',
       current: 'Your car is ready',
@@ -71,7 +74,10 @@ const STEPS: Step[] = [
  * anyone's part). An unknown status reads as a request, the state that claims
  * least.
  */
-const PROGRESS: Record<string, { doneThrough: number; current: number | null }> = {
+const PROGRESS: Record<
+  string,
+  { doneThrough: number; current: number | null }
+> = {
   pending: { doneThrough: 0, current: 1 },
   confirmed: { doneThrough: 1, current: null },
   in_progress: { doneThrough: 1, current: 2 },
@@ -122,7 +128,13 @@ export function StatusStepper({
                       : 'border-text-muted'
                 )}
               >
-                {done && <IconCheck size={13} stroke={3} className="text-brand-black" />}
+                {done && (
+                  <IconCheck
+                    size={13}
+                    stroke={3}
+                    className="text-brand-black"
+                  />
+                )}
                 {/* Live, not finished: the page polls, and this is the step
                     the next change lands on. The pulse stops under reduced
                     motion (see globals.css); the dot stays. */}
@@ -131,7 +143,12 @@ export function StatusStepper({
                 )}
               </div>
               {!isLast && (
-                <div className={cn('my-1 min-h-[22px] w-px flex-1', done ? 'bg-brand-white/30' : 'bg-border')} />
+                <div
+                  className={cn(
+                    'my-1 min-h-[22px] w-px flex-1',
+                    done ? 'bg-brand-white/30' : 'bg-border'
+                  )}
+                />
               )}
             </div>
             <div className={cn(isLast ? 'pb-0' : 'pb-4', 'pt-0')}>

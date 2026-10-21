@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { ScModal } from '@repo/ui/sc/modal'
 import { BeforeAfterCompare } from '@repo/ui/features/before-after'
 import type { JobPhoto } from '@repo/core/types'
@@ -25,8 +25,16 @@ const STAGES: Array<{ stage: JobPhoto['stage']; label: string }> = [
  * sized by the garage's phone before upload, and the image optimiser would
  * only fetch them again.
  */
-export function JobPhotosCard({ photos: all, completed = false }: { photos: JobPhoto[]; completed?: boolean }) {
-  const [open, setOpen] = useState<{ photo: JobPhoto; label: string } | null>(null)
+export function JobPhotosCard({
+  photos: all,
+  completed = false,
+}: {
+  photos: JobPhoto[]
+  completed?: boolean
+}) {
+  const [open, setOpen] = useState<{ photo: JobPhoto; label: string } | null>(
+    null
+  )
   const photos = all.filter((photo) => photo.by === 'garage')
 
   if (photos.length === 0) return null
@@ -56,7 +64,11 @@ export function JobPhotosCard({ photos: all, completed = false }: { photos: JobP
                       className="block size-16 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={photo.url} alt="" className="h-full w-full object-cover" />
+                      <img
+                        src={photo.url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
                     </button>
                   </li>
                 )
@@ -74,14 +86,20 @@ export function JobPhotosCard({ photos: all, completed = false }: { photos: JobP
       >
         {open && (
           <div className="flex flex-col gap-3">
-            <p className="text-[13px] font-medium text-text-primary">{open.label}</p>
+            <p className="text-[13px] font-medium text-text-primary">
+              {open.label}
+            </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={open.photo.url}
               alt={open.label}
               className="max-h-[60vh] w-full rounded-[12px] object-contain"
             />
-            <ScButton variant="secondary" onClick={() => setOpen(null)} className="min-h-11">
+            <ScButton
+              variant="secondary"
+              onClick={() => setOpen(null)}
+              className="min-h-11"
+            >
               Close
             </ScButton>
           </div>

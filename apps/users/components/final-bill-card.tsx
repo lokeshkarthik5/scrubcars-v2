@@ -1,19 +1,36 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { IconArrowUpRight, IconCircleCheck, IconLoader2 } from '@tabler/icons-react'
+import {
+  IconArrowUpRight,
+  IconCircleCheck,
+  IconLoader2,
+} from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { getBooking } from '@repo/core/api/bookings'
-import { payFinalBill, verifyFinalBillPayment } from '@repo/core/api/job-records'
+import {
+  payFinalBill,
+  verifyFinalBillPayment,
+} from '@repo/core/api/job-records'
 import { formatRupees } from '@repo/core/job-records'
-import { confirmPayment, finalBillPollResult, realClock } from '@repo/core/payment-confirmation'
-import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
+import {
+  confirmPayment,
+  finalBillPollResult,
+  realClock,
+} from '@repo/core/payment-confirmation'
+import {
+  openRazorpayCheckout,
+  RazorpayReportedError,
+} from '@repo/core/razorpay'
 import type { Booking, FinalBill } from '@repo/core/types'
 import { APP_TIMEZONE } from '@repo/core/utils'
 import { MainAction } from '@/components/main-action'
-import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
+import {
+  PaymentReceivedPanel,
+  paymentReceivedText,
+} from '@/components/payment-received-panel'
 
 function paidOn(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', {
@@ -101,7 +118,12 @@ export function FinalBillCard({
               const fresh = await getBooking(booking.id)
               // getBooking answers undefined for any failure; keep looking.
               if (!fresh) return { kind: 'pending' }
-              return finalBillPollResult(booking.id, bill.id, fresh.finalBill, fresh.status)
+              return finalBillPollResult(
+                booking.id,
+                bill.id,
+                fresh.finalBill,
+                fresh.status
+              )
             },
             ...realClock,
           })
@@ -115,7 +137,8 @@ export function FinalBillCard({
             setPaid({
               paymentId,
               phase: outcome.kind,
-              refundMessage: outcome.kind === 'failed' ? outcome.message : undefined,
+              refundMessage:
+                outcome.kind === 'failed' ? outcome.message : undefined,
             })
             // Said out loud as well: when the garage replaced the bill, the
             // new one takes this card's place on the next refresh, and the
@@ -124,7 +147,9 @@ export function FinalBillCard({
           }
         },
         onDismiss: () => {
-          toast.info('Payment cancelled. You can pay the bill any time from this page.')
+          toast.info(
+            'Payment cancelled. You can pay the bill any time from this page.'
+          )
         },
         onFailure: (message) => {
           toast.error(message)
@@ -142,7 +167,8 @@ export function FinalBillCard({
   // The page's poll can show the bill paid after we stopped watching; the
   // panel then gives way to "Paid on", as on Pay Now.
   const settled = bill.status === 'paid' || paid?.phase === 'paid'
-  const showPanel = !settled && (paid?.phase === 'unconfirmed' || paid?.phase === 'failed')
+  const showPanel =
+    !settled && (paid?.phase === 'unconfirmed' || paid?.phase === 'failed')
 
   // Paid at booking, split when a promo code was used: the bill credits the
   // booking's full price, and the customer should see their discount kept
@@ -154,16 +180,24 @@ export function FinalBillCard({
 
   return (
     // #final-bill: Home's "Pay ₹X" lands here (/bookings/:id?then=pay).
-    <ScCard id="final-bill" className="flex scroll-mt-4 flex-col gap-3 px-4 py-4">
-      <h2 className="text-sm font-semibold text-text-primary">Final bill</h2>
+    <ScCard
+      id="final-bill"
+      className="flex scroll-mt-4 flex-col gap-3 px-4 py-4"
+    >
+      <h2 className="text-[17px] font-medium text-text-primary">Final bill</h2>
       <p className="-mt-2 text-[12px] text-text-secondary">
         From {booking.vendorName}, after inspecting your car.
       </p>
 
       <ul className="flex flex-col gap-1.5">
         {bill.lines.map((line, i) => (
-          <li key={i} className="flex items-start justify-between gap-3 text-[13px]">
-            <span className="min-w-0 text-text-secondary">{line.description}</span>
+          <li
+            key={i}
+            className="flex items-start justify-between gap-3 text-[13px]"
+          >
+            <span className="min-w-0 text-text-secondary">
+              {line.description}
+            </span>
             <span className="shrink-0 font-numeric font-medium text-text-primary">
               {formatRupees(line.amount)}
             </span>
@@ -186,20 +220,29 @@ export function FinalBillCard({
         </div>
         {discount > 0 && (
           <div className="flex items-center justify-between text-success">
-            <span>Discount{booking.discountCode ? ` (${booking.discountCode})` : ''}</span>
-            <span className="font-numeric font-medium">−{formatRupees(discount)}</span>
+            <span>
+              Discount{booking.discountCode ? ` (${booking.discountCode})` : ''}
+            </span>
+            <span className="font-numeric font-medium">
+              −{formatRupees(discount)}
+            </span>
           </div>
         )}
         <div className="flex items-center justify-between border-t border-border pt-2 text-[15px] font-semibold text-text-primary">
           {/* Settled, the figure is what was paid here, not a balance. */}
           <span>{settled ? 'Paid in the app' : 'To pay'}</span>
-          <span className="font-numeric font-bold">{formatRupees(bill.amountDue)}</span>
+          <span className="font-numeric font-bold">
+            {formatRupees(bill.amountDue)}
+          </span>
         </div>
       </div>
 
       {bill.note && (
         <p className="text-[12px] text-text-secondary">
-          <span className="font-medium text-text-primary">Garage&apos;s note:</span> {bill.note}
+          <span className="font-medium text-text-primary">
+            Garage&apos;s note:
+          </span>{' '}
+          {bill.note}
         </p>
       )}
 
@@ -211,22 +254,33 @@ export function FinalBillCard({
           : settled && paid
             ? 'Final bill paid.'
             : showPanel && paid
-              ? paymentReceivedText(paid.paymentId, paid.refundMessage, 'bill_not_marked_paid')
+              ? paymentReceivedText(
+                  paid.paymentId,
+                  paid.refundMessage,
+                  'bill_not_marked_paid'
+                )
               : ''}
       </p>
 
       {bill.status === 'not_needed' ? (
         <p className="flex items-start gap-1.5 text-[13px] text-text-primary">
-          <IconCircleCheck size={16} className="mt-0.5 shrink-0 text-success" aria-hidden />
+          <IconCircleCheck
+            size={16}
+            className="mt-0.5 shrink-0 text-success"
+            aria-hidden
+          />
           <span>
-            Nothing more to pay. The work came to no more than you paid at booking.
+            Nothing more to pay. The work came to no more than you paid at
+            booking.
           </span>
         </p>
       ) : settled ? (
         <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
           <IconCircleCheck size={16} aria-hidden />
           Paid on{' '}
-          <span className="font-numeric">{paidOn(bill.paidAt ?? new Date().toISOString())}</span>
+          <span className="font-numeric">
+            {paidOn(bill.paidAt ?? new Date().toISOString())}
+          </span>
         </p>
       ) : paid?.phase === 'confirming' ? (
         // Graphite with a spinner, not red: a red button that does nothing
@@ -235,13 +289,19 @@ export function FinalBillCard({
           disabled
           className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-[15px] text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
         >
-          <IconLoader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+          <IconLoader2
+            size={16}
+            className="shrink-0 animate-spin"
+            aria-hidden="true"
+          />
           Payment received — confirming…
         </ScButton>
       ) : showPanel && paid ? (
         <PaymentReceivedPanel
           paymentId={paid.paymentId}
-          refundMessage={paid.phase === 'failed' ? paid.refundMessage : undefined}
+          refundMessage={
+            paid.phase === 'failed' ? paid.refundMessage : undefined
+          }
           waitingOn="bill_not_marked_paid"
         />
       ) : booking.status === 'cancelled' ? null : (
@@ -251,13 +311,18 @@ export function FinalBillCard({
           disabled={opening}
           onClick={handlePay}
           className="rounded-full py-4 text-[15px]"
-          heroIcon={!opening && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />}
+          heroIcon={
+            !opening && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
+          }
         >
           {opening ? (
             'Opening payment...'
           ) : (
             <>
-              Pay <span className="font-numeric font-bold">{formatRupees(bill.amountDue)}</span>
+              Pay{' '}
+              <span className="font-numeric font-bold">
+                {formatRupees(bill.amountDue)}
+              </span>
             </>
           )}
         </MainAction>

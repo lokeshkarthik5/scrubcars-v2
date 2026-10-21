@@ -2,19 +2,22 @@
 
 import { use, useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   IconAlertCircle,
   IconArrowUpRight,
+  IconCheck,
   IconChevronRight,
+  IconCircleCheckFilled,
   IconLoader2,
+  IconLock,
   IconMapPin,
   IconPercentage,
   IconPlus,
+  IconRefresh,
   IconShieldCheck,
-  IconShoppingCart,
+  IconStarFilled,
   IconX,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
@@ -32,20 +35,23 @@ import {
 } from '@repo/ui/features/location-picker'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { GUARANTEE_BADGE, GUARANTEE_SUMMARY } from '@repo/core/guarantee'
-import { Reveal } from '@repo/ui/sc/reveal'
-import { SlotPicker } from '@repo/ui/sc/slot-picker'
+import { WhenPicker } from '@/components/checkout/when-picker'
+import { PageHeader } from '@/components/ui/page-header'
+import { formatClock } from '@repo/core/format'
+import { money } from '@/lib/money'
+import { servicePriceText } from '@/lib/price'
+import { bookingCarId } from '@/lib/booking-car'
+import { guaranteeCovers } from '@/lib/guarantee-cover'
 import { SlotAlertAsk } from '@/components/slot-alerts/slot-alert-ask'
 import { slotKeys } from '@repo/core/api/hooks/use-slots'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { ScToggle } from '@repo/ui/sc/toggle'
-import { TopBar } from '@repo/ui/sc/top-bar'
 import type { AppliedDiscount } from '@repo/core/api/discounts'
 import {
   errorMessage,
@@ -69,7 +75,10 @@ import { garageQuery } from '@repo/core/api/hooks/use-vendors'
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
 import { getVendor } from '@repo/core/api/vendors'
 import { outsideCityCheckoutLine } from '@repo/core/service-city'
-import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
+import {
+  openRazorpayCheckout,
+  RazorpayReportedError,
+} from '@repo/core/razorpay'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import {
@@ -79,8 +88,16 @@ import {
   usePendingCheckoutStore,
 } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
-import { invalidateRewards, rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
-import { invalidateCoupons, useMyCoupons } from '@repo/core/api/hooks/use-coupons'
+import {
+  invalidateRewards,
+  rewardsEnabled,
+  useRewardsConfig,
+  useRewardsSummary,
+} from '@repo/core/api/hooks/use-rewards'
+import {
+  invalidateCoupons,
+  useMyCoupons,
+} from '@repo/core/api/hooks/use-coupons'
 import { couponsForCheckout } from '@/lib/coupons'
 import { rewardRupees } from '@repo/core/rewards'
 import {
@@ -105,7 +122,7 @@ import {
   pickupFeeLabel,
 } from '@repo/core/pickup'
 import type { BookingType, Service, Vendor } from '@repo/core/types'
-import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
+import { resolveServiceAmount } from '@repo/core/pricing'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
@@ -165,6 +182,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
+  // Each of the garage's services' category, by id: a package's members are
+  // looked up here to tell whether the Guarantee covers it.
+  const [categoryById, setCategoryById] = useState<Record<string, string>>({})
   // Detlio Guarantee (0051): the checkout badge shows only while it is on.
   const guaranteeOn = useGuaranteeConfig().data?.enabled === true
   // Set when the link asked for services the garage no longer sells (Book
@@ -248,8 +268,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // the coupon row. A voucher is a promo code that only they can use; it goes
   // through the same check and booking write as any code.
   const rewardsConfig = useRewardsConfig()
-  const rewardsSummary = useRewardsSummary(rewardsEnabled(rewardsConfig.data) && !!userId)
-  const rewardVouchers = (rewardsSummary.data?.vouchers ?? []).filter((v) => v.code)
+  const rewardsSummary = useRewardsSummary(
+    rewardsEnabled(rewardsConfig.data) && !!userId
+  )
+  const rewardVouchers = (rewardsSummary.data?.vouchers ?? []).filter(
+    (v) => v.code
+  )
   // Printed coupons (0056): the customer's ready coupon vouchers, offered
   // the same way, whether or not Rewards is on.
   const myCoupons = couponsForCheckout(useMyCoupons(!!userId).data)
@@ -296,6 +320,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
           return
         }
         setVendor(garage.vendor)
+        setCategoryById(
+          Object.fromEntries(
+            garage.services.map((service) => [service.id, service.category])
+          )
+        )
         const svcs = garage.services
         const catalogue: Service[] = [...garage.services, ...garage.packages]
 
@@ -303,7 +332,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
         // came back in: that order is the customer's, and it is what the
         // summary and the booking's line items preserve. Only services the
         // garage still sells: a withdrawn one is not in the catalogue.
-        const { requested, picked } = pickRequestedServices(serviceIdsParam, catalogue)
+        const { requested, picked } = pickRequestedServices(
+          serviceIdsParam,
+          catalogue
+        )
 
         // Everything asked for has been withdrawn. Standing another service
         // in for it would book something the customer never chose, so they
@@ -327,7 +359,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
       },
       (error: unknown) => {
         if (cancelled) return
-        setLoadProblem(error instanceof ApiError && error.status === 404 ? 'gone' : 'failed')
+        setLoadProblem(
+          error instanceof ApiError && error.status === 404 ? 'gone' : 'failed'
+        )
       }
     )
     void fetchVehicles()
@@ -348,24 +382,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
     fetchProfile,
   ])
 
-  // Auto-select only when there is nothing to choose between. With several
-  // cars, preselecting one would make the order summary appear the instant a
-  // time was picked — collapsing the "pick your car" step the page is built
-  // around. With exactly one car, asking for a tap is pure friction.
+  // The car is picked for the customer (F1): the one they had on screen on
+  // Home when they tapped Book a wash or an offer (if it is still saved),
+  // else their default car, else their only car. A tap on another car
+  // changes it.
   //
   // Derived rather than written back by an effect, for the same reason
-  // `appliedDiscount` below is: with one car there is no render where the
-  // selection is still empty, and nothing has to re-fire when the car list
-  // arrives.
-  //
-  // The car the customer was looking at on Home when they tapped Book a wash
-  // or an offer is a choice already made, so it is preselected — if it is
-  // still one of their saved cars (it may have been removed since).
-  const homeVehicle = vehicles.some((v) => v.id === livePending?.vehicleId)
-    ? livePending!.vehicleId
-    : null
+  // `appliedDiscount` below is: there is no render where the selection is
+  // still empty, and nothing has to re-fire when the car list arrives.
+  // The shared rule (lib/booking-car.ts), the same one the garage page
+  // priced with, so the price quoted there is the price charged here.
   const selectedVehicle =
-    pickedVehicle ?? homeVehicle ?? (vehicles.length === 1 ? vehicles[0].id : null)
+    pickedVehicle ?? bookingCarId(vehicles, livePending?.vehicleId)
 
   // Derived rather than set when the garage loads, for the same reason the car
   // is: the choice carried in from the garage page stands unless this garage
@@ -378,7 +406,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   const modeWithdrawn = unofferedMode(chosenType, vendor)
   // The switch, when the garage offers more than one mode.
   const modeOptions = vendor
-    ? offeredBookingTypes(vendor).map((value) => ({ value, label: BOOKING_TYPE_LABELS[value] }))
+    ? offeredBookingTypes(vendor).map((value) => ({
+        value,
+        label: BOOKING_TYPE_LABELS[value],
+      }))
     : []
 
   // Checkout opened with something in the cart: once per visit to this page.
@@ -410,7 +441,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // the default, then the only address when there is one.
   const isPickup = bookingType === 'pickup'
   const usesAddress = bookingType === 'doorstep' || isPickup
-  const linkedAddress = addresses.some((a) => a.id === addressParam) ? addressParam : null
+  const linkedAddress = addresses.some((a) => a.id === addressParam)
+    ? addressParam
+    : null
   const selectedAddress = usesAddress
     ? (pickedAddress ??
       linkedAddress ??
@@ -443,10 +476,16 @@ function BookContent({ vendorId }: { vendorId: string }) {
     vendor != null &&
     (refusedAddressIds.includes(address.id) ||
       // 0,0 is no pin (see addressNeedsPin), not a point in the sea.
-      (!(address.lat === 0 && address.lng === 0) && insidePickupReach(vendor, address) === false))
-  const addressOutside = selectedAddressRecord != null && !addressNeedsPin && outsidePickup(selectedAddressRecord)
+      (!(address.lat === 0 && address.lng === 0) &&
+        insidePickupReach(vendor, address) === false))
+  const addressOutside =
+    selectedAddressRecord != null &&
+    !addressNeedsPin &&
+    outsidePickup(selectedAddressRecord)
   // The way forward when this garage cannot collect: another mode it offers.
-  const otherMode = vendor ? offeredBookingTypes(vendor).find((type) => type !== 'pickup') ?? null : null
+  const otherMode = vendor
+    ? (offeredBookingTypes(vendor).find((type) => type !== 'pickup') ?? null)
+    : null
   const outsideAdvice = `This garage doesn't pick up from this address. Try another address${
     otherMode ? ` or choose ${BOOKING_TYPE_LABELS[otherMode]}` : ''
   }.`
@@ -488,13 +527,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
       : null
   // A reward voucher applied shows by its name, not its code.
   const appliedReward = appliedDiscount
-    ? rewardVouchers.find((v) => v.code?.toUpperCase() === appliedDiscount.code.toUpperCase())
+    ? rewardVouchers.find(
+        (v) => v.code?.toUpperCase() === appliedDiscount.code.toUpperCase()
+      )
     : undefined
   const appliedCoupon = appliedDiscount
-    ? myCoupons.find((c) => c.code.toUpperCase() === appliedDiscount.code.toUpperCase())
+    ? myCoupons.find(
+        (c) => c.code.toUpperCase() === appliedDiscount.code.toUpperCase()
+      )
     : undefined
 
-  const selectedVehicleType = vehicles.find((v) => v.id === selectedVehicle)?.vehicleType
+  const selectedVehicleType = vehicles.find(
+    (v) => v.id === selectedVehicle
+  )?.vehicleType
   // The tier drives the price for per-vehicle services, so the summary names
   // it — using the same labels the vendor priced against ("SUV / MUV", not "suv").
   const vehicleTierLabel = VEHICLE_TIERS.find(
@@ -569,13 +614,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // The picker let go of the chosen time (it ran out of notice, or the
   // customer switched to doorstep, which needs more): say so and go back to it.
   const handleSlotLapse = (scheduledAt: string) => {
-    const label = new Date(scheduledAt).toLocaleTimeString('en-IN', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Asia/Kolkata',
-    })
-    toast.info(`${label} is now too soon to book. ${noticeSentence(bookingType)} Pick another time.`)
+    const label = formatClock(scheduledAt)
+    toast.info(
+      `${label} is now too soon to book. ${noticeSentence(bookingType)} Pick another time.`
+    )
     goToStep('slot')
   }
 
@@ -620,7 +662,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   /** One tap on a reward voucher: applied exactly like a typed code. */
   const handleApplyReward = (code: string) => {
-    if (selectedServices.length === 0 || selectedVehicle == null || unpricedForVehicle || applyPromo.isPending) return
+    if (
+      selectedServices.length === 0 ||
+      selectedVehicle == null ||
+      unpricedForVehicle ||
+      applyPromo.isPending
+    )
+      return
     const vehicleId = selectedVehicle
     applyPromo.mutate(
       { code, vendorId, serviceIds, vehicleId },
@@ -631,7 +679,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
         },
         onError: (error) => {
           setAppliedPromo(null)
-          toast.error(error instanceof Error ? error.message : "This can't be used on this booking.")
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "This can't be used on this booking."
+          )
         },
       }
     )
@@ -663,7 +715,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // carried over unchecked; and when the server refuses it, the coupon row
   // says why (`offerProblem` below) rather than the saving quietly vanishing.
   const offerCheckKey =
-    offerCode && selectedServices.length > 0 && selectedVehicle && !unpricedForVehicle
+    offerCode &&
+    selectedServices.length > 0 &&
+    selectedVehicle &&
+    !unpricedForVehicle
       ? `${offerCode}|${serviceKey}|${selectedVehicle}`
       : null
   useEffect(() => {
@@ -676,7 +731,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
     applyPromo.mutate(
       { code, vendorId, serviceIds, vehicleId },
       {
-        onSuccess: (applied) => setAppliedPromo({ discount: applied, serviceKey: key, vehicleId }),
+        onSuccess: (applied) =>
+          setAppliedPromo({ discount: applied, serviceKey: key, vehicleId }),
         onError: (error) => {
           setAppliedPromo(null)
           if (error instanceof ApiError && isLastingRefusal(error.code)) {
@@ -691,6 +747,60 @@ function BookContent({ vendorId }: { vendorId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offerCheckKey, offerCode, selectedVehicle, vendorId])
 
+  // "Best for you" (F1): the customer's biggest reward voucher, applied for
+  // them once there is a cart and a car to price it against, and checked
+  // again when either changes. Never over a code from Home or one they
+  // applied themselves, and never again once they remove it. A refusal is
+  // silent: it was a suggestion, not something they asked for.
+  const bestVoucher = rewardVouchers.reduce<
+    (typeof rewardVouchers)[number] | null
+  >(
+    (best, voucher) =>
+      !best || Number(voucher.amount) > Number(best.amount) ? voucher : best,
+    null
+  )
+  const [suggestionDropped, setSuggestionDropped] = useState(false)
+  const [suggestedCode, setSuggestedCode] = useState<string | null>(null)
+  const suggestionCheckedFor = useRef<string | null>(null)
+  const suggestionKey =
+    bestVoucher?.code &&
+    !offerCode &&
+    !suggestionDropped &&
+    !appliedDiscount &&
+    selectedServices.length > 0 &&
+    selectedVehicle &&
+    !unpricedForVehicle
+      ? `${bestVoucher.code}|${serviceKey}|${selectedVehicle}`
+      : null
+  useEffect(() => {
+    if (
+      !suggestionKey ||
+      !bestVoucher?.code ||
+      !selectedVehicle ||
+      applyPromo.isPending
+    )
+      return
+    if (suggestionCheckedFor.current === suggestionKey) return
+    suggestionCheckedFor.current = suggestionKey
+    const vehicleId = selectedVehicle
+    const key = serviceIds.join(',')
+    const code = bestVoucher.code
+    applyPromo.mutate(
+      { code, vendorId, serviceIds, vehicleId },
+      {
+        onSuccess: (applied) => {
+          setAppliedPromo({ discount: applied, serviceKey: key, vehicleId })
+          setSuggestedCode(applied.code)
+        },
+        // A suggestion the server refused is not the customer's error: the
+        // Coupons sheet must not show it for a code they never typed.
+        onError: () => applyPromo.reset(),
+      }
+    )
+    // As with Home's code above: the key says everything that matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestionKey, applyPromo.isPending])
+
   // Removing a line from the summary rather than going back a screen. The last
   // one cannot be removed: an empty booking is not a state this page has.
   const removeService = (serviceId: string) => {
@@ -702,6 +812,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
   }
 
   const handleRemovePromo = () => {
+    // A suggested reward goes for this checkout: Remove means "not this".
+    setSuggestionDropped(true)
+    setSuggestedCode(null)
     // A code from Home goes for good: not re-applied on the next change here,
     // nor at the next garage.
     if (offerCode) {
@@ -711,7 +824,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
       if (codeParam) {
         const next = new URLSearchParams(searchParams.toString())
         next.delete('code')
-        router.replace(`/book/${vendorId}?${next.toString()}`, { scroll: false })
+        router.replace(`/book/${vendorId}?${next.toString()}`, {
+          scroll: false,
+        })
       }
     }
     setAppliedPromo(null)
@@ -738,9 +853,14 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // with the server's own reason, since the customer never typed it and the
   // sheet that shows typed codes' errors is closed.
   const offerChecking =
-    !!offerCode && applyPromo.isPending && applyPromo.variables?.code === offerCode
+    !!offerCode &&
+    applyPromo.isPending &&
+    applyPromo.variables?.code === offerCode
   const offerProblem =
-    offerCode && !appliedDiscount && !offerChecking && applyPromo.variables?.code === offerCode
+    offerCode &&
+    !appliedDiscount &&
+    !offerChecking &&
+    applyPromo.variables?.code === offerCode
       ? promoError
       : ''
 
@@ -762,7 +882,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
       }))
       toast.success('Location saved')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not save that location')
+      toast.error(
+        err instanceof Error ? err.message : 'Could not save that location'
+      )
     } finally {
       setPinningAddress(false)
     }
@@ -770,7 +892,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
 
   const handleConfirm = async () => {
     if (paidRef.current || bookingLockRef.current || loading) return
-    if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle) return
+    // A code still being checked would otherwise be left off a fast Pay.
+    if (applyPromo.isPending) return
+    if (selectedServices.length === 0 || !selectedSlot || !selectedVehicle)
+      return
     if (!addressReady) return
     bookingLockRef.current = true
     setLoading(true)
@@ -779,7 +904,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
       vendorId,
       mode: bookingType,
       serviceCount: selectedServices.length,
-      amountBucket: payableAmount === null ? undefined : amountBucket(payableAmount),
+      amountBucket:
+        payableAmount === null ? undefined : amountBucket(payableAmount),
     })
     try {
       // Nothing is booked yet. The intent is priced and validated server-side,
@@ -827,7 +953,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
         },
         description: `${formatServiceSummary(
           selectedServices.map((service) => service.name)
-        )} at ${vendor?.name ?? 'vendor'}`,
+        )} at ${vendor?.name ?? 'the garage'}`,
         customer: {
           name: profile?.name,
           phone: profile?.phone,
@@ -847,7 +973,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 razorpayPaymentId: paymentId,
                 razorpaySignature: response.razorpay_signature,
               }),
-            poll: async () => intentPollResult(await getBookingIntentStatus(order.intentId)),
+            poll: async () =>
+              intentPollResult(await getBookingIntentStatus(order.intentId)),
             ...realClock,
           })
 
@@ -865,7 +992,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
             // page strips it once played.
             router.push(`/bookings/${outcome.bookingId}?celebrate=1`)
           } else if (outcome.kind === 'failed') {
-            setPaid({ paymentId, phase: 'failed', refundMessage: outcome.message })
+            setPaid({
+              paymentId,
+              phase: 'failed',
+              refundMessage: outcome.message,
+            })
           } else {
             setPaid({ paymentId, phase: 'unconfirmed' })
           }
@@ -902,28 +1033,46 @@ function BookContent({ vendorId }: { vendorId: string }) {
             : error.message
         )
         goToStep('slot')
-      } else if (error instanceof ApiError && error.code === 'PICKUP_NOT_OFFERED') {
+      } else if (
+        error instanceof ApiError &&
+        error.code === 'PICKUP_NOT_OFFERED'
+      ) {
         // The garage switched pickup & drop off since this page loaded.
         // Reloading it moves the switch to a mode it still offers, and the
         // notice at the top says so; nothing was charged.
         toast.error(
           `This garage has stopped offering pickup & drop.${
-            otherMode ? ` You can book ${BOOKED_AS[otherMode]} instead, or pick another garage.` : ' Pick another garage.'
+            otherMode
+              ? ` You can book ${BOOKED_AS[otherMode]} instead, or pick another garage.`
+              : ' Pick another garage.'
           }`
         )
         void getVendor(vendorId).then((v) => v && setVendor(v))
-      } else if (error instanceof ApiError && error.code === 'OUTSIDE_PICKUP_RADIUS') {
+      } else if (
+        error instanceof ApiError &&
+        error.code === 'OUTSIDE_PICKUP_RADIUS'
+      ) {
         if (selectedAddress) {
-          setRefusedAddressIds((current) => [...new Set([...current, selectedAddress])])
+          setRefusedAddressIds((current) => [
+            ...new Set([...current, selectedAddress]),
+          ])
         }
         toast.error(outsideAdvice)
         goToStep('address')
-      } else if (error instanceof ApiError && error.code === 'ADDRESS_REQUIRED') {
+      } else if (
+        error instanceof ApiError &&
+        error.code === 'ADDRESS_REQUIRED'
+      ) {
         toast.error(
-          isPickup ? 'Choose the address we should collect your car from.' : 'Choose the address we should come to.'
+          isPickup
+            ? 'Choose the address we should collect your car from.'
+            : 'Choose the address we should come to.'
         )
         goToStep('address')
-      } else if (error instanceof ApiError && error.code === 'ADDRESS_LOCATION_REQUIRED') {
+      } else if (
+        error instanceof ApiError &&
+        error.code === 'ADDRESS_LOCATION_REQUIRED'
+      ) {
         // The saved copy here thought it had a pin. Fetch the addresses
         // again, so the pin step shows for the one that has none.
         toast.error(
@@ -937,13 +1086,19 @@ function BookContent({ vendorId }: { vendorId: string }) {
             requestAnimationFrame(() => goToStep('pin'))
           })
           .catch(() => undefined)
-      } else if (error instanceof ApiError && error.code?.startsWith('CREDIT_')) {
+      } else if (
+        error instanceof ApiError &&
+        error.code?.startsWith('CREDIT_')
+      ) {
         // The credit moved since this page read it (spent on another
         // booking, or ran out). Nothing was charged; read it again so the
         // row shows what is there now.
         void invalidateGiftData(queryClient)
         toast.error(error.message)
-      } else if (!(error instanceof RazorpayReportedError) && error instanceof Error) {
+      } else if (
+        !(error instanceof RazorpayReportedError) &&
+        error instanceof Error
+      ) {
         // Anything the sheet already reported — a dismissal, a declined card —
         // has been shown once already.
         toast.error(error.message)
@@ -954,26 +1109,34 @@ function BookContent({ vendorId }: { vendorId: string }) {
     }
   }
 
+  // The bottom bar grows with what it has to say (the total, the promises
+  // above Pay, a town line); the page leaves exactly that much room under
+  // the last section, plus a little air.
+  const barRef = useRef<HTMLDivElement>(null)
+  const [barHeight, setBarHeight] = useState(176)
+  useEffect(() => {
+    const bar = barRef.current
+    if (!bar || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => setBarHeight(bar.offsetHeight))
+    observer.observe(bar)
+    return () => observer.disconnect()
+  }, [])
+
   // Checked after every hook above, which must run on every render.
   if (loadProblem) {
     return (
       <AppShell className="gap-4 pt-0">
-        <TopBar
-          showBack
-          center
-          title="Pick a Slot"
-          className="sticky top-0 z-30 -mx-4 mb-1 border-b border-border bg-brand-black px-4"
-        />
+        <PageHeader title="Book your wash" />
         {loadProblem === 'gone' ? (
           // The garage page's own words for a garage that is not listed:
           // unverified, archived, or never was.
           <div className="flex flex-col items-center gap-3 py-12 text-center">
-            <p className="text-[13px] text-text-secondary">
+            <p className="text-[15px] text-text-secondary">
               This garage isn&apos;t taking bookings on Detlio.
             </p>
             <Link
               href="/garages"
-              className="flex min-h-11 items-center px-3 text-[13px] font-semibold text-text-primary underline"
+              className="flex min-h-11 items-center px-3 text-[15px] font-medium text-text-primary underline underline-offset-2"
             >
               Find another garage
             </Link>
@@ -991,38 +1154,35 @@ function BookContent({ vendorId }: { vendorId: string }) {
     )
   }
 
+  const selectedCar = vehicles.find((v) => v.id === selectedVehicle) ?? null
+  // The server's rule (lib/guarantee-cover.ts): only when every line is a
+  // wash or detailing, or a package made only of those.
+  const guaranteeApplies =
+    guaranteeOn &&
+    guaranteeCovers(selectedServices, (serviceId) => categoryById[serviceId])
+  // Applied for the customer (F1) and still standing.
+  const suggestionApplied =
+    !!appliedReward && appliedReward.code === suggestedCode
+
   return (
-    <AppShell
-      className={cn(
-        'gap-7 pt-0',
-        // The payment-received panel stands taller than the button it
-        // replaces, so the page leaves it more room to scroll clear of; so
-        // does the "not Chennai" line above Pay, for a garage in another town.
-        paid && paid.phase !== 'confirming'
-          ? 'pb-[calc(12rem_+_env(safe-area-inset-bottom))]'
-          : vendor?.outsideServiceCity && !paid
-            ? 'pb-[calc(11rem_+_env(safe-area-inset-bottom))]'
-            : 'pb-[calc(9.5rem_+_env(safe-area-inset-bottom))]'
-      )}
-    >
-      {/* Sticky, not fixed: it keeps its place in the flow so the content
-          below needs no compensating offset. Full-bleed via -mx-4 against
-          AppShell's px-4, and opaque so rows scroll under it cleanly. */}
-      <TopBar
-        showBack
-        center
-        title="Pick a Slot"
-        className="sticky top-0 z-30 -mx-4 mb-1 border-b border-border bg-brand-black px-4"
+    <AppShell className="gap-6 pt-0 pb-0">
+      {/* Sticky, not fixed: it keeps its place in the flow. Full-bleed via
+          -mx-4 against AppShell's px-4, and opaque so rows scroll under it. */}
+      <PageHeader
+        title="Book your wash"
+        className="sticky top-0 z-30 -mx-4 bg-brand-black px-4"
       />
 
       {/* The garage page says this where Book Now would be; a customer can
-          still land here from Book again or an old link, so checkout says it
-          up front instead of only once a date is picked. The server refuses
-          the booking either way (GARAGE_PAUSED). */}
-      {/* Neutral, as on the garage page: there is nothing here for the
-          customer to fix, so it is news, not a warning. */}
+          still land here from Book again or an old link. Neutral: there is
+          nothing here for the customer to fix. The server refuses the
+          booking either way (GARAGE_PAUSED). */}
       {vendor?.bookingsPaused && (
-        <Notice role="status" tone="neutral" title="Not taking bookings right now">
+        <Notice
+          role="status"
+          tone="neutral"
+          title="Not taking bookings right now"
+        >
           {vendor.bookingsPausedReason ||
             'This garage has paused new bookings. Check back later, or pick another garage.'}
         </Notice>
@@ -1039,50 +1199,135 @@ function BookContent({ vendorId }: { vendorId: string }) {
       )}
 
       {servicesDropped && (
-        <Notice role="status" tone="neutral" title="Some services are no longer offered">
+        <Notice
+          role="status"
+          tone="neutral"
+          title="Some services are no longer offered"
+        >
           This garage has stopped offering some of the services you picked, so
           they&apos;ve been left out.
         </Notice>
       )}
 
-      {/* Identity only — what you're booking and where. Every rupee figure
-          lives in the order summary at the bottom, after the choices that
-          determine it: a per-vehicle service isn't priced until a car is
-          picked, so quoting up here would show a number that later moves. */}
-      {selectedServices.length > 0 && vendor && (
-        <ScCard className="flex items-center gap-3 py-3.5">
-          {vendor.logoUrl && (
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[10px] border border-border bg-surface-elevated">
-              <Image
-                src={vendor.logoUrl}
-                alt={`${vendor.name} logo`}
-                fill
-                sizes="40px"
-                className="object-cover"
-              />
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold text-text-primary">{vendor.name}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-[12px] text-text-secondary">
-              <IconShoppingCart size={13} />
-              {formatServiceSummary(
-                selectedServices.map((service) => service.name)
-              )}{' '}
-              ·{' '}
-              <span className="font-numeric font-medium">
-                {formatDuration(totalDuration)}
+      {/* What is being booked, where, and for how much: the price is for the
+          customer's own car from the first second (F1, F7), and the garage's
+          rating and Certified mark ride along (F4). Each line can be removed
+          here, so dropping one never means going back a screen and losing
+          the time and any code. */}
+      {vendor && selectedServices.length > 0 && (
+        <section aria-label="Your booking" className="hub-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <h2
+              ref={summaryStepRef}
+              tabIndex={-1}
+              className="min-w-0 scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+            >
+              {vendor.name}
+            </h2>
+            {vendor.reviewCount > 0 ? (
+              <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[13px] text-text-primary">
+                <IconStarFilled
+                  size={13}
+                  aria-hidden
+                  className="text-text-primary"
+                />
+                <span className="font-numeric">{vendor.rating.toFixed(1)}</span>
+                <span className="text-dim">
+                  (<span className="font-numeric">{vendor.reviewCount}</span>)
+                </span>
+                <span className="sr-only">
+                  {' '}
+                  stars from {vendor.reviewCount} reviews
+                </span>
               </span>
+            ) : (
+              <span className="shrink-0 pt-0.5 text-[13px] text-dim">
+                New on Detlio
+              </span>
+            )}
+          </div>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-dim">
+            {vendor.certified && (
+              <span className="flex items-center gap-1 text-text-primary">
+                <IconCircleCheckFilled
+                  size={15}
+                  aria-hidden
+                  className="text-success"
+                />
+                Detlio Certified
+              </span>
+            )}
+            {[vendor.area, vendor.distanceKm != null ? vendor.distance : null]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+
+          <div className="mt-4 flex flex-col gap-2.5 border-t border-line pt-4">
+            {lines.map(({ service, amount }) => (
+              <div
+                key={service.id}
+                className="flex items-start justify-between gap-3 text-[15px]"
+              >
+                <span className="flex min-w-0 items-start gap-1.5">
+                  {selectedServices.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeService(service.id)}
+                      aria-label={`Remove ${service.name}`}
+                      // 44pt tall to the thumb, drawn as a small cross.
+                      className="-my-2.5 -ml-3 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+                    >
+                      <IconX size={15} aria-hidden="true" />
+                    </button>
+                  )}
+                  <span className="min-w-0 text-text-secondary">
+                    {service.name}
+                    {vehicleTierLabel &&
+                      service.pricingType === 'per_vehicle' && (
+                        <span className="text-text-muted">
+                          {' '}
+                          · {vehicleTierLabel}
+                        </span>
+                      )}
+                  </span>
+                </span>
+                {/* Not priced is a problem, so it is amber like every other
+                    error: red would read as something to tap. */}
+                <span
+                  className={cn(
+                    'shrink-0',
+                    amount == null && selectedVehicleType != null
+                      ? 'text-error'
+                      : 'text-text-primary'
+                  )}
+                >
+                  {amount == null && selectedVehicleType != null ? (
+                    'Not priced'
+                  ) : (
+                    <Figures
+                      text={servicePriceText(service, selectedVehicleType)}
+                    />
+                  )}
+                </span>
+              </div>
+            ))}
+            <p className="text-[13px] text-dim">
+              <span className="font-numeric">
+                {formatDuration(totalDuration)}
+              </span>{' '}
+              · {BOOKING_TYPE_LABELS[bookingType]}
             </p>
           </div>
-        </ScCard>
+        </section>
       )}
 
+      {/* At garage, Doorstep or Pickup & drop on one line, only when the
+          garage offers more than one. */}
       {modeOptions.length > 1 && (
-        <section>
-          <h2 className="mb-2 text-[15px] font-semibold text-text-primary">Service type</h2>
-          {/* Two or three choices; "Pickup & drop" fits a third of a 360px
-              phone without its label wrapping. */}
+        <section aria-labelledby="checkout-mode">
+          <h2 id="checkout-mode" className="sr-only">
+            Service type
+          </h2>
           <ScToggle
             options={modeOptions}
             value={bookingType}
@@ -1090,25 +1335,24 @@ function BookContent({ vendorId }: { vendorId: string }) {
             className="whitespace-nowrap"
           />
           {isPickup && (
-            <p className="mt-2 text-[12px] leading-relaxed text-text-secondary">
-              {vendor?.name ?? 'The garage'} collects your car from your address, works on it at
-              the garage and brings it back.
+            <p className="mt-2 text-[13px] leading-relaxed text-text-secondary">
+              {vendor?.name ?? 'The garage'} collects your car from your
+              address, works on it at the garage and brings it back.
             </p>
           )}
         </section>
       )}
 
-      {/* Each step below appears only once the one before it is answered, so
-          the page opens as a single question rather than five stacked ones.
-          The picker reveals its own time slots after a date is chosen. */}
+      {/* The earliest day with a free time is already picked, so the times
+          show at once (F1); morning first. */}
       <section
         ref={slotStepRef}
         tabIndex={-1}
         aria-label="Date and time"
         className="scroll-mt-20 outline-none"
       >
-        <SlotPicker
-          progressive
+        <WhenPicker
+          autoPick
           vendorId={vendorId}
           serviceIds={serviceIds}
           value={selectedSlot}
@@ -1116,115 +1360,133 @@ function BookContent({ vendorId }: { vendorId: string }) {
           bookingType={bookingType}
           onLapse={handleSlotLapse}
           initialDate={dateParam}
-          // A day with nothing left (or nothing in the part of the day the
-          // customer wants): "Notify me if a slot opens" (0047).
+          // A day with nothing left: "Notify me if a slot opens" (0047).
           renderDayExtra={(state) => (
-            <SlotAlertAsk state={state} vendorId={vendorId} serviceIds={serviceIds} bookingType={bookingType} />
+            <SlotAlertAsk
+              state={state}
+              vendorId={vendorId}
+              serviceIds={serviceIds}
+              bookingType={bookingType}
+            />
           )}
         />
       </section>
 
-      {/* Not in the design, but the booking intent requires a vehicleId — the
-          booking can't be created without one. */}
-      {selectedSlot && (
-        <Reveal as="section">
-          <h2
-            ref={carStepRef}
-            tabIndex={-1}
-            className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
-          >
-            Car details
-          </h2>
-          {vehicles.length === 0 ? (
-            <ScCard className="flex flex-col items-start gap-2 border-warning bg-warning-muted/20">
-              <p className="text-[13px] font-medium text-text-primary">
-                Add a car to continue
-              </p>
-              <p className="text-[12px] text-text-secondary">
-                We need to know which car we&apos;re washing — pricing can
-                differ by type.
-              </p>
-              <ScButton
-                fullWidth={false}
-                variant="secondary"
-                onClick={() => setAddCarOpen(true)}
-                className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[12px]"
-              >
-                <IconPlus size={14} /> Add a car
-              </ScButton>
-            </ScCard>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {vehicles.map((v) => (
+      {/* The car, already picked (F1): the default one, or the one on Home. */}
+      <section>
+        <h2
+          ref={carStepRef}
+          tabIndex={-1}
+          className="mb-3 scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
+        >
+          Car
+        </h2>
+        {vehicles.length === 0 ? (
+          <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
+            <p className="text-[15px] text-text-primary">
+              Add a car to continue
+            </p>
+            <p className="text-[13px] text-text-secondary">
+              We need to know which car we&apos;re washing — pricing can differ
+              by type.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAddCarOpen(true)}
+              className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-[15px] text-text-primary"
+            >
+              <IconPlus size={16} aria-hidden /> Add a car
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {vehicles.map((v) => {
+              const on = selectedVehicle === v.id
+              return (
                 <button
                   key={v.id}
                   type="button"
-                  // The selected car is otherwise marked only by a white border
-                  // on the card inside — white, as chosen things are; red here
-                  // is the Pay button's.
-                  aria-pressed={selectedVehicle === v.id}
+                  // White, as chosen things are; red here is Pay's.
+                  aria-pressed={on}
                   onClick={() => setPickedVehicle(v.id)}
+                  className={cn(
+                    'press flex min-h-[64px] min-w-0 flex-col justify-center rounded-[18px] border px-4 py-2.5 text-left transition-colors',
+                    on
+                      ? 'border-text-primary bg-white/[0.04]'
+                      : 'border-line bg-white/[0.02]'
+                  )}
                 >
-                  <ScCard className={cn(selectedVehicle === v.id && 'border-text-primary')}>
-                    <p className="text-[13px] font-medium">{v.make} {v.model}</p>
-                    <p className="text-[11px] text-text-secondary">{v.plate}</p>
-                  </ScCard>
+                  <span className="flex min-w-0 items-center gap-1.5 text-[15px] text-text-primary">
+                    <span className="truncate">
+                      {v.make} {v.model}
+                    </span>
+                    {on && (
+                      <IconCheck
+                        size={15}
+                        stroke={2}
+                        aria-hidden
+                        className="shrink-0"
+                      />
+                    )}
+                  </span>
+                  <span className="truncate font-numeric text-[13px] text-dim">
+                    {v.plate}
+                  </span>
                 </button>
-              ))}
-              {/* In place, not a link to /profile: leaving the page would
-                  discard the slot and any applied code. */}
-              <button
-                type="button"
-                onClick={() => setAddCarOpen(true)}
-                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary"
-              >
-                <IconPlus size={14} /> Add another car
-              </button>
-            </div>
-          )}
-        </Reveal>
-      )}
+              )
+            })}
+            {/* In place, not a link to /profile: leaving the page would
+                discard the time and any applied code. */}
+            <button
+              type="button"
+              onClick={() => setAddCarOpen(true)}
+              className="press flex min-h-[64px] items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+            >
+              <IconPlus size={15} aria-hidden /> Add another car
+            </button>
+          </div>
+        )}
+      </section>
 
-      {/* Doorstep and pickup & drop: the garage has to be told where to come
-          (or collect the car from), and the address is picked from the
-          customer's saved ones so the server can check it against the
-          garage's travel or pickup radius. */}
-      {selectedSlot && usesAddress && (
-        <Reveal as="section">
+      {/* Doorstep and pickup & drop: where to come (or collect the car from),
+          picked from the customer's saved addresses so the server can check
+          it against the garage's travel or pickup radius. */}
+      {usesAddress && (
+        <section>
           <h2
             ref={addressStepRef}
             tabIndex={-1}
-            className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
+            className="mb-3 scroll-mt-20 text-[17px] font-medium tracking-[-0.01em] text-text-primary outline-none"
           >
-            {isPickup ? 'Where should we collect your car?' : 'Where should we come?'}
+            {isPickup
+              ? 'Where should we collect your car?'
+              : 'Where should we come?'}
           </h2>
           {isPickup && addresses.length > 0 && (
-            <p className="-mt-1 mb-2 text-[12px] text-text-secondary">
+            <p className="-mt-1 mb-3 text-[13px] text-text-secondary">
               The garage brings your car back to the same address.
             </p>
           )}
           {addresses.length === 0 ? (
-            <ScCard className="flex flex-col items-start gap-2 border-warning bg-warning-muted/20">
-              <p className="text-[13px] font-medium text-text-primary">
+            <div className="flex flex-col items-start gap-2 rounded-[22px] border border-warning/40 bg-warning-muted/20 p-4">
+              <p className="text-[15px] text-text-primary">
                 Add an address to continue
               </p>
-              <p className="text-[12px] text-text-secondary">
+              <p className="text-[13px] text-text-secondary">
                 {isPickup
                   ? 'Pickup & drop needs the address your car is collected from.'
                   : 'Doorstep service needs somewhere to go.'}
               </p>
               {/* In place, as with cars: sign-up no longer asks for an
-                  address, so this is where a new customer gives one, and a
-                  link out to /profile would drop the slot and any code. */}
-              <ScButton
-                fullWidth={false}
-                variant="secondary"
+                  address, so this is where a new customer gives one. */}
+              <button
+                type="button"
                 onClick={() => setAddAddressOpen(true)}
-                className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[12px]"
+                className="press mt-1 inline-flex h-11 items-center gap-1.5 rounded-pill border border-stroke px-4 text-[15px] text-text-primary"
               >
-                <IconPlus size={14} /> Add an address
-              </ScButton>
-            </ScCard>
+                <IconPlus size={16} aria-hidden /> Add an address
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col gap-2">
               {addresses.map((a) => (
@@ -1233,435 +1495,365 @@ function BookContent({ vendorId }: { vendorId: string }) {
                   type="button"
                   aria-pressed={selectedAddress === a.id}
                   onClick={() => pickAddress(a.id)}
+                  className={cn(
+                    'press flex items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition-colors',
+                    selectedAddress === a.id
+                      ? 'border-text-primary bg-white/[0.04]'
+                      : 'border-line bg-white/[0.02]'
+                  )}
                 >
-                  <ScCard
-                    className={cn(
-                      'flex items-center gap-3 text-left',
-                      selectedAddress === a.id && 'border-text-primary'
-                    )}
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
-                      <IconMapPin size={18} className="text-text-primary" />
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06]">
+                    <IconMapPin
+                      size={18}
+                      stroke={1.5}
+                      className="text-text-primary"
+                      aria-hidden
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] text-text-primary">
+                      {a.label}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-medium">{a.label}</span>
-                      <span className="block truncate text-[11px] text-text-secondary">
-                        {a.address}
+                    <span className="block truncate text-[13px] text-text-secondary">
+                      {a.address}
+                    </span>
+                    {/* Said on every address it applies to, so the customer
+                        can see which of theirs would work before tapping. */}
+                    {outsidePickup(a) && (
+                      <span className="mt-0.5 block text-[13px] text-error">
+                        Outside this garage&apos;s pickup area
                       </span>
-                      {/* Said on every address it applies to, so the customer
-                          can see which of theirs would work before tapping. */}
-                      {outsidePickup(a) && (
-                        <span className="mt-0.5 block text-[11px] text-error">
-                          Outside this garage&apos;s pickup area
-                        </span>
-                      )}
-                    </span>
-                  </ScCard>
+                    )}
+                  </span>
                 </button>
               ))}
 
               {addressOutside && (
-                <ScCard role="status" className="flex flex-col gap-2 border-warning bg-warning-muted/20">
-                  <p className="text-[13px] font-medium text-text-primary">
+                <div
+                  role="status"
+                  className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4"
+                >
+                  <p className="text-[15px] text-text-primary">
                     This garage doesn&apos;t pick up from this address
                   </p>
-                  <p className="text-[12px] text-text-secondary">
-                    Try another address{otherMode ? `, or book ${BOOKED_AS[otherMode]} instead` : ''}.
+                  <p className="text-[13px] text-text-secondary">
+                    Try another address
+                    {otherMode
+                      ? `, or book ${BOOKED_AS[otherMode]} instead`
+                      : ''}
+                    .
                   </p>
                   {otherMode && (
-                    <ScButton
-                      fullWidth={false}
-                      variant="secondary"
+                    <button
+                      type="button"
                       onClick={() => setChosenType(otherMode)}
-                      className="mt-1 self-start px-3 py-1.5 text-[12px]"
+                      className="press mt-1 inline-flex h-11 items-center self-start rounded-pill border border-stroke px-4 text-[15px] text-text-primary"
                     >
                       Choose {BOOKING_TYPE_LABELS[otherMode]}
-                    </ScButton>
+                    </button>
                   )}
-                </ScCard>
+                </div>
               )}
 
               {addressNeedsPin && (
-                <ScCard className="flex flex-col gap-2 border-warning bg-warning-muted/20">
+                <div className="flex flex-col gap-2 rounded-[18px] border border-warning/40 bg-warning-muted/20 p-4">
                   <p
                     ref={pinStepRef}
                     tabIndex={-1}
-                    className="scroll-mt-20 text-[13px] font-medium text-text-primary outline-none"
+                    className="scroll-mt-20 text-[15px] text-text-primary outline-none"
                   >
                     Pin the exact spot
                   </p>
-                  <p className="text-[12px] text-text-secondary">
+                  <p className="text-[13px] text-text-secondary">
                     {isPickup
                       ? 'We need it to check this garage collects from you, and so the driver finds your car.'
                       : 'We need it to check this garage travels to you.'}
                     {pinningAddress ? ' Saving...' : ''}
                   </p>
                   <LocationPicker showSearch onChange={handlePinAddress} />
-                </ScCard>
+                </div>
               )}
 
               <button
                 type="button"
                 onClick={() => setAddAddressOpen(true)}
-                className="flex items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-border py-3 text-[12px] font-medium text-text-secondary transition-colors hover:border-text-secondary hover:text-text-primary"
+                className="press flex min-h-12 items-center justify-center gap-1.5 rounded-[18px] border border-dashed border-stroke text-[13px] text-text-secondary transition-colors hover:text-text-primary"
               >
-                <IconPlus size={14} /> Add another address
+                <IconPlus size={15} aria-hidden /> Add another address
               </button>
             </div>
           )}
-        </Reveal>
+        </section>
       )}
 
-      {/* Coupons, then the payment summary — the Urban Company cart shape.
-          Coupons is a row you tap rather than a form that is always open, and
-          the saving reads as a strike-through on the line it applies to
-          instead of its own subtotal/discount block. With a single service
-          that says the same thing in two rows fewer. */}
-      {selectedServices.length > 0 && selectedSlot && selectedVehicle && addressReady && (
-        <Reveal as="section" className="flex flex-col gap-4">
-          <ScCard className="py-3.5">
-            {appliedDiscount ? (
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-2.5">
-                  <span className="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-success-muted text-success">
-                    <IconPercentage size={14} />
-                  </span>
+      {/* Savings: the best reward already applied (F1), codes, and Detlio
+          credit. Shown once there is a car to price against. Quiet chips:
+          red on checkout is Pay's alone. */}
+      {selectedServices.length > 0 &&
+        selectedVehicle &&
+        !unpricedForVehicle && (
+          <section aria-labelledby="checkout-savings">
+            <h2
+              id="checkout-savings"
+              className="mb-3 text-[17px] font-medium tracking-[-0.01em] text-text-primary"
+            >
+              Savings
+            </h2>
+            <div className="hub-card flex flex-col px-5 py-1">
+              {appliedDiscount ? (
+                <div className="flex min-h-[60px] items-center justify-between gap-3 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium text-text-primary">
-                      {appliedReward
-                        ? `${appliedReward.label} applied`
-                        : appliedCoupon
-                          ? `Coupon applied: ${appliedCoupon.title}`
-                          : `${appliedDiscount.code} applied`}
+                    <p className="text-[15px] text-text-primary">
+                      {suggestionApplied && appliedReward
+                        ? `Best for you: ${appliedReward.label}`
+                        : appliedReward
+                          ? `${appliedReward.label} applied`
+                          : appliedCoupon
+                            ? `Coupon applied: ${appliedCoupon.title}`
+                            : `${appliedDiscount.code} applied`}
                     </p>
-                    <p className="text-[11px] text-success">
-                      You save{' '}
-                      <span className="font-numeric font-medium">
-                        ₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
+                    <p className="text-[13px] text-success">
+                      Saves{' '}
+                      <span className="font-numeric">
+                        {money(appliedDiscount.discountAmount)}
                       </span>
+                      {suggestionApplied ? ' · applied' : ''}
                     </p>
                   </div>
+                  {/* Neutral: red on checkout is kept for Pay. */}
+                  <button
+                    type="button"
+                    onClick={handleRemovePromo}
+                    className="-mr-2 min-h-11 shrink-0 px-2 text-[15px] text-text-primary"
+                  >
+                    Remove
+                  </button>
                 </div>
-                {/* Neutral, like the Apply row this replaces: red on checkout
-                    is kept for Pay. */}
-                <button
-                  type="button"
-                  onClick={handleRemovePromo}
-                  className="-mr-2 min-h-11 shrink-0 px-2 text-[12px] font-medium text-text-primary"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setPromoOpen(true)}
-                  className="flex w-full items-center justify-between gap-3"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="flex size-6 items-center justify-center rounded-full bg-success-muted text-success">
-                      <IconPercentage size={14} />
-                    </span>
-                    <span className="text-[13px] font-medium text-text-primary">
-                      Coupons and offers
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-0.5 text-[12px] font-medium text-text-primary">
-                    {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
-                    <IconChevronRight size={14} />
-                  </span>
-                </button>
-                {/* Amber, like the sheet's own errors: the code from Home did
-                    not survive a change of car or services, and the customer
-                    is told so in the server's words, not left to notice the
-                    saving gone. */}
-                {/* Remove beside it, as on an applied code: the customer never
-                    typed this one, so it is theirs to let go, here and at the
-                    next garage, without having to find another code that works. */}
-                {offerProblem && (
-                  <div className="mt-1 flex items-center justify-between gap-3">
-                    <p role="status" className="flex items-start gap-1.5 text-[12px] text-error">
-                      <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
-                      <span>
-                        {offerCode} doesn&apos;t apply to this booking. {offerProblem}
+              ) : (
+                <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={() => setPromoOpen(true)}
+                    className="flex min-h-[52px] w-full items-center justify-between gap-3"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-full bg-success-muted text-success">
+                        <IconPercentage size={15} aria-hidden />
                       </span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleRemovePromo}
-                      aria-label={`Remove ${offerCode}`}
-                      className="-mr-2 min-h-11 shrink-0 px-2 text-[12px] font-medium text-text-primary"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-                {/* Detlio Rewards (0050): one voucher per booking, instead
-                    of a code; it goes with Detlio credit. Quiet chips: red
-                    stays on Pay. */}
-                {rewardVouchers.length > 0 && (
-                  <div className="mt-3 border-t border-border pt-3">
-                    <p className="text-[12px] text-text-secondary">Your rewards</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="text-[15px] text-text-primary">
+                        Coupons and offers
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-0.5 text-[13px] text-text-primary">
+                      {offerChecking ? `Checking ${offerCode}…` : 'Apply'}
+                      <IconChevronRight size={15} aria-hidden />
+                    </span>
+                  </button>
+                  {/* The code from Home did not survive a change of car or
+                    services: said in the server's words, amber, with Remove
+                    beside it since the customer never typed it. */}
+                  {offerProblem && (
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p
+                        role="status"
+                        className="flex items-start gap-1.5 text-[13px] text-error"
+                      >
+                        <IconAlertCircle
+                          size={15}
+                          className="mt-px shrink-0"
+                          aria-hidden="true"
+                        />
+                        <span>
+                          {offerCode} doesn&apos;t apply to this booking.{' '}
+                          {offerProblem}
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleRemovePromo}
+                        aria-label={`Remove ${offerCode}`}
+                        className="-mr-2 min-h-11 shrink-0 px-2 text-[13px] text-text-primary"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                  {/* Detlio Rewards (0050) and printed coupons (0056): one tap,
+                    the same check as a typed code. */}
+                  {(rewardVouchers.length > 0 || myCoupons.length > 0) && (
+                    <div className="mb-3 flex flex-wrap gap-2">
                       {rewardVouchers.slice(0, 4).map((voucher) => (
                         <button
                           key={voucher.id}
                           type="button"
                           disabled={applyPromo.isPending}
                           onClick={() => handleApplyReward(voucher.code!)}
-                          className="flex min-h-9 items-center gap-1.5 rounded-full border border-stroke px-3 text-[12px] text-text-primary disabled:opacity-50"
+                          className="flex min-h-11 items-center gap-1.5 rounded-full border border-stroke px-3.5 text-[13px] text-text-primary disabled:opacity-50"
                         >
-                          <span className="font-numeric font-medium">{rewardRupees(voucher.amount)} off</span>
-                          <span className="text-text-secondary">· {voucher.label}</span>
+                          <span className="font-numeric">
+                            {rewardRupees(voucher.amount)} off
+                          </span>
+                          <span className="text-text-secondary">
+                            · {voucher.label}
+                          </span>
                         </button>
                       ))}
-                    </div>
-                  </div>
-                )}
-                {/* Printed coupons (0056) the customer added: one tap, the
-                    same check as a typed code. Quiet chips: red stays on Pay. */}
-                {myCoupons.length > 0 && (
-                  <div className="mt-3 border-t border-border pt-3">
-                    <p className="text-[12px] text-text-secondary">Your coupons</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
                       {myCoupons.slice(0, 4).map((coupon) => (
                         <button
                           key={coupon.id}
                           type="button"
                           disabled={applyPromo.isPending}
                           onClick={() => handleApplyReward(coupon.code)}
-                          className="flex min-h-9 items-center gap-1.5 rounded-full border border-stroke px-3 text-[12px] text-text-primary disabled:opacity-50"
+                          className="flex min-h-11 items-center rounded-full border border-stroke px-3.5 text-[13px] text-text-primary disabled:opacity-50"
                         >
-                          <span className="font-medium">{coupon.title}</span>
+                          {coupon.title}
                         </button>
                       ))}
                     </div>
-                  </div>
-                )}
-              </>
-            )}
-          </ScCard>
-
-          <div>
-            <h2
-              ref={summaryStepRef}
-              tabIndex={-1}
-              className="mb-2 scroll-mt-20 text-[15px] font-semibold text-text-primary outline-none"
-            >
-              Payment summary
-            </h2>
-            <ScCard className="flex flex-col gap-3 py-3.5">
-              {/* One row per service, each removable. A cart the customer
-                  cannot edit here would send them back a screen to drop one
-                  line, losing the slot and any applied code on the way. */}
-              {lines.map(({ service, amount }) => (
-                <div
-                  key={service.id}
-                  className="flex items-start justify-between gap-3 text-[13px]"
-                >
-                  <span className="flex min-w-0 items-start gap-2">
-                    {selectedServices.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeService(service.id)}
-                        aria-label={`Remove ${service.name}`}
-                        // A 36px target around the 14px cross, drawn in the
-                        // same spot: the rows sit closer than 44px apart, so
-                        // a full 44 would reach into the next row's cross.
-                        className="-m-[11px] mt-[-10px] flex size-9 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-                      >
-                        <IconX size={14} aria-hidden="true" />
-                      </button>
-                    )}
-                    <span className="min-w-0 text-text-secondary">
-                      {service.name}
-                      {vehicleTierLabel && (
-                        <span className="text-text-muted"> · {vehicleTierLabel}</span>
-                      )}
-                    </span>
-                  </span>
-                  {/* Not priced is a problem, so it is amber like every other
-                      error — red would read as something to tap. */}
-                  <span
-                    className={cn(
-                      'shrink-0 font-medium',
-                      amount == null && selectedVehicleType != null
-                        ? 'text-error'
-                        : 'text-text-primary'
-                    )}
-                  >
-                    {amount == null && selectedVehicleType != null ? (
-                      'Not priced'
-                    ) : (
-                      <Figures
-                        text={formatServicePrice(service, selectedVehicleType)}
-                      />
-                    )}
-                  </span>
-                </div>
-              ))}
-
-              {/* Pickup & drop's own line: free for now (owner decision), and
-                  where a fee would show once one is set (bookingTypeFee on
-                  the server). With the address, so the customer checks it
-                  once more before paying. */}
-              {isPickup && (
-                <div className="flex items-start justify-between gap-3 text-[13px]">
-                  <span className="min-w-0 text-text-secondary">
-                    <span className="block">Pickup &amp; drop</span>
-                    {selectedAddressRecord && (
-                      <span className="block truncate text-[11px] text-text-muted">
-                        From and back to {selectedAddressRecord.address}
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 font-medium text-success">{pickupFeeLabel(0)}</span>
+                  )}
                 </div>
               )}
-
-              {/* The subtotal only earns its row once there is more than one
-                  line to add up. */}
-              {selectedServices.length > 1 && (
-                <div className="flex items-start justify-between gap-3 border-t border-border pt-3 text-[13px]">
-                  <span className="text-text-secondary">Subtotal</span>
-                  <span className="shrink-0 font-numeric font-medium text-text-primary">
-                    {subtotal == null
-                      ? '—'
-                      : `₹${subtotal.toLocaleString('en-IN')}`}
+              {/* Detlio credit (0049): a switch, on by default. */}
+              {creditOffered && (
+                <div className="flex min-h-[60px] items-center justify-between gap-3 border-t border-line">
+                  <span className="min-w-0 text-[15px] text-text-primary">
+                    Use{' '}
+                    <span className="font-numeric">
+                      {money(creditSplit.credit)}
+                    </span>{' '}
+                    Detlio credit
                   </span>
+                  <ScSwitch
+                    label="Use Detlio credit"
+                    checked={creditSwitchOn}
+                    disabled={loading}
+                    onChange={setCreditSwitchOn}
+                    className="-mr-2"
+                  />
                 </div>
               )}
+            </div>
+          </section>
+        )}
 
-              {/* Spelled out rather than folded into a struck-through price:
-                  the discount can be most of the bill, and the customer should
-                  see the arithmetic that produced what they are about to pay. */}
-              {appliedDiscount && (
-                <div className="flex items-start justify-between gap-3 text-[13px]">
-                  <span className="min-w-0 truncate text-success">
-                    Discount ({appliedDiscount.code})
-                  </span>
-                  <span className="shrink-0 font-numeric font-medium text-success">
-                    −₹{Number(appliedDiscount.discountAmount).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
-                <span>{creditApplied ? 'Total' : 'Amount to pay'}</span>
-                <span className="font-numeric font-bold">
-                  {payableAmount == null
-                    ? '—'
-                    : `₹${payableAmount.toLocaleString('en-IN')}`}
+      {/* The price, worked out in full: the customer should see the sum
+          that produced what they are about to pay. */}
+      {selectedServices.length > 0 && (
+        <section
+          aria-labelledby="checkout-price"
+          className="flex flex-col gap-3"
+        >
+          <h2 id="checkout-price" className="sr-only">
+            Price
+          </h2>
+          <div className="hub-card flex flex-col gap-3 p-5 text-[15px]">
+            {/* Only once there is more than one line to add up. */}
+            {selectedServices.length > 1 && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-text-secondary">Subtotal</span>
+                <span className="font-numeric text-text-primary">
+                  {subtotal == null || !selectedVehicle ? '—' : money(subtotal)}
                 </span>
               </div>
-
-              {/* Detlio credit (0049), after the promo: a switch, on by
-                  default, then what it takes off and what is left. */}
-              {creditOffered && (
-                <>
-                  <div className="-my-1 flex items-center justify-between gap-3 text-[13px]">
-                    <span className="min-w-0 text-text-primary">
-                      Use{' '}
-                      <span className="font-numeric font-medium">
-                        ₹{creditSplit.credit.toLocaleString('en-IN')}
-                      </span>{' '}
-                      Detlio credit
-                    </span>
-                    <ScSwitch
-                      label="Use Detlio credit"
-                      checked={creditSwitchOn}
-                      disabled={loading}
-                      onChange={setCreditSwitchOn}
-                      className="-mr-2"
-                    />
-                  </div>
-                  {creditApplied && (
-                    <>
-                      <div className="flex items-start justify-between gap-3 text-[13px]">
-                        <span className="text-success">Detlio credit</span>
-                        <span className="shrink-0 font-numeric font-medium text-success">
-                          −₹{creditSplit.credit.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold text-text-primary">
-                        <span>To pay</span>
-                        <span className="font-numeric font-bold">
-                          ₹{creditSplit.toPay.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-            </ScCard>
-
-            {/* Before paying, on purpose (owner decision): who has the car
-                while it is away. */}
+            )}
+            {/* Pickup & drop's own line: free for now (owner decision). */}
             {isPickup && (
-              <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-text-primary">
-                <IconShieldCheck size={15} className="mt-px shrink-0 text-text-secondary" aria-hidden="true" />
-                <span>{PICKUP_RESPONSIBILITY_LINE}</span>
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0 text-text-secondary">
+                  <span className="block">Pickup &amp; drop</span>
+                  {selectedAddressRecord && (
+                    <span className="block truncate text-[13px] text-text-muted">
+                      From and back to {selectedAddressRecord.address}
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 text-success">
+                  {pickupFeeLabel(0)}
+                </span>
+              </div>
             )}
-
-            {/* Detlio Guarantee (0051), only while it is on and only for a
-                wash or detailing (a package counts): what the claim screen
-                offers after the job, in one line. */}
-            {guaranteeOn &&
-              selectedServices.length > 0 &&
-              selectedServices.every(
-                (service) =>
-                  service.pricingType !== 'on_inspection' &&
-                  ['car_wash', 'detailing', 'package'].includes(service.category)
-              ) && (
-                <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-text-primary">
-                  <IconShieldCheck size={15} className="mt-px shrink-0 text-text-secondary" aria-hidden="true" />
-                  <span>
-                    <span className="font-medium">{GUARANTEE_BADGE}</span>
-                    <span className="text-text-secondary"> — {GUARANTEE_SUMMARY}</span>
-                  </span>
-                </p>
+            {appliedDiscount && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-text-secondary">
+                  Discount ({appliedDiscount.code})
+                </span>
+                <span className="shrink-0 font-numeric text-success">
+                  −{money(appliedDiscount.discountAmount)}
+                </span>
+              </div>
+            )}
+            {creditApplied && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-text-secondary">Detlio credit</span>
+                <span className="shrink-0 font-numeric text-success">
+                  −{money(creditSplit.credit)}
+                </span>
+              </div>
+            )}
+            <div
+              className={cn(
+                'flex items-center justify-between gap-3',
+                (selectedServices.length > 1 ||
+                  isPickup ||
+                  appliedDiscount ||
+                  creditApplied) &&
+                  'border-t border-line pt-3'
               )}
-
-            {/* An inspection fee is not the whole price, and the customer
-                should know before paying how the rest is charged: the garage
-                raises the final bill after the work and it is paid in the
-                app (booking-charges on the server). Nothing promised beyond
-                that — no refund of the fee is offered, because there is none. */}
-            {selectedServices.some((service) => service.pricingType === 'on_inspection') && (
-              <p className="mt-2 text-[12px] leading-relaxed text-text-secondary">
-                You pay the inspection fee now. If the work costs more, the
-                garage sends the final bill in the app and you pay the rest here.
-              </p>
-            )}
-
-            {/* Mirrors what the server actually enforces: CANCELLATION_CUTOFF_MS
-                (confirmed bookings only) and MAX_RESCHEDULES in
-                bookings.service.ts. Deliberately silent on refunds in general —
-                there is no automatic refund path, so promising one here would
-                be a claim the product can't keep. The no-show line is the one
-                exception, and it promises the opposite: an owner decision that
-                ops applies from the admin panel (markNoShow). */}
-            <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-              <span className="font-medium text-text-secondary">
-                Cancellation policy:
-              </span>{' '}
-              Cancel any time until the garage accepts. Once it has, cancel or
-              reschedule up to 2 hours before your slot. You can reschedule up
-              to 2 times; each new time goes back to the garage to accept, and
-              if it can&apos;t take it, the booking is cancelled. If you
-              don&apos;t turn up for an accepted booking, it isn&apos;t refunded.
-              {isPickup &&
-                ' Once the garage has collected your car, the booking can’t be cancelled or moved in the app.'}
-            </p>
+            >
+              <span className="text-[17px] text-text-primary">To pay</span>
+              <span className="font-numeric text-[20px] text-text-primary">
+                {toPay == null || !selectedVehicle ? '—' : money(toPay)}
+              </span>
+            </div>
           </div>
-        </Reveal>
+
+          {/* Before paying, on purpose (owner decision): who has the car
+              while it is away. */}
+          {isPickup && (
+            <p className="flex items-start gap-1.5 text-[13px] leading-relaxed text-text-primary">
+              <IconShieldCheck
+                size={16}
+                className="mt-px shrink-0 text-text-secondary"
+                aria-hidden="true"
+              />
+              <span>{PICKUP_RESPONSIBILITY_LINE}</span>
+            </p>
+          )}
+
+          {/* An inspection fee is not the whole price: how the rest is
+              charged, before anyone pays the fee. */}
+          {selectedServices.some(
+            (service) => service.pricingType === 'on_inspection'
+          ) && (
+            <p className="text-[13px] leading-relaxed text-text-secondary">
+              You pay the inspection fee now. If the work costs more, the garage
+              sends the final bill in the app and you pay the rest here.
+            </p>
+          )}
+
+          {/* Mirrors what the server enforces: CANCELLATION_CUTOFF_MS and
+              MAX_RESCHEDULES in bookings.service.ts, and the no-show rule ops
+              applies (markNoShow). */}
+          <p className="text-[12px] leading-relaxed text-text-muted">
+            <span className="text-text-secondary">Cancellation policy:</span>{' '}
+            Cancel any time until the garage accepts. Once it has, cancel or
+            reschedule up to 2 hours before your slot. You can reschedule up to
+            2 times; each new time goes back to the garage to accept, and if it
+            can&apos;t take it, the booking is cancelled. If you don&apos;t turn
+            up for an accepted booking, it isn&apos;t refunded.
+            {isPickup &&
+              ' Once the garage has collected your car, the booking can’t be cancelled or moved in the app.'}
+          </p>
+        </section>
       )}
 
-      {/* Coupon entry as a sheet rather than an inline expander: it keeps the
-          summary from reflowing under the customer, and gives the field room
-          plus a keyboard without the page jumping. */}
+      {/* Room under the last section for the fixed bar, whatever it holds. */}
+      <div
+        aria-hidden
+        className="shrink-0"
+        style={{ height: `calc(${barHeight}px + env(safe-area-inset-bottom))` }}
+      />
+
       <AddCarSheet
         open={addCarOpen}
         onClose={() => setAddCarOpen(false)}
@@ -1676,6 +1868,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
         pickup={isPickup}
       />
 
+      {/* Coupon entry as a sheet: the summary never reflows under the
+          customer, and the field gets room plus a keyboard. */}
       <ScSheet
         open={promoOpen}
         onClose={() => setPromoOpen(false)}
@@ -1683,11 +1877,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
         aria-label="Coupons and offers"
         className="px-4"
       >
-        <h2 className="text-[19px] font-semibold text-text-primary">
-          Coupons &amp; Offers
+        <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
+          Coupons and offers
         </h2>
 
-        <div className="mt-4 flex items-center gap-2 rounded-[12px] border border-border bg-surface px-3">
+        <div className="mt-4 flex items-center gap-2 rounded-[14px] border border-line bg-white/[0.03] px-3">
           <input
             id="promo-code"
             aria-label="Coupon code"
@@ -1700,43 +1894,49 @@ function BookContent({ vendorId }: { vendorId: string }) {
             value={promoInput}
             onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
-            className="min-w-0 flex-1 bg-transparent py-3.5 text-[14px] uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-muted"
+            className="min-w-0 flex-1 bg-transparent py-3.5 text-[15px] uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-muted"
           />
+          {/* White, not red: the sheet's action is a text action (F5). */}
           <button
             type="button"
             disabled={!canApplyPromo || applyPromo.isPending}
             onClick={handleApplyPromo}
-            className="-mr-1 min-h-11 shrink-0 px-2 text-[14px] font-semibold text-brand-red transition-colors disabled:text-text-muted"
+            className="-mr-1 min-h-11 shrink-0 px-2 text-[15px] font-medium text-text-primary transition-colors disabled:text-text-muted"
           >
             {applyPromo.isPending ? 'Checking…' : 'Apply'}
           </button>
         </div>
 
-        {/* Amber with an icon, never red — red in this sheet is Apply. Kept
-            a single <p>: the e2e page object finds the message as the sheet's
-            one paragraph that is not the static hint below. */}
+        {/* Amber with an icon, never red. Kept a single <p>: the e2e page
+            object finds the message as the sheet's one paragraph that is not
+            the static hint below. */}
         {promoError && (
-          <p id="promo-code-error" role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-error">
-            <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
+          <p
+            id="promo-code-error"
+            role="alert"
+            className="mt-2 flex items-start gap-1.5 text-[13px] text-error"
+          >
+            <IconAlertCircle
+              size={15}
+              className="mt-px shrink-0"
+              aria-hidden="true"
+            />
             {promoError}
           </p>
         )}
 
-        <p className="mt-4 text-[12px] text-text-muted">
+        <p className="mt-4 text-[13px] text-text-muted">
           Have a code from Detlio? Enter it above to see your savings before you
           pay.
         </p>
       </ScSheet>
 
-      {/* Height here (~124px: py-3 + the py-4 button + the helper line + the
-          terms line; ~150px with the line about a garage in another town) is
-          what the page's bottom padding above must clear, plus the iOS home
-          indicator inset added to both. */}
-      <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-border bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
+      <div
+        ref={barRef}
+        className="fixed bottom-0 left-1/2 z-40 w-full max-w-[428px] -translate-x-1/2 border-t border-line bg-brand-black px-4 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]"
+      >
         {/* Says each step after payment out loud. On the page from the first
-            render and only its text changes: a live region that mounts with
-            its words already in it is usually not announced, and the Pay
-            button that had focus is gone by the time any of this happens. */}
+            render and only its text changes, so it is announced. */}
         <p role="status" className="sr-only">
           {paid?.phase === 'confirming'
             ? 'Payment received. Confirming your booking.'
@@ -1748,29 +1948,80 @@ function BookContent({ vendorId }: { vendorId: string }) {
               : ''}
         </p>
         {paid && paid.phase !== 'confirming' ? (
-          // Paid, and no booking to show yet (or one that could not be
-          // made). Pay is gone from this screen for good.
+          // Paid, and no booking to show yet (or one that could not be made).
+          // Pay is gone from this screen for good.
           <PaymentReceivedPanel
             paymentId={paid.paymentId}
-            refundMessage={paid.phase === 'failed' ? paid.refundMessage : undefined}
+            refundMessage={
+              paid.phase === 'failed' ? paid.refundMessage : undefined
+            }
           />
         ) : paid ? (
-          // Graphite with a spinner, not the red pill: red means "this pays",
-          // and a full-strength red button that does nothing gets tapped
-          // again and again on a phone, where nothing shows it is disabled.
+          // Graphite with a spinner, not the red pill: red means "this pays".
           <ScButton
             disabled
-            className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-[15px] text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
+            className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface-elevated py-0 text-[15px] font-medium text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
           >
-            <IconLoader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+            <IconLoader2
+              size={16}
+              className="shrink-0 animate-spin"
+              aria-hidden="true"
+            />
             Payment received — confirming your booking…
           </ScButton>
         ) : (
           <>
+            {/* The running total from the first second (F1): what, for which
+                car, and how much. */}
+            {selectedServices.length > 0 && (
+              <div className="mb-2.5 flex items-baseline justify-between gap-3 text-[13px]">
+                <span className="min-w-0 truncate text-dim">
+                  {formatServiceSummary(
+                    selectedServices.map((service) => service.name)
+                  )}
+                  {selectedCar ? ` · ${selectedCar.model}` : ''}
+                </span>
+                {subtotal != null && selectedVehicle && (
+                  <span className="shrink-0 text-dim">
+                    {toPay != null && toPay !== subtotal ? 'To pay' : 'Total'}{' '}
+                    <span className="font-numeric text-[15px] text-text-primary">
+                      {money(toPay ?? subtotal)}
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
+            {/* Two promises right above Pay, where people hesitate (F4). */}
+            {!nextStep && (
+              <ul className="mb-2.5 flex flex-col items-center gap-1 text-[13px] text-text-secondary">
+                {guaranteeApplies && (
+                  // Short, beside Pay; the full promise is on the claim screen.
+                  <li
+                    className="flex items-center gap-1.5"
+                    title={`${GUARANTEE_BADGE} — ${GUARANTEE_SUMMARY}`}
+                  >
+                    <IconShieldCheck
+                      size={15}
+                      stroke={1.5}
+                      aria-hidden
+                      className="shrink-0 text-text-primary"
+                    />
+                    Free redo within 48 hours if you&apos;re not happy
+                  </li>
+                )}
+                <li className="flex items-center gap-1.5">
+                  <IconRefresh
+                    size={15}
+                    stroke={1.5}
+                    aria-hidden
+                    className="shrink-0 text-text-primary"
+                  />
+                  Free cancel until the garage accepts
+                </li>
+              </ul>
+            )}
             {/* Said once more right above Pay, for a garage in another town:
-                someone who came straight from Book again or a shared link has
-                not seen the garage page's line. A fact, never a step: Pay
-                works exactly as it would without it. */}
+                a fact, never a step. */}
             {vendor?.outsideServiceCity && (
               <OutsideCityLine
                 id="checkout-outside-city"
@@ -1779,11 +2030,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
               />
             )}
             <MainAction
-              // Disabled only while a payment is opening. Before that it is never
-              // a dead end: it names what is missing and tapping it goes there.
+              // Disabled only while a payment is opening. Before that it is
+              // never a dead end: it names what is missing and goes there.
               disabled={loading}
-              // The town line first: a screen reader that jumps straight to
-              // the button (Tab, the rotor) never passes the line above it.
               aria-describedby={
                 vendor?.outsideServiceCity
                   ? 'checkout-outside-city checkout-cta-hint'
@@ -1791,77 +2040,96 @@ function BookContent({ vendorId }: { vendorId: string }) {
               }
               onClick={nextStep ? () => goToStep(nextStep) : handleConfirm}
               className={cn(
-                'rounded-full py-4 text-[15px]',
-                // Graphite until the booking is ready, so red only ever means
-                // "this pays". The disabled red at 40% it replaces read as pink
-                // and broken rather than as "not yet".
+                'h-[52px] rounded-full py-0 text-[15px] font-medium',
+                // Grey until the booking is ready, so red only ever means
+                // "this pays" (F5's "not ready yet").
                 nextStep &&
                   'bg-surface-elevated text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated',
                 loading && 'disabled:cursor-wait disabled:opacity-100'
               )}
-              // Behind the Home hub flag, the red pill once there is nothing
-              // left to pick, so its shine plays when Pay first appears. Full
-              // strength while the payment opens, as today.
               hero={!nextStep}
-              heroClassName={cn(loading && 'disabled:cursor-wait disabled:opacity-100')}
-              heroIcon={!loading && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />}
+              heroClassName={cn(
+                loading && 'disabled:cursor-wait disabled:opacity-100'
+              )}
+              heroIcon={
+                !loading && (
+                  <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
+                )
+              }
             >
-              {loading
-                ? 'Processing payment...'
-                : nextStep
-                  ? stepLabels[nextStep]
-                  : toPay == null
-                    ? 'Confirm booking'
-                    : toPay === 0
-                      ? 'Book with credit'
-                      : (
-                        <>
-                          Pay{' '}
-                          <span className="font-numeric font-bold">
-                            ₹{toPay.toLocaleString('en-IN')}
-                          </span>
-                        </>
-                      )}
+              {loading ? (
+                'Processing payment...'
+              ) : !nextStep && applyPromo.isPending ? (
+                // Pay waits for the code being checked (see handleConfirm).
+                'Checking…'
+              ) : nextStep ? (
+                stepLabels[nextStep]
+              ) : toPay == null ? (
+                'Confirm booking'
+              ) : toPay === 0 ? (
+                'Book with credit'
+              ) : (
+                <>
+                  Pay <span className="font-numeric">{money(toPay)}</span>
+                </>
+              )}
             </MainAction>
             <p
               id="checkout-cta-hint"
-              className="mt-2 text-center text-[11px] text-text-muted"
+              className="mt-2 text-center text-[12px] leading-snug text-text-muted"
             >
-              {nextStep === 'address'
-                ? addresses.length === 0
-                  ? isPickup
-                    ? 'Add the address we should collect your car from.'
-                    : 'Add the address we should come to.'
-                  : isPickup
-                    ? 'Pick the address we should collect your car from.'
-                    : 'Pick the address we should come to.'
-                : nextStep === 'pin'
-                  ? isPickup
-                    ? 'We need the exact spot to check this garage collects from you.'
-                    : 'We need the exact spot to check this garage travels to you.'
-                  : nextStep === 'outside'
-                    ? outsideAdvice
-                    : nextStep === 'unpriced'
-                    ? `${unpricedLines
-                        .map((line) => line.service.name)
-                        .join(', ')} ${unpricedLines.length === 1 ? 'is' : 'are'} not priced for your vehicle type. Remove ${unpricedLines.length === 1 ? 'it' : 'them'}, pick another car, or contact the garage.`
-                    : // Paying sends the request; the garage's accept is what
-                      // confirms it, so the footer does not promise more.
-                      toPay === 0
-                      ? 'Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.'
-                      : 'You pay now. Your booking is confirmed once the garage accepts it.'}
+              {nextStep === 'address' ? (
+                addresses.length === 0 ? (
+                  isPickup ? (
+                    'Add the address we should collect your car from.'
+                  ) : (
+                    'Add the address we should come to.'
+                  )
+                ) : isPickup ? (
+                  'Pick the address we should collect your car from.'
+                ) : (
+                  'Pick the address we should come to.'
+                )
+              ) : nextStep === 'pin' ? (
+                isPickup ? (
+                  'We need the exact spot to check this garage collects from you.'
+                ) : (
+                  'We need the exact spot to check this garage travels to you.'
+                )
+              ) : nextStep === 'outside' ? (
+                outsideAdvice
+              ) : nextStep === 'unpriced' ? (
+                `${unpricedLines.map((line) => line.service.name).join(', ')} ${
+                  unpricedLines.length === 1 ? 'is' : 'are'
+                } not priced for your vehicle type. Remove ${
+                  unpricedLines.length === 1 ? 'it' : 'them'
+                }, pick another car, or contact the garage.`
+              ) : nextStep ? (
+                'You pay now. Your booking is confirmed once the garage accepts it.'
+              ) : toPay === 0 ? (
+                'Paid with your Detlio credit. Your booking is confirmed once the garage accepts it.'
+              ) : (
+                // Who takes the money, said where people hesitate (F4).
+                <>
+                  <IconLock
+                    size={12}
+                    aria-hidden
+                    className="mr-1 inline align-[-1px]"
+                  />
+                  Secure payment by Razorpay · UPI, cards, net banking. Your
+                  booking is confirmed once the garage accepts it.
+                </>
+              )}
             </p>
-            {/* Beside Pay, as Razorpay and the E-Commerce Rules expect: the
-                terms and the refund policy a payment accepts. New tabs, so
-                the slot, car and promo picked here are still here when the
-                customer comes back — this page keeps them only in memory. */}
-            <p className="mt-1 text-center text-[11px] text-text-muted">
+            {/* Beside Pay, as Razorpay and the E-Commerce Rules expect. New
+                tabs, so the time, car and code picked here are still here. */}
+            <p className="mt-1 text-center text-[12px] text-text-muted">
               By paying you agree to the{' '}
               <a
                 href={LEGAL_PATHS.terms}
                 target="_blank"
                 rel="noopener"
-                className="underline underline-offset-2 hover:text-text-primary"
+                className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-text-primary"
               >
                 Terms
               </a>{' '}
@@ -1870,7 +2138,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 href={LEGAL_PATHS.refunds}
                 target="_blank"
                 rel="noopener"
-                className="underline underline-offset-2 hover:text-text-primary"
+                className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-text-primary"
               >
                 Cancellation &amp; Refund Policy
               </a>

@@ -54,21 +54,39 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
               –
             </span>
           ) : days === 0 ? (
-            <span className="text-[22px] leading-none tracking-[-0.022em] text-text-primary">Today</span>
+            <span className="text-[22px] leading-none tracking-[-0.022em] text-text-primary">
+              Today
+            </span>
           ) : (
             <>
               <span className="font-numeric text-[40px] leading-[0.9] font-medium tracking-[-0.045em] text-text-primary">
                 {days}
               </span>
-              <span className="text-[13px] text-dim">{days === 1 ? 'day ago' : 'days ago'}</span>
+              <span className="text-[13px] text-dim">
+                {days === 1 ? 'day ago' : 'days ago'}
+              </span>
             </>
           )}
         </span>
-        <span className="mt-[9px] flex items-center gap-1.5 truncate text-[13px] text-dim">
-          {wash.state === 'booked' && <IconCheck size={14} stroke={1.6} aria-hidden className="-ml-px text-text-primary" />}
-          <span className="truncate">
+        <span className="mt-[9px] flex items-start gap-1.5 text-[13px] leading-snug text-dim">
+          {wash.state === 'booked' && (
+            <IconCheck
+              size={14}
+              stroke={1.6}
+              aria-hidden
+              className="-ml-px mt-0.5 shrink-0 text-text-primary"
+            />
+          )}
+          <span className="line-clamp-2">
             {line.lead && (
-              <b className={cn('font-medium', wash.state === 'overdue' ? 'text-warning' : 'text-text-primary')}>
+              <b
+                className={cn(
+                  'font-medium',
+                  wash.state === 'overdue'
+                    ? 'text-warning'
+                    : 'text-text-primary'
+                )}
+              >
                 {line.lead}
               </b>
             )}
@@ -84,7 +102,15 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
 }
 
 /** 7, 10, 14, 21 or 30 days, or the default. Saved as soon as one is tapped. */
-function WashIntervalSheet({ car, open, onClose }: { car: HomeCar; open: boolean; onClose: () => void }) {
+function WashIntervalSheet({
+  car,
+  open,
+  onClose,
+}: {
+  car: HomeCar
+  open: boolean
+  onClose: () => void
+}) {
   const save = useUpdateWashInterval()
   const current: WashIntervalDays | null = car.wash.isDefaultInterval
     ? null
@@ -100,7 +126,12 @@ function WashIntervalSheet({ car, open, onClose }: { car: HomeCar; open: boolean
       { vehicleId: car.id, days },
       {
         onSuccess: onClose,
-        onError: (error) => toast.error(error instanceof Error ? error.message : "Couldn't save that. Try again."),
+        onError: (error) =>
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Couldn't save that. Try again."
+          ),
       }
     )
   }
@@ -116,7 +147,9 @@ function WashIntervalSheet({ car, open, onClose }: { car: HomeCar; open: boolean
         onClick={() => pick(days)}
         className={cn(
           'flex min-h-12 w-full items-center justify-between rounded-[14px] border px-4 text-left text-[15px] transition-colors',
-          chosen ? 'border-text-primary text-text-primary' : 'border-line text-text-secondary'
+          chosen
+            ? 'border-text-primary text-text-primary'
+            : 'border-line text-text-secondary'
         )}
       >
         {label}
@@ -126,13 +159,23 @@ function WashIntervalSheet({ car, open, onClose }: { car: HomeCar; open: boolean
   }
 
   return (
-    <ScSheet open={open} onClose={onClose} dismissible={!save.isPending} aria-label="How often to wash" className="px-4">
-      <h2 className="text-[19px] font-medium text-text-primary">How often to wash</h2>
+    <ScSheet
+      open={open}
+      onClose={onClose}
+      dismissible={!save.isPending}
+      aria-label="How often to wash"
+      className="px-4"
+    >
+      <h2 className="text-[19px] font-medium text-text-primary">
+        How often to wash
+      </h2>
       <p className="mt-1 text-[13px] text-text-secondary">
         {car.make} {car.model}. {WASH_INTERVAL_DEFAULT_NOTE}
       </p>
       <div className="mt-4 flex flex-col gap-2">
-        {WASH_INTERVAL_CHOICES.map((days) => option(days, `Every ${days} days`))}
+        {WASH_INTERVAL_CHOICES.map((days) =>
+          option(days, `Every ${days} days`)
+        )}
         {option(null, 'Default')}
       </div>
     </ScSheet>

@@ -65,16 +65,19 @@ test.describe('multi-service cart @p0', () => {
     const checkout = new CheckoutPage(page)
 
     // One 30-minute service against a 06:00–22:00 day: the last start that
-    // still finishes by close is 21:30.
+    // still finishes by close is 21:30. The morning shows first, so the
+    // evening is asked for.
     await checkout.goto(VENDORS.main.id, [SERVICES.wash.id])
     await checkout.pickTomorrow()
-    await expect(checkout.slots().last()).toHaveText('09:30 PM')
+    await checkout.showAllTimes()
+    await expect(checkout.slots().last()).toHaveText('9:30 pm')
 
     // Add 90 more minutes and the tail of the day stops being bookable: a
     // two-hour block has to start by 20:00.
     await checkout.goto(VENDORS.main.id, [SERVICES.wash.id, SERVICES.detail.id])
     await checkout.pickTomorrow()
-    await expect(checkout.slots().last()).toHaveText('08:00 PM')
+    await checkout.showAllTimes()
+    await expect(checkout.slots().last()).toHaveText('8:00 pm')
   })
 
   test('a package is one line, not its constituent services', async ({ page }) => {
@@ -87,7 +90,7 @@ test.describe('multi-service cart @p0', () => {
     // The package bundles Express Wash and Full Body Detail, but the customer
     // bought one thing: the summary shows the package, not its parts, and
     // charges the package price rather than 499 + 1999.
-    const summary = page.getByRole('heading', { name: 'Payment summary' }).locator('..')
+    const summary = page.getByRole('region', { name: 'Your booking' })
     await expect(summary).toContainText(SERVICES.packageDeal.name)
     await expect(summary).not.toContainText(SERVICES.wash.name)
     await expect(summary).not.toContainText(SERVICES.detail.name)

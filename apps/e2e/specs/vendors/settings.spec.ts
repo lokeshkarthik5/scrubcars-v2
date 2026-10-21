@@ -91,10 +91,10 @@ test.describe('vendor settings', () => {
     await customer.goto(
       `http://localhost:3000/book/${VENDORS.second.id}?service=${SERVICES.secondOnly.id}`
     )
-    await customer.getByRole('button', { name: /Tmrw/ }).click()
+    await customer.getByRole('button', { name: /, tomorrow$/ }).click()
 
-    const slots = customer.getByRole('button', { name: /^\d{1,2}:\d{2}\s(AM|PM)$/ })
-    await expect(slots.last()).toHaveText('11:30 AM')
+    const slots = customer.getByRole('button', { name: /^\d{1,2}:\d{2}\s(am|pm)$/ })
+    await expect(slots.last()).toHaveText('11:30 am')
     await customer.close()
   })
 
@@ -128,9 +128,9 @@ test.describe('vendor settings', () => {
 
     // The picker greys the day out rather than letting the customer pick it and
     // then showing an empty grid — a closed day is not a day with no free time.
-    await expect(customer.getByRole('button', { name: /Tmrw/ })).toBeDisabled()
+    await expect(customer.getByRole('button', { name: /, tomorrow$/ })).toBeDisabled()
     await expect(
-      customer.getByRole('button', { name: /^\d{1,2}:\d{2}\s(AM|PM)$/ })
+      customer.getByRole('button', { name: /^\d{1,2}:\d{2}\s(am|pm)$/ })
     ).toHaveCount(0)
     await customer.close()
   })

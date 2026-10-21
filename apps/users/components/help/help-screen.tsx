@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { IconChevronDown, IconMessageReport, IconSearch } from '@tabler/icons-react'
+import {
+  IconChevronDown,
+  IconMessageReport,
+  IconSearch,
+} from '@tabler/icons-react'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { SUPPORT_TEL_HREF, supportWhatsAppHref } from '@repo/core/support'
@@ -63,10 +67,16 @@ export function HelpScreen() {
         </p>
       )}
 
-      <p className="text-[13px] leading-relaxed text-text-secondary">{HELP_INTRO.body}</p>
+      <p className="text-[13px] leading-relaxed text-text-secondary">
+        {HELP_INTRO.body}
+      </p>
 
       <div className="flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2.5">
-        <IconSearch size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
+        <IconSearch
+          size={18}
+          aria-hidden="true"
+          className="shrink-0 text-text-muted"
+        />
         <input
           type="search"
           placeholder={HELP_INTRO.searchPlaceholder}
@@ -78,13 +88,23 @@ export function HelpScreen() {
       </div>
 
       {/* Said aloud as the list changes; seen only when nothing matched. */}
-      <p aria-live="polite" className={found === 0 ? 'text-[13px] text-text-secondary' : 'sr-only'}>
-        {!searching ? '' : found === 0 ? HELP_INTRO.noResults : `${found} answer${found === 1 ? '' : 's'} found`}
+      <p
+        aria-live="polite"
+        className={found === 0 ? 'text-[13px] text-text-secondary' : 'sr-only'}
+      >
+        {!searching
+          ? ''
+          : found === 0
+            ? HELP_INTRO.noResults
+            : `${found} answer${found === 1 ? '' : 's'} found`}
       </p>
 
       {groups.map((group) => (
         <section key={group.id} aria-labelledby={`help-${group.id}`}>
-          <h2 id={`help-${group.id}`} className="mb-2 text-sm font-semibold text-text-primary">
+          <h2
+            id={`help-${group.id}`}
+            className="mb-2 text-sm font-semibold text-text-primary"
+          >
             {group.title}
           </h2>
           <ScCard className="px-0 py-0">
@@ -107,8 +127,12 @@ export function HelpScreen() {
 
       <ScCard className="flex flex-col gap-3">
         <div>
-          <h2 className="text-[15px] font-semibold text-text-primary">{HELP_STILL_NEED.title}</h2>
-          <p className="mt-1 text-[13px] text-text-secondary">{HELP_STILL_NEED.body}</p>
+          <h2 className="text-[15px] font-semibold text-text-primary">
+            {HELP_STILL_NEED.title}
+          </h2>
+          <p className="mt-1 text-[13px] text-text-secondary">
+            {HELP_STILL_NEED.body}
+          </p>
         </div>
         <ContactButtons
           who="Detlio support"
@@ -117,10 +141,18 @@ export function HelpScreen() {
         />
         {/* Stacked on a phone, so neither label wraps inside its button. */}
         <div className="flex flex-col gap-2 sm:flex-row">
-          <ScButtonLink variant="secondary" href={HELP_STILL_NEED.contact.href} className="flex-1">
+          <ScButtonLink
+            variant="secondary"
+            href={HELP_STILL_NEED.contact.href}
+            className="flex-1"
+          >
             {HELP_STILL_NEED.contact.label}
           </ScButtonLink>
-          <ScButtonLink variant="secondary" href={HELP_STILL_NEED.complaint.href} className="flex-1">
+          <ScButtonLink
+            variant="secondary"
+            href={HELP_STILL_NEED.complaint.href}
+            className="flex-1"
+          >
             <IconMessageReport size={18} aria-hidden />
             {HELP_STILL_NEED.complaint.label}
           </ScButtonLink>
@@ -130,7 +162,13 @@ export function HelpScreen() {
   )
 }
 
-function Question({ question, open }: { question: HelpQuestion; open: boolean }) {
+function Question({
+  question,
+  open,
+}: {
+  question: HelpQuestion
+  open: boolean
+}) {
   return (
     <details id={question.id} open={open} className="group scroll-mt-4">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3 text-[14px] font-medium text-text-primary [&::-webkit-details-marker]:hidden">

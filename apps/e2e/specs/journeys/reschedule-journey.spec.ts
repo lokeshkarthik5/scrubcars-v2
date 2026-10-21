@@ -54,6 +54,8 @@ test('a customer moves a booking and the garage sees the new slot @p0', async ({
   await customer.reload()
   await booking.openReschedule()
   await checkout.pickTomorrow()
+  // The last time of the day: the picker shows the morning first.
+  await checkout.showAllTimes()
   await checkout.slots().last().click()
   await booking.confirmReschedule()
 

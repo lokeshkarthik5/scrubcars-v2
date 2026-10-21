@@ -23,23 +23,12 @@ export function RewardsStrip({ summary }: { summary: RewardsSummary }) {
   return (
     <Link
       href="/profile/rewards"
-      className="flex items-center justify-between gap-3 rounded-[14px] border border-line px-3.5 py-2.5 transition-colors hover:bg-surface"
+      className="flex min-h-[52px] items-center justify-between gap-3 rounded-[22px] border border-line px-4 py-2.5 transition-colors hover:bg-surface"
     >
-      <span className="min-w-0">
-        <span className="block truncate text-[13px] text-text-primary">
-          <Figures text={stampsToGoLine(card.toGo)} />
-          {card.toGo > 0 && (
-            <span className="text-text-secondary">
-              {' · '}
-              <Figures text={`${rewardRupees(card.rewardAmount)} off`} />
-            </span>
-          )}
-        </span>
-        {extra && (
-          <span className="block truncate text-[12px] text-text-secondary">
-            <Figures text={extra} />
-          </span>
-        )}
+      {/* The Shine Card's count is on the car now (F2); this line is what
+          else is waiting, written in full (F9). */}
+      <span className="min-w-0 text-[13px] leading-snug text-text-primary">
+        <Figures text={extra ?? `${stampsToGoLine(card.toGo)}`} />
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
         <LevelBadge level={level.level} label={level.label} />

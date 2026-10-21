@@ -82,15 +82,15 @@ export function LocationPromptSheet({
     <ScSheet open={open} onClose={notNow} aria-label="Enable location">
       <div className="flex flex-col gap-5 px-5 pb-2 pt-1">
         {/* Graphite and white throughout, so the one red on the sheet is
-            Enable location — the thing it is asking the customer to do. */}
+            Enable location, the thing it is asking the customer to do. */}
         <div className="flex flex-col items-center gap-2 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-elevated">
             <IconMapPin size={24} className="text-text-primary" />
           </span>
-          <h2 className="text-[17px] font-semibold text-text-primary">
+          <h2 className="text-[20px] font-normal tracking-[-0.015em] text-text-primary">
             {blocked ? 'Location is blocked' : 'Find garages near you'}
           </h2>
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-[15px] text-text-secondary">
             {blocked
               ? 'Your browser is blocking location for this site. You can turn it back on in the address bar, under site settings.'
               : 'Share your location and we’ll show the closest garages first, with real distances.'}
@@ -105,10 +105,10 @@ export function LocationPromptSheet({
                   <Icon size={15} className="text-text-primary" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[13px] font-medium text-text-primary">
+                  <span className="block text-[15px] font-medium text-text-primary">
                     {title}
                   </span>
-                  <span className="block text-[12px] text-text-secondary">
+                  <span className="block text-[13px] text-text-secondary">
                     {body}
                   </span>
                 </span>
@@ -117,17 +117,20 @@ export function LocationPromptSheet({
           </ul>
         )}
 
+        {/* One red button (the customer UX audit, F14): the main pill for
+            what the sheet asks, an outline for the city, and "Not now" as
+            white text. Blocked, the city is the only way on, so it leads. */}
         <div className="flex flex-col gap-2">
           {!blocked && (
-            <ScButton onClick={enable} disabled={locating}>
+            <ScButton variant="main" onClick={enable} disabled={locating}>
               {locating ? 'Finding you…' : 'Enable location'}
             </ScButton>
           )}
-          <ScButton variant="secondary" onClick={chooseCity}>
+          <ScButton variant={blocked ? 'main' : 'outline'} onClick={chooseCity}>
             All of Chennai
           </ScButton>
           {!blocked && (
-            <ScButton variant="ghost" onClick={notNow}>
+            <ScButton variant="text" onClick={notNow}>
               Not now
             </ScButton>
           )}
@@ -136,9 +139,9 @@ export function LocationPromptSheet({
         {!blocked && (
           // Sets expectations for the dialog that appears next, so the browser
           // prompt reads as the consequence of tapping rather than an ambush.
-          <p className="text-center text-[11px] text-text-muted">
-            Enable location asks your browser. We only use it to sort garages — it
-            is never shared.
+          <p className="text-center text-[12px] text-text-muted">
+            Enable location asks your browser. We only use it to sort garages —
+            it is never shared.
           </p>
         )}
       </div>
