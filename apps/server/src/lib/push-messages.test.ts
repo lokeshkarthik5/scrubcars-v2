@@ -13,6 +13,7 @@ import {
   customerNotAcceptedInTime,
   customerPickupStep,
   customerRefund,
+  customerReportReward,
   customerRewardNudge,
   customerRewardVoucher,
   customerServiceReminder,
@@ -121,6 +122,7 @@ const ALL: Array<[string, PushMessage]> = [
     kind: 'maintenance_wash', vendorName: booking.vendor.businessName,
   })],
   ['customer slot opened', customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)],
+  ['customer report reward', customerReportReward({ id: 'r1' }, '100.00')],
   // Free redo claims (0051): never what anyone typed about it.
   ['garage claim to answer', garageClaimToAnswer(booking, 'g0000000-0000-4000-8000-000000003101', IST('2026-10-17T12:00:00'))],
   ['garage claim approved (no photos)', garageClaimApproved(booking, 'g1', 'no_photos')],
@@ -254,14 +256,15 @@ describe('customer: the same words as Updates', () => {
     for (const [name, message] of ALL) {
       if (name.includes('day before') || name.includes('hour before') || name.includes('test')) continue
       if (name.includes('service reminder')) continue
-      if (name.includes('reward')) continue
+      // Detlio Rewards (0050) only; a bypass report's ₹100 credit (0052) is booking news.
+      if (name.startsWith('customer reward ')) continue
       expect(message.category).toBe('booking_update')
     }
   })
 
   test('rewards (0050) are reminders, for the Reminders switch, and open the app', () => {
     for (const [name, message] of ALL) {
-      if (!name.includes('reward')) continue
+      if (!name.startsWith('customer reward ')) continue
       expect(message.category).toBe('reminder')
     }
     const voucher = customerRewardVoucher({ id: 'v1', kind: 'shine', amount: '399.00' })

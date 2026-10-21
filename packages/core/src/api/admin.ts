@@ -75,6 +75,11 @@ export interface AdminVendor {
    */
   photoCompliance?: { jobs: number; compliant: number; waived: number; percent: number | null }
   /**
+   * Bypass reports (0052): confirmed reports from the last 180 days. 2 or
+   * more are highlighted. Absent from older servers.
+   */
+  bypassStrikes?: number
+  /**
    * Detlio Guarantee (0051): free redo claims approved against it in the
    * last 90 days. Null while the guarantee is off; absent from older servers.
    */

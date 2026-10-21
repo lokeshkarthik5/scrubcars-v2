@@ -24,6 +24,8 @@ export const CERTIFICATION_THRESHOLDS = {
   maxComplaintRate: 0.03,
   maxGarageNoShows: 0,
   minPhotoCompliance: 0.9,
+  maxBypassStrikes: 0,
+  bypassWindowDays: 180,
   qualityCheckMonths: 6,
   graceDays: 14,
 } as const
@@ -32,7 +34,8 @@ export const CERTIFICATION_THRESHOLDS = {
  * "What this means": the standards in plain words, for the sheet on the
  * garage page. Every line is one the server measures (a seal must never
  * claim what nobody checked), photos included since 0045's photo
- * compliance counts toward it.
+ * compliance counts toward it, and bypass reports since 0052 (a report
+ * Detlio confirmed in the last 180 days).
  */
 export const CERTIFIED_STANDARDS: readonly string[] = [
   'Detlio has checked the owner’s ID, bank details, shop and signed agreement.',
@@ -42,6 +45,7 @@ export const CERTIFIED_STANDARDS: readonly string[] = [
   `Complaints about damage, poor work or not turning up on fewer than ${Math.round(CERTIFICATION_THRESHOLDS.maxComplaintRate * 100)} in 100 jobs.`,
   `Has not missed a booking in the last ${CERTIFICATION_THRESHOLDS.windowDays} days.`,
   `Takes before and after photos of the car on at least ${Math.round(CERTIFICATION_THRESHOLDS.minPhotoCompliance * 100)}% of jobs.`,
+  `Has not been found asking customers to book or pay outside Detlio in the last ${CERTIFICATION_THRESHOLDS.bypassWindowDays} days.`,
   `Visited and checked in person by Detlio in the last ${CERTIFICATION_THRESHOLDS.qualityCheckMonths} months.`,
 ]
 

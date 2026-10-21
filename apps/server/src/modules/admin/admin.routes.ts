@@ -30,6 +30,7 @@ import {
   addMemberSchema,
   updateMemberSchema,
 } from '../members/members.validation.js'
+import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -403,6 +404,10 @@ adminRoutes.route('/notices', adminNoticeRoutes)
 // Customers' complaints, with their numbers and the 24-hour / 7-day clock.
 // Nested here for the same cookie reason as discounts.
 adminRoutes.route('/complaints', adminComplaintRoutes)
+
+// "Did the garage ask you to book directly?" reports, garage strikes and
+// customer drop-off (0052). Nested here for the same cookie reason.
+adminRoutes.route('/bypass-reports', adminBypassReportRoutes)
 
 // Detlio Guarantee (0051): free redo claims, Detlio's decisions.
 adminRoutes.route('/guarantee', adminGuaranteeRoutes)

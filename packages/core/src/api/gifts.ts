@@ -80,7 +80,7 @@ export interface GiftLink {
   path: string
 }
 
-export type CreditEntryKind = 'redeem' | 'debit' | 'refund' | 'expiry' | 'adjustment'
+export type CreditEntryKind = 'redeem' | 'debit' | 'refund' | 'expiry' | 'adjustment' | 'report_reward'
 
 export interface CreditView {
   /** What can be spent now, rupees as a decimal string. */
@@ -194,6 +194,8 @@ export interface AdminGiftsSummary {
     expired: string
     /** Team adjustments, net. */
     adjusted: string
+    /** Rewards for confirmed bypass reports (0052), Detlio's own money. Absent from older servers. */
+    rewarded?: string
   }
   /** What Detlio still owes: unredeemed gifts plus credit balances. */
   liability: string

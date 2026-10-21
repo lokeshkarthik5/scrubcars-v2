@@ -206,6 +206,7 @@ export type UpdateKind =
   | 'extra_work_withdrawn'
   | 'service_reminder'
   | 'slot_opened'
+  | 'report_reward'
   | 'redo_claim'
   | 'redo_approved'
   | 'redo_refund'
@@ -748,6 +749,38 @@ function serviceReminderRows(reminders: HubServiceReminder[], now: Date): Draft[
   })
 }
 
+/** Where a reward row goes: the customer's Detlio credit. */
+export const CREDIT_PATH = '/profile/credit'
+
+/** "Thanks — ₹100 added to your Detlio credit": the push and Updates both say it. */
+export function reportRewardTitle(amount: string | number): string {
+  return `Thanks — ${rupees(amount)} added to your Detlio credit`
+}
+
+export const REPORT_REWARD_BODY = 'For telling us a garage asked you to book outside Detlio.'
+
+/** A bypass report's reward added to the customer's credit (0052). */
+export interface HubReportReward {
+  id: string
+  grantedAt: Date
+  /** Rupees, as a decimal string. */
+  amount: string
+}
+
+function reportRewardRows(rewards: HubReportReward[]): Draft[] {
+  return rewards.map((reward) =>
+    draft({
+      id: `report_reward:${reward.id}`,
+      kind: 'report_reward',
+      at: reward.grantedAt,
+      title: reportRewardTitle(reward.amount),
+      body: REPORT_REWARD_BODY,
+      amount: reward.amount,
+      linkUrl: CREDIT_PATH,
+    })
+  )
+}
+
 /** A slot alert that was told a time opened (0047), as Updates reads it. */
 export interface HubSlotAlert {
   id: string
@@ -971,6 +1004,8 @@ export function deriveUpdates(input: {
   serviceReminders?: HubServiceReminder[]
   /** The customer's slot alerts that were told a time opened (0047). */
   slotAlerts?: HubSlotAlert[]
+  /** Rewards for the customer's confirmed bypass reports (0052). */
+  reportRewards?: HubReportReward[]
   /** The customer's free redo claims (0051). */
   guaranteeClaims?: HubGuaranteeClaim[]
   /** Detlio Rewards news (0050), null while rewards are not live. */
@@ -1001,6 +1036,7 @@ export function deriveUpdates(input: {
     ...complaintRows(input.complaints ?? []),
     ...serviceReminderRows(input.serviceReminders ?? [], now),
     ...slotAlertRows(input.slotAlerts ?? []),
+    ...reportRewardRows(input.reportRewards ?? []),
     ...guaranteeClaimRows(input.guaranteeClaims ?? []),
     ...rewardRows(input.rewards),
   ]

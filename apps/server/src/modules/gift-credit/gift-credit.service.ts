@@ -26,6 +26,7 @@ const ENTRY_LABELS: Record<CreditEntryKind, string> = {
   refund: 'Back from a cancelled booking',
   expiry: 'Expired',
   adjustment: 'Adjusted by Detlio',
+  report_reward: 'Report reward',
 }
 
 export interface CreditView {
@@ -185,6 +186,8 @@ export const giftCreditService = {
       returned: totals.refund ?? '0.00',
       expired: negate(totals.expiry),
       adjusted: totals.adjustment ?? '0.00',
+      /** Rewards for confirmed bypass reports (0052): Detlio's own money. */
+      rewarded: totals.report_reward ?? '0.00',
     }
   },
 

@@ -5,6 +5,7 @@ import { digestLookbacks, isMorningTick, planPendingDigest } from '../../lib/pen
 import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
+import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationService } from '../certification/certification.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
@@ -155,6 +156,15 @@ export const opsService = {
         log.error({ err }, 'ops:gift_credit_sweep_failed')
         return { error: true as const }
       })
+    // Bypass reports (0052): rewards confirmed while Detlio credit was off
+    // are granted once it is on. Nothing while off. Bounded, never allowed
+    // to fail the digest.
+    const bypassRewards = await bypassReportsService
+      .sweepOwedRewards({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:bypass_reward_sweep_failed')
+        return { error: true as const }
+      })
     // Detlio Rewards (0050), only while live: completions and no-shows the
     // after-response hooks missed, stamps of bookings since marked Test or
     // refunded taken back, then (10:00–17:59 IST) level perks and the habit
@@ -226,6 +236,7 @@ export const opsService = {
       serviceReminders,
       slotAlerts,
       giftCredit,
+      bypassRewards,
       guarantee,
       giftCodeAttemptsPurged,
       rewards,

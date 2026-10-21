@@ -13,6 +13,9 @@ const NAV: PanelNavItem[] = [
   { href: '/vendors', label: 'Vendors' },
   { href: '/bookings', label: 'Bookings' },
   { href: '/complaints', label: 'Complaints' },
+  // "Did the garage ask you to book directly?" reports and customer drop-off
+  // (0052). Header only on a phone-full bottom bar: Complaints links to it.
+  { href: '/bypass-reports', label: 'Bypass' },
   { href: '/refunds', label: 'Refunds' },
   { href: '/payouts', label: 'Payouts' },
   { href: '/discounts', label: 'Discounts' },
