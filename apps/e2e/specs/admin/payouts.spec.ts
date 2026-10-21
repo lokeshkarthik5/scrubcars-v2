@@ -70,7 +70,8 @@ test.describe.serial('garage payouts @p0', () => {
     // The UPI id on file picks the method.
     await expect(dialog.getByLabel('Paid by')).toHaveValue('upi')
     await dialog.getByLabel('UPI transaction id').fill(UTR)
-    await dialog.getByLabel('Your name').fill('E2E Admin')
+    // No name to type: the dialog says who signs it (0058).
+    await expect(dialog.getByText('Signed as E2E Admin')).toBeVisible()
     await dialog.getByRole('button', { name: 'Record ₹1,000' }).click()
 
     await expect(page.getByText('Payout of ₹1,000 recorded')).toBeVisible()
@@ -100,7 +101,6 @@ test.describe.serial('garage payouts @p0', () => {
         method: 'upi',
         reference: 'E2EUTRAGAIN0001',
         paidAt: new Date().toISOString(),
-        actorName: 'E2E Admin',
       },
     })
     expect(again.status()).toBe(409)

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { BYPASS_KINDS, BYPASS_RULES } from '../../lib/bypass-reports.js'
 
 /**
@@ -23,7 +24,7 @@ export const createBypassReportSchema = z
 export const bookingIdParamSchema = z.object({ bookingId: z.uuid() })
 
 /** The name the person typed, as the Bin, Payouts and Certify ask for it. */
-const actorName = z.string().trim().min(2, 'Type your name').max(100)
+const actorName = signedActorName
 
 /** Admin's list: New (to look into), Confirmed, Dismissed. */
 export const listBypassReportsQuerySchema = z.object({

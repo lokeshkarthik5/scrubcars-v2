@@ -5,6 +5,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminAiRoutes } from '../ai/ai.routes.js'
@@ -56,6 +57,7 @@ import {
   updateVendorSchema,
   uploadUrlSchema,
 } from './admin.validation.js'
+import { adminLoginRoutes, adminOwnPasswordRoutes } from '../admin-logins/admin-logins.routes.js'
 
 export const adminRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -68,6 +70,9 @@ adminRoutes.post('/login', rateLimiter, zValidator('json', loginSchema), (c) =>
 )
 adminRoutes.post('/logout', adminController.logout)
 adminRoutes.get('/me', ...adminMiddleware, adminController.getMe)
+// Personal admin logins (0058): Settings → Team logins, and your own password.
+adminRoutes.route('/me/password', adminOwnPasswordRoutes)
+adminRoutes.route('/logins', adminLoginRoutes)
 
 // Platform admin grants. Reachable only by an existing super-admin (or the
 // break-glass session), never self-serve.
@@ -532,7 +537,7 @@ adminRoutes.post(
   '/bookings/:id/photos-waiver',
   ...adminMiddleware,
   zValidator('param', bookingIdParamSchema),
-  zValidator('json', waiveJobPhotosSchema),
+  adminSignedJson(waiveJobPhotosSchema),
   (c) =>
     adminController.waiveJobPhotos(
       c,

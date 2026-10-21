@@ -18,7 +18,8 @@ test.describe('Telegram test alert @p0', () => {
     await expect(page.getByRole('heading', { name: 'Alerts', exact: true })).toBeVisible()
     await expect(page.getByText('Telegram not set up', { exact: false }).first()).toBeVisible()
 
-    await page.getByLabel('Your name').fill('E2E Admin')
+    // Signed by the session (0058): there is no name to type.
+    await expect(page.getByLabel('Your name')).toHaveCount(0)
     await page.getByRole('button', { name: 'Send test alert' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Telegram not set up' })).toBeVisible()
   })
@@ -30,7 +31,7 @@ test.describe('Telegram test alert @p0', () => {
 
     const customer = await loginViaApi(CUSTOMERS.pushOutsider.phone)
     expect((await customer.get(STATUS)).status()).toBe(403)
-    expect((await customer.post(`${STATUS}/test`, { data: { actorName: 'Someone' } })).status()).toBe(403)
+    expect((await customer.post(`${STATUS}/test`, { data: {} })).status()).toBe(403)
     await customer.dispose()
   })
 })

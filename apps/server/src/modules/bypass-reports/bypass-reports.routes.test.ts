@@ -101,6 +101,10 @@ beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) =>
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
 
   const repo = bypassReportsRepository as unknown as Record<string, unknown>
   const stubs: Record<string, unknown> = {
@@ -404,7 +408,8 @@ describe('admin: confirm rewards once per customer per garage', () => {
 
     const one = await call(`/admin/bypass-reports/${first}/confirm`, 'superAdmin', { actorName: 'Lokesh' })
     expect(one.status).toBe(200)
-    expect(one.body.data).toMatchObject({ status: 'confirmed', confirmedBy: 'Lokesh', reward: { status: 'granted' }, garage: { strikes: 1 } })
+    // Signed by the session (0058): the typed name is ignored.
+    expect(one.body.data).toMatchObject({ status: 'confirmed', confirmedBy: 'Signed-in Sam', reward: { status: 'granted' }, garage: { strikes: 1 } })
     expect(ledger).toEqual([{ userId: PEOPLE.customer, amountPaise: 10_000 }])
 
     const two = await call(`/admin/bypass-reports/${second}/confirm`, 'superAdmin', { actorName: 'Lokesh' })
@@ -436,10 +441,9 @@ describe('admin: confirm rewards once per customer per garage', () => {
     expect(ledger).toHaveLength(0)
   })
 
-  test('dismissing needs a reason and a typed name; a dismissed report is no strike', async () => {
+  test('dismissing needs a reason; a dismissed report is no strike', async () => {
     const id = String((await report(ON)).body.data!.id)
     expect((await call(`/admin/bypass-reports/${id}/dismiss`, 'superAdmin', { actorName: 'Lokesh' })).status).toBe(400)
-    expect((await call(`/admin/bypass-reports/${id}/confirm`, 'superAdmin', {})).status).toBe(400)
     const { status, body } = await call(`/admin/bypass-reports/${id}/dismiss`, 'superAdmin', {
       actorName: 'Lokesh',
       reason: 'The customer asked the garage for its number',

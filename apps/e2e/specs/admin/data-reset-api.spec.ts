@@ -18,7 +18,7 @@ import { randomUUID } from 'node:crypto'
 import { test, expect, asRole } from '../../support/fixtures'
 import { API, loginViaApi } from '../../support/auth'
 import { getReceiptNumber, sql } from '../../support/db'
-import { BOOKING_INTENTS, BOOKINGS, CUSTOMERS } from '../../support/seed-ids'
+import { ADMIN_LOGINS, BOOKING_INTENTS, BOOKINGS, CUSTOMERS } from '../../support/seed-ids'
 
 const RESET = `${API}/api/v1/admin/data-reset`
 
@@ -201,7 +201,6 @@ test.describe('start pilot clean, API @p0', () => {
         only: { chainIds: CHAINS, checkoutIds: CHECKOUTS },
         selectionHash: narrow.selectionHash,
         confirmText: 'DELETE 2 BOOKINGS',
-        actorName: 'E2E Admin',
         backupConfirmed: true,
       },
     })
@@ -218,7 +217,6 @@ test.describe('start pilot clean, API @p0', () => {
         only: onlyRefunded,
         selectionHash: narrow.selectionHash,
         confirmText: 'DELETE 2 BOOKINGS',
-        actorName: 'E2E Admin',
         backupConfirmed: true,
       },
     })
@@ -236,7 +234,6 @@ test.describe('start pilot clean, API @p0', () => {
         only: onlyRefunded,
         selectionHash: narrow.selectionHash,
         confirmText: 'DELETE 1 BOOKING',
-        actorName: 'E2E Admin',
         backupConfirmed: false,
       },
     })
@@ -262,7 +259,6 @@ test.describe('start pilot clean, API @p0', () => {
         unknownIds: plan.lookups.unknownIds,
         selectionHash: plan.selectionHash,
         confirmText: '  DELETE 2   BOOKINGS ',
-        actorName: 'E2E Admin',
         backupConfirmed: true,
       },
     })
@@ -330,7 +326,8 @@ test.describe('start pilot clean, API @p0', () => {
       select action, actor_name, actor_sub, detail::text as detail
         from admin_audit_log where id = ${result.auditId}
     `
-    expect(audit).toMatchObject({ action: 'test_data_reset', actor_name: 'E2E Admin', actor_sub: 'admin' })
+    // Signed by the personal E2E login (0058), not a typed name.
+    expect(audit).toMatchObject({ action: 'test_data_reset', actor_name: 'E2E Admin', actor_sub: `admin:${ADMIN_LOGINS.e2e.id}` })
     expect(audit.detail).toContain(BOOKINGS.resetRefunded)
     // What was kept is on record too, with the reason.
     expect(audit.detail).toContain(BOOKINGS.resetLive)
@@ -364,7 +361,7 @@ test.describe('start pilot clean, API @p0', () => {
 
     const marked = await page.request.post(`${API}/api/v1/admin/bookings/${id}/mark-test`)
     expect(marked.status()).toBe(200)
-    expect((await marked.json()).data.markedTest).toMatchObject({ by: 'admin' })
+    expect((await marked.json()).data.markedTest).toMatchObject({ by: 'E2E Admin' })
 
     // On the list's Test filter, and noted on the booking.
     const listed = await (await page.request.get(`${API}/api/v1/admin/bookings?test=only&q=${id.slice(0, 8)}`)).json()
@@ -381,7 +378,6 @@ test.describe('start pilot clean, API @p0', () => {
         scope,
         selectionHash: plan.selectionHash,
         confirmText: 'DELETE 1 BOOKING',
-        actorName: 'E2E Admin',
         backupConfirmed: true,
       },
     })

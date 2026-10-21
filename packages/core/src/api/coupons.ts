@@ -1,6 +1,7 @@
 import { apiClient } from '@repo/core/api/client'
 import type { CouponKind, CouponReward, RedeemChannel } from '@repo/core/coupons'
 import type { ServiceCategory } from '@repo/core/types'
+import { signedBody } from './admin-signer'
 
 /**
  * Printed coupons with QR codes (0056). A code always travels in a request
@@ -164,7 +165,6 @@ export interface CreateCouponBatchPayload {
   newCustomersOnly: boolean
   validFrom: string
   validTo: string
-  actorName: string
 }
 
 export function getAdminCouponConfig() {
@@ -182,7 +182,7 @@ export function getCouponBatch(batchId: string) {
 export function createCouponBatch(payload: CreateCouponBatchPayload) {
   return apiClient<{ batch: AdminCouponBatch }>('/admin/coupons/batches', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: signedBody(payload),
   })
 }
 
@@ -195,16 +195,16 @@ export function listCouponRedemptions(batchId: string) {
   return apiClient<{ redemptions: CouponRedemption[]; location: string }>(`/admin/coupons/batches/${batchId}/redemptions`)
 }
 
-export function voidCouponBatch(batchId: string, payload: { actorName: string; reason: string; cancelUnspent: boolean }) {
+export function voidCouponBatch(batchId: string, payload: { reason: string; cancelUnspent: boolean }) {
   return apiClient<{ batch: AdminCouponBatch; cancelledVouchers: number }>(`/admin/coupons/batches/${batchId}/void`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: signedBody(payload),
   })
 }
 
-export function voidCouponCode(batchId: string, payload: { code: string; actorName: string; reason: string }) {
+export function voidCouponCode(batchId: string, payload: { code: string; reason: string }) {
   return apiClient<{ suffix: string; cancelledVouchers: number }>(`/admin/coupons/batches/${batchId}/codes/void`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: signedBody(payload),
   })
 }

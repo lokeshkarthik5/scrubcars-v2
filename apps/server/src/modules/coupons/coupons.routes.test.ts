@@ -105,6 +105,10 @@ beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) =>
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
   patch(couponsRepository, 'countRecentFailures', async () => failures)
   patch(couponsRepository, 'recordFailure', async (input: { userId: string | null; ipKey: string }) => {
     recorded.push(input)
@@ -274,11 +278,11 @@ describe('admin: batches, codes and redemptions', () => {
     expect(created).toEqual([])
   })
 
-  test('a super-admin (or the break-glass login) creates a batch with the typed name; codes are hashed, never stored', async () => {
+  test('a super-admin (or the break-glass login) creates a batch signed with the session name (a typed name is ignored); codes are hashed, never stored', async () => {
     const { status, body } = await call('POST', '/admin/coupons/batches', 'superAdmin', NEW_BATCH)
     expect(status).toBe(201)
     expect(created).toHaveLength(1)
-    expect(created[0]).toMatchObject({ createdByName: 'Asha', codeCount: 3, keyId: KEYS.keyId, amountOff: '100.00', minOrderAmount: '499.00' })
+    expect(created[0]).toMatchObject({ createdByName: 'Signed-in Sam', codeCount: 3, keyId: KEYS.keyId, amountOff: '100.00', minOrderAmount: '499.00' })
     expect(JSON.stringify(created[0])).not.toContain(CODE)
     expect(body.data!.batch).toMatchObject({ title: '₹100 off', canReprint: true })
     expect((await call('GET', '/admin/coupons/batches', 'breakGlass')).status).toBe(200)
@@ -293,7 +297,6 @@ describe('admin: batches, codes and redemptions', () => {
     const stamps = await call('POST', '/admin/coupons/batches', 'superAdmin', { ...NEW_BATCH, reward: 'stamps', amountOff: null, minOrder: null, stamps: 2 })
     expect(stamps.body.message).toContain('Detlio Rewards')
     expect((await call('POST', '/admin/coupons/batches', 'superAdmin', { ...NEW_BATCH, createdBySub: 'x' })).status).toBe(400)
-    expect((await call('POST', '/admin/coupons/batches', 'superAdmin', { ...NEW_BATCH, actorName: '' })).status).toBe(400)
     expect((await call('POST', '/admin/coupons/batches', 'superAdmin', { ...NEW_BATCH, count: 5001 })).status).toBe(400)
     // A garage that does not exist.
     expect((await call('POST', '/admin/coupons/batches', 'superAdmin', { ...NEW_BATCH, vendorId: PEOPLE.other })).status).toBe(404)

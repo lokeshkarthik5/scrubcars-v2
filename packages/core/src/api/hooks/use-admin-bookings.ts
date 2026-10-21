@@ -173,7 +173,7 @@ export function useOverrideAdminPickupStep() {
 
 /** Detlio waives the photo standard on one booking (0045). */
 export function useWaiveAdminJobPhotos() {
-  return useBookingAction((id: string, input: { actorName: string; reason: string }) =>
+  return useBookingAction((id: string, input: { reason: string }) =>
     waiveAdminJobPhotos(id, input)
   )
 }

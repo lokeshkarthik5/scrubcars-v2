@@ -8,7 +8,7 @@ import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
-import { ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
@@ -19,7 +19,7 @@ import { useAdminClaim, useDecideClaim } from '@repo/core/api/hooks/use-guarante
 import { CLAIM_STATUS_LABELS, GUARANTEE_RULES } from '@repo/core/guarantee'
 import { cn } from '@repo/core/utils'
 import { Meta } from '@/components/meta'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import { formatWhen } from '@/lib/bookings'
 import { DECISION_WORDS, claimClockLine, customerFiguresLine, customerFlags } from '@/lib/guarantee'
 
@@ -32,7 +32,6 @@ function ClaimDetail({ id }: { id: string }) {
   const { data: claim, isPending, error, refetch } = useAdminClaim(id)
   const decide = useDecideClaim(id)
   const [deciding, setDeciding] = useState<Decision | null>(null)
-  const [actorName, setActorName] = useState(() => (typeof window === 'undefined' ? '' : rememberedName()))
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
 
@@ -48,18 +47,16 @@ function ClaimDetail({ id }: { id: string }) {
   const clock = claimClockLine(claim)
   const flags = customerFlags(claim.customerFigures)
   const reasonNeeded = deciding === 'reject'
-  const ready = actorName.trim().length >= 2 && (!reasonNeeded || reason.trim().length >= 5)
+  const ready = !reasonNeeded || reason.trim().length >= 5
 
   const submit = async () => {
     if (!deciding || !ready) return
     try {
       await decide.mutateAsync({
         decision: deciding,
-        actorName: actorName.trim(),
         ...(reason.trim() && { reason: reason.trim() }),
         ...(note.trim() && { note: note.trim() }),
       })
-      rememberName(actorName.trim())
       toast.success('Decision saved')
       setDeciding(null)
       setReason('')
@@ -255,7 +252,7 @@ function ClaimDetail({ id }: { id: string }) {
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
-            <ScInput label="Your name" value={actorName} onChange={(event) => setActorName(event.target.value)} maxLength={100} />
+            <SignedAs />
             <div className="flex gap-2">
               <ScButton variant="secondary" onClick={() => setDeciding(null)} disabled={decide.isPending} className="min-h-11 flex-1">
                 Back

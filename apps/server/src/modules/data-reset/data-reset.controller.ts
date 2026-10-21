@@ -14,8 +14,8 @@ export async function preview(c: DataResetContext, input: PreviewInput) {
   return c.json({ success: true, data })
 }
 
-// Takes the token's subject for the audit row, beside the name the person
-// typed: the shared admin login would otherwise make every run 'admin'.
+// Takes the token's subject for the audit row, beside the signed-in admin's
+// name (adminSignedJson, 0058).
 export async function execute(c: DataResetContext, input: ExecuteInput) {
   const data = await dataResetService.execute(c.get('auth').sub, input)
   return c.json({ success: true, data })

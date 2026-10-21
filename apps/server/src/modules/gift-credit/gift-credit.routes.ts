@@ -5,6 +5,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { notFoundUnless } from '../../middleware/feature-switch.middleware.js'
 import * as giftCreditController from './gift-credit.controller.js'
@@ -46,6 +47,6 @@ adminCreditRoutes.post(
   '/customers/:userId/adjust',
   ...adminMiddleware,
   zValidator('param', customerIdParamSchema),
-  zValidator('json', adjustCreditSchema),
+  adminSignedJson(adjustCreditSchema),
   (c) => giftCreditController.adminAdjust(c, c.req.valid('param').userId, c.req.valid('json'))
 )

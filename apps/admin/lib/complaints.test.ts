@@ -56,7 +56,6 @@ describe('logging a complaint', () => {
     message: 'Charged twice for one wash.',
     bookingRef: '',
     receivedAt: NOW.toISOString(),
-    loggedBy: 'Ravi',
   }
 
   test('a whole form has nothing to fix', () => {
@@ -84,14 +83,13 @@ describe('logging a complaint', () => {
     expect(logComplaintProblems({ ...form, receivedAt: null }, NOW)).toEqual(['Say when it was received.'])
   })
 
-  test('the phone, the message, the reference and who is logging it', () => {
+  test('the phone, the message and the reference', () => {
     expect(
-      logComplaintProblems({ ...form, phone: '12345', message: 'short', bookingRef: '#12', loggedBy: ' ' }, NOW)
+      logComplaintProblems({ ...form, phone: '12345', message: 'short', bookingRef: '#12' }, NOW)
     ).toEqual([
       'Enter their 10-digit mobile number.',
       'Write what they said: at least 10 characters.',
       'A booking reference is 8 letters and numbers, like #3F2A9C1B.',
-      'Type your name.',
     ])
   })
 

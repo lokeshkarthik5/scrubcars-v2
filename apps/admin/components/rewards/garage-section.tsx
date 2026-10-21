@@ -45,7 +45,7 @@ import {
   type GarageSettings,
   type SeriesStatus,
 } from '@repo/core/garage'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import {
   garageFormProblems,
   oddsTotal,
@@ -137,20 +137,17 @@ function GarageSettingsCard({ current }: { current: AdminRewardsSettings }) {
   const [draft, setDraft] = useState<GarageSettings>(() =>
     structuredClone(saved)
   )
-  const [name, setName] = useState(rememberedName)
   const problems = garageFormProblems(draft)
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
   const set = (patch: Partial<GarageSettings>) =>
     setDraft({ ...draft, ...patch })
 
   const submit = () => {
-    if (!dirty || problems.length > 0 || name.trim().length < 2) return
-    rememberName(name.trim())
+    if (!dirty || problems.length > 0) return
     save.mutate(
       {
         version: current.version,
         settings: { ...current.settings, garage: draft },
-        actorName: name.trim(),
       },
       {
         onSuccess: (data) => {
@@ -249,23 +246,11 @@ function GarageSettingsCard({ current }: { current: AdminRewardsSettings }) {
         <p className="text-[12px] text-warning">{problems.join(' · ')}</p>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="w-56">
-          <ScInput
-            label="Your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="min-h-10"
-          />
-        </div>
+        <SignedAs className="w-full" />
         <ScButton
           fullWidth={false}
           className="px-5"
-          disabled={
-            !dirty ||
-            problems.length > 0 ||
-            name.trim().length < 2 ||
-            save.isPending
-          }
+          disabled={!dirty || problems.length > 0 || save.isPending}
           onClick={submit}
         >
           {save.isPending ? 'Saving…' : 'Save Garage settings'}
@@ -290,7 +275,6 @@ function SeriesCard({
   const update = useUpdateGarageSeries()
   const [name, setName] = useState(series?.name ?? '')
   const [status, setStatus] = useState<SeriesStatus>(series?.status ?? 'draft')
-  const [actor, setActor] = useState(rememberedName)
   if (!series) return null
   return (
     <ScCard className="flex flex-col gap-3">
@@ -326,13 +310,8 @@ function SeriesCard({
           <option value="live">Live (pulls draw from it)</option>
           <option value="ended">Ended</option>
         </ScSelect>
-        <ScInput
-          label="Your name"
-          value={actor}
-          onChange={(e) => setActor(e.target.value)}
-          className="min-h-10"
-        />
       </div>
+      <SignedAs />
       <div className="flex items-center gap-3">
         <ScButton
           fullWidth={false}
@@ -340,11 +319,9 @@ function SeriesCard({
           className="px-5"
           disabled={
             update.isPending ||
-            actor.trim().length < 2 ||
             (name === series.name && status === series.status)
           }
           onClick={() => {
-            rememberName(actor.trim())
             update.mutate(
               {
                 id: series.id,
@@ -352,7 +329,6 @@ function SeriesCard({
                 status,
                 startsAt: series.startsAt,
                 endsAt: series.endsAt,
-                actorName: actor.trim(),
               },
               {
                 onSuccess: () => toast.success('Series saved'),
@@ -630,7 +606,6 @@ function CarEditor({
   const queryClient = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
-  const [actor, setActor] = useState(rememberedName)
   const [form, setForm] = useState({
     name: car.name,
     rarity: car.rarity,
@@ -640,13 +615,11 @@ function CarEditor({
     lore: car.lore,
     enabled: car.enabled,
   })
-  const named = actor.trim().length >= 2
   // The uploaded picture is not kept once reset, so it is asked first.
   const [resetOpen, setResetOpen] = useState(false)
   const [resetError, setResetError] = useState('')
 
   const upload = async (file: File) => {
-    if (!named) return toast.error('Type your name first')
     setUploading(true)
     try {
       const webp = file.type === 'image/webp' ? file : await toCardWebp(file)
@@ -661,8 +634,7 @@ function CarEditor({
         body: webp,
       })
       if (!put.ok) throw new Error("The picture didn't upload. Try again.")
-      await submitGarageArtUpload(car.id, { key, actorName: actor.trim() })
-      rememberName(actor.trim())
+      await submitGarageArtUpload(car.id, { key })
       toast.success('Picture saved')
       void queryClient.invalidateQueries({ queryKey: adminGarageKeys.all })
     } catch (err) {
@@ -769,20 +741,14 @@ function CarEditor({
               label="Card switched on"
             />
           </div>
-          <ScInput
-            label="Your name"
-            value={actor}
-            onChange={(e) => setActor(e.target.value)}
-            className="min-h-10"
-          />
+          <SignedAs />
           <ScButton
             fullWidth={false}
             className="self-start px-5"
-            disabled={!named || update.isPending}
+            disabled={update.isPending}
             onClick={() => {
-              rememberName(actor.trim())
               update.mutate(
-                { id: car.id, car: form, actorName: actor.trim() },
+                { id: car.id, car: form },
                 {
                   onSuccess: () => toast.success('Card saved'),
                   onError: (err) =>
@@ -823,7 +789,7 @@ function CarEditor({
             variant="secondary"
             fullWidth={false}
             className="flex min-h-10 items-center gap-1.5 px-3"
-            disabled={!named || reset.isPending}
+            disabled={reset.isPending}
             onClick={() => {
               setResetError('')
               setResetOpen(true)
@@ -844,7 +810,7 @@ function CarEditor({
         onConfirm={async () => {
           setResetError('')
           try {
-            await reset.mutateAsync({ id: car.id, actorName: actor.trim() })
+            await reset.mutateAsync({ id: car.id })
             setResetOpen(false)
             toast.success('Back to the photo')
           } catch (err) {

@@ -30,7 +30,7 @@ import {
   useRestoreAdminVendor,
 } from '@repo/core/api/hooks/use-admin-vendors'
 import { cn } from '@repo/core/utils'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import { formatRupees, formatWhen } from '@/lib/bookings'
 import {
   BIN_EFFECTS,
@@ -43,8 +43,8 @@ import {
 
 /**
  * The garage Bin's three dialogs: Move to bin, Restore, and Delete forever.
- * Each asks for the name of whoever is doing it (the panel's one shared
- * login can't say), which goes on the audit record.
+ * Each is signed with the signed-in admin's name (personal logins, 0058),
+ * which goes on the audit record; the dialog says whose.
  *
  * The destructive buttons are outlined in red rather than filled: the
  * Garages page's one red is Add garage, and here red marks what can't be
@@ -53,41 +53,11 @@ import {
 const DESTRUCTIVE =
   'flex min-h-12 items-center justify-center gap-2 border-brand-red bg-brand-red/10 text-brand-red hover:bg-brand-red/15 disabled:opacity-40 disabled:hover:bg-brand-red/10'
 
-/** "Your name", for the audit record. */
-function NameField({
-  id,
-  value,
-  onChange,
-}: {
-  id: string
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <ScInput
-        id={id}
-        label="Your name"
-        autoComplete="name"
-        maxLength={100}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-h-11"
-      />
-      <p className="text-[12px] text-text-muted">
-        Kept with the record of who did this.
-      </p>
-    </div>
-  )
-}
-
-const nameReady = (name: string) => name.trim().length >= 2
-
 // ─── Move to bin ─────────────────────────────────────────────────────────────
 
 /**
  * Move to bin: what it does, the bookings still to happen that it will
- * cancel (and which are paid), an optional reason, and the person's name.
+ * cancel (and which are paid), and an optional reason.
  * Mounted when it opens, so its preview is read at that moment.
  */
 export function MoveToBinDialog({
@@ -101,22 +71,19 @@ export function MoveToBinDialog({
 }) {
   const preview = useAdminVendorBinPreview(vendor.id, true)
   const bin = useBinAdminVendor()
-  const [name, setName] = useState(rememberedName)
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
 
   const data = preview.data
   const busy = bin.isPending
-  const ready = nameReady(name) && Boolean(data) && !busy
+  const ready = Boolean(data) && !busy
 
   const submit = () => {
     if (!ready) return
     setError('')
-    rememberName(name.trim())
     bin.mutate(
       {
         id: vendor.id,
-        actorName: name.trim(),
         reason: reason.trim() || undefined,
       },
       {
@@ -218,7 +185,7 @@ export function MoveToBinDialog({
           placeholder="Test garage from setup"
           className="min-h-11"
         />
-        <NameField id="bin-name" value={name} onChange={setName} />
+        <SignedAs />
 
         {error && (
           <p role="alert" className="text-[12px] text-error">
@@ -250,7 +217,7 @@ export function MoveToBinDialog({
 
 // ─── Restore ─────────────────────────────────────────────────────────────────
 
-/** Restore: back as it was, with the person's name for the record. */
+/** Restore: back as it was, signed with the admin's name for the record. */
 export function RestoreDialog({
   vendor,
   onClose,
@@ -261,16 +228,14 @@ export function RestoreDialog({
   onDone: () => void
 }) {
   const restore = useRestoreAdminVendor()
-  const [name, setName] = useState(rememberedName)
   const [error, setError] = useState('')
   const busy = restore.isPending
 
   const submit = () => {
-    if (!nameReady(name) || busy) return
+    if (busy) return
     setError('')
-    rememberName(name.trim())
     restore.mutate(
-      { id: vendor.id, actorName: name.trim() },
+      { id: vendor.id },
       {
         onSuccess: onDone,
         onError: (err) =>
@@ -296,7 +261,7 @@ export function RestoreDialog({
           in again. Bookings cancelled when it went to the Bin stay cancelled.
         </p>
       </div>
-      <NameField id="restore-name" value={name} onChange={setName} />
+      <SignedAs />
       {error && (
         <p role="alert" className="text-[12px] text-error">
           {error}
@@ -305,7 +270,7 @@ export function RestoreDialog({
       <ScButton
         variant="secondary"
         onClick={submit}
-        disabled={!nameReady(name) || busy}
+        disabled={busy}
         className="flex min-h-11 items-center justify-center gap-2"
       >
         <IconRestore size={16} aria-hidden="true" />
@@ -335,7 +300,7 @@ const LINE_ICON: Record<DeleteLine['key'], React.ReactNode> = {
 /**
  * Delete forever, as in the approved mockup: what goes with the garage, what
  * is kept for the accounts (payments, refunds and receipt numbers, real
- * money only), the person's name, and the garage's name typed out before
+ * money only), and the garage's name typed out before
  * the red-outlined button wakes. The preview's fingerprint goes with the
  * delete, so it deletes exactly what this showed.
  */
@@ -350,7 +315,6 @@ export function DeleteForeverSheet({
 }) {
   const preview = useAdminVendorDeletePreview(vendor.id, { fresh: true })
   const remove = useDeleteAdminVendorForever()
-  const [name, setName] = useState(rememberedName)
   const [typed, setTyped] = useState('')
   const [error, setError] = useState<{
     message: string
@@ -362,7 +326,6 @@ export function DeleteForeverSheet({
   const nameTyped = confirmNameMatches(typed, vendor.businessName)
   const ready =
     Boolean(data) &&
-    nameReady(name) &&
     nameTyped &&
     !busy &&
     !preview.isFetching
@@ -370,11 +333,9 @@ export function DeleteForeverSheet({
   const submit = () => {
     if (!ready || !data) return
     setError(null)
-    rememberName(name.trim())
     remove.mutate(
       {
         id: vendor.id,
-        actorName: name.trim(),
         confirmName: typed,
         selectionHash: data.selectionHash,
       },
@@ -507,7 +468,7 @@ export function DeleteForeverSheet({
           </>
         )}
 
-        <NameField id="delete-name" value={name} onChange={setName} />
+        <SignedAs />
 
         <div className="relative">
           <ScInput

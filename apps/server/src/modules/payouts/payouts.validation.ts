@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
 import { ACCOUNT_NUMBER_PATTERN, IFSC_PATTERN, UPI_ID_PATTERN } from '../../lib/payouts.js'
 import { MAX_RANGE_DAYS, rangeDays } from '../../lib/stats.js'
@@ -41,8 +42,7 @@ const toThePaisa = (value: number) => Math.abs(value * 100 - Math.round(value * 
  * figure that moved while the dialog was open, records nothing. The amount
  * is never typed freely: a payout settles whole bookings.
  *
- * `actorName` is the name the person typed, as the reset and the Bin ask
- * for it: the shared admin login would otherwise make everyone 'admin'.
+ * `actorName` is the signed-in admin's name (adminSignedJson, 0058).
  */
 export const recordPayoutSchema = z
   .object({
@@ -66,7 +66,7 @@ export const recordPayoutSchema = z
       .max(500)
       .optional()
       .transform((value) => value || undefined),
-    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    actorName: signedActorName,
   })
   .strict()
 
@@ -96,7 +96,7 @@ export const payoutAccountSchema = z
       (value) => value === null || UPI_ID_PATTERN.test(value),
       'A UPI id looks like name@bank'
     ),
-    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    actorName: signedActorName,
   })
   .strict()
   .superRefine((input, ctx) => {

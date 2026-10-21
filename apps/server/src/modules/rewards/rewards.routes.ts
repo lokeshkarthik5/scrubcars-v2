@@ -5,6 +5,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import * as rewardsController from './rewards.controller.js'
@@ -70,7 +71,7 @@ adminRewardRoutes.get('/config', authMiddleware, requireSuperAdmin, (c) =>
   c.json({ success: true, data: { masterSwitch: env.rewardsEnabled } })
 )
 adminRewardRoutes.get('/settings', ...adminMiddleware, rewardsController.adminSettings)
-adminRewardRoutes.put('/settings', ...adminMiddleware, zValidator('json', saveSettingsSchema), (c) =>
+adminRewardRoutes.put('/settings', ...adminMiddleware, adminSignedJson(saveSettingsSchema), (c) =>
   rewardsController.adminSaveSettings(c, c.req.valid('json'))
 )
 adminRewardRoutes.get('/summary', ...adminMiddleware, zValidator('query', monthQuerySchema), (c) =>
@@ -89,6 +90,6 @@ adminRewardRoutes.post(
   '/customers/:userId/adjust',
   ...adminMiddleware,
   zValidator('param', customerIdParamSchema),
-  zValidator('json', adjustRewardsSchema),
+  adminSignedJson(adjustRewardsSchema),
   (c) => rewardsController.adminAdjust(c, c.req.valid('param').userId, c.req.valid('json'))
 )

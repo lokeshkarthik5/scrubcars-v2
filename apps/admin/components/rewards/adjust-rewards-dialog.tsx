@@ -12,7 +12,7 @@ import type {
 } from '@repo/core/api/rewards'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useAdjustCustomerRewards } from '@repo/core/api/hooks/use-admin-rewards'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 
 type Action = AdjustRewardsPayload['action']
 
@@ -26,7 +26,7 @@ const ACTIONS: Array<{ value: Action; label: string }> = [
 /**
  * A manual adjustment to one customer's rewards: stamps on or off the card
  * (1–5), a voucher (₹1–₹500), or cancelling an unspent voucher. Always a
- * reason and the typed name, recorded in the audit log.
+ * reason, recorded in the audit log with the signed-in admin's name.
  */
 export function AdjustRewardsDialog({
   data,
@@ -40,7 +40,6 @@ export function AdjustRewardsDialog({
   const [number, setNumber] = useState('1')
   const [voucherId, setVoucherId] = useState('')
   const [reason, setReason] = useState('')
-  const [name, setName] = useState(rememberedName)
   const [error, setError] = useState('')
   const unspent = data.vouchers.filter((v) => v.state === 'available')
 
@@ -51,8 +50,7 @@ export function AdjustRewardsDialog({
       : Number.isInteger(value) &&
         value >= 1 &&
         value <= (action === 'issue_voucher' ? 500 : 5)) &&
-    reason.trim().length >= 3 &&
-    name.trim().length >= 2
+    reason.trim().length >= 3
 
   const picked = unspent.find((v) => v.id === voucherId)
   const effectLabel =
@@ -67,7 +65,7 @@ export function AdjustRewardsDialog({
         : (ACTIONS.find((a) => a.value === action)?.label ?? 'Save')
 
   const payloadFor = (): AdjustRewardsPayload => {
-    const base = { reason: reason.trim(), actorName: name.trim() }
+    const base = { reason: reason.trim() }
     return action === 'cancel_voucher'
       ? { action, voucherId, ...base }
       : action === 'issue_voucher'
@@ -77,7 +75,6 @@ export function AdjustRewardsDialog({
 
   const send = async () => {
     setError('')
-    rememberName(name.trim())
     try {
       await adjust.mutateAsync(payloadFor())
       toast.success('Rewards adjusted')
@@ -185,13 +182,7 @@ export function AdjustRewardsDialog({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
-      <ScInput
-        label="Your name"
-        autoComplete="name"
-        maxLength={100}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
+      <SignedAs />
       <p className="text-[12px] text-text-muted">
         Recorded in the audit log with your name and reason. A voucher from the
         team is Detlio-funded, like every reward.

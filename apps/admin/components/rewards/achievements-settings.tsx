@@ -27,7 +27,7 @@ import {
   type BadgeKey,
   type BadgeSettings,
 } from '@repo/core/achievements'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 
 /**
  * Admin → Rewards → Achievements (0054): each badge on or off, the bonus
@@ -82,7 +82,6 @@ function Editor({
   const [draft, setDraft] = useState<Record<BadgeKey, BadgeSettings>>(() =>
     structuredClone(saved)
   )
-  const [name, setName] = useState(rememberedName)
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
   const badBonus = Object.values(draft).some(
     (b) =>
@@ -94,13 +93,11 @@ function Editor({
     setDraft({ ...draft, [key]: { ...draft[key], ...patch } })
 
   const submit = () => {
-    if (!dirty || badBonus || name.trim().length < 2) return
-    rememberName(name.trim())
+    if (!dirty || badBonus) return
     save.mutate(
       {
         version: current.version,
         settings: { ...current.settings, achievements: draft },
-        actorName: name.trim(),
       },
       {
         onSuccess: (data) => {
@@ -204,13 +201,7 @@ function Editor({
         </p>
       )}
       <ScCard className="flex flex-col gap-3 px-4 py-4">
-        <ScInput
-          label="Your name"
-          autoComplete="name"
-          maxLength={100}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <SignedAs />
         <p className="text-[12px] text-text-muted">
           Saved as a new version of the rewards settings with your name; every
           change is in the audit log. A badge already earned keeps what it gave.
@@ -226,9 +217,7 @@ function Editor({
           </ScButton>
           <ScButton
             className="min-h-11"
-            disabled={
-              !dirty || badBonus || name.trim().length < 2 || save.isPending
-            }
+            disabled={!dirty || badBonus || save.isPending}
             onClick={submit}
           >
             {save.isPending ? 'Saving…' : 'Save badges'}

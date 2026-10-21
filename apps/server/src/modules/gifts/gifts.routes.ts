@@ -6,6 +6,7 @@ import {
   optionalAuthMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { notFoundUnless } from '../../middleware/feature-switch.middleware.js'
 import { giftCodeRateLimiter } from '../../middleware/rate-limit.middleware.js'
@@ -95,6 +96,6 @@ adminGiftRoutes.post(
   giftsOn,
   ...adminMiddleware,
   zValidator('param', giftIdParamSchema),
-  zValidator('json', cancelGiftSchema),
+  adminSignedJson(cancelGiftSchema),
   (c) => giftsController.adminCancel(c, c.req.valid('param').id, c.req.valid('json'))
 )

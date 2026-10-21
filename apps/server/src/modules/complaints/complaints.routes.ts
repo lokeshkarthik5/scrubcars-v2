@@ -4,6 +4,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import * as complaintsController from './complaints.controller.js'
 import {
@@ -52,7 +53,7 @@ adminComplaintRoutes.get(
 adminComplaintRoutes.post(
   '/',
   ...adminMiddleware,
-  zValidator('json', logComplaintSchema),
+  adminSignedJson(logComplaintSchema, 'loggedBy'),
   (c) => complaintsController.logComplaint(c, c.req.valid('json'))
 )
 

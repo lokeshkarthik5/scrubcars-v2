@@ -41,7 +41,7 @@ test.describe('team notices @p0', () => {
       vendorId: null,
       bookingFrom: null,
       dismissals: 0,
-      createdBy: 'admin',
+      createdBy: 'E2E Admin',
     })
 
     // Ending it before it starts switches it off; its dates are untouched,

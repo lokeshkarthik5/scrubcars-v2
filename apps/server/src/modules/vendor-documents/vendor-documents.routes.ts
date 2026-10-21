@@ -5,6 +5,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { notFoundUnless } from '../../middleware/feature-switch.middleware.js'
 import {
@@ -109,7 +110,7 @@ adminDocumentRoutes.post(
   documentsOn,
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', adminSubmitDocumentSchema),
+  adminSignedJson(adminSubmitDocumentSchema),
   (c) => documentsController.submitAdminDocument(c, c.req.valid('param').vendorId, c.req.valid('json'))
 )
 
@@ -118,7 +119,7 @@ adminDocumentRoutes.post(
   documentsOn,
   ...adminMiddleware,
   zValidator('param', adminDocumentParamSchema),
-  zValidator('json', reviewDocumentSchema),
+  adminSignedJson(reviewDocumentSchema),
   (c) => {
     const { vendorId, documentId } = c.req.valid('param')
     return documentsController.reviewAdminDocument(c, vendorId, documentId, c.req.valid('json'))

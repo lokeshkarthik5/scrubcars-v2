@@ -34,11 +34,10 @@ import type {
   LogComplaintInput,
   ResolveComplaintInput,
 } from './complaints.validation.js'
+import { adminSubjectName } from '../admin-logins/admin-logins.service.js'
 
 const log = logger.child({ module: 'complaints' })
 
-/** The subject minted by the break-glass admin login, which has no users row. */
-const BREAK_GLASS_SUBJECT = 'admin'
 
 /** My complaints: enough for anyone; older ones are on the team's side. */
 const CUSTOMER_LIST_LIMIT = 50
@@ -50,10 +49,12 @@ const HOUR_MS = 60 * 60 * 1000
 
 /**
  * Who pressed the button, as a name: the shared break-glass login signs as
- * 'admin', a named super-admin as themselves (as notices do).
+ * 'admin', a personal admin login (0058) with its name, a named super-admin
+ * as themselves (as notices do).
  */
 async function resolveActorName(sub: string): Promise<string> {
-  if (sub === BREAK_GLASS_SUBJECT) return 'admin'
+  const adminName = await adminSubjectName(sub)
+  if (adminName) return adminName
   const user = await complaintsRepository.findUserById(sub)
   return (user?.name.trim() || user?.phone || sub).slice(0, 100)
 }

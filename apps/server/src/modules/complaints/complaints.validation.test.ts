@@ -89,8 +89,9 @@ describe('logComplaintSchema', () => {
     loggedBy: 'Ravi',
   } as const
 
-  test('a phone however it was typed, a source, what they said and who logged it', () => {
-    expect(logComplaintSchema.parse(LOGGED)).toEqual({ ...LOGGED, phone: '9876543210' })
+  test('a phone however it was typed, a source and what they said; who logged it is the session', () => {
+    // A typed name is ignored: adminSignedJson signs it with the session (0058).
+    expect(logComplaintSchema.parse(LOGGED)).toEqual({ ...LOGGED, phone: '9876543210', loggedBy: '' })
     for (const phone of ['+91 98765 43210', '098765-43210', '0091 9876543210', '919876543210']) {
       expect(logComplaintSchema.parse({ ...LOGGED, phone }).phone).toBe('9876543210')
     }
@@ -106,11 +107,12 @@ describe('logComplaintSchema', () => {
     expect(logComplaintSchema.safeParse(withoutSource).success).toBe(false)
   })
 
-  test('refuses a number that is not an Indian mobile, and a log with no name for who did it', () => {
+  test('refuses a number that is not an Indian mobile; needs no typed name', () => {
     for (const phone of ['12345', '1234567890', '98765432101', 'call me']) {
       expect(logComplaintSchema.safeParse({ ...LOGGED, phone }).success).toBe(false)
     }
-    expect(logComplaintSchema.safeParse({ ...LOGGED, loggedBy: ' ' }).success).toBe(false)
+    const { loggedBy: _loggedBy, ...unsigned } = LOGGED
+    expect(logComplaintSchema.parse(unsigned).loggedBy).toBe('')
   })
 
   test('a booking reference with or without its #, in any case', () => {

@@ -1,6 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { authMiddleware, requireSuperAdmin, type AuthVariables } from '../../middleware/auth.middleware.js'
+import { authMiddleware, requireSuperAdmin, type AuthVariables, adminSignedJson } from '../../middleware/auth.middleware.js'
 import { rewardsMasterOn, rewardsOn } from '../rewards/rewards.guards.js'
 import * as garage from './garage.controller.js'
 import {
@@ -46,21 +46,21 @@ adminGarageRoutes.use('*', rewardsMasterOn, authMiddleware, requireSuperAdmin)
 adminGarageRoutes.get('/', zValidator('query', overviewQuerySchema), (c) => garage.adminOverview(c, c.req.valid('query').seriesId))
 adminGarageRoutes.get('/stats', zValidator('query', statsQuerySchema), (c) => garage.adminStats(c, c.req.valid('query').seriesId, c.req.valid('query').month))
 adminGarageRoutes.get('/pulls', zValidator('query', monthQuerySchema), (c) => garage.adminPulls(c, c.req.valid('query').month))
-adminGarageRoutes.patch('/series/:id', zValidator('param', idParamSchema), zValidator('json', seriesSchema), (c) =>
+adminGarageRoutes.patch('/series/:id', zValidator('param', idParamSchema), adminSignedJson(seriesSchema), (c) =>
   garage.adminUpdateSeries(c, c.req.valid('param').id, c.req.valid('json'))
 )
-adminGarageRoutes.patch('/cars/:id', zValidator('param', idParamSchema), zValidator('json', carSchema), (c) =>
+adminGarageRoutes.patch('/cars/:id', zValidator('param', idParamSchema), adminSignedJson(carSchema), (c) =>
   garage.adminUpdateCar(c, c.req.valid('param').id, c.req.valid('json'))
 )
 adminGarageRoutes.post('/cars/:id/art/upload-url', zValidator('param', idParamSchema), zValidator('json', uploadUrlSchema), (c) =>
   garage.artUploadUrl(c, c.req.valid('param').id, c.req.valid('json').sizeBytes)
 )
-adminGarageRoutes.post('/cars/:id/art/upload', zValidator('param', idParamSchema), zValidator('json', useUploadSchema), (c) =>
+adminGarageRoutes.post('/cars/:id/art/upload', zValidator('param', idParamSchema), adminSignedJson(useUploadSchema), (c) =>
   garage.useUpload(c, c.req.valid('param').id, c.req.valid('json'))
 )
-adminGarageRoutes.post('/cars/:id/art/reset', zValidator('param', idParamSchema), zValidator('json', actorSchema), (c) =>
+adminGarageRoutes.post('/cars/:id/art/reset', zValidator('param', idParamSchema), adminSignedJson(actorSchema), (c) =>
   garage.resetArt(c, c.req.valid('param').id, c.req.valid('json').actorName)
 )
-adminGarageRoutes.post('/customers/:userId/pull', zValidator('param', userIdParamSchema), zValidator('json', givePullSchema), (c) =>
+adminGarageRoutes.post('/customers/:userId/pull', zValidator('param', userIdParamSchema), adminSignedJson(givePullSchema), (c) =>
   garage.adminGivePull(c, c.req.valid('param').userId, c.req.valid('json'))
 )

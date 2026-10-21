@@ -15,6 +15,7 @@ import {
   toIstInput,
 } from '@repo/core/ist-input'
 import { PAYOUT_METHOD_LABEL, rupeesLabel } from '@repo/core/payouts'
+import { SignedAs } from '@/components/signed-as'
 
 /** Same shape as the API: letters, numbers and - / _ . */
 const REFERENCE = /^[A-Za-z0-9/_.-]{4,80}$/
@@ -48,7 +49,6 @@ export function RecordPayoutDialog({
     toIstInput(new Date().toISOString())
   )
   const [note, setNote] = useState('')
-  const [actorName, setActorName] = useState('')
   const [error, setError] = useState('')
 
   const ref = reference.trim()
@@ -61,7 +61,6 @@ export function RecordPayoutDialog({
     data.payable.refusal === null &&
     REFERENCE.test(ref) &&
     paidAtIso !== null &&
-    actorName.trim().length >= 2 &&
     !record.isPending
 
   const submit = () => {
@@ -75,7 +74,6 @@ export function RecordPayoutDialog({
         reference: ref,
         paidAt: paidAtIso,
         note: note.trim() || undefined,
-        actorName: actorName.trim(),
       },
       {
         onSuccess: (payout) => {
@@ -175,14 +173,7 @@ export function RecordPayoutDialog({
         onChange={(e) => setNote(e.target.value)}
       />
 
-      <ScInput
-        id="payout-actor"
-        label="Your name"
-        autoComplete="name"
-        value={actorName}
-        onChange={(e) => setActorName(e.target.value)}
-        className="min-h-11"
-      />
+      <SignedAs />
 
       {error && (
         <p role="alert" className="text-[12px] text-error">

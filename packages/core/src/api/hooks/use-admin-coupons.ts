@@ -75,7 +75,7 @@ export function useVoidCouponBatch(batchId: string) {
   const queryClient = useQueryClient()
   const refresh = () => void queryClient.invalidateQueries({ queryKey: adminCouponKeys.all })
   return useMutation({
-    mutationFn: (payload: { actorName: string; reason: string; cancelUnspent: boolean }) => voidCouponBatch(batchId, payload),
+    mutationFn: (payload: { reason: string; cancelUnspent: boolean }) => voidCouponBatch(batchId, payload),
     onSuccess: refresh,
     onError: refresh,
   })
@@ -85,7 +85,7 @@ export function useVoidCouponCode(batchId: string) {
   const queryClient = useQueryClient()
   const refresh = () => void queryClient.invalidateQueries({ queryKey: adminCouponKeys.all })
   return useMutation({
-    mutationFn: (payload: { code: string; actorName: string; reason: string }) => voidCouponCode(batchId, payload),
+    mutationFn: (payload: { code: string; reason: string }) => voidCouponCode(batchId, payload),
     onSuccess: refresh,
   })
 }

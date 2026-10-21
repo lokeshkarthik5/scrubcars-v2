@@ -5,6 +5,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { notFoundUnless } from '../../middleware/feature-switch.middleware.js'
 import * as dataResetController from './data-reset.controller.js'
@@ -39,6 +40,6 @@ adminDataResetRoutes.post(
 adminDataResetRoutes.post(
   '/execute',
   ...adminMiddleware,
-  zValidator('json', executeSchema),
+  adminSignedJson(executeSchema),
   (c) => dataResetController.execute(c, c.req.valid('json'))
 )

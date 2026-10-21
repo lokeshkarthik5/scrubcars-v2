@@ -4,6 +4,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import * as bypassController from './bypass-reports.controller.js'
 import {
@@ -78,7 +79,7 @@ adminBypassReportRoutes.post(
   '/:id/confirm',
   ...adminMiddleware,
   zValidator('param', reportIdParamSchema),
-  zValidator('json', confirmBypassReportSchema),
+  adminSignedJson(confirmBypassReportSchema),
   (c) => bypassController.confirmReport(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
@@ -86,6 +87,6 @@ adminBypassReportRoutes.post(
   '/:id/dismiss',
   ...adminMiddleware,
   zValidator('param', reportIdParamSchema),
-  zValidator('json', dismissBypassReportSchema),
+  adminSignedJson(dismissBypassReportSchema),
   (c) => bypassController.dismissReport(c, c.req.valid('param').id, c.req.valid('json'))
 )

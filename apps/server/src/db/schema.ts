@@ -1868,8 +1868,9 @@ export const receiptCounters = pgTable('receipt_counters', {
 // a trigger refuses UPDATE and DELETE. Deliberately no foreign keys, because
 // the rows it describes are the ones the action deletes. `detail` names
 // bookings, customers and garages by id and reference, never by phone.
-// `actorName` is the name the person typed: the shared admin login cannot
-// say who they are, so `actorSub` alone would always read 'admin'.
+// `actorName` is who did it: since 0058 the signed-in admin's own name (the
+// shared env login signs as 'admin'); before that, the name the person typed.
+// `actorSub` is the session: 'admin', 'admin:<admin_logins.id>' or a user id.
 export const adminAuditLog = pgTable(
   'admin_audit_log',
   {
@@ -1884,6 +1885,46 @@ export const adminAuditLog = pgTable(
       .notNull(),
   },
   (table) => [index('admin_audit_log_created_at_idx').on(table.createdAt)]
+)
+
+// A personal admin login (0058): the owner, Raga and each ops person signs in
+// with their own, and the panel signs every action with `name`. Never the
+// password, only its scrypt hash (lib/passwords.ts). A session minted before
+// `sessionsFrom` is refused, so turning a login off or resetting its password
+// signs that person out everywhere. The env-credential login has no row: it
+// stays as the bootstrap and break-glass door. Changes are in admin_audit_log.
+export const adminLogins = pgTable(
+  'admin_logins',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    username: varchar('username', { length: 40 }).notNull(),
+    name: varchar('name', { length: 60 }).notNull(),
+    passwordHash: text('password_hash').notNull(),
+    status: text('status').$type<'active' | 'off'>().default('active').notNull(),
+    sessionsFrom: timestamp('sessions_from', { withTimezone: true }).defaultNow().notNull(),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+    createdByName: varchar('created_by_name', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    // The one login that runs the team (owner decision): only it adds
+    // logins, resets other people's passwords and turns logins on or off.
+    isOwner: boolean('is_owner').default(false).notNull(),
+  },
+  (table) => [
+    uniqueIndex('admin_logins_username_idx').on(table.username),
+    // At most one owner, and never off, so the owner cannot be locked out.
+    uniqueIndex('admin_logins_one_owner_idx').on(table.isOwner).where(sql`${table.isOwner}`),
+    check('admin_logins_owner_active_check', sql`NOT ${table.isOwner} OR ${table.status} = 'active'`),
+    // One person per name: many records keep only the name.
+    uniqueIndex('admin_logins_name_idx').on(sql`lower(${table.name})`),
+    check('admin_logins_username_check', sql`${table.username} ~ '^[a-z0-9][a-z0-9._-]{2,39}$'`),
+    check(
+      'admin_logins_name_check',
+      sql`char_length(btrim(${table.name})) >= 2 AND ${table.name} !~ '[\\r\\n\\t]'`
+    ),
+    check('admin_logins_status_check', sql`${table.status} IN ('active', 'off')`),
+    check('admin_logins_password_hash_check', sql`${table.passwordHash} LIKE 'scrypt$%'`),
+  ]
 )
 
 // A receipt number issued on test data that the reset then deleted, in a
