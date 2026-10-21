@@ -4,9 +4,13 @@
  *
  * The owner's decisions, in short:
  *
- *   - Refunds stay manual in the Razorpay dashboard for the pilot. Ops does
- *     the refund there and records it here (the refund id, the amount, who),
- *     so "who still needs refunding?" has an answer.
+ *   - Ops can refund from the app: "Refund now" in admin sends it through
+ *     Razorpay. A refund done by hand in the Razorpay dashboard is still
+ *     recorded here (Mark refunded: the refund id, the amount, who), so "who
+ *     still needs refunding?" has an answer either way.
+ *   - With AUTO_REFUNDS=on (off by default) the clear-cut cases go back with
+ *     nobody pressing anything; which ones, and what always waits for a
+ *     person, is lib/refund-sending.ts.
  *   - When a paid booking is cancelled — by the customer in time, by the
  *     garage, or by Detlio — or the garage doesn't turn up, the customer gets
  *     their money back. A customer who doesn't turn up does not: the garage
@@ -28,6 +32,23 @@ export type RefundKind = 'booking' | 'checkout' | 'bill'
  */
 export type RefundState = 'owed' | 'refunded' | 'none'
 
+/**
+ * How a refund came to be recorded (refund_records.source, 0036): by ops
+ * after doing it by hand ('recorded', Mark refunded), found on the payment
+ * in Razorpay with no record here ('razorpay': done in the dashboard and
+ * never marked), or sent through Razorpay by the app itself, from the
+ * Refund now button ('admin') or the automatic mode ('auto').
+ */
+export type RefundSource = 'recorded' | 'razorpay' | 'admin' | 'auto'
+
+/** Where Razorpay says a refund stands. Only these three exist. */
+export type GatewayRefundStatus = 'pending' | 'processed' | 'failed'
+
+/** The refunds the app sent itself, as opposed to ones recorded after the fact. */
+export function sentFromApp(source: RefundSource): boolean {
+  return source === 'admin' || source === 'auto'
+}
+
 function toPaise(amount: string | number | null | undefined): number {
   const value = Number(amount ?? 0)
   return Number.isFinite(value) ? Math.round(value * 100) : 0
@@ -35,6 +56,16 @@ function toPaise(amount: string | number | null | undefined): number {
 
 function fromPaise(paise: number): string {
   return (paise / 100).toFixed(2)
+}
+
+/** A decimal amount in paise, the way every rule here works it. */
+export function paiseOf(amount: string | number | null | undefined): number {
+  return toPaise(amount)
+}
+
+/** Paise back to the decimal string the API carries. */
+export function rupeesOf(paise: number): string {
+  return fromPaise(paise)
 }
 
 /** What is still to give back: paid less refunded so far, never below zero. */
@@ -263,11 +294,18 @@ export function refundBookingNote(input: {
   refundRef: string | null
   outsideRazorpayNote?: string | null
   note?: string | null
+  /** How it came to be recorded; 'recorded' (ops, by hand) when not said. */
+  source?: RefundSource
 }): string {
   const how = input.refundRef
     ? `in Razorpay (${input.refundRef})`
     : `outside Razorpay: ${input.outsideRazorpayNote?.trim() ?? ''}`
-  const head = `Refunded ${rupees(input.amount)} of ${input.what} ${how}.`
+  const head = {
+    recorded: `Refunded ${rupees(input.amount)} of ${input.what} ${how}.`,
+    razorpay: `Found a refund of ${rupees(input.amount)} of ${input.what} ${how}, done in the Razorpay dashboard, and recorded it.`,
+    admin: `Sent a refund of ${rupees(input.amount)} of ${input.what} through Razorpay from the app (${input.refundRef}).`,
+    auto: `Sent a refund of ${rupees(input.amount)} of ${input.what} through Razorpay automatically (${input.refundRef}).`,
+  }[input.source ?? 'recorded']
   const scope = input.full ? null : 'Part refund; the rest is still owed.'
   const extra = input.note?.trim() || null
   return [head, scope, extra].filter((line): line is string => Boolean(line)).join('\n')
@@ -404,18 +442,57 @@ export interface CustomerRefund {
   amountRefunded: string
   /** When the latest refund was recorded, as ISO. */
   refundedAt: string | null
+  /**
+   * Refunds the app sent through Razorpay that Razorpay has not finished
+   * yet: how much, and when the latest was started. Left out when there are
+   * none, so the payload is what it always was for every other booking.
+   */
+  started?: { amount: string; at: string }
 }
 
-export function customerRefund(booking: BookingWithMoney): CustomerRefund {
+/** A booking's refund history row, as much as the customer's line needs. */
+export interface CustomerRefundRecord {
+  amount: string
+  recordedAt: Date
+  source: RefundSource
+  gatewayStatus: GatewayRefundStatus | null
+}
+
+/**
+ * The refunds the app sent through Razorpay that are still on their way:
+ * sent from the app (the button or the automatic mode) and still pending at
+ * Razorpay. A processed one is simply refunded, and a failed one moved no
+ * money. Null when there are none.
+ */
+export function startedRefunds(
+  records: readonly CustomerRefundRecord[]
+): { amount: string; at: Date } | null {
+  const pending = records.filter(
+    (record) => sentFromApp(record.source) && record.gatewayStatus === 'pending'
+  )
+  if (pending.length === 0) return null
+  const total = pending.reduce((sum, record) => sum + toPaise(record.amount), 0)
+  return {
+    amount: fromPaise(total),
+    at: latestOf(pending.map((record) => record.recordedAt)) ?? pending[0]!.recordedAt,
+  }
+}
+
+export function customerRefund(
+  booking: BookingWithMoney,
+  records: readonly CustomerRefundRecord[] = []
+): CustomerRefund {
   if (booking.noShow === 'customer') {
     return { status: 'none', amount: '0.00', amountRefunded: '0.00', refundedAt: null }
   }
   const totals = bookingRefundTotals(booking)
   const status = refundState(totals.owed, totals.refunded)
+  const started = status === 'none' ? null : startedRefunds(records)
   return {
     status,
     amount: status === 'none' ? '0.00' : totals.paid,
     amountRefunded: totals.refunded,
     refundedAt: totals.refundedAt?.toISOString() ?? null,
+    ...(started && { started: { amount: started.amount, at: started.at.toISOString() } }),
   }
 }

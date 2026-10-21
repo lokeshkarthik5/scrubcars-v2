@@ -597,9 +597,10 @@ export const bookingsRepository = {
 
   /**
    * Every refund recorded against a booking (its own payment and its bills),
-   * oldest first. For the customer's receipt, which lists each one; only the
-   * columns the receipt may show are read — never who recorded it or the
-   * team's note.
+   * oldest first. For the customer's receipt, which lists each one, and the
+   * booking page's "Refund of ₹X started" line; only the columns those may
+   * show are read — never who recorded it or the team's note. A refund
+   * through Razorpay that failed moved no money and is left out (0036).
    */
   listRefundRecordsForBooking(bookingId: string) {
     return db
@@ -609,9 +610,16 @@ export const bookingsRepository = {
         amount: refundRecords.amount,
         refundRef: refundRecords.refundRef,
         recordedAt: refundRecords.recordedAt,
+        source: refundRecords.source,
+        gatewayStatus: refundRecords.gatewayStatus,
       })
       .from(refundRecords)
-      .where(eq(refundRecords.bookingId, bookingId))
+      .where(
+        and(
+          eq(refundRecords.bookingId, bookingId),
+          sql`${refundRecords.gatewayStatus} IS DISTINCT FROM 'failed'`
+        )
+      )
       .orderBy(asc(refundRecords.recordedAt), asc(refundRecords.id))
   },
 

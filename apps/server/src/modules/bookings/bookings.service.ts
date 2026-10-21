@@ -21,7 +21,7 @@ import {
   toFinalBillView,
   type FinalBillRecord,
 } from '../../lib/final-bill.js'
-import { customerRefund } from '../../lib/refunds.js'
+import { customerRefund, type CustomerRefundRecord } from '../../lib/refunds.js'
 import { buildReceipt, receiptAvailability, receiptIssuedAt } from '../../lib/receipts.js'
 import {
   customerSeesPhotos,
@@ -37,6 +37,7 @@ import type {
   GarageRefusal,
   ReceiptNumberAllocation,
 } from './bookings.repository.js'
+import { refundsService } from '../refunds/refunds.service.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
@@ -270,7 +271,11 @@ function finalBillOf(charges: FinalBillRecord[]) {
  * it, so it is never shown as money owed back. False wherever the caller has
  * just written the booking, which cannot have been moved yet.
  */
-function toBookingResponse(booking: BookingWithRelations, moved = false) {
+function toBookingResponse(
+  booking: BookingWithRelations,
+  moved = false,
+  refundRecords: readonly CustomerRefundRecord[] = []
+) {
   return {
     id: booking.id,
     status: booking.status,
@@ -393,7 +398,7 @@ function toBookingResponse(booking: BookingWithRelations, moved = false) {
       moved,
       payment: booking.payment,
       charges: booking.charges,
-    }),
+    }, refundRecords),
     // Whether GET /bookings/:id/receipt has a receipt to give: the booking
     // page offers "View receipt" from this, so the rule lives in one place
     // (lib/receipts.ts) rather than being re-derived from the payment status.
@@ -1037,7 +1042,11 @@ export const bookingsService = {
     if (viewer === 'vendor') return toVendorBookingResponse(booking)
 
     const moved = await bookingsRepository.findMovedBookingIds([booking.id])
-    return toBookingResponse(booking, moved.has(booking.id))
+    // The refund history, for "Refund of ₹X started on …" while a refund
+    // the app sent through Razorpay is on its way (lib/refunds.ts
+    // startedRefunds). Only the booking page says it; lists don't.
+    const refundRecords = await bookingsRepository.listRefundRecordsForBooking(booking.id)
+    return toBookingResponse(booking, moved.has(booking.id), refundRecords)
   },
 
   /**
@@ -1297,6 +1306,9 @@ export const bookingsService = {
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     alertOps({ kind: 'customer_cancelled', booking: updated!, reason })
+    // Cancelled in the allowed time (the cutoff above): a paid one is
+    // refunded at once when AUTO_REFUNDS is on.
+    if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
     return toBookingResponse(updated!)
   },
 
@@ -1557,6 +1569,9 @@ export const bookingsService = {
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     alertOps({ kind: 'garage_declined', booking: updated!, reason })
+    // Declined by the garage: a paid one is refunded at once when
+    // AUTO_REFUNDS is on.
+    if (updated?.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
     return toVendorBookingResponse(updated!)
   },
 

@@ -69,5 +69,32 @@ export const recordRefundSchema = z
     path: ['refundRef'],
   })
 
+/**
+ * Refund now: send a refund through Razorpay from the app.
+ *
+ * `amount` is what to send, from all that is still owed down to a part of
+ * it; left out, everything owed goes. Never more than is owed, which the
+ * server checks against Razorpay's own refunds first. `expectedRefunded` is
+ * what the sheet showed as refunded when it was opened: if that has moved
+ * (a refund was found in Razorpay or recorded here meanwhile), nothing is
+ * sent and the admin decides again on the new figures. Strict, so nothing
+ * else (a payment id, a speed) can ride along.
+ */
+export const refundNowSchema = z
+  .object({
+    kind: z.enum(['booking', 'checkout', 'bill']),
+    id: z.string().uuid(),
+    amount: rupeesSchema.optional(),
+    expectedRefunded: z
+      .number()
+      .min(0)
+      .max(10_000_000)
+      .refine(toThePaisa, 'The amount can have at most two decimal places')
+      .optional(),
+    note: optionalText(1000),
+  })
+  .strict()
+
 export type ListRefundsQuery = z.infer<typeof listRefundsQuerySchema>
+export type RefundNowInput = z.infer<typeof refundNowSchema>
 export type RecordRefundInput = z.infer<typeof recordRefundSchema>

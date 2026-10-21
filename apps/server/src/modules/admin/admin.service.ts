@@ -978,8 +978,9 @@ export const adminService = {
    * Allowed from any state the booking is still live in — unlike the
    * customer's cancel, there is no 2-hour cutoff: ops cancels because
    * something has already gone wrong, often at the last minute. The money is
-   * not touched here; refunds are done by hand in Razorpay, and a paid one
-   * goes on the Refunds page (and gets the alert below) until ops records it.
+   * not touched here: a paid one goes on the Refunds page (and gets the alert
+   * below) until it is refunded there, or, with AUTO_REFUNDS on, is refunded
+   * through Razorpay right after this commits (refundsService.queueAutoRefund).
    */
   async cancelBooking(id: string, sub: string, input: AdminCancelBookingInput) {
     const booking = await adminRepository.findBookingById(id)
@@ -1013,7 +1014,7 @@ export const adminService = {
     )
 
     // Only a paid booking leaves anything to do: an unpaid one has no money
-    // to return.
+    // to return. With AUTO_REFUNDS on it goes back at once.
     if (booking.payment?.status === 'paid') {
       const updated = await adminRepository.findBookingById(id)
       alertOps({
@@ -1022,6 +1023,7 @@ export const adminService = {
         onBehalfOf: input.onBehalfOf,
         reason: input.reason,
       })
+      refundsService.queueAutoRefund({ kind: 'booking', id })
     }
 
     return loadBookingDetail(id, Date.now())
@@ -1033,7 +1035,7 @@ export const adminService = {
    * The party decides the money, per the published policy: a customer
    * no-show keeps the payment (the garage held the slot), so the payment row
    * is deliberately left as it is; a garage no-show is always refunded in
-   * full, which is a manual Razorpay refund the alert asks for.
+   * full: the alert asks for it, and AUTO_REFUNDS sends it when on.
    */
   async markNoShow(id: string, sub: string, input: MarkNoShowInput, now = Date.now()) {
     const booking = await adminRepository.findBookingById(id)
@@ -1078,6 +1080,7 @@ export const adminService = {
     if (input.party === 'garage') {
       const updated = await adminRepository.findBookingById(id)
       alertOps({ kind: 'garage_no_show', booking: updated! })
+      refundsService.queueAutoRefund({ kind: 'booking', id })
     }
 
     return loadBookingDetail(id, now)

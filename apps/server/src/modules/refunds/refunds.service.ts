@@ -1,9 +1,44 @@
+import { runInBackground } from '../../lib/background.js'
 import { bookingReference } from '../../lib/booking-ops.js'
+import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
+import { istDateKey, istMidnight } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
 import { failureReasonText } from '../../lib/ops-alert-messages.js'
-import { alertOps } from '../../lib/ops-alerts.js'
+import { alertOps, type OpsAlert } from '../../lib/ops-alerts.js'
 import { summariseRefunds } from '../../lib/pilot-stats.js'
+import {
+  createRazorpayRefund,
+  listRazorpayRefunds,
+  RazorpayRefundError,
+  type RazorpayRefund,
+} from '../../lib/razorpay.js'
+import {
+  afterFailedRefund,
+  appRefundNote,
+  AUTO_REFUND_BY,
+  AUTO_REFUND_LOOKBACK_MS,
+  AUTO_REFUND_MAX_ATTEMPTS,
+  AUTO_REFUND_SWEEP_LIMIT,
+  autoRefundCause,
+  autoRefundFitsCap,
+  autoRefundHold,
+  distinctTargets,
+  failureReasonFor,
+  FOUND_REFUND_BY,
+  PENDING_REFUND_RECHECK_AFTER_MS,
+  PENDING_REFUND_RECHECK_LIMIT,
+  razorpayRefundNotes,
+  refundIdempotencyKey,
+  refundToSend,
+  refusalIsDefinite,
+  settledByGateway,
+  sourceOfFoundRefund,
+  unrecordedGatewayRefunds,
+  type AutoRefundCause,
+  type AutoRefundHold,
+  type SendDecision,
+} from '../../lib/refund-sending.js'
 import {
   afterRefund,
   amountOwed,
@@ -19,19 +54,25 @@ import {
   isStrayBillPayment,
   owedSince,
   refundBase,
+  paiseOf,
   refundBookingNote,
+  rupeesOf,
   storedRefundNote,
+  type GatewayRefundStatus,
   type RefundCheck,
   type RefundKind,
+  type RefundSource,
 } from '../../lib/refunds.js'
 import {
   refundsRepository,
   type BillRefundRow,
   type BookingPaymentRefundRow,
   type CheckoutRefundRow,
+  type Conn,
+  type RefundRecordRow,
   type RefundWriteResult,
 } from './refunds.repository.js'
-import type { ListRefundsQuery, RecordRefundInput } from './refunds.validation.js'
+import type { ListRefundsQuery, RecordRefundInput, RefundNowInput } from './refunds.validation.js'
 
 const log = logger.child({ module: 'refunds' })
 
@@ -278,9 +319,9 @@ function assertRecordable(check: RefundCheck, owed: string) {
  * Refuses a Razorpay refund id that is already recorded. It names one refund
  * of one payment, so seeing it twice means it was pasted onto the wrong row.
  */
-async function assertRefundRefUnused(refundRef: string | undefined) {
+async function assertRefundRefUnused(refundRef: string | undefined, conn: Conn) {
   if (!refundRef) return
-  const used = await refundsRepository.findRefundRef(refundRef)
+  const used = await refundsRepository.findRefundRef(refundRef, conn)
   if (!used) return
   throw refundRefUsed(
     used.kind === 'checkout'
@@ -288,6 +329,671 @@ async function assertRefundRefUnused(refundRef: string | undefined) {
       : `booking #${bookingReference(used.id)}`
   )
 }
+
+// ─── Sending through Razorpay ────────────────────────────────────────────────
+
+/** One piece of money: a booking's payment, a checkout's, or a bill's. */
+type Target = { kind: RefundKind; id: string }
+
+/**
+ * One piece of money, read fresh, in the shape every sending step needs:
+ * what was paid and has gone back, whether it is to go back at all, the
+ * Razorpay payment, and (for the automatic mode) why it is owed and since
+ * when. `refundedColumn` is the money row's own running total, which every
+ * write is conditional on.
+ */
+interface Money {
+  target: Target
+  bookingId: string | null
+  /** The Razorpay payment, only when it is one (pay_…): an order id can't be refunded. */
+  paymentId: string | null
+  paid: string
+  refunded: string
+  refundedColumn: string | null
+  refundable: boolean
+  garageName: string
+  cause: AutoRefundCause | null
+  since: Date | null
+  item: RefundItem | null
+}
+
+/** A Razorpay payment id the refund API takes; anything else is none. */
+function refundablePaymentId(id: string | null | undefined): string | null {
+  return id && id.startsWith('pay_') ? id : null
+}
+
+async function readMoney(target: Target, conn?: Conn): Promise<Money | null> {
+  switch (target.kind) {
+    case 'booking': {
+      const row = await refundsRepository.findBookingPayment(target.id, conn)
+      if (!row) return null
+      const booking = { status: row.bookingStatus, noShow: row.noShow, moved: Boolean(row.moved) }
+      return {
+        target,
+        bookingId: row.bookingId,
+        paymentId: refundablePaymentId(row.gatewayTxnId),
+        paid: row.amount,
+        refunded: refundedOfPayment(row),
+        refundedColumn: row.refundedAmount,
+        refundable: isBookingPaymentRefundable(booking, row),
+        garageName: row.garageName,
+        cause: autoRefundCause({ ...booking, cancelledBy: row.cancelledBy }),
+        since: owedSince(row.paidAt, row.noShowMarkedAt ?? row.cancelledAt),
+        item: fromBookingPayment(row),
+      }
+    }
+    case 'checkout': {
+      const row = await refundsRepository.findCheckout(target.id, conn)
+      if (!row) return null
+      const refundable = isCheckoutRefundable(row)
+      return {
+        target,
+        bookingId: null,
+        paymentId: refundablePaymentId(row.paymentRef),
+        paid: row.amount,
+        refunded: row.refundedAmount ?? '0.00',
+        refundedColumn: row.refundedAmount,
+        refundable,
+        garageName: row.garageName,
+        cause: refundable ? 'paid_no_booking' : null,
+        since: row.createdAt,
+        item: fromCheckout(row),
+      }
+    }
+    case 'bill': {
+      const row = await refundsRepository.findBill(target.id, conn)
+      if (!row) return null
+      const booking = { status: row.bookingStatus, noShow: row.noShow }
+      return {
+        target,
+        bookingId: row.bookingId,
+        paymentId: refundablePaymentId(row.gatewayPaymentId),
+        paid: row.amountDue,
+        refunded: row.refundedAmount ?? '0.00',
+        refundedColumn: row.refundedAmount,
+        refundable: isBillRefundable(row, booking),
+        garageName: row.garageName,
+        // Final-bill money is never refunded automatically.
+        cause: null,
+        since: null,
+        item: fromBill(row),
+      }
+    }
+  }
+}
+
+/**
+ * The key a refund lock is taken on: the Razorpay payment, which is what can
+ * be refunded twice, or the money's own id when it has none.
+ */
+async function lockKeyFor(target: Target): Promise<string> {
+  const money = await readMoney(target)
+  if (!money) throw notFound()
+  return money.paymentId ?? money.item?.razorpayPaymentId ?? `${target.kind}:${target.id}`
+}
+
+const WHAT: Record<RefundKind, string> = {
+  booking: 'the booking payment',
+  checkout: 'the payment with no booking',
+  bill: 'the final bill payment',
+}
+
+/**
+ * Records one refund on the money, whoever made it: the same write as Mark
+ * refunded (conditional on the running total just read, with its history
+ * row and booking note), with how it came about and where Razorpay says it
+ * stands.
+ */
+async function writeRefund(
+  money: Money,
+  input: {
+    amount: string
+    refundRef: string
+    source: RefundSource
+    gatewayStatus: GatewayRefundStatus | null
+    by: string
+    refundNote: string | null
+    at: Date
+  },
+  conn: Conn
+): Promise<RefundWriteResult<unknown>> {
+  const next = afterRefund(money.paid, money.refunded, input.amount)
+  const write = {
+    expectedRefunded: rupeesOf(paiseOf(money.refundedColumn)),
+    amount: input.amount,
+    refundedAmount: next.refundedAmount,
+    refundRef: input.refundRef,
+    refundedAt: input.at,
+    refundedBy: input.by,
+    refundNote: input.refundNote,
+    source: input.source,
+    gatewayStatus: input.gatewayStatus,
+  }
+  const note = {
+    author: input.by,
+    body: refundBookingNote({
+      what: WHAT[money.target.kind],
+      amount: input.amount,
+      full: next.full,
+      refundRef: input.refundRef,
+      source: input.source,
+    }),
+  }
+  switch (money.target.kind) {
+    case 'booking':
+      return refundsRepository.recordBookingRefund(money.target.id, { ...write, full: next.full }, note, conn)
+    case 'checkout':
+      return refundsRepository.recordCheckoutRefund(money.target.id, write, conn)
+    case 'bill':
+      return refundsRepository.recordBillRefund(money.target.id, money.bookingId!, write, note, conn)
+  }
+}
+
+/** The status a refund Razorpay just made is recorded with. */
+function gatewayStatusOf(refund: Pick<RazorpayRefund, 'status'>): GatewayRefundStatus {
+  return refund.status === 'processed' ? 'processed' : refund.status === 'failed' ? 'failed' : 'pending'
+}
+
+/**
+ * Takes back a refund Razorpay failed (a webhook, or a check finding it
+ * failed): its record kept as failed, the money owed again. Returns the
+ * team's alert, or null when there was nothing to take back.
+ */
+async function takeBack(record: RefundRecordRow, reason: string, conn: Conn, now: Date): Promise<OpsAlert | null> {
+  const target = { kind: record.kind, id: record.targetId }
+  const money = await readMoney(target, conn)
+  if (!money) return null
+  const latest = await refundsRepository.latestStanding(record.kind, record.targetId, record.id, conn)
+  const failed = await refundsRepository.failRefund(
+    record,
+    {
+      expectedRefunded: rupeesOf(paiseOf(money.refundedColumn)),
+      refundedAmount: afterFailedRefund(money.refundedColumn, record.amount).refundedAmount,
+      latest,
+      reason,
+      at: now,
+    },
+    {
+      author: 'Detlio (automatic)',
+      body: `The refund of ₹${Number(record.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })} of ${WHAT[record.kind]} in Razorpay (${record.refundRef ?? 'no refund id'}) failed: ${reason} The money is owed again.`,
+    },
+    conn
+  )
+  if (!failed) {
+    log.error({ recordId: record.id, refundRef: record.refundRef }, 'refund:take_back_skipped')
+    return null
+  }
+  log.warn({ recordId: record.id, refundRef: record.refundRef, kind: record.kind, targetId: record.targetId }, 'refund:failed_taken_back')
+  const attempts = await refundsRepository.countFailedAttempts(record.kind, record.targetId, conn)
+  return {
+    kind: 'refund_failed',
+    what: record.kind,
+    bookingId: record.bookingId,
+    amount: record.amount,
+    refundRef: record.refundRef,
+    paymentId: money.paymentId,
+    reason,
+    auto: record.source === 'auto',
+    gaveUp: record.source === 'auto' && attempts >= AUTO_REFUND_MAX_ATTEMPTS,
+  }
+}
+
+/**
+ * Settles the money's refunds still pending here from Razorpay's list of the
+ * payment's refunds (a missed webhook): processed ones marked so, failed ones
+ * taken back. Inside the refund lock. Returns how many it settled and the
+ * team's alerts for those taken back.
+ */
+async function settlePending(
+  target: Target,
+  gateway: readonly RazorpayRefund[],
+  conn: Conn,
+  now: Date
+): Promise<{ settled: number; alerts: OpsAlert[] }> {
+  const pending = await refundsRepository.listPendingForTarget(target.kind, target.id, conn)
+  const { processed, failed } = settledByGateway(pending, gateway)
+  const alerts: OpsAlert[] = []
+  for (const record of processed) await refundsRepository.markProcessed(record.id, now, conn)
+  for (const record of failed) {
+    const alert = await takeBack(record, 'Razorpay could not complete the refund.', conn, now)
+    if (alert) alerts.push(alert)
+  }
+  return { settled: processed.length + failed.length, alerts }
+}
+
+/** What a check of Razorpay came to, inside the lock. */
+type SyncResult =
+  | { kind: 'ok'; alerts: OpsAlert[] }
+  /** Razorpay holds refunds of this payment that don't fit what is owed here. */
+  | { kind: 'mismatch'; alerts: OpsAlert[]; refundRef: string }
+  /** Razorpay could not be asked. */
+  | { kind: 'unavailable'; alerts: OpsAlert[]; error: RazorpayRefundError }
+
+/**
+ * Brings our records in line with Razorpay before anything is sent: reads
+ * the payment's refunds there, settles our pending ones whose outcome
+ * Razorpay already knows (a missed webhook), and records any refund we have
+ * no record of — done by hand in the dashboard, or ours with its answer
+ * lost — so it is never sent again. A refund that doesn't fit what is owed
+ * here stops everything: a person has to look.
+ */
+async function syncWithRazorpay(money: Money, conn: Conn, now: Date): Promise<SyncResult> {
+  const alerts: OpsAlert[] = []
+  if (!money.paymentId) return { kind: 'ok', alerts }
+
+  let gateway: RazorpayRefund[]
+  try {
+    gateway = await listRazorpayRefunds(money.paymentId)
+  } catch (error) {
+    if (error instanceof RazorpayRefundError) return { kind: 'unavailable', alerts, error }
+    throw error
+  }
+
+  alerts.push(...(await settlePending(money.target, gateway, conn, now)).alerts)
+
+  const recorded = await refundsRepository.findRecordedRefs(gateway.map((refund) => refund.id), conn)
+  // Razorpay lists newest first; recorded oldest first, as they were made.
+  for (const found of unrecordedGatewayRefunds(gateway, recorded).reverse()) {
+    const current = await readMoney(money.target, conn)
+    const amount = rupeesOf(found.amountPaise)
+    const fits =
+      current !== null &&
+      checkRefund({ refundable: current.refundable, paid: current.paid, refunded: current.refunded, amount }) === 'ok'
+    if (!current || !fits) {
+      log.error({ ...money.target, paymentId: money.paymentId, refundRef: found.id, amount }, 'refund:razorpay_mismatch')
+      // Not a failure: nothing is owed again, and refunding again could pay
+      // the customer twice. Its own alert says to reconcile first.
+      alerts.push({
+        kind: 'refund_gateway_mismatch',
+        what: money.target.kind,
+        bookingId: money.bookingId,
+        amount,
+        refundRef: found.id,
+        paymentId: money.paymentId,
+      })
+      return { kind: 'mismatch', alerts, refundRef: found.id }
+    }
+    const source = sourceOfFoundRefund(found, money.target)
+    const by = source === 'auto' ? AUTO_REFUND_BY : FOUND_REFUND_BY
+    const write = await writeRefund(
+      current,
+      {
+        amount,
+        refundRef: found.id,
+        source,
+        gatewayStatus: gatewayStatusOf(found),
+        by,
+        refundNote: source === 'razorpay' ? 'Done in the Razorpay dashboard; found there and recorded by the app.' : appRefundNote(source, by),
+        at: now,
+      },
+      conn
+    )
+    if (write.kind !== 'recorded') {
+      log.error({ ...money.target, refundRef: found.id, result: write.kind }, 'refund:found_not_recorded')
+      return { kind: 'mismatch', alerts, refundRef: found.id }
+    }
+    log.info({ ...money.target, refundRef: found.id, amount, source }, 'refund:found_in_razorpay')
+    const after = await readMoney(money.target, conn)
+    alerts.push({
+      kind: 'refund_recorded',
+      what: money.target.kind,
+      bookingId: money.bookingId,
+      garageName: money.garageName,
+      amount,
+      paid: money.paid,
+      refundedTotal: after?.refunded ?? amount,
+      refundRef: found.id,
+      paymentId: money.paymentId,
+      by,
+    })
+  }
+  return { kind: 'ok', alerts }
+}
+
+/** What one send came to. Errors and alerts are dealt with after the commit. */
+type SendOutcome =
+  | { kind: 'sent'; refund: RazorpayRefund; amount: string; money: Money; refundedTotal: string }
+  | { kind: 'held'; hold: AutoRefundHold }
+  | { kind: 'refused'; decision: Exclude<SendDecision, { kind: 'send' }>; owed: string }
+  | { kind: 'state_changed' }
+  | { kind: 'mismatch' }
+  | { kind: 'unavailable' }
+  /** Razorpay refused it outright: nothing was made, and the try is recorded. */
+  | { kind: 'gateway_refused'; reason: string }
+  /** Razorpay did not say. The next check of Razorpay finds out. */
+  | { kind: 'gateway_unknown' }
+  /** Sent, but the record could not be written; the next check records it. */
+  | { kind: 'sent_unrecorded'; refundRef: string }
+
+/**
+ * The automatic mode's holds that need the database: everything in
+ * autoRefundHold, with the booking's complaints and the failed tries so far.
+ */
+async function autoHold(money: Money, conn: Conn, now: Date): Promise<AutoRefundHold | null> {
+  const owed = money.refundable ? amountOwed(money.paid, money.refunded) : '0.00'
+  const quick = autoRefundHold({
+    kind: money.target.kind,
+    owed,
+    refunded: money.refunded,
+    paymentId: money.paymentId,
+    cause: money.cause,
+    complaintOpen: false,
+    failedAttempts: 0,
+    since: money.since,
+    now,
+  })
+  if (quick) return quick
+  const [complaintOpen, failedAttempts] = await Promise.all([
+    money.bookingId ? refundsRepository.hasOpenComplaint(money.bookingId, conn) : Promise.resolve(false),
+    refundsRepository.countFailedAttempts(money.target.kind, money.target.id, conn),
+  ])
+  return autoRefundHold({
+    kind: money.target.kind,
+    owed,
+    refunded: money.refunded,
+    paymentId: money.paymentId,
+    cause: money.cause,
+    complaintOpen,
+    failedAttempts,
+    since: money.since,
+    now,
+  })
+}
+
+/**
+ * Sends one refund through Razorpay, under the payment's refund lock: check
+ * Razorpay first (syncWithRazorpay), then send only what is still owed, then
+ * record it exactly like a manual refund, with the Razorpay refund id and
+ * the marker that the app sent it.
+ *
+ * The lock's transaction is never thrown out of once something is written
+ * (a refund found on Razorpay, a failed try): the outcome is returned and
+ * acted on after the commit, so what was learnt is kept.
+ */
+async function sendThroughRazorpay(
+  target: Target,
+  options: {
+    source: 'admin' | 'auto'
+    by: string
+    /** A part amount from the button; everything owed when not given. */
+    requested?: string
+    /** What the button's sheet saw refunded, when it was opened. */
+    expectedRefunded?: number
+    note?: string
+    now: Date
+  }
+): Promise<{ outcome: SendOutcome; alerts: OpsAlert[] } | { busy: true }> {
+  const { source, now } = options
+  const alerts: OpsAlert[] = []
+  const locked = await refundsRepository.withRefundLock(await lockKeyFor(target), { wait: false }, async (tx) => {
+    const run = async (): Promise<SendOutcome> => {
+      const first = await readMoney(target, tx)
+      if (!first) return { kind: 'refused', decision: { kind: 'not_due' }, owed: '0.00' }
+
+      // The automatic mode stops before asking Razorpay anything when the
+      // money is not its to send.
+      if (source === 'auto') {
+        const hold = await autoHold(first, tx, now)
+        if (hold) return { kind: 'held', hold }
+      }
+
+      const sync = await syncWithRazorpay(first, tx, now)
+      alerts.push(...sync.alerts)
+      if (sync.kind === 'mismatch') {
+        // Counted as a failed try, so the automatic mode stops asking (and
+        // alerting) after its last one instead of every cron run.
+        if (source === 'auto') {
+          await refundsRepository.recordFailedAttempt(
+            {
+              kind: target.kind,
+              targetId: target.id,
+              bookingId: first.bookingId,
+              amount: amountOwed(first.paid, first.refunded),
+              refundedBefore: rupeesOf(paiseOf(first.refundedColumn)),
+              source,
+              by: options.by,
+              reason: `Razorpay holds refund ${sync.refundRef}, which doesn't fit what is owed here.`,
+              at: now,
+            },
+            tx
+          )
+        }
+        return { kind: 'mismatch' }
+      }
+      if (sync.kind === 'unavailable') {
+        log.warn({ ...target, status: sync.error.status, description: sync.error.description }, 'refund:razorpay_unavailable')
+        return { kind: 'unavailable' }
+      }
+
+      const money = (await readMoney(target, tx))!
+      // What the sheet showed has moved on (a refund was found on Razorpay,
+      // or someone recorded one): the person decides again, on the new
+      // figures.
+      if (options.expectedRefunded !== undefined && refundBase(options.expectedRefunded, money.refundedColumn) === null) {
+        return { kind: 'state_changed' }
+      }
+
+      if (source === 'auto') {
+        const hold = await autoHold(money, tx, now)
+        if (hold) return { kind: 'held', hold }
+      }
+
+      const decision = refundToSend({
+        refundable: money.refundable,
+        paid: money.paid,
+        refunded: money.refunded,
+        paymentId: money.paymentId,
+        requested: options.requested,
+      })
+      if (decision.kind !== 'send') {
+        return { kind: 'refused', decision, owed: amountOwed(money.paid, money.refunded) }
+      }
+
+      if (source === 'auto') {
+        await refundsRepository.lockAutoRefundCap(tx)
+        const day = istDateKey(now)
+        if (await refundsRepository.capReachedOn(day, tx)) return { kind: 'held', hold: 'daily_cap' }
+        const sentToday = await refundsRepository.autoRefundedSince(istMidnight(day), tx)
+        const cap = env.autoRefundDailyCapInr
+        if (!autoRefundFitsCap({ sentToday, amount: decision.amount, cap })) {
+          const firstToday = await refundsRepository.markCapReached({ day, cap: rupeesOf(paiseOf(cap)), sent: sentToday }, tx)
+          if (firstToday) alerts.push({ kind: 'auto_refund_cap_reached', cap: rupeesOf(paiseOf(cap)), sentToday })
+          log.warn({ day, cap, sentToday, ...target }, 'refund:auto_cap_reached')
+          return { kind: 'held', hold: 'daily_cap' }
+        }
+      }
+
+      const attempt = await refundsRepository.countFailedAttempts(target.kind, target.id, tx)
+      const refundedBefore = rupeesOf(paiseOf(money.refundedColumn))
+      const amount = decision.amount
+      // A refusal: no money moved. Recorded as a failed try, so the
+      // automatic mode counts it, and the team is told.
+      const refused = async (reason: string, refundRef: string | null): Promise<SendOutcome> => {
+        await refundsRepository.recordFailedAttempt(
+          {
+            kind: target.kind,
+            targetId: target.id,
+            bookingId: money.bookingId,
+            amount,
+            refundedBefore,
+            source,
+            by: options.by,
+            reason,
+            at: now,
+          },
+          tx
+        )
+        alerts.push({
+          kind: 'refund_failed',
+          what: target.kind,
+          bookingId: money.bookingId,
+          amount,
+          refundRef,
+          paymentId: money.paymentId,
+          reason,
+          auto: source === 'auto',
+          gaveUp: source === 'auto' && attempt + 1 >= AUTO_REFUND_MAX_ATTEMPTS,
+        })
+        return { kind: 'gateway_refused', reason }
+      }
+
+      let refund: RazorpayRefund
+      try {
+        refund = await createRazorpayRefund({
+          paymentId: money.paymentId!,
+          amountPaise: paiseOf(decision.amount),
+          notes: razorpayRefundNotes({ kind: target.kind, id: target.id, bookingId: money.bookingId, source }),
+          idempotencyKey: refundIdempotencyKey({
+            kind: target.kind,
+            targetId: target.id,
+            refundedBefore,
+            attempt,
+            amount: decision.amount,
+            source,
+          }),
+        })
+      } catch (error) {
+        if (!(error instanceof RazorpayRefundError)) throw error
+        log.error({ ...target, status: error.status, description: error.description, source }, 'refund:razorpay_refused')
+        if (!refusalIsDefinite(error.status)) return { kind: 'gateway_unknown' }
+        return refused(failureReasonFor(error.description, 'Razorpay refused the refund.'), null)
+      }
+      // Made, but failed already: no money moved, so it is a refusal like
+      // the one above, and nothing goes on the running total (a failed row
+      // written there could never be taken back).
+      if (refund.status === 'failed') {
+        log.error({ ...target, refundRef: refund.id, source }, 'refund:razorpay_created_failed')
+        return refused(`Razorpay failed the refund (${refund.id}) as it was made.`, refund.id)
+      }
+
+      const write = await writeRefund(
+        money,
+        {
+          amount: rupeesOf(refund.amountPaise),
+          refundRef: refund.id,
+          source,
+          gatewayStatus: gatewayStatusOf(refund),
+          by: options.by,
+          refundNote: appRefundNote(source, options.by, options.note),
+          at: now,
+        },
+        tx
+      )
+      if (write.kind !== 'recorded') {
+        // Sent, and the record would not go in. The refund exists on
+        // Razorpay, so the next check of this payment records it.
+        log.error({ ...target, refundRef: refund.id, result: write.kind }, 'refund:sent_not_recorded')
+        return { kind: 'sent_unrecorded', refundRef: refund.id }
+      }
+      const after = (await readMoney(target, tx))!
+      return { kind: 'sent', refund, amount: rupeesOf(refund.amountPaise), money: after, refundedTotal: after.refunded }
+    }
+    return run()
+  })
+  if (locked.kind === 'busy') return { busy: true }
+  return { outcome: locked.value, alerts }
+}
+
+function refundBusy() {
+  return new AppError(
+    409,
+    'A refund is being sent or recorded on this payment right now. Wait a moment and check the figures again.',
+    'REFUND_BUSY'
+  )
+}
+
+/** The button's refusals, in ops' words. */
+function sendRefusal(outcome: Exclude<SendOutcome, { kind: 'sent' } | { kind: 'held' }>): AppError {
+  switch (outcome.kind) {
+    case 'refused':
+      switch (outcome.decision.kind) {
+        case 'no_payment':
+          return new AppError(
+            400,
+            'There is no Razorpay payment on this to refund. Refund it another way and use Mark refunded.',
+            'REFUND_NO_PAYMENT'
+          )
+        case 'not_due':
+          return new AppError(400, "Nothing is owed back on this, so nothing was sent.", 'REFUND_NOT_DUE')
+        case 'already_refunded':
+          return new AppError(409, 'This has already been refunded in full.', 'ALREADY_REFUNDED')
+        case 'too_much':
+          return new AppError(
+            400,
+            `That's more than is still owed. At most ₹${Number(outcome.owed).toLocaleString('en-IN', { maximumFractionDigits: 2 })} can be sent.`,
+            'REFUND_TOO_MUCH'
+          )
+      }
+      break
+    case 'state_changed':
+      return new AppError(
+        409,
+        'The figures on this changed since you opened it (a refund was found in Razorpay or recorded here). Nothing was sent. Check the latest figures.',
+        'REFUND_STATE_CHANGED'
+      )
+    case 'mismatch':
+      return new AppError(
+        409,
+        "Razorpay already holds a refund on this payment that doesn't match what is owed here, so nothing was sent. Check the payment in Razorpay.",
+        'REFUND_RAZORPAY_MISMATCH'
+      )
+    case 'unavailable':
+      return new AppError(
+        503,
+        "Couldn't check Razorpay for refunds already made on this payment, so nothing was sent. Try again in a minute.",
+        'RAZORPAY_UNAVAILABLE'
+      )
+    case 'gateway_refused':
+      return new AppError(502, `Razorpay refused the refund: ${outcome.reason} Nothing was sent.`, 'RAZORPAY_REFUND_FAILED')
+    case 'gateway_unknown':
+      return new AppError(
+        503,
+        "Razorpay didn't answer, so it isn't known yet whether the refund was made. Wait a minute and press Refund now again: it checks Razorpay first and never sends twice.",
+        'RAZORPAY_REFUND_UNKNOWN'
+      )
+    case 'sent_unrecorded':
+      return new AppError(
+        409,
+        `The refund was sent (${outcome.refundRef}) but couldn't be recorded just now. Press Refund now again to record it; nothing more will be sent.`,
+        'REFUND_SENT_NOT_RECORDED'
+      )
+  }
+  return new AppError(500, 'The refund could not be sent.', 'REFUND_FAILED')
+}
+
+/** The team's alert for a refund the app sent. */
+function sentAlert(outcome: Extract<SendOutcome, { kind: 'sent' }>, auto: boolean, by: string): OpsAlert {
+  return {
+    kind: 'refund_sent',
+    what: outcome.money.target.kind,
+    bookingId: outcome.money.bookingId,
+    garageName: outcome.money.garageName,
+    amount: outcome.amount,
+    paid: outcome.money.paid,
+    refundedTotal: outcome.refundedTotal,
+    refundRef: outcome.refund.id,
+    paymentId: outcome.money.paymentId,
+    auto,
+    by,
+  }
+}
+
+/** What one automatic refund came to, for the cron's summary and the logs. */
+export type AutoRefundOutcome = 'off' | 'sent' | AutoRefundHold | 'busy' | 'failed' | 'unavailable'
+
+/**
+ * How long one cron run keeps starting refunds. cron-job.org gives up on a
+ * request after 30 seconds, and the digest still has to run after this. A
+ * run cut off mid-refund loses nothing: the refund, if Razorpay made it, is
+ * found and recorded by the next check of that payment.
+ */
+const SWEEP_BUDGET_MS = 15_000
+
+/**
+ * How long one cron run keeps checking pending refunds, after the sweep and
+ * before the digest. Rarely more than a call: most runs have nothing waiting.
+ */
+const RECHECK_BUDGET_MS = 5_000
 
 export const refundsService = {
   /**
@@ -344,125 +1050,139 @@ export const refundsService = {
       }),
     })
 
-    let item: RefundItem | null
-    let paid: string
-    let refundedTotal: string
-    let garageName: string
+    // Under the payment's refund lock, so a refund being sent through
+    // Razorpay on the same money can't land between the read and the write.
+    const locked = await refundsRepository.withRefundLock(
+      await lockKeyFor(input),
+      { wait: false },
+      async (tx): Promise<{ item: RefundItem | null; paid: string; refundedTotal: string; garageName: string }> => {
+        let item: RefundItem | null
+        let paid: string
+        let refundedTotal: string
+        let garageName: string
 
-    switch (input.kind) {
-      case 'booking': {
-        const row = await refundsRepository.findBookingPayment(input.id)
-        if (!row) throw notFound()
-        const booking = { status: row.bookingStatus, noShow: row.noShow, moved: Boolean(row.moved) }
-        const refunded = refundedOfPayment(row)
-        assertRecordable(
-          checkRefund({
-            refundable: isBookingPaymentRefundable(booking, row),
-            paid: row.amount,
-            refunded,
-            amount,
-          }),
-          amountOwed(row.amount, refunded)
-        )
-        const expected = expectedTotal(input.expectedRefunded, row.refundedAmount)
-        await assertRefundRefUnused(input.refundRef)
+        switch (input.kind) {
+          case 'booking': {
+            const row = await refundsRepository.findBookingPayment(input.id, tx)
+            if (!row) throw notFound()
+            const booking = { status: row.bookingStatus, noShow: row.noShow, moved: Boolean(row.moved) }
+            const refunded = refundedOfPayment(row)
+            assertRecordable(
+              checkRefund({
+                refundable: isBookingPaymentRefundable(booking, row),
+                paid: row.amount,
+                refunded,
+                amount,
+              }),
+              amountOwed(row.amount, refunded)
+            )
+            const expected = expectedTotal(input.expectedRefunded, row.refundedAmount)
+            await assertRefundRefUnused(input.refundRef, tx)
 
-        const next = afterRefund(row.amount, refunded, amount)
-        recorded(
-          await refundsRepository.recordBookingRefund(
-            row.bookingId,
-            {
-              expectedRefunded: expected,
-              amount,
-              refundedAmount: next.refundedAmount,
-              full: next.full,
-              refundRef,
-              refundedAt: now,
-              refundedBy: by,
-              refundNote,
-            },
-            noteFor('the booking payment', next.full)
-          )
-        )
+            const next = afterRefund(row.amount, refunded, amount)
+            recorded(
+              await refundsRepository.recordBookingRefund(
+                row.bookingId,
+                {
+                  expectedRefunded: expected,
+                  amount,
+                  refundedAmount: next.refundedAmount,
+                  full: next.full,
+                  refundRef,
+                  refundedAt: now,
+                  refundedBy: by,
+                  refundNote,
+                },
+                noteFor('the booking payment', next.full),
+                tx
+              )
+            )
 
-        paid = row.amount
-        refundedTotal = next.refundedAmount
-        garageName = row.garageName
-        const fresh = await refundsRepository.findBookingPayment(row.bookingId)
-        item = fresh ? fromBookingPayment(fresh) : null
-        break
+            paid = row.amount
+            refundedTotal = next.refundedAmount
+            garageName = row.garageName
+            const fresh = await refundsRepository.findBookingPayment(row.bookingId, tx)
+            item = fresh ? fromBookingPayment(fresh) : null
+            break
+          }
+
+          case 'checkout': {
+            const row = await refundsRepository.findCheckout(input.id, tx)
+            if (!row) throw notFound()
+            const refunded = row.refundedAmount ?? '0.00'
+            assertRecordable(
+              checkRefund({ refundable: isCheckoutRefundable(row), paid: row.amount, refunded, amount }),
+              amountOwed(row.amount, refunded)
+            )
+            const expected = expectedTotal(input.expectedRefunded, refunded)
+            await assertRefundRefUnused(input.refundRef, tx)
+
+            const next = afterRefund(row.amount, refunded, amount)
+            recorded(
+              await refundsRepository.recordCheckoutRefund(row.intentId, {
+                expectedRefunded: expected,
+                amount,
+                refundedAmount: next.refundedAmount,
+                refundRef,
+                refundedAt: now,
+                refundedBy: by,
+                refundNote,
+              }, tx)
+            )
+
+            paid = row.amount
+            refundedTotal = next.refundedAmount
+            garageName = row.garageName
+            const fresh = await refundsRepository.findCheckout(row.intentId, tx)
+            item = fresh ? fromCheckout(fresh) : null
+            break
+          }
+
+          case 'bill': {
+            const row = await refundsRepository.findBill(input.id, tx)
+            if (!row) throw notFound()
+            const booking = { status: row.bookingStatus, noShow: row.noShow }
+            const refunded = row.refundedAmount ?? '0.00'
+            assertRecordable(
+              checkRefund({ refundable: isBillRefundable(row, booking), paid: row.amountDue, refunded, amount }),
+              amountOwed(row.amountDue, refunded)
+            )
+            const expected = expectedTotal(input.expectedRefunded, refunded)
+            await assertRefundRefUnused(input.refundRef, tx)
+
+            const next = afterRefund(row.amountDue, refunded, amount)
+            recorded(
+              await refundsRepository.recordBillRefund(
+                row.chargeId,
+                row.bookingId,
+                {
+                  expectedRefunded: expected,
+                  amount,
+                  refundedAmount: next.refundedAmount,
+                  refundRef,
+                  refundedAt: now,
+                  refundedBy: by,
+                  refundNote,
+                },
+                noteFor('the final bill payment', next.full),
+                tx
+              )
+            )
+
+            paid = row.amountDue
+            refundedTotal = next.refundedAmount
+            garageName = row.garageName
+            const fresh = await refundsRepository.findBill(row.chargeId, tx)
+            item = fresh ? fromBill(fresh) : null
+            break
+          }
+        }
+
+        return { item, paid, refundedTotal, garageName }
       }
-
-      case 'checkout': {
-        const row = await refundsRepository.findCheckout(input.id)
-        if (!row) throw notFound()
-        const refunded = row.refundedAmount ?? '0.00'
-        assertRecordable(
-          checkRefund({ refundable: isCheckoutRefundable(row), paid: row.amount, refunded, amount }),
-          amountOwed(row.amount, refunded)
-        )
-        const expected = expectedTotal(input.expectedRefunded, refunded)
-        await assertRefundRefUnused(input.refundRef)
-
-        const next = afterRefund(row.amount, refunded, amount)
-        recorded(
-          await refundsRepository.recordCheckoutRefund(row.intentId, {
-            expectedRefunded: expected,
-            amount,
-            refundedAmount: next.refundedAmount,
-            refundRef,
-            refundedAt: now,
-            refundedBy: by,
-            refundNote,
-          })
-        )
-
-        paid = row.amount
-        refundedTotal = next.refundedAmount
-        garageName = row.garageName
-        const fresh = await refundsRepository.findCheckout(row.intentId)
-        item = fresh ? fromCheckout(fresh) : null
-        break
-      }
-
-      case 'bill': {
-        const row = await refundsRepository.findBill(input.id)
-        if (!row) throw notFound()
-        const booking = { status: row.bookingStatus, noShow: row.noShow }
-        const refunded = row.refundedAmount ?? '0.00'
-        assertRecordable(
-          checkRefund({ refundable: isBillRefundable(row, booking), paid: row.amountDue, refunded, amount }),
-          amountOwed(row.amountDue, refunded)
-        )
-        const expected = expectedTotal(input.expectedRefunded, refunded)
-        await assertRefundRefUnused(input.refundRef)
-
-        const next = afterRefund(row.amountDue, refunded, amount)
-        recorded(
-          await refundsRepository.recordBillRefund(
-            row.chargeId,
-            row.bookingId,
-            {
-              expectedRefunded: expected,
-              amount,
-              refundedAmount: next.refundedAmount,
-              refundRef,
-              refundedAt: now,
-              refundedBy: by,
-              refundNote,
-            },
-            noteFor('the final bill payment', next.full)
-          )
-        )
-
-        paid = row.amountDue
-        refundedTotal = next.refundedAmount
-        garageName = row.garageName
-        const fresh = await refundsRepository.findBill(row.chargeId)
-        item = fresh ? fromBill(fresh) : null
-        break
-      }
-    }
+    )
+    if (locked.kind === 'busy') throw refundBusy()
+    const { item, paid, refundedTotal, garageName } = locked.value
 
     if (!item) throw notFound()
 
@@ -496,5 +1216,247 @@ export const refundsService = {
       refundsRepository.listRefundedSince(since),
     ])
     return summariseRefunds(owed, recorded)
+  },
+
+  /**
+   * Refund now: sends a refund through Razorpay from the admin panel, for
+   * everything still owed or a part of it (never more), and records it
+   * exactly like a manual one: the Razorpay refund id, who (the admin, as
+   * their notes are signed) and that it went from the app. Razorpay is read
+   * first, so a refund already done in the dashboard is recorded instead of
+   * sent again. `expectedRefunded` is what the sheet showed refunded: if
+   * that moved, nothing is sent and the admin sees the new figures.
+   */
+  async refundNow(sub: string, input: RefundNowInput, now = new Date()): Promise<RefundItem> {
+    const by = await resolveActorName(sub)
+    const target = { kind: input.kind, id: input.id }
+    const result = await sendThroughRazorpay(target, {
+      source: 'admin',
+      by,
+      requested: input.amount === undefined ? undefined : input.amount.toFixed(2),
+      expectedRefunded: input.expectedRefunded,
+      note: input.note,
+      now,
+    })
+    if ('busy' in result) throw refundBusy()
+    for (const alert of result.alerts) alertOps(alert)
+
+    const { outcome } = result
+    if (outcome.kind === 'held') throw new AppError(500, 'The refund could not be sent.', 'REFUND_FAILED')
+    if (outcome.kind !== 'sent') throw sendRefusal(outcome)
+
+    log.info({ ...target, amount: outcome.amount, refundRef: outcome.refund.id, by }, 'refund:sent')
+    alertOps(sentAlert(outcome, false, by))
+    if (!outcome.money.item) throw notFound()
+    return outcome.money.item
+  },
+
+  /**
+   * After a cancel (or a checkout that became no booking) commits: refunds
+   * it automatically, after the response, when AUTO_REFUNDS is on. Does
+   * nothing at all — no read, no task — while it is off. Whether this money
+   * may go automatically is decided inside, under the lock; the cron sweep
+   * picks up anything this misses.
+   */
+  queueAutoRefund(target: Target): void {
+    if (!env.autoRefunds) return
+    runInBackground('auto_refund', () => refundsService.autoRefund(target))
+  },
+
+  /** One automatic refund, if this money is the automatic mode's to send. */
+  async autoRefund(target: Target, now = new Date()): Promise<AutoRefundOutcome> {
+    if (!env.autoRefunds) return 'off'
+    const result = await sendThroughRazorpay(target, { source: 'auto', by: AUTO_REFUND_BY, now })
+    if ('busy' in result) return 'busy'
+    for (const alert of result.alerts) alertOps(alert)
+
+    const { outcome } = result
+    switch (outcome.kind) {
+      case 'sent':
+        log.info({ ...target, amount: outcome.amount, refundRef: outcome.refund.id }, 'refund:auto_sent')
+        alertOps(sentAlert(outcome, true, AUTO_REFUND_BY))
+        return 'sent'
+      case 'held':
+        log.info({ ...target, hold: outcome.hold }, 'refund:auto_held')
+        return outcome.hold
+      case 'unavailable':
+      case 'gateway_unknown':
+        return 'unavailable'
+      default:
+        log.warn({ ...target, outcome: outcome.kind }, 'refund:auto_not_sent')
+        return 'failed'
+    }
+  },
+
+  /**
+   * The automatic mode's retry, run with the pending-digest cron (every 10
+   * minutes): every refund it may send that is still owed, oldest first, at
+   * most AUTO_REFUND_SWEEP_LIMIT a run and within a time budget. Stops at
+   * the daily cap, and when Razorpay can't be reached (the rest would fail
+   * the same way). A dry run only counts.
+   */
+  async sweepAutoRefunds(options: { dryRun: boolean }) {
+    if (!env.autoRefunds) return { enabled: false as const }
+    const now = Date.now()
+    const candidates = toItems(await refundsRepository.listMaybeOwed())
+      .filter(
+        (item) =>
+          item.kind !== 'bill' &&
+          toPaise(item.amountOwed) > 0 &&
+          toPaise(item.amountRefunded) === 0 &&
+          refundablePaymentId(item.razorpayPaymentId) !== null &&
+          item.since !== null &&
+          now - Date.parse(item.since) <= AUTO_REFUND_LOOKBACK_MS
+      )
+      .sort((a, b) => time(a.since) - time(b.since))
+
+    const summary = {
+      enabled: true as const,
+      candidates: candidates.length,
+      tried: 0,
+      sent: 0,
+      held: 0,
+      failed: 0,
+      stopped: null as null | 'daily_cap' | 'unavailable' | 'time',
+    }
+    if (options.dryRun) return summary
+
+    for (const item of candidates) {
+      if (summary.tried >= AUTO_REFUND_SWEEP_LIMIT) break
+      if (Date.now() - now > SWEEP_BUDGET_MS) {
+        summary.stopped = 'time'
+        break
+      }
+      summary.tried += 1
+      let outcome: AutoRefundOutcome
+      try {
+        outcome = await refundsService.autoRefund({ kind: item.kind, id: item.id })
+      } catch (err) {
+        log.error({ err, kind: item.kind, id: item.id }, 'refund:auto_sweep_item_failed')
+        summary.failed += 1
+        continue
+      }
+      if (outcome === 'sent') summary.sent += 1
+      else if (outcome === 'failed') summary.failed += 1
+      else summary.held += 1
+      if (outcome === 'daily_cap' || outcome === 'unavailable') {
+        summary.stopped = outcome
+        break
+      }
+    }
+    log.info(summary, 'refund:auto_sweep')
+    return summary
+  },
+
+  /**
+   * The webhook's backstop, run by the pending-digest cron: the app's refunds
+   * still pending at Razorpay PENDING_REFUND_RECHECK_AFTER_MS after they were
+   * sent (a webhook missed, or lost) are checked against Razorpay's list of
+   * the payment's refunds and settled like the webhook would (processed, or
+   * taken back with its alert). Oldest first, at most
+   * PENDING_REFUND_RECHECK_LIMIT a run and within a time budget; a payment
+   * whose refund lock is busy is left for the next run, and the run stops
+   * when Razorpay can't be read. Nothing is read from Razorpay when nothing
+   * is waiting. A dry run only counts.
+   */
+  async recheckPendingRefunds(options: { dryRun: boolean }, now = new Date()) {
+    const stale = await refundsRepository.listStalePending(
+      new Date(now.getTime() - PENDING_REFUND_RECHECK_AFTER_MS),
+      PENDING_REFUND_RECHECK_LIMIT
+    )
+    const targets = distinctTargets(stale)
+    const summary = {
+      waiting: targets.length,
+      checked: 0,
+      settled: 0,
+      stopped: null as null | 'unavailable' | 'time',
+    }
+    if (options.dryRun || targets.length === 0) return summary
+
+    const started = Date.now()
+    for (const target of targets) {
+      if (Date.now() - started > RECHECK_BUDGET_MS) {
+        summary.stopped = 'time'
+        break
+      }
+      try {
+        const locked = await refundsRepository.withRefundLock(await lockKeyFor(target), { wait: false }, async (tx) => {
+          const money = await readMoney(target, tx)
+          if (!money?.paymentId) return { kind: 'skipped' as const }
+          let gateway: RazorpayRefund[]
+          try {
+            gateway = await listRazorpayRefunds(money.paymentId)
+          } catch (error) {
+            if (error instanceof RazorpayRefundError) return { kind: 'unavailable' as const }
+            throw error
+          }
+          return { kind: 'checked' as const, ...(await settlePending(target, gateway, tx, now)) }
+        })
+        if (locked.kind === 'busy' || locked.value.kind === 'skipped') continue
+        if (locked.value.kind === 'unavailable') {
+          summary.stopped = 'unavailable'
+          break
+        }
+        summary.checked += 1
+        summary.settled += locked.value.settled
+        for (const alert of locked.value.alerts) alertOps(alert)
+      } catch (err) {
+        log.error({ err, ...target }, 'refund:recheck_item_failed')
+      }
+    }
+    log.info(summary, 'refund:pending_recheck')
+    return summary
+  },
+
+  /**
+   * Razorpay's refund.processed and refund.failed, from the signed webhook.
+   * Only refunds recorded here are touched: a refund done in the dashboard
+   * and not yet marked is left for Mark refunded (or the next Refund now,
+   * which finds it). A failed one is taken back, so the money shows as owed
+   * again, and the team is told. Redeliveries change nothing.
+   */
+  async handleGatewayRefund(
+    event: string,
+    entity: { id?: string; payment_id?: string } | undefined,
+    now = new Date()
+  ): Promise<{ handled: boolean; event: string }> {
+    if (!entity?.id || (event !== 'refund.processed' && event !== 'refund.failed')) {
+      return { handled: false, event }
+    }
+    const refundRef = entity.id
+
+    // The lock first, then the look-up inside it. Razorpay can call back
+    // before the send that made this refund has committed its record (the
+    // send holds this lock across the call and the write), so a record
+    // looked for before waiting could be missing and the outcome lost. Only
+    // without a payment id is the record needed to find the lock's key.
+    let key = refundablePaymentId(entity.payment_id)
+    if (!key) {
+      const record = await refundsRepository.findRecordByRef(refundRef)
+      if (!record) {
+        log.info({ event, refundRef, paymentId: entity.payment_id }, 'webhook:refund_not_recorded')
+        return { handled: true, event }
+      }
+      key = await lockKeyFor({ kind: record.kind, id: record.targetId })
+    }
+
+    const locked = await refundsRepository.withRefundLock(key, { wait: true }, async (tx) => {
+      const record = await refundsRepository.findRecordByRef(refundRef, tx)
+      if (!record) return { record: null, alert: null }
+      if (event === 'refund.processed') {
+        await refundsRepository.markProcessed(record.id, now, tx)
+        return { record, alert: null }
+      }
+      return { record, alert: await takeBack(record, 'Razorpay could not complete the refund.', tx, now) }
+    })
+    if (locked.kind !== 'done') return { handled: true, event }
+    const { record, alert } = locked.value
+    if (!record) {
+      log.info({ event, refundRef, paymentId: entity.payment_id }, 'webhook:refund_not_recorded')
+      return { handled: true, event }
+    }
+    if (alert) alertOps(alert)
+    log.info({ event, refundRef, kind: record.kind, targetId: record.targetId }, 'webhook:refund_settled')
+    return { handled: true, event }
   },
 }

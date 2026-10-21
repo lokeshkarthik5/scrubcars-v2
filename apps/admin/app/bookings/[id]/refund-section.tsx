@@ -5,6 +5,7 @@ import { ScBadge } from '@repo/ui/sc/badge'
 import { ScSection } from '@repo/ui/sc/section'
 import type { AdminBookingDetail, AdminRefund } from '@repo/core/api/admin'
 import { MarkRefundedDialog } from '@/components/mark-refunded-dialog'
+import { RefundNowDialog } from '@/components/refund-now-dialog'
 import { RefundCard } from '@/components/refund-card'
 import { latestRefund } from '@/lib/refunds'
 
@@ -24,6 +25,8 @@ export function RefundSection({
   // The refund as it was clicked; the dialog is given its latest copy from
   // the booking (latestRefund), so a refusal's refetch updates its figures.
   const [marking, setMarking] = useState<AdminRefund | null>(null)
+  // The refund whose Refund now sheet is open, the same way.
+  const [sending, setSending] = useState<AdminRefund | null>(null)
   const refunds = booking.refunds ?? []
 
   // A full refund takes away the button that opened the dialog, so focus
@@ -32,11 +35,11 @@ export function RefundSection({
   const listRef = useRef<HTMLDivElement>(null)
   const focusList = useRef(false)
   useEffect(() => {
-    if (focusList.current && marking === null) {
+    if (focusList.current && marking === null && sending === null) {
       focusList.current = false
       listRef.current?.focus()
     }
-  }, [marking])
+  }, [marking, sending])
 
   if (refunds.length === 0) return null
 
@@ -56,6 +59,7 @@ export function RefundSection({
             refund={refund}
             now={now}
             onMark={setMarking}
+            onRefundNow={setSending}
             linkBooking={false}
             className="bg-transparent"
           />
@@ -68,6 +72,18 @@ export function RefundSection({
           refund={latestRefund(refunds, marking)}
           open
           onClose={() => setMarking(null)}
+          onDone={() => {
+            focusList.current = true
+          }}
+        />
+      )}
+
+      {sending && (
+        <RefundNowDialog
+          key={`${sending.kind}-${sending.id}`}
+          refund={latestRefund(refunds, sending)}
+          open
+          onClose={() => setSending(null)}
           onDone={() => {
             focusList.current = true
           }}

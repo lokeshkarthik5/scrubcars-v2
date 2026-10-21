@@ -18,8 +18,10 @@ import {
   refundBase,
   refundBookingNote,
   refundState,
+  startedRefunds,
   storedRefundNote,
   type BookingForRefund,
+  type CustomerRefundRecord,
   type PaymentForRefund,
 } from './refunds.js'
 
@@ -381,5 +383,64 @@ describe('bookingRefundTotals', () => {
     expect(
       bookingRefundTotals({ ...cancelled(), payment: paid({ status: 'refunded', refundedAmount: null }) })
     ).toMatchObject({ owed: '0.00', refunded: '499.00' })
+  })
+})
+
+describe('refunds started through Razorpay', () => {
+  const at = new Date('2026-10-05T06:30:00Z')
+  const sent = (overrides: Partial<CustomerRefundRecord> = {}): CustomerRefundRecord => ({
+    amount: '499.00',
+    recordedAt: at,
+    source: 'admin',
+    gatewayStatus: 'pending',
+    ...overrides,
+  })
+
+  test('pending refunds the app sent are on their way, from the button or the automatic mode', () => {
+    expect(startedRefunds([sent()])).toEqual({ amount: '499.00', at })
+    const later = new Date('2026-10-06T06:30:00Z')
+    expect(startedRefunds([sent({ amount: '200.00' }), sent({ amount: '99.50', source: 'auto', recordedAt: later })])).toEqual({
+      amount: '299.50',
+      at: later,
+    })
+  })
+
+  test('a processed or failed one, or one recorded by hand, is not', () => {
+    expect(startedRefunds([sent({ gatewayStatus: 'processed' })])).toBeNull()
+    expect(startedRefunds([sent({ gatewayStatus: 'failed' })])).toBeNull()
+    expect(startedRefunds([sent({ source: 'recorded', gatewayStatus: null })])).toBeNull()
+    expect(startedRefunds([sent({ source: 'razorpay' })])).toBeNull()
+    expect(startedRefunds([])).toBeNull()
+  })
+
+  test("the customer's payload carries it, and leaves it out when there is none", () => {
+    const booking = {
+      ...cancelled(),
+      payment: { ...paid({ status: 'refunded', refundedAmount: '499.00' }), refundedAt: at },
+    }
+    expect(customerRefund(booking, [sent()])).toEqual({
+      status: 'refunded',
+      amount: '499.00',
+      amountRefunded: '499.00',
+      refundedAt: at.toISOString(),
+      started: { amount: '499.00', at: at.toISOString() },
+    })
+    expect(customerRefund(booking)).not.toHaveProperty('started')
+    // Never on a customer no-show, whatever is on the rows.
+    expect(customerRefund({ ...booking, noShow: 'customer' }, [sent()])).not.toHaveProperty('started')
+  })
+
+  test('the booking note says who sent it', () => {
+    const base = { what: 'the booking payment', amount: '499.00', full: true, refundRef: 'rfnd_X1' }
+    expect(refundBookingNote({ ...base, source: 'admin' })).toBe(
+      'Sent a refund of ₹499 of the booking payment through Razorpay from the app (rfnd_X1).'
+    )
+    expect(refundBookingNote({ ...base, source: 'auto' })).toBe(
+      'Sent a refund of ₹499 of the booking payment through Razorpay automatically (rfnd_X1).'
+    )
+    expect(refundBookingNote({ ...base, source: 'razorpay' })).toBe(
+      'Found a refund of ₹499 of the booking payment in Razorpay (rfnd_X1), done in the Razorpay dashboard, and recorded it.'
+    )
+    expect(refundBookingNote(base)).toBe('Refunded ₹499 of the booking payment in Razorpay (rfnd_X1).')
   })
 })

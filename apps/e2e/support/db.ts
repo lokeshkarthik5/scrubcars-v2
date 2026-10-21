@@ -281,6 +281,23 @@ export const rescheduleChain = async (rootId: string) =>
   `
 
 /** The ops team's internal notes on a booking, newest first. */
+/** Every refund recorded on one piece of money, oldest first (refund_records). */
+export const refundRecordsFor = async (targetId: string) =>
+  sql<
+    {
+      kind: string
+      amount: string
+      refund_ref: string | null
+      recorded_by: string
+      source: string
+      gateway_status: string | null
+    }[]
+  >`
+    select kind, amount, refund_ref, recorded_by, source, gateway_status
+      from refund_records where target_id = ${targetId}
+     order by recorded_at, id
+  `
+
 export const bookingNotes = async (bookingId: string) =>
   sql<{ author: string; body: string }[]>`
     select author, body from booking_notes

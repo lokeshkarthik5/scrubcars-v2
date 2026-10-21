@@ -238,6 +238,12 @@ export interface ReceiptRefundRecord {
   amount: string
   refundRef: string | null
   recordedAt: Date
+  /**
+   * Where Razorpay says it stands (0036): a refund the app sent that is
+   * still 'pending' there has not reached the customer, so the receipt does
+   * not show it as refunded yet. Failed ones are never passed in.
+   */
+  gatewayStatus?: 'pending' | 'processed' | 'failed' | null
 }
 
 export interface ReceiptBooking {
@@ -391,6 +397,10 @@ function paymentIdOf(value: string | null | undefined): string | null {
  * the row says more went back than the records add up to, the difference is
  * one more line, dated by the row's latest refund — so the receipt never
  * shows less refunded than actually was.
+ *
+ * A refund still pending at Razorpay is left out, though the row's running
+ * total counts it: the receipt says what was refunded, not what was started.
+ * It appears once Razorpay processes it (and is gone for good if it fails).
  */
 function refundLinesFor(
   against: ReceiptRefundLine['against'],
@@ -418,7 +428,9 @@ function refundLinesFor(
     }
   }
 
-  const lines = records
+  const standing = records.filter((record) => record.gatewayStatus !== 'pending')
+
+  const lines = standing
     .filter((record) => toPaise(record.amount) > 0)
     .map((record) =>
       line(
@@ -431,6 +443,7 @@ function refundLinesFor(
       )
     )
 
+  // Every record, pending ones too: the row's total includes them.
   const recorded = records.reduce((total, record) => total + toPaise(record.amount), 0)
   const missing = toPaise(row.refunded) - recorded
   if (missing > 0) {

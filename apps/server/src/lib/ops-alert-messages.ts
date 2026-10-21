@@ -100,6 +100,77 @@ export type OpsAlert =
       by: string
     }
   | {
+      /**
+       * The app sent a refund through Razorpay: from the Refund now button
+       * (`by` the admin) or by itself under AUTO_REFUNDS. Nothing to do
+       * unless it later fails, which gets its own alert.
+       */
+      kind: 'refund_sent'
+      what: 'booking' | 'checkout' | 'bill'
+      bookingId: string | null
+      garageName: string | null
+      amount: string
+      paid: string
+      refundedTotal: string
+      refundRef: string
+      paymentId: string | null
+      auto: boolean
+      by: string
+    }
+  | {
+      /**
+       * A refund through Razorpay did not happen: Razorpay refused it when
+       * the app sent it, or failed it later (refund.failed). The money is
+       * owed again and back on the Refunds page.
+       */
+      kind: 'refund_failed'
+      what: 'booking' | 'checkout' | 'bill'
+      bookingId: string | null
+      amount: string
+      /** Null when Razorpay refused it outright and made no refund. */
+      refundRef: string | null
+      paymentId: string | null
+      /** Plain words for the team; may be Razorpay's own. */
+      reason: string
+      auto: boolean
+      /** The automatic mode has tried as often as it will. */
+      gaveUp: boolean
+    }
+  | {
+      /**
+       * Razorpay holds a refund on this payment that doesn't fit what is owed
+       * here (found while checking before a send). Nothing more was sent, and
+       * nothing is owed again: a person reconciles it in Razorpay first,
+       * since refunding again could pay the customer twice.
+       */
+      kind: 'refund_gateway_mismatch'
+      what: 'booking' | 'checkout' | 'bill'
+      bookingId: string | null
+      /** The refund found on Razorpay. */
+      amount: string
+      refundRef: string
+      paymentId: string | null
+    }
+  | {
+      /**
+       * The automatic refunds' retry in the pending-digest cron failed as a
+       * whole (not one refund: those have their own alert). The digest still
+       * ran. Throttled, so a stuck sweep doesn't post every run.
+       */
+      kind: 'auto_refund_sweep_failed'
+      /** How long further failures stay quiet, so the message can say so. */
+      quietMinutes: number
+    }
+  | {
+      /**
+       * The automatic mode reached its daily cap: no more automatic refunds
+       * until tomorrow (IST). Sent once a day at most.
+       */
+      kind: 'auto_refund_cap_reached'
+      cap: string
+      sentToday: string
+    }
+  | {
       kind: 'pending_digest'
       now: Date
       waiting: DigestBooking[]
@@ -340,6 +411,62 @@ export function formatOpsAlert(alert: OpsAlert): string {
         alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
       )
     }
+
+    case 'refund_sent': {
+      const full = Number(alert.refundedTotal) >= Number(alert.paid)
+      return lines(
+        `💸 Refund ${rupees(alert.amount)} started${alert.bookingId ? ` for booking #${reference(alert.bookingId)}` : ' for a payment with no booking'} · ${alert.auto ? 'auto' : 'admin'}`,
+        [REFUND_WHAT[alert.what], alert.garageName].filter(Boolean).join(' · '),
+        `Razorpay refund ${alert.refundRef}${alert.paymentId ? ` for ${alert.paymentId}` : ''}`,
+        full
+          ? 'All of it is on its way back.'
+          : `Part refund: ${rupees(alert.refundedTotal)} of ${rupees(alert.paid)} back so far. The rest is still owed.`,
+        alert.auto ? 'Sent automatically.' : `Sent by ${alert.by}.`,
+        alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
+      )
+    }
+
+    case 'refund_failed':
+      return lines(
+        `⚠️ Refund ${rupees(alert.amount)} failed${alert.bookingId ? ` for booking #${reference(alert.bookingId)}` : ' for a payment with no booking'} · ${alert.auto ? 'auto' : 'admin'}`,
+        REFUND_WHAT[alert.what],
+        alert.refundRef
+          ? `Razorpay refund ${alert.refundRef}${alert.paymentId ? ` for ${alert.paymentId}` : ''}`
+          : alert.paymentId
+            ? `Razorpay payment ${alert.paymentId}`
+            : null,
+        `Why: ${alert.reason}`,
+        alert.gaveUp
+          ? 'The money is owed again. Automatic refunds have stopped trying this one: refund it from the Refunds page.'
+          : 'The money is owed again and back on the Refunds page.',
+        alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
+      )
+
+    case 'refund_gateway_mismatch':
+      return lines(
+        `🛑 Razorpay refund doesn't match${alert.bookingId ? ` booking #${reference(alert.bookingId)}` : ' a payment with no booking'}`,
+        REFUND_WHAT[alert.what],
+        `Razorpay holds refund ${alert.refundRef} of ${rupees(alert.amount)}${alert.paymentId ? ` on ${alert.paymentId}` : ''}, which doesn't fit what is owed here.`,
+        'Nothing more was sent. Do not refund this again: reconcile the payment in Razorpay first, then record what it shows with Mark refunded.',
+        alert.bookingId ? adminBookingUrl(alert.bookingId) : ADMIN_REFUNDS_URL
+      )
+
+    case 'auto_refund_sweep_failed':
+      return lines(
+        `⚠️ Automatic refunds' check failed`,
+        "The retry of automatic refunds in the pending-booking job didn't run through, so refunds it would have sent are still owed. The digest itself still ran.",
+        'Check the server logs (ops:auto_refund_sweep_failed). Meanwhile refund from the Refunds page.',
+        `Further failures in the next ${alert.quietMinutes} minutes won't be alerted.`,
+        ADMIN_REFUNDS_URL
+      )
+
+    case 'auto_refund_cap_reached':
+      return lines(
+        `🛑 Automatic refunds paused for today`,
+        `${rupees(alert.sentToday)} refunded automatically today; the daily cap is ${rupees(alert.cap)}.`,
+        'Eligible automatic refunds resume tomorrow. Anything else owed (final bills, part refunds, bookings with an open complaint, money owed over 3 days) needs a manual review: use Refund now on the Refunds page.',
+        ADMIN_REFUNDS_URL
+      )
 
     case 'rescheduled': {
       const b = alert.booking

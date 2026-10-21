@@ -175,7 +175,10 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                     key={value}
                     label={COMPLAINT_CATEGORY_LABELS[value]}
                     selected={category === value}
-                    onClick={() => setCategory(value)}
+                    onClick={() => {
+                      setCategory(value)
+                      setError('')
+                    }}
                     className="min-h-11"
                   />
                 ))}
@@ -190,7 +193,10 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                 maxLength={COMPLAINT_MESSAGE_MAX}
                 placeholder="What went wrong, and what you would like us to do"
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value)
+                  setError('')
+                }}
               />
               <p className="flex justify-between text-[11px] text-text-muted">
                 <span>
