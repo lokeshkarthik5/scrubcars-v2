@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   adminCancelBookingSchema,
   createBookingNoteSchema,
+  createVendorSchema,
   listBookingsQuerySchema,
   markNoShowSchema,
   pauseVendorSchema,
@@ -205,5 +206,34 @@ describe('setServiceActiveSchema', () => {
     expect(
       setServiceActiveSchema.safeParse({ isActive: true, price: 100 }).success
     ).toBe(false)
+  })
+})
+
+describe('admin pickup radius', () => {
+  // The same 1–30 km the garage's own settings allow (lib/pickup.ts).
+  const garage = {
+    ownerName: 'Ravi',
+    ownerPhone: '9000000001',
+    businessName: 'Ravi Car Care',
+    phone: '9000000001',
+    address: '1 Main Road',
+    city: 'Chennai',
+    pincode: '600001',
+  }
+
+  test('create takes 1 to 30 km and refuses anything outside it', () => {
+    for (const km of [1, 8, 30]) {
+      expect(createVendorSchema.safeParse({ ...garage, pickupRadiusKm: km }).success).toBe(true)
+    }
+    for (const km of [0.5, 31, 100]) {
+      expect(createVendorSchema.safeParse({ ...garage, pickupRadiusKm: km }).success).toBe(false)
+    }
+  })
+
+  test('edit takes 1 to 30 km or null, and refuses anything outside it', () => {
+    expect(updateVendorSchema.safeParse({ pickupRadiusKm: 30 }).success).toBe(true)
+    expect(updateVendorSchema.safeParse({ pickupRadiusKm: null }).success).toBe(true)
+    expect(updateVendorSchema.safeParse({ pickupRadiusKm: 31 }).success).toBe(false)
+    expect(updateVendorSchema.safeParse({ pickupRadiusKm: 0.5 }).success).toBe(false)
   })
 })
