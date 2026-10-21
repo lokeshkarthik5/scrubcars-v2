@@ -2,25 +2,47 @@
 
 ## Brand palette
 
+The source of truth is `packages/ui/styles/globals.css`; this table follows it.
+
 | Token | Hex | Usage |
 |---|---|---|
-| `brand-red` | `#E33402` | Primary actions, CTAs, active states, accent |
-| `black` | `#0A0A0A` | Primary text, backgrounds |
-| `white` | `#FAFAFA` | Surfaces, cards, screen backgrounds |
-| `grey` | `#151515` | Secondary backgrounds, nav bars, input fields |
+| `brand-red` | `#EF3240` | Red with nothing written on it (a dot, the nav marker), red text on the canvas (4.9:1) |
+| `brand-red-fill` | `#E4002B` | Red behind white text: buttons (`primary`, `cta`), the selected map pin. White on it is 4.85:1 (AA); white on `#EF3240` is 3.87:1 |
+| `brand-red-fill-hover` | `#C70026` | Its hover, 5.82:1 with white |
+| `--gradient-cta` | `#E4002B → #B80022` | The one main action per screen (`hero`, `main`) |
+| `accent-text` | `#F45A66` | Brand red as small text on its own tint ("New" badge), 5.2:1 on a card |
+| `brand-black` | `#0A0A0B` | The canvas |
+| `brand-white` | `#FAFAFA` | Text, the selected chip |
+| `surface` | `#141416` | Cards, inputs, nav |
+| `surface-elevated` | `#272730` | Anything raised above a card; a "not ready yet" button |
+
+### Status tones
+
+One colour per meaning on every screen (`StatusChip`, `@repo/core/status-tone`). Each has a tint, a text colour and a dot (`--color-tone-<tone>-tint|text|dot`); text on its tint is 4.5:1 or more on the canvas and on a card (`status-tone.test.ts` checks).
+
+| Tone | Text | Means |
+|---|---|---|
+| `new` | `#F45A66` on red tint | Waiting for the garage to answer. The only red status |
+| `progress` | `#6EA8FF` on blue tint | Accepted or being worked on |
+| `done` | `#22C55E` on green tint | Finished or paid |
+| `attention` | `#F5A524` on amber tint | A problem to fix: rejected, overdue, the last few minutes |
+| `late` | `#FF6B57` on coral tint | Past its time, or can't be undone |
+| `closed` | `#B0B0B0` on grey tint | Cancelled |
 
 ### Derived tokens
 ```
-background:        #0A0A0A   (app background)
-surface:           #151515   (cards, inputs, nav)
-surface-elevated:  #1E1E1E   (modals, bottom sheets)
+background:        #0A0A0B   (app background)
+surface:           #141416   (cards, inputs, nav)
+surface-elevated:  #272730   (modals, bottom sheets, raised controls)
 text-primary:      #FAFAFA
-text-secondary:    #9A9A9A
-text-muted:        #555555
-border:            #2A2A2A
-accent:            #E33402
-accent-hover:      #C42D02
-accent-muted:      rgba(227, 52, 2, 0.12)
+text-secondary:    #B0B0B0
+text-muted:        #9A9AA3
+border:            #2E2E38
+accent:            #EF3240
+accent-hover:      #D42433
+accent-muted:      rgba(239, 50, 64, 0.12)
+accent-text:       #F45A66
+error / warning:   #F5A524   (amber: red means "press me")
 ```
 
 > Dark-first app. All screens use `#0A0A0A` as the page canvas.
@@ -48,9 +70,18 @@ accent-muted:      rgba(227, 52, 2, 0.12)
 
 ### Buttons
 ```
-Primary:   bg #E33402, text #FAFAFA, border-radius 10px, padding 12px 0, width 100%, font 14px/600
-Secondary: bg transparent, border 0.5px #2A2A2A, text #FAFAFA, same radius/padding
-Ghost:     bg transparent, no border, text #E33402
+Primary:   bg #E4002B (brand-red-fill), text #FAFAFA, border-radius 10px, padding 12px 0, width 100%, font 14px/600
+Secondary: bg transparent, border 1px #2E2E38, text #FAFAFA, same radius/padding
+Ghost:     bg transparent, no border, text #EF3240
+```
+
+New screens use the pill family (`ScButton` / `ScButtonLink`, `size` md = 52px, lg = 56px):
+```
+main:            the --gradient-cta pill, white text. One per screen
+outline:         1px outline pill, for the second action
+text:            white words, underline on hover. Never red
+danger-outline:  amber outline, for a destructive second action (red means "press me")
+disabledReason:  a disabled button turns grey (never faded red) with the reason in 13px grey under it
 ```
 
 ### Inputs

@@ -117,7 +117,7 @@ const CARD_DETAILS_TRIGGER = cn(
  * it above the card's stretched details layer, keeping it a separate target.
  *
  * Behind the Home hub flag Add is never red: Book Now is the hub's gradient
- * pill there, and flat #EF3240 pills beside it would be two reds and several
+ * pill there, and flat red pills beside it would be two reds and several
  * red controls on one screen, where the brand allows one. Add is then a
  * graphite outline on the canvas and Added the same outline filled, told
  * apart by their icon and word as well as the fill. Off, today's red exactly.
@@ -147,7 +147,7 @@ function AddToBookingButton({
           ? 'border-text-primary/40 bg-surface-elevated text-text-primary hover:border-text-primary/60'
           : isHomeHubEnabled()
             ? 'border-text-primary/40 bg-transparent text-text-primary hover:border-text-primary/60 hover:bg-surface-elevated'
-            : 'border-transparent bg-brand-red text-white hover:bg-brand-red-hover active:bg-brand-red-hover'
+            : 'border-transparent bg-brand-red-fill text-white hover:bg-brand-red-fill-hover active:bg-brand-red-fill-hover'
       )}
     >
       {added ? (

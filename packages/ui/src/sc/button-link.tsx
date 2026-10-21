@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import type { ComponentProps } from 'react'
 import { cn } from '@repo/core/utils'
-import { scButtonClass, type ButtonVariant } from './button'
+import { scButtonClass, type ButtonSize, type ButtonVariant } from './button'
 
 interface ScButtonLinkProps extends ComponentProps<typeof Link> {
   variant?: ButtonVariant
   /** Off by default: a link button usually sits in a header or a row. */
   fullWidth?: boolean
+  /** Pill family only ('main', 'outline', 'text', 'danger-outline'). */
+  size?: ButtonSize
 }
 
 /**
@@ -17,6 +19,7 @@ interface ScButtonLinkProps extends ComponentProps<typeof Link> {
 export function ScButtonLink({
   variant = 'primary',
   fullWidth = false,
+  size,
   className,
   ...props
 }: ScButtonLinkProps) {
@@ -25,7 +28,11 @@ export function ScButtonLink({
       className={scButtonClass({
         variant,
         fullWidth,
-        className: cn('inline-flex min-h-11 items-center justify-center gap-1.5 px-4', className),
+        size,
+        className: cn(
+          'inline-flex min-h-11 items-center justify-center gap-1.5 px-4',
+          className
+        ),
       })}
       {...props}
     />

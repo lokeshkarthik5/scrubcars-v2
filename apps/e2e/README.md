@@ -71,20 +71,16 @@ signed out simply omit it.
 
 ## Known gaps, kept visible
 
-One test is marked `test.fail()`. It is not an unwritten spec — it is a defect
-the suite found, encoded so it stays on the report instead of in a comment
-nobody reads. It will start passing when the underlying issue is fixed, at
-which point Playwright flags the annotation as stale and it should be deleted
-along with the explanation above it.
+A defect the suite finds is encoded as a `test.fail()` test, so it stays on
+the report instead of in a comment nobody reads; once it is fixed Playwright
+flags the annotation as stale, and it is deleted along with its explanation.
+None is open now.
 
-- `platform/accessibility.spec.ts` — white text on brand red `#EF3240` is
-  3.87:1, under WCAG AA at small sizes (ScButton's primary style and the garage
-  page's Add buttons, so every primary action). It is not fixable where it
-  appears; the remedy is an accessible variant of the brand colour, which is a
-  design decision. The check runs on the garage page, which has Add buttons.
-  The other pairing it used to track — red text on a raised surface, from the
-  segmented control's selected state — is gone: selected states are white on
-  graphite now, and red text is kept off raised surfaces.
+The last one was white text on brand red `#EF3240` (3.87:1, under WCAG AA at
+small sizes). Red fills behind white text now use the guideline red `#E4002B`
+(`brand-red-fill`, 4.85:1), and `platform/accessibility.spec.ts` keeps it as a
+normal test on the garage page's "Add to booking". Red *text* stays `#EF3240`
+on the canvas and cards, and off raised surfaces.
 
 An open question: at a 320px viewport the home screen reports an 8px
 horizontal overflow on a Linux CI runner and none on macOS, and the
@@ -96,9 +92,9 @@ reproduce on Linux, the 8px is worth chasing.
 
 `users/axe.spec.ts` is the P0 accessibility gate: axe on the signed-out
 homepage, Home, the garage list, a garage, checkout, a booking, the help centre
-and Profile, failing on serious and critical findings only. It leaves out the
-same brand-red contrast pairing as above and nothing else; the platform spec
-keeps the longer list of screens.
+and Profile, failing on serious and critical findings only. It leaves out red
+text in brand red `#EF3240` and nothing else; the platform spec keeps the
+longer list of screens.
 
 A note on measuring contrast: the accessibility spec waits for entrance
 animations to finish before scanning. Cards enter through `.reveal`, which
