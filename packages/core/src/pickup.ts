@@ -23,6 +23,22 @@ export const MAX_CODE_ATTEMPTS = 5
 /** The steps only pickup & drop has, plus the normal work between them. */
 export type PickupNext = 'picked_up' | 'at_garage' | 'start_work' | 'out_for_delivery' | 'delivered'
 
+/**
+ * Whether the garage's step shows "Too many wrong codes" instead of the code
+ * box. `lockedStep` is the step a HANDOVER_CODE_LOCKED answer came back on:
+ * the lock belongs to that step only, so once Detlio confirms the handover
+ * from admin and the job moves on, the next step shows again without a
+ * reload. Otherwise the server's tries left decide.
+ */
+export function handoverLocked(
+  step: PickupNext,
+  lockedStep: PickupNext | null,
+  triesLeft: number | undefined
+): boolean {
+  if (lockedStep === step) return true
+  return (step === 'picked_up' || step === 'delivered') && triesLeft === 0
+}
+
 /** What each step is called on the garage's button and in step times. */
 export const PICKUP_STEP_LABELS: Record<PickupNext, string> = {
   picked_up: 'Picked up',
