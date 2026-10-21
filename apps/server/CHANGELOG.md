@@ -18,6 +18,10 @@ reconstructing every change in them.
 
 ### Added
 
+- `GET /bookings/:id` (and the customer's list) carries the garage's own
+  `mapsUrl` on `vendor`, beside its phone, WhatsApp, address and pin, for the
+  booking page's Directions when the garage has no pin.
+
 - **Garage earnings and payouts** (migration `0038_garage_payouts`,
   additive: `vendor_payouts`, `vendor_payout_items` and
   `vendor_payout_accounts`; no data step). Customers pay Detlio; Detlio pays
@@ -797,6 +801,31 @@ reconstructing every change in them.
   other cancellations still earn nothing. `jobsDone` counts jobs done only.
 
 ### Changed
+
+- **A garage's contact details stay private until the customer books**
+  (owner decision, 17 Oct 2026). `GET /vendors/:id` (the public garage page,
+  no auth) is now an allow-list (`modules/vendors/vendors.public.ts`
+  `toPublicVendor`) instead of the garage's own shape minus `ownerId`. It no
+  longer carries `phone`, `whatsapp`, `email`, `address`, `mapsUrl`, `notes`,
+  `pickup` (the stored answer; `pickupEnabled` stays),
+  `pickupTermsAcceptedAt`, `geoSource`, `geoConfirmedAt`, `bays`,
+  `jobsPerDay` or `vehicleTypes`. It keeps `id`, `businessName`, `logoUrl`,
+  `city`, `pincode`, `lat`/`lng`, `yearsInOperation`, `isVerified`,
+  `status`, `dropinEnabled`, `doorstepEnabled`, `doorstepRadiusKm`,
+  `pickupEnabled`, `pickupRadiusKm`, `slotIntervalMins`,
+  `bookingsPausedAt`/`Reason`, `createdAt`, and the photos, services and
+  rating as before. A customer gets the garage's phone, WhatsApp, address,
+  pin and maps link only on their own booking (`GET /bookings/:id`, owner
+  only; a vendor member gets its own garage). `GET /vendors` (list, search,
+  map) already sent none of them; reviews, offers, Home, checkout and slots
+  send the garage's name at most. Admin (`/admin/vendors/:id`) and the
+  portal (`/vendors/me`) are unchanged.
+- **"Rate your wash" lasts 14 days** after the job (was 72 hours;
+  `RATE_PROMPT_DAYS` in `lib/home-cards.ts`), on Home (still below the
+  offers and only with no must-act card, so at most two cards above the car)
+  and on Updates' To do (every unrated job, newest first). Never for a
+  cancelled booking, a no-show of either side or a moved booking. The ×
+  (`POST /bookings/:id/review-prompt/dismiss`) is unchanged.
 
 - **Every garage within 50 km, nearest first** (owner decision, 2026-10-16;
   no migration). `GET /vendors` with a location searches one radius,

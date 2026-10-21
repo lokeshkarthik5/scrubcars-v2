@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { IconCircleX, IconMessageReport } from '@tabler/icons-react'
+import Link from 'next/link'
+import { IconChevronRight, IconCircleX, IconMessageReport } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ContactButtons } from '@repo/ui/sc/contact-buttons'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -133,6 +134,19 @@ export function BookingHelpSheet({ open, onClose, booking }: BookingHelpSheetPro
               </span>
             </ScButton>
           </section>
+
+          {/* Answers to the usual questions (cancelling, refunds, pickup
+              codes), for when there is no one to call about it. */}
+          <Link
+            href="/help"
+            onClick={onClose}
+            className="-mx-1 flex min-h-11 items-center justify-between gap-3 rounded-[10px] px-1 text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+          >
+            <span>
+              Common questions: <span className="font-medium text-text-primary">Help centre</span>
+            </span>
+            <IconChevronRight size={16} className="shrink-0 text-text-muted" aria-hidden />
+          </Link>
         </div>
       </ScSheet>
 

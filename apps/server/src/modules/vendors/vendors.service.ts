@@ -45,6 +45,7 @@ import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { vendorsRepository } from './vendors.repository.js'
+import { toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 
 const log = logger.child({ module: 'vendors' })
 
@@ -164,7 +165,12 @@ export type VendorResponse = {
   createdAt: string
 }
 
-export type PublicVendorResponse = Omit<VendorResponse, 'ownerId'> & {
+/**
+ * GET /vendors/:id. An allow-list (vendors.public.ts), not the garage's own
+ * shape minus a field or two: no phone, WhatsApp, email, street address, maps
+ * link or ops note before the customer has booked.
+ */
+export type PublicVendorResponse = PublicVendorFields & {
   photos: PhotoResponse[]
   services: ServiceResponse[]
   // null when the vendor has no reviews yet — distinct from a rating of 0.
@@ -916,11 +922,10 @@ export const vendorsService = {
       vendorsRepository.getRatingAggregates([vendor.id]),
     ])
 
-    const { ownerId: _ownerId, ...publicVendor } = toVendorResponse(vendor)
     const rating = aggregates[0]
 
     return {
-      ...publicVendor,
+      ...toPublicVendor(vendor),
       photos: photos.map(toPhotoResponse),
       services: services.map((service) => toServiceResponse(service, service.images, 'public')),
       rating: rating ? Number(rating.average.toFixed(2)) : null,

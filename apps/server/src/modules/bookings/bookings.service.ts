@@ -301,6 +301,8 @@ type BookingWithRelations = {
     lat: number | null
     lng: number | null
     whatsapp: string | null
+    // Optional so a hand-built row (tests, older reads) still type-checks.
+    mapsUrl?: string | null
   } | null
   service?: {
     id: string
@@ -474,8 +476,13 @@ function toBookingResponse(
         }
       : null,
     // Where the garage is and how to reach it: the customer's booking page
-    // gives directions and a call/WhatsApp button from these. All of it is
-    // already public on the garage page.
+    // gives directions and a call/WhatsApp button from these. This is the
+    // only place a customer gets them (owner decision, 17 Oct 2026): the
+    // public garage page (GET /vendors/:id, vendors.public.ts) carries no
+    // phone, WhatsApp, street address or maps link, so a customer reaches the
+    // garage through a booking, not around one. Every caller of this mapper
+    // serves the booking's own customer (or, via toVendorBookingResponse, the
+    // garage itself).
     vendor: booking.vendor
       ? {
           id: booking.vendor.id,
@@ -486,6 +493,9 @@ function toBookingResponse(
           lat: booking.vendor.lat,
           lng: booking.vendor.lng,
           whatsapp: booking.vendor.whatsapp,
+          // The garage's own Google Maps link, for directions when it has
+          // no pin (the Directions sheet checks it is a Maps link).
+          mapsUrl: booking.vendor.mapsUrl ?? null,
         }
       : null,
     // The services this booking is for, in the order they were picked, with

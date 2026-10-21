@@ -157,8 +157,12 @@ export function OutlineLink({
 
 /**
  * "Rate your wash": a soft card, below the offers, only when nothing is
- * must-act. A star opens the booking's own rating form with that many stars
- * already chosen, so one stray tap never posts a review. × closes it for good.
+ * must-act, and on Updates' To do. It asks "How was your wash at <garage>?"
+ * for a job done in the last 14 days with no review yet (the server decides:
+ * lib/home-cards.ts rateCards). A star opens the booking's own rating form
+ * with that many stars already chosen, so one stray tap never posts a
+ * review. × closes it for good, on every device (the booking's
+ * review_prompt_dismissed_at). The region keeps its name, "Rate your wash".
  */
 export function RateWashCard({
   card,
@@ -174,10 +178,12 @@ export function RateWashCard({
     <section aria-label="Rate your wash" className="hub-card pt-1 pr-1.5 pb-2 pl-5">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1 pt-3">
-          <p className="truncate text-[15px] font-medium tracking-[-0.01em] text-text-primary">Rate your wash</p>
-          <p className="truncate text-[13px] text-dim">
-            {card.vehicleName} · {card.vendorName}
+          {/* Two lines at most: a long garage name wraps rather than losing
+              the question mark. */}
+          <p className="line-clamp-2 text-[15px] font-medium tracking-[-0.01em] text-text-primary">
+            How was your wash at {card.vendorName}?
           </p>
+          <p className="truncate text-[13px] text-dim">{card.vehicleName} · Rate it</p>
         </div>
         <button
           type="button"
