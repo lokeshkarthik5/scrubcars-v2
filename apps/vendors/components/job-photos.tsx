@@ -1,7 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { IconCamera, IconCameraPlus, IconCheck, IconLoader2 } from '@tabler/icons-react'
+import {
+  IconCamera,
+  IconCameraPlus,
+  IconCheck,
+  IconLoader2,
+} from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScModal } from '@repo/ui/sc/modal'
@@ -44,7 +49,8 @@ const PICKUP_HINTS: Record<JobPhoto['stage'], string> = {
   after: 'Optional. The finished work, before the car goes back.',
 }
 
-const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+const capitalise = (text: string) =>
+  text.charAt(0).toUpperCase() + text.slice(1)
 
 interface JobPhotosProps {
   booking: Booking
@@ -77,7 +83,12 @@ type Viewing = { photo: JobPhoto; name: string; own: boolean }
  * Phone photos are shrunk to a 1600px JPEG in the browser before upload
  * (lib/resize-image.ts), which also strips their location metadata.
  */
-export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPhotosProps) {
+export function JobPhotos({
+  booking,
+  stage,
+  onChanged,
+  readOnly = false,
+}: JobPhotosProps) {
   // The slot uploading now ('extra' for the More tile), if any.
   const [uploading, setUploading] = useState<PhotoAngle | 'extra' | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
@@ -124,7 +135,9 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
       closeViewer()
       onChanged()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not remove this photo')
+      toast.error(
+        error instanceof Error ? error.message : 'Could not remove this photo'
+      )
     } finally {
       setRemovingId(null)
     }
@@ -137,7 +150,7 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
       type="button"
       onClick={() => setViewing({ photo, name, own: isOwn })}
       aria-label={`View ${name}`}
-      className="block size-16 overflow-hidden rounded-[10px] bg-surface ring-1 ring-inset ring-border"
+      className="block size-16 overflow-hidden rounded-[12px] bg-surface ring-1 ring-inset ring-border"
     >
       {/* A plain <img>: the photo is already sized for the screen, and the
           optimiser would only fetch it again. */}
@@ -146,27 +159,79 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
     </button>
   )
 
+  // The two big tiles (garage mockup 03): Front and Back, the two angles the
+  // standard's two photos usually are, with the next one to take outlined in
+  // red. The other angles are small "+" chips, and extras go under More.
+  const big = slots.slice(0, 2)
+  const small = slots.slice(2)
+  const nextAngle = readOnly
+    ? null
+    : (big.find((slot) => !slot.photo)?.angle ?? null)
+  const shortLabel = (angle: PhotoAngle) =>
+    angle === 'interior'
+      ? 'Inside'
+      : PHOTO_ANGLE_LABELS[angle].replace(' side', '')
+
+  const camera = (
+    angle: PhotoAngle | undefined,
+    children: React.ReactNode,
+    className: string
+  ) => (
+    // The input sits inside its label, so the whole tile opens the camera
+    // (the back one, on a phone) and the input carries the name.
+    <label
+      className={cn(
+        'cursor-pointer',
+        uploading !== null && 'pointer-events-none opacity-60',
+        className
+      )}
+    >
+      <input
+        type="file"
+        accept="image/*"
+        capture={angle ? 'environment' : undefined}
+        multiple={!angle}
+        className="sr-only"
+        aria-label={
+          angle
+            ? `Add ${PHOTO_ANGLE_LABELS[angle].toLowerCase()} ${stageWord} photo for ${who}`
+            : `Add ${stageWord} photos for ${who}`
+        }
+        disabled={uploading !== null}
+        onChange={(event) => {
+          const files = Array.from(event.currentTarget.files ?? []).slice(
+            0,
+            angle ? 1 : Math.max(0, room)
+          )
+          event.currentTarget.value = ''
+          void upload(files, angle)
+        }}
+      />
+      {children}
+    </label>
+  )
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[12px] font-medium text-text-primary">{LABELS[stage]}</p>
-        {required ? (
-          <p
-            className={cn(
-              'font-numeric text-[11px]',
-              own.length >= MIN_GARAGE_PHOTOS ? 'text-success' : 'text-text-muted'
-            )}
-          >
-            {Math.min(own.length, MIN_GARAGE_PHOTOS)}/{MIN_GARAGE_PHOTOS} needed
-          </p>
-        ) : (
-          <p className="font-numeric text-[11px] text-text-muted">
-            {own.length}/{MAX_JOB_PHOTOS_PER_STAGE}
-          </p>
-        )}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-[20px] font-semibold text-text-primary">
+          {LABELS[stage]}
+        </h2>
+        <p
+          className={cn(
+            'rounded-full border px-3 py-1 font-numeric text-[14px] font-medium',
+            required && own.length >= MIN_GARAGE_PHOTOS
+              ? 'border-success/40 text-success'
+              : 'border-white/20 text-text-primary'
+          )}
+        >
+          {required
+            ? `${Math.min(own.length, MIN_GARAGE_PHOTOS)} of ${MIN_GARAGE_PHOTOS}`
+            : `${own.length}/${MAX_JOB_PHOTOS_PER_STAGE}`}
+        </p>
       </div>
       {own.length === 0 && !readOnly && (
-        <p className="text-[11px] text-text-secondary">
+        <p className="text-[14px] text-text-secondary">
           {required
             ? REQUIRED_HINTS[stage]
             : (booking.bookingType === 'pickup' ? PICKUP_HINTS : HINTS)[stage]}
@@ -175,112 +240,155 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
       {/* While the standard is optional (the pilot default), a nudge rather
           than a block: why the photos are worth taking. */}
       {!required && !readOnly && own.length < MIN_GARAGE_PHOTOS && (
-        <p className="text-[11px] text-text-muted">
-          Photos protect you if a customer complains, and count toward Detlio Certified.
+        <p className="text-[13px] text-text-secondary">
+          Photos protect you if a customer complains, and count toward Detlio
+          Certified.
         </p>
       )}
       {readOnly && own.length > 0 && (
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[13px] text-text-secondary">
           {stage === 'before'
             ? 'Closed once the job was completed.'
             : 'Closed an hour after the job was completed.'}
         </p>
       )}
 
-      {/* The guided angles: a tile each, the camera on tap, the photo once
-          taken. Read-only, only the angles that have one. */}
-      <ul className="flex flex-wrap gap-2">
-        {slots.map(({ angle, photo }) => {
+      <ul className="grid grid-cols-2 gap-3">
+        {big.map(({ angle, photo }) => {
           const label = PHOTO_ANGLE_LABELS[angle]
           if (photo) {
             return (
-              <li key={angle} className="flex w-16 flex-col items-center gap-0.5">
-                <span className="relative">
-                  {thumb(photo, `${label.toLowerCase()} ${stageWord} photo for ${who}`, true)}
-                  <span
-                    aria-hidden="true"
-                    className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-success text-brand-black"
-                  >
-                    <IconCheck size={11} stroke={3} />
-                  </span>
+              <li key={angle} className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewing({
+                      photo,
+                      name: `${label.toLowerCase()} ${stageWord} photo for ${who}`,
+                      own: true,
+                    })
+                  }
+                  aria-label={`View ${label.toLowerCase()} ${stageWord} photo for ${who}`}
+                  className="block aspect-[4/3] w-full overflow-hidden rounded-[16px] bg-surface ring-1 ring-inset ring-border"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+                <span
+                  aria-hidden="true"
+                  className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-success text-brand-black"
+                >
+                  <IconCheck size={16} stroke={3} />
                 </span>
-                <span className="text-[10px] text-text-secondary">{label}</span>
+                <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-brand-black/80 px-2.5 py-0.5 text-[14px] font-medium text-text-primary">
+                  {label}
+                </span>
               </li>
             )
           }
           if (room <= 0) return null
-          const busy = uploading === angle
           return (
-            <li key={angle} className="flex w-16 flex-col items-center gap-0.5">
-              {/* The input sits inside its label, so the whole tile opens the
-                  camera (the back one, on a phone) and the input carries the
-                  name. */}
-              <label
-                className={cn(
-                  'flex size-16 cursor-pointer items-center justify-center rounded-[10px] border border-dashed border-border text-text-secondary transition-colors hover:border-text-secondary',
-                  uploading !== null && 'pointer-events-none opacity-60'
-                )}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  aria-label={`Add ${label.toLowerCase()} ${stageWord} photo for ${who}`}
-                  disabled={uploading !== null}
-                  onChange={(event) => {
-                    const files = Array.from(event.currentTarget.files ?? []).slice(0, 1)
-                    event.currentTarget.value = ''
-                    void upload(files, angle)
-                  }}
-                />
-                {busy ? (
-                  <IconLoader2 size={18} className="animate-spin" aria-hidden />
-                ) : (
-                  <IconCamera size={18} aria-hidden />
-                )}
-              </label>
-              <span className="text-[10px] text-text-muted">{label}</span>
+            <li key={angle}>
+              {camera(
+                angle,
+                <span
+                  className={cn(
+                    'flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-[16px] border-2 border-dashed text-[16px] font-semibold',
+                    angle === nextAngle
+                      ? 'border-brand-red bg-brand-red/10 text-text-primary'
+                      : 'border-border text-text-secondary'
+                  )}
+                >
+                  {uploading === angle ? (
+                    <IconLoader2
+                      size={30}
+                      className="animate-spin"
+                      aria-hidden
+                    />
+                  ) : (
+                    <IconCamera size={30} aria-hidden />
+                  )}
+                  {label}
+                </span>,
+                'block'
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      <ul className="flex flex-wrap gap-2">
+        {small.map(({ angle, photo }) => {
+          if (photo) {
+            const label = PHOTO_ANGLE_LABELS[angle]
+            return (
+              <li key={angle} className="flex flex-col items-center gap-1">
+                <span className="relative">
+                  {thumb(
+                    photo,
+                    `${label.toLowerCase()} ${stageWord} photo for ${who}`,
+                    true
+                  )}
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-success text-brand-black"
+                  >
+                    <IconCheck size={12} stroke={3} />
+                  </span>
+                </span>
+                <span className="text-[13px] text-text-secondary">{label}</span>
+              </li>
+            )
+          }
+          if (room <= 0) return null
+          return (
+            <li key={angle}>
+              {camera(
+                angle,
+                <span className="flex h-12 items-center gap-1 rounded-full border border-white/20 px-4 text-[16px] text-text-primary">
+                  {uploading === angle ? (
+                    <IconLoader2
+                      size={16}
+                      className="animate-spin"
+                      aria-hidden
+                    />
+                  ) : (
+                    '+'
+                  )}{' '}
+                  {shortLabel(angle)}
+                </span>,
+                'block'
+              )}
             </li>
           )
         })}
 
         {extras.map((photo, i) => (
-          <li key={photo.id} className="flex w-16 flex-col items-center gap-0.5">
+          <li key={photo.id} className="flex flex-col items-center gap-1">
             {thumb(photo, `extra ${stageWord} photo ${i + 1} for ${who}`, true)}
-            <span className="text-[10px] text-text-secondary">Extra</span>
+            <span className="text-[13px] text-text-secondary">Extra</span>
           </li>
         ))}
 
         {room > 0 && (
-          <li className="flex w-16 flex-col items-center gap-0.5">
+          <li>
             {/* Anything else: several at once, from the camera or the gallery. */}
-            <label
-              className={cn(
-                'flex size-16 cursor-pointer items-center justify-center rounded-[10px] border border-dashed border-border text-text-secondary transition-colors hover:border-text-secondary',
-                uploading !== null && 'pointer-events-none opacity-60'
-              )}
-            >
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="sr-only"
-                aria-label={`Add ${stageWord} photos for ${who}`}
-                disabled={uploading !== null}
-                onChange={(event) => {
-                  const files = Array.from(event.currentTarget.files ?? []).slice(0, Math.max(0, room))
-                  event.currentTarget.value = ''
-                  void upload(files, undefined)
-                }}
-              />
-              {uploading === 'extra' ? (
-                <IconLoader2 size={18} className="animate-spin" aria-hidden />
-              ) : (
-                <IconCameraPlus size={18} aria-hidden />
-              )}
-            </label>
-            <span className="text-[10px] text-text-muted">More</span>
+            {camera(
+              undefined,
+              <span className="flex h-12 items-center gap-1.5 rounded-full border border-white/20 px-4 text-[16px] text-text-primary">
+                {uploading === 'extra' ? (
+                  <IconLoader2 size={16} className="animate-spin" aria-hidden />
+                ) : (
+                  <IconCameraPlus size={18} aria-hidden />
+                )}
+                More
+              </span>,
+              'block'
+            )}
           </li>
         )}
       </ul>
@@ -289,12 +397,17 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
           their side. Theirs to add or remove, never the garage's. */}
       {customers.length > 0 && (
         <div className="flex flex-col gap-1 pt-1">
-          <p className="text-[11px] text-text-secondary">From {who}</p>
+          <p className="text-[13px] text-text-secondary">{`From ${who}`}</p>
           <ul className="flex flex-wrap gap-2">
             {customers.map((photo, i) => (
-              <li key={photo.id} className="flex w-16 flex-col items-center gap-0.5">
+              <li
+                key={photo.id}
+                className="flex w-16 flex-col items-center gap-0.5"
+              >
                 {thumb(photo, `customer's ${stageWord} photo ${i + 1}`, false)}
-                <span className="text-[10px] text-text-muted">{angleLabel(photo.angle)}</span>
+                <span className="text-[13px] text-text-secondary">
+                  {angleLabel(photo.angle)}
+                </span>
               </li>
             ))}
           </ul>
@@ -318,25 +431,24 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
             />
             {confirming ? (
               <>
-                <p className="text-[13px] text-text-primary">
-                  Remove this {stageWord} photo? It is your record of the job if the customer
-                  questions the work later.
+                <p className="text-[15px] text-text-primary">
+                  {`Remove this ${stageWord} photo? It is your record of the job if the customer questions the work later.`}
                 </p>
                 <div className="flex gap-2">
                   <ScButton
-                    variant="secondary"
+                    variant="outline"
+                    size="md"
                     disabled={removingId !== null}
                     onClick={() => setConfirming(false)}
-                    className="min-h-11"
                   >
                     Keep
                   </ScButton>
                   <ScButton
-                    variant="secondary"
+                    variant="danger-outline"
+                    size="md"
                     disabled={removingId !== null}
                     onClick={() => handleRemove(viewing.photo.id)}
                     aria-label={`Remove ${viewing.name}`}
-                    className="min-h-11 text-error"
                   >
                     {removingId === viewing.photo.id ? 'Removing…' : 'Remove'}
                   </ScButton>
@@ -344,14 +456,14 @@ export function JobPhotos({ booking, stage, onChanged, readOnly = false }: JobPh
               </>
             ) : (
               <div className="flex gap-2">
-                <ScButton variant="secondary" onClick={closeViewer} className="min-h-11">
+                <ScButton variant="outline" size="md" onClick={closeViewer}>
                   Close
                 </ScButton>
                 {!readOnly && viewing.own && (
                   <ScButton
-                    variant="secondary"
+                    variant="outline"
+                    size="md"
                     onClick={() => setConfirming(true)}
-                    className="min-h-11"
                   >
                     Remove photo
                   </ScButton>

@@ -393,6 +393,12 @@ export const CUSTOMERS = {
    */
   contact: { id: id(3401), phone: '9000003401', name: 'Contact Chitra', vehicleId: id(3402) },
   /**
+   * The garage's Today view and job page (specs/vendors/today.spec.ts), at
+   * VENDORS.today only. Ids 3900–3999 and phones 90000039xx (from 01) are
+   * this feature's own range. Owns the five BOOKINGS.today* jobs.
+   */
+  today: { id: id(3901), phone: '9000003901', name: 'Today Tharun', vehicleId: id(3902) },
+  /**
    * Customers whose *session* is the thing under test.
    *
    * Logging out and revoking refresh tokens are destructive to the session
@@ -490,6 +496,8 @@ export const STAFF = {
   certificateOwner: { id: id(3302), phone: '9000003302', name: 'Certificate Owner Kannan' },
   /** Owns VENDORS.contact only (contact windows; the 3400–3499 range). */
   contactOwner: { id: id(3405), phone: '9000003405', name: 'Contact Owner Charu' },
+  /** Owns VENDORS.today only (the garage's Today view; the 3900–3999 range). */
+  todayOwner: { id: id(3905), phone: '9000003905', name: 'Today Owner Thenmozhi' },
 } as const
 
 export const VENDORS = {
@@ -705,6 +713,12 @@ export const VENDORS = {
    * are CONTACT_GARAGE's, so a spec can look for them in a payload.
    */
   contact: { id: id(3410), name: 'Window Wash Garage' },
+  /**
+   * The garage's Today view and job page: pending and unverified (no customer
+   * finds it), open 06:00–22:00, one ₹700 wash (SERVICES.todayWash). Only
+   * specs/vendors/today.spec.ts reads it.
+   */
+  today: { id: id(3910), name: 'Today Test Garage' },
 } as const
 
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
@@ -864,6 +878,8 @@ export const SERVICES = {
   certificatePolish: { id: id(3312), name: 'Record Machine Polish', price: '2500.00', durationMins: 180 },
   /** On VENDORS.contact (contact windows): its one service. */
   contactWash: { id: id(3412), name: 'Window Foam Wash', price: '400.00', durationMins: 45 },
+  /** On VENDORS.today (the garage's Today view): its one service. */
+  todayWash: { id: id(3912), name: 'Today Foam Wash', price: '700.00', durationMins: 45 },
 } as const
 
 export const DISCOUNTS = {
@@ -1179,6 +1195,21 @@ export const BOOKINGS = {
   contactLater: id(3421),
   contactDone: id(3422),
   contactDoorstep: id(3423),
+  /**
+   * The garage's Today view, CUSTOMERS.today's paid ₹700 washes at
+   * VENDORS.today, placed so each list holds the same jobs whatever the
+   * clock: `todayWorking` in progress since an hour ago (Today › Now);
+   * `todayLate` accepted for an hour ago and not started (Today › Next);
+   * `todayAnswer` new, two days ahead, with three hours left to answer
+   * (New, and the pinned row); `todayLater` accepted four days ahead
+   * (Later); `todayDone` completed yesterday (Done). The spec starts and
+   * completes with Undo, so nothing is changed.
+   */
+  todayWorking: id(3920),
+  todayLate: id(3921),
+  todayAnswer: id(3922),
+  todayLater: id(3923),
+  todayDone: id(3924),
 } as const
 
 /** Where BOOKINGS.contactDoorstep's crew goes (contact windows). */

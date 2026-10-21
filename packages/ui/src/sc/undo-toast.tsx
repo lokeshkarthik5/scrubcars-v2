@@ -1,18 +1,28 @@
-import { toast } from 'react-toastify'
+import { toast, type Id } from 'react-toastify'
 
 /**
  * "Job started · Undo": the action has already happened, and this offers
  * the way back for a few seconds (the audits' answer for quick steps such
  * as Start and Complete, where a confirm would slow every tap). Drawn by
  * the ToastContainer each app's layout already renders. Undo is a real
- * button, 44px tall, and closes the toast once pressed.
+ * button, 44px tall, and closes the toast once pressed. It undoes once,
+ * however often it is tapped while the toast animates out.
+ *
+ * Returns the toast's id (`toastId` when given), so a caller can dismiss
+ * it (`toast.dismiss(id)`) once the action can no longer be taken back.
  */
 export function showUndoToast(
   message: string,
-  opts: { onUndo: () => void; durationMs?: number; undoLabel?: string }
-): void {
-  const { onUndo, durationMs = 6000, undoLabel = 'Undo' } = opts
-  toast(
+  opts: {
+    onUndo: () => void
+    durationMs?: number
+    undoLabel?: string
+    toastId?: Id
+  }
+): Id {
+  const { onUndo, durationMs = 6000, undoLabel = 'Undo', toastId } = opts
+  let undone = false
+  return toast(
     ({ closeToast }) => (
       <div className="flex w-full items-center gap-3">
         <span className="min-w-0 flex-1 text-[13px] text-text-primary">
@@ -21,7 +31,10 @@ export function showUndoToast(
         <button
           type="button"
           onClick={() => {
-            onUndo()
+            if (!undone) {
+              undone = true
+              onUndo()
+            }
             closeToast()
           }}
           className="-my-2 -mr-2 min-h-11 min-w-11 shrink-0 rounded-[10px] px-3 text-[14px] font-semibold text-text-primary underline underline-offset-4 hover:bg-surface-elevated"
@@ -36,8 +49,13 @@ export function showUndoToast(
       // way back away. Not an alert: nothing went wrong.
       closeOnClick: false,
       closeButton: false,
-      pauseOnHover: true,
+      // Never paused: the action is saved when its own timer runs out,
+      // whatever the toast does, so a paused toast would offer Undo for
+      // something already saved.
+      pauseOnHover: false,
+      pauseOnFocusLoss: false,
       role: 'status',
+      ...(toastId !== undefined ? { toastId } : {}),
     }
   )
 }

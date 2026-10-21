@@ -14,7 +14,13 @@
  */
 import { test, expect } from '../../support/fixtures'
 import { API, loginViaApi, statePath } from '../../support/auth'
-import { getBooking, getCharges, getPayment, getTimeProposals, movedTo } from '../../support/db'
+import {
+  getBooking,
+  getCharges,
+  getPayment,
+  getTimeProposals,
+  movedTo,
+} from '../../support/db'
 import { openActors } from '../../support/journey'
 import { BOOKINGS, CUSTOMERS, VENDORS } from '../../support/seed-ids'
 
@@ -31,10 +37,13 @@ function tomorrowAt(hour: number): Date {
   return d
 }
 
-const istDay = (date: Date) => date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+const istDay = (date: Date) =>
+  date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
 test.describe('garage suggests another time @p0', () => {
-  test('two times offered, the customer picks one, and the booking is confirmed there', async ({ browser }) => {
+  test('two times offered, the customer picks one, and the booking is confirmed there', async ({
+    browser,
+  }) => {
     const { customer, vendorCtx, close } = await openActors(
       browser,
       'customer-proposalPicker',
@@ -63,41 +72,55 @@ test.describe('garage suggests another time @p0', () => {
       `${API}/api/v1/vendors/me/bookings/${bookingId}/time-proposal`,
       {
         headers: HEADERS,
-        data: { slots: [second.toISOString(), first.toISOString()], note: 'Both bays are busy at 10' },
+        data: {
+          slots: [second.toISOString(), first.toISOString()],
+          note: 'Both bays are busy at 10',
+        },
       }
     )
     expect(suggested.status()).toBe(201)
     const suggestedBooking = (await suggested.json()).data
     expect(suggestedBooking.timeProposal.status).toBe('open')
-    expect(suggestedBooking.timeProposal.options.map((o: string) => new Date(o).getTime())).toEqual([
-      first.getTime(),
-      second.getTime(),
-    ])
+    expect(
+      suggestedBooking.timeProposal.options.map((o: string) =>
+        new Date(o).getTime()
+      )
+    ).toEqual([first.getTime(), second.getTime()])
 
     // While it waits, the garage can neither accept nor suggest again.
-    const accept = await vendorCtx.request.patch(`${API}/api/v1/bookings/${bookingId}/accept`, {
-      headers: HEADERS,
-    })
+    const accept = await vendorCtx.request.patch(
+      `${API}/api/v1/bookings/${bookingId}/accept`,
+      {
+        headers: HEADERS,
+      }
+    )
     expect(accept.status()).toBe(409)
     expect((await accept.json()).code).toBe('TIME_PROPOSAL_OPEN')
 
     // Nobody else can answer it.
     const stranger = await loginViaApi(CUSTOMERS.proposalDecliner.phone)
-    const stolen = await stranger.post(`${API}/api/v1/bookings/${bookingId}/time-proposal/choose`, {
-      data: { slot: first.toISOString() },
-    })
+    const stolen = await stranger.post(
+      `${API}/api/v1/bookings/${bookingId}/time-proposal/choose`,
+      {
+        data: { slot: first.toISOString() },
+      }
+    )
     expect(stolen.status()).toBe(404)
     await stranger.dispose()
 
     // ── the customer picks the first on their booking page ─────────────────
     await customer.goto(`/bookings/${bookingId}`)
     await expect(
-      customer.getByRole('heading', { name: /can't do 10:00 AM — pick another time/ })
+      customer.getByRole('heading', {
+        name: /can't do 10:00 AM — pick another time/,
+      })
     ).toBeVisible()
     await expect(customer.getByText('Both bays are busy at 10')).toBeVisible()
     await customer.getByRole('button', { name: /^Book .+, 2:00 PM$/ }).click()
 
-    await expect.poll(async () => (await movedTo(bookingId))?.status).toBe('confirmed')
+    await expect
+      .poll(async () => (await movedTo(bookingId))?.status)
+      .toBe('confirmed')
     const moved = (await movedTo(bookingId))!
     expect(moved.scheduled_at.getTime()).toBe(first.getTime())
     expect(moved.accepted_at).not.toBeNull()
@@ -117,8 +140,12 @@ test.describe('garage suggests another time @p0', () => {
     await close()
   })
 
-  test('none work: cancelled as the garage’s decline, refunded in full', async ({ browser }) => {
-    const vendorCtx = await browser.newContext({ storageState: statePath('vendor-proposals') })
+  test('none work: cancelled as the garage’s decline, refunded in full', async ({
+    browser,
+  }) => {
+    const vendorCtx = await browser.newContext({
+      storageState: statePath('vendor-proposals'),
+    })
     const customer = await loginViaApi(CUSTOMERS.proposalDecliner.phone)
     const bookingId = BOOKINGS.proposalDecline
 
@@ -128,7 +155,9 @@ test.describe('garage suggests another time @p0', () => {
     )
     expect(suggested.status()).toBe(201)
 
-    const declined = await customer.post(`${API}/api/v1/bookings/${bookingId}/time-proposal/decline`)
+    const declined = await customer.post(
+      `${API}/api/v1/bookings/${bookingId}/time-proposal/decline`
+    )
     expect(declined.ok()).toBe(true)
     const booking = (await declined.json()).data
     expect(booking.status).toBe('cancelled')
@@ -139,9 +168,12 @@ test.describe('garage suggests another time @p0', () => {
     expect((await getTimeProposals(bookingId))[0].status).toBe('declined')
 
     // Answered: it can't be picked any more.
-    const late = await customer.post(`${API}/api/v1/bookings/${bookingId}/time-proposal/choose`, {
-      data: { slot: tomorrowAt(18).toISOString() },
-    })
+    const late = await customer.post(
+      `${API}/api/v1/bookings/${bookingId}/time-proposal/choose`,
+      {
+        data: { slot: tomorrowAt(18).toISOString() },
+      }
+    )
     expect(late.status()).toBe(409)
     expect((await late.json()).code).toBe('TIME_PROPOSAL_CLOSED')
 
@@ -151,7 +183,9 @@ test.describe('garage suggests another time @p0', () => {
 })
 
 test.describe('extra work approved and paid in the app @p0', () => {
-  test('the garage asks, the customer pays, the garage sees it approved', async ({ browser }) => {
+  test('the garage asks, the customer pays, the garage sees it approved', async ({
+    browser,
+  }) => {
     const { customer, vendor, vendorCtx, close } = await openActors(
       browser,
       'customer-extraWorkPayer',
@@ -165,27 +199,42 @@ test.describe('extra work approved and paid in the app @p0', () => {
       `${API}/api/v1/vendors/me/bookings/${bookingId}/extra-work`,
       {
         headers: HEADERS,
-        data: { description: 'Replace front wiper blades', amount: 450, note: 'Both blades are torn' },
+        data: {
+          description: 'Replace front wiper blades',
+          amount: 450,
+          note: 'Both blades are torn',
+        },
       }
     )
     expect(asked.status()).toBe(201)
     const work = (await asked.json()).data
-    expect(work).toMatchObject({ description: 'Replace front wiper blades', amount: '450.00', state: 'awaiting' })
+    expect(work).toMatchObject({
+      description: 'Replace front wiper blades',
+      amount: '450.00',
+      state: 'awaiting',
+    })
 
     // It can't complete the job while the customer hasn't answered.
-    const early = await vendorCtx.request.patch(`${API}/api/v1/bookings/${bookingId}/complete`, {
-      headers: HEADERS,
-    })
+    const early = await vendorCtx.request.patch(
+      `${API}/api/v1/bookings/${bookingId}/complete`,
+      {
+        headers: HEADERS,
+      }
+    )
     expect(early.status()).toBe(409)
     expect((await early.json()).code).toBe('EXTRA_WORK_AWAITING')
 
     // ── the customer approves it by paying ─────────────────────────────────
     await customer.goto(`/bookings/${bookingId}`)
-    await expect(customer.getByRole('heading', { name: 'Extra work' })).toBeVisible()
+    await expect(
+      customer.getByRole('heading', { name: 'Extra work' })
+    ).toBeVisible()
     await expect(customer.getByText('Replace front wiper blades')).toBeVisible()
     await customer.getByRole('button', { name: /^Approve & pay ₹450/ }).click()
 
-    await expect.poll(async () => (await getCharges(bookingId))[0]?.status).toBe('paid')
+    await expect
+      .poll(async () => (await getCharges(bookingId))[0]?.status)
+      .toBe('paid')
     const [paid] = await getCharges(bookingId)
     expect(paid.id).toBe(work.id)
     expect(paid.kind).toBe('extra_work')
@@ -195,13 +244,20 @@ test.describe('extra work approved and paid in the app @p0', () => {
     await expect(customer.getByText(/Approved and paid on/)).toBeVisible()
 
     // ── the garage sees it approved, and can finish the job ────────────────
-    await vendor.goto('/bookings')
-    await vendor.getByRole('radio', { name: /^Upcoming/ }).click()
-    await expect(vendor.getByText('Approved & paid — go ahead')).toBeVisible()
+    await vendor.goto(`/bookings/${bookingId}`)
+    // The job page's Extra work row says where it stands.
+    await expect(
+      vendor.getByText(
+        /Replace front wiper blades · Approved & paid — go ahead/
+      )
+    ).toBeVisible()
 
-    const done = await vendorCtx.request.patch(`${API}/api/v1/bookings/${bookingId}/complete`, {
-      headers: HEADERS,
-    })
+    const done = await vendorCtx.request.patch(
+      `${API}/api/v1/bookings/${bookingId}/complete`,
+      {
+        headers: HEADERS,
+      }
+    )
     expect(done.ok()).toBe(true)
     expect((await getBooking(bookingId))?.status).toBe('completed')
 

@@ -27,7 +27,10 @@ const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set([
 ])
 
 /** A job with no one left to reach: refused, cancelled or moved. */
-const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 'rescheduled'])
+const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set([
+  'cancelled',
+  'rescheduled',
+])
 
 /**
  * Where a job happens and how to reach its customer, on a job card.
@@ -46,7 +49,16 @@ const ENDED_STATUSES: ReadonlySet<Booking['status']> = new Set(['cancelled', 're
  * A pickup & drop job shows the same: the address is where the car is
  * collected from and brought back to, with Directions.
  */
-export function JobContact({ booking, now }: { booking: Booking; now: number }) {
+export function JobContact({
+  booking,
+  now,
+  callButtons = true,
+}: {
+  booking: Booking
+  now: number
+  /** Off where the page's header has its own Call and WhatsApp (the job page). */
+  callButtons?: boolean
+}) {
   const doorstep = booking.bookingType === 'doorstep'
   const pickup = booking.bookingType === 'pickup'
   const open = OPEN_STATUSES.has(booking.status)
@@ -54,7 +66,8 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
   const ended = ENDED_STATUSES.has(booking.status)
   const who = booking.customerName || 'the customer'
   const firstName = booking.customerName?.trim().split(/\s+/)[0]
-  const location = (doorstep || pickup) && open ? booking.jobLocation : undefined
+  const location =
+    (doorstep || pickup) && open ? booking.jobLocation : undefined
   // An unpinned address goes to Maps as text, which searches better with the
   // city on the end; the garage's own city is the customer's too.
   const city = booking.garage?.city
@@ -73,13 +86,17 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
       {pickup ? (
         // Its own badge: a pickup job has steps the others don't, and the
         // car is the garage's responsibility from the moment it is collected.
-        <span className="flex w-fit items-center gap-1.5 rounded-full border border-border bg-surface-elevated px-2.5 py-1 text-[12px] font-medium text-text-primary">
-          <IconCar size={14} aria-hidden />
+        <span className="flex w-fit items-center gap-1.5 rounded-full border border-border bg-surface-elevated px-2.5 py-1 text-[15px] font-medium text-text-primary">
+          <IconCar size={16} aria-hidden />
           {BOOKING_TYPE_LABELS.pickup}
         </span>
       ) : (
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-text-primary">
-          {doorstep ? <IconHome size={14} aria-hidden /> : <IconMapPin size={14} aria-hidden />}
+        <span className="flex items-center gap-1.5 text-[15px] font-medium text-text-primary">
+          {doorstep ? (
+            <IconHome size={16} aria-hidden />
+          ) : (
+            <IconMapPin size={16} aria-hidden />
+          )}
           {BOOKING_TYPE_LABELS[booking.bookingType]}
         </span>
       )}
@@ -88,13 +105,15 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
         <div className="flex flex-col gap-2 rounded-[10px] bg-surface-elevated px-3 py-2.5">
           <div>
             {pickup && (
-              <p className="text-[11px] text-text-secondary">Collect from and return to</p>
+              <p className="text-[13px] text-text-secondary">
+                Collect from and return to
+              </p>
             )}
-            <p className="text-[12px] text-text-primary">{location.address}</p>
+            <p className="text-[15px] text-text-primary">{location.address}</p>
             {/* An address saved before pins were required has none: the text
                 still gets Maps close, but the exact gate is worth a call. */}
             {(location.lat === null || location.lng === null) && (
-              <p className="mt-0.5 text-[11px] text-text-secondary">
+              <p className="mt-0.5 text-[13px] text-text-secondary">
                 No map pin on this address. Call to confirm the spot.
               </p>
             )}
@@ -107,7 +126,7 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`Open in Maps for ${who}`}
-              className="flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-border bg-surface px-3 text-[13px] font-medium text-text-primary transition-colors hover:border-text-secondary"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-[10px] border border-border bg-surface px-3 text-[15px] font-medium text-text-primary transition-colors hover:border-text-secondary"
             >
               <IconNavigation size={16} aria-hidden />
               Open in Maps
@@ -116,7 +135,7 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
         </div>
       )}
 
-      {!ended && windowState === 'open' && (
+      {!ended && windowState === 'open' && callButtons && (
         <ContactButtons
           who={who}
           callHref={telHref(booking.customerPhone)}
@@ -130,20 +149,27 @@ export function JobContact({ booking, now }: { booking: Booking; now: number }) 
 
       {!ended && windowState !== 'open' && (
         <div className="flex flex-col rounded-[10px] bg-surface-elevated px-3 pt-2.5">
-          <p className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-            <IconPhoneOff size={14} className="shrink-0" aria-hidden />
+          <p className="flex items-center gap-1.5 text-[15px] text-text-secondary">
+            <IconPhoneOff size={16} className="shrink-0" aria-hidden />
             {customerNumberHiddenLine(windowState)}
           </p>
           {/* WhatsApp, so the message arrives with the booking named. */}
           <a
             href={supportWhatsAppHref(
-              garageSupportMessage(booking.vendorName, `#${bookingReference(booking.id)}`)
+              garageSupportMessage(
+                booking.vendorName,
+                `#${bookingReference(booking.id)}`
+              )
             )}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-11 items-center gap-1.5 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+            className="flex min-h-12 items-center gap-1.5 text-[15px] text-text-secondary transition-colors hover:text-text-primary"
           >
-            <IconBrandWhatsapp size={14} className="shrink-0 text-[#25D366]" aria-hidden />
+            <IconBrandWhatsapp
+              size={16}
+              className="shrink-0 text-[#25D366]"
+              aria-hidden
+            />
             <span>
               Need to reach the customer?{' '}
               <span className="font-medium text-text-primary underline underline-offset-2">
