@@ -10,6 +10,7 @@ import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { useAdminRewardsConfig } from '@repo/core/api/hooks/use-admin-rewards'
 import { AchievementsSettings } from '@/components/rewards/achievements-settings'
 import { ChallengesSection } from '@/components/rewards/challenges-section'
+import { GarageSection } from '@/components/rewards/garage-section'
 import { CustomerRewardsSection } from '@/components/rewards/customer-rewards-section'
 import { WrappedSection } from '@/components/rewards/wrapped-section'
 import { RewardsOverview } from '@/components/rewards/rewards-overview'
@@ -21,6 +22,7 @@ const TAB_LABELS: Record<RewardsTab, string> = {
   customers: 'Customers',
   achievements: 'Achievements',
   challenges: 'Challenges',
+  garage: 'Garage',
   wrapped: 'Wrapped',
   settings: 'Settings',
 }
@@ -39,7 +41,7 @@ function RewardsContent() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Rewards" subtitle="Detlio Rewards: Shine Card, scratch cards, levels, invites, badges, challenges and Wrapped" />
+      <PageHeader title="Rewards" subtitle="Detlio Rewards: Shine Card, scratch cards, levels, invites, badges, challenges, the Garage and Wrapped" />
       {config.isPending ? (
         <SkeletonList />
       ) : !config.data?.masterSwitch ? (
@@ -59,6 +61,7 @@ function RewardsContent() {
           {tab === 'customers' && <CustomerRewardsSection userId={customer} onUserId={(id) => go('customers', { customer: id })} />}
           {tab === 'achievements' && <AchievementsSettings />}
           {tab === 'challenges' && <ChallengesSection />}
+          {tab === 'garage' && <GarageSection />}
           {tab === 'wrapped' && <WrappedSection />}
           {tab === 'settings' && <RewardsSettingsForm />}
         </>

@@ -41,11 +41,20 @@
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto'
 import { addDays, istDateKey, istMidnight, istParts, MONTHS } from './ist.js'
 import { formatRupees } from './discounts.js'
+import { garageSettings, garageSettingsProblems, type GarageSettings } from './garage.js'
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 
+/** The prizes drawn by weight (the odds table, adding up to 100). */
 export const SCRATCH_OUTCOMES = ['small_off', 'medium_off', 'big_off', 'bonus_stamp', 'free_wash'] as const
-export type ScratchOutcome = (typeof SCRATCH_OUTCOMES)[number]
+export type WeightedOutcome = (typeof SCRATCH_OUTCOMES)[number]
+/**
+ * What a card can be: a weighted prize, or (0057) a Detlio Garage card,
+ * drawn first with the Garage's own chance (`settings.garage.scratchCardWeight`)
+ * while the Garage is live, so the 0050 odds table keeps adding up to 100.
+ */
+export const CARD_OUTCOMES = [...SCRATCH_OUTCOMES, 'garage_card'] as const
+export type ScratchOutcome = (typeof CARD_OUTCOMES)[number]
 /** The prizes that are money (a voucher). */
 export const MONEY_OUTCOMES = ['small_off', 'medium_off', 'big_off', 'free_wash'] as const
 export type MoneyOutcome = (typeof MONEY_OUTCOMES)[number]
@@ -53,7 +62,7 @@ export type MoneyOutcome = (typeof MONEY_OUTCOMES)[number]
 export const LEVELS = ['member', 'silver', 'gold', 'platinum', 'diamond', 'icon'] as const
 export type RewardLevel = (typeof LEVELS)[number]
 
-export type ScratchWeights = Record<ScratchOutcome, number>
+export type ScratchWeights = Record<WeightedOutcome, number>
 
 export interface LevelSettings {
   key: RewardLevel
@@ -116,6 +125,12 @@ export interface RewardsSettings {
    * versioned, audit-logged settings as everything else.
    */
   achievements?: Partial<Record<BadgeKey, BadgeSettings>>
+  /**
+   * The Detlio Garage (0057): its switch, odds, pity, duplicates, row
+   * reward and extra sources. Optional like `achievements`: a version saved
+   * before 0057 reads as the defaults (`garageSettings` in lib/garage.ts).
+   */
+  garage?: Partial<GarageSettings>
 }
 
 // ─── Achievements settings (0054) ───────────────────────────────────────────
@@ -144,6 +159,8 @@ export const BADGE_KEYS = [
   'ambassador',
   'detailing_devotee',
   'coating_club',
+  // 0057: every car of a Detlio Garage series collected.
+  'garage_legend',
 ] as const
 export type BadgeKey = (typeof BADGE_KEYS)[number]
 
@@ -178,6 +195,7 @@ export const DEFAULT_ACHIEVEMENT_SETTINGS: Record<BadgeKey, BadgeSettings> = {
   ambassador: { enabled: true, bonusStamps: 1 },
   detailing_devotee: { enabled: true, bonusStamps: 1 },
   coating_club: { enabled: true, bonusStamps: 1 },
+  garage_legend: { enabled: true, bonusStamps: 2 },
 }
 
 /** The badges as the settings in force say: stored values over the defaults, every key present. */
@@ -343,6 +361,8 @@ export function settingsProblems(s: RewardsSettings): string[] {
     }
   }
 
+  if (s.garage !== undefined) problems.push(...garageSettingsProblems(garageSettings(s)))
+
   s.levels.forEach((level, i) => {
     const name = level.label || level.key
     check(
@@ -414,6 +434,8 @@ export const VOUCHER_KINDS = [
   'annual_detailing',
   'adjustment',
   'challenge',
+  // 0057: a finished row of the Detlio Garage.
+  'garage_row',
 ] as const
 export type VoucherKind = (typeof VOUCHER_KINDS)[number]
 
@@ -426,12 +448,13 @@ export const VOUCHER_LABELS: Record<VoucherKind, string> = {
   annual_detailing: 'Annual detailing',
   adjustment: 'From Detlio',
   challenge: 'Challenge prize',
+  garage_row: 'Garage row complete',
 }
 
 /** Kinds whose amount is counted toward the cap when the card is made, not when the voucher is. */
 export const SCRATCH_VOUCHER_KINDS: readonly VoucherKind[] = ['scratch', 'free_wash']
 
-export const STAMP_SOURCES = ['booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge', 'coupon'] as const
+export const STAMP_SOURCES = ['booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge', 'coupon', 'garage'] as const
 export type StampSource = (typeof STAMP_SOURCES)[number]
 
 export const STAMP_LABELS: Record<StampSource, string> = {
@@ -443,6 +466,8 @@ export const STAMP_LABELS: Record<StampSource, string> = {
   challenge: 'Bonus stamp (challenge)',
   // 0056: a printed coupon's bonus stamps.
   coupon: 'Bonus stamp (coupon)',
+  // 0057: the Garage's duplicates (every 3 make one), or a finished row past the budget.
+  garage: 'Bonus stamp (Garage)',
 }
 
 /**
@@ -474,6 +499,7 @@ export function stampRefusalLabel(refusal: StampRefusal, settings: RewardsSettin
 /** What a scratched card says it won. */
 export function scratchPrizeLabel(outcome: ScratchOutcome, amount: number | string | null): string {
   if (outcome === 'bonus_stamp') return 'A bonus stamp'
+  if (outcome === 'garage_card') return 'A Garage card'
   const rupee = formatRupees(Math.round(Number(amount ?? 0)))
   return outcome === 'free_wash' ? `A free wash (up to ${rupee})` : `${rupee} off`
 }
@@ -806,9 +832,9 @@ export function pickScratchOutcome(
   roll: number,
   weights: ScratchWeights,
   settings: RewardsSettings
-): { outcome: ScratchOutcome; amount: number | null } {
+): { outcome: WeightedOutcome; amount: number | null } {
   let cursor = Math.floor(roll)
-  const prize = (outcome: ScratchOutcome) => ({
+  const prize = (outcome: WeightedOutcome) => ({
     outcome,
     amount: outcome === 'bonus_stamp' ? null : settings.scratchAmounts[outcome],
   })
@@ -819,7 +845,7 @@ export function pickScratchOutcome(
   return prize('bonus_stamp')
 }
 
-/** Draws a prize with the server's own randomness (crypto), or a seeded stand-in in tests. */
+/** Draws a weighted prize with the server's own randomness (crypto), or a seeded stand-in in tests. */
 export function drawScratchOutcome(
   level: RewardLevel,
   settings: RewardsSettings,
@@ -830,7 +856,7 @@ export function drawScratchOutcome(
 
 /** The voucher a money prize becomes. */
 export function scratchVoucherKind(outcome: ScratchOutcome): VoucherKind | null {
-  if (outcome === 'bonus_stamp') return null
+  if (outcome === 'bonus_stamp' || outcome === 'garage_card') return null
   return outcome === 'free_wash' ? 'free_wash' : 'scratch'
 }
 
@@ -1021,6 +1047,10 @@ export const NUDGE_KINDS = [
   'challenge_one_left',
   'challenge_won',
   'wrapped',
+  // 0057: the Detlio Garage: a new car, a finished row, the whole series.
+  'garage_card',
+  'garage_row',
+  'garage_series',
 ] as const
 export type NudgeKind = (typeof NUDGE_KINDS)[number]
 
@@ -1032,7 +1062,7 @@ export type NudgeKind = (typeof NUDGE_KINDS)[number]
  * next reminder wait. A challenge starting or "one to go" is a reminder to
  * book, so it counts like the 0050 nudges.
  */
-export const CELEBRATORY_NUDGE_KINDS: readonly NudgeKind[] = ['badge', 'challenge_won', 'wrapped']
+export const CELEBRATORY_NUDGE_KINDS: readonly NudgeKind[] = ['badge', 'challenge_won', 'wrapped', 'garage_card', 'garage_row', 'garage_series']
 
 export function isCelebratoryNudge(kind: NudgeKind): boolean {
   return CELEBRATORY_NUDGE_KINDS.includes(kind)
@@ -1138,6 +1168,8 @@ export function voucherIssuedWords(kind: VoucherKind, amount: number): { title: 
       return { title: 'A reward from Detlio', body: `${formatRupees(amount)} off your next booking is ready.` }
     case 'challenge':
       return { title: 'Challenge won', body: `${formatRupees(amount)} off your next booking is ready.` }
+    case 'garage_row':
+      return { title: 'Garage row complete', body: `${formatRupees(amount)} off your next booking is ready.` }
     default:
       return { title: 'You won a scratch card prize', body: `${formatRupees(amount)} off your next booking is ready.` }
   }

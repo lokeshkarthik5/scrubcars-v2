@@ -18,6 +18,7 @@ import { BUSINESS, GOVERNING_COURTS } from './details'
 import { LEGAL_PATHS } from './routes'
 import { BYPASS_LAWYER_NOTES } from './bypass-reports'
 import { GIFTS_LAWYER_NOTES } from './gifts'
+import { GARAGE_LAWYER_NOTES } from './garage'
 import { CONTACT_WINDOW_HOURS, CONTACT_WINDOW_LAWYER_NOTE } from './contact-window'
 import { GUARANTEE_LAWYER_NOTES } from './guarantee'
 
@@ -152,6 +153,8 @@ export const TERMS: LegalDoc = {
         // Gift a wash (0049): questions for the lawyer and CA only (notes are
         // never public copy). The public gift terms go here once agreed.
         ...GIFTS_LAWYER_NOTES,
+        // The Detlio Garage (0057): the chance element and any future prize, for the lawyer only.
+        ...GARAGE_LAWYER_NOTES,
       ],
     },
     {

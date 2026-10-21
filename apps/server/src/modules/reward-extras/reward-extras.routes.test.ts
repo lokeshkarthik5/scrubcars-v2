@@ -81,6 +81,7 @@ function challengeRow(over: Record<string, unknown> = {}) {
     rewardStamps: null,
     rewardAmount: null,
     rewardMultiplier: 2,
+    rewardCards: null,
     audienceMinLevel: null,
     maxWinners: 1000,
     createdBy: 'Detlio (example)',
@@ -225,6 +226,7 @@ const CHALLENGE = () => ({
   rewardStamps: null,
   rewardAmount: null,
   rewardMultiplier: 2,
+  rewardCards: null,
   audienceMinLevel: null,
   maxWinners: 1000,
   actorName: 'Asha',
@@ -345,7 +347,8 @@ describe('admin', () => {
   test('achievements: every badge with its switch, bonus and counts', async () => {
     const { body } = await call('GET', '/admin/rewards/achievements', 'breakGlass')
     const badges = body.data!.badges as Array<Record<string, unknown>>
-    expect(badges).toHaveLength(19)
+    // 19 from 0054, plus Garage Legend (0057).
+    expect(badges).toHaveLength(20)
     expect(badges[0]).toMatchObject({ key: 'first_shine', enabled: true, bonusStamps: 1, earned: 12, earnedThisMonth: 3 })
   })
 

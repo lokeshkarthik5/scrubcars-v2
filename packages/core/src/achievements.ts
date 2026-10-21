@@ -26,6 +26,7 @@ export const BADGE_KEYS = [
   'ambassador',
   'detailing_devotee',
   'coating_club',
+  'garage_legend',
 ] as const
 export type BadgeKey = (typeof BADGE_KEYS)[number]
 
@@ -54,6 +55,7 @@ export const DEFAULT_ACHIEVEMENT_SETTINGS: Record<BadgeKey, BadgeSettings> = {
   ambassador: { enabled: true, bonusStamps: 1 },
   detailing_devotee: { enabled: true, bonusStamps: 1 },
   coating_club: { enabled: true, bonusStamps: 1 },
+  garage_legend: { enabled: true, bonusStamps: 2 },
 }
 
 /** Bonus stamps a badge can give, as the API holds them. */
@@ -87,6 +89,7 @@ export const BADGE_CATALOG: readonly BadgeInfo[] = [
   { key: 'ambassador', label: 'Ambassador', howTo: 'Invite 3 friends who book through Detlio.', goal: 3 },
   { key: 'detailing_devotee', label: 'Detailing Devotee', howTo: 'Complete 3 detailing jobs.', goal: 3 },
   { key: 'coating_club', label: 'Coating Club', howTo: 'Complete a coating job.', goal: 1 },
+  { key: 'garage_legend', label: 'Garage Legend', howTo: 'Collect every car in a Detlio Garage series.', goal: 1 },
 ]
 
 /** The badges as the settings say: stored values over the defaults. */

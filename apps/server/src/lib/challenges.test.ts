@@ -43,6 +43,7 @@ function diwali(over: Partial<Challenge> = {}): Challenge {
     rewardStamps: null,
     rewardAmount: null,
     rewardMultiplier: 2,
+    rewardCards: null,
     audienceMinLevel: null,
     maxWinners: 1000,
     publishedAt: PUBLISHED,
@@ -166,6 +167,9 @@ describe('words', () => {
     expect(rewardLabel(diwali({ rewardKind: 'voucher', rewardAmount: 1500, rewardMultiplier: null }))).toBe('₹1,500 off')
     expect(rewardLabel(diwali({ rewardKind: 'stamps', rewardStamps: 1, rewardMultiplier: null }))).toBe('a bonus stamp')
     expect(rewardLabel(diwali({ rewardKind: 'badge', rewardMultiplier: null }))).toBe('the Diwali Shine badge')
+    expect(rewardLabel(diwali({ rewardKind: 'garage_cards', rewardCards: 3, rewardMultiplier: null }))).toBe('3 Garage cards')
+    expect(rewardLabel(diwali({ rewardKind: 'garage_cards', rewardCards: 1, rewardMultiplier: null }))).toBe('a Garage card')
+    expect(challengeWonWords(diwali({ rewardKind: 'garage_cards', rewardCards: 2, rewardMultiplier: null })).body).toBe('2 Garage cards are in your Garage.')
     expect(countsLine(diwali())).toBe('3 washes')
     expect(countsLine(diwali({ goalCount: 1, category: 'coating' }))).toBe('1 coating job')
     expect(countsLine(diwali({ goalCount: 2, bookingType: 'doorstep' }))).toBe('2 doorstep washes')

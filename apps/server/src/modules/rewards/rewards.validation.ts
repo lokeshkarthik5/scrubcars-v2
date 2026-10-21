@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { GARAGE_RARITIES } from '../../lib/garage.js'
 import { BADGE_KEYS, LEVELS, REWARDS_FIXED, SCRATCH_OUTCOMES, SETTINGS_LIMITS } from '../../lib/rewards.js'
 
 export const scratchCardParamSchema = z.object({ id: z.uuid() })
@@ -68,6 +69,29 @@ const achievements = z
   .strict()
 
 /**
+ * The Detlio Garage (0057): its switch and numbers. Every key optional: a
+ * key left out reads as its default (`garageSettings`); the ranges and the
+ * odds adding up to 100 are `garageSettingsProblems`.
+ */
+const garage = z
+  .object({
+    enabled: z.boolean().optional(),
+    rarityWeights: z
+      .object(Object.fromEntries(GARAGE_RARITIES.map((r) => [r, whole])) as Record<(typeof GARAGE_RARITIES)[number], z.ZodNumber>)
+      .strict()
+      .optional(),
+    unownedBiasPercent: whole.optional(),
+    pityRare: whole.optional(),
+    pityLegendary: whole.optional(),
+    duplicatesPerStar: whole.optional(),
+    rowVoucher: whole.optional(),
+    rowFallbackStamps: whole.optional(),
+    scratchCardWeight: whole.optional(),
+    badgeBonusCards: whole.optional(),
+  })
+  .strict()
+
+/**
  * The whole settings object, shape and types only. The ranges, the
  * weights adding up to 100 and the levels' order are lib/rewards.ts
  * `settingsProblems`, which the service runs on what this lets through.
@@ -109,6 +133,7 @@ export const rewardsSettingsSchema = z
     nudgeGapDays: whole,
     expiryWarningDays: whole,
     achievements: achievements.optional(),
+    garage: garage.optional(),
   })
   .strict()
 
