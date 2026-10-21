@@ -12,6 +12,7 @@ import {
   isFakeGatewayId,
   phraseMatches,
   planReceipts,
+  payoutGroups,
   planReset,
   untickedRows,
   type GatewayModeValue,
@@ -19,6 +20,7 @@ import {
   type ResetBooking,
   type ResetCharge,
   type ResetIntent,
+  type ResetPayout,
   type ResetReceipt,
 } from './data-reset.js'
 
@@ -774,5 +776,97 @@ describe('complaints made before the cutoff', () => {
     expect(confirmPhraseFor({ bookings: 0, checkouts: 0, complaints: 1 }, 0)).toBe('DELETE 1 COMPLAINT')
     // Checkouts are named before complaints.
     expect(confirmPhraseFor({ bookings: 0, checkouts: 2, complaints: 3 }, 2)).toBe('DELETE 2 CHECKOUTS')
+  })
+})
+
+describe('garage payouts', () => {
+  const payout = (n: number, roots: string[], recordedAt = before(3)): ResetPayout => ({
+    id: uuid(700 + n),
+    recordedAt,
+    rootBookingIds: roots,
+  })
+
+  test('chains paid out together are one group, joined through any payout', () => {
+    const groups = payoutGroups([
+      payout(1, [uuid(1), uuid(2)]),
+      payout(2, [uuid(2), uuid(3)]),
+      payout(3, [uuid(4)]),
+    ])
+    expect(groups.map((group) => group.roots).sort((a, b) => a[0].localeCompare(b[0]))).toEqual([
+      [uuid(1), uuid(2), uuid(3)],
+      [uuid(4)],
+    ])
+  })
+
+  test('a payout of test bookings before the cutoff goes with them', () => {
+    const plan = planReset(
+      input({ bookings: [booking(1), booking(2)], payouts: [payout(1, [uuid(1), uuid(2)])] })
+    )
+    expect(plan.selectedChainIds).toEqual([uuid(1), uuid(2)])
+    expect(plan.selectedPayoutIds).toEqual([uuid(701)])
+    expect(plan.counts.payouts).toBe(1)
+    expect(countLines(plan.counts)).toContain('1 garage payout')
+  })
+
+  test('a payout that also paid a kept booking keeps every booking it paid', () => {
+    const live = booking(2, {
+      payment: { status: 'paid', gatewayTxnId: 'pay_Live2', gatewayMode: 'live', amount: '499.00', refundedAmount: null },
+    })
+    const plan = planReset(input({ bookings: [booking(1), live], payouts: [payout(1, [uuid(1), uuid(2)])] }))
+    expect(plan.chains.find((chain) => chain.rootId === uuid(1))!.kept).toBe('paid_out')
+    expect(plan.chains.find((chain) => chain.rootId === uuid(2))!.kept).toBe('live')
+    expect(plan.selectedChainIds).toEqual([])
+    expect(plan.selectedPayoutIds).toEqual([])
+    expect(KEPT_REASONS.paid_out.label).toBe('Paid out to the garage — kept')
+  })
+
+  test('so does a payout that paid a booking outside the scope', () => {
+    const plan = planReset(input({ bookings: [booking(1)], payouts: [payout(1, [uuid(1), uuid(9)])] }))
+    expect(plan.chains[0].kept).toBe('paid_out')
+    expect(plan.selectedPayoutIds).toEqual([])
+  })
+
+  test('and one recorded after the cutoff: it may be a real transfer', () => {
+    const plan = planReset(input({ bookings: [booking(1)], payouts: [payout(1, [uuid(1)], after(1))] }))
+    expect(plan.chains[0].kept).toBe('paid_out')
+  })
+
+  test('unticking one booking of a payout keeps the others it paid', () => {
+    const plan = planReset(
+      input({
+        bookings: [booking(1), booking(2), booking(3)],
+        payouts: [payout(1, [uuid(1), uuid(2)])],
+        only: { chainIds: [uuid(1), uuid(3)], checkoutIds: [] },
+      })
+    )
+    expect(plan.selectedChainIds).toEqual([uuid(3)])
+    expect(plan.selectedPayoutIds).toEqual([])
+    expect(plan.overCap.chains).toBe(0)
+  })
+
+  test('a garage deleted forever takes its test payouts with it, and keeps a tombstone for a kept one', () => {
+    const scope = { kind: 'garage' as const, vendorId: uuid(900) }
+    const gone = planReset(input({ scope, bookings: [booking(1)], payouts: [payout(1, [uuid(1)])] }))
+    expect(gone.selectedPayoutIds).toEqual([uuid(701)])
+    const kept = planReset(
+      input({
+        scope,
+        bookings: [
+          booking(1),
+          booking(2, {
+            payment: { status: 'paid', gatewayTxnId: 'pay_Live2', gatewayMode: 'live', amount: '499.00', refundedAmount: null },
+          }),
+        ],
+        payouts: [payout(1, [uuid(1), uuid(2)])],
+      })
+    )
+    expect(kept.chains.every((chain) => chain.kept !== null)).toBe(true)
+    expect(kept.selectedPayoutIds).toEqual([])
+  })
+
+  test('the fingerprint names the payouts, and is unchanged for a run without any', () => {
+    const none = planReset(input({ bookings: [booking(1)] })).selectionHash
+    expect(planReset(input({ bookings: [booking(1)], payouts: [] })).selectionHash).toBe(none)
+    expect(planReset(input({ bookings: [booking(1)], payouts: [payout(1, [uuid(1)])] })).selectionHash).not.toBe(none)
   })
 })

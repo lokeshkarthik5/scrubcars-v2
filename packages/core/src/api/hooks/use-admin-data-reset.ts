@@ -13,6 +13,7 @@ import {
 import { ApiError } from '@repo/core/api/client'
 import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
 import { adminRefundKeys } from '@repo/core/api/hooks/use-admin-refunds'
+import { adminStatsKeys } from '@repo/core/api/hooks/use-admin-stats'
 import { pilotStatsKeys } from '@repo/core/api/hooks/use-pilot-stats'
 
 export const dataResetKeys = {
@@ -76,8 +77,8 @@ export function usePreviewDataReset() {
 }
 
 /**
- * The delete. Whatever it answers, the bookings, refunds and pilot numbers
- * on screen are out of date, so all of them are refetched.
+ * The delete. Whatever it answers, the bookings, refunds, pilot numbers and
+ * Statistics on screen are out of date, so all of them are refetched.
  */
 export function useExecuteDataReset() {
   const queryClient = useQueryClient()
@@ -85,6 +86,7 @@ export function useExecuteDataReset() {
     void queryClient.invalidateQueries({ queryKey: adminBookingKeys.all })
     void queryClient.invalidateQueries({ queryKey: adminRefundKeys.all })
     void queryClient.invalidateQueries({ queryKey: pilotStatsKeys.all })
+    void queryClient.invalidateQueries({ queryKey: adminStatsKeys.all })
   }
   return useMutation({
     mutationFn: (input: DataResetExecuteInput) => executeDataReset(input),
@@ -95,8 +97,8 @@ export function useExecuteDataReset() {
 
 /**
  * Marks a booking "Test" or takes the mark off. Answers with the booking,
- * written straight into its cache; the lists and the pilot numbers change
- * with it.
+ * written straight into its cache; the lists, the pilot numbers and the
+ * Statistics change with it.
  */
 export function useSetAdminBookingTestMark() {
   const queryClient = useQueryClient()
@@ -107,6 +109,7 @@ export function useSetAdminBookingTestMark() {
       queryClient.setQueryData(adminBookingKeys.detail(booking.id), booking)
       void queryClient.invalidateQueries({ queryKey: adminBookingKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: pilotStatsKeys.all })
+      void queryClient.invalidateQueries({ queryKey: adminStatsKeys.all })
     },
     onError: (_error, { id }) => {
       void queryClient.invalidateQueries({ queryKey: adminBookingKeys.detail(id) })

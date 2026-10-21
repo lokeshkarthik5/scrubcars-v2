@@ -8,7 +8,8 @@
  * - a booking reached 30 minutes of waiting since the last tick → post;
  * - a waiting booking's start time passed since the last tick → post;
  * - on the hour, while anything is waiting or refund-due → post a reminder;
- * - at 07:00 IST, if anything is listed → post the morning roll-up;
+ * - at 07:00 IST, if anything is listed → post the morning roll-up, which
+ *   also says what Detlio owes garages in payouts (and posts for that alone);
  * - never between 22:00 and 07:00 IST (the morning roll-up catches the night).
  *
  * Pickup & drop jobs (0037) ride on the same digest: an accepted pickup job
@@ -91,13 +92,36 @@ export interface DigestPlan {
   latePickups: LatePickupRow[]
 }
 
+/** The tick a run at `now` belongs to. */
+function tickOf(now: number): number {
+  const tickMs = DIGEST_TICK_MINS * MINUTE_MS
+  return Math.floor(now / tickMs) * tickMs
+}
+
+/** IST hour and minute of a tick. */
+function istClock(tick: number): { hour: number; minute: number } {
+  const istMinuteOfDay = (((tick / MINUTE_MS + IST_OFFSET_MINS) % 1440) + 1440) % 1440
+  return { hour: Math.floor(istMinuteOfDay / 60), minute: istMinuteOfDay % 60 }
+}
+
+/** Whether a run at `now` is the 07:00 IST morning roll-up's. */
+export function isMorningTick(now: number): boolean {
+  const { hour, minute } = istClock(tickOf(now))
+  return hour === MORNING_HOUR && minute === 0
+}
+
+/**
+ * `morningExtras`: the morning roll-up has something of its own to say
+ * (payouts due to garages), so it posts even with no booking listed.
+ */
 export function planPendingDigest(
   now: number,
   rows: PendingBookingRow[],
-  pickupRows: LatePickupRow[] = []
+  pickupRows: LatePickupRow[] = [],
+  options: { morningExtras?: boolean } = {}
 ): DigestPlan {
   const tickMs = DIGEST_TICK_MINS * MINUTE_MS
-  const tick = Math.floor(now / tickMs) * tickMs
+  const tick = tickOf(now)
   const previous = tick - tickMs
   const nudgeAfterMs = NUDGE_AFTER_MINS * MINUTE_MS
   const crossed = (at: number) => at > previous && at <= tick
@@ -111,9 +135,7 @@ export function planPendingDigest(
 
   // IST has no daylight saving, and 5h30 is a whole number of ticks, so IST
   // minutes line up with ticks.
-  const istMinuteOfDay = (((tick / MINUTE_MS + IST_OFFSET_MINS) % 1440) + 1440) % 1440
-  const hour = Math.floor(istMinuteOfDay / 60)
-  const minute = istMinuteOfDay % 60
+  const { hour, minute } = istClock(tick)
 
   const plan = (post: boolean, reason: DigestReason): DigestPlan => ({
     post,
@@ -125,7 +147,9 @@ export function planPendingDigest(
 
   if (hour >= QUIET_FROM_HOUR || hour < MORNING_HOUR) return plan(false, 'quiet_hours')
   if (waiting.length === 0 && missed.length === 0 && latePickups.length === 0) {
-    return plan(false, 'empty')
+    return hour === MORNING_HOUR && minute === 0 && options.morningExtras
+      ? plan(true, 'morning')
+      : plan(false, 'empty')
   }
   if (waiting.some((row) => crossed(row.waitingSince.getTime() + nudgeAfterMs))) {
     return plan(true, 'new_waiting')

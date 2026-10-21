@@ -43,6 +43,7 @@ import {
   userVehicles,
   users,
   vendorClosures,
+  vendorPayoutAccounts,
   vendorPhotos,
   vendorServiceAreas,
   vendorWorkingHours,
@@ -66,6 +67,7 @@ import {
   REVIEWS,
   SERVICES,
   STAFF,
+  STATS,
   UNSET_RADIUS_COVERED,
   UNSET_RADIUS_OUTSIDE,
   UNSET_RADIUS_PIN,
@@ -193,7 +195,7 @@ async function seedPeople() {
         CUSTOMERS.receipts, CUSTOMERS.receiptsStranger, CUSTOMERS.myBookings,
         CUSTOMERS.bookAgain, CUSTOMERS.dataReset, CUSTOMERS.dataResetUi,
         CUSTOMERS.binPaid, CUSTOMERS.binHard, CUSTOMERS.binTomb, CUSTOMERS.binBrowse,
-        CUSTOMERS.complaints].map((c, i) => ({
+        CUSTOMERS.complaints, CUSTOMERS.payouts].map((c, i) => ({
       id: c.vehicleId as string,
       userId: c.id, make: 'Hyundai', model: 'i20', color: 'Blue',
       licensePlate: `TN02BB${String(i).padStart(4, '0')}`,
@@ -1708,6 +1710,245 @@ async function seedComplaintRows() {
     payment: { status: 'paid', txnId: 'pay_e2e_complaint_done', paidAt: daysAgo(3), gatewayMode: 'fake' } })
 }
 
+/**
+ * The Statistics fixtures (specs/admin/statistics-api.spec.ts): see STATS for
+ * each booking and the figures they add up to. All at VENDORS.stats, which no
+ * customer list shows and nobody else books, so the spec can ask for that
+ * garage alone and assert exact numbers.
+ */
+async function seedStatsRows() {
+  const garage = VENDORS.stats.id
+  const customer = CUSTOMERS.stats
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Hyundai', model: 'Creta', color: 'Grey',
+    licensePlate: 'TN09ST0001', vehicleType: 'suv', isDefault: true,
+  })
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.narrowOwner.id, businessName: VENDORS.stats.name,
+    phone: '9000004500', address: '1, Stats Street, Tambaram', city: 'Chennai', pincode: '600045',
+    lat: ORIGIN.lat - 0.6, lng: ORIGIN.lng - 0.2, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    // Not verified: in no list a customer sees.
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending',
+  })
+  await db.insert(services).values([
+    { id: SERVICES.statsWash.id, vendorId: garage, name: SERVICES.statsWash.name,
+      category: 'car_wash', pricingType: 'flat', price: SERVICES.statsWash.price,
+      durationMins: SERVICES.statsWash.durationMins, isActive: true },
+    { id: SERVICES.statsDetail.id, vendorId: garage, name: SERVICES.statsDetail.name,
+      category: 'detailing', pricingType: 'flat', price: SERVICES.statsDetail.price,
+      durationMins: SERVICES.statsDetail.durationMins, isActive: true },
+    { id: SERVICES.statsInspect.id, vendorId: garage, name: SERVICES.statsInspect.name,
+      category: 'scratch_removal', pricingType: 'on_inspection', price: SERVICES.statsInspect.price,
+      durationMins: SERVICES.statsInspect.durationMins, isActive: true },
+  ])
+  // Ended and switched off, so nobody can type them at checkout: they exist
+  // for the two bookings that used them.
+  await db.insert(discounts).values([
+    { id: STATS.promo.id, code: STATS.promo.code, description: '₹200 off, paid by Detlio',
+      discountType: 'fixed', amountOff: '200.00', vendorId: garage, fundedBy: 'platform',
+      startsAt: daysAgo(40), endsAt: daysAgo(1), isActive: false },
+    { id: STATS.garageDiscount.id, code: STATS.garageDiscount.code,
+      description: '₹400 off, paid by the garage', discountType: 'fixed', amountOff: '400.00',
+      vendorId: garage, fundedBy: 'vendor', startsAt: daysAgo(40), endsAt: daysAgo(1), isActive: false },
+  ])
+
+  const line = (service: { id: string; name: string; price: string; durationMins: number }) => ({
+    id: service.id, name: service.name, amount: service.price, durationMins: service.durationMins,
+  })
+  const wash = line(SERVICES.statsWash)
+  const base = { userId: customer.id, vehicleId: customer.vehicleId, vendorId: garage }
+  // Made at 11:00 IST that many days ago; the slot is 10:00 the next day.
+  const madeOn = (days: number) => daysAheadAt(-days, 11)
+  const slotAfter = (days: number) => daysAheadAt(1 - days, 10)
+  const paid = (days: number, n: number) =>
+    ({ status: 'paid' as const, txnId: `pay_e2e_stats_${n}`, paidAt: madeOn(days) })
+  const refunded = (days: number, n: number) => ({
+    status: 'refunded' as const, txnId: `pay_e2e_stats_${n}`, paidAt: madeOn(days),
+    refund: { ref: `rfnd_E2ESTATS${String(n).padStart(4, '0')}`, at: madeOn(days - 1) },
+  })
+
+  // Before the range: received 1–20, one a day from 61 days ago, then 21
+  // and 22 in the period the range is compared with.
+  const before: Array<[number, number]> = [
+    ...Array.from({ length: 20 }, (_, i): [number, number] => [i + 1, 61 - i]),
+    [21, 20],
+    [22, 18],
+  ]
+  for (const [n, days] of before) {
+    const id = STATS.received(n)
+    const common = { ...base, id, items: [wash], createdAt: madeOn(days), scheduledAt: slotAfter(days) }
+    if (n === 3 || n === 7) {
+      await insertBooking({ ...common, status: 'cancelled', payment: refunded(days, n),
+        cancellation: { by: 'vendor', reason: 'Fully booked that day', at: madeOn(days) } })
+    } else if (n === 12) {
+      await insertBooking({ ...common, status: 'cancelled', payment: refunded(days, n),
+        cancellation: { by: 'user', reason: 'Plans changed', at: madeOn(days) } })
+    } else {
+      await insertBooking({ ...common, status: 'completed', payment: paid(days, n) })
+    }
+  }
+  await insertBooking({ ...base, id: STATS.testOld, items: [wash], createdAt: madeOn(50),
+    scheduledAt: slotAfter(50), status: 'completed', markedTestAt: madeOn(49),
+    payment: { status: 'paid', txnId: 'pay_e2e_stats_test_old', paidAt: madeOn(50), gatewayMode: 'fake' } })
+  await insertBooking({ ...base, id: STATS.unpaidOld, items: [wash], createdAt: madeOn(45),
+    scheduledAt: slotAfter(45), status: 'cancelled', payment: { status: 'pending' },
+    cancellation: { by: 'user', reason: 'Booked by mistake', at: madeOn(45) } })
+
+  // In the range: 23 to 32, one a day from 12 days ago.
+  const inRange = (n: number) => ({
+    ...base, id: STATS.received(n), createdAt: madeOn(35 - n), scheduledAt: slotAfter(35 - n),
+  })
+  for (const n of [23, 24, 25, 26]) {
+    await insertBooking({ ...inRange(n), items: [wash], status: 'completed', payment: paid(35 - n, n) })
+  }
+  await insertBooking({ ...inRange(27), items: [line(SERVICES.statsDetail)], status: 'completed',
+    discount: { id: STATS.promo.id, code: STATS.promo.code, amount: '200.00', fundedBy: 'platform' },
+    payment: paid(8, 27) })
+  await insertBooking({ ...inRange(28), items: [line(SERVICES.statsDetail)], status: 'completed',
+    discount: { id: STATS.garageDiscount.id, code: STATS.garageDiscount.code, amount: '400.00',
+      fundedBy: 'vendor' },
+    payment: paid(7, 28) })
+  await insertBooking({ ...inRange(29), items: [line(SERVICES.statsInspect)], status: 'completed',
+    payment: paid(6, 29) })
+  await db.insert(bookingCharges).values({
+    id: STATS.bill, bookingId: STATS.received(29), kind: 'final_bill',
+    totalAmount: '1500.00', paidBefore: '300.00', amountDue: '1200.00',
+    lines: [{ description: 'Scratch repair, rear door', amount: '1500.00' }],
+    status: 'paid', paidAt: madeOn(5), createdAt: madeOn(5), updatedAt: madeOn(5),
+  })
+  // A stray payment: ₹1,300 paid on an earlier bill just as the garage
+  // replaced it with the one above, and refunded in full. It paid for
+  // nothing, so neither it nor its refund changes what was collected.
+  await db.insert(bookingCharges).values({
+    id: STATS.strayBill, bookingId: STATS.received(29), kind: 'final_bill',
+    totalAmount: '1600.00', paidBefore: '300.00', amountDue: '1300.00',
+    lines: [{ description: 'Scratch repair, rear door and bumper', amount: '1600.00' }],
+    status: 'cancelled', gatewayOrderId: 'order_e2e_stats_stray_bill',
+    gatewayPaymentId: 'pay_e2e_stats_stray_bill', paidAt: madeOn(5),
+    refundedAmount: '1300.00', refundRef: 'rfnd_E2ESTATSB001', refundedAt: madeOn(4),
+    refundedBy: 'E2E seed', createdAt: madeOn(6), updatedAt: madeOn(5),
+  })
+  await db.insert(refundRecords).values({
+    kind: 'bill', targetId: STATS.strayBill, bookingId: STATS.received(29), amount: '1300.00',
+    refundedBefore: '0.00', refundRef: 'rfnd_E2ESTATSB001', recordedBy: 'E2E seed',
+    recordedAt: madeOn(4),
+  })
+  await insertBooking({ ...inRange(30), items: [wash], status: 'cancelled', payment: paid(5, 30),
+    cancellation: { by: 'admin', noShow: 'customer', reason: 'Customer did not turn up', at: madeOn(4) } })
+  await insertBooking({ ...inRange(31), items: [wash], status: 'cancelled', payment: refunded(4, 31),
+    cancellation: { by: 'vendor', reason: 'Fully booked that day', at: madeOn(4) } })
+  // Moved by the customer: the old row cancelled with its payment still
+  // paid, the new one carrying it, as a reschedule leaves them.
+  await insertBooking({ ...inRange(32), items: [wash], status: 'cancelled', payment: paid(3, 32),
+    cancellation: { by: 'user', reason: 'Rescheduled to a new slot by the customer', at: madeOn(2) } })
+  // The slot is two days on by the seeding machine's UTC date: between 18:30
+  // and 24:00 UTC that is still tomorrow in India, never today, so it stays
+  // after the spec's range (which ends today, IST) whenever CI runs.
+  await insertBooking({ ...base, id: STATS.movedTo, items: [wash], createdAt: madeOn(2),
+    scheduledAt: daysAheadAt(2, 10), status: 'confirmed', rescheduledFromId: STATS.received(32),
+    rescheduleCount: 1, payment: paid(3, 32) })
+  await db.insert(bookingReschedules).values({
+    originalBookingId: STATS.received(32), fromBookingId: STATS.received(32),
+    toBookingId: STATS.movedTo, userId: customer.id, reason: 'seed',
+  })
+  await insertBooking({ ...base, id: STATS.testInRange, items: [wash], createdAt: madeOn(8),
+    scheduledAt: slotAfter(8), status: 'completed', markedTestAt: madeOn(7),
+    payment: { status: 'paid', txnId: 'pay_e2e_stats_test_new', paidAt: madeOn(8), gatewayMode: 'fake' } })
+  await insertBooking({ ...base, id: STATS.unpaidInRange, items: [wash], createdAt: madeOn(7),
+    scheduledAt: slotAfter(7), status: 'cancelled', payment: { status: 'pending' },
+    cancellation: { by: 'user', reason: 'Booked by mistake', at: madeOn(7) } })
+
+  await db.insert(reviews).values([
+    { id: STATS.reviews[0], bookingId: STATS.received(23), userId: customer.id, vendorId: garage,
+      rating: 5, comment: 'Spotless.', createdAt: madeOn(10) },
+    { id: STATS.reviews[1], bookingId: STATS.received(24), userId: customer.id, vendorId: garage,
+      rating: 4, createdAt: madeOn(10) },
+  ])
+
+  // Two checkouts that never became a booking: one abandoned, one paid for
+  // a slot that had filled, and refunded.
+  const checkout = {
+    userId: customer.id, vendorId: garage, serviceId: wash.id, vehicleId: customer.vehicleId,
+    bookingType: 'dropin' as const, scheduledAt: slotAfter(6), serviceDurationMins: wash.durationMins,
+    amount: wash.amount, subtotalAmount: wash.amount, paymentMethod: 'online' as const,
+    createdAt: madeOn(6), expiresAt: new Date(madeOn(6).getTime() + 30 * MINUTE),
+  }
+  await db.insert(bookingIntents).values([
+    { ...checkout, id: STATS.abandonedCheckout, gatewayTxnId: 'order_e2e_stats_abandoned',
+      status: 'pending' },
+    { ...checkout, id: STATS.failedCheckout, gatewayTxnId: 'order_e2e_stats_failed',
+      status: 'failed', paymentRef: 'pay_e2e_stats_failed', failureReason: 'slot_full',
+      refundedAmount: wash.amount, refundRef: 'rfnd_E2ESTATSF001', refundedAt: madeOn(5),
+      refundedBy: 'E2E seed' },
+  ])
+  await db.insert(bookingIntentItems).values(
+    [STATS.abandonedCheckout, STATS.failedCheckout].map((intentId) => ({
+      intentId, serviceId: wash.id, name: wash.name, amount: wash.amount,
+      durationMins: wash.durationMins, sortOrder: 0,
+    }))
+  )
+  await db.insert(refundRecords).values({
+    kind: 'checkout', targetId: STATS.failedCheckout, bookingId: null, amount: wash.amount,
+    refundedBefore: '0.00', refundRef: 'rfnd_E2ESTATSF001', recordedBy: 'E2E seed',
+    recordedAt: madeOn(5),
+  })
+}
+
+// ─── garage payouts ─────────────────────────────────────────────────────────
+
+/**
+ * The payouts spec's garage (VENDORS.payouts): its owner's seat, one ₹500
+ * wash, a UPI id to pay to, and CUSTOMERS.payouts' three bookings — two
+ * payable (₹1,000 in all, its first two bookings, so free of commission) and
+ * one still to come. After the people it names, like every booking.
+ */
+async function seedPayoutRows() {
+  const garage = VENDORS.payouts.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.payoutsOwner.id, businessName: VENDORS.payouts.name,
+    phone: '9000004600', address: '1, Payout Lane, Porur', city: 'Chennai', pincode: '600116',
+    lat: ORIGIN.lat - 0.85, lng: ORIGIN.lng - 0.15, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    // Not verified: in no list a customer sees.
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending',
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.payoutsOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.payoutsWash.id, vendorId: garage, name: SERVICES.payoutsWash.name,
+    category: 'car_wash', pricingType: 'flat', price: SERVICES.payoutsWash.price,
+    durationMins: SERVICES.payoutsWash.durationMins, isActive: true,
+  })
+  await db.insert(vendorPayoutAccounts).values({
+    vendorId: garage, accountName: 'Payouts Test Garage', upiId: 'payoutsgarage@okaxis',
+    updatedBy: 'E2E seed',
+  })
+
+  const customer = CUSTOMERS.payouts
+  const base = { userId: customer.id, vehicleId: customer.vehicleId, vendorId: garage }
+  const wash = {
+    id: SERVICES.payoutsWash.id, name: SERVICES.payoutsWash.name,
+    amount: SERVICES.payoutsWash.price, durationMins: SERVICES.payoutsWash.durationMins,
+  }
+  await insertBooking({ ...base, id: BOOKINGS.payoutDone, items: [wash],
+    createdAt: daysAgo(4), scheduledAt: daysAgo(2), status: 'completed',
+    acceptedAt: daysAgo(4), startedAt: daysAgo(2), completedAt: daysAgo(2),
+    payment: { status: 'paid', txnId: 'pay_e2e_payout_done', paidAt: daysAgo(4), gatewayMode: 'fake' } })
+  await insertBooking({ ...base, id: BOOKINGS.payoutNoShow, items: [wash],
+    createdAt: daysAgo(3), scheduledAt: daysAgo(1), status: 'cancelled', acceptedAt: daysAgo(3),
+    cancellation: { by: 'admin', onBehalfOf: 'detlio', noShow: 'customer', reason: 'Customer did not turn up',
+      at: hoursAgo(20) },
+    payment: { status: 'paid', txnId: 'pay_e2e_payout_noshow', paidAt: daysAgo(3), gatewayMode: 'fake' } })
+  await insertBooking({ ...base, id: BOOKINGS.payoutUpcoming, items: [wash],
+    createdAt: daysAgo(2), scheduledAt: daysAheadAt(1, 10), status: 'confirmed', acceptedAt: daysAgo(2),
+    payment: { status: 'paid', txnId: 'pay_e2e_payout_upcoming', paidAt: daysAgo(2), gatewayMode: 'fake' } })
+}
+
 // ─── pickup & drop ──────────────────────────────────────────────────────────
 
 /**
@@ -1781,6 +2022,10 @@ async function main() {
   await seedGarageBinRows()
   console.log('[e2e-seed] complaints…')
   await seedComplaintRows()
+  console.log('[e2e-seed] statistics…')
+  await seedStatsRows()
+  console.log('[e2e-seed] payouts…')
+  await seedPayoutRows()
   console.log('[e2e-seed] pickup & drop…')
   await seedPickupRows()
   console.log('[e2e-seed] done')

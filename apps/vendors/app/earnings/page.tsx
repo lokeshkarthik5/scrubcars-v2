@@ -2,42 +2,166 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconReceipt } from '@tabler/icons-react'
+import { IconDownload, IconReceipt } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
+import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
-import { EmptyState } from '@repo/ui/sc/empty-state'
-import { Reveal } from '@repo/ui/sc/reveal'
+import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
+import { ScInput } from '@repo/ui/sc/input'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { SectionHeader } from '@repo/ui/sc/section-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { StatTile } from '@repo/ui/sc/stat-tile'
-import { Stars } from '@repo/ui/sc/stars'
 import { TopBar } from '@repo/ui/sc/top-bar'
-import { EMPTY_EARNINGS_SUMMARY, getEarningsData } from '@repo/core/api/earnings'
+import type { PayoutLine } from '@repo/core/api/admin'
+import { getEarningsStatement, type EarningsStatement } from '@repo/core/api/earnings'
+import { downloadCsv, toCsv } from '@repo/core/csv'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
-import { formatRupees } from '@repo/core/job-records'
+import {
+  LINE_STATUS_LABEL,
+  PAYOUT_METHOD_LABEL,
+  commissionLabel,
+  earningsRange,
+  istDateLabel,
+  lineKindLabel,
+  rupeesLabel,
+  statementCsvRows,
+  type EarningsRangePreset,
+} from '@repo/core/payouts'
 import { useAuthStore } from '@repo/core/stores/auth-store'
-import type { EarningsJob, EarningsSummary } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
-import { formatRating } from '@repo/core/vendor-stats'
 import { ActiveGarage } from '@/components/active-garage'
+
+type Preset = EarningsRangePreset | 'custom'
+
+const PRESETS: Array<{ value: Preset; label: string }> = [
+  { value: 'last30', label: '30 days' },
+  { value: 'thisMonth', label: 'This month' },
+  { value: 'lastMonth', label: 'Last month' },
+  { value: 'custom', label: 'Dates' },
+]
+
+/** One figure of a booking's breakdown, left out when it is nothing. */
+function Figure({ label, value, minus, strong }: { label: string; value: string; minus?: boolean; strong?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-[12px]">
+      <dt className={strong ? 'font-medium text-text-primary' : 'text-text-secondary'}>{label}</dt>
+      <dd className={cn('font-numeric', strong ? 'font-semibold text-text-primary' : 'text-text-primary')}>
+        {minus ? `−${value}` : value}
+      </dd>
+    </div>
+  )
+}
+
+function statusBadge(line: PayoutLine) {
+  const label = LINE_STATUS_LABEL[line.status]
+  switch (line.status) {
+    case 'paid':
+      return <ScBadge variant="success">{label}</ScBadge>
+    case 'due':
+      return <ScBadge variant="pending">{label}</ScBadge>
+    case 'owed_back':
+      return <ScBadge variant="danger">{label}</ScBadge>
+    default:
+      return <ScBadge variant="muted">{label}</ScBadge>
+  }
+}
+
+function LineCard({ line }: { line: PayoutLine }) {
+  const kind = lineKindLabel(line.kind)
+  return (
+    <ScCard role="group" aria-label={`Booking #${line.reference}`} className="flex flex-col gap-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-medium text-text-primary">
+            {line.services.join(' + ') || 'Booking'}
+          </p>
+          <p className="text-[11px] text-text-secondary">
+            {line.customerFirstName} · <span className="font-numeric">{istDateLabel(line.payableFrom)}</span> ·{' '}
+            <span className="font-numeric">#{line.reference}</span>
+          </p>
+          {kind && (
+            <ScBadge variant="muted" className="mt-1">
+              {kind}
+            </ScBadge>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <p className="font-numeric text-[14px] font-bold text-text-primary">{rupeesLabel(line.share)}</p>
+          {statusBadge(line)}
+        </div>
+      </div>
+
+      <dl className="flex flex-col gap-1 border-t border-border pt-2">
+        <Figure label="Price" value={rupeesLabel(line.price)} />
+        {line.detlioPromo > 0 && (
+          // Detlio pays for its own promos: shown so the garage sees why the
+          // customer paid less, and that it changes nothing for the garage.
+          <Figure label="Detlio promo (paid by Detlio)" value={rupeesLabel(line.detlioPromo)} />
+        )}
+        {line.garagePromo > 0 && <Figure label="Your promo" value={rupeesLabel(line.garagePromo)} minus />}
+        {line.refunds > 0 && <Figure label="Refunded" value={rupeesLabel(line.refunds)} minus />}
+        <div className="flex items-baseline justify-between gap-3 text-[12px]">
+          <dt className="text-text-secondary">Detlio commission</dt>
+          <dd
+            className={cn(
+              'text-right',
+              line.commission.freePosition !== null ? 'text-success' : 'font-numeric text-text-primary'
+            )}
+          >
+            {line.commission.freePosition !== null
+              ? commissionLabel(line)
+              : `−${commissionLabel(line)}`}
+          </dd>
+        </div>
+        <Figure label="Your share" value={rupeesLabel(line.share)} strong />
+        {line.heldByGarage > 0 && (
+          <Figure label="Cash you collected" value={rupeesLabel(line.heldByGarage)} minus />
+        )}
+      </dl>
+
+      {line.payouts.length > 0 && (
+        <p className="text-[11px] text-text-secondary">
+          {line.payouts.map((payout, i) => (
+            <span key={payout.payoutId}>
+              {i > 0 && ' · '}
+              {payout.amount < 0 ? 'Taken back' : 'Paid'} {rupeesLabel(Math.abs(payout.amount))} on{' '}
+              <span className="font-numeric">{istDateLabel(payout.paidAt)}</span>, ref{' '}
+              <span className="font-numeric text-text-primary">{payout.reference}</span>
+            </span>
+          ))}
+        </p>
+      )}
+      {line.status === 'due' && line.paid !== 0 && (
+        <p className="text-[11px] text-text-secondary">
+          <span className="font-numeric text-text-primary">{rupeesLabel(line.balance)}</span> more to come
+        </p>
+      )}
+      {line.status === 'owed_back' && (
+        <p className="text-[11px] text-text-secondary">
+          <span className="font-numeric text-text-primary">{rupeesLabel(-line.balance)}</span> comes off your next
+          payout
+        </p>
+      )}
+    </ScCard>
+  )
+}
 
 export default function VendorEarningsPage() {
   const vendor = useAuthStore((s) => s.vendor)
   const isVendorAdmin = useIsVendorAdmin()
   const router = useRouter()
-  const [period, setPeriod] = useState<'week' | 'month'>('week')
-  const [summary, setSummary] = useState<EarningsSummary>(EMPTY_EARNINGS_SUMMARY)
-  const [jobs, setJobs] = useState<EarningsJob[]>([])
+  const [preset, setPreset] = useState<Preset>('last30')
+  const [range, setRange] = useState(() => earningsRange('last30', new Date()))
+  const [statement, setStatement] = useState<EarningsStatement | null>(null)
+  const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
-  // Whether any period has been read yet. The first load shows placeholders;
-  // a switch of period keeps the last figures on screen, dimmed, until the
-  // new ones land.
-  const [loadedOnce, setLoadedOnce] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   // Operators have no Earnings tab, so this is only reachable by typing the
-  // URL. Send them home rather than showing an empty screen full of zeros.
+  // URL. Send them home rather than show money that is not theirs to see
+  // (the API refuses them anyway).
   useEffect(() => {
     if (!isVendorAdmin) router.replace('/home')
   }, [isVendorAdmin, router])
@@ -45,142 +169,171 @@ export default function VendorEarningsPage() {
   useEffect(() => {
     if (!vendor?.id || !isVendorAdmin) return
     let active = true
-
-    getEarningsData(period)
-      .then(({ summary: nextSummary, jobs: nextJobs }) => {
+    getEarningsStatement(range)
+      .then((next) => {
         if (!active) return
-        setSummary(nextSummary)
-        setJobs(nextJobs)
+        setStatement(next)
+        setError(false)
       })
       .catch(() => {
-        if (!active) return
-        setSummary(EMPTY_EARNINGS_SUMMARY)
-        setJobs([])
+        if (active) setError(true)
       })
       .finally(() => {
-        if (!active) return
-        setLoading(false)
-        setLoadedOnce(true)
+        if (active) setLoading(false)
       })
-
     return () => {
       active = false
     }
-  }, [period, vendor?.id, isVendorAdmin])
+  }, [range, vendor?.id, isVendorAdmin, attempt])
 
-  // An operator is on their way back to Home (above); nothing here is theirs
-  // to see, not even a row of zeros.
   if (!isVendorAdmin) return null
 
+  const pick = (next: Preset) => {
+    setPreset(next)
+    if (next !== 'custom') {
+      setLoading(true)
+      setRange(earningsRange(next, new Date()))
+    }
+  }
+
+  const setDate = (key: 'from' | 'to', value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return
+    const next = { ...range, [key]: value }
+    if (next.from > next.to) return
+    setLoading(true)
+    setRange(next)
+  }
+
+  const download = () => {
+    if (!statement) return
+    const { header, rows } = statementCsvRows(statement.lines)
+    downloadCsv(toCsv(header, rows), `detlio-earnings-${statement.range.from}-to-${statement.range.to}.csv`)
+  }
+
+  const summary = statement?.summary
+  const owesDetlio = (summary?.balanceDue ?? 0) < 0
+
   return (
-    <AppShell
-      showNav
-      navType="vendor"
-      showBrand
-      brandRight={<ActiveGarage />}
-      className="gap-5 py-4"
-    >
-      <TopBar
-        title="Earnings"
-        right={
-          <ScSegmented
-            aria-label="Earnings period"
-            size="sm"
-            value={period}
-            onChange={(next) => {
-              // Raised here rather than in the effect below: this is the only
-              // thing that refetches after mount, and a spinner owed to a tap
-              // belongs to the tap.
-              setLoading(true)
-              setPeriod(next)
-            }}
-            options={[
-              { value: 'week', label: 'Week' },
-              { value: 'month', label: 'Month' },
-            ]}
-          />
-        }
-      />
+    <AppShell showNav navType="vendor" showBrand brandRight={<ActiveGarage />} className="gap-5 py-4">
+      <TopBar title="Earnings" />
 
-      {!loadedOnce ? (
+      {!statement && loading ? (
         <SkeletonList count={2} itemClassName="h-[76px]" className="grid grid-cols-2" />
-      ) : (
-        // Dimmed, not replaced, while another period loads: the previous
-        // figures stay readable and the change is a fade, not a jump.
-        <div
-          aria-busy={loading || undefined}
-          className={cn(
-            'grid grid-cols-2 gap-2 transition-opacity duration-200 motion-reduce:transition-none',
-            loading && 'opacity-60'
-          )}
-        >
-          <StatTile label="Total earned" tone="success" value={formatRupees(summary.totalEarned)} />
-          <StatTile label="Jobs done" value={summary.jobsDone} />
-          <StatTile label="Pending" tone="warning" value={formatRupees(summary.pending)} />
-          <StatTile
-            label="Avg rating"
-            value={
-              <span className="flex items-center gap-1.5">
-                {formatRating(summary.avgRating)}
-                {summary.avgRating > 0 && <Stars rating={summary.avgRating} size={12} />}
-              </span>
-            }
-            // Ratings run 1 to 5, so 0 here means none yet; the dash above
-            // says "no figure", and this says why.
-            hint={summary.avgRating > 0 ? undefined : 'No reviews yet'}
-          />
-        </div>
-      )}
+      ) : !statement && error ? (
+        <ErrorState message="Couldn't load your earnings." onRetry={() => setAttempt((n) => n + 1)} />
+      ) : summary ? (
+        <section aria-label="Your balance" className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <StatTile
+              label={owesDetlio ? 'You owe Detlio' : 'Due now'}
+              tone={summary.balanceDue > 0 ? 'warning' : 'default'}
+              value={rupeesLabel(Math.abs(summary.balanceDue))}
+              hint={
+                owesDetlio
+                  ? 'Comes off your next payout'
+                  : summary.oldestUnpaidAt
+                    ? `Oldest from ${istDateLabel(summary.oldestUnpaidAt)}`
+                    : `Paid within ${statement.cycleHours} hours`
+              }
+            />
+            <StatTile label="Paid this month" tone="success" value={rupeesLabel(summary.paidThisMonth)} />
+          </div>
+          <p className="text-[11px] text-text-secondary">
+            Detlio pays your share within {statement.cycleHours} hours of each job, by bank transfer or UPI.
+            Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.
+            {summary.freeBookings.used < summary.freeBookings.of
+              ? ` Your first ${summary.freeBookings.of} bookings are free: ${summary.freeBookings.used} used so far.`
+              : ''}
+          </p>
+        </section>
+      ) : null}
 
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Recent jobs" />
-        {!loadedOnce ? (
-          <SkeletonList count={3} itemClassName="h-[72px]" />
-        ) : jobs.length === 0 ? (
+      <section className="flex flex-col gap-3" aria-label="Bookings">
+        <SectionHeader
+          title="Bookings"
+          action={
+            <ScButton
+              variant="secondary"
+              onClick={download}
+              disabled={!statement || statement.lines.length === 0}
+              className="flex min-h-11 items-center gap-1.5 px-3 text-[12px]"
+            >
+              <IconDownload size={15} aria-hidden="true" /> CSV
+            </ScButton>
+          }
+        />
+        <ScSegmented aria-label="Period" size="sm" value={preset} onChange={pick} options={PRESETS} />
+        {preset === 'custom' && (
+          <div className="grid grid-cols-2 gap-2">
+            <ScInput
+              type="date"
+              label="From"
+              value={range.from}
+              max={range.to}
+              onChange={(e) => setDate('from', e.target.value)}
+              className="min-h-11 font-numeric"
+            />
+            <ScInput
+              type="date"
+              label="To"
+              value={range.to}
+              min={range.from}
+              onChange={(e) => setDate('to', e.target.value)}
+              className="min-h-11 font-numeric"
+            />
+          </div>
+        )}
+
+        {statement && error && (
+          <p role="status" className="text-[12px] text-error">
+            Couldn&apos;t load those dates. Showing {istDateLabel(`${statement.range.from}T12:00:00+05:30`)} to{' '}
+            {istDateLabel(`${statement.range.to}T12:00:00+05:30`)}.
+          </p>
+        )}
+        {!statement && loading ? (
+          <SkeletonList count={3} itemClassName="h-[140px]" />
+        ) : statement && statement.lines.length === 0 ? (
           <EmptyState
             icon={<IconReceipt size={28} stroke={1.5} />}
-            title={period === 'week' ? 'No jobs this week' : 'No jobs this month'}
-            subtitle="Jobs you complete show up here with what they earned."
+            title="Nothing in these dates"
+            subtitle="Each job you complete shows up here with Detlio's commission, your share and its payout."
           />
-        ) : (
+        ) : statement ? (
           <div
+            aria-busy={loading || undefined}
             className={cn(
               'flex flex-col gap-2 transition-opacity duration-200 motion-reduce:transition-none',
               loading && 'opacity-60'
             )}
           >
-            {jobs.map((job, i) => (
-              <Reveal key={job.id} index={i}>
-                <ScCard className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium text-text-primary">{job.serviceName}</p>
-                    <p className="text-[11px] text-text-secondary">
-                      {job.customerName} · <span className="font-numeric">{job.date}</span> · {job.type}
-                    </p>
-                    {/* Paid as if the job happened: the garage held the slot
-                        and the customer didn't come. Said, so the garage knows
-                        why a job it never did is on the list. */}
-                    {job.kind === 'customer_no_show' && (
-                      <ScBadge variant="muted" className="mt-1">Customer no-show</ScBadge>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <p
-                      className={cn(
-                        'font-numeric text-[14px] font-bold',
-                        job.settled ? 'text-success' : 'text-warning'
-                      )}
-                    >
-                      {formatRupees(job.amount)}
-                    </p>
-                    {!job.settled && <ScBadge variant="pending">Pending</ScBadge>}
-                  </div>
-                </ScCard>
-              </Reveal>
+            {statement.lines.map((line) => (
+              <LineCard key={line.bookingId} line={line} />
             ))}
           </div>
-        )}
+        ) : null}
       </section>
+
+      {statement && statement.payouts.length > 0 && (
+        <section className="flex flex-col gap-3" aria-label="Payouts">
+          <SectionHeader title="Payouts" />
+          <div className="flex flex-col gap-2">
+            {statement.payouts.map((payout) => (
+              <ScCard key={payout.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-text-primary">
+                    {PAYOUT_METHOD_LABEL[payout.method]} ·{' '}
+                    <span className="font-numeric">{istDateLabel(payout.paidAt)}</span>
+                  </p>
+                  <p className="truncate text-[11px] text-text-secondary">
+                    Ref <span className="font-numeric text-text-primary">{payout.reference}</span>
+                  </p>
+                </div>
+                <p className="font-numeric text-[14px] font-bold text-success">{rupeesLabel(payout.amount)}</p>
+              </ScCard>
+            ))}
+          </div>
+        </section>
+      )}
     </AppShell>
   )
 }

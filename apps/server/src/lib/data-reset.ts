@@ -152,6 +152,20 @@ export interface ResetComplaint {
   createdAt: Date
 }
 
+/**
+ * A garage payout (0038) that paid a candidate chain, with every chain it
+ * paid. Paid-out money only goes with all of it: a payout is deleted only
+ * together with every booking it paid, and keeps them all otherwise
+ * (its items name their bookings ON DELETE RESTRICT).
+ */
+export interface ResetPayout {
+  id: string
+  /** When the team recorded it. */
+  recordedAt: Date
+  /** The first booking of every chain it paid (vendor_payout_items.booking_id). */
+  rootBookingIds: string[]
+}
+
 /** The rows that hang off one booking and go with it (ON DELETE CASCADE). */
 export interface BookingChildCounts {
   items: number
@@ -219,6 +233,11 @@ export interface PlanInput {
    * when `only.complaints` says so. Absent (other scopes) is none.
    */
   complaints?: ResetComplaint[]
+  /**
+   * Garage payouts that paid any candidate chain, each with every chain it
+   * paid (some may be outside the scope). Absent is none.
+   */
+  payouts?: ResetPayout[]
   /** The receipt numbers of the candidate chains. */
   receipts: ResetReceipt[]
   /**
@@ -492,6 +511,7 @@ export type KeptReason =
   | 'not_marked'
   | 'still_open'
   | 'open_order'
+  | 'paid_out'
 
 /**
  * The reason shown on a greyed-out row, and the line under it. Real money,
@@ -525,6 +545,11 @@ export const KEPT_REASONS: Record<KeptReason, { label: string; detail: string }>
     label: 'Payment may still arrive — kept',
     detail:
       'A Razorpay order on this may be live and could still be paid. Run again a day after the booking is cancelled or the checkout has closed.',
+  },
+  paid_out: {
+    label: 'Paid out to the garage — kept',
+    detail:
+      'A garage payout covered this booking together with one that is kept (or the payout was recorded after the cutoff). A payout is only deleted with every booking it paid.',
   },
 }
 
@@ -605,6 +630,8 @@ export interface ResetCounts {
   receiptNumbers: number
   /** Customer complaints made before the cutoff (0035). */
   complaints: number
+  /** Garage payouts (0038) that paid only bookings this run deletes. */
+  payouts: number
 }
 
 export type ReceiptYearMode = 'restart' | 'void'
@@ -639,6 +666,8 @@ export interface ResetPlan {
   complaints: { ids: string[]; first: number | null; last: number | null; selected: boolean }
   /** The complaints this run deletes: all of `complaints.ids`, or none. */
   selectedComplaintIds: string[]
+  /** Garage payouts this run deletes: those that paid only ticked chains. */
+  selectedPayoutIds: string[]
   counts: ResetCounts
   receiptPlan: ReceiptYearPlan[]
   confirmPhrase: string
@@ -837,6 +866,8 @@ export function selectionHash(plan: {
   receiptPlan: ReceiptYearPlan[]
   /** Only when there are any, so a run with none hashes as it always did. */
   complaintIds?: string[]
+  /** The same. */
+  payoutIds?: string[]
 }): string {
   const bookingsByRoot = groupChains(plan.bookings)
   const chargesByBooking = groupBy(plan.charges, (charge) => charge.bookingId)
@@ -867,14 +898,55 @@ export function selectionHash(plan: {
     .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
   const receipts = plan.receiptPlan.map((year) => [year.financialYear, year.mode, year.numbers])
   const complaints = [...(plan.complaintIds ?? [])].sort()
+  const payouts = [...(plan.payoutIds ?? [])].sort()
 
   return createHash('sha256')
     .update(
-      JSON.stringify(
-        complaints.length > 0 ? { chains, checkouts, receipts, complaints } : { chains, checkouts, receipts }
-      )
+      JSON.stringify({
+        chains,
+        checkouts,
+        receipts,
+        ...(complaints.length > 0 ? { complaints } : {}),
+        ...(payouts.length > 0 ? { payouts } : {}),
+      })
     )
     .digest('hex')
+}
+
+/**
+ * Chains joined by the payouts that paid them: two chains paid by one payout
+ * are in one group, and so is a third paid with either by another. Each
+ * group with its payouts; a chain no payout paid is in none.
+ */
+export function payoutGroups(payouts: ResetPayout[]): Array<{ roots: string[]; payouts: ResetPayout[] }> {
+  const parent = new Map<string, string>()
+  const find = (x: string): string => {
+    let root = x
+    while (parent.get(root) !== root) root = parent.get(root)!
+    parent.set(x, root)
+    return root
+  }
+  const add = (x: string) => {
+    if (!parent.has(x)) parent.set(x, x)
+  }
+  for (const payout of payouts) {
+    const key = `payout:${payout.id}`
+    add(key)
+    for (const root of payout.rootBookingIds) {
+      add(root)
+      parent.set(find(root), find(key))
+    }
+  }
+  const groups = new Map<string, { roots: string[]; payouts: ResetPayout[] }>()
+  const groupOf = (x: string) => {
+    const k = find(x)
+    const group = groups.get(k) ?? { roots: [], payouts: [] }
+    groups.set(k, group)
+    return group
+  }
+  for (const payout of payouts) groupOf(`payout:${payout.id}`).payouts.push(payout)
+  for (const x of parent.keys()) if (!x.startsWith('payout:')) groupOf(x).roots.push(x)
+  return [...groups.values()].map((group) => ({ roots: [...new Set(group.roots)].sort(), payouts: group.payouts }))
 }
 
 /**
@@ -941,17 +1013,53 @@ export function planReset(input: PlanInput): ResetPlan {
   // takes them in.
   chains.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.rootId.localeCompare(b.rootId))
 
+  // ── Garage payouts ──
+  // Chains paid out together go together: a group joined by its payouts is
+  // kept whole if any of it is kept, or out of scope, or was paid out after
+  // the cutoff (a payout made then may be real).
+  const groups = payoutGroups(input.payouts ?? [])
+  const chainByRoot = new Map(chains.map((chain) => [chain.rootId, chain]))
+  for (const group of groups) {
+    const blocked =
+      group.roots.some((root) => {
+        const chain = chainByRoot.get(root)
+        return !chain || chain.kept !== null
+      }) ||
+      (scope.kind === 'before_cutoff' && group.payouts.some((payout) => payout.recordedAt >= scope.cutoff))
+    if (!blocked) continue
+    for (const root of group.roots) {
+      const chain = chainByRoot.get(root)
+      if (chain && chain.kept === null) chain.kept = 'paid_out'
+    }
+  }
+
   let overCapChains = 0
   let ticked = 0
+  const capped = new Set<string>()
   for (const chain of chains) {
     if (chain.kept) continue
     if (only && !only.chains.has(chain.rootId)) continue
     if (ticked >= MAX_CHAINS_PER_RUN) {
       overCapChains += 1
+      capped.add(chain.rootId)
       continue
     }
     chain.selected = true
     ticked += 1
+  }
+  // A group goes whole or not at all: one left unticked (or past the cap)
+  // keeps the rest of its group unticked with it; past the cap, they wait
+  // for the next run together.
+  for (const group of groups) {
+    const members = group.roots.map((root) => chainByRoot.get(root))
+    if (members.every((chain) => chain?.selected)) continue
+    const waits = group.roots.some((root) => capped.has(root))
+    for (const chain of members) {
+      if (chain?.selected) {
+        chain.selected = false
+        if (waits) overCapChains += 1
+      }
+    }
   }
 
   // ── Checkouts that never became a booking ──
@@ -1024,6 +1132,10 @@ export function planReset(input: PlanInput): ResetPlan {
   // ── What that deletes ──
   const selectedChainIds = chains.filter((c) => c.selected).map((c) => c.rootId)
   const selectedRoots = new Set(selectedChainIds)
+  const selectedPayoutIds = groups
+    .filter((group) => group.roots.every((root) => selectedRoots.has(root)))
+    .flatMap((group) => group.payouts.map((payout) => payout.id))
+    .sort()
   const selectedBookingIds = chains.filter((c) => c.selected).flatMap((c) => c.bookingIds)
   const selectedBookings = new Set(selectedBookingIds)
   const selectedCheckoutIds = checkouts.filter((c) => c.selected).map((c) => c.id)
@@ -1048,6 +1160,7 @@ export function planReset(input: PlanInput): ResetPlan {
     checkoutItems: 0,
     receiptNumbers: 0,
     complaints: selectedComplaintIds.length,
+    payouts: selectedPayoutIds.length,
   }
   const bookingsById = new Map(input.bookings.map((b) => [b.id, b]))
   for (const id of selectedBookingIds) {
@@ -1094,6 +1207,7 @@ export function planReset(input: PlanInput): ResetPlan {
       selected: complaintsTicked && complaintsInScope.length > 0,
     },
     selectedComplaintIds,
+    selectedPayoutIds,
     counts,
     receiptPlan,
     confirmPhrase: confirmPhraseFor(counts, selectedCheckoutIds.length),
@@ -1104,6 +1218,7 @@ export function planReset(input: PlanInput): ResetPlan {
       charges: input.charges,
       receiptPlan,
       complaintIds: selectedComplaintIds,
+      payoutIds: selectedPayoutIds,
     }),
   }
 }
@@ -1140,6 +1255,7 @@ export function countLines(counts: ResetCounts): string[] {
     [counts.checkouts, plural(counts.checkouts, 'checkout', 'checkouts')],
     [counts.receiptNumbers, plural(counts.receiptNumbers, 'receipt number', 'receipt numbers')],
     [counts.complaints, plural(counts.complaints, 'complaint', 'complaints')],
+    [counts.payouts ?? 0, plural(counts.payouts ?? 0, 'garage payout', 'garage payouts')],
   ]
   return lines.filter(([n]) => n > 0).map(([, text]) => text)
 }

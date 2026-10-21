@@ -417,6 +417,7 @@ export const vendorBinService = {
                 refunded: chain.refunded,
               })),
             intentIds: plan.selectedIntentIds,
+            payoutIds: plan.selectedPayoutIds,
             receiptPlan: plan.receiptPlan,
             kept: kept.map((row) => ({ id: 'rootId' in row ? row.rootId : row.id, reason: row.kept })),
             seatHolders,
@@ -449,6 +450,9 @@ export const vendorBinService = {
           await repo.deleteHoursAndReach(id)
           await repo.deleteSeats(id)
           await repo.deactivateOffers(id)
+          // Its payouts on kept bookings stay, for the accounts; where the
+          // money was sent does not.
+          await repo.deletePayoutAccount(id)
           await repo.makeTombstone(id, tombstoneFields(now))
         }
         if (deletingGarage) await syncOwnerFlags(repo, seatHolders)

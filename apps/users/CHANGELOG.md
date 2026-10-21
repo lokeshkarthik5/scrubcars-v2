@@ -19,6 +19,22 @@ reconstructing every change in them.
 
 ### Added
 
+- **Earnings and Payouts.** Garage portal: Earnings now opens on "Due now"
+  (or "You owe Detlio") and "Paid this month", lists each booking that
+  earned money in the chosen dates (30 days, this month, last month or two
+  dates) with its price, Detlio's or the garage's promo, refunds, Detlio's
+  commission ("8% · ₹40", or "Free — booking 12 of your first 25"), the
+  garage's share, cash it collected, and Due or Paid with the payout's
+  reference, plus the payouts made, and downloads it as CSV. Owners only,
+  as before. Admin: a Payouts page (header nav, and from Refunds on a
+  phone) lists every garage owed money, oldest first, flagged past 24
+  hours, with a CSV; each garage's page shows where to pay (copyable), the
+  bookings due, Record payout (the amount is what is due; UTR or UPI id,
+  time, note, your name) and the payout history, with statement and
+  payout CSVs. The garage edit page gains Payout details (account name,
+  number, IFSC, UPI id), saved on their own. Start pilot clean's counts
+  can say "N garage payouts". The CSV helpers moved to `@repo/core/csv`.
+
 - **Refund now in admin.** Each row on Refunds owed (and a booking's Refund
   section) has "Refund now…" beside "Mark refunded…" when there is a
   Razorpay payment to refund. Its sheet shows the customer, the booking or
@@ -276,6 +292,28 @@ reconstructing every change in them.
   place, plus "Make a picture with AI": describe it, pick one of
   two ("Generate again · ₹8"), "Use this picture".
 
+- **Admin: Statistics** (`/statistics`, a sixth tab in the menu and the phone's
+  bottom bar). Filters in one row: Last 7 / 30 / 90 days, This month, Last
+  month (Last 30 days by default), every garage or one, and on Overview
+  "Compare with previous 30 days" (on by default). Overview: six tiles with
+  how each moved (Bookings, Collected after refunds, Detlio commission,
+  Average booking, Checkout → paid, Cancellations; amber when it moved the
+  wrong way, grey for commission and cancellations while the period runs to
+  today, as its latest jobs have not played out), "Bookings per day" against
+  the period before and "Collected per week" (part weeks dimmer; past seven
+  bars only the first, last and highest carry an amount), then the Pilot
+  numbers card, moved here from Vendors, with its "Revenue" now "Collected,
+  less refunds owed" and a line saying it covers every garage over its own 7
+  or 30 days, not the filters. Breakdown: the funnel with where people
+  dropped off (paid bookings not yet marked done are "not marked done yet",
+  not "upcoming"), garages by money collected (top 5, "Show all"), service
+  types, busiest hours by slot, and "Download CSV". Commission: the rule in
+  plain words (reporting only: payouts are unchanged), the month's
+  commission, and garages "Commission active" or in their free period ("18
+  of 25 free bookings used"). A "too long" timeout is shown at once, never
+  retried. Each tab ends with "How we count". Charts are recharts 3.10.1
+  (admin only, loaded with the first chart), each with a text summary for
+  screen readers.
 - **Admin: Start pilot clean** (`/data-reset`), shown in the menu (and linked
   from Bookings on a phone) only while the API has `ADMIN_DATA_RESET` on.
   Three steps: Scope (everything before a cutoff in India time, or only

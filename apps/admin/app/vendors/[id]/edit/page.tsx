@@ -57,6 +57,7 @@ import {
 import type { ServiceMedia } from '@repo/core/types'
 import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
+import { PayoutAccountSection } from '@/components/payout-account-section'
 import { LivePickupCard } from '@/components/pickup-card'
 import { SaveBar } from '@/components/save-bar'
 import { RestoreDialog } from '@/components/vendor-bin-dialogs'
@@ -955,6 +956,10 @@ export default function EditVendorPage({
             {/* Team management came from main; it sits in Details, immediately
                 before the media section, which is where main placed it. */}
             <VendorTeamSection vendorId={id} />
+
+            {/* Where Detlio pays the garage (Payouts). Saved on its own, like
+                the team. */}
+            <PayoutAccountSection vendorId={id} />
 
             <ScSection title="Logo & photos">
               <p className="text-[11px] text-text-muted">

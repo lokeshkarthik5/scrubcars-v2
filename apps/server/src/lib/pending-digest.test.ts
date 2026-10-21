@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   digestLookbacks,
+  isMorningTick,
   planPendingDigest,
   type PendingBookingRow,
 } from './pending-digest.js'
@@ -178,5 +179,27 @@ describe('planPendingDigest', () => {
       expect(now - bookingsSince.getTime()).toBe(24 * 60 * MIN)
       expect(now - pickupsSince.getTime()).toBe(14 * 24 * 60 * MIN)
     })
+  })
+})
+
+describe('the morning roll-up and payouts due', () => {
+  test('posts at 07:00 for payouts due alone, with no booking waiting', () => {
+    expect(planPendingDigest(IST('07:00:30').getTime(), [], [], { morningExtras: true })).toMatchObject({
+      post: true,
+      reason: 'morning',
+    })
+    expect(planPendingDigest(IST('07:00:30').getTime(), [])).toMatchObject({ post: false, reason: 'empty' })
+  })
+
+  test('only at 07:00: payouts never post on their own at any other time', () => {
+    expect(planPendingDigest(IST('08:00:00').getTime(), [], [], { morningExtras: true }).post).toBe(false)
+    expect(planPendingDigest(IST('06:50:00').getTime(), [], [], { morningExtras: true }).post).toBe(false)
+  })
+
+  test('the morning tick is the 07:00 IST one', () => {
+    expect(isMorningTick(IST('07:00:00').getTime())).toBe(true)
+    expect(isMorningTick(IST('07:09:59').getTime())).toBe(true)
+    expect(isMorningTick(IST('07:10:00').getTime())).toBe(false)
+    expect(isMorningTick(IST('19:00:00').getTime())).toBe(false)
   })
 })

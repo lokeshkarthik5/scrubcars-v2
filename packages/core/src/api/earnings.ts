@@ -1,3 +1,4 @@
+import type { PayoutBalance, PayoutLine, PayoutMethod } from './admin'
 import { apiClient } from './client'
 import type { EarningsJob, EarningsSummary } from '@repo/core/types'
 import { formatScheduledAt } from './mappers'
@@ -78,4 +79,43 @@ export async function getEarningsData(
   } catch {
     return EMPTY_EARNINGS
   }
+}
+
+// ─── The statement (0038) ────────────────────────────────────────────────────
+
+
+/** The garage's Earnings statement: what it is owed, was paid, and each booking. Rupees. */
+export interface EarningsStatement {
+  /** IST dates, both included: the bookings listed became payable then. */
+  range: { from: string; to: string }
+  /** Hours within which Detlio pays (24). */
+  cycleHours: number
+  summary: PayoutBalance & {
+    paidThisMonth: number
+    /** Bookings received so far toward the free 25 (capped at 25). */
+    freeBookings: { used: number; of: number }
+  }
+  lines: PayoutLine[]
+  /** Payouts made in the range, newest first. */
+  payouts: Array<{
+    id: string
+    amount: number
+    method: PayoutMethod
+    reference: string
+    paidAt: string
+    coversFrom: string
+    coversUpTo: string
+  }>
+}
+
+/**
+ * GET /vendors/me/earnings/statement — vendor_admin only, the active garage's
+ * own. With no range, the last 30 days. Unlike getEarningsData this throws:
+ * the screen says it could not load rather than showing zeros, which would
+ * read as "Detlio owes you nothing".
+ */
+export async function getEarningsStatement(range?: { from: string; to: string }): Promise<EarningsStatement> {
+  return apiClient<EarningsStatement>('/vendors/me/earnings/statement', {
+    params: range ? { from: range.from, to: range.to } : undefined,
+  })
 }

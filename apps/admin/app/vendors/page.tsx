@@ -30,7 +30,6 @@ import { PageHeader } from '@repo/ui/sc/page-header'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
-import { PilotNumbersCard } from '@/components/pilot-numbers-card'
 import {
   DeleteForeverSheet,
   MoveToBinDialog,
@@ -216,12 +215,6 @@ function VendorsList() {
           </ScButtonLink>
         }
       />
-
-      {/* The panel's landing page, so the pilot's numbers sit near the top of
-          what ops sees after signing in — below the page's own title and its
-          Add garage button, so the heading order and the main action stay
-          first, and above the list. */}
-      <PilotNumbersCard />
 
       {loading ? (
         <SkeletonList count={3} itemClassName="h-40" />

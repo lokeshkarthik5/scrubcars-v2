@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { IconReceiptRefund } from '@tabler/icons-react'
+import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { Reveal } from '@repo/ui/sc/reveal'
@@ -63,6 +64,13 @@ function RefundsList() {
           tab === 'owed'
             ? 'Refund now sends it back through Razorpay. Refunded in the Razorpay dashboard instead? Mark it refunded. Oldest first.'
             : 'Refunds recorded, newest first.'
+        }
+        // On a phone the bottom bar has no room for Payouts, money's other
+        // daily job, so it is reached from here (the header nav has it).
+        actions={
+          <ScButtonLink href="/payouts" variant="secondary" fullWidth={false} className="min-h-11 px-3 text-[12px] md:hidden">
+            Garage payouts
+          </ScButtonLink>
         }
       />
 

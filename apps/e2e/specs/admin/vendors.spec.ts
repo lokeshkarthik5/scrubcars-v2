@@ -162,7 +162,7 @@ test.describe('admin vendors', () => {
 
     await page.getByRole('tab', { name: 'Details' }).click()
     await businessName.fill(`${VENDORS.opsEdit.name} Renamed`)
-    await page.getByRole('button', { name: /Save|Update/i }).first().click()
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click()
 
     await expect
       .poll(async () => {
@@ -217,7 +217,7 @@ test.describe('admin vendors', () => {
     await expect(businessName).toHaveValue(VENDORS.narrow.name)
 
     await businessName.fill(`${VENDORS.narrow.name} Updated`)
-    await page.getByRole('button', { name: /Save|Update/i }).first().click()
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click()
 
     await expect
       .poll(async () => {

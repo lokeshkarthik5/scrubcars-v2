@@ -621,6 +621,148 @@ export async function getPilotStats(days: 7 | 30) {
   return apiClient<PilotStats>('/admin/stats/pilot', { params: { days } })
 }
 
+// ─── Statistics ──────────────────────────────────────────────────────────────
+// What each figure counts is in apps/server/src/lib/stats.ts and
+// lib/commission.ts; the page's "How we count" says it in plain words.
+
+/** IST calendar dates, both included. */
+export interface StatsRange {
+  from: string
+  to: string
+  days: number
+}
+
+/** The filters every Statistics read takes. */
+export interface StatsFilters {
+  from: string
+  to: string
+  /** One garage, or every garage when absent. */
+  vendorId?: string
+}
+
+/** The Overview's six tiles, for one period. Rates are 0–1, or null with nothing to divide by. */
+export interface StatsKpis {
+  bookings: number
+  collected: number
+  commission: number
+  averageBooking: number | null
+  checkoutsStarted: number
+  paidOfStarted: number | null
+  cancelled: number
+  cancellationRate: number | null
+}
+
+export interface StatsCollectedBar {
+  start: string
+  end: string
+  days: number
+  /** False for a week or month the range only partly covers. */
+  full: boolean
+  collected: number
+}
+
+/** GET /admin/stats/overview */
+export interface StatsOverview {
+  range: StatsRange
+  /** The period compared with, when asked for. */
+  previous: StatsRange | null
+  kpis: StatsKpis
+  previousKpis: StatsKpis | null
+  perDay: Array<{ date: string; bookings: number }>
+  previousPerDay: Array<{ date: string; bookings: number }> | null
+  collected: { unit: 'week' | 'month'; bars: StatsCollectedBar[] }
+}
+
+export interface StatsFunnel {
+  checkoutsStarted: number
+  paid: number
+  completed: number
+  leftWithoutPaying: number
+  paidNoBooking: number
+  cancelled: number
+  noShows: number
+  /** Paid, and neither done nor cancelled yet, whenever its slot was. */
+  notDone: number
+  paidOfStarted: number | null
+  completedOfPaid: number | null
+}
+
+export interface StatsGarageRow {
+  vendorId: string
+  name: string
+  bookings: number
+  collected: number
+  rating: number | null
+  reviews: number
+}
+
+export interface StatsServiceRow {
+  category: ServiceCategory
+  bookings: number
+  collected: number
+}
+
+/** ISO weekday (1 = Monday) by IST hour of the slot. */
+export interface StatsBusyHourCell {
+  weekday: number
+  hour: number
+  bookings: number
+}
+
+/** GET /admin/stats/breakdown */
+export interface StatsBreakdown {
+  range: StatsRange
+  funnel: StatsFunnel
+  /** Every garage with a booking in the period, most collected first. */
+  garages: StatsGarageRow[]
+  /** Every service type, most collected first. */
+  services: StatsServiceRow[]
+  busyHours: {
+    firstHour: number
+    lastHour: number
+    cells: StatsBusyHourCell[]
+    total: number
+  }
+}
+
+/** GET /admin/stats/commission */
+export interface StatsCommission {
+  range: StatsRange
+  rules: {
+    rates: Array<{ rate: number; categories: ServiceCategory[] }>
+    freeBookings: number
+  }
+  commission: number
+  collected: number
+  bookings: number
+  active: Array<{
+    vendorId: string
+    name: string
+    bookings: number
+    commission: number
+    /** The day its 26th booking was made, when that was in the period. */
+    activeSince: string | null
+  }>
+  free: Array<{ vendorId: string; name: string; used: number; left: number }>
+}
+
+/** GET /admin/stats/overview?from&to&vendorId&compare */
+export async function getStatsOverview(filters: StatsFilters & { compare: boolean }) {
+  return apiClient<StatsOverview>('/admin/stats/overview', {
+    params: { ...filters, compare: filters.compare ? 1 : 0 },
+  })
+}
+
+/** GET /admin/stats/breakdown?from&to&vendorId */
+export async function getStatsBreakdown(filters: StatsFilters) {
+  return apiClient<StatsBreakdown>('/admin/stats/breakdown', { params: { ...filters } })
+}
+
+/** GET /admin/stats/commission?from&to&vendorId */
+export async function getStatsCommission(filters: StatsFilters) {
+  return apiClient<StatsCommission>('/admin/stats/commission', { params: { ...filters } })
+}
+
 export interface DemandSupplyCell {
   lat: number
   lng: number
@@ -1282,6 +1424,8 @@ export interface DataResetCounts {
   receiptNumbers: number
   /** Customer complaints made before the cutoff. */
   complaints: number
+  /** Garage payouts that paid only deleted bookings (absent from older servers). */
+  payouts?: number
 }
 
 export interface DataResetReceiptYear {
@@ -1831,4 +1975,190 @@ export async function removeAdminVendorMember(
   await apiClient(`/admin/vendors/${vendorId}/members/${memberId}`, {
     method: 'DELETE',
   })
+}
+
+// ─── Garage payouts (0038) ───────────────────────────────────────────────────
+
+/** Where a booking stands with Detlio (lib/payouts.ts BalanceStatus). */
+export type PayoutLineStatus = 'due' | 'owed_back' | 'paid' | 'nothing_due'
+
+export type PayoutMethod = 'bank' | 'upi' | 'other'
+
+/**
+ * One booking on a garage's statement. Shared by the garage's Earnings and
+ * admin's Payouts; the customer is a first name only. Rupees.
+ */
+export interface PayoutLine {
+  bookingId: string
+  reference: string
+  /** When it became payable: the job completed, or the no-show recorded. */
+  payableFrom: string
+  scheduledAt: string | null
+  customerFirstName: string
+  services: string[]
+  bookingType: string | null
+  /** 'job', 'customer_no_show', or null when it earns nothing any more (money owed back). */
+  kind: 'job' | 'customer_no_show' | null
+  price: number
+  /** A promo Detlio paid for: Detlio's cost. */
+  detlioPromo: number
+  /** A promo the garage funded: comes off its share. */
+  garagePromo: number
+  /** The garage's part of refunds. */
+  refunds: number
+  commission: {
+    /** 0.08, 0.05; empty inside the free 25. */
+    rates: number[]
+    amount: number
+    /** Its place in the garage's first 25, or null. */
+    freePosition: number | null
+    freeOf: number
+  }
+  share: number
+  /** Cash the garage collected itself. */
+  heldByGarage: number
+  /** What Detlio owes on it in all; what was paid; what is still to settle. */
+  due: number
+  paid: number
+  balance: number
+  status: PayoutLineStatus
+  payouts: Array<{ payoutId: string; reference: string; paidAt: string; amount: number }>
+}
+
+export interface PayoutBalance {
+  /** Net owed to the garage now; negative when the garage owes Detlio. */
+  balanceDue: number
+  bookingsDue: number
+  oldestUnpaidAt: string | null
+  /** Unpaid past the 24-hour cycle. */
+  overdue: boolean
+}
+
+export interface PayoutGarage {
+  id: string
+  name: string
+  inBin: boolean
+  /** Deleted forever, kept for its money. */
+  deleted: boolean
+}
+
+export interface AdminPayoutsList {
+  cycleHours: number
+  totals: { garagesDue: number; totalDue: number; overdueGarages: number; oldestUnpaidAt: string | null }
+  garages: Array<
+    PayoutBalance & {
+      garage: PayoutGarage
+      lastPayout: { amount: number; paidAt: string } | null
+      account: { method: 'bank' | 'upi'; masked: string } | null
+    }
+  >
+}
+
+export interface AdminPayout {
+  id: string
+  amount: number
+  method: PayoutMethod
+  reference: string
+  paidAt: string
+  coversFrom: string
+  coversUpTo: string
+  note: string | null
+  recordedBy: string
+  recordedAt: string
+  items: Array<{
+    bookingId: string
+    reference: string
+    kind: 'job' | 'customer_no_show' | 'none'
+    payableFrom: string
+    price: number
+    detlioPromo: number
+    garagePromo: number
+    refunds: number
+    commission: number
+    freePosition: number | null
+    share: number
+    heldByGarage: number
+    amount: number
+  }>
+}
+
+/** A garage's payout details, in full: admin only. */
+export interface PayoutAccount {
+  accountName: string | null
+  accountNumber: string | null
+  ifsc: string | null
+  upiId: string | null
+  updatedBy: string
+  updatedAt: string
+}
+
+export interface AdminGaragePayouts {
+  garage: PayoutGarage
+  cycleHours: number
+  /** The moment the figures were worked out at: Record payout sends it back. */
+  upTo: string
+  summary: PayoutBalance
+  freeBookings: { used: number; of: number }
+  /** What Record payout would pay now, or why it can't. */
+  payable: { amount: number; bookings: number; refusal: 'nothing_due' | 'owed_back' | null }
+  /** The bookings it would settle. */
+  due: PayoutLine[]
+  /** Every booking on the statement. */
+  lines: PayoutLine[]
+  payouts: AdminPayout[]
+  account: PayoutAccount | null
+}
+
+export interface RecordPayoutInput {
+  amount: number
+  upTo: string
+  method: PayoutMethod
+  reference: string
+  paidAt: string
+  note?: string
+  actorName: string
+}
+
+export interface PayoutAccountInput {
+  accountName: string | null
+  accountNumber: string | null
+  ifsc: string | null
+  upiId: string | null
+  actorName: string
+}
+
+/** GET /admin/payouts */
+export async function listAdminPayouts(): Promise<AdminPayoutsList> {
+  return apiClient<AdminPayoutsList>('/admin/payouts')
+}
+
+/** GET /admin/payouts/vendors/:id */
+export async function getAdminGaragePayouts(vendorId: string): Promise<AdminGaragePayouts> {
+  return apiClient<AdminGaragePayouts>(`/admin/payouts/vendors/${vendorId}`)
+}
+
+/** POST /admin/payouts/vendors/:id — settles every booking payable by `upTo`. */
+export async function recordAdminPayout(vendorId: string, input: RecordPayoutInput): Promise<AdminPayout> {
+  return apiClient<AdminPayout>(`/admin/payouts/vendors/${vendorId}`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** GET /admin/payouts/vendors/:id/account — null when none are saved. */
+export async function getAdminPayoutAccount(vendorId: string): Promise<PayoutAccount | null> {
+  return apiClient<PayoutAccount | null>(`/admin/payouts/vendors/${vendorId}/account`)
+}
+
+/** PUT /admin/payouts/vendors/:id/account */
+export async function saveAdminPayoutAccount(vendorId: string, input: PayoutAccountInput): Promise<PayoutAccount> {
+  return apiClient<PayoutAccount>(`/admin/payouts/vendors/${vendorId}/account`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+}
+
+/** DELETE /admin/payouts/vendors/:id/account */
+export async function removeAdminPayoutAccount(vendorId: string): Promise<void> {
+  await apiClient(`/admin/payouts/vendors/${vendorId}/account`, { method: 'DELETE' })
 }
