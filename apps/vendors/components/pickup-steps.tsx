@@ -11,7 +11,12 @@ import {
   markOutForDelivery,
   markPickedUp,
 } from '@repo/core/api/bookings'
-import { MAX_CODE_ATTEMPTS, PICKUP_STEP_LABELS, type PickupNext } from '@repo/core/pickup'
+import {
+  handoverLocked,
+  MAX_CODE_ATTEMPTS,
+  PICKUP_STEP_LABELS,
+  type PickupNext,
+} from '@repo/core/pickup'
 import { SUPPORT_PHONE_DISPLAY, SUPPORT_TEL_HREF } from '@repo/core/support'
 import type { Booking } from '@repo/core/types'
 
@@ -48,14 +53,16 @@ export function PickupSteps({
   const step = booking.pickup?.nextStep ?? null
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
-  const [locked, setLocked] = useState(false)
+  // The step a "too many wrong codes" answer came back on. Tied to that step,
+  // so when Detlio confirms the handover and the job moves on, it clears.
+  const [lockedStep, setLockedStep] = useState<PickupNext | null>(null)
 
   if (!step) return null
 
   const needsCode = step === 'picked_up' || step === 'delivered'
   const triesLeft =
     step === 'picked_up' ? booking.pickup?.pickupCodeTriesLeft : booking.pickup?.deliveryCodeTriesLeft
-  const outOfTries = locked || (needsCode && triesLeft === 0)
+  const outOfTries = handoverLocked(step, lockedStep, triesLeft)
   const who = booking.customerName ?? 'this customer'
 
   const run = async () => {
@@ -70,7 +77,7 @@ export function PickupSteps({
       if (step !== 'start_work') toast.success(`${PICKUP_STEP_LABELS[step]} marked`)
       onChanged()
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'HANDOVER_CODE_LOCKED') setLocked(true)
+      if (error instanceof ApiError && error.code === 'HANDOVER_CODE_LOCKED') setLockedStep(step)
       toast.error(error instanceof Error ? error.message : 'Could not update this booking')
       onChanged()
     } finally {

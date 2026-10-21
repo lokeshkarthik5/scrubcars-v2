@@ -47,6 +47,25 @@ export const DIGEST_TICK_MINS = 10
 export const NUDGE_AFTER_MINS = 30
 
 const MINUTE_MS = 60_000
+const DAY_MS = 24 * 60 * MINUTE_MS
+
+/** How long after its start time a still-pending booking keeps being listed. */
+export const MISSED_LOOKBACK_MS = DAY_MS
+/**
+ * An uncollected pickup is listed until the garage marks it picked up or it is
+ * cancelled, not for a day like a pending booking: a paid car nobody collected
+ * stays the team's problem. The 14 days only keep the query bounded; nothing
+ * real is that old and still open.
+ */
+export const UNCOLLECTED_PICKUP_LOOKBACK_MS = 14 * DAY_MS
+
+/** The oldest start time each of the digest's two queries looks back to. */
+export function digestLookbacks(now: number): { bookingsSince: Date; pickupsSince: Date } {
+  return {
+    bookingsSince: new Date(now - MISSED_LOOKBACK_MS),
+    pickupsSince: new Date(now - UNCOLLECTED_PICKUP_LOOKBACK_MS),
+  }
+}
 const IST_OFFSET_MINS = 330
 const QUIET_FROM_HOUR = 22
 const MORNING_HOUR = 7
