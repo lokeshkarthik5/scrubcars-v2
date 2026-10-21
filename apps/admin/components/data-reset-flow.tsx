@@ -27,7 +27,11 @@ import { dataResetCsv, phraseTyped, plural } from '@/lib/data-reset'
  */
 
 /** "Checked 25 of 143 old payments with Razorpay…" while a dry run pages. */
-export function CheckingLine({ preview }: { preview: DataResetPreview | null }) {
+export function CheckingLine({
+  preview,
+}: {
+  preview: DataResetPreview | null
+}) {
   if (!preview || preview.lookups.remaining === 0) return null
   return (
     <p role="status" className="text-[12px] text-text-secondary">
@@ -62,7 +66,9 @@ function ListRow({
   return (
     <li>
       {checkbox ? (
-        <label className={cn(shell, kept ? 'cursor-not-allowed' : 'cursor-pointer')}>
+        <label
+          className={cn(shell, kept ? 'cursor-not-allowed' : 'cursor-pointer')}
+        >
           {checkbox}
           {children}
         </label>
@@ -73,7 +79,8 @@ function ListRow({
   )
 }
 
-const BOX = 'mt-3 size-4 shrink-0 accent-brand-white disabled:cursor-not-allowed disabled:opacity-50'
+const BOX =
+  'mt-3 size-4 shrink-0 accent-brand-white disabled:cursor-not-allowed disabled:opacity-50'
 
 /** One customer booking (a whole reschedule chain) in the list. */
 export function ChainRow({
@@ -110,19 +117,29 @@ export function ChainRow({
           </span>
           {chain.bookingIds.length > 1 && (
             <ScBadge variant="muted">
-              Moved <span className="ml-1 font-numeric">{chain.bookingIds.length - 1}</span>×
+              Moved{' '}
+              <span className="ml-1 font-numeric">
+                {chain.bookingIds.length - 1}
+              </span>
+              ×
             </ScBadge>
           )}
           {chain.markedTest && <ScBadge variant="pending">Test</ScBadge>}
-          <ScBadge variant={kept ? 'danger' : 'muted'}>{chain.moneyLabel}</ScBadge>
-          <span className="ml-auto font-numeric text-text-primary">{formatRupees(chain.amount)}</span>
+          <ScBadge variant={kept ? 'danger' : 'muted'}>
+            {chain.moneyLabel}
+          </ScBadge>
+          <span className="ml-auto font-numeric text-text-primary">
+            {formatRupees(chain.amount)}
+          </span>
         </div>
         <p className="mt-0.5 truncate text-text-secondary">
           {chain.customer.name} · {chain.garage.name} · booked{' '}
           <span className="font-numeric">{formatWhen(chain.createdAt)}</span>
         </p>
         {chain.receiptNumber && (
-          <p className="font-numeric text-text-muted">Receipt {chain.receiptNumber}</p>
+          <p className="font-numeric text-text-muted">
+            Receipt {chain.receiptNumber}
+          </p>
         )}
         {kept && (
           <p className="mt-0.5 text-text-primary">
@@ -167,7 +184,9 @@ export function CheckoutRow({
           <span className="font-numeric text-[13px] font-semibold text-text-primary">
             #{checkout.reference}
           </span>
-          <ScBadge variant={kept ? 'danger' : 'muted'}>{checkout.moneyLabel}</ScBadge>
+          <ScBadge variant={kept ? 'danger' : 'muted'}>
+            {checkout.moneyLabel}
+          </ScBadge>
           <span className="ml-auto font-numeric text-text-primary">
             {formatRupees(checkout.amount)}
           </span>
@@ -224,11 +243,12 @@ export function ComplaintsRow({
     >
       <div className="min-w-0 flex-1 text-[12px]">
         <p className="text-[13px] font-semibold text-text-primary">
-          {plural(complaints.count, 'complaint', 'complaints')} made before the cutoff
+          {plural(complaints.count, 'complaint', 'complaints')} made before the
+          cutoff
         </p>
         <p className="mt-0.5 text-text-secondary">
-          <span className="font-numeric">{range}</span> · with their notes. Numbering carries on
-          from the last one.
+          <span className="font-numeric">{range}</span> · with their notes.
+          Numbering carries on from the last one.
         </p>
       </div>
     </ListRow>
@@ -268,11 +288,12 @@ export function AnalyticsEventsRow({
     >
       <div className="min-w-0 flex-1 text-[12px]">
         <p className="text-[13px] font-semibold text-text-primary">
-          {plural(events.count, 'usage event', 'usage events')} recorded before the cutoff
+          {plural(events.count, 'usage event', 'usage events')} recorded before
+          the cutoff
         </p>
         <p className="mt-0.5 text-text-secondary">
-          Visits and steps for the Funnel on Statistics, with no names or numbers. The Funnel starts
-          again from the cutoff.
+          Visits and steps for the Funnel on Statistics, with no names or
+          numbers. The Funnel starts again from the cutoff.
         </p>
       </div>
     </ListRow>
@@ -297,7 +318,9 @@ export function DryRunSummary({
   onDownloaded: () => void
 }) {
   // Everything in scope this run leaves: kept for a reason, or not ticked.
-  const keptRows = [...preview.chains, ...preview.checkouts].filter((row) => !row.selected)
+  const keptRows = [...preview.chains, ...preview.checkouts].filter(
+    (row) => !row.selected
+  )
   const download = () => {
     downloadCsv(dataResetCsv(preview), `detlio-test-data-${todayIst()}.csv`)
     onDownloaded()
@@ -306,9 +329,13 @@ export function DryRunSummary({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <p className="text-[13px] font-semibold text-text-primary">This deletes, for good:</p>
+        <p className="text-[13px] font-semibold text-text-primary">
+          This deletes, for good:
+        </p>
         {preview.countLines.length === 0 ? (
-          <p className="text-[13px] text-text-secondary">Nothing. Nothing in scope is ticked.</p>
+          <p className="text-[13px] text-text-secondary">
+            Nothing. Nothing in scope is ticked.
+          </p>
         ) : (
           <ul className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 text-[13px] text-text-primary sm:grid-cols-2">
             {preview.countLines.map((line) => (
@@ -322,7 +349,9 @@ export function DryRunSummary({
 
       {preview.receiptPlan.length > 0 && (
         <div>
-          <p className="text-[13px] font-semibold text-text-primary">Receipt numbers</p>
+          <p className="text-[13px] font-semibold text-text-primary">
+            Receipt numbers
+          </p>
           <ul className="mt-1 flex flex-col gap-0.5 text-[13px] text-text-primary">
             {preview.receiptPlan.map((year) => (
               <li key={year.financialYear} className="font-numeric">
@@ -344,8 +373,12 @@ export function DryRunSummary({
 
       {(preview.overCap.chains > 0 || preview.overCap.checkouts > 0) && (
         <p className="text-[12px] text-text-primary">
-          This run takes the oldest first, up to its limit. Run it again for the other{' '}
-          <span className="font-numeric">{preview.overCap.chains + preview.overCap.checkouts}</span>.
+          This run takes the oldest first, up to its limit. Run it again for the
+          other{' '}
+          <span className="font-numeric">
+            {preview.overCap.chains + preview.overCap.checkouts}
+          </span>
+          .
         </p>
       )}
 
@@ -358,7 +391,7 @@ export function DryRunSummary({
         >
           <IconDownload size={16} aria-hidden /> Download list (CSV)
         </ScButton>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           {downloaded
             ? 'Downloaded. Keep it with today’s database backup.'
             : 'Every row in scope, deleted or kept, and why. Keep it with today’s database backup.'}
@@ -407,9 +440,15 @@ export function ConfirmDelete({
   const [name, setName] = useState('')
   const [backup, setBackup] = useState(false)
   const [phrase, setPhrase] = useState('')
-  const [error, setError] = useState<{ message: string; stale: boolean } | null>(null)
+  const [error, setError] = useState<{
+    message: string
+    stale: boolean
+  } | null>(null)
 
-  const ready = name.trim().length >= 2 && backup && phraseTyped(phrase, preview.confirmPhrase)
+  const ready =
+    name.trim().length >= 2 &&
+    backup &&
+    phraseTyped(phrase, preview.confirmPhrase)
 
   const submit = () => {
     if (!ready || execute.isPending) return
@@ -446,7 +485,11 @@ export function ConfirmDelete({
         onChange={(e) => setName(e.target.value)}
         className="min-h-11"
       />
-      <ScCheckbox label="I have a database backup from today" checked={backup} onChange={setBackup} />
+      <ScCheckbox
+        label="I have a database backup from today"
+        checked={backup}
+        onChange={setBackup}
+      />
       <div className="flex flex-col gap-1">
         <ScInput
           id="reset-phrase"
@@ -458,14 +501,24 @@ export function ConfirmDelete({
           onChange={(e) => setPhrase(e.target.value)}
           className="min-h-11 font-numeric"
         />
-        <p className="text-[11px] text-text-muted">This can&apos;t be undone from here.</p>
+        <p className="text-[12px] text-text-muted">
+          This can&apos;t be undone from here.
+        </p>
       </div>
 
       {error && (
-        <div role="alert" className="flex flex-col gap-2 text-[12px] text-error">
+        <div
+          role="alert"
+          className="flex flex-col gap-2 text-[12px] text-error"
+        >
           <p>{error.message}</p>
           {error.stale && (
-            <ScButton variant="secondary" fullWidth={false} onClick={onStale} className="min-h-11 px-4">
+            <ScButton
+              variant="secondary"
+              fullWidth={false}
+              onClick={onStale}
+              className="min-h-11 px-4"
+            >
               Run the dry run again
             </ScButton>
           )}
@@ -473,7 +526,24 @@ export function ConfirmDelete({
       )}
 
       {/* The one red button: this is the step that deletes. */}
-      <ScButton onClick={submit} disabled={!ready || execute.isPending} className="min-h-11">
+      <ScButton
+        onClick={submit}
+        disabled={!ready || execute.isPending}
+        // Grey with what is missing, not a faded red that reads as an error.
+        disabledReason={
+          ready
+            ? undefined
+            : `Still to do: ${[
+                name.trim().length < 2 && 'your name',
+                !backup && 'the backup tick',
+                !phraseTyped(phrase, preview.confirmPhrase) &&
+                  'the typed words',
+              ]
+                .filter(Boolean)
+                .join(', ')}`
+        }
+        className="min-h-11"
+      >
         {execute.isPending ? 'Deleting…' : deleteLabel(preview.confirmPhrase)}
       </ScButton>
     </div>
@@ -489,7 +559,10 @@ function deleteLabel(phrase: string): string {
 /** What was done, once it is done. */
 export function ResultSummary({ result }: { result: DataResetResult }) {
   return (
-    <div role="status" className="flex flex-col gap-2 text-[13px] text-text-primary">
+    <div
+      role="status"
+      className="flex flex-col gap-2 text-[13px] text-text-primary"
+    >
       <p className="font-semibold">Done. Deleted by {result.by}.</p>
       <ul className="flex flex-col gap-0.5">
         {result.countLines.map((line) => (
@@ -505,15 +578,20 @@ export function ResultSummary({ result }: { result: DataResetResult }) {
       ))}
       {result.photosRemoved > 0 && (
         <p className="text-[12px] text-text-secondary">
-          The {plural(result.photosRemoved, 'job photo file is', 'job photo files are')} being
-          removed from storage.
+          The{' '}
+          {plural(
+            result.photosRemoved,
+            'job photo file is',
+            'job photo files are'
+          )}{' '}
+          being removed from storage.
         </p>
       )}
       <p className="text-[12px] text-text-secondary">
-        Recorded at <span className="font-numeric">{formatWhen(result.at)}</span>. Audit record{' '}
-        <span className="font-numeric">{result.auditId}</span>.
+        Recorded at{' '}
+        <span className="font-numeric">{formatWhen(result.at)}</span>. Audit
+        record <span className="font-numeric">{result.auditId}</span>.
       </p>
     </div>
   )
 }
-

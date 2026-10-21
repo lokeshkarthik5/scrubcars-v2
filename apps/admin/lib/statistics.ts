@@ -1,6 +1,15 @@
 import type { ServiceCategory } from '@repo/core/types'
-import type { StatsBreakdown, StatsFunnelMode, StatsFunnelReport } from '@repo/core/api/admin'
-import { addDays, isWholeMonth, previousStatsRange, rangeDays } from '@repo/core/stats-range'
+import type {
+  StatsBreakdown,
+  StatsFunnelMode,
+  StatsFunnelReport,
+} from '@repo/core/api/admin'
+import {
+  addDays,
+  isWholeMonth,
+  previousStatsRange,
+  rangeDays,
+} from '@repo/core/stats-range'
 import { csvCell } from '@/lib/bookings'
 
 /**
@@ -9,7 +18,20 @@ import { csvCell } from '@/lib/bookings'
  * picks the dates to ask for and says the answers.
  */
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 const MONTH_NAMES = [
   'January',
   'February',
@@ -68,12 +90,17 @@ export function periodRange(period: Period, today: string): DateRange {
 }
 
 /** The Commission tab's months: this one and the eleven before, newest first. */
-export function monthOptions(today: string): Array<{ value: string; label: string }> {
+export function monthOptions(
+  today: string
+): Array<{ value: string; label: string }> {
   const out: Array<{ value: string; label: string }> = []
   let first = `${today.slice(0, 7)}-01`
   for (let i = 0; i < 12; i++) {
     const value = first.slice(0, 7)
-    out.push({ value, label: `${MONTH_NAMES[Number(value.slice(5)) - 1]} ${value.slice(0, 4)}` })
+    out.push({
+      value,
+      label: `${MONTH_NAMES[Number(value.slice(5)) - 1]} ${value.slice(0, 4)}`,
+    })
     first = `${addDays(first, -1).slice(0, 7)}-01`
   }
   return out
@@ -106,7 +133,10 @@ export function comparisonDates(range: DateRange): string {
 
 /** The Funnel goes by the last 7, 30 or 90 days only: usage events are new. */
 export const FUNNEL_PERIODS = PERIODS.filter(
-  (period) => period.value === 'last7' || period.value === 'last30' || period.value === 'last90'
+  (period) =>
+    period.value === 'last7' ||
+    period.value === 'last30' ||
+    period.value === 'last90'
 )
 
 export type FunnelPeriod = 'last7' | 'last30' | 'last90'
@@ -116,7 +146,10 @@ export function funnelPeriod(period: Period): FunnelPeriod {
   return period === 'last7' || period === 'last90' ? period : 'last30'
 }
 
-export const FUNNEL_MODES: ReadonlyArray<{ value: StatsFunnelMode; label: string }> = [
+export const FUNNEL_MODES: ReadonlyArray<{
+  value: StatsFunnelMode
+  label: string
+}> = [
   { value: 'all', label: 'All booking types' },
   { value: 'dropin', label: 'At garage' },
   { value: 'doorstep', label: 'Doorstep' },
@@ -127,7 +160,10 @@ export function isFunnelMode(value: string | null): value is StatsFunnelMode {
   return FUNNEL_MODES.some((mode) => mode.value === value)
 }
 
-export const DEVICE_LABELS: Record<StatsFunnelReport['devices'][number]['device'], string> = {
+export const DEVICE_LABELS: Record<
+  StatsFunnelReport['devices'][number]['device'],
+  string
+> = {
   phone: 'Phone',
   tablet: 'Tablet',
   desktop: 'Desktop',
@@ -138,7 +174,10 @@ export const DEVICE_LABELS: Record<StatsFunnelReport['devices'][number]['device'
  * the release that started recording them, so a period reaching back
  * further reads low on its early days. Null once the whole period has them.
  */
-export function eventsStartNote(eventsSince: string | null, range: DateRange): string | null {
+export function eventsStartNote(
+  eventsSince: string | null,
+  range: DateRange
+): string | null {
   if (eventsSince === null) {
     return 'No usage events yet. They are recorded from the release that added them, so this tab fills in from then on.'
   }
@@ -147,16 +186,22 @@ export function eventsStartNote(eventsSince: string | null, range: DateRange): s
 }
 
 /** "Lost 90 here · 25% went on": the biggest drop's line, or null when nothing fell. */
-export function biggestDropLine(funnel: StatsFunnelReport['funnel']): string | null {
+export function biggestDropLine(
+  funnel: StatsFunnelReport['funnel']
+): string | null {
   const drop = funnel.biggestDrop
   if (!drop) return null
-  const went = drop.ofPrevious === null ? '' : ` · ${percent(drop.ofPrevious)} went on`
+  const went =
+    drop.ofPrevious === null ? '' : ` · ${percent(drop.ofPrevious)} went on`
   return `Biggest drop: ${drop.lost.toLocaleString('en-IN')} lost before this step${went}`
 }
 
 /** "8 of 20 customers", or why there is no rate yet. */
-export function returnWindowLine(window: StatsFunnelReport['returning']['windows'][number]): string {
-  if (window.eligible === 0) return `Too recent to tell: no booking in the period is ${window.days} days old yet`
+export function returnWindowLine(
+  window: StatsFunnelReport['returning']['windows'][number]
+): string {
+  if (window.eligible === 0)
+    return `Too recent to tell: no booking in the period is ${window.days} days old yet`
   return `${window.returned.toLocaleString('en-IN')} of ${plural(window.eligible, 'customer', 'customers')}`
 }
 
@@ -201,8 +246,12 @@ export const LABEL_EVERY_BAR_UP_TO = 7
  * chart's text summary.
  */
 export function barsToLabel(amounts: number[]): Set<number> {
-  if (amounts.length <= LABEL_EVERY_BAR_UP_TO) return new Set(amounts.map((_, i) => i))
-  const highest = amounts.reduce((best, amount, i) => (amount > amounts[best] ? i : best), 0)
+  if (amounts.length <= LABEL_EVERY_BAR_UP_TO)
+    return new Set(amounts.map((_, i) => i))
+  const highest = amounts.reduce(
+    (best, amount, i) => (amount > amounts[best] ? i : best),
+    0
+  )
   return new Set([0, amounts.length - 1, highest])
 }
 
@@ -220,15 +269,24 @@ export function plural(count: number, one: string, many: string): string {
  * A tile's change from the period before: "↑ 18%" for counts and money, "↑ 4
  * pts" for rates, and whether that is good news. `better` says which way is
  * good — fewer cancellations is. Null when there is nothing to compare: no
- * earlier figure, or an earlier zero, where a percentage would be infinite.
+ * earlier figure, or an earlier zero, where a percentage would be infinite;
+ * and null past ±300% (quick win 6), which only says the period before was
+ * the soft launch ("↑1547%"), not how the business moved.
  */
+/** A change bigger than this, in percent, is left out rather than shown. */
+export const MAX_SHOWN_CHANGE = 300
+
 export function change(
   current: number | null,
   previous: number | null,
   kind: 'amount' | 'rate',
   better: 'up' | 'down' = 'up',
   decimals = 0
-): { direction: 'up' | 'down' | 'same'; text: string; good: boolean | null } | null {
+): {
+  direction: 'up' | 'down' | 'same'
+  text: string
+  good: boolean | null
+} | null {
   if (current === null || previous === null) return null
   let size: number
   let unit: string
@@ -238,6 +296,7 @@ export function change(
   } else {
     if (previous === 0) return null
     size = Math.round((current / previous - 1) * 100)
+    if (Math.abs(size) > MAX_SHOWN_CHANGE) return null
     unit = '%'
   }
   if (size === 0) return { direction: 'same', text: 'no change', good: null }
@@ -264,7 +323,9 @@ export const SERVICE_TYPE_LABELS: Record<ServiceCategory, string> = {
 /** "Car wash, packages and others": a commission rate's categories in a line. */
 export function categoryList(categories: ServiceCategory[]): string {
   const names = categories.map((category, i) =>
-    i === 0 ? SERVICE_TYPE_LABELS[category] : SERVICE_TYPE_LABELS[category].toLowerCase()
+    i === 0
+      ? SERVICE_TYPE_LABELS[category]
+      : SERVICE_TYPE_LABELS[category].toLowerCase()
   )
   if (names.length <= 1) return names.join('')
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
@@ -284,22 +345,37 @@ export function hourLabel(hour: number): string {
  * A cell's shade, 0 (none) to 4 (the busiest), in quarters of the busiest
  * cell, so one busy Saturday does not wash every other cell out to nothing.
  */
-export function heatLevel(bookings: number, busiest: number): 0 | 1 | 2 | 3 | 4 {
+export function heatLevel(
+  bookings: number,
+  busiest: number
+): 0 | 1 | 2 | 3 | 4 {
   if (bookings <= 0 || busiest <= 0) return 0
-  return Math.min(4, Math.max(1, Math.ceil((bookings / busiest) * 4))) as 1 | 2 | 3 | 4
+  return Math.min(4, Math.max(1, Math.ceil((bookings / busiest) * 4))) as
+    1 | 2 | 3 | 4
 }
 
 /** The busiest slots, most first: "Sat 10 AM (12)". */
-export function busiestSlots(cells: StatsBreakdown['busyHours']['cells'], count = 3): string[] {
+export function busiestSlots(
+  cells: StatsBreakdown['busyHours']['cells'],
+  count = 3
+): string[] {
   return [...cells]
     .filter((cell) => cell.bookings > 0)
-    .sort((a, b) => b.bookings - a.bookings || a.weekday - b.weekday || a.hour - b.hour)
+    .sort(
+      (a, b) =>
+        b.bookings - a.bookings || a.weekday - b.weekday || a.hour - b.hour
+    )
     .slice(0, count)
-    .map((cell) => `${WEEKDAY_LABELS[cell.weekday - 1]} ${hourLabel(cell.hour)} (${cell.bookings})`)
+    .map(
+      (cell) =>
+        `${WEEKDAY_LABELS[cell.weekday - 1]} ${hourLabel(cell.hour)} (${cell.bookings})`
+    )
 }
 
 /** The weekday with the most bookings in a run of days, or null on a tie or none. */
-export function busiestWeekday(days: Array<{ date: string; bookings: number }>): string | null {
+export function busiestWeekday(
+  days: Array<{ date: string; bookings: number }>
+): string | null {
   const totals = new Array<number>(7).fill(0)
   for (const day of days) {
     // getUTCDay on a date key is its calendar weekday, 0 = Sunday.
@@ -307,10 +383,17 @@ export function busiestWeekday(days: Array<{ date: string; bookings: number }>):
     totals[(weekday + 6) % 7] += day.bookings
   }
   const most = Math.max(...totals)
-  if (most === 0 || totals.filter((total) => total === most).length > 1) return null
-  return ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'][
-    totals.indexOf(most)
-  ]
+  if (most === 0 || totals.filter((total) => total === most).length > 1)
+    return null
+  return [
+    'Mondays',
+    'Tuesdays',
+    'Wednesdays',
+    'Thursdays',
+    'Fridays',
+    'Saturdays',
+    'Sundays',
+  ][totals.indexOf(most)]
 }
 
 // ─── CSV ─────────────────────────────────────────────────────────────────────
@@ -324,8 +407,20 @@ export function breakdownCsv(breakdown: StatsBreakdown): string {
   const rows: Array<Array<string | number | null>> = [
     ['Section', 'Name', 'Bookings', 'Collected (₹)', 'Rating'],
     ['Period', rangeLabel(breakdown.range), null, null, null],
-    ['Funnel', 'Checkout started', breakdown.funnel.checkoutsStarted, null, null],
-    ['Funnel', 'Left without paying', breakdown.funnel.leftWithoutPaying, null, null],
+    [
+      'Funnel',
+      'Checkout started',
+      breakdown.funnel.checkoutsStarted,
+      null,
+      null,
+    ],
+    [
+      'Funnel',
+      'Left without paying',
+      breakdown.funnel.leftWithoutPaying,
+      null,
+      null,
+    ],
     ['Funnel', 'Paid, no booking', breakdown.funnel.paidNoBooking, null, null],
     ['Funnel', 'Paid', breakdown.funnel.paid, null, null],
     ['Funnel', 'Cancelled', breakdown.funnel.cancelled, null, null],

@@ -2,7 +2,12 @@
 
 import { useId, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
-import { IconExternalLink, IconFileText, IconShieldCheckFilled, IconUpload } from '@tabler/icons-react'
+import {
+  IconExternalLink,
+  IconFileText,
+  IconShieldCheckFilled,
+  IconUpload,
+} from '@tabler/icons-react'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
@@ -46,9 +51,17 @@ const STATUS_VARIANT = {
  * changes". While the garage is in the Bin the files still open, and
  * nothing can be changed.
  */
-export function GarageDocumentsSection({ vendorId, readOnly }: { vendorId: string; readOnly: boolean }) {
+export function GarageDocumentsSection({
+  vendorId,
+  readOnly,
+}: {
+  vendorId: string
+  readOnly: boolean
+}) {
   const { data, isLoading, error } = useAdminGarageDocuments(vendorId)
-  const [actorName, setActorName] = useState(() => (typeof window === 'undefined' ? '' : rememberedName()))
+  const [actorName, setActorName] = useState(() =>
+    typeof window === 'undefined' ? '' : rememberedName()
+  )
   const nameOk = actorName.trim().length >= 2
   const setName = (value: string) => {
     setActorName(value)
@@ -79,7 +92,11 @@ export function GarageDocumentsSection({ vendorId, readOnly }: { vendorId: strin
       action={
         summary.verified ? (
           <ScBadge variant="success">
-            <IconShieldCheckFilled size={12} aria-hidden="true" className="mr-1" />
+            <IconShieldCheckFilled
+              size={12}
+              aria-hidden="true"
+              className="mr-1"
+            />
             Documents verified
           </ScBadge>
         ) : undefined
@@ -87,7 +104,8 @@ export function GarageDocumentsSection({ vendorId, readOnly }: { vendorId: strin
     >
       <p className="text-[13px] font-medium text-text-primary">
         <span className="font-numeric">{summary.approvedRequired}</span> of{' '}
-        <span className="font-numeric">{summary.required}</span> required approved
+        <span className="font-numeric">{summary.required}</span> required
+        approved
         {summary.toReview > 0 && (
           <>
             {' · '}
@@ -95,10 +113,12 @@ export function GarageDocumentsSection({ vendorId, readOnly }: { vendorId: strin
           </>
         )}
       </p>
-      <p className="text-[11px] text-text-muted">
-        When the four required ones are approved, customers see a Documents verified badge. It does not
-        decide whether the garage is listed (that is Verify). Files open in a new tab on a link that works for
-        5 minutes; don’t download or forward them. Saved immediately — not part of “Save changes”.
+      <p className="text-[12px] text-text-muted">
+        When the four required ones are approved, customers see a Documents
+        verified badge. It does not decide whether the garage is listed (that is
+        Verify). Files open in a new tab on a link that works for 5 minutes;
+        don’t download or forward them. Saved immediately — not part of “Save
+        changes”.
       </p>
       {!readOnly && (
         <ScField
@@ -152,7 +172,9 @@ function DocumentRow({
   const open = async (fileId: string) => {
     if (!doc.id) return
     try {
-      await openDocumentLink(() => getAdminDocumentLink(vendorId, doc.id!, fileId))
+      await openDocumentLink(() =>
+        getAdminDocumentLink(vendorId, doc.id!, fileId)
+      )
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't open the file"))
     }
@@ -167,15 +189,23 @@ function DocumentRow({
         review:
           action === 'approve'
             ? { action, version: doc.version, actorName }
-            : { action, version: doc.version, actorName, reason: reason.trim() },
+            : {
+                action,
+                version: doc.version,
+                actorName,
+                reason: reason.trim(),
+              },
       },
       {
         onSuccess: () => {
           setRejecting(false)
           setReason('')
-          toast.success(`${doc.label} ${action === 'approve' ? 'approved' : 'rejected'}`)
+          toast.success(
+            `${doc.label} ${action === 'approve' ? 'approved' : 'rejected'}`
+          )
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't save the review")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't save the review")),
       }
     )
   }
@@ -184,27 +214,44 @@ function DocumentRow({
     if (!actorName || picked.length === 0 || pickProblem) return
     setError('')
     upload.mutate(
-      { type: doc.type, files: picked, expiresOn: expiresOn || null, actorName, approve: approveUpload },
+      {
+        type: doc.type,
+        files: picked,
+        expiresOn: expiresOn || null,
+        actorName,
+        approve: approveUpload,
+      },
       {
         onSuccess: () => {
           setPicked([])
           setExpiresOn('')
-          toast.success(`${doc.label} uploaded${approveUpload ? ' and approved' : ''}`)
+          toast.success(
+            `${doc.label} uploaded${approveUpload ? ' and approved' : ''}`
+          )
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't upload the document")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't upload the document")),
       }
     )
   }
 
   return (
-    <div role="group" aria-labelledby={titleId} className="flex flex-col gap-2.5 rounded-[10px] border border-border p-3">
+    <div
+      role="group"
+      aria-labelledby={titleId}
+      className="flex flex-col gap-2.5 rounded-[10px] border border-border p-3"
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p id={titleId} className="text-[13px] font-semibold text-text-primary">
+          <p
+            id={titleId}
+            className="text-[13px] font-semibold text-text-primary"
+          >
             {doc.label}
           </p>
-          <p className="text-[11px] text-text-muted">
-            {doc.required ? 'Required' : 'Optional'} · {DOCUMENT_HINTS[doc.type]}
+          <p className="text-[12px] text-text-muted">
+            {doc.required ? 'Required' : 'Optional'} ·{' '}
+            {DOCUMENT_HINTS[doc.type]}
             {doc.type === 'owner_id' && ` ${AADHAAR_MASK_NOTE}.`}
           </p>
         </div>
@@ -214,25 +261,28 @@ function DocumentRow({
       </div>
 
       {doc.status !== 'missing' && (
-        <p className="text-[11px] text-text-secondary">
+        <p className="text-[12px] text-text-secondary">
           Uploaded by {doc.uploadedBy}
           {doc.submittedAt && <>, {istDateTimeLabel(doc.submittedAt)}</>}
           {doc.reviewedBy && doc.reviewedAt && (
             <>
               {' · '}
-              {doc.status === 'approved' ? 'Approved' : 'Rejected'} by {doc.reviewedBy},{' '}
-              {istDateTimeLabel(doc.reviewedAt)}
+              {doc.status === 'approved' ? 'Approved' : 'Rejected'} by{' '}
+              {doc.reviewedBy}, {istDateTimeLabel(doc.reviewedAt)}
             </>
           )}
           {doc.expiresOn && (
             <>
-              {' · '}Expires <span className="font-numeric">{doc.expiresOn}</span>
+              {' · '}Expires{' '}
+              <span className="font-numeric">{doc.expiresOn}</span>
             </>
           )}
         </p>
       )}
       {doc.status === 'rejected' && doc.rejectionReason && (
-        <p className="text-[12px] text-error">The garage was told: {doc.rejectionReason}</p>
+        <p className="text-[12px] text-error">
+          The garage was told: {doc.rejectionReason}
+        </p>
       )}
 
       {doc.files.length > 0 && (
@@ -247,8 +297,12 @@ function DocumentRow({
                 className="flex min-h-11 items-center gap-1.5 px-3 py-2 text-[12px]"
               >
                 <IconFileText size={14} aria-hidden="true" />
-                {doc.files.length > 1 ? (file.side === 'front' ? 'Front' : 'Back') : 'Open'} ·{' '}
-                <span className="font-numeric">{fileLine(file)}</span>
+                {doc.files.length > 1
+                  ? file.side === 'front'
+                    ? 'Front'
+                    : 'Back'
+                  : 'Open'}{' '}
+                · <span className="font-numeric">{fileLine(file)}</span>
                 <IconExternalLink size={13} aria-hidden="true" />
               </ScButton>
             </li>
@@ -280,7 +334,11 @@ function DocumentRow({
               Reject
             </ScButton>
           )}
-          {!actorName && <p className="self-center text-[11px] text-text-muted">Type your name above first.</p>}
+          {!actorName && (
+            <p className="self-center text-[12px] text-text-muted">
+              Type your name above first.
+            </p>
+          )}
         </div>
       )}
 
@@ -302,7 +360,9 @@ function DocumentRow({
               onClick={() => decide('reject')}
               className="min-h-11 px-3.5 text-[12px]"
             >
-              {review.isPending ? 'Saving…' : `Reject ${doc.label.toLowerCase()}`}
+              {review.isPending
+                ? 'Saving…'
+                : `Reject ${doc.label.toLowerCase()}`}
             </ScButton>
             <ScButton
               variant="secondary"
@@ -349,7 +409,11 @@ function DocumentRow({
               <ul className="text-[12px] text-text-secondary">
                 {picked.map((file, index) => (
                   <li key={`${file.name}-${index}`} className="truncate">
-                    {picked.length > 1 ? (index === 0 ? 'Front: ' : 'Back: ') : ''}
+                    {picked.length > 1
+                      ? index === 0
+                        ? 'Front: '
+                        : 'Back: '
+                      : ''}
                     {file.name}
                   </li>
                 ))}
@@ -368,7 +432,9 @@ function DocumentRow({
                 checked={approveUpload}
                 onChange={setApproveUpload}
               />
-              {pickProblem && <p className="text-[11px] text-error">{pickProblem}</p>}
+              {pickProblem && (
+                <p className="text-[12px] text-error">{pickProblem}</p>
+              )}
               <div className="flex flex-wrap gap-2">
                 <ScButton
                   variant="secondary"
@@ -377,7 +443,9 @@ function DocumentRow({
                   onClick={send}
                   className="min-h-11 px-3.5 text-[12px]"
                 >
-                  {upload.isPending ? 'Uploading…' : `Upload ${doc.label.toLowerCase()}`}
+                  {upload.isPending
+                    ? 'Uploading…'
+                    : `Upload ${doc.label.toLowerCase()}`}
                 </ScButton>
                 <ScButton
                   variant="secondary"
@@ -389,7 +457,11 @@ function DocumentRow({
                   Cancel
                 </ScButton>
               </div>
-              {!actorName && <p className="text-[11px] text-text-muted">Type your name above first.</p>}
+              {!actorName && (
+                <p className="text-[12px] text-text-muted">
+                  Type your name above first.
+                </p>
+              )}
             </div>
           )}
         </>

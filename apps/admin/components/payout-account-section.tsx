@@ -42,9 +42,12 @@ export function payoutDetailsProblem(draft: Draft): string | null {
   const ifsc = draft.ifsc.trim().toUpperCase()
   const upi = draft.upiId.trim()
   if (!number && !upi) return 'Give a bank account or a UPI id.'
-  if (Boolean(number) !== Boolean(ifsc)) return 'Give the account number and the IFSC together.'
-  if (number && !ACCOUNT_NUMBER.test(number)) return 'An account number is 9 to 18 digits.'
-  if (ifsc && !IFSC.test(ifsc)) return 'An IFSC is 11 characters, like HDFC0001234.'
+  if (Boolean(number) !== Boolean(ifsc))
+    return 'Give the account number and the IFSC together.'
+  if (number && !ACCOUNT_NUMBER.test(number))
+    return 'An account number is 9 to 18 digits.'
+  if (ifsc && !IFSC.test(ifsc))
+    return 'An IFSC is 11 characters, like HDFC0001234.'
   if (upi && !UPI_ID.test(upi)) return 'A UPI id looks like name@bank.'
   return null
 }
@@ -59,7 +62,11 @@ export function payoutDetailsProblem(draft: Draft): string | null {
  * read-only fieldset while the garage is in the Bin.
  */
 export function PayoutAccountSection({ vendorId }: { vendorId: string }) {
-  const { data: account, isLoading, error: loadError } = useAdminPayoutAccount(vendorId)
+  const {
+    data: account,
+    isLoading,
+    error: loadError,
+  } = useAdminPayoutAccount(vendorId)
   // Only remounted when the saved details change, so what is typed stays.
   return isLoading ? (
     <ScSection title="Payout details">
@@ -72,17 +79,28 @@ export function PayoutAccountSection({ vendorId }: { vendorId: string }) {
       </p>
     </ScSection>
   ) : (
-    <PayoutAccountForm key={account?.updatedAt ?? 'none'} vendorId={vendorId} account={account ?? null} />
+    <PayoutAccountForm
+      key={account?.updatedAt ?? 'none'}
+      vendorId={vendorId}
+      account={account ?? null}
+    />
   )
 }
 
-function PayoutAccountForm({ vendorId, account }: { vendorId: string; account: PayoutAccount | null }) {
+function PayoutAccountForm({
+  vendorId,
+  account,
+}: {
+  vendorId: string
+  account: PayoutAccount | null
+}) {
   const save = useSavePayoutAccount(vendorId)
   const remove = useRemovePayoutAccount(vendorId)
   const [draft, setDraft] = useState<Draft>(() => draftOf(account))
   const [actorName, setActorName] = useState('')
   const [error, setError] = useState('')
-  const set = (key: keyof Draft) => (value: string) => setDraft((d) => ({ ...d, [key]: value }))
+  const set = (key: keyof Draft) => (value: string) =>
+    setDraft((d) => ({ ...d, [key]: value }))
 
   const problem = payoutDetailsProblem(draft)
   const changed = JSON.stringify(draft) !== JSON.stringify(draftOf(account))
@@ -101,18 +119,25 @@ function PayoutAccountForm({ vendorId, account }: { vendorId: string; account: P
       },
       {
         onSuccess: () => toast.success('Payout details saved'),
-        onError: (err) => setError(errorMessage(err, "Couldn't save the payout details")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't save the payout details")),
       }
     )
   }
 
   return (
     <ScSection title="Payout details">
-      <p className="text-[11px] text-text-muted">
-        Where Detlio sends this garage its share. Saved immediately — not part of “Save changes”. Only the team
-        sees these; the garage list shows the last four digits.
+      <p className="text-[12px] text-text-muted">
+        Where Detlio sends this garage its share. Saved immediately — not part
+        of “Save changes”. Only the team sees these; the garage list shows the
+        last four digits.
       </p>
-      <ScField label="Account holder name" value={draft.accountName} onChange={set('accountName')} autoComplete="off" />
+      <ScField
+        label="Account holder name"
+        value={draft.accountName}
+        onChange={set('accountName')}
+        autoComplete="off"
+      />
       <div className="grid grid-cols-2 gap-3">
         <ScField
           label="Account number"
@@ -139,23 +164,33 @@ function PayoutAccountForm({ vendorId, account }: { vendorId: string; account: P
         autoComplete="off"
         spellCheck={false}
       />
-      <ScField label="Your name" value={actorName} onChange={setActorName} autoComplete="name" />
-      {changed && problem && <p className="text-[11px] text-error">{problem}</p>}
+      <ScField
+        label="Your name"
+        value={actorName}
+        onChange={setActorName}
+        autoComplete="name"
+      />
+      {changed && problem && (
+        <p className="text-[12px] text-error">{problem}</p>
+      )}
       {error && (
         <p role="alert" className="text-[12px] text-error">
           {error}
         </p>
       )}
       {account && (
-        <p className="text-[11px] text-text-muted">
-          Last changed by {account.updatedBy}, {istDateTimeLabel(account.updatedAt)}
+        <p className="text-[12px] text-text-muted">
+          Last changed by {account.updatedBy},{' '}
+          {istDateTimeLabel(account.updatedAt)}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
         <ScButton
           variant="secondary"
           onClick={submit}
-          disabled={!changed || Boolean(problem) || actorName.trim().length < 2 || busy}
+          disabled={
+            !changed || Boolean(problem) || actorName.trim().length < 2 || busy
+          }
           className="min-h-11"
           fullWidth={false}
         >
@@ -167,7 +202,10 @@ function PayoutAccountForm({ vendorId, account }: { vendorId: string; account: P
             onClick={() =>
               remove.mutate(undefined, {
                 onSuccess: () => toast.success('Payout details removed'),
-                onError: (err) => setError(errorMessage(err, "Couldn't remove the payout details")),
+                onError: (err) =>
+                  setError(
+                    errorMessage(err, "Couldn't remove the payout details")
+                  ),
               })
             }
             disabled={busy}

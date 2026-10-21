@@ -26,9 +26,12 @@ import {
 
 // The chart library loads with the first chart on this page, never with the
 // rest of the panel, as the Coverage map does.
-const chartLoading = () => <Skeleton className="mt-3.5 h-[170px] rounded-[10px]" />
+const chartLoading = () => (
+  <Skeleton className="mt-3.5 h-[170px] rounded-[10px]" />
+)
 const BookingsPerDayChart = dynamic(
-  () => import('@/components/statistics/charts').then((m) => m.BookingsPerDayChart),
+  () =>
+    import('@/components/statistics/charts').then((m) => m.BookingsPerDayChart),
   { ssr: false, loading: chartLoading }
 )
 const CollectedChart = dynamic(
@@ -54,9 +57,12 @@ function KpiTile({
   delta,
   was,
   note,
+  lead = false,
 }: {
   label: string
   value: string
+  /** One of the two headline figures: wider and larger (quick win 6). */
+  lead?: boolean
   delta?: Change
   /** The earlier figure, shown when comparing. */
   was?: string
@@ -64,13 +70,23 @@ function KpiTile({
   note?: string
 }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-border bg-surface px-3.5 py-3">
-      <p className="text-[11px] font-medium text-text-secondary">{label}</p>
-      <p className="mt-1 truncate font-numeric text-[24px] font-medium leading-[30px] tracking-tight text-text-primary">
+    <div
+      className={cn(
+        'min-w-0 rounded-[12px] border border-border bg-surface px-3.5 py-3',
+        lead && 'col-span-2'
+      )}
+    >
+      <p className="text-[12px] font-medium text-text-secondary">{label}</p>
+      <p
+        className={cn(
+          'mt-1 truncate font-numeric font-medium tracking-tight text-text-primary',
+          lead ? 'text-[30px] leading-[36px]' : 'text-[24px] leading-[30px]'
+        )}
+      >
         {value}
       </p>
       {was !== undefined && (
-        <p className="mt-0.5 flex gap-1.5 whitespace-nowrap text-[11px] text-text-muted">
+        <p className="mt-0.5 flex gap-1.5 whitespace-nowrap text-[12px] text-text-muted">
           {delta && (
             <b
               className={cn(
@@ -84,8 +100,12 @@ function KpiTile({
                 delta.text
               ) : (
                 <>
-                  <span aria-hidden="true">{delta.direction === 'up' ? '↑' : '↓'} </span>
-                  <span className="sr-only">{delta.direction === 'up' ? 'Up' : 'Down'} </span>
+                  <span aria-hidden="true">
+                    {delta.direction === 'up' ? '↑' : '↓'}{' '}
+                  </span>
+                  <span className="sr-only">
+                    {delta.direction === 'up' ? 'Up' : 'Down'}{' '}
+                  </span>
                   {delta.text}
                 </>
               )}
@@ -97,7 +117,9 @@ function KpiTile({
         </p>
       )}
       {was !== undefined && note && (
-        <p className="mt-0.5 text-[11px] leading-[15px] text-text-muted">{note}</p>
+        <p className="mt-0.5 text-[12px] leading-[16px] text-text-muted">
+          {note}
+        </p>
       )}
     </div>
   )
@@ -124,41 +146,54 @@ function Tiles({
   /** The period runs to today, so its last days are still playing out. */
   endsToday: boolean
 }) {
-  const was = (format: (k: StatsKpis) => string) => (previous ? format(previous) : undefined)
+  const was = (format: (k: StatsKpis) => string) =>
+    previous ? format(previous) : undefined
   const settle = (delta: Change) => (endsToday ? unsettled(delta) : delta)
-  const average = (k: StatsKpis) => (k.averageBooking === null ? '–' : rupees(k.averageBooking))
+  const average = (k: StatsKpis) =>
+    k.averageBooking === null ? '–' : rupees(k.averageBooking)
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* The headline: money in, then bookings (quick win 6). */}
       <KpiTile
-        label="Bookings"
-        value={kpis.bookings.toLocaleString('en-IN')}
-        delta={previous && change(kpis.bookings, previous.bookings, 'amount')}
-        was={was((k) => k.bookings.toLocaleString('en-IN'))}
-      />
-      <KpiTile
+        lead
         label="Collected after refunds"
         value={rupees(kpis.collected)}
         delta={previous && change(kpis.collected, previous.collected, 'amount')}
         was={was((k) => rupees(k.collected))}
       />
       <KpiTile
+        lead
+        label="Bookings"
+        value={kpis.bookings.toLocaleString('en-IN')}
+        delta={previous && change(kpis.bookings, previous.bookings, 'amount')}
+        was={was((k) => k.bookings.toLocaleString('en-IN'))}
+      />
+      <KpiTile
         label="Detlio commission"
         value={rupees(kpis.commission)}
-        delta={previous && settle(change(kpis.commission, previous.commission, 'amount'))}
+        delta={
+          previous &&
+          settle(change(kpis.commission, previous.commission, 'amount'))
+        }
         was={was((k) => rupees(k.commission))}
         note={endsToday ? 'Low until recent jobs are done' : undefined}
       />
       <KpiTile
         label="Average booking"
         value={average(kpis)}
-        delta={previous && change(kpis.averageBooking, previous.averageBooking, 'amount')}
+        delta={
+          previous &&
+          change(kpis.averageBooking, previous.averageBooking, 'amount')
+        }
         was={was(average)}
       />
       <KpiTile
         label="Checkout → paid"
         value={percent(kpis.paidOfStarted)}
-        delta={previous && change(kpis.paidOfStarted, previous.paidOfStarted, 'rate')}
+        delta={
+          previous && change(kpis.paidOfStarted, previous.paidOfStarted, 'rate')
+        }
         was={was((k) => percent(k.paidOfStarted))}
       />
       <KpiTile
@@ -166,7 +201,15 @@ function Tiles({
         value={percent(kpis.cancellationRate, 1)}
         delta={
           previous &&
-          settle(change(kpis.cancellationRate, previous.cancellationRate, 'rate', 'down', 1))
+          settle(
+            change(
+              kpis.cancellationRate,
+              previous.cancellationRate,
+              'rate',
+              'down',
+              1
+            )
+          )
         }
         was={was((k) => percent(k.cancellationRate, 1))}
         note={endsToday ? 'Recent bookings can still cancel' : undefined}
@@ -193,12 +236,14 @@ function ChartCard({
   return (
     <ScCard className="px-4 py-4">
       <figure>
-        <h2 className="text-[15px] font-medium tracking-tight text-text-primary">{title}</h2>
+        <h2 className="text-[15px] font-medium tracking-tight text-text-primary">
+          {title}
+        </h2>
         <p className="mt-0.5 text-[12px] text-text-secondary">{subtitle}</p>
         {/* Drawn for the eye; the caption says the same for a screen reader. */}
         <div aria-hidden="true">{children}</div>
         <figcaption className="sr-only">{summary}</figcaption>
-        {foot && <p className="mt-2.5 text-[11px] text-text-muted">{foot}</p>}
+        {foot && <p className="mt-2.5 text-[12px] text-text-muted">{foot}</p>}
       </figure>
     </ScCard>
   )
@@ -217,14 +262,22 @@ function PerDay({
   const total = days.reduce((sum, day) => sum + day.bookings, 0)
   const average = days.length > 0 ? total / days.length : 0
   const busiest = busiestWeekday(days)
-  const peak = days.reduce((top, day) => (day.bookings > top.bookings ? day : top), days[0])
+  const peak = days.reduce(
+    (top, day) => (day.bookings > top.bookings ? day : top),
+    days[0]
+  )
   const previous = overview.previousPerDay
-  const previousTotal = previous?.reduce((sum, day) => sum + day.bookings, 0) ?? null
+  const previousTotal =
+    previous?.reduce((sum, day) => sum + day.bookings, 0) ?? null
 
   const summary = [
     `${plural(total, 'booking', 'bookings')} over ${plural(days.length, 'day', 'days')}, ${average.toFixed(1)} a day on average.`,
-    peak && peak.bookings > 0 ? `The most in a day: ${peak.bookings}, on ${dayLabel(peak.date)}.` : '',
-    previousTotal !== null ? `${previousName}: ${plural(previousTotal, 'booking', 'bookings')}.` : '',
+    peak && peak.bookings > 0
+      ? `The most in a day: ${peak.bookings}, on ${dayLabel(peak.date)}.`
+      : '',
+    previousTotal !== null
+      ? `${previousName}: ${plural(previousTotal, 'booking', 'bookings')}.`
+      : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -236,7 +289,7 @@ function PerDay({
       summary={summary}
     >
       {previous && (
-        <div className="mt-3 flex gap-4 text-[11px] text-text-secondary">
+        <div className="mt-3 flex gap-4 text-[12px] text-text-secondary">
           <span className="flex items-center gap-1.5">
             <i className="block h-0.5 w-3.5 rounded-full bg-[#E4E4E7]" />
             {periodName}
@@ -272,7 +325,11 @@ function Collected({ overview }: { overview: StatsOverview }) {
   return (
     <ChartCard
       title={unit === 'week' ? 'Collected per week' : 'Collected per month'}
-      subtitle={unit === 'week' ? 'After refunds · weeks start on Monday' : 'After refunds · calendar months'}
+      subtitle={
+        unit === 'week'
+          ? 'After refunds · weeks start on Monday'
+          : 'After refunds · calendar months'
+      }
       summary={`Collected after refunds. ${summary}.`}
       foot={foot}
     >
@@ -307,7 +364,11 @@ export function OverviewTab({
   previousName: string
 }) {
   const router = useRouter()
-  const stats = useStatsOverview({ ...range, vendorId: vendorId || undefined, compare })
+  const stats = useStatsOverview({
+    ...range,
+    vendorId: vendorId || undefined,
+    compare,
+  })
 
   // A dead admin session is a redirect, not an error message.
   useEffect(() => {
@@ -319,14 +380,21 @@ export function OverviewTab({
       {stats.data ? (
         <div
           aria-busy={stats.isFetching || undefined}
-          className={cn('flex flex-col gap-5 transition-opacity', stats.isPlaceholderData && 'opacity-60')}
+          className={cn(
+            'flex flex-col gap-5 transition-opacity',
+            stats.isPlaceholderData && 'opacity-60'
+          )}
         >
           <Tiles
             kpis={stats.data.kpis}
             previous={stats.data.previousKpis}
             endsToday={endsToday}
           />
-          <PerDay overview={stats.data} periodName={periodName} previousName={previousName} />
+          <PerDay
+            overview={stats.data}
+            periodName={periodName}
+            previousName={previousName}
+          />
           <Collected overview={stats.data} />
         </div>
       ) : stats.isError ? (

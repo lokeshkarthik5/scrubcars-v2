@@ -35,9 +35,16 @@ import { PhoneLink } from '@/components/phone-link'
 import { formatWhen } from '@/lib/bookings'
 import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
 import { JobPhotosSection } from '@/app/bookings/[id]/job-records'
-import { complaintActions, complaintSourceLine, overdueLabel } from '@/lib/complaints'
+import {
+  complaintActions,
+  complaintSourceLine,
+  overdueLabel,
+} from '@/lib/complaints'
 
-const STATUS_BADGE: Record<AdminComplaint['status'], 'pending' | 'success' | 'muted'> = {
+const STATUS_BADGE: Record<
+  AdminComplaint['status'],
+  'pending' | 'success' | 'muted'
+> = {
   open: 'pending',
   acknowledged: 'pending',
   resolved: 'success',
@@ -46,10 +53,18 @@ const STATUS_BADGE: Record<AdminComplaint['status'], 'pending' | 'success' | 'mu
 
 /** Back to the list as it was, and only ever to the list. */
 function backHref(back: string | null): string {
-  return back && /^\/complaints(\?show=[a-z]+)?$/.test(back) ? back : '/complaints'
+  return back && /^\/complaints(\?show=[a-z]+)?$/.test(back)
+    ? back
+    : '/complaints'
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
     <Meta label={label} size="md">
       {children}
@@ -85,11 +100,20 @@ function Clock({ c }: { c: AdminComplaint }) {
           key={row.label}
           className={cn(
             'rounded-[10px] border px-3 py-2',
-            row.late ? 'border-warning/60 bg-warning-muted' : 'border-border bg-surface'
+            row.late
+              ? 'border-warning/60 bg-warning-muted'
+              : 'border-border bg-surface'
           )}
         >
-          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{row.label}</p>
-          <p className={cn('font-numeric text-[13px]', row.late ? 'text-warning' : 'text-text-primary')}>
+          <p className="text-[12px] font-medium text-text-secondary">
+            {row.label}
+          </p>
+          <p
+            className={cn(
+              'font-numeric text-[13px]',
+              row.late ? 'text-warning' : 'text-text-primary'
+            )}
+          >
             {formatWhen(row.due)}
           </p>
           {row.doneAt ? (
@@ -125,15 +149,16 @@ function Actions({ c }: { c: AdminComplaint }) {
 
   // A toast, not text in this section: a refused action refetches the complaint,
   // and a failure must still be seen when the complaint has moved on meanwhile.
-  const onError = (fallback: string) => (err: Error) => toast.error(errorMessage(err, fallback))
+  const onError = (fallback: string) => (err: Error) =>
+    toast.error(errorMessage(err, fallback))
 
   return (
     <ScSection title="Respond">
       {can.acknowledge && (
         <div className="flex flex-col gap-2">
           <p className="text-[12px] text-text-secondary">
-            Acknowledge once you have been in touch with the customer, or have it in hand. It
-            stops the 24-hour clock; the 7-day one keeps running.
+            Acknowledge once you have been in touch with the customer, or have
+            it in hand. It stops the 24-hour clock; the 7-day one keeps running.
           </p>
           <ScButton
             variant="secondary"
@@ -225,7 +250,11 @@ function Actions({ c }: { c: AdminComplaint }) {
           onChange={(e) => setCloseNote(e.target.value)}
         />
         <div className="flex gap-2">
-          <ScButton variant="secondary" onClick={() => setClosing(false)} disabled={close.isPending}>
+          <ScButton
+            variant="secondary"
+            onClick={() => setClosing(false)}
+            disabled={close.isPending}
+          >
             Keep it open
           </ScButton>
           <ScButton
@@ -272,7 +301,8 @@ function InternalNote({ c }: { c: AdminComplaint }) {
           setError('')
           save.mutate(note.trim(), {
             onSuccess: () => toast.success('Note saved'),
-            onError: (err) => setError(errorMessage(err, "Couldn't save the note")),
+            onError: (err) =>
+              setError(errorMessage(err, "Couldn't save the note")),
           })
         }}
       >
@@ -319,13 +349,18 @@ function ComplaintDetail({ id }: { id: string }) {
     return (
       <>
         <PageHeader title="Complaint" showBack backHref={back} />
-        <ErrorState message={errorMessage(error, 'Failed to load the complaint')} onRetry={() => void refetch()} />
+        <ErrorState
+          message={errorMessage(error, 'Failed to load the complaint')}
+          onRetry={() => void refetch()}
+        />
       </>
     )
   }
 
   const overdue = overdueLabel(c)
-  const bookingBadge = c.booking?.status ? bookingStatusBadge(c.booking.status) : null
+  const bookingBadge = c.booking?.status
+    ? bookingStatusBadge(c.booking.status)
+    : null
 
   return (
     <>
@@ -341,7 +376,9 @@ function ComplaintDetail({ id }: { id: string }) {
         backHref={back}
         actions={
           <div className="flex flex-wrap items-center gap-1.5">
-            <ScBadge variant={STATUS_BADGE[c.status]}>{COMPLAINT_ADMIN_STATUS_LABELS[c.status]}</ScBadge>
+            <ScBadge variant={STATUS_BADGE[c.status]}>
+              {COMPLAINT_ADMIN_STATUS_LABELS[c.status]}
+            </ScBadge>
             {overdue && (
               <ScBadge variant="danger">
                 <IconAlertTriangle size={11} aria-hidden className="mr-1" />
@@ -361,7 +398,9 @@ function ComplaintDetail({ id }: { id: string }) {
             <p>{c.customer.name}</p>
             <PhoneLink phone={c.customer.phone} name={c.customer.name} />
             {c.customer.accountDeleted && (
-              <p className="text-[12px] text-text-muted">Account since deleted</p>
+              <p className="text-[12px] text-text-muted">
+                Account since deleted
+              </p>
             )}
           </Field>
           <Field label="Booking">
@@ -379,12 +418,18 @@ function ComplaintDetail({ id }: { id: string }) {
                       {formatWhen(c.booking.scheduledAt)}
                     </p>
                   )}
-                  {bookingBadge && <ScBadge variant={bookingBadge.variant}>{bookingBadge.label}</ScBadge>}
+                  {bookingBadge && (
+                    <ScBadge variant={bookingBadge.variant}>
+                      {bookingBadge.label}
+                    </ScBadge>
+                  )}
                 </>
               ) : (
                 <p>
                   <span className="font-numeric">#{c.booking.reference}</span>
-                  <span className="block text-[12px] text-text-muted">Booking since deleted</span>
+                  <span className="block text-[12px] text-text-muted">
+                    Booking since deleted
+                  </span>
                 </p>
               )
             ) : (
@@ -403,7 +448,9 @@ function ComplaintDetail({ id }: { id: string }) {
               ) : (
                 <p>
                   {c.garage.name}
-                  <span className="block text-[12px] text-text-muted">Garage since deleted</span>
+                  <span className="block text-[12px] text-text-muted">
+                    Garage since deleted
+                  </span>
                 </p>
               )
             ) : (
@@ -415,17 +462,20 @@ function ComplaintDetail({ id }: { id: string }) {
             {/* Logged later than it came: when it was written down. */}
             {c.source !== 'app' && c.createdAt !== c.receivedAt && (
               <p className="text-[12px] text-text-muted">
-                Logged <span className="font-numeric">{formatWhen(c.createdAt)}</span>
+                Logged{' '}
+                <span className="font-numeric">{formatWhen(c.createdAt)}</span>
               </p>
             )}
             {c.source !== 'app' && !c.customer.id && (
-              <p className="text-[12px] text-text-muted">No account: the customer can&apos;t see it in the app</p>
+              <p className="text-[12px] text-text-muted">
+                No account: the customer can&apos;t see it in the app
+              </p>
             )}
           </Field>
         </div>
 
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          <p className="text-[12px] font-medium text-text-secondary">
             In their words
           </p>
           <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-primary">
@@ -435,7 +485,7 @@ function ComplaintDetail({ id }: { id: string }) {
 
         {c.resolutionNote && (
           <div className="rounded-[10px] border border-border bg-surface px-3 py-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <p className="text-[12px] font-medium text-text-secondary">
               What the customer reads
             </p>
             <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-text-primary">
@@ -447,7 +497,9 @@ function ComplaintDetail({ id }: { id: string }) {
 
       {/* A complaint about damage or the quality of the work (0045): the
           booking's photos, both sides', the record to check it against. */}
-      {c.booking?.id && PHOTO_CATEGORIES.has(c.category) && <ComplaintJobPhotos bookingId={c.booking.id} />}
+      {c.booking?.id && PHOTO_CATEGORIES.has(c.category) && (
+        <ComplaintJobPhotos bookingId={c.booking.id} />
+      )}
 
       <Actions key={c.id} c={c} />
 
@@ -457,7 +509,10 @@ function ComplaintDetail({ id }: { id: string }) {
 }
 
 /** The categories whose answer starts with the job photos. */
-const PHOTO_CATEGORIES = new Set<AdminComplaint['category']>(['damage', 'service_quality'])
+const PHOTO_CATEGORIES = new Set<AdminComplaint['category']>([
+  'damage',
+  'service_quality',
+])
 
 function ComplaintJobPhotos({ bookingId }: { bookingId: string }) {
   const { data: booking, isPending, error } = useAdminBooking(bookingId)
@@ -465,21 +520,29 @@ function ComplaintJobPhotos({ bookingId }: { bookingId: string }) {
   if (error || !booking) {
     return (
       <ScSection title="Job photos">
-        <p className="text-[13px] text-text-secondary">Couldn&apos;t load this booking&apos;s photos.</p>
+        <p className="text-[13px] text-text-secondary">
+          Couldn&apos;t load this booking&apos;s photos.
+        </p>
       </ScSection>
     )
   }
   if ((booking.photos ?? []).length === 0) {
     return (
       <ScSection title="Job photos">
-        <p className="text-[13px] text-text-secondary">Neither the garage nor the customer added photos to this booking.</p>
+        <p className="text-[13px] text-text-secondary">
+          Neither the garage nor the customer added photos to this booking.
+        </p>
       </ScSection>
     )
   }
   return <JobPhotosSection booking={booking} allowWaive={false} />
 }
 
-export default function AdminComplaintPage({ params }: { params: Promise<{ id: string }> }) {
+export default function AdminComplaintPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = use(params)
   // useSearchParams needs a Suspense boundary, or Next.js refuses to
   // prerender the page.

@@ -59,7 +59,8 @@ export function MarkRefundedDialog({
   // while it is open (someone else recorded one, or an earlier try of this
   // one went through and its answer was lost).
   const [openedRefunded] = useState(refund.amountRefunded)
-  const movedSinceOpened = Number(refund.amountRefunded) !== Number(openedRefunded)
+  const movedSinceOpened =
+    Number(refund.amountRefunded) !== Number(openedRefunded)
 
   // Prefilled with what is owed, again whenever that changes under it, so
   // the full-refund default never asks for more than is left.
@@ -80,10 +81,10 @@ export function MarkRefundedDialog({
     owedPaise === 0
       ? 'Nothing is left to refund on this.'
       : amountPaise === null || amountPaise <= 0
-      ? 'Enter the amount refunded, in rupees.'
-      : amountPaise > owedPaise
-        ? `That's more than the ${formatRupees(refund.amountOwed)} still owed.`
-        : null
+        ? 'Enter the amount refunded, in rupees.'
+        : amountPaise > owedPaise
+          ? `That's more than the ${formatRupees(refund.amountOwed)} still owed.`
+          : null
   const refTyped = refundRef.trim()
   const refProblem =
     !outside && refTyped && !REFUND_ID.test(refTyped)
@@ -105,7 +106,9 @@ export function MarkRefundedDialog({
           kind: refund.kind,
           id: refund.id,
           amount: amountPaise / 100,
-          ...(outside ? { outsideRazorpayNote: outsideNote.trim() } : { refundRef: refTyped }),
+          ...(outside
+            ? { outsideRazorpayNote: outsideNote.trim() }
+            : { refundRef: refTyped }),
           note: note.trim() || undefined,
           // The figures on screen. If they have moved on at the server, the
           // refund is refused rather than added on top of them.
@@ -118,7 +121,8 @@ export function MarkRefundedDialog({
           onClose()
           onDone?.()
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't record this refund")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't record this refund")),
       }
     )
   }
@@ -147,8 +151,11 @@ export function MarkRefundedDialog({
 
       {movedSinceOpened && (
         <p role="status" className="text-[12px] text-text-primary">
-          <span className="font-numeric">{formatRupees(refund.amountRefunded)}</span> is now
-          recorded as refunded on this, since you opened it. The figures here are the latest.
+          <span className="font-numeric">
+            {formatRupees(refund.amountRefunded)}
+          </span>{' '}
+          is now recorded as refunded on this, since you opened it. The figures
+          here are the latest.
         </p>
       )}
 
@@ -179,7 +186,13 @@ export function MarkRefundedDialog({
           aria-invalid={Boolean(amountProblem)}
           className="min-h-11 font-numeric"
         />
-        <p className={amountProblem ? 'text-[11px] text-error' : 'text-[11px] text-text-muted'}>
+        <p
+          className={
+            amountProblem
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
+          }
+        >
           {amountProblem ??
             (part
               ? 'A part refund. The rest stays on the Owed list.'
@@ -216,7 +229,13 @@ export function MarkRefundedDialog({
             aria-invalid={Boolean(refProblem)}
             className="min-h-11 font-numeric"
           />
-          <p className={refProblem ? 'text-[11px] text-error' : 'text-[11px] text-text-muted'}>
+          <p
+            className={
+              refProblem
+                ? 'text-[12px] text-error'
+                : 'text-[12px] text-text-muted'
+            }
+          >
             {refProblem ?? 'Copy it from the refund in the Razorpay dashboard.'}
           </p>
         </div>

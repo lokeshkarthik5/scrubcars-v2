@@ -35,6 +35,7 @@ import {
   updateMemberSchema,
 } from '../members/members.validation.js'
 import { adminBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
+import { adminTodayRoutes } from '../today/today.routes.js'
 import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
@@ -128,7 +129,12 @@ adminRoutes.patch(
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
   zValidator('json', updateVendorSchema),
-  (c) => adminController.updateVendor(c, c.req.valid('param').id, c.req.valid('json'))
+  (c) =>
+    adminController.updateVendor(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.patch(
   '/vendors/:id/verify',
@@ -283,7 +289,11 @@ adminRoutes.put(
   zValidator('param', vendorIdParamSchema),
   zValidator('json', mediaUrlSchema),
   (c) =>
-    adminController.setVendorLogo(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.setVendorLogo(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.delete(
   '/vendors/:id/logo',
@@ -426,6 +436,10 @@ adminRoutes.route('/bypass-reports', adminBypassReportRoutes)
 // Detlio Guarantee (0051): free redo claims, Detlio's decisions.
 adminRoutes.route('/guarantee', adminGuaranteeRoutes)
 
+// The Today inbox and the menu's counts: every open task, read from the
+// pages' own services. Nested here for the same cookie reason as discounts.
+adminRoutes.route('/today', adminTodayRoutes)
+
 // Add garage's import from a poster, photo, PDF or Tally file, and the
 // owner-phone lookup. Nested here for the same cookie reason as discounts.
 adminRoutes.route('/vendor-imports', adminVendorImportRoutes)
@@ -466,7 +480,11 @@ adminRoutes.post(
   zValidator('param', bookingIdParamSchema),
   zValidator('json', adminCancelBookingSchema),
   (c) =>
-    adminController.cancelBooking(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.cancelBooking(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.post(
   '/bookings/:id/no-show',
@@ -502,7 +520,11 @@ adminRoutes.post(
   zValidator('param', bookingIdParamSchema),
   zValidator('json', pickupStepOverrideSchema),
   (c) =>
-    adminController.overridePickupStep(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.overridePickupStep(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 // The photo standard (0045): Detlio waives it on one booking, with the typed
 // name and a reason, for a genuine case.
@@ -511,7 +533,12 @@ adminRoutes.post(
   ...adminMiddleware,
   zValidator('param', bookingIdParamSchema),
   zValidator('json', waiveJobPhotosSchema),
-  (c) => adminController.waiveJobPhotos(c, c.req.valid('param').id, c.req.valid('json'))
+  (c) =>
+    adminController.waiveJobPhotos(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )
 adminRoutes.post(
   '/bookings/:id/notes',
@@ -519,5 +546,9 @@ adminRoutes.post(
   zValidator('param', bookingIdParamSchema),
   zValidator('json', createBookingNoteSchema),
   (c) =>
-    adminController.addBookingNote(c, c.req.valid('param').id, c.req.valid('json'))
+    adminController.addBookingNote(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
 )

@@ -41,7 +41,9 @@ async function service(id: string) {
 const servicesUrl = `${API}/api/v1/admin/vendors/${GARAGE.id}/services`
 
 test.describe('admin garage services', () => {
-  test('a service missing a price holds the save instead of being hidden @p0', async ({ page }) => {
+  test('a service missing a price holds the save instead of being hidden @p0', async ({
+    page,
+  }) => {
     await resetServices()
     await page.goto(`/vendors/${GARAGE.id}/edit`)
     await page.getByRole('tab', { name: 'Services' }).click()
@@ -60,21 +62,31 @@ test.describe('admin garage services', () => {
     // back again takes the cheapest — nothing to retype either way. The foam
     // wash is the first row (Wash and standard comes before Detailing), and
     // its pricing is behind its ⋯.
-    await page.getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` }).click()
+    await page
+      .getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` })
+      .click()
     await page.getByLabel('Service 1 pricing').selectOption('per_vehicle')
-    await expect(page.getByLabel('Service 1 hatchback price in rupees')).toHaveValue('450')
-    await expect(page.getByLabel('Service 1 sedan price in rupees')).toHaveValue('450')
-    await expect(page.getByLabel('Service 1 SUV price in rupees')).toHaveValue('450')
+    await expect(
+      page.getByLabel('Service 1 hatchback price in rupees')
+    ).toHaveValue('450')
+    await expect(
+      page.getByLabel('Service 1 sedan price in rupees')
+    ).toHaveValue('450')
+    await expect(page.getByLabel('Service 1 SUV price in rupees')).toHaveValue(
+      '450'
+    )
 
     // A change to save, and a row that holds it: the bar says why.
     await expect(save).toBeDisabled()
-    await expect(page.getByRole('status').filter({ hasText: 'needs a price' })).toHaveText(
-      '1 service needs a price (Services)'
-    )
+    await expect(
+      page.getByRole('status').filter({ hasText: 'needs a price' })
+    ).toHaveText('1 service needs a price (Services)')
 
     await page.getByLabel('Service 1 sedan price in rupees').fill('400')
     await page.getByLabel('Service 1 pricing').selectOption('flat')
-    await expect(page.getByLabel('Service 1 price in rupees')).toHaveValue('400')
+    await expect(page.getByLabel('Service 1 price in rupees')).toHaveValue(
+      '400'
+    )
     await page.getByLabel('Service 1 price in rupees').fill('450')
 
     await page.getByLabel('Service 2 SUV price in rupees').fill('900')
@@ -87,13 +99,18 @@ test.describe('admin garage services', () => {
       .poll(() => service(SERVICES.adminTiered.id))
       .toEqual({ is_active: true, price_suv: '900.00' })
     await expect(save).toHaveCount(0)
-    await expect(page.getByRole('tab', { name: 'Services' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Services' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
     expect((await service(SERVICES.adminFlat.id)).is_active).toBe(true)
 
     await resetServices()
   })
 
-  test('the hidden-services API lists only hidden plain services and guards packages @p0', async ({ page }) => {
+  test('the hidden-services API lists only hidden plain services and guards packages @p0', async ({
+    page,
+  }) => {
     await resetServices()
 
     const list = await page.request.get(`${servicesUrl}/hidden`)
@@ -142,7 +159,9 @@ test.describe('admin garage services', () => {
     expect((await service(SERVICES.adminHidden.id)).is_active).toBe(false)
   })
 
-  test('a hidden service can be shown again, and hidden again after a confirm @p0', async ({ page }) => {
+  test('a hidden service can be shown again, hidden again at once, and Undo shows it again @p0', async ({
+    page,
+  }) => {
     await resetServices()
     await page.goto(`/vendors/${GARAGE.id}/edit`)
     await page.getByRole('tab', { name: 'Services' }).click()
@@ -151,42 +170,77 @@ test.describe('admin garage services', () => {
     await page.getByRole('button', { name: 'Hidden services (1)' }).click()
     await expect(page.getByText('₹2000–₹3000 by car size')).toBeVisible()
 
-    await page.getByRole('button', { name: `Show ${SERVICES.adminHidden.name} again` }).click()
-    await expect.poll(async () => (await service(SERVICES.adminHidden.id)).is_active).toBe(true)
+    await page
+      .getByRole('button', { name: `Show ${SERVICES.adminHidden.name} again` })
+      .click()
+    await expect
+      .poll(async () => (await service(SERVICES.adminHidden.id)).is_active)
+      .toBe(true)
     // Back in the editor too, so the next save keeps it on sale.
-    const hideRestored = page.getByRole('button', { name: `Hide ${SERVICES.adminHidden.name}` })
+    const hideRestored = page.getByRole('button', {
+      name: `Hide ${SERVICES.adminHidden.name}`,
+    })
     await expect(hideRestored).toBeVisible()
     // Focus follows it to its new row, opened (it is priced for every size,
     // so onto its Hide button), and the change is said, not only seen.
     await expect(hideRestored).toBeFocused()
-    await expect(page.getByRole('status').filter({ hasText: 'is back on the garage page' }))
-      .toHaveText(`“${SERVICES.adminHidden.name}” is back on the garage page.`)
-    await expect(page.getByRole('button', { name: /^Hidden services/ })).toHaveCount(0)
+    await expect(
+      page.getByRole('status').filter({ hasText: 'is back on the garage page' })
+    ).toHaveText(`“${SERVICES.adminHidden.name}” is back on the garage page.`)
+    await expect(
+      page.getByRole('button', { name: /^Hidden services/ })
+    ).toHaveCount(0)
 
     // Inside a package: refused, and said on that row. Scoped to the row's
     // group: page-wide, getByRole('alert') also finds Next's route announcer.
     // Hide is behind the row's ⋯.
-    await page.getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` }).click()
-    page.once('dialog', (dialog) => dialog.accept())
-    await page.getByRole('button', { name: `Hide ${SERVICES.adminFlat.name}` }).click()
-    const flatRow = page.getByRole('group', { name: SERVICES.adminFlat.name, exact: true })
+    await page
+      .getByRole('button', { name: `More for ${SERVICES.adminFlat.name}` })
+      .click()
+    await page
+      .getByRole('button', { name: `Hide ${SERVICES.adminFlat.name}` })
+      .click()
+    const flatRow = page.getByRole('group', {
+      name: SERVICES.adminFlat.name,
+      exact: true,
+    })
     await expect(flatRow.getByRole('alert')).toContainText(
       `part of the package "${SERVICES.adminPackage.name}"`
     )
     expect((await service(SERVICES.adminFlat.id)).is_active).toBe(true)
 
-    // Hiding asks first, then takes it off the garage page straight away.
+    // Hiding is easy to take back, so it happens at once, with no browser
+    // pop-up, and the toast offers Undo.
     let asked = ''
-    page.once('dialog', (dialog) => {
+    page.on('dialog', (dialog) => {
       asked = dialog.message()
-      void dialog.accept()
+      void dialog.dismiss()
     })
     await hideRestored.click()
-    await expect.poll(async () => (await service(SERVICES.adminHidden.id)).is_active).toBe(false)
-    expect(asked).toContain("Customers won't see it; you can show it again from Hidden services.")
+    await expect
+      .poll(async () => (await service(SERVICES.adminHidden.id)).is_active)
+      .toBe(false)
+    expect(asked).toBe('')
     // Its row is gone, so focus lands on where it went.
-    await expect(page.getByRole('button', { name: 'Hidden services (1)' })).toBeFocused()
-    await expect(page.getByText(`Hidden “${SERVICES.adminHidden.name}”. It’s under Hidden services.`))
-      .toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Hidden services (1)' })
+    ).toBeFocused()
+    await expect(
+      page.getByText(
+        `Hidden “${SERVICES.adminHidden.name}”. It’s under Hidden services.`
+      )
+    ).toBeVisible()
+
+    // Undo is real: it is Show again, so the service is back on sale.
+    const toast = page.getByRole('status').filter({
+      hasText: `“${SERVICES.adminHidden.name}” is off the garage page.`,
+    })
+    await toast.getByRole('button', { name: 'Undo' }).click()
+    await expect
+      .poll(async () => (await service(SERVICES.adminHidden.id)).is_active)
+      .toBe(true)
+    await expect(
+      page.getByRole('button', { name: `Hide ${SERVICES.adminHidden.name}` })
+    ).toBeVisible()
   })
 })
