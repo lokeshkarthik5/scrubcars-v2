@@ -19,6 +19,9 @@ import {
   CAR_VIEWBOX,
   CAR_WHEELS,
 } from './car-silhouette'
+import { canvasFile, fontFamilies, roundRect, shareImageFile, type ShareOutcome } from './share-image'
+
+export type { ShareOutcome }
 
 export const WRAPPED_IMAGE = { width: 1080, height: 1920 } as const
 
@@ -63,14 +66,6 @@ export function splitBig(big: string): { figure: string; unit: string } | null {
 export function wrappedBackground(key: WrappedCardKey): string {
   const t = WRAPPED_THEMES[key]
   return `radial-gradient(90% 55% at 80% 18%, ${t.glow}, transparent 70%), linear-gradient(170deg, ${t.from} 0%, ${t.to} 78%)`
-}
-
-function fontFamilies(): { text: string; figures: string } {
-  if (typeof window === 'undefined') return { text: 'system-ui, sans-serif', figures: 'system-ui, sans-serif' }
-  const style = getComputedStyle(document.body)
-  const text = style.fontFamily || 'system-ui, sans-serif'
-  const grotesk = style.getPropertyValue('--font-space-grotesk').trim()
-  return { text, figures: grotesk ? `${grotesk}, ${text}` : text }
 }
 
 /** Lines of `text` no wider than `max` at the current font, at most `limit` (the last one cut with "…"). */
@@ -293,16 +288,6 @@ export async function drawWrappedCard(
   }
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-}
-
 function star(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
   ctx.beginPath()
   for (let i = 0; i < 10; i += 1) {
@@ -379,8 +364,6 @@ function drawCar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.restore()
 }
 
-export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled'
-
 /**
  * Draws the card and shares it as a PNG file through the phone's share
  * sheet; where files cannot be shared (most desktops), downloads it.
@@ -388,29 +371,6 @@ export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled'
 export async function shareWrappedCard(card: WrappedCard, context: WrappedImageContext): Promise<ShareOutcome> {
   const canvas = document.createElement('canvas')
   await drawWrappedCard(canvas, card, context)
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-  if (!blob) throw new Error("Couldn't make the image")
-  const name = `detlio-wrapped-${context.year}-${card.key}.png`
-  const file = new File([blob], name, { type: 'image/png' })
-  if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: `My ${context.year} with Detlio`, text: WRAPPED_SHARE_LINE })
-      return 'shared'
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled'
-      // Some browsers say they can share files and then refuse: fall back to a download.
-    }
-  }
-  const url = URL.createObjectURL(blob)
-  try {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = name
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-  } finally {
-    window.setTimeout(() => URL.revokeObjectURL(url), 2000)
-  }
-  return 'downloaded'
+  const file = await canvasFile(canvas, `detlio-wrapped-${context.year}-${card.key}.png`)
+  return shareImageFile(file, { title: `My ${context.year} with Detlio`, text: WRAPPED_SHARE_LINE })
 }

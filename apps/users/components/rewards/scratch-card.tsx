@@ -3,22 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { IconArrowUpRight, IconCircleCheckFilled, IconStarFilled } from '@tabler/icons-react'
+import { IconArrowUpRight, IconCircleCheckFilled } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { Figures } from '@repo/ui/sc/figures'
 import type { ScratchCardView, ScratchResult } from '@repo/core/api/rewards'
 import { useScratchCard } from '@repo/core/api/hooks/use-rewards'
-import { rewardDay, rewardRupees, type ScratchOutcome } from '@repo/core/rewards'
+import { rewardDay, rewardRupees } from '@repo/core/rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { livePendingCheckout, usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { cn } from '@repo/core/utils'
-import { CarSilhouette } from '@/components/car-silhouette'
+import { PremiumCard } from '@/components/premium-card/premium-card'
+import { ShareCardImage } from '@/components/premium-card/share-card-image'
 import { JACKPOT_CONFETTI_COLORS, burstConfetti } from '@/lib/confetti'
-import { isMoneyPrize, prizeLines, prizeTier, voucherEndsAt } from '@/lib/scratch-prize'
+import { prizeCardSpec, type PremiumCardSpec } from '@/lib/premium-card'
+import { isMoneyPrize, prizeTier, voucherEndsAt } from '@/lib/scratch-prize'
 
-/** The share of the foil scratched off before the rest falls away. */
-const CLEAR_AT = 0.45
-const BRUSH = 22
+/** The share of the foil scratched off before the rest falls away (the card is tall: a third is plenty). */
+const CLEAR_AT = 0.35
+const BRUSH = 30
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
@@ -75,36 +77,16 @@ function paintFoil(canvas: HTMLCanvasElement) {
   ctx.fillText('A Detlio reward is under the foil', width / 2, height / 2 + 12)
 }
 
-/** The prize under the foil: its tier's colours, the big figure and its emblem. */
-function PrizeFace({ outcome, amount, fellBack, revealed }: { outcome: ScratchOutcome; amount: string | null; fellBack: boolean; revealed: boolean }) {
-  const tier = prizeTier(outcome)
-  const lines = prizeLines({ outcome, amount })
+/**
+ * The prize under the foil: a premium card (components/premium-card) in
+ * its prize's look: silver for the small money prizes, gold for the big
+ * one, the night card with silver sparks for a bonus star, gold with sparks
+ * for a free wash (and confetti, below). It eases in as it is revealed.
+ */
+function PrizeFace({ spec, revealed }: { spec: PremiumCardSpec; revealed: boolean }) {
   return (
-    <div className={cn('scratch-prize absolute inset-0 flex items-center gap-3 px-5', `scratch-prize--${tier}`)}>
-      <div className={cn('relative z-[2] flex min-w-0 flex-1 flex-col', revealed && 'scratch-card__prize--in')}>
-        <p className="scratch-prize__eyebrow text-[11px] font-semibold uppercase tracking-[0.14em]">{lines.eyebrow}</p>
-        <p className={cn('scratch-prize__big mt-1 font-semibold leading-none tracking-[-0.02em]', tier === 'silver' || tier === 'gold' ? 'font-numeric text-[44px]' : 'text-[28px]')}>
-          {lines.big}
-        </p>
-        <p className="scratch-prize__small mt-1.5 text-[12px] font-medium">
-          <Figures text={lines.small} />
-        </p>
-        {fellBack && (
-          <p className="scratch-prize__small mt-1 text-[11px]">This month&apos;s prize budget is used up, so it&apos;s a bonus stamp.</p>
-        )}
-      </div>
-      {tier === 'stamp' ? (
-        <span className="scratch-prize__star relative z-[2] grid size-[72px] shrink-0 place-items-center rounded-full" aria-hidden>
-          <IconStarFilled size={34} />
-        </span>
-      ) : tier === 'jackpot' ? (
-        <CarSilhouette className="scratch-prize__car relative z-[2] w-[54%] shrink-0" />
-      ) : (
-        <span className="scratch-prize__coin relative z-[2] grid size-[68px] shrink-0 place-items-center rounded-full font-numeric text-[30px] font-bold" aria-hidden>
-          ₹
-        </span>
-      )}
-      {revealed && <span className="scratch-prize__sheen" aria-hidden />}
+    <div className={cn('absolute inset-0', revealed && 'scratch-card__prize--in')}>
+      <PremiumCard spec={spec} animate={revealed} />
     </div>
   )
 }
@@ -112,16 +94,17 @@ function PrizeFace({ outcome, amount, fellBack, revealed }: { outcome: ScratchOu
 /**
  * A scratch card. The prize was drawn by the server when the card was made;
  * the first touch asks for it (POST …/scratch), and scratching uncovers
- * whatever came back. Past 45% the foil falls away. "Reveal" does it in one
+ * whatever came back. Past 35% the foil falls away. "Reveal" does it in one
  * tap, for a keyboard, a screen reader or anyone who would rather not
  * scratch (and is the only way under reduced motion).
  *
- * Each prize reveals in its own look (lib/scratch-prize.ts): silver for the
- * small money prizes, gold for the big one, a red glow and a star for a
- * bonus stamp, and gold with a burst of confetti for a free wash (none under
- * reduced motion). A short buzz where the phone supports it. A money prize
- * offers "Use at checkout" (the voucher goes with the customer to the next
- * checkout, applied like Home's offers); a stamp says it is on the card.
+ * The prize is a premium card (lib/premium-card.ts: the garage, the use-by
+ * day, the prize and a car care tip) in its prize's look, and a free wash
+ * adds a burst of confetti (none under reduced motion). A short buzz where
+ * the phone supports it. A money prize offers "Use at checkout" (the
+ * voucher goes with the customer to the next checkout, applied like Home's
+ * offers); a stamp says it is on the card. "Share" makes the card a picture
+ * for Instagram (never the voucher's code).
  */
 export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardView; compact?: boolean }) {
   const router = useRouter()
@@ -224,17 +207,26 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
   const waiting = scratch.isPending && !result
   const failed = scratch.isError && !result
   const showPrize = cleared && prize !== null
+  const spec = prize
+    ? prizeCardSpec({ id: card.id, createdAt: card.createdAt, outcome: prize.outcome, amount: prize.amount, vendorName: card.vendorName, useBy: voucherLastDay })
+    : null
 
   return (
     <div className="flex flex-col gap-2.5">
       <div className="relative">
-        <div className={cn('scratch-card', compact ? 'h-[132px]' : 'h-[152px]')}>
+        <div className="scratch-card">
           <div className="absolute inset-0" aria-live="polite">
-            {prize ? (
-              <PrizeFace outcome={prize.outcome} amount={prize.amount} fellBack={prize.fellBack} revealed={showPrize} />
+            {spec ? (
+              <PrizeFace spec={spec} revealed={showPrize} />
             ) : (
               <p className="grid h-full place-items-center px-4 text-center text-[13px] text-text-secondary">
                 {waiting ? 'Revealing…' : 'A prize is waiting'}
+              </p>
+            )}
+            {/* What the picture says, for a screen reader. */}
+            {showPrize && spec && (
+              <p className="sr-only">
+                {spec.title.join(', ')}. {spec.chips.map((chip) => chip.text).join(', ')}.
               </p>
             )}
           </div>
@@ -266,6 +258,9 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
         {/* The free wash's confetti spills past the card's edges. */}
         <canvas ref={confettiRef} aria-hidden className="pointer-events-none absolute -left-3 -top-20 z-10 h-[calc(100%+6.5rem)] w-[calc(100%+1.5rem)]" />
       </div>
+      {showPrize && prize?.fellBack && (
+        <p className="text-[11px] text-text-secondary">This month&apos;s prize budget is used up, so it&apos;s a bonus stamp.</p>
+      )}
 
       {!cleared ? (
         <div className="flex items-center justify-between gap-3">
@@ -311,6 +306,7 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
           </ScButton>
         </div>
       )}
+      {showPrize && spec && <ShareCardImage spec={() => spec} fileName="detlio-prize" compact />}
       {compact && cleared && (
         <Link href="/profile/rewards" className="text-[12px] text-text-secondary underline underline-offset-4">
           See your rewards

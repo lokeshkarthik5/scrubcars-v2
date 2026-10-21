@@ -20,9 +20,9 @@ import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { CustomerShell } from '@/components/customer-shell'
-import { GiftCardArt } from '@/components/gifts/gift-card-art'
 import { GiftShare } from '@/components/gifts/gift-share'
 import { GiftsUnavailable } from '@/components/gifts/gifts-unavailable'
+import { PremiumCard } from '@/components/premium-card/premium-card'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import {
   GIFT_ART_LABELS,
@@ -32,6 +32,7 @@ import {
   parseGiftAmount,
   type GiftArt,
 } from '@/lib/gifts'
+import { giftCardSpec } from '@/lib/premium-card'
 
 const NAME_MAX = 60
 const MESSAGE_MAX = 200
@@ -230,7 +231,12 @@ export default function NewGiftPage() {
     <CustomerShell showNav showBrand className="gap-4 py-4">
       {header}
 
-      <GiftCardArt key={art} design={art} amount={amount} recipientName={name} />
+      {/* The card as it will look, a little smaller than on the share screen so the form stays near. */}
+      <PremiumCard
+        key={art}
+        spec={giftCardSpec({ design: art, amount, recipientName: name, validMonths: limits.validMonths })}
+        className="mx-auto max-w-[300px]"
+      />
 
       <section aria-labelledby="gift-design" className="flex flex-col gap-2">
         <h2 id="gift-design" className="text-sm font-semibold text-text-primary">
@@ -246,7 +252,7 @@ export default function NewGiftPage() {
               onClick={() => setArt(value)}
               className="gift-swatch flex flex-col gap-1.5 rounded-[12px] text-left focus-visible:outline-2 focus-visible:outline-offset-4"
             >
-              <GiftCardArt design={value} variant="swatch" className="w-full" />
+              <PremiumCard spec={giftCardSpec({ design: value, amount, validMonths: limits.validMonths })} size="mini" animate={false} />
               <span className={art === value ? 'text-[12px] font-semibold text-text-primary' : 'text-[12px] text-text-secondary'}>
                 {GIFT_ART_LABELS[value]}
               </span>

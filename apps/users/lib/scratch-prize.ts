@@ -1,10 +1,9 @@
 import type { ScratchOutcome } from '@repo/core/rewards'
-import { rewardRupees } from '@repo/core/rewards'
 
 /**
- * How a scratch card's prize is revealed (0050), pure so the words and the
- * looks are unit-tested. The prize itself is the server's: these only
- * dress it.
+ * How a scratch card's prize is revealed (0050), pure so the looks are
+ * unit-tested. The prize itself is the server's: these only dress it (its
+ * premium card's words are lib/premium-card.ts's prizeCardSpec).
  *
  *   silver   the small money prizes (₹20, ₹50 by default)
  *   gold     the big money prize (₹100)
@@ -24,18 +23,6 @@ export function prizeTier(outcome: ScratchOutcome): PrizeTier {
       return 'gold'
     default:
       return 'silver'
-  }
-}
-
-/** The revealed card's three lines: "You won" / "₹50" / "off your next booking". */
-export function prizeLines(prize: { outcome: ScratchOutcome; amount: string | null }): { eyebrow: string; big: string; small: string } {
-  switch (prize.outcome) {
-    case 'bonus_stamp':
-      return { eyebrow: 'You won', big: 'Bonus stamp', small: 'One more star on your Shine Card' }
-    case 'free_wash':
-      return { eyebrow: 'Jackpot', big: 'Free wash', small: `Up to ${rewardRupees(prize.amount)} off a booking` }
-    default:
-      return { eyebrow: 'You won', big: rewardRupees(prize.amount), small: 'off your next booking' }
   }
 }
 
