@@ -183,6 +183,10 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
+          text: '**Saved garages (new, Oct 2026).** Customers can now save garages with a heart; the list of which garages someone saved is kept on their account, shown only to them, and deleted with the account (or with the garage). It is personal data not yet in the table above: please say whether it needs a row (it would sit under "You", used for "Showing you the garages you saved") or is covered by the account row. Complaints our team logs from a call or WhatsApp are linked to the account with that phone number, so the customer sees them in the app; that is the existing "What you tell our team" row.',
+        },
+        {
+          kind: 'note',
           text: '**Profile photos and metadata.** Every photo upload (profile photos, garage logos and gallery, service photos, job photos, admin uploads) is now re-encoded in the browser before it leaves the device, which strips location and camera details (every current browser can for JPEG and PNG; Safari cannot write WebP, so a WebP picked in Safari, or a file the browser cannot read, still goes up as it is). Photos uploaded before that change were stored as-is and are not rewritten, so the profile-photo row\'s last sentence is still true of older photos. Suggested wording once the team is happy to drop it: "We remove location and camera details from the file before it is uploaded."',
         },
       ],

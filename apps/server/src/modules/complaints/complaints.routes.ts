@@ -10,8 +10,10 @@ import {
   closeComplaintSchema,
   complaintAdminNoteSchema,
   complaintIdParamSchema,
+  complaintLookupQuerySchema,
   createComplaintSchema,
   listComplaintsQuerySchema,
+  logComplaintSchema,
   resolveComplaintSchema,
 } from './complaints.validation.js'
 
@@ -43,6 +45,24 @@ adminComplaintRoutes.get(
   ...adminMiddleware,
   zValidator('query', listComplaintsQuerySchema),
   (c) => complaintsController.listComplaints(c, c.req.valid('query'))
+)
+
+// Log a complaint that came by phone, WhatsApp, email or in person. Admin
+// only: a customer raises theirs at POST /users/me/complaints.
+adminComplaintRoutes.post(
+  '/',
+  ...adminMiddleware,
+  zValidator('json', logComplaintSchema),
+  (c) => complaintsController.logComplaint(c, c.req.valid('json'))
+)
+
+// The log form's look-ups (who has this phone, which booking is this).
+// Before '/:id', which would otherwise take 'lookup' for an id.
+adminComplaintRoutes.get(
+  '/lookup',
+  ...adminMiddleware,
+  zValidator('query', complaintLookupQuerySchema),
+  (c) => complaintsController.lookupForLog(c, c.req.valid('query'))
 )
 
 adminComplaintRoutes.get(

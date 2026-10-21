@@ -18,6 +18,60 @@ reconstructing every change in them.
 
 ### Added
 
+- **Complaints part 2: logged complaints, and answers in Updates**
+  (migration `0039_logged_complaints_and_favourites`, additive:
+  `complaints.source` (text + CHECK, existing rows `app`),
+  `complaints.received_at` (existing rows get their `created_at`) and
+  `complaints.logged_by`, with CHECKs tying `logged_by` to the source and
+  `received_at` to no later than `created_at`).
+  - `POST /admin/complaints { phone, customerName?, source, category,
+    message, bookingRef?, receivedAt?, loggedBy }` (super-admin, `.strict()`)
+    logs a complaint that came by phone, WhatsApp, email, in person or
+    otherwise. It gets a normal C-number. The phone (any way of writing ten
+    digits) finds the account and links the complaint to it, under the
+    account's name, so it shows in the customer's My complaints; with no
+    account the typed name is required (400 `COMPLAINT_NAME_REQUIRED`) and
+    kept with the phone. A booking reference attaches the booking and its
+    garage; with an account it must be theirs (409
+    `COMPLAINT_BOOKING_NOT_THEIRS`), an unknown one is 404, two bookings
+    nobody can tell apart 409 `COMPLAINT_BOOKING_AMBIGUOUS`. Rules in
+    `modules/complaints/complaints.logging.ts` (pure, unit-tested). No
+    per-customer limits for the team.
+    `GET /admin/complaints/lookup?phone=&bookingRef=` answers the form's
+    look-ups (the account's name, the booking) and writes nothing.
+  - **The clock runs from `received_at`**: now, or up to 7 days back for a
+    logged one (400 `COMPLAINT_RECEIVED_AT_INVALID` beyond, or in the
+    future past a 5-minute fast clock; `resolveReceivedAt`). The due times,
+    Overdue and the admin list's order all read it; `created_at` stays the
+    moment the row was written (the per-hour limit and the reset's cutoff
+    read that). Admin payloads gain `source`, `loggedBy`, `receivedAt`;
+    customer payloads `source` and `receivedAt`. A logged complaint with no
+    account is not "account deleted".
+  - Telegram's `complaint_received` says "By phone, logged by Ravi." for a
+    logged one.
+  - **Updates**: a customer's complaint adds a row when the team
+    acknowledges it ("We're looking into complaint C-000123"), resolves it
+    ("Complaint C-000123 resolved — see our answer") or closes it, each
+    opening `/profile#my-complaints`. Resolving or closing an open one is one
+    row, not two. **Home**: a complaint resolved in the last 7 days, still
+    unread in Updates, is a soft card (`complaint_resolved`) only when the
+    soft card's place is free (no must-act card, no Rate your wash), so Home
+    keeps at most two cards above the car; otherwise it is in Updates alone
+    (`softCardWithComplaint`, `lib/home-cards.ts`).
+- **Favourite garages** (same migration: `user_favourite_vendors`, PK
+  `(user_id, vendor_id)`, both FKs `ON DELETE CASCADE`).
+  `GET /users/me/favourites` (the garage list's own cards, newest saved
+  first, only garages whose page customers can open: not in the Bin,
+  suspended, archived or unverified; `pausedVendorIds` names paused ones;
+  `max` 50), `PUT` and `DELETE /users/me/favourites/:vendorId` (both
+  idempotent; 404 for a garage customers cannot open; 409
+  `FAVOURITES_LIMIT` past 50, counted under a per-customer advisory lock
+  taken on its own). The list's cards are built by `vendorCardsFor`, shared
+  with `GET /vendors`, whose shape is unchanged. `DELETE /users/me` and
+  Delete forever take the rows by cascade; a garage kept as a tombstone
+  loses them in the same transaction; the pilot reset leaves them alone
+  (not test data).
+
 - `GET /bookings/:id` (and the customer's list) carries the garage's own
   `mapsUrl` on `vendor`, beside its phone, WhatsApp, address and pin, for the
   booking page's Directions when the garage has no pin.

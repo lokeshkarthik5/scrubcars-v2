@@ -60,6 +60,14 @@ export type HomeActionCard =
       vendorName: string
       completedAt: string
     }
+  | {
+      /** One of their complaints, just resolved: a soft card, only when the place is free. */
+      kind: 'complaint_resolved'
+      complaintId: string
+      /** "C-000123". */
+      number: string
+      resolvedAt: string
+    }
 
 export interface HomeTileNotice {
   noticeId: string
@@ -169,6 +177,9 @@ export type UpdateKind =
   | 'refunded'
   | 'moved'
   | 'garage_paused'
+  | 'complaint_acknowledged'
+  | 'complaint_resolved'
+  | 'complaint_closed'
   | 'picked_up'
   | 'at_garage'
   | 'out_for_delivery'

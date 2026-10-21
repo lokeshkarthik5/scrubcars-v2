@@ -33,7 +33,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import { formatWhen } from '@/lib/bookings'
-import { complaintActions, overdueLabel } from '@/lib/complaints'
+import { complaintActions, complaintSourceLine, overdueLabel } from '@/lib/complaints'
 
 const STATUS_BADGE: Record<AdminComplaint['status'], 'pending' | 'success' | 'muted'> = {
   open: 'pending',
@@ -331,8 +331,8 @@ function ComplaintDetail({ id }: { id: string }) {
         title={`Complaint ${c.number}`}
         subtitle={
           <>
-            {COMPLAINT_CATEGORY_LABELS[c.category]} · made{' '}
-            <span className="font-numeric">{formatWhen(c.createdAt)}</span>
+            {COMPLAINT_CATEGORY_LABELS[c.category]} · received{' '}
+            <span className="font-numeric">{formatWhen(c.receivedAt)}</span>
           </>
         }
         showBack
@@ -406,6 +406,18 @@ function ComplaintDetail({ id }: { id: string }) {
               )
             ) : (
               <p className="text-text-secondary">—</p>
+            )}
+          </Field>
+          <Field label="How it came">
+            <p>{complaintSourceLine(c)}</p>
+            {/* Logged later than it came: when it was written down. */}
+            {c.source !== 'app' && c.createdAt !== c.receivedAt && (
+              <p className="text-[12px] text-text-muted">
+                Logged <span className="font-numeric">{formatWhen(c.createdAt)}</span>
+              </p>
+            )}
+            {c.source !== 'app' && !c.customer.id && (
+              <p className="text-[12px] text-text-muted">No account: the customer can&apos;t see it in the app</p>
             )}
           </Field>
         </div>

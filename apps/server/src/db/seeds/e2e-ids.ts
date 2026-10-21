@@ -306,6 +306,13 @@ export const CUSTOMERS = {
    */
   payouts: { id: id(159), phone: '9000000059', name: 'Payout Pavithra', vehicleId: id(768) },
   /**
+   * Saves VENDORS.main with the heart and finds it under Profile → Saved
+   * garages (specs/users/saved-garages.spec.ts). No car: saving a garage
+   * needs none. Numbered 169 rather than 160 to stay clear of other open
+   * branches adding customers after 159.
+   */
+  favourites: { id: id(169), phone: '9000000069', name: 'Saved Selvi', vehicleId: null },
+  /**
    * Books pickup & drop at VENDORS.pickup (specs/users/booking-pickup.spec.ts).
    * One car and one pinned default address (ADDRESSES.pickupHome, at
    * PICKUP_HOME), inside that garage's 8 km pickup radius. No seeded

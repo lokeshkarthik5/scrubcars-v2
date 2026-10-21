@@ -29,6 +29,7 @@ import {
   useRestoreAdminVendor,
 } from '@repo/core/api/hooks/use-admin-vendors'
 import { cn } from '@repo/core/utils'
+import { rememberName, rememberedName } from '@/lib/actor-name'
 import { formatRupees, formatWhen } from '@/lib/bookings'
 import {
   BIN_EFFECTS,
@@ -50,27 +51,6 @@ import {
  */
 const DESTRUCTIVE =
   'flex min-h-12 items-center justify-center gap-2 border-brand-red bg-brand-red/10 text-brand-red hover:bg-brand-red/15 disabled:opacity-40 disabled:hover:bg-brand-red/10'
-
-// The name typed last time, for the next dialog: a convenience on this
-// device only, never a record (the server keeps that). Storage can be
-// missing or refuse, in which case the field starts empty.
-const NAME_KEY = 'detlio.admin.actorName'
-
-function rememberedName(): string {
-  try {
-    return window.localStorage.getItem(NAME_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function rememberName(name: string) {
-  try {
-    window.localStorage.setItem(NAME_KEY, name)
-  } catch {
-    // Private mode or blocked storage: the next dialog asks again.
-  }
-}
 
 /** "Your name", for the audit record. */
 function NameField({

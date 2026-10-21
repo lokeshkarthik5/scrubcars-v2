@@ -2,8 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import {
   closeComplaintSchema,
   complaintAdminNoteSchema,
+  complaintLookupQuerySchema,
   createComplaintSchema,
   listComplaintsQuerySchema,
+  logComplaintSchema,
+  nationalMobileDigits,
   resolveComplaintSchema,
 } from './complaints.validation.js'
 
@@ -74,5 +77,76 @@ describe('the team’s actions', () => {
   test('the internal note may be cleared, and has a cap', () => {
     expect(complaintAdminNoteSchema.parse({ adminNote: '  ' })).toEqual({ adminNote: '' })
     expect(complaintAdminNoteSchema.safeParse({ adminNote: 'x'.repeat(2001) }).success).toBe(false)
+  })
+})
+
+describe('logComplaintSchema', () => {
+  const LOGGED = {
+    phone: '98765 43210',
+    source: 'whatsapp',
+    category: 'payment_or_refund',
+    message: 'Charged twice for one wash on Saturday.',
+    loggedBy: 'Ravi',
+  } as const
+
+  test('a phone however it was typed, a source, what they said and who logged it', () => {
+    expect(logComplaintSchema.parse(LOGGED)).toEqual({ ...LOGGED, phone: '9876543210' })
+    for (const phone of ['+91 98765 43210', '098765-43210', '0091 9876543210', '919876543210']) {
+      expect(logComplaintSchema.parse({ ...LOGGED, phone }).phone).toBe('9876543210')
+    }
+  })
+
+  test('the team picks how it came, never "app"', () => {
+    for (const source of ['phone', 'whatsapp', 'email', 'in_person', 'other']) {
+      expect(logComplaintSchema.safeParse({ ...LOGGED, source }).success).toBe(true)
+    }
+    expect(logComplaintSchema.safeParse({ ...LOGGED, source: 'app' }).success).toBe(false)
+    expect(logComplaintSchema.safeParse({ ...LOGGED, source: 'sms' }).success).toBe(false)
+    const { source: _source, ...withoutSource } = LOGGED
+    expect(logComplaintSchema.safeParse(withoutSource).success).toBe(false)
+  })
+
+  test('refuses a number that is not an Indian mobile, and a log with no name for who did it', () => {
+    for (const phone of ['12345', '1234567890', '98765432101', 'call me']) {
+      expect(logComplaintSchema.safeParse({ ...LOGGED, phone }).success).toBe(false)
+    }
+    expect(logComplaintSchema.safeParse({ ...LOGGED, loggedBy: ' ' }).success).toBe(false)
+  })
+
+  test('a booking reference with or without its #, in any case', () => {
+    expect(logComplaintSchema.parse({ ...LOGGED, bookingRef: ' #C0A10001 ' }).bookingRef).toBe('c0a10001')
+    expect(logComplaintSchema.safeParse({ ...LOGGED, bookingRef: 'C0A1' }).success).toBe(false)
+    expect(logComplaintSchema.safeParse({ ...LOGGED, bookingRef: 'NOTAREF1' }).success).toBe(false)
+  })
+
+  test('when it was received is a full timestamp, when given', () => {
+    expect(
+      logComplaintSchema.parse({ ...LOGGED, receivedAt: '2026-10-17T21:15:00+05:30' }).receivedAt
+    ).toBe('2026-10-17T21:15:00+05:30')
+    expect(logComplaintSchema.safeParse({ ...LOGGED, receivedAt: 'yesterday' }).success).toBe(false)
+  })
+
+  test('nothing else rides along: not a user id, a status or a garage', () => {
+    for (const extra of [{ userId: BOOKING }, { status: 'resolved' }, { vendorId: BOOKING }, { number: 1 }]) {
+      expect(logComplaintSchema.safeParse({ ...LOGGED, ...extra }).success).toBe(false)
+    }
+  })
+})
+
+describe('complaintLookupQuerySchema', () => {
+  test('either look-up, both, or neither', () => {
+    expect(complaintLookupQuerySchema.parse({})).toEqual({})
+    expect(complaintLookupQuerySchema.parse({ phone: '+91 98765 43210', bookingRef: '#ABCDEF12' })).toEqual({
+      phone: '9876543210',
+      bookingRef: 'abcdef12',
+    })
+    expect(complaintLookupQuerySchema.safeParse({ q: 'x' }).success).toBe(false)
+  })
+})
+
+describe('nationalMobileDigits', () => {
+  test('never eats a real number that starts with 91 or 0', () => {
+    expect(nationalMobileDigits('9198765432')).toBe('9198765432')
+    expect(nationalMobileDigits('+91 91987 65432')).toBe('9198765432')
   })
 })

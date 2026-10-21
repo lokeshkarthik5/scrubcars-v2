@@ -339,6 +339,11 @@ export default function ProfilePage() {
         <ScCard className="text-[13px] text-text-primary">My bookings</ScCard>
       </Link>
 
+      {/* The garages saved with the heart. A plain link, like My bookings. */}
+      <Link href="/profile/saved-garages">
+        <ScCard className="text-[13px] text-text-primary">Saved garages</ScCard>
+      </Link>
+
       {/* #vehicles: Home's pencil on the car opens here. */}
       <section id="vehicles" className="scroll-mt-4">
         <div className="mb-2 flex items-center justify-between">

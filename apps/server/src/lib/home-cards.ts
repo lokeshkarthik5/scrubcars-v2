@@ -7,8 +7,10 @@
  *   1. A must-act card, only when one applies: a bill to pay, or the garage
  *      is shut on the day of a booking. Bill first. One at most.
  *   2. The offers (lib/offers.ts).
- *   3. "Rate your wash", a soft card, only when there is no must-act card.
- *      So at most two cards ever sit above the car.
+ *   3. "Rate your wash", a soft card, only when there is no must-act card;
+ *      or, when there is neither, a complaint the team just resolved ("see
+ *      our answer", complaintAnswerCard). So at most two cards ever sit
+ *      above the car.
  *   4. The car, with its wash bar and one tile: the next booking (carrying a
  *      team notice about it as one short line), before & after photos, Book
  *      again, or nothing booked.
@@ -19,7 +21,8 @@
 import { computeServiceAmount, sumAmounts, type PricingColumns, type VehicleTier } from './pricing.js'
 import { dayStatus, getDayOfWeekFromDate } from './slots.js'
 import { istDateKey } from './ist.js'
-import { isPaid, type HubBooking } from './home-updates.js'
+import { isPaid, type HubBooking, type HubComplaint } from './home-updates.js'
+import { formatComplaintNumber } from './complaints.js'
 import { noticeMatchesBooking, type NoticeRow } from './notices.js'
 import { washStatus, type WashStatus } from './wash-status.js'
 import type { BookingType } from './booking-types.js'
@@ -75,6 +78,17 @@ export type ActionCard =
       vehicleName: string
       vendorName: string
       completedAt: string
+    }
+  | {
+      /**
+       * The team resolved one of the customer's complaints: "see our
+       * answer". A soft card, after Rate your wash (complaintAnswerCard).
+       */
+      kind: 'complaint_resolved'
+      complaintId: string
+      /** "C-000123". */
+      number: string
+      resolvedAt: string
     }
 
 /** The garages' closed days, as the Home read loads them for upcoming bookings. */
@@ -184,6 +198,59 @@ export function rateCards(bookings: HubBooking[], now: Date): Array<Extract<Acti
       vendorName: b.vendorName,
       completedAt: b.completedAt!.toISOString(),
     }))
+}
+
+/** A resolved complaint stays a Home card for this long, while unread. */
+export const COMPLAINT_CARD_DAYS = 7
+
+/**
+ * "Complaint C-000123 resolved — see our answer", as a soft card: the newest
+ * complaint the team resolved in the last 7 days that the customer has not
+ * yet seen in Updates (resolved after `seenAt`). Opening Updates is reading
+ * it, so the card goes with the bell; My complaints keeps the answer.
+ *
+ * It takes the soft card's place only when that place is free: no must-act
+ * card and no Rate your wash (the caller checks), so Home keeps at most two
+ * cards above the car. Otherwise the answer is in Updates alone.
+ */
+export function complaintAnswerCard(
+  complaints: HubComplaint[],
+  seenAt: Date,
+  now: Date
+): Extract<ActionCard, { kind: 'complaint_resolved' }> | null {
+  const since = now.getTime() - COMPLAINT_CARD_DAYS * 24 * HOUR_MS
+  const newest = complaints
+    .filter(
+      (c) =>
+        c.status === 'resolved' &&
+        c.resolvedAt !== null &&
+        c.resolvedAt.getTime() >= since &&
+        c.resolvedAt <= now &&
+        c.resolvedAt > seenAt
+    )
+    .sort((a, b) => b.resolvedAt!.getTime() - a.resolvedAt!.getTime())[0]
+  if (!newest) return null
+  return {
+    kind: 'complaint_resolved',
+    complaintId: newest.id,
+    number: formatComplaintNumber(newest.number),
+    resolvedAt: newest.resolvedAt!.toISOString(),
+  }
+}
+
+/**
+ * Home's soft card, with a resolved complaint in the place only when it is
+ * free: a must-act card or Rate your wash keeps it, so there are never more
+ * than two cards above the car.
+ */
+export function softCardWithComplaint(
+  picked: { mustAct: ActionCard | null; softCard: ActionCard | null },
+  complaints: HubComplaint[],
+  seenAt: Date,
+  now: Date
+): ActionCard | null {
+  if (picked.mustAct || picked.softCard) return picked.softCard
+  return complaintAnswerCard(complaints, seenAt, now)
 }
 
 /**

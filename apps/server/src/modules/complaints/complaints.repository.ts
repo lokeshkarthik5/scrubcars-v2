@@ -9,20 +9,23 @@ export type ComplaintInsert = typeof complaints.$inferInsert
 /** The admin list's filters, as the service hands them over. */
 export type ComplaintListFilter = 'open' | 'overdue' | 'resolved' | 'all'
 
-/** The two creation times the overdue rule compares against (lib/complaints.ts overdueCutoffs). */
+/** The two received times the overdue rule compares against (lib/complaints.ts overdueCutoffs). */
 export interface OverdueCutoffs {
-  openMadeBefore: Date
-  unfinishedMadeBefore: Date
+  openReceivedBefore: Date
+  unfinishedReceivedBefore: Date
 }
 
 const UNFINISHED: ComplaintStatus[] = ['open', 'acknowledged']
 const FINISHED: ComplaintStatus[] = ['resolved', 'closed']
 
-/** Overdue, as SQL: the same rule as complaintOverdue, with the cutoffs worked out in TypeScript. */
+/**
+ * Overdue, as SQL: the same rule as complaintOverdue, with the cutoffs worked
+ * out in TypeScript. The clock runs from when the complaint was received.
+ */
 function overdueWhere(cutoffs: OverdueCutoffs): SQL {
   return or(
-    and(eq(complaints.status, 'open'), lt(complaints.createdAt, cutoffs.openMadeBefore)),
-    and(inArray(complaints.status, UNFINISHED), lt(complaints.createdAt, cutoffs.unfinishedMadeBefore))
+    and(eq(complaints.status, 'open'), lt(complaints.receivedAt, cutoffs.openReceivedBefore)),
+    and(inArray(complaints.status, UNFINISHED), lt(complaints.receivedAt, cutoffs.unfinishedReceivedBefore))
   )!
 }
 
@@ -123,13 +126,65 @@ export const complaintsRepository = {
     })
   },
 
-  /** The customer's own complaints, newest first. */
+  /**
+   * A complaint the team logged from a call or a message. No per-customer
+   * limits and so no lock: the team is not a script. `receivedAt` is never
+   * later than the database's own now(), which the received_at CHECK
+   * compares against created_at (the app's clock and the database's can
+   * differ by a moment).
+   */
+  async insertLogged(values: Omit<ComplaintInsert, 'source' | 'receivedAt' | 'loggedBy'> & {
+    source: Exclude<ComplaintRecord['source'], 'app'>
+    receivedAt: Date
+    loggedBy: string
+  }): Promise<ComplaintRecord> {
+    const [created] = await db
+      .insert(complaints)
+      .values({
+        ...values,
+        receivedAt: sql`least(${values.receivedAt.toISOString()}::timestamptz, now())`,
+      })
+      .returning()
+    return created!
+  },
+
+  /** The account with this phone (users.phone is unique, ten digits), whatever its kind. */
+  findUserByPhone(phone: string) {
+    return db.query.users.findFirst({
+      where: eq(users.phone, phone),
+      columns: { id: true, name: true, phone: true },
+    })
+  },
+
+  /**
+   * Bookings whose 8-character reference (the first eight characters of the
+   * id) is this one. Almost always one; two at most in practice, which the
+   * service tells apart by the customer or refuses. A cast and a prefix
+   * match, so not indexed: pilot-sized, and only when the team types one.
+   */
+  findBookingsByReference(reference: string) {
+    return db
+      .select({
+        id: bookings.id,
+        userId: bookings.userId,
+        vendorId: bookings.vendorId,
+        garageName: vendors.businessName,
+        scheduledAt: bookings.scheduledAt,
+        status: bookings.status,
+      })
+      .from(bookings)
+      .leftJoin(vendors, eq(vendors.id, bookings.vendorId))
+      .where(sql`${bookings.id}::text like ${`${reference}%`}`)
+      .limit(5)
+  },
+
+  /** The customer's own complaints, newest first by when we received them. */
   listForCustomer(userId: string, limit: number) {
     return db
       .select()
       .from(complaints)
       .where(eq(complaints.userId, userId))
-      .orderBy(desc(complaints.createdAt))
+      .orderBy(desc(complaints.receivedAt), desc(complaints.number))
       .limit(limit)
   },
 
@@ -146,8 +201,10 @@ export const complaintsRepository = {
       .leftJoin(users, eq(users.id, complaints.userId))
       .leftJoin(bookings, eq(bookings.id, complaints.bookingId))
       .where(filterWhere(input.filter, input.cutoffs))
+      // By when it was received: the clock's own order, so a call logged
+      // late sits where its time puts it.
       .orderBy(
-        input.order === 'oldest' ? asc(complaints.createdAt) : desc(complaints.createdAt),
+        input.order === 'oldest' ? asc(complaints.receivedAt) : desc(complaints.receivedAt),
         asc(complaints.number)
       )
       .limit(input.limit)

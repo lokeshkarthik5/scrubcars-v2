@@ -5,8 +5,13 @@
  * job at MAIN) from the booking's Help sheet, sees its number at once and in
  * Profile → My complaints, and ops finds it under Open with the booking and
  * garage attached. The customer is also refused a complaint about someone
- * else's booking. The clock and number rules are unit-tested in
- * packages/core/src/complaints.test.ts and apps/server/src/lib/complaints.test.ts.
+ * else's booking. Then ops logs one the same customer made by phone (0039):
+ * it is linked to their account by the number, attached to the booking by
+ * its reference, and once acknowledged the customer reads "We're looking
+ * into complaint C-…" in Updates. The clock and number rules are
+ * unit-tested in packages/core/src/complaints.test.ts and
+ * apps/server/src/lib/complaints.test.ts; the log's rules in
+ * apps/server/src/modules/complaints/complaints.logging.test.ts.
  *
  * Its own customer and booking, read by no other spec. The test-data reset
  * API spec runs a dry run and a delete before "now", but leaves complaints
@@ -22,6 +27,10 @@ import { BOOKINGS, CUSTOMERS, VENDORS } from '../../support/seed-ids'
 
 const ADMIN_ORIGIN = 'http://localhost:3002'
 const COMPLAINTS = `${API}/api/v1/users/me/complaints`
+const ADMIN_COMPLAINTS = `${API}/api/v1/admin/complaints`
+const UPDATES = `${API}/api/v1/users/me/updates`
+/** A number no account has: the logged complaint keeps the name typed. */
+const NO_ACCOUNT_PHONE = '9000000088'
 
 /** "#C0A10001": the reference as the customer and ops read it. */
 const reference = (id: string) => id.slice(0, 8).toUpperCase()
@@ -159,5 +168,97 @@ test.describe('complaints @p0', () => {
     await expect(page.getByRole('button', { name: 'Acknowledge' })).toBeVisible()
 
     await ctx.close()
+  })
+
+  test('ops logs a phone complaint: it is the customer’s, and its answer reaches their Updates', async ({
+    browser,
+  }) => {
+    const admin = await openAdmin(browser)
+    const PHONE_MESSAGE = `Called to say the vacuuming was skipped (${Date.now().toString().slice(-6)}).`
+    const receivedAt = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
+
+    const logged = await admin.ctx.request.post(ADMIN_COMPLAINTS, {
+      data: {
+        phone: `+91 ${CUSTOMERS.complaints.phone.slice(0, 5)} ${CUSTOMERS.complaints.phone.slice(5)}`,
+        source: 'phone',
+        category: 'service_quality',
+        message: PHONE_MESSAGE,
+        bookingRef: `#${reference(BOOKINGS.complaintDone)}`,
+        receivedAt,
+        loggedBy: 'Ravi',
+      },
+    })
+    expect(logged.status()).toBe(201)
+    const { data: complaint } = await logged.json()
+    expect(complaint).toMatchObject({
+      status: 'open',
+      source: 'phone',
+      loggedBy: 'Ravi',
+      receivedAt,
+      customer: { id: CUSTOMERS.complaints.id, name: CUSTOMERS.complaints.name, accountDeleted: false },
+      booking: { id: BOOKINGS.complaintDone, reference: reference(BOOKINGS.complaintDone) },
+      garage: { id: VENDORS.main.id, name: VENDORS.main.name },
+    })
+    expect(complaint.number).toMatch(/^C-\d{6}$/)
+    // The clock runs from when it was received, not from when it was typed.
+    expect(Date.parse(complaint.acknowledgeBy) - Date.parse(receivedAt)).toBe(24 * 60 * 60 * 1000)
+
+    // A number with no account keeps the name typed, and needs one.
+    const nameless = await admin.ctx.request.post(ADMIN_COMPLAINTS, {
+      data: { phone: NO_ACCOUNT_PHONE, source: 'whatsapp', category: 'other', message: PHONE_MESSAGE, loggedBy: 'Ravi' },
+    })
+    expect(nameless.status()).toBe(400)
+    expect((await nameless.json()).code).toBe('COMPLAINT_NAME_REQUIRED')
+    const named = await admin.ctx.request.post(ADMIN_COMPLAINTS, {
+      data: {
+        phone: NO_ACCOUNT_PHONE,
+        customerName: 'Walk-in Wasim',
+        source: 'in_person',
+        category: 'other',
+        message: PHONE_MESSAGE,
+        loggedBy: 'Ravi',
+      },
+    })
+    expect(named.status()).toBe(201)
+    expect((await named.json()).data.customer).toMatchObject({ id: null, name: 'Walk-in Wasim' })
+
+    const acknowledged = await admin.ctx.request.post(`${ADMIN_COMPLAINTS}/${complaint.id}/acknowledge`)
+    expect(acknowledged.status()).toBe(200)
+
+    // The customer: in My complaints, said to be from their call, and in Updates.
+    const customer = await openCustomer(browser)
+    const mine = (await (await customer.ctx.request.get(COMPLAINTS)).json()).data as Array<{
+      number: string
+      source: string
+      status: string
+    }>
+    expect(mine.find((c) => c.number === complaint.number)).toMatchObject({
+      source: 'phone',
+      status: 'acknowledged',
+    })
+    const updates = (await (await customer.ctx.request.get(UPDATES)).json()).data
+    expect(updates.items).toContainEqual(
+      expect.objectContaining({
+        kind: 'complaint_acknowledged',
+        title: `We're looking into complaint ${complaint.number}`,
+        linkUrl: '/profile#my-complaints',
+      })
+    )
+
+    // Only the team logs complaints this way.
+    const refused = await customer.ctx.request.post(ADMIN_COMPLAINTS, {
+      data: { phone: CUSTOMERS.complaints.phone, source: 'phone', category: 'other', message: PHONE_MESSAGE, loggedBy: 'Me' },
+    })
+    expect([401, 403]).toContain(refused.status())
+
+    await customer.page.goto('/profile')
+    const item = customer.page
+      .getByRole('list', { name: 'My complaints, newest first' })
+      .getByRole('listitem')
+      .filter({ hasText: complaint.number })
+    await expect(item.getByText('You told us by phone')).toBeVisible()
+
+    await customer.ctx.close()
+    await admin.ctx.close()
   })
 })

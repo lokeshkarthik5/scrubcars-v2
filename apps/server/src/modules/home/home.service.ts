@@ -5,6 +5,7 @@ import {
   buildCars,
   nextBookingWithoutCar,
   pickActionCards,
+  softCardWithComplaint,
   type ActionCard,
   type GarageDays,
   type HomeCar,
@@ -18,6 +19,7 @@ import {
   hasUnread,
   UPDATES_WINDOW_DAYS,
   type HubBooking,
+  type HubComplaint,
   type PausedGarage,
   type UpdateItem,
 } from '../../lib/home-updates.js'
@@ -55,7 +57,10 @@ export interface HomeResponse {
   mustAct: ActionCard | null
   /** Up to three, ranked. Null when the offers could not be read. */
   offers: HomeOffer[] | null
-  /** "Rate your wash", below the offers, only when there is no must-act card. */
+  /**
+   * "Rate your wash", below the offers, only when there is no must-act card;
+   * with neither, a complaint the team just resolved ("see our answer").
+   */
   softCard: ActionCard | null
   /** Default car first; empty means "Add your car". */
   cars: HomeCar[]
@@ -103,6 +108,11 @@ async function loadBookings(userId: string, now: Date): Promise<HubBooking[]> {
   )
   const moved = await bookingsRepository.findMovedBookingIds(rows.map((row) => row.id))
   return rows.map((row) => toHubBooking(row, moved))
+}
+
+/** The customer's complaints the team answered in the Updates window. */
+function loadComplaints(userId: string, now: Date): Promise<HubComplaint[]> {
+  return homeRepository.listAnsweredComplaints(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
 }
 
 /** Holidays and weekly hours for the garages of upcoming bookings only. */
@@ -198,8 +208,15 @@ export const homeService = {
     const lastWashAt = (await part('last_wash', () => homeRepository.lastWashByCar(userId))) ?? new Map()
     const lastJobs = (await part('last_jobs', () => loadLastJobs(userId, cars))) ?? new Map()
 
+    const complaints = (await part('complaints', () => loadComplaints(userId, now))) ?? []
+    const seenAt = user.updatesSeenAt ?? user.createdAt
+
     const homeCars = buildCars({ cars, bookings, lastWashAt, lastJobs, notices: bookingWindow, now })
-    const { mustAct, softCard } = pickActionCards(bookings, garageDays, now)
+    const picked = pickActionCards(bookings, garageDays, now)
+    const { mustAct } = picked
+    // A complaint the team just resolved takes the soft card's place only
+    // when it is free (lib/home-cards.ts).
+    const softCard = softCardWithComplaint(picked, complaints, seenAt, now)
 
     const offers = await part('offers', async () => {
       const targeting = env.homeOfferTargeting
@@ -223,17 +240,21 @@ export const homeService = {
       }).map((row) => toHomeOffer(row, now))
     })
 
-    const seenAt = user.updatesSeenAt ?? user.createdAt
     const feed = deriveUpdates({
       bookings,
       notices: bookingWindow,
       pausedGarages: pausedGaragesOf(lastJobs),
+      complaints,
       seenAt,
       now,
     })
     // A row shown as the action card above is not repeated below it.
     const shownChargeId = mustAct?.kind === 'bill_due' ? mustAct.chargeId : null
-    const rows = feed.filter((item) => !(shownChargeId && item.chargeId === shownChargeId))
+    const shownComplaintRow =
+      softCard?.kind === 'complaint_resolved' ? `complaint_resolved:${softCard.complaintId}` : null
+    const rows = feed.filter(
+      (item) => !(shownChargeId && item.chargeId === shownChargeId) && item.id !== shownComplaintRow
+    )
 
     const nearby = origin
       ? await part('nearby', async () => {
@@ -283,6 +304,7 @@ export const homeService = {
     const garageDays = await loadGarageDays(bookings, now)
     // The same feed Home's bell counts from, so the two always agree.
     const lastJobs = await loadLastJobs(userId, await homeRepository.listCars(userId))
+    const complaints = await loadComplaints(userId, now)
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     return {
@@ -294,6 +316,7 @@ export const homeService = {
         bookings,
         notices: bookingWindow,
         pausedGarages: pausedGaragesOf(lastJobs),
+        complaints,
         seenAt,
         now,
       }),

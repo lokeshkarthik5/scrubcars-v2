@@ -263,6 +263,12 @@ export type OpsAlert =
       /** The customer's own words; quoted, scrubbed and cut short here. */
       message: string
       acknowledgeBy: Date
+      /**
+       * Set when the team logged it from a call or a message (0039): how it
+       * came ("By phone") and the name of whoever logged it. Null when the
+       * customer raised it in the app.
+       */
+      logged: { source: string; by: string } | null
     }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
@@ -615,7 +621,8 @@ export function formatOpsAlert(alert: OpsAlert): string {
               .join(' · ')
           : 'Not about a booking.',
         `Customer: ${firstName(alert.customerName)}`,
-        quoted('Customer wrote', alert.message),
+        alert.logged ? `${alert.logged.source}, logged by ${alert.logged.by}.` : null,
+        quoted(alert.logged ? 'What they said' : 'Customer wrote', alert.message),
         `Acknowledge by ${when(alert.acknowledgeBy)}.`,
         adminComplaintUrl(alert.complaintId)
       )

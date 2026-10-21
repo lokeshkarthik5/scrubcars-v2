@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { ComplaintCategory, ComplaintStatus } from '@repo/core/complaints'
+import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '@repo/core/complaints'
 
 /**
  * The customer's own complaints. The server only ever reads and writes the
@@ -19,6 +19,10 @@ export interface CustomerComplaint {
   /** The booking's 8-character reference, kept if the booking goes. */
   bookingRef: string | null
   garageName: string | null
+  /** 'app' when they raised it here; otherwise how they told the team, who logged it. */
+  source: ComplaintSource
+  /** When we received it: the date My complaints shows. */
+  receivedAt: string
   createdAt: string
   acknowledgedAt: string | null
   resolvedAt: string | null

@@ -24,6 +24,10 @@ describe('complaints parity', () => {
     expect(core.COMPLAINT_MESSAGE_MAX).toBe(server.COMPLAINT_MESSAGE_MAX)
     expect(core.COMPLAINT_RESOLUTION_MAX).toBe(server.COMPLAINT_RESOLUTION_MAX)
     expect(core.COMPLAINT_ADMIN_NOTE_MAX).toBe(server.COMPLAINT_ADMIN_NOTE_MAX)
+    expect([...core.COMPLAINT_SOURCES]).toEqual([...server.COMPLAINT_SOURCES])
+    expect([...core.LOGGED_COMPLAINT_SOURCES]).toEqual([...server.LOGGED_COMPLAINT_SOURCES])
+    expect(core.COMPLAINT_SOURCE_LABELS).toEqual(server.COMPLAINT_SOURCE_LABELS)
+    expect(core.MAX_RECEIVED_DAYS_BACK).toBe(server.MAX_RECEIVED_DAYS_BACK)
   })
 
   test('the number and the overdue rule agree', async () => {
@@ -35,8 +39,8 @@ describe('complaints parity', () => {
     for (const status of server.COMPLAINT_STATUSES) {
       for (const hours of [0, 24, 24.5, 168, 169]) {
         const now = new Date(created.getTime() + hours * 60 * 60 * 1000)
-        expect(core.complaintOverdue({ status, createdAt: created }, now)).toBe(
-          server.complaintOverdue({ status, createdAt: created }, now)
+        expect(core.complaintOverdue({ status, receivedAt: created }, now)).toBe(
+          server.complaintOverdue({ status, receivedAt: created }, now)
         )
       }
     }

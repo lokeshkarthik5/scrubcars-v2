@@ -13,6 +13,7 @@ import {
 } from '@repo/ui/sc/sort-sheet'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { VendorCard } from '@repo/ui/features/vendor-card'
+import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
@@ -159,7 +160,7 @@ function SearchContent() {
             <>
               {vendors.map((vendor, i) => (
                 <Reveal key={vendor.id} index={i}>
-                  <VendorCard vendor={vendor} />
+                  <VendorCard vendor={vendor} action={<SaveGarageButton vendor={vendor} />} />
                 </Reveal>
               ))}
               <InfiniteSentinel

@@ -11,6 +11,7 @@ import {
   serviceImages,
   servicePackageItems,
   services,
+  userFavouriteVendors,
   userMemberMapping,
   users,
   vendorClosures,
@@ -278,6 +279,14 @@ function writes(tx: Tx) {
     /** Where Detlio paid the garage (0038): bank and UPI details go with a tombstone's contact fields. */
     async deletePayoutAccount(vendorId: string) {
       await tx.delete(vendorPayoutAccounts).where(eq(vendorPayoutAccounts.vendorId, vendorId))
+    },
+
+    /**
+     * Customers' saves of the garage (0039): a tombstone is on no list and
+     * has no page, so a save of it is personal data with no use left.
+     */
+    async deleteFavourites(vendorId: string) {
+      await tx.delete(userFavouriteVendors).where(eq(userFavouriteVendors.vendorId, vendorId))
     },
 
     async deleteSeats(vendorId: string) {

@@ -22,7 +22,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
-import type { ComplaintCategory, ComplaintStatus } from '../lib/complaints.js'
+import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 
 // ─── A note on the PostGIS `geo` columns ─────────────────────────────────────
@@ -1829,6 +1829,16 @@ export const complaints = pgTable(
     resolvedBy: varchar('resolved_by', { length: 100 }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
     closedBy: varchar('closed_by', { length: 100 }),
+    // Where it came from (0039): 'app' when the customer raised it, else how
+    // the team heard it (phone, WhatsApp, email, in person, other).
+    source: text('source').$type<ComplaintSource>().default('app').notNull(),
+    // When Detlio received it: the clock starts here. The moment it was made
+    // for an app complaint; up to 7 days back for one the team logs.
+    receivedAt: timestamp('received_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    // The name the team member typed when logging it; null for 'app'.
+    loggedBy: varchar('logged_by', { length: 100 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1839,6 +1849,7 @@ export const complaints = pgTable(
   (table) => [
     unique('complaints_number_unique').on(table.number),
     index('complaints_status_created_at_idx').on(table.status, table.createdAt),
+    index('complaints_status_received_at_idx').on(table.status, table.receivedAt),
     index('complaints_created_at_idx').on(table.createdAt),
     index('complaints_user_id_created_at_idx').on(table.userId, table.createdAt),
     index('complaints_booking_id_idx')
@@ -1873,6 +1884,41 @@ export const complaints = pgTable(
       'complaints_closed_check',
       sql`(${table.status} = 'closed') = (${table.closedAt} is not null)`
     ),
+    check(
+      'complaints_source_check',
+      sql`${table.source} in ('app', 'phone', 'whatsapp', 'email', 'in_person', 'other')`
+    ),
+    check(
+      'complaints_logged_by_check',
+      sql`(${table.source} = 'app') = (${table.loggedBy} is null) and (${table.loggedBy} is null or char_length(btrim(${table.loggedBy})) > 0)`
+    ),
+    check('complaints_received_at_check', sql`${table.receivedAt} <= ${table.createdAt}`),
+  ]
+)
+
+// The garages a customer saved with the heart (0039). Personal data: only
+// the customer reads it (GET /users/me/favourites). Both keys cascade, so
+// deleting the account or the garage takes the rows with it; the pilot reset
+// never touches it (it is not test data).
+export const userFavouriteVendors = pgTable(
+  'user_favourite_vendors',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'user_favourite_vendors_pkey',
+      columns: [table.userId, table.vendorId],
+    }),
+    index('user_favourite_vendors_vendor_id_idx').on(table.vendorId),
   ]
 )
 
