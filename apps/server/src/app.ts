@@ -25,6 +25,7 @@ import { vendorsRoutes } from './modules/vendors/vendors.routes.js'
 import { adminRoutes } from './modules/admin/admin.routes.js'
 import { opsRoutes } from './modules/ops/ops.routes.js'
 import { discountsRoutes } from './modules/discounts/discounts.routes.js'
+import { publicGiftRoutes } from './modules/gifts/gifts.routes.js'
 import { geoRoutes } from './modules/geo/geo.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import { fakeStreamRoutes, webhookRoutes } from './modules/service-media/service-media.routes.js'
@@ -142,6 +143,8 @@ app.route('/api/v1/booking-intents', bookingIntentsRoutes)
 app.route('/api/v1/payments', paymentsRoutes)
 app.route('/api/v1/reviews', reviewsRoutes)
 app.route('/api/v1/discounts', discountsRoutes)
+// Gift a wash (0049): /config, and the gift page's lookup by code.
+app.route('/api/v1/gifts', publicGiftRoutes)
 app.route('/api/v1/geo', geoRoutes)
 app.route('/api/v1/admin', adminRoutes)
 app.route('/api/v1/ops', opsRoutes)

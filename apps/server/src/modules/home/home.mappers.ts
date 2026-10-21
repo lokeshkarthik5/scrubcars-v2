@@ -60,6 +60,7 @@ export function toHubBooking(row: HubBookingRecord, moved: Set<string>): HubBook
           ...row.payment,
           amount: money(row.payment.amount),
           refundedAmount: moneyOrNull(row.payment.refundedAmount),
+          creditAmount: moneyOrNull(row.payment.creditAmount),
         }
       : null,
     charges: row.charges.map(({ lines, ...charge }) => ({

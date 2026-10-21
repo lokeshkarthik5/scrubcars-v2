@@ -40,6 +40,8 @@ describe('what an event may carry', () => {
     expect(cleanPath('/garage/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10?mode=doorstep')).toBe('/garage/:id')
     expect(cleanPath('/bookings/2B7F6F0E-5D1C-4C11-9B55-2F0B6A1C9D10/receipt#top')).toBe('/bookings/:id/receipt')
     expect(cleanPath('/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10?service=a,b&code=X')).toBe('/book/:id')
+    // A gift link's code is the gift (0049): never kept.
+    expect(cleanPath('/gift/ABCDEFGHJKMNPQRS')).toBe('/gift/:code')
     expect(cleanPath('/')).toBe('/')
     expect(cleanPath('')).toBe('/')
     expect(cleanPath('/search/<script>')).toBe('/search/script')

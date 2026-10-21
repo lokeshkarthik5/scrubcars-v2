@@ -38,7 +38,12 @@ async function afterCancel(bookingId: string) {
   alertOps({ kind: 'not_accepted_in_time', booking, autoRefunds: env.autoRefunds })
   // Both sides hear it (0044): the customer that the refund is on its way,
   // the garage's team that the booking is gone.
-  pushService.notifyCustomer(booking.userId, customerNotAcceptedInTime(booking))
+  pushService.notifyCustomer(
+    booking.userId,
+    customerNotAcceptedInTime(booking, {
+      paidWithCreditOnly: Number(booking.payment?.amount ?? 0) === 0 && Number(booking.payment?.creditAmount ?? 0) > 0,
+    })
+  )
   pushService.notifyGarage(booking.vendorId, garageNotAcceptedInTime(booking))
   analyticsService.bookingCancelled(bookingId, 'garage')
   if (booking.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })

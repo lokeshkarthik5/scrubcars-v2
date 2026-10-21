@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
@@ -96,7 +97,11 @@ export default function RootLayout({
       </head>
       <body className="min-h-full font-sans">
         <IosZoomGuard />
-        <MetaPixel />
+        {/* Suspense for its useSearchParams (it stays off pages whose
+            address holds a gift code). */}
+        <Suspense fallback={null}>
+          <MetaPixel />
+        </Suspense>
         {/* Detlio's own usage events, for the admin's Funnel. No third party. */}
         <Analytics />
         {/* Outside AppProvider: the auth gate returns null while it resolves,

@@ -47,6 +47,8 @@ describe('usage events: the app sends only what the API takes', () => {
       '/bookings/2B7F6F0E-5D1C-4C11-9B55-2F0B6A1C9D10/receipt#x',
       '/search/<b>hi</b>',
       `/${'z'.repeat(300)}`,
+      '/gift/ABCDEFGHJKMNPQRS',
+      '/gift/abcd-efgh-jkmn-pqrs?x=1',
     ]) {
       expect(core.cleanPath(path)).toBe(cleanPath(path))
     }

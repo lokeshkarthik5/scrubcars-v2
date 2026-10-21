@@ -221,6 +221,8 @@ describe('what goes in an event', () => {
     expect(cleanPath('/bookings/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10/receipt?celebrate=1')).toBe(
       '/bookings/:id/receipt'
     )
+    // A gift link's code never leaves the browser (0049).
+    expect(cleanPath('/gift/ABCDEFGHJKMNPQRS')).toBe('/gift/:code')
   })
 
   test('the device from the window width only', () => {

@@ -20,6 +20,11 @@ import {
   respondByFor,
   type ReceiptNumberAllocation,
 } from '../bookings/bookings.repository.js'
+import {
+  insertCreditDraws,
+  lockAndPlanCreditDraw,
+} from '../gift-credit/gift-credit.repository.js'
+import { paise, rupees } from '../../lib/gift-credit.js'
 
 export type BookingIntentRecord = typeof bookingIntents.$inferSelect
 type BookingIntentInsert = typeof bookingIntents.$inferInsert
@@ -50,6 +55,9 @@ export type ConsumeIntentResult =
   | { kind: 'garage_closed' }
   | { kind: 'garage_paused' }
   | { kind: 'discount_exhausted' }
+  // The customer's Detlio credit no longer covers what this checkout was
+  // priced with (spent in another checkout, or expired, meanwhile; 0049).
+  | { kind: 'credit_exhausted' }
   | { kind: 'previously_failed'; failureReason: string | null }
 
 export const bookingIntentsRepository = {
@@ -105,7 +113,7 @@ export const bookingIntentsRepository = {
    * the same intent, the second write matches nothing and returns no row, so
    * the refund is flagged once.
    */
-  markFailed(intentId: string, paymentRef: string, failureReason: string) {
+  markFailed(intentId: string, paymentRef: string | null, failureReason: string) {
     return db
       .update(bookingIntents)
       .set({ status: 'failed', paymentRef, failureReason })
@@ -135,7 +143,12 @@ export const bookingIntentsRepository = {
    */
   consumeIntent(params: {
     intentId: string
-    razorpayPaymentId: string
+    /**
+     * The captured Razorpay payment. Null only for a checkout paid wholly
+     * with Detlio credit (0049), which has no Razorpay order and is consumed
+     * the moment it is made.
+     */
+    razorpayPaymentId: string | null
     // The order this payment settled. Must match what the intent was created
     // against, or the two are unrelated and nothing should be written.
     razorpayOrderId?: string
@@ -183,6 +196,18 @@ export const bookingIntentsRepository = {
 
       if (intent.expiresAt.getTime() <= Date.now()) {
         return { kind: 'expired' }
+      }
+
+      // A checkout with a Razorpay part is only ever consumed by its captured
+      // payment; one with none (paid wholly with credit) only without one.
+      const creditPaise = paise(intent.creditAmount)
+      const cashPaise = paise(intent.amount)
+      if ((params.razorpayPaymentId === null) !== (cashPaise === 0)) {
+        return { kind: 'order_mismatch' }
+      }
+      // Never a booking that nothing paid for.
+      if (params.razorpayPaymentId === null && creditPaise === 0) {
+        return { kind: 'order_mismatch' }
       }
 
       await lockVehicle(tx, intent.vehicleId)
@@ -244,6 +269,22 @@ export const bookingIntentsRepository = {
         }
       }
 
+      // Detlio credit (0049): after the discount lock and before the
+      // receipt's, under the customer's credit lock (see the lock order in
+      // bookings.repository.ts). The balance is read live: credit is never
+      // held by an open checkout, so another checkout may have spent it, or
+      // it may have run out, while this one was paying.
+      let creditDraws: Array<{ lotId: string; paise: number }> = []
+      if (creditPaise > 0) {
+        const plan = await lockAndPlanCreditDraw(tx, {
+          userId: intent.userId,
+          amountPaise: creditPaise,
+          now: new Date(),
+        })
+        if (!plan) return { kind: 'credit_exhausted' }
+        creditDraws = plan
+      }
+
       // The lines the customer paid against. Read before the booking is
       // written so the two land in the same transaction — a booking whose
       // items failed to copy would show as an empty order.
@@ -275,7 +316,9 @@ export const bookingIntentsRepository = {
           scheduledAt: intent.scheduledAt,
           durationMins: intent.serviceDurationMins,
           subtotalAmount: intent.subtotalAmount,
-          amount: intent.amount,
+          // What the booking costs after any promo: the Razorpay part and the
+          // credit part together (amount = subtotal − discount still holds).
+          amount: rupees(cashPaise + creditPaise),
           discountAmount: intent.discountAmount,
           discountId: intent.discountId,
           discountCode: intent.discountCode,
@@ -303,6 +346,10 @@ export const bookingIntentsRepository = {
       )
 
       // `paid` from the outset — this row only exists because the money landed.
+      // `amount` is only what Razorpay took, so every refund rule only ever
+      // sends back money Razorpay holds; the credit part is `credit_amount`
+      // and goes back as credit (0049). Paid wholly with credit: 0.00 and no
+      // gateway ids (the test-data reset then keeps it as real money).
       await tx.insert(payments).values({
         bookingId: booking.id,
         gateway: 'razorpay',
@@ -310,9 +357,14 @@ export const bookingIntentsRepository = {
         // The mode of the order it was paid through, carried over.
         gatewayMode: intent.gatewayMode,
         amount: intent.amount,
+        creditAmount: intent.creditAmount,
         status: 'paid',
         paidAt,
       })
+
+      // The credit spent, one draw per lot, named by this booking (the
+      // chain's first, which is how a cancellation finds it to give back).
+      await insertCreditDraws(tx, { userId: intent.userId, bookingId: booking.id, draws: creditDraws })
 
       if (intent.discountId && intent.discountCode) {
         await tx.insert(discountRedemptions).values({

@@ -75,6 +75,9 @@ export async function createRazorpayOrder(input: {
   bookingId?: string
   intentId?: string
   chargeId?: string
+  // A Detlio gift being bought (0049): no booking at all. The webhook checks
+  // it right after `charge_id`.
+  giftId?: string
 }) {
   const { keyId, keySecret } = getCredentials()
   const amount = toPaise(input.amount)
@@ -107,6 +110,7 @@ export async function createRazorpayOrder(input: {
         ...(input.bookingId ? { booking_id: input.bookingId } : {}),
         ...(input.intentId ? { intent_id: input.intentId } : {}),
         ...(input.chargeId ? { charge_id: input.chargeId } : {}),
+        ...(input.giftId ? { gift_id: input.giftId } : {}),
       },
     }),
   })

@@ -10,6 +10,8 @@ import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
 import { favouritesRoutes } from '../favourites/favourites.routes.js'
 import { homeRoutes } from '../home/home.routes.js'
 import { customerPushRoutes } from '../push/push.routes.js'
+import { customerGiftRoutes } from '../gifts/gifts.routes.js'
+import { customerCreditRoutes } from '../gift-credit/gift-credit.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import * as usersController from './users.controller.js'
 import {
@@ -50,6 +52,12 @@ usersRoutes.route('/me/push', customerPushRoutes)
 // "Notify me if a slot opens": /me/slot-alerts (0047). Same mounting, same
 // check.
 usersRoutes.route('/me', slotAlertsRoutes)
+
+// Gift a wash (0049): the gifts the customer bought, redeeming one, and
+// their Detlio credit: /me/gifts and /me/credit. Same mounting, same check;
+// both are 404s while GIFTS_ENABLED is off.
+usersRoutes.route('/me/gifts', customerGiftRoutes)
+usersRoutes.route('/me/credit', customerCreditRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

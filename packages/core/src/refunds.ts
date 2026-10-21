@@ -55,6 +55,12 @@ export type RefundFor = 'payment' | 'earlier_bill'
  *   may have kept part on purpose, and there is no state yet that says so,
  *   so a promise about the remainder could sit there unkept for good.
  * - All sent: how much and when, and that the bank can take a while to show it.
+ *
+ * Gift a wash (0049): the part paid with Detlio credit goes back to the
+ * customer's credit, never their card, so it gets a sentence of its own
+ * ("₹300 back in your Detlio credit."), and everything said about the card,
+ * bank days included, is about the rest only. A booking paid wholly with
+ * credit gets the credit sentence alone: no bank refund is promised.
  */
 export function customerRefundLine(
   refund: BookingRefund | undefined,
@@ -62,6 +68,48 @@ export function customerRefundLine(
 ): string | null {
   if (!refund || refund.status === 'none') return null
 
+  const credit = refund.credit && refund.credit.amount > 0 ? refund.credit : null
+  if (!credit) return moneyRefundLine(refund, what, false)
+
+  const creditLine = credit.returnedAt
+    ? `${formatRupees(credit.amount)} back in your Detlio credit.`
+    : `${formatRupees(credit.amount)} going back to your Detlio credit.`
+
+  // `amount` and, once it is back, `amountRefunded` count the credit too.
+  const moneyAmount = toRupees(toPaise(refund.amount) - toPaise(credit.amount))
+  if (moneyAmount <= 0) return creditLine
+  const moneyRefunded = Math.max(
+    0,
+    toRupees(toPaise(refund.amountRefunded) - (credit.returnedAt ? toPaise(credit.amount) : 0))
+  )
+  // `refundedAt` is the latest of the two parts. When it is the credit's
+  // own time, the card refund's day isn't known, so none is named.
+  const refundedAt =
+    refund.refundedAt && refund.refundedAt !== credit.returnedAt ? refund.refundedAt : undefined
+  const money: BookingRefund = {
+    status: moneyRefunded >= moneyAmount ? 'refunded' : 'owed',
+    amount: moneyAmount,
+    amountRefunded: moneyRefunded,
+    refundedAt,
+    started: refund.started,
+  }
+  return `${moneyRefundLine(money, what, true)} ${creditLine}`
+}
+
+function toPaise(rupees: number): number {
+  return Math.round(rupees * 100)
+}
+
+function toRupees(paise: number): number {
+  return paise / 100
+}
+
+/**
+ * The card (Razorpay) part's line. `partOnline` is set when some of the
+ * booking was paid with credit, so "your payment" would be too much: the
+ * owed line names the amount paid online instead.
+ */
+function moneyRefundLine(refund: BookingRefund, what: RefundFor, partOnline: boolean): string {
   const when = refund.refundedAt ? ` on ${formatDate(refund.refundedAt)}` : ''
   const forBill = what === 'earlier_bill' ? ' for the earlier final bill' : ''
   const showing = `It can take ${BANK_DAYS} to show in your account.`
@@ -90,7 +138,9 @@ export function customerRefundLine(
   const yours =
     what === 'earlier_bill'
       ? `your ${formatRupees(refund.amount)} payment for the earlier final bill`
-      : 'your payment'
+      : partOnline
+        ? `the ${formatRupees(refund.amount)} you paid online`
+        : 'your payment'
   return `Our team will refund ${yours} to your original payment method within ${BANK_DAYS}.`
 }
 

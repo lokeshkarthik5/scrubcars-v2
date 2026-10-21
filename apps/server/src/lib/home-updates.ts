@@ -115,6 +115,9 @@ export interface HubBooking {
     paidAt: Date | null
     refundedAmount: string | null
     refundedAt: Date | null
+    /** Gift a wash (0049): the part paid with Detlio credit, and when it went back. */
+    creditAmount?: string | null
+    creditReturnedAt?: Date | null
   } | null
   charges: Array<{
     id: string
@@ -504,6 +507,21 @@ function bookingRows(booking: HubBooking, now: Date): Draft[] {
         ? `${booking.vendorName}. It can take ${BANK_DAYS} to show in your account.`
         : `${booking.vendorName}. ${REFUND_METHODS.direct}.`,
       amount: refund.amount,
+    }))
+  }
+
+  // The part paid with Detlio credit, back in the customer's credit (0049):
+  // no bank in between, so no bank days to mention.
+  const creditBack = booking.payment?.creditReturnedAt ? Number(booking.payment.creditAmount ?? 0) : 0
+  if (creditBack > 0) {
+    rows.push(draft({
+      ...about,
+      id: `credit-returned:${booking.id}`,
+      kind: 'refunded',
+      at: booking.payment!.creditReturnedAt!,
+      title: `${rupees(booking.payment!.creditAmount!)} back in your Detlio credit`,
+      body: `${booking.vendorName}. Ready to use on your next booking.`,
+      amount: (Math.round(creditBack * 100) / 100).toFixed(2),
     }))
   }
 

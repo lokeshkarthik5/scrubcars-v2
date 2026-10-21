@@ -341,6 +341,12 @@ export interface AdminBooking {
      */
     gatewayMode?: 'live' | 'test' | 'fake' | null
     paidAt: string | null
+    /** Gift a wash (0049): what came through Razorpay. Optional for an older server. */
+    amount?: string
+    /** The part paid with Detlio credit, which goes back as credit, never through Refunds. */
+    creditAmount?: string | null
+    /** When that part went back to the customer's credit (ISO). */
+    creditReturnedAt?: string | null
   } | null
   /**
    * Marked "Test" by ops: left out of the pilot numbers, and deletable from

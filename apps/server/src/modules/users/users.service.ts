@@ -1,4 +1,6 @@
 import { accountDeletionRefusal } from '../../lib/account-deletion.js'
+import { giftCreditService } from '../gift-credit/gift-credit.service.js'
+import { giftsService } from '../gifts/gifts.service.js'
 import { AppError } from '../../lib/errors.js'
 import type { GeoSource } from '../../lib/geo/index.js'
 import {
@@ -222,6 +224,8 @@ export const usersService = {
     const refusal = accountDeletionRefusal({
       ownsGarage: await usersRepository.ownsVendor(userId),
       hasReceipts: await usersRepository.hasReceiptNumbers(userId),
+      hasGifts:
+        (await giftsService.hasGiftRecords(userId)) || (await giftCreditService.hasCreditRecords(userId)),
     })
     if (refusal) throw new AppError(409, refusal.message, refusal.code)
 

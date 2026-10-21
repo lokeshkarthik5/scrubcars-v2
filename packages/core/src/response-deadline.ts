@@ -79,7 +79,9 @@ export function notAcceptedTitle(vendorName: string): string {
  * which names the amount and the day.
  */
 export function notAcceptedRefundLine(refund: BookingRefund | undefined): string | null {
-  if (refund?.status === 'owed' && !refund.started && refund.amountRefunded === 0) {
+  // Not with Detlio credit in it (0049): that part goes back to the credit,
+  // not the bank, and the usual line says which is which.
+  if (refund?.status === 'owed' && !refund.started && refund.amountRefunded === 0 && !refund.credit) {
     return `Your full refund is on its way (${BANK_DAYS}).`
   }
   return customerRefundLine(refund)

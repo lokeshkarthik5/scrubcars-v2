@@ -503,3 +503,63 @@ describe('extra work (0041)', () => {
     )
   })
 })
+
+describe('customerRefund with Detlio credit (0049)', () => {
+  const returnedAt = new Date('2026-10-05T06:30:00Z')
+
+  test('a booking paid wholly with credit: owed back as credit, then back', () => {
+    const owed = customerRefund({
+      ...cancelled(),
+      payment: { ...paid({ amount: '0.00', creditAmount: '499.00' }), refundedAt: null },
+    })
+    expect(owed).toEqual({
+      status: 'owed',
+      amount: '499.00',
+      amountRefunded: '0.00',
+      refundedAt: null,
+      credit: { amount: '499.00', returnedAt: null },
+    })
+    const back = customerRefund({
+      ...cancelled(),
+      payment: {
+        ...paid({ status: 'refunded', amount: '0.00', creditAmount: '499.00', creditReturnedAt: returnedAt }),
+        refundedAt: null,
+      },
+    })
+    expect(back).toEqual({
+      status: 'refunded',
+      amount: '499.00',
+      amountRefunded: '499.00',
+      refundedAt: returnedAt.toISOString(),
+      credit: { amount: '499.00', returnedAt: returnedAt.toISOString() },
+    })
+  })
+
+  test('part credit: the credit is back, the card part still owed as money', () => {
+    const view = customerRefund({
+      ...cancelled(),
+      payment: { ...paid({ amount: '199.00', creditAmount: '300.00', creditReturnedAt: returnedAt }), refundedAt: null },
+    })
+    expect(view).toMatchObject({ status: 'owed', amount: '499.00', amountRefunded: '300.00' })
+    // Only the card part is money owed: the refund rules never see the credit.
+    expect(bookingPaymentOwed(cancelled(), paid({ amount: '199.00', creditAmount: '300.00' }))).toBe('199.00')
+  })
+
+  test('a customer no-show keeps the credit part too', () => {
+    expect(
+      customerRefund({
+        ...cancelled({ noShow: 'customer' }),
+        payment: { ...paid({ amount: '0.00', creditAmount: '499.00' }), refundedAt: null },
+      })
+    ).toEqual({ status: 'none', amount: '0.00', amountRefunded: '0.00', refundedAt: null })
+  })
+
+  test('a moved booking owes nothing: its payment, credit and all, went with it', () => {
+    expect(
+      customerRefund({
+        ...cancelled({ moved: true }),
+        payment: { ...paid({ amount: '0.00', creditAmount: '499.00' }), refundedAt: null },
+      }).status
+    ).toBe('none')
+  })
+})

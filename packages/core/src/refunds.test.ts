@@ -78,6 +78,52 @@ describe('customerRefundLine', () => {
     ).toBe('Refund of ₹300 for the earlier final bill started on 5 Oct 2026. It reaches your account in 5–7 working days.')
   })
 
+  test('Detlio credit (0049): the credit part is said on its own, the bank days only about the rest', () => {
+    // Paid wholly with credit: no bank refund is promised at all.
+    expect(
+      customerRefundLine({ status: 'owed', amount: 800, amountRefunded: 0, credit: { amount: 800 } })
+    ).toBe('₹800 going back to your Detlio credit.')
+    expect(
+      customerRefundLine({
+        status: 'refunded',
+        amount: 800,
+        amountRefunded: 800,
+        refundedAt: '2026-10-05T06:00:00Z',
+        credit: { amount: 800, returnedAt: '2026-10-05T06:00:00Z' },
+      })
+    ).toBe('₹800 back in your Detlio credit.')
+    // Part credit, part card, neither back yet.
+    expect(
+      customerRefundLine({ status: 'owed', amount: 1299, amountRefunded: 0, credit: { amount: 500 } })
+    ).toBe(
+      'Our team will refund the ₹799 you paid online to your original payment method within 5–7 working days. ₹500 going back to your Detlio credit.'
+    )
+    // The credit back, the card part still owed: the credit is not counted as refunded money.
+    expect(
+      customerRefundLine({
+        status: 'owed',
+        amount: 1299,
+        amountRefunded: 500,
+        refundedAt: '2026-10-05T06:00:00Z',
+        credit: { amount: 500, returnedAt: '2026-10-05T06:00:00Z' },
+      })
+    ).toBe(
+      'Our team will refund the ₹799 you paid online to your original payment method within 5–7 working days. ₹500 back in your Detlio credit.'
+    )
+    // Both back, the card refund first: its own day is named.
+    expect(
+      customerRefundLine({
+        status: 'refunded',
+        amount: 1299,
+        amountRefunded: 1299,
+        refundedAt: '2026-10-04T20:00:00Z',
+        credit: { amount: 500, returnedAt: '2026-10-03T06:00:00Z' },
+      })
+    ).toBe(
+      'Refunded ₹799 on 5 Oct 2026. It can take 5–7 working days to show in your account. ₹500 back in your Detlio credit.'
+    )
+  })
+
   test('started on top of a part already refunded: both are said', () => {
     expect(
       customerRefundLine({
