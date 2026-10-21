@@ -4,6 +4,7 @@ import {
   isCalendarDate,
   parseBookingListCursor,
 } from '../../lib/booking-ops.js'
+import { MAX_PICKUP_RADIUS_KM, MIN_PICKUP_RADIUS_KM } from '../../lib/pickup.js'
 
 const phoneSchema = z
   .string()
@@ -117,7 +118,7 @@ export const createVendorSchema = z.object({
   pickupEnabled: z.boolean().optional(),
   pickupAgreementSigned: z.boolean().optional(),
   pickup: z.enum(['yes', 'nearby', 'no']).optional(),
-  pickupRadiusKm: z.number().positive().max(100).optional(),
+  pickupRadiusKm: z.number().min(MIN_PICKUP_RADIUS_KM).max(MAX_PICKUP_RADIUS_KM).optional(),
   // How far this garage travels for doorstep work. Distinct from
   // pickupRadiusKm, which is pickup-and-drop of the vehicle.
   doorstepRadiusKm: z.number().positive().max(100).optional(),
@@ -184,7 +185,12 @@ export const updateVendorSchema = z.object({
   pickupEnabled: z.boolean().optional(),
   pickupAgreementSigned: z.boolean().optional(),
   pickup: z.enum(['yes', 'nearby', 'no']).nullable().optional(),
-  pickupRadiusKm: z.number().positive().max(100).nullable().optional(),
+  pickupRadiusKm: z
+    .number()
+    .min(MIN_PICKUP_RADIUS_KM)
+    .max(MAX_PICKUP_RADIUS_KM)
+    .nullable()
+    .optional(),
   doorstepRadiusKm: z.number().positive().max(100).nullable().optional(),
   // Staff correcting a pin on the map. Both or neither — a half-set pair is
   // never anything but a bug.

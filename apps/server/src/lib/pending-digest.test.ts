@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { isMorningTick, planPendingDigest, type PendingBookingRow } from './pending-digest.js'
+import {
+  digestLookbacks,
+  isMorningTick,
+  planPendingDigest,
+  type PendingBookingRow,
+} from './pending-digest.js'
 
 const IST = (time: string, date = '2026-10-05') => new Date(`${date}T${time}+05:30`)
 const MIN = 60_000
@@ -152,6 +157,27 @@ describe('planPendingDigest', () => {
     test('stays quiet at night like the rest', () => {
       const rows = [pickup(IST('21:30:00'))]
       expect(planPendingDigest(IST('22:00:00').getTime(), [], rows).reason).toBe('quiet_hours')
+    })
+
+    test('a pickup nobody collected is still listed days later, not dropped after a day', () => {
+      const now = IST('12:00:00', '2026-10-08')
+      const rows = [pickup(IST('11:00:00'))]
+      // Three days old: past the pending bookings' one-day lookback…
+      const { bookingsSince, pickupsSince } = digestLookbacks(now.getTime())
+      expect(rows[0].scheduledAt.getTime()).toBeLessThan(bookingsSince.getTime())
+      // …but inside the pickups' own, so the query still returns it.
+      expect(rows[0].scheduledAt.getTime()).toBeGreaterThan(pickupsSince.getTime())
+      expect(planPendingDigest(now.getTime(), [], rows)).toMatchObject({
+        post: true,
+        reason: 'hourly',
+      })
+    })
+
+    test('the pickups look back 14 days, the pending bookings one', () => {
+      const now = IST('12:00:00').getTime()
+      const { bookingsSince, pickupsSince } = digestLookbacks(now)
+      expect(now - bookingsSince.getTime()).toBe(24 * 60 * MIN)
+      expect(now - pickupsSince.getTime()).toBe(14 * 24 * 60 * MIN)
     })
   })
 })
