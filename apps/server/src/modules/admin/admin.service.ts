@@ -32,6 +32,7 @@ import {
   type PickupPatch,
   type PickupSettings,
 } from '../../lib/pickup.js'
+import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsService } from '../bookings/bookings.service.js'
 import {
   createPresignedUpload,
@@ -1093,6 +1094,8 @@ export const adminService = {
       { bookingId: id, from: booking.status, onBehalfOf: input.onBehalfOf, author },
       'admin:booking-cancelled'
     )
+    // Recorded only if it was paid for (lib/analytics.ts bookingEventProps).
+    analyticsService.bookingCancelled(id, 'detlio')
 
     // Only a paid booking leaves anything to do: an unpaid one has no money
     // to return. With AUTO_REFUNDS on it goes back at once.

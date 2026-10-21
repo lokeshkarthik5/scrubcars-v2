@@ -1,5 +1,5 @@
 import type { ServiceCategory } from '@repo/core/types'
-import type { StatsBreakdown } from '@repo/core/api/admin'
+import type { StatsBreakdown, StatsFunnelMode, StatsFunnelReport } from '@repo/core/api/admin'
 import { addDays, isWholeMonth, previousStatsRange, rangeDays } from '@repo/core/stats-range'
 import { csvCell } from '@/lib/bookings'
 
@@ -100,6 +100,64 @@ export function comparedWith(range: DateRange): string {
 /** The comparison's dates: "17 Sep – 16 Oct vs 18 Aug – 16 Sep". */
 export function comparisonDates(range: DateRange): string {
   return `${rangeLabel(range)} vs ${rangeLabel(previousStatsRange(range))}`
+}
+
+// ─── The Funnel tab ──────────────────────────────────────────────────────────
+
+/** The Funnel goes by the last 7, 30 or 90 days only: usage events are new. */
+export const FUNNEL_PERIODS = PERIODS.filter(
+  (period) => period.value === 'last7' || period.value === 'last30' || period.value === 'last90'
+)
+
+export type FunnelPeriod = 'last7' | 'last30' | 'last90'
+
+/** The page's period as the Funnel reads it: a month falls back to 30 days. */
+export function funnelPeriod(period: Period): FunnelPeriod {
+  return period === 'last7' || period === 'last90' ? period : 'last30'
+}
+
+export const FUNNEL_MODES: ReadonlyArray<{ value: StatsFunnelMode; label: string }> = [
+  { value: 'all', label: 'All booking types' },
+  { value: 'dropin', label: 'At garage' },
+  { value: 'doorstep', label: 'Doorstep' },
+  { value: 'pickup', label: 'Pickup & drop' },
+]
+
+export function isFunnelMode(value: string | null): value is StatsFunnelMode {
+  return FUNNEL_MODES.some((mode) => mode.value === value)
+}
+
+export const DEVICE_LABELS: Record<StatsFunnelReport['devices'][number]['device'], string> = {
+  phone: 'Phone',
+  tablet: 'Tablet',
+  desktop: 'Desktop',
+}
+
+/**
+ * What the page says about when usage events begin: they exist only from
+ * the release that started recording them, so a period reaching back
+ * further reads low on its early days. Null once the whole period has them.
+ */
+export function eventsStartNote(eventsSince: string | null, range: DateRange): string | null {
+  if (eventsSince === null) {
+    return 'No usage events yet. They are recorded from the release that added them, so this tab fills in from then on.'
+  }
+  if (eventsSince <= range.from) return null
+  return `Usage events start on ${dayLabel(eventsSince)}, when recording began. Days before that have none, so the visit steps read low for this period.`
+}
+
+/** "Lost 90 here · 25% went on": the biggest drop's line, or null when nothing fell. */
+export function biggestDropLine(funnel: StatsFunnelReport['funnel']): string | null {
+  const drop = funnel.biggestDrop
+  if (!drop) return null
+  const went = drop.ofPrevious === null ? '' : ` · ${percent(drop.ofPrevious)} went on`
+  return `Biggest drop: ${drop.lost.toLocaleString('en-IN')} lost before this step${went}`
+}
+
+/** "8 of 20 customers", or why there is no rate yet. */
+export function returnWindowLine(window: StatsFunnelReport['returning']['windows'][number]): string {
+  if (window.eligible === 0) return `Too recent to tell: no booking in the period is ${window.days} days old yet`
+  return `${window.returned.toLocaleString('en-IN')} of ${plural(window.eligible, 'customer', 'customers')}`
 }
 
 // ─── Words for figures ───────────────────────────────────────────────────────

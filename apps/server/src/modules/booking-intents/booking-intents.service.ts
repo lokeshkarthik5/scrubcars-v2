@@ -3,6 +3,7 @@ import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { newHandoverCodes } from '../../lib/pickup.js'
 import { createRazorpayOrder } from '../../lib/razorpay.js'
+import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import {
   logReceiptNumberFailure,
@@ -205,6 +206,9 @@ async function handleConsumeResult(
         const booking = await bookingsRepository.findBookingById(result.bookingId)
         return booking ? { kind: 'booking_paid', booking } : null
       })
+      // The funnel's last step, recorded here rather than by the app, whose
+      // tab may be gone by now. After the response; never fails this.
+      analyticsService.bookingPaid(result.bookingId)
       return { bookingId: result.bookingId, created: true }
 
     case 'already':

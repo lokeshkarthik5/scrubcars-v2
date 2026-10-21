@@ -3,6 +3,7 @@ import { logger } from '../../lib/logger.js'
 import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { digestLookbacks, isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { createThrottle } from '../../lib/throttle.js'
+import { analyticsService } from '../analytics/analytics.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { opsRepository } from './ops.repository.js'
@@ -50,6 +51,15 @@ export const opsService = {
         return { error: true as const }
       })
 
+    // The usage events' 180-day clean-up rides on it too: a bounded batch a
+    // run, skipped on a dry run, and never allowed to fail the digest.
+    const analyticsPurged = options.dryRun
+      ? 0
+      : await analyticsService.purgeExpired().catch((err: unknown) => {
+          log.error({ err }, 'ops:analytics_purge_failed')
+          return null
+        })
+
     const now = Date.now()
     // Pending bookings drop off a day after their time; uncollected pickups
     // stay until collected or cancelled (lib/pending-digest.ts).
@@ -77,6 +87,7 @@ export const opsService = {
       payoutsDue: payouts ? payouts.garages : null,
       autoRefunds,
       refundChecks,
+      analyticsPurged,
     }
 
     if (!plan.post || options.dryRun) return summary

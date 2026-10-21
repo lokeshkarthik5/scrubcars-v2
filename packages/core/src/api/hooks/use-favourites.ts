@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSavedGarages, saveGarage, unsaveGarage, type SavedGarages } from '@repo/core/api/favourites'
+import { track } from '@repo/core/analytics'
 import type { Vendor } from '@repo/core/types'
 
 export const favouriteKeys = {
@@ -43,6 +44,9 @@ export function useToggleSavedGarage() {
         })
       }
       return { before }
+    },
+    onSuccess: (_data, { vendor, save }) => {
+      track(save ? 'favourite_add' : 'favourite_remove', { vendorId: vendor.id })
     },
     onError: (_err, _variables, context) => {
       if (context?.before) queryClient.setQueryData(favouriteKeys.saved, context.before)

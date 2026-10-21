@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -13,6 +13,7 @@ import {
   IconStarFilled,
 } from '@tabler/icons-react'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
+import { track } from '@repo/core/analytics'
 import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
 import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
@@ -139,6 +140,10 @@ function MapBrowseContent() {
 
   const bookingType = parseBookingType(searchParams.get('bookingType')) ?? 'dropin'
   const category = searchParams.get('category') ?? undefined
+
+  useEffect(() => {
+    track('map_view', { mode: bookingType })
+  }, [bookingType])
 
   // Browsing all of Chennai (the header's citywide choice) behaves like
   // having no location: city mode below shows every pinned garage.

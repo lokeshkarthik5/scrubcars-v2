@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { db } from '../../db/index.js'
 import {
   adminAuditLog,
+  analyticsEvents,
   bookingCharges,
   bookingIntentItems,
   bookingIntents,
@@ -370,6 +371,15 @@ export function dataResetReads(conn: Conn) {
         .orderBy(asc(complaints.number))
     },
 
+    /** How many usage events (0040) were recorded before the cutoff. */
+    async analyticsEventsBefore(cutoff: Date): Promise<number> {
+      const [row] = await conn
+        .select({ n: count() })
+        .from(analyticsEvents)
+        .where(lt(analyticsEvents.occurredAt, cutoff))
+      return row?.n ?? 0
+    },
+
     /**
      * Garage payouts (0038) that paid any of these chains, each with every
      * chain it paid, in scope or not: the planner keeps a payout's chains
@@ -554,6 +564,11 @@ export function dataResetWrites(tx: Tx) {
      * notes, photos, final bills, reschedules, promo uses, booking and bill
      * refunds, reviews.
      */
+    /** Every usage event recorded before the cutoff. Nothing points at one. */
+    async deleteAnalyticsEventsBefore(cutoff: Date) {
+      await tx.delete(analyticsEvents).where(lt(analyticsEvents.occurredAt, cutoff))
+    },
+
     /** Complaints by id. Nothing hangs off one. */
     async deleteComplaints(ids: string[]) {
       let n = 0

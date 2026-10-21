@@ -43,6 +43,26 @@ reconstructing every change in them.
   bookings right now", and the heart there removes it. No "Your garages"
   row on Home: Home's order is fixed by the owner's card rules.
 
+- **Booking funnel analytics, first-party.** The customer app records a
+  few steps of each visit (app opened, Home, the garage list, a search's
+  category and length, the map, a garage's page, a service added, checkout
+  started, a slot or address picked, Pay pressed, a review or complaint
+  sent, Help or Contact opened) through `@repo/core/analytics`: batched,
+  sent to our own API with `navigator.sendBeacon` every few seconds and
+  when the page is hidden, a random visit id in sessionStorage, nothing at
+  all with Do Not Track or Global Privacy Control, never throwing. On in
+  the Production build only (`NEXT_PUBLIC_ANALYTICS`, set by
+  `next.config.ts` from `VERCEL_ENV`). No personal data, no search text,
+  no cookies. Admin's Statistics gains a **Funnel** tab (last 7, 30 or 90
+  days; all booking types or one): the steps from a visit to a paid
+  booking with each step's conversion and the biggest drop highlighted,
+  returning customers within 30 and 60 days and new against repeat
+  bookings per week (from bookings), garages by views against bookings,
+  categories browsed and devices, with a note while the period reaches
+  back before the first event. Start pilot clean gains a "Usage events"
+  row with its own tick, and the CSV a line for it. The privacy policy's
+  reviewer notes describe what is collected; its public text is unchanged.
+
 - **Help centre (`/help`, draft).** A searchable page of short answers in
   six groups: Booking, Payments & refunds, Pickup & drop, Doorstep, Account
   & privacy, Complaints (32 questions), ending with "Still need help?":

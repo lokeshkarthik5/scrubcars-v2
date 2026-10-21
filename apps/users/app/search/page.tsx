@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { IconAdjustments, IconSearch } from '@tabler/icons-react'
 import { CustomerShell } from '@/components/customer-shell'
@@ -16,6 +16,8 @@ import { VendorCard } from '@repo/ui/features/vendor-card'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
+import { browseCategory } from '@repo/core/analytics-events'
+import { track } from '@repo/core/analytics'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
 import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
@@ -41,6 +43,15 @@ function SearchContent() {
   const category = searchParams.get('category') ?? undefined
   const citywide = isCitywide(location)
   const origin = citywide || !location ? undefined : coarse(location)
+
+  // Each settled search: its category and how long the text was. Never the
+  // text itself.
+  const searchedLength = debouncedQuery.trim().length
+  useEffect(() => {
+    if (searchedLength > 0) {
+      track('search', { category: browseCategory(category), queryLength: Math.min(200, searchedLength) })
+    }
+  }, [debouncedQuery, searchedLength, category])
 
   // Filtering, sorting and paging all happen in SQL — the client holds one page
   // and cannot order a list it has only partly seen.

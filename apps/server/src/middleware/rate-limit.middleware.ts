@@ -64,6 +64,12 @@ export const geoAutocompleteRateLimiter = createRateLimiter(
   60 * 1000
 )
 
+// The customer app's usage events (POST /events). Per IP here; the service
+// also caps each visit (modules/analytics). The route is left out of the
+// global limiter (app.ts), so this is its only limit and analytics never
+// spends the allowance a customer needs for checkout.
+export const analyticsRateLimiter = createRateLimiter(env.analyticsRateLimit, 60 * 1000)
+
 // "Write with AI" in the admin editor. Each call is a paid OpenAI request, so
 // it is counted per signed-in admin rather than per IP, and per hour: a
 // "Fill all empty descriptions" on a big garage is a burst of calls, which a

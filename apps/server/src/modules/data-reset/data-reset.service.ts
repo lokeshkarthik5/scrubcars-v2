@@ -153,6 +153,8 @@ export async function loadPlanInput(
   const intentChildCounts = await repo.intentChildCounts(intents.map((intent) => intent.id))
   // Only a cutoff run takes complaints; the planner ticks them as one.
   const complaints = scope.kind === 'before_cutoff' ? await repo.complaintsMadeBefore(scope.cutoff) : []
+  // Usage events (0040), likewise a cutoff run's only, counted not listed.
+  const analyticsEvents = scope.kind === 'before_cutoff' ? await repo.analyticsEventsBefore(scope.cutoff) : 0
   // Garage payouts that paid any of these chains: they go only with every
   // booking they paid.
   const payouts = await repo.payoutsOfChains(keys)
@@ -176,6 +178,7 @@ export async function loadPlanInput(
     reschedulesByChain,
     intentChildCounts,
     complaints,
+    analyticsEvents,
     payouts,
     receipts,
     yearReceipts,
@@ -273,6 +276,7 @@ function toPlanView(plan: ResetPlan) {
     chains: plan.chains.map(toChainView),
     checkouts: plan.checkouts.map(toCheckoutView),
     complaints: toComplaintsView(plan),
+    analyticsEvents: plan.analyticsEvents,
     counts: plan.counts,
     countLines: countLines(plan.counts),
     receiptPlan: plan.receiptPlan,
@@ -338,9 +342,9 @@ export function isBusyError(error: unknown): boolean {
 /**
  * Steps 5 and 6 of the delete (see execute): the deleted chains' receipt
  * numbers (voided, or gone with a restarting year), the checkouts' refund
- * records, the checkouts, the ticked complaints (a cutoff run's), the garage
- * payouts that paid only deleted chains, then the bookings with everything
- * that cascades from them. Returns the job photos'
+ * records, the checkouts, the ticked complaints and usage events (a cutoff
+ * run's), the garage payouts that paid only deleted chains, then the
+ * bookings with everything that cascades from them. Returns the job photos'
  * storage keys, to remove after the commit, and the restarting years, whose
  * counters the caller locks and deletes last of all (finishRestarts), after
  * anything else it deletes.
@@ -371,6 +375,8 @@ export async function deletePlannedRows(
   await repo.deleteIntents(plan.selectedIntentIds)
   // Before the bookings, so their delete has no complaint to set null.
   await repo.deleteComplaints(plan.selectedComplaintIds)
+  // A cutoff run's usage events, when ticked. They point at nothing.
+  if (plan.analyticsCutoff) await repo.deleteAnalyticsEventsBefore(plan.analyticsCutoff)
   // Before the bookings too: a payout's items name them ON DELETE RESTRICT.
   await repo.deletePayouts(plan.selectedPayoutIds)
   await repo.deleteBookings(plan.selectedBookingIds)
@@ -485,9 +491,9 @@ export const dataResetService = {
    *   5. receipt numbers: copied to the voids in a 'void' year, then
    *      deleted; a 'restart' year's voids deleted too;
    *   6. the checkouts' refund records (no foreign key), the checkouts, the
-   *      ticked complaints, the garage payouts that paid only ticked
-   *      bookings, then the bookings with everything that cascades from
-   *      them;
+   *      ticked complaints and usage events, the garage payouts that paid
+   *      only ticked bookings, then the bookings with everything that
+   *      cascades from them;
    *   7. last of all, a restarting year's counter row, FOR UPDATE, checked
    *      to have no receipt left in the year (a payment numbered one in the
    *      meantime: 409, all rolled back), then deleted.
@@ -526,7 +532,8 @@ export const dataResetService = {
         if (
           plan.selectedChainIds.length === 0 &&
           plan.selectedCheckoutIds.length === 0 &&
-          plan.selectedComplaintIds.length === 0
+          plan.selectedComplaintIds.length === 0 &&
+          plan.counts.analyticsEvents === 0
         ) {
           throw nothingToDelete()
         }
@@ -588,6 +595,8 @@ export const dataResetService = {
             // Ids only: a complaint's name, phone and words are not copied
             // into the audit log.
             complaintIds: plan.selectedComplaintIds,
+            // Usage events are anonymous: only when they were cut off.
+            analyticsEventsBefore: plan.analyticsCutoff?.toISOString() ?? null,
             // Garage payouts that paid only deleted bookings: ids only.
             payoutIds: plan.selectedPayoutIds,
             receiptPlan: plan.receiptPlan,

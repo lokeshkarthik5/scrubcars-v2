@@ -10,6 +10,7 @@ import {
   bookingIntentsService,
   failureMessage,
 } from '../booking-intents/booking-intents.service.js'
+import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingChargesService } from '../booking-charges/booking-charges.service.js'
 import type { GarageRefusal } from '../bookings/bookings.repository.js'
 import {
@@ -183,6 +184,8 @@ async function markBookingPaid(
   switch (result.kind) {
     case 'paid':
       logReceiptNumberFailure(result.receipt, bookingId)
+      // Once, by whichever of the app and the webhook settled it.
+      analyticsService.bookingPaid(bookingId)
       return result.payment
 
     // A racing call settled it first. Re-read rather than guess which way it

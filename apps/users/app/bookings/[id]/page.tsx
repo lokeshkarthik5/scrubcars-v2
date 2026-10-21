@@ -28,6 +28,7 @@ import { TopBar } from '@repo/ui/sc/top-bar'
 import { getBooking } from '@repo/core/api/bookings'
 import { createPaymentOrder, verifyPayment } from '@repo/core/api/payments'
 import { submitReview } from '@repo/core/api/reviews'
+import { track } from '@repo/core/analytics'
 import { toast } from 'react-toastify'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
 import {
@@ -467,6 +468,8 @@ export default function BookingDetailPage({
     try {
       const review = await submitReview({ bookingId: id, rating, comment })
       setSubmittedReview(review)
+      // That a review went in, for which garage; never its stars or words.
+      track('review_submit', { vendorId: booking?.vendorId })
       // Home's "Rate your wash" is answered.
       void invalidateHome(queryClient)
       toast.success('Review submitted. Thanks!')
@@ -803,7 +806,10 @@ export default function BookingDetailPage({
 
       <ScButton
         variant="secondary"
-        onClick={() => setShowHelp(true)}
+        onClick={() => {
+          setShowHelp(true)
+          track('help_view', { step: 'booking' })
+        }}
         className="flex items-center justify-center gap-2"
       >
         <IconHelpCircle size={18} aria-hidden />

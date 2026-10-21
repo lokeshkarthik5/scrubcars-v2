@@ -24,6 +24,8 @@ import { VendorCard } from '@repo/ui/features/vendor-card'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
+import { browseCategory } from '@repo/core/analytics-events'
+import { track } from '@repo/core/analytics'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useUserStore } from '@repo/core/stores/user-store'
@@ -135,6 +137,11 @@ function GarageListContent() {
   useEffect(() => {
     if (authUser) void fetchProfile().catch(() => undefined)
   }, [authUser, fetchProfile])
+
+  // The list as it is browsed: once on arrival and once per mode or chip.
+  useEffect(() => {
+    track('garage_list_view', { mode: serviceMode, category: browseCategory(category) })
+  }, [serviceMode, category])
 
   // Offered only after results are on screen: the sheet argues "sort these by
   // distance", which needs a list to point at. Prompting before anything has

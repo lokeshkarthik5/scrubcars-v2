@@ -132,6 +132,8 @@ test.describe('start pilot clean, API @p0', () => {
       // Complaints made before the cutoff go only with their own tick, which
       // this dry run leaves off: the complaint journey's must survive it.
       complaints: 0,
+      // Usage events too go only with their own tick, left off here.
+      analyticsEvents: 0,
       // No garage payout paid these test bookings.
       payouts: 0,
     })
