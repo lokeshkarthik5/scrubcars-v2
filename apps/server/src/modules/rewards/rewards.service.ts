@@ -1,5 +1,6 @@
 import { runInBackground } from '../../lib/background.js'
 import { env } from '../../lib/env.js'
+import { formatRupees } from '../../lib/discounts.js'
 import { AppError } from '../../lib/errors.js'
 import { firstNameOf } from '../../lib/home-updates.js'
 import { istDateKey, MONTHS } from '../../lib/ist.js'
@@ -55,6 +56,7 @@ import {
   type RewardsSettings,
   type ScratchOutcome,
   type StampRow,
+  type VoucherState,
 } from '../../lib/rewards.js'
 import { isWashDue, washStatus } from '../../lib/wash-status.js'
 import { pushService } from '../push/push.service.js'
@@ -123,7 +125,12 @@ function voucherView(voucher: VoucherRow, now: Date, settings: RewardsSettings, 
 
 type CardRow = Awaited<ReturnType<typeof rewardsRepository.listScratchCards>>[number]
 
-function cardView(card: CardRow, now: Date) {
+/**
+ * A scratch card as the customer sees it. A scratched one carries its
+ * voucher's last day and state (from `vouchers`, the customer's list), so a
+ * card loaded later says what one just scratched says: use it by when.
+ */
+function cardView(card: CardRow, now: Date, vouchers: ReadonlyArray<{ id: string; lastDay: string; state: VoucherState }> = []) {
   const state = card.voidedAt
     ? ('void' as const)
     : card.scratchedAt
@@ -143,19 +150,33 @@ function cardView(card: CardRow, now: Date) {
     // Never before it is scratched: the app learns the prize only by scratching.
     prize:
       state === 'scratched'
-        ? { outcome: card.outcome, label: scratchPrizeLabel(card.outcome, card.prizeAmount), amount: card.prizeAmount, fellBack: card.fellBack }
+        ? {
+            outcome: card.outcome,
+            label: scratchPrizeLabel(card.outcome, card.prizeAmount),
+            amount: card.prizeAmount,
+            fellBack: card.fellBack,
+            voucher: voucherOfCard(card.voucherId, vouchers),
+          }
         : null,
   }
+}
+
+function voucherOfCard(
+  voucherId: string | null,
+  vouchers: ReadonlyArray<{ id: string; lastDay: string; state: VoucherState }>
+): { lastDay: string; state: VoucherState } | null {
+  const voucher = voucherId ? vouchers.find((v) => v.id === voucherId) : undefined
+  return voucher ? { lastDay: voucher.lastDay, state: voucher.state } : null
 }
 
 /** The ladder: every level, what reaching it takes, and what it unlocks. */
 function ladder(settings: RewardsSettings, current: RewardLevel) {
   const reached = LEVELS.indexOf(current)
   return settings.levels.map((row, i) => {
-    const unlocks = [`₹${row.cardReward} off for a full Shine Card`]
-    if (row.birthdayVoucher !== null) unlocks.push(`A birthday wash, up to ₹${row.birthdayVoucher}`)
+    const unlocks = [`${formatRupees(row.cardReward)} off for a full Shine Card`]
+    if (row.birthdayVoucher !== null) unlocks.push(`A birthday wash, up to ${formatRupees(row.birthdayVoucher)}`)
     if (row.scratchWeights) unlocks.push('Better scratch card odds')
-    if (row.annualDetailingVoucher !== null) unlocks.push(`One detailing a year, up to ₹${row.annualDetailingVoucher}`)
+    if (row.annualDetailingVoucher !== null) unlocks.push(`One detailing a year, up to ${formatRupees(row.annualDetailingVoucher)}`)
     if (row.garageBadge) unlocks.push(`Garages see your ${row.label} badge`)
     return { key: row.key, label: row.label, minBookings: row.minBookings, unlocks, reached: i <= reached, current: row.key === current }
   })
@@ -348,8 +369,8 @@ export const rewardsService = {
   async summary(userId: string, now = new Date()) {
     const { settings } = await currentSettings()
     const { card, level } = await cardAndLevel(userId, now, settings)
-    const cards = (await rewardsRepository.listScratchCards(userId, now)).map((row) => cardView(row, now))
     const vouchers = (await rewardsRepository.listVouchers(userId, now)).map((row) => voucherView(row, now, settings, { admin: false }))
+    const cards = (await rewardsRepository.listScratchCards(userId, now)).map((row) => cardView(row, now, vouchers))
     const waiting = cards.filter((c) => c.state === 'waiting')
     const available = vouchers.filter((v) => v.state === 'available').sort((a, b) => Number(b.amount) - Number(a.amount))
     // 0054: badges to celebrate, the badge count, the challenge to show and
@@ -375,7 +396,7 @@ export const rewardsService = {
     const { card, level } = await cardAndLevel(userId, now, settings)
     const streak = streakView(await rewardsRepository.earnedMonths(userId, now), now, settings)
     const vouchers = (await rewardsRepository.listVouchers(userId, now)).map((row) => voucherView(row, now, settings, { admin: false }))
-    const cards = (await rewardsRepository.listScratchCards(userId, now)).map((row) => cardView(row, now))
+    const cards = (await rewardsRepository.listScratchCards(userId, now)).map((row) => cardView(row, now, vouchers))
     const judged = await rewardsRepository.listJudged(userId, 20)
     const drops = await rewardsRepository.listLevelDrops(userId, 5)
     const code = await rewardsRepository.findReferralCode(userId)
@@ -868,7 +889,7 @@ export const rewardsService = {
         at: row.completedAt.toISOString(),
         type: 'booking',
         title: !row.earned ? `No stamp: ${row.refusal ? stampRefusalLabel(row.refusal, settings) : ''}` : row.revokedAt ? `Stamp taken back (${row.revokeReason})` : 'Stamp earned',
-        detail: `${row.vendorName ?? ''} · ₹${Math.round(Number(row.eligibleAmount))} · ${row.discountPercent}% off`,
+        detail: `${row.vendorName ?? ''} · ${formatRupees(row.eligibleAmount)} · ${row.discountPercent}% off`,
         bookingId: row.bookingId as string | null,
       })),
       ...stamps
@@ -890,7 +911,7 @@ export const rewardsService = {
       ...vouchers.map((v) => ({
         at: v.issuedAt,
         type: 'voucher',
-        title: `${v.label}: ₹${Math.round(Number(v.amount))}`,
+        title: `${v.label}: ${formatRupees(v.amount)}`,
         detail: [v.state, v.code, v.reason, v.actorName].filter(Boolean).join(' · '),
         bookingId: v.bookingId ?? v.sourceBookingId,
       })),
@@ -920,7 +941,7 @@ export const rewardsService = {
       stamps: stamps.map((stamp) => stampView(stamp, now)),
       vouchers,
       scratchCards: cardRows.map((row) => ({
-        ...cardView(row, now),
+        ...cardView(row, now, vouchers),
         // Admin sees the prize drawn even before the customer scratches.
         drawn: { outcome: row.outcome, label: scratchPrizeLabel(row.outcome, row.prizeAmount), fellBack: row.fellBack },
       })),
@@ -964,7 +985,7 @@ export const rewardsService = {
         case 'over_card':
           throw new AppError(409, "That's more stamps than are on the card", 'REWARD_ADJUSTMENT_OVER_CARD')
         case 'voucher_amount':
-          throw new AppError(400, `A voucher from the team is ₹1 to ₹${REWARDS_FIXED.maxAdjustmentVoucher}`, 'REWARD_ADJUSTMENT_AMOUNT')
+          throw new AppError(400, `A voucher from the team is ₹1 to ${formatRupees(REWARDS_FIXED.maxAdjustmentVoucher)}`, 'REWARD_ADJUSTMENT_AMOUNT')
         case 'voucher_not_found':
           throw new AppError(404, 'Voucher not found', 'REWARD_VOUCHER_NOT_FOUND')
         case 'voucher_cancelled':

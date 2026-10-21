@@ -14,7 +14,7 @@ import { rewardsEnabled, useMyRewards, useRewardsConfig } from '@repo/core/api/h
 import { useRewardExtras } from '@repo/core/api/hooks/use-reward-extras'
 import type { RewardExtras } from '@repo/core/api/reward-extras'
 import type { MyRewards, RewardVoucher } from '@repo/core/api/rewards'
-import { levelLine, lifetimeLine, rewardDay, stampsToGoLine, streakLine } from '@repo/core/rewards'
+import { levelLine, lifetimeLine, rewardDate, rewardDay, rewardRupees, stampsToGoLine, streakLine } from '@repo/core/rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { CustomerShell } from '@/components/customer-shell'
@@ -33,11 +33,6 @@ const VOUCHER_STATE_LABELS: Record<RewardVoucher['state'], string> = {
   spent: 'Used',
   expired: 'Ran out',
   cancelled: 'Withdrawn',
-}
-
-function formatDay(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
 }
 
 /**
@@ -173,7 +168,7 @@ function RewardsBody({
           <StampStars onCard={card.onCard} goal={card.goal} size={30} remember />
         </div>
         <p className="text-[13px] text-text-secondary">
-          <Figures text={`${card.goal} stamps make ₹${card.rewardAmount} off your next booking. One stamp for every booking of ₹${view.invite.minAmount} or more paid through Detlio.`} />
+          <Figures text={`${card.goal} stamps make ${rewardRupees(card.rewardAmount)} off your next booking. One stamp for every booking of ${rewardRupees(view.invite.minAmount)} or more paid through Detlio.`} />
         </p>
         {card.nextExpiry && (
           <p className="text-[12px] text-text-muted">
@@ -331,10 +326,10 @@ function RewardsBody({
                 <li key={v.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
                   <div className="min-w-0">
                     <p className="text-[13px] text-text-primary">{v.label}</p>
-                    <p className="font-numeric text-[11px] text-text-muted">{formatDay(v.issuedAt)}</p>
+                    <p className="font-numeric text-[11px] text-text-muted">{rewardDate(v.issuedAt)}</p>
                   </div>
                   <span className="shrink-0 text-[12px] text-text-secondary">
-                    <span className="font-numeric">₹{Math.round(Number(v.amount))}</span> · {VOUCHER_STATE_LABELS[v.state]}
+                    <span className="font-numeric">{rewardRupees(v.amount)}</span> · {VOUCHER_STATE_LABELS[v.state]}
                   </span>
                 </li>
               ))}
@@ -357,7 +352,7 @@ function RewardsBody({
                   <div className="px-3.5 py-2.5">
                     <p className="text-[13px] text-text-primary">{row.title}</p>
                     <p className="text-[11px] text-text-muted">
-                      <span className="font-numeric">{formatDay(row.at)}</span>
+                      <span className="font-numeric">{rewardDate(row.at)}</span>
                       {row.detail ? ` · ${row.detail}` : ''}
                     </p>
                   </div>
@@ -396,7 +391,7 @@ function VoucherRow({ voucher }: { voucher: RewardVoucher }) {
     <ScCard className="flex items-center justify-between gap-3 py-3">
       <div className="min-w-0">
         <p className="text-[18px] font-semibold leading-tight text-text-primary">
-          <Figures text={`₹${Math.round(Number(voucher.amount))} off`} />
+          <Figures text={`${rewardRupees(voucher.amount)} off`} />
         </p>
         <p className="text-[12px] text-text-secondary">{voucher.label}</p>
         <p className="text-[11px] text-text-muted">

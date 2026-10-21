@@ -1,6 +1,6 @@
 import type { GiftDesign, GiftState } from '@repo/core/api/gifts'
 import { formatRupees } from '@repo/core/job-records'
-import { APP_TIMEZONE } from '@repo/core/utils'
+import { istDateLabel } from '@repo/core/payouts'
 
 /**
  * Gift a wash (0049) in the customer app: the pure parts, so the money and
@@ -59,18 +59,12 @@ export function parseGiftAmount(typed: string): number | null {
   return digits ? Number(digits) : null
 }
 
-const DATE = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  timeZone: APP_TIMEZONE,
-})
-
-/** "12 Oct 2027", in Chennai. */
+/**
+ * "12 Oct 2027", in Chennai. The app's IST date label, not en-IN through
+ * Intl, which browsers write as "12 Sept" in September.
+ */
 export function formatGiftDate(iso: string): string {
-  const parts = DATE.formatToParts(new Date(iso))
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
-  return `${part('day')} ${part('month')} ${part('year')}`
+  return istDateLabel(iso)
 }
 
 /** "₹1,000" from the API's decimal string. */

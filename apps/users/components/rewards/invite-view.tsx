@@ -9,6 +9,7 @@ import { EmptyState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { Figures } from '@repo/ui/sc/figures'
 import { openInvite, type InviteOpened } from '@repo/core/api/rewards'
 import { rewardsEnabled, useClaimInvite, useRewardsConfig } from '@repo/core/api/hooks/use-rewards'
+import { rewardRupees } from '@repo/core/rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { CustomerShell } from '@/components/customer-shell'
 import { forgetInvite, readStoredInvite, storeInvite } from '@/lib/invite'
@@ -72,7 +73,7 @@ export function InviteView({ code }: { code: string }) {
             {invite.referrerFirstName} invited you to Detlio
           </h1>
           <p className="text-[14px] text-text-secondary">
-            <Figures text={`Get ₹${invite.amount} off when your first booking of ₹${invite.minAmount} or more is done. ${invite.referrerFirstName} gets ₹${invite.amount} off too.`} />
+            <Figures text={`Get ${rewardRupees(invite.amount)} off when your first booking of ${rewardRupees(invite.minAmount)} or more is done. ${invite.referrerFirstName} gets ${rewardRupees(invite.amount)} off too.`} />
           </p>
           {!user ? (
             <ScButton className="mt-2" onClick={() => router.push(`/login?next=${encodeURIComponent(next)}`)}>

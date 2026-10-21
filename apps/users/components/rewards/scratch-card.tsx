@@ -6,7 +6,7 @@ import { ScButton } from '@repo/ui/sc/button'
 import { Figures } from '@repo/ui/sc/figures'
 import type { ScratchCardView, ScratchResult } from '@repo/core/api/rewards'
 import { useScratchCard } from '@repo/core/api/hooks/use-rewards'
-import { rewardDay } from '@repo/core/rewards'
+import { rewardDay, rewardRupees } from '@repo/core/rewards'
 import { cn } from '@repo/core/utils'
 
 /** The share of the foil scratched off before the rest falls away. */
@@ -65,6 +65,13 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
   const reduced = prefersReducedMotion()
 
   const prize = result ? { label: result.label, outcome: result.outcome } : card.prize
+  // The voucher's last day, whether the card was just scratched (the
+  // answer) or scratched before and loaded now (the card, while usable).
+  const voucherLastDay = result
+    ? (result.voucher?.lastDay ?? null)
+    : card.prize?.voucher?.state === 'available'
+      ? card.prize.voucher.lastDay
+      : null
 
   useEffect(() => {
     if (cleared || !canvasRef.current || reduced) return
@@ -171,14 +178,14 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
             Reveal
           </button>
         </div>
-      ) : result?.voucher ? (
+      ) : voucherLastDay ? (
         <p className="text-[12px] text-text-secondary">
           Applied to your rewards: use it at checkout by{' '}
-          <span className="font-numeric">{rewardDay(result.voucher.lastDay)}</span>.
+          <span className="font-numeric">{rewardDay(voucherLastDay)}</span>.
         </p>
       ) : result?.shineVoucher ? (
         <p className="text-[12px] text-text-secondary">
-          That stamp filled your Shine Card: <Figures text={`₹${Math.round(Number(result.shineVoucher.amount))} off`} /> is ready.
+          That stamp filled your Shine Card: <Figures text={`${rewardRupees(result.shineVoucher.amount)} off`} /> is ready.
         </p>
       ) : null}
 
@@ -187,7 +194,7 @@ export function ScratchCardPanel({ card, compact = false }: { card: ScratchCardV
           <p role="alert" className="text-[12px] text-warning">
             {scratch.error instanceof Error ? scratch.error.message : "Couldn't reveal it. Try again."}
           </p>
-          <ScButton variant="secondary" className="h-8 w-auto px-3 text-[12px]" onClick={revealAll}>
+          <ScButton variant="secondary" className="flex h-8 w-auto shrink-0 items-center justify-center px-3 py-0 text-[12px]" onClick={revealAll}>
             Try again
           </ScButton>
         </div>

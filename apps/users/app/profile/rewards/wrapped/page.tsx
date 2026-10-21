@@ -55,7 +55,7 @@ function WrappedScreen() {
     return (
       <Frame>
         <div className="flex justify-end">{back}</div>
-        <div className="mx-auto mt-6 aspect-[9/16] w-full max-w-[360px] animate-pulse rounded-[24px] bg-surface" aria-busy="true" />
+        <div className="wrapped-story-size mx-auto mt-6 aspect-[9/16] animate-pulse rounded-[24px] bg-surface" aria-busy="true" />
       </Frame>
     )
   }
@@ -140,7 +140,7 @@ function Story({ stats, year, close }: { stats: WrappedStats; year: number; clos
       <section
         aria-roledescription="story"
         aria-label={`Detlio Wrapped ${year}, card ${index + 1} of ${cards.length}`}
-        className="wrapped-story relative mx-auto mt-3 aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-[24px] border border-white/10"
+        className="wrapped-story wrapped-story-size relative mx-auto mt-3 aspect-[9/16] overflow-hidden rounded-[24px] border border-white/10"
         style={{ background: wrappedBackground(card.key) }}
         onPointerDown={(e) => {
           start.current = { x: e.clientX, y: e.clientY }

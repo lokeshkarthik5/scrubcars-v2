@@ -6,6 +6,8 @@
  * phone, a plate, an address or a booking.
  */
 
+import { rewardRupees } from './rewards'
+
 export interface WrappedStats {
   year: number
   firstName: string | null
@@ -39,7 +41,7 @@ function plural(n: number, one: string, many: string): string {
 
 /** "₹1,240" */
 function rupees(amount: string): string {
-  return `₹${Math.round(Number(amount)).toLocaleString('en-IN')}`
+  return rewardRupees(amount)
 }
 
 /**
