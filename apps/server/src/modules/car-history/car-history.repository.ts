@@ -18,7 +18,7 @@ const toDateKey = (value: Date | string | null): string | null =>
  * members of any package among them, and for a booking from before
  * booking_items its single service. Distinct, as text.
  */
-function bookingCategories(): SQL {
+export function bookingCategories(): SQL {
   return sql`ARRAY(
     SELECT DISTINCT cats.c FROM (
       SELECT s.category::text AS c

@@ -34,7 +34,10 @@ import type {
 } from '../lib/vendor-documents.js'
 import type { PushAudience, ScheduledPushKind } from '../lib/push.js'
 import type { SlotAlertWindow } from '../lib/slot-alerts.js'
+import type { ChallengeBookingType, ChallengeCategory, ChallengeRewardKind } from '../lib/challenges.js'
+import type { WrappedStats } from '../lib/wrapped.js'
 import type {
+  BadgeKey,
   NudgeKind,
   PerkKind,
   RewardLevel,
@@ -2848,6 +2851,8 @@ export const rewardBookings = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     revokeReason: text('revoke_reason').$type<'test' | 'refunded'>(),
     judgedAt: timestamp('judged_at', { withTimezone: true }).defaultNow().notNull(),
+    // 0054: when the chain was counted for badges and challenges (claimed once).
+    extrasAt: timestamp('extras_at', { withTimezone: true }),
   },
   (table) => [
     uniqueIndex('reward_bookings_car_day_key').on(table.vehicleId, table.istDay).where(sql`${table.earned}`),
@@ -2855,6 +2860,9 @@ export const rewardBookings = pgTable(
     index('reward_bookings_earned_idx')
       .on(table.userId, table.completedAt)
       .where(sql`${table.earned} and ${table.revokedAt} is null`),
+    index('reward_bookings_extras_idx')
+      .on(table.judgedAt)
+      .where(sql`${table.earned} and ${table.revokedAt} is null and ${table.extrasAt} is null`),
     check(
       'reward_bookings_refusal_check',
       // 'free_redo' added by 0051 (Detlio Guarantee).
@@ -2907,7 +2915,7 @@ export const rewardVouchers = pgTable(
     index('reward_vouchers_expires_at_idx').on(table.expiresAt).where(sql`${table.cancelledAt} is null`),
     check(
       'reward_vouchers_kind_check',
-      sql`${table.kind} in ('shine', 'scratch', 'free_wash', 'referral', 'birthday', 'annual_detailing', 'adjustment')`
+      sql`${table.kind} in ('shine', 'scratch', 'free_wash', 'referral', 'birthday', 'annual_detailing', 'adjustment', 'challenge')`
     ),
     check(
       'reward_vouchers_level_check',
@@ -2993,6 +3001,9 @@ export const rewardStamps = pgTable(
     voidReason: varchar('void_reason', { length: 300 }),
     reason: varchar('reason', { length: 300 }),
     actorName: varchar('actor_name', { length: 100 }),
+    // 0054: a badge's bonus stamps, and a challenge's prize or "double stamps".
+    badgeAwardId: uuid('badge_award_id').references(() => rewardBadgeAwards.id, { onDelete: 'cascade' }),
+    challengeId: uuid('challenge_id').references(() => rewardChallenges.id, { onDelete: 'cascade' }),
   },
   (table) => [
     uniqueIndex('reward_stamps_booking_key').on(table.bookingId).where(sql`${table.source} = 'booking'`),
@@ -3002,10 +3013,15 @@ export const rewardStamps = pgTable(
     index('reward_stamps_on_card_idx')
       .on(table.expiresAt)
       .where(sql`${table.voucherId} is null and ${table.voidedAt} is null`),
-    check('reward_stamps_source_check', sql`${table.source} in ('booking', 'scratch', 'streak', 'adjustment')`),
+    index('reward_stamps_badge_award_idx').on(table.badgeAwardId).where(sql`${table.badgeAwardId} is not null`),
+    index('reward_stamps_challenge_idx').on(table.challengeId).where(sql`${table.challengeId} is not null`),
+    check(
+      'reward_stamps_source_check',
+      sql`${table.source} in ('booking', 'scratch', 'streak', 'adjustment', 'badge', 'challenge')`
+    ),
     check(
       'reward_stamps_source_fields_check',
-      sql`(${table.source} = 'booking') = (${table.bookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'streak') = (${table.streakMonth} is not null) and (${table.source} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null))`
+      sql`(${table.source} = 'booking') = (${table.bookingId} is not null) and (${table.source} = 'scratch') = (${table.scratchCardId} is not null) and (${table.source} = 'streak') = (${table.streakMonth} is not null) and (${table.source} = 'badge') = (${table.badgeAwardId} is not null) and (${table.source} = 'challenge') = (${table.challengeId} is not null) and (${table.source} <> 'adjustment' or (${table.reason} is not null and ${table.actorName} is not null))`
     ),
     check(
       'reward_stamps_voided_check',
@@ -3168,7 +3184,10 @@ export const rewardNudges = pgTable(
   (table) => [
     uniqueIndex('reward_nudges_subject_key').on(table.userId, table.kind, table.subjectKey),
     index('reward_nudges_user_id_idx').on(table.userId, table.sentAt),
-    check('reward_nudges_kind_check', sql`${table.kind} in ('expiring', 'one_away', 'wash_due')`),
+    check(
+      'reward_nudges_kind_check',
+      sql`${table.kind} in ('expiring', 'one_away', 'wash_due', 'badge', 'challenge_start', 'challenge_one_left', 'challenge_won', 'wrapped')`
+    ),
     check('reward_nudges_link_check', sql`${table.linkUrl} ~ '^/[A-Za-z0-9/_?=&.-]*$'`),
   ]
 )
@@ -3181,6 +3200,178 @@ export const rewardCapMonths = pgTable(
     reachedAt: timestamp('reached_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [check('reward_cap_months_month_check', sql`${table.month} ~ '^[0-9]{4}-[0-9]{2}$'`)]
+)
+
+// ─── Detlio Rewards extras: achievements, challenges, Wrapped (0054) ─────────
+//
+// On top of Detlio Rewards, behind the same switches. Rules in
+// lib/achievements.ts, lib/challenges.ts and lib/wrapped.ts; module
+// modules/reward-extras. Everything about a customer cascades with them.
+
+/**
+ * A team challenge ("3 washes in Diwali week = double stamps"): a draft
+ * until published, live over its IST dates (both included) unless ended
+ * early. Never deleted. The reward's fields match its kind (CHECK); a ₹
+ * prize always caps its winners.
+ */
+export const rewardChallenges = pgTable(
+  'reward_challenges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: varchar('title', { length: 60 }).notNull(),
+    description: varchar('description', { length: 200 }),
+    startDate: date('start_date').notNull(),
+    endDate: date('end_date').notNull(),
+    goalCount: smallint('goal_count').notNull(),
+    category: text('category').$type<ChallengeCategory>(),
+    bookingType: text('booking_type').$type<ChallengeBookingType>(),
+    rewardKind: text('reward_kind').$type<ChallengeRewardKind>().notNull(),
+    rewardStamps: smallint('reward_stamps'),
+    rewardAmount: decimal('reward_amount', { precision: 10, scale: 2 }),
+    rewardMultiplier: smallint('reward_multiplier'),
+    audienceMinLevel: text('audience_min_level').$type<RewardLevel>(),
+    maxWinners: integer('max_winners'),
+    createdBy: varchar('created_by', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    publishedBy: varchar('published_by', { length: 100 }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedBy: varchar('ended_by', { length: 100 }),
+  },
+  (table) => [
+    index('reward_challenges_window_idx').on(table.endDate, table.startDate).where(sql`${table.publishedAt} is not null`),
+    check('reward_challenges_dates_check', sql`${table.endDate} >= ${table.startDate} and ${table.endDate} - ${table.startDate} < 92`),
+    check('reward_challenges_goal_check', sql`${table.goalCount} between 1 and 20`),
+    check(
+      'reward_challenges_category_check',
+      sql`${table.category} is null or ${table.category} in ('car_wash', 'detailing', 'coating', 'scratch_removal', 'others', 'package')`
+    ),
+    check('reward_challenges_booking_type_check', sql`${table.bookingType} is null or ${table.bookingType} in ('dropin', 'doorstep', 'pickup')`),
+    check(
+      'reward_challenges_reward_check',
+      sql`${table.rewardKind} in ('stamps', 'voucher', 'multiplier', 'badge') and (${table.rewardKind} = 'stamps') = (${table.rewardStamps} is not null) and (${table.rewardKind} = 'voucher') = (${table.rewardAmount} is not null) and (${table.rewardKind} = 'multiplier') = (${table.rewardMultiplier} is not null) and (${table.rewardStamps} is null or ${table.rewardStamps} between 1 and 10) and (${table.rewardAmount} is null or (${table.rewardAmount} > 0 and ${table.rewardAmount} <= 2000)) and (${table.rewardMultiplier} is null or ${table.rewardMultiplier} between 2 and 3) and (${table.rewardKind} <> 'voucher' or ${table.maxWinners} is not null)`
+    ),
+    check(
+      'reward_challenges_audience_check',
+      sql`${table.audienceMinLevel} is null or ${table.audienceMinLevel} in ('member', 'silver', 'gold', 'platinum', 'diamond', 'icon')`
+    ),
+    check('reward_challenges_max_winners_check', sql`${table.maxWinners} is null or ${table.maxWinners} between 1 and 100000`),
+    check('reward_challenges_published_check', sql`(${table.publishedAt} is null) = (${table.publishedBy} is null)`),
+    check(
+      'reward_challenges_ended_check',
+      sql`(${table.endedAt} is null) = (${table.endedBy} is null) and (${table.endedAt} is null or ${table.publishedAt} is not null)`
+    ),
+  ]
+)
+
+/**
+ * A badge a customer earned: once each (partial unique indexes), a
+ * challenge's own badge naming its challenge. `seen_at` once the app
+ * showed its celebration.
+ */
+export const rewardBadgeAwards = pgTable(
+  'reward_badge_awards',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    badgeKey: text('badge_key').$type<BadgeKey | 'challenge'>().notNull(),
+    challengeId: uuid('challenge_id').references(() => rewardChallenges.id, { onDelete: 'cascade' }),
+    rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    bonusStamps: smallint('bonus_stamps').default(0).notNull(),
+    earnedAt: timestamp('earned_at', { withTimezone: true }).defaultNow().notNull(),
+    seenAt: timestamp('seen_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('reward_badge_awards_user_badge_key').on(table.userId, table.badgeKey).where(sql`${table.challengeId} is null`),
+    uniqueIndex('reward_badge_awards_user_challenge_key').on(table.userId, table.challengeId).where(sql`${table.challengeId} is not null`),
+    index('reward_badge_awards_earned_at_idx').on(table.earnedAt),
+    check(
+      'reward_badge_awards_key_check',
+      sql`${table.badgeKey} in ('first_shine', 'washes_5', 'washes_25', 'washes_50', 'washes_100', 'streak_3', 'streak_6', 'streak_12', 'monsoon_shine', 'early_bird', 'night_owl', 'explorer', 'loyal_regular', 'pickup_pro', 'doorstep_devotee', 'reviewer', 'ambassador', 'detailing_devotee', 'coating_club', 'challenge')`
+    ),
+    check('reward_badge_awards_challenge_check', sql`(${table.badgeKey} = 'challenge') = (${table.challengeId} is not null)`),
+    check('reward_badge_awards_bonus_check', sql`${table.bonusStamps} between 0 and 10`),
+  ]
+)
+
+/** A booking counted toward a challenge, once; `extra_stamps` what "double stamps" gave it. */
+export const rewardChallengeBookings = pgTable(
+  'reward_challenge_bookings',
+  {
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => rewardChallenges.id, { onDelete: 'cascade' }),
+    rootBookingId: uuid('root_booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    countedAt: timestamp('counted_at', { withTimezone: true }).defaultNow().notNull(),
+    extraStamps: smallint('extra_stamps').default(0).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'reward_challenge_bookings_pk', columns: [table.challengeId, table.rootBookingId] }),
+    index('reward_challenge_bookings_user_idx').on(table.userId, table.challengeId),
+    check('reward_challenge_bookings_extra_check', sql`${table.extraStamps} between 0 and 2`),
+  ]
+)
+
+/** A challenge's winner, once each, with what was given. Counted under the challenge's lock against `max_winners`. */
+export const rewardChallengeWinners = pgTable(
+  'reward_challenge_winners',
+  {
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => rewardChallenges.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    wonAt: timestamp('won_at', { withTimezone: true }).defaultNow().notNull(),
+    rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    voucherId: uuid('voucher_id').references(() => rewardVouchers.id, { onDelete: 'set null' }),
+    bonusStamps: smallint('bonus_stamps').default(0).notNull(),
+    badgeAwardId: uuid('badge_award_id').references(() => rewardBadgeAwards.id, { onDelete: 'set null' }),
+  },
+  (table) => [
+    primaryKey({ name: 'reward_challenge_winners_pk', columns: [table.challengeId, table.userId] }),
+    index('reward_challenge_winners_user_idx').on(table.userId),
+    check('reward_challenge_winners_bonus_check', sql`${table.bonusStamps} between 0 and 200`),
+  ]
+)
+
+/** The nightly badge pass's place: when each customer was last checked. */
+export const rewardBadgeChecks = pgTable('reward_badge_checks', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  checkedAt: timestamp('checked_at', { withTimezone: true }).notNull(),
+})
+
+/** A customer-year's Wrapped: the stats (cached) and how often it was opened and shared. */
+export const rewardWrapped = pgTable(
+  'reward_wrapped',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    year: smallint('year').notNull(),
+    stats: jsonb('stats').$type<WrappedStats>().notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull(),
+    openedCount: integer('opened_count').default(0).notNull(),
+    firstOpenedAt: timestamp('first_opened_at', { withTimezone: true }),
+    sharedCount: integer('shared_count').default(0).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'reward_wrapped_pk', columns: [table.userId, table.year] }),
+    index('reward_wrapped_year_idx').on(table.year),
+    check('reward_wrapped_year_check', sql`${table.year} between 2026 and 2200`),
+    check('reward_wrapped_stats_check', sql`jsonb_typeof(${table.stats}) = 'object'`),
+    check('reward_wrapped_counts_check', sql`${table.openedCount} >= 0 and ${table.sharedCount} >= 0`),
+  ]
 )
 
 // Cached geocoding responses, keyed "{provider}:{op}:{normalised-input}". Lives

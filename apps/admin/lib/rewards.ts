@@ -1,9 +1,10 @@
 import { toCsv } from '@repo/core/csv'
 import type { AdminRewardsLedger } from '@repo/core/api/rewards'
+import type { AdminChallenge, ChallengeFormValues, ChallengeResultRow, ChallengeStatus } from '@repo/core/api/reward-extras'
 import { SCRATCH_OUTCOMES, type RewardsSettings, type ScratchWeights } from '@repo/core/rewards'
 
 /** The tabs of Admin → Rewards, in the URL as ?tab=. */
-export const REWARDS_TABS = ['overview', 'customers', 'settings'] as const
+export const REWARDS_TABS = ['overview', 'customers', 'achievements', 'challenges', 'wrapped', 'settings'] as const
 export type RewardsTab = (typeof REWARDS_TABS)[number]
 
 export function parseRewardsTab(value: string | null): RewardsTab {
@@ -77,4 +78,113 @@ export function settingsFormProblems(s: RewardsSettings): string[] {
     }
   })
   return problems
+}
+
+// ─── Achievements, challenges and Wrapped (0054) ────────────────────────────
+
+export const CHALLENGE_STATUS_LABELS: Record<ChallengeStatus, string> = {
+  draft: 'Draft',
+  scheduled: 'Scheduled',
+  live: 'Live',
+  finished: 'Finished',
+  ended: 'Ended early',
+}
+
+/** A new challenge's form: a week from tomorrow, 3 washes, double stamps, 500 winners. */
+export function emptyChallenge(now = new Date()): ChallengeFormValues {
+  const day = (offset: number) => new Date(now.getTime() + 330 * 60_000 + offset * 86_400_000).toISOString().slice(0, 10)
+  return {
+    title: '',
+    description: null,
+    startDate: day(1),
+    endDate: day(7),
+    goalCount: 3,
+    category: null,
+    bookingType: null,
+    rewardKind: 'multiplier',
+    rewardStamps: null,
+    rewardAmount: null,
+    rewardMultiplier: 2,
+    audienceMinLevel: null,
+    maxWinners: 500,
+  }
+}
+
+/** A saved challenge back into the form. */
+export function challengeFormValues(c: AdminChallenge): ChallengeFormValues {
+  return {
+    title: c.title,
+    description: c.description,
+    startDate: c.startDate,
+    endDate: c.endDate,
+    goalCount: c.goalCount,
+    category: c.category,
+    bookingType: c.bookingType,
+    rewardKind: c.rewardKind,
+    rewardStamps: c.rewardStamps,
+    rewardAmount: c.rewardAmount === null ? null : Math.round(Number(c.rewardAmount)),
+    rewardMultiplier: c.rewardMultiplier,
+    audienceMinLevel: c.audienceMinLevel,
+    maxWinners: c.maxWinners,
+  }
+}
+
+/** Only the reward's own field goes with its kind (the API's CHECK). */
+export function challengePayload(values: ChallengeFormValues): ChallengeFormValues {
+  return {
+    ...values,
+    title: values.title.trim(),
+    description: values.description?.trim() ? values.description.trim() : null,
+    rewardStamps: values.rewardKind === 'stamps' ? values.rewardStamps : null,
+    rewardAmount: values.rewardKind === 'voucher' ? values.rewardAmount : null,
+    rewardMultiplier: values.rewardKind === 'multiplier' ? values.rewardMultiplier : null,
+  }
+}
+
+/**
+ * The form's own quick checks before sending (the API's lib/challenges.ts
+ * is the one that counts, copy rules included).
+ */
+export function challengeFormProblems(values: ChallengeFormValues): string[] {
+  const problems: string[] = []
+  const title = values.title.trim()
+  if (title.length < 3 || title.length > 60) problems.push('The title is 3–60 characters')
+  if (!values.startDate || !values.endDate) problems.push('Pick a start and an end date')
+  else if (values.endDate < values.startDate) problems.push('The end date is after the start date')
+  if (!(values.goalCount >= 1 && values.goalCount <= 20)) problems.push('The goal is 1 to 20 bookings')
+  if (values.rewardKind === 'stamps' && !(values.rewardStamps !== null && values.rewardStamps >= 1 && values.rewardStamps <= 10)) problems.push('Bonus stamps are 1 to 10')
+  if (values.rewardKind === 'voucher') {
+    if (!(values.rewardAmount !== null && values.rewardAmount >= 1 && values.rewardAmount <= 2000)) problems.push('The voucher is ₹1 to ₹2,000')
+    if (values.maxWinners === null) problems.push('A ₹ prize needs a limit on winners')
+  }
+  if (values.rewardKind === 'multiplier' && !(values.rewardMultiplier === 2 || values.rewardMultiplier === 3)) problems.push('Stamps are doubled or tripled')
+  return problems
+}
+
+/** A challenge's results as a CSV file's text (phones already masked by the API). */
+export function challengeResultsCsv(rows: ChallengeResultRow[]): string {
+  const ist = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() + 330 * 60_000).toISOString().slice(0, 16).replace('T', ' ') : '')
+  return toCsv(
+    ['Customer', 'Phone', 'Customer id', 'Bookings counted', 'First counted (IST)', 'Won (IST)', 'Bonus stamps', 'Voucher (₹)', 'Voucher code', 'Voucher used'],
+    rows.map((row) => [
+      row.name,
+      row.phone,
+      row.userId,
+      row.counted,
+      ist(row.firstCountedAt),
+      ist(row.wonAt),
+      row.bonusStamps,
+      row.voucherAmount,
+      row.voucherCode,
+      row.voucherUsed === null ? '' : row.voucherUsed ? 'yes' : 'no',
+    ])
+  )
+}
+
+/** Wrapped years admin can look at: 2026 to this IST year. */
+export function wrappedYearOptions(now = new Date()): number[] {
+  const year = Number(istMonthNow(now).slice(0, 4))
+  const years: number[] = []
+  for (let y = year; y >= 2026; y -= 1) years.push(y)
+  return years
 }

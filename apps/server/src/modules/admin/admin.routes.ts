@@ -13,6 +13,7 @@ import { adminCreditRoutes } from '../gift-credit/gift-credit.routes.js'
 import { adminGiftRoutes } from '../gifts/gifts.routes.js'
 import { adminCertificateRoutes } from '../certificates/certificates.routes.js'
 import { adminRewardRoutes } from '../rewards/rewards.routes.js'
+import { adminRewardExtrasRoutes } from '../reward-extras/reward-extras.routes.js'
 import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
@@ -400,6 +401,8 @@ adminRoutes.route('/gifts', adminGiftRoutes)
 // adjustments, and the settings form. Super-admin; a 404 (but /config)
 // while REWARDS_ENABLED is off.
 adminRoutes.route('/rewards', adminRewardRoutes)
+// 0054: Achievements, Challenges (with the results CSV) and Wrapped stats.
+adminRoutes.route('/rewards', adminRewardExtrasRoutes)
 
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.

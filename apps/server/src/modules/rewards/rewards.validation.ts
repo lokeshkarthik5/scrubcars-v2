@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { LEVELS, REWARDS_FIXED, SCRATCH_OUTCOMES, SETTINGS_LIMITS } from '../../lib/rewards.js'
+import { BADGE_KEYS, LEVELS, REWARDS_FIXED, SCRATCH_OUTCOMES, SETTINGS_LIMITS } from '../../lib/rewards.js'
 
 export const scratchCardParamSchema = z.object({ id: z.uuid() })
 export const customerIdParamSchema = z.object({ userId: z.uuid() })
@@ -58,6 +58,15 @@ const weights = z
   >)
   .strict()
 
+/** Achievements (0054): each badge on or off and its bonus stamps; any badge left out reads as its default. */
+const achievements = z
+  .object(
+    Object.fromEntries(
+      BADGE_KEYS.map((key) => [key, z.object({ enabled: z.boolean(), bonusStamps: whole }).strict().optional()])
+    ) as Record<(typeof BADGE_KEYS)[number], z.ZodOptional<z.ZodObject<{ enabled: z.ZodBoolean; bonusStamps: z.ZodNumber }>>>
+  )
+  .strict()
+
 /**
  * The whole settings object, shape and types only. The ranges, the
  * weights adding up to 100 and the levels' order are lib/rewards.ts
@@ -99,6 +108,7 @@ export const rewardsSettingsSchema = z
     monthlyCap: whole,
     nudgeGapDays: whole,
     expiryWarningDays: whole,
+    achievements: achievements.optional(),
   })
   .strict()
 

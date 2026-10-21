@@ -1,5 +1,6 @@
 import { apiClient } from '@repo/core/api/client'
 import type { RewardLevel, RewardsSettings, ScratchOutcome } from '@repo/core/rewards'
+import type { RewardExtrasSummary } from '@repo/core/api/reward-extras'
 
 /**
  * Detlio Rewards (0050): the Shine Card, scratch cards, streaks, levels and
@@ -17,7 +18,7 @@ export interface RewardsConfig {
 
 export interface RewardStamp {
   id: string
-  source: 'booking' | 'scratch' | 'streak' | 'adjustment'
+  source: 'booking' | 'scratch' | 'streak' | 'adjustment' | 'badge' | 'challenge'
   label: string
   earnedAt: string
   expiresAt: string
@@ -52,7 +53,7 @@ export type VoucherState = 'available' | 'spent' | 'expired' | 'cancelled'
 
 export interface RewardVoucher {
   id: string
-  kind: 'shine' | 'scratch' | 'free_wash' | 'referral' | 'birthday' | 'annual_detailing' | 'adjustment'
+  kind: 'shine' | 'scratch' | 'free_wash' | 'referral' | 'birthday' | 'annual_detailing' | 'adjustment' | 'challenge'
   label: string
   amount: string
   /** The code checkout takes: only while it can be used. */
@@ -88,6 +89,8 @@ export interface RewardsSummary {
   vouchersAvailable: number
   /** Available vouchers, biggest first. */
   vouchers: RewardVoucher[]
+  /** Badges, the challenge to show and Wrapped (0054); null if that part failed. */
+  extras?: RewardExtrasSummary | null
 }
 
 export interface LadderStep {

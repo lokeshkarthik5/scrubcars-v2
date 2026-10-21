@@ -1,20 +1,26 @@
 'use client'
 
+import { Suspense, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
-import { IconCheck, IconCopy, IconStar } from '@tabler/icons-react'
+import { IconCheck, IconChevronRight, IconCopy, IconSparkles, IconStar } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { Figures } from '@repo/ui/sc/figures'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { rewardsEnabled, useMyRewards, useRewardsConfig } from '@repo/core/api/hooks/use-rewards'
+import { useRewardExtras } from '@repo/core/api/hooks/use-reward-extras'
+import type { RewardExtras } from '@repo/core/api/reward-extras'
 import type { MyRewards, RewardVoucher } from '@repo/core/api/rewards'
 import { levelLine, lifetimeLine, rewardDay, stampsToGoLine, streakLine } from '@repo/core/rewards'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { CustomerShell } from '@/components/customer-shell'
+import { BadgeCabinet } from '@/components/rewards/badge-cabinet'
+import { BadgeCelebration } from '@/components/rewards/badge-celebration'
+import { ChallengeCard } from '@/components/rewards/challenge-card'
 import { BirthdayForm } from '@/components/rewards/birthday-form'
 import { InviteCard } from '@/components/rewards/invite-card'
 import { LevelBadge } from '@/components/rewards/level-badge'
@@ -38,15 +44,28 @@ function formatDay(iso: string): string {
  * Profile → Detlio Rewards (0050): the Shine Card, scratch cards waiting,
  * vouchers to use at checkout, the level and the ladder, the monthly
  * streak, the birthday, Invite a friend and the history, with the lifetime
- * line on top. Every number comes from the API (the live settings).
+ * line on top. Every number comes from the API (the live settings). 0054
+ * adds the live challenges, Detlio Wrapped (when open), the badge cabinet
+ * and the celebration of a badge not seen yet (?badge=<id> from its push;
+ * ?challenge=<id> scrolls to that challenge).
  */
 export default function RewardsPage() {
+  return (
+    <Suspense>
+      <RewardsScreen />
+    </Suspense>
+  )
+}
+
+function RewardsScreen() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const ready = useAuthStore((s) => s.isSessionReady)
   const config = useRewardsConfig()
   const on = rewardsEnabled(config.data)
   const rewards = useMyRewards(on && !!user)
+  const extras = useRewardExtras(on && !!user)
+  const params = useSearchParams()
 
   const header = <TopBar title="Detlio Rewards" showBack backHref="/profile" large={isHomeHubEnabled()} />
 
@@ -92,14 +111,37 @@ export default function RewardsPage() {
       ) : rewards.isError || !view ? (
         <ErrorState message="Couldn't load your rewards. Check your connection." onRetry={() => void rewards.refetch()} />
       ) : (
-        <RewardsBody view={view} birthdayPerkFrom={settings?.levels.find((l) => l.birthdayVoucher !== null)?.label ?? null} />
+        <RewardsBody
+          view={view}
+          extras={extras.data ?? null}
+          focusBadge={params.get('badge')}
+          focusChallenge={params.get('challenge')}
+          birthdayPerkFrom={settings?.levels.find((l) => l.birthdayVoucher !== null)?.label ?? null}
+        />
       )}
     </CustomerShell>
   )
 }
 
-function RewardsBody({ view, birthdayPerkFrom }: { view: MyRewards; birthdayPerkFrom: string | null }) {
+function RewardsBody({
+  view,
+  extras,
+  focusBadge,
+  focusChallenge,
+  birthdayPerkFrom,
+}: {
+  view: MyRewards
+  extras: RewardExtras | null
+  focusBadge: string | null
+  focusChallenge: string | null
+  birthdayPerkFrom: string | null
+}) {
   const { card, level, streak } = view
+  // A challenge's push opens the page on it.
+  useEffect(() => {
+    if (!focusChallenge || !extras) return
+    document.getElementById(`challenge-${focusChallenge}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusChallenge, extras])
   const waiting = view.scratchCards.filter((c) => c.state === 'waiting')
   const available = view.vouchers.filter((v) => v.state === 'available')
   const past = view.vouchers.filter((v) => v.state !== 'available').slice(0, 10)
@@ -140,6 +182,39 @@ function RewardsBody({ view, birthdayPerkFrom }: { view: MyRewards; birthdayPerk
         )}
       </section>
 
+      {extras && extras.unseen.length > 0 && <BadgeCelebration badges={extras.unseen} focusId={focusBadge} />}
+
+      {/* Detlio Wrapped (0054): from 1 December, and the year before all year. */}
+      {extras && extras.wrapped.years.length > 0 && (
+        <Link
+          href={`/profile/rewards/wrapped?year=${extras.wrapped.years[0]}`}
+          className="wrapped-teaser flex items-center justify-between gap-3 rounded-[14px] px-4 py-3.5"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <IconSparkles size={20} stroke={1.6} className="shrink-0 text-text-primary" aria-hidden />
+            <span className="min-w-0">
+              <span className="block text-[14px] font-semibold text-text-primary">
+                Your <span className="font-numeric">{extras.wrapped.years[0]}</span> Detlio Wrapped
+              </span>
+              <span className="block text-[12px] text-text-secondary">Your year in washes, garages and shine.</span>
+            </span>
+          </span>
+          <IconChevronRight size={18} className="shrink-0 text-text-secondary" aria-hidden />
+        </Link>
+      )}
+
+      {/* Seasonal challenges (0054). */}
+      {extras && extras.challenges.length > 0 && (
+        <section aria-labelledby="challenges" className="flex flex-col gap-2">
+          <h2 id="challenges" className="text-sm font-semibold text-text-primary">
+            {extras.challenges.length === 1 ? 'Challenge' : 'Challenges'}
+          </h2>
+          {extras.challenges.map((challenge) => (
+            <ChallengeCard key={challenge.id} challenge={challenge} highlight={challenge.id === focusChallenge} />
+          ))}
+        </section>
+      )}
+
       {waiting.length > 0 && (
         <section aria-labelledby="scratch-cards" className="flex flex-col gap-2">
           <h2 id="scratch-cards" className="text-sm font-semibold text-text-primary">
@@ -164,6 +239,9 @@ function RewardsBody({ view, birthdayPerkFrom }: { view: MyRewards; birthdayPerk
           <p className="text-[11px] text-text-muted">Choose one at checkout under Your rewards. One per booking, with Detlio credit but not with another code. Given back if the booking is cancelled.</p>
         )}
       </section>
+
+      {/* The badge cabinet (0054). */}
+      {extras && <BadgeCabinet extras={extras} />}
 
       {/* Level */}
       <section aria-labelledby="level" className="flex flex-col gap-2">
