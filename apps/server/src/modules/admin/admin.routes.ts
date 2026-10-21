@@ -18,6 +18,7 @@ import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
+import { adminCouponRoutes } from '../coupons/coupons.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
 import { adminRefundRoutes } from '../refunds/refunds.routes.js'
 import { adminVendorBinRoutes } from '../vendor-bin/vendor-bin.routes.js'
@@ -372,6 +373,9 @@ adminRoutes.delete(
 // admin session cookie is scoped to path=/api/v1/admin — anywhere else and the
 // browser never sends it.
 adminRoutes.route('/discounts', adminDiscountRoutes)
+// Printed coupons (0056): batches, their print sheets and codes, tracking,
+// and void. Nested here for the same cookie reason as discounts.
+adminRoutes.route('/coupons', adminCouponRoutes)
 
 // Refunds owed and done, and recording one. Nested here for the same cookie
 // reason as discounts.

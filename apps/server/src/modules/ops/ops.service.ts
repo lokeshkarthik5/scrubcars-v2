@@ -10,6 +10,7 @@ import { certificationService } from '../certification/certification.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { giftCreditService } from '../gift-credit/gift-credit.service.js'
 import { giftsService } from '../gifts/gifts.service.js'
+import { couponsService } from '../coupons/coupons.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
@@ -193,6 +194,14 @@ export const opsService = {
           return null
         })
 
+    // Printed coupons (0056): wrong-code rows over a day old.
+    const couponCodeAttemptsPurged = options.dryRun
+      ? 0
+      : await couponsService.purgeAttempts().catch((err: unknown) => {
+          log.error({ err }, 'ops:coupon_attempts_purge_failed')
+          return null
+        })
+
     // The usage events' 180-day clean-up rides on it too: a bounded batch a
     // run, skipped on a dry run, and never allowed to fail the digest.
     const analyticsPurged = options.dryRun
@@ -250,6 +259,7 @@ export const opsService = {
       bypassRewards,
       guarantee,
       giftCodeAttemptsPurged,
+      couponCodeAttemptsPurged,
       rewards,
       rewardExtras,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),

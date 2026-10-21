@@ -20,6 +20,21 @@ reconstructing every change in them.
 
 ### Added
 
+- **Printed coupons with QR codes** (API 0056). Customer: `/c/<code>`, the
+  page a coupon's QR opens (the offer and every condition, "Add to my
+  Detlio"; signed out it signs in or up and adds it on return; then "Book a
+  wash" takes it to checkout), Profile → Coupons ("Have a coupon?" with a
+  code box and Scan, which reads the QR with the camera where the browser
+  has `BarcodeDetector`; the coupons added, with Use now), and "Your
+  coupons" chips at checkout. No Meta Pixel on the coupon page; usage
+  events `coupon_scan` and `coupon_redeem`. Admin: Discounts → Coupons
+  (batches with printed / scanned / added / bookings / new customers /
+  cost, the same added up by where they were given out, New batch, a
+  batch's page with Print sheet — A4, 10 a page with cut lines and a QR
+  each, saved as a PDF from the print window — Codes CSV, who added them
+  with CSV, Void a code, Void batch). `qrcode-generator` 2.0.4 pinned in
+  admin as in users.
+
 - **Badges, challenges and Detlio Wrapped** (API 0054, only while rewards
   are live). Rewards page: the live challenges with a silver progress bar
   ("1 of 3 — 4 days left"), the badge cabinet (earned in colour, locked ones

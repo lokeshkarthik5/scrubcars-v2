@@ -77,15 +77,22 @@ export function computeDiscount(
     DiscountRule,
     'discountType' | 'percentOff' | 'amountOff' | 'maxDiscountAmount'
   >,
-  subtotal: string
+  subtotal: string,
+  /**
+   * The part of the subtotal the code applies to, when it is limited to one
+   * service type (a printed coupon's voucher, 0056): a percentage is taken
+   * of it and nothing more than it comes off. Omitted, the whole subtotal.
+   */
+  eligibleSubtotal?: string
 ): DiscountComputation {
   const subtotalPaise = rupeesToPaise(subtotal)
+  const basePaise = eligibleSubtotal === undefined ? subtotalPaise : Math.min(rupeesToPaise(eligibleSubtotal), subtotalPaise)
 
   let raw: number
 
   if (discount.discountType === 'percentage') {
     const bps = Math.round(Number.parseFloat(discount.percentOff ?? '0') * 100)
-    raw = Math.floor((subtotalPaise * bps) / 10_000)
+    raw = Math.floor((basePaise * bps) / 10_000)
 
     if (discount.maxDiscountAmount) {
       raw = Math.min(raw, rupeesToPaise(discount.maxDiscountAmount))
@@ -94,7 +101,7 @@ export function computeDiscount(
     raw = rupeesToPaise(discount.amountOff ?? '0')
   }
 
-  const maxAllowed = Math.max(0, subtotalPaise - MIN_PAYABLE_PAISE)
+  const maxAllowed = Math.max(0, Math.min(basePaise, subtotalPaise - MIN_PAYABLE_PAISE))
   const discountPaise = Math.min(Math.max(raw, 0), maxAllowed)
 
   return {

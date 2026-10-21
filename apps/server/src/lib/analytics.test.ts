@@ -42,6 +42,9 @@ describe('what an event may carry', () => {
     expect(cleanPath('/book/2b7f6f0e-5d1c-4c11-9b55-2f0b6a1c9d10?service=a,b&code=X')).toBe('/book/:id')
     // A gift link's code is the gift (0049): never kept.
     expect(cleanPath('/gift/ABCDEFGHJKMNPQRS')).toBe('/gift/:code')
+    // A printed coupon's code likewise (0056); only at the top level.
+    expect(cleanPath('/c/7K4QM92MXA')).toBe('/c/:code')
+    expect(cleanPath('/profile/c/x')).toBe('/profile/c/x')
     expect(cleanPath('/')).toBe('/')
     expect(cleanPath('')).toBe('/')
     expect(cleanPath('/search/<script>')).toBe('/search/script')

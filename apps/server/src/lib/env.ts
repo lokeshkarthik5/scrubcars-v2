@@ -375,6 +375,23 @@ export const env = {
    */
   rewardsEnabled: (process.env.REWARDS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
+  // ─── Printed coupons (lib/coupons.ts, 0056) ────────────────────────────────
+  /**
+   * The secret printed coupon codes are derived from and hashed with:
+   * COUPON_SECRET, or JWT_SECRET while that is unset. Codes are never
+   * stored, so **changing it while coupons are out ends every printed code**
+   * (and a batch made under the old one can't be printed again). Set it once,
+   * before the first batch goes to print, and never rotate it with
+   * JWT_SECRET.
+   */
+  couponSecret: process.env.COUPON_SECRET?.trim() || null,
+  /**
+   * The customer site a coupon's QR opens (`<site>/c/<code>`):
+   * COUPON_SITE_URL, default https://detlio.com. Printed on paper, so it
+   * must be the address that will still work in a year.
+   */
+  couponSiteUrl: (process.env.COUPON_SITE_URL?.trim() || 'https://detlio.com').replace(/\/+$/, ''),
+
   // ─── Garage response deadline (lib/response-deadline.ts, 0042) ─────────────
   /**
    * How many opening-hours minutes a garage has to accept (or reject, or
@@ -428,6 +445,11 @@ export const env = {
   // guessing. The customer app's /verify page calls it from its server, so
   // that page also limits each viewer itself (apps/users/lib/certificates.ts).
   certificateLookupRateLimit: Number(process.env.CERTIFICATE_LOOKUP_RATE_LIMIT ?? '60'),
+  // Coupon code lookups and redemptions (POST /coupons/lookup,
+  // /users/me/coupons/redeem, 0056) per IP per minute. Wrong codes are also
+  // counted in the database (lib/coupons.ts), which is the real cap on
+  // guessing.
+  couponCodeRateLimit: Number(process.env.COUPON_CODE_RATE_LIMIT ?? '20'),
 
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are

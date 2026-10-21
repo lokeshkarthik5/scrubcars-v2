@@ -25,6 +25,9 @@ export const CLIENT_EVENTS = [
   'help_view',
   'favourite_add',
   'favourite_remove',
+  // 0056: a printed coupon's page opened, and a coupon added (source: link, typed, camera).
+  'coupon_scan',
+  'coupon_redeem',
 ] as const
 
 export type ClientEventName = (typeof CLIENT_EVENTS)[number]
@@ -84,6 +87,9 @@ export interface EventProps {
   help_view: { step?: (typeof EVENT_STEPS)[number] }
   favourite_add: { vendorId: string }
   favourite_remove: { vendorId: string }
+  coupon_scan: Record<string, never>
+  /** How it was added: the QR's link, typed, or the camera in Profile. */
+  coupon_redeem: { source?: 'link' | 'typed' | 'camera' }
 }
 
 /** The keys each event may carry; the server refuses any other. */
@@ -104,6 +110,8 @@ export const EVENT_PROPS: { [K in ClientEventName]: ReadonlyArray<keyof EventPro
   help_view: ['step'],
   favourite_add: ['vendorId'],
   favourite_remove: ['vendorId'],
+  coupon_scan: [],
+  coupon_redeem: ['source'],
 }
 
 /** The most events one request carries (the server refuses more). */
@@ -134,7 +142,8 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /**
  * A page's path as it is sent: no query string or hash, every id replaced
  * by ":id" (a booking's id is a way back to a person), a gift link's code
- * by ":code" (0049: the code is the gift; only its hash is ever stored),
+ * by ":code" (0049: the code is the gift; only its hash is ever stored), a
+ * printed coupon's (/c/<code>, 0056) likewise,
  * a shared certificate's token by ":token" (0053, likewise), anything but
  * plain path characters dropped, at most MAX_PATH_LENGTH characters.
  */
@@ -144,7 +153,7 @@ export function cleanPath(raw: string): string {
     .split('/')
     .filter((segment) => segment.length > 0)
     .map((segment, index, all) =>
-      index > 0 && all[index - 1] === 'gift'
+      index > 0 && (all[index - 1] === 'gift' || (all[index - 1] === 'c' && index === 1))
         ? ':code'
         : index > 0 && all[index - 1] === 'verify'
           ? ':token'
