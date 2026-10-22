@@ -33,6 +33,33 @@ export interface WashStatus {
 /** The must-act and soft cards (lib/home-cards.ts ActionCard). */
 export type HomeActionCard =
   | {
+      /**
+       * The garage can't do the booked time and suggested others (0041).
+       * Unanswered by `expiresAt`, the booking is cancelled with a full refund.
+       */
+      kind: 'time_proposal'
+      bookingId: string
+      proposalId: string
+      vendorName: string
+      /** The time booked, which the garage can't do. */
+      scheduledAt: string
+      /** The times on offer, soonest first. */
+      options: string[]
+      expiresAt: string
+    }
+  | {
+      /** Extra work waiting for "Approve & pay" (0041). */
+      kind: 'extra_work_due'
+      bookingId: string
+      chargeId: string
+      vendorName: string
+      description: string
+      amount: string
+      raisedAt: string
+      /** Further requests waiting beyond this one. */
+      moreDue: number
+    }
+  | {
       kind: 'bill_due'
       bookingId: string
       chargeId: string
@@ -183,6 +210,11 @@ export type UpdateKind =
   | 'picked_up'
   | 'at_garage'
   | 'out_for_delivery'
+  | 'time_proposal'
+  | 'extra_work_due'
+  | 'extra_work_paid'
+  | 'extra_work_declined'
+  | 'extra_work_withdrawn'
 
 /** One row of Updates (lib/home-updates.ts UpdateItem). */
 export interface UpdateItem {

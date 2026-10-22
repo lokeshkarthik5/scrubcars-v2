@@ -408,12 +408,41 @@ function ReceiptDocument({ receipt }: { receipt: BookingReceipt }) {
         </Section>
       )}
 
+      {/* Extra work approved and paid in the app (0041), a line each with
+          its own payment. */}
+      {(receipt.extraWork?.length ?? 0) > 0 && (
+        <Section title="Extra work">
+          {receipt.extraWork!.map((work, index) => (
+            <div key={`${work.paymentId ?? 'work'}-${index}`} className="py-1">
+              <Row label={work.description} value={formatReceiptAmount(work.amount)} strong />
+              <Detail>Online (Razorpay)</Detail>
+              {work.paymentId && (
+                <Detail>
+                  Payment ID <span className="font-numeric">{work.paymentId}</span>
+                </Detail>
+              )}
+              {work.paidAtLabel && (
+                <Detail>
+                  Paid <span className="font-numeric">{work.paidAtLabel}</span>
+                </Detail>
+              )}
+            </div>
+          ))}
+        </Section>
+      )}
+
       {receipt.refunds.length > 0 && (
         <Section title="Refunds">
           {receipt.refunds.map((refund, index) => (
             <div key={`${refund.refundedAt ?? 'refund'}-${index}`} className="py-1">
               <Row
-                label={refund.against === 'final_bill' ? 'Refund of final bill' : 'Refund'}
+                label={
+                  refund.against === 'final_bill'
+                    ? 'Refund of final bill'
+                    : refund.against === 'extra_work'
+                      ? 'Refund of extra work'
+                      : 'Refund'
+                }
                 value={formatReceiptAmount(refund.amount, true)}
               />
               <Detail>

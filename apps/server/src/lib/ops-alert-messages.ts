@@ -70,12 +70,52 @@ export type OpsAlert =
     }
   | {
       /**
+       * The garage suggested other times instead of declining (0041). Nothing
+       * to do unless the customer rings: they pick one in the app, or the
+       * booking is cancelled with a full refund at `expiresAt`.
+       */
+      kind: 'time_proposal_made'
+      booking: AlertBooking
+      options: Date[]
+      expiresAt: Date
+    }
+  | {
+      /**
+       * How a suggestion ended: the customer picked a time (the booking moved
+       * there, accepted), said none work, or let it run out. The last two
+       * cancel the booking as the garage's decline: a refund is due.
+       */
+      kind: 'time_proposal_outcome'
+      outcome: 'chosen' | 'declined' | 'expired'
+      booking: AlertBooking
+      /** The time the booking was at before; for 'chosen', `booking` is the new one. */
+      previousScheduledAt: Date
+    }
+  | {
+      /** The customer approved extra work by paying it in the app (0041). */
+      kind: 'extra_work_paid'
+      booking: AlertBooking
+      description: string
+      amount: string
+      paymentId: string
+    }
+  | {
+      /** The customer declined extra work the garage asked for (0041). */
+      kind: 'extra_work_declined'
+      booking: AlertBooking
+      description: string
+      amount: string
+    }
+  | {
+      /**
        * A payment landed for a final bill that could no longer take it, and
        * has to go back: the garage had replaced the bill, Detlio had cancelled
        * the booking, or the bill was already paid by another payment.
        */
       kind: 'final_bill_refund_due'
       reason: 'replaced' | 'booking_cancelled' | 'paid_twice'
+      /** Extra work (0041) uses the same alert; absent means the final bill. */
+      what?: 'final_bill' | 'extra_work'
       booking: AlertBooking
       amount: string
       paymentId: string
@@ -387,8 +427,90 @@ export function formatOpsAlert(alert: OpsAlert): string {
       )
     }
 
+    case 'time_proposal_made': {
+      const b = alert.booking
+      return lines(
+        `🕑 Garage suggested other times #${reference(b.id)}`,
+        garageLine(b),
+        `Booked for ${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
+        `Offered: ${alert.options.map(when).join(' · ')}`,
+        `The customer picks one in the app by ${when(alert.expiresAt)}, or it is cancelled with a full refund.`,
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'time_proposal_outcome': {
+      const b = alert.booking
+      const paid = isPaid(b)
+      if (alert.outcome === 'chosen') {
+        return lines(
+          `✅ Customer picked a suggested time #${reference(b.id)}`,
+          garageLine(b),
+          `${when(alert.previousScheduledAt)} → ${when(b.scheduledAt)}`,
+          'Moved and accepted: the garage offered this time.',
+          adminBookingUrl(b.id)
+        )
+      }
+      return lines(
+        alert.outcome === 'declined'
+          ? `❌ None of the suggested times worked #${reference(b.id)}${paid ? ' · refund due' : ''}`
+          : `⌛ Suggested times ran out unanswered #${reference(b.id)}${paid ? ' · refund due' : ''}`,
+        garageLine(b),
+        `${when(alert.previousScheduledAt)} · ${modeLabel(b.bookingType)}`,
+        paid
+          ? `Cancelled as the garage's decline. ${rupees(b.amount)} was paid: refund it in full, and offer the customer another garage.`
+          : "Cancelled as the garage's decline. Not paid online, so nothing to refund.",
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'extra_work_paid': {
+      const b = alert.booking
+      return lines(
+        `🔧 Extra work approved and paid #${reference(b.id)} · ${rupees(alert.amount)}`,
+        garageLine(b),
+        quoted('Work', alert.description),
+        `Razorpay payment ${alert.paymentId}`,
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'extra_work_declined': {
+      const b = alert.booking
+      return lines(
+        `🙅 Customer declined extra work #${reference(b.id)} · ${rupees(alert.amount)}`,
+        garageLine(b),
+        quoted('Work', alert.description),
+        'Nothing to do: the garage sees it declined. The customer may ring about it.',
+        adminBookingUrl(b.id)
+      )
+    }
+
     case 'final_bill_refund_due': {
       const b = alert.booking
+      if (alert.what === 'extra_work') {
+        const [title, why] = {
+          replaced: [
+            'Extra work paid after it was withdrawn or declined',
+            'The request no longer stood when the payment landed. Refund this payment in Razorpay; the customer was told it would be refunded.',
+          ],
+          booking_cancelled: [
+            'Extra work paid after the booking was cancelled',
+            'The booking was cancelled while the customer was paying for extra work. Refund this payment in Razorpay; the customer was told it would be refunded.',
+          ],
+          paid_twice: [
+            'Extra work paid twice',
+            'The request was already paid by another payment. Refund this second one in Razorpay; the customer was told it would be refunded.',
+          ],
+        }[alert.reason]
+        return lines(
+          `⚠️ ${title} #${reference(b.id)} · refund due`,
+          garageLine(b),
+          `${rupees(alert.amount)} · Razorpay payment ${alert.paymentId}`,
+          why,
+          adminBookingUrl(b.id)
+        )
+      }
       const [title, why] = {
         replaced: [
           'Final bill paid after it was replaced',

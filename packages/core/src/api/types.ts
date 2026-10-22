@@ -373,6 +373,32 @@ export interface ApiFinalBill {
   createdAt: string
 }
 
+/** Extra work as the booking payloads carry it (0041). Money is a decimal string. */
+export interface ApiExtraWork {
+  id: string
+  description: string
+  amount: string
+  note: string | null
+  photos: Array<{ url: string }>
+  state: 'awaiting' | 'paid' | 'declined' | 'withdrawn' | 'closed'
+  paidAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+}
+
+/** The garage's suggested times as the booking payloads carry them (0041). */
+export interface ApiTimeProposal {
+  id: string
+  status: 'open' | 'accepted' | 'declined' | 'expired' | 'withdrawn' | 'closed'
+  options: string[]
+  note: string | null
+  expiresAt: string
+  chosenSlot: string | null
+  resultBookingId: string | null
+  resolvedAt: string | null
+  createdAt: string
+}
+
 export interface ApiBookingPickup {
   pickedUpAt: string | null
   atGarageAt: string | null
@@ -438,6 +464,16 @@ export interface ApiBooking {
   finalBill?: ApiFinalBill | null
   /** Garage payloads only: whether "Raise final bill" applies now. */
   canRaiseFinalBill?: boolean
+  /** Extra work (0041), on payloads that carry job records. */
+  extraWork?: ApiExtraWork[]
+  /** Garage payloads only: why "Ask for extra work" is not offered, or null. */
+  extraWorkRefusal?: 'on_inspection' | 'not_open' | 'too_many_open' | null
+  /** Garage payloads only: Mark completed waits for an answer on extra work. */
+  completeBlockedByExtraWork?: boolean
+  /** The garage's suggested times (0041), on payloads that carry job records. */
+  timeProposal?: ApiTimeProposal | null
+  /** Garage payloads only: whether "Suggest another time" applies now. */
+  canSuggestTimes?: boolean
   /** What the booking already covers toward a final bill, as a decimal string. */
   paidAtBooking?: string
   /**

@@ -19,6 +19,28 @@ reconstructing every change in them.
 
 ### Added
 
+- **The garage suggests another time; extra work approved and paid in the
+  app.** Customer app: when a garage can't do a booking's time it can offer
+  up to three others. Home's must-act card ("Can't do 10:00 AM — pick
+  another time", answer by …) and an Updates row lead to the booking page,
+  where the times are buttons: picking one moves the booking there,
+  confirmed straight away; "None of these work — cancel for a full refund"
+  cancels it. A time taken meanwhile says so and drops out. Extra work the
+  garage asks for mid-job (what, photos, price, note) is a Home card
+  ("Extra work to approve · Review ₹X"), an Updates row and a section on
+  the booking page with "Approve & pay ₹X" (Razorpay, the final bill's
+  confirm flow) or Decline; answered ones stay listed. The receipt lists
+  paid extra work and its refunds. Garage portal: "Suggest another time"
+  beside Accept and Reject (a day and up to three of the garage's own free
+  times for that job, an optional note), then what was offered, until
+  when, and Withdraw times; "Ask for extra work" on accepted and in-progress
+  jobs (what, price, up to three photos, note), each request with its
+  state ("Waiting for customer", "Approved & paid — go ahead") and
+  Withdraw while unpaid; Mark completed waits while one is unanswered;
+  inspection jobs are told to use the final bill. Admin: booking detail
+  shows suggested times and how they ended, and extra work with its money
+  and Razorpay ids; refunds name extra work.
+
 - **Complaints that came by phone or WhatsApp, and answers in Updates.**
   Admin: Complaints has **Log a complaint** (customer's phone, looked up as
   it is typed: "Karthik's account" or "No account with this number" with a

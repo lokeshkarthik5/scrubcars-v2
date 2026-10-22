@@ -387,6 +387,36 @@ export interface AdminFinalBill {
   updatedAt: string
 }
 
+/** Extra work as ops sees it (0041): the customer's view plus the money trail. */
+export interface AdminExtraWork {
+  id: string
+  description: string
+  amount: string
+  note: string | null
+  photos: Array<{ url: string }>
+  state: 'awaiting' | 'paid' | 'declined' | 'withdrawn' | 'closed'
+  paidAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+  cancelReason: 'replaced' | 'withdrawn' | 'declined' | 'booking_closed' | null
+  gatewayOrderId: string | null
+  gatewayPaymentId: string | null
+  refundedAmount: string | null
+}
+
+/** A time suggestion as ops sees it (0041): what was offered and how it ended. */
+export interface AdminTimeProposal {
+  id: string
+  status: 'open' | 'accepted' | 'declined' | 'expired' | 'withdrawn' | 'closed'
+  slots: string[]
+  note: string | null
+  expiresAt: string
+  chosenSlot: string | null
+  resultBookingId: string | null
+  resolvedAt: string | null
+  createdAt: string
+}
+
 /** An ops-team note. Never shown to customers or garages. */
 export interface AdminBookingNote {
   id: string
@@ -417,6 +447,10 @@ export interface AdminBookingDetail extends AdminBooking {
   replacedFinalBills?: AdminFinalBill[]
   /** The garage's before/after photos, oldest first. */
   photos?: Array<{ id: string; stage: 'before' | 'after'; url: string; createdAt: string }>
+  /** Extra work the garage asked for (0041), newest first. */
+  extraWork?: AdminExtraWork[]
+  /** Times the garage suggested instead of declining (0041), newest first. */
+  timeProposals?: AdminTimeProposal[]
   /** Money owed back on this booking, or given back: its payment and any bills. */
   refunds?: AdminRefund[]
 }
@@ -452,6 +486,8 @@ export interface AdminRefund {
   refundNote: string | null
   /** Refunded, but not through Razorpay: the note says how. */
   outsideRazorpay: boolean
+  /** For a bill: the final bill or extra work (0041). Absent from older servers. */
+  chargeKind?: 'final_bill' | 'extra_work' | null
 }
 
 /** What POST /admin/refunds records. Exactly one of refundRef and outsideRazorpayNote. */

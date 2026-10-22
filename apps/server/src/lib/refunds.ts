@@ -145,8 +145,13 @@ export function checkoutOwed(checkout: CheckoutForRefund): string {
   return amountOwed(checkout.amount, checkout.refundedAmount)
 }
 
-/** A final bill, as the booking_charges row holds it. */
+/**
+ * A booking charge — a final bill or extra work (0041) — as the
+ * booking_charges row holds it. `kind` is absent on callers from before extra
+ * work existed, which only ever read final bills.
+ */
 export interface BillForRefund {
+  kind?: string
   status: string
   gatewayPaymentId: string | null
   amountDue: string
@@ -169,15 +174,22 @@ export function isStrayBillPayment(bill: Pick<BillForRefund, 'status' | 'gateway
  * a paid bill does when its booking was then cancelled — unless that
  * cancellation was a customer no-show, where the customer's money stays.
  *
+ * Paid extra work (0041) is kept only when its booking completes: on a
+ * booking that ends any other way — cancelled by anyone, moved to a new
+ * time, or a no-show on either side — the work was not delivered, so it goes
+ * back, a customer no-show included (lib/extra-work.ts).
+ *
  * A second payment on an already-paid bill is not here: it is recorded only
  * as a booking note, with nothing on a row to find it by.
  */
 export function isBillRefundable(
-  bill: Pick<BillForRefund, 'status' | 'gatewayPaymentId'>,
+  bill: Pick<BillForRefund, 'kind' | 'status' | 'gatewayPaymentId'>,
   booking: Pick<BookingForRefund, 'status' | 'noShow'>
 ): boolean {
   if (isStrayBillPayment(bill)) return true
-  return bill.status === 'paid' && booking.status === 'cancelled' && booking.noShow !== 'customer'
+  if (bill.status !== 'paid' || booking.status !== 'cancelled') return false
+  if (bill.kind === 'extra_work') return true
+  return booking.noShow !== 'customer'
 }
 
 export function billOwed(
@@ -342,11 +354,21 @@ export function bookingRefundReason(booking: {
   }
 }
 
-/** Why money paid on a bill is owed. */
-export function billRefundReason(bill: Pick<BillForRefund, 'status' | 'gatewayPaymentId'>): string {
+/** Why money paid on a bill (or on extra work) is owed. */
+export function billRefundReason(bill: Pick<BillForRefund, 'kind' | 'status' | 'gatewayPaymentId'>): string {
+  if (bill.kind === 'extra_work') {
+    return isStrayBillPayment(bill)
+      ? 'Extra work paid after it was withdrawn or declined'
+      : 'Extra work paid on a booking that was not completed'
+  }
   return isStrayBillPayment(bill)
     ? 'Final bill paid after it was replaced or withdrawn'
     : 'Final bill paid on a booking that was then cancelled'
+}
+
+/** "the final bill payment" or "the extra work payment", for booking notes. */
+export function billPaymentWhat(kind: string | null | undefined): string {
+  return kind === 'extra_work' ? 'the extra work payment' : 'the final bill payment'
 }
 
 /**
@@ -482,7 +504,12 @@ export function customerRefund(
   booking: BookingWithMoney,
   records: readonly CustomerRefundRecord[] = []
 ): CustomerRefund {
-  if (booking.noShow === 'customer') {
+  // A customer no-show keeps the booking's payment and its final bill; only
+  // paid extra work, which was never done, still goes back (isBillRefundable).
+  const owesExtraWork = (booking.charges ?? []).some(
+    (charge) => charge.kind === 'extra_work' && isBillRefundable(charge, booking)
+  )
+  if (booking.noShow === 'customer' && !owesExtraWork) {
     return { status: 'none', amount: '0.00', amountRefunded: '0.00', refundedAt: null }
   }
   const totals = bookingRefundTotals(booking)

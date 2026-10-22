@@ -340,3 +340,41 @@ export const getJobPhotos = async (bookingId: string) =>
     select id, stage, url, storage_key
       from job_photos where booking_id = ${bookingId} order by created_at
   `
+
+/** A booking's time suggestions from its garage (0041), newest first. */
+export const getTimeProposals = async (bookingId: string) =>
+  sql<
+    {
+      id: string
+      status: string
+      slots: string[]
+      chosen_slot: Date | null
+      result_booking_id: string | null
+      resolved_at: Date | null
+    }[]
+  >`
+    select id, status, slots, chosen_slot, result_booking_id, resolved_at
+      from booking_time_proposals where booking_id = ${bookingId} order by created_at desc
+  `
+
+/** The booking another was moved to (its rescheduled_from_id), if any. */
+export const movedTo = async (bookingId: string) =>
+  (await sql<BookingRow[]>`select * from bookings where rescheduled_from_id = ${bookingId}`)[0]
+
+/** Every charge on a booking — final bills and extra work (0041) — newest first. */
+export const getCharges = async (bookingId: string) =>
+  sql<
+    {
+      id: string
+      kind: string
+      status: string
+      amount_due: string
+      lines: Array<{ description: string; amount: string }>
+      gateway_order_id: string | null
+      gateway_payment_id: string | null
+      cancel_reason: string | null
+    }[]
+  >`
+    select id, kind, status, amount_due, lines, gateway_order_id, gateway_payment_id, cancel_reason
+      from booking_charges where booking_id = ${bookingId} order by created_at desc
+  `

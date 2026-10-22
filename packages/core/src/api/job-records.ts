@@ -1,7 +1,7 @@
 import { apiClient } from './client'
-import { mapFinalBill } from './mappers'
-import type { ApiFinalBill, ApiJobPhoto } from './types'
-import type { FinalBill, JobPhoto } from '@repo/core/types'
+import { mapExtraWork, mapFinalBill } from './mappers'
+import type { ApiExtraWork, ApiFinalBill, ApiJobPhoto } from './types'
+import type { ExtraWork, FinalBill, JobPhoto } from '@repo/core/types'
 
 /**
  * A job's records: the garage's before/after photos and the final bill of an
@@ -108,4 +108,82 @@ export async function verifyFinalBillPayment(
     { method: 'POST', body: JSON.stringify(payload) }
   )
   return { bookingId: result.bookingId, finalBill: mapFinalBill(result.finalBill) }
+}
+
+// ─── Extra work (0041) ───────────────────────────────────────────────────────
+
+export interface ExtraWorkInput {
+  description: string
+  /** Rupees. */
+  amount: number
+  note?: string
+  /** Photos already sized for upload (the portal's resizeImageForUpload), at most three. */
+  photos: Blob[]
+}
+
+/**
+ * POST /vendors/me/bookings/:id/extra-work — ask the customer for extra work.
+ * Each photo goes straight to storage first, into the job's own photo folder
+ * (the same presign as job photos), and the request names them by key.
+ */
+export async function askExtraWork(bookingId: string, input: ExtraWorkInput): Promise<ExtraWork> {
+  const photoKeys: string[] = []
+  for (const file of input.photos) {
+    const contentType = file.type as UploadContentType
+    const { uploadUrl, key } = await apiClient<{ uploadUrl: string; key: string; publicUrl: string }>(
+      `/vendors/me/bookings/${bookingId}/extra-work/upload-url`,
+      { method: 'POST', body: JSON.stringify({ contentType }) }
+    )
+    const put = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': contentType },
+    })
+    if (!put.ok) throw new Error('A photo did not upload. Please try again.')
+    photoKeys.push(key)
+  }
+
+  const work = await apiClient<ApiExtraWork>(`/vendors/me/bookings/${bookingId}/extra-work`, {
+    method: 'POST',
+    body: JSON.stringify({
+      description: input.description,
+      amount: input.amount,
+      ...(input.note ? { note: input.note } : {}),
+      photoKeys,
+    }),
+  })
+  return mapExtraWork(work)
+}
+
+/** POST /vendors/me/bookings/:id/extra-work/:chargeId/withdraw — only while unpaid. */
+export async function withdrawExtraWork(bookingId: string, chargeId: string): Promise<ExtraWork> {
+  const work = await apiClient<ApiExtraWork>(
+    `/vendors/me/bookings/${bookingId}/extra-work/${chargeId}/withdraw`,
+    { method: 'POST' }
+  )
+  return mapExtraWork(work)
+}
+
+/** POST /bookings/:id/charges/:chargeId/decline — the customer says no. */
+export async function declineExtraWork(bookingId: string, chargeId: string): Promise<ExtraWork> {
+  const work = await apiClient<ApiExtraWork>(`/bookings/${bookingId}/charges/${chargeId}/decline`, {
+    method: 'POST',
+  })
+  return mapExtraWork(work)
+}
+
+/**
+ * "Approve & pay": the same Razorpay order and verify as a final bill
+ * (payFinalBill opens it); paying is the approval.
+ */
+export async function verifyExtraWorkPayment(
+  bookingId: string,
+  chargeId: string,
+  payload: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }
+): Promise<{ bookingId: string; extraWork: ExtraWork }> {
+  const result = await apiClient<{ bookingId: string; extraWork: ApiExtraWork }>(
+    `/bookings/${bookingId}/charges/${chargeId}/verify`,
+    { method: 'POST', body: JSON.stringify(payload) }
+  )
+  return { bookingId: result.bookingId, extraWork: mapExtraWork(result.extraWork) }
 }

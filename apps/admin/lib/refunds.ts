@@ -13,6 +13,15 @@ export const REFUND_KIND_LABEL: Record<RefundKind, string> = {
 }
 
 /**
+ * What a refund is of, as the list and the dialogs say it: a bill names
+ * whether it was the final bill or extra work (0041), both kind 'bill'.
+ */
+export function refundKindLabel(refund: Pick<AdminRefund, 'kind' | 'chargeKind'>): string {
+  if (refund.kind === 'bill' && refund.chargeKind === 'extra_work') return 'Extra work payment'
+  return REFUND_KIND_LABEL[refund.kind]
+}
+
+/**
  * The refund a "Mark refunded…" dialog should show: the latest copy of the
  * one that was clicked, from the list as it is now. Gone from the Owed list
  * means a refetch found nothing left owed on it, so the clicked copy is

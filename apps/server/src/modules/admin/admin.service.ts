@@ -14,6 +14,7 @@ import {
   waitingMinutes,
 } from '../../lib/booking-ops.js'
 import { liveFinalBill, type FinalBillRecord } from '../../lib/final-bill.js'
+import { toExtraWorkView } from '../../lib/extra-work.js'
 import { bookingRefundTotals } from '../../lib/refunds.js'
 import { toJobPhotoView } from '../../lib/job-records.js'
 import { alertOps } from '../../lib/ops-alerts.js'
@@ -271,8 +272,54 @@ function toAdminFinalBill(bill: FinalBillRecord) {
  */
 function billDueOf(booking: AdminBookingRecord): string | null {
   if (booking.status === 'cancelled') return null
-  const bill = liveFinalBill(booking.charges)
-  return bill?.status === 'due' ? bill.amountDue : null
+  // The final bill and any extra work waiting to be paid (0041), added up.
+  const due = booking.charges.filter(
+    (charge) =>
+      charge.status === 'due' && (charge.kind === 'extra_work' || charge === liveFinalBill(booking.charges))
+  )
+  if (due.length === 0) return null
+  return (due.reduce((total, charge) => total + Math.round(Number(charge.amountDue) * 100), 0) / 100).toFixed(2)
+}
+
+/**
+ * Extra work on a booking as ops sees it (0041): what the customer sees, plus
+ * the Razorpay ids, the refund so far and why it was closed.
+ */
+function toAdminExtraWork(charge: AdminBookingRecord['charges'][number]) {
+  return {
+    ...toExtraWorkView(charge),
+    cancelReason: charge.cancelReason ?? null,
+    gatewayOrderId: charge.gatewayOrderId,
+    gatewayPaymentId: charge.gatewayPaymentId,
+    refundedAmount: charge.refundedAmount ?? null,
+  }
+}
+
+/** A time suggestion as ops sees it: the times, the outcome, and when. */
+function toAdminTimeProposal(
+  proposal: {
+    id: string
+    status: string
+    slots: string[]
+    note: string | null
+    expiresAt: Date
+    chosenSlot: Date | null
+    resultBookingId: string | null
+    resolvedAt: Date | null
+    createdAt: Date
+  }
+) {
+  return {
+    id: proposal.id,
+    status: proposal.status,
+    slots: proposal.slots,
+    note: proposal.note,
+    expiresAt: proposal.expiresAt.toISOString(),
+    chosenSlot: proposal.chosenSlot?.toISOString() ?? null,
+    resultBookingId: proposal.resultBookingId,
+    resolvedAt: proposal.resolvedAt?.toISOString() ?? null,
+    createdAt: proposal.createdAt.toISOString(),
+  }
 }
 
 /**
@@ -431,7 +478,7 @@ async function loadBookingDetail(id: string, now: number) {
     refundsService.listForBooking(id),
   ])
 
-  const { notes, photos, ...row } = booking
+  const { notes, photos, timeProposals, ...row } = booking
   const finalBill = liveFinalBill(booking.charges)
   return {
     ...toAdminBookingRow(row, notes.length, now, rescheduledToId !== null),
@@ -445,6 +492,10 @@ async function loadBookingDetail(id: string, now: number) {
     replacedFinalBills: booking.charges
       .filter((charge) => charge.kind === 'final_bill' && charge.status === 'cancelled')
       .map(toAdminFinalBill),
+    // Extra work the garage asked for (0041), newest first, whatever became
+    // of each, and the times it suggested instead of declining.
+    extraWork: booking.charges.filter((charge) => charge.kind === 'extra_work').map(toAdminExtraWork),
+    timeProposals: timeProposals.map(toAdminTimeProposal),
     photos: photos.map(toJobPhotoView),
     lat: booking.lat,
     lng: booking.lng,

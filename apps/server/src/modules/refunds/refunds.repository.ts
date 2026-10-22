@@ -71,7 +71,9 @@ const BILL_MAY_BE_OWED = and(
     and(
       eq(bookingCharges.status, 'paid'),
       eq(bookings.status, 'cancelled'),
-      or(isNull(bookings.noShow), ne(bookings.noShow, 'customer'))
+      // Paid extra work goes back on any booking that did not complete, a
+      // customer no-show included (lib/refunds.ts isBillRefundable).
+      or(isNull(bookings.noShow), ne(bookings.noShow, 'customer'), eq(bookingCharges.kind, 'extra_work'))
     )
   )
 )
@@ -138,6 +140,7 @@ function billRows(where: SQL | undefined, conn: Conn = db) {
     .select({
       chargeId: bookingCharges.id,
       bookingId: bookingCharges.bookingId,
+      kind: bookingCharges.kind,
       status: bookingCharges.status,
       amountDue: bookingCharges.amountDue,
       gatewayPaymentId: bookingCharges.gatewayPaymentId,

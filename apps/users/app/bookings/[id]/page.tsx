@@ -60,6 +60,8 @@ import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking-directions-sheet'
 import { FinalBillCard, type BillPayment } from '@/components/final-bill-card'
+import { ExtraWorkCard } from '@/components/extra-work-card'
+import { TimeProposalCard } from '@/components/time-proposal-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
@@ -138,6 +140,25 @@ function cancelledPanel(booking: Booking): { title: string; lines: string[] } {
     }
   }
 
+  // None of the garage's suggested times was picked (0041): said as what
+  // happened. The reason names it; the refund line follows.
+  if (booking.cancelledBy === 'vendor' && booking.timeProposal) {
+    if (booking.timeProposal.status === 'declined') {
+      return {
+        title: "None of the garage's times worked",
+        lines: withRefund(['You cancelled this booking instead of picking another time.']),
+      }
+    }
+    if (booking.timeProposal.status === 'expired') {
+      return {
+        title: 'No time was picked in time',
+        lines: withRefund([
+          `${booking.vendorName} couldn't do your time and suggested others, so this booking was cancelled.`,
+        ]),
+      }
+    }
+  }
+
   if (booking.cancelledBy === 'vendor') {
     return {
       title: 'Rejected by vendor',
@@ -184,14 +205,18 @@ export default function BookingDetailPage({
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loadError, setLoadError] = useState(false)
   // Where Home sent the customer, read once like ?celebrate below: ?then=pay
-  // (a final bill), reschedule (the garage is shut that day) or help, and
+  // (a final bill), times (the garage suggested other times), extra (extra
+  // work to approve), reschedule (the garage is shut that day) or help, and
   // ?rate=N (a star tapped on "Rate your wash", so the form opens with it
   // chosen; the review is only sent from here, with Submit).
   const [arrival] = useState(() => {
     const then = queryValue('then')
     const rate = Number(queryValue('rate'))
     return {
-      then: then === 'pay' || then === 'reschedule' || then === 'help' ? then : null,
+      then:
+        then === 'pay' || then === 'reschedule' || then === 'help' || then === 'times' || then === 'extra'
+          ? then
+          : null,
       rate: Number.isInteger(rate) && rate >= 1 && rate <= 5 ? rate : 0,
     }
   })
@@ -274,6 +299,10 @@ export default function BookingDetailPage({
         document.getElementById(elementId)?.scrollIntoView({ block: 'start' })
       )
     if (arrival.then === 'pay' && booking.finalBill?.status === 'due') scrollTo('final-bill')
+    if (arrival.then === 'times' && booking.timeProposal?.status === 'open') scrollTo('time-proposal')
+    if (arrival.then === 'extra' && booking.extraWork.some((work) => work.state === 'awaiting')) {
+      scrollTo('extra-work')
+    }
     if (arrival.rate > 0 && booking.status === 'completed') scrollTo('rate')
     // Then off the URL, as ?celebrate is: handled once, so Back or a reload
     // does not open the reschedule or help sheet again unasked, nor put back
@@ -538,11 +567,19 @@ export default function BookingDetailPage({
   const awaitingGarage = booking.status === 'pending'
   // Still pending at its start time: the garage can no longer accept it (the
   // server refuses), so the page stops promising that it might.
+  // A choice of other times from the garage (0041) is that answer instead.
+  const timeProposal = booking.timeProposal?.status === 'open' ? booking.timeProposal : null
   const missedByGarage =
-    booking.status === 'pending' && new Date(booking.scheduledAtIso).getTime() <= now
+    booking.status === 'pending' && new Date(booking.scheduledAtIso).getTime() <= now && !timeProposal
   // A final bill with a balance makes paying it the page's one main action,
   // so nothing else on the page is red while it is due.
-  const billDue = booking.finalBill?.status === 'due' && booking.status !== 'cancelled'
+  // So is extra work waiting for approval, and a choice of times from the
+  // garage (0041): each is the thing to do here.
+  const billDue =
+    (booking.finalBill?.status === 'due' && booking.status !== 'cancelled') ||
+    (['confirmed', 'in_progress'].includes(booking.status) &&
+      booking.extraWork.some((work) => work.state === 'awaiting')) ||
+    timeProposal !== null
   // When each step happened, under the step. An older booking has none.
   const stepTime = (iso: string | undefined) => (iso ? formatStepTime(iso, now) : undefined)
   const isPickup = booking.bookingType === 'pickup'
@@ -550,7 +587,9 @@ export default function BookingDetailPage({
   // customer can no longer cancel or move the booking in the app (the
   // server's 409 CAR_WITH_GARAGE). Help is the way to reach anyone.
   const carAway = carWithGarage(booking)
-  const canChange = ['pending', 'confirmed'].includes(booking.status) && !carAway
+  // While the garage's suggested times wait for an answer, that card is the
+  // way to move or cancel: it carries both, and the refund that goes with them.
+  const canChange = ['pending', 'confirmed'].includes(booking.status) && !carAway && !timeProposal
 
   return (
     <CustomerShell showNav className="gap-4 py-4">
@@ -698,6 +737,28 @@ export default function BookingDetailPage({
         </div>
       </ScCard>
 
+      {/* The garage can't do the booked time and suggested others: the
+          first thing to answer, right under the booking. */}
+      {timeProposal && (
+        <TimeProposalCard
+          key={timeProposal.id}
+          booking={booking}
+          proposal={timeProposal}
+          onMoved={(moved) => {
+            setBooking(moved)
+            void invalidateHome(queryClient)
+            router.replace(`/bookings/${moved.id}`)
+          }}
+          onDeclined={(cancelledBooking) => {
+            setBooking(cancelledBooking)
+            void invalidateHome(queryClient)
+          }}
+          onStale={() => {
+            void getBooking(booking.id).then((fresh) => fresh && setBooking(fresh))
+          }}
+        />
+      )}
+
       {/* The handover code, right under the booking: it is what the customer
           needs at the door. */}
       {isPickup && !missedByGarage && <PickupCodeCard booking={booking} />}
@@ -745,6 +806,19 @@ export default function BookingDetailPage({
             customer={{ name: profile?.name, phone: profile?.phone }}
           />
         )}
+
+      {/* Extra work the garage asked for: to approve and pay, or decline,
+          while the job is on; answered ones stay as the record. */}
+      {booking.extraWork.length > 0 && (
+        <ExtraWorkCard
+          booking={booking}
+          onUpdated={(updated) => {
+            setBooking(updated)
+            void invalidateHome(queryClient)
+          }}
+          customer={{ name: profile?.name, phone: profile?.phone }}
+        />
+      )}
 
       <JobPhotosCard photos={booking.jobPhotos} />
 

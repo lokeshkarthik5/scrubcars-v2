@@ -22,6 +22,8 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useNow } from '@repo/core/hooks/use-now'
 import { toast } from 'react-toastify'
 import { FinalBillPanel } from '@/components/final-bill'
+import { ExtraWorkPanel } from '@/components/extra-work'
+import { SuggestTimes } from '@/components/suggest-times'
 import { ActiveGarage } from '@/components/active-garage'
 import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
@@ -255,7 +257,11 @@ export default function VendorBookingsPage() {
                 </p>
               )}
 
-              {tab === 'incoming' && rejectId !== b.id && slotPassed(b, now) && (
+              {/* Times suggested instead of a decision (0041): what was
+                  offered, until when, and Withdraw. Accept and Reject wait. */}
+              {tab === 'incoming' && proposalOpen(b) && <SuggestTimes booking={b} onChanged={refresh} />}
+
+              {tab === 'incoming' && !proposalOpen(b) && rejectId !== b.id && slotPassed(b, now) && (
                 // Accepting is refused once the time has passed: the customer
                 // waited and nobody answered. Declining frees the refund.
                 <div className="flex flex-col gap-2">
@@ -270,10 +276,11 @@ export default function VendorBookingsPage() {
                   >
                     Reject
                   </ScButton>
+                  <SuggestTimes booking={b} onChanged={refresh} />
                 </div>
               )}
 
-              {tab === 'incoming' && rejectId !== b.id && !slotPassed(b, now) && (
+              {tab === 'incoming' && !proposalOpen(b) && rejectId !== b.id && !slotPassed(b, now) && (
                 <div className="grid grid-cols-2 gap-2">
                   {/* A list of identical "Accept" buttons announces as a list of
                       identical "Accept" buttons; the name has to say whose job
@@ -291,6 +298,10 @@ export default function VendorBookingsPage() {
                   >
                     Accept
                   </ScButton>
+                  {/* Can't do this time? Offer others instead of rejecting. */}
+                  <div className="col-span-2 flex flex-col">
+                    <SuggestTimes booking={b} onChanged={refresh} />
+                  </div>
                 </div>
               )}
 
@@ -325,6 +336,18 @@ export default function VendorBookingsPage() {
                 <FinalBillPanel booking={b} onChanged={refresh} />
               )}
 
+              {/* Extra work the customer approves by paying in the app (0041). */}
+              {(tab === 'upcoming' || tab === 'completed' || tab === 'cancelled') && (
+                <ExtraWorkPanel booking={b} onChanged={refresh} />
+              )}
+
+              {tab === 'upcoming' && b.completeBlockedByExtraWork && (
+                <p className="text-[12px] text-text-secondary">
+                  Waiting for {b.customerName ?? 'the customer'} to answer your extra-work request. Withdraw
+                  it, or wait for their answer, before completing the job.
+                </p>
+              )}
+
               {/* Pickup & drop has its own steps around the work: one button
                   for whatever the job waits for, from the server. */}
               {tab === 'upcoming' && b.bookingType === 'pickup' && (
@@ -347,6 +370,7 @@ export default function VendorBookingsPage() {
               {tab === 'upcoming' && b.bookingType !== 'pickup' && b.status === 'in_progress' && (
                 <ScButton
                   aria-label={`Mark booking for ${b.customerName} completed`}
+                  disabled={b.completeBlockedByExtraWork}
                   onClick={() => handleStatus(b.id, 'completed')}
                 >
                   Mark completed
@@ -412,6 +436,13 @@ export default function VendorBookingsPage() {
 function cancelledLabel(b: Booking): string {
   if (b.noShow === 'customer') return 'Customer no-show'
   if (b.noShow === 'garage') return 'Marked as garage no-show'
+  // None of the times the garage suggested was taken (0041).
+  if (b.cancelledBy === 'vendor' && b.timeProposal?.status === 'declined') {
+    return 'None of your suggested times worked for the customer'
+  }
+  if (b.cancelledBy === 'vendor' && b.timeProposal?.status === 'expired') {
+    return "The customer didn't pick one of your times in time"
+  }
   switch (b.cancelledBy) {
     case 'vendor':
       return 'Rejected by you'
@@ -443,4 +474,13 @@ function photosOpen(b: Booking, now: number): boolean {
 /** A pending job whose start time has come and gone: it can only be rejected. */
 function slotPassed(b: Booking, now: number): boolean {
   return b.status === 'pending' && new Date(b.scheduledAtIso).getTime() <= now
+}
+
+/**
+ * The garage suggested other times, and the customer hasn't answered yet —
+ * or let them run out, and the booking is about to be cancelled. Accept and
+ * Reject wait either way.
+ */
+function proposalOpen(b: Booking): boolean {
+  return b.status === 'pending' && (b.timeProposal?.status === 'open' || b.timeProposal?.status === 'expired')
 }

@@ -11,7 +11,9 @@ import {
 } from '../../middleware/tenant.middleware.js'
 import * as chargesController from './booking-charges.controller.js'
 import {
+  askExtraWorkSchema,
   chargeParamSchema,
+  extraWorkUploadUrlSchema,
   jobIdParamSchema,
   raiseFinalBillSchema,
   verifyChargePaymentSchema,
@@ -52,6 +54,21 @@ bookingChargesRoutes.post(
     )
 )
 
+// Declining extra work the garage asked for (0041). Paying it is the same
+// pay/verify as a final bill: paying is the approval.
+bookingChargesRoutes.post(
+  '/:id/charges/:chargeId/decline',
+  authMiddleware,
+  requireCustomer,
+  zValidator('param', chargeParamSchema),
+  (c) =>
+    chargesController.declineExtraWork(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').chargeId
+    )
+)
+
 /**
  * The garage's side, mounted at /vendors/me/bookings: raising the final bill
  * of an inspection job. Widened to operators on purpose — whoever inspects
@@ -83,5 +100,45 @@ vendorFinalBillRoutes.post(
       c,
       c.req.valid('param').id,
       c.req.valid('json')
+    )
+)
+
+// Extra work (0041): asked by whoever is doing the job, like the final bill.
+// The price is what the garage asks the customer for, not payout money.
+vendorFinalBillRoutes.post(
+  '/:id/extra-work/upload-url',
+  ...jobMiddleware,
+  zValidator('param', jobIdParamSchema),
+  zValidator('json', extraWorkUploadUrlSchema),
+  (c) =>
+    chargesController.createExtraWorkUploadUrl(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+
+vendorFinalBillRoutes.post(
+  '/:id/extra-work',
+  ...jobMiddleware,
+  zValidator('param', jobIdParamSchema),
+  zValidator('json', askExtraWorkSchema),
+  (c) =>
+    chargesController.askExtraWork(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+
+vendorFinalBillRoutes.post(
+  '/:id/extra-work/:chargeId/withdraw',
+  ...jobMiddleware,
+  zValidator('param', chargeParamSchema),
+  (c) =>
+    chargesController.withdrawExtraWork(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').chargeId
     )
 )

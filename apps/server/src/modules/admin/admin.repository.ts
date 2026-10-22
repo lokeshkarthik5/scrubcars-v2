@@ -27,6 +27,7 @@ import { containsPattern } from '../../lib/search.js'
 import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
 import {
   bookingCharges,
+  bookingTimeProposals,
   bookingIntents,
   bookingItems,
   bookingNotes,
@@ -500,6 +501,8 @@ export const adminRepository = {
         ...ADMIN_BOOKING_RELATIONS,
         notes: { orderBy: [desc(bookingNotes.createdAt), desc(bookingNotes.id)] },
         photos: { orderBy: [asc(jobPhotos.createdAt), asc(jobPhotos.id)] },
+        // Every time suggestion the garage made on it (0041), newest first.
+        timeProposals: { orderBy: [desc(bookingTimeProposals.createdAt)] },
       },
     })
   },
@@ -592,10 +595,17 @@ export const adminRepository = {
       // a withdrawn bill, which is noted and alerted as a refund (see
       // settleCaptured in booking-charges.service). A paid bill is left as
       // it is; whether that money goes back is ops' call.
+      //
+      // Unpaid extra work goes the same way (0041), and an open time
+      // suggestion from the garage is closed: the booking it was about is off.
       await tx
         .update(bookingCharges)
-        .set({ status: 'cancelled', updatedAt: change.at })
+        .set({ status: 'cancelled', cancelReason: 'booking_closed', cancelledAt: change.at, updatedAt: change.at })
         .where(and(eq(bookingCharges.bookingId, bookingId), eq(bookingCharges.status, 'due')))
+      await tx
+        .update(bookingTimeProposals)
+        .set({ status: 'closed', resolvedAt: change.at })
+        .where(and(eq(bookingTimeProposals.bookingId, bookingId), eq(bookingTimeProposals.status, 'open')))
 
       return cancelled
     })

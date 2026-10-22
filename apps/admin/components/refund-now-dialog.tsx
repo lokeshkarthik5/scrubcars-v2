@@ -10,7 +10,7 @@ import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useSendAdminRefund } from '@repo/core/api/hooks/use-admin-refunds'
 import { BANK_DAYS } from '@repo/core/refunds'
 import { formatRupees } from '@/lib/bookings'
-import { REFUND_KIND_LABEL } from '@/lib/refunds'
+import { refundKindLabel } from '@/lib/refunds'
 
 /** Rupees as typed, in paise, or null when it isn't an amount to the paisa. */
 function toPaise(value: string): number | null {
@@ -108,7 +108,7 @@ export function RefundNowDialog({
           Refund now <span className="font-numeric">#{refund.reference}</span>
         </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
-          {REFUND_KIND_LABEL[refund.kind]} · {refund.reason}
+          {refundKindLabel(refund)} · {refund.reason}
         </p>
       </div>
 

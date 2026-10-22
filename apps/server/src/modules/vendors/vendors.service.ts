@@ -833,6 +833,115 @@ export async function vendorCardsFor(
   })
 }
 
+/**
+ * The free start times for one job at a garage on one IST day: the slot
+ * list's whole rule (lib/slots.ts) for a job of `durationMins` of this
+ * booking type — open hours, holidays and pause, the notice, then the bays
+ * and the day's cap. `excludeBookingId` is a booking being moved, which must
+ * not count against itself. The customer's slot picker and the garage's
+ * "Suggest another time" (0041) both read it, so the two never offer
+ * different times.
+ */
+type BookingTypeForSlots = SlotsQueryInput['bookingType']
+
+export async function jobSlots(
+  vendor: {
+    id: string
+    bookingsPausedAt: Date | null
+    slotIntervalMins: number
+    bays: number | null
+    jobsPerDay: number | null
+  },
+  job: { date: string; bookingType: BookingTypeForSlots; durationMins: number; serviceIds: string[] },
+  options: { excludeBookingId?: string } = {}
+) {
+  const durationMins = job.durationMins
+  const dayOfWeek = getDayOfWeekFromDate(job.date)
+  const [hours, closure] = await Promise.all([
+    vendorsRepository.findWorkingHoursForDay(vendor.id, dayOfWeek),
+    bookingsRepository.findClosure(vendor.id, job.date),
+  ])
+
+  const minNoticeMins = MIN_NOTICE_MS[job.bookingType] / 60_000
+  const base = {
+    date: job.date,
+    serviceIds: job.serviceIds,
+    durationMins,
+    slotIntervalMins: vendor.slotIntervalMins,
+    minNoticeMins,
+  }
+
+  const day = dayStatus({
+    pausedAt: vendor.bookingsPausedAt,
+    isHoliday: !!closure,
+    hours,
+  })
+
+  // A paused garage is not "closed on this day" — every day is the same to
+  // it — so it says `paused` rather than borrowing isClosed. A holiday is a
+  // closed day like a weekly one, and `closedReason` tells the two apart.
+  if (!day.open) {
+    return {
+      ...base,
+      isClosed: day.reason !== 'paused',
+      closedReason: day.reason === 'paused' ? null : day.reason,
+      paused: day.reason === 'paused',
+      fitsInDay: true,
+      fullSlots: 0,
+      slots: [] as string[],
+    }
+  }
+
+  const openHours = hours!
+  const allDay = computeAvailableSlots({
+    date: job.date,
+    openTime: openHours.openTime,
+    closeTime: openHours.closeTime,
+    intervalMins: vendor.slotIntervalMins,
+    isClosed: openHours.isClosed,
+    serviceDurationMins: durationMins,
+  })
+  // Past times and times too soon for the garage to accept (1h at the
+  // garage, 3h doorstep) are not offered at all.
+  const noticed = filterByMinNotice(allDay, job.bookingType)
+
+  // Then the garage's room: a time at which it already has as many cars as
+  // bays, or a day that has reached its job cap, is not offered. Only read
+  // when there is something left to filter.
+  const busy =
+    noticed.length > 0
+      ? await bookingsRepository.listCapacityHolders({
+          vendorId: vendor.id,
+          date: job.date,
+          excludeBookingId: options.excludeBookingId,
+        })
+      : []
+  const slots = filterByCapacity(noticed, {
+    durationMins,
+    busy,
+    bays: vendor.bays,
+    jobsPerDay: vendor.jobsPerDay,
+  })
+
+  log.debug({ vendorId: vendor.id, date: job.date, serviceIds: job.serviceIds, durationMins, bookingType: job.bookingType, count: slots.length, full: noticed.length - slots.length }, 'slots:computed')
+
+  // `fitsInDay` is judged before the notice and capacity filters: an empty
+  // list because the job is longer than the garage's day ("pick fewer
+  // services") is a different message from an evening with no time left
+  // ("pick another day"). `fullSlots` is how many times had enough notice
+  // but were booked up, so the picker can say "all booked" when that is why
+  // the list is empty.
+  return {
+    ...base,
+    isClosed: false,
+    closedReason: null,
+    paused: false,
+    fitsInDay: allDay.length > 0,
+    fullSlots: noticed.length - slots.length,
+    slots,
+  }
+}
+
 export const vendorsService = {
   async listPublicVendors(
     query: ListPublicVendorsQuery
@@ -1758,90 +1867,11 @@ export const vendorsService = {
       0
     )
 
-    const dayOfWeek = getDayOfWeekFromDate(query.date)
-    const [hours, closure] = await Promise.all([
-      vendorsRepository.findWorkingHoursForDay(vendor.id, dayOfWeek),
-      bookingsRepository.findClosure(vendor.id, query.date),
-    ])
-
-    const minNoticeMins = MIN_NOTICE_MS[query.bookingType] / 60_000
-    const base = {
-      date: query.date,
-      serviceIds: query.serviceIds,
-      durationMins,
-      slotIntervalMins: vendor.slotIntervalMins,
-      minNoticeMins,
-    }
-
-    const day = dayStatus({
-      pausedAt: vendor.bookingsPausedAt,
-      isHoliday: !!closure,
-      hours,
-    })
-
-    // A paused garage is not "closed on this day" — every day is the same to
-    // it — so it says `paused` rather than borrowing isClosed. A holiday is a
-    // closed day like a weekly one, and `closedReason` tells the two apart.
-    if (!day.open) {
-      return {
-        ...base,
-        isClosed: day.reason !== 'paused',
-        closedReason: day.reason === 'paused' ? null : day.reason,
-        paused: day.reason === 'paused',
-        fitsInDay: true,
-        fullSlots: 0,
-        slots: [] as string[],
-      }
-    }
-
-    const openHours = hours!
-    const allDay = computeAvailableSlots({
-      date: query.date,
-      openTime: openHours.openTime,
-      closeTime: openHours.closeTime,
-      intervalMins: vendor.slotIntervalMins,
-      isClosed: openHours.isClosed,
-      serviceDurationMins: durationMins,
-    })
-    // Past times and times too soon for the garage to accept (1h at the
-    // garage, 3h doorstep) are not offered at all.
-    const noticed = filterByMinNotice(allDay, query.bookingType)
-
-    // Then the garage's room: a time at which it already has as many cars as
-    // bays, or a day that has reached its job cap, is not offered. Only read
-    // when there is something left to filter.
-    const busy =
-      noticed.length > 0
-        ? await bookingsRepository.listCapacityHolders({
-            vendorId: vendor.id,
-            date: query.date,
-            excludeBookingId: options.excludeBookingId,
-          })
-        : []
-    const slots = filterByCapacity(noticed, {
-      durationMins,
-      busy,
-      bays: vendor.bays,
-      jobsPerDay: vendor.jobsPerDay,
-    })
-
-    log.debug({ vendorId: vendor.id, date: query.date, serviceIds: query.serviceIds, durationMins, bookingType: query.bookingType, count: slots.length, full: noticed.length - slots.length }, 'slots:computed')
-
-    // `fitsInDay` is judged before the notice and capacity filters: an empty
-    // list because the job is longer than the garage's day ("pick fewer
-    // services") is a different message from an evening with no time left
-    // ("pick another day"). `fullSlots` is how many times had enough notice
-    // but were booked up, so the picker can say "all booked" when that is why
-    // the list is empty.
-    return {
-      ...base,
-      isClosed: false,
-      closedReason: null,
-      paused: false,
-      fitsInDay: allDay.length > 0,
-      fullSlots: noticed.length - slots.length,
-      slots,
-    }
+    return jobSlots(
+      vendor,
+      { date: query.date, bookingType: query.bookingType, durationMins, serviceIds: query.serviceIds },
+      options
+    )
   },
 
   /**

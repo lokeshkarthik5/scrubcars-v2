@@ -5,6 +5,9 @@ import {
   FALLBACK_REFUND_MESSAGE,
   FINAL_BILL_CANCELLED_MESSAGE,
   FINAL_BILL_REPLACED_MESSAGE,
+  extraWorkPollResult,
+  EXTRA_WORK_CANCELLED_MESSAGE,
+  EXTRA_WORK_CLOSED_MESSAGE,
   finalBillPollResult,
   intentPollResult,
   isRetryable,
@@ -295,5 +298,25 @@ describe('paymentHelpMessage', () => {
     expect(paymentHelpMessage('pay_ABC123', 'bill_not_marked_paid')).toContain(
       "paid the final bill for my booking but it doesn't show as paid yet"
     )
+  })
+})
+
+describe('extraWorkPollResult', () => {
+  test('paid is done; still awaiting keeps looking', () => {
+    expect(extraWorkPollResult('b1', 'x1', [{ id: 'x1', state: 'paid' }])).toEqual({ kind: 'booked', bookingId: 'b1' })
+    expect(extraWorkPollResult('b1', 'x1', [{ id: 'x1', state: 'awaiting' }])).toEqual({ kind: 'pending' })
+  })
+
+  test('withdrawn, declined or gone: the payment goes back, said for why', () => {
+    for (const state of ['withdrawn', 'declined', 'closed']) {
+      expect(extraWorkPollResult('b1', 'x1', [{ id: 'x1', state }])).toEqual({
+        kind: 'failed',
+        message: EXTRA_WORK_CLOSED_MESSAGE,
+      })
+    }
+    expect(extraWorkPollResult('b1', 'x1', [], 'cancelled')).toEqual({
+      kind: 'failed',
+      message: EXTRA_WORK_CANCELLED_MESSAGE,
+    })
   })
 })

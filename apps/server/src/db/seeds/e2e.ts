@@ -64,6 +64,7 @@ import {
   OTP_LIMITED_CUSTOMER,
   PICKUP_HOME,
   PICKUP_PIN,
+  PROPOSALS_PIN,
   REVIEWS,
   SERVICES,
   STAFF,
@@ -1991,6 +1992,65 @@ async function seedPickupRows() {
   })
 }
 
+/**
+ * Suggested times and extra work (0041), on a garage of their own so nothing
+ * else books its bays: VENDORS.proposals with its owner's seat, hours and
+ * one service, the three customers' cars, and their bookings. Every id and
+ * phone is in the 2100–2199 / 90000021xx range reserved for this feature.
+ * Garage before services before bookings, as the foreign keys need.
+ */
+async function seedProposalRows() {
+  const garage = VENDORS.proposals.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.proposalsOwner.id, businessName: VENDORS.proposals.name,
+    phone: '9000002100', address: '3, Proposal Street, Chengalpattu', city: 'Chennai', pincode: '603001',
+    lat: PROPOSALS_PIN.lat, lng: PROPOSALS_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'active', bays: 2,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.proposalsOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.proposalsWash.id, vendorId: garage, name: SERVICES.proposalsWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.proposalsWash.price, durationMins: SERVICES.proposalsWash.durationMins, isActive: true,
+  })
+
+  const customers = [CUSTOMERS.proposalPicker, CUSTOMERS.proposalDecliner, CUSTOMERS.extraWorkPayer]
+  await db.insert(userVehicles).values(
+    customers.map((c, i) => ({
+      id: c.vehicleId, userId: c.id, make: 'Maruti', model: 'Baleno', color: 'White',
+      licensePlate: `TN21PX${String(i).padStart(4, '0')}`, vehicleType: 'hatchback' as const, isDefault: true,
+    }))
+  )
+
+  const wash = {
+    id: SERVICES.proposalsWash.id, name: SERVICES.proposalsWash.name,
+    amount: SERVICES.proposalsWash.price, durationMins: SERVICES.proposalsWash.durationMins,
+  }
+  await insertBooking({
+    id: BOOKINGS.proposalPick, userId: CUSTOMERS.proposalPicker.id, vendorId: garage,
+    vehicleId: CUSTOMERS.proposalPicker.vehicleId, scheduledAt: tomorrowAt(10), status: 'pending',
+    items: [wash], payment: { status: 'paid', txnId: 'pay_seed_proposal_pick', gatewayMode: 'fake' },
+    createdAt: hoursAgo(1),
+  })
+  await insertBooking({
+    id: BOOKINGS.proposalDecline, userId: CUSTOMERS.proposalDecliner.id, vendorId: garage,
+    vehicleId: CUSTOMERS.proposalDecliner.vehicleId, scheduledAt: tomorrowAt(12), status: 'pending',
+    items: [wash], payment: { status: 'paid', txnId: 'pay_seed_proposal_decline', gatewayMode: 'fake' },
+    createdAt: hoursAgo(1),
+  })
+  await insertBooking({
+    id: BOOKINGS.extraWorkJob, userId: CUSTOMERS.extraWorkPayer.id, vendorId: garage,
+    vehicleId: CUSTOMERS.extraWorkPayer.vehicleId, scheduledAt: anHourAgo(), status: 'in_progress',
+    items: [wash], payment: { status: 'paid', txnId: 'pay_seed_extra_work', gatewayMode: 'fake' },
+    createdAt: daysAgo(1), acceptedAt: hoursAgo(3), startedAt: anHourAgo(),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2028,6 +2088,8 @@ async function main() {
   await seedPayoutRows()
   console.log('[e2e-seed] pickup & drop…')
   await seedPickupRows()
+  console.log('[e2e-seed] suggested times & extra work…')
+  await seedProposalRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

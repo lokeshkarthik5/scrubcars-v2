@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  billDueCards,
   buildCars,
   canChangeTime,
   complaintAnswerCard,
@@ -14,6 +15,7 @@ import {
 } from './home-cards.js'
 import type { HubBooking, HubComplaint } from './home-updates.js'
 import type { NoticeRow } from './notices.js'
+import { istDateKey } from './ist.js'
 
 // Fixed clock: Mon 12 Oct 2026, 12:00 IST.
 const NOW = new Date('2026-10-12T06:30:00Z')
@@ -59,6 +61,7 @@ const noDays: GarageDays = { closures: new Map(), hours: new Map() }
 
 const bill = (id: string, createdAt: Date) => ({
   id,
+  kind: 'final_bill',
   status: 'due',
   amountDue: '800.00',
   createdAt,
@@ -486,5 +489,77 @@ describe('a resolved complaint on Home', () => {
     )
     expect(rate.softCard?.kind).toBe('rate')
     expect(softCardWithComplaint(rate, complaints, LONG_AGO, NOW)).toBe(rate.softCard)
+  })
+})
+
+describe('suggested times and extra work (0041)', () => {
+  const proposal = (overrides: Partial<NonNullable<HubBooking['proposal']>> = {}) => ({
+    id: 'p1',
+    status: 'open',
+    slots: [ahead(5 * HOUR).toISOString(), ahead(7 * HOUR).toISOString()],
+    expiresAt: ahead(4 * HOUR),
+    createdAt: ago(HOUR),
+    resolvedAt: null,
+    ...overrides,
+  })
+  const extraWork = (id: string, createdAt: Date) => ({
+    ...bill(id, createdAt),
+    kind: 'extra_work',
+    amountDue: '450.00',
+    description: 'Replace wiper blades',
+  })
+
+  test('the order: suggested times, then extra work, then a bill, then a closed day', () => {
+    const asked = booking({ id: 'work', status: 'in_progress', charges: [extraWork('x1', ago(HOUR))] })
+    const billed = booking({ id: 'billed', status: 'completed', charges: [bill('c1', ago(2 * HOUR))] })
+    const proposed = booking({ id: 'proposed', status: 'pending', proposal: proposal() })
+
+    const all = pickActionCards([billed, asked, proposed], noDays, NOW)
+    expect(all.mustAct).toMatchObject({
+      kind: 'time_proposal',
+      bookingId: 'proposed',
+      proposalId: 'p1',
+      vendorName: 'Next Level',
+      options: proposal().slots,
+      expiresAt: ahead(4 * HOUR).toISOString(),
+    })
+    expect(all.softCard).toBeNull()
+    expect(all.todo.map((card) => card.kind)).toEqual(['time_proposal', 'extra_work_due', 'bill_due'])
+
+    expect(pickActionCards([billed, asked], noDays, NOW).mustAct).toMatchObject({
+      kind: 'extra_work_due',
+      bookingId: 'work',
+      chargeId: 'x1',
+      description: 'Replace wiper blades',
+      amount: '450.00',
+      moreDue: 0,
+    })
+    expect(pickActionCards([billed], noDays, NOW).mustAct?.kind).toBe('bill_due')
+  })
+
+  test('extra work is never a bill card, and only asks while the job is on', () => {
+    const asked = booking({ status: 'in_progress', charges: [extraWork('x1', ago(HOUR))] })
+    expect(billDueCards([asked])).toEqual([])
+    expect(pickActionCards([{ ...asked, status: 'cancelled' }], noDays, NOW).mustAct).toBeNull()
+  })
+
+  test('a suggestion that ran out, was answered, or whose booking changed is no card', () => {
+    const at = (p: ReturnType<typeof proposal>, status = 'pending') =>
+      pickActionCards([booking({ status, proposal: p })], noDays, NOW).mustAct
+    expect(at(proposal({ expiresAt: ago(1) }))).toBeNull()
+    expect(at(proposal({ status: 'withdrawn' }))).toBeNull()
+    expect(at(proposal(), 'cancelled')).toBeNull()
+  })
+
+  test("a booking with suggested times is not also the garage's closed-day card", () => {
+    const shut: GarageDays = {
+      closures: new Map([['v1', new Set([istDateKey(ahead(DAY))])]]),
+      hours: new Map(),
+    }
+    const proposed = booking({ status: 'pending', proposal: proposal() })
+    const { todo } = pickActionCards([proposed], shut, NOW)
+    expect(todo.map((card) => card.kind)).toEqual(['time_proposal'])
+    // Without one, the closed day is the card.
+    expect(pickActionCards([booking({ status: 'pending' })], shut, NOW).mustAct?.kind).toBe('garage_closed')
   })
 })

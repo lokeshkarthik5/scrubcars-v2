@@ -6,6 +6,7 @@ import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
 
 const log = logger.child({ module: 'ops' })
@@ -23,6 +24,16 @@ export const opsService = {
    * booking still waiting for its garage.
    */
   async pendingDigest(options: { dryRun: boolean }) {
+    // Garages' suggested times that ran out unanswered cancel their booking
+    // (0041): first, so a refund that makes is in the sweep below's list, and
+    // never allowed to fail the digest. A bounded batch a run.
+    const timeProposals = await timeProposalsService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:time_proposal_sweep_failed')
+        return { error: true as const }
+      })
+
     // The automatic refunds' retry rides on this run (AUTO_REFUNDS; nothing
     // happens while it is off). First, and never allowed to fail the digest:
     // a refund problem is alerted on its own (one refund's failure by the
@@ -88,6 +99,7 @@ export const opsService = {
       autoRefunds,
       refundChecks,
       analyticsPurged,
+      timeProposals,
     }
 
     if (!plan.post || options.dryRun) return summary

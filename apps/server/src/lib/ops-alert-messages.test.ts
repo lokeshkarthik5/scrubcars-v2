@@ -634,3 +634,84 @@ describe('refunds through Razorpay', () => {
     expect(text).toContain('https://admin.detlio.com/refunds')
   })
 })
+
+describe('suggested times (0041)', () => {
+  test('made: the times on offer and when they run out', () => {
+    const text = formatOpsAlert({
+      kind: 'time_proposal_made',
+      booking,
+      options: [new Date('2026-10-04T11:00:00Z'), new Date('2026-10-04T12:30:00Z')],
+      expiresAt: new Date('2026-10-04T09:30:00Z'),
+    })
+    expect(text).toContain('🕑 Garage suggested other times #3F2A9C1B')
+    expect(text).toContain('Booked for Sun 4 Oct, 3:30 pm · At garage')
+    expect(text).toContain('Offered: Sun 4 Oct, 4:30 pm · Sun 4 Oct, 6:00 pm')
+    expect(text).toContain('by Sun 4 Oct, 3:00 pm, or it is cancelled with a full refund')
+  })
+
+  test('chosen: moved and accepted', () => {
+    const text = formatOpsAlert({
+      kind: 'time_proposal_outcome',
+      outcome: 'chosen',
+      booking: { ...booking, scheduledAt: new Date('2026-10-04T12:30:00Z') },
+      previousScheduledAt: booking.scheduledAt,
+    })
+    expect(text).toContain('✅ Customer picked a suggested time #3F2A9C1B')
+    expect(text).toContain('Sun 4 Oct, 3:30 pm → Sun 4 Oct, 6:00 pm')
+  })
+
+  test('declined or run out: the garage’s decline, with the refund to do', () => {
+    const declined = formatOpsAlert({
+      kind: 'time_proposal_outcome',
+      outcome: 'declined',
+      booking,
+      previousScheduledAt: booking.scheduledAt,
+    })
+    expect(declined).toContain('❌ None of the suggested times worked #3F2A9C1B · refund due')
+    expect(declined).toContain("₹1,299 was paid: refund it in full")
+    const expired = formatOpsAlert({
+      kind: 'time_proposal_outcome',
+      outcome: 'expired',
+      booking: { ...booking, payment: { status: 'pending' } },
+      previousScheduledAt: booking.scheduledAt,
+    })
+    expect(expired).toContain('⌛ Suggested times ran out unanswered #3F2A9C1B')
+    expect(expired).not.toContain('refund due')
+    expect(expired).toContain('nothing to refund')
+  })
+})
+
+describe('extra work (0041)', () => {
+  test('paid and declined, the work quoted', () => {
+    const paid = formatOpsAlert({
+      kind: 'extra_work_paid',
+      booking,
+      description: 'Replace wiper blades',
+      amount: '450.00',
+      paymentId: 'pay_XW1',
+    })
+    expect(paid).toContain('🔧 Extra work approved and paid #3F2A9C1B · ₹450')
+    expect(paid).toContain('Work: "Replace wiper blades"')
+    expect(paid).toContain('Razorpay payment pay_XW1')
+    const declined = formatOpsAlert({
+      kind: 'extra_work_declined',
+      booking,
+      description: 'Replace wiper blades',
+      amount: '450.00',
+    })
+    expect(declined).toContain('🙅 Customer declined extra work #3F2A9C1B · ₹450')
+  })
+
+  test('a payment on a withdrawn request is a refund to do, named as extra work', () => {
+    const text = formatOpsAlert({
+      kind: 'final_bill_refund_due',
+      reason: 'replaced',
+      what: 'extra_work',
+      booking,
+      amount: '450.00',
+      paymentId: 'pay_LATE',
+    })
+    expect(text).toContain('⚠️ Extra work paid after it was withdrawn or declined #3F2A9C1B · refund due')
+    expect(text).toContain('₹450 · Razorpay payment pay_LATE')
+  })
+})

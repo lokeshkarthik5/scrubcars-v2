@@ -15,7 +15,13 @@ import {
 import type { HomeActionCard } from '@repo/core/api/home'
 import { groupUpdates } from '@repo/core/home-display'
 import { cn } from '@repo/core/utils'
-import { BillDueCard, GarageClosedCard, RateWashCard } from './action-cards'
+import {
+  BillDueCard,
+  ExtraWorkHomeCard,
+  GarageClosedCard,
+  RateWashCard,
+  TimeProposalHomeCard,
+} from './action-cards'
 import { UpdateList, UpdateRow } from './update-row'
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
@@ -54,11 +60,20 @@ export function UpdatesScreen() {
 
   // One red button on the screen: the oldest bill's Pay (To do lists them
   // oldest first); any other bill's Pay is outlined.
+  // Suggested times and extra work (0041) come first in To do and carry
+  // their own red action, so a bill below them is outlined.
   const redBill = data?.todo.find((card) => card.kind === 'bill_due')
+  const redTaken = data?.todo.some((card) => card.kind === 'time_proposal' || card.kind === 'extra_work_due')
   const todoCard = (card: HomeActionCard) => {
     switch (card.kind) {
+      case 'time_proposal':
+        return <TimeProposalHomeCard key={card.proposalId} card={card} />
+      case 'extra_work_due':
+        return <ExtraWorkHomeCard key={card.chargeId} card={card} now={now!} />
       case 'bill_due':
-        return <BillDueCard key={card.chargeId} card={card} now={now!} quiet={card !== redBill} />
+        return (
+          <BillDueCard key={card.chargeId} card={card} now={now!} quiet={redTaken || card !== redBill} />
+        )
       case 'garage_closed':
         return <GarageClosedCard key={card.bookingId} card={card} />
       case 'rate':
