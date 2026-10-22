@@ -617,6 +617,31 @@ describe('complaint_received', () => {
   })
 })
 
+describe('documents_uploaded', () => {
+  const alert = {
+    kind: 'documents_uploaded' as const,
+    vendorId: 'e2e00000-0000-4000-8000-000000002310',
+    garage: 'Marina Auto Spa',
+    what: 'Bank proof (replacing an approved one)',
+    waiting: 2,
+  }
+
+  test('the garage, what came in, how many wait and where to review them', () => {
+    expect(formatOpsAlert(alert).split('\n')).toEqual([
+      '📄 Documents to review: Marina Auto Spa',
+      'Uploaded: Bank proof (replacing an approved one).',
+      '2 documents wait for review at this garage.',
+      'https://admin.detlio.com/vendors/e2e00000-0000-4000-8000-000000002310/edit?tab=documents',
+    ])
+    expect(formatOpsAlert({ ...alert, waiting: 1 })).toContain('1 document waits for review')
+  })
+
+  test('never a file or a link to one: only the admin page', () => {
+    const text = formatOpsAlert(alert)
+    expect(text).not.toMatch(/r2|cloudflarestorage|X-Amz|documents\//i)
+  })
+})
+
 describe('refunds through Razorpay', () => {
   const sent = {
     kind: 'refund_sent',

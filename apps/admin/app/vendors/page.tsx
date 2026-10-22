@@ -15,6 +15,7 @@ import {
   IconCircle,
   IconCircleDashed,
   IconDots,
+  IconFileCertificate,
   IconPencil,
   IconPlus,
   IconRestore,
@@ -36,15 +37,19 @@ import {
   RestoreDialog,
 } from '@/components/vendor-bin-dialogs'
 import { formatWhen } from '@/lib/bookings'
-import { EDIT_TAB_LABELS } from '@/lib/garage-edit'
+import { PAGE_TAB_LABELS } from '@/lib/garage-edit'
 import { binDoneMessage, deleteDoneMessage } from '@/lib/vendor-bin'
 import {
+  REVIEW_FILTER,
+  REVIEW_LABEL,
   SHOW_FILTERS,
   SHOW_LABELS,
   binDeleteLine,
   bookingParts,
   bookingsLine,
+  documentsToReviewCount,
   editHref,
+  hasDocumentsToReview,
   isInBin,
   isLive,
   listHref,
@@ -55,7 +60,7 @@ import {
   showCounts,
   showHints,
   stateWord,
-  type ShowFilter,
+  type ListFilter,
 } from '@/lib/vendor-list'
 import { type AdminVendor, type ReadinessItem } from '@repo/core/api/admin'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
@@ -116,6 +121,7 @@ function VendorsList() {
   // Counted over the full list the page already has: the API returns every
   // garage, and other screens' garage pickers need it that way.
   const counts = showCounts(vendors)
+  const toReview = documentsToReviewCount(vendors)
   const shown = vendors.filter((v) => matchesShow(v, show))
 
   // Checklists open, by garage. A tap on the readiness line toggles one.
@@ -162,7 +168,7 @@ function VendorsList() {
     if (isAuthError(loadError)) router.replace('/login')
   }, [loadError, router])
 
-  const chooseShow = (next: ShowFilter) => {
+  const chooseShow = (next: ListFilter) => {
     // Replaced, not pushed: a chip is a view of this page, not somewhere
     // Back should step through.
     router.replace(listHref(next), { scroll: false })
@@ -248,6 +254,21 @@ function VendorsList() {
                   className="min-h-11 rounded-[10px] text-[13px]"
                 />
               ))}
+              {/* Garage documents waiting for Detlio (0043). Apart from the
+                  stages, after a rule, and only while any wait (or it is the
+                  one chosen). */}
+              {(toReview > 0 || show === REVIEW_FILTER) && (
+                <>
+                  <span aria-hidden="true" className="my-2 w-px shrink-0 bg-border" />
+                  <FilterChip
+                    label={REVIEW_LABEL}
+                    count={toReview}
+                    active={show === REVIEW_FILTER}
+                    onClick={() => chooseShow(REVIEW_FILTER)}
+                    className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
+                  />
+                </>
+              )}
             </div>
             <div className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
               {showHints(show).map((hint) => (
@@ -269,7 +290,11 @@ function VendorsList() {
 
           {shown.length === 0 ? (
             <p className="py-6 text-center text-[13px] text-text-muted">
-              {show === 'bin' ? 'Nothing in the Bin.' : `No ${SHOW_LABELS[show].toLowerCase()} garages.`}
+              {show === 'bin'
+                ? 'Nothing in the Bin.'
+                : show === REVIEW_FILTER
+                  ? 'No documents to review.'
+                  : `No ${SHOW_LABELS[show].toLowerCase()} garages.`}
             </p>
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -533,6 +558,21 @@ function GarageCard({
             </span>
           )}
         </p>
+      )}
+
+      {/* Garage documents waiting for Detlio (0043): straight to its
+          Documents tab, where each file opens and is approved or rejected. */}
+      {hasDocumentsToReview(v) && v.documents && (
+        <Link
+          href={editHref(v.id, back, 'documents')}
+          className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
+        >
+          <IconFileCertificate size={15} aria-hidden="true" className="shrink-0 text-text-secondary" />
+          <Figures
+            text={`${v.documents.toReview} ${v.documents.toReview === 1 ? 'document' : 'documents'} to review`}
+          />
+          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+        </Link>
       )}
 
       {v.readiness && (
@@ -815,7 +855,7 @@ function Readiness({
                           )}
                         </span>
                         <span className="flex shrink-0 items-center text-[12px] text-text-muted">
-                          {EDIT_TAB_LABELS[item.tab]}
+                          {PAGE_TAB_LABELS[item.tab]}
                           <IconChevronRight size={16} aria-hidden="true" />
                         </span>
                       </Link>

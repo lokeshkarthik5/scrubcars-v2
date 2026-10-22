@@ -3,7 +3,7 @@
 import { Fragment, Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconLogout, IconPhoto, IconChevronRight, IconUsers } from '@tabler/icons-react'
+import { IconFileCertificate, IconLogout, IconPhoto, IconChevronRight, IconUsers } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -40,6 +40,7 @@ import {
   DOORSTEP_RADIUS_PLACEHOLDER,
 } from '@repo/core/doorstep'
 import { toast } from 'react-toastify'
+import { getGarageDocumentsConfig } from '@repo/core/api/documents'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
@@ -199,6 +200,22 @@ function VendorSettings() {
   const isVendorAdmin = useIsVendorAdmin()
   const activeVendorId = useAuthStore((s) => s.activeVendorId)
   const router = useRouter()
+  // Documents shows only once the server has its private bucket for them.
+  const [documentsOn, setDocumentsOn] = useState(false)
+  useEffect(() => {
+    if (!isVendorAdmin) return
+    let cancelled = false
+    getGarageDocumentsConfig()
+      .then((config) => {
+        if (!cancelled) setDocumentsOn(config.enabled)
+      })
+      .catch(() => {
+        if (!cancelled) setDocumentsOn(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isVendorAdmin, activeVendorId])
 
   // Every screen behind Settings is vendor_admin-only per the permission
   // matrix, and the operator nav has no Settings tab, so this is only reachable
@@ -498,6 +515,15 @@ function VendorSettings() {
             title="Garage photos"
             description="Add photos customers see on your listing"
           />
+
+          {documentsOn && (
+            <LinkRow
+              href="/settings/documents"
+              icon={<IconFileCertificate size={18} aria-hidden="true" />}
+              title="Documents"
+              description="Your ID, bank proof and agreement, for a Documents verified badge"
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="location">

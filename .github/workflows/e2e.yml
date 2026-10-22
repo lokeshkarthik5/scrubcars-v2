@@ -101,13 +101,15 @@ jobs:
           docker logs minio >&2
           exit 1
 
-      - name: Create the storage bucket
+      - name: Create the storage buckets
         # Through the `mc` bundled in the server image — the standalone client
         # download at dl.min.io is gone too.
         run: |
           docker exec minio mc alias set local http://localhost:9000 detlio detlio-secret
           docker exec minio mc mb --ignore-existing local/detlio-e2e
           docker exec minio mc anonymous set download local/detlio-e2e
+          # Garage documents (R2_DOCS_BUCKET): private, as in production.
+          docker exec minio mc mb --ignore-existing local/detlio-e2e-docs
 
       - name: Typecheck
         run: bun run typecheck

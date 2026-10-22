@@ -331,6 +331,12 @@ export const CUSTOMERS = {
   proposalDecliner: { id: id(2104), phone: '9000002104', name: 'Proposal Prem', vehicleId: id(2105) },
   extraWorkPayer: { id: id(2106), phone: '9000002106', name: 'Extra Work Ezhil', vehicleId: id(2107) },
   /**
+   * Garage documents (0043; specs/vendors/documents.spec.ts): a customer who
+   * must not reach VENDORS.documents' documents, and who sees its badge.
+   * Ids 2300–2399 and phones 90000023xx are this feature's own range.
+   */
+  documents: { id: id(2303), phone: '9000002303', name: 'Documents Dhanya' },
+  /**
    * The garage response deadline (0042), at VENDORS.response only
    * (specs/journeys/response-deadline-journey.spec.ts). Ids 2200–2299 and
    * phones 90000022xx are this feature's own range. One car and one seeded
@@ -416,6 +422,10 @@ export const STAFF = {
   pickupOwner: { id: id(228), phone: '9000001028', name: 'Pickup Owner Prabhu' },
   /** Owns VENDORS.proposals only (0041; the 2100–2199 range). */
   proposalsOwner: { id: id(2101), phone: '9000002101', name: 'Proposals Owner Parvathi' },
+  /** Owns VENDORS.documents only (0043; the 2300–2399 range): uploads its documents. */
+  documentsOwner: { id: id(2301), phone: '9000002301', name: 'Documents Owner Deepa' },
+  /** vendor_operator on VENDORS.documents: must not list or open them. */
+  documentsOperator: { id: id(2302), phone: '9000002302', name: 'Documents Operator Durai' },
   /** Owns VENDORS.response and VENDORS.responseOther only (0042; the 2200–2299 range). */
   responseOwner: { id: id(2201), phone: '9000002201', name: 'Response Owner Revathi' },
 } as const
@@ -576,6 +586,13 @@ export const VENDORS = {
    */
   proposals: { id: id(2110), name: 'Proposals Test Garage' },
   /**
+   * Garage documents (0043). Live, at the garage only, open 06:00–22:00
+   * every day, one ₹400 wash (SERVICES.documentsWash), no documents at all
+   * until the spec uploads them; then its page shows "Documents verified".
+   * Far from ORIGIN like the other single-purpose garages (DOCUMENTS_PIN).
+   */
+  documents: { id: id(2310), name: 'Documents Test Garage' },
+  /**
    * The garage response deadline (0042). Live, at the garage only, open
    * 06:00–22:00 every day, one ₹600 wash (SERVICES.responseWash), at
    * RESPONSE_PIN, far from every other test garage. It lets
@@ -589,6 +606,9 @@ export const VENDORS = {
    */
   responseOther: { id: id(2212), name: 'Quick Reply Garage' },
 } as const
+
+/** Where VENDORS.documents is: south-west, clear of every other test garage. */
+export const DOCUMENTS_PIN = { lat: 12.625, lng: 79.625 } as const
 
 /** Where VENDORS.proposals is: south-west, clear of every other test garage. */
 export const PROPOSALS_PIN = { lat: 12.5, lng: 79.875 } as const
@@ -718,6 +738,7 @@ export const SERVICES = {
   pickupWash: { id: id(456), name: 'Pickup Shine Wash', price: '549.00', durationMins: 30 },
   /** On PROPOSALS: its one service (0041). */
   proposalsWash: { id: id(2111), name: 'Proposals Foam Wash', price: '500.00', durationMins: 60 },
+  documentsWash: { id: id(2311), name: 'Documents Foam Wash', price: '400.00', durationMins: 45 },
   /** On RESPONSE (0042): its one service. */
   responseWash: { id: id(2211), name: 'Slow Reply Wash', price: '600.00', durationMins: 60 },
   /** On RESPONSE_OTHER: a car wash too, so it matches the booking's kind of job. */

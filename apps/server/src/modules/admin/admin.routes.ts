@@ -18,6 +18,7 @@ import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
 import { adminStatsRoutes } from '../stats/stats.routes.js'
 import { adminPayoutRoutes } from '../payouts/payouts.routes.js'
+import { adminDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
 import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
   addMemberSchema,
@@ -364,6 +365,10 @@ adminRoutes.route('/discounts', adminDiscountRoutes)
 adminRoutes.route('/refunds', adminRefundRoutes)
 // Garage payouts: balances, Record payout, history and payout details.
 adminRoutes.route('/payouts', adminPayoutRoutes)
+// Garage documents (0043): view, approve or reject, upload on a garage's
+// behalf. Nested here for the same cookie reason as discounts; every route
+// but /config is a 404 while R2_DOCS_BUCKET is unset.
+adminRoutes.route('/documents', adminDocumentRoutes)
 
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.

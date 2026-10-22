@@ -15,6 +15,7 @@ import { vendorTimeProposalRoutes } from '../time-proposals/time-proposals.route
 import { membersRoutes } from '../members/members.routes.js'
 import { vendorEarningsRoutes } from '../payouts/payouts.routes.js'
 import { garageMediaRoutes } from '../service-media/service-media.routes.js'
+import { garageDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -138,6 +139,11 @@ vendorsRoutes.route('/me/bookings', vendorTimeProposalRoutes)
 // in its own file, like the service image routes below. Photos keep their
 // /me/services/:id/images routes, which share the same rules.
 vendorsRoutes.route('/me', garageMediaRoutes)
+
+// The garage's documents for Detlio to verify (0043): owner seat only, in
+// its own file, and every route but /config a 404 while R2_DOCS_BUCKET is
+// unset. Nested for the same reason as the team screen.
+vendorsRoutes.route('/me/documents', garageDocumentRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

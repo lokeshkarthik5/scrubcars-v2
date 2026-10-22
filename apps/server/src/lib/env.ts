@@ -138,6 +138,15 @@ export const env = {
   r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   r2Bucket: process.env.R2_BUCKET,
+  // The private bucket for garage documents (owner ID, bank proof, the
+  // signed agreement; modules/vendor-documents, docs/garage-documents.md).
+  // Same account and keys as R2_BUCKET, but a bucket with no public access
+  // at all: files are only read through five-minute presigned links made
+  // for the garage's owner seat or a super-admin. Unset — as in development
+  // and previews — and garage documents are off: their routes are 404, the
+  // garage portal and admin hide the section, and no garage shows the
+  // "Documents verified" badge.
+  r2DocsBucket: process.env.R2_DOCS_BUCKET?.trim() || undefined,
   // Overrides the derived Cloudflare endpoint. Unset in every real
   // environment; the E2E stack points it at a local MinIO, which speaks the
   // same S3 API, so upload flows are exercised for real instead of asserting

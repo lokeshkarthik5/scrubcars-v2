@@ -99,6 +99,12 @@ export interface Vendor {
    * unknown, and from a server older than the sign.
    */
   outsideServiceCity: OutsideServiceCity | null
+  /**
+   * Detlio has approved the garage's required documents (ID, bank proof,
+   * shop photo, signed agreement): the shield after its name. False from a
+   * server older than garage documents, and while they are off.
+   */
+  documentsVerified: boolean
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.

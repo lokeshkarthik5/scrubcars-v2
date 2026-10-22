@@ -15,6 +15,8 @@ import {
   userMemberMapping,
   users,
   vendorClosures,
+  vendorDocumentFiles,
+  vendorDocuments,
   vendorPayoutAccounts,
   vendorPhotos,
   vendors,
@@ -109,12 +111,18 @@ function reads(conn: Conn) {
         .select({ n: count() })
         .from(userMemberMapping)
         .where(eq(userMemberMapping.vendorId, vendorId))
+      const [documents] = await conn
+        .select({ n: count() })
+        .from(vendorDocuments)
+        .where(eq(vendorDocuments.vendorId, vendorId))
       return {
         photos: photos?.n ?? 0,
         servicePictures: media.find((row) => row.kind === 'image')?.n ?? 0,
         videos: media.find((row) => row.kind === 'video')?.n ?? 0,
         services: serviceRows?.n ?? 0,
         teamLogins: seats?.n ?? 0,
+        // Garage documents (0043): ID and bank proof among them.
+        documents: documents?.n ?? 0,
       }
     },
 
@@ -209,6 +217,19 @@ function writes(tx: Tx) {
         .where(eq(vendorPhotos.vendorId, vendorId))
     },
 
+    /**
+     * The garage's document files in the private bucket (0043), with each
+     * one's type, to remove after the commit: all of them when the garage
+     * row goes, all but the signed agreement's on a tombstone.
+     */
+    async documentFiles(vendorId: string): Promise<Array<{ type: string; storageKey: string }>> {
+      return tx
+        .select({ type: vendorDocuments.type, storageKey: vendorDocumentFiles.storageKey })
+        .from(vendorDocumentFiles)
+        .innerJoin(vendorDocuments, eq(vendorDocuments.id, vendorDocumentFiles.documentId))
+        .where(eq(vendorDocuments.vendorId, vendorId))
+    },
+
     /** Every photo and video on the garage's services, to remove after the commit. */
     async mediaFiles(vendorId: string): Promise<GarageMediaFile[]> {
       return tx
@@ -279,6 +300,18 @@ function writes(tx: Tx) {
     /** Where Detlio paid the garage (0038): bank and UPI details go with a tombstone's contact fields. */
     async deletePayoutAccount(vendorId: string) {
       await tx.delete(vendorPayoutAccounts).where(eq(vendorPayoutAccounts.vendorId, vendorId))
+    },
+
+    /**
+     * A tombstone's documents (0043), all but the signed agreement: the
+     * owner's ID, bank proof, shop photo, GST and trade licence have no use
+     * once the garage is gone. The agreement stays with the bookings kept
+     * for their money, as the contract they were taken under. Files cascade.
+     */
+    async deleteDocumentsExceptAgreement(vendorId: string) {
+      await tx
+        .delete(vendorDocuments)
+        .where(and(eq(vendorDocuments.vendorId, vendorId), sql`${vendorDocuments.type} <> 'agreement'`))
     },
 
     /**

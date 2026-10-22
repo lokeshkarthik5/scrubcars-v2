@@ -24,6 +24,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
+import { DocumentsVerifiedBadge } from '@repo/ui/features/documents-verified'
 import { OutsideCityLine } from '@repo/ui/features/outside-city'
 import { useGarage, useVendorReviews } from '@repo/core/api/hooks/use-vendors'
 import { browseCategory } from '@repo/core/analytics-events'
@@ -500,6 +501,10 @@ export default function GaragePage({
             </span>
           </div>
         )}
+
+        {/* Detlio checked its ID, bank and shop documents. Only whether it
+            did reaches this page, never the documents. */}
+        {vendor.documentsVerified && <DocumentsVerifiedBadge />}
 
         {/* Garages in other towns are part of the pilot; this says plainly
             where one is before anything is picked, so nobody books it

@@ -6,11 +6,31 @@ import {
   dirtyTabs,
   garageFieldsProblem,
   parseEditTab,
+  parsePageTab,
+  PAGE_TABS,
+  PAGE_TAB_LABELS,
+  isEditTab,
+  EDIT_TABS,
   parseRadiusInput,
   safeBackHref,
   unsavedChangesLine,
   type TabValues,
 } from './garage-edit'
+
+describe('parsePageTab', () => {
+  test('Documents opens while documents are on, and falls back to Details while off', () => {
+    expect(parsePageTab('documents')).toBe('documents')
+    expect(parsePageTab('documents', false)).toBe('details')
+    expect(parsePageTab('services', false)).toBe('services')
+    expect(parsePageTab('Documents')).toBe('details')
+    expect(parsePageTab(undefined)).toBe('details')
+  })
+
+  test('only the four form tabs are Save changes’ own', () => {
+    expect(PAGE_TABS.filter(isEditTab)).toEqual([...EDIT_TABS])
+    expect(PAGE_TAB_LABELS.documents).toBe('Documents')
+  })
+})
 
 describe('parseEditTab', () => {
   test('opens a tab a link names, and only one of the four', () => {

@@ -42,6 +42,8 @@ const ROW = {
   createdAt: new Date('2026-01-01T00:00:00Z'),
 } satisfies PublicVendorSource & Record<string, unknown>
 
+const NOT_VERIFIED = { documentsVerified: false }
+
 const PRIVATE = [
   'ownerId',
   'phone',
@@ -65,7 +67,7 @@ const PRIVATE = [
 
 describe('toPublicVendor', () => {
   test('carries only the allow-list: no contact details, no internal fields', () => {
-    const shown = toPublicVendor(ROW)
+    const shown = toPublicVendor(ROW, NOT_VERIFIED)
     expect(Object.keys(shown).sort()).toEqual([...PUBLIC_VENDOR_KEYS].sort())
     for (const key of PRIVATE) expect(shown).not.toHaveProperty(key)
     // Nor the values under another name.
@@ -76,7 +78,7 @@ describe('toPublicVendor', () => {
   })
 
   test('keeps what the garage page and checkout read before booking', () => {
-    expect(toPublicVendor(ROW)).toEqual({
+    expect(toPublicVendor(ROW, NOT_VERIFIED)).toEqual({
       id: 'v1',
       businessName: 'Next Level Car Spa',
       logoUrl: 'https://cdn.example/logo.png',
@@ -96,13 +98,23 @@ describe('toPublicVendor', () => {
       bookingsPausedAt: null,
       bookingsPausedReason: null,
       createdAt: '2026-01-01T00:00:00.000Z',
+      documentsVerified: false,
     })
   })
 
+  test('garage documents are one boolean, never the documents', () => {
+    const shown = toPublicVendor(ROW, { documentsVerified: true })
+    expect(shown.documentsVerified).toBe(true)
+    for (const key of Object.keys(shown)) expect(key).not.toMatch(/^document(?!sVerified$)|file|storage/i)
+  })
+
   test('pickup is on only with the terms on file, and a pause says when and why', () => {
-    expect(toPublicVendor({ ...ROW, pickupTermsAcceptedAt: null }).pickupEnabled).toBe(false)
+    expect(toPublicVendor({ ...ROW, pickupTermsAcceptedAt: null }, NOT_VERIFIED).pickupEnabled).toBe(false)
     expect(
-      toPublicVendor({ ...ROW, bookingsPausedAt: new Date('2026-10-10T04:30:00Z'), bookingsPausedReason: 'Renovation' })
+      toPublicVendor(
+        { ...ROW, bookingsPausedAt: new Date('2026-10-10T04:30:00Z'), bookingsPausedReason: 'Renovation' },
+        NOT_VERIFIED
+      )
     ).toMatchObject({ bookingsPausedAt: '2026-10-10T04:30:00.000Z', bookingsPausedReason: 'Renovation' })
   })
 })

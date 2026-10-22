@@ -11,6 +11,10 @@
  * whether it is paused and why — and nothing else. A new column on `vendors`
  * stays private until someone adds it here on purpose.
  *
+ * Garage documents (0043) reach customers as one boolean, `documentsVerified`
+ * (every required document approved by Detlio); never which documents, their
+ * files or who checked them.
+ *
  * Never here: phone, whatsapp, email, address, mapsUrl, notes (the admin's
  * ops note), ownerId, the raw pickup answer and who accepted its terms,
  * where the pin came from, bays and jobs per day. Admin and the garage's own
@@ -71,6 +75,12 @@ export type PublicVendorFields = {
   bookingsPausedAt: string | null
   bookingsPausedReason: string | null
   createdAt: string
+  /**
+   * Detlio has approved every required document (lib/vendor-documents.ts):
+   * the "Documents verified" badge. Only this boolean, never the documents.
+   * False while garage documents are off.
+   */
+  documentsVerified: boolean
 }
 
 /** Every key the public shape may carry, for tests and reviewers. */
@@ -94,9 +104,13 @@ export const PUBLIC_VENDOR_KEYS = [
   'bookingsPausedAt',
   'bookingsPausedReason',
   'createdAt',
+  'documentsVerified',
 ] as const satisfies ReadonlyArray<keyof PublicVendorFields>
 
-export function toPublicVendor(vendor: PublicVendorSource): PublicVendorFields {
+export function toPublicVendor(
+  vendor: PublicVendorSource,
+  extras: { documentsVerified: boolean }
+): PublicVendorFields {
   return {
     id: vendor.id,
     businessName: vendor.businessName,
@@ -117,5 +131,6 @@ export function toPublicVendor(vendor: PublicVendorSource): PublicVendorFields {
     bookingsPausedAt: vendor.bookingsPausedAt?.toISOString() ?? null,
     bookingsPausedReason: vendor.bookingsPausedReason,
     createdAt: vendor.createdAt.toISOString(),
+    documentsVerified: extras.documentsVerified,
   }
 }

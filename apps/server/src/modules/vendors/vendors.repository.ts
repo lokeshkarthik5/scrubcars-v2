@@ -11,6 +11,7 @@ import {
   services,
   users,
   vendorClosures,
+  vendorDocuments,
   vendorPhotos,
   vendors,
   vendorServiceAreas,
@@ -442,6 +443,19 @@ export const vendorsRepository = {
       .from(reviews)
       .where(inArray(reviews.vendorId, vendorIds))
       .groupBy(reviews.vendorId)
+  },
+
+  /**
+   * The approved documents of these garages, as type only: what decides the
+   * "Documents verified" badge (lib/vendor-documents.ts documentsVerified).
+   * One grouped read for the whole page. Never a file, a key or a reviewer.
+   */
+  listApprovedDocumentTypes(vendorIds: string[]) {
+    if (vendorIds.length === 0) return Promise.resolve([])
+    return db
+      .select({ vendorId: vendorDocuments.vendorId, type: vendorDocuments.type, status: vendorDocuments.status })
+      .from(vendorDocuments)
+      .where(and(inArray(vendorDocuments.vendorId, vendorIds), eq(vendorDocuments.status, 'approved')))
   },
 
   findWorkingHoursForDay(vendorId: string, dayOfWeek: number) {

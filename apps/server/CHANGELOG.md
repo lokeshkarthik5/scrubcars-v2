@@ -18,6 +18,43 @@ reconstructing every change in them.
 
 ### Added
 
+- **Garage documents: private uploads, admin review and a "Documents
+  verified" badge** (migration `0043_garage_documents`, additive: new tables
+  `vendor_documents` (one per garage per type; type, status, version,
+  expiry, uploader, reviewer, rejection reason; CHECKs) and
+  `vendor_document_files` (front/back, storage key, type, size). Numbered
+  0043 because 0042 belongs to the garage response deadline, built in
+  parallel; the migrations lint reports the gap until 0042 is merged).
+  - `modules/vendor-documents`, rules in `lib/vendor-documents.ts` (pure,
+    unit-tested; twinned with `packages/core/src/vendor-documents.ts`).
+    Required: shop photo, owner ID (PAN, or Aadhaar with the first 8 digits
+    covered), bank proof, the signed Detlio agreement; optional: GST
+    certificate, trade licence (with an optional expiry). Separate from
+    `is_verified`, which still alone decides listing.
+  - **Private bucket** `R2_DOCS_BUCKET` (`lib/document-storage.ts`; setup in
+    `docs/garage-documents.md`): presigned PUT signed for the exact size
+    (≤ 10 MB, JPEG/PNG/WebP/PDF), each upload checked with HeadObject before
+    it is recorded, files viewed only through 5-minute presigned GETs made
+    per press, never stored or logged. Unset = off: every documents route
+    but `/config` is a 404 and no garage has the badge.
+  - Garage (owner seat only, `/vendors/me/documents`): `GET /config`,
+    `GET /`, `POST /upload-url`, `POST /` (submit or replace; back to
+    pending, old files deleted), `GET /:documentId/files/:fileId/link`.
+    Admin (super-admin, `/admin/documents`): `GET /config`,
+    `GET /vendors/:vendorId`, `POST /vendors/:vendorId/upload-url`,
+    `POST /vendors/:vendorId` (on the garage's behalf, `approve` optional),
+    `POST /vendors/:vendorId/:documentId/review { action, version,
+    actorName, reason? }` (409 `DOCUMENT_CHANGED`,
+    `DOCUMENT_ALREADY_APPROVED` / `_REJECTED`; `VENDOR_IN_BIN`),
+    `GET /vendors/:vendorId/:documentId/files/:fileId/link`.
+  - `documentsVerified` (boolean only) on `GET /vendors/:id` (public
+    allow-list) and every garage card (`vendorCardsFor`, so Saved garages
+    too). `GET /admin/vendors` gains `documents` (summary) and the optional
+    readiness item "Documents not verified" (`tab: 'documents'`).
+  - Telegram `documents_uploaded`. Delete forever removes the documents and
+    their files (a tombstone keeps only the signed agreement); the Bin and
+    the pilot reset keep them. E2E: MinIO's private `detlio-e2e-docs`.
+
 - **Garages accept within 30 minutes of their opening hours, or the booking
   is cancelled with a full refund** (migration `0042_garage_response_deadline`,
   additive: `bookings.respond_by` and `bookings.response_missed_at`, both

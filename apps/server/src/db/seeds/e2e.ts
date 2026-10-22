@@ -65,6 +65,7 @@ import {
   PICKUP_HOME,
   PICKUP_PIN,
   PROPOSALS_PIN,
+  DOCUMENTS_PIN,
   RESPONSE_OTHER_PIN,
   RESPONSE_PIN,
   REVIEWS,
@@ -1998,6 +1999,35 @@ async function seedPickupRows() {
 }
 
 /**
+ * Garage documents (0043): VENDORS.documents with its owner's and an
+ * operator's seat, hours and one service, and no documents yet (the spec
+ * uploads them). Every id and phone is in the 2300–2399 / 90000023xx range
+ * reserved for this feature. Garage before seats and services, as the
+ * foreign keys need; the people are seeded with everyone else.
+ */
+async function seedDocumentRows() {
+  const garage = VENDORS.documents.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.documentsOwner.id, businessName: VENDORS.documents.name,
+    phone: '9000002300', address: '5, Document Lane, Chengalpattu', city: 'Chennai', pincode: '603002',
+    lat: DOCUMENTS_PIN.lat, lng: DOCUMENTS_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'active', bays: 1,
+  })
+  await db.insert(userMemberMapping).values([
+    { vendorId: garage, userId: STAFF.documentsOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: garage, userId: STAFF.documentsOperator.id, role: 'vendor_operator', status: 'active' },
+  ])
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.documentsWash.id, vendorId: garage, name: SERVICES.documentsWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.documentsWash.price, durationMins: SERVICES.documentsWash.durationMins, isActive: true,
+  })
+}
+
+/**
  * Suggested times and extra work (0041), on a garage of their own so nothing
  * else books its bays: VENDORS.proposals with its owner's seat, hours and
  * one service, the three customers' cars, and their bookings. Every id and
@@ -2150,6 +2180,8 @@ async function main() {
   await seedProposalRows()
   console.log('[e2e-seed] garage response deadline…')
   await seedResponseDeadlineRows()
+  console.log('[e2e-seed] garage documents…')
+  await seedDocumentRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
