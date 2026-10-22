@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, lte, ne, or, sql } from 'drizzle-orm'
+import { and, asc, eq, lte, ne, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookingTimeProposals, bookings, payments } from '../../db/schema.js'
 
@@ -20,6 +20,12 @@ export type InsertProposalResult =
   | { kind: 'state_changed' }
   /** Another open suggestion got there first; the unique index held. */
   | { kind: 'already_open' }
+  /**
+   * The garage's time to answer ran out (0042, AUTO_CANCEL_UNANSWERED on):
+   * the booking is being cancelled and refunded, so it can't be answered
+   * with other times any more.
+   */
+  | { kind: 'too_late' }
 
 export const timeProposalsRepository = {
   /** The booking's open suggestion, if any. */
@@ -41,15 +47,26 @@ export const timeProposalsRepository = {
     note: string | null
     expiresAt: Date
     createdBy: string
-  }): Promise<InsertProposalResult> {
+  }, options: {
+    /**
+     * Set while AUTO_CANCEL_UNANSWERED is on (0042): the moment of asking.
+     * A booking whose deadline to answer is at or before it is refused, in
+     * the same transaction as the write, so a suggestion can't slip in after
+     * the deadline whatever the cron has done.
+     */
+    respondByAfter?: Date
+  } = {}): Promise<InsertProposalResult> {
     return db
       .transaction(async (tx): Promise<InsertProposalResult> => {
         const [booking] = await tx
-          .select({ status: bookings.status })
+          .select({ status: bookings.status, respondBy: bookings.respondBy })
           .from(bookings)
           .where(eq(bookings.id, values.bookingId))
           .for('update')
         if (!booking || booking.status !== 'pending') return { kind: 'state_changed' }
+        if (options.respondByAfter && booking.respondBy && booking.respondBy <= options.respondByAfter) {
+          return { kind: 'too_late' }
+        }
 
         const [payment] = await tx
           .select({ status: payments.status })
@@ -67,25 +84,6 @@ export const timeProposalsRepository = {
         if (isUniqueViolation(error)) return { kind: 'already_open' as const }
         throw error
       })
-  },
-
-  /**
-   * The garage takes its open suggestion back, only while it is open and in
-   * time. Empty when it was no longer open, or ran out meanwhile.
-   */
-  withdraw(proposalId: string, bookingId: string, at: Date) {
-    return db
-      .update(bookingTimeProposals)
-      .set({ status: 'withdrawn', resolvedAt: at })
-      .where(
-        and(
-          eq(bookingTimeProposals.id, proposalId),
-          eq(bookingTimeProposals.bookingId, bookingId),
-          eq(bookingTimeProposals.status, 'open'),
-          gt(bookingTimeProposals.expiresAt, sql`${at.toISOString()}::timestamptz`)
-        )
-      )
-      .returning()
   },
 
   /**

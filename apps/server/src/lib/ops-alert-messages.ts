@@ -92,6 +92,17 @@ export type OpsAlert =
       previousScheduledAt: Date
     }
   | {
+      /**
+       * The pending-digest cron cancelled a paid booking its garage did not
+       * accept in time (0042, AUTO_CANCEL_UNANSWERED): the garage's side, a
+       * full refund owed. With AUTO_REFUNDS on it goes out by itself (a
+       * refund_sent alert follows); otherwise it waits on the Refunds page.
+       */
+      kind: 'not_accepted_in_time'
+      booking: AlertBooking & { respondBy?: Date | null }
+      autoRefunds: boolean
+    }
+  | {
       /** The customer approved extra work by paying it in the app (0041). */
       kind: 'extra_work_paid'
       booking: AlertBooking
@@ -225,6 +236,12 @@ export type OpsAlert =
       payouts?: { garages: number; total: string; oldestUnpaidAt: Date | null; overdue: boolean } | null
       /** Pickup & drop jobs past their time with the car not collected. */
       latePickups?: DigestBooking[]
+      /**
+       * The morning roll-up only (0042): bookings cancelled yesterday (IST)
+       * because the garage did not accept in time, per garage, most first.
+       * Absent, or empty when there were none.
+       */
+      missedResponses?: Array<{ garageName: string; count: number }>
     }
   | {
       kind: 'paid_no_booking'
@@ -319,6 +336,8 @@ export interface DigestBooking {
   waitingSince: Date
   garageName: string
   garagePhone: string
+  /** The garage's deadline to accept (0042); null on bookings without one. */
+  respondBy?: Date | null
 }
 
 /** Rows per section: Telegram caps a message at 4096 characters. */
@@ -460,6 +479,23 @@ export function formatOpsAlert(alert: OpsAlert): string {
         paid
           ? `Cancelled as the garage's decline. ${rupees(b.amount)} was paid: refund it in full, and offer the customer another garage.`
           : "Cancelled as the garage's decline. Not paid online, so nothing to refund.",
+        adminBookingUrl(b.id)
+      )
+    }
+
+    case 'not_accepted_in_time': {
+      const b = alert.booking
+      const paid = isPaid(b)
+      return lines(
+        `⌛ Not accepted in time: ${b.vendor?.businessName ?? 'garage'}, booking #${reference(b.id)}${paid ? ` · refund ${rupees(b.amount)} ${alert.autoRefunds ? 'started' : 'owed'}` : ''}`,
+        garageLine(b),
+        `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)}`,
+        b.respondBy ? `Had until ${when(b.respondBy)} to accept.` : null,
+        paid
+          ? alert.autoRefunds
+            ? `Cancelled as the garage's. Full refund of ${rupees(b.amount)} going back automatically; the customer was shown other garages.`
+            : `Cancelled as the garage's. ${rupees(b.amount)} was paid: refund it in full from the Refunds page. The customer was shown other garages.`
+          : "Cancelled as the garage's. Not paid online, so nothing to refund.",
         adminBookingUrl(b.id)
       )
     }
@@ -626,7 +662,7 @@ export function formatOpsAlert(alert: OpsAlert): string {
           lines(
             `⏰ ${plural(alert.waiting.length, 'paid booking')} waiting for the garage to accept`,
             ...digestRows(alert.waiting, (b) =>
-              `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)} · waiting ${duration(alert.now.getTime() - b.waitingSince.getTime())}`
+              `${when(b.scheduledAt)} · ${modeLabel(b.bookingType)} · waiting ${duration(alert.now.getTime() - b.waitingSince.getTime())}${deadlineNote(b, alert.now)}`
             ),
             'Call the garage to accept or decline.'
           )
@@ -650,6 +686,18 @@ export function formatOpsAlert(alert: OpsAlert): string {
               payouts.oldestUnpaidAt ? `, oldest ${when(payouts.oldestUnpaidAt)}` : ''
             }${payouts.overdue ? ' · past 24 hours' : ''}`,
             ADMIN_PAYOUTS_URL
+          )
+        )
+      }
+      const missedResponses = alert.missedResponses ?? []
+      if (missedResponses.length > 0) {
+        // "⌛ Not accepted in time yesterday: 3 bookings" and one line a garage.
+        const total = missedResponses.reduce((sum, row) => sum + row.count, 0)
+        sections.push(
+          lines(
+            `⌛ Not accepted in time yesterday: ${plural(total, 'booking')}, cancelled and refunded`,
+            ...missedResponses.slice(0, DIGEST_MAX_ROWS).map((row) => `${row.garageName} · ${row.count}`),
+            missedResponses.length > DIGEST_MAX_ROWS ? `…and ${missedResponses.length - DIGEST_MAX_ROWS} more garages` : null
           )
         )
       }
@@ -824,6 +872,18 @@ function digestRows(rows: DigestBooking[], detail: (b: DigestBooking) => string)
   ])
   const more = rows.length - DIGEST_MAX_ROWS
   return more > 0 ? [...shown, `…and ${more} more`] : shown
+}
+
+/**
+ * The garage's deadline on a waiting row (0042): " · accept by Mon 19 Oct,
+ * 10:42 am", or " · time to accept ran out Mon 19 Oct, 10:42 am" once it
+ * has passed (the cron cancels it when AUTO_CANCEL_UNANSWERED is on).
+ */
+function deadlineNote(b: DigestBooking, now: Date): string {
+  if (!b.respondBy) return ''
+  return b.respondBy.getTime() > now.getTime()
+    ? ` · accept by ${when(b.respondBy)}`
+    : ` · time to accept ran out ${when(b.respondBy)}`
 }
 
 function plural(count: number, noun: string): string {

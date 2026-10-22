@@ -110,6 +110,8 @@ export const homeRepository = {
         cancelledBy: true,
         cancelledOnBehalfOf: true,
         noShow: true,
+        // Cancelled because the garage did not accept in time (0042).
+        responseMissedAt: true,
         rescheduledFromId: true,
         rescheduleCount: true,
         reviewPromptDismissedAt: true,

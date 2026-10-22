@@ -103,6 +103,8 @@ function bookingPaymentRows(where: SQL | undefined, conn: Conn = db) {
       cancelledBy: bookings.cancelledBy,
       cancelledOnBehalfOf: bookings.cancelledOnBehalfOf,
       cancelledAt: bookings.cancelledAt,
+      // Cancelled because the garage did not accept in time (0042).
+      responseMissedAt: bookings.responseMissedAt,
       moved: MOVED,
       ...CUSTOMER_AND_GARAGE,
     })

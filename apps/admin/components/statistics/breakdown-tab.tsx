@@ -192,6 +192,13 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
                       </>
                     )}
                   </span>
+                  {/* Paid bookings it let run out (0042): cancelled and
+                      refunded by the cron, already among the cancellations. */}
+                  {(garage.notAcceptedInTime ?? 0) > 0 && (
+                    <span className="mt-0.5 block text-[11px] text-text-secondary">
+                      <span className="font-numeric">{garage.notAcceptedInTime}</span> not accepted in time
+                    </span>
+                  )}
                 </th>
                 <td className={figure}>{garage.bookings.toLocaleString('en-IN')}</td>
                 <td className={figure}>{rupees(garage.collected)}</td>

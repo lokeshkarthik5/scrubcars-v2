@@ -1,7 +1,7 @@
 import { apiClient } from './client'
-import { mapBooking, mapSlots } from './mappers'
-import type { ApiBooking, ApiSlotsResponse } from './types'
-import type { Booking, BookingReceipt, BookingType, PaymentMethod } from '@repo/core/types'
+import { mapBooking, mapSlots, mapVendorListItem } from './mappers'
+import type { ApiBooking, ApiSlotsResponse, ApiVendorListItem } from './types'
+import type { Booking, BookingReceipt, BookingType, PaymentMethod, Vendor } from '@repo/core/types'
 
 export interface CreateBookingPayload {
   vendorId: string
@@ -297,4 +297,24 @@ export async function declineProposedTimes(bookingId: string): Promise<Booking> 
     method: 'POST',
   })
   return mapBooking(booking)
+}
+
+/** Other garages for a booking its garage did not accept in time (0042). */
+export interface OtherGarages {
+  /** The booking's type, carried into each garage's link. */
+  bookingType: BookingType
+  /** Up to three of the garage list's cards, nearest first. */
+  vendors: Vendor[]
+}
+
+/**
+ * GET /bookings/:id/other-garages — "Book another garage": up to three
+ * nearby live garages that take the same booking type and offer one of the
+ * booked services' kinds. Empty for any booking its garage did not miss.
+ */
+export async function getOtherGarages(bookingId: string): Promise<OtherGarages> {
+  const data = await apiClient<{ bookingType: BookingType; items: ApiVendorListItem[] }>(
+    `/bookings/${bookingId}/other-garages`
+  )
+  return { bookingType: data.bookingType, vendors: data.items.map(mapVendorListItem) }
 }

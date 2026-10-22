@@ -4,6 +4,7 @@ import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { digestLookbacks, isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
+import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
@@ -32,6 +33,19 @@ export const opsService = {
       .catch((err: unknown) => {
         log.error({ err }, 'ops:time_proposal_sweep_failed')
         return { error: true as const }
+      })
+
+    // Paid bookings their garage did not accept in time are cancelled with
+    // a full refund (0042, AUTO_CANCEL_UNANSWERED; nothing happens while it
+    // is off). After the suggestion sweep, whose open suggestions hold these
+    // off, and before the refunds' retry, so a refund this makes is in its
+    // list. Quiet hours don't stop it: cancelling is not a message. Never
+    // allowed to fail the digest.
+    const notAccepted = await garageResponseService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:garage_response_sweep_failed')
+        return { enabled: true as const, error: true as const }
       })
 
     // The automatic refunds' retry rides on this run (AUTO_REFUNDS; nothing
@@ -88,7 +102,17 @@ export const opsService = {
           return null
         })
       : null
-    const plan = planPendingDigest(now, rows, pickups, { morningExtras: payouts !== null })
+    // And how many bookings each garage did not accept in time yesterday
+    // (0042): read only at 07:00, left out if it fails.
+    const missedResponses = isMorningTick(now)
+      ? await garageResponseService.missedYesterday(new Date(now)).catch((err: unknown) => {
+          log.error({ err }, 'ops:missed_responses_summary_failed')
+          return []
+        })
+      : []
+    const plan = planPendingDigest(now, rows, pickups, {
+      morningExtras: payouts !== null || missedResponses.length > 0,
+    })
     const summary = {
       waiting: plan.waiting.length,
       missed: plan.missed.length,
@@ -100,6 +124,8 @@ export const opsService = {
       refundChecks,
       analyticsPurged,
       timeProposals,
+      notAccepted,
+      missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 
     if (!plan.post || options.dryRun) return summary
@@ -112,6 +138,7 @@ export const opsService = {
         missed: plan.missed,
         payouts: plan.reason === 'morning' ? payouts : null,
         latePickups: plan.latePickups,
+        missedResponses: plan.reason === 'morning' ? missedResponses : [],
       })
       if (outcome === 'off') return { ...summary, reason: 'alerts_off' }
     } catch (err) {

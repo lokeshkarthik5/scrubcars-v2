@@ -392,6 +392,8 @@ export function mapBooking(booking: ApiBooking): Booking {
     completeBlockedByExtraWork: booking.completeBlockedByExtraWork ?? false,
     timeProposal: booking.timeProposal ?? null,
     canSuggestTimes: booking.canSuggestTimes ?? false,
+    responseDeadline: booking.responseDeadline ?? null,
+    notAcceptedInTime: booking.notAcceptedInTime ?? false,
     refund: booking.refund
       ? {
           status: booking.refund.status,

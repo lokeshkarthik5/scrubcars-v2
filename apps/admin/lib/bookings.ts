@@ -144,11 +144,15 @@ export function cancellationLabel(
   booking: Pick<
     AdminBooking,
     'status' | 'cancelledBy' | 'cancelledOnBehalfOf' | 'noShow'
-  >
+  > &
+    Partial<Pick<AdminBooking, 'notAcceptedInTime'>>
 ): string | null {
   if (booking.status !== 'cancelled') return null
   if (booking.noShow === 'customer') return 'Customer no-show'
   if (booking.noShow === 'garage') return 'Garage no-show'
+  // The cron cancelled it for the garage (0042): its side, like a decline,
+  // but nobody at the garage pressed anything.
+  if (booking.cancelledBy === 'vendor' && booking.notAcceptedInTime) return 'Not accepted in time'
   switch (booking.cancelledBy) {
     case 'admin':
       // "At … request", the same words the customer and garage apps use,

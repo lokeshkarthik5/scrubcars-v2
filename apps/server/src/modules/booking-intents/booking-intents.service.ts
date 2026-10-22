@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js'
+import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { newHandoverCodes } from '../../lib/pickup.js'
@@ -139,6 +140,7 @@ export const bookingIntentsService = {
       ...params,
       // Made for every confirm and kept only by a pickup & drop booking.
       handoverCodes: newHandoverCodes(),
+      responseWindowMins: env.garageResponseMinutes,
     })
 
     return await handleConsumeResult(params, result)

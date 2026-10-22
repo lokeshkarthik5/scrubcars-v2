@@ -23,6 +23,8 @@ export const opsRepository = {
         ),
         garageName: vendors.businessName,
         garagePhone: vendors.phone,
+        // The garage's deadline to accept (0042), which the nudge mentions.
+        respondBy: bookings.respondBy,
       })
       .from(bookings)
       .innerJoin(payments, eq(payments.bookingId, bookings.id))

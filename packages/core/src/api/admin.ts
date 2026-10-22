@@ -342,6 +342,16 @@ export interface AdminBooking {
   acceptedAt?: string | null
   startedAt?: string | null
   completedAt?: string | null
+  /**
+   * The garage's deadline to accept (0042); null on bookings without one.
+   * Optional for a server older than 0042.
+   */
+  respondBy?: string | null
+  /**
+   * When the cron cancelled it because the garage did not accept in time
+   * ("Not accepted in time", refunded in full); null otherwise.
+   */
+  notAcceptedInTime?: string | null
   /** The balance still to pay on a final bill ("Bill due ₹Z"); null when none. */
   billDue?: string | null
   /**
@@ -735,6 +745,11 @@ export interface StatsGarageRow {
   collected: number
   rating: number | null
   reviews: number
+  /**
+   * Paid bookings it did not accept in time, cancelled and refunded by the
+   * cron (0042). Absent from servers before 0042.
+   */
+  notAcceptedInTime?: number
 }
 
 export interface StatsServiceRow {
