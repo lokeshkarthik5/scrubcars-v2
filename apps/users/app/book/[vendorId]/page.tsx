@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useCallback, useEffect, useRef, useState, Suspense } from 'react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -18,7 +19,6 @@ import {
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { useQueryClient } from '@tanstack/react-query'
-import { AddAddressSheet } from '@/components/add-address-sheet'
 import { MainAction } from '@/components/main-action'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
@@ -26,7 +26,6 @@ import {
   PaymentReceivedPanel,
   paymentReceivedText,
 } from '@/components/payment-received-panel'
-import { AddCarSheet } from '@repo/ui/features/add-car-sheet'
 import {
   LocationPicker,
   type PickedLocation,
@@ -62,9 +61,8 @@ import { getAddresses, updateAddress } from '@repo/core/api/users'
 import { ApiError } from '@repo/core/api/client'
 import { amountBucket } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
-import { getVendorServices } from '@repo/core/api/services'
+import { garageQuery } from '@repo/core/api/hooks/use-vendors'
 import { pickRequestedServices, unofferedMode } from '@repo/core/book-again'
-import { getVendorPackages } from '@repo/core/api/packages'
 import { getVendor } from '@repo/core/api/vendors'
 import { outsideCityCheckoutLine } from '@repo/core/service-city'
 import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
@@ -96,6 +94,18 @@ import { formatServicePrice, resolveServiceAmount } from '@repo/core/pricing'
 import { Figures } from '@repo/ui/sc/figures'
 import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { cn, formatDuration, formatServiceSummary } from '@repo/core/utils'
+
+// Sheets closed on arrival are loaded after the page, not with it: they are
+// out of the first load's JavaScript, and on the page well before anyone can
+// tap what opens them. Client-only, since closed they render nothing anyway.
+const AddCarSheet = dynamic(
+  () => import('@repo/ui/features/add-car-sheet').then((m) => m.AddCarSheet),
+  { ssr: false }
+)
+const AddAddressSheet = dynamic(
+  () => import('@/components/add-address-sheet').then((m) => m.AddAddressSheet),
+  { ssr: false }
+)
 
 /**
  * What checkout can still be waiting on, in the order the page asks for it.
@@ -233,20 +243,26 @@ function BookContent({ vendorId }: { vendorId: string }) {
     // Mode's second pass in development) must not write its answer over the
     // newer one, nor redirect the customer a second time.
     let cancelled = false
-    getVendor(vendorId).then((v) => {
-      if (!cancelled) setVendor(v ?? null)
-    })
-    // Packages are fetched alongside the plain services because a package is
-    // a bookable line like any other, and `/services` deliberately excludes
-    // them. Without this, a customer who added a package on the garage page
-    // arrived here with nothing selected.
-    Promise.all([
-      getVendorServices(vendorId),
-      getVendorPackages(vendorId),
-    ]).then(
-      ([svcs, pkgs]) => {
+    // The garage page's own query (the garage, its services and its
+    // packages, fetched together): from the cache when Book Now was tapped on
+    // it under a minute ago, so checkout opens at once on the catalogue the
+    // customer picked from, and fetched otherwise. Packages come with the
+    // plain services because a package is a bookable line like any other,
+    // and `/services` deliberately excludes them. Without them, a customer
+    // who added a package on the garage page arrived here with nothing
+    // selected.
+    queryClient.fetchQuery(garageQuery(vendorId)).then(
+      (garage) => {
         if (cancelled) return
-        const catalogue: Service[] = [...svcs, ...pkgs]
+        // Not listed (a 404 on any of the three): the garage page's answer.
+        if (garage === null) {
+          setVendor(null)
+          setLoadProblem('gone')
+          return
+        }
+        setVendor(garage.vendor)
+        const svcs = garage.services
+        const catalogue: Service[] = [...garage.services, ...garage.packages]
 
         // Resolved in the order the ids arrived, not the order the catalogue
         // came back in: that order is the customer's, and it is what the
@@ -291,6 +307,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
     modeParam,
     router,
     loadAttempt,
+    queryClient,
     fetchVehicles,
     fetchAddresses,
     fetchProfile,
@@ -1211,7 +1228,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 <button
                   type="button"
                   onClick={handleRemovePromo}
-                  className="shrink-0 text-[12px] font-medium text-text-primary"
+                  className="-mr-2 min-h-11 shrink-0 px-2 text-[12px] font-medium text-text-primary"
                 >
                   Remove
                 </button>
@@ -1288,9 +1305,12 @@ function BookContent({ vendorId }: { vendorId: string }) {
                         type="button"
                         onClick={() => removeService(service.id)}
                         aria-label={`Remove ${service.name}`}
-                        className="mt-px shrink-0 text-text-muted transition-colors hover:text-text-primary"
+                        // A 36px target around the 14px cross, drawn in the
+                        // same spot: the rows sit closer than 44px apart, so
+                        // a full 44 would reach into the next row's cross.
+                        className="-m-[11px] mt-[-10px] flex size-9 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
                       >
-                        <IconX size={14} />
+                        <IconX size={14} aria-hidden="true" />
                       </button>
                     )}
                     <span className="min-w-0 text-text-secondary">
@@ -1451,6 +1471,9 @@ function BookContent({ vendorId }: { vendorId: string }) {
         <div className="mt-4 flex items-center gap-2 rounded-[12px] border border-border bg-surface px-3">
           <input
             id="promo-code"
+            aria-label="Coupon code"
+            aria-invalid={promoError ? true : undefined}
+            aria-describedby={promoError ? 'promo-code-error' : undefined}
             autoFocus
             autoCapitalize="characters"
             autoComplete="off"
@@ -1464,7 +1487,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             type="button"
             disabled={!canApplyPromo || applyPromo.isPending}
             onClick={handleApplyPromo}
-            className="shrink-0 px-1 text-[14px] font-semibold text-brand-red transition-colors disabled:text-text-muted"
+            className="-mr-1 min-h-11 shrink-0 px-2 text-[14px] font-semibold text-brand-red transition-colors disabled:text-text-muted"
           >
             {applyPromo.isPending ? 'Checking…' : 'Apply'}
           </button>
@@ -1474,7 +1497,7 @@ function BookContent({ vendorId }: { vendorId: string }) {
             a single <p>: the e2e page object finds the message as the sheet's
             one paragraph that is not the static hint below. */}
         {promoError && (
-          <p role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-error">
+          <p id="promo-code-error" role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-error">
             <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
             {promoError}
           </p>

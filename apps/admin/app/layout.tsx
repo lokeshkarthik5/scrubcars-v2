@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import { ToastContainer } from 'react-toastify'
 import { QueryProvider } from '@repo/ui/providers/query-provider'
+import { IosZoomGuard } from '@repo/ui/sc/ios-zoom-guard'
 import { AdminScope } from '@/components/admin-scope'
 import 'react-toastify/dist/ReactToastify.css'
 import './globals.css'
@@ -34,7 +35,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: capping it at 1 stopped Android users zooming at all.
+  // iOS keeps the cap through IosZoomGuard, which stops Safari zooming into
+  // a focused field and nothing else (iOS ignores it for pinch-zoom).
   // The browser's own chrome in the canvas colour, as in the other two apps.
   themeColor: '#0A0A0B',
 }
@@ -47,6 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} h-full`}>
       <body className="min-h-full font-sans">
+        <IosZoomGuard />
         {/* Admin has no AppProvider: it authenticates with username/password
             against /admin/me, not the customer/vendor OTP session, and guards
             imperatively inside AdminScope. */}

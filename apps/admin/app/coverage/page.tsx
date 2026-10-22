@@ -99,7 +99,7 @@ export default function AdminCoveragePage() {
                     is kept for things to press. */}
                 <span
                   className={cn(
-                    'block rounded-[4px] px-1.5 py-0.5 font-numeric text-[10px] font-semibold shadow',
+                    'block rounded-[4px] px-1.5 py-0.5 font-numeric text-[11px] font-semibold shadow',
                     cell.gap > 0
                       ? 'bg-warning text-brand-black'
                       : cell.vendorCount > 0

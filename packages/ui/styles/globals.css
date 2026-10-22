@@ -38,6 +38,11 @@
   --color-accent: #EF3240;
   --color-accent-hover: #D42433;
   --color-accent-muted: rgba(239, 50, 64, 0.12);
+  /* Brand red as small text on its own 12% tint (the garage's and admin's
+     "New" badge). #EF3240 there is 4.1:1 on a card, under AA for 11px text;
+     this is the same red a step lighter, 5.2:1 on a card and 5.6:1 on the
+     canvas. Text only: fills and buttons stay #EF3240. */
+  --color-accent-text: #F45A66;
   --color-success: #22C55E;
   --color-success-muted: rgba(34, 197, 94, 0.12);
   /* One amber for every caution, the same as --color-error: two near-identical
@@ -65,6 +70,29 @@
   --radius-card: 28px;
   --radius-tile: 22px;
   --radius-pill: 999px;
+}
+
+/* A 44 × 44 touch area around a control drawn smaller than that — a chip, a
+   "Set default" text button — without changing how it looks or how much room
+   it takes: an invisible box centred on the control, at least 44px each way,
+   that takes its taps. For controls with space around them; where two would
+   overlap, the later one in the page takes the tap, so neighbours that sit
+   closer than 44px apart (a row of icon buttons) get real padding instead.
+   Not for an absolutely positioned control: this makes it `relative`. A
+   scroll row clips the box at its own edge, so a chip row gives it room
+   (py-2 -my-2 on the row is enough for 30px chips). */
+@utility tap-target {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
 }
 
 /* The red call to action's gradient (owner decision D12). The stops are
@@ -101,6 +129,18 @@
     background-color: --theme(--color-brand-black);
     color: --theme(--color-text-primary);
     min-height: 100dvh;
+  }
+
+  /* A keyboard focus ring every control gets, on a dark screen. The browser's
+     default ring is a thin blue-black line that all but disappears on the
+     canvas, and most controls never set one of their own. White, 2px, off the
+     edge, and only for keyboard focus (:focus-visible), so a tap never draws
+     it. In the base layer, so a control's own focus-visible: ring (the cards,
+     the segmented control) still wins, and a field's outline-none (fields mark
+     focus with their border) is left alone. */
+  :where(a[href], button, summary, [role='button'], [role='tab'], [role='radio'], [role='switch'], [role='checkbox'], [tabindex]:not([tabindex='-1'])):focus-visible {
+    outline: 2px solid --theme(--color-text-primary);
+    outline-offset: 2px;
   }
 
   /* The muted level, not a hard-coded grey: placeholders were still #555555
@@ -373,13 +413,14 @@
     color: var(--oc-ink3);
   }
 
-  /* 40px hit area, 4px in from the stub's corner. */
+  /* 44px hit area, 2px in from the stub's corner; the × is drawn where it
+     always was. */
   .offer-coupon__dismiss {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 40px;
-    height: 40px;
+    top: 2px;
+    right: 2px;
+    width: 44px;
+    height: 44px;
     display: grid;
     place-items: center;
     border-radius: 50%;

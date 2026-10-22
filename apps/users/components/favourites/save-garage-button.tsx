@@ -76,7 +76,8 @@ export function SaveGarageButton({ vendor, className }: { vendor: Vendor; classN
         aria-pressed={isSaved}
         aria-label={isSaved ? `Remove ${vendor.name} from saved garages` : `Save ${vendor.name}`}
         className={cn(
-          'press flex size-9 items-center justify-center rounded-full bg-black/45 text-brand-white backdrop-blur-sm',
+          // 44px: the disc is the whole target.
+          'press flex size-11 items-center justify-center rounded-full bg-black/45 text-brand-white backdrop-blur-sm',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/80',
           className
         )}

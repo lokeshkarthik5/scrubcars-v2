@@ -113,7 +113,8 @@ export function BottomNav({ type = 'customer' }: { type?: NavType }) {
               href={matched ?? href}
               // The colour change alone says nothing to a screen reader.
               aria-current={active ? 'page' : undefined}
-              className="relative flex flex-1 flex-col items-center gap-0.5 py-1"
+              // At least 44px tall whatever the label's size.
+              className="relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-1"
             >
               {/* The current tab is white, and the bar's only red is this one
                   4px dot above it — a focal point, per the brand, rather than
@@ -126,13 +127,17 @@ export function BottomNav({ type = 'customer' }: { type?: NavType }) {
                 />
               )}
               <Icon
+                aria-hidden="true"
                 size={22}
                 stroke={active ? 2 : 1.5}
                 className={cn(active ? 'text-text-primary' : 'text-text-muted')}
               />
+              {/* 11px, the smallest size for words to read. The admin's
+                  seven tabs stay at 10px: at 11px "Complaints" and
+                  "Statistics" no longer fit a 360px phone side by side. */}
               <span
                 className={cn(
-                  'text-[10px] font-medium',
+                  type === 'admin' ? 'text-[10px] font-medium' : 'text-[11px] font-medium',
                   active ? 'text-text-primary' : 'text-text-muted'
                 )}
               >

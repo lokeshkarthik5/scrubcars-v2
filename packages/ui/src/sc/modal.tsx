@@ -124,11 +124,61 @@ function useDialogFocus(
       active instanceof HTMLElement && !panel?.contains(active) ? active : null
     if (panel && !panel.contains(active)) panel.focus()
 
+    // Tab stays inside while it is open: aria-modal tells a screen reader the
+    // page behind is out of reach, and the keyboard should agree. Tab from
+    // the last control goes to the first, Shift+Tab from the first (or from
+    // the panel itself) to the last.
+    if (panel) openPanels.push(panel)
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Only the dialog on top: one opened from inside another must keep
+      // focus, not have the one beneath pull it back.
+      if (event.key !== 'Tab' || !panel || openPanels[openPanels.length - 1] !== panel) return
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE)
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement)
+      if (focusable.length === 0) {
+        event.preventDefault()
+        panel.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const current = document.activeElement
+      if (event.shiftKey && (current === first || current === panel)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && current === last) {
+        event.preventDefault()
+        first.focus()
+      } else if (!panel.contains(current)) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+
     return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      const index = panel ? openPanels.lastIndexOf(panel) : -1
+      if (index !== -1) openPanels.splice(index, 1)
       if (opener?.isConnected) opener.focus()
     }
   }, [open, panelRef])
 }
+
+/** The open dialogs' panels, the top one last. */
+const openPanels: HTMLElement[] = []
+
+/** What Tab can land on inside a dialog. */
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'video[controls]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
 
 /** Centred dialog — scales up from slightly small and low. */
 export function ScModal({
@@ -189,6 +239,11 @@ export function ScSheet({
 }: OverlayProps & { showHandle?: boolean }) {
   const { visible, handleAnimationEnd } = useOverlayPresence(open)
   useOverlayBehaviour(visible, dismissible, onClose)
+  // The same focus handling as the centred dialog: into the sheet on open,
+  // kept there by Tab, and back to what opened it on close. Sheets had none,
+  // so Tab walked the page behind the backdrop.
+  const panelRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(open, panelRef)
 
   if (!visible) return null
 
@@ -204,16 +259,21 @@ export function ScSheet({
       aria-label={ariaLabel}
     >
       <div
+        ref={panelRef}
+        // Focusable from script only, as ScModal's panel is.
+        tabIndex={-1}
         className={cn(
-          'max-h-[88vh] w-full max-w-[428px] overflow-y-auto rounded-t-[22px] border-t border-border bg-brand-black pb-6',
+          'max-h-[88vh] w-full max-w-[428px] overflow-y-auto rounded-t-[22px] border-t border-border bg-brand-black pb-6 focus:outline-none',
           open ? 'sheet-in' : 'sheet-out',
           className
         )}
         onClick={(e) => e.stopPropagation()}
         onAnimationEnd={handleAnimationEnd}
       >
+        {/* The handle is drawn, not a control: the backdrop, Escape and the
+            sheet's own buttons close it. */}
         {showHandle && (
-          <div className="flex justify-center py-2.5">
+          <div aria-hidden="true" className="flex justify-center py-2.5">
             <span className="h-1 w-9 rounded-full bg-border" />
           </div>
         )}

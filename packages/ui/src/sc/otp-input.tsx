@@ -8,9 +8,11 @@ interface OtpInputProps {
   onComplete?: (otp: string) => void
   /** 'glass' on the frosted sign-in card, matching the phone field there. */
   tone?: 'solid' | 'glass'
+  /** The id of the message that says the code was wrong, read with each box. */
+  errorId?: string
 }
 
-export function OtpInput({ length = 6, onComplete, tone = 'solid' }: OtpInputProps) {
+export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: OtpInputProps) {
   const [values, setValues] = useState<string[]>(Array(length).fill(''))
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -54,10 +56,14 @@ export function OtpInput({ length = 6, onComplete, tone = 'solid' }: OtpInputPro
   }
 
   return (
-    <div className="flex justify-center gap-2">
+    <div role="group" aria-label="Verification code" className="flex justify-center gap-2">
       {values.map((val, i) => (
         <input
           key={i}
+          // Six unnamed boxes read as six blank fields; each says which digit.
+          aria-label={`Digit ${i + 1} of ${length}`}
+          aria-invalid={errorId ? true : undefined}
+          aria-describedby={errorId}
           ref={(el) => { refs.current[i] = el }}
           type="text"
           inputMode="numeric"

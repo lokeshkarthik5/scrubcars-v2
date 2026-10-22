@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import {
   IconCarGarage,
@@ -58,11 +59,18 @@ import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import type { Booking, Review } from '@repo/core/types'
 import { BookingDirectionsSheet, describeDrive } from '@/components/booking-directions-sheet'
-import { BookingHelpSheet } from '@/components/booking-help-sheet'
 import { FinalBillCard, type BillPayment } from '@/components/final-bill-card'
 import { JobPhotosCard } from '@/components/job-photos-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
+
+// Sheets closed on arrival are loaded after the page, not with it: they are
+// out of the first load's JavaScript, and on the page well before anyone can
+// tap what opens them. Client-only, since closed they render nothing anyway.
+const BookingHelpSheet = dynamic(
+  () => import('@/components/booking-help-sheet').then((m) => m.BookingHelpSheet),
+  { ssr: false }
+)
 
 /** A booking the customer still has to get to, or is at. */
 const OPEN_STATUSES: ReadonlySet<Booking['status']> = new Set(['pending', 'confirmed', 'in_progress'])
@@ -1007,7 +1015,7 @@ export default function BookingDetailPage({
             <button
               type="button"
               onClick={() => setShowCancelConfirm(true)}
-              className="w-full text-center text-[14px] font-semibold text-text-primary underline"
+              className="min-h-11 w-full text-center text-[14px] font-semibold text-text-primary underline"
             >
               Cancel Booking
             </button>
@@ -1034,6 +1042,7 @@ export default function BookingDetailPage({
               <Stars rating={rating} interactive value={rating} onChange={setRating} size={24} />
               <div className="mt-3">
                 <ScInput
+                  aria-label="Tell us about your experience"
                   placeholder="Tell us about your experience"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}

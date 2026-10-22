@@ -110,8 +110,10 @@ export function ScSegmented<T extends string>({
               'flex flex-1 items-center justify-center gap-1.5 font-medium transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70',
               'disabled:pointer-events-none disabled:opacity-40',
+              // The small size is drawn about 26px tall; tap-target gives it
+              // a 44px touch area without changing that.
               size === 'sm'
-                ? 'rounded-[7px] px-2 py-1 text-[11px]'
+                ? 'tap-target rounded-[7px] px-2 py-1 text-[11px]'
                 : 'rounded-[9px] py-2.5 text-[13px]',
               // The selected option is raised onto graphite with a white
               // label — no red. Red is kept for what the customer should

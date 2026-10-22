@@ -7,6 +7,7 @@ import {
 } from '@/components/marketing/content'
 import { getLiveGarages } from '@/components/marketing/live-garages'
 import { ScrollMotion } from '@/components/marketing/scroll-motion'
+import { SkipLink } from '@/components/skip-link'
 import {
   AppShowcase,
   Faq,
@@ -59,9 +60,11 @@ export const metadata: Metadata = {
 }
 
 /**
- * The root layout pins maximumScale to 1 so iOS does not zoom into the app's
- * form fields. This page has no fields, and blocking pinch-zoom on a page
- * meant for reading fails WCAG 1.4.4 — so here it is allowed.
+ * Zoom to 5x, said outright. The rest of the app leaves zoom alone and caps it
+ * on iOS only, to stop Safari zooming into form fields (IosZoomGuard, which
+ * leaves a page that names its own maximum as it is). This page has no
+ * fields, and blocking pinch-zoom on a page meant for reading fails WCAG
+ * 1.4.4.
  */
 export const viewport: Viewport = {
   width: 'device-width',
@@ -98,8 +101,10 @@ export default async function HomePage() {
 
   return (
     <>
+      <SkipLink />
       <SiteHeader links={navLinks} />
-      <main data-marketing-home>
+      {/* tabIndex -1 so the skip link moves focus here, not just the view. */}
+      <main id="main" tabIndex={-1} data-marketing-home className="outline-none">
         <Hero
           city={garages.cities.length === 1 ? garages.cities[0] : null}
           startingPrice={garages.startingPrice}

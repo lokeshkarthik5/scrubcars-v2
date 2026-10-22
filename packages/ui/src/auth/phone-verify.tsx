@@ -156,12 +156,16 @@ export function PhoneVerify({
   const code = (
     <>
       <div className="pt-7">
-        <OtpInput onComplete={setOtp} tone={backdrop ? 'glass' : 'solid'} />
+        <OtpInput
+          onComplete={setOtp}
+          tone={backdrop ? 'glass' : 'solid'}
+          errorId={error ? 'otp-error' : undefined}
+        />
       </div>
 
       {/* Amber, as on the login screen — red is the Verify button's. */}
       {error && (
-        <p role="alert" className="flex items-start gap-1.5 pt-4 text-[12px] text-error">
+        <p id="otp-error" role="alert" className="flex items-start gap-1.5 pt-4 text-[12px] text-error">
           <IconAlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
           {error}
         </p>

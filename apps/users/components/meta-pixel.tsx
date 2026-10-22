@@ -48,7 +48,11 @@ export function MetaPixel() {
 
   return (
     <>
-      <Script id="meta-pixel" strategy="afterInteractive">
+      {/* lazyOnload: after the page has loaded and the browser is idle, so
+          Meta's script (fbevents.js) never competes with the page's
+          own JavaScript for the first paint and the first tap. The landing
+          PageView is still sent, by this snippet, once it runs. */}
+      <Script id="meta-pixel" strategy="lazyOnload">
         {PIXEL_BOOT}
       </Script>
       <noscript>

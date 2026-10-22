@@ -15,7 +15,9 @@ import {
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { track } from '@repo/core/analytics'
 import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
-import { boundsToParam, type MapBounds } from '@repo/ui/features/map-controller'
+// From map-bounds, not map-controller: the controller imports the map and so
+// MapLibre, which a static import here put in the page's first load.
+import { boundsToParam, type MapBounds } from '@repo/ui/features/map-bounds'
 import { FLOATING_NAV_CLEARANCE } from '@repo/ui/sc/app-shell'
 import { Figures } from '@repo/ui/sc/figures'
 import { OutsideCityChip } from '@repo/ui/features/outside-city'
@@ -398,9 +400,9 @@ function MapBrowseContent() {
             {/* Back to the list in the same mode the map was opened in. */}
             <Link
               href={bookingTypeParam(bookingType) ? `/garages?mode=${bookingTypeParam(bookingType)}` : '/garages'}
-              className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
+              className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-surface-elevated px-3.5 py-2 text-[13px] font-semibold text-text-primary shadow-lg ring-1 ring-border"
             >
-              <IconList size={15} />
+              <IconList size={15} aria-hidden="true" />
               List
             </Link>
 
@@ -430,9 +432,9 @@ function MapBrowseContent() {
               //
               // White, not red: the map's one red is the selected garage's
               // pin, and red text on graphite is under AA contrast anyway.
-              className="press pointer-events-auto flex items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-[13px] font-semibold text-brand-black shadow-lg"
+              className="press pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-brand-white px-4 py-2 text-[13px] font-semibold text-brand-black shadow-lg"
             >
-              <IconRefresh size={15} />
+              <IconRefresh size={15} aria-hidden="true" />
               Search this area
             </button>
           </div>
@@ -572,7 +574,7 @@ function RoundButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="press pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-surface-elevated text-text-primary shadow-lg ring-1 ring-border disabled:opacity-50"
+      className="press pointer-events-auto flex size-11 items-center justify-center rounded-full bg-surface-elevated text-text-primary shadow-lg ring-1 ring-border disabled:opacity-50"
     >
       {children}
     </button>
@@ -664,7 +666,7 @@ function MapVendorCard({
         />
 
         {badge && (
-          <span className="absolute right-2 top-2 rounded-full bg-surface-elevated/90 px-2 py-0.5 text-[10px] font-semibold text-text-primary ring-1 ring-border">
+          <span className="absolute right-2 top-2 rounded-full bg-surface-elevated/90 px-2 py-0.5 text-[11px] font-semibold text-text-primary ring-1 ring-border">
             {badge}
           </span>
         )}

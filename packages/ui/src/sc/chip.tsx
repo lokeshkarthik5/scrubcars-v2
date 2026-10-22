@@ -24,7 +24,8 @@ export function Chip({ label, selected, onClick, disabled, className }: ChipProp
       // Selection is otherwise carried only by the fill colour.
       aria-pressed={selected ?? false}
       className={cn(
-        'shrink-0 rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors',
+        // tap-target: a 44px touch area around the 30px chip (globals.css).
+        'tap-target shrink-0 rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors',
         disabled && 'cursor-not-allowed bg-brand-black text-text-muted line-through opacity-60',
         !disabled && selected && 'border-brand-white bg-brand-white text-brand-black',
         !disabled && !selected && 'border-border bg-surface text-text-primary',
@@ -59,7 +60,7 @@ export function FilterChip({
       // "Live12", since the gap between the two is only layout.
       aria-label={count !== undefined ? `${label} ${count}` : undefined}
       className={cn(
-        'shrink-0 rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors',
+        'tap-target shrink-0 rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors',
         active
           ? 'border-brand-white bg-brand-white text-brand-black'
           : 'border-border bg-surface text-text-secondary',
@@ -72,7 +73,9 @@ export function FilterChip({
         <span
           className={cn(
             'font-numeric',
-            active ? 'text-brand-black/55' : count === 0 ? 'text-text-muted/70' : 'text-text-muted'
+            // 60% black on white is 5.2:1 and 85% muted on a card 5.1:1; the
+            // 55% and 70% these were came to 4.4:1 and 3.9:1.
+            active ? 'text-brand-black/60' : count === 0 ? 'text-text-muted/85' : 'text-text-muted'
           )}
         >
           {count}

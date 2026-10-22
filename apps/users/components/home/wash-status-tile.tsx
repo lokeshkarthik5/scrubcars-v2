@@ -35,7 +35,7 @@ export function WashStatusTile({ car, now }: { car: HomeCar; now: Date }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="hub-card press flex h-[164px] min-w-0 flex-col pt-3.5 pr-3.5 pb-[18px] pl-5 text-left"
+        className="hub-card press flex min-h-[164px] min-w-0 flex-col pt-3.5 pr-3.5 pb-[18px] pl-5 text-left"
       >
         <span className="flex items-center justify-between">
           <span className="text-[13px] text-dim">Last wash</span>

@@ -173,7 +173,11 @@ function GarageListContent() {
           onClick={() => setLocationSheetOpen(true)}
           disabled={locating}
           aria-label="Choose location"
-          className="min-w-0 text-right"
+          // max-w-full: a button sizes to its longest line, so without it the
+          // one-line status ("Location blocked — enable in browser settings")
+          // pushed the page 46px wider than a 360px phone instead of being
+          // cut short.
+          className="min-w-0 max-w-full text-right"
         >
           <div className="flex items-center justify-end gap-1.5">
             <IconMapPin size={15} className="shrink-0 text-text-primary" />
@@ -213,7 +217,9 @@ function GarageListContent() {
       {/* The chosen category is a white chip, not a red one: red on this
           screen is kept for things to press, and a solid red "All" was the
           loudest thing above the fold before a single garage had loaded. */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* py-2 -my-2: room inside the scroller for the chips' 44px touch
+          areas, which it would otherwise clip at its edge. */}
+      <div className="-mx-4 -my-2 flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {CATEGORIES.map((c) => (
           <button
             key={c.key}
@@ -221,7 +227,7 @@ function GarageListContent() {
             aria-pressed={category === c.key}
             onClick={() => setCategory(c.key)}
             className={cn(
-              'shrink-0 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
+              'tap-target shrink-0 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
               category === c.key
                 ? 'bg-brand-white text-brand-black'
                 : 'bg-surface text-text-primary'
@@ -244,19 +250,19 @@ function GarageListContent() {
                   ...(category === 'all' ? {} : { category }),
                 },
               }}
-              className="flex items-center gap-1.5 rounded-[9px] bg-surface px-2.5 py-1.5 text-[12px] text-text-secondary"
+              className="tap-target flex items-center gap-1.5 rounded-[9px] bg-surface px-2.5 py-1.5 text-[12px] text-text-secondary"
             >
-              <IconMap size={14} />
+              <IconMap size={14} aria-hidden="true" />
               Map
             </Link>
             <button
               type="button"
               onClick={() => setSortOpen(true)}
-              className="flex items-center gap-1.5 rounded-[9px] bg-surface px-2.5 py-1.5 text-[12px] text-text-secondary"
+              className="tap-target flex items-center gap-1.5 rounded-[9px] bg-surface px-2.5 py-1.5 text-[12px] text-text-secondary"
             >
-              <IconArrowsSort size={14} />
+              <IconArrowsSort size={14} aria-hidden="true" />
               {sortLabel(sort)}
-              <IconChevronDown size={14} />
+              <IconChevronDown size={14} aria-hidden="true" />
             </button>
           </div>
         </div>

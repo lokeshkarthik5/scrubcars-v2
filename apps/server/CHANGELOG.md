@@ -171,6 +171,10 @@ reconstructing every change in them.
     shared: `CUSTOMERS.stats` is `id(158)`, phone `9000000058`, car
     `id(767)`; `VENDORS.stats` is `id(345)` (phone `9000004500`);
     `SERVICES.stats*` are `id(436–438)`.
+- `GET /bookings/:id` (and the customer's list) carries the garage's own
+  `mapsUrl` on `vendor`, beside its phone, WhatsApp, address and pin, for the
+  booking page's Directions when the garage has no pin.
+
 
 - **Refunds through Razorpay from the app** (migration
   `0036_razorpay_refunds`: four columns on `refund_records`, its

@@ -104,7 +104,9 @@ function SearchContent() {
         />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      {/* The vertical padding is room for the chips' 44px touch areas,
+          which the scroller would otherwise clip. */}
+      <div className="-my-2 flex gap-2 overflow-x-auto pb-3 pt-2">
         {sortChips.map((chip) => (
           <FilterChip
             key={chip.value}
@@ -117,9 +119,9 @@ function SearchContent() {
         <button
           type="button"
           onClick={() => setSortOpen(true)}
-          className="flex shrink-0 items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+          className="tap-target flex shrink-0 items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
         >
-          <IconAdjustments size={14} />
+          <IconAdjustments size={14} aria-hidden="true" />
           Filter
         </button>
       </div>

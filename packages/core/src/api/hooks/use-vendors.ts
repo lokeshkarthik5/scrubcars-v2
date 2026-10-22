@@ -1,8 +1,9 @@
 'use client'
 
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { ApiError } from '@repo/core/api/client'
 import { getVendorPackages } from '@repo/core/api/packages'
+import { getVendorReviews } from '@repo/core/api/reviews'
 import { getVendorServices } from '@repo/core/api/services'
 import { getPublicVendor, getVendors, type VendorListParams } from '@repo/core/api/vendors'
 import { mapPublicVendor } from '@repo/core/api/mappers'
@@ -128,7 +129,17 @@ export interface GarageData {
  * data; anything else is an error the page offers to retry.
  */
 export function useGarage(id: string) {
-  return useQuery({
+  return useQuery(garageQuery(id))
+}
+
+/**
+ * The garage page's query, for a screen that needs the same answer without
+ * mounting the page: checkout reads it with `fetchQuery`, so Book Now from
+ * the garage page opens checkout on what is already cached (under a minute
+ * old) instead of fetching the garage, its services and its packages again.
+ */
+export function garageQuery(id: string) {
+  return queryOptions({
     queryKey: vendorKeys.garage(id),
     queryFn: async (): Promise<GarageData | null> => {
       try {
@@ -144,5 +155,19 @@ export function useGarage(id: string) {
       }
     },
     staleTime: 60_000,
+  })
+}
+
+/**
+ * A garage's public reviews, beside its page. Kept five minutes: reviews
+ * change slowly, and going back to a garage from checkout or a photo should
+ * show them at once rather than fetch them again. A failed load is no
+ * reviews, as it always was: the page is still one someone can book from.
+ */
+export function useVendorReviews(id: string) {
+  return useQuery({
+    queryKey: [...vendorKeys.all, 'reviews', id] as const,
+    queryFn: () => getVendorReviews(id),
+    staleTime: 5 * 60_000,
   })
 }

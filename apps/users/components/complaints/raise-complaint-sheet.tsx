@@ -202,8 +202,11 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
                   setMessage(e.target.value)
                   setError('')
                 }}
+                // The length rule and the counter below, and a refusal once
+                // sent, are read with the field.
+                aria-describedby={error ? 'complaint-message-hint complaint-error' : 'complaint-message-hint'}
               />
-              <p className="flex justify-between text-[11px] text-text-muted">
+              <p id="complaint-message-hint" className="flex justify-between text-[11px] text-text-muted">
                 <span>
                   {trimmed.length > 0 && trimmed.length < COMPLAINT_MESSAGE_MIN
                     ? `At least ${COMPLAINT_MESSAGE_MIN} characters`
@@ -222,7 +225,7 @@ export function RaiseComplaintSheet({ open, onClose, booking }: RaiseComplaintSh
             </p>
 
             {error && (
-              <p role="alert" className="text-[12px] text-error">
+              <p id="complaint-error" role="alert" className="text-[12px] text-error">
                 {error}
               </p>
             )}

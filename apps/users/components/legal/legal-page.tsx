@@ -11,6 +11,7 @@ import {
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { SiteFooter } from '@/components/marketing/sections'
+import { SkipLink } from '@/components/skip-link'
 import { EFFECTIVE_DATE, LAST_UPDATED, LEGAL_DRAFT } from '@/lib/legal/details'
 
 /**
@@ -214,6 +215,7 @@ export function LegalPage({
 
   return (
     <div className="legal-doc flex min-h-dvh flex-col bg-brand-black">
+      <SkipLink />
       {LEGAL_DRAFT && <DraftBanner />}
 
       <header className="legal-chrome border-b border-white/[0.06]">
@@ -224,7 +226,7 @@ export function LegalPage({
           <Link
             href="/garages"
             className={cn(
-              'inline-flex h-10 items-center whitespace-nowrap rounded-lg border border-white/20 px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06]',
+              'inline-flex h-11 items-center whitespace-nowrap rounded-lg border border-white/20 px-4 text-[14px] font-medium text-brand-white transition-colors hover:bg-white/[0.06]',
               FOCUS_RING
             )}
           >
@@ -235,7 +237,8 @@ export function LegalPage({
 
       <main
         id="main"
-        className="mx-auto w-full max-w-[70ch] flex-1 px-4 pt-10 pb-16 text-[15px] leading-[1.75] text-text-secondary sm:text-[16px]"
+        tabIndex={-1}
+        className="mx-auto outline-none w-full max-w-[70ch] flex-1 px-4 pt-10 pb-16 text-[15px] leading-[1.75] text-text-secondary sm:text-[16px]"
       >
         <h1 className="text-balance text-[30px] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary sm:text-[40px]">
           {doc.title}

@@ -22,6 +22,8 @@ interface ScPhoneInputProps {
   autoFocus?: boolean
   /** The label on the keyboard's return key, e.g. 'go' when it submits. */
   enterKeyHint?: InputHTMLAttributes<HTMLInputElement>['enterKeyHint']
+  /** The id of the message that explains what is wrong with the number. */
+  errorId?: string
   className?: string
 }
 
@@ -38,6 +40,7 @@ export function ScPhoneInput({
   tone = 'solid',
   autoFocus,
   enterKeyHint,
+  errorId,
   className,
 }: ScPhoneInputProps) {
   // The chevron promises a picker, so it shows only once there is one. On the
@@ -95,6 +98,11 @@ export function ScPhoneInput({
           autoComplete="tel-national"
           autoFocus={autoFocus}
           enterKeyHint={enterKeyHint}
+          // Sign-in screens draw no label above the field, and a placeholder
+          // is no name once a digit is typed.
+          aria-label={label ? undefined : 'Phone number'}
+          aria-invalid={errorId ? true : undefined}
+          aria-describedby={errorId}
           placeholder={placeholder}
           value={value}
           onChange={(e) => {
