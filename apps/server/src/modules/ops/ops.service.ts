@@ -4,6 +4,7 @@ import { sendOpsAlertNow } from '../../lib/ops-alerts.js'
 import { digestLookbacks, isMorningTick, planPendingDigest } from '../../lib/pending-digest.js'
 import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
+import { carHistoryService } from '../car-history/car-history.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
 import { pushService } from '../push/push.service.js'
@@ -90,6 +91,17 @@ export const opsService = {
         return { enabled: true as const, error: true as const }
       })
 
+    // Coating and detailing follow-ups (0046): a catch-up for completions
+    // whose reminders were never written, then, in the 09:00 IST runs, the
+    // due date's notification, each claimed first so it goes once. Never
+    // allowed to fail the digest.
+    const serviceReminders = await carHistoryService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:service_reminder_sweep_failed')
+        return { error: true as const }
+      })
+
     // The usage events' 180-day clean-up rides on it too: a bounded batch a
     // run, skipped on a dry run, and never allowed to fail the digest.
     const analyticsPurged = options.dryRun
@@ -140,6 +152,7 @@ export const opsService = {
       timeProposals,
       notAccepted,
       notifications,
+      serviceReminders,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

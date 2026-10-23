@@ -82,6 +82,7 @@ import type {
 import { refundsService } from '../refunds/refunds.service.js'
 import * as pushMessages from '../../lib/push-messages.js'
 import { pushService } from '../push/push.service.js'
+import { carHistoryService } from '../car-history/car-history.service.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
@@ -2170,6 +2171,8 @@ export const bookingsService = {
       updated!.userId,
       pushMessages.customerCompleted(updated!, { afterPhotos: garagePhotoCount(updated!, 'after') > 0 })
     )
+    // Coating and detailing follow-ups for the car (0046), after the response.
+    carHistoryService.scheduleAfterCompletion(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2259,6 +2262,7 @@ export const bookingsService = {
       updated!.userId,
       pushMessages.customerCompleted(updated!, { afterPhotos: garagePhotoCount(updated!, 'after') > 0 })
     )
+    carHistoryService.scheduleAfterCompletion(bookingId)
     return toVendorBookingResponse(updated!)
   },
 
@@ -2294,7 +2298,10 @@ export const bookingsService = {
             garagePhotos,
           })
     if (!row) throw stateChanged()
-    if (step === 'delivered') await collectCashOnCompletion(booking)
+    if (step === 'delivered') {
+      await collectCashOnCompletion(booking)
+      carHistoryService.scheduleAfterCompletion(bookingId)
+    }
     log.info({ bookingId, step, adminName }, 'booking:pickup_step_confirmed_by_detlio')
   },
 }

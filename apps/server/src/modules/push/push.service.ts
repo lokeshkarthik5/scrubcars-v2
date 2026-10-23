@@ -227,6 +227,16 @@ export const pushService = {
     })
   },
 
+  /**
+   * Sends now and waits, for a cron that has already claimed what it sends
+   * (the service reminders, modules/car-history). Null while notifications
+   * are off, with nothing read.
+   */
+  async sendNow(recipient: PushRecipient, message: PushMessage): Promise<DeliverySummary | null> {
+    if (!isPushEnabled()) return null
+    return deliverTo(recipient, message)
+  },
+
   notifyCustomer(userId: string, source: PushMessageSource): void {
     pushService.notify({ audience: 'customer', userId }, source)
   },

@@ -19,6 +19,19 @@ reconstructing every change in them.
 
 ### Added
 
+- **Car history and coating/detailing reminders** (API 0046). Profile → a
+  car (and the new history disc beside the pencil on Home's car) opens its
+  history: every completed job newest first, a moved booking once, with the
+  garage, services, amount paid and links to the booking, its receipt and
+  its before & after photos; washes and spend this year; a filter by
+  service; "N cancelled bookings aren't listed" with a link to My bookings;
+  and an empty state. The car's next follow-up (a maintenance wash 3 months
+  and a coating check 12 months after a coating, another detailing 6 months
+  after a detailing) shows there with Book (the search for that service,
+  with the car chosen), Remind me in 2 weeks and Dismiss; on Home as a soft
+  card when no other card wants the place; and in Updates on its due date.
+  The booking page's job photos gain a `#job-photos` anchor.
+
 - **Job photo standards** (API 0045). Garage portal: each job's before and
   after photos are a guided checklist (Front, Back, Left side, Right side,
   Interior; a tap opens the back camera; extras under More), with the

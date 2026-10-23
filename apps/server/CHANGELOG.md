@@ -18,6 +18,37 @@ reconstructing every change in them.
 
 ### Added
 
+- **Car history and coating/detailing reminders** (migration
+  `0046_vehicle_service_reminders`, additive: new table
+  `vehicle_service_reminders` (user, car, kind, due date, source booking,
+  status open/dismissed/done/superseded, snooze date, notified date, the
+  booking that answered it; unique per job and kind; CHECKs; cascades with
+  the user, the car and the source booking). Numbered 0046 because 0045
+  belongs to the job photo standards branch, built in parallel; the
+  migrations lint reports the gap until 0045 is merged).
+  - `modules/car-history`: `GET /users/me/vehicles/:vehicleId/history
+    [?category=]` (the customer's own current car only, else 404): completed
+    jobs newest first, one per reschedule chain, with garage, services, amount
+    paid (payment and paid bills/extra work, less refunds), receipt and photo
+    counts; washes and spend this year and all time; the categories present;
+    how many cancelled bookings were left out; the nearest reminder. Rules in
+    `lib/car-history.ts` (pure, unit-tested).
+  - Reminders (`lib/service-reminders.ts`, pure, unit-tested): a completed
+    coating schedules a maintenance wash at 3 months and a coating check at
+    12; a detailing a repeat at 6. A newer job of the same kind supersedes;
+    a booking of an answering service for the car (from 30 days before the
+    due date) makes it booked, then done. `POST /users/me/service-reminders/
+    :id/dismiss` and `/snooze` (14 days; 409 `REMINDER_CLOSED`). Scheduled
+    after Mark completed, Delivered and admin's pickup override, with a
+    catch-up in the pending-digest cron.
+  - Home's soft card `service_reminder` (only when no must-act card, Rate
+    your wash or resolved complaint wants the place) and an Updates row on
+    the due date; a browser notification in the 09:00 IST cron runs of the
+    due date, claimed by `notified_on` so it goes once per date, to
+    customers with Reminders on. Never names the car. The digest's summary
+    gains `serviceReminders`.
+  - E2E fixtures in the 2600–2699 / 90000026xx range (`seedCarHistoryRows`).
+
 - **Job photo standards: required before/after photos for garages, optional
   condition photos for customers** (migration `0045_job_photo_standards`,
   additive: `job_photos.uploaded_by_role` (text + CHECK `garage` /
