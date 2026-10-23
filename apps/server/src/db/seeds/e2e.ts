@@ -68,6 +68,7 @@ import {
   PROPOSALS_PIN,
   DOCUMENTS_PIN,
   RESPONSE_OTHER_PIN,
+  SLOT_ALERTS_PIN,
   RESPONSE_PIN,
   REVIEWS,
   SERVICES,
@@ -2277,6 +2278,49 @@ async function seedCarHistoryRows() {
   })
 }
 
+/**
+ * "Notify me if a slot opens" (0047), on a garage of its own so nothing else
+ * books its day: VENDORS.slotAlerts with its owner's seat, hours, one bay,
+ * one job a day and one wash, the holder's car, and the booking that fills
+ * the day two days ahead. Every id and phone is in the 2700–2799 /
+ * 90000027xx range reserved for this feature. Garage before service before
+ * the car before the booking, as the foreign keys need.
+ */
+async function seedSlotAlertRows() {
+  const garage = VENDORS.slotAlerts.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.slotAlertsOwner.id, businessName: VENDORS.slotAlerts.name,
+    phone: '9000002710', address: '9, Waiting Street, Chidambaram', city: 'Chennai', pincode: '608001',
+    lat: SLOT_ALERTS_PIN.lat, lng: SLOT_ALERTS_PIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: true, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 60, status: 'active', bays: 1, jobsPerDay: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.slotAlertsOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  const wash = SERVICES.slotAlertsWash
+  await db.insert(services).values({
+    id: wash.id, vendorId: garage, name: wash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: wash.price, durationMins: wash.durationMins, isActive: true,
+  })
+
+  const holder = CUSTOMERS.slotHolder
+  await db.insert(userVehicles).values({
+    id: holder.vehicleId, userId: holder.id, make: 'Honda', model: 'Amaze', color: 'Blue',
+    licensePlate: 'TN31SA0001', vehicleType: 'sedan', isDefault: true,
+  })
+  await insertBooking({
+    id: BOOKINGS.slotAlertsHeld, userId: holder.id, vendorId: garage,
+    vehicleId: holder.vehicleId, scheduledAt: daysAheadAt(2, 10), status: 'pending',
+    items: [{ id: wash.id, name: wash.name, amount: wash.price, durationMins: wash.durationMins }],
+    payment: { status: 'paid', txnId: 'pay_seed_slot_alerts_held', gatewayMode: 'fake' },
+    createdAt: hoursAgo(1),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2326,6 +2370,8 @@ async function main() {
   await seedPhotoStandardRows()
   console.log('[e2e-seed] car history…')
   await seedCarHistoryRows()
+  console.log('[e2e-seed] slot alerts…')
+  await seedSlotAlertRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import {
   IconArrowUpRight,
+  IconBell,
   IconBuildingStore,
   IconCalendarCheck,
   IconCalendarQuestion,
@@ -61,6 +62,8 @@ const KIND_ICONS: Record<UpdateKind, typeof IconTool> = {
   extra_work_withdrawn: IconToolsOff,
   // A coating or detailing follow-up (0046), opening the car's page.
   service_reminder: IconSparkles,
+  // "Notify me if a slot opens" (0047): it opens checkout on that day.
+  slot_opened: IconBell,
 }
 
 export interface UpdateRowData {

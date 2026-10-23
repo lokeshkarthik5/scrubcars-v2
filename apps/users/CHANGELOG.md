@@ -19,6 +19,17 @@ reconstructing every change in them.
 
 ### Added
 
+- **"Notify me if a slot opens"** (API 0047). Checkout: on a day that is
+  all booked, a card under the times with the part of the day (Any time,
+  Morning, Afternoon, Evening) and "Notify me"; on a day with times left, a
+  quiet "None of these suit you?" line for the parts that have none. Once
+  set it says it is waiting, with Stop waiting. The garage page shows the
+  days waited on there; Profile → Slot alerts lists them all (while any
+  wait). A time that opens shows in Updates (and as a notification when
+  they are on), opening checkout on that day: `?date=` now opens the slot
+  picker on it. The shared `SlotPicker` gains `initialDate` and
+  `renderDayExtra`.
+
 - **Car history and coating/detailing reminders** (API 0046). Profile → a
   car (and the new history disc beside the pencil on Home's car) opens its
   history: every completed job newest first, a moved booking once, with the
