@@ -1,6 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
-import { authMiddleware } from '../../middleware/auth.middleware.js'
+import { authMiddleware, requireCustomer } from '../../middleware/auth.middleware.js'
 import {
   requireVendorRole,
   resolveTenant,
@@ -69,6 +69,47 @@ jobPhotosRoutes.delete(
   zValidator('param', jobPhotoParamSchema),
   (c) =>
     jobPhotosController.deletePhoto(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('param').photoId
+    )
+)
+
+/**
+ * The customer's own photos of their car's condition (0045), mounted at
+ * /bookings: before photos until the work starts, after photos for 24 hours
+ * after completion. Only the booking's own customer; for anyone else the
+ * booking does not exist. They see the garage's photos on the booking
+ * itself (GET /bookings/:id), once the work has started.
+ */
+export const customerJobPhotosRoutes = new Hono<{ Variables: TenantVariables }>()
+
+const customerMiddleware = [authMiddleware, requireCustomer] as const
+
+customerJobPhotosRoutes.post(
+  '/:id/photos/upload-url',
+  ...customerMiddleware,
+  zValidator('param', jobIdParamSchema),
+  zValidator('json', jobPhotoUploadUrlSchema),
+  (c) =>
+    jobPhotosController.createCustomerUploadUrl(c, c.req.valid('param').id, c.req.valid('json'))
+)
+
+customerJobPhotosRoutes.post(
+  '/:id/photos',
+  ...customerMiddleware,
+  zValidator('param', jobIdParamSchema),
+  zValidator('json', recordJobPhotoSchema),
+  (c) =>
+    jobPhotosController.recordCustomerPhoto(c, c.req.valid('param').id, c.req.valid('json'))
+)
+
+customerJobPhotosRoutes.delete(
+  '/:id/photos/:photoId',
+  ...customerMiddleware,
+  zValidator('param', jobPhotoParamSchema),
+  (c) =>
+    jobPhotosController.deleteCustomerPhoto(
       c,
       c.req.valid('param').id,
       c.req.valid('param').photoId

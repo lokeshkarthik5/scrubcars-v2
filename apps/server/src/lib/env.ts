@@ -3,6 +3,7 @@ import { isDataResetEnabled } from './data-reset.js'
 import { parseDailyCap } from './refund-sending.js'
 import { isAutoCancelOn, parseResponseMinutes } from './response-deadline.js'
 import { isPushConfigured } from './push.js'
+import { parsePhotosRequired, parseRequiredGarages } from './job-photo-standards.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -346,6 +347,21 @@ export const env = {
    * pending-digest cron cancels nothing.
    */
   autoCancelUnanswered: isAutoCancelOn(process.env.AUTO_CANCEL_UNANSWERED),
+
+  // ─── Job photo standards (lib/job-photo-standards.ts, 0045) ────────────────
+  /**
+   * Whether garages must add 2 before photos to start a job and 2 after
+   * photos to finish it: JOB_PHOTOS_REQUIRED, **off unless set to `on`**
+   * (pilot: garages are nudged, not blocked; JOB_PHOTOS_REQUIRED_GARAGES turns
+   * it on garage by garage). Admin can still waive it on one booking.
+   */
+  jobPhotosRequired: parsePhotosRequired(process.env.JOB_PHOTOS_REQUIRED),
+  /**
+   * Garage ids (comma separated) that have the standard while
+   * JOB_PHOTOS_REQUIRED is off: the garage-by-garage roll-out, and how the E2E
+   * suite turns it on for its own garage only. Ignored while it is on.
+   */
+  jobPhotosRequiredGarages: parseRequiredGarages(process.env.JOB_PHOTOS_REQUIRED_GARAGES),
 
   // ─── Rate limiting ─────────────────────────────────────────────────────────
   // Both limiters key on client IP. The defaults are the production values;

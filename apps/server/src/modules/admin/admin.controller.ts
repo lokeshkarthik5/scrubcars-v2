@@ -17,6 +17,7 @@ import type {
   MarkNoShowInput,
   LoginInput,
   PickupStepOverrideInput,
+  WaiveJobPhotosInput,
   MediaUrlInput,
   PauseVendorInput,
   PilotStatsQuery,
@@ -194,6 +195,11 @@ export async function overridePickupStep(
   input: PickupStepOverrideInput
 ) {
   const booking = await adminService.overridePickupStep(id, c.get('auth').sub, input)
+  return c.json({ success: true, data: booking })
+}
+
+export async function waiveJobPhotos(c: AdminContext, id: string, input: WaiveJobPhotosInput) {
+  const booking = await adminService.waiveJobPhotos(id, input)
   return c.json({ success: true, data: booking })
 }
 

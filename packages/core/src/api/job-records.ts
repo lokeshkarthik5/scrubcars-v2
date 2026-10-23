@@ -1,5 +1,14 @@
 import { apiClient } from './client'
-import { mapExtraWork, mapFinalBill } from './mappers'
+import { mapExtraWork, mapFinalBill, mapJobPhoto } from './mappers'
+import {
+  MAX_UPLOAD_EDGE,
+  decodeImage,
+  encodeImage,
+  fitWithin,
+  isUploadImageType,
+  stripImageMetadata,
+} from '@repo/core/image-upload'
+import type { PhotoAngle } from '@repo/core/job-photo-standards'
 import type { ApiExtraWork, ApiFinalBill, ApiJobPhoto } from './types'
 import type { ExtraWork, FinalBill, JobPhoto } from '@repo/core/types'
 
@@ -17,22 +26,85 @@ type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp'
 
 /**
  * Upload a photo of a job and record it: presign, PUT straight to storage,
- * then register the key the upload went to. The caller hands over an image
- * already sized for upload (the portal turns phone photos into JPEGs first,
- * with apps/vendors/lib/resize-image.ts, and that re-encode is what strips
- * their location metadata), so it is not stripped a second time here.
+ * then register the key the upload went to, with the guided angle it was
+ * taken from (0045). The caller hands over an image already sized for
+ * upload (the portal turns phone photos into JPEGs first, with
+ * apps/vendors/lib/resize-image.ts, and that re-encode is what strips their
+ * location metadata), so it is not stripped a second time here.
  */
 export async function uploadJobPhoto(
   bookingId: string,
   stage: JobPhotoStage,
-  file: Blob
+  file: Blob,
+  angle?: PhotoAngle
+): Promise<JobPhoto> {
+  return uploadAndRecord(`/vendors/me/bookings/${bookingId}/photos`, stage, file, angle)
+}
+
+/** DELETE /vendors/me/bookings/:id/photos/:photoId — one of the garage's own. */
+export async function deleteJobPhoto(bookingId: string, photoId: string): Promise<void> {
+  await apiClient<ApiJobPhoto>(`/vendors/me/bookings/${bookingId}/photos/${photoId}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * The customer's own photo of their car (0045), on their booking: before
+ * photos until the work starts, after photos for 24 hours after completion.
+ * Stripped of its metadata in the browser first (stripImageMetadata), as
+ * every customer upload is.
+ */
+export async function uploadMyCarPhoto(
+  bookingId: string,
+  stage: JobPhotoStage,
+  file: Blob,
+  angle?: PhotoAngle
+): Promise<JobPhoto> {
+  const clean = await prepareCarPhoto(file)
+  return uploadAndRecord(`/bookings/${bookingId}/photos`, stage, clean, angle)
+}
+
+/**
+ * A JPEG, PNG or WebP without its metadata. Anything else the browser can
+ * read (an iPhone's HEIC in Safari, say) is re-encoded as a JPEG, which
+ * drops its metadata too; a file it cannot read is refused here rather than
+ * by the upload.
+ */
+async function prepareCarPhoto(file: Blob): Promise<Blob> {
+  if (isUploadImageType(file.type)) return stripImageMetadata(file)
+  try {
+    const decoded = await decodeImage(file)
+    try {
+      const size = fitWithin(decoded.width, decoded.height, MAX_UPLOAD_EDGE)
+      const jpeg = await encodeImage(decoded, size, 'image/jpeg')
+      if (jpeg && jpeg.type === 'image/jpeg' && jpeg.size > 0) return jpeg
+    } finally {
+      decoded.close()
+    }
+  } catch {
+    // Unreadable: said below.
+  }
+  throw new Error("This photo can't be read. Try another one, or take it with the camera.")
+}
+
+/** DELETE /bookings/:id/photos/:photoId — one of the customer's own. */
+export async function deleteMyCarPhoto(bookingId: string, photoId: string): Promise<void> {
+  await apiClient<ApiJobPhoto>(`/bookings/${bookingId}/photos/${photoId}`, { method: 'DELETE' })
+}
+
+/** Presign under `base`/upload-url, PUT the bytes, then record the key at `base`. */
+async function uploadAndRecord(
+  base: string,
+  stage: JobPhotoStage,
+  file: Blob,
+  angle?: PhotoAngle
 ): Promise<JobPhoto> {
   const contentType = file.type as UploadContentType
   const { uploadUrl, key } = await apiClient<{
     uploadUrl: string
     key: string
     publicUrl: string
-  }>(`/vendors/me/bookings/${bookingId}/photos/upload-url`, {
+  }>(`${base}/upload-url`, {
     method: 'POST',
     body: JSON.stringify({ stage, contentType }),
   })
@@ -46,17 +118,11 @@ export async function uploadJobPhoto(
     throw new Error('Upload failed. Please try again.')
   }
 
-  return apiClient<ApiJobPhoto>(`/vendors/me/bookings/${bookingId}/photos`, {
+  const photo = await apiClient<ApiJobPhoto>(base, {
     method: 'POST',
-    body: JSON.stringify({ stage, key }),
+    body: JSON.stringify({ stage, key, ...(angle && { angle }) }),
   })
-}
-
-/** DELETE /vendors/me/bookings/:id/photos/:photoId */
-export async function deleteJobPhoto(bookingId: string, photoId: string): Promise<void> {
-  await apiClient<ApiJobPhoto>(`/vendors/me/bookings/${bookingId}/photos/${photoId}`, {
-    method: 'DELETE',
-  })
+  return mapJobPhoto(photo)
 }
 
 export interface FinalBillInput {

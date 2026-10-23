@@ -2160,6 +2160,51 @@ async function seedResponseDeadlineRows() {
   })
 }
 
+/**
+ * Job photo standards (0045): VENDORS.photos with its owner's seat, hours
+ * and one wash, pending and unverified so no customer list shows it; the
+ * customer's car; and BOOKINGS.photosJob, accepted, paid, not started. Every
+ * id and phone is in the 2500–2599 / 90000025xx range reserved for this
+ * feature. Garage before service before car before booking, as the foreign
+ * keys need; the people are seeded with everyone else.
+ */
+async function seedPhotoStandardRows() {
+  const garage = VENDORS.photos.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.photosOwner.id, businessName: VENDORS.photos.name,
+    phone: '9000002500', address: '9, Shutter Street, Chengalpattu', city: 'Chennai', pincode: '603002',
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: garage, userId: STAFF.photosOwner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorWorkingHours).values(hoursFor(garage, '06:00:00', '22:00:00'))
+  await db.insert(services).values({
+    id: SERVICES.photosWash.id, vendorId: garage, name: SERVICES.photosWash.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash', pricingType: 'flat',
+    price: SERVICES.photosWash.price, durationMins: SERVICES.photosWash.durationMins, isActive: true,
+  })
+
+  const customer = CUSTOMERS.photos
+  await db.insert(userVehicles).values({
+    id: customer.vehicleId, userId: customer.id, make: 'Honda', model: 'Amaze', color: 'Blue',
+    licensePlate: 'TN25PS0001', vehicleType: 'sedan', isDefault: true,
+  })
+
+  await insertBooking({
+    id: BOOKINGS.photosJob, userId: customer.id, vendorId: garage,
+    vehicleId: customer.vehicleId, scheduledAt: tomorrowAt(11), status: 'confirmed',
+    items: [{
+      id: SERVICES.photosWash.id, name: SERVICES.photosWash.name,
+      amount: SERVICES.photosWash.price, durationMins: SERVICES.photosWash.durationMins,
+    }],
+    payment: { status: 'paid', txnId: 'pay_seed_photos_job', gatewayMode: 'fake' },
+    createdAt: hoursAgo(2), acceptedAt: hoursAgo(1),
+  })
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
@@ -2205,6 +2250,8 @@ async function main() {
   await seedDocumentRows()
   console.log('[e2e-seed] browser notifications…')
   await seedPushRows()
+  console.log('[e2e-seed] job photo standards…')
+  await seedPhotoStandardRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

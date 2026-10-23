@@ -10,6 +10,8 @@
  * done: a record either side can still rewrite months later proves little.
  */
 
+import type { PhotoAngle, PhotoRole } from './job-photo-standards.js'
+
 export type JobPhotoStage = 'before' | 'after'
 
 /**
@@ -19,37 +21,74 @@ export type JobPhotoStage = 'before' | 'after'
 export const MAX_PHOTOS_PER_STAGE = 6
 
 /**
- * How long after completion photos can still be added or removed. Mirrored
- * in packages/core/src/job-records.ts (the legal pages print it).
+ * The outer bound of the record: nothing about a job's photos changes more
+ * than this long after completion. Mirrored in packages/core/src/job-records.ts
+ * (the legal pages print it). Since 0045 the garage's own windows are tighter
+ * (before photos close at completion, after photos an hour after it;
+ * lib/job-photo-standards.ts) and the customer's after photos close after 24
+ * hours, all well inside it.
  */
 export const PHOTO_EDIT_WINDOW_DAYS = 7
 
-const DAY_MS = 24 * 60 * 60 * 1000
+/**
+ * How long after completion the garage can still add (or remove) after
+ * photos: the car may be photographed in the bay a few minutes after Mark
+ * completed, but an "after" photo added a day later could be of anything.
+ */
+export const GARAGE_AFTER_GRACE_MINUTES = 60
 
-/** The statuses from which each stage can be photographed. */
+const MINUTE_MS = 60 * 1000
+
+/**
+ * The garage's late-fabrication rule: after photos can be added (or
+ * removed) while the work is under way and up to GARAGE_AFTER_GRACE_MINUTES
+ * after completion, never later. `completedAt` null (a job from before
+ * completion times were kept) falls back to the slot, which closes sooner.
+ */
+export function garageAfterPhotoTooLate(input: {
+  status: string
+  completedAt: Date | null
+  scheduledAt: Date
+  now: number
+}): boolean {
+  if (input.status !== 'completed') return false
+  const finished = (input.completedAt ?? input.scheduledAt).getTime()
+  return input.now - finished > GARAGE_AFTER_GRACE_MINUTES * MINUTE_MS
+}
+
+/** The statuses from which each stage can be photographed by the garage. */
 const STAGE_OPENS: Record<JobPhotoStage, ReadonlySet<string>> = {
   // From the moment the garage accepts: the car is often checked in before
   // anyone presses Start.
-  before: new Set(['confirmed', 'in_progress', 'completed']),
+  before: new Set(['confirmed', 'in_progress']),
   // Only once the work has started.
   after: new Set(['in_progress', 'completed']),
 }
 
-/** Why a photo cannot be added or removed right now. */
+const OPEN_STATUSES = new Set(['confirmed', 'in_progress', 'completed'])
+
+/** Why the garage cannot add or remove a photo right now. */
 export type PhotoRefusal =
   /** The job has not reached this stage yet (an "after" on a confirmed job). */
   | 'stage_not_open'
   /** The booking was cancelled, moved, or never accepted. */
   | 'booking_closed'
-  /** Finished more than a week ago: the record is closed. */
+  /** A before photo of a completed job: the car is no longer as it came in. */
+  | 'before_closed'
+  /**
+   * An after photo more than GARAGE_AFTER_GRACE_MINUTES after completion
+   * (0045): an "after" taken a day later could be of anything.
+   */
   | 'window_closed'
 
 /**
- * Whether a photo of `stage` can be added to (or removed from) a job now.
+ * Whether the garage may add (or remove) a photo of `stage` now.
  *
- * `completedAt` is null on jobs finished before completion times were
- * recorded; the scheduled time stands in for it, which is earlier than the
- * real finish and so closes the window sooner rather than later.
+ * Before photos while the job is accepted or under way; after photos while
+ * it is under way and for an hour after completion (0045, no late
+ * fabrication). `completedAt` is null on jobs finished before completion
+ * times were recorded; the scheduled time stands in for it, which is earlier
+ * than the real finish and so closes the window sooner rather than later.
  */
 export function photoChangeRefusal(input: {
   stage: JobPhotoStage
@@ -58,14 +97,10 @@ export function photoChangeRefusal(input: {
   scheduledAt: Date
   now: number
 }): PhotoRefusal | null {
-  if (!STAGE_OPENS.before.has(input.status)) return 'booking_closed'
+  if (!OPEN_STATUSES.has(input.status)) return 'booking_closed'
+  if (input.stage === 'before' && input.status === 'completed') return 'before_closed'
   if (!STAGE_OPENS[input.stage].has(input.status)) return 'stage_not_open'
-
-  if (input.status === 'completed') {
-    const finished = (input.completedAt ?? input.scheduledAt).getTime()
-    if (input.now - finished > PHOTO_EDIT_WINDOW_DAYS * DAY_MS) return 'window_closed'
-  }
-
+  if (garageAfterPhotoTooLate(input)) return 'window_closed'
   return null
 }
 
@@ -78,9 +113,13 @@ export function customerSeesPhotos(status: string): boolean {
   return status === 'in_progress' || status === 'completed'
 }
 
-/** The folder (under the garage's prefix in R2) a job's photos are uploaded to. */
-export function jobPhotoFolder(bookingId: string): string {
-  return `job-photos/${bookingId}`
+/**
+ * The folder (under the garage's prefix in R2) a job's photos are uploaded
+ * to. The customer's own (0045) go in a `customer/` folder inside it, so a
+ * key says whose upload it was and neither side can record the other's.
+ */
+export function jobPhotoFolder(bookingId: string, role: PhotoRole = 'garage'): string {
+  return role === 'customer' ? `job-photos/${bookingId}/customer` : `job-photos/${bookingId}`
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -88,28 +127,42 @@ const UPLOADED_NAME = new RegExp(`^${UUID}\\.(jpg|png|webp)$`)
 
 /**
  * Whether a storage key is one createPresignedUpload could have minted for
- * this garage and this job: exactly vendors/<vendorId>/job-photos/<bookingId>/
- * <uuid>.<ext>. A key from another job, another garage or anywhere else in
- * the bucket is refused, so a photo can never be "recorded" from someone
- * else's upload.
+ * this garage, this job and this side: exactly vendors/<vendorId>/job-photos/
+ * <bookingId>/<uuid>.<ext> for the garage (and its extra-work photos), or
+ * …/<bookingId>/customer/<uuid>.<ext> for the customer. A key from another
+ * job, another garage, the other side or anywhere else in the bucket is
+ * refused, so a photo can never be "recorded" from someone else's upload.
  */
-export function isJobPhotoKey(key: string, vendorId: string, bookingId: string): boolean {
-  const prefix = `vendors/${vendorId}/${jobPhotoFolder(bookingId)}/`
+export function isJobPhotoKey(
+  key: string,
+  vendorId: string,
+  bookingId: string,
+  role: PhotoRole = 'garage'
+): boolean {
+  const prefix = `vendors/${vendorId}/${jobPhotoFolder(bookingId, role)}/`
   if (!key.startsWith(prefix)) return false
   return UPLOADED_NAME.test(key.slice(prefix.length))
 }
 
-/** A job photo as every app receives it. The storage key stays server-side. */
+/**
+ * A job photo as every app receives it: whose it is (`by`) and the angle it
+ * was taken from, if one was chosen. The storage key and who exactly took it
+ * stay server-side (admin reads the name separately).
+ */
 export function toJobPhotoView(photo: {
   id: string
   stage: JobPhotoStage
   url: string
   createdAt: Date
+  angle?: string | null
+  uploadedByRole?: string | null
 }) {
   return {
     id: photo.id,
     stage: photo.stage,
     url: photo.url,
     createdAt: photo.createdAt.toISOString(),
+    angle: (photo.angle ?? null) as PhotoAngle | null,
+    by: (photo.uploadedByRole === 'customer' ? 'customer' : 'garage') as PhotoRole,
   }
 }

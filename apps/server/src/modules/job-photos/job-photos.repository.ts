@@ -1,9 +1,15 @@
 import { and, asc, count, eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { bookings, jobPhotos } from '../../db/schema.js'
+import type { PhotoAngle, PhotoRole } from '../../lib/job-photo-standards.js'
 import type { JobPhotoStage } from '../../lib/job-records.js'
 
 export type JobPhotoRecord = typeof jobPhotos.$inferSelect
+
+/** The per-job lock every count-then-write takes, on its own. */
+function lockJob(tx: Pick<typeof db, 'execute'>, bookingId: string) {
+  return tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`job-photos:${bookingId}`})::bigint)`)
+}
 
 export const jobPhotosRepository = {
   /** The facts the photo rules need about a job, and whose job it is. */
@@ -12,9 +18,15 @@ export const jobPhotosRepository = {
       .select({
         id: bookings.id,
         vendorId: bookings.vendorId,
+        userId: bookings.userId,
         status: bookings.status,
+        acceptedAt: bookings.acceptedAt,
+        bookingType: bookings.bookingType,
         scheduledAt: bookings.scheduledAt,
         completedAt: bookings.completedAt,
+        pickedUpAt: bookings.pickedUpAt,
+        outForDeliveryAt: bookings.outForDeliveryAt,
+        photosWaivedAt: bookings.photosWaivedAt,
       })
       .from(bookings)
       .where(eq(bookings.id, bookingId))
@@ -29,17 +41,29 @@ export const jobPhotosRepository = {
     })
   },
 
-  async countPhotos(bookingId: string, stage: JobPhotoStage) {
+  /** One side's photos of one stage. */
+  async countPhotos(bookingId: string, stage: JobPhotoStage, role: PhotoRole) {
     const [row] = await db
       .select({ value: count() })
       .from(jobPhotos)
-      .where(and(eq(jobPhotos.bookingId, bookingId), eq(jobPhotos.stage, stage)))
+      .where(
+        and(
+          eq(jobPhotos.bookingId, bookingId),
+          eq(jobPhotos.stage, stage),
+          eq(jobPhotos.uploadedByRole, role)
+        )
+      )
     return row?.value ?? 0
   },
 
-  findPhoto(bookingId: string, photoId: string) {
+  /** One side's photo: the other side's is not found from here. */
+  findPhoto(bookingId: string, photoId: string, role: PhotoRole) {
     return db.query.jobPhotos.findFirst({
-      where: and(eq(jobPhotos.bookingId, bookingId), eq(jobPhotos.id, photoId)),
+      where: and(
+        eq(jobPhotos.bookingId, bookingId),
+        eq(jobPhotos.id, photoId),
+        eq(jobPhotos.uploadedByRole, role)
+      ),
     })
   },
 
@@ -50,11 +74,11 @@ export const jobPhotosRepository = {
   },
 
   /**
-   * Records a photo unless the stage already holds `max`. Counted and written
-   * under a per-job lock, so two phones adding the sixth photo at the same
-   * moment cannot both succeed. The lock is only ever taken on its own, never
-   * alongside the booking-write locks, so it sits outside their order.
-   * Null when the stage is full.
+   * Records a photo unless that side's stage already holds `max`. Counted
+   * and written under a per-job lock, so two phones adding the last photo at
+   * the same moment cannot both succeed. The lock is only ever taken on its
+   * own, never alongside the booking-write locks, so it sits outside their
+   * order. Null when the stage is full.
    */
   insertPhotoUnderCap(
     data: {
@@ -63,18 +87,24 @@ export const jobPhotosRepository = {
       storageKey: string
       url: string
       uploadedBy: string
+      uploadedByRole: PhotoRole
+      angle: PhotoAngle | null
     },
     max: number
   ) {
     return db.transaction(async (tx) => {
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`job-photos:${data.bookingId}`})::bigint)`
-      )
+      await lockJob(tx, data.bookingId)
 
       const [{ value }] = await tx
         .select({ value: count() })
         .from(jobPhotos)
-        .where(and(eq(jobPhotos.bookingId, data.bookingId), eq(jobPhotos.stage, data.stage)))
+        .where(
+          and(
+            eq(jobPhotos.bookingId, data.bookingId),
+            eq(jobPhotos.stage, data.stage),
+            eq(jobPhotos.uploadedByRole, data.uploadedByRole)
+          )
+        )
 
       if (value >= max) return null
 
@@ -83,10 +113,49 @@ export const jobPhotosRepository = {
     })
   },
 
-  deletePhoto(bookingId: string, photoId: string) {
-    return db
-      .delete(jobPhotos)
-      .where(and(eq(jobPhotos.bookingId, bookingId), eq(jobPhotos.id, photoId)))
-      .returning()
+  /**
+   * Removes one side's photo. With `keepAtLeast`, only while that side's
+   * stage would still hold that many afterwards, counted under the same
+   * per-job lock as adding (0045: a gate the job has passed stays passed).
+   * 'floor' when it would not; null when there is no such photo.
+   */
+  deletePhoto(
+    bookingId: string,
+    photoId: string,
+    role: PhotoRole,
+    keepAtLeast: number | null
+  ): Promise<JobPhotoRecord | 'floor' | null> {
+    return db.transaction(async (tx) => {
+      await lockJob(tx, bookingId)
+
+      const photo = await tx.query.jobPhotos.findFirst({
+        where: and(
+          eq(jobPhotos.bookingId, bookingId),
+          eq(jobPhotos.id, photoId),
+          eq(jobPhotos.uploadedByRole, role)
+        ),
+      })
+      if (!photo) return null
+
+      if (keepAtLeast !== null) {
+        const [{ value }] = await tx
+          .select({ value: count() })
+          .from(jobPhotos)
+          .where(
+            and(
+              eq(jobPhotos.bookingId, bookingId),
+              eq(jobPhotos.stage, photo.stage),
+              eq(jobPhotos.uploadedByRole, role)
+            )
+          )
+        if (value - 1 < keepAtLeast) return 'floor'
+      }
+
+      const [deleted] = await tx
+        .delete(jobPhotos)
+        .where(and(eq(jobPhotos.bookingId, bookingId), eq(jobPhotos.id, photoId)))
+        .returning()
+      return deleted ?? null
+    })
   },
 }

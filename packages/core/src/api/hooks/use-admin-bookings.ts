@@ -14,6 +14,7 @@ import {
   listAdminBookings,
   markAdminBookingNoShow,
   overrideAdminPickupStep,
+  waiveAdminJobPhotos,
   type AdminBooking,
   type AdminBookingDetail,
   type AdminBookingFilters,
@@ -167,6 +168,13 @@ export function useOverrideAdminPickupStep() {
   return useBookingAction(
     (id: string, input: { step: 'picked_up' | 'delivered'; note: string }) =>
       overrideAdminPickupStep(id, input)
+  )
+}
+
+/** Detlio waives the photo standard on one booking (0045). */
+export function useWaiveAdminJobPhotos() {
+  return useBookingAction((id: string, input: { actorName: string; reason: string }) =>
+    waiveAdminJobPhotos(id, input)
   )
 }
 

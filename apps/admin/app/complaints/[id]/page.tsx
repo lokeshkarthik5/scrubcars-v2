@@ -33,6 +33,8 @@ import { CopyButton } from '@/components/copy-button'
 import { Meta } from '@/components/meta'
 import { PhoneLink } from '@/components/phone-link'
 import { formatWhen } from '@/lib/bookings'
+import { useAdminBooking } from '@repo/core/api/hooks/use-admin-bookings'
+import { JobPhotosSection } from '@/app/bookings/[id]/job-records'
 import { complaintActions, complaintSourceLine, overdueLabel } from '@/lib/complaints'
 
 const STATUS_BADGE: Record<AdminComplaint['status'], 'pending' | 'success' | 'muted'> = {
@@ -443,11 +445,38 @@ function ComplaintDetail({ id }: { id: string }) {
         )}
       </ScSection>
 
+      {/* A complaint about damage or the quality of the work (0045): the
+          booking's photos, both sides', the record to check it against. */}
+      {c.booking?.id && PHOTO_CATEGORIES.has(c.category) && <ComplaintJobPhotos bookingId={c.booking.id} />}
+
       <Actions key={c.id} c={c} />
 
       <InternalNote key={c.id} c={c} />
     </>
   )
+}
+
+/** The categories whose answer starts with the job photos. */
+const PHOTO_CATEGORIES = new Set<AdminComplaint['category']>(['damage', 'service_quality'])
+
+function ComplaintJobPhotos({ bookingId }: { bookingId: string }) {
+  const { data: booking, isPending, error } = useAdminBooking(bookingId)
+  if (isPending) return <SkeletonList count={1} itemClassName="h-24" />
+  if (error || !booking) {
+    return (
+      <ScSection title="Job photos">
+        <p className="text-[13px] text-text-secondary">Couldn&apos;t load this booking&apos;s photos.</p>
+      </ScSection>
+    )
+  }
+  if ((booking.photos ?? []).length === 0) {
+    return (
+      <ScSection title="Job photos">
+        <p className="text-[13px] text-text-secondary">Neither the garage nor the customer added photos to this booking.</p>
+      </ScSection>
+    )
+  }
+  return <JobPhotosSection booking={booking} allowWaive={false} />
 }
 
 export default function AdminComplaintPage({ params }: { params: Promise<{ id: string }> }) {

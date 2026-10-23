@@ -345,6 +345,15 @@ export const pickupStepOverrideSchema = z.object({
   note: z.string().trim().min(1, 'Say why the code could not be used').max(500),
 })
 
+// Detlio waives the photo standard on one booking (0045): the typed name, as
+// the Bin records it, and why.
+export const waiveJobPhotosSchema = z
+  .object({
+    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    reason: z.string().trim().min(5, 'Say why the photos are waived').max(500),
+  })
+  .strict()
+
 export const createBookingNoteSchema = z.object({
   body: z.string().trim().min(1, 'Write a note').max(2000),
 })
@@ -373,6 +382,7 @@ export type AdminCancelBookingInput = z.infer<typeof adminCancelBookingSchema>
 export type MarkNoShowInput = z.infer<typeof markNoShowSchema>
 export type CreateBookingNoteInput = z.infer<typeof createBookingNoteSchema>
 export type PickupStepOverrideInput = z.infer<typeof pickupStepOverrideSchema>
+export type WaiveJobPhotosInput = z.infer<typeof waiveJobPhotosSchema>
 export type UploadUrlInput = z.infer<typeof uploadUrlSchema>
 export type MediaUrlInput = z.infer<typeof mediaUrlSchema>
 
