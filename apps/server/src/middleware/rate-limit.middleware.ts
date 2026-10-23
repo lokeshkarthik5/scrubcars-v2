@@ -94,3 +94,11 @@ export const aiImportRateLimiter = createRateLimiter(
   60 * 60 * 1000,
   bySignedInAdmin
 )
+
+// "Send test alert" (admin → Alerts), per signed-in admin per hour: each one
+// posts to the real team chat.
+export const telegramTestRateLimiter = createRateLimiter(
+  env.telegramTestRateLimit,
+  60 * 60 * 1000,
+  bySignedInAdmin
+)

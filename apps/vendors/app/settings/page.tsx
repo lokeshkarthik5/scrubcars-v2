@@ -3,7 +3,7 @@
 import { Fragment, Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { IconFileCertificate, IconLogout, IconPhoto, IconChevronRight, IconUsers } from '@tabler/icons-react'
+import { IconBell, IconFileCertificate, IconLogout, IconPhoto, IconChevronRight, IconUsers } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
@@ -41,6 +41,7 @@ import {
 } from '@repo/core/doorstep'
 import { toast } from 'react-toastify'
 import { getGarageDocumentsConfig } from '@repo/core/api/documents'
+import { getPushConfig } from '@repo/core/api/push'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
@@ -202,6 +203,19 @@ function VendorSettings() {
   const router = useRouter()
   // Documents shows only once the server has its private bucket for them.
   const [documentsOn, setDocumentsOn] = useState(false)
+  // Notifications shows only once the API has them set up (0044).
+  const [pushOn, setPushOn] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    getPushConfig('garage')
+      .then((config) => {
+        if (!cancelled) setPushOn(config.enabled)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [activeVendorId])
   useEffect(() => {
     if (!isVendorAdmin) return
     let cancelled = false
@@ -827,6 +841,15 @@ function VendorSettings() {
           {/* Team management arrived on main while this branch was tabbing the
               screen. It lives under Account rather than Profile: it is about who
               can act on the garage, not about the garage itself. */}
+          {pushOn && (
+            <LinkRow
+              href="/settings/notifications"
+              icon={<IconBell size={18} aria-hidden="true" />}
+              title="Notifications"
+              description="New-booking alerts on this phone or computer"
+            />
+          )}
+
           <LinkRow
             href="/settings/members"
             icon={<IconUsers size={18} aria-hidden="true" />}

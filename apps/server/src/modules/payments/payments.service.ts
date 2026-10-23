@@ -13,7 +13,9 @@ import {
 } from '../booking-intents/booking-intents.service.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingChargesService } from '../booking-charges/booking-charges.service.js'
-import type { GarageRefusal } from '../bookings/bookings.repository.js'
+import { bookingsRepository, type GarageRefusal } from '../bookings/bookings.repository.js'
+import { garageNewBooking } from '../../lib/push-messages.js'
+import { pushService } from '../push/push.service.js'
 import {
   garageRefusalForBooking,
   logReceiptNumberFailure,
@@ -188,6 +190,16 @@ async function markBookingPaid(
       logReceiptNumberFailure(result.receipt, bookingId)
       // Once, by whichever of the app and the webhook settled it.
       analyticsService.bookingPaid(bookingId)
+      // A booking paid for now and still waiting for its garage is new to
+      // the garage's team (0044), with its fresh time to accept.
+      pushService.notifyLater(async () => {
+        const booking = await bookingsRepository.findBookingById(bookingId)
+        if (!booking || booking.status !== 'pending') return []
+        return [{
+          recipient: { audience: 'garage', vendorId: booking.vendorId },
+          message: garageNewBooking(booking, new Date(), env.garageResponseMinutes),
+        }]
+      })
       return result.payment
 
     // A racing call settled it first. Re-read rather than guess which way it

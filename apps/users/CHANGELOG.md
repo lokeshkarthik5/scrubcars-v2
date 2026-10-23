@@ -19,6 +19,23 @@ reconstructing every change in them.
 
 ### Added
 
+- **Free browser notifications** (API 0044, shown only once the API has its
+  VAPID keys). Customer app: Profile → Notifications, with "Notifications
+  on this device" (asks the browser, then subscribes), two account switches
+  ("Booking updates", "Reminders", both on), "Send me a test notification",
+  and on an iPhone tab the Home Screen steps (iOS 16.4+). Garage portal:
+  Settings → Notifications (owners and operators alike) and a dismissible
+  "Turn on new-booking alerts" banner on Home and Bookings until this device
+  is on; a new web app manifest and Home Screen icon so the portal can be
+  installed. Both apps get a minimal `/sw.js` that only shows a
+  notification and opens its page on tap (no offline cache, no fetch
+  handler), registered only when notifications are turned on. A
+  notification opens its booking (customer) or its job in the right tab of
+  Bookings (`/bookings?tab=…#job-…`, portal). Signing out of either app
+  removes that browser's subscription. Admin: an Alerts page (header nav;
+  Statistics links to it on a phone) saying whether Telegram is set up,
+  with "Send test alert".
+
 - **Garage documents and the "Documents verified" badge.** Garage portal:
   Settings → Documents (owner only, shown once the server has its private
   documents bucket): each document with what to upload ("Cover the first 8

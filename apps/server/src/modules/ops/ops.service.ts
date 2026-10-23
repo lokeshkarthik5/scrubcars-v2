@@ -6,6 +6,7 @@ import { createThrottle } from '../../lib/throttle.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { garageResponseService } from '../garage-response/garage-response.service.js'
 import { payoutsService } from '../payouts/payouts.service.js'
+import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
@@ -76,6 +77,19 @@ export const opsService = {
         return { error: true as const }
       })
 
+    // Browser notifications on a schedule (0044): the customers' reminders
+    // (the evening before, in the 18:00 IST runs, and about an hour before)
+    // and the garages' "accept within 10 min". Each goes at most once per
+    // booking (claimed first), in bounded batches; nothing at all while
+    // VAPID is unset. Quiet hours don't stop it: a reminder before a 7 am
+    // slot is wanted. Never allowed to fail the digest.
+    const notifications = await pushService
+      .sweepScheduled({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:push_sweep_failed')
+        return { enabled: true as const, error: true as const }
+      })
+
     // The usage events' 180-day clean-up rides on it too: a bounded batch a
     // run, skipped on a dry run, and never allowed to fail the digest.
     const analyticsPurged = options.dryRun
@@ -125,6 +139,7 @@ export const opsService = {
       analyticsPurged,
       timeProposals,
       notAccepted,
+      notifications,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

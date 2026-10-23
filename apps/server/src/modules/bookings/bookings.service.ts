@@ -69,6 +69,8 @@ import type {
   ReceiptNumberAllocation,
 } from './bookings.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import * as pushMessages from '../../lib/push-messages.js'
+import { pushService } from '../push/push.service.js'
 import { bookingsRepository } from './bookings.repository.js'
 
 const log = logger.child({ module: 'bookings' })
@@ -1700,6 +1702,8 @@ export const bookingsService = {
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     alertOps({ kind: 'customer_cancelled', booking: updated!, reason })
+    // The garage's team (0044); never the customer's reason, which is typed text.
+    pushService.notifyGarage(updated!.vendorId, pushMessages.garageCustomerCancelled(updated!))
     analyticsService.bookingCancelled(bookingId, 'customer')
     // Cancelled in the allowed time (the cutoff above): a paid one is
     // refunded at once when AUTO_REFUNDS is on.
@@ -1867,6 +1871,10 @@ export const bookingsService = {
       booking: fullBooking!,
       previousScheduledAt: booking.scheduledAt,
     })
+    pushService.notifyGarage(
+      fullBooking!.vendorId,
+      pushMessages.garageRescheduled(fullBooking!, booking.scheduledAt, new Date(), env.garageResponseMinutes)
+    )
     return toBookingResponse(fullBooking!)
   },
 
@@ -1946,6 +1954,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, status: 'confirmed' }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    pushService.notifyCustomer(updated!.userId, pushMessages.customerAccepted(updated!))
     return toVendorBookingResponse(updated!)
   },
 
@@ -1973,6 +1982,10 @@ export const bookingsService = {
 
     const updated = await bookingsRepository.findBookingById(bookingId)
     alertOps({ kind: 'garage_declined', booking: updated!, reason })
+    pushService.notifyCustomer(
+      updated!.userId,
+      pushMessages.customerDeclined(updated!, updated?.payment?.status === 'paid' ? updated.payment.amount : null)
+    )
     analyticsService.bookingCancelled(bookingId, 'garage')
     // Declined by the garage: a paid one is refunded at once when
     // AUTO_REFUNDS is on.
@@ -2037,6 +2050,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, status: 'completed', paymentMethod: booking.paymentMethod }, 'booking:status_updated')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    pushService.notifyCustomer(updated!.userId, pushMessages.customerCompleted(updated!))
     return toVendorBookingResponse(updated!)
   },
 
@@ -2062,6 +2076,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, step: 'picked_up' }, 'booking:pickup_step')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    pushService.notifyCustomer(updated!.userId, pushMessages.customerPickupStep(updated!, 'picked_up'))
     return toVendorBookingResponse(updated!)
   },
 
@@ -2088,6 +2103,7 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, step: 'out_for_delivery' }, 'booking:pickup_step')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    pushService.notifyCustomer(updated!.userId, pushMessages.customerPickupStep(updated!, 'out_for_delivery'))
     return toVendorBookingResponse(updated!)
   },
 
@@ -2109,6 +2125,8 @@ export const bookingsService = {
     log.info({ bookingId, vendorId, actorId, step: 'delivered', status: 'completed' }, 'booking:pickup_step')
 
     const updated = await bookingsRepository.findBookingById(bookingId)
+    // Delivered completes the job: "Your car is back", and the rating ask.
+    pushService.notifyCustomer(updated!.userId, pushMessages.customerCompleted(updated!))
     return toVendorBookingResponse(updated!)
   },
 

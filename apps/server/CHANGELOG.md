@@ -18,6 +18,52 @@ reconstructing every change in them.
 
 ### Added
 
+- **Free browser notifications for garages and customers, booking
+  reminders, and a Telegram test button** (migration
+  `0044_push_notifications`, additive: new tables `push_subscriptions`
+  (endpoint unique, keys, user, audience `customer`/`garage`, garage for a
+  seat's, device label, last success, failures in a row; CHECKs; cascades
+  with the user and the garage) and `notification_sends` (booking, kind
+  unique; cascades with the booking), and `users.push_booking_updates` /
+  `users.push_reminders`, both default true).
+  - Web Push with VAPID through the `web-push` package (3.6.7, pinned; only
+    `lib/web-push.ts` imports it). Off until `VAPID_PUBLIC_KEY`,
+    `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` are set (docs/push-
+    notifications.md): every push route but `/config` is a 404 and nothing
+    is read or sent. `PUSH_FAKE=1` (E2E only, refused in production)
+    records instead of sending.
+  - `modules/push`: customers at `/users/me/push` (`GET /config`,
+    `POST /subscriptions`, `POST /unsubscribe`, `POST /status`,
+    `PATCH /preferences`, `POST /test`), garage seats at
+    `/vendors/me/push` (owners and operators; the garage from
+    resolveTenant; a support session is 403 `PUSH_SUPPORT_SESSION`).
+    Endpoints only for known push services (FCM, Mozilla, Apple, Windows),
+    always in the body. Test sends rate limited (5 per 10 minutes).
+  - One `pushService.notify(recipient, message)` after the response
+    (`runInBackground`), never failing the request; 404/410 deletes the
+    subscription, 10 failures in a row too; logs carry status codes, never
+    endpoints. Words in `lib/push-messages.ts` (booking basics only; tested
+    for no personal data), Updates' wording where it exists.
+  - Garages: new paid booking (with "accept within N min"), "accept within
+    10 min" before `respond_by` (AUTO_CANCEL_UNANSWERED only), suggested
+    time picked / none worked, extra work paid / declined, customer
+    cancelled / moved it, not accepted in time. Customers: accepted,
+    declined, other times suggested, extra work asked for, car collected /
+    on its way back, job done ("Rate your wash"), refund started or
+    recorded, complaint acknowledged / resolved, not accepted in time.
+  - Reminders on the pending-digest cron (`lib/push-reminders.ts`): the
+    evening before in the 18:00 IST runs, and 60–70 minutes before (down to
+    30 if a run is missed), confirmed bookings only, each claimed in
+    `notification_sends` before sending; 50 of each kind a run, 10-second
+    budget. The digest's summary gains `notifications`.
+  - Admin → Alerts (`modules/alerts`, super-admin): `GET
+    /admin/alerts/telegram` (`configured`, `liveHere`; never the token or
+    chat id) and `POST /admin/alerts/telegram/test { actorName }`, which
+    posts "✅ Detlio test alert from <name>" regardless of the
+    Production-only gate (409 `TELEGRAM_NOT_CONFIGURED`, 502
+    `TELEGRAM_SEND_FAILED` with Telegram's own words), rate limited per
+    admin per hour (`TELEGRAM_TEST_RATE_LIMIT`, default 5).
+
 - **Garage documents: private uploads, admin review and a "Documents
   verified" badge** (migration `0043_garage_documents`, additive: new tables
   `vendor_documents` (one per garage per type; type, status, version,

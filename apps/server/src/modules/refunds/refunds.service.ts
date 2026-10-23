@@ -74,6 +74,9 @@ import {
   type RefundWriteResult,
 } from './refunds.repository.js'
 import type { ListRefundsQuery, RecordRefundInput, RefundNowInput } from './refunds.validation.js'
+import { customerRefund } from '../../lib/push-messages.js'
+import { bookingsRepository } from '../bookings/bookings.repository.js'
+import { pushService } from '../push/push.service.js'
 
 const log = logger.child({ module: 'refunds' })
 
@@ -992,6 +995,22 @@ function sentAlert(outcome: Extract<SendOutcome, { kind: 'sent' }>, auto: boolea
   }
 }
 
+/**
+ * Tells the customer a refund on their booking went out (0044): "Refund of
+ * ₹X started" when sent through Razorpay, "₹X refunded" when ops recorded
+ * one done another way. A checkout that became no booking has no booking
+ * page to open, so it says nothing here.
+ */
+function notifyCustomerOfRefund(bookingId: string | null, amount: string, started: boolean) {
+  if (!bookingId) return
+  pushService.notifyLater(async () => {
+    const booking = await bookingsRepository.findBookingById(bookingId)
+    return booking
+      ? [{ recipient: { audience: 'customer', userId: booking.userId }, message: customerRefund(booking, amount, started) }]
+      : []
+  })
+}
+
 /** What one automatic refund came to, for the cron's summary and the logs. */
 export type AutoRefundOutcome = 'off' | 'sent' | AutoRefundHold | 'busy' | 'failed' | 'unavailable'
 
@@ -1204,6 +1223,7 @@ export const refundsService = {
       { kind: input.kind, id: input.id, amount, refundedTotal, refundRef, outside: !refundRef, by },
       'refund:recorded'
     )
+    notifyCustomerOfRefund(item.bookingId, amount, false)
     alertOps({
       kind: 'refund_recorded',
       what: input.kind,
@@ -1261,6 +1281,7 @@ export const refundsService = {
 
     log.info({ ...target, amount: outcome.amount, refundRef: outcome.refund.id, by }, 'refund:sent')
     alertOps(sentAlert(outcome, false, by))
+    notifyCustomerOfRefund(outcome.money.bookingId, outcome.amount, true)
     if (!outcome.money.item) throw notFound()
     return outcome.money.item
   },
@@ -1289,6 +1310,7 @@ export const refundsService = {
       case 'sent':
         log.info({ ...target, amount: outcome.amount, refundRef: outcome.refund.id }, 'refund:auto_sent')
         alertOps(sentAlert(outcome, true, AUTO_REFUND_BY))
+        notifyCustomerOfRefund(outcome.money.bookingId, outcome.amount, true)
         return 'sent'
       case 'held':
         log.info({ ...target, hold: outcome.hold }, 'refund:auto_held')

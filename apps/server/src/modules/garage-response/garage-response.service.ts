@@ -15,6 +15,8 @@ import type { BookingType } from '../../lib/booking-types.js'
 import { analyticsService } from '../analytics/analytics.service.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { customerNotAcceptedInTime, garageNotAcceptedInTime } from '../../lib/push-messages.js'
+import { pushService } from '../push/push.service.js'
 import { vendorCardsFor, type VendorListItemResponse } from '../vendors/vendors.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { garageResponseRepository } from './garage-response.repository.js'
@@ -33,6 +35,10 @@ async function afterCancel(bookingId: string) {
   if (!booking) return
   log.info({ bookingId, vendorId: booking.vendorId, respondBy: booking.respondBy }, 'garage_response:auto_cancelled')
   alertOps({ kind: 'not_accepted_in_time', booking, autoRefunds: env.autoRefunds })
+  // Both sides hear it (0044): the customer that the refund is on its way,
+  // the garage's team that the booking is gone.
+  pushService.notifyCustomer(booking.userId, customerNotAcceptedInTime(booking))
+  pushService.notifyGarage(booking.vendorId, garageNotAcceptedInTime(booking))
   analyticsService.bookingCancelled(bookingId, 'garage')
   if (booking.payment?.status === 'paid') refundsService.queueAutoRefund({ kind: 'booking', id: bookingId })
 }

@@ -337,6 +337,14 @@ export const CUSTOMERS = {
    */
   documents: { id: id(2303), phone: '9000002303', name: 'Documents Dhanya' },
   /**
+   * Browser notifications (0044; specs/platform/push-api.spec.ts): turns them
+   * on with a stand-in subscription (PUSH_FAKE records, never sends). Ids
+   * 2400–2499 and phones 90000024xx are this feature's own range.
+   */
+  push: { id: id(2401), phone: '9000002401', name: 'Push Priya' },
+  /** Must not reach Admin → Alerts (specs/admin/alerts.spec.ts); its own phone, so it never races the above. */
+  pushOutsider: { id: id(2404), phone: '9000002404', name: 'Push Outsider Om' },
+  /**
    * The garage response deadline (0042), at VENDORS.response only
    * (specs/journeys/response-deadline-journey.spec.ts). Ids 2200–2299 and
    * phones 90000022xx are this feature's own range. One car and one seeded
@@ -426,6 +434,10 @@ export const STAFF = {
   documentsOwner: { id: id(2301), phone: '9000002301', name: 'Documents Owner Deepa' },
   /** vendor_operator on VENDORS.documents: must not list or open them. */
   documentsOperator: { id: id(2302), phone: '9000002302', name: 'Documents Operator Durai' },
+  /** Owns VENDORS.push only (0044; the 2400–2499 range): turns on new-booking alerts. */
+  pushOwner: { id: id(2402), phone: '9000002402', name: 'Push Owner Pavan' },
+  /** vendor_operator on VENDORS.push: may turn alerts on too (the counter needs them). */
+  pushOperator: { id: id(2403), phone: '9000002403', name: 'Push Operator Padma' },
   /** Owns VENDORS.response and VENDORS.responseOther only (0042; the 2200–2299 range). */
   responseOwner: { id: id(2201), phone: '9000002201', name: 'Response Owner Revathi' },
 } as const
@@ -592,6 +604,12 @@ export const VENDORS = {
    * Far from ORIGIN like the other single-purpose garages (DOCUMENTS_PIN).
    */
   documents: { id: id(2310), name: 'Documents Test Garage' },
+  /**
+   * Browser notifications (0044). Pending and not verified, so no customer
+   * list ever shows it and nobody books it: it only gives its owner's and
+   * operator's seats a garage to turn new-booking alerts on for.
+   */
+  push: { id: id(2410), name: 'Push Test Garage' },
   /**
    * The garage response deadline (0042). Live, at the garage only, open
    * 06:00–22:00 every day, one ₹600 wash (SERVICES.responseWash), at

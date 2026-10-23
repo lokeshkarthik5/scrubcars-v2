@@ -15,6 +15,9 @@ const NAV: PanelNavItem[] = [
   { href: '/discounts', label: 'Discounts' },
   { href: '/coverage', label: 'Coverage' },
   { href: '/statistics', label: 'Statistics' },
+  // The team's Telegram alerts and "Send test alert" (0044). Header only: the
+  // phone's bottom bar is full, so Statistics links to it there.
+  { href: '/alerts', label: 'Alerts' },
 ]
 
 // Only while the API has it switched on (ADMIN_DATA_RESET); otherwise the

@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { isDataResetEnabled } from './data-reset.js'
 import { parseDailyCap } from './refund-sending.js'
 import { isAutoCancelOn, parseResponseMinutes } from './response-deadline.js'
+import { isPushConfigured } from './push.js'
 import type { GeoProviderName } from './geo/types.js'
 
 function requireEnv(name: string): string {
@@ -111,6 +112,27 @@ export const env = {
   // deliberate local test.
   vercelEnv: process.env.VERCEL_ENV,
   opsAlertsForced: process.env.OPS_ALERTS === 'on',
+  // How many test alerts (admin → Alerts → Send test alert) each admin may
+  // send an hour. A test posts to the real team chat, so a stuck button or a
+  // script must hit a wall.
+  telegramTestRateLimit: Number(process.env.TELEGRAM_TEST_RATE_LIMIT ?? '5'),
+  // ─── Browser notifications (Web Push, lib/push.ts, 0044) ──────────────────
+  // Garages hear about new bookings and customers about theirs through the
+  // browser's own notifications (free). One VAPID key pair for the API,
+  // made once with `bunx web-push generate-vapid-keys` (docs/push-
+  // notifications.md): the public key goes to browsers when they subscribe,
+  // the private key signs every send and lives only in the Vercel
+  // environment. VAPID_SUBJECT is how a push service can reach us
+  // (mailto:support@detlio.com). Any of the three unset — as in development
+  // and previews — and notifications are off: every push route but /config
+  // is a 404, the apps hide the Notifications screens and nothing is sent.
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY?.trim() || undefined,
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY?.trim() || undefined,
+  vapidSubject: process.env.VAPID_SUBJECT?.trim() || undefined,
+  // E2E only: sends are recorded in memory instead of reaching a push
+  // service (lib/web-push.ts), so the suite can switch the feature on with a
+  // public key alone. Refused in production.
+  pushFake: readTestFake('PUSH_FAKE', 'records browser notifications instead of sending them'),
   // ─── Crash reporting ───────────────────────────────────────────────────────
   // Sentry's project key for this API. Unset — as in development, E2E and
   // previews — and nothing is reported or even loaded (see lib/monitoring.ts).
@@ -345,3 +367,13 @@ export const env = {
     'records usage events from headless browsers'
   ),
 } as const
+
+/** Whether browser notifications are on (VAPID set, or the E2E stand-in). */
+export function isPushEnabled(): boolean {
+  return isPushConfigured({
+    publicKey: env.vapidPublicKey,
+    privateKey: env.vapidPrivateKey,
+    subject: env.vapidSubject,
+    fake: env.pushFake,
+  })
+}

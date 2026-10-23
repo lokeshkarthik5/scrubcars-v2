@@ -2028,6 +2028,27 @@ async function seedDocumentRows() {
 }
 
 /**
+ * Browser notifications (0044): VENDORS.push with its owner's and an
+ * operator's seat, pending and unverified so no customer sees it. Every id
+ * and phone is in the 2400–2499 / 90000024xx range reserved for this
+ * feature; the people are seeded with everyone else.
+ */
+async function seedPushRows() {
+  const garage = VENDORS.push.id
+  await db.insert(vendors).values({
+    id: garage, ownerId: STAFF.pushOwner.id, businessName: VENDORS.push.name,
+    phone: '9000002400', address: '7, Bell Street, Chengalpattu', city: 'Chennai', pincode: '603002',
+    vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    isVerified: false, doorstepEnabled: false, dropinEnabled: true,
+    slotIntervalMins: 30, status: 'pending', bays: 1,
+  })
+  await db.insert(userMemberMapping).values([
+    { vendorId: garage, userId: STAFF.pushOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: garage, userId: STAFF.pushOperator.id, role: 'vendor_operator', status: 'active' },
+  ])
+}
+
+/**
  * Suggested times and extra work (0041), on a garage of their own so nothing
  * else books its bays: VENDORS.proposals with its owner's seat, hours and
  * one service, the three customers' cars, and their bookings. Every id and
@@ -2182,6 +2203,8 @@ async function main() {
   await seedResponseDeadlineRows()
   console.log('[e2e-seed] garage documents…')
   await seedDocumentRows()
+  console.log('[e2e-seed] browser notifications…')
+  await seedPushRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }

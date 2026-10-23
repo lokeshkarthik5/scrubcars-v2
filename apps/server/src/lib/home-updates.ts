@@ -28,8 +28,10 @@
  *     Resolving or closing an open one stamps the acknowledgement at the same
  *     moment; that is the answer, not a second step, so it is one row.
  *
- * No row promises a message: nothing is sent by push, SMS or WhatsApp yet,
- * so nothing here says "we'll notify you" (lib/copy-rules.ts).
+ * No row promises a message: only devices that turned browser notifications
+ * on get one (0044, lib/push-messages.ts, which reuses these words), and
+ * there is no SMS or WhatsApp, so nothing here says "we'll notify you"
+ * (lib/copy-rules.ts).
  */
 import { noticeMatchesBooking, type NoticeRow } from './notices.js'
 import { customerSeesPhotos } from './job-records.js'
