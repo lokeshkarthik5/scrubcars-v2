@@ -11,6 +11,7 @@ const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
 const ADMIN_REFUNDS_URL = 'https://admin.detlio.com/refunds'
 const ADMIN_GIFTS_URL = 'https://admin.detlio.com/gifts'
+const ADMIN_REWARDS_URL = 'https://admin.detlio.com/rewards'
 const ADMIN_PAYOUTS_URL = 'https://admin.detlio.com/payouts'
 const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
 const ADMIN_VENDORS_URL = 'https://admin.detlio.com/vendors'
@@ -401,6 +402,18 @@ export type OpsAlert =
       paymentId: string
       amount: string
       why: 'already_paid' | 'cancelled'
+    }
+  | {
+      /**
+       * Detlio Rewards (0050): this IST month's rewards issued reached
+       * REWARDS_MONTHLY_CAP_INR. New scratch cards give a bonus stamp
+       * instead of money; Shine Card and invite vouchers are still issued.
+       * Sent once a month at most.
+       */
+      kind: 'rewards_cap_reached'
+      month: string
+      cap: string
+      issued: string
     }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
@@ -915,6 +928,15 @@ export function formatOpsAlert(alert: OpsAlert): string {
           : 'The gift had already been paid for with another payment.',
         'Refund this payment in the Razorpay dashboard. The gift is unchanged.',
         ADMIN_GIFTS_URL
+      )
+
+    case 'rewards_cap_reached':
+      return lines(
+        `🎟️ Rewards budget reached for ${alert.month}`,
+        `${rupees(alert.issued)} of rewards issued this month; the cap is ${rupees(alert.cap)}.`,
+        'New scratch cards now give a bonus stamp instead of money. Shine Card and invite vouchers are still issued.',
+        'Raise REWARDS_MONTHLY_CAP_INR to change it.',
+        ADMIN_REWARDS_URL
       )
   }
 }

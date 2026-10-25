@@ -13,6 +13,7 @@ import { customerPushRoutes } from '../push/push.routes.js'
 import { customerGiftRoutes } from '../gifts/gifts.routes.js'
 import { customerCreditRoutes } from '../gift-credit/gift-credit.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
+import { customerRewardRoutes } from '../rewards/rewards.routes.js'
 import * as usersController from './users.controller.js'
 import {
   avatarUploadUrlSchema,
@@ -58,6 +59,11 @@ usersRoutes.route('/me', slotAlertsRoutes)
 // both are 404s while GIFTS_ENABLED is off.
 usersRoutes.route('/me/gifts', customerGiftRoutes)
 usersRoutes.route('/me/credit', customerCreditRoutes)
+
+// Detlio Rewards (0050): the customer's Shine Card, scratch cards, level,
+// vouchers, birthday and invite: /me/rewards. Same mounting, same check; a
+// 404 while rewards are not live.
+usersRoutes.route('/me/rewards', customerRewardRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>

@@ -393,6 +393,7 @@ export function mapBooking(booking: ApiBooking): Booking {
           : 0,
     jobPhotos: (booking.photos ?? []).map(mapJobPhoto),
     photoStandard: booking.photoStandard ?? null,
+    customerBadge: booking.customerBadge ?? null,
     conditionPhotos: booking.conditionPhotos ?? null,
     finalBill: booking.finalBill ? mapFinalBill(booking.finalBill) : null,
     canRaiseFinalBill: booking.canRaiseFinalBill ?? false,

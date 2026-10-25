@@ -349,6 +349,19 @@ export const env = {
    */
   giftsEnabled: (process.env.GIFTS_ENABLED ?? '').trim().toLowerCase() === 'on',
 
+  // ─── Detlio Rewards (lib/rewards.ts, 0050) ─────────────────────────────────
+  /**
+   * The master switch for the loyalty programme (Shine Card stamps, scratch
+   * cards, streaks, levels, Invite a friend): REWARDS_ENABLED=on. Off unless
+   * set. The admin's own switch (Rewards → Settings) works only while this
+   * is on. While either is off every rewards route but the /config ones is
+   * a 404 before auth, the apps hide every entry point, completed bookings
+   * earn nothing, the cron sends no nudge, and a reward voucher is refused
+   * at checkout. Every number (the monthly budget included) is a setting
+   * the team edits in admin, stored in reward_settings.
+   */
+  rewardsEnabled: (process.env.REWARDS_ENABLED ?? '').trim().toLowerCase() === 'on',
+
   // ─── Garage response deadline (lib/response-deadline.ts, 0042) ─────────────
   /**
    * How many opening-hours minutes a garage has to accept (or reject, or

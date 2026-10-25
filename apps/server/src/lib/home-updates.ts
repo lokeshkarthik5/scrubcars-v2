@@ -62,6 +62,7 @@ import {
   type HubServiceReminder,
 } from './service-reminders.js'
 import { slotAlertPath, slotOpenedWords } from './slot-alerts.js'
+import { voucherIssuedWords, type VoucherKind } from './rewards.js'
 
 export const UPDATES_WINDOW_DAYS = 30
 export const MAX_UPDATES = 100
@@ -198,6 +199,9 @@ export type UpdateKind =
   | 'extra_work_withdrawn'
   | 'service_reminder'
   | 'slot_opened'
+  | 'reward_card'
+  | 'reward_voucher'
+  | 'reward_nudge'
 
 export interface UpdateItem {
   /** Stable across reads: kind plus what it is about. */
@@ -755,6 +759,58 @@ function slotAlertRows(alerts: HubSlotAlert[]): Draft[] {
   )
 }
 
+/**
+ * Detlio Rewards news (0050), only while rewards are live (the caller
+ * passes nothing otherwise): a scratch card with every stamp, a voucher
+ * that arrived without the customer scratching for it (a full Shine Card,
+ * an invite, a perk, the team), and each habit nudge with the words it was
+ * sent with. All open the Rewards page (a nudge, where it pointed).
+ */
+export interface HubRewards {
+  cards: Array<{ id: string; createdAt: Date }>
+  vouchers: Array<{ id: string; kind: VoucherKind; amount: string; issuedAt: Date }>
+  nudges: Array<{ id: string; title: string; body: string; linkUrl: string; sentAt: Date }>
+}
+
+function rewardRows(rewards: HubRewards | null | undefined): Draft[] {
+  if (!rewards) return []
+  return [
+    ...rewards.cards.map((card) =>
+      draft({
+        id: `reward_card:${card.id}`,
+        kind: 'reward_card',
+        at: card.createdAt,
+        title: 'You earned a stamp and a scratch card',
+        body: 'Scratch it to see what you won.',
+        linkUrl: REWARDS_PATH,
+      })
+    ),
+    ...rewards.vouchers.map((voucher) =>
+      draft({
+        ...voucherIssuedWords(voucher.kind, Math.round(Number(voucher.amount))),
+        id: `reward_voucher:${voucher.id}`,
+        kind: 'reward_voucher',
+        at: voucher.issuedAt,
+        amount: voucher.amount,
+        linkUrl: REWARDS_PATH,
+      })
+    ),
+    ...rewards.nudges.map((nudge) =>
+      draft({
+        id: `reward_nudge:${nudge.id}`,
+        kind: 'reward_nudge',
+        at: nudge.sentAt,
+        title: nudge.title,
+        body: nudge.body,
+        linkUrl: nudge.linkUrl,
+      })
+    ),
+  ]
+}
+
+/** The customer's Rewards page. */
+export const REWARDS_PATH = '/profile/rewards'
+
 /** Booking-window notices about the customer's own bookings, one row each. */
 function noticeRows(bookings: HubBooking[], notices: NoticeRow[]): Draft[] {
   const rows: Draft[] = []
@@ -801,6 +857,8 @@ export function deriveUpdates(input: {
   serviceReminders?: HubServiceReminder[]
   /** The customer's slot alerts that were told a time opened (0047). */
   slotAlerts?: HubSlotAlert[]
+  /** Detlio Rewards news (0050), null while rewards are not live. */
+  rewards?: HubRewards | null
   /** updates_seen_at, or the account's creation when never opened. */
   seenAt: Date
   now: Date
@@ -827,6 +885,7 @@ export function deriveUpdates(input: {
     ...complaintRows(input.complaints ?? []),
     ...serviceReminderRows(input.serviceReminders ?? [], now),
     ...slotAlertRows(input.slotAlerts ?? []),
+    ...rewardRows(input.rewards),
   ]
     .filter(inWindow)
     .sort(newestFirst)
