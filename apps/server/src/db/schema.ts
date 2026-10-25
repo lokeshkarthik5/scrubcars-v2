@@ -23,6 +23,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 import type { AnalyticsEventName, DeviceClass } from '../lib/analytics.js'
+import type { BypassKind, BypassStatus, RewardStatus } from '../lib/bypass-reports.js'
 import type { ComplaintCategory, ComplaintSource, ComplaintStatus } from '../lib/complaints.js'
 import type { GatewayRefundStatus, RefundSource } from '../lib/refunds.js'
 import type {
@@ -2712,7 +2713,7 @@ export const giftCreditEntries = pgTable(
       .where(sql`${table.kind} = 'refund'`),
     check(
       'gift_credit_entries_kind_check',
-      sql`${table.kind} in ('redeem', 'debit', 'refund', 'expiry', 'adjustment')`
+      sql`${table.kind} in ('redeem', 'debit', 'refund', 'expiry', 'adjustment', 'report_reward')`
     ),
   ]
 )
@@ -2732,6 +2733,78 @@ export const giftCodeAttempts = pgTable(
   (table) => [
     index('gift_code_attempts_user_id_idx').on(table.userId, table.createdAt),
     index('gift_code_attempts_ip_key_idx').on(table.ipKey, table.createdAt),
+  ]
+)
+
+// "Did the garage ask you to book directly?" (0052, lib/bypass-reports.ts):
+// a customer's report that a garage tried to take them off Detlio. One per
+// reschedule chain (`root_booking_id`). Customer, booking and garage are SET
+// NULL with the reference and garage name kept, so an account deletion, the
+// reset or Delete forever keep the report. Never shown to a garage. A
+// confirmed one is a strike against its garage for 180 days, and may earn
+// the customer ₹100 of Detlio credit, once per garage (`reward_status`; the
+// ledger row is `reward_entry_id`).
+export const bypassReports = pgTable(
+  'bypass_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    rootBookingId: uuid('root_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+    bookingRef: varchar('booking_ref', { length: 8 }).notNull(),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    garageName: varchar('garage_name', { length: 255 }).notNull(),
+    kind: text('kind').$type<BypassKind>().notNull(),
+    note: varchar('note', { length: 500 }),
+    status: text('status').$type<BypassStatus>().default('new').notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    confirmedBy: varchar('confirmed_by', { length: 100 }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+    dismissedBy: varchar('dismissed_by', { length: 100 }),
+    dismissedReason: varchar('dismissed_reason', { length: 300 }),
+    rewardStatus: text('reward_status').$type<RewardStatus>().default('none').notNull(),
+    rewardEntryId: uuid('reward_entry_id').references(() => giftCreditEntries.id, { onDelete: 'restrict' }),
+    rewardGrantedAt: timestamp('reward_granted_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('bypass_reports_reward_entry_id_unique').on(table.rewardEntryId),
+    uniqueIndex('bypass_reports_root_booking_key').on(table.rootBookingId),
+    uniqueIndex('bypass_reports_reward_once_key')
+      .on(table.userId, table.vendorId)
+      .where(sql`${table.rewardStatus} in ('owed', 'granted')`),
+    index('bypass_reports_status_created_at_idx').on(table.status, table.createdAt),
+    index('bypass_reports_user_id_created_at_idx').on(table.userId, table.createdAt),
+    index('bypass_reports_vendor_confirmed_idx')
+      .on(table.vendorId, table.confirmedAt)
+      .where(sql`${table.status} = 'confirmed'`),
+    index('bypass_reports_reward_owed_idx')
+      .on(table.confirmedAt)
+      .where(sql`${table.rewardStatus} = 'owed'`),
+    check(
+      'bypass_reports_kind_check',
+      sql`${table.kind} in ('book_directly', 'lower_price', 'pay_directly', 'gave_number', 'other')`
+    ),
+    check('bypass_reports_status_check', sql`${table.status} in ('new', 'confirmed', 'dismissed')`),
+    check('bypass_reports_note_check', sql`${table.note} is null or char_length(btrim(${table.note})) > 0`),
+    check(
+      'bypass_reports_confirmed_check',
+      sql`(${table.status} = 'confirmed') = (${table.confirmedAt} is not null and ${table.confirmedBy} is not null)`
+    ),
+    check(
+      'bypass_reports_dismissed_check',
+      sql`(${table.status} = 'dismissed') = (${table.dismissedAt} is not null and ${table.dismissedBy} is not null and ${table.dismissedReason} is not null)`
+    ),
+    check('bypass_reports_reward_status_check', sql`${table.rewardStatus} in ('none', 'owed', 'granted')`),
+    check(
+      'bypass_reports_reward_confirmed_check',
+      sql`${table.rewardStatus} = 'none' or ${table.status} = 'confirmed'`
+    ),
+    check(
+      'bypass_reports_reward_granted_check',
+      sql`(${table.rewardStatus} = 'granted') = (${table.rewardEntryId} is not null and ${table.rewardGrantedAt} is not null)`
+    ),
   ]
 )
 

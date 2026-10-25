@@ -50,6 +50,7 @@ describe('evaluateEligibility', () => {
       'complaints',
       'no_shows',
       'photos',
+      'bypass',
     ])
     expect(result.rules.every((r) => r.met)).toBe(true)
   })
@@ -177,6 +178,28 @@ describe('evaluateEligibility', () => {
         value: 'No jobs to measure yet',
       })
     })
+  })
+
+  test('bypass reports (0052): any strike in 180 days makes a garage ineligible', () => {
+    expect(rule(GOOD, 'bypass')).toMatchObject({ met: true, measured: true, value: 'None confirmed', target: 'None confirmed' })
+    expect(rule({ ...GOOD, bypassStrikes: 0 }, 'bypass').met).toBe(true)
+    expect(rule({ ...GOOD, bypassStrikes: 1 }, 'bypass')).toMatchObject({ met: false, value: '1 confirmed' })
+    const result = evaluateEligibility({ ...GOOD, bypassStrikes: 2 })
+    expect(result.eligible).toBe(false)
+    expect(unmetLine(result)).toBe('Bypass reports (180 days)')
+  })
+
+  test('a certified garage with a confirmed report starts the usual 14 days, then loses the seal', () => {
+    const state: EvaluationState = { certified: true, ineligibleSince: null, lastEligible: true, eligibleAlertedAt: null }
+    const eligible = evaluateEligibility({ ...GOOD, bypassStrikes: 1 }).eligible
+    const first = planEvaluation(state, { eligible, checkValid: true }, new Date('2026-10-18T00:00:00Z'))
+    expect(first).toMatchObject({ alert: 'at_risk', lapse: false })
+    const later = planEvaluation(
+      { ...state, ineligibleSince: first.ineligibleSince },
+      { eligible, checkValid: true },
+      new Date('2026-11-01T00:00:00Z')
+    )
+    expect(later).toMatchObject({ alert: 'lapsed', lapse: true })
   })
 
   test('one standard missed is not eligible, and the line names it', () => {
@@ -376,7 +399,7 @@ describe('the snapshot and the numbers', () => {
     const at = new Date('2026-10-18T00:00:00Z')
     const snapshot = toSnapshot(evaluateEligibility(GOOD), false, at)
     expect(snapshot).toMatchObject({ version: 1, evaluatedAt: at.toISOString(), eligible: true, checkValid: false })
-    expect(snapshot.rules).toHaveLength(7)
+    expect(snapshot.rules).toHaveLength(8)
   })
 
   test('the thresholds are the ones the owner was given', () => {
@@ -389,6 +412,8 @@ describe('the snapshot and the numbers', () => {
       maxComplaintRate: 0.03,
       maxGarageNoShows: 0,
       minPhotoCompliance: 0.9,
+      maxBypassStrikes: 0,
+      bypassWindowDays: 180,
       qualityCheckMonths: 6,
       graceDays: 14,
     })

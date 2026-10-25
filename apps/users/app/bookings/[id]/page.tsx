@@ -76,6 +76,7 @@ import { CarConditionCard } from '@/components/car-condition-card'
 import { GuaranteeCard } from '@/components/guarantee/guarantee-card'
 import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
 import { PickupCodeCard, PickupTimeline } from '@/components/pickup-progress'
+import { BypassReportLine } from '@/components/bypass/bypass-report-line'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
 // out of the first load's JavaScript, and on the page well before anyone can
@@ -998,6 +999,11 @@ export default function BookingDetailPage({
         <IconHelpCircle size={18} aria-hidden />
         Help with this booking
       </ScButton>
+
+      {/* "Did the garage ask you to book directly?" (0052): a quiet line,
+          from the garage's acceptance until 30 days after the job; once
+          reported, where the report stands. Never shown to the garage. */}
+      <BypassReportLine booking={booking} />
 
       {booking.status === 'rescheduled' && (
         <ScCard>

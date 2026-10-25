@@ -10,6 +10,7 @@ import {
   IconArchiveOff,
   IconBuildingStore,
   IconCamera,
+  IconFlag,
   IconRefresh,
   IconCheck,
   IconChevronDown,
@@ -79,6 +80,7 @@ import {
   useArchiveAdminVendor,
   useVerifyAdminVendor,
 } from '@repo/core/api/hooks/use-admin-vendors'
+import { strikesHighlighted, strikesLabel } from '@repo/core/bypass-reports'
 import { cn } from '@repo/core/utils'
 
 // The small actions on a garage's card: outline, 44px tall, never red.
@@ -654,6 +656,24 @@ function GarageCard({
             </span>
           </span>
         </p>
+      )}
+
+      {/* Bypass reports (0052): confirmed reports of taking customers off
+          Detlio in the last 180 days. 2 or more in red. Straight to the
+          confirmed list. */}
+      {(v.bypassStrikes ?? 0) > 0 && (
+        <Link
+          href="/bypass-reports?show=confirmed"
+          className={cn(
+            'mt-1 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium underline-offset-2 hover:underline',
+            strikesHighlighted(v.bypassStrikes ?? 0) ? 'text-error' : 'text-text-primary'
+          )}
+        >
+          <IconFlag size={15} aria-hidden="true" className="shrink-0" />
+          <span className="font-numeric">{strikesLabel(v.bypassStrikes ?? 0)}</span>
+          <span className="text-text-muted">· bypass reports, last 180 days</span>
+          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+        </Link>
       )}
 
       {/* Detlio Guarantee (0051): approved free redo claims against it in

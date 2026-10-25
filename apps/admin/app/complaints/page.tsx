@@ -198,16 +198,25 @@ function ComplaintsList() {
           ))}
         </div>
         <p className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">{complaintFilterHint(show)}</p>
-        {/* Redo claims (0051), the sibling page, have no room in the phone's
-            bottom bar; the header has them on a wider screen. */}
-        {guaranteeConfig?.enabled && (
+        {/* Pages beside Complaints with no room in the phone's bottom bar:
+            bypass reports (0052) always, and redo claims (0051) on a phone
+            while they are on (the header has them on a wider screen). */}
+        <div className="mt-1 flex flex-wrap gap-x-4">
           <Link
-            href="/guarantee"
-            className="mt-1 inline-flex min-h-11 items-center gap-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline md:hidden"
+            href="/bypass-reports"
+            className="inline-flex min-h-11 items-center gap-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
           >
-            Free redo claims
+            Garage asked a customer to book directly? Bypass reports
           </Link>
-        )}
+          {guaranteeConfig?.enabled && (
+            <Link
+              href="/guarantee"
+              className="inline-flex min-h-11 items-center gap-1 text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline md:hidden"
+            >
+              Free redo claims
+            </Link>
+          )}
+        </div>
       </div>
 
       {refreshFailed && (

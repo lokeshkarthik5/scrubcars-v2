@@ -60,6 +60,7 @@ import { APP_TIMEZONE, cn } from '@repo/core/utils'
 import { LiveBookingModeCard } from '@/components/booking-mode-card'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
 import { GarageCertificationSection } from '@/components/garage-certification-section'
+import { GarageStrikesCard } from '@/components/garage-strikes-card'
 import { PayoutAccountSection } from '@/components/payout-account-section'
 import { LivePickupCard } from '@/components/pickup-card'
 import { SaveBar } from '@/components/save-bar'
@@ -872,6 +873,9 @@ export default function EditVendorPage({
               onRestore={() => setRestoring(true)}
             />
           )}
+
+          {/* Bypass reports (0052): strikes and reports to look into. */}
+          <GarageStrikesCard vendorId={id} />
 
           {/* Disabled as a whole while the garage is in the Bin: every field
               and button under it, the tabs' contents included, is read-only

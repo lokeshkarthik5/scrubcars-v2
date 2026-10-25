@@ -21,6 +21,7 @@ import {
   UPDATES_WINDOW_DAYS,
   type HubBooking,
   type HubComplaint,
+  type HubReportReward,
   type HubGuaranteeClaim,
   type HubRewards,
   type HubSlotAlert,
@@ -38,6 +39,7 @@ import { isWashDue } from '../../lib/wash-status.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { discountsRepository } from '../discounts/discounts.repository.js'
+import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { slotAlertsRepository } from '../slot-alerts/slot-alerts.repository.js'
 import { rewardsService } from '../rewards/rewards.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
@@ -156,6 +158,11 @@ async function loadSlotAlerts(userId: string, now: Date): Promise<HubSlotAlert[]
   )
 }
 
+/** Rewards for the customer's confirmed bypass reports in the Updates window (0052). */
+function loadReportRewards(userId: string, now: Date): Promise<HubReportReward[]> {
+  return bypassReportsService.rewardsForHub(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
+}
+
 /** Detlio Rewards news in the Updates window (0050): three bounded reads, none while not live. */
 function loadRewards(userId: string, now: Date): Promise<HubRewards | null> {
   return rewardsService.hubEvents(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
@@ -257,6 +264,7 @@ export const homeService = {
     const complaints = (await part('complaints', () => loadComplaints(userId, now))) ?? []
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = (await part('slot_alerts', () => loadSlotAlerts(userId, now))) ?? []
+    const reportRewards = (await part('report_rewards', () => loadReportRewards(userId, now))) ?? []
     const guaranteeClaims = (await part('guarantee_claims', () => loadGuaranteeClaims(userId, now))) ?? []
     const rewards = await part('rewards', () => loadRewards(userId, now))
     const seenAt = user.updatesSeenAt ?? user.createdAt
@@ -300,6 +308,7 @@ export const homeService = {
       complaints,
       serviceReminders,
       slotAlerts,
+      reportRewards,
       guaranteeClaims,
       rewards,
       seenAt,
@@ -372,6 +381,7 @@ export const homeService = {
     // Isolated like Home's parts: a reminder read that fails leaves Updates whole.
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
     const slotAlerts = await loadSlotAlerts(userId, now)
+    const reportRewards = (await part('report_rewards', () => loadReportRewards(userId, now))) ?? []
     const guaranteeClaims = (await part('guarantee_claims', () => loadGuaranteeClaims(userId, now))) ?? []
     const rewards = await part('rewards', () => loadRewards(userId, now))
     const seenAt = user.updatesSeenAt ?? user.createdAt
@@ -388,6 +398,7 @@ export const homeService = {
         complaints,
         serviceReminders,
         slotAlerts,
+        reportRewards,
         guaranteeClaims,
         rewards,
         seenAt,

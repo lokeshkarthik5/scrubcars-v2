@@ -33,6 +33,7 @@ import {
   type DocumentsSummary,
 } from '../../lib/vendor-documents.js'
 import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.repository.js'
+import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationRepository } from '../certification/certification.repository.js'
 import { graceEndsOn, isCertified } from '../../lib/certification.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
@@ -672,6 +673,9 @@ export const adminService = {
     const certifications = new Map(
       (await certificationRepository.listStates()).map((row) => [row.vendorId, row])
     )
+    // Bypass reports (0052): each garage's strikes, confirmed reports of the
+    // last 180 IST days. One grouped read; 2 or more are highlighted.
+    const strikes = await bypassReportsService.strikesByGarage(now)
     // Detlio Guarantee (0051): approved free redo claims per garage in the
     // last 90 days, for the card's "N redo claims in 90 days". Null while off.
     const redoClaims = await guaranteeService.approvedByGarage(now)
@@ -700,6 +704,7 @@ export const adminService = {
         documents: documentSummary,
         certification: certificationSummary(certifications.get(vendor.id)),
         photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
+        bypassStrikes: strikes.get(vendor.id) ?? 0,
         redoClaims90d: redoClaims ? (redoClaims.get(vendor.id) ?? 0) : null,
         readiness: vendorReadiness({
           ...vendor,

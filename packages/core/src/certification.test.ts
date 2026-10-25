@@ -8,6 +8,9 @@ describe('Detlio Certified words', () => {
       expect(text).toContain(figure)
     }
     expect(CERTIFIED_STANDARDS).toContain('Takes before and after photos of the car on at least 90% of jobs.')
+    expect(CERTIFIED_STANDARDS).toContain(
+      'Has not been found asking customers to book or pay outside Detlio in the last 180 days.'
+    )
   })
 
   test('a date key reads as a date', () => {

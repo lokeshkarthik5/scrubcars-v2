@@ -860,6 +860,60 @@ describe('extra work (0041)', () => {
   })
 })
 
+describe('bypass reports (0052)', () => {
+  test('a new report names the garage, the booking and what happened — never who reported it', () => {
+    const text = formatOpsAlert({
+      kind: 'bypass_report_received',
+      garage: 'Marina Auto Spa',
+      bookingId: booking.id,
+      what: 'Asked me to pay cash or UPI directly',
+      note: 'He said call 98400 12345 next time and pay by UPI ram@okicici',
+      strikes: 1,
+    })
+    expect(text.split('\n')).toEqual([
+      '🚩 Bypass report: Marina Auto Spa',
+      'booking #3F2A9C1B · Asked me to pay cash or UPI directly',
+      'Customer wrote: "He said call [number] next time and pay by UPI [id]"',
+      'This garage has 1 strike already.',
+      'Look into it, then Confirm or Dismiss. The garage must never learn who reported it.',
+      'https://admin.detlio.com/bypass-reports',
+    ])
+    expect(text).not.toContain('Priya')
+    expect(text).not.toContain('98400')
+  })
+
+  test('a report with no note and no strikes is shorter', () => {
+    const text = formatOpsAlert({
+      kind: 'bypass_report_received',
+      garage: 'Marina Auto Spa',
+      bookingId: null,
+      what: 'Something else',
+      note: null,
+      strikes: 0,
+    })
+    expect(text).not.toContain('Customer wrote')
+    expect(text).not.toContain('strike')
+  })
+
+  test('reaching 2 strikes says how many, and whether the seal is at stake', () => {
+    const text = formatOpsAlert({
+      kind: 'bypass_strikes_reached',
+      vendorId: 'v0000000-0000-4000-8000-000000003201',
+      garage: 'Marina Auto Spa',
+      strikes: 2,
+      windowDays: 180,
+      certified: true,
+    })
+    expect(text.split('\n')).toEqual([
+      '⛔ Marina Auto Spa reached 2 strikes',
+      '2 confirmed reports of taking customers off Detlio in the last 180 days.',
+      'It is Detlio Certified: the next nightly check puts the seal at risk.',
+      'Talk to the garage about its agreement, or pause or suspend it.',
+      'https://admin.detlio.com/vendors/v0000000-0000-4000-8000-000000003201/edit',
+    ])
+  })
+})
+
 describe('free redo claims (0051)', () => {
   const base = {
     kind: 'guarantee_claim' as const,

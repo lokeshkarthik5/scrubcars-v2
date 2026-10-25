@@ -15,7 +15,7 @@
  */
 import { bookingTypeLabel, isBookingType } from './booking-types.js'
 import { formatComplaintNumber } from './complaints.js'
-import { BANK_DAYS, MY_COMPLAINTS_PATH, rupees } from './home-updates.js'
+import { BANK_DAYS, CREDIT_PATH, MY_COMPLAINTS_PATH, REPORT_REWARD_BODY, reportRewardTitle, rupees } from './home-updates.js'
 import { serviceLabelOf } from './home-cards.js'
 import { istDateKey, istSlotShortLabel, istTimeLabel } from './ist.js'
 import { DEFAULT_TTL_SECONDS, type PushMessage } from './push.js'
@@ -339,6 +339,21 @@ export function customerComplaint(complaint: { id: string; number: number }, ste
     body: step === 'acknowledged' ? 'Open My complaints to see where it stands.' : 'Open My complaints to read it.',
     url: MY_COMPLAINTS_PATH,
     tag: `complaint:${complaint.id}`,
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/**
+ * A bypass report Detlio confirmed earned the customer Detlio credit (0052):
+ * the amount only, never the garage (a lock screen is not the place to name
+ * whom they reported). Updates' row says the same.
+ */
+export function customerReportReward(report: { id: string }, amount: string | number): PushMessage {
+  return message({
+    title: reportRewardTitle(amount),
+    body: REPORT_REWARD_BODY,
+    url: CREDIT_PATH,
+    tag: `report-reward:${report.id}`,
     ttlSeconds: 24 * 60 * 60,
   })
 }
