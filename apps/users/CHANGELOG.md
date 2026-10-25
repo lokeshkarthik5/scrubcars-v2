@@ -16,6 +16,7 @@ reconstructing every change in them.
 ## [Unreleased]
 
 - The red button's shine now finishes within 5 seconds (two 1.3 s sweeps, 0.4 s in; the animation ends at 4.8 s), inside WCAG 2.2.2's limit for moving content.
+- Rewards and gifts design review fixes: Invite a friend's Share and Copy link (and the Birthday Save and scratch card Try again buttons) keep the icon and label on one centred row; Home's Shine Card stars sit clear of Book a wash; a challenge reads "3 washes win"; every ₹ amount on the rewards screens is grouped ("₹1,500"); dates say "Sep", not "Sept"; "since Oct 2026" stays on one line; a scratch card scratched earlier still says when to use its prize; the gift link's "shown only now" warning is an amber notice; and Wrapped's privacy note fits on the first screen.
 
 ### Added
 

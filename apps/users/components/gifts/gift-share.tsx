@@ -5,6 +5,7 @@ import { toast } from 'react-toastify'
 import { IconBrandWhatsapp, IconCopy, IconPrinter, IconShare } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
+import { Notice } from '@repo/ui/sc/notice'
 import type { GiftLink, SentGift } from '@repo/core/api/gifts'
 import { GiftCardArt } from '@/components/gifts/gift-card-art'
 import {
@@ -154,16 +155,17 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
         </div>
       )}
 
-      <p className="text-[12px] text-text-muted">
-        This link is shown only now. If it is lost, use Get a new link in Gifts you sent: the new link replaces this
-        one, and this one stops working.
+      {/* The one thing to act on before leaving: amber, as the design system marks a caution. */}
+      <Notice title="This link is shown only now">
+        If it is lost, use Get a new link in Gifts you sent: the new link replaces this one, and this one stops
+        working.
         {gift.expiresAt ? (
           <>
             {' '}
             The gift can be used until <span className="font-numeric">{formatGiftDate(gift.expiresAt)}</span>.
           </>
         ) : null}
-      </p>
+      </Notice>
     </div>
   )
 }

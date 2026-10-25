@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { IconChevronRight } from '@tabler/icons-react'
 import type { RewardsSummary } from '@repo/core/api/rewards'
-import { stampsToGoLine } from '@repo/core/rewards'
+import { rewardRupees, stampsToGoLine } from '@repo/core/rewards'
 import { Figures } from '@repo/ui/sc/figures'
 import { LevelBadge } from './level-badge'
 
@@ -18,7 +18,7 @@ export function RewardsStrip({ summary }: { summary: RewardsSummary }) {
     summary.scratchWaiting > 0
       ? `${summary.scratchWaiting} scratch ${summary.scratchWaiting === 1 ? 'card' : 'cards'} waiting`
       : summary.vouchersAvailable > 0
-        ? `₹${Math.round(Number(summary.vouchers[0]?.amount ?? 0))} off ready to use`
+        ? `${rewardRupees(summary.vouchers[0]?.amount)} off ready to use`
         : null
   return (
     <Link
@@ -31,7 +31,7 @@ export function RewardsStrip({ summary }: { summary: RewardsSummary }) {
           {card.toGo > 0 && (
             <span className="text-text-secondary">
               {' · '}
-              <Figures text={`₹${card.rewardAmount} off`} />
+              <Figures text={`${rewardRupees(card.rewardAmount)} off`} />
             </span>
           )}
         </span>

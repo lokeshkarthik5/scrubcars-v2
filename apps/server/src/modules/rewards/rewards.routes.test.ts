@@ -20,7 +20,7 @@ const { Hono } = await import('hono')
 const { env } = await import('../../lib/env.js')
 const { AppError } = await import('../../lib/errors.js')
 const { signAccessToken, signAdminToken } = await import('../../lib/jwt.js')
-const { DEFAULT_REWARDS_SETTINGS, inviteToken } = await import('../../lib/rewards.js')
+const { DEFAULT_REWARDS_SETTINGS, inviteToken, lastValidDay } = await import('../../lib/rewards.js')
 const { membersRepository } = await import('../members/members.repository.js')
 const { rewardsRepository } = await import('./rewards.repository.js')
 const { forgetSettings } = await import('./rewards.settings.js')
@@ -249,6 +249,58 @@ describe('the customer', () => {
     expect(theirs).toMatchObject({ status: 404, body: { code: 'SCRATCH_CARD_NOT_FOUND' } })
     // The session's id reached the repository, never a parameter.
     expect(scratchCalls.map((c) => c.userId)).toEqual([PEOPLE.me, PEOPLE.other])
+  })
+
+  test('a card scratched earlier says when to use its voucher, as one just scratched does', async () => {
+    const DAY = 86400000
+    const voucherEnds = new Date(NOW.getTime() + 20 * DAY)
+    const repo = rewardsRepository as unknown as Patchable
+    const [cards, vouchers] = [repo.listScratchCards, repo.listVouchers]
+    repo.listScratchCards = async () => [
+      {
+        id: CARD_ID,
+        rootBookingId: 'e2e00000-0000-4000-8000-000000003020',
+        bookingId: 'e2e00000-0000-4000-8000-000000003020',
+        outcome: 'medium_off',
+        drawnOutcome: 'medium_off',
+        prizeAmount: '50.00',
+        fellBack: false,
+        level: 'member',
+        createdAt: new Date(NOW.getTime() - 2 * DAY),
+        expiresAt: new Date(NOW.getTime() + 28 * DAY),
+        scratchedAt: new Date(NOW.getTime() - DAY),
+        voidedAt: null,
+        voucherId: 'v1',
+        vendorName: 'Shine Garage',
+      },
+    ]
+    repo.listVouchers = async () => [
+      {
+        id: 'v1',
+        kind: 'scratch',
+        amount: '50.00',
+        code: 'RWABCDEFGH',
+        level: null,
+        sourceBookingId: 'e2e00000-0000-4000-8000-000000003020',
+        issuedAt: new Date(NOW.getTime() - DAY),
+        expiresAt: voucherEnds,
+        cancelledAt: null,
+        reason: null,
+        actorName: null,
+        heldBookingId: null,
+      },
+    ]
+    try {
+      const { status, body } = await call('GET', '/users/me/rewards', 'me')
+      expect(status).toBe(200)
+      expect((body.data!.scratchCards as unknown[])[0]).toMatchObject({
+        state: 'scratched',
+        prize: { label: '₹50 off', voucher: { lastDay: lastValidDay(voucherEnds), state: 'available' } },
+      })
+    } finally {
+      repo.listScratchCards = cards
+      repo.listVouchers = vouchers
+    }
   })
 
   test('birthday: month and day, checked, for the session only', async () => {

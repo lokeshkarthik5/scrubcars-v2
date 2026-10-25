@@ -22,7 +22,7 @@ describe('rewards parity', () => {
     expect([...core.LEVELS]).toEqual([...server.LEVELS])
     expect([...core.SCRATCH_OUTCOMES]).toEqual([...server.SCRATCH_OUTCOMES])
     for (const outcome of server.SCRATCH_OUTCOMES) {
-      for (const amount of [null, 20, '299.00']) {
+      for (const amount of [null, 20, '299.00', '1500.00']) {
         expect(core.scratchPrizeLabel(outcome, amount)).toBe(server.scratchPrizeLabel(outcome, amount))
       }
     }

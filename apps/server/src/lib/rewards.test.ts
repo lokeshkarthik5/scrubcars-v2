@@ -435,6 +435,7 @@ describe('scratch cards', () => {
     expect(scratchVoucherKind('bonus_stamp')).toBeNull()
     expect(scratchPrizeLabel('medium_off', '50.00')).toBe('₹50 off')
     expect(scratchPrizeLabel('free_wash', 299)).toBe('A free wash (up to ₹299)')
+    expect(scratchPrizeLabel('free_wash', '1500.00')).toBe('A free wash (up to ₹1,500)')
     expect(scratchPrizeLabel('bonus_stamp', null)).toBe('A bonus stamp')
   })
 })

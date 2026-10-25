@@ -5,12 +5,9 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { Figures } from '@repo/ui/sc/figures'
 import type { CabinetBadge, RewardExtras } from '@repo/core/api/reward-extras'
 import { badgeProgressLine, bonusStampsLine } from '@repo/core/achievements'
+import { rewardDate } from '@repo/core/rewards'
 import { cn } from '@repo/core/utils'
 import { BadgeMedal } from './badge-medal'
-
-function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
-}
 
 type Selected = { kind: 'badge'; badge: CabinetBadge } | { kind: 'challenge'; label: string; at: string }
 
@@ -75,7 +72,7 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
                 <p className="text-[13px] text-text-secondary">{selected.badge.howTo}</p>
                 {selected.badge.earned ? (
                   <p className="text-[12px] text-text-muted">
-                    Earned <span className="font-numeric">{formatDay(selected.badge.earned.at)}</span>
+                    Earned <span className="font-numeric">{rewardDate(selected.badge.earned.at)}</span>
                   </p>
                 ) : (
                   <div className="flex w-full max-w-[240px] flex-col gap-1.5">
@@ -100,7 +97,7 @@ export function BadgeCabinet({ extras }: { extras: RewardExtras }) {
                 <h3 className="text-[18px] font-semibold text-text-primary">{selected.label}</h3>
                 <p className="text-[13px] text-text-secondary">Won in a Detlio challenge.</p>
                 <p className="text-[12px] text-text-muted">
-                  Earned <span className="font-numeric">{formatDay(selected.at)}</span>
+                  Earned <span className="font-numeric">{rewardDate(selected.at)}</span>
                 </p>
               </>
             )}
