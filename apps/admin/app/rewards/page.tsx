@@ -8,12 +8,22 @@ import { EmptyState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { useAdminRewardsConfig } from '@repo/core/api/hooks/use-admin-rewards'
+import { AchievementsSettings } from '@/components/rewards/achievements-settings'
+import { ChallengesSection } from '@/components/rewards/challenges-section'
 import { CustomerRewardsSection } from '@/components/rewards/customer-rewards-section'
+import { WrappedSection } from '@/components/rewards/wrapped-section'
 import { RewardsOverview } from '@/components/rewards/rewards-overview'
 import { RewardsSettingsForm } from '@/components/rewards/rewards-settings-form'
 import { parseRewardsTab, type RewardsTab } from '@/lib/rewards'
 
-const TAB_LABELS: Record<RewardsTab, string> = { overview: 'Overview', customers: 'Customers', settings: 'Settings' }
+const TAB_LABELS: Record<RewardsTab, string> = {
+  overview: 'Overview',
+  customers: 'Customers',
+  achievements: 'Achievements',
+  challenges: 'Challenges',
+  wrapped: 'Wrapped',
+  settings: 'Settings',
+}
 
 function RewardsContent() {
   const router = useRouter()
@@ -29,7 +39,7 @@ function RewardsContent() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Rewards" subtitle="Detlio Rewards: Shine Card, scratch cards, levels and invites" />
+      <PageHeader title="Rewards" subtitle="Detlio Rewards: Shine Card, scratch cards, levels, invites, badges, challenges and Wrapped" />
       {config.isPending ? (
         <SkeletonList />
       ) : !config.data?.masterSwitch ? (
@@ -47,6 +57,9 @@ function RewardsContent() {
           </div>
           {tab === 'overview' && <RewardsOverview onOpenCustomer={(id) => go('customers', { customer: id })} />}
           {tab === 'customers' && <CustomerRewardsSection userId={customer} onUserId={(id) => go('customers', { customer: id })} />}
+          {tab === 'achievements' && <AchievementsSettings />}
+          {tab === 'challenges' && <ChallengesSection />}
+          {tab === 'wrapped' && <WrappedSection />}
           {tab === 'settings' && <RewardsSettingsForm />}
         </>
       )}
@@ -54,7 +67,7 @@ function RewardsContent() {
   )
 }
 
-/** Admin → Rewards (0050), super-admin; shown in the nav while REWARDS_ENABLED is on. */
+/** Admin → Rewards (0050; Achievements, Challenges and Wrapped 0054), super-admin; shown in the nav while REWARDS_ENABLED is on. */
 export default function RewardsPage() {
   return (
     <Suspense>

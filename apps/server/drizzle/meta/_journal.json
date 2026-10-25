@@ -379,6 +379,13 @@
       "when": 1787834189731,
       "tag": "0053_service_history_certificates",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1787834189732,
+      "tag": "0054_rewards_extras",
+      "breakpoints": true
     }
   ]
 }

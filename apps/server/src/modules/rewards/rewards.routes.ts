@@ -6,11 +6,9 @@ import {
   requireSuperAdmin,
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
-import { createMiddleware } from 'hono/factory'
-import { AppError } from '../../lib/errors.js'
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import * as rewardsController from './rewards.controller.js'
-import { rewardsLive } from './rewards.settings.js'
+import { rewardsMasterOn as masterOn, rewardsOn } from './rewards.guards.js'
 import {
   adjustRewardsSchema,
   birthdaySchema,
@@ -22,21 +20,6 @@ import {
   openInviteSchema,
   scratchCardParamSchema,
 } from './rewards.validation.js'
-
-/**
- * Not live (REWARDS_ENABLED off, or the admin's switch off): a 404 before
- * auth runs, like notFoundUnless, reading the settings through their cache.
- */
-const rewardsOn = createMiddleware(async (_c, next) => {
-  if (!(await rewardsLive())) throw new AppError(404, 'Not found', 'NOT_FOUND')
-  await next()
-})
-
-/** Admin's Rewards pages work while the master switch (env) is on, whatever the admin switch says. */
-const masterOn = createMiddleware(async (_c, next) => {
-  if (!env.rewardsEnabled) throw new AppError(404, 'Not found', 'NOT_FOUND')
-  await next()
-})
 
 /**
  * Public: whether the app shows rewards (always answers), and the invite

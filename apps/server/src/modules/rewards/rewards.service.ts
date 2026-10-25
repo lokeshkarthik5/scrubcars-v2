@@ -4,8 +4,7 @@ import { AppError } from '../../lib/errors.js'
 import { firstNameOf } from '../../lib/home-updates.js'
 import { istDateKey, MONTHS } from '../../lib/ist.js'
 import { logger } from '../../lib/logger.js'
-import { alertOps } from '../../lib/ops-alerts.js'
-import { customerRewardNudge, customerRewardVoucher } from '../../lib/push-messages.js'
+import { customerRewardNudge } from '../../lib/push-messages.js'
 import {
   addMonthsToMonthKey,
   birthdayProblem,
@@ -19,6 +18,7 @@ import {
   istMonthRange,
   lastValidDay,
   LEVELS,
+  maskPhone,
   levelFor,
   levelLabel,
   levelMoves,
@@ -40,6 +40,7 @@ import {
   SETTINGS_LIMITS,
   settingsProblems,
   STAMP_LABELS,
+  STAMP_SOURCES,
   stampRefusalLabel,
   stampsOnCard,
   streakLength,
@@ -57,7 +58,9 @@ import {
 } from '../../lib/rewards.js'
 import { isWashDue, washStatus } from '../../lib/wash-status.js'
 import { pushService } from '../push/push.service.js'
-import { rewardsRepository, type IssuedVoucher, type JudgeResult } from './rewards.repository.js'
+import { rewardExtrasService } from '../reward-extras/reward-extras.service.js'
+import { announceRewards } from './rewards.announce.js'
+import { rewardsRepository, type JudgeResult } from './rewards.repository.js'
 import { currentSettings, forgetSettings, rewardsLive } from './rewards.settings.js'
 import type { AdjustRewardsInput, SaveSettingsInput } from './rewards.validation.js'
 
@@ -72,11 +75,6 @@ const NUDGE_BATCH = 50
 const PERK_BATCH = 30
 const SWEEP_BUDGET_MS = 15_000
 
-/** "••••••1234": enough for the team to match a caller, in lists. */
-export function maskPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  return digits.length >= 4 ? `••••••${digits.slice(-4)}` : '••••'
-}
 
 /** "Oct 2026" */
 function monthYear(at: Date): string {
@@ -190,23 +188,7 @@ async function cardAndLevel(userId: string, now: Date, settings: RewardsSettings
   }
 }
 
-/** After a rewards write commits: phones hear about new vouchers, ops about the cap. */
-function announce(vouchers: IssuedVoucher[], capAlert: { month: string; issuedPaise: number } | null, settings: RewardsSettings) {
-  for (const voucher of vouchers) {
-    // A scratch prize is news the customer just saw on screen.
-    if (voucher.kind === 'scratch' || voucher.kind === 'free_wash') continue
-    pushService.notifyCustomer(voucher.userId, customerRewardVoucher(voucher))
-  }
-  if (capAlert) {
-    log.warn({ month: capAlert.month, issued: rupees(capAlert.issuedPaise) }, 'rewards:cap_reached')
-    alertOps({
-      kind: 'rewards_cap_reached',
-      month: capAlert.month,
-      cap: rupees(settings.monthlyCap * 100),
-      issued: rupees(capAlert.issuedPaise),
-    })
-  }
-}
+const announce = announceRewards
 
 const CLAIM_REFUSALS = {
   own_code: { status: 409, message: "That's your own invite. Share it with a friend instead.", code: 'INVITE_OWN_CODE' },
@@ -309,6 +291,11 @@ export const rewardsService = {
         'rewards:stamp_earned'
       )
       announce(result.vouchers, result.capAlert, settings)
+      // 0054: badges and challenges count this stamp, in their own
+      // transaction after this one; if it fails, the cron's catch-up does it.
+      await rewardExtrasService.onStampEarned(result.userId, result.rootBookingId, now).catch((err: unknown) => {
+        log.error({ err, bookingId }, 'rewards:extras_failed')
+      })
     } else if (result.kind === 'refused') {
       log.info({ bookingId, userId: result.userId, refusal: result.refusal }, 'rewards:no_stamp')
     }
@@ -365,6 +352,12 @@ export const rewardsService = {
     const vouchers = (await rewardsRepository.listVouchers(userId, now)).map((row) => voucherView(row, now, settings, { admin: false }))
     const waiting = cards.filter((c) => c.state === 'waiting')
     const available = vouchers.filter((v) => v.state === 'available').sort((a, b) => Number(b.amount) - Number(a.amount))
+    // 0054: badges to celebrate, the badge count, the challenge to show and
+    // Wrapped. Isolated: if it fails, Home and Profile still get the card.
+    const extras = await rewardExtrasService.summary(userId, now).catch((err: unknown) => {
+      log.warn({ err, userId }, 'rewards:extras_summary_failed')
+      return null
+    })
     return {
       card,
       level,
@@ -372,6 +365,7 @@ export const rewardsService = {
       scratchCards: waiting,
       vouchersAvailable: available.length,
       vouchers: available,
+      extras,
     }
   },
 
@@ -789,11 +783,11 @@ export const rewardsService = {
       scratchPrizesCounted: prizes.toFixed(2),
       vouchers: { issued: kindRow(figures.issued), redeemed: kindRow(figures.redeemed), expired: kindRow(figures.expired) },
       stamps: {
-        bySource: ['booking', 'scratch', 'streak', 'adjustment'].map((source) => {
+        bySource: STAMP_SOURCES.map((source) => {
           const row = figures.stamps.find((r) => r.source === source)
           return {
             source,
-            label: STAMP_LABELS[source as keyof typeof STAMP_LABELS],
+            label: STAMP_LABELS[source],
             earned: row?.n ?? 0,
             used: row?.used ?? 0,
             lapsed: row?.lapsed ?? 0,

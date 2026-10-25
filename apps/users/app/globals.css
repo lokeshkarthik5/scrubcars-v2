@@ -720,3 +720,94 @@ html:has(.legal-doc) {
     display: none;
   }
 }
+
+/* ─── Achievements, challenges and Detlio Wrapped (0054) ────────────────────
+ *
+ * Badges in their own colours (never red: red stays the screen's one
+ * action), locked ones grey. The celebration's pop and glow, the bar's fill
+ * and Wrapped's card change are one-off flourishes, all off under
+ * prefers-reduced-motion (bottom of this block).
+ */
+.badge-medal {
+  transition: transform 200ms ease;
+}
+.badge-medal--earned {
+  color: var(--badge-tint);
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in oklab, var(--badge-tint) 30%, transparent), transparent 60%),
+    linear-gradient(160deg, #1F2026, #131418);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklab, var(--badge-tint) 55%, transparent),
+    0 0 14px color-mix(in oklab, var(--badge-tint) 18%, transparent);
+}
+.badge-medal--locked {
+  color: #6B6B74;
+  background: #17171B;
+  box-shadow: inset 0 0 0 1.5px #2A2A2E;
+}
+.badge-medal--locked > span:first-child {
+  opacity: 0.55;
+}
+
+/* The celebration: the medal lands, a soft glow breathes in once. */
+.badge-celebrate__glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(236, 240, 250, 0.22) 0%, rgba(236, 240, 250, 0.06) 45%, transparent 70%);
+  animation: badge-glow-in 1400ms ease-out both;
+}
+.badge-celebrate__medal {
+  animation: badge-pop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+}
+@keyframes badge-pop {
+  0% { transform: scale(0.3) rotate(-12deg); opacity: 0; }
+  60% { transform: scale(1.12) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes badge-glow-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+.challenge-bar__fill {
+  transition: width 600ms ease;
+}
+
+/* Wrapped's way in on the Rewards page. */
+.wrapped-teaser {
+  border: 1px solid #2A2A2E;
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(165, 180, 252, 0.16), transparent 55%),
+    radial-gradient(120% 120% at 0% 100%, rgba(45, 212, 191, 0.12), transparent 55%),
+    linear-gradient(160deg, #1A1B21, #121316);
+}
+
+/* The story cards: one gradient per card, the same ones the shared image draws. */
+.wrapped-story {
+  touch-action: pan-y;
+  user-select: none;
+}
+.wrapped-card--in {
+  animation: wrapped-card-in 420ms ease-out both;
+}
+@keyframes wrapped-card-in {
+  0% { opacity: 0; transform: translateY(10px) scale(0.985); }
+  100% { opacity: 1; transform: none; }
+}
+.wrapped-segment__fill {
+  transition: width 300ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-medal,
+  .badge-celebrate__glow,
+  .badge-celebrate__medal,
+  .challenge-bar__fill,
+  .wrapped-card--in,
+  .wrapped-segment__fill {
+    animation: none;
+    transition: none;
+  }
+}

@@ -18,6 +18,38 @@ reconstructing every change in them.
 
 ### Added
 
+- **Achievements, seasonal challenges and Detlio Wrapped, on top of Detlio
+  Rewards and behind the same switches** (migration `0054_rewards_extras`,
+  additive, written after 0050 with 0051–0053 still to land before it: new
+  tables `reward_challenges` (two example drafts seeded),
+  `reward_challenge_bookings`, `reward_challenge_winners`,
+  `reward_badge_awards`, `reward_badge_checks`, `reward_wrapped`;
+  `reward_bookings.extras_at`; `reward_stamps.badge_award_id` /
+  `challenge_id` with sources 'badge' and 'challenge'; voucher kind
+  'challenge'; nudge kinds 'badge', 'challenge_start', 'challenge_one_left',
+  'challenge_won', 'wrapped'). Rules in `lib/achievements.ts`,
+  `lib/challenges.ts`, `lib/wrapped.ts` (pure, unit-tested), module
+  `modules/reward-extras`, reusing 0050's settings, lock, voucher, budget
+  and nudge machinery (`rewardsTx`, `claimNudge`, `announceRewards`).
+  - 19 badges (First Shine, Washes Clubs, streaks, Monsoon Shine, Early
+    Bird, Night Owl, Explorer, Loyal Regular, Pickup Pro, Doorstep Devotee,
+    Reviewer, Ambassador, Detailing Devotee, Coating Club), each on/off with
+    0–5 bonus stamps in the rewards settings (`achievements`, optional, so
+    version 1 still reads). Counted from stamp-earning bookings only, once
+    per chain (`extras_at`), on completion and in a nightly pass.
+  - Challenges: drafts published by the team (never into the past), IST
+    windows, a goal with optional type/category, rewards as bonus stamps, a
+    ₹ voucher (counted toward the monthly budget; a winners cap required),
+    double/triple stamps, or a badge; audience by level; max winners under
+    `rewards-challenge:<id>`. Results CSV with masked phones; audit rows
+    `reward_challenge_created` / `_updated` / `_published` / `_ended`.
+  - Detlio Wrapped: `GET /users/me/rewards/wrapped?year=` (current year from
+    1 Dec, previous year all year), cached per customer-year, opens and
+    shares counted; "Your Detlio Wrapped is here" once, 1–7 December.
+  - Badges, wins and Wrapped are celebrations: they skip the 3-day nudge
+    gap and do not use it up; a challenge's start and "one more to go" do.
+    Badges earned together are one push.
+
 - **Detlio Service History certificate: a printable record of a car's jobs
   through Detlio, with a public verification link** (migration
   `0053_service_history_certificates`, additive; runs after 0050–0052 with

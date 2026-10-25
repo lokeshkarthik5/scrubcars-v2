@@ -29,6 +29,8 @@ import {
 } from './action-cards'
 import { CarHero } from './car-hero'
 import { RewardsStrip } from '@/components/rewards/rewards-strip'
+import { BadgeCelebration } from '@/components/rewards/badge-celebration'
+import { ChallengeLine } from '@/components/rewards/challenge-line'
 import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
 import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
@@ -208,6 +210,9 @@ function HomeHubContent() {
             />
 
             {rewards.data && <RewardsStrip summary={rewards.data} />}
+            {/* 0054: a live challenge as a line (not a card), and any badge to celebrate. */}
+            {rewards.data?.extras?.challenge && <ChallengeLine challenge={rewards.data.extras.challenge} />}
+            {rewards.data?.extras && rewards.data.extras.unseen.length > 0 && <BadgeCelebration badges={rewards.data.extras.unseen} />}
 
             {car ? (
               <div className="grid grid-cols-2 gap-3">

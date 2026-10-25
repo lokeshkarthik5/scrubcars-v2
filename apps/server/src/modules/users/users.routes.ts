@@ -17,6 +17,7 @@ import { customerCreditRoutes } from '../gift-credit/gift-credit.routes.js'
 import { customerGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import { customerRewardRoutes } from '../rewards/rewards.routes.js'
+import { customerRewardExtrasRoutes } from '../reward-extras/reward-extras.routes.js'
 import * as usersController from './users.controller.js'
 import {
   avatarUploadUrlSchema,
@@ -78,6 +79,8 @@ usersRoutes.route('/me/guarantee', customerGuaranteeRoutes)
 // vouchers, birthday and invite: /me/rewards. Same mounting, same check; a
 // 404 while rewards are not live.
 usersRoutes.route('/me/rewards', customerRewardRoutes)
+// 0054: badges, challenges and Detlio Wrapped, under the same path and check.
+usersRoutes.route('/me/rewards', customerRewardExtrasRoutes)
 
 usersRoutes.get('/me', usersController.getProfile)
 usersRoutes.patch('/me', zValidator('json', updateProfileSchema), (c) =>
