@@ -14,6 +14,7 @@ import {
   customerPickupStep,
   customerRefund,
   customerServiceReminder,
+  customerSlotOpened,
   customerTimesSuggested,
   garageCustomerCancelled,
   garageExtraWorkDeclined,
@@ -70,6 +71,17 @@ const PERSONAL = [
 
 const NOW = IST('2026-10-16T18:00:00')
 
+// A slot alert as the re-check reads it (0047): who set it is on the row,
+// and never reaches the notification.
+const slotAlert = {
+  id: 'a0000000-0000-4000-8000-000000002701',
+  userId: booking.userId,
+  vendorId: booking.vendorId,
+  date: '2026-10-17',
+  bookingType: 'doorstep',
+  serviceIds: ['s0000000-0000-4000-8000-000000002720', 's0000000-0000-4000-8000-000000002721'],
+}
+
 const ALL: Array<[string, PushMessage]> = [
   ['garage new booking', garageNewBooking(booking, NOW, 30)],
   ['garage respond soon', garageRespondSoon(booking, IST('2026-10-16T18:20:00'))],
@@ -100,6 +112,7 @@ const ALL: Array<[string, PushMessage]> = [
     id: 'r0000000-0000-4000-8000-000000002601', vehicleId: 'c0000000-0000-4000-8000-000000002602',
     kind: 'maintenance_wash', vendorName: booking.vendor.businessName,
   })],
+  ['customer slot opened', customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)],
   ['customer test', testMessage('customer')],
   ['garage test', testMessage('garage')],
 ]
@@ -230,5 +243,26 @@ describe('customer: the same words as Updates', () => {
     expect(message.category).toBe('reminder')
     expect(message.url).toBe('/profile/cars/car-1')
     expect(message.tag).toBe('service_reminder:r1')
+  })
+})
+
+describe('slot alerts (0047)', () => {
+  test("a freed time: the garage, the day and the time; checkout opens on that day, in that mode", () => {
+    const message = customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)
+    expect(message.title).toBe('A slot opened at Marina Auto Spa')
+    expect(message.body).toBe('Sat 17 Oct — 10:30 AM. Book before it goes.')
+    expect(message.url).toBe(
+      `/book/${slotAlert.vendorId}?service=${slotAlert.serviceIds.join('%2C')}&date=2026-10-17&mode=doorstep`
+    )
+    expect(message.tag).toBe(`slot_alert:${slotAlert.id}`)
+    // The Booking updates switch, and wanted now: someone else may take it.
+    expect(message.category).toBe('booking_update')
+    expect(message.urgency).toBe('high')
+    expect(message.ttlSeconds).toBeLessThanOrEqual((IST('2026-10-17T10:30:00').getTime() - NOW.getTime()) / 1000)
+  })
+
+  test('at the garage is the default and is not spelled out', () => {
+    const message = customerSlotOpened({ ...slotAlert, bookingType: 'dropin' }, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)
+    expect(message.url).not.toContain('mode=')
   })
 })

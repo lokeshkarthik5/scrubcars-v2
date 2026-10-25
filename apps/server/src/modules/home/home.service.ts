@@ -21,6 +21,7 @@ import {
   UPDATES_WINDOW_DAYS,
   type HubBooking,
   type HubComplaint,
+  type HubSlotAlert,
   type PausedGarage,
   type UpdateItem,
 } from '../../lib/home-updates.js'
@@ -35,6 +36,7 @@ import { isWashDue } from '../../lib/wash-status.js'
 import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { carHistoryService } from '../car-history/car-history.service.js'
 import { discountsRepository } from '../discounts/discounts.repository.js'
+import { slotAlertsRepository } from '../slot-alerts/slot-alerts.repository.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { toHubBooking } from './home.mappers.js'
 import { homeRepository } from './home.repository.js'
@@ -129,6 +131,16 @@ function loadComplaints(userId: string, now: Date): Promise<HubComplaint[]> {
  */
 function loadServiceReminders(userId: string, now: Date): Promise<HubServiceReminder[]> {
   return carHistoryService.remindersForHub(userId, now)
+}
+
+/** The customer's slot alerts that were told a time opened, in the Updates window (0047). */
+async function loadSlotAlerts(userId: string, now: Date): Promise<HubSlotAlert[]> {
+  const rows = await slotAlertsRepository.listToldSince(userId, new Date(now.getTime() - UPDATES_WINDOW_DAYS * DAY_MS))
+  return rows.flatMap((row) =>
+    row.notifiedAt && row.notifiedSlotAt
+      ? [{ ...row, notifiedAt: row.notifiedAt, notifiedSlotAt: row.notifiedSlotAt }]
+      : []
+  )
 }
 
 /** Holidays and weekly hours for the garages of upcoming bookings only. */
@@ -226,6 +238,7 @@ export const homeService = {
 
     const complaints = (await part('complaints', () => loadComplaints(userId, now))) ?? []
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
+    const slotAlerts = (await part('slot_alerts', () => loadSlotAlerts(userId, now))) ?? []
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     const homeCars = buildCars({ cars, bookings, lastWashAt, lastJobs, notices: bookingWindow, now })
@@ -266,6 +279,7 @@ export const homeService = {
       pausedGarages: pausedGaragesOf(lastJobs),
       complaints,
       serviceReminders,
+      slotAlerts,
       seenAt,
       now,
     })
@@ -335,6 +349,7 @@ export const homeService = {
     const complaints = await loadComplaints(userId, now)
     // Isolated like Home's parts: a reminder read that fails leaves Updates whole.
     const serviceReminders = (await part('service_reminders', () => loadServiceReminders(userId, now))) ?? []
+    const slotAlerts = await loadSlotAlerts(userId, now)
     const seenAt = user.updatesSeenAt ?? user.createdAt
 
     return {
@@ -348,6 +363,7 @@ export const homeService = {
         pausedGarages: pausedGaragesOf(lastJobs),
         complaints,
         serviceReminders,
+        slotAlerts,
         seenAt,
         now,
       }),

@@ -10,6 +10,7 @@ import {
   rupees,
   type HubBooking,
   type HubComplaint,
+  type HubSlotAlert,
 } from './home-updates.js'
 import { bannedPhraseIn } from './copy-rules.js'
 import type { NoticeRow } from './notices.js'
@@ -755,5 +756,40 @@ describe('service reminders (0046)', () => {
     expect(feed([hubReminder('2026-10-01', '2026-10-15')])).toEqual([])
     const [snoozedRow] = feed([hubReminder('2026-09-27', '2026-10-11')], new Date('2026-10-11T12:00:00Z'))
     expect(snoozedRow).toMatchObject({ id: 'service_reminder:r1:2026-10-11', unread: false })
+  })
+})
+
+describe('slot alerts (0047)', () => {
+  const told: HubSlotAlert = {
+    id: 'a1',
+    vendorId: 'v1',
+    vendorName: 'Marina Auto Spa',
+    date: '2026-10-13',
+    bookingType: 'doorstep',
+    serviceIds: ['s1', 's2'],
+    notifiedAt: ago(2 * HOUR),
+    // Tue 13 Oct, 10:30 IST.
+    notifiedSlotAt: new Date('2026-10-13T05:00:00Z'),
+  }
+
+  test('a time that opened is a row when it was told, in the push’s words, opening checkout on that day', () => {
+    const [row] = deriveUpdates({ bookings: [], notices: [], slotAlerts: [told], seenAt: ago(3 * HOUR), now: NOW })
+    expect(row).toMatchObject({
+      id: 'slot_opened:a1',
+      kind: 'slot_opened',
+      at: told.notifiedAt.toISOString(),
+      unread: true,
+      title: 'A slot opened at Marina Auto Spa',
+      body: 'Tue 13 Oct — 10:30 AM. Book before it goes.',
+      vendorId: 'v1',
+      bookingId: null,
+      linkUrl: '/book/v1?service=s1%2Cs2&date=2026-10-13&mode=doorstep',
+    })
+    expect(bannedPhraseIn(`${row.title} ${row.body}`)).toBeNull()
+  })
+
+  test('older than the window, it is gone', () => {
+    const old = { ...told, notifiedAt: ago(31 * DAY) }
+    expect(deriveUpdates({ bookings: [], notices: [], slotAlerts: [old], seenAt: LONG_AGO, now: NOW })).toEqual([])
   })
 })

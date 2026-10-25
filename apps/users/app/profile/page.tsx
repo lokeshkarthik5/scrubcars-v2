@@ -40,6 +40,7 @@ import { VEHICLE_TIERS } from '@repo/core/vehicles'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { getPushConfig } from '@repo/core/api/push'
+import { useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
@@ -103,6 +104,8 @@ export default function ProfilePage() {
   const [promoting, setPromoting] = useState<string | null>(null)
   // Notifications shows only once the API has them set up (0044).
   const [pushOn, setPushOn] = useState(false)
+  // Slot alerts shows while any are waiting (0047).
+  const slotAlertCount = useSlotAlerts({ enabled: !!authUser }).data?.items.length ?? 0
 
   const user = profile ?? authUser
 
@@ -360,6 +363,17 @@ export default function ProfilePage() {
       <Link href="/profile/saved-garages">
         <ScCard className="text-[13px] text-text-primary">Saved garages</ScCard>
       </Link>
+
+      {/* The days waited on with "Notify me if a slot opens" (0047), while
+          there are any. */}
+      {slotAlertCount > 0 && (
+        <Link href="/profile/slot-alerts">
+          <ScCard className="flex items-center justify-between text-[13px] text-text-primary">
+            Slot alerts
+            <span className="font-numeric text-[12px] text-text-secondary">{slotAlertCount}</span>
+          </ScCard>
+        </Link>
+      )}
 
       {/* Browser notifications on this device, and what to send (0044). */}
       {pushOn && (

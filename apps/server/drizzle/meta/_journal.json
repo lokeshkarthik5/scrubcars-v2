@@ -330,6 +330,13 @@
       "when": 1787834189724,
       "tag": "0046_vehicle_service_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1787834189725,
+      "tag": "0047_slot_alerts",
+      "breakpoints": true
     }
   ]
 }
