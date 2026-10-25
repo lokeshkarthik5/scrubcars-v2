@@ -423,6 +423,11 @@ export const env = {
   // redeem) per IP per minute. Wrong codes are also counted in the database
   // (lib/gift-credit.ts), which is the real cap on guessing.
   giftCodeRateLimit: Number(process.env.GIFT_CODE_RATE_LIMIT ?? '20'),
+  // Service History certificate lookups (POST /certificates/verify, 0053) per
+  // IP per minute. Tokens are 192 bits, so this caps load rather than
+  // guessing. The customer app's /verify page calls it from its server, so
+  // that page also limits each viewer itself (apps/users/lib/certificates.ts).
+  certificateLookupRateLimit: Number(process.env.CERTIFICATE_LOOKUP_RATE_LIMIT ?? '60'),
 
   // ─── Usage events (lib/analytics.ts) ───────────────────────────────────────
   // E2E only: let Playwright's headless browser record events, which are

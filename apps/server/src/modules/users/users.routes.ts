@@ -6,6 +6,7 @@ import {
   type AuthVariables,
 } from '../../middleware/auth.middleware.js'
 import { carHistoryRoutes } from '../car-history/car-history.routes.js'
+import { customerCertificateRoutes } from '../certificates/certificates.routes.js'
 import { customerComplaintRoutes } from '../complaints/complaints.routes.js'
 import { customerBypassReportRoutes } from '../bypass-reports/bypass-reports.routes.js'
 import { favouritesRoutes } from '../favourites/favourites.routes.js'
@@ -51,6 +52,11 @@ usersRoutes.route('/me', favouritesRoutes)
 // /me/vehicles/:vehicleId/history and /me/service-reminders/:id/{dismiss,
 // snooze}. Same mounting, same check; the session's own cars only.
 usersRoutes.route('/me', carHistoryRoutes)
+
+// A car's Service History certificate and its share link (0053):
+// /me/vehicles/:vehicleId/certificate and …/certificate/share. Same
+// mounting, same check; the session's own cars only.
+usersRoutes.route('/me', customerCertificateRoutes)
 
 // Browser notifications on the customer's own devices, and their two
 // switches: /me/push (0044). Same mounting, same check.

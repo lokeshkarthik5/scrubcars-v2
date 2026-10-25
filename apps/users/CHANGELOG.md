@@ -19,6 +19,23 @@ reconstructing every change in them.
 
 ### Added
 
+- **Detlio Service History certificate** (API 0053). A car's history page
+  links to "Service history certificate" (`/profile/cars/<id>/certificate`):
+  an A4 record on white paper with the Detlio wordmark and seal, the car
+  (make, model, colour, body type, masked registration), every completed job
+  through Detlio newest first (date, garage with its Certified or Documents
+  verified mark, services, whether photos were taken), totals, a certificate
+  number and issue date. "Print / Save as PDF", and a share panel: Share
+  link (optional expiry: 7, 30 or 90 days), a QR code and short link printed
+  on the certificate, Share / Copy link, how often it was opened, Stop
+  sharing and New link. "Include before/after photos" is off by default and
+  shows a number-plate warning before it goes on. The public page
+  (`/verify/<token>`, signed out, server-rendered, not indexed, no referrer,
+  no Meta Pixel) says "Genuine Detlio record" and shows the same summary
+  without the owner's details, or "This certificate is no longer shared".
+  Admin: a "Service history certificates" card on Statistics → Overview.
+  New dependency: `qrcode-generator` 2.0.4 (users app, no dependencies).
+
 - **"Did the garage ask you to book directly?"** (API 0052). Customer app: a
   booking from the garage's acceptance until 30 days after completion shows
   a quiet line under Help ("Did the garage ask you to book directly?"), and

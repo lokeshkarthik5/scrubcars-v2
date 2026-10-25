@@ -109,3 +109,12 @@ export const telegramTestRateLimiter = createRateLimiter(
 // the wrong-code limit the gifts service keeps in the database, which is
 // what actually caps guessing across instances.
 export const giftCodeRateLimiter = createRateLimiter(env.giftCodeRateLimit, 60 * 1000)
+
+// Service History certificate lookups (0053): the public /verify page's one
+// call, per IP per minute, on its own count. Unknown and revoked tokens are
+// the same 404, and a token is 192 bits, so this is a load cap, not the
+// thing that stops guessing.
+export const certificateLookupRateLimiter = createRateLimiter(
+  env.certificateLookupRateLimit,
+  60 * 1000
+)
