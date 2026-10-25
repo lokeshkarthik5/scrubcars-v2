@@ -923,3 +923,26 @@ describe('garage payouts', () => {
     expect(planReset(input({ bookings: [booking(1)], payouts: [payout(1, [uuid(1)])] })).selectionHash).not.toBe(none)
   })
 })
+
+describe('Detlio credit (0049)', () => {
+  test('a chain paid partly with credit is kept as real money, even on a test order', () => {
+    const plan = planReset(
+      input({
+        bookings: [
+          booking(1, {
+            payment: { status: 'paid', gatewayTxnId: 'pay_TEST1', gatewayMode: 'test', amount: '199.00', creditAmount: '300.00', refundedAmount: null },
+          }),
+        ],
+      })
+    )
+    expect(plan.chains[0]).toMatchObject({ money: 'unknown', kept: 'unknown', selected: false })
+  })
+
+  test('a chain paid wholly with credit (no gateway ids) is kept, and nothing is asked of Razorpay', () => {
+    const b = booking(2, {
+      payment: { status: 'paid', gatewayTxnId: null, gatewayMode: null, amount: '0.00', creditAmount: '499.00', refundedAmount: null },
+    })
+    expect(planReset(input({ bookings: [b] })).chains[0]).toMatchObject({ money: 'unknown', kept: 'unknown' })
+    expect(idsToLookUp(input({ bookings: [b] }))).toEqual([])
+  })
+})

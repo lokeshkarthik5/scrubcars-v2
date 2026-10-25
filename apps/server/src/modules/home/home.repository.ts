@@ -141,6 +141,9 @@ export const homeRepository = {
             paidAt: true,
             refundedAmount: true,
             refundedAt: true,
+            // Gift a wash (0049): Updates says when credit came back.
+            creditAmount: true,
+            creditReturnedAt: true,
           },
         },
         review: { columns: { id: true } },

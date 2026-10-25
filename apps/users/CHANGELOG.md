@@ -19,6 +19,40 @@ reconstructing every change in them.
 
 ### Added
 
+- **Gift a wash: Detlio gifts and Detlio credit** (API 0049, shown only
+  while the API has `GIFTS_ENABLED` on; every entry point is hidden while it
+  is off or its config is loading, and a gift page opened directly says
+  "Gifts aren't available yet"). Customer app: Profile gains "Detlio credit"
+  (with the balance) and "Gift a wash". Gift a wash (`/profile/gifts/new`):
+  ₹500, ₹1,000, ₹2,000 or another whole amount from ₹300 to ₹5,000, the
+  person's name, an optional message and one of three cards (Shine,
+  Midnight, Fresh), paid through Razorpay; then a share screen with the
+  link, Share, Copy link, WhatsApp, and a printable card with the code.
+  Gifts you sent (`/profile/gifts`): each gift's state and its purchase
+  evidence ("Gift G-000123 · paid ₹1,000 on … · Razorpay payment pay_…"),
+  with "Get the link", or "Get a new link" (any link shared before stops
+  working). The gift page (`/gift/<code>`, signed in or not, no referrer,
+  not indexed): the card, "₹X Detlio gift for <name>", who it is from, the
+  message, "Use by <date>" and "Redeem on Detlio" (sign-in first when
+  signed out), which adds it to the customer's credit. Detlio credit
+  (`/profile/credit`): balance, next expiry, what expires within 30 days,
+  the history, and "Have a gift code?". Checkout: "Use ₹X Detlio credit"
+  (a switch, on by default) after any coupon, with "Detlio credit −₹X" and
+  "To pay ₹Y"; credit that covers it all books at once ("Book with
+  credit", no payment sheet). Bookings: "Paid with Detlio credit ₹X"; a
+  cancellation's refund line says the credit part separately ("₹X back in
+  your Detlio credit") and the bank's 5–7 working days only about the part
+  paid online; the receipt splits "Paid at booking" into Detlio credit and
+  Online (Razorpay). The Meta Pixel stays off pages whose address holds a
+  gift code, and usage events record `/gift/:code`. Admin: a Gifts page
+  (header nav, only while gifts are on) with the outstanding liability,
+  sold / redeemed / not yet redeemed / expiring / credit balance tiles, the
+  gifts list by state (`?show=`) with buyer, redeemer, Razorpay payment,
+  Test/Fake tags and "Cancel gift" (name and reason), and Customer credit
+  (find by phone, top balances, the ledger, "Adjust credit" with a reason,
+  recorded in the audit log); a booking's payment shows "Paid with Detlio
+  credit ₹X".
+
 - **Detlio Certified** (API 0048). Customer app: a "Detlio Certified" seal
   on the garage page with "What this means" (the standards in plain words,
   in a sheet, before and after photos on 90% of jobs included), the seal after the name on garage cards (in place of the

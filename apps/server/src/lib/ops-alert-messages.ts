@@ -10,6 +10,7 @@ import { bookingTypeLabel } from './booking-types.js'
 const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
 const ADMIN_REFUNDS_URL = 'https://admin.detlio.com/refunds'
+const ADMIN_GIFTS_URL = 'https://admin.detlio.com/gifts'
 const ADMIN_PAYOUTS_URL = 'https://admin.detlio.com/payouts'
 const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
 const ADMIN_VENDORS_URL = 'https://admin.detlio.com/vendors'
@@ -387,6 +388,19 @@ export type OpsAlert =
       /** The admin's typed name; null for a lapse. */
       by: string | null
       reason: string
+    }
+  | {
+      /**
+       * Gift a wash (0049): a Razorpay payment for a gift that had already
+       * been paid another way (two payments on one order), or for a gift the
+       * team had cancelled. The gift itself is unchanged; the money is to
+       * refund by hand.
+       */
+      kind: 'gift_payment_stray'
+      giftNumber: string
+      paymentId: string
+      amount: string
+      why: 'already_paid' | 'cancelled'
     }
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
@@ -891,6 +905,17 @@ export function formatOpsAlert(alert: OpsAlert): string {
         'Customers no longer see the seal.',
         adminGarageCertificationUrl(alert.vendorId)
       )
+
+    case 'gift_payment_stray':
+      return lines(
+        `⚠️ Gift payment with nothing to pay for · refund due`,
+        `${rupees(alert.amount)} · Razorpay payment ${alert.paymentId} · gift ${alert.giftNumber}`,
+        alert.why === 'cancelled'
+          ? 'The gift had been cancelled by the team before this payment landed.'
+          : 'The gift had already been paid for with another payment.',
+        'Refund this payment in the Razorpay dashboard. The gift is unchanged.',
+        ADMIN_GIFTS_URL
+      )
   }
 }
 
@@ -935,6 +960,7 @@ const FAILURE_REASONS: Record<string, string> = {
   slot_full: 'the garage was booked up at that time before the payment went through',
   garage_closed: 'the garage marked that day as a holiday before the payment went through',
   garage_paused: 'the garage paused new bookings before the payment went through',
+  credit_exhausted: "the customer's Detlio credit was spent or ran out before the payment went through (only the card/UPI part is to refund)",
 }
 
 /**

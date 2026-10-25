@@ -9,12 +9,22 @@ export interface PaymentOrder {
   keyId: string
 }
 
+/**
+ * What POST /booking-intents answers. With Detlio credit (0049) covering the
+ * whole booking there is no Razorpay order: `paidWithCredit` is true, the
+ * booking already exists (`bookingId`), and `orderId`/`keyId` are null.
+ * Otherwise `amount` (paise) is what Razorpay takes, after any credit.
+ */
 export interface BookingIntentOrder {
   intentId: string
-  orderId: string
+  orderId: string | null
   amount: number
   currency: string
-  keyId: string
+  keyId: string | null
+  /** The Detlio credit this checkout uses, as a decimal string ("0.00" when none). */
+  creditAmount?: string
+  paidWithCredit?: boolean
+  bookingId?: string | null
 }
 
 // Mirrors the old CreateBookingPayload — the server prices an intent from the
@@ -34,6 +44,11 @@ export interface CreateBookingIntentPayload {
   addressId?: string
   /** Promo code, if the customer applied one. The server re-resolves it. */
   discountCode?: string
+  /**
+   * Pay with the customer's Detlio credit first, after any promo (0049).
+   * The server decides how much; ignored while gifts are off.
+   */
+  useCredit?: boolean
 }
 
 interface RazorpayResult {

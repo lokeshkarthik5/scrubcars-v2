@@ -90,8 +90,17 @@ export interface BookingForRefund {
 /** A booking's own payment, as the payments row holds it. */
 export interface PaymentForRefund {
   status: string
+  /** What came through Razorpay: the only money these rules give back as money. */
   amount: string
   refundedAmount?: string | null
+  /**
+   * The part paid with Detlio credit (0049). Never refunded as money: it goes
+   * back to the customer's credit (modules/gift-credit) when the payment is
+   * refundable, and `creditReturnedAt` says when it did. Only what the
+   * customer is told adds it in (customerRefund).
+   */
+  creditAmount?: string | null
+  creditReturnedAt?: Date | string | null
 }
 
 /**
@@ -474,6 +483,13 @@ export interface CustomerRefund {
    * none, so the payload is what it always was for every other booking.
    */
   started?: { amount: string; at: string }
+  /**
+   * The part of the booking paid with Detlio credit (0049), which goes back
+   * to the customer's credit, not their card: how much, and when it did
+   * (null while it is on its way). Left out when no credit was used. Already
+   * counted in `amount` and, once back, `amountRefunded`.
+   */
+  credit?: { amount: string; returnedAt: string | null }
 }
 
 /** A booking's refund history row, as much as the customer's line needs. */
@@ -517,13 +533,26 @@ export function customerRefund(
     return { status: 'none', amount: '0.00', amountRefunded: '0.00', refundedAt: null }
   }
   const totals = bookingRefundTotals(booking)
-  const status = refundState(totals.owed, totals.refunded)
+  // The credit part (0049): owed back as credit until it has gone back.
+  const payment = booking.payment
+  const creditPaise =
+    payment && isBookingPaymentRefundable(booking, payment) ? toPaise(payment.creditAmount) : 0
+  const creditBack = creditPaise > 0 && Boolean(payment?.creditReturnedAt)
+  const paid = toPaise(totals.paid) + creditPaise
+  const owed = toPaise(totals.owed) + (creditBack ? 0 : creditPaise)
+  const refunded = toPaise(totals.refunded) + (creditBack ? creditPaise : 0)
+  const status = refundState(fromPaise(owed), fromPaise(refunded))
   const started = status === 'none' ? null : startedRefunds(records)
+  const creditReturnedAt = creditBack ? new Date(payment!.creditReturnedAt!) : null
+  const refundedAt = latestOf([totals.refundedAt, creditReturnedAt])
   return {
     status,
-    amount: status === 'none' ? '0.00' : totals.paid,
-    amountRefunded: totals.refunded,
-    refundedAt: totals.refundedAt?.toISOString() ?? null,
+    amount: status === 'none' ? '0.00' : fromPaise(paid),
+    amountRefunded: fromPaise(refunded),
+    refundedAt: refundedAt?.toISOString() ?? null,
     ...(started && { started: { amount: started.amount, at: started.at.toISOString() } }),
+    ...(creditPaise > 0 && {
+      credit: { amount: fromPaise(creditPaise), returnedAt: creditReturnedAt?.toISOString() ?? null },
+    }),
   }
 }

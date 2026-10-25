@@ -393,6 +393,14 @@ function toAdminBookingRow(
           // before 0032 recorded it.
           gatewayMode: booking.payment.gatewayMode,
           paidAt: booking.payment.paidAt?.toISOString() ?? null,
+          // Gift a wash (0049): what came through Razorpay and the part paid
+          // with Detlio credit (which goes back as credit, never through the
+          // Refunds page), and when that part went back.
+          amount: booking.payment.amount,
+          creditAmount: booking.payment.creditAmount,
+          creditReturnedAt: booking.payment.creditReturnedAt
+            ? new Date(booking.payment.creditReturnedAt).toISOString()
+            : null,
         }
       : null,
     // Marked "Test" by ops: left out of the pilot numbers.

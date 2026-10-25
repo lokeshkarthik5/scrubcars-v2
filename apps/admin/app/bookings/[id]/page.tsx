@@ -506,6 +506,19 @@ function BookingDetail({
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Payment">
                 <p>{paymentStatusLabel(b.payment?.status)}</p>
+                {/* Gift a wash (0049): the part paid with Detlio credit. */}
+                {Number(b.payment?.creditAmount ?? 0) > 0 && (
+                  <p className="text-[12px] text-text-secondary">
+                    Paid with Detlio credit{' '}
+                    <span className="font-numeric">{formatRupees(b.payment?.creditAmount ?? 0)}</span>
+                    {b.payment?.creditReturnedAt && (
+                      <>
+                        , returned as credit on{' '}
+                        <span className="font-numeric">{formatWhen(b.payment.creditReturnedAt)}</span>
+                      </>
+                    )}
+                  </p>
+                )}
               </Field>
               {b.payment?.gatewayTxnId && (
                 <Field label="Razorpay payment id">

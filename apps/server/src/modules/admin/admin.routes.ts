@@ -9,6 +9,8 @@ import {
 import { rateLimiter } from '../../middleware/rate-limit.middleware.js'
 import { adminAiRoutes } from '../ai/ai.routes.js'
 import { adminAlertRoutes } from '../alerts/alerts.routes.js'
+import { adminCreditRoutes } from '../gift-credit/gift-credit.routes.js'
+import { adminGiftRoutes } from '../gifts/gifts.routes.js'
 import { adminComplaintRoutes } from '../complaints/complaints.routes.js'
 import { adminDataResetRoutes } from '../data-reset/data-reset.routes.js'
 import { adminDiscountRoutes } from '../discounts/discounts.routes.js'
@@ -379,6 +381,13 @@ adminRoutes.route('/certification', adminCertificationRoutes)
 // Telegram: whether the team's alerts are set up, and "Send test alert".
 // Nested here for the same cookie reason as discounts.
 adminRoutes.route('/alerts', adminAlertRoutes)
+
+// Gift a wash (0049): gifts sold and redeemed, what Detlio still owes, and
+// customers' credit with manual adjustments. Nested here for the same cookie
+// reason as discounts; every route but /gifts/config is a 404 while
+// GIFTS_ENABLED is off.
+adminRoutes.route('/gifts/credit', adminCreditRoutes)
+adminRoutes.route('/gifts', adminGiftRoutes)
 
 // Team notices on the customer Home and Updates. Nested here for the same
 // cookie reason as discounts.

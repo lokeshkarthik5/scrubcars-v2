@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { PanelShell, type PanelNavItem } from '@repo/ui/sc/panel-shell'
 import { adminLogout, getAdminMe } from '@repo/core/api/admin'
 import { useDataResetConfig } from '@repo/core/api/hooks/use-admin-data-reset'
+import { useAdminGiftsConfig } from '@repo/core/api/hooks/use-admin-gifts'
 
 const NAV: PanelNavItem[] = [
   { href: '/vendors', label: 'Vendors' },
@@ -25,6 +26,15 @@ const NAV: PanelNavItem[] = [
 // no room for a seventh tab, so the Bookings page links to it instead.
 const RESET_NAV: PanelNavItem = { href: '/data-reset', label: 'Start pilot clean' }
 
+// Gift a wash (0049): only while the API has it on (GIFTS_ENABLED). Header
+// only, after Payouts, money's other page; the phone's bottom bar is full.
+const GIFTS_NAV: PanelNavItem = { href: '/gifts', label: 'Gifts' }
+
+function withGifts(items: PanelNavItem[]): PanelNavItem[] {
+  const at = items.findIndex((item) => item.href === '/payouts') + 1
+  return [...items.slice(0, at), GIFTS_NAV, ...items.slice(at)]
+}
+
 export function AdminScope({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -39,6 +49,7 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   // the chrome/content never flashes for signed-out visitors.
   const [authed, setAuthed] = useState(false)
   const { data: resetConfig } = useDataResetConfig(authed)
+  const { data: giftsConfig } = useAdminGiftsConfig(authed)
 
   useEffect(() => {
     if (isLogin) return
@@ -76,7 +87,10 @@ export function AdminScope({ children }: { children: React.ReactNode }) {
   return (
     <PanelShell
       brandLabel="Admin"
-      navItems={resetConfig?.enabled ? [...NAV, RESET_NAV] : NAV}
+      navItems={(() => {
+        const items = giftsConfig?.enabled ? withGifts(NAV) : NAV
+        return resetConfig?.enabled ? [...items, RESET_NAV] : items
+      })()}
       navType="admin"
       onLogout={handleLogout}
       className="gap-5"

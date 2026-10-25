@@ -16,6 +16,7 @@ import {
 } from './common'
 import { BUSINESS, GOVERNING_COURTS } from './details'
 import { LEGAL_PATHS } from './routes'
+import { GIFTS_LAWYER_NOTES } from './gifts'
 
 const COURTS = GOVERNING_COURTS ?? tbc('city whose courts have jurisdiction')
 
@@ -144,6 +145,9 @@ export const TERMS: LegalDoc = {
             `Each booking with a successful payment has a payment receipt in the app. **${RULES.receiptLine}** Detlio is not registered for GST at present, so no GST is charged or shown.`,
           ],
         },
+        // Gift a wash (0049): questions for the lawyer and CA only (notes are
+        // never public copy). The public gift terms go here once agreed.
+        ...GIFTS_LAWYER_NOTES,
       ],
     },
     {

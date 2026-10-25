@@ -92,7 +92,11 @@ export function statsReads(tx: Tx) {
                c.no_show,
                c.accepted_by,
                p.status as payment_status,
-               p.amount::text as payment_amount,
+               -- What the booking was paid at checkout: Razorpay's part plus the
+               -- part paid with Detlio credit (0049), which is money Detlio holds
+               -- like any other, until it went back as credit on a cancel (then
+               -- only Razorpay's part, less its refunds, stays collected).
+               (p.amount + case when p.credit_returned_at is null then p.credit_amount else 0 end)::text as payment_amount,
                p.refunded_amount::text as payment_refunded,
                c.amount::text as amount,
                c.subtotal_amount::text as subtotal_amount,

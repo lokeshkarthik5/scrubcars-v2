@@ -21,6 +21,7 @@ import {
   logReceiptNumberFailure,
 } from '../bookings/bookings.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
+import { giftsService } from '../gifts/gifts.service.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { paymentsRepository } from './payments.repository.js'
 import type { VerifyPaymentInput } from './payments.validation.js'
@@ -51,6 +52,7 @@ type RazorpayWebhookPayload = {
           booking_id?: string
           intent_id?: string
           charge_id?: string
+          gift_id?: string
         }
       }
     }
@@ -436,6 +438,19 @@ export const paymentsService = {
       }
       // A failed attempt changes nothing: the bill stays due and the
       // customer can try again from their booking.
+      return { handled: true, event }
+    }
+
+    // A Detlio gift being bought (0049): no booking at all. Found by the
+    // order's notes, or by its order id when a payment arrives without them.
+    // Recorded whatever GIFTS_ENABLED says: the money landed either way.
+    const giftId =
+      entity.notes?.gift_id ??
+      (entity.order_id ? await giftsService.giftIdForOrder(entity.order_id) : null)
+    if (giftId) {
+      if (event === 'payment.captured' || entity.status === 'captured') {
+        await giftsService.settleFromWebhook({ giftId, orderId: entity.order_id, paymentId: entity.id })
+      }
       return { handled: true, event }
     }
 

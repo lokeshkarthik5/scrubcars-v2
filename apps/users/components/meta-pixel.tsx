@@ -1,8 +1,9 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Script from 'next/script'
 import { useEffect, useRef } from 'react'
+import { carriesGiftCode } from '@/lib/gifts'
 
 /** Detlio's Meta Pixel. Public by design — it ships in the page. */
 const PIXEL_ID = '891710590692874'
@@ -28,7 +29,11 @@ function trackPageView() {
 }
 
 /**
- * Meta Pixel on every customer page.
+ * Meta Pixel on every customer page but those whose address holds a gift
+ * code (0049): the gift page (/gift/<code>) and sign-in on the way to
+ * redeem one (?next=/gift/<code>). The code is the gift, and Meta is sent
+ * the page's full address. Mounted inside a Suspense boundary (the layout's)
+ * for useSearchParams.
  *
  * The boot snippet records the first view. App Router navigations do not
  * reload the document, so later views are sent when the path changes — the
@@ -36,15 +41,21 @@ function trackPageView() {
  */
 export function MetaPixel() {
   const pathname = usePathname()
-  const skipInitial = useRef(true)
+  const params = useSearchParams()
+  const hidden = carriesGiftCode(pathname, params.get('next'))
+  const booted = useRef(false)
 
   useEffect(() => {
-    if (skipInitial.current) {
-      skipInitial.current = false
+    if (hidden) return
+    if (!booted.current) {
+      // This render is the one that puts the snippet on the page.
+      booted.current = true
       return
     }
     trackPageView()
-  }, [pathname])
+  }, [pathname, hidden])
+
+  if (hidden) return null
 
   return (
     <>

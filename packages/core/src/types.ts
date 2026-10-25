@@ -403,6 +403,11 @@ export interface Booking {
   vehicle?: Vehicle
   paymentMethod: PaymentMethod
   paymentStatus: 'pending' | 'paid' | 'collected' | 'failed' | 'refunded'
+  /**
+   * Gift a wash (0049): the part of the price paid with Detlio credit (0 when
+   * none). `price` is still the whole booking; the rest came through Razorpay.
+   */
+  creditPaid?: number
   /** 'admin' is the Detlio ops team; `cancelledOnBehalfOf` says whose call it was. */
   cancelledBy?: 'user' | 'vendor' | 'admin'
   cancellationReason?: string
@@ -503,6 +508,12 @@ export interface BookingRefund {
    * yet: how much, and when the latest was started (ISO).
    */
   started?: { amount: number; at: string }
+  /**
+   * Gift a wash (0049): the part paid with Detlio credit, which goes back to
+   * the customer's credit rather than their card, and when it did (absent
+   * while on its way). Already counted in `amount`.
+   */
+  credit?: { amount: number; returnedAt?: string }
 }
 
 /**
@@ -554,8 +565,14 @@ export interface BookingReceipt {
   subtotal: string
   discount: { code: string | null; amount: string } | null
   bookingPayment: {
+    /** Everything paid at checkout: Razorpay's part and Detlio credit's. */
     amount: string
     method: string
+    /**
+     * Gift a wash (0049): the part paid with Detlio credit, and the part
+     * through Razorpay, when credit was used. Absent or null otherwise.
+     */
+    credit?: { amount: string; razorpayAmount: string } | null
     paymentId: string | null
     paidAt: string | null
     paidAtLabel: string | null

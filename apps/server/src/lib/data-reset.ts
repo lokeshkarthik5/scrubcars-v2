@@ -71,6 +71,12 @@ export interface ResetPayment {
   gatewayTxnId: string | null
   gatewayMode: GatewayModeValue | null
   amount: string
+  /**
+   * The part paid with Detlio credit (0049). Credit is real money a customer
+   * paid for a gift (the reset never touches gifts or the credit ledger), so
+   * a chain that spent any is always kept, whatever its Razorpay part was.
+   */
+  creditAmount?: string | null
   refundedAmount: string | null
 }
 
@@ -355,6 +361,11 @@ function chainMoneyItems(bookings: ResetBooking[], charges: ResetCharge[]): Mone
       gatewayMode: payment.gatewayMode,
       cash: booking.paymentMethod === 'cash' || payment.status === 'collected',
     })
+    // Paid partly or wholly with Detlio credit: money nobody can prove was a
+    // test, so 'unknown' (kept), with nothing to ask Razorpay about.
+    if (Number(payment.creditAmount ?? 0) > 0) {
+      items.push({ gatewayId: null, gatewayMode: null, cash: false })
+    }
   }
   for (const charge of charges) {
     // A bill only carries money once a payment landed on it, even one that
@@ -530,7 +541,8 @@ export const KEPT_REASONS: Record<KeptReason, { label: string; detail: string }>
   cash: { label: 'Real payment — kept', detail: 'Paid in cash.' },
   unknown: {
     label: 'Real payment — kept',
-    detail: "Razorpay couldn't confirm this was a test payment, so it is treated as real.",
+    detail:
+      "Razorpay couldn't confirm this was a test payment (or part of it was paid with Detlio credit), so it is treated as real.",
   },
   unchecked: {
     label: 'Not checked yet — kept',

@@ -137,6 +137,7 @@ export function dataResetReads(conn: Conn) {
             paymentTxnId: payments.gatewayTxnId,
             paymentMode: payments.gatewayMode,
             paymentAmount: payments.amount,
+            paymentCredit: payments.creditAmount,
             paymentRefunded: payments.refundedAmount,
           })
           .from(bookings)
@@ -168,6 +169,7 @@ export function dataResetReads(conn: Conn) {
                     gatewayTxnId: row.paymentTxnId,
                     gatewayMode: row.paymentMode as GatewayModeValue | null,
                     amount: row.paymentAmount ?? '0.00',
+                    creditAmount: row.paymentCredit ?? '0.00',
                     refundedAmount: row.paymentRefunded,
                   },
           })

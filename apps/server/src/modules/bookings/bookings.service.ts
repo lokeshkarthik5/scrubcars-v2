@@ -313,6 +313,7 @@ const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000
 // A booking may be rescheduled at most this many times across its chain.
 // Mirrored in packages/core/src/booking-types.ts (the legal pages print it).
 const MAX_RESCHEDULES = 2
+import { paise, rupees } from '../../lib/gift-credit.js'
 import type { PaymentRecord } from './bookings.repository.js'
 import type {
   CreateBookingInput,
@@ -445,7 +446,12 @@ function toPaymentResponse(payment: PaymentRecord | null | undefined) {
     id: payment.id,
     gateway: payment.gateway,
     gatewayTxnId: payment.gatewayTxnId,
+    // What came through Razorpay; with Detlio credit (0049) the rest is
+    // `creditAmount`, and the two together are the booking's `amount`.
     amount: payment.amount,
+    creditAmount: rupees(paise(payment.creditAmount)),
+    // When the credit part went back to the customer's credit (cancelled).
+    creditReturnedAt: payment.creditReturnedAt ? new Date(payment.creditReturnedAt).toISOString() : null,
     currency: payment.currency,
     status: payment.status,
     paidAt: payment.paidAt?.toISOString() ?? null,
@@ -762,8 +768,18 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     ...vendorView
   } = toBookingResponse(booking)
 
+  // How the customer paid is between them and Detlio (0049): the garage sees
+  // the payment as it always did, the whole amount paid, with no split
+  // between Razorpay and Detlio credit (it is paid the same either way).
+  const { creditAmount: _creditAmount, creditReturnedAt: _creditReturnedAt, ...garagePayment } =
+    vendorView.payment ?? { creditAmount: null, creditReturnedAt: null }
+  const payment = vendorView.payment
+    ? { ...garagePayment, amount: rupees(paise(vendorView.payment.amount) + paise(vendorView.payment.creditAmount)) }
+    : null
+
   return {
     ...vendorView,
+    payment,
     pickup: vendorPickupView(booking),
     // The garage sees every photo of the job, its own and, once it has
     // accepted the job, the customer's (0045: both sides share one record) —
@@ -1466,6 +1482,7 @@ function moveParams(
           gatewayTxnId: booking.payment.gatewayTxnId,
           gatewayMode: booking.payment.gatewayMode,
           amount: booking.payment.amount,
+          creditAmount: booking.payment.creditAmount,
           currency: booking.payment.currency,
           status: booking.payment.status,
           paidAt: booking.payment.paidAt,
@@ -2086,7 +2103,12 @@ export const bookingsService = {
     alertOps({ kind: 'garage_declined', booking: updated!, reason })
     pushService.notifyCustomer(
       updated!.userId,
-      pushMessages.customerDeclined(updated!, updated?.payment?.status === 'paid' ? updated.payment.amount : null)
+      pushMessages.customerDeclined(
+        updated!,
+        // The card/UPI part only: a part paid with Detlio credit goes back as
+        // credit (0049), and a booking paid wholly with it has no refund due.
+        updated?.payment?.status === 'paid' && paise(updated.payment.amount) > 0 ? updated.payment.amount : null
+      )
     )
     analyticsService.bookingCancelled(bookingId, 'garage')
     slotAlertsService.capacityFreed(updated!, 'garage_declined')

@@ -14,6 +14,8 @@ import {
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { pushService } from '../push/push.service.js'
+import { giftCreditService } from '../gift-credit/gift-credit.service.js'
+import { paise, rupees, splitCheckout } from '../../lib/gift-credit.js'
 import { bookingIntentsRepository } from './booking-intents.repository.js'
 import type { ConsumeIntentResult } from './booking-intents.repository.js'
 import type { CreateBookingIntentInput } from './booking-intents.validation.js'
@@ -42,6 +44,8 @@ const FAILURE_MESSAGES: Record<string, string> = {
     'That car already has an overlapping booking, so this one could not be confirmed. Your payment will be refunded.',
   discount_exhausted:
     'That promo code was fully redeemed before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
+  credit_exhausted:
+    'Your Detlio credit changed before this payment completed (it was used for another booking, or ran out), so the booking could not be confirmed. Your payment will be refunded, and your credit is untouched.',
   slot_full:
     'That time was booked up at the garage before this payment completed, so the booking could not be confirmed. Your payment will be refunded.',
   garage_closed:
@@ -68,6 +72,15 @@ export const bookingIntentsService = {
   async createIntent(userId: string, input: CreateBookingIntentInput) {
     const draft = await resolveBookingDraft(userId, input)
 
+    // Detlio credit (0049), after any promo code: as much of the balance as
+    // the rules allow (lib/gift-credit.ts creditToUse). Read, not held: the
+    // booking write spends it under the customer's credit lock, and refuses
+    // if it is no longer there.
+    const { creditPaise, cashPaise } = splitCheckout(
+      paise(draft.chargeAmount),
+      input.useCredit && env.giftsEnabled ? await giftCreditService.availablePaise(userId) : 0
+    )
+
     const [intent] = await bookingIntentsRepository.createIntent(
       {
         userId,
@@ -81,7 +94,9 @@ export const bookingIntentsService = {
         // The whole booking's duration, not one service's.
         serviceDurationMins: draft.durationMins,
         subtotalAmount: draft.amount,
-        amount: draft.chargeAmount,
+        // What Razorpay is asked for; the credit part is spent with the booking.
+        amount: rupees(cashPaise),
+        creditAmount: rupees(creditPaise),
         discountAmount: draft.discount?.discountAmount ?? '0.00',
         discountId: draft.discount?.discountId ?? null,
         discountCode: draft.discount?.code ?? null,
@@ -94,6 +109,27 @@ export const bookingIntentsService = {
       },
       draft.items
     )
+
+    // Paid wholly with credit: no Razorpay order at all. The booking is
+    // written now, through the same consumeIntent (slot, car, promo and
+    // credit checks under the same locks; the receipt number; the garage's
+    // deadline), with no payment id.
+    // (Only when credit paid it: a booking that costs nothing at all is
+    // refused by Razorpay's order below, as it always was.)
+    if (cashPaise === 0 && creditPaise > 0) {
+      const { bookingId } = await confirmWithCredit(userId, intent.id)
+      log.info({ intentId: intent.id, userId, bookingId, creditAmount: intent.creditAmount }, 'booking_intent:paid_with_credit')
+      return {
+        intentId: intent.id,
+        orderId: null,
+        amount: 0,
+        currency: 'INR',
+        keyId: null,
+        creditAmount: intent.creditAmount,
+        paidWithCredit: true,
+        bookingId,
+      }
+    }
 
     const order = await createRazorpayOrder({
       amount: intent.amount,
@@ -116,10 +152,13 @@ export const bookingIntentsService = {
 
     return {
       intentId: intent.id,
-      orderId: order.orderId,
+      orderId: order.orderId as string | null,
       amount: order.amount,
       currency: order.currency,
-      keyId: order.keyId,
+      keyId: order.keyId as string | null,
+      creditAmount: intent.creditAmount,
+      paidWithCredit: false,
+      bookingId: null as string | null,
     }
   },
 
@@ -187,8 +226,65 @@ export const bookingIntentsService = {
   },
 }
 
+/** What a checkout paid wholly with credit is told when it can't be booked: nothing was charged. */
+const CREDIT_ONLY_REFUSALS: Record<string, { status: 409 | 400; message: string; code: string }> = {
+  vehicle_clash: {
+    status: 409,
+    message: 'That car already has a booking at this time. Nothing was charged and your credit is untouched.',
+    code: 'VEHICLE_DOUBLE_BOOKED',
+  },
+  slot_full: {
+    status: 409,
+    message: 'That time was just booked up at the garage. Pick another time; nothing was charged.',
+    code: 'SLOT_FULL',
+  },
+  garage_closed: {
+    status: 400,
+    message: 'The garage is closed that day. Pick another day; nothing was charged.',
+    code: 'GARAGE_CLOSED_THAT_DAY',
+  },
+  garage_paused: {
+    status: 409,
+    message: "This garage isn't taking bookings right now. Nothing was charged.",
+    code: 'GARAGE_PAUSED',
+  },
+  discount_exhausted: {
+    status: 409,
+    message: 'That promo code has just been used up. Remove it and try again; nothing was charged.',
+    code: 'DISCOUNT_EXHAUSTED',
+  },
+  credit_exhausted: {
+    status: 409,
+    message: 'Your Detlio credit changed (it was used for another booking, or ran out). Check your balance and try again; nothing was charged.',
+    code: 'CREDIT_EXHAUSTED',
+  },
+}
+
+/**
+ * A checkout paid wholly with Detlio credit, booked at once. No money was
+ * taken, so a refusal is a plain error (nothing to refund, no ops alert) and
+ * the checkout is closed as failed with no payment on it.
+ */
+async function confirmWithCredit(userId: string, intentId: string): Promise<{ bookingId: string }> {
+  const result = await bookingIntentsRepository.consumeIntent({
+    intentId,
+    razorpayPaymentId: null,
+    userId,
+    handoverCodes: newHandoverCodes(),
+    responseWindowMins: env.garageResponseMinutes,
+  })
+  if (result.kind === 'created' || result.kind === 'already') {
+    return handleConsumeResult({ intentId, razorpayPaymentId: null, userId }, result)
+  }
+  const refusal = CREDIT_ONLY_REFUSALS[result.kind]
+  await bookingIntentsRepository.markFailed(intentId, null, result.kind)
+  log.warn({ intentId, userId, reason: result.kind }, 'booking_intent:credit_only_refused')
+  if (refusal) throw new AppError(refusal.status, refusal.message, refusal.code)
+  throw new AppError(409, "This booking couldn't be made. Nothing was charged.", 'BOOKING_NOT_CONFIRMED')
+}
+
 async function handleConsumeResult(
-  params: { intentId: string; razorpayPaymentId: string; userId?: string },
+  params: { intentId: string; razorpayPaymentId: string | null; userId?: string },
   result: ConsumeIntentResult
 ): Promise<{ bookingId: string; created: boolean }> {
   switch (result.kind) {
@@ -266,13 +362,16 @@ async function handleConsumeResult(
     case 'discount_exhausted':
       return failIntent(params, 'discount_exhausted')
 
+    case 'credit_exhausted':
+      return failIntent(params, 'credit_exhausted')
+
     case 'previously_failed':
       throw new AppError(409, FALLBACK_FAILURE_MESSAGE, 'BOOKING_CONFIRM_FAILED_REFUND_DUE')
   }
 }
 
 async function failIntent(
-  params: { intentId: string; razorpayPaymentId: string },
+  params: { intentId: string; razorpayPaymentId: string | null },
   reason: string
 ): Promise<never> {
   const [recorded] = await bookingIntentsRepository.markFailed(
@@ -303,7 +402,9 @@ async function failIntent(
     const vendor = intent ? await vendorsRepository.findVendorById(intent.vendorId) : null
     return {
       kind: 'paid_no_booking',
-      paymentId: params.razorpayPaymentId,
+      // Only a checkout with a Razorpay part reaches here (a credit-only one
+      // is refused in confirmWithCredit, with nothing to refund).
+      paymentId: params.razorpayPaymentId ?? 'none',
       reason,
       amount: intent?.amount,
       garageName: vendor?.businessName,

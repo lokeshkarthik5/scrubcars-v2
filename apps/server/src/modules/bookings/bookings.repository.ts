@@ -183,6 +183,12 @@ export async function lockDiscount(
 //                                    (settlePayment)
 //   4. vendor-day:<vendor>:<date>    lockVendorDay, via checkGarageCanTake
 //   5. discount:<id>                 lockDiscount
+//  5a. gift-credit:<user>            lockCredit (gift-credit.repository),
+//                                    consumeIntent only (0049): the
+//                                    customer's Detlio credit, spent with the
+//                                    booking. Taken on its own everywhere else
+//                                    (redeeming, returning a booking's credit,
+//                                    adjustments, the expiry sweep)
 //   6. chain root's row, KEY SHARE   allocateReceiptNumber
 //   7. receipt_counters row (<FY>)   allocateReceiptNumber, always last
 //
@@ -1092,6 +1098,8 @@ export const bookingsRepository = {
       gatewayTxnId: string | null
       gatewayMode: GatewayMode | null
       amount: string
+      /** The part paid with Detlio credit (0049), carried with the payment. */
+      creditAmount?: string | null
       currency: string
       status: 'pending' | 'paid' | 'failed' | 'refunded' | 'collected'
       paidAt: Date | null
@@ -1343,6 +1351,9 @@ export const bookingsRepository = {
           gatewayTxnId: data.sourcePayment?.gatewayTxnId ?? null,
           gatewayMode: data.sourcePayment?.gatewayMode ?? null,
           amount: data.sourcePayment?.amount ?? data.amount,
+          // The credit part moves with the money (0049); the chain's ledger
+          // rows name its first booking, which a move never changes.
+          creditAmount: data.sourcePayment?.creditAmount ?? '0.00',
           currency: data.sourcePayment?.currency ?? 'INR',
           status: data.sourcePayment?.status ?? 'pending',
           paidAt: data.sourcePayment?.paidAt ?? null,

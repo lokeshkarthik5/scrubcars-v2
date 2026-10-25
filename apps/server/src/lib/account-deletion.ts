@@ -16,10 +16,16 @@ export interface AccountDeletionFacts {
   ownsGarage: boolean
   /** A receipt number was issued on one of the account's own bookings. */
   hasReceipts: boolean
+  /**
+   * The account bought or redeemed a Detlio gift, or has Detlio credit
+   * records (0049). Gifts and the credit ledger are money records, and
+   * deleting the account would lose a balance the customer paid for.
+   */
+  hasGifts?: boolean
 }
 
 export interface AccountDeletionRefusal {
-  code: 'VENDOR_OWNER_ACCOUNT' | 'ACCOUNT_HAS_RECEIPTS'
+  code: 'VENDOR_OWNER_ACCOUNT' | 'ACCOUNT_HAS_RECEIPTS' | 'ACCOUNT_HAS_GIFTS'
   message: string
 }
 
@@ -42,6 +48,16 @@ export function accountDeletionRefusal(
       code: 'ACCOUNT_HAS_RECEIPTS',
       message:
         "Your account has bookings with payment receipts, so it can't be deleted from the app. Please call Detlio support to close it.",
+    }
+  }
+
+  // Gifts and credit are money records (the foreign keys would refuse the
+  // delete anyway, as a bare 500), and any credit left would be lost.
+  if (facts.hasGifts) {
+    return {
+      code: 'ACCOUNT_HAS_GIFTS',
+      message:
+        "Your account has Detlio gifts or credit, so it can't be deleted from the app. Please call Detlio support to close it.",
     }
   }
 

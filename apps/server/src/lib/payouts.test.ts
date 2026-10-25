@@ -16,6 +16,7 @@ import {
   type EarningChain,
   type SettledPart,
 } from './payouts.js'
+import { paidInAll } from './gift-credit.js'
 
 const HOUR = 60 * 60 * 1000
 const DONE = new Date('2026-10-16T06:00:00.000Z')
@@ -467,5 +468,52 @@ describe('firstNameOf', () => {
     expect(firstNameOf('R. Uday')).toBe('Uday')
     expect(firstNameOf('  ')).toBe('Customer')
     expect(firstNameOf(null)).toBe('Customer')
+  })
+})
+
+describe('a booking paid with Detlio credit (0049)', () => {
+  // consumeIntent writes bookings.amount as the Razorpay part plus the
+  // credit part, and payouts read the booking, never the payment's split:
+  // gift credit is money Detlio already holds, like a card payment, and not
+  // a Detlio-funded promo.
+  test('earns the garage exactly what a card payment would, commission unchanged', () => {
+    const items = [{ category: 'car_wash' as const, amount: '499.00', pricingType: 'flat', sortOrder: 0 }]
+    // The booking's amount as consumeIntent writes it from each payment.
+    const byCard = paidInAll({ amount: '499.00', creditAmount: '0.00' })
+    const byCredit = paidInAll({ amount: '0.00', creditAmount: '499.00' })
+    const byBoth = paidInAll({ amount: '199.00', creditAmount: '300.00' })
+    const card = bookingEarning(chain({ amount: byCard, subtotalAmount: '499.00', items }), PAYING)
+    expect(bookingEarning(chain({ amount: byCredit, subtotalAmount: '499.00', items }), PAYING)).toEqual(card)
+    expect(bookingEarning(chain({ amount: byBoth, subtotalAmount: '499.00', items }), PAYING)).toEqual(card)
+    expect(card.commissionPaise).toBe(Math.round(49_900 * 0.08))
+    expect(card.sharePaise).toBe(49_900 - Math.round(49_900 * 0.08))
+    expect(card.detlioPromoPaise).toBe(0)
+  })
+
+  test('with a promo first and credit after: the promo rules alone decide the garage share', () => {
+    const e = bookingEarning(
+      chain({ amount: '399.00', subtotalAmount: '499.00', discountFundedBy: 'platform' }),
+      PAYING
+    )
+    // Detlio's promo is Detlio's cost; the credit part changes nothing.
+    expect(e.pricePaise).toBe(49_900)
+    expect(e.detlioPromoPaise).toBe(10_000)
+    expect(e.earnedPaise).toBe(49_900)
+  })
+
+  test('a card refund on a part-credit booking comes off in proportion to all the customer paid', () => {
+    // ₹199 by card + ₹300 credit; ₹100 of the card part refunded after the job.
+    const e = bookingEarning(
+      chain({ amount: '499.00', subtotalAmount: '499.00', refunds: [{ amount: '100.00', gatewayStatus: 'processed' }] }),
+      PAYING
+    )
+    expect(e.collectedPaise).toBe(49_900)
+    expect(e.refundSharePaise).toBe(10_000)
+  })
+
+  test('a cancelled one earns nothing, whether or not its credit has gone back', () => {
+    const e = bookingEarning(chain({ status: 'cancelled', paymentStatus: 'refunded', completedAt: null }), PAYING)
+    expect(e.kind).toBeNull()
+    expect(e.duePaise).toBe(0)
   })
 })
