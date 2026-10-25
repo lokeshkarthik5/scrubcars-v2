@@ -9,7 +9,10 @@ import { apiClient } from '@repo/core/api/client'
  * A gift code always travels in the request body, never an API URL.
  */
 
-export type GiftDesign = 'shine' | 'midnight' | 'fresh'
+/** The card a buyer picks, as stored (0055). */
+export type GiftBuyDesign = 'shine' | 'midnight' | 'pearl' | 'birthday' | 'diwali' | 'thank_you'
+/** What a gift row may hold: `fresh` is Pearl on gifts bought before 0055. */
+export type GiftDesign = GiftBuyDesign | 'fresh'
 
 /** What a gift is now. */
 export type GiftState = 'pending' | 'available' | 'redeemed' | 'expired' | 'cancelled'
@@ -25,7 +28,8 @@ export interface GiftsConfig {
   dailyLimit: number
   /** Gift and credit last this many months from the gift's payment (12). */
   validMonths: number
-  designs: GiftDesign[]
+  /** The cards a buyer may pick, in the order shown. */
+  designs: GiftBuyDesign[]
 }
 
 /** A gift the customer bought, as they see it. The code is never in it. */
@@ -141,7 +145,7 @@ export interface BuyGiftPayload {
   amount: number
   recipientName: string
   message?: string
-  design: GiftDesign
+  design: GiftBuyDesign
 }
 
 /** POST /users/me/gifts: opens a Razorpay order for the gift. */

@@ -1,4 +1,4 @@
-import type { GiftDesign, GiftState } from '@repo/core/api/gifts'
+import type { GiftBuyDesign, GiftDesign, GiftState } from '@repo/core/api/gifts'
 import { formatRupees } from '@repo/core/job-records'
 import { istDateLabel } from '@repo/core/payouts'
 
@@ -100,11 +100,30 @@ export const GIFT_STATE_LABELS: Record<GiftState, string> = {
   cancelled: 'Cancelled',
 }
 
-/** The three card designs, in the order the buyer sees them. */
-export const GIFT_DESIGN_LABELS: Record<GiftDesign, string> = {
+/**
+ * The cards a buyer picks: three everyday looks and three occasions, in the
+ * order the buyer sees them. Each is stored as itself (`gifts.design`, 0055),
+ * so the recipient, a new link and "Gifts you sent" all show the card picked.
+ */
+export const GIFT_ARTS = ['shine', 'midnight', 'pearl', 'birthday', 'diwali', 'thank_you'] as const satisfies readonly GiftBuyDesign[]
+export type GiftArt = (typeof GIFT_ARTS)[number]
+
+export const GIFT_ART_LABELS: Record<GiftArt, string> = {
   shine: 'Shine',
   midnight: 'Midnight',
-  fresh: 'Fresh',
+  pearl: 'Pearl',
+  birthday: 'Birthday',
+  diwali: 'Diwali',
+  thank_you: 'Thank you',
+}
+
+/**
+ * The card to draw for a stored design: itself, or Pearl for `fresh` (gifts
+ * bought before 0055). An old link's `#card=` fragment is not read: the
+ * stored design is the card.
+ */
+export function giftArtFor(design: GiftDesign): GiftArt {
+  return design === 'fresh' ? 'pearl' : design
 }
 
 /**
