@@ -2,10 +2,12 @@
  * Getting to the garage, and getting help, from a booking.
  *
  * Read-only throughout: it reads BOOKINGS.rescheduleExhausted — confirmed, at
- * the garage, at MAIN — which no spec moves or cancels.
+ * the garage, at MAIN, tomorrow — which no spec moves or cancels, and
+ * BOOKINGS.contactSoon (contact windows: confirmed at VENDORS.contact in an
+ * hour), which no spec touches either.
  */
 import { test, expect, asRole } from '../../support/fixtures'
-import { BOOKINGS, VENDORS } from '../../support/seed-ids'
+import { BOOKINGS, CONTACT_GARAGE, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('customer-reschedule') })
 
@@ -13,16 +15,18 @@ const BOOKING = `/bookings/${BOOKINGS.rescheduleExhausted}`
 const REFERENCE = `#${BOOKINGS.rescheduleExhausted.slice(0, 8).toUpperCase()}`
 
 test.describe('booking help @p0', () => {
-  test('help reaches the garage and the Detlio team, quoting the booking', async ({ page }) => {
+  test('a day ahead, help says when the garage’s number shows and reaches the Detlio team', async ({
+    page,
+  }) => {
     await page.goto(BOOKING)
     await page.getByRole('button', { name: 'Help with this booking' }).click()
 
     const sheet = page.getByRole('dialog', { name: 'Help with this booking' })
-    // MAIN's phone in the seed.
-    await expect(sheet.getByRole('link', { name: `Call ${VENDORS.main.name}` })).toHaveAttribute(
-      'href',
-      'tel:+919000001001'
-    )
+    // Outside the contact window: no Call or WhatsApp for the garage, and the
+    // sheet says when they come.
+    await expect(sheet.getByText("The garage's number shows 2 hours before your booking.")).toBeVisible()
+    await expect(sheet.getByRole('link', { name: `Call ${VENDORS.main.name}` })).toHaveCount(0)
+    await expect(sheet.getByRole('link', { name: `WhatsApp ${VENDORS.main.name}` })).toHaveCount(0)
 
     // The team's chat opens with the booking already named, so nobody has to
     // ask which one.
@@ -31,6 +35,7 @@ test.describe('booking help @p0', () => {
     const message = new URL(href!).searchParams.get('text')
     expect(message).toContain(REFERENCE)
     expect(message).toContain(VENDORS.main.name)
+    await expect(sheet.getByRole('link', { name: 'Call Detlio support' })).toBeVisible()
 
     await sheet.getByRole('button', { name: 'Close' }).click()
     await expect(sheet).toHaveCount(0)
@@ -90,5 +95,37 @@ test.describe('booking help @p0', () => {
     await expect(sheet.getByText('Allow location access to see how long the drive is.')).toBeVisible()
     // Google Maps still works without it.
     await expect(sheet.getByRole('link', { name: 'Open in Google Maps' })).toBeVisible()
+  })
+})
+
+test.describe('booking help inside the contact window @p0', () => {
+  test.use({ storageState: asRole('customer-contact') })
+
+  test('an hour before, help reaches the garage by phone and WhatsApp', async ({ page }) => {
+    await page.goto(`/bookings/${BOOKINGS.contactSoon}`)
+    await page.getByRole('button', { name: 'Help with this booking' }).click()
+
+    const sheet = page.getByRole('dialog', { name: 'Help with this booking' })
+    await expect(sheet.getByRole('link', { name: `Call ${VENDORS.contact.name}` })).toHaveAttribute(
+      'href',
+      `tel:+91${CONTACT_GARAGE.phone}`
+    )
+    // Its WhatsApp number, not its phone, with the booking named.
+    const whatsApp = await sheet.getByRole('link', { name: `WhatsApp ${VENDORS.contact.name}` }).getAttribute('href')
+    expect(whatsApp).toMatch(new RegExp(`^https://wa\\.me/91${CONTACT_GARAGE.whatsapp}\\?text=`))
+    expect(new URL(whatsApp!).searchParams.get('text')).toContain(
+      `#${BOOKINGS.contactSoon.slice(0, 8).toUpperCase()}`
+    )
+    await expect(sheet.getByText(/number shows 2 hours before/)).toHaveCount(0)
+  })
+
+  test('three hours after the job, the garage’s number is hidden again', async ({ page }) => {
+    await page.goto(`/bookings/${BOOKINGS.contactDone}`)
+    await page.getByRole('button', { name: 'Help with this booking' }).click()
+
+    const sheet = page.getByRole('dialog', { name: 'Help with this booking' })
+    await expect(sheet.getByText("The garage's number is hidden after your booking.")).toBeVisible()
+    await expect(sheet.getByRole('link', { name: `Call ${VENDORS.contact.name}` })).toHaveCount(0)
+    await expect(sheet.getByRole('link', { name: 'WhatsApp Detlio support' })).toBeVisible()
   })
 })
