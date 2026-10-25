@@ -15,6 +15,9 @@
  * (every required document approved by Detlio); never which documents, their
  * files or who checked them.
  *
+ * Detlio Certified (0048) reaches customers as one boolean, `certified`;
+ * never the standards' numbers, the quality checks or who certified it.
+ *
  * Never here: phone, whatsapp, email, address, mapsUrl, notes (the admin's
  * ops note), ownerId, the raw pickup answer and who accepted its terms,
  * where the pin came from, bays and jobs per day. Admin and the garage's own
@@ -81,6 +84,12 @@ export type PublicVendorFields = {
    * False while garage documents are off.
    */
   documentsVerified: boolean
+  /**
+   * Detlio Certified (lib/certification.ts isCertified): the seal. Only this
+   * boolean, never the garage's numbers, its quality checks or who
+   * certified it.
+   */
+  certified: boolean
 }
 
 /** Every key the public shape may carry, for tests and reviewers. */
@@ -105,11 +114,12 @@ export const PUBLIC_VENDOR_KEYS = [
   'bookingsPausedReason',
   'createdAt',
   'documentsVerified',
+  'certified',
 ] as const satisfies ReadonlyArray<keyof PublicVendorFields>
 
 export function toPublicVendor(
   vendor: PublicVendorSource,
-  extras: { documentsVerified: boolean }
+  extras: { documentsVerified: boolean; certified: boolean }
 ): PublicVendorFields {
   return {
     id: vendor.id,
@@ -132,5 +142,6 @@ export function toPublicVendor(
     bookingsPausedReason: vendor.bookingsPausedReason,
     createdAt: vendor.createdAt.toISOString(),
     documentsVerified: extras.documentsVerified,
+    certified: extras.certified,
   }
 }

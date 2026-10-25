@@ -33,6 +33,8 @@ import {
   type DocumentsSummary,
 } from '../../lib/vendor-documents.js'
 import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.repository.js'
+import { certificationRepository } from '../certification/certification.repository.js'
+import { graceEndsOn, isCertified } from '../../lib/certification.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
 import {
   codeTriesLeft,
@@ -573,6 +575,37 @@ async function resolveNoteAuthor(sub: string): Promise<string> {
   return (user?.name.trim() || user?.phone || sub).slice(0, 100)
 }
 
+/**
+ * A garage's Detlio Certified standing for the admin list (0048): certified
+ * now, eligible at its last evaluation, falling short since (its 14 days
+ * running), and how the last certification ended. Null when never evaluated
+ * or certified.
+ */
+function certificationSummary(
+  row:
+    | {
+        certifiedAt: Date | null
+        revokedAt: Date | null
+        revokeKind: string | null
+        eligible: boolean
+        lastEvaluatedAt: Date | null
+        ineligibleSince: Date | null
+      }
+    | undefined
+) {
+  if (!row) return null
+  const certified = isCertified(row)
+  return {
+    certified,
+    certifiedAt: certified ? (row.certifiedAt?.toISOString() ?? null) : null,
+    eligible: row.eligible,
+    lastEvaluatedAt: row.lastEvaluatedAt?.toISOString() ?? null,
+    keepsUntil: certified && row.ineligibleSince ? graceEndsOn(row.ineligibleSince) : null,
+    endedAt: !certified && row.revokedAt ? row.revokedAt.toISOString() : null,
+    endedKind: !certified && row.revokedAt ? row.revokeKind : null,
+  }
+}
+
 /** A garage with no completed jobs in the window: nothing to grade. */
 const NO_COMPLETED_JOBS: PhotoCompliance = { jobs: 0, compliant: 0, waived: 0, percent: null }
 
@@ -617,6 +650,12 @@ export const adminService = {
     const documents = documentsOn
       ? summariesByVendor(await vendorDocumentsRepository.listAllStates())
       : new Map<string, DocumentsSummary>()
+    // Detlio Certified (0048), from each garage's last evaluation: the
+    // "Certified" and "Eligible, not yet certified" chips. Never the
+    // snapshot's rules (the edit page measures afresh).
+    const certifications = new Map(
+      (await certificationRepository.listStates()).map((row) => [row.vendorId, row])
+    )
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
@@ -640,6 +679,7 @@ export const adminService = {
         // On with the responsibility terms on file (lib/pickup.ts).
         pickupEnabled: isPickupOffered(vendor),
         documents: documentSummary,
+        certification: certificationSummary(certifications.get(vendor.id)),
         photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
         readiness: vendorReadiness({
           ...vendor,

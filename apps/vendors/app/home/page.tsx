@@ -31,6 +31,7 @@ import {
 } from '@repo/core/vendor-stats'
 import type { Review } from '@repo/core/types'
 import { ActiveGarage } from '@/components/active-garage'
+import { CertifiedCard } from '@/components/certified-card'
 import { PushBanner } from '@/components/push-banner'
 import { JobCardHeader } from '@/components/job-card-header'
 import { JobContact } from '@/components/job-contact'
@@ -293,6 +294,11 @@ export default function VendorHomePage() {
           )}
         </div>
       </section>
+
+      {/* Detlio Certified (0048): where the garage stands against the
+          standards, for the owner seat (the server refuses operators). After
+          the jobs: it is something to work towards, not to act on now. */}
+      {isVendorAdmin && <CertifiedCard key={vendor?.id} />}
     </AppShell>
   )
 }

@@ -105,6 +105,12 @@ export interface Vendor {
    * server older than garage documents, and while they are off.
    */
   documentsVerified: boolean
+  /**
+   * Detlio Certified (0048): meets Detlio's standards and passed its
+   * in-person check. The seal replaces the documents shield on a card
+   * (certification needs the documents). False from an older server.
+   */
+  certified: boolean
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.

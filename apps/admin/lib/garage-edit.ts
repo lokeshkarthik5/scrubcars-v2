@@ -31,15 +31,18 @@ export function parseEditTab(value: string | string[] | null | undefined): EditT
 /**
  * Every tab the page has: the four "Save changes" covers, then Documents
  * (garage documents, 0043), which saves each action on its own and is shown
- * only while documents are on. The checklist's "Documents not verified"
- * links here.
+ * only while documents are on, and Certification (Detlio Certified, 0048),
+ * which also saves each action on its own and is always shown. The
+ * checklist's "Documents not verified" links to Documents; Telegram's
+ * certification alerts and the list's Certified line to Certification.
  */
-export const PAGE_TABS = [...EDIT_TABS, 'documents'] as const
+export const PAGE_TABS = [...EDIT_TABS, 'documents', 'certification'] as const
 export type PageTab = (typeof PAGE_TABS)[number]
 
 export const PAGE_TAB_LABELS: Record<PageTab, string> = {
   ...EDIT_TAB_LABELS,
   documents: 'Documents',
+  certification: 'Certification',
 }
 
 /**
@@ -48,6 +51,7 @@ export const PAGE_TAB_LABELS: Record<PageTab, string> = {
  */
 export function parsePageTab(value: string | string[] | null | undefined, documentsOn = true): PageTab {
   if (value === 'documents') return documentsOn ? 'documents' : 'details'
+  if (value === 'certification') return 'certification'
   return parseEditTab(value)
 }
 

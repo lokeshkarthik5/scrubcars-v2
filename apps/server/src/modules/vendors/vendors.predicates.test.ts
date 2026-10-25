@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { PgDialect } from 'drizzle-orm/pg-core'
+import { isCertified, type CertificationRow } from '../../lib/certification.js'
 import { isPickupOffered, type PickupSettings } from '../../lib/pickup.js'
 import {
+  CERTIFIED_GARAGE,
   LISTED_TO_CUSTOMERS,
   NOT_IN_BIN,
   PICKUP_OFFERED,
@@ -111,6 +113,34 @@ describe('the SQL the customer lists run', () => {
     for (const row of everyRow()) {
       expect(sqlListed(row)).toBe(isListedToCustomers(row))
     }
+  })
+})
+
+describe('Detlio Certified', () => {
+  const { sql, params } = new PgDialect().sqlToQuery(CERTIFIED_GARAGE)
+  const PREFIX = 'EXISTS (SELECT 1 FROM vendor_certifications vc WHERE vc.vendor_id = v.id AND '
+
+  test('the SQL the lists run is the twin, word for word', () => {
+    expect(sql).toBe(`${PREFIX}vc.certified_at IS NOT NULL AND vc.revoked_at IS NULL)`)
+    expect(params).toEqual([])
+  })
+
+  test('evaluated as the twin reads it, it agrees on every garage (and on one never evaluated)', () => {
+    const clauses = sql.slice(PREFIX.length, -1).split(' AND ')
+    const sqlCertified = (row: CertificationRow | null) =>
+      row !== null &&
+      clauses.every((clause) => {
+        if (clause === 'vc.certified_at IS NOT NULL') return row.certifiedAt !== null
+        if (clause === 'vc.revoked_at IS NULL') return row.revokedAt === null
+        throw new Error(`a condition the twin does not know: ${clause}`)
+      })
+    const at = new Date('2026-10-18T04:30:00Z')
+    const rows: Array<CertificationRow | null> = [
+      null,
+      ...[null, at].flatMap((certifiedAt) => [null, at].map((revokedAt) => ({ certifiedAt, revokedAt }))),
+    ]
+    for (const row of rows) expect(sqlCertified(row)).toBe(isCertified(row))
+    expect(rows.filter(isCertified)).toEqual([{ certifiedAt: at, revokedAt: null }])
   })
 })
 

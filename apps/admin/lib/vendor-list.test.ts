@@ -4,6 +4,7 @@ import {
   binDeleteLine,
   bookingParts,
   bookingsLine,
+  certificationCounts,
   editHref,
   isInBin,
   isLive,
@@ -244,5 +245,42 @@ describe('documents to review', () => {
   test('its own link, and a hint that says what it is', () => {
     expect(listHref('documents')).toBe('/vendors?show=documents')
     expect(showHints('documents')[0].term).toBe('Documents to review')
+  })
+})
+
+describe('Detlio Certified chips', () => {
+  const cert = (certified: boolean, eligible: boolean) => ({
+    certified,
+    certifiedAt: certified ? '2026-10-01T05:00:00Z' : null,
+    eligible,
+    lastEvaluatedAt: '2026-10-18T00:00:00Z',
+    keepsUntil: null,
+    endedAt: null,
+    endedKind: null,
+  })
+
+  test('Certified holds certified garages; Eligible holds eligible ones not yet certified; never the Bin', () => {
+    const certified = garage({ certification: cert(true, true) })
+    const slipping = garage({ certification: cert(true, false) })
+    const eligible = garage({ certification: cert(false, true) })
+    const neither = garage({ certification: cert(false, false) })
+    const unknown = garage({ certification: null })
+    const binned = garage({ certification: cert(true, true), deletedAt: '2026-10-16T05:00:00Z', live: false })
+    const all = [certified, slipping, eligible, neither, unknown, binned, garage()]
+
+    expect(all.filter((v) => matchesShow(v, 'certified'))).toEqual([certified, slipping])
+    expect(all.filter((v) => matchesShow(v, 'eligible'))).toEqual([eligible])
+    expect(certificationCounts(all)).toEqual({ certified: 2, eligible: 1 })
+  })
+
+  test('their own links and hints', () => {
+    expect(parseShow('certified')).toBe('certified')
+    expect(parseShow('eligible')).toBe('eligible')
+    expect(listHref('eligible')).toBe('/vendors?show=eligible')
+    expect(showHints('certified')[0].term).toBe('Detlio Certified')
+    expect(showHints('eligible')[0].meaning).toContain('quality check')
+    expect(editHref('v1', '/vendors?show=eligible', 'certification')).toBe(
+      '/vendors/v1/edit?tab=certification&back=%2Fvendors%3Fshow%3Deligible'
+    )
   })
 })

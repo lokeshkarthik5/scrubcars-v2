@@ -21,6 +21,9 @@ describe('parsePageTab', () => {
   test('Documents opens while documents are on, and falls back to Details while off', () => {
     expect(parsePageTab('documents')).toBe('documents')
     expect(parsePageTab('documents', false)).toBe('details')
+    // Certification is always there, documents or not.
+    expect(parsePageTab('certification')).toBe('certification')
+    expect(parsePageTab('certification', false)).toBe('certification')
     expect(parsePageTab('services', false)).toBe('services')
     expect(parsePageTab('Documents')).toBe('details')
     expect(parsePageTab(undefined)).toBe('details')

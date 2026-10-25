@@ -145,6 +145,8 @@ export interface ApiVendorListItem {
   outsideServiceCity?: OutsideServiceCity | null
   /** Every required document approved by Detlio. Absent on older servers. */
   documentsVerified?: boolean
+  /** Detlio Certified (0048): the seal. Absent on older servers. */
+  certified?: boolean
 }
 
 export interface ApiVendorList {
@@ -203,6 +205,8 @@ export interface ApiPublicVendor {
   outsideServiceCity?: OutsideServiceCity | null
   /** As on a list item: the "Documents verified" badge. Absent on older servers. */
   documentsVerified?: boolean
+  /** As on a list item: the Detlio Certified seal. Absent on older servers. */
+  certified?: boolean
 }
 
 export interface VendorProfileExtras {
