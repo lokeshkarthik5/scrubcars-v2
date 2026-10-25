@@ -757,7 +757,9 @@ export const adminRepository = {
         and(
           sql`coalesce(${root.createdAt}, ${bookings.createdAt}) >= ${since.toISOString()}::timestamptz`,
           // Bookings ops marked "Test" are not the pilot's (0032).
-          isNull(bookings.markedTestAt)
+          isNull(bookings.markedTestAt),
+          // Nor is a free redo (0051): the same job again, at ₹0.
+          eq(bookings.guaranteeRedo, false)
         )
       )
   },
@@ -776,6 +778,6 @@ export const adminRepository = {
       })
       .from(bookings)
       .leftJoin(payments, eq(payments.bookingId, bookings.id))
-      .where(and(gte(bookings.acceptedAt, since), isNull(bookings.markedTestAt)))
+      .where(and(gte(bookings.acceptedAt, since), isNull(bookings.markedTestAt), eq(bookings.guaranteeRedo, false)))
   },
 }

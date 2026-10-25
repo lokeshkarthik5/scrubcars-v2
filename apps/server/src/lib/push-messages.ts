@@ -436,6 +436,95 @@ export function customerServiceReminder(reminder: {
   })
 }
 
+// ─── Free redo claims (Detlio Guarantee, 0051) ──────────────────────────────
+//
+// "Free redo", never the word the copy rules ban (lib/copy-rules.ts). Only
+// the garage, the service and times: never what the customer wrote, the
+// garage's note or Detlio's reason, all typed text.
+
+/** The garage portal's claims page, at one claim. */
+export function garageClaimPath(claimId: string): string {
+  return `/guarantee#claim-${claimId}`
+}
+
+/** A claim for the garage to answer, with its deadline. */
+export function garageClaimToAnswer(booking: PushBooking, claimId: string, respondBy: Date): PushMessage {
+  return message({
+    title: `Redo claim to answer · ${pushServiceLabel(booking)}`,
+    body: `Answer by ${istSlotShortLabel(respondBy)}. No answer means a free redo.`,
+    url: garageClaimPath(claimId),
+    tag: `redo_claim:${claimId}`,
+    urgency: 'high',
+    ttlSeconds: 12 * 60 * 60,
+  })
+}
+
+/** Approved without the garage answering: no photos on the job, its silence, or Detlio. */
+export function garageClaimApproved(
+  booking: PushBooking,
+  claimId: string,
+  why: 'no_photos' | 'timed_out' | 'detlio'
+): PushMessage {
+  const body = {
+    no_photos: 'The job had no before and after photos. The customer picks a time for the redo.',
+    timed_out: 'There was no answer in time. The customer picks a time for the redo.',
+    detlio: 'Detlio approved it. The customer picks a time for the redo.',
+  }[why]
+  return message({
+    title: `Free redo approved · ${pushServiceLabel(booking)}`,
+    body,
+    url: garageClaimPath(claimId),
+    tag: `redo_claim:${claimId}`,
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/** Detlio's other decisions, as the garage hears them. */
+export function garageClaimDecided(booking: PushBooking, claimId: string, decision: 'refund' | 'reject'): PushMessage {
+  return message({
+    title:
+      decision === 'refund'
+        ? `Refund approved instead of a redo · ${pushServiceLabel(booking)}`
+        : `Redo claim not approved · ${pushServiceLabel(booking)}`,
+    body:
+      decision === 'refund'
+        ? 'Nothing is paid out on this job. Open Detlio to see the claim.'
+        : 'Detlio looked at both sides. Nothing changes for this job.',
+    url: garageClaimPath(claimId),
+    tag: `redo_claim:${claimId}`,
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+/** The customer booked the free redo: a job like any other, at ₹0. */
+export function garageRedoBooked(redo: PushBooking, now: Date): PushMessage {
+  return message({
+    title: `Free redo booked · ${pushServiceLabel(redo)}`,
+    body: `${istSlotShortLabel(redo.scheduledAt)} · ${bookingTypeLabel(redo.bookingType)} · ₹0, already accepted`,
+    url: garageJobPath(redo.id, 'upcoming'),
+    tag: bookingTag(redo.id),
+    ttlSeconds: ttlUntil(redo.scheduledAt, now),
+  })
+}
+
+/** The customer's claim moved: approved for a redo, a refund instead, or not approved. */
+export function customerClaimDecided(
+  booking: PushBooking,
+  outcome: 'redo' | 'refund' | 'reject'
+): PushMessage {
+  const words = {
+    redo: { title: 'Free redo approved', body: `Pick a time at ${garageName(booking)}.` },
+    refund: { title: 'Refund approved instead of a redo', body: `${garageName(booking)} · ${pushServiceLabel(booking)}` },
+    reject: { title: 'Redo claim not approved', body: 'See why on your booking.' },
+  }[outcome]
+  return message({
+    ...words,
+    url: customerBookingPath(booking.id),
+    tag: `redo_claim:${booking.id}`,
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
 // ─── Detlio Rewards (0050) ───────────────────────────────────────────────────
 
 /**

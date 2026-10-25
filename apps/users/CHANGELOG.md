@@ -19,6 +19,31 @@ reconstructing every change in them.
 
 ### Added
 
+- **Detlio Guarantee: a free redo within 48 hours, behind the API's
+  `GUARANTEE_ENABLED` (default off; every entry point hidden while off).**
+  - Customer app: on a completed wash or detailing inside its 48 hours, the
+    booking page offers "Not happy? Detlio Guarantee — free redo", opening
+    `/bookings/[id]/guarantee`: what is wrong (from a list), at least two
+    photos taken with the camera (metadata stripped in the browser), and the
+    garage's before and after photos alongside. Then the claim's status in
+    plain words (waiting for the garage, with Detlio, redo booked for …,
+    refund approved, not approved and why) and, once approved, a picker of
+    the garage's free times within 7 days to book the ₹0 redo. A redo
+    booking says "Free redo" and has no receipt. Checkout shows "Covered by
+    Detlio Guarantee" for washes and detailing; Help has a draft answer
+    (shown only while it is on); Updates has five new rows (`redo_*`).
+    Lawyer notes (never public copy) in `lib/legal/guarantee.ts`, in the
+    Terms' cancellations section.
+  - Garage portal: a Home card and `/guarantee` (owner seat): each claim with
+    the customer's photos beside the garage's before/after, the 12-hour
+    countdown, Accept and Dispute (with a note); "Free redo · ₹0" on the job
+    card.
+  - Admin: **Redo claims** (`/guarantee`, in the header while on): Needs
+    decision / Open / Closed, overdue highlighted, the customer's history and
+    flags (first booking, claims often, claims left); a claim's page with both
+    sides' photos and Decide (redo, refund instead, not approved) with a
+    typed name. The garage card says "N redo claims in 90 days"; the booking
+    detail badges a free redo and a refund instead.
 - **Detlio Rewards** (API 0050, shown only while the API says rewards are
   live; hidden while off or loading). Home: the Shine Card's stars under the
   car (a new stamp pops in once) and one line under it ("2 more washes to

@@ -18,6 +18,7 @@ import { garageMediaRoutes } from '../service-media/service-media.routes.js'
 import { garageDocumentRoutes } from '../vendor-documents/vendor-documents.routes.js'
 import { garagePushRoutes } from '../push/push.routes.js'
 import { garageCertificationRoutes } from '../certification/certification.routes.js'
+import { garageGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import * as vendorsController from './vendors.controller.js'
 import {
   createClosureSchema,
@@ -156,6 +157,11 @@ vendorsRoutes.route('/me/push', garagePushRoutes)
 // owner seat only, in its own file. Nested for the same reason as the team
 // screen.
 vendorsRoutes.route('/me/certification', garageCertificationRoutes)
+
+// Detlio Guarantee (0051): the garage's free redo claims, owner seat only, in
+// its own file, every route a 404 while GUARANTEE_ENABLED is off. Nested for
+// the same reason as the team screen.
+vendorsRoutes.route('/me/guarantee', garageGuaranteeRoutes)
 
 vendorsRoutes.get(
   '/me/working-hours',

@@ -500,6 +500,8 @@ export interface ApiBooking {
   responseDeadline?: { respondBy: string; enforced: boolean; windowMins: number } | null
   /** Cancelled because the garage did not accept in time (0042). */
   notAcceptedInTime?: boolean
+  /** A free redo of an earlier job (Detlio Guarantee, 0051). Absent from older servers. */
+  guaranteeRedo?: boolean
   /** What the booking already covers toward a final bill, as a decimal string. */
   paidAtBooking?: string
   /**

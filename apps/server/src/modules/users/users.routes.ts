@@ -12,6 +12,7 @@ import { homeRoutes } from '../home/home.routes.js'
 import { customerPushRoutes } from '../push/push.routes.js'
 import { customerGiftRoutes } from '../gifts/gifts.routes.js'
 import { customerCreditRoutes } from '../gift-credit/gift-credit.routes.js'
+import { customerGuaranteeRoutes } from '../guarantee/guarantee.routes.js'
 import { slotAlertsRoutes } from '../slot-alerts/slot-alerts.routes.js'
 import { customerRewardRoutes } from '../rewards/rewards.routes.js'
 import * as usersController from './users.controller.js'
@@ -59,6 +60,8 @@ usersRoutes.route('/me', slotAlertsRoutes)
 // both are 404s while GIFTS_ENABLED is off.
 usersRoutes.route('/me/gifts', customerGiftRoutes)
 usersRoutes.route('/me/credit', customerCreditRoutes)
+// Detlio Guarantee (0051): a free redo claim on the customer's own booking.
+usersRoutes.route('/me/guarantee', customerGuaranteeRoutes)
 
 // Detlio Rewards (0050): the customer's Shine Card, scratch cards, level,
 // vouchers, birthday and invite: /me/rewards. Same mounting, same check; a

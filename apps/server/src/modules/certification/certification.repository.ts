@@ -212,18 +212,35 @@ function reads(conn: Conn) {
      * received in the window, one per booking (a complaint with no booking
      * counts on its own). Every status counts: complaints have no "upheld"
      * flag, and resolved only means the team answered.
+     *
+     * Detlio Guarantee (0051): a free redo claim that was approved (a redo or
+     * a refund instead, by the garage, its silence, Detlio, or a job with no
+     * photos) in the window is a service-quality issue too, on its booking:
+     * one per booking with any complaint about it, so a customer who claimed
+     * and also complained counts once. A claim not approved counts nothing.
      */
     async complaintCounts(vendorIds: string[], since: Date) {
       if (vendorIds.length === 0) return []
       const rows = await conn.execute<{ vendor_id: string; count: number | string }>(sql`
-        SELECT c.vendor_id, count(DISTINCT coalesce(c.booking_id::text, c.id::text))::int AS count
-          FROM complaints c
-          LEFT JOIN bookings b ON b.id = c.booking_id
-         WHERE c.vendor_id IN (${inList(vendorIds)})
-           AND c.category IN (${CATEGORIES})
-           AND c.received_at >= ${since.toISOString()}::timestamptz
-           AND (b.id IS NULL OR b.marked_test_at IS NULL)
-         GROUP BY c.vendor_id
+        SELECT q.vendor_id, count(DISTINCT q.issue_key)::int AS count
+          FROM (
+            SELECT c.vendor_id, coalesce(c.booking_id::text, c.id::text) AS issue_key
+              FROM complaints c
+              LEFT JOIN bookings b ON b.id = c.booking_id
+             WHERE c.vendor_id IN (${inList(vendorIds)})
+               AND c.category IN (${CATEGORIES})
+               AND c.received_at >= ${since.toISOString()}::timestamptz
+               AND (b.id IS NULL OR b.marked_test_at IS NULL)
+            UNION ALL
+            SELECT g.vendor_id, g.booking_id::text AS issue_key
+              FROM guarantee_claims g
+              JOIN bookings b ON b.id = g.booking_id
+             WHERE g.vendor_id IN (${inList(vendorIds)})
+               AND g.approved_at IS NOT NULL
+               AND g.approved_at >= ${since.toISOString()}::timestamptz
+               AND b.marked_test_at IS NULL
+          ) q
+         GROUP BY q.vendor_id
       `)
       return Array.from(rows).map((row) => ({ vendorId: row.vendor_id, count: Number(row.count) }))
     },
