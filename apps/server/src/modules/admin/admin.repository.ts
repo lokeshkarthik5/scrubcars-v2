@@ -14,6 +14,7 @@ import {
   like,
   lt,
   ne,
+  not,
   or,
   sql,
   type SQL,
@@ -85,12 +86,7 @@ function viewCondition(view: BookingView, w: BookingViewWindow): SQL {
         eq(bookings.status, 'pending'),
         isNull(bookings.markedTestAt),
         gt(bookings.scheduledAt, w.waitingAfter),
-        exists(
-          db
-            .select({ one: sql`1` })
-            .from(payments)
-            .where(and(eq(payments.bookingId, bookings.id), eq(payments.status, 'paid')))
-        )
+        hasPayment(['paid'])
       )!
       return w.refundOwedIds.length > 0
         ? or(waiting, inArray(bookings.id, w.refundOwedIds))!
@@ -112,6 +108,82 @@ function viewCondition(view: BookingView, w: BookingViewWindow): SQL {
     case 'cancelled':
       return eq(bookings.status, 'cancelled')
   }
+}
+
+/** How the car is served (0059 filters; BOOKING_TYPES in admin.validation.ts). */
+export type BookingTypeFilter = 'dropin' | 'doorstep' | 'pickup'
+
+/** Payment (0059 filters; BOOKING_PAYMENTS in admin.validation.ts). */
+export type BookingPaymentFilter = 'paid' | 'pay_later' | 'refund_owed'
+
+/** The booking has a payment in one of these states. */
+function hasPayment(statuses: Array<(typeof payments.$inferSelect)['status']>): SQL {
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(payments)
+      .where(and(eq(payments.bookingId, bookings.id), inArray(payments.status, statuses)))
+  )
+}
+
+/**
+ * A Payment filter's rule. `paid`: its payment is paid (the panel's "Paid",
+ * and needs_action's). `pay_later`: still on, or done, with no money in yet:
+ * no payment paid, collected or refunded (an online booking to pay later in
+ * the app, a legacy cash one to pay at the garage); cancelled and moved
+ * bookings owe nothing. `refund_owed`: a refund owed, the Refunds page's
+ * rule, the same ids as needs_action's.
+ */
+function paymentCondition(payment: BookingPaymentFilter, refundOwedIds: readonly string[]): SQL {
+  switch (payment) {
+    case 'paid':
+      return hasPayment(['paid'])
+    case 'pay_later':
+      return and(
+        inArray(bookings.status, [...LIVE_STATUSES, 'completed']),
+        not(hasPayment(['paid', 'collected', 'refunded']))
+      )!
+    case 'refund_owed':
+      return refundOwedIds.length > 0 ? inArray(bookings.id, [...refundOwedIds]) : sql`false`
+  }
+}
+
+/**
+ * The filters the bookings list and its views' counts share (0059), so a
+ * view's count is exactly the rows that view lists under the same filters.
+ */
+export interface BookingFilterSet {
+  status?: BookingStatus
+  vendorId?: string
+  search: BookingSearch | null
+  /** Scheduled at or after. */
+  start: Date | null
+  /** Scheduled before. */
+  end: Date | null
+  /** Marked "Test" only, or every booking but those. */
+  test?: 'only' | 'hide'
+  bookingType?: BookingTypeFilter
+  payment?: BookingPaymentFilter
+  /** Bookings with a refund owed: what `payment: 'refund_owed'` matches. */
+  refundOwedIds: readonly string[]
+}
+
+/**
+ * Those filters as conditions over `bookings`. A search also needs the
+ * customer (`users`) and the garage (`vendors`) joined.
+ */
+export function bookingFilterConditions(filters: BookingFilterSet): SQL[] {
+  const conditions: SQL[] = []
+  if (filters.status) conditions.push(eq(bookings.status, filters.status))
+  if (filters.vendorId) conditions.push(eq(bookings.vendorId, filters.vendorId))
+  if (filters.start) conditions.push(gte(bookings.scheduledAt, filters.start))
+  if (filters.end) conditions.push(lt(bookings.scheduledAt, filters.end))
+  if (filters.test === 'only') conditions.push(isNotNull(bookings.markedTestAt))
+  if (filters.test === 'hide') conditions.push(isNull(bookings.markedTestAt))
+  if (filters.bookingType) conditions.push(eq(bookings.bookingType, filters.bookingType))
+  if (filters.payment) conditions.push(paymentCondition(filters.payment, filters.refundOwedIds))
+  if (filters.search) conditions.push(searchCondition(filters.search))
+  return conditions
 }
 
 /** The search's match on a booking, its customer and its garage. */
@@ -150,18 +222,9 @@ function searchCondition(search: BookingSearch): SQL {
   return or(...matches)!
 }
 
-export interface BookingListFilters {
-  status?: BookingStatus
-  vendorId?: string
+export interface BookingListFilters extends BookingFilterSet {
   /** A saved view (0059) and what its rule needs; left out is All. */
   view?: { kind: BookingView; window: BookingViewWindow }
-  search: BookingSearch | null
-  /** Scheduled at or after. */
-  start: Date | null
-  /** Scheduled before. */
-  end: Date | null
-  /** Marked "Test" only, or every booking but those. */
-  test?: 'only' | 'hide'
   /** Continue after this row; the panel pages this way. */
   after: BookingListCursor | null
   limit: number
@@ -216,7 +279,9 @@ export const adminRepository = {
         photos: { columns: { id: true } },
         workingHours: { columns: { dayOfWeek: true, isClosed: true } },
       },
-      orderBy: [desc(vendors.createdAt)],
+      // Newest first; the id breaks a tie, so two garages made in the same
+      // instant (seeds, imports) always come in the same order.
+      orderBy: [desc(vendors.createdAt), desc(vendors.id)],
     })
   },
 
@@ -507,14 +572,7 @@ export const adminRepository = {
    * boundary never splits two bookings at the same time unpredictably.
    */
   async searchBookingIds(filters: BookingListFilters): Promise<string[]> {
-    const conditions: SQL[] = []
-
-    if (filters.status) conditions.push(eq(bookings.status, filters.status))
-    if (filters.vendorId) conditions.push(eq(bookings.vendorId, filters.vendorId))
-    if (filters.start) conditions.push(gte(bookings.scheduledAt, filters.start))
-    if (filters.end) conditions.push(lt(bookings.scheduledAt, filters.end))
-    if (filters.test === 'only') conditions.push(isNotNull(bookings.markedTestAt))
-    if (filters.test === 'hide') conditions.push(isNull(bookings.markedTestAt))
+    const conditions = bookingFilterConditions(filters)
     if (filters.view) conditions.push(viewCondition(filters.view.kind, filters.view.window))
     // Today and Upcoming run soonest first (0059); everything else newest
     // scheduled first.
@@ -529,8 +587,6 @@ export const adminRepository = {
           : sql`(${bookings.scheduledAt}, ${bookings.id}) < ${cursor}`
       )
     }
-
-    if (filters.search) conditions.push(searchCondition(filters.search))
 
     const rows = await db
       .select({ id: bookings.id })
@@ -550,19 +606,15 @@ export const adminRepository = {
   },
 
   /**
-   * How many bookings each saved view holds (0059), under the list's
-   * search, garage and Test filters: one COUNT(*) FILTER query. The
+   * How many bookings each saved view holds (0059), under every filter the
+   * list has (bookingFilterConditions): one COUNT(*) FILTER query. The
    * customer and garage are joined only when there is a search to match.
    */
   async countBookingViews(
-    filters: Pick<BookingListFilters, 'vendorId' | 'search' | 'test'>,
+    filters: BookingFilterSet,
     window: BookingViewWindow
   ): Promise<Record<BookingView | 'all', number>> {
-    const conditions: SQL[] = []
-    if (filters.vendorId) conditions.push(eq(bookings.vendorId, filters.vendorId))
-    if (filters.test === 'only') conditions.push(isNotNull(bookings.markedTestAt))
-    if (filters.test === 'hide') conditions.push(isNull(bookings.markedTestAt))
-    if (filters.search) conditions.push(searchCondition(filters.search))
+    const conditions = bookingFilterConditions(filters)
     const counted = (view: BookingView) =>
       sql<number>`(count(*) filter (where ${viewCondition(view, window)}))::int`
 

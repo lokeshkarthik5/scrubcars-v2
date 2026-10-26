@@ -129,6 +129,7 @@ export const collectionListsRepository = {
         businessName: vendors.businessName,
         address: vendors.address,
         city: vendors.city,
+        pincode: vendors.pincode,
         mapsUrl: vendors.mapsUrl,
         lat: vendors.lat,
         lng: vendors.lng,
@@ -175,6 +176,20 @@ export const collectionListsRepository = {
       .update(collectionLists)
       .set({ closedAt: at })
       .where(and(eq(collectionLists.id, id), isNull(collectionLists.closedAt)))
+  },
+
+  /**
+   * Closes the finished lists among these (every item collected or
+   * cleared), when found so; one already closed keeps when it was.
+   */
+  async closeFinished(ids: string[], at: Date) {
+    if (ids.length === 0) return
+    await db
+      .update(collectionLists)
+      .set({ closedAt: at })
+      .where(
+        and(inArray(collectionLists.id, ids), isNull(collectionLists.closedAt))
+      )
   },
 
   /**

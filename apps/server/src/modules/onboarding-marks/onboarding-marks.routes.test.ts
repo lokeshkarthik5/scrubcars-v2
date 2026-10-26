@@ -36,6 +36,7 @@ const GARAGE_B = 'e2e00000-0000-4000-8000-000000004155'
 const BINNED = 'e2e00000-0000-4000-8000-000000004158'
 const GONE = 'e2e00000-0000-4000-8000-000000004159'
 const RAGA = 'e2e00000-0000-4000-8000-000000004160'
+const TURNED_OFF = 'e2e00000-0000-4000-8000-000000004161'
 const NOBODY = 'e2e00000-0000-4000-8000-000000004199'
 
 type Mark = {
@@ -118,12 +119,12 @@ const clashes = (row: Pick<Mark, 'id' | 'vendorId' | 'kind' | 'status'>) =>
 
 beforeAll(() => {
   patch(adminLoginsRepository, 'findSession', async (id: string) =>
-    id === RAGA
+    id === RAGA || id === TURNED_OFF
       ? {
           id,
-          username: 'raga',
-          name: 'Raga',
-          status: 'active',
+          username: id === RAGA ? 'raga' : 'kavya',
+          name: id === RAGA ? 'Raga' : 'Kavya',
+          status: id === RAGA ? 'active' : 'off',
           isOwner: false,
           sessionsFrom: new Date('2026-01-01'),
         }
@@ -284,9 +285,11 @@ beforeAll(() => {
         id === GARAGE_A ? 'Marks Test Garage A' : 'Marks Test Garage B',
       address: '1, Marks Road',
       city: 'Chennai',
+      pincode: '600116',
       mapsUrl: null,
-      lat: id === GARAGE_A ? 13.5 : null,
-      lng: id === GARAGE_A ? 80.25 : null,
+      // A is pinned in Adyar; B has no pin.
+      lat: id === GARAGE_A ? 13.0067 : null,
+      lng: id === GARAGE_A ? 80.257 : null,
       ownerName: 'Anbu',
       ownerPhone: '9000004151',
     }))
@@ -306,6 +309,12 @@ beforeAll(() => {
   patch(c, 'close', async (id: string, at: Date) => {
     const list = lists.get(id)
     if (list && !list.closedAt) list.closedAt = at
+  })
+  patch(c, 'closeFinished', async (ids: string[], at: Date) => {
+    for (const id of ids) {
+      const list = lists.get(id)
+      if (list && !list.closedAt) list.closedAt = at
+    }
   })
 })
 
@@ -632,12 +641,15 @@ describe('collection lists', () => {
       open: true,
       progress: { done: 0, total: 4 },
     })
-    expect(first.garages.map((g: any) => [g.businessName, g.mapsUrl])).toEqual([
+    expect(
+      first.garages.map((g: any) => [g.businessName, g.area, g.mapsUrl])
+    ).toEqual([
       [
         'Marks Test Garage A',
-        'https://www.google.com/maps/search/?api=1&query=13.500000,80.250000',
+        'Adyar',
+        'https://www.google.com/maps/search/?api=1&query=13.006700,80.257000',
       ],
-      ['Marks Test Garage B', null],
+      ['Marks Test Garage B', 'Chennai', null],
     ])
     expect(
       first.items.map((i: any) => [
@@ -704,6 +716,15 @@ describe('collection lists', () => {
       (await send(token, list([{ vendorId: GARAGE_A, kinds: ['custom'] }])))
         .status
     ).toBe(400)
+    // A turned-off login can't sign in to see its list.
+    expect(
+      await send(
+        token,
+        list([{ vendorId: GARAGE_A, kinds: ['logo'] }], {
+          assigneeLoginId: TURNED_OFF,
+        })
+      )
+    ).toMatchObject({ status: 409, body: { code: 'ADMIN_LOGIN_OFF' } })
     expect(lists.size).toBe(0)
   })
 
@@ -750,19 +771,37 @@ describe('collection lists', () => {
     ).toEqual([])
 
     const photos = ragas[0].items.find((i: any) => i.kind === 'photos')
-    const ticked = await call(
-      'PATCH',
-      `/admin/collection-items/${photos.id}`,
-      mine,
-      { status: 'collected', note: 'Got 4' }
-    )
+    const path = `/admin/collection-items/${photos.id}`
+    // The logo goes missing again; an untick on an open list puts it back.
+    missing.set(GARAGE_A, ['photos', 'logo', 'radius_default', 'payout'])
+    const logo = ragas[0].items.find((i: any) => i.kind === 'logo')
+    await call('PATCH', path, mine, { status: 'collected', note: 'Got 2' })
+    expect(lists.get(ragas[0].id)!.closedAt).toBeNull()
+    const untick = await call('PATCH', path, mine, { status: 'to_collect' })
+    expect(untick.body.data).toMatchObject({
+      status: 'to_collect',
+      collectedAt: null,
+      collectedByName: null,
+      note: 'Got 2',
+    })
+    await call('PATCH', `/admin/collection-items/${logo.id}`, mine, {
+      status: 'collected',
+    })
+    expect(lists.get(ragas[0].id)!.closedAt).toBeNull()
+
+    // The tick that leaves nothing to do closes the list.
+    const ticked = await call('PATCH', path, mine, {
+      status: 'collected',
+      note: 'Got 4',
+    })
     expect(ticked.body.data).toMatchObject({
       status: 'collected',
       collectedByName: 'Raga',
       note: 'Got 4',
       cleared: false,
     })
-    // Every item done: the list is no longer open.
+    const stamped = lists.get(ragas[0].id)!.closedAt
+    expect(stamped).not.toBeNull()
     expect(
       (await call('GET', '/admin/collection-lists?scope=mine', mine)).body.data
         .lists
@@ -773,38 +812,24 @@ describe('collection lists', () => {
     expect(done).toHaveLength(1)
     expect(done[0]).toMatchObject({
       open: false,
-      closedAt: null,
+      closedAt: stamped!.toISOString(),
       progress: { done: 2, total: 2 },
     })
+    expect(
+      (await call('PATCH', path, mine, { status: 'to_collect' })).body.code
+    ).toBe('COLLECTION_LIST_CLOSED')
 
-    const untick = await call(
-      'PATCH',
-      `/admin/collection-items/${photos.id}`,
-      mine,
-      { status: 'to_collect' }
-    )
-    expect(untick.body.data).toMatchObject({
-      status: 'to_collect',
-      collectedAt: null,
-      collectedByName: null,
-      note: 'Got 4',
-    })
-
+    // Close still answers, and keeps when it was closed.
     const closed = await call(
       'POST',
       `/admin/collection-lists/${ragas[0].id}/close`,
       mine,
       {}
     )
-    expect(closed.body.data).toMatchObject({ open: false })
-    expect(closed.body.data.closedAt).not.toBeNull()
-    expect(
-      (
-        await call('PATCH', `/admin/collection-items/${photos.id}`, mine, {
-          status: 'collected',
-        })
-      ).body.code
-    ).toBe('COLLECTION_LIST_CLOSED')
+    expect(closed.body.data).toMatchObject({
+      open: false,
+      closedAt: stamped!.toISOString(),
+    })
     expect(
       (await call('POST', `/admin/collection-lists/${NOBODY}/close`, mine, {}))
         .status
@@ -812,70 +837,125 @@ describe('collection lists', () => {
   })
 })
 
+describe('finished lists close', () => {
+  test('a list whose things were all saved on the garage closes when read', async () => {
+    const admin = await shared()
+    const made = (
+      await send(admin, {
+        sendTelegram: false,
+        lists: [
+          {
+            assigneeName: 'Typed',
+            garages: [{ vendorId: GARAGE_B, kinds: ['bays'] }],
+          },
+        ],
+      })
+    ).body.data.lists[0]
+    expect(made).toMatchObject({ open: true, closedAt: null })
+
+    // The bays were saved on the garage: nothing is left to collect.
+    missing.set(GARAGE_B, ['photos'])
+    const read = (
+      await call('GET', '/admin/collection-lists?scope=all&open=false', admin)
+    ).body.data.lists
+    expect(read).toHaveLength(1)
+    expect(read[0]).toMatchObject({ id: made.id, open: false })
+    expect(read[0].closedAt).not.toBeNull()
+    expect(lists.get(made.id)!.closedAt).not.toBeNull()
+    // It no longer counts as unclosed, even when the bays go missing again.
+    missing.set(GARAGE_B, ['photos', 'bays'])
+    expect(
+      (await call('GET', '/admin/collection-lists?scope=all', admin)).body.data
+        .lists
+    ).toEqual([])
+  })
+
+  function send(token: string, body: unknown) {
+    return call('POST', '/admin/collection-lists', token, body)
+  }
+})
+
 describe('a garage’s open collection (the Garages list)', () => {
-  test('that garage’s items on its newest open list; finished lists are not open', async () => {
+  test('the list due first with that garage’s things left; nothing left is no entry; finished lists close', async () => {
     const { collectionListsService } =
       await import('../collection-lists/collection-lists.service.js')
-    const older = new Date('2026-10-20T00:00:00Z')
-    const newer = new Date('2026-10-25T00:00:00Z')
+    const at = (day: number) => new Date(`2026-10-${day}T00:00:00Z`)
+    const LISTS: Record<
+      string,
+      { assigneeName: string; dueOn: string | null; createdAt: Date }
+    > = {
+      // Due 29 Oct, the oldest.
+      L1: { assigneeName: 'Raga', dueOn: '2026-10-29', createdAt: at(20) },
+      // No due date, the newest.
+      L2: { assigneeName: 'Kavya', dueOn: null, createdAt: at(25) },
+      // Due 29 Oct too, newer than L1.
+      L3: { assigneeName: 'Vimal', dueOn: '2026-10-29', createdAt: at(22) },
+      // Due first, but every item done.
+      L4: { assigneeName: 'Raga', dueOn: '2026-10-27', createdAt: at(21) },
+    }
     const row = (
       listId: string,
       vendorId: string,
       kind: string,
-      status: 'to_collect' | 'collected',
-      createdAt: Date
-    ) => ({
-      listId,
-      vendorId,
-      kind,
-      status,
-      assigneeName: listId === 'L1' ? 'Raga' : 'Kavya',
-      dueOn: listId === 'L1' ? '2026-10-29' : null,
-      createdAt,
+      status: 'to_collect' | 'collected'
+    ) => ({ listId, vendorId, kind, status, ...LISTS[listId]! })
+    const GARAGE_C = 'e2e00000-0000-4000-8000-000000004165'
+    const restore = {
+      listUnclosedItems: collectionListsRepository.listUnclosedItems,
+      closeFinished: collectionListsRepository.closeFinished,
+    }
+    const closedIds: string[] = []
+    Object.assign(collectionListsRepository, {
+      listUnclosedItems: async () => [
+        // A: undone on L1, L2 and L3; L3 is due first with L1 and newer.
+        row('L1', GARAGE_A, 'photos', 'collected'),
+        row('L1', GARAGE_A, 'payout', 'to_collect'),
+        row('L2', GARAGE_A, 'payout', 'to_collect'),
+        row('L3', GARAGE_A, 'photos', 'to_collect'),
+        row('L3', GARAGE_A, 'radius_default', 'to_collect'),
+        row('L3', GARAGE_A, 'logo', 'collected'),
+        // B: done on L1 (bays collected) and L3 (logo cleared), so L2.
+        row('L1', GARAGE_B, 'bays', 'collected'),
+        row('L3', GARAGE_B, 'logo', 'to_collect'),
+        row('L2', GARAGE_B, 'photos', 'to_collect'),
+        // C: everything done, on a finished list.
+        row('L4', GARAGE_C, 'logo', 'collected'),
+        row('L4', GARAGE_C, 'bays', 'to_collect'),
+      ],
+      closeFinished: async (ids: string[]) => {
+        closedIds.push(...ids)
+      },
     })
-    const restore = collectionListsRepository.listUnclosedItems
-    ;(collectionListsRepository as Record<string, unknown>).listUnclosedItems =
-      async () => [
-        row('L1', GARAGE_A, 'photos', 'collected', older),
-        row('L1', GARAGE_A, 'logo', 'to_collect', older),
-        row('L1', GARAGE_B, 'bays', 'to_collect', older),
-        row('L2', GARAGE_A, 'payout', 'to_collect', newer),
-        row('L2', GARAGE_A, 'radius_default', 'to_collect', newer),
-        // Finished: every item cleared, so not open.
-        row(
-          'L3',
-          GARAGE_B,
-          'logo',
-          'to_collect',
-          new Date('2026-10-26T00:00:00Z')
-        ),
-      ]
     try {
       const byVendor = await collectionListsService.openCollectionByVendor(
-        new Map([
-          [GARAGE_A, ['photos', 'payout'] as const],
-          [GARAGE_B, ['bays'] as const],
-        ] as Array<[string, readonly ('photos' | 'payout' | 'bays')[]]>)
+        new Map<string, readonly ('photos' | 'payout' | 'bays' | 'logo')[]>([
+          [GARAGE_A, ['photos', 'payout']],
+          [GARAGE_B, ['photos', 'bays']],
+          [GARAGE_C, []],
+        ])
       )
-      // L2 is newer; its radius is cleared (no longer missing).
+      // L3: due 29 Oct like L1 but newer. Its radius is cleared and its
+      // logo collected: 2 of 3.
       expect(byVendor.get(GARAGE_A)).toEqual({
+        listId: 'L3',
+        assigneeName: 'Vimal',
+        dueOn: '2026-10-29',
+        done: 2,
+        total: 3,
+      })
+      // Nothing of B's left on L1 or L3: the undated L2.
+      expect(byVendor.get(GARAGE_B)).toEqual({
         listId: 'L2',
         assigneeName: 'Kavya',
         dueOn: null,
-        done: 1,
-        total: 2,
-      })
-      expect(byVendor.get(GARAGE_B)).toEqual({
-        listId: 'L1',
-        assigneeName: 'Raga',
-        dueOn: '2026-10-29',
         done: 0,
         total: 1,
       })
+      expect(byVendor.has(GARAGE_C)).toBe(false)
+      // L4 is finished, so it is closed; the others still have work.
+      expect(closedIds).toEqual(['L4'])
     } finally {
-      ;(
-        collectionListsRepository as Record<string, unknown>
-      ).listUnclosedItems = restore
+      Object.assign(collectionListsRepository, restore)
     }
   })
 })

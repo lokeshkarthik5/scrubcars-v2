@@ -247,6 +247,31 @@ describe('0059: booking views and Onboarded by', () => {
     expect(bookingViewCountsQuerySchema.parse({ q: ' #3F2A ', test: 'hide' })).toEqual({ q: '#3F2A', test: 'hide' })
   })
 
+  test('type and payment filter the list and the counts alike; the counts take status and dates too', () => {
+    const filters = {
+      status: 'completed',
+      from: '2026-10-01',
+      to: '2026-10-31',
+      bookingType: 'doorstep',
+      payment: 'refund_owed',
+    } as const
+    expect(listBookingsQuerySchema.parse(filters)).toMatchObject(filters)
+    expect(bookingViewCountsQuerySchema.parse(filters)).toEqual(filters)
+    for (const schema of [listBookingsQuerySchema, bookingViewCountsQuerySchema]) {
+      for (const bookingType of ['dropin', 'doorstep', 'pickup']) {
+        expect(schema.safeParse({ bookingType }).success).toBe(true)
+      }
+      for (const payment of ['paid', 'pay_later', 'refund_owed']) {
+        expect(schema.safeParse({ payment }).success).toBe(true)
+      }
+      expect(schema.safeParse({ bookingType: 'walkin' }).success).toBe(false)
+      expect(schema.safeParse({ payment: 'cash' }).success).toBe(false)
+      expect(schema.safeParse({ status: 'rescheduled' }).success).toBe(false)
+      expect(schema.safeParse({ from: '2026-02-30' }).success).toBe(false)
+      expect(schema.safeParse({ from: '2026-10-31', to: '2026-10-01' }).success).toBe(false)
+    }
+  })
+
   test('onboardedByName is trimmed; blank or null means not set', () => {
     expect(updateVendorSchema.parse({ onboardedByName: '  Raga  ' }).onboardedByName).toBe('Raga')
     expect(updateVendorSchema.parse({ onboardedByName: '   ' }).onboardedByName).toBeNull()

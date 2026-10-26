@@ -52,6 +52,10 @@ export interface CollectionList {
   createdAt: string
   /** Set when the Telegram post went out; null when off, failed or not production. */
   telegramSentAt: string | null
+  /**
+   * Set by Close, or by the server once it finds every item collected or
+   * cleared (the tick that finishes it, or the next read).
+   */
   closedAt: string | null
   /** Until closed, or until every item is collected or cleared. */
   open: boolean
@@ -65,6 +69,7 @@ export interface CollectionList {
 
 export interface CreateCollectionListsInput {
   lists: Array<{
+    /** A turned-off login is refused: 409 ADMIN_LOGIN_OFF. */
     assigneeLoginId?: string | null
     assigneeName: string
     /** YYYY-MM-DD. */
@@ -110,7 +115,11 @@ export async function listCollectionLists(scope: CollectionScope, open = true) {
   })
 }
 
-/** PATCH /admin/collection-items/:id — tick or untick, with an optional note. */
+/**
+ * PATCH /admin/collection-items/:id — tick or untick, with an optional note.
+ * The tick that finishes a list closes it; a closed list's items are 409
+ * COLLECTION_LIST_CLOSED.
+ */
 export async function updateCollectionItem(id: string, input: UpdateCollectionItemInput) {
   return apiClient<CollectionItem>(`/admin/collection-items/${id}`, {
     method: 'PATCH',
