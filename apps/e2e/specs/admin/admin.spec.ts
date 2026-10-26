@@ -89,7 +89,8 @@ test.describe('admin panel', () => {
   })
 
   test('bookings made by the customer suite are visible to ops', async ({ page }) => {
-    await page.goto('/bookings')
+    // All of them: the list opens on Needs action, which may be empty.
+    await page.goto('/bookings?view=all')
     // Read-only view; the assertion is that it renders real rows rather than
     // an empty state, since every other spec has been writing bookings.
     await expect(page.getByText(/₹/).first()).toBeVisible()

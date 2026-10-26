@@ -9,7 +9,14 @@
  * customer lists' own rule in vendors.predicates.ts). This only presents them.
  */
 import type { AdminVendor, ReadinessItem } from '@repo/core/api/admin'
+import { formatDay } from '@repo/core/format'
+import {
+  isMissingKey,
+  MARK_CHASE_AFTER_DAYS,
+  type MissingKey,
+} from '@repo/core/onboarding-marks'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from './garage-edit'
+import { nearestLocality } from './localities'
 
 // ─── Chips ───────────────────────────────────────────────────────────────────
 
@@ -202,24 +209,34 @@ export function matchesShow(v: ListedFields, show: ListFilter): boolean {
 }
 
 /**
- * "Garages matching …" from Find anything: the name, a phone (digits only,
- * so "98765 43210" finds "+919876543210"), or the area. Empty matches all.
+ * "Garages matching …" from Find anything and the list's search box: the
+ * name, the owner's name, a phone (digits only, so "98765 43210" finds
+ * "+919876543210"; the garage's or the owner's), or the area. Empty
+ * matches all.
  */
 export function matchesSearch(
   v: Partial<
-    Pick<AdminVendor, 'businessName' | 'phone' | 'city' | 'address' | 'pincode'>
+    Pick<
+      AdminVendor,
+      'businessName' | 'phone' | 'city' | 'address' | 'pincode' | 'owner'
+    >
   >,
   q: string
 ): boolean {
   const text = q.trim().toLowerCase()
   if (!text) return true
   const digits = text.replace(/\D/g, '')
-  const fields = [v.businessName, v.city, v.address, v.pincode].map((f) =>
-    (f ?? '').toLowerCase()
-  )
+  const fields = [
+    v.businessName,
+    v.city,
+    v.address,
+    v.pincode,
+    v.owner?.name,
+  ].map((f) => (f ?? '').toLowerCase())
   if (fields.some((f) => f.includes(text))) return true
-  return (
-    digits.length >= 4 && (v.phone ?? '').replace(/\D/g, '').includes(digits)
+  if (digits.length < 4) return false
+  return [v.phone, v.owner?.phone].some((phone) =>
+    (phone ?? '').replace(/\D/g, '').includes(digits)
   )
 }
 
@@ -482,4 +499,335 @@ export function editHref(
   if (tab) query.set('tab', tab)
   query.set('back', back)
   return `/vendors/${vendorId}/edit?${query.toString()}`
+}
+
+// ─── The table's filters (0059) ──────────────────────────────────────────────
+
+/** `?onboardedBy=-`: garages nobody is named against yet ("Not set"). */
+export const ONBOARDED_NOT_SET = '-'
+export const ONBOARDED_NOT_SET_LABEL = 'Not set'
+
+/** The longest name the column holds (`vendors.onboarded_by_name`). */
+const ONBOARDED_MAX = 100
+
+/** A `?missing=` key, or null for anything else. An allow-list, like `?show=`. */
+export function parseMissing(
+  value: string | null | undefined
+): MissingKey | null {
+  return isMissingKey(value) ? value : null
+}
+
+/** A `?onboardedBy=` name (or Not set), trimmed; null when empty. */
+export function parseOnboardedBy(
+  value: string | null | undefined
+): string | null {
+  const name = value?.trim()
+  return name ? name.slice(0, ONBOARDED_MAX) : null
+}
+
+/** `?team=with`: on an open collection list. `?team=mine`: on one of mine. */
+export type TeamFilter = 'with' | 'mine'
+export function parseTeam(value: string | null | undefined): TeamFilter | null {
+  return value === 'with' || value === 'mine' ? value : null
+}
+
+/** Everything the Garages list keeps in its URL. */
+export interface GarageListState {
+  show: ListFilter
+  q?: string
+  missing?: MissingKey | null
+  onboardedBy?: string | null
+  team?: TeamFilter | null
+}
+
+/** The list's state from its URL. */
+export function parseGarageList(params: {
+  get(name: string): string | null
+}): Required<GarageListState> {
+  return {
+    show: parseShow(params.get('show')),
+    q: params.get('q') ?? '',
+    missing: parseMissing(params.get('missing')),
+    onboardedBy: parseOnboardedBy(params.get('onboardedBy')),
+    team: parseTeam(params.get('team')),
+  }
+}
+
+/**
+ * The list as it is now, as a link: `/vendors` for the default, so Back is
+ * tidy; otherwise only what differs from it. What a row's links carry as
+ * `back`, so the editor's back arrow returns to the same filters.
+ */
+export function garageListHref(state: GarageListState): string {
+  const query = new URLSearchParams()
+  if (state.show !== DEFAULT_SHOW) query.set('show', state.show)
+  if (state.q?.trim()) query.set('q', state.q.trim())
+  if (state.missing) query.set('missing', state.missing)
+  if (state.onboardedBy) query.set('onboardedBy', state.onboardedBy)
+  if (state.team) query.set('team', state.team)
+  const text = query.toString()
+  return text ? `/vendors?${text}` : '/vendors'
+}
+
+/** Whether the garage still misses this (0059). False on an older API. */
+export function isMissing(
+  v: Pick<AdminVendor, 'missing'>,
+  key: MissingKey | null
+): boolean {
+  if (!key) return true
+  return v.missing?.includes(key) ?? false
+}
+
+/** Who brought the garage in, trimmed; null when not set. */
+export function onboardedBy(
+  v: Pick<AdminVendor, 'onboardedByName'>
+): string | null {
+  return v.onboardedByName?.trim() || null
+}
+
+/** The Onboarded by filter: a name exactly, or Not set. */
+export function matchesOnboardedBy(
+  v: Pick<AdminVendor, 'onboardedByName'>,
+  filter: string | null
+): boolean {
+  if (!filter) return true
+  const name = onboardedBy(v)
+  if (filter === ONBOARDED_NOT_SET) return name === null
+  return name === filter
+}
+
+export interface OnboardedByOption {
+  value: string
+  label: string
+  count: number
+}
+
+/**
+ * The Onboarded by filter's choices: each team login (A to Z), then any
+ * other name typed on a garage ("Someone else…" is free text, and each
+ * such name is its own choice), then Not set. Counted over the garages
+ * given. A login nobody is named against still shows, with 0.
+ */
+export function onboardedByOptions(
+  vendors: Array<Pick<AdminVendor, 'onboardedByName'>>,
+  loginNames: readonly string[]
+): OnboardedByOption[] {
+  const counts = new Map<string, number>()
+  let notSet = 0
+  for (const v of vendors) {
+    const name = onboardedBy(v)
+    if (name === null) notSet += 1
+    else counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  const byName = (a: string, b: string) =>
+    a.localeCompare(b, 'en-IN', { sensitivity: 'base' })
+  const logins = [
+    ...new Set(loginNames.map((n) => n.trim()).filter(Boolean)),
+  ].sort(byName)
+  const others = [...counts.keys()]
+    .filter((n) => !logins.includes(n))
+    .sort(byName)
+  return [
+    ...[...logins, ...others].map((name) => ({
+      value: name,
+      label: name,
+      count: counts.get(name) ?? 0,
+    })),
+    { value: ONBOARDED_NOT_SET, label: ONBOARDED_NOT_SET_LABEL, count: notSet },
+  ]
+}
+
+/**
+ * The team chips: "With team" holds garages on an open collection list,
+ * "Assigned to me" those on a list of mine (`mine`: the garage ids of my
+ * open lists; null while unknown, which matches none).
+ */
+export function matchesTeam(
+  v: Pick<AdminVendor, 'id' | 'openCollection'>,
+  team: TeamFilter | null,
+  mine: ReadonlySet<string> | null
+): boolean {
+  if (!team) return true
+  if (team === 'with') return Boolean(v.openCollection)
+  return mine?.has(v.id) ?? false
+}
+
+// ─── The table's cells ───────────────────────────────────────────────────────
+
+/** "Velachery" for a pinned Chennai garage near a known area, else its city. */
+export function garageArea(
+  v: Pick<AdminVendor, 'city' | 'lat' | 'lng'> &
+    Partial<Pick<AdminVendor, 'outsideServiceCity'>>
+): string {
+  if (v.lat !== null && v.lng !== null && !v.outsideServiceCity) {
+    const near = nearestLocality(v.lat, v.lng)
+    if (near?.startsWith('Near ')) return near.slice('Near '.length)
+  }
+  return v.city
+}
+
+export type StageTone = 'done' | 'new' | 'attention' | 'late' | 'closed'
+
+/** The Stage column: "Live", or what keeps it from customers, with its tone. */
+export function stageCell(v: ListedFields): { label: string; tone: StageTone } {
+  if (isInBin(v)) return { label: 'Bin', tone: 'closed' }
+  const word = stateWord(v)
+  if (word === null) return { label: 'Live', tone: 'done' }
+  if (v.status === 'archived') return { label: word, tone: 'closed' }
+  if (v.status === 'suspended') return { label: word, tone: 'late' }
+  if (v.status === 'pending') return { label: word, tone: 'new' }
+  return { label: word, tone: 'attention' }
+}
+
+/** The action a blocking or to-fix checklist item asks for, in a few words. */
+const STEP_WORDS: Record<string, string> = {
+  no_services: 'Add services',
+  no_booking_type: 'Switch on a booking type',
+  no_hours: 'Set opening hours',
+  no_pin: 'Drop the map pin',
+  pin_unconfirmed: 'Confirm the map pin',
+  no_descriptions: 'Describe the services',
+  no_vehicle_types: 'Add car types',
+  retired_vehicle_types: 'Update car types',
+  pickup_no_pin: 'Drop the map pin',
+  pickup_terms_missing: 'Get the pickup agreement',
+  no_bays: 'Set the bays',
+  no_doorstep_radius: 'Set the travel radius',
+  no_pickup_radius: 'Set the pickup radius',
+}
+
+export interface GarageNextStep {
+  text: string
+  detail?: string
+  /** Red-orange: it can't go live. Amber: chase it. Grey: in hand. */
+  tone: 'late' | 'attention' | 'neutral'
+  /** The editor tab where it is done, when there is one. */
+  tab?: ReadinessItem['tab']
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** "Mon 2 Nov" for a YYYY-MM-DD due date, read on India's calendar. */
+function dueDay(dueOn: string, now: number): string {
+  return formatDay(new Date(`${dueOn}T12:00:00+05:30`), now)
+}
+
+/** Whole days from today (India) to a YYYY-MM-DD date: 0 today, -1 yesterday. */
+function daysUntil(dueOn: string, now: number): number {
+  const istToday = new Date(now + 5.5 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+  return Math.round(
+    (Date.parse(`${dueOn}T00:00:00Z`) - Date.parse(`${istToday}T00:00:00Z`)) /
+      DAY_MS
+  )
+}
+
+/**
+ * The Next step column (pattern 03): the one thing to do about the garage
+ * now, most pressing first. Something blocking it from going live; then a
+ * teammate collecting for it (due today, or late, in amber); then a
+ * verification; then an ask that has waited past MARK_CHASE_AFTER_DAYS;
+ * then the things still to collect; then what to fix. Null when there is
+ * nothing to do.
+ */
+export function garageNextStep(
+  v: ListedFields &
+    Partial<
+      Pick<
+        AdminVendor,
+        'readiness' | 'missing' | 'openMarks' | 'openCollection' | 'lat'
+      >
+    >,
+  now: number
+): GarageNextStep | null {
+  if (isInBin(v) || v.status === 'archived') return null
+  const readiness = v.readiness ?? []
+
+  const blocking = readiness.find((item) => item.severity === 'blocking')
+  if (blocking) {
+    return {
+      text: STEP_WORDS[blocking.key] ?? blocking.label,
+      detail: 'Blocks going live',
+      tone: 'late',
+      tab: blocking.tab,
+    }
+  }
+
+  const list = v.openCollection
+  if (list) {
+    const progress = `${list.done} of ${list.total}`
+    if (list.dueOn) {
+      const days = daysUntil(list.dueOn, now)
+      if (days < 0)
+        return {
+          text: 'Overdue',
+          detail: `With ${list.assigneeName} · ${progress}`,
+          tone: 'late',
+        }
+      if (days === 0)
+        return {
+          text: 'Due today',
+          detail: `With ${list.assigneeName} · ${progress}`,
+          tone: 'attention',
+        }
+    }
+    return {
+      text: `With ${list.assigneeName}`,
+      detail: list.dueOn
+        ? `Due ${dueDay(list.dueOn, now)} · ${progress}`
+        : progress,
+      tone: 'neutral',
+    }
+  }
+
+  if (!v.isVerified && v.status !== 'suspended') {
+    return {
+      text: 'Verify',
+      detail:
+        v.lat == null ? 'Needs a map pin first' : 'Then customers can find it',
+      tone: 'attention',
+      tab: v.lat == null ? 'location' : undefined,
+    }
+  }
+
+  const asked = (v.openMarks ?? [])
+    .filter((mark) => mark.status === 'asked' && mark.askedAt)
+    .map((mark) => Date.parse(mark.askedAt!))
+    .filter((at) => Number.isFinite(at))
+  if (asked.length > 0) {
+    const days = Math.floor((now - Math.min(...asked)) / DAY_MS)
+    if (days >= MARK_CHASE_AFTER_DAYS) {
+      return {
+        text: `Chase · ${days} days ago`,
+        detail: 'Asked, no answer yet',
+        tone: 'attention',
+      }
+    }
+  }
+
+  const missing = (v.missing ?? []).length
+  if (missing > 0) {
+    return {
+      text: `Collect ${missing} ${missing === 1 ? 'thing' : 'things'}`,
+      tone: 'neutral',
+    }
+  }
+
+  const fix = readiness.find((item) => item.severity === 'fix')
+  if (fix) {
+    return {
+      text: STEP_WORDS[fix.key] ?? fix.label,
+      detail: 'Works, but fix soon',
+      tone: 'neutral',
+      tab: fix.tab,
+    }
+  }
+  return null
+}
+
+/** What the Next step column sorts by: the most pressing first. */
+export function nextStepRank(step: GarageNextStep | null): number {
+  if (!step) return 0
+  return step.tone === 'late' ? 3 : step.tone === 'attention' ? 2 : 1
 }

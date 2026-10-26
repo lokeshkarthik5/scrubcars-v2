@@ -71,8 +71,8 @@ test.describe('admin vendors', () => {
     await sql`update vendors set is_verified = true where id = ${id}`
 
     await page.goto('/vendors?show=all')
-    // Archive sits in the card's ⋯, beside Move to Bin.
-    const card = page.getByRole('group', { name, exact: true })
+    // Archive sits in the row's ⋯, beside Move to Bin.
+    const card = page.getByRole('row', { name, exact: true })
     await card.getByRole('button', { name: `More for ${name}` }).click()
     await card.getByRole('button', { name: `Archive ${name}` }).click()
 
@@ -103,18 +103,16 @@ test.describe('admin vendors', () => {
     await sql`delete from vendors where id = ${id}`
   })
 
-  test('a card offers Move to Bin, and no outright delete', async ({
-    page,
-  }) => {
+  test('a row offers Move to Bin, and no outright delete', async ({ page }) => {
     const name = `E2E Bin Menu ${Date.now().toString().slice(-5)}`
     const id = await makeGarage(name)
 
     await page.goto('/vendors?show=all')
 
-    // Never booked, so its card says nothing about bookings.
-    const card = page.getByRole('group', { name, exact: true })
+    // Never booked, so its row says nothing about bookings.
+    const card = page.getByRole('row', { name, exact: true })
     await expect(card.getByText(/^Has \d+ bookings?$/)).toHaveCount(0)
-    // Deleting is only from the Bin now: the card has no delete of its own.
+    // Deleting is only from the Bin now: the row has no delete of its own.
     await expect(
       card.getByRole('button', { name: `Delete ${name}` })
     ).toHaveCount(0)
@@ -169,7 +167,7 @@ test.describe('admin vendors', () => {
     expect(capacity?.deletedAt).toBeNull()
 
     await page.goto('/vendors')
-    const card = page.getByRole('group', {
+    const card = page.getByRole('row', {
       name: VENDORS.capacity.name,
       exact: true,
     })
@@ -195,7 +193,7 @@ test.describe('admin vendors', () => {
     const businessName = page.getByLabel('Business name')
     await expect(businessName).toHaveValue(VENDORS.opsEdit.name)
 
-    await page.getByRole('tab', { name: 'Operations' }).click()
+    await page.getByRole('tab', { name: 'Hours & booking' }).click()
     await expect(page.getByLabel('Sat closing time')).toHaveValue('13:00')
     await expect(page.getByLabel('Mon closing time')).toHaveValue('18:00')
 
@@ -233,7 +231,7 @@ test.describe('admin vendors', () => {
        where id = ${VENDORS.opsEdit.id}
     `
     await page.goto(`/vendors/${VENDORS.opsEdit.id}/edit`)
-    await page.getByRole('tab', { name: 'Operations' }).click()
+    await page.getByRole('tab', { name: 'Hours & booking' }).click()
 
     const paused = async () => {
       const [row] = await sql<{ paused: boolean }[]>`
@@ -282,9 +280,18 @@ test.describe('admin vendors', () => {
 
 test.describe('admin garage list: chips and checklist', () => {
   const LIST = VENDORS.adminList
-  /** Every garage card on the page; the chips' row is a group too, but not a garage's. */
+  /** Every garage row in the table; the header row is not named by a garage. */
   const cards = (page: Page) =>
-    page.locator('[role="group"][aria-labelledby^="vendor-"]')
+    page.locator('[role="row"][aria-labelledby^="vendor-"]')
+  /** The side panel a row opens in, with the checklist the card used to expand. */
+  const panel = (page: Page) =>
+    page.getByRole('complementary', { name: 'Garage details' })
+  /** Opens a garage in the side panel: its name, in its row, is the button. */
+  const openRow = (page: Page, name: string) =>
+    page
+      .getByRole('row', { name, exact: true })
+      .getByRole('button', { name, exact: true })
+      .click()
   const chip = (page: Page, label: string) =>
     page
       .getByRole('group', { name: 'Show' })
@@ -312,10 +319,10 @@ test.describe('admin garage list: chips and checklist', () => {
     ).toBeVisible()
     // Live is what customers can find: MAIN is, the pending checklist garage isn't.
     await expect(
-      page.getByRole('group', { name: VENDORS.main.name, exact: true })
+      page.getByRole('row', { name: VENDORS.main.name, exact: true })
     ).toBeVisible()
     await expect(
-      page.getByRole('group', { name: LIST.name, exact: true })
+      page.getByRole('row', { name: LIST.name, exact: true })
     ).toHaveCount(0)
 
     // Five states and All, nothing else in the row: the filters that cut
@@ -356,7 +363,7 @@ test.describe('admin garage list: chips and checklist', () => {
       )
     ).toBeVisible()
     await expect(
-      page.getByRole('group', { name: LIST.name, exact: true })
+      page.getByRole('row', { name: LIST.name, exact: true })
     ).toBeVisible()
 
     // More filters holds the cross-cutting ones; Certified is there.
@@ -375,7 +382,7 @@ test.describe('admin garage list: chips and checklist', () => {
       page.getByText('Pending = added, not shown to customers yet')
     ).toBeVisible()
     await expect(
-      page.getByRole('group', { name: LIST.name, exact: true })
+      page.getByRole('row', { name: LIST.name, exact: true })
     ).toBeVisible()
   })
 
@@ -414,23 +421,31 @@ test.describe('admin garage list: chips and checklist', () => {
     expect(body.data.find((v) => v.id === VENDORS.paused.id)?.live).toBe(false)
   })
 
-  test('a garage with no services is "1 blocking", and its row opens Services; Back keeps the chip @p0', async ({
+  test('a garage with no services is "1 blocking" in its side panel, and the row opens Services; Back keeps the chip @p0', async ({
     page,
   }) => {
     await resetListGarage()
     await page.goto('/vendors?show=pending')
 
-    const card = page.getByRole('group', { name: LIST.name, exact: true })
-    const line = card.getByRole('button', { name: /^1 blocking/ })
+    // The checklist moved from the card's expand into the side panel.
+    await expect(panel(page)).toHaveCount(0)
+    await openRow(page, LIST.name)
+    const details = panel(page)
+    await expect(
+      details.getByRole('heading', { name: LIST.name })
+    ).toBeVisible()
     // Optional items trail in grey and never count as needing fixing.
-    await expect(line).toHaveText('1 blocking · 3 optional')
-    await expect(line).toHaveAttribute('aria-expanded', 'false')
-    await line.click()
-    await expect(line).toHaveAttribute('aria-expanded', 'true')
-    await expect(card.getByText('Blocking', { exact: true })).toBeVisible()
-    await expect(card.getByText('Optional', { exact: true })).toBeVisible()
+    await expect(page.locator(`#vendor-${LIST.id}-readiness`)).toHaveText(
+      '1 blocking · 3 optional'
+    )
+    await expect(details.getByText('Blocking', { exact: true })).toBeVisible()
+    await expect(details.getByText('Optional', { exact: true })).toBeVisible()
+    // Escape closes it, and the row's name opens it again.
+    await page.keyboard.press('Escape')
+    await expect(details).toHaveCount(0)
+    await openRow(page, LIST.name)
 
-    await card.getByRole('link', { name: /No services/ }).click()
+    await details.getByRole('link', { name: /No services/ }).click()
     await expect(page).toHaveURL(
       `/vendors/${LIST.id}/edit?tab=services&back=${encodeURIComponent('/vendors?show=pending')}`
     )
@@ -443,7 +458,7 @@ test.describe('admin garage list: chips and checklist', () => {
     await expect(page).toHaveURL(/\/vendors\?show=pending$/)
     await expect(chip(page, 'Pending')).toHaveAttribute('aria-pressed', 'true')
     await expect(
-      page.getByRole('group', { name: LIST.name, exact: true })
+      page.getByRole('row', { name: LIST.name, exact: true })
     ).toBeVisible()
   })
 
@@ -454,15 +469,16 @@ test.describe('admin garage list: chips and checklist', () => {
     await sql`update vendors set bays = null where id = ${LIST.id}`
     await page.goto('/vendors?show=pending')
 
-    const card = page.getByRole('group', { name: LIST.name, exact: true })
-    const line = card.getByRole('button', { name: /^1 blocking/ })
-    await expect(line).toHaveText('1 blocking · 1 to fix · 3 optional')
-    await line.click()
-    await card.getByRole('link', { name: /Bays not set/ }).click()
-    await expect(page.getByRole('tab', { name: 'Operations' })).toHaveAttribute(
-      'aria-selected',
-      'true'
+    await openRow(page, LIST.name)
+    await expect(page.locator(`#vendor-${LIST.id}-readiness`)).toHaveText(
+      '1 blocking · 1 to fix · 3 optional'
     )
+    await panel(page)
+      .getByRole('link', { name: /Bays not set/ })
+      .click()
+    await expect(
+      page.getByRole('tab', { name: 'Hours & booking' })
+    ).toHaveAttribute('aria-selected', 'true')
 
     await page.getByLabel('Bays (optional)').fill('2')
     await page.getByRole('button', { name: 'Save changes' }).click()
@@ -479,11 +495,10 @@ test.describe('admin garage list: chips and checklist', () => {
     // save marking it stale makes Back show the bays as set.
     await page.getByRole('link', { name: 'Go back' }).click()
     await expect(page).toHaveURL(/\/vendors\?show=pending$/)
-    await expect(
-      page
-        .getByRole('group', { name: LIST.name, exact: true })
-        .getByRole('button', { name: /^1 blocking/ })
-    ).toHaveText('1 blocking · 3 optional')
+    await openRow(page, LIST.name)
+    await expect(page.locator(`#vendor-${LIST.id}-readiness`)).toHaveText(
+      '1 blocking · 3 optional'
+    )
 
     await resetListGarage()
   })
