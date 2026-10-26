@@ -1,279 +1,44 @@
 'use client'
 
-import {
-  use,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from 'react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { toast } from 'react-toastify'
-import {
-  IconBuildingStore,
-  IconChevronDown,
-  IconEyeOff,
-  IconPhotoPlus,
-  IconRestore,
-  IconTrash,
-} from '@tabler/icons-react'
-import { ScButton } from '@repo/ui/sc/button'
-import { ScCheckbox } from '@repo/ui/sc/checkbox'
-import {
-  LocationPicker,
-  type PickedLocation,
-} from '@repo/ui/features/location-picker'
-import { Chip } from '@repo/ui/sc/chip'
-import { ScField, ScTextarea } from '@repo/ui/sc/input'
+import { use, useRef, useState } from 'react'
 import { PageHeader } from '@repo/ui/sc/page-header'
-import { ScSection } from '@repo/ui/sc/section'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
-import { showUndoToast } from '@repo/ui/sc/undo-toast'
-import { formatDay as formatDayOf } from '@repo/core/format'
-import { ApiError } from '@repo/core/api/client'
-import {
-  deleteAdminVendorLogo,
-  deleteAdminVendorPhoto,
-  getAdminVendor,
-  listAdminHiddenServices,
-  pauseAdminVendor,
-  resumeAdminVendor,
-  setAdminServiceActive,
-  updateAdminVendor,
-  uploadAdminVendorLogo,
-  uploadAdminVendorPhoto,
-  type AdminPhoto,
-  type AdminService,
-  type AdminVendorDetail,
-  type AdminWorkingDay,
-} from '@repo/core/api/admin'
 import { useAdminDocumentsConfig } from '@repo/core/api/hooks/use-admin-documents'
-import {
-  legacyVehicleTypes,
-  VENDOR_VEHICLE_TYPE_OPTIONS,
-} from '@repo/core/vehicles'
-import type { ServiceMedia } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
-import { LiveBookingModeCard } from '@/components/booking-mode-card'
 import { GarageDocumentsSection } from '@/components/garage-documents-section'
 import { GarageCertificationSection } from '@/components/garage-certification-section'
 import { GarageStrikesCard } from '@/components/garage-strikes-card'
-import { PayoutAccountSection } from '@/components/payout-account-section'
-import { LivePickupCard } from '@/components/pickup-card'
 import { SaveBar } from '@/components/save-bar'
 import { RestoreDialog } from '@/components/vendor-bin-dialogs'
-import { formatWhen } from '@/lib/bookings'
-import { ServicesEditor } from '@/components/services-editor'
-import { useMarkGaragesStale } from '@/hooks/use-admin-today'
-import { useWarnBeforeLeaving } from '@/hooks/use-warn-before-leaving'
 import {
-  EDIT_TABS,
-  EDIT_TAB_LABELS,
+  PAGE_TABS,
   PAGE_TAB_LABELS,
-  dirtyTabs,
-  garageFieldsProblem,
+  isEditTab,
   parsePageTab,
   safeBackHref,
-  unsavedChangesLine,
-  type EditTab,
+  saveBarLine,
   type PageTab,
-  type TabValues,
 } from '@/lib/garage-edit'
-import {
-  restoreRow,
-  rowBefore,
-  rowHasUnsavedChanges,
-  toServicePayload,
-  toServiceRow,
-  type ServiceRow,
-} from '@/lib/service-editor'
-import {
-  rowsToSave,
-  servicesSaveBlock,
-  showAgainWarning,
-  storedPriceSummary,
-} from '@/lib/service-rows'
-import { VendorTeamSection } from './team-section'
-
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const SLOT_INTERVALS = [30, 45, 60] as const
-const STATUS_OPTIONS = [
-  { value: 'pending' as const, label: 'Pending' },
-  { value: 'active' as const, label: 'Active (live)' },
-  { value: 'suspended' as const, label: 'Suspended' },
-  { value: 'archived' as const, label: 'Archived' },
-]
-
-const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp'
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
-
-// Shared guard for every media picker on this page.
-function rejectFile(file: File): string | null {
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    return 'Unsupported type (use JPEG, PNG or WebP)'
-  }
-  if (file.size > MAX_IMAGE_BYTES) return 'Image too large (max 5 MB)'
-  return null
-}
+import { tabDots } from '@/lib/garage-status'
+import { BinBanner } from './bin-banner'
+import { EditorHeader } from './editor-header'
+import { HowCustomersBook } from './how-customers-book'
+import { StatusPanel } from './status-panel'
+import { DetailsTab } from './tabs/details-tab'
+import { HoursBookingTab } from './tabs/hours-booking-tab'
+import { LocationTab } from './tabs/location-tab'
+import { ServicesTab } from './tabs/services-tab'
+import { TeamPayoutTab } from './tabs/team-payout-tab'
+import { ACCEPTED_IMAGE_TYPES, useGarageDraft } from './use-garage-draft'
 
 /**
- * The garage's week as the form edits it: all seven days, times as HH:MM. A
- * day with no stored row is shown closed — the slot generator reads it that
- * way too — with placeholder times for when someone opens it.
+ * The garage editor (mockup 05): a header across the page — where you are,
+ * the garage, View as customer — then two columns from a laptop up: the
+ * garage's status, its marks and Go live on the left, the tabs on the right
+ * with one save bar. One column on a phone, status first. Layout only: the
+ * draft and every save are in useGarageDraft.
  */
-function toWeekForm(rows: AdminWorkingDay[]): AdminWorkingDay[] {
-  const byDay = new Map(rows.map((row) => [row.dayOfWeek, row]))
-  return DAYS.map((_, dayOfWeek) => {
-    const row = byDay.get(dayOfWeek)
-    return row
-      ? {
-          dayOfWeek,
-          openTime: row.openTime.slice(0, 5),
-          closeTime: row.closeTime.slice(0, 5),
-          isClosed: row.isClosed,
-        }
-      : { dayOfWeek, openTime: '09:00', closeTime: '18:00', isClosed: true }
-  })
-}
-
-/** "2026-10-20" → "Tue 20 Oct" — a calendar day, so read in UTC. */
-function formatDay(key: string) {
-  const [y, m, d] = key.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  })
-}
-
-type VendorStatus = 'pending' | 'active' | 'suspended' | 'archived'
-
-/**
- * Everything "Save changes" saves, as the page holds it. Kept twice: as
- * loaded (or last saved) and as edited, and the difference is what the save
- * bar reports and Discard puts back. How customers book, the pin's
- * confirmation, Pause, team, media and Hide all save the moment they change,
- * so none of them is in here.
- */
-interface GarageDraft {
-  form: {
-    ownerName: string
-    ownerPhone: string
-    businessName: string
-    phone: string
-    address: string
-    city: string
-    pincode: string
-    email: string
-    whatsapp: string
-    yearsInOperation: string
-    mapsUrl: string
-    bays: string
-    jobsPerDay: string
-    notes: string
-  }
-  pin: PickedLocation | null
-  slotIntervalMins: 30 | 45 | 60
-  // The real per-day schedule. Sent back only when a day differs from what
-  // was loaded: saving any other field used to rewrite every day to one
-  // schedule, which wiped a garage's shorter Saturday without anyone
-  // touching it.
-  hours: AdminWorkingDay[]
-  vehicleTypes: string[]
-  status: VendorStatus
-  isVerified: boolean
-  services: ServiceRow[]
-}
-
-function toDraft(v: AdminVendorDetail): GarageDraft {
-  return {
-    form: {
-      ownerName: v.owner?.name ?? '',
-      ownerPhone: v.owner?.phone ?? '',
-      businessName: v.businessName,
-      phone: v.phone,
-      address: v.address,
-      city: v.city,
-      pincode: v.pincode,
-      email: v.email ?? '',
-      whatsapp: v.whatsapp ?? '',
-      yearsInOperation: v.yearsInOperation ?? '',
-      mapsUrl: v.mapsUrl ?? '',
-      bays: v.bays != null ? String(v.bays) : '',
-      jobsPerDay: v.jobsPerDay != null ? String(v.jobsPerDay) : '',
-      notes: v.notes ?? '',
-    },
-    pin:
-      v.lat != null && v.lng != null
-        ? {
-            lat: v.lat,
-            lng: v.lng,
-            address: v.address,
-            city: v.city,
-            pincode: v.pincode,
-            // The picker only ever reports how the *user* placed a pin; an
-            // already-stored one is described by geoSource instead.
-            source: 'map_pin',
-          }
-        : null,
-    slotIntervalMins: (v.slotIntervalMins as 30 | 45 | 60) ?? 30,
-    hours: toWeekForm(v.workingHours),
-    vehicleTypes: v.vehicleTypes ?? [],
-    status: v.status as VendorStatus,
-    isVerified: v.isVerified,
-    services: v.services.map(toServiceRow),
-  }
-}
-
-const trimmed = (value: string) => value.trim()
-
-/**
- * Each tab's values as a save would send them, so a change that sends
- * nothing new (a space typed and deleted, a price switched to Per vehicle
- * and back) is not reported as unsaved.
- */
-function tabValues(draft: GarageDraft): TabValues {
-  const { form } = draft
-  return {
-    details: {
-      ownerName: trimmed(form.ownerName),
-      ownerPhone: trimmed(form.ownerPhone),
-      businessName: trimmed(form.businessName),
-      phone: trimmed(form.phone),
-      whatsapp: trimmed(form.whatsapp),
-      email: trimmed(form.email),
-      yearsInOperation: trimmed(form.yearsInOperation),
-      status: draft.status,
-      isVerified: draft.isVerified,
-      notes: trimmed(form.notes),
-    },
-    location: {
-      address: trimmed(form.address),
-      city: trimmed(form.city),
-      pincode: trimmed(form.pincode),
-      mapsUrl: trimmed(form.mapsUrl),
-      lat: draft.pin?.lat ?? null,
-      lng: draft.pin?.lng ?? null,
-    },
-    operations: {
-      hours: draft.hours,
-      slotIntervalMins: draft.slotIntervalMins,
-      bays: trimmed(form.bays),
-      jobsPerDay: trimmed(form.jobsPerDay),
-      vehicleTypes: draft.vehicleTypes,
-    },
-    services: rowsToSave(draft.services).map(toServicePayload),
-  }
-}
-
-/** Where focus goes after a hide or a show: see focusAfterSwitch. */
-type FocusAfterSwitch = { to: 'hidden-toggle' } | { to: 'row'; id: string }
-
 export default function EditVendorPage({
   params,
   searchParams,
@@ -287,13 +52,36 @@ export default function EditVendorPage({
   // checked against an allow-list before use; see lib/garage-edit.ts.
   const query = use(searchParams)
   const backHref = safeBackHref(query.back)
-  const router = useRouter()
-  // Every change saved from here — the form, the pin, media, pause, a
-  // service hidden or shown, how customers book — marks the garage list
-  // stale, so Back lands on a list whose checklist and Live count already
-  // show it.
-  // The garage list and the menu's counts (documents, blocked garages).
-  const markListStale = useMarkGaragesStale()
+  const g = useGarageDraft(id)
+  const {
+    markListStale,
+    afterInstantSave,
+    checklist,
+    fields,
+    saved,
+    draft,
+    bookingMode,
+    pausedAt,
+    bin,
+    restoring,
+    setRestoring,
+    loading,
+    saving,
+    error,
+    describing,
+    logoInputRef,
+    photoInputRef,
+    toLogin,
+    dirty,
+    saveBlock,
+    problemTab,
+    load,
+    handleLogoFile,
+    handlePhotoFiles,
+    serviceSwitching,
+    handleSubmit,
+    discard,
+  } = g
 
   const [tab, setTab] = useState<PageTab>(() => parsePageTab(query.tab))
   // Garage documents (0043) have their own tab, shown only while they are
@@ -305,245 +93,7 @@ export default function EditVendorPage({
     tab === 'documents' && documentsConfig.data && !documentsOn
       ? 'details'
       : tab
-  // As loaded or last saved, and as edited. Null until the first load.
-  const [saved, setSaved] = useState<GarageDraft | null>(null)
-  const [draft, setDraft] = useState<GarageDraft | null>(null)
-  // How customers book, as loaded: the card above the tabs saves it on its
-  // own (LiveBookingModeCard) and reads these once.
-  const [bookingMode, setBookingMode] = useState<
-    | (Pick<
-        AdminVendorDetail,
-        | 'dropinEnabled'
-        | 'doorstepEnabled'
-        | 'doorstepRadiusKm'
-        | 'hasDoorstepArea'
-        | 'pickup'
-        | 'pickupRadiusKm'
-      > & {
-        pickupEnabled: boolean
-        pickupTermsAcceptedAt: string | null
-        pickupTermsAcceptedBy: string | null
-      })
-    | null
-  >(null)
-  const [confirming, setConfirming] = useState(false)
-  // Whether the garage arrived here already pinned, so the UI can say who put
-  // it there and whether anyone has ever checked it.
-  const [geoSource, setGeoSource] = useState<string>('unset')
-  const [geoConfirmedAt, setGeoConfirmedAt] = useState<string | null>(null)
-  const [pausedAt, setPausedAt] = useState<string | null>(null)
-  const [pausedReason, setPausedReason] = useState<string | null>(null)
-  const [pauseReasonInput, setPauseReasonInput] = useState('')
-  const [pausing, setPausing] = useState(false)
-  const [closures, setClosures] = useState<AdminVendorDetail['closures']>([])
-  // In the Bin: the page opens read-only with a banner and Restore, since the
-  // server refuses every other change to it (409 VENDOR_IN_BIN).
-  const [bin, setBin] = useState<Pick<
-    AdminVendorDetail,
-    'deletedAt' | 'deletedByName' | 'deletedReason'
-  > | null>(null)
-  const [restoring, setRestoring] = useState(false)
-  // Rows with their ⋯ open, by key. Held here so Show again can open the
-  // row it brings back.
-  const [openRows, setOpenRows] = useState<ReadonlySet<string>>(new Set())
-  // Hidden services, and hiding or showing one, save immediately like Pause:
-  // they are the garage's switch, not part of the form "Save changes" sends.
-  const [hiddenServices, setHiddenServices] = useState<AdminService[]>([])
-  const [hiddenLoadFailed, setHiddenLoadFailed] = useState(false)
-  const [showHidden, setShowHidden] = useState(false)
-  const [serviceBusyId, setServiceBusyId] = useState<string | null>(null)
-  // Keyed by service id, so a refusal sits on the row it is about.
-  const [serviceErrors, setServiceErrors] = useState<Record<string, string>>({})
-  // What the last Hide or Show again did, read out politely: the row the
-  // focused button was on has gone, so without it a keyboard or screen-reader
-  // admin is left on <body> with no word that anything happened.
-  const [serviceNotice, setServiceNotice] = useState('')
-  // Where focus goes once a hide or show has rendered. A fresh object each
-  // time, so the same target twice still moves focus twice.
-  const [focusAfterSwitch, setFocusAfterSwitch] =
-    useState<FocusAfterSwitch | null>(null)
-  const hiddenToggleRef = useRef<HTMLButtonElement>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  // A save landed but the reload after it failed, so new services have no id
-  // here yet: saving again would add them a second time. Held until a reload.
-  const [mustReload, setMustReload] = useState(false)
-  // "Write with AI" or "Fill all" is running in the services editor. Save and
-  // Discard wait for it: either would swap the rows out from under the text
-  // still arriving, which would then land on the wrong draft or nowhere.
-  const [describing, setDescribing] = useState(false)
-  // Bumped by Discard and by a reload after Save, to remount what holds its
-  // own copy of a saved value: the map (it reads its pin once) and the
-  // services editor (its notes about the rows it filled).
-  const [resetCount, setResetCount] = useState(0)
-
-  // Media is saved the moment it is picked, not on "Save changes" — an upload
-  // has already happened by then, and holding the registration until submit
-  // would strand the object in R2 if the admin navigates away.
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const [photos, setPhotos] = useState<AdminPhoto[]>([])
-  const [mediaBusy, setMediaBusy] = useState<string | null>(null)
-  const logoInputRef = useRef<HTMLInputElement>(null)
-  const photoInputRef = useRef<HTMLInputElement>(null)
-
-  const toLogin = useCallback(() => router.replace('/login'), [router])
-
-  const dirty =
-    saved && draft ? dirtyTabs(tabValues(saved), tabValues(draft)) : []
-  useWarnBeforeLeaving(dirty.length > 0)
-
-  /** A change to the draft. Before the first load there is nothing to change. */
-  const patch = (change: Partial<GarageDraft>) =>
-    setDraft((prev) => (prev ? { ...prev, ...change } : prev))
-
-  const set = (key: keyof GarageDraft['form']) => (v: string) =>
-    setDraft((prev) =>
-      prev ? { ...prev, form: { ...prev.form, [key]: v } } : prev
-    )
-
-  const setServices: Dispatch<SetStateAction<ServiceRow[]>> = useCallback(
-    (action) =>
-      setDraft((prev) =>
-        prev
-          ? {
-              ...prev,
-              services:
-                typeof action === 'function' ? action(prev.services) : action,
-            }
-          : prev
-      ),
-    []
-  )
-
-  /**
-   * A change the server already has (a hide, a show, a photo), made to the
-   * saved copy and the draft alike, so it neither shows as unsaved nor comes
-   * back on Discard.
-   */
-  const applyToBoth = (change: (rows: ServiceRow[]) => ServiceRow[]) => {
-    setServices(change)
-    setSaved((prev) =>
-      prev ? { ...prev, services: change(prev.services) } : prev
-    )
-  }
-
-  // Every row is sent; none is filtered out. The save is the garage's full
-  // list and the server hides any live service missing from it, so a row
-  // dropped here for an incomplete price used to vanish from customers with
-  // no message. A row that is not ready says so and holds the save.
-  const servicesBlock = draft ? servicesSaveBlock(draft.services) : null
-  const fieldsProblem = draft ? garageFieldsProblem(draft.form) : null
-  const saveBlock = mustReload
-    ? 'Saved. Reload the page to keep editing.'
-    : (fieldsProblem ?? (servicesBlock ? `${servicesBlock} (Services)` : null))
-  // Which tab each problem is on, for the amber dot on its trigger.
-  const problemTab: EditTab | null = fieldsProblem
-    ? fieldsProblem.endsWith('(Location)')
-      ? 'location'
-      : 'details'
-    : servicesBlock
-      ? 'services'
-      : null
-
-  // No setLoading/setError before the first await: this runs from an effect
-  // on mount, where `loading` already starts true and `error` already starts
-  // empty. It runs again after each save, to pick up new service ids (their
-  // photos need one) and the server's own ordering. Says whether it worked.
-  const load = useCallback(async (): Promise<boolean> => {
-    try {
-      const [v, hidden] = await Promise.all([
-        getAdminVendor(id),
-        // On its own catch: a garage whose hidden list fails to load can still
-        // be edited, and the Services tab says the list is missing.
-        listAdminHiddenServices(id).catch(() => null),
-      ])
-      const loaded = toDraft(v)
-      setSaved(loaded)
-      setDraft(loaded)
-      setBookingMode(
-        (prev) =>
-          prev ?? {
-            dropinEnabled: v.dropinEnabled,
-            doorstepEnabled: v.doorstepEnabled,
-            doorstepRadiusKm: v.doorstepRadiusKm,
-            hasDoorstepArea: v.hasDoorstepArea,
-            pickupEnabled: v.pickupEnabled === true,
-            pickup: v.pickup,
-            pickupRadiusKm: v.pickupRadiusKm,
-            pickupTermsAcceptedAt: v.pickupTermsAcceptedAt ?? null,
-            pickupTermsAcceptedBy: v.pickupTermsAcceptedBy ?? null,
-          }
-      )
-      setGeoSource(v.geoSource)
-      setGeoConfirmedAt(v.geoConfirmedAt)
-      setLogoUrl(v.logoUrl)
-      setPhotos(v.photos ?? [])
-      if (hidden) {
-        setHiddenServices(hidden)
-        setHiddenLoadFailed(false)
-        // Every service hidden — the state the old save bug could leave a
-        // garage in — so the list that matters is open, not behind a toggle.
-        setShowHidden(
-          (open) => open || (v.services.length === 0 && hidden.length > 0)
-        )
-      } else {
-        setHiddenLoadFailed(true)
-      }
-      setPausedAt(v.bookingsPausedAt ?? null)
-      setPausedReason(v.bookingsPausedReason ?? null)
-      setClosures(v.closures ?? [])
-      setBin(
-        v.deletedAt
-          ? {
-              deletedAt: v.deletedAt,
-              deletedByName: v.deletedByName ?? null,
-              deletedReason: v.deletedReason ?? null,
-            }
-          : null
-      )
-      return true
-    } catch (err) {
-      if (
-        err instanceof ApiError &&
-        (err.status === 401 || err.status === 403)
-      ) {
-        router.replace('/login')
-        return false
-      }
-      setError('Failed to load vendor')
-      return false
-    } finally {
-      setLoading(false)
-    }
-  }, [id, router])
-
-  // load() hydrates the page from the fetched vendor. Every setState in it
-  // runs after the await, so the cascading render the rule warns about is
-  // one commit on load, not a loop.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load()
-  }, [load])
-
-  useEffect(() => {
-    if (!focusAfterSwitch) return
-    if (focusAfterSwitch.to === 'hidden-toggle') {
-      hiddenToggleRef.current?.focus()
-      return
-    }
-    // A service shown again is added at the end of its group, which on a
-    // phone is off-screen. Land on what it still needs (a missing size
-    // price), or else on its Hide button, so the admin is where the service
-    // now is.
-    const row = document.getElementById(`service-row-${focusAfterSwitch.id}`)
-    if (!row) return
-    row.scrollIntoView({ block: 'center' })
-    const target =
-      row.querySelector<HTMLElement>('[aria-invalid="true"]') ??
-      row.querySelector<HTMLElement>('[data-service-hide]')
-    target?.focus({ preventScroll: true })
-  }, [focusAfterSwitch])
+  const tabsRef = useRef<HTMLDivElement>(null)
 
   /**
    * The open tab, in the address too, so a reload or a shared link lands on
@@ -561,399 +111,24 @@ export default function EditVendorPage({
     )
   }
 
-  // Every media action runs through here: one busy key, one error surface.
-  const runMedia = async (key: string, action: () => Promise<void>) => {
-    setMediaBusy(key)
-    setError('')
-    try {
-      await action()
-      markListStale()
-    } catch (err) {
-      if (
-        err instanceof ApiError &&
-        (err.status === 401 || err.status === 403)
-      ) {
-        router.replace('/login')
-        return
-      }
-      setError(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setMediaBusy(null)
-    }
-  }
-
-  const handleLogoFile = async (files: FileList | null) => {
-    const file = files?.[0]
-    if (logoInputRef.current) logoInputRef.current.value = ''
-    if (!file) return
-
-    const rejection = rejectFile(file)
-    if (rejection) {
-      setError(rejection)
-      return
-    }
-
-    await runMedia('logo', async () => {
-      const vendor = await uploadAdminVendorLogo(id, file)
-      setLogoUrl(vendor.logoUrl)
-    })
-  }
-
-  const handleRemoveLogo = () =>
-    runMedia('logo', async () => {
-      const vendor = await deleteAdminVendorLogo(id)
-      setLogoUrl(vendor.logoUrl)
-    })
-
-  const handlePhotoFiles = async (files: FileList | null) => {
-    const picked = files ? Array.from(files) : []
-    if (photoInputRef.current) photoInputRef.current.value = ''
-    if (picked.length === 0) return
-
-    await runMedia('photos', async () => {
-      for (const file of picked) {
-        const rejection = rejectFile(file)
-        if (rejection) {
-          setError(`${file.name}: ${rejection}`)
-          continue
-        }
-        const created = await uploadAdminVendorPhoto(id, file)
-        setPhotos((prev) => [...prev, created])
-      }
-    })
-  }
-
-  const handleRemovePhoto = (photoId: string) =>
-    runMedia(`photo-${photoId}`, async () => {
-      await deleteAdminVendorPhoto(id, photoId)
-      setPhotos((prev) => prev.filter((p) => p.id !== photoId))
-    })
-
-  // "Photos and video" in a service's ⋯ (ServiceMediaPanel) saves as it
-  // goes and hands back the service's new list.
-  const setServiceMedia = (serviceId: string, media: ServiceMedia[]) => {
-    applyToBoth((rows) =>
-      rows.map((s) => (s.id === serviceId ? { ...s, media } : s))
-    )
-    markListStale()
-  }
-
-  const toggle = <T,>(list: T[], item: T): T[] =>
-    list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
-
-  const updateDay = (dayOfWeek: number, change: Partial<AdminWorkingDay>) =>
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            hours: prev.hours.map((day) =>
-              day.dayOfWeek === dayOfWeek ? { ...day, ...change } : day
-            ),
-          }
-        : prev
-    )
-
   /**
-   * Pause or resume new bookings straight away, like confirming a pin: it
-   * changes what customers can do the moment it lands, so it does not wait
-   * for "Save changes" — and "Save changes" never touches it.
+   * A checklist line: the tab that fixes it. In one column the tabs are
+   * below the panel, so they are brought into view too.
    */
-  const setPaused = async (pause: boolean) => {
-    setPausing(true)
-    setError('')
-    try {
-      const updated = pause
-        ? await pauseAdminVendor(id, pauseReasonInput.trim() || undefined)
-        : await resumeAdminVendor(id)
-      setPausedAt(updated.bookingsPausedAt ?? null)
-      setPausedReason(pause ? pauseReasonInput.trim() || null : null)
-      setPauseReasonInput('')
-      markListStale()
-    } catch (err) {
-      if (
-        err instanceof ApiError &&
-        (err.status === 401 || err.status === 403)
-      ) {
-        router.replace('/login')
-        return
-      }
-      setError(err instanceof Error ? err.message : 'Could not change bookings')
-    } finally {
-      setPausing(false)
+  const openFromPanel = (next: PageTab) => {
+    changeTab(next)
+    if (window.matchMedia('(max-width: 1023.98px)').matches) {
+      tabsRef.current?.scrollIntoView({ block: 'start' })
     }
-  }
-
-  const runServiceSwitch = async (
-    serviceId: string,
-    action: () => Promise<FocusAfterSwitch>
-  ) => {
-    setServiceBusyId(serviceId)
-    setServiceNotice('')
-    setServiceErrors((prev) => {
-      const next = { ...prev }
-      delete next[serviceId]
-      return next
-    })
-    try {
-      // Set in the same breath as the busy flag clears (the finally below),
-      // so focus never lands on a button that is still disabled.
-      setFocusAfterSwitch(await action())
-      markListStale()
-    } catch (err) {
-      if (
-        err instanceof ApiError &&
-        (err.status === 401 || err.status === 403)
-      ) {
-        router.replace('/login')
-        return
-      }
-      const message =
-        err instanceof Error ? err.message : 'Something went wrong'
-      setServiceErrors((prev) => ({ ...prev, [serviceId]: message }))
-    } finally {
-      setServiceBusyId(null)
-    }
-  }
-
-  // Read by an Undo, which runs from a toast long after the render that
-  // made it: the page as it is now, not as it was when the row was hidden.
-  const serviceBusyRef = useRef<string | null>(null)
-  const savingRef = useRef(false)
-  const describingRef = useRef(false)
-  const hiddenRef = useRef<AdminService[]>([])
-  useEffect(() => {
-    serviceBusyRef.current = serviceBusyId
-    savingRef.current = saving
-    describingRef.current = describing
-    hiddenRef.current = hiddenServices
-  }, [serviceBusyId, saving, describing, hiddenServices])
-
-  /**
-   * Takes a saved service off the garage page, straight away. Hidden, never
-   * deleted: its bookings keep it, and it waits under Hidden services. Easy
-   * to take back, so there is no question first: the toast offers Undo,
-   * which is Show again (safe actions, level 1; never the browser pop-up).
-   * A row with edits not saved yet is not hidden: they would be lost.
-   */
-  const hideService = (row: ServiceRow) => {
-    const serviceId = row.id
-    if (!serviceId) return
-    if (
-      saved &&
-      draft &&
-      rowHasUnsavedChanges(saved.services, draft.services, serviceId)
-    ) {
-      setServiceErrors((prev) => ({
-        ...prev,
-        [serviceId]:
-          'This service has changes that are not saved. Save or discard them before hiding it.',
-      }))
-      return
-    }
-    // Where it stood, so Undo puts it back there rather than at the end.
-    const after = saved ? rowBefore(saved.services, serviceId) : null
-    void runServiceSwitch(serviceId, async () => {
-      const hidden = await setAdminServiceActive(id, serviceId, false)
-      applyToBoth((rows) => rows.filter((s) => s.id !== serviceId))
-      setHiddenServices((prev) =>
-        [...prev.filter((s) => s.id !== hidden.id), hidden].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        )
-      )
-      setServiceNotice(`Hidden “${hidden.name}”. It’s under Hidden services.`)
-      let undone = false
-      showUndoToast(`“${hidden.name}” is off the garage page.`, {
-        onUndo: () => {
-          // Once, whatever the toast does with a second press.
-          if (undone) return
-          undone = true
-          // Not while anything else is changing the list: a Save in flight
-          // would hide it again, and another switch shares the busy flag.
-          if (
-            serviceBusyRef.current !== null ||
-            savingRef.current ||
-            describingRef.current
-          ) {
-            toast.error(
-              `Couldn’t undo while the page is saving. “${hidden.name}” is under Hidden services: use Show again.`
-            )
-            return
-          }
-          // Shown again some other way already: nothing to undo.
-          if (!hiddenRef.current.some((s) => s.id === hidden.id)) return
-          void showServiceAgain(hidden, after)
-        },
-      })
-      return { to: 'hidden-toggle' }
-    })
-  }
-
-  const showServiceAgain = (service: AdminService, after?: string | null) =>
-    runServiceSwitch(service.id, async () => {
-      const shown = await setAdminServiceActive(id, service.id, true)
-      setHiddenServices((prev) => prev.filter((s) => s.id !== service.id))
-      // Into the editor as well, not only back on the garage page: "Save
-      // changes" sends the full list, and the server hides any live service
-      // the list leaves out — it would be hidden again by the next save.
-      // Where it stood (an Undo), or at the end; never a second copy.
-      applyToBoth((rows) => restoreRow(rows, toServiceRow(shown), after))
-      // Open, so what it may still need (a size's price) and its Hide are
-      // there to land on.
-      setOpenRows((prev) => new Set(prev).add(shown.id))
-      const warning = showAgainWarning(shown)
-      setServiceNotice(
-        `“${shown.name}” is back on the garage page.${warning ? ` ${warning}` : ''}`
-      )
-      return { to: 'row', id: shown.id }
-    })
-
-  const num = (v: string) => (v.trim() === '' ? null : Number(v))
-
-  /**
-   * Signs off the pin currently on the map.
-   *
-   * Sends the coordinates alongside the flag, because the pin may only exist in
-   * this page's state — placed from a pasted link or dragged — and never saved.
-   * Confirming without them asked the server to vouch for a location it did not
-   * have, which it rightly refused.
-   *
-   * Still sent on its own rather than folded into "Save changes": the form
-   * round-trips every field, so bundling it would mean any save silently
-   * asserted the location had been checked.
-   */
-  const confirmLocation = async () => {
-    const pin = draft?.pin
-    if (!pin) return
-
-    setConfirming(true)
-    setError('')
-    try {
-      const updated = await updateAdminVendor(id, {
-        lat: pin.lat,
-        lng: pin.lng,
-        confirmLocation: true,
-      })
-      setGeoConfirmedAt(updated.geoConfirmedAt)
-      setGeoSource(updated.geoSource)
-      markListStale()
-      // The pin is saved now, so it is no longer an unsaved change.
-      setSaved((prev) => (prev ? { ...prev, pin } : prev))
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not confirm location'
-      )
-    } finally {
-      setConfirming(false)
-    }
-  }
-
-  // Hide and Show again save on their own, and the editor's list only changes
-  // once that lands. A save sent in between carries the old list: the server
-  // would insert a fresh copy of a service just hidden, or hide one just shown
-  // again. So each waits for the other.
-  const serviceSwitching = serviceBusyId !== null
-
-  const handleSubmit = async () => {
-    if (!draft || !saved || saveBlock || serviceSwitching || describing) return
-    const { form } = draft
-    const hoursChanged =
-      dirty.includes('operations') &&
-      JSON.stringify(draft.hours) !== JSON.stringify(saved.hours)
-    setSaving(true)
-    setError('')
-    try {
-      await updateAdminVendor(id, {
-        ownerName: form.ownerName.trim(),
-        ownerPhone: form.ownerPhone.trim(),
-        businessName: form.businessName.trim(),
-        phone: form.phone.trim(),
-        address: form.address.trim(),
-        city: form.city.trim(),
-        pincode: form.pincode.trim(),
-        email: form.email.trim() || null,
-        whatsapp: form.whatsapp.trim() || null,
-        yearsInOperation: form.yearsInOperation.trim() || null,
-        mapsUrl: form.mapsUrl.trim() || null,
-        lat: draft.pin?.lat,
-        lng: draft.pin?.lng,
-        slotIntervalMins: draft.slotIntervalMins,
-        bays: num(form.bays),
-        jobsPerDay: num(form.jobsPerDay),
-        vehicleTypes: draft.vehicleTypes,
-        // Only when a day was actually changed; see GarageDraft.hours.
-        ...(hoursChanged && {
-          workingHours: draft.hours.map((day) => ({
-            ...day,
-            openTime: `${day.openTime}:00`,
-            closeTime: `${day.closeTime}:00`,
-          })),
-        }),
-        status: draft.status,
-        isVerified: draft.isVerified,
-        notes: form.notes.trim() || null,
-        // Only when the list changed. It is the full desired set: rows with
-        // an id are edited, rows without are added, and the server hides any
-        // live service the list leaves out — which is why only empty,
-        // never-typed rows are left out (rowsToSave).
-        ...(dirty.includes('services') && {
-          services: rowsToSave(draft.services).map(toServicePayload),
-        }),
-      })
-      markListStale()
-      // Stay on the garage: the admin is usually mid-way through setting it
-      // up, and new services need saving before they can take photos.
-      toast.success('Saved')
-      // What was sent is what the garage has now, whatever the reload does.
-      setSaved(draft)
-      if (await load()) {
-        setResetCount((n) => n + 1)
-      } else {
-        // The new services' ids come only from the reload. Without them the
-        // next save would send those rows as new again, and the server would
-        // add each a second time, so Save waits for a reload.
-        setMustReload(true)
-        setError(
-          'Saved, but the page couldn’t reload. Reload it to keep editing.'
-        )
-      }
-    } catch (err) {
-      if (
-        err instanceof ApiError &&
-        (err.status === 401 || err.status === 403)
-      ) {
-        router.replace('/login')
-        return
-      }
-      const message =
-        err instanceof ApiError ? err.message : 'Failed to save changes'
-      setError(message)
-      toast.error(message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const discard = () => {
-    if (saved) setDraft(saved)
-    setResetCount((n) => n + 1)
-    if (!mustReload) setError('')
   }
 
   const showSaveBar = dirty.length > 0 || saving
+  const readOnly = Boolean(bin)
+  const dots = tabDots(checklist.readiness)
+  const tabs = PAGE_TABS.filter((value) => value !== 'documents' || documentsOn)
 
-  return (
-    <div
-      className={cn(
-        'mx-auto w-full max-w-[640px] space-y-4',
-        showSaveBar && 'pb-36'
-      )}
-    >
-      <PageHeader
-        title={saved?.form.businessName || 'Edit garage'}
-        subtitle={saved ? 'Edit garage' : undefined}
-        backHref={backHref}
-      />
-
+  const fileInputs = (
+    <>
       <input
         ref={logoInputRef}
         type="file"
@@ -969,76 +144,76 @@ export default function EditVendorPage({
         hidden
         onChange={(e) => handlePhotoFiles(e.target.files)}
       />
+    </>
+  )
 
-      {loading || !draft || !bookingMode ? (
-        loading ? (
+  if (loading || !draft || !saved || !bookingMode) {
+    return (
+      <div className="mx-auto w-full max-w-[640px] space-y-4">
+        <PageHeader title="Edit garage" backHref={backHref} />
+        {loading ? (
           <SkeletonList count={3} itemClassName="h-40" />
         ) : (
           <p role="alert" className="text-[13px] text-error">
             {error || 'Failed to load vendor'}
           </p>
-        )
-      ) : (
-        <div className="space-y-4">
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex w-full flex-col gap-4 lg:gap-5',
+        // Room under the last field for the bar fixed over it on a phone.
+        showSaveBar && 'pb-36 lg:pb-0'
+      )}
+    >
+      {fileInputs}
+
+      <EditorHeader vendorId={id} backHref={backHref} saved={saved} />
+
+      <div className="w-full lg:grid lg:grid-cols-[minmax(272px,320px)_minmax(0,1fr)] lg:items-start lg:gap-6">
+        {/* Sticky, on its own scroll: the checklist and Go live stay in view
+          however long the tab beside it is. */}
+        <aside
+          aria-label="Garage status"
+          className="mb-4 lg:sticky lg:top-4 lg:mb-0 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:overscroll-contain lg:pb-2 lg:[scrollbar-width:thin]"
+        >
+          <StatusPanel
+            vendorId={id}
+            g={g}
+            saved={saved}
+            draft={draft}
+            documentsOn={documentsOn}
+            onOpenTab={openFromPanel}
+          />
+        </aside>
+
+        {/* A container, so the tabs lay their sections side by side by the
+          room this column has, not by the screen. */}
+        <div className="@container flex min-w-0 flex-col gap-4">
           {bin && <BinBanner bin={bin} onRestore={() => setRestoring(true)} />}
 
           {/* Bypass reports (0052): strikes and reports to look into. */}
           <GarageStrikesCard vendorId={id} />
 
-          {/* Disabled as a whole while the garage is in the Bin: every field
-              and button under it, the tabs' contents included, is read-only
-              until it is restored. */}
-          <fieldset
-            disabled={Boolean(bin)}
-            className="m-0 min-w-0 border-0 p-0"
-          >
-            {/* Above the tabs, so it is the first thing on every one of them:
-              the switch the owner could not find on the third tab. */}
-            <LiveBookingModeCard
-              vendorId={id}
-              dropinEnabled={bookingMode.dropinEnabled}
-              doorstepEnabled={bookingMode.doorstepEnabled}
-              doorstepRadiusKm={bookingMode.doorstepRadiusKm}
-              drawnArea={bookingMode.hasDoorstepArea}
-              paused={pausedAt != null}
-              // As saved, not as drafted: an unsaved Active is not live yet.
-              live={saved?.status === 'active' && saved.isVerified}
-              onAuthError={toLogin}
-              onSaved={markListStale}
-            />
-            {/* Its own card, saved on its own: turning it on records the
-              garage's signed agreement to be responsible for the car. */}
-            <div className="mt-3">
-              <LivePickupCard
-                vendorId={id}
-                enabled={bookingMode.pickupEnabled}
-                pickup={bookingMode.pickup}
-                pickupRadiusKm={bookingMode.pickupRadiusKm}
-                termsAcceptedAt={bookingMode.pickupTermsAcceptedAt}
-                termsAcceptedBy={bookingMode.pickupTermsAcceptedBy}
-                // As saved: a pin dragged but not saved is not one yet.
-                pinned={saved?.pin != null}
-                readOnly={Boolean(bin)}
-                onAuthError={toLogin}
-                onSaved={markListStale}
-              />
-            </div>
-          </fieldset>
-
-          {/* Same four-tab shape as the vendor settings screen, so the admin
-              editing a garage and the owner editing it see the same structure.
-              Grouped by subject rather than by form length. */}
           <Tabs
+            ref={tabsRef}
             value={shownTab}
             onValueChange={(value) =>
               changeTab(parsePageTab(value, documentsOn))
             }
+            className="scroll-mt-4"
           >
-            {/* Six tabs do not fit a 360px phone word for word: the row
-                scrolls sideways there rather than widening the page. */}
-            <TabsList className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {EDIT_TABS.map((value) => {
-                const changed = dirty.includes(value)
+            {/* Seven tabs do not fit a phone word for word: the row scrolls
+              sideways there rather than widening the page. */}
+            <TabsList className="gap-1 overflow-x-auto rounded-none border-b border-border bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {tabs.map((value) => {
+                const label = PAGE_TAB_LABELS[value]
+                const changed = isEditTab(value) && dirty.includes(value)
+                const dot = dots[value]
                 return (
                   <TabsTrigger
                     key={value}
@@ -1047,731 +222,125 @@ export default function EditVendorPage({
                     // span: the trigger is a flex box, so browsers join the
                     // two with a space ("Details , unsaved changes").
                     aria-label={
-                      changed
-                        ? `${EDIT_TAB_LABELS[value]}, unsaved changes`
-                        : undefined
+                      changed ? `${label}, unsaved changes` : undefined
                     }
-                    className="min-h-11 px-1"
+                    className="-mb-px min-h-11 flex-none whitespace-nowrap rounded-none border-b-2 border-transparent px-3 data-[state=active]:border-text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                   >
-                    {EDIT_TAB_LABELS[value]}
-                    {/* Amber when this tab is what holds the save. */}
-                    {changed && (
+                    {label}
+                    {/* Red where something blocks booking, amber where
+                      something should be fixed soon (the checklist). */}
+                    {dot && (
                       <span
                         aria-hidden="true"
                         className={cn(
                           'size-1.5 shrink-0 rounded-full',
+                          dot === 'red' ? 'bg-tone-new-dot' : 'bg-warning'
+                        )}
+                      />
+                    )}
+                    {/* Unsaved here: a ring, amber when it holds the save. */}
+                    {changed && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'size-2 shrink-0 rounded-full border-2',
                           problemTab === value
-                            ? 'bg-warning'
-                            : 'bg-text-primary'
+                            ? 'border-warning'
+                            : 'border-text-primary'
                         )}
                       />
                     )}
                   </TabsTrigger>
                 )
               })}
-              {/* Saves each action on its own, so it never holds unsaved
-                  changes and is not one of Save changes' tabs. */}
-              {documentsOn && (
-                <TabsTrigger value="documents" className="min-h-11 px-1">
-                  {PAGE_TAB_LABELS.documents}
-                </TabsTrigger>
-              )}
-              {/* Detlio Certified (0048): saves each action on its own too. */}
-              <TabsTrigger value="certification" className="min-h-11 px-1">
-                {PAGE_TAB_LABELS.certification}
-              </TabsTrigger>
             </TabsList>
 
-            {/* The tabs themselves stay usable, to look around; what is in
-                them is read-only while the garage is in the Bin. */}
+            {/* How customers book, as tick tiles at the top of Location.
+              They save on tap and read the garage once, so they stay
+              mounted on every tab and are only hidden: a remount would
+              show the values as first loaded. */}
             <fieldset
-              disabled={Boolean(bin)}
-              className="m-0 min-w-0 border-0 p-0"
+              disabled={readOnly}
+              className={cn(
+                'm-0 min-w-0 border-0 p-0',
+                shownTab !== 'location' && 'hidden'
+              )}
             >
+              <HowCustomersBook
+                vendorId={id}
+                booking={bookingMode}
+                // As saved: a pin dragged but not saved is not one yet.
+                pinned={saved.pin != null}
+                paused={pausedAt != null}
+                // As saved, not as drafted: an unsaved Active is not live yet.
+                live={saved.status === 'active' && saved.isVerified}
+                onAuthError={toLogin}
+                onSaved={afterInstantSave}
+              />
+            </fieldset>
+
+            {/* The tabs themselves stay usable, to look around; what is in
+              them is read-only while the garage is in the Bin. */}
+            <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
               <TabsContent value="details">
-                <ScSection title="Business & contact">
-                  <div className="grid grid-cols-2 gap-3">
-                    <ScField
-                      label="Owner name"
-                      value={draft.form.ownerName}
-                      onChange={set('ownerName')}
-                    />
-                    <ScField
-                      label="Owner phone"
-                      value={draft.form.ownerPhone}
-                      onChange={set('ownerPhone')}
-                      placeholder="10 digits"
-                    />
-                  </div>
-                  <ScField
-                    label="Business name"
-                    value={draft.form.businessName}
-                    onChange={set('businessName')}
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <ScField
-                      label="Business phone"
-                      value={draft.form.phone}
-                      onChange={set('phone')}
-                      placeholder="10 digits"
-                    />
-                    <ScField
-                      label="WhatsApp (optional)"
-                      value={draft.form.whatsapp}
-                      onChange={set('whatsapp')}
-                      placeholder="10 digits"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ScField
-                      label="Email (optional)"
-                      value={draft.form.email}
-                      onChange={set('email')}
-                      type="email"
-                    />
-                    <ScField
-                      label="Years in operation (optional)"
-                      value={draft.form.yearsInOperation}
-                      onChange={set('yearsInOperation')}
-                      placeholder="e.g. 5–10 years"
-                    />
-                  </div>
-                </ScSection>
-
-                {/* Team management came from main; it sits in Details, immediately
-                before the media section, which is where main placed it. */}
-                <VendorTeamSection vendorId={id} />
-
-                {/* Where Detlio pays the garage (Payouts). Saved on its own, like
-                the team. */}
-                <PayoutAccountSection vendorId={id} />
-
-                <ScSection title="Logo & photos">
-                  <p className="text-[12px] text-text-muted">
-                    Saved immediately — these do not wait for “Save changes”.
-                    JPEG, PNG or WebP, up to 5 MB each.
-                  </p>
-
-                  <div className="flex items-center gap-4">
-                    <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-surface-elevated">
-                      {logoUrl ? (
-                        <Image
-                          src={logoUrl}
-                          alt="Logo"
-                          fill
-                          sizes="64px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <IconBuildingStore
-                          size={26}
-                          className="text-text-muted"
-                        />
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <ScButton
-                        fullWidth={false}
-                        variant="secondary"
-                        disabled={mediaBusy === 'logo'}
-                        onClick={() => logoInputRef.current?.click()}
-                        className="min-h-11 px-3.5 py-2 text-[12px]"
-                      >
-                        {mediaBusy === 'logo'
-                          ? 'Working…'
-                          : logoUrl
-                            ? 'Change logo'
-                            : 'Add logo'}
-                      </ScButton>
-                      {logoUrl && (
-                        // A quiet text button: red on this page is Save changes.
-                        <button
-                          type="button"
-                          disabled={mediaBusy === 'logo'}
-                          onClick={handleRemoveLogo}
-                          className="min-h-11 text-left text-[12px] font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline disabled:opacity-50"
-                        >
-                          Remove logo
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {photos.map((photo) => (
-                      <div
-                        key={photo.id}
-                        className="relative h-20 w-20 overflow-hidden rounded-[10px] bg-surface"
-                      >
-                        <Image
-                          src={photo.url}
-                          alt="Garage photo"
-                          fill
-                          sizes="80px"
-                          className="object-cover"
-                        />
-                        <button
-                          type="button"
-                          disabled={mediaBusy === `photo-${photo.id}`}
-                          onClick={() => handleRemovePhoto(photo.id)}
-                          aria-label="Delete photo"
-                          title="Delete photo"
-                          // A 44px target with the small disc drawn inside it, as
-                          // on the garage's own Photos page: deleting is immediate.
-                          className="absolute right-0 top-0 flex size-11 items-center justify-center text-white disabled:opacity-50"
-                        >
-                          <span className="flex size-7 items-center justify-center rounded-full bg-black/60 transition-colors hover:bg-black/80">
-                            <IconTrash size={13} aria-hidden="true" />
-                          </span>
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      disabled={mediaBusy === 'photos'}
-                      onClick={() => photoInputRef.current?.click()}
-                      aria-label="Add photos"
-                      className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border text-text-muted transition-colors hover:border-text-secondary hover:text-text-secondary disabled:opacity-50"
-                    >
-                      <IconPhotoPlus size={18} />
-                      <span className="text-[12px]">
-                        {mediaBusy === 'photos' ? 'Uploading…' : 'Add'}
-                      </span>
-                    </button>
-                  </div>
-                </ScSection>
-
-                <ScSection title="Onboarding status">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12px] font-medium text-text-secondary">
-                      Stage
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {STATUS_OPTIONS.map((o) => (
-                        <Chip
-                          key={o.value}
-                          label={o.label}
-                          selected={draft.status === o.value}
-                          onClick={() => patch({ status: o.value })}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <ScCheckbox
-                    label="Mark as verified"
-                    checked={draft.isVerified}
-                    onChange={(isVerified) => patch({ isVerified })}
-                  />
-                  <p className="text-[12px] text-text-muted">
-                    A vendor is visible to customers only when stage is{' '}
-                    <b>Active</b> and it is <b>verified</b>.
-                  </p>
-                  <ScTextarea
-                    label="Notes (optional)"
-                    value={draft.form.notes}
-                    onChange={(e) => set('notes')(e.target.value)}
-                    rows={3}
-                  />
-                </ScSection>
+                <DetailsTab g={g} draft={draft} />
               </TabsContent>
-
               <TabsContent value="location">
-                <ScSection title="Location">
-                  <ScField
-                    label="Address"
-                    value={draft.form.address}
-                    onChange={set('address')}
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <ScField
-                      label="City"
-                      value={draft.form.city}
-                      onChange={set('city')}
-                    />
-                    <ScField
-                      label="Pincode"
-                      value={draft.form.pincode}
-                      onChange={set('pincode')}
-                      placeholder="6 digits"
-                    />
-                  </div>
-                  <ScField
-                    label="Google Maps link (optional)"
-                    value={draft.form.mapsUrl}
-                    onChange={set('mapsUrl')}
-                    placeholder="https://maps.app.goo.gl/…"
-                  />
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[12px] font-medium text-text-secondary">
-                      Garage location
-                    </span>
-                    {/* Verification is the one moment a human already looks at this
-                    garage, so it is the natural place to sanity-check the pin.
-                    The Maps link above is the cross-check: does it land here? */}
-                    <p className="text-[12px] text-text-muted">
-                      {geoConfirmedAt
-                        ? `Confirmed ${formatDayOf(geoConfirmedAt)}`
-                        : geoSource === 'unset'
-                          ? 'Not set — this garage cannot be found by distance until it is pinned.'
-                          : 'Set by the vendor, never confirmed. Check it against the Maps link, then confirm.'}
-                    </p>
-                    {/* Keyed so Discard remounts it: it reads its pin once, and
-                    would otherwise keep showing a dragged pin that Discard
-                    took out of the draft — and "Confirm this pin" would then
-                    sign off a spot the map isn't showing. */}
-                    <LocationPicker
-                      key={resetCount}
-                      value={
-                        draft.pin
-                          ? { lat: draft.pin.lat, lng: draft.pin.lng }
-                          : null
-                      }
-                      onChange={(pin) => patch({ pin })}
-                      expectedCity={draft.form.city}
-                    />
-
-                    {/* Moving the pin confirms it implicitly — dragging a marker onto
-                    a garage *is* the check. This is for the commoner case where
-                    the pin is already right and only needs signing off. */}
-                    {!geoConfirmedAt && draft.pin && (
-                      <ScButton
-                        variant="secondary"
-                        disabled={confirming}
-                        onClick={confirmLocation}
-                      >
-                        {confirming
-                          ? 'Confirming…'
-                          : 'Confirm this pin is correct'}
-                      </ScButton>
-                    )}
-                  </div>
-                </ScSection>
+                <LocationTab g={g} draft={draft} />
               </TabsContent>
-
               <TabsContent value="operations">
-                <ScSection title="Operations">
-                  {/* Drop-in, doorstep and pickup & drop are not here any more:
-                  they are "How customers book" and "Pickup & drop", above the
-                  tabs, and save on their own. */}
-
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[12px] font-medium text-text-secondary">
-                      Working hours
-                    </span>
-                    {/* The garage's own week, day by day — the same rows the owner
-                    edits in their Settings. Left alone unless changed here. */}
-                    <div className="flex flex-col gap-2">
-                      {draft.hours.map((day) => (
-                        <div
-                          key={day.dayOfWeek}
-                          className="flex items-center gap-2"
-                        >
-                          <span
-                            className={cn(
-                              'w-9 shrink-0 text-[13px] font-medium',
-                              day.isClosed
-                                ? 'text-text-muted'
-                                : 'text-text-primary'
-                            )}
-                          >
-                            {DAYS[day.dayOfWeek]}
-                          </span>
-                          <input
-                            type="time"
-                            aria-label={`${DAYS[day.dayOfWeek]} opening time`}
-                            value={day.openTime}
-                            disabled={day.isClosed}
-                            onChange={(e) =>
-                              updateDay(day.dayOfWeek, {
-                                openTime: e.target.value,
-                              })
-                            }
-                            className="min-h-11 min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary disabled:opacity-40"
-                          />
-                          <input
-                            type="time"
-                            aria-label={`${DAYS[day.dayOfWeek]} closing time`}
-                            value={day.closeTime}
-                            disabled={day.isClosed}
-                            onChange={(e) =>
-                              updateDay(day.dayOfWeek, {
-                                closeTime: e.target.value,
-                              })
-                            }
-                            className="min-h-11 min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-2 font-numeric text-[13px] text-text-primary outline-none transition-colors focus:border-text-secondary disabled:opacity-40"
-                          />
-                          {/* The same pressed pill as the garage's own Settings: a
-                          closed day is raised onto graphite. */}
-                          <button
-                            type="button"
-                            aria-label={`${DAYS[day.dayOfWeek]} closed all day`}
-                            aria-pressed={day.isClosed}
-                            onClick={() =>
-                              updateDay(day.dayOfWeek, {
-                                isClosed: !day.isClosed,
-                              })
-                            }
-                            className={cn(
-                              'min-h-11 w-[68px] shrink-0 rounded-[10px] border text-[12px] font-medium transition-colors',
-                              day.isClosed
-                                ? 'border-text-secondary bg-surface-elevated text-text-primary'
-                                : 'border-border text-text-secondary hover:text-text-primary'
-                            )}
-                          >
-                            {day.isClosed ? 'Closed' : 'Open'}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12px] font-medium text-text-secondary">
-                      Slot interval
-                    </label>
-                    <div className="flex gap-2">
-                      {SLOT_INTERVALS.map((mins) => (
-                        <Chip
-                          key={mins}
-                          label={`${mins} min`}
-                          selected={draft.slotIntervalMins === mins}
-                          onClick={() => patch({ slotIntervalMins: mins })}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ScField
-                      label="Bays (optional)"
-                      value={draft.form.bays}
-                      onChange={set('bays')}
-                      type="number"
-                      placeholder="e.g. 10"
-                      className="font-numeric"
-                    />
-                    <ScField
-                      label="Jobs per day (optional)"
-                      value={draft.form.jobsPerDay}
-                      onChange={set('jobsPerDay')}
-                      type="number"
-                      placeholder="e.g. 15"
-                      className="font-numeric"
-                    />
-                  </div>
-                </ScSection>
-
-                <ScSection title="Bookings">
-                  {/* Pausing works the moment it is pressed — see setPaused. */}
-                  {pausedAt ? (
-                    <>
-                      <p className="text-[12px] text-text-primary">
-                        Paused since{' '}
-                        <span className="font-numeric font-medium">
-                          {formatDayOf(pausedAt)}
-                        </span>
-                        . Hidden from customers; existing bookings carry on.
-                      </p>
-                      {pausedReason && (
-                        <p className="text-[12px] text-text-secondary">
-                          Customers see: “{pausedReason}”
-                        </p>
-                      )}
-                      <ScButton
-                        variant="secondary"
-                        disabled={pausing}
-                        onClick={() => setPaused(false)}
-                      >
-                        {pausing ? 'Working…' : 'Resume bookings'}
-                      </ScButton>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[12px] text-text-secondary">
-                        Taking bookings. Pausing hides the garage from customers
-                        and refuses checkout; bookings it already has are not
-                        touched.
-                      </p>
-                      <ScField
-                        label="Reason (optional, customers see this)"
-                        value={pauseReasonInput}
-                        onChange={setPauseReasonInput}
-                        maxLength={200}
-                      />
-                      <ScButton
-                        variant="secondary"
-                        disabled={pausing}
-                        onClick={() => setPaused(true)}
-                      >
-                        {pausing ? 'Working…' : 'Pause new bookings'}
-                      </ScButton>
-                    </>
-                  )}
-
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[12px] font-medium text-text-secondary">
-                      Upcoming holidays
-                    </span>
-                    {closures.length === 0 ? (
-                      <p className="text-[12px] text-text-muted">None set.</p>
-                    ) : (
-                      <ul className="flex flex-col gap-1 text-[12px] text-text-primary">
-                        {closures.map((closure) => (
-                          <li key={closure.id}>
-                            <span className="font-numeric font-medium">
-                              {formatDay(closure.date)}
-                            </span>
-                            {closure.reason && (
-                              <span className="text-text-secondary">
-                                {' '}
-                                · {closure.reason}
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <p className="text-[12px] text-text-muted">
-                      The garage sets these in its own Settings.
-                    </p>
-                  </div>
-                </ScSection>
-
-                <ScSection title="Vehicle types">
-                  <div className="flex flex-wrap gap-2">
-                    {VENDOR_VEHICLE_TYPE_OPTIONS.map((v) => (
-                      <Chip
-                        key={v}
-                        label={v}
-                        selected={draft.vehicleTypes.includes(v)}
-                        onClick={() =>
-                          patch({ vehicleTypes: toggle(draft.vehicleTypes, v) })
-                        }
-                      />
-                    ))}
-                  </div>
-                  <p className="text-[12px] text-text-muted">
-                    These are the tiers a service prices against and a customer
-                    can book for.
-                  </p>
-
-                  {/* Values from an earlier, longer checklist that no service could
-                  ever price. Shown so they can be cleared, not offered again. */}
-                  {legacyVehicleTypes(draft.vehicleTypes).length > 0 && (
-                    <>
-                      <p className="text-[12px] text-warning">
-                        No longer offered — tap to remove:
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {legacyVehicleTypes(draft.vehicleTypes).map((v) => (
-                          <Chip
-                            key={v}
-                            label={`${v} ✕`}
-                            selected
-                            onClick={() =>
-                              patch({
-                                vehicleTypes: toggle(draft.vehicleTypes, v),
-                              })
-                            }
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </ScSection>
+                <HoursBookingTab g={g} draft={draft} />
               </TabsContent>
-
               <TabsContent value="services">
-                <ServicesEditor
-                  key={resetCount}
-                  onAiBusyChange={setDescribing}
-                  rows={draft.services}
-                  setRows={setServices}
-                  openRows={openRows}
-                  setOpenRows={setOpenRows}
-                  garageName={draft.form.businessName}
-                  otherNames={hiddenServices.map((s) => s.name)}
-                  emptyText={
-                    hiddenServices.length > 0
-                      ? 'No services on the garage page. Hidden ones are listed below; show them again or add a new one.'
-                      : 'No services yet. Add one, or start from a template above.'
-                  }
-                  saving={saving}
-                  media={{ onChange: setServiceMedia }}
-                  hide={{
-                    onHide: hideService,
-                    busyId: serviceBusyId,
-                    disabled: serviceSwitching,
-                  }}
-                  rowErrors={serviceErrors}
-                  onAuthError={toLogin}
-                  footnote={
-                    <>
-                      Each service needs a name and a price. Leave the duration
-                      on “Duration” to use one booking slot. Hide takes a
-                      service off the garage page straight away; past bookings
-                      keep it, and you can show it again from Hidden services.
-                    </>
-                  }
-                />
-
-                {/* Always mounted, so the message is announced when it lands. */}
-                <p
-                  role="status"
-                  className={
-                    serviceNotice
-                      ? 'text-[12px] text-text-secondary'
-                      : 'sr-only'
-                  }
-                >
-                  {serviceNotice}
-                </p>
-
-                {hiddenLoadFailed ? (
-                  <p className="text-[12px] text-error">
-                    Couldn’t load the hidden services. Reload the page to see
-                    them.
-                  </p>
-                ) : (
-                  hiddenServices.length > 0 && (
-                    <div className="overflow-hidden rounded-[16px] border border-border bg-surface">
-                      {/* Collapsed: these are off the garage page, and the
-                        services that are on it are what this tab is for. */}
-                      <button
-                        ref={hiddenToggleRef}
-                        type="button"
-                        aria-expanded={showHidden}
-                        aria-controls="hidden-services"
-                        onClick={() => setShowHidden((open) => !open)}
-                        className="flex min-h-11 w-full items-center gap-3 py-3.5 pl-4 pr-3.5 text-left"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/5 text-text-secondary"
-                        >
-                          <IconEyeOff size={18} stroke={1.5} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[15px] font-medium tracking-[-0.01em] text-text-primary">
-                            Hidden services (
-                            <span className="font-numeric">
-                              {hiddenServices.length}
-                            </span>
-                            )
-                          </span>
-                          <span className="mt-0.5 block text-[12.5px] text-text-muted">
-                            Customers don’t see these. Past bookings keep them.
-                          </span>
-                        </span>
-                        <IconChevronDown
-                          size={20}
-                          aria-hidden="true"
-                          className={cn(
-                            'shrink-0 text-text-muted transition-transform',
-                            showHidden && 'rotate-180'
-                          )}
-                        />
-                      </button>
-                      {showHidden && (
-                        <div
-                          id="hidden-services"
-                          className="border-t border-border"
-                        >
-                          <p className="px-4 pt-3 text-[12px] text-text-muted">
-                            Showing one again puts it back on the garage page
-                            straight away, with the price it had.
-                          </p>
-                          <ul className="divide-y divide-line">
-                            {hiddenServices.map((hidden) => {
-                              const warning = showAgainWarning(hidden)
-                              const warningId = `hidden-${hidden.id}-warning`
-                              return (
-                                <li
-                                  key={hidden.id}
-                                  className="flex flex-wrap items-center gap-2 px-4 py-3"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate text-[14px] text-text-primary">
-                                      {hidden.name}
-                                    </p>
-                                    <p className="font-numeric text-[12px] text-text-muted">
-                                      {storedPriceSummary(hidden)}
-                                    </p>
-                                    {/* Before the tap, not after a customer finds
-                                    out: shown again as it is, a size with no
-                                    price can't be booked. */}
-                                    {warning && (
-                                      <p
-                                        id={warningId}
-                                        className="text-[12px] text-warning"
-                                      >
-                                        {warning}
-                                      </p>
-                                    )}
-                                    {serviceErrors[hidden.id] && (
-                                      <p
-                                        role="alert"
-                                        className="text-[12px] text-error"
-                                      >
-                                        {serviceErrors[hidden.id]}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <ScButton
-                                    fullWidth={false}
-                                    variant="secondary"
-                                    disabled={serviceSwitching || saving}
-                                    aria-label={`Show ${hidden.name} again`}
-                                    aria-describedby={
-                                      warning ? warningId : undefined
-                                    }
-                                    onClick={() =>
-                                      void showServiceAgain(hidden)
-                                    }
-                                    className="min-h-11 rounded-full px-3.5 py-2 text-[12.5px] font-medium"
-                                  >
-                                    {serviceBusyId === hidden.id
-                                      ? 'Working…'
-                                      : 'Show again'}
-                                  </ScButton>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
+                <ServicesTab g={g} draft={draft} />
+              </TabsContent>
+              <TabsContent value="team">
+                <TeamPayoutTab vendorId={id} onSaved={afterInstantSave} />
               </TabsContent>
             </fieldset>
 
             {/* Outside the read-only fieldset: in the Bin the files still
-                open, and the section itself hides every change. */}
+              open, and the section itself hides every change. */}
             {documentsOn && (
               <TabsContent value="documents">
-                <GarageDocumentsSection vendorId={id} readOnly={Boolean(bin)} />
+                <GarageDocumentsSection
+                  vendorId={id}
+                  readOnly={readOnly}
+                  onSaved={afterInstantSave}
+                />
               </TabsContent>
             )}
             {/* Outside the read-only fieldset too: in the Bin it still shows,
-                and the section itself hides every change. */}
+              and the section itself hides every change. */}
             <TabsContent value="certification">
-              <GarageCertificationSection
-                vendorId={id}
-                readOnly={Boolean(bin)}
-              />
+              <GarageCertificationSection vendorId={id} readOnly={readOnly} />
             </TabsContent>
           </Tabs>
 
-          {/* Amber, as errors are: red on this page is Save changes. */}
+          {/* Amber, as errors are: red on this page is Save changes. The
+            server's own words, e.g. why it would not verify the garage. */}
           {error && (
             <p role="alert" className="text-[13px] text-error">
               {error}
             </p>
           )}
-        </div>
-      )}
 
-      {restoring && saved && (
+          {showSaveBar && (
+            <SaveBar
+              count={fields.length}
+              line={saveBarLine(fields)}
+              block={saveBlock}
+              saving={saving}
+              disabled={saveBlock !== null || serviceSwitching}
+              held={describing}
+              onSave={() => void handleSubmit()}
+              onDiscard={discard}
+            />
+          )}
+        </div>
+      </div>
+
+      {restoring && (
         <RestoreDialog
           vendor={{ id, businessName: saved.form.businessName }}
           onClose={() => setRestoring(false)}
@@ -1782,67 +351,6 @@ export default function EditVendorPage({
           }}
         />
       )}
-
-      {showSaveBar && (
-        <SaveBar
-          line={unsavedChangesLine(dirty)}
-          block={saveBlock}
-          saving={saving}
-          disabled={saveBlock !== null || serviceSwitching}
-          held={describing}
-          onSave={() => void handleSubmit()}
-          onDiscard={discard}
-        />
-      )}
     </div>
-  )
-}
-
-/**
- * What a garage in the Bin's edit page says first: since when, who moved it
- * and why, that it is off the app, and the one thing to do here, Restore.
- */
-function BinBanner({
-  bin,
-  onRestore,
-}: {
-  bin: Pick<AdminVendorDetail, 'deletedAt' | 'deletedByName' | 'deletedReason'>
-  onRestore: () => void
-}) {
-  return (
-    <section
-      aria-labelledby="bin-banner-title"
-      className="flex flex-col gap-3 rounded-[14px] border border-warning/40 bg-warning-muted px-4 py-3.5"
-    >
-      <div>
-        <p
-          id="bin-banner-title"
-          className="text-[14px] font-semibold text-text-primary"
-        >
-          In the Bin, read-only
-        </p>
-        <p className="mt-1 text-[12.5px] leading-[18px] text-text-secondary">
-          Moved there{' '}
-          {bin.deletedAt && (
-            <span className="font-numeric">{formatWhen(bin.deletedAt)}</span>
-          )}
-          {bin.deletedByName && <> by {bin.deletedByName}</>}.{' '}
-          {/* Each sentence carries its own space, so a reason never runs
-              into the next one ("demo.Customers"). */}
-          {bin.deletedReason && (
-            <>Reason: {bin.deletedReason.replace(/\.\s*$/, '')}. </>
-          )}
-          Customers and its team can&apos;t see it. Restore it to make changes.
-        </p>
-      </div>
-      <ScButton
-        variant="secondary"
-        fullWidth={false}
-        onClick={onRestore}
-        className="flex min-h-11 items-center justify-center gap-1.5 self-start px-4 text-[13px]"
-      >
-        <IconRestore size={16} aria-hidden="true" /> Restore
-      </ScButton>
-    </section>
   )
 }

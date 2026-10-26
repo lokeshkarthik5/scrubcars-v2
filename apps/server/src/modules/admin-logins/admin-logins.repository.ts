@@ -14,6 +14,7 @@ const PUBLIC_COLUMNS = {
   lastLoginAt: adminLogins.lastLoginAt,
   createdByName: adminLogins.createdByName,
   createdAt: adminLogins.createdAt,
+  phone: adminLogins.phone,
 } as const
 
 export type AdminLoginRow = {
@@ -25,6 +26,8 @@ export type AdminLoginRow = {
   lastLoginAt: Date | null
   createdByName: string
   createdAt: Date
+  /** Optional (0059), for "Also send on WhatsApp" with a collection list. */
+  phone: string | null
 }
 
 type Actor = { actorSub: string; actorName: string }
@@ -94,7 +97,7 @@ export const adminLoginsRepository = {
    * there is an owner already: the unique indexes decide, not a read.
    */
   async create(
-    input: { username: string; name: string; passwordHash: string; isOwner: boolean },
+    input: { username: string; name: string; passwordHash: string; isOwner: boolean; phone?: string | null },
     actor: Actor
   ): Promise<AdminLoginRow | undefined> {
     return db.transaction(async (tx) => {
@@ -153,6 +156,25 @@ export const adminLoginsRepository = {
         .where(eq(adminLogins.id, id))
         .returning(PUBLIC_COLUMNS)
       await audit(tx, status === 'off' ? 'admin_login_turned_off' : 'admin_login_turned_on', actor, row!)
+      return row
+    })
+  },
+
+  /**
+   * The login's phone (0059). Undefined when it does not exist; unchanged
+   * (no audit row) when it already was. The audit row never holds the number.
+   */
+  async setPhone(id: string, phone: string | null, actor: Actor, now: Date): Promise<AdminLoginRow | undefined> {
+    return db.transaction(async (tx) => {
+      const [current] = await tx.select(PUBLIC_COLUMNS).from(adminLogins).where(eq(adminLogins.id, id)).for('update')
+      if (!current) return undefined
+      if (current.phone === phone) return current
+      const [row] = await tx
+        .update(adminLogins)
+        .set({ phone, updatedAt: now })
+        .where(eq(adminLogins.id, id))
+        .returning(PUBLIC_COLUMNS)
+      await audit(tx, 'admin_login_phone_changed', actor, row!, { phoneSet: phone !== null })
       return row
     })
   },

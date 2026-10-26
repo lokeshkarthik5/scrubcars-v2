@@ -34,6 +34,7 @@ import {
   fileLine,
   pickedFilesProblem,
 } from '@repo/core/vendor-documents'
+import { SavedNote, useSavedNote } from '@/components/save-bar'
 import { SignedAs } from '@/components/signed-as'
 
 const STATUS_VARIANT = {
@@ -54,11 +55,19 @@ const STATUS_VARIANT = {
 export function GarageDocumentsSection({
   vendorId,
   readOnly,
+  onSaved,
 }: {
   vendorId: string
   readOnly: boolean
+  /** Each review or upload that landed, so the editor's checklist catches up. */
+  onSaved?: () => void
 }) {
   const { data, isLoading, error } = useAdminGarageDocuments(vendorId)
+  const note = useSavedNote()
+  const saved = () => {
+    note.saved()
+    onSaved?.()
+  }
 
   if (isLoading) {
     return (
@@ -78,20 +87,38 @@ export function GarageDocumentsSection({
   }
 
   const { summary } = data
+  // What is waiting on the team first: a file the garage sent is the one
+  // thing here someone has to act on.
+  const toReview = data.documents.filter((doc) => doc.status === 'pending')
+  const others = data.documents.filter((doc) => doc.status !== 'pending')
+  const row = (doc: AdminGarageDocument) => (
+    <DocumentRow
+      key={doc.type}
+      vendorId={vendorId}
+      doc={doc}
+      readOnly={readOnly}
+      onSaving={note.saving}
+      onSaved={saved}
+      onFailed={note.reset}
+    />
+  )
   return (
     <ScSection
       title="Documents"
       action={
-        summary.verified ? (
-          <ScBadge variant="success">
-            <IconShieldCheckFilled
-              size={12}
-              aria-hidden="true"
-              className="mr-1"
-            />
-            Documents verified
-          </ScBadge>
-        ) : undefined
+        <div className="flex items-center gap-3">
+          <SavedNote state={note.state} />
+          {summary.verified && (
+            <ScBadge variant="success">
+              <IconShieldCheckFilled
+                size={12}
+                aria-hidden="true"
+                className="mr-1"
+              />
+              Documents verified
+            </ScBadge>
+          )}
+        </div>
       }
     >
       <p className="text-[13px] font-medium text-text-primary">
@@ -113,16 +140,29 @@ export function GarageDocumentsSection({
         changes”.
       </p>
       {!readOnly && <SignedAs />}
-      <div className="flex flex-col gap-2.5">
-        {data.documents.map((doc) => (
-          <DocumentRow
-            key={doc.type}
-            vendorId={vendorId}
-            doc={doc}
-            readOnly={readOnly}
-          />
-        ))}
-      </div>
+      {toReview.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-[13px] font-medium text-text-primary">
+            To review{' '}
+            <span className="font-numeric text-text-muted">
+              {toReview.length}
+            </span>
+          </h3>
+          <div className="grid gap-2.5 @4xl:grid-cols-2">
+            {toReview.map(row)}
+          </div>
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {toReview.length > 0 && (
+            <h3 className="text-[13px] font-medium text-text-primary">
+              The rest
+            </h3>
+          )}
+          <div className="grid gap-2.5 @4xl:grid-cols-2">{others.map(row)}</div>
+        </div>
+      )}
     </ScSection>
   )
 }
@@ -131,10 +171,17 @@ function DocumentRow({
   vendorId,
   doc,
   readOnly,
+  onSaving,
+  onSaved,
+  onFailed,
 }: {
   vendorId: string
   doc: AdminGarageDocument
   readOnly: boolean
+  /** The section's one "Saved" label. */
+  onSaving: () => void
+  onSaved: () => void
+  onFailed: () => void
 }) {
   const review = useReviewDocument(vendorId)
   const upload = useUploadAdminDocument(vendorId)
@@ -163,6 +210,7 @@ function DocumentRow({
   const decide = (action: 'approve' | 'reject') => {
     if (!doc.id || doc.version === null) return
     setError('')
+    onSaving()
     review.mutate(
       {
         documentId: doc.id,
@@ -175,12 +223,12 @@ function DocumentRow({
         onSuccess: () => {
           setRejecting(false)
           setReason('')
-          toast.success(
-            `${doc.label} ${action === 'approve' ? 'approved' : 'rejected'}`
-          )
+          onSaved()
         },
-        onError: (err) =>
-          setError(errorMessage(err, "Couldn't save the review")),
+        onError: (err) => {
+          onFailed()
+          setError(errorMessage(err, "Couldn't save the review"))
+        },
       }
     )
   }
@@ -188,6 +236,7 @@ function DocumentRow({
   const send = () => {
     if (picked.length === 0 || pickProblem) return
     setError('')
+    onSaving()
     upload.mutate(
       {
         type: doc.type,
@@ -199,12 +248,12 @@ function DocumentRow({
         onSuccess: () => {
           setPicked([])
           setExpiresOn('')
-          toast.success(
-            `${doc.label} uploaded${approveUpload ? ' and approved' : ''}`
-          )
+          onSaved()
         },
-        onError: (err) =>
-          setError(errorMessage(err, "Couldn't upload the document")),
+        onError: (err) => {
+          onFailed()
+          setError(errorMessage(err, "Couldn't upload the document"))
+        },
       }
     )
   }

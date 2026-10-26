@@ -12,8 +12,8 @@ import { VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('admin') })
 
-/** A garage's card on the list: a group named by the garage. */
-const card = (page: Page, name: string) => page.getByRole('group', { name, exact: true })
+/** A garage's row in the Garages table, named by the garage. */
+const card = (page: Page, name: string) => page.getByRole('row', { name, exact: true })
 
 test.describe('admin garage list @p0', () => {
   test('a garage outside Chennai carries the sign and its distance', async ({

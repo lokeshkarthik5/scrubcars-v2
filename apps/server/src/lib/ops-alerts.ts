@@ -2,10 +2,10 @@ import { env } from './env.js'
 import { logger } from './logger.js'
 import { runInBackground } from './background.js'
 import { opsAlertChat } from './ops-alert-gate.js'
-import { formatOpsAlert, type OpsAlert } from './ops-alert-messages.js'
+import { formatOpsAlert, splitTelegramText, type OpsAlert } from './ops-alert-messages.js'
 import { sendTelegramMessage } from './telegram.js'
 
-export type { AlertBooking, OpsAlert } from './ops-alert-messages.js'
+export type { AlertBooking, CollectionListAlert, OpsAlert } from './ops-alert-messages.js'
 
 const log = logger.child({ module: 'ops-alerts' })
 
@@ -44,9 +44,11 @@ export function alertOps(alert: OpsAlert | (() => Promise<OpsAlert | null>)): vo
 }
 
 /**
- * The awaited sibling of alertOps, for a scheduled job: same Production-only
- * gate, but the outcome is returned and a failed send throws, so the job can
- * report it (and its scheduler can email someone) instead of losing it.
+ * The awaited sibling of alertOps, for a scheduled job or a post whose
+ * outcome is recorded (a collection list's `telegram_sent_at`): same
+ * Production-only gate, but the outcome is returned and a failed send
+ * throws, so the caller can report it instead of losing it. Text over
+ * Telegram's 4096 characters goes as several messages, in order.
  */
 export async function sendOpsAlertNow(alert: OpsAlert): Promise<'sent' | 'off'> {
   const chatId = opsAlertChat({
@@ -57,7 +59,8 @@ export async function sendOpsAlertNow(alert: OpsAlert): Promise<'sent' | 'off'> 
     fakePayments: env.e2eFakePayments,
   })
   if (!chatId) return 'off'
-  await sendTelegramMessage(chatId, formatOpsAlert(alert))
-  log.info({ kind: alert.kind }, 'ops_alert:sent')
+  const parts = splitTelegramText(formatOpsAlert(alert))
+  for (const part of parts) await sendTelegramMessage(chatId, part)
+  log.info({ kind: alert.kind, parts: parts.length }, 'ops_alert:sent')
   return 'sent'
 }

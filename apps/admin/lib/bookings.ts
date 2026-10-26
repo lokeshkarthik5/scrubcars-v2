@@ -95,7 +95,17 @@ export function formatRupees(amount: string | number): string {
 }
 
 /** The list's own URL params: its search and filters, and nothing else. */
-const LIST_PARAMS = ['q', 'status', 'garage', 'from', 'to', 'test'] as const
+const LIST_PARAMS = [
+  'q',
+  'view',
+  'status',
+  'garage',
+  'from',
+  'to',
+  'test',
+  'type',
+  'payment',
+] as const
 
 /**
  * The list's search and filters as a query string, to carry to a booking and

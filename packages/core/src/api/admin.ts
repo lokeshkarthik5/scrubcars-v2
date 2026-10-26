@@ -10,7 +10,9 @@ import type {
   LoggedComplaintSource,
 } from '@repo/core/complaints'
 import type { OutsideServiceCity } from '@repo/core/service-city'
+import type { MissingKey } from '@repo/core/onboarding-marks'
 import { setAdminSigner, signedBody } from './admin-signer'
+import type { OnboardingMarkBrief } from './admin-marks'
 
 export interface AdminVendor {
   id: string
@@ -116,6 +118,34 @@ export interface AdminVendor {
    * customers see on it. Absent from an older API.
    */
   outsideServiceCity?: OutsideServiceCity | null
+  /**
+   * What the garage still owes us (0059), worked out from its own data in
+   * MISSING_KEYS order: the Missing chips and the WhatsApp ask. Separate
+   * from `readiness`. Absent from an older API.
+   */
+  missing?: MissingKey[]
+  /** Its marks not yet Received, oldest first. Absent from an older API. */
+  openMarks?: OnboardingMarkBrief[]
+  /** Who on the team brought it in, set by hand (0059). Absent from an older API. */
+  onboardedByName?: string | null
+  /** Its open items on a collection list ("With Raga · due 29 Oct · 3/11"). */
+  openCollection?: AdminVendorCollection | null
+}
+
+/**
+ * A garage's place on an open collection list (0059): among the open lists
+ * where this garage still has something to collect, the one due first (no
+ * due date last; the newest on a tie). `done` and `total` are that list's
+ * items for this garage only. Null once nothing is left for it anywhere.
+ */
+export interface AdminVendorCollection {
+  listId: string
+  assigneeName: string
+  /** YYYY-MM-DD, or null with no due date. */
+  dueOn: string | null
+  /** Collected or cleared. */
+  done: number
+  total: number
 }
 
 export interface AdminVendorCertification {
@@ -205,6 +235,12 @@ export interface AdminVendorDetail {
   deletedByName?: string | null
   deletedReason?: string | null
   createdAt: string
+  /** The garage list's checklist, for the editor's status panel (0059). Absent from an older API. */
+  readiness?: ReadinessItem[]
+  /** What the garage still owes us (0059), as on AdminVendor. Absent from an older API. */
+  missing?: MissingKey[]
+  /** Who on the team brought it in, set by hand (0059). Absent from an older API. */
+  onboardedByName?: string | null
   owner: {
     id: string
     name: string
@@ -312,6 +348,8 @@ export interface UpdateVendorInput {
   status?: 'pending' | 'active' | 'suspended' | 'archived'
   isVerified?: boolean
   notes?: string | null
+  /** Who on the team brought it in (0059): a login's name or free text; null clears it. */
+  onboardedByName?: string | null
   services?: UpdateVendorServiceInput[]
 }
 
@@ -620,10 +658,40 @@ export interface AdminBookingFilters {
   page?: number
   /**
    * Continue after this row: "<scheduledAt ISO>_<id>" of the last row of the
-   * previous page (see adminBookingsCursor).
+   * previous page (see adminBookingsCursor). Today and Upcoming sort soonest
+   * first, so there the page continues forwards in time.
    */
   cursor?: string
+  /** A saved view (0059); left out is All. Absent from an older API, which ignores it. */
+  view?: Exclude<AdminBookingView, 'all'>
+  /** How the car is served (0059 filters); an older API ignores it. */
+  bookingType?: 'dropin' | 'doorstep' | 'pickup'
+  /**
+   * Payment (0059 filters): paid online, to pay at the garage, or a refund
+   * owed ("Money owed" in the panel); an older API ignores it.
+   */
+  payment?: 'paid' | 'pay_later' | 'refund_owed'
 }
+
+/**
+ * The bookings list's saved views (0059). `needs_action`: paid and waiting
+ * for the garage (not Test), or a refund owed. `today` and `upcoming` sort
+ * soonest first; the rest newest scheduled first.
+ */
+export type AdminBookingView = 'needs_action' | 'today' | 'upcoming' | 'completed' | 'cancelled' | 'all'
+
+/** How many bookings each view holds, under the same search, garage and Test filters. */
+export type AdminBookingViewCounts = Record<AdminBookingView, number>
+
+/**
+ * The filters the view counts are taken under: every one the list has but
+ * the view itself and paging, so a view's count is the rows it lists. An
+ * older API reads only q, vendorId and test, and ignores the rest.
+ */
+export type AdminBookingViewCountFilters = Omit<
+  AdminBookingFilters,
+  'view' | 'limit' | 'page' | 'cursor'
+>
 
 export interface CreateVendorInput {
   ownerName: string
@@ -656,6 +724,8 @@ export interface CreateVendorInput {
   status?: 'pending' | 'active' | 'suspended' | 'archived'
   isVerified?: boolean
   notes?: string
+  /** Who on the team brought it in (0059). Left out or null: not set. */
+  onboardedByName?: string | null
   services?: Array<{
     name: string
     description?: string
@@ -737,6 +807,25 @@ export interface AdminLogin {
   lastLoginAt: string | null
   createdByName: string
   createdAt: string
+  /**
+   * Optional 10-digit mobile (0059), only for "Also send on WhatsApp" with a
+   * collection list. Absent from an older API.
+   */
+  phone?: string | null
+}
+
+/** POST /admin/logins */
+export interface CreateAdminLoginInput {
+  username: string
+  name: string
+  password: string
+  /** Optional (0059). */
+  phone?: string | null
+}
+
+/** PATCH /admin/logins/:id (0059): today only the phone; null clears it. */
+export interface UpdateAdminLoginInput {
+  phone?: string | null
 }
 
 export interface AdminLoginList {
@@ -759,7 +848,7 @@ export async function listAdminLogins() {
 }
 
 /** POST /admin/logins — 409 ADMIN_USERNAME_TAKEN; 400 for a rule failure. */
-export async function createAdminLogin(input: { username: string; name: string; password: string }) {
+export async function createAdminLogin(input: CreateAdminLoginInput) {
   return apiClient<AdminLogin>('/admin/logins', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -771,6 +860,17 @@ export async function resetAdminLoginPassword(id: string, password: string) {
   return apiClient<AdminLogin>(`/admin/logins/${id}/password`, {
     method: 'POST',
     body: JSON.stringify({ password }),
+  })
+}
+
+/**
+ * PATCH /admin/logins/:id (0059) — the login's phone. Who may change it is
+ * the server's rule (as for the other team-login changes).
+ */
+export async function updateAdminLogin(id: string, input: UpdateAdminLoginInput) {
+  return apiClient<AdminLogin>(`/admin/logins/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
   })
 }
 
@@ -1518,6 +1618,27 @@ export async function listAdminBookings(filters: AdminBookingFilters = {}) {
       limit: filters.limit,
       page: filters.page,
       cursor: filters.cursor,
+      view: filters.view || undefined,
+      bookingType: filters.bookingType || undefined,
+      payment: filters.payment || undefined,
+    },
+  })
+}
+
+/** GET /admin/bookings/views — 404 from an API older than 0059: show the views without counts. */
+export async function getAdminBookingViewCounts(
+  filters: AdminBookingViewCountFilters = {}
+) {
+  return apiClient<AdminBookingViewCounts>('/admin/bookings/views', {
+    params: {
+      q: filters.q || undefined,
+      status: filters.status || undefined,
+      vendorId: filters.vendorId || undefined,
+      from: filters.from || undefined,
+      to: filters.to || undefined,
+      test: filters.test || undefined,
+      bookingType: filters.bookingType || undefined,
+      payment: filters.payment || undefined,
     },
   })
 }

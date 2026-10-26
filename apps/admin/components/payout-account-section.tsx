@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScField } from '@repo/ui/sc/input'
 import { ScSection } from '@repo/ui/sc/section'
@@ -14,6 +13,7 @@ import {
   useSavePayoutAccount,
 } from '@repo/core/api/hooks/use-admin-payouts'
 import { istDateTimeLabel } from '@repo/core/ist-input'
+import { SavedNote, useSavedNote } from '@/components/save-bar'
 import { SignedAs } from '@/components/signed-as'
 
 /** Same shapes as the API (lib/payouts.ts). */
@@ -62,12 +62,21 @@ export function payoutDetailsProblem(draft: Draft): string | null {
  * changes", which only covers the garage form around it. Inside that form's
  * read-only fieldset while the garage is in the Bin.
  */
-export function PayoutAccountSection({ vendorId }: { vendorId: string }) {
+export function PayoutAccountSection({
+  vendorId,
+  onSaved,
+}: {
+  vendorId: string
+  /** Each save or removal that landed, so the editor's checklist catches up. */
+  onSaved?: () => void
+}) {
   const {
     data: account,
     isLoading,
     error: loadError,
   } = useAdminPayoutAccount(vendorId)
+  // Here rather than in the form, which remounts once a save lands.
+  const note = useSavedNote()
   // Only remounted when the saved details change, so what is typed stays.
   return isLoading ? (
     <ScSection title="Payout details">
@@ -84,6 +93,8 @@ export function PayoutAccountSection({ vendorId }: { vendorId: string }) {
       key={account?.updatedAt ?? 'none'}
       vendorId={vendorId}
       account={account ?? null}
+      note={note}
+      onSaved={onSaved}
     />
   )
 }
@@ -91,9 +102,13 @@ export function PayoutAccountSection({ vendorId }: { vendorId: string }) {
 function PayoutAccountForm({
   vendorId,
   account,
+  note,
+  onSaved,
 }: {
   vendorId: string
   account: PayoutAccount | null
+  note: ReturnType<typeof useSavedNote>
+  onSaved?: () => void
 }) {
   const save = useSavePayoutAccount(vendorId)
   const remove = useRemovePayoutAccount(vendorId)
@@ -109,6 +124,7 @@ function PayoutAccountForm({
   const submit = () => {
     if (problem) return
     setError('')
+    note.saving()
     save.mutate(
       {
         accountName: draft.accountName.trim() || null,
@@ -117,18 +133,23 @@ function PayoutAccountForm({
         upiId: draft.upiId.trim() || null,
       },
       {
-        onSuccess: () => toast.success('Payout details saved'),
-        onError: (err) =>
-          setError(errorMessage(err, "Couldn't save the payout details")),
+        onSuccess: () => {
+          note.saved()
+          onSaved?.()
+        },
+        onError: (err) => {
+          note.reset()
+          setError(errorMessage(err, "Couldn't save the payout details"))
+        },
       }
     )
   }
 
   return (
-    <ScSection title="Payout details">
+    <ScSection title="Payout details" action={<SavedNote state={note.state} />}>
       <p className="text-[12px] text-text-muted">
-        Where Detlio sends this garage its share. Saved immediately — not part
-        of “Save changes”. Only the team sees these; the garage list shows the
+        Where Detlio sends this garage its share. Saves with its own button, not
+        with “Save changes”. Only the team sees these; the garage list shows the
         last four digits.
       </p>
       <ScField
@@ -191,15 +212,21 @@ function PayoutAccountForm({
         {account && (
           <ScButton
             variant="secondary"
-            onClick={() =>
+            onClick={() => {
+              note.saving()
               remove.mutate(undefined, {
-                onSuccess: () => toast.success('Payout details removed'),
-                onError: (err) =>
+                onSuccess: () => {
+                  note.saved()
+                  onSaved?.()
+                },
+                onError: (err) => {
+                  note.reset()
                   setError(
                     errorMessage(err, "Couldn't remove the payout details")
-                  ),
+                  )
+                },
               })
-            }
+            }}
             disabled={busy}
             className="min-h-11"
             fullWidth={false}

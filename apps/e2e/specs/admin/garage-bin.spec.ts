@@ -99,9 +99,9 @@ test.describe.serial('the Bin takes a garage off the app, and Restore brings it 
     expect((await asCompany(operator, TEAM.id)).status()).toBe(200)
     expect(await vendorsOfSession(owner)).toEqual([TEAM.id, LIVE.id].sort())
 
-    // The admin panel: the card's ⋯, then the sheet.
+    // The admin panel: the row's ⋯, then the sheet.
     await page.goto('/vendors?show=all')
-    const card = page.getByRole('group', { name: TEAM.name, exact: true })
+    const card = page.getByRole('row', { name: TEAM.name, exact: true })
     await card.getByRole('button', { name: `More for ${TEAM.name}` }).click()
     await card.getByRole('button', { name: `Move ${TEAM.name} to the Bin` }).click()
     const sheet = page.getByRole('dialog', { name: `Move ${TEAM.name} to the Bin` })
@@ -129,9 +129,9 @@ test.describe.serial('the Bin takes a garage off the app, and Restore brings it 
 
     // Under Bin, and in no other chip.
     await page.goto('/vendors?show=all')
-    await expect(page.getByRole('group', { name: TEAM.name, exact: true })).toHaveCount(0)
+    await expect(page.getByRole('row', { name: TEAM.name, exact: true })).toHaveCount(0)
     await page.goto('/vendors?show=bin')
-    const binCard = page.getByRole('group', { name: TEAM.name, exact: true })
+    const binCard = page.getByRole('row', { name: TEAM.name, exact: true })
     await expect(binCard.getByText('E2E bin test')).toBeVisible()
     await expect(binCard.getByText('E2E Admin')).toBeVisible()
     await expect(page.getByText('Nothing in the Bin is deleted on its own.')).toBeVisible()
@@ -214,7 +214,7 @@ test.describe.serial('the Bin takes a garage off the app, and Restore brings it 
 
   test('Restore brings it back as it was, team access included', async ({ page }) => {
     await page.goto('/vendors?show=bin')
-    const binCard = page.getByRole('group', { name: TEAM.name, exact: true })
+    const binCard = page.getByRole('row', { name: TEAM.name, exact: true })
     await binCard.getByRole('button', { name: `Restore ${TEAM.name}` }).click()
     const dialog = page.getByRole('dialog', { name: `Restore ${TEAM.name}` })
     await dialog.getByRole('button', { name: 'Restore' }).click()
@@ -237,7 +237,7 @@ test.describe.serial('the Bin takes a garage off the app, and Restore brings it 
     expect((await asCompany(support, TEAM.id)).status()).toBe(200)
 
     await page.goto('/vendors?show=all')
-    await expect(page.getByRole('group', { name: TEAM.name, exact: true })).toBeVisible()
+    await expect(page.getByRole('row', { name: TEAM.name, exact: true })).toBeVisible()
   })
 })
 
@@ -273,7 +273,7 @@ test.describe('moving a garage with bookings to come @p0', () => {
 
     // The dialog says the same before anyone confirms.
     await page.goto('/vendors?show=pending')
-    const card = page.getByRole('group', { name: garage.name, exact: true })
+    const card = page.getByRole('row', { name: garage.name, exact: true })
     await card.getByRole('button', { name: `More for ${garage.name}` }).click()
     await card.getByRole('button', { name: `Move ${garage.name} to the Bin` }).click()
     const sheet = page.getByRole('dialog', { name: `Move ${garage.name} to the Bin` })
@@ -324,7 +324,7 @@ test.describe('delete forever @p0', () => {
   test('a garage with a package and an abandoned checkout is deleted outright', async ({ page }) => {
     const garage = VENDORS.binHard
     await page.goto('/vendors?show=bin')
-    const card = page.getByRole('group', { name: garage.name, exact: true })
+    const card = page.getByRole('row', { name: garage.name, exact: true })
     await expect(card.getByText('Test garage from setup')).toBeVisible()
     await expect(card.getByText('1 booking will be deleted with it')).toBeVisible()
 

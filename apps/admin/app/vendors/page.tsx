@@ -1,52 +1,61 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
 import {
   IconAdjustmentsHorizontal,
-  IconAlertCircle,
-  IconAlertTriangle,
-  IconArchive,
-  IconArchiveOff,
   IconBuildingStore,
-  IconCamera,
-  IconFlag,
-  IconRefresh,
-  IconCheck,
-  IconChevronDown,
-  IconChevronRight,
-  IconCircle,
-  IconCircleDashed,
-  IconDots,
-  IconFileCertificate,
-  IconPencil,
   IconPlus,
-  IconRestore,
-  IconRosetteDiscountCheck,
-  IconRosetteDiscountCheckFilled,
-  IconTrash,
 } from '@tabler/icons-react'
-import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
-import { ScCard } from '@repo/ui/sc/card'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { Figures } from '@repo/ui/sc/figures'
 import { PageHeader } from '@repo/ui/sc/page-header'
-import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
-import { OutsideCityChip } from '@repo/ui/features/outside-city'
+import { type AdminVendor } from '@repo/core/api/admin'
+import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
+import {
+  useAdminVendors,
+  useArchiveAdminVendor,
+  useVerifyAdminVendor,
+} from '@repo/core/api/hooks/use-admin-vendors'
+import { useAdminLogins } from '@repo/core/api/hooks/use-admin-logins'
+import { useCollectionLists } from '@repo/core/api/hooks/use-admin-collection'
+import { useDebounced } from '@repo/core/hooks/use-debounced'
+import { useNow } from '@repo/core/hooks/use-now'
+import type { MissingKey } from '@repo/core/onboarding-marks'
+import { cn } from '@repo/core/utils'
 import {
   DeleteForeverSheet,
   MoveToBinDialog,
   RestoreDialog,
 } from '@/components/vendor-bin-dialogs'
-import { formatWhen } from '@/lib/bookings'
-import { PAGE_TAB_LABELS } from '@/lib/garage-edit'
+import {
+  AdminTable,
+  BulkBar,
+  ColumnsButton,
+  FilterBar,
+  SavedViews,
+  useHiddenColumns,
+  type SortState,
+} from '@/components/table'
+import { AddMarkButton } from '@/components/marks/add-mark-button'
+import { AskWhatsAppButton } from '@/components/marks/ask-whatsapp-button'
+import { MissingChips } from '@/components/marks/missing-chips'
+import { CollectorProgressCards } from '@/components/collection/collector-progress-cards'
+import { SendToTeamButton } from '@/components/collection/send-to-team-button'
+import { keepKnown, splitSelection } from '@/lib/admin-table'
 import { binDoneMessage, deleteDoneMessage } from '@/lib/vendor-bin'
 import {
   CERTIFIED_FILTER,
@@ -57,69 +66,31 @@ import {
   REVIEW_LABEL,
   SHOW_FILTERS,
   SHOW_LABELS,
-  isMoreFilter,
-  isStageFilter,
-  matchesSearch,
-  binDeleteLine,
-  bookingParts,
-  bookingsLine,
   certificationCounts,
   documentsToReviewCount,
-  editHref,
-  hasDocumentsToReview,
+  garageListHref,
   isInBin,
-  isLive,
-  listHref,
+  isMissing,
+  isMoreFilter,
+  isStageFilter,
+  matchesOnboardedBy,
+  matchesSearch,
   matchesShow,
-  parseShow,
-  readinessGroups,
-  readinessSummary,
+  matchesTeam,
+  onboardedByOptions,
+  parseGarageList,
   showCounts,
   showHints,
-  stateWord,
   type ListFilter,
+  type TeamFilter,
 } from '@/lib/vendor-list'
-import { type AdminVendor, type ReadinessItem } from '@repo/core/api/admin'
-import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
+import { binColumns } from './bin-columns'
 import {
-  useAdminVendorDeletePreview,
-  useAdminVendors,
-  useArchiveAdminVendor,
-  useVerifyAdminVendor,
-} from '@repo/core/api/hooks/use-admin-vendors'
-import { strikesHighlighted, strikesLabel } from '@repo/core/bypass-reports'
-import { cn } from '@repo/core/utils'
-
-// The small actions on a garage's card: outline, 44px tall, never red.
-const ROW_ACTION = 'flex min-h-11 items-center gap-1 px-3 py-1.5 text-[12px]'
-
-// Each checklist group's mark: amber for what needs doing, grey for optional.
-const GROUP_ICON: Record<ReadinessItem['severity'], React.ReactNode> = {
-  blocking: (
-    <IconAlertCircle
-      size={14}
-      stroke={1.8}
-      className="text-warning"
-      aria-hidden="true"
-    />
-  ),
-  fix: (
-    <IconCircle
-      size={14}
-      stroke={1.7}
-      className="text-warning"
-      aria-hidden="true"
-    />
-  ),
-  optional: (
-    <IconCircleDashed
-      size={14}
-      stroke={1.7}
-      className="text-text-muted"
-      aria-hidden="true"
-    />
-  ),
-}
+  GARAGE_OPTIONAL_COLUMNS,
+  GARAGE_PHONE_GRID,
+  garageColumns,
+} from './garage-columns'
+import { GarageSidePanel } from './garage-side-panel'
 
 export default function AdminVendorsPage() {
   // useSearchParams needs a Suspense boundary, or Next.js refuses to
@@ -131,20 +102,79 @@ export default function AdminVendorsPage() {
   )
 }
 
+const FILTER_SELECT =
+  'min-h-11 rounded-md border border-border bg-surface px-2.5 text-[12px] font-medium text-text-secondary md:min-h-9'
+
 function VendorsList() {
   const router = useRouter()
+  const pathname = usePathname()
   const params = useSearchParams()
 
-  // The chosen chip lives in the URL, so Back from a garage returns to it.
-  const show = parseShow(params.get('show'))
-  // "Garages matching …" from Find anything: a name, phone or area.
-  const q = params.get('q') ?? ''
-  // What a card's links carry as `back`: this list, as it is now.
-  const back = listHref(show)
+  // Everything the list shows lives in the URL, so Back from a garage
+  // returns to it: the chip, the search, Missing, Onboarded by and the team.
+  const state = parseGarageList(params)
+  const { show, q, missing, onboardedBy: onboardedFilter, team } = state
+  // What a row's links carry as `back`: this list, as it is now.
+  const back = garageListHref(state)
+
+  const setParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const next = new URLSearchParams(params.toString())
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) next.set(key, value)
+        else next.delete(key)
+      }
+      const query = next.toString()
+      // Replaced, not pushed: a filter is a view of this page, not
+      // somewhere Back should step through. The browser's own history,
+      // which useSearchParams follows: router.replace() asks the server for
+      // the page again, and once the sidebar's links have been prefetched
+      // Next dropped that navigation, so a filter pressed then did nothing.
+      window.history.replaceState(
+        null,
+        '',
+        query ? `${pathname}?${query}` : pathname
+      )
+    },
+    [params, pathname]
+  )
 
   const { data, isPending, error: loadError, refetch } = useAdminVendors()
-  const vendors = data ?? []
+  const vendors = useMemo(() => data ?? [], [data])
   const loading = isPending
+  const now = useNow(60_000)
+
+  // Fields an API older than 0059 doesn't send: their columns and filters
+  // stay hidden until it does.
+  const hasMissing = vendors.some((v) => v.missing !== undefined)
+  const hasMarks = vendors.some(
+    (v) => v.openMarks !== undefined || v.openCollection !== undefined
+  )
+  const hasOnboarded = vendors.some((v) => v.onboardedByName !== undefined)
+  const hasTeam = vendors.some((v) => v.openCollection !== undefined)
+
+  // Team logins, for the Onboarded by choices.
+  const logins = useAdminLogins()
+  const loginNames = useMemo(
+    () =>
+      (logins.data?.logins ?? [])
+        .filter((login) => login.status === 'active')
+        .map((login) => login.name),
+    [logins.data]
+  )
+
+  // My open collection lists: the garages "Assigned to me" holds. None for
+  // the shared login, and unknown (no chip) on an API older than the lists.
+  const mineLists = useCollectionLists('mine', true, hasTeam)
+  const mine = useMemo(() => {
+    if (!mineLists.data) return null
+    const ids = new Set<string>()
+    for (const list of mineLists.data.lists) {
+      for (const garage of list.garages) ids.add(garage.id)
+      for (const item of list.items) ids.add(item.vendorId)
+    }
+    return ids
+  }, [mineLists.data])
 
   const verify = useVerifyAdminVendor()
   const archive = useArchiveAdminVendor()
@@ -166,29 +196,92 @@ function VendorsList() {
   const counts = showCounts(vendors)
   const toReview = documentsToReviewCount(vendors)
   const certification = certificationCounts(vendors)
-  const shown = vendors.filter(
-    (v) => matchesShow(v, show) && matchesSearch(v, q)
+
+  // Every filter but Missing, which counts its chips over these.
+  const filtered = vendors.filter(
+    (v) =>
+      matchesShow(v, show) &&
+      matchesSearch(v, q) &&
+      matchesOnboardedBy(v, onboardedFilter) &&
+      matchesTeam(v, team, mine)
   )
+  // Every garage that matches: no paging, the list is the whole set.
+  const shown = filtered.filter((v) => isMissing(v, missing))
+  const inBin = show === 'bin'
+
+  const teamCounts = {
+    with: vendors.filter((v) => !isInBin(v) && Boolean(v.openCollection))
+      .length,
+    mine: mine
+      ? vendors.filter((v) => !isInBin(v) && mine.has(v.id)).length
+      : null,
+  }
+  const onboardedChoices = useMemo(
+    () =>
+      onboardedByOptions(
+        vendors.filter((v) => !isInBin(v)),
+        loginNames
+      ),
+    [vendors, loginNames]
+  )
+
   // More filters is open while one of its filters is chosen, or on request.
   const [moreOpen, setMoreOpen] = useState(false)
   const moreShown = moreOpen || isMoreFilter(show)
 
-  // Checklists open, by garage. A tap on the readiness line toggles one.
-  const [openChecklists, setOpenChecklists] = useState<ReadonlySet<string>>(
-    new Set()
-  )
-  const toggleChecklist = (id: string) =>
-    setOpenChecklists((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  // The search box is typed into freely; only the settled text reaches the
+  // URL. A search that arrives in the address ("Find anything", Back) fills
+  // the box too, adjusted during render as React advises.
+  const [search, setSearch] = useState(q)
+  const settled = useDebounced(search.trim(), 300)
+  const [seenQ, setSeenQ] = useState(q)
+  if (q !== seenQ) {
+    setSeenQ(q)
+    if (q !== settled) setSearch(q)
+  }
+  const syncedQ = useRef(settled)
+  useEffect(() => {
+    if (syncedQ.current === settled) return
+    syncedQ.current = settled
+    setParams({ q: settled })
+  }, [settled, setParams])
 
-  // A row action's failure is shown on the card it was pressed on. It used to
-  // be one line above the first card, so on an older garage — the list is
-  // newest first — a refused delete printed its reason off-screen and the
-  // button seemed to do nothing.
+  // Sorted by a heading, or the API's own order (newest first).
+  const [sort, setSort] = useState<SortState | null>(null)
+
+  // Ticked garages, for the bulk actions. A garage that left the list
+  // (deleted, moved to the Bin) drops out. One a filter hides stays ticked
+  // but is left out of the actions, and the bar says how many are hidden,
+  // so nobody messages a garage they can't see (review finding 11b).
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
+  const liveIds = useMemo(
+    () => vendors.filter((v) => !isInBin(v)).map((v) => v.id),
+    [vendors]
+  )
+  const selected = keepKnown(ticked, liveIds)
+  const ticks = splitSelection(
+    selected,
+    shown.map((v) => v.id)
+  )
+  const selectedVendors = shown.filter((v) => selected.has(v.id))
+
+  // The columns this browser turned off. Onboarded by shows while it is
+  // filtered on, so the rows say why they match.
+  const optionalColumns = GARAGE_OPTIONAL_COLUMNS.filter(
+    (c) => c.id !== 'onboardedBy' || hasOnboarded
+  )
+  const [hiddenChoice, toggleColumn] = useHiddenColumns(
+    'detlio.admin.garages.columns',
+    GARAGE_OPTIONAL_COLUMNS
+  )
+  const hiddenColumns = new Set(hiddenChoice)
+  if (onboardedFilter) hiddenColumns.delete('onboardedBy')
+
+  // The garage open in the side panel, while it is still in the list.
+  const [openId, setOpenId] = useState<string | null>(null)
+  const openVendor = inBin ? null : (shown.find((v) => v.id === openId) ?? null)
+
+  // A row action's failure is shown on the row it was pressed on.
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
   // The garage whose error should be brought into view once it renders. A
   // fresh object per failure, so the same garage failing twice scrolls twice.
@@ -220,18 +313,17 @@ function VendorsList() {
   }, [loadError, router])
 
   const chooseShow = (next: ListFilter) => {
-    // Replaced, not pushed: a chip is a view of this page, not somewhere
-    // Back should step through.
-    router.replace(listHref(next), { scroll: false })
+    setOpenId(null)
+    setParams({ show: next === 'live' ? null : next })
   }
 
-  const verifyingId = verify.isPending ? verify.variables : null
-  const busyId = archive.isPending ? archive.variables?.id : null
+  const verifyingId = verify.isPending ? (verify.variables ?? null) : null
+  const busyId = archive.isPending ? (archive.variables?.id ?? null) : null
 
-  const handleVerify = (id: string) => {
-    clearRowError(id)
-    verify.mutate(id, {
-      onError: () => showRowError(id, 'Failed to verify vendor'),
+  const handleVerify = (v: AdminVendor) => {
+    clearRowError(v.id)
+    verify.mutate(v.id, {
+      onError: () => showRowError(v.id, 'Failed to verify vendor'),
     })
   }
 
@@ -242,7 +334,6 @@ function VendorsList() {
   const [confirmArchive, setConfirmArchive] = useState<AdminVendor | null>(null)
   // Apart from the garage, so the sheet keeps its words while it slides away.
   const [archiveOpen, setArchiveOpen] = useState(false)
-
   // Why the confirmed archive failed, said inside its sheet.
   const [archiveError, setArchiveError] = useState('')
 
@@ -300,6 +391,52 @@ function VendorsList() {
     setNotice('')
     setDialog({ kind, vendor: v })
   }
+
+  const closePanel = useCallback(() => setOpenId(null), [])
+
+  const columns = inBin
+    ? binColumns({
+        onRestore: (v) => openDialog('restore', v),
+        onDelete: (v) => openDialog('delete', v),
+      })
+    : garageColumns({
+        back,
+        now,
+        showMissing: hasMissing,
+        showMarks: hasMarks,
+        showOnboardedBy: hasOnboarded,
+        narrow: hasOnboarded && !hiddenColumns.has('onboardedBy'),
+        openId,
+        onOpen: (v) => setOpenId((id) => (id === v.id ? null : v.id)),
+        verifyingId,
+        busyId,
+        rowErrors,
+        onVerify: handleVerify,
+        onArchiveToggle: handleArchiveToggle,
+        onMoveToBin: (v) => openDialog('bin', v),
+      })
+
+  // The Show row: five states and All (quick win 3), plus an old link's
+  // stage (Pending, Active, Suspended) as one more while it is chosen.
+  const views = [
+    ...SHOW_FILTERS.map((s) => ({
+      value: s as ListFilter,
+      label: SHOW_LABELS[s],
+      count: counts[s],
+    })),
+    ...(isStageFilter(show)
+      ? [
+          {
+            value: show as ListFilter,
+            label: SHOW_LABELS[show],
+            count: counts[show],
+          },
+        ]
+      : []),
+  ]
+
+  const filtersOn = [onboardedFilter, team].filter(Boolean).length
+  const anyFilter = Boolean(q || missing || onboardedFilter || team)
 
   return (
     <>
@@ -382,57 +519,34 @@ function VendorsList() {
       ) : (
         <div className="flex flex-col gap-3">
           <div>
-            {/* One row that scrolls sideways on a phone, to the screen's
-                edge, rather than wrapping into a block of buttons. Five
-                states and All (quick win 3); the filters that cut across
-                them are under More filters. */}
-            <div
-              role="group"
-              aria-label="Show"
-              className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
-            >
-              {SHOW_FILTERS.map((s) => (
-                <FilterChip
-                  key={s}
-                  label={SHOW_LABELS[s]}
-                  count={counts[s]}
-                  active={show === s}
-                  onClick={() => chooseShow(s)}
-                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
-                />
-              ))}
-              {/* An old link's stage (Pending, Active, Suspended) still
-                  opens, as one more chip while it is chosen. */}
-              {isStageFilter(show) && (
-                <FilterChip
-                  label={SHOW_LABELS[show]}
-                  count={counts[show]}
-                  active
-                  onClick={() => chooseShow(show)}
-                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
-                />
-              )}
-              <button
-                type="button"
-                onClick={() => setMoreOpen((open) => !open)}
-                aria-expanded={moreShown}
-                aria-controls="garage-more-filters"
-                className={cn(
-                  'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] font-medium transition-colors',
-                  isMoreFilter(show)
-                    ? 'border-text-primary text-text-primary'
-                    : 'border-border text-text-secondary hover:text-text-primary'
-                )}
-              >
-                <IconAdjustmentsHorizontal size={15} aria-hidden="true" />
-                More filters
-                {toReview > 0 && !isMoreFilter(show) && (
-                  <span className="font-numeric text-tone-attention-text">
-                    · {toReview} to review
-                  </span>
-                )}
-              </button>
-            </div>
+            <SavedViews
+              label="Show"
+              views={views}
+              value={show}
+              onChange={chooseShow}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((open) => !open)}
+                  aria-expanded={moreShown}
+                  aria-controls="garage-more-filters"
+                  className={cn(
+                    'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] font-medium transition-colors',
+                    isMoreFilter(show)
+                      ? 'border-text-primary text-text-primary'
+                      : 'border-border text-text-secondary hover:text-text-primary'
+                  )}
+                >
+                  <IconAdjustmentsHorizontal size={15} aria-hidden="true" />
+                  More filters
+                  {toReview > 0 && !isMoreFilter(show) && (
+                    <span className="font-numeric text-tone-attention-text">
+                      · {toReview} to review
+                    </span>
+                  )}
+                </button>
+              }
+            />
             {moreShown && (
               <div
                 id="garage-more-filters"
@@ -466,18 +580,6 @@ function VendorsList() {
                 />
               </div>
             )}
-            {q && (
-              <p className="mt-2 flex flex-wrap items-center gap-x-2 text-[13px] text-text-secondary">
-                Garages matching{' '}
-                <span className="font-medium text-text-primary">“{q}”</span>
-                <Link
-                  href={listHref(show)}
-                  className="inline-flex min-h-11 items-center font-medium text-text-primary underline underline-offset-2"
-                >
-                  Clear
-                </Link>
-              </p>
-            )}
             <div className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
               {showHints(show).map((hint) => (
                 <p key={hint.term}>
@@ -489,6 +591,106 @@ function VendorsList() {
               ))}
             </div>
           </div>
+
+          <FilterBar
+            search={{
+              id: 'garage-search',
+              label: 'Search garages',
+              placeholder: 'Garage, owner, phone or area',
+              value: search,
+              onChange: setSearch,
+            }}
+            activeCount={filtersOn}
+            trailing={
+              <>
+                {q && (
+                  <span>
+                    Matching <span className="text-text-primary">“{q}”</span>
+                  </span>
+                )}
+                {!inBin && (
+                  <ColumnsButton
+                    columns={optionalColumns}
+                    hidden={hiddenChoice}
+                    onToggle={toggleColumn}
+                  />
+                )}
+              </>
+            }
+          >
+            {hasTeam && !inBin && (
+              <>
+                {teamCounts.mine !== null && (
+                  <FilterChip
+                    label="Assigned to me"
+                    count={teamCounts.mine}
+                    active={team === 'mine'}
+                    onClick={() =>
+                      setParams({ team: team === 'mine' ? null : 'mine' })
+                    }
+                    className="min-h-11 rounded-[8px] text-[12.5px] md:min-h-9"
+                  />
+                )}
+                <FilterChip
+                  label="With team"
+                  count={teamCounts.with}
+                  active={team === 'with'}
+                  onClick={() =>
+                    setParams({
+                      team: team === 'with' ? null : ('with' as TeamFilter),
+                    })
+                  }
+                  className="min-h-11 rounded-[8px] text-[12.5px] md:min-h-9"
+                />
+              </>
+            )}
+            {hasOnboarded && !inBin && (
+              <select
+                aria-label="Onboarded by"
+                value={onboardedFilter ?? ''}
+                onChange={(event) =>
+                  setParams({ onboardedBy: event.target.value || null })
+                }
+                className={cn(
+                  FILTER_SELECT,
+                  onboardedFilter && 'border-text-primary text-text-primary'
+                )}
+              >
+                <option value="">Onboarded by: anyone</option>
+                {onboardedChoices.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({option.count})
+                  </option>
+                ))}
+                {/* A name from a link that no garage holds any more. */}
+                {onboardedFilter &&
+                  !onboardedChoices.some(
+                    (o) => o.value === onboardedFilter
+                  ) && (
+                    <option value={onboardedFilter}>
+                      {onboardedFilter} (0)
+                    </option>
+                  )}
+              </select>
+            )}
+          </FilterBar>
+
+          {/* What each garage still owes us (0059), as its own group so the
+              Show row keeps its six chips. */}
+          {/* One line on a phone, scrolled sideways; wrapped on a laptop. */}
+          {hasMissing && !inBin && (
+            <div className="-mx-4 min-w-0 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
+              <MissingChips
+                vendors={filtered}
+                value={missing}
+                onChange={(key: MissingKey | null) =>
+                  setParams({ missing: key })
+                }
+              />
+            </div>
+          )}
+
+          {team === 'with' && !inBin && <CollectorProgressCards />}
 
           {/* A failed refetch, with the last list still on screen. */}
           {error && (
@@ -502,52 +704,77 @@ function VendorsList() {
             </p>
           )}
 
-          {shown.length === 0 ? (
-            <p className="py-6 text-center text-[13px] text-text-muted">
-              {show === 'bin'
-                ? 'Nothing in the Bin.'
-                : show === REVIEW_FILTER
-                  ? 'No documents to review.'
-                  : show === CERTIFIED_FILTER
-                    ? 'No Detlio Certified garages yet.'
-                    : show === ELIGIBLE_FILTER
-                      ? 'No garage is waiting to be certified.'
-                      : q
-                        ? `No garages match “${q}” here.`
-                        : `No garages are ${SHOW_LABELS[show].toLowerCase()}.`}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {shown.map((v, i) => (
-                <Reveal key={v.id} index={i}>
-                  {isInBin(v) ? (
-                    <BinCard
-                      v={v}
-                      onRestore={() => openDialog('restore', v)}
-                      onDelete={() => openDialog('delete', v)}
-                    />
-                  ) : (
-                    <GarageCard
-                      v={v}
-                      back={back}
-                      checklistOpen={openChecklists.has(v.id)}
-                      onToggleChecklist={() => toggleChecklist(v.id)}
-                      verifying={verifyingId === v.id}
-                      busy={busyId === v.id}
-                      rowError={rowErrors[v.id]}
-                      onVerify={() => handleVerify(v.id)}
-                      onArchiveToggle={() => handleArchiveToggle(v)}
-                      onMoveToBin={() => openDialog('bin', v)}
-                    />
-                  )}
-                </Reveal>
-              ))}
-            </div>
-          )}
-          {show === 'bin' && (
-            <p className="pt-4 text-center text-[13px] text-text-muted">
+          <div className="flex items-start gap-4">
+            <AdminTable
+              caption={inBin ? 'Garages in the Bin' : 'Garages'}
+              className="min-w-0 flex-1"
+              rows={shown}
+              columns={columns}
+              hiddenColumns={inBin ? undefined : hiddenColumns}
+              phoneGrid={inBin ? undefined : GARAGE_PHONE_GRID}
+              rowKey={(v) => v.id}
+              rowLabelId={(v) => `vendor-${v.id}-name`}
+              sort={sort}
+              onSortChange={setSort}
+              openKey={inBin ? null : openId}
+              onOpen={inBin ? undefined : (v) => setOpenId(v ? v.id : null)}
+              selection={
+                inBin
+                  ? undefined
+                  : {
+                      selected,
+                      onChange: setTicked,
+                      rowName: (v) => v.businessName,
+                    }
+              }
+              empty={emptyText(show, q, anyFilter)}
+              footer={
+                <span>
+                  Showing <span className="font-numeric">{shown.length}</span>{' '}
+                  {shown.length === 1 ? 'garage' : 'garages'}
+                  {sort ? ' · sorted' : ' · newest first'}
+                </span>
+              }
+            />
+            <GarageSidePanel
+              vendor={openVendor}
+              back={back}
+              now={now}
+              verifying={verifyingId === openVendor?.id}
+              onVerify={handleVerify}
+              onClose={closePanel}
+            />
+          </div>
+
+          {inBin && (
+            <p className="pt-2 text-center text-[13px] text-text-muted">
               Nothing in the Bin is deleted on its own.
             </p>
+          )}
+
+          {!inBin && (
+            <BulkBar
+              count={ticks.visible.length}
+              hidden={ticks.hidden}
+              names={selectedVendors.map((v) => v.businessName)}
+              label="Selected garages"
+              onClear={() => setTicked(new Set())}
+            >
+              {/* The secondary actions (outline), then the one red. */}
+              <AddMarkButton vendors={selectedVendors} />
+              <AskWhatsAppButton vendors={selectedVendors} />
+              <SendToTeamButton
+                vendors={selectedVendors}
+                // Only the garages sent: ones hidden by a filter stay ticked.
+                onSent={() =>
+                  setTicked((prev) => {
+                    const next = new Set(prev)
+                    for (const id of ticks.visible) next.delete(id)
+                    return next
+                  })
+                }
+              />
+            </BulkBar>
           )}
         </div>
       )}
@@ -588,709 +815,13 @@ function VendorsList() {
   )
 }
 
-/**
- * A garage in the Bin, as in the approved mockup: when it went there, who
- * moved it and why, how many bookings would be deleted with it (in amber,
- * from the same preview Delete forever shows), and its two ways out.
- */
-function BinCard({
-  v,
-  onRestore,
-  onDelete,
-}: {
-  v: AdminVendor
-  onRestore: () => void
-  onDelete: () => void
-}) {
-  const preview = useAdminVendorDeletePreview(v.id)
-  const deleteLine = preview.data
-    ? binDeleteLine(preview.data.bookings.deleted)
-    : null
-  const meta = [{ text: v.city }, ...bookingParts(v)]
-  const rows: Array<[string, string]> = [
-    ['Binned', v.deletedAt ? formatWhen(v.deletedAt) : ''],
-    ...(v.deletedByName
-      ? ([['By', v.deletedByName]] as Array<[string, string]>)
-      : []),
-    ...(v.deletedReason
-      ? ([['Reason', v.deletedReason]] as Array<[string, string]>)
-      : []),
-  ]
-
-  return (
-    <ScCard
-      role="group"
-      aria-labelledby={`vendor-${v.id}-name`}
-      className="flex flex-col px-4 pb-0 pt-3.5"
-    >
-      <p
-        id={`vendor-${v.id}-name`}
-        className="truncate text-[15px] font-semibold tracking-[-0.01em] text-text-primary"
-      >
-        {v.businessName}
-      </p>
-      <p className="mt-0.5 truncate text-[12px] leading-[17px] text-text-secondary">
-        {meta.map((part, i) => (
-          <span key={i}>
-            {i > 0 && (
-              <span aria-hidden="true" className="mx-1.5 text-text-muted/60">
-                ·
-              </span>
-            )}
-            {part.text && <Figures text={part.text} />}
-            {part.text && part.quiet && ' '}
-            {part.quiet && (
-              <span className="text-text-muted">{part.quiet}</span>
-            )}
-          </span>
-        ))}
-      </p>
-
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-xl border border-border bg-brand-black px-3.5 py-3 text-[13px]">
-        {rows.map(([term, value]) => (
-          <div key={term} className="contents">
-            <dt className="text-text-muted">{term}</dt>
-            <dd className="min-w-0 break-words text-text-primary">
-              <Figures text={value} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-
-      {deleteLine && (
-        <p className="mt-3 flex items-center gap-2 text-[13px] text-warning">
-          <IconAlertTriangle
-            size={16}
-            stroke={1.7}
-            aria-hidden="true"
-            className="shrink-0"
-          />
-          <Figures text={deleteLine} />
-        </p>
-      )}
-
-      <div className="-mx-4 mt-3 grid grid-cols-2 gap-2 border-t border-border px-4 py-3">
-        <ScButton
-          variant="secondary"
-          onClick={onRestore}
-          aria-label={`Restore ${v.businessName}`}
-          className="flex min-h-11 items-center justify-center gap-1.5 text-[13px]"
-        >
-          <IconRestore size={16} aria-hidden="true" /> Restore
-        </ScButton>
-        <ScButton
-          variant="secondary"
-          onClick={onDelete}
-          aria-label={`Delete ${v.businessName} forever`}
-          className="flex min-h-11 items-center justify-center gap-1.5 text-[13px]"
-        >
-          <IconTrash size={16} aria-hidden="true" /> Delete forever
-        </ScButton>
-      </div>
-    </ScCard>
-  )
-}
-
-/**
- * One garage, calmly: its name, its bookings (or, when customers can't find
- * it, why not), where it is and how it books, and one readiness line that
- * opens its checklist. Each checklist row goes straight to the tab where it
- * is fixed, and Back from there returns to this list as it was.
- */
-function GarageCard({
-  v,
-  back,
-  checklistOpen,
-  onToggleChecklist,
-  verifying,
-  busy,
-  rowError,
-  onVerify,
-  onArchiveToggle,
-  onMoveToBin,
-}: {
-  v: AdminVendor
-  back: string
-  checklistOpen: boolean
-  onToggleChecklist: () => void
-  verifying: boolean
-  busy: boolean
-  rowError?: string
-  onVerify: () => void
-  onArchiveToggle: () => void
-  onMoveToBin: () => void
-}) {
-  const state = stateWord(v)
-  const live = isLive(v)
-  const bookingCount = v.bookingCount ?? 0
-  const bookingsId = `vendor-${v.id}-bookings`
-  const checklistId = `vendor-${v.id}-checklist`
-  const meta = [{ text: v.city }, ...bookingParts(v)]
-
-  return (
-    // Named by the garage, so the card is one findable region: its
-    // checklist, its actions and any refusal they get sit inside it.
-    <ScCard
-      role="group"
-      aria-labelledby={`vendor-${v.id}-name`}
-      className="flex flex-col px-4 pb-0 pt-3.5"
-    >
-      <div className="flex items-baseline justify-between gap-3">
-        <p
-          id={`vendor-${v.id}-name`}
-          className="min-w-0 truncate text-[15px] font-semibold tracking-[-0.01em] text-text-primary"
-        >
-          {v.businessName}
-        </p>
-        {state ? (
-          // A word, not a pill: what keeps it from customers.
-          <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] text-text-secondary">
-            <span
-              aria-hidden="true"
-              className="size-1.5 rounded-full border-[1.5px] border-text-secondary"
-            />
-            {state}
-          </span>
-        ) : (
-          // Absent from an older server, which doesn't send the count.
-          v.bookingCount !== undefined && (
-            <span
-              id={bookingsId}
-              className="shrink-0 whitespace-nowrap text-[12px] text-text-muted"
-            >
-              <Figures text={bookingsLine(bookingCount)} />
-            </span>
-          )
-        )}
-      </div>
-
-      <p className="mt-0.5 truncate text-[12px] leading-[17px] text-text-secondary">
-        {meta.map((part, i) => (
-          <span key={i}>
-            {i > 0 && (
-              <span aria-hidden="true" className="mx-1.5 text-text-muted/60">
-                ·
-              </span>
-            )}
-            {part.text && <Figures text={part.text} />}
-            {part.text && part.quiet && ' '}
-            {part.quiet && (
-              <span className="text-text-muted">
-                <Figures text={part.quiet} />
-              </span>
-            )}
-          </span>
-        ))}
-      </p>
-
-      {/* The sign customers see on this garage, with how far out it is: a
-          garage whose city says Chennai but shows this is usually pinned in
-          the wrong place. No km on an unpinned garage, signed from its city
-          field alone. */}
-      {v.outsideServiceCity && (
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-muted">
-          <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
-          {v.outsideServiceCity.km !== null && (
-            <span className="shrink-0">
-              <span className="font-numeric">
-                {v.outsideServiceCity.km.toLocaleString('en-IN')}
-              </span>{' '}
-              km out
-            </span>
-          )}
-        </p>
-      )}
-
-      {/* Garage documents waiting for Detlio (0043): straight to its
-          Documents tab, where each file opens and is approved or rejected. */}
-      {hasDocumentsToReview(v) && v.documents && (
-        <Link
-          href={editHref(v.id, back, 'documents')}
-          className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
-        >
-          <IconFileCertificate
-            size={15}
-            aria-hidden="true"
-            className="shrink-0 text-text-secondary"
-          />
-          <Figures
-            text={`${v.documents.toReview} ${v.documents.toReview === 1 ? 'document' : 'documents'} to review`}
-          />
-          <IconChevronRight
-            size={15}
-            aria-hidden="true"
-            className="text-text-muted"
-          />
-        </Link>
-      )}
-
-      {/* Detlio Certified (0048): the seal, the days a certified garage has
-          left to put a shortfall right, or that it met every standard and
-          waits for a quality check. Straight to the Certification tab. */}
-      {v.certification &&
-        (v.certification.certified || v.certification.eligible) && (
-          <Link
-            href={editHref(v.id, back, 'certification')}
-            className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
-          >
-            {v.certification.certified ? (
-              <IconRosetteDiscountCheckFilled
-                size={15}
-                aria-hidden="true"
-                className="shrink-0"
-              />
-            ) : (
-              <IconRosetteDiscountCheck
-                size={15}
-                aria-hidden="true"
-                className="shrink-0 text-text-secondary"
-              />
-            )}
-            {v.certification.certified ? (
-              v.certification.keepsUntil ? (
-                <span className="text-warning">
-                  Certified, falling short · keeps it until{' '}
-                  <span className="font-numeric">
-                    {v.certification.keepsUntil}
-                  </span>
-                </span>
-              ) : (
-                'Detlio Certified'
-              )
-            ) : (
-              'Eligible for Detlio Certified · record a check'
-            )}
-            <IconChevronRight
-              size={15}
-              aria-hidden="true"
-              className="text-text-muted"
-            />
-          </Link>
-        )}
-
-      {/* Photo compliance (0045): how many of its jobs completed in the last
-          90 days had 2 before and 2 after photos. Only once it has some. */}
-      {v.photoCompliance && v.photoCompliance.percent !== null && (
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
-          <IconCamera
-            size={14}
-            aria-hidden="true"
-            className="shrink-0 text-text-muted"
-          />
-          <span className="truncate">
-            Photos on{' '}
-            <span
-              className={cn(
-                'font-numeric',
-                v.photoCompliance.percent < 80 && 'text-warning'
-              )}
-            >
-              {v.photoCompliance.percent}%
-            </span>{' '}
-            of jobs{' '}
-            <span className="text-text-muted">
-              (
-              <Figures
-                text={`${v.photoCompliance.compliant} of ${v.photoCompliance.jobs}, last 90 days`}
-              />
-              )
-            </span>
-          </span>
-        </p>
-      )}
-
-      {/* Bypass reports (0052): confirmed reports of taking customers off
-          Detlio in the last 180 days. 2 or more in red. Straight to the
-          confirmed list. */}
-      {(v.bypassStrikes ?? 0) > 0 && (
-        <Link
-          href="/bypass-reports?show=confirmed"
-          className={cn(
-            'mt-1 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium underline-offset-2 hover:underline',
-            strikesHighlighted(v.bypassStrikes ?? 0)
-              ? 'text-error'
-              : 'text-text-primary'
-          )}
-        >
-          <IconFlag size={15} aria-hidden="true" className="shrink-0" />
-          <span className="font-numeric">
-            {strikesLabel(v.bypassStrikes ?? 0)}
-          </span>
-          <span className="text-text-muted">
-            · bypass reports, last 180 days
-          </span>
-          <IconChevronRight
-            size={15}
-            aria-hidden="true"
-            className="text-text-muted"
-          />
-        </Link>
-      )}
-
-      {/* Detlio Guarantee (0051): approved free redo claims against it in
-          the last 90 days. Only while the guarantee is on, and only when
-          there are some. */}
-      {typeof v.redoClaims90d === 'number' && v.redoClaims90d > 0 && (
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
-          <IconRefresh
-            size={14}
-            aria-hidden="true"
-            className="shrink-0 text-text-muted"
-          />
-          <span className="truncate">
-            <span
-              className={cn(
-                'font-numeric',
-                v.redoClaims90d >= 3 && 'text-warning'
-              )}
-            >
-              {v.redoClaims90d}
-            </span>{' '}
-            redo claim{v.redoClaims90d === 1 ? '' : 's'} in 90 days
-          </span>
-        </p>
-      )}
-
-      {v.readiness && (
-        <Readiness
-          vendorId={v.id}
-          items={v.readiness}
-          back={back}
-          open={checklistOpen}
-          onToggle={onToggleChecklist}
-          checklistId={checklistId}
-        />
-      )}
-
-      <div className="-mx-4 mt-3 flex flex-wrap items-center gap-2 border-t border-border px-4 py-2.5">
-        {v.isVerified ? (
-          <span className="inline-flex items-center gap-1 text-[12px] text-text-muted">
-            <IconCheck size={14} aria-hidden="true" /> Verified
-          </span>
-        ) : v.lat === null ? (
-          // The server refuses to verify a garage with no pin, since
-          // listings gate on is_verified and an unpinned garage cannot be
-          // distance-sorted or checked against a doorstep radius. Surfaced
-          // here so the block is visible before the click, and it opens the
-          // map, where the pin is placed.
-          <Link
-            href={editHref(v.id, back, 'location')}
-            className="flex min-h-11 items-center text-[12px] font-medium text-warning underline-offset-2 hover:underline"
-          >
-            Set location before verifying →
-          </Link>
-        ) : (
-          <ScButton
-            fullWidth={false}
-            variant="secondary"
-            disabled={verifying}
-            aria-label={`Verify ${v.businessName}`}
-            onClick={onVerify}
-            className={ROW_ACTION}
-          >
-            {verifying ? 'Verifying…' : 'Verify'}
-          </ScButton>
-        )}
-        <ScButtonLink
-          href={editHref(v.id, back)}
-          variant="secondary"
-          aria-label={`Edit ${v.businessName}`}
-          className={ROW_ACTION}
-        >
-          <IconPencil size={14} aria-hidden="true" /> Edit
-        </ScButtonLink>
-        {/* The count and the ⋯ wrap as one, right-aligned. A live garage
-            says its bookings by its name already; one customers can't find
-            has its state there, so it says them here. */}
-        <div className="ml-auto flex items-center gap-2">
-          {!live && bookingCount > 0 && (
-            <span id={bookingsId} className="text-[12px] text-text-muted">
-              <Figures text={bookingsLine(bookingCount)} />
-            </span>
-          )}
-          <CardMenu
-            name={v.businessName}
-            menuId={`vendor-${v.id}-menu`}
-            busy={busy}
-            archived={v.status === 'archived'}
-            onArchiveToggle={onArchiveToggle}
-            onMoveToBin={onMoveToBin}
-          />
-        </div>
-      </div>
-
-      {/* Amber, as errors are; announced, and on the card that was pressed. */}
-      {rowError && (
-        <p
-          id={`vendor-${v.id}-error`}
-          role="alert"
-          className="pb-3 text-[12px] text-error"
-        >
-          {rowError}
-        </p>
-      )}
-    </ScCard>
-  )
-}
-
-/**
- * The card's ⋯: Archive (or take it out of the archive) and Move to bin.
- * A disclosure, not an ARIA menu: two plain buttons that open under it,
- * closed by Escape, by a tap outside or by choosing one. Move to bin asks
- * first, in its own sheet; nothing here deletes.
- */
-function CardMenu({
-  name,
-  menuId,
-  busy,
-  archived,
-  onArchiveToggle,
-  onMoveToBin,
-}: {
-  name: string
-  menuId: string
-  busy: boolean
-  archived: boolean
-  onArchiveToggle: () => void
-  onMoveToBin: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onPointer = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      buttonRef.current?.focus()
-    }
-    document.addEventListener('pointerdown', onPointer)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onPointer)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  const choose = (action: () => void) => {
-    setOpen(false)
-    action()
-  }
-  const item =
-    'flex min-h-11 w-full items-center gap-2.5 px-3.5 text-left text-[14px] text-text-primary transition-colors hover:bg-surface disabled:opacity-50'
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-expanded={open}
-        aria-controls={menuId}
-        aria-label={`More for ${name}`}
-        onClick={() => setOpen((value) => !value)}
-        className="flex size-11 items-center justify-center rounded-[10px] text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
-      >
-        <IconDots size={19} stroke={1.5} aria-hidden="true" />
-      </button>
-      {/* Opens upward: each card animates in on its own layer (Reveal), so
-          a panel hanging below would sit under the next card. */}
-      {open && (
-        <div
-          id={menuId}
-          className="absolute bottom-full right-0 z-20 mb-1 w-48 overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 shadow-lg"
-        >
-          <button
-            type="button"
-            disabled={busy}
-            aria-label={
-              archived ? `Restore ${name} from the archive` : `Archive ${name}`
-            }
-            onClick={() => choose(onArchiveToggle)}
-            className={item}
-          >
-            {archived ? (
-              <IconArchiveOff
-                size={17}
-                stroke={1.6}
-                aria-hidden="true"
-                className="text-text-secondary"
-              />
-            ) : (
-              <IconArchive
-                size={17}
-                stroke={1.6}
-                aria-hidden="true"
-                className="text-text-secondary"
-              />
-            )}
-            {archived ? 'Unarchive' : 'Archive'}
-          </button>
-          <button
-            type="button"
-            aria-label={`Move ${name} to the Bin`}
-            onClick={() => choose(onMoveToBin)}
-            className={cn(item, 'border-t border-border')}
-          >
-            <IconTrash
-              size={17}
-              stroke={1.6}
-              aria-hidden="true"
-              className="text-text-secondary"
-            />
-            Move to Bin
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * The card's one readiness line — "Ready", "Ready · 2 optional: logo,
- * photos" in grey, or "1 blocking · 2 to fix" in amber — and, once tapped,
- * the checklist under it, grouped Blocking / Fix / Optional.
- */
-function Readiness({
-  vendorId,
-  items,
-  back,
-  open,
-  onToggle,
-  checklistId,
-}: {
-  vendorId: string
-  items: ReadinessItem[]
-  back: string
-  open: boolean
-  onToggle: () => void
-  checklistId: string
-}) {
-  const summary = readinessSummary(items)
-
-  const line = (
-    <>
-      {summary.needsFixing ? (
-        <IconAlertCircle
-          size={15}
-          stroke={1.6}
-          className="shrink-0 text-warning"
-          aria-hidden="true"
-        />
-      ) : (
-        <IconCheck
-          size={15}
-          stroke={1.8}
-          className="shrink-0 text-text-muted"
-          aria-hidden="true"
-        />
-      )}
-      <span className="min-w-0 truncate">
-        <Figures text={summary.main} />
-        {summary.optional && (
-          <span className="text-text-muted">
-            {' · '}
-            <Figures text={summary.optional} />
-          </span>
-        )}
-      </span>
-    </>
-  )
-
-  const tone = summary.needsFixing ? 'text-warning' : 'text-text-secondary'
-
-  // Nothing at all to show: a quiet tick, nothing to open.
-  if (items.length === 0) {
-    return (
-      <p
-        className={cn(
-          'mt-2.5 flex min-h-5 items-center gap-2 text-[12.5px]',
-          tone
-        )}
-      >
-        {line}
-      </p>
-    )
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={checklistId}
-        onClick={onToggle}
-        className={cn(
-          'mt-2 flex min-h-11 w-full items-center gap-2 text-left text-[12.5px]',
-          tone
-        )}
-      >
-        {line}
-        <IconChevronDown
-          size={16}
-          aria-hidden="true"
-          className={cn(
-            'ml-auto shrink-0 transition-transform',
-            summary.needsFixing ? 'text-warning' : 'text-text-muted',
-            open && 'rotate-180'
-          )}
-        />
-      </button>
-
-      {open && (
-        <div id={checklistId} className="flex flex-col gap-4 pb-1 pt-2">
-          {readinessGroups(items).map((group) => {
-            const titleId = `${checklistId}-${group.severity}`
-            return (
-              <section key={group.severity} aria-labelledby={titleId}>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p
-                    id={titleId}
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-text-secondary"
-                  >
-                    {GROUP_ICON[group.severity]}
-                    {group.title}
-                  </p>
-                  <span className="text-[12px] text-text-muted">
-                    {group.note}
-                  </span>
-                </div>
-                <ul className="overflow-hidden rounded-xl border border-border bg-brand-black">
-                  {group.items.map((item) => (
-                    <li
-                      key={item.key}
-                      className="border-t border-border first:border-t-0"
-                    >
-                      <Link
-                        href={editHref(vendorId, back, item.tab)}
-                        className="flex min-h-12 items-center gap-2.5 py-2 pl-3.5 pr-2 transition-colors hover:bg-surface"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[13.5px] leading-[18px] text-text-primary">
-                            <Figures text={item.label} />
-                          </span>
-                          {item.detail && (
-                            <span className="mt-0.5 block text-[12px] leading-4 text-text-muted">
-                              <Figures text={item.detail} />
-                            </span>
-                          )}
-                        </span>
-                        <span className="flex shrink-0 items-center text-[12px] text-text-muted">
-                          {PAGE_TAB_LABELS[item.tab]}
-                          <IconChevronRight size={16} aria-hidden="true" />
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )
-          })}
-        </div>
-      )}
-    </>
-  )
+/** What an empty table says, for the chip and filters that emptied it. */
+function emptyText(show: ListFilter, q: string, anyFilter: boolean): string {
+  if (show === 'bin') return 'Nothing in the Bin.'
+  if (q) return `No garages match “${q}” here.`
+  if (anyFilter) return 'No garages match these filters.'
+  if (show === REVIEW_FILTER) return 'No documents to review.'
+  if (show === CERTIFIED_FILTER) return 'No Detlio Certified garages yet.'
+  if (show === ELIGIBLE_FILTER) return 'No garage is waiting to be certified.'
+  return `No garages are ${SHOW_LABELS[show].toLowerCase()}.`
 }

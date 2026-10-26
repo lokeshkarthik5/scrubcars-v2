@@ -8,68 +8,68 @@ import {
   useRef,
   useState,
 } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
 import {
   IconAdjustmentsHorizontal,
   IconCalendar,
   IconDownload,
-  IconNotes,
+  IconX,
 } from '@tabler/icons-react'
-import { cn } from '@repo/core/utils'
-import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
+import { bookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
-import { ScInput } from '@repo/ui/sc/input'
 import { PageHeader } from '@repo/ui/sc/page-header'
-import { Reveal } from '@repo/ui/sc/reveal'
-import { ScSelect } from '@repo/ui/sc/select'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminBooking } from '@repo/core/api/admin'
+import { cn } from '@repo/core/utils'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import {
   flattenAdminBookingPages,
   useAdminBookings,
+  useAdminBookingViewCounts,
 } from '@repo/core/api/hooks/use-admin-bookings'
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
-import { isInBin } from '@/lib/vendor-list'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
-import {
-  BillDueBadge,
-  NoShowBadge,
-  RefundedBadge,
-  RefundOwedBadge,
-  TestBadge,
-  AcceptByBadge,
-  NotAcceptedBadge,
-  WaitingBadge,
-} from '@/components/booking-badges'
-import { CopyButton } from '@/components/copy-button'
-import { Meta } from '@/components/meta'
-import { PhoneLink } from '@/components/phone-link'
-import { UrgencyChip } from '@/components/urgency-chip'
-import { useAdminToday } from '@/hooks/use-admin-today'
-import { taskLine } from '@/lib/today'
 import { useNow } from '@repo/core/hooks/use-now'
 import {
-  bookingTypeLabel,
+  AdminTable,
+  ColumnsButton,
+  FilterBar,
+  SavedViews,
+  useHiddenColumns,
+} from '@/components/table'
+import { groupRows } from '@/lib/admin-table'
+import { bookingNextStep, bookingRowTone } from '@/lib/booking-next-step'
+import {
+  PAYMENT_FILTERS,
+  TODAY_GROUPS,
+  TYPE_FILTERS,
+  emptyViewText,
+  matchesView,
+  parsePaymentFilter,
+  parseTypeFilter,
+  parseView,
+  todayGroup,
+  viewFilter,
+  viewParam,
+  viewsUnsupported,
+  viewsWithCounts,
+} from '@/lib/booking-views'
+import {
   bookingsCsv,
-  cancellationLabel,
   downloadCsv,
   formatClock,
-  formatRupees,
-  formatWhen,
   listQueryForDetail,
-  paymentStatusLabel,
-  pickupStepLine,
   todayIst,
 } from '@/lib/bookings'
+import { isInBin } from '@/lib/vendor-list'
+import { BOOKING_OPTIONAL_COLUMNS, bookingColumns } from './booking-columns'
+import { BookingSidePanel } from './booking-side-panel'
 
+/** The old status chips' values: a link that names one still filters by it. */
 const STATUSES = [
-  'all',
   'pending',
   'confirmed',
   'in_progress',
@@ -82,202 +82,17 @@ function isStatusFilter(value: string | null): value is StatusFilter {
   return (STATUSES as readonly (string | null)[]).includes(value)
 }
 
-function BookingRow({
-  booking: b,
-  listQuery,
-}: {
-  booking: AdminBooking
-  /** The list's filters, carried to the booking so its back arrow returns here. */
-  listQuery: string
-}) {
-  const badge = bookingStatusBadge(b.status)
-  const cancelled = cancellationLabel(b)
-  const services = b.items.map((item) => item.name).join(', ')
-
-  return (
-    // The reference is a stretched link: the whole card opens the booking,
-    // while the call links and the copy button sit above it (z-10) and keep
-    // their own taps.
-    <ScCard className="relative flex flex-col gap-3 transition-colors hover:border-text-muted">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Link
-            href={`/bookings/${b.id}${listQuery ? `?back=${encodeURIComponent(listQuery)}` : ''}`}
-            aria-label={`Open booking #${b.reference}${b.customer ? ` for ${b.customer.name}` : ''}`}
-            className="font-numeric text-[14px] font-semibold text-text-primary after:absolute after:inset-0 after:rounded-[14px] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-text-secondary"
-          >
-            #{b.reference}
-          </Link>
-          <ScBadge variant={badge.variant}>{badge.label}</ScBadge>
-          {b.markedTest && <TestBadge />}
-          {b.waitingMins !== null && <WaitingBadge mins={b.waitingMins} />}
-          {b.status === 'pending' && b.respondBy && (
-            <AcceptByBadge respondBy={b.respondBy} />
-          )}
-          {b.notAcceptedInTime && <NotAcceptedBadge />}
-          {b.noShow && <NoShowBadge party={b.noShow} />}
-          {b.billDue && <BillDueBadge amount={b.billDue} />}
-          {b.refundOwed ? (
-            <RefundOwedBadge amount={b.refundOwed} />
-          ) : (
-            b.refunded && <RefundedBadge />
-          )}
-          {b.notesCount > 0 && (
-            <ScBadge variant="muted">
-              <IconNotes size={11} aria-hidden className="mr-1" />
-              <span className="font-numeric">{b.notesCount}</span>
-              <span className="sr-only">
-                {' '}
-                {b.notesCount === 1 ? 'note' : 'notes'}
-              </span>
-            </ScBadge>
-          )}
-        </div>
-        <p className="font-numeric text-[13px] text-text-primary">
-          {formatWhen(b.scheduledAt)}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-4">
-        <Meta label="Garage">
-          <p className="truncate text-text-primary">{b.garage?.name ?? '—'}</p>
-          {b.garage && (
-            <PhoneLink phone={b.garage.phone} name={b.garage.name} />
-          )}
-        </Meta>
-        <Meta label="Customer">
-          <p className="truncate text-text-primary">
-            {b.customer?.name ?? '—'}
-          </p>
-          {b.customer && (
-            <PhoneLink phone={b.customer.phone} name={b.customer.name} />
-          )}
-        </Meta>
-        <Meta label={bookingTypeLabel(b.bookingType)}>
-          <p className="line-clamp-2">
-            {b.bookingType === 'doorstep' || b.bookingType === 'pickup'
-              ? (b.address ?? 'Address missing')
-              : 'Customer comes in'}
-          </p>
-          {b.pickup && pickupStepLine(b.pickup) && (
-            <p className="text-text-muted">{pickupStepLine(b.pickup)}</p>
-          )}
-        </Meta>
-        <Meta label="Car">
-          <p className="truncate">
-            {b.vehicle ? `${b.vehicle.make} ${b.vehicle.model}` : '—'}
-          </p>
-          {b.vehicle?.plate && (
-            <p className="font-numeric text-text-muted">{b.vehicle.plate}</p>
-          )}
-        </Meta>
-        <Meta label={b.items.length > 1 ? 'Services' : 'Service'}>
-          <p className="line-clamp-2">{services || '—'}</p>
-        </Meta>
-        <Meta label="Amount">
-          <p className="font-numeric font-medium text-text-primary">
-            {formatRupees(b.amount)}
-          </p>
-        </Meta>
-        <Meta label="Payment">
-          <p>{paymentStatusLabel(b.payment?.status)}</p>
-          {b.payment?.gatewayTxnId && (
-            <div className="flex min-w-0 items-center">
-              <span className="truncate font-numeric text-text-muted">
-                {b.payment.gatewayTxnId}
-              </span>
-              <CopyButton
-                value={b.payment.gatewayTxnId}
-                label={`Copy Razorpay payment id ${b.payment.gatewayTxnId}`}
-                className="-my-2 shrink-0"
-              />
-            </div>
-          )}
-        </Meta>
-      </div>
-
-      {cancelled && (
-        <div className="border-t border-border pt-2 text-[12px]">
-          <p className="font-medium text-text-primary">{cancelled}</p>
-          {b.cancellationReason && !b.notAcceptedInTime && (
-            <p className="mt-0.5 text-text-secondary">{b.cancellationReason}</p>
-          )}
-        </div>
-      )}
-    </ScCard>
-  )
-}
-
-/**
- * "Needs action first" (quick win 1): bookings waiting for their garage,
- * then refunds owed on a booking, each on the panel's one clock scale, above
- * the list (which is ordered by slot time). From the Today summary, so it
- * is the same as Today's list; shown only on the unfiltered list.
- */
-function NeedsActionFirst() {
-  const { data } = useAdminToday()
-  const now = useNow(30_000)
-  const tasks = (data?.tasks ?? []).filter(
-    (task) =>
-      task.kind === 'booking_waiting' ||
-      (task.kind === 'refund_owed' && task.bookingId)
-  )
-  if (tasks.length === 0) return null
-  return (
-    <section
-      aria-labelledby="bookings-needs-action"
-      className="rounded-[12px] border border-border bg-surface"
-    >
-      <h2
-        id="bookings-needs-action"
-        className="border-b border-border px-4 py-2.5 text-[14px] font-semibold text-text-primary"
-      >
-        Needs action first{' '}
-        <span className="font-numeric text-text-secondary">{tasks.length}</span>
-        <span className="ml-2 text-[12px] font-normal text-text-secondary">
-          Test bookings left out
-        </span>
-      </h2>
-      <ul>
-        {tasks.map((task) => {
-          const line = taskLine(task, now)
-          return (
-            <li
-              key={task.key}
-              className="flex flex-col gap-1.5 border-b border-border px-4 py-2.5 last:border-b-0 md:flex-row md:items-center md:gap-3"
-            >
-              <UrgencyChip
-                label={line.chip}
-                className="self-start md:self-center"
-              />
-              <Link
-                href={line.href}
-                className="min-w-0 flex-1 truncate text-[13px] text-text-primary hover:underline"
-              >
-                {line.title}
-                <span className="text-text-secondary"> · {line.detail}</span>
-              </Link>
-              {task.kind === 'booking_waiting' && (
-                <PhoneLink
-                  phone={task.garage.phone}
-                  name={task.garage.name}
-                  className="text-[13px]"
-                />
-              )}
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
-}
-
 /**
  * The most pages Export CSV loads before giving up on the rest: 50 pages of
  * 100. A month of pilot bookings is a fraction of that; past it, the export
  * says so and asks for a narrower range.
  */
 const EXPORT_MAX_PAGES = 50
+
+const FIELD =
+  'min-h-11 rounded-md border border-border bg-surface px-2.5 text-[12px] font-medium text-text-secondary md:min-h-9'
+/** A filter that is on: outlined like a pressed chip. */
+const ACTIVE_FIELD = 'border-text-primary text-text-primary'
 
 function BookingsList() {
   const router = useRouter()
@@ -287,12 +102,15 @@ function BookingsList() {
   // Filters live in the URL, so going back from a booking returns to the same
   // search, and a filtered list can be shared with a colleague.
   const statusParam = params.get('status')
-  const status: StatusFilter = isStatusFilter(statusParam) ? statusParam : 'all'
+  const status = isStatusFilter(statusParam) ? statusParam : null
   const vendorId = params.get('garage') ?? ''
   const from = params.get('from') ?? ''
   const to = params.get('to') ?? ''
   // Bookings the team marked Test: on their own, when the chip is on.
   const testOnly = params.get('test') === 'only'
+  // How the car is served, and how it is paid (mockup 03's chips).
+  const bookingType = parseTypeFilter(params.get('type'))
+  const payment = parsePaymentFilter(params.get('payment'))
 
   const [search, setSearch] = useState(params.get('q') ?? '')
   const q = useDebounced(search.trim(), 350)
@@ -308,19 +126,29 @@ function BookingsList() {
     if (urlQ !== q) setSearch(urlQ)
   }
 
+  // The saved view (0059): Needs action to start with, All while searching.
+  const view = parseView(params.get('view'), urlQ)
+
   const setParams = useCallback(
-    (updates: Record<string, string>) => {
+    (updates: Record<string, string | null>) => {
       const next = new URLSearchParams(params.toString())
       for (const [key, value] of Object.entries(updates)) {
         if (value) next.set(key, value)
         else next.delete(key)
       }
       const query = next.toString()
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      })
+      // Replaced, not pushed: a filter is a view of this page, not
+      // somewhere Back should step through. The browser's own history,
+      // which useSearchParams follows: router.replace() asks the server for
+      // the page again, and once the sidebar's links have been prefetched
+      // Next dropped that navigation, so a filter pressed then did nothing.
+      window.history.replaceState(
+        null,
+        '',
+        query ? `${pathname}?${query}` : pathname
+      )
     },
-    [params, pathname, router]
+    [params, pathname]
   )
 
   // The search box is typed into freely; only the settled text reaches the
@@ -341,13 +169,27 @@ function BookingsList() {
   const filters = useMemo(
     () => ({
       q: q || undefined,
-      status: status === 'all' ? undefined : status,
+      status: status ?? undefined,
       vendorId: vendorId || undefined,
       from: rangeReversed ? undefined : from || undefined,
       to: rangeReversed ? undefined : to || undefined,
       test: testOnly ? ('only' as const) : undefined,
+      bookingType: bookingType ?? undefined,
+      payment: payment ?? undefined,
+      view: viewFilter(view),
     }),
-    [q, status, vendorId, from, to, rangeReversed, testOnly]
+    [
+      q,
+      status,
+      vendorId,
+      from,
+      to,
+      rangeReversed,
+      testOnly,
+      bookingType,
+      payment,
+      view,
+    ]
   )
 
   const {
@@ -360,8 +202,37 @@ function BookingsList() {
     isFetchingNextPage,
     dataUpdatedAt,
   } = useAdminBookings(filters)
-  const bookings = useMemo(() => flattenAdminBookingPages(data?.pages), [data])
-  const listQuery = listQueryForDetail(params)
+  const loaded = useMemo(() => flattenAdminBookingPages(data?.pages), [data])
+
+  // How many each view holds, under every other filter on the list, so a
+  // view's count is the rows it shows. Never holds up the list; an API older
+  // than the views (404) shows them without counts, and the view is applied
+  // to the loaded rows here, since that API ignores it.
+  const counts = useAdminBookingViewCounts({
+    q: filters.q,
+    status: filters.status,
+    vendorId: filters.vendorId,
+    from: filters.from,
+    to: filters.to,
+    test: filters.test,
+    bookingType: filters.bookingType,
+    payment: filters.payment,
+  })
+  const unsupported = viewsUnsupported(counts.error)
+  const now = useNow(30_000)
+  const bookings = useMemo(
+    () =>
+      unsupported ? loaded.filter((b) => matchesView(b, view, now)) : loaded,
+    [unsupported, loaded, view, now]
+  )
+
+  // The list's filters for a booking's back arrow, with the view.
+  const listQuery = useMemo(() => {
+    const query = new URLSearchParams(listQueryForDetail(params))
+    const chosen = params.get('view')
+    if (chosen) query.set('view', chosen)
+    return query.toString()
+  }, [params])
 
   const { data: vendors = [] } = useAdminVendors()
   // Garages in the Bin are left out of the filter, as of every other picker:
@@ -381,17 +252,38 @@ function BookingsList() {
   }, [error, router])
 
   const isFiltered = Boolean(
-    q || status !== 'all' || vendorId || from || to || testOnly
+    q || status || vendorId || from || to || testOnly || bookingType || payment
   )
   // The phone's Filter button: how many of the folded filters are on.
-  const activeFilters = [status !== 'all', testOnly, vendorId, from, to].filter(
-    Boolean
-  ).length
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const activeFilters = [
+    status,
+    testOnly,
+    vendorId,
+    from,
+    to,
+    bookingType,
+    payment,
+  ].filter(Boolean).length
+
+  // Garage and dates sit behind More filters, open while one is set.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreSet = [vendorId, from, to].filter(Boolean).length
+  const moreShown = moreOpen || moreSet > 0
+
+  // The columns this browser turned off.
+  const [hiddenColumns, toggleColumn] = useHiddenColumns(
+    'detlio.admin.bookings.columns',
+    BOOKING_OPTIONAL_COLUMNS
+  )
   const clearFilters = () => {
     setSearch('')
-    router.replace(pathname, { scroll: false })
+    window.history.replaceState(null, '', pathname)
   }
+
+  // The booking open in the side panel, while it is still in the list.
+  const [openId, setOpenId] = useState<string | null>(null)
+  const openBooking = bookings.find((b) => b.id === openId) ?? null
+  const closePanel = useCallback(() => setOpenId(null), [])
 
   const [exporting, setExporting] = useState(false)
 
@@ -415,7 +307,9 @@ function BookingsList() {
         more = next.hasNextPage
       }
 
-      const rows = flattenAdminBookingPages(pages)
+      const rows = flattenAdminBookingPages(pages).filter(
+        (b) => !unsupported || matchesView(b, view, Date.now())
+      )
       downloadCsv(bookingsCsv(rows), `detlio-bookings-${todayIst()}.csv`)
       if (more) {
         toast.warn(
@@ -430,6 +324,24 @@ function BookingsList() {
   // Stale rows beat an error screen: a refresh that fails on a network blip
   // keeps what was there, with a line saying so, until the next one works.
   const refreshFailed = Boolean(error) && bookings.length > 0
+
+  const columns = useMemo(
+    () => bookingColumns({ listQuery, now }),
+    [listQuery, now]
+  )
+
+  // Today, grouped (mockup 03): what needs a call first, then the rest on
+  // track, each in time order.
+  const groupOf = useCallback(
+    (b: AdminBooking) =>
+      todayGroup(view, bookingRowTone(bookingNextStep(b, now))),
+    [view, now]
+  )
+  const rows = useMemo(
+    () =>
+      view === 'today' ? groupRows(bookings, groupOf, TODAY_GROUPS) : bookings,
+    [view, bookings, groupOf]
+  )
 
   return (
     <>
@@ -450,73 +362,116 @@ function BookingsList() {
       />
 
       <div className="flex flex-col gap-3">
-        <ScInput
-          id="booking-search"
-          type="search"
-          aria-label="Search bookings"
-          placeholder="Reference, receipt no., phone, customer or garage"
-          autoComplete="off"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="min-h-11"
+        <SavedViews
+          label="Views"
+          views={viewsWithCounts(unsupported ? null : counts.data)}
+          value={view}
+          onChange={(next) => {
+            setOpenId(null)
+            setParams({ view: viewParam(next, urlQ) })
+          }}
+          trailing={
+            view === 'needs_action' ? (
+              <span className="shrink-0 text-[12px] text-text-muted md:ml-auto">
+                Test bookings left out
+              </span>
+            ) : undefined
+          }
         />
 
-        {/* On a phone the chips and the three filters fold behind one
-            button, so the first booking is on the first screen (quick win
-            2). On a laptop they are always out. */}
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((open) => !open)}
-          aria-expanded={filtersOpen}
-          aria-controls="booking-filters"
-          className="flex min-h-11 items-center justify-center gap-1.5 rounded-[8px] border border-border px-4 text-[13px] font-medium text-text-primary md:hidden"
-        >
-          <IconAdjustmentsHorizontal size={16} aria-hidden />
-          Filter
-          {activeFilters > 0 && (
-            <span className="font-numeric text-text-secondary">
-              · {activeFilters}
-            </span>
-          )}
-        </button>
-
-        <div
-          id="booking-filters"
-          className={cn(
-            'flex-col gap-3 md:flex',
-            filtersOpen ? 'flex' : 'hidden'
-          )}
-        >
-          <div
-            role="group"
-            aria-label="Status"
-            className="flex flex-wrap gap-1.5"
-          >
-            {STATUSES.map((s) => (
-              <FilterChip
-                key={s}
-                label={s === 'all' ? 'All' : bookingStatusBadge(s).label}
-                active={status === s}
-                onClick={() => setParams({ status: s === 'all' ? '' : s })}
+        <FilterBar
+          search={{
+            id: 'booking-search',
+            label: 'Search bookings',
+            placeholder: 'Reference, receipt no., phone, customer or garage',
+            value: search,
+            onChange: setSearch,
+          }}
+          activeCount={activeFilters}
+          trailing={
+            <>
+              {isFiltered && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="min-h-11 px-1 font-medium text-text-primary underline-offset-2 hover:underline md:min-h-9"
+                >
+                  Clear filters
+                </button>
+              )}
+              <ColumnsButton
+                columns={BOOKING_OPTIONAL_COLUMNS}
+                hidden={hiddenColumns}
+                onToggle={toggleColumn}
               />
+            </>
+          }
+        >
+          <select
+            id="booking-type"
+            aria-label="Type"
+            value={bookingType ?? ''}
+            onChange={(e) => setParams({ type: e.target.value || null })}
+            className={cn(FIELD, bookingType && ACTIVE_FIELD)}
+          >
+            <option value="">Type: any</option>
+            {TYPE_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
-            <FilterChip
-              label="Test bookings"
-              active={testOnly}
-              onClick={() => setParams({ test: testOnly ? '' : 'only' })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-[2fr_1fr_1fr]">
-            <div className="col-span-2 md:col-span-1">
-              <ScSelect
+          </select>
+          <select
+            id="booking-payment"
+            aria-label="Payment"
+            value={payment ?? ''}
+            onChange={(e) => setParams({ payment: e.target.value || null })}
+            className={cn(FIELD, payment && ACTIVE_FIELD)}
+          >
+            <option value="">Payment: any</option>
+            {PAYMENT_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <FilterChip
+            label="Test bookings"
+            active={testOnly}
+            onClick={() => setParams({ test: testOnly ? '' : 'only' })}
+            className="min-h-11 rounded-[8px] md:min-h-9"
+          />
+          <button
+            type="button"
+            onClick={() => setMoreOpen((open) => !open)}
+            aria-expanded={moreShown}
+            aria-controls="booking-more-filters"
+            className={cn(
+              'inline-flex min-h-11 items-center gap-1.5 rounded-[8px] border px-3 text-[12px] font-medium transition-colors md:min-h-9',
+              moreSet > 0
+                ? 'border-text-primary text-text-primary'
+                : 'border-border text-text-secondary hover:text-text-primary'
+            )}
+          >
+            <IconAdjustmentsHorizontal size={14} aria-hidden="true" />
+            More filters
+            {moreSet > 0 && <span className="font-numeric">· {moreSet}</span>}
+          </button>
+          {moreShown && (
+            <div
+              id="booking-more-filters"
+              role="group"
+              aria-label="More filters"
+              className="flex flex-wrap items-center gap-2"
+            >
+              <select
                 id="booking-garage"
-                label="Garage"
+                aria-label="Garage"
                 value={vendorId}
                 onChange={(e) => setParams({ garage: e.target.value })}
-                className="min-h-11"
+                className={FIELD}
               >
-                <option value="">All garages</option>
+                <option value="">Garage: any</option>
                 {garages.map((garage) => (
                   <option key={garage.id} value={garage.id}>
                     {isInBin(garage)
@@ -524,28 +479,44 @@ function BookingsList() {
                       : garage.businessName}
                   </option>
                 ))}
-              </ScSelect>
+              </select>
+              <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                From
+                <input
+                  id="booking-from"
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setParams({ from: e.target.value })}
+                  className={FIELD}
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                To
+                <input
+                  id="booking-to"
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setParams({ to: e.target.value })}
+                  className={FIELD}
+                />
+              </label>
             </div>
-            <ScInput
-              id="booking-from"
-              type="date"
-              label="From"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => setParams({ from: e.target.value })}
-              className="min-h-11"
-            />
-            <ScInput
-              id="booking-to"
-              type="date"
-              label="To"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => setParams({ to: e.target.value })}
-              className="min-h-11"
-            />
-          </div>
-        </div>
+          )}
+          {/* An old link's status chip, removable. */}
+          {status && (
+            <button
+              type="button"
+              onClick={() => setParams({ status: null })}
+              aria-label={`Remove the ${bookingStatusBadge(status).label} filter`}
+              className="inline-flex min-h-11 items-center gap-1 rounded-[8px] border border-text-primary px-2.5 text-[12px] font-medium text-text-primary md:min-h-9"
+            >
+              {bookingStatusBadge(status).label}
+              <IconX size={13} aria-hidden="true" />
+            </button>
+          )}
+        </FilterBar>
 
         {rangeReversed && (
           <p className="text-[12px] text-error">
@@ -561,74 +532,78 @@ function BookingsList() {
           </p>
         )}
 
-        {!isPending && !(error && bookings.length === 0) && (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-text-secondary">
-            <p>
-              <span className="font-numeric">{bookings.length}</span>
-              {hasNextPage ? '+' : ''} shown
-              {dataUpdatedAt > 0 && (
+        {isPending ? (
+          <SkeletonList count={3} itemClassName="h-14" />
+        ) : error && bookings.length === 0 ? (
+          <ErrorState
+            message={errorMessage(error, 'Failed to load bookings')}
+            onRetry={() => void refetch()}
+          />
+        ) : bookings.length === 0 && !hasNextPage ? (
+          <EmptyState
+            icon={<IconCalendar size={32} stroke={1.5} />}
+            title={
+              view === 'needs_action' && !isFiltered
+                ? 'All clear'
+                : 'No bookings found'
+            }
+            subtitle={emptyViewText(view, isFiltered)}
+          />
+        ) : (
+          <div className="flex items-start gap-4">
+            <AdminTable<AdminBooking>
+              caption="Bookings"
+              className="min-w-0 flex-1"
+              rows={rows}
+              columns={columns}
+              hiddenColumns={hiddenColumns}
+              groupOf={view === 'today' ? groupOf : undefined}
+              rowKey={(b) => b.id}
+              rowLabelId={(b) => `booking-${b.id}-ref`}
+              toneOf={(b) => bookingRowTone(bookingNextStep(b, now))}
+              openKey={openId}
+              onOpen={(b) => setOpenId(b ? b.id : null)}
+              openLabel={(b) => `Details for #${b.reference}`}
+              empty={emptyViewText(view, isFiltered)}
+              footer={
                 <>
-                  {' '}
-                  · updated{' '}
-                  <span className="font-numeric">
-                    {formatClock(dataUpdatedAt)}
-                  </span>
-                  , refreshes every 30 seconds
+                  <p>
+                    <span className="font-numeric">{bookings.length}</span>
+                    {hasNextPage ? '+' : ''} shown
+                    {dataUpdatedAt > 0 && (
+                      <>
+                        {' '}
+                        · updated{' '}
+                        <span className="font-numeric">
+                          {formatClock(dataUpdatedAt)}
+                        </span>
+                        , refreshes every 30 seconds
+                      </>
+                    )}
+                  </p>
+                  {hasNextPage && (
+                    <ScButton
+                      variant="secondary"
+                      fullWidth={false}
+                      disabled={isFetchingNextPage}
+                      onClick={() => void fetchNextPage()}
+                      className="min-h-10 px-4 text-[13px]"
+                    >
+                      {isFetchingNextPage ? 'Loading…' : 'Load more'}
+                    </ScButton>
+                  )}
                 </>
-              )}
-            </p>
-            {isFiltered && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="min-h-11 px-1 font-medium text-text-primary underline-offset-2 hover:underline"
-              >
-                Clear filters
-              </button>
-            )}
+              }
+            />
+            <BookingSidePanel
+              booking={openBooking}
+              listQuery={listQuery}
+              now={now}
+              onClose={closePanel}
+            />
           </div>
         )}
       </div>
-
-      {!isFiltered && !search.trim() && <NeedsActionFirst />}
-
-      {isPending ? (
-        <SkeletonList count={3} itemClassName="h-44" />
-      ) : error && bookings.length === 0 ? (
-        <ErrorState
-          message={errorMessage(error, 'Failed to load bookings')}
-          onRetry={() => void refetch()}
-        />
-      ) : bookings.length === 0 ? (
-        <EmptyState
-          icon={<IconCalendar size={32} stroke={1.5} />}
-          title="No bookings found"
-          subtitle={
-            isFiltered
-              ? 'Nothing matches these filters. Try a reference, a receipt number, a phone number or a name.'
-              : 'Bookings will appear here once customers start booking.'
-          }
-        />
-      ) : (
-        <div className="flex flex-col gap-2">
-          {bookings.map((b, i) => (
-            <Reveal key={b.id} index={i}>
-              <BookingRow booking={b} listQuery={listQuery} />
-            </Reveal>
-          ))}
-
-          {hasNextPage && (
-            <ScButton
-              variant="secondary"
-              disabled={isFetchingNextPage}
-              onClick={() => void fetchNextPage()}
-              className="min-h-11"
-            >
-              {isFetchingNextPage ? 'Loading…' : 'Load more'}
-            </ScButton>
-          )}
-        </div>
-      )}
     </>
   )
 }
@@ -637,7 +612,7 @@ export default function AdminBookingsPage() {
   // useSearchParams needs a Suspense boundary, or Next.js refuses to
   // prerender the page.
   return (
-    <Suspense fallback={<SkeletonList count={2} itemClassName="h-44" />}>
+    <Suspense fallback={<SkeletonList count={2} itemClassName="h-14" />}>
       <BookingsList />
     </Suspense>
   )
