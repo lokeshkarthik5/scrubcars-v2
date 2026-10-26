@@ -20,6 +20,7 @@ import {
   useCreateAdminLogin,
   useResetAdminLoginPassword,
   useSetAdminLoginStatus,
+  useUpdateAdminLogin,
 } from '@repo/core/api/hooks/use-admin-logins'
 import {
   adminNameProblem,
@@ -29,6 +30,7 @@ import {
   normalizeAdminUsername,
 } from '@repo/core/admin-logins'
 import { formatRelative } from '@repo/core/format'
+import { displayPhone, teammatePhone, teammatePhoneProblem } from '@/lib/collection'
 
 /** A row's small buttons: the pill family, at the height of a list row. */
 const ROW_BUTTON = 'h-10 px-4 text-[13px]'
@@ -97,6 +99,7 @@ function LoginList({
 }) {
   const reset = useResetAdminLoginPassword()
   const status = useSetAdminLoginStatus()
+  const update = useUpdateAdminLogin()
 
   // Each sheet keeps its login while it closes, so the title doesn't blank.
   const [resetFor, setResetFor] = useState<AdminLogin | null>(null)
@@ -107,6 +110,14 @@ function LoginList({
   const [statusFor, setStatusFor] = useState<AdminLogin | null>(null)
   const [statusOpen, setStatusOpen] = useState(false)
   const [statusError, setStatusError] = useState('')
+
+  // The phone (0059): only for "Also send on WhatsApp" with a collection list.
+  const [phoneFor, setPhoneFor] = useState<AdminLogin | null>(null)
+  const [phoneOpen, setPhoneOpen] = useState(false)
+  const [phone, setPhone] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+  const phoneId = useId()
+  const phoneProblem = teammatePhoneProblem(phone)
 
   const passwordId = useId()
   const passwordProblem = newPassword ? adminPasswordProblem(newPassword) : null
@@ -139,6 +150,30 @@ function LoginList({
       toast.success(`New password set for ${resetFor.name}`)
     } catch (err) {
       setResetError(errorMessage(err, "Couldn't set the new password"))
+    }
+  }
+
+  const openPhone = (login: AdminLogin) => {
+    setPhoneFor(login)
+    setPhone(login.phone ?? '')
+    setPhoneError('')
+    setPhoneOpen(true)
+  }
+
+  const confirmPhone = async () => {
+    if (!phoneFor) return
+    if (phoneProblem) {
+      setPhoneError(phoneProblem)
+      return
+    }
+    setPhoneError('')
+    const next = teammatePhone(phone) || null
+    try {
+      await update.mutateAsync({ id: phoneFor.id, phone: next })
+      setPhoneOpen(false)
+      toast.success(next ? `Phone saved for ${phoneFor.name}` : `Phone removed for ${phoneFor.name}`)
+    } catch (err) {
+      setPhoneError(errorMessage(err, "Couldn't save the phone"))
     }
   }
 
@@ -192,11 +227,26 @@ function LoginList({
                     {login.status === 'active' ? 'On' : 'Off'}
                   </StatusChip>
                 </div>
-                <span className="text-[13px] text-text-secondary">@{login.username}</span>
+                <span className="text-[13px] text-text-secondary">
+                  @{login.username}
+                  {login.phone ? <span className="font-numeric"> · {displayPhone(login.phone)}</span> : null}
+                </span>
                 <span className="text-[12px] text-text-muted">
                   {login.lastLoginAt ? `Last signed in ${formatRelative(login.lastLoginAt)}` : 'Never signed in'}
                 </span>
               </div>
+              {(canManage || you) && login.phone !== undefined && (
+                <ScButton
+                  type="button"
+                  variant="outline"
+                  fullWidth={false}
+                  className={ROW_BUTTON}
+                  aria-label={`${login.phone ? 'Change' : 'Add'} ${login.name}’s phone`}
+                  onClick={() => openPhone(login)}
+                >
+                  {login.phone ? 'Change phone' : 'Add phone'}
+                </ScButton>
+              )}
               {canManage && !you && (
                 <div className="flex flex-wrap gap-2">
                   <ScButton
@@ -277,6 +327,45 @@ function LoginList({
       />
 
       <ConfirmSheet
+        open={phoneOpen}
+        onClose={() => setPhoneOpen(false)}
+        onConfirm={confirmPhone}
+        level="light"
+        title={`${phoneFor?.name ?? ''}’s phone`}
+        body={
+          <div className="flex flex-col gap-3">
+            <p>Optional. Only used to send them a collection list on WhatsApp. Leave it empty to remove it.</p>
+            <div className="flex flex-col gap-1">
+              <ScInput
+                id={phoneId}
+                label="Phone (optional)"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value)
+                  setPhoneError('')
+                }}
+                aria-invalid={Boolean(phone && phoneProblem)}
+                aria-describedby={`${phoneId}-hint`}
+                className="min-h-11"
+              />
+              <p
+                id={`${phoneId}-hint`}
+                className={phone && phoneProblem ? 'text-[12px] text-error' : 'text-[12px] text-text-muted'}
+              >
+                {(phone && phoneProblem) || 'A 10-digit mobile number.'}
+              </p>
+            </div>
+          </div>
+        }
+        confirmLabel="Save phone"
+        busy={update.isPending}
+        error={phoneError || undefined}
+      />
+
+      <ConfirmSheet
         open={statusOpen}
         onClose={() => setStatusOpen(false)}
         onConfirm={confirmStatus}
@@ -347,13 +436,15 @@ function AddLoginForm() {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [phone, setPhone] = useState('')
   const [tried, setTried] = useState(false)
   const [error, setError] = useState('')
 
   const nameProblem = adminNameProblem(name)
   const usernameProblem = adminUsernameProblem(username)
   const passwordProblem = adminPasswordProblem(password)
-  const valid = !nameProblem && !usernameProblem && !passwordProblem
+  const phoneProblem = teammatePhoneProblem(phone)
+  const valid = !nameProblem && !usernameProblem && !passwordProblem && !phoneProblem
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -365,6 +456,8 @@ function AddLoginForm() {
         name: normalizeAdminName(name),
         username: normalizeAdminUsername(username),
         password,
+        // Left out when empty, so an API older than 0059 still takes it.
+        ...(phone.trim() ? { phone: teammatePhone(phone) } : {}),
       },
       {
         onSuccess: (login) => {
@@ -372,6 +465,7 @@ function AddLoginForm() {
           setName('')
           setUsername('')
           setPassword('')
+          setPhone('')
           setTried(false)
         },
         onError: (err) => setError(errorMessage(err, "Couldn't add the login")),
@@ -414,6 +508,16 @@ function AddLoginForm() {
             problem={passwordProblem}
             showProblem={tried || password.length > 0}
             hint="At least 10 characters. Tell them in person or on a call; they can change it."
+            autoComplete="off"
+          />
+          <RuledInput
+            label="Phone (optional)"
+            type="tel"
+            value={phone}
+            onChange={setPhone}
+            problem={phoneProblem}
+            showProblem={tried || phone.length >= 10}
+            hint="A 10-digit mobile, only for sending them a collection list on WhatsApp."
             autoComplete="off"
           />
           {error && (
