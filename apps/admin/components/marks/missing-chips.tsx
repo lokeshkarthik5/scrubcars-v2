@@ -14,17 +14,20 @@ import { missingChipKeys, missingCounts } from '@/lib/onboarding-marks'
  * The "Missing info" filters above the Garages table: one chip per thing
  * some garage still owes us, with how many ("Photos 9"), red ones first. A
  * group of its own, so the "Show" group keeps its six chips. Pressing the
- * pressed chip clears it. Nothing renders while no garage misses anything,
+ * pressed chip clears it. On a phone the chips are one line that scrolls
+ * sideways rather than three lines of chips. Nothing renders while no garage misses anything,
  * or from an API older than `missing`.
  */
 export function MissingChips({
   vendors,
   value,
   onChange,
+  className,
 }: {
   vendors: AdminVendor[]
   value: MissingKey | null
   onChange: (k: MissingKey | null) => void
+  className?: string
 }) {
   const counts = useMemo(() => missingCounts(vendors), [vendors])
   const keys = missingChipKeys(counts)
@@ -37,11 +40,18 @@ export function MissingChips({
     <div
       role="group"
       aria-label="Missing"
-      className="flex flex-wrap items-center gap-2"
+      className={cn(
+        // A phone gets one line that scrolls sideways, edge to edge; a
+        // laptop wraps.
+        'flex items-center gap-2',
+        'max-md:-mx-4 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-4 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden',
+        'md:flex-wrap',
+        className
+      )}
     >
       <span
         aria-hidden
-        className="text-[11px] font-medium uppercase tracking-wide text-text-muted"
+        className="shrink-0 whitespace-nowrap text-[11px] font-medium uppercase tracking-wide text-text-muted"
       >
         Missing info
       </span>

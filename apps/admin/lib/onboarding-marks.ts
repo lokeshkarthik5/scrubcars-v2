@@ -14,6 +14,7 @@ import type {
 import { whatsAppHref } from '@repo/core/contact-links'
 import {
   MARK_CHASE_AFTER_DAYS,
+  MARK_PRESETS,
   MARK_STATUS_LABELS,
   MISSING_ASKS,
   MISSING_KEYS,
@@ -236,6 +237,59 @@ export function markForKey<
   M extends Pick<OnboardingMarkBrief, 'kind' | 'status'>,
 >(marks: readonly M[] | undefined, key: MissingKey): M | undefined {
   return marks?.find((mark) => mark.kind === key && mark.status !== 'received')
+}
+
+// ─── Add mark presets ────────────────────────────────────────────────────────
+
+type OpenMarkLike = Pick<OnboardingMarkBrief, 'kind' | 'label' | 'status'>
+
+/** A label as people type it: case and spacing aside. */
+const sameLabel = (a: string | null | undefined, b: string) =>
+  (a ?? '').trim().replace(/\s+/g, ' ').toLowerCase() ===
+  b.trim().replace(/\s+/g, ' ').toLowerCase()
+
+/**
+ * Whether a garage already has this "Add a mark" pick open: a missing key's
+ * preset when it has an open mark of that key (the server would refuse a
+ * second, 409 MARK_EXISTS), a team preset ("Call back") when it has an open
+ * one with that label.
+ */
+export function presetIsOpen(
+  preset: { label: string; kind: OnboardingMarkBrief['kind'] },
+  marks: readonly OpenMarkLike[] | undefined
+): boolean {
+  return (marks ?? []).some(
+    (mark) =>
+      mark.status !== 'received' &&
+      mark.kind === preset.kind &&
+      (preset.kind !== 'custom' || sameLabel(mark.label, preset.label))
+  )
+}
+
+/** The presets (by label) this garage already has open. */
+export function openPresetLabels(
+  marks: readonly OpenMarkLike[] | undefined
+): Set<string> {
+  return new Set(
+    MARK_PRESETS.filter((preset) => presetIsOpen(preset, marks)).map(
+      (preset) => preset.label
+    )
+  )
+}
+
+/**
+ * For the bulk "Add mark": the presets every one of these garages already
+ * has open, so adding it would change nothing. None for no garages.
+ */
+export function openPresetLabelsForAll(
+  vendors: ReadonlyArray<{ openMarks?: readonly OpenMarkLike[] }>
+): Set<string> {
+  if (vendors.length === 0) return new Set()
+  return new Set(
+    MARK_PRESETS.filter((preset) =>
+      vendors.every((vendor) => presetIsOpen(preset, vendor.openMarks))
+    ).map((preset) => preset.label)
+  )
 }
 
 // ─── Undo after "Mark these as Asked today" ──────────────────────────────────

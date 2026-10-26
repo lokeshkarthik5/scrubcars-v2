@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { IconX } from '@tabler/icons-react'
+import { IconCheck, IconX } from '@tabler/icons-react'
 import { ApiError } from '@repo/core/api/client'
 import type {
   OnboardingMark,
@@ -22,10 +22,10 @@ import {
   type MarkStatus,
 } from '@repo/core/onboarding-marks'
 import { cn } from '@repo/core/utils'
-import { ScModal } from '@repo/ui/sc/modal'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
-import type { MarkVendor } from '@/lib/onboarding-marks'
+import { openPresetLabels, type MarkVendor } from '@/lib/onboarding-marks'
+import { AnchoredPopover } from './anchored-popover'
 
 /**
  * Renders an overlay at the end of <body>, out of the table cell or side
@@ -91,6 +91,8 @@ export function MarkForm({
   onSubmit,
   onCancel,
   extra,
+  openPresets,
+  openPresetsHint = 'Already open on this garage',
 }: {
   title: string
   subtitle: ReactNode
@@ -104,6 +106,13 @@ export function MarkForm({
   onCancel: () => void
   /** Under the fields, before the buttons: Delete, for an existing mark. */
   extra?: ReactNode
+  /**
+   * Presets (by label) the garage already has open: shown, but not offered,
+   * since the server would refuse a second one (409 MARK_EXISTS).
+   */
+  openPresets?: ReadonlySet<string>
+  /** Why an open preset can't be picked, read out with it. */
+  openPresetsHint?: string
 }) {
   const titleId = useId()
   const presetIndex = initial?.label
@@ -113,7 +122,7 @@ export function MarkForm({
       )
     : -1
   const [preset, setPreset] = useState<number | null>(
-    editing ? null : presetIndex === -1 ? null : presetIndex
+    editing || presetIndex === -1 ? null : presetIndex
   )
   const [own, setOwn] = useState(
     editing || presetIndex === -1 ? (initial?.label ?? '') : ''
@@ -173,26 +182,43 @@ export function MarkForm({
             aria-labelledby={`${titleId}-pick`}
             className="flex flex-wrap gap-2"
           >
-            {MARK_PRESETS.map((item, index) => (
-              <button
-                key={item.label}
-                type="button"
-                aria-pressed={preset === index}
-                onClick={() => {
-                  setPreset(preset === index ? null : index)
-                  setOwn('')
-                }}
-                className={cn(
-                  'tap-target rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors',
-                  preset === index
-                    ? 'border-brand-white bg-brand-white text-brand-black'
-                    : 'border-border bg-surface text-text-secondary hover:text-text-primary'
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
+            {MARK_PRESETS.map((item, index) => {
+              const taken = openPresets?.has(item.label) ?? false
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  aria-pressed={preset === index}
+                  disabled={taken}
+                  title={taken ? openPresetsHint : undefined}
+                  aria-describedby={taken ? `${titleId}-open` : undefined}
+                  onClick={() => {
+                    setPreset(preset === index ? null : index)
+                    setOwn('')
+                  }}
+                  className={cn(
+                    'tap-target inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors',
+                    preset === index
+                      ? 'border-brand-white bg-brand-white text-brand-black'
+                      : 'border-border bg-surface text-text-secondary hover:text-text-primary',
+                    'disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-text-muted disabled:hover:text-text-muted'
+                  )}
+                >
+                  {taken && <IconCheck size={12} aria-hidden />}
+                  {item.label}
+                </button>
+              )
+            })}
           </div>
+          {openPresets && openPresets.size > 0 && (
+            <p
+              id={`${titleId}-open`}
+              className="flex items-center gap-1 text-[11px] text-text-muted"
+            >
+              <IconCheck size={12} aria-hidden />
+              {openPresetsHint}
+            </p>
+          )}
         </div>
       )}
 
@@ -278,18 +304,23 @@ export function isMarkExists(error: unknown): boolean {
 type EditableMark = OnboardingMarkBrief & Partial<Pick<OnboardingMark, 'note'>>
 
 /**
- * Add a mark to one garage, or change one. A second open mark of a missing
- * key is refused (409 MARK_EXISTS); the popover then offers that mark to edit,
- * keeping the note and status typed so far.
+ * Add a mark to one garage, or change one. On a laptop it opens next to the
+ * button that opened it (`anchor`), else as a dialog. The presets the garage
+ * already has open are not offered; should one slip through (a list older
+ * than the mark), the server refuses it (409 MARK_EXISTS) and the popover
+ * offers that mark to edit, keeping the note and status typed so far.
  */
 export function MarkPopover({
   vendor,
   mark,
   onClose,
+  anchor,
 }: {
   vendor: MarkVendor
   mark?: OnboardingMarkBrief | OnboardingMark
   onClose: () => void
+  /** The button that opened it, to sit by on a laptop. */
+  anchor?: HTMLElement | null
 }) {
   const [editing, setEditing] = useState<EditableMark | null>(mark ?? null)
   const [carried, setCarried] = useState<Pick<
@@ -361,18 +392,18 @@ export function MarkPopover({
   }
 
   const note = editing ? (full?.note ?? editing.note ?? '') : ''
+  const openPresets = openPresetLabels(marks.data ?? vendor.openMarks)
   // Wait for the note before showing the form, unless the marks can't be
   // read (an older API): then it starts without one.
   const loadingNote = briefOnly && !full && marks.isPending
 
   return (
     <MarksOverlay>
-      <ScModal
-        open
+      <AnchoredPopover
+        anchor={anchor}
         onClose={close}
         dismissible={!busy}
         aria-label={editing ? 'Edit mark' : 'Add a mark'}
-        className="max-w-[420px]"
       >
         {loadingNote ? (
           <p
@@ -429,6 +460,7 @@ export function MarkPopover({
               )
             }
             submitLabel={editing ? 'Save' : 'Add mark'}
+            openPresets={editing ? undefined : openPresets}
             onSubmit={submit}
             onCancel={close}
             extra={
@@ -453,7 +485,7 @@ export function MarkPopover({
             }
           />
         )}
-      </ScModal>
+      </AnchoredPopover>
     </MarksOverlay>
   )
 }

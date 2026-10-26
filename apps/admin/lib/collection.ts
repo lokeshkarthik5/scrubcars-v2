@@ -10,6 +10,7 @@ import type {
   AdminVendorCollection,
 } from '@repo/core/api/admin'
 import type {
+  CollectionGarageBrief,
   CollectionItem,
   CollectionList,
 } from '@repo/core/api/admin-collection'
@@ -154,6 +155,44 @@ export function sendButtonLabel(names: readonly string[]): string {
     return name ? `Send to ${name}` : 'Send'
   }
   return `Send ${names.length} lists`
+}
+
+/**
+ * The Send to team subtitle, true to what the sheet shows: "3 lists, split
+ * by who onboarded each garage", "One list for Raga", or, before anyone is
+ * picked, "One list of everything these garages are missing".
+ */
+export function sendSubtitle(
+  lists: ReadonlyArray<{ name: string | null }>
+): string {
+  if (lists.length > 1) {
+    return `${plural(lists.length, 'list')}, split by who onboarded each garage`
+  }
+  const name = lists[0]?.name?.trim()
+  return name
+    ? `One list for ${name}`
+    : 'One list of everything these garages are missing'
+}
+
+/**
+ * How many garages each login already has on their open lists, for "has 2
+ * garages" next to them in the collector picker. Keyed by login id.
+ */
+export function openGaragesByLogin(
+  lists: readonly CollectionList[]
+): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const card of collectorCards(lists)) {
+    if (!card.key.startsWith('name:')) out.set(card.key, card.garages)
+  }
+  return out
+}
+
+/** The garage's area for a list ("Adyar"), else its city; '' with neither. */
+export function garageBriefArea(
+  garage: Pick<CollectionGarageBrief, 'city'> & { area?: string | null }
+): string {
+  return garage.area?.trim() || garage.city?.trim() || ''
 }
 
 /** The Garages "Marks" cell: "With Raga · due 29 Oct · 3/11". */
@@ -343,7 +382,7 @@ export function listText(
   garages.forEach(({ garage, items }, index) => {
     lines.push('')
     lines.push(
-      `${index + 1}. ${garage.businessName}${garage.city ? `, ${garage.city}` : ''}`
+      `${index + 1}. ${garage.businessName}${garageBriefArea(garage) ? `, ${garageBriefArea(garage)}` : ''}`
     )
     const who = [garage.ownerName, displayPhone(garage.ownerPhone)]
       .filter(Boolean)
@@ -384,8 +423,7 @@ export function collectorCards(
   >()
   for (const list of lists) {
     if (!list.open) continue
-    const key =
-      list.assigneeLoginId ?? `name:${list.assigneeName.trim().toLowerCase()}`
+    const key = personKey(list)
     let entry = byPerson.get(key)
     if (!entry) {
       entry = {
@@ -422,4 +460,52 @@ export function collectorCards(
       if (b.dueOn) return 1
       return a.name.localeCompare(b.name)
     })
+}
+
+/** The person a list is for, as collectorCards keys them. */
+function personKey(
+  list: Pick<CollectionList, 'assigneeLoginId' | 'assigneeName'>
+): string {
+  return (
+    list.assigneeLoginId ?? `name:${list.assigneeName.trim().toLowerCase()}`
+  )
+}
+
+/**
+ * Where and when a list went: "Sent 26 Oct to Telegram and Raga’s Today".
+ * "Telegram" only when it was posted there, the Today inbox only for a
+ * login (a typed name has none).
+ */
+export function sentLine(
+  list: Pick<
+    CollectionList,
+    'createdAt' | 'telegramSentAt' | 'assigneeLoginId' | 'assigneeName'
+  >
+): string {
+  const time = Date.parse(list.createdAt)
+  const day = Number.isNaN(time) ? '' : ` ${shortDate(istToday(time))}`
+  const to = [
+    list.telegramSentAt ? 'Telegram' : null,
+    list.assigneeLoginId ? `${list.assigneeName.trim()}’s Today` : null,
+  ].filter(Boolean)
+  return `Sent${day}${to.length > 0 ? ` to ${to.join(' and ')}` : ''}`
+}
+
+/**
+ * The With team cards' "Sent … to …" line, one per collectorCards key: from
+ * that person's newest open list.
+ */
+export function collectorSentLines(
+  lists: readonly CollectionList[]
+): Map<string, string> {
+  const newest = new Map<string, CollectionList>()
+  for (const list of lists) {
+    if (!list.open) continue
+    const key = personKey(list)
+    const seen = newest.get(key)
+    if (!seen || Date.parse(list.createdAt) > Date.parse(seen.createdAt)) {
+      newest.set(key, list)
+    }
+  }
+  return new Map([...newest].map(([key, list]) => [key, sentLine(list)]))
 }
