@@ -505,6 +505,10 @@ export const STAFF = {
   contactOwner: { id: id(3405), phone: '9000003405', name: 'Contact Owner Charu' },
   /** Owns VENDORS.today only (the garage's Today view; the 3900–3999 range). */
   todayOwner: { id: id(3905), phone: '9000003905', name: 'Today Owner Thenmozhi' },
+  /** Owns VENDORS.marksA only (onboarding marks, 0059; the 4150–4199 range). */
+  marksAOwner: { id: id(4152), phone: '9000004151', name: 'Marks Owner Anbu' },
+  /** Owns VENDORS.marksB only (onboarding marks, 0059; the 4150–4199 range). */
+  marksBOwner: { id: id(4156), phone: '9000004155', name: 'Marks Owner Bala' },
 } as const
 
 export const VENDORS = {
@@ -726,6 +730,25 @@ export const VENDORS = {
    * specs/vendors/today.spec.ts reads it.
    */
   today: { id: id(3910), name: 'Today Test Garage' },
+  /**
+   * Onboarding marks and collection lists (0059; ids 4150–4199 and phones
+   * 90000041xx from 51 only). Both live and verified (Active, pinned far
+   * south-west like the other single-purpose garages, open every day, one
+   * priced wash, every required document approved), so only what each is
+   * meant to miss is missing. Nobody books either; the garage's own phone is
+   * its owner's, and neither has a WhatsApp number.
+   *
+   * marksA: doorstep on with no radius and no drawn area, bays set, no
+   * photos, no logo, no payout details: `missing` is exactly photos, logo,
+   * radius_default, payout. Owner phone 9000004151.
+   */
+  marksA: { id: id(4151), name: 'Marks Test Garage A' },
+  /**
+   * marksB: a logo and UPI payout details, at the garage only, no bays and
+   * no photos: `missing` is exactly photos, bays. Owner phone 9000004155;
+   * onboarded by "E2E Admin".
+   */
+  marksB: { id: id(4155), name: 'Marks Test Garage B', onboardedByName: 'E2E Admin' },
 } as const
 
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
@@ -887,6 +910,9 @@ export const SERVICES = {
   contactWash: { id: id(3412), name: 'Window Foam Wash', price: '400.00', durationMins: 45 },
   /** On VENDORS.today (the garage's Today view): its one service. */
   todayWash: { id: id(3912), name: 'Today Foam Wash', price: '700.00', durationMins: 45 },
+  /** VENDORS.marksA's and marksB's one wash each (0059). */
+  marksAWash: { id: id(4153), name: 'Marks A Foam Wash', price: '500.00', durationMins: 30 },
+  marksBWash: { id: id(4157), name: 'Marks B Foam Wash', price: '500.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {
@@ -1323,7 +1349,8 @@ export const CHARGES = { homeBill: id(1201) } as const
 export const ADMIN = { username: 'admin', password: 'admin' } as const
 
 /**
- * Personal admin logins (0058), ids 4100–4149 only. `e2e` is the panel's
+ * Personal admin logins (0058), ids 4100–4149 (and `collector`, 0059's,
+ * 4160). `e2e` is the panel's
  * session in every admin spec (global-setup's 'admin' state), so every action
  * there is signed "E2E Admin", and it is the team's OWNER (`isOwner`): the
  * only login that adds logins, resets passwords and turns logins on or off.
@@ -1338,6 +1365,18 @@ export const ADMIN_LOGINS = {
   changer: { id: id(4103), username: 'e2e-owner', name: 'Owner E2E', password: 'owner-e2e-password' },
   off: { id: id(4104), username: 'e2e-gone', name: 'Gone E2E', password: 'gone-e2e-password' },
   viewer: { id: id(4105), username: 'e2e-viewer', name: 'Viewer E2E', password: 'viewer-e2e-password' },
+  /**
+   * Collection lists' teammate (0059, the 4150–4199 range): not the owner,
+   * with a phone, so "Also send on WhatsApp" is offered for them. Lists sent
+   * to them are theirs under scope=mine.
+   */
+  collector: {
+    id: id(4160),
+    username: 'e2e-collector',
+    name: 'E2E Collector',
+    password: 'collector-e2e-password',
+    phone: '9000004160',
+  },
 } as const
 
 /** Chennai. Vendors sit within a few km of this so distance sorting is stable. */
