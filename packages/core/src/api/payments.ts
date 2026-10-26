@@ -59,9 +59,32 @@ interface RazorpayResult {
 
 // Either an intent (the booking does not exist yet — verifying is what creates
 // it) or an existing unpaid booking settled from booking details.
-export type VerifyPaymentPayload =
+/**
+ * Sent with a payment confirmation only when the customer has accepted
+ * marketing cookies (the consent banner). The API then also reports the
+ * paid booking to Meta from the server (Conversions API, META_CAPI_TOKEN),
+ * under the same event id the browser's Pixel used, so Meta counts it once.
+ * Never carries a name, phone or address. An older API ignores it.
+ */
+export interface MarketingConsentContext {
+  consent: true
+  /** Meta's _fbp cookie, when set. */
+  fbp?: string
+  /** Meta's _fbc cookie (a click from Facebook or Instagram), when set. */
+  fbc?: string
+  /** The page the payment was made on: origin + path, never a query string. */
+  eventSourceUrl?: string
+}
+
+/** The Purchase event id the Pixel and the Conversions API share for one booking. */
+export function purchaseEventId(bookingId: string): string {
+  return `purchase-${bookingId}`
+}
+
+export type VerifyPaymentPayload = (
   | (RazorpayResult & { intentId: string })
   | (RazorpayResult & { bookingId: string })
+) & { marketing?: MarketingConsentContext }
 
 /** POST /payments/orders */
 export async function createPaymentOrder(
