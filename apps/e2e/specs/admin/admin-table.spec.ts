@@ -11,13 +11,13 @@
  */
 import type { Page } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
-import { BOOKINGS } from '../../support/seed-ids'
+import { BOOKINGS, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('admin') })
 
 /** VENDORS.marksA and VENDORS.marksB, by name. */
-const MARKS_A = 'Marks Test Garage A'
-const MARKS_B = 'Marks Test Garage B'
+const MARKS_A = VENDORS.marksA.name
+const MARKS_B = VENDORS.marksB.name
 
 /** A garage's row, named by the garage. */
 const row = (page: Page, name: string) =>
