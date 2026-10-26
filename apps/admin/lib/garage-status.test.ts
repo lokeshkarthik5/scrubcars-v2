@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { ReadinessItem } from '@repo/core/api/admin'
-import { statusHeadline, statusLines, tabDots } from './garage-status'
+import {
+  displayPhone,
+  mergeChecklist,
+  statusHeadline,
+  statusLines,
+  tabDots,
+} from './garage-status'
 
 const item = (
   key: string,
@@ -143,5 +149,49 @@ describe('statusHeadline', () => {
       title: 'Customers can’t book it yet',
       summary: 'not verified',
     })
+  })
+})
+
+describe('mergeChecklist', () => {
+  test('takes the fresh checklist and what is missing, nothing else', () => {
+    const prev = { readiness: READINESS, missing: ['photos' as const] }
+    const fresh = {
+      readiness: READINESS.filter((i) => i.key !== 'no_logo'),
+      missing: [],
+      // A fresh read carries the whole garage; none of the rest is taken.
+      businessName: 'Renamed elsewhere',
+    }
+    const next = mergeChecklist(prev, fresh)
+    expect(next).toEqual({ readiness: fresh.readiness, missing: [] })
+    expect(Object.keys(next).sort()).toEqual(['missing', 'readiness'])
+  })
+
+  test('the same object when nothing changed, so nothing re-renders', () => {
+    const prev = { readiness: READINESS, missing: ['photos' as const] }
+    const same = mergeChecklist(prev, {
+      readiness: READINESS.map((i) => ({ ...i })),
+      missing: ['photos'],
+    })
+    expect(same).toBe(prev)
+  })
+
+  test('an older API with no checklist leaves the panel saying so', () => {
+    expect(mergeChecklist({ readiness: READINESS }, {})).toEqual({
+      readiness: undefined,
+      missing: undefined,
+    })
+  })
+})
+
+describe('displayPhone', () => {
+  test('ten digits as five and five', () => {
+    expect(displayPhone('9840002102')).toBe('98400 02102')
+    expect(displayPhone('+91 98400 02102')).toBe('98400 02102')
+  })
+
+  test('anything else as stored', () => {
+    expect(displayPhone('044 2345 678')).toBe('044 2345 678')
+    expect(displayPhone('')).toBe('')
+    expect(displayPhone(null)).toBe('')
   })
 })

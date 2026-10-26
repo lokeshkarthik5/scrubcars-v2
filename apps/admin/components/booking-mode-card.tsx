@@ -222,30 +222,28 @@ const MODE_SAVE_DELAY_MS = 400
 type BookingPatch = { dropinEnabled?: boolean; doorstepEnabled?: boolean; doorstepRadiusKm?: number | null }
 
 /**
- * The card on the edit page, where it saves the moment it changes — like
- * Pause, and like the garage app — through the same admin vendor update the
- * form uses. "Save changes" never sends these fields, so nothing is saved
- * twice and the form can't put back a value this card just changed.
+ * How customers book on the edit page, where it saves the moment it changes
+ * — like Pause, and like the garage app — through the same admin vendor
+ * update the form uses. "Save changes" never sends these fields, so nothing
+ * is saved twice and the form can't put back a value this just changed.
+ *
+ * The state and the saves only; the editor draws them as tick tiles
+ * (HowCustomersBook in the edit page's folder). Add garage keeps the
+ * presentational BookingModeCard above.
  */
-export function LiveBookingModeCard({
+export function useLiveBookingMode({
   vendorId,
   dropinEnabled,
   doorstepEnabled,
   doorstepRadiusKm,
-  drawnArea,
-  paused,
-  live,
   onAuthError,
   onSaved,
 }: {
   vendorId: string
-  /** As loaded. Read once: from then on the card holds the garage's state. */
+  /** As loaded. Read once: from then on the hook holds the garage's state. */
   dropinEnabled: boolean
   doorstepEnabled: boolean
   doorstepRadiusKm: number | null
-  drawnArea: boolean
-  paused: boolean
-  live: boolean
   onAuthError: () => void
   /** Each change the server accepted, so the page can mark the garage list stale. */
   onSaved?: () => void
@@ -405,23 +403,21 @@ export function LiveBookingModeCard({
     )
   }
 
-  return (
-    <BookingModeCard
-      mode={mode}
-      onModeChange={changeMode}
-      radius={radius}
-      onRadiusChange={(value) => {
-        setRadius(value)
-        if (radiusError) setRadiusError(null)
-      }}
-      onRadiusBlur={commitRadius}
-      reachKm={savedKm}
-      radiusError={radiusError}
-      saveState={saveState}
-      error={error}
-      paused={paused}
-      live={live}
-      drawnArea={drawnArea}
-    />
-  )
+  return {
+    /** As on screen: may be waiting out its delay before it is sent. */
+    mode,
+    changeMode,
+    /** The "Travels up to" box as typed. */
+    radius,
+    changeRadius: (value: string) => {
+      setRadius(value)
+      if (radiusError) setRadiusError(null)
+    },
+    commitRadius,
+    /** The radius the server has: what the status line reports. */
+    savedKm,
+    radiusError,
+    saveState,
+    error,
+  }
 }

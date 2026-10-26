@@ -55,12 +55,19 @@ const STATUS_VARIANT = {
 export function GarageDocumentsSection({
   vendorId,
   readOnly,
+  onSaved,
 }: {
   vendorId: string
   readOnly: boolean
+  /** Each review or upload that landed, so the editor's checklist catches up. */
+  onSaved?: () => void
 }) {
   const { data, isLoading, error } = useAdminGarageDocuments(vendorId)
   const note = useSavedNote()
+  const saved = () => {
+    note.saved()
+    onSaved?.()
+  }
 
   if (isLoading) {
     return (
@@ -91,7 +98,7 @@ export function GarageDocumentsSection({
       doc={doc}
       readOnly={readOnly}
       onSaving={note.saving}
-      onSaved={note.saved}
+      onSaved={saved}
       onFailed={note.reset}
     />
   )

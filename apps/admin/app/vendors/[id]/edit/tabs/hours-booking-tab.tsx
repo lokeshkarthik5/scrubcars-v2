@@ -22,7 +22,7 @@ const TIME_INPUT =
 /**
  * Hours & booking (`?tab=operations`, its name from when it was called
  * Operations): the week, slots, how many cars at once and the car types.
- * "How customers book" and "Pickup & drop" sit above it and save on their
+ * How customers book (with Pickup & drop) is on Location and saves on its
  * own; Pause is in the status panel's Go live.
  */
 export function HoursBookingTab({
@@ -36,7 +36,8 @@ export function HoursBookingTab({
   const legacy = legacyVehicleTypes(draft.vehicleTypes)
 
   return (
-    <div className="grid items-start gap-4 @4xl:grid-cols-2">
+    // Side by side once the column has room (a 1440 laptop has).
+    <div className="grid items-start gap-4 @3xl:grid-cols-2">
       <ScSection title="Working hours">
         {/* The garage's own week, day by day: the same rows the owner edits
             in their Settings. Left alone unless changed here. */}

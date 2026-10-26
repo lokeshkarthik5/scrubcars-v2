@@ -17,6 +17,7 @@ import {
   isEditTab,
   EDIT_TABS,
   parseRadiusInput,
+  customerGarageUrl,
   safeBackHref,
   saveBarLine,
   type TabValues,
@@ -284,5 +285,16 @@ describe('booking mode', () => {
     for (const bad of ['0', '0.5', '31', '30.1', 'ten', '-3', 'Infinity']) {
       expect(parseRadiusInput(bad).ok).toBe(false)
     }
+  })
+})
+
+describe('customerGarageUrl', () => {
+  test("the garage's page on the customer site", () => {
+    expect(customerGarageUrl('v-1', 'https://detlio.com/')).toBe(
+      'https://detlio.com/garage/v-1'
+    )
+    expect(customerGarageUrl('v-1', 'http://localhost:3000')).toBe(
+      'http://localhost:3000/garage/v-1'
+    )
   })
 })

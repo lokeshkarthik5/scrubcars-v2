@@ -62,7 +62,14 @@ export function payoutDetailsProblem(draft: Draft): string | null {
  * changes", which only covers the garage form around it. Inside that form's
  * read-only fieldset while the garage is in the Bin.
  */
-export function PayoutAccountSection({ vendorId }: { vendorId: string }) {
+export function PayoutAccountSection({
+  vendorId,
+  onSaved,
+}: {
+  vendorId: string
+  /** Each save or removal that landed, so the editor's checklist catches up. */
+  onSaved?: () => void
+}) {
   const {
     data: account,
     isLoading,
@@ -87,6 +94,7 @@ export function PayoutAccountSection({ vendorId }: { vendorId: string }) {
       vendorId={vendorId}
       account={account ?? null}
       note={note}
+      onSaved={onSaved}
     />
   )
 }
@@ -95,10 +103,12 @@ function PayoutAccountForm({
   vendorId,
   account,
   note,
+  onSaved,
 }: {
   vendorId: string
   account: PayoutAccount | null
   note: ReturnType<typeof useSavedNote>
+  onSaved?: () => void
 }) {
   const save = useSavePayoutAccount(vendorId)
   const remove = useRemovePayoutAccount(vendorId)
@@ -123,7 +133,10 @@ function PayoutAccountForm({
         upiId: draft.upiId.trim() || null,
       },
       {
-        onSuccess: note.saved,
+        onSuccess: () => {
+          note.saved()
+          onSaved?.()
+        },
         onError: (err) => {
           note.reset()
           setError(errorMessage(err, "Couldn't save the payout details"))
@@ -202,7 +215,10 @@ function PayoutAccountForm({
             onClick={() => {
               note.saving()
               remove.mutate(undefined, {
-                onSuccess: note.saved,
+                onSuccess: () => {
+                  note.saved()
+                  onSaved?.()
+                },
                 onError: (err) => {
                   note.reset()
                   setError(

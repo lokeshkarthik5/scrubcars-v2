@@ -82,6 +82,18 @@ export function safeBackHref(value: string | string[] | null | undefined): strin
   return value
 }
 
+/**
+ * The garage's page on the customer site, for the editor's "View as
+ * customer". NEXT_PUBLIC_CARD_PHOTOS_URL is the customer site's address
+ * (https://detlio.com; the users app in development).
+ */
+export function customerGarageUrl(
+  vendorId: string,
+  site: string = process.env.NEXT_PUBLIC_CARD_PHOTOS_URL ?? 'https://detlio.com'
+): string {
+  return `${site.replace(/\/$/, '')}/garage/${encodeURIComponent(vendorId)}`
+}
+
 // ─── Unsaved changes ─────────────────────────────────────────────────────────
 
 /**

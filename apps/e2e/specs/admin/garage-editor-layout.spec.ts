@@ -41,11 +41,32 @@ test.describe('admin garage editor layout', () => {
     await page.goto(EDIT)
 
     const status = page.getByRole('complementary', { name: 'Garage status' })
-    await expect(
-      status.getByRole('heading', { level: 1, name: GARAGE.name })
-    ).toBeVisible()
+    await expect(status).toBeVisible()
     const tabs = page.getByRole('tablist')
     await expect(tabs).toBeVisible()
+
+    // The header runs across both columns, above them: the name on one line,
+    // and the garage's page on the customer site a tap away.
+    const name = page.getByRole('heading', { level: 1, name: GARAGE.name })
+    await expect(name).toBeVisible()
+    const heading = await name.boundingBox()
+    const panelTop = await status.boundingBox()
+    expect(
+      heading && panelTop && heading.y + heading.height <= panelTop.y
+    ).toBe(true)
+    expect(heading && heading.height < 40).toBe(true)
+    const crumbs = page.getByRole('navigation', { name: 'Garage breadcrumb' })
+    await expect(crumbs.getByRole('link', { name: 'Garages' })).toHaveAttribute(
+      'href',
+      '/vendors'
+    )
+    await expect(crumbs).toContainText(GARAGE.name)
+    const asCustomer = page.getByRole('link', { name: /^View as customer/ })
+    await expect(asCustomer).toHaveAttribute('target', '_blank')
+    await expect(asCustomer).toHaveAttribute(
+      'href',
+      new RegExp(`/garage/${GARAGE.id}$`)
+    )
 
     // Side by side on a laptop: the panel ends where the tabs begin.
     const left = await status.boundingBox()

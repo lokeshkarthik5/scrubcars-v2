@@ -1,8 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { IconAlertCircle, IconCar, IconCheck } from '@tabler/icons-react'
-import { ScButton } from '@repo/ui/sc/button'
+import { IconAlertCircle, IconCar } from '@tabler/icons-react'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
 import { ScSwitch } from '@repo/ui/sc/switch'
 import { ApiError } from '@repo/core/api/client'
@@ -11,15 +10,14 @@ import {
   DEFAULT_PICKUP_RADIUS_KM,
   PICKUP_TERMS_ADMIN,
   parsePickupRadius,
-  pickupReachLine,
 } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
-import { formatWhen } from '@/lib/bookings'
+import { useSavedNote } from '@/components/save-bar'
 
 const radiusText = (km: number | null | undefined) => (km != null ? String(km) : '')
 
 /** The responsibility the garage takes on, said before the tick. */
-const RESPONSIBILITY =
+export const RESPONSIBILITY =
   "The garage is responsible for the customer's car from pickup until it is returned."
 
 interface PickupFieldsProps {
@@ -138,30 +136,28 @@ export function PickupFields({
  * book, and never with Save changes: turning it off and changing the
  * distance save at once; turning it on waits for the agreement tick and the
  * Turn on button. The server records who ticked and when.
+ *
+ * The state and the saves only; the editor draws them as the third tick
+ * tile of How customers book (HowCustomersBook in the edit page's folder).
  */
-export function LivePickupCard({
+export function useLivePickup({
   vendorId,
   enabled,
   pickup,
   pickupRadiusKm,
   termsAcceptedAt,
   termsAcceptedBy,
-  pinned,
-  readOnly = false,
   onAuthError,
   onSaved,
 }: {
   vendorId: string
-  /** As loaded. Read once: from then on the card holds the garage's state. */
+  /** As loaded. Read once: from then on the hook holds the garage's state. */
   enabled: boolean
   /** The stored answer: a yes from onboarding without terms is not on. */
   pickup: 'yes' | 'nearby' | 'no' | null
   pickupRadiusKm: number | null
   termsAcceptedAt: string | null
   termsAcceptedBy: string | null
-  pinned: boolean
-  /** In the Bin: shown, not changed. */
-  readOnly?: boolean
   onAuthError: () => void
   onSaved?: () => void
 }) {
@@ -176,13 +172,13 @@ export function LivePickupCard({
   const [radius, setRadius] = useState(radiusText(pickupRadiusKm))
   const [radiusError, setRadiusError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [savedNote, setSavedNote] = useState(false)
+  const note = useSavedNote()
   const [error, setError] = useState<string | null>(null)
 
   const save = async (patch: Parameters<typeof updateAdminVendor>[1]) => {
     setSaving(true)
     setError(null)
-    setSavedNote(false)
+    note.saving()
     try {
       const updated = await updateAdminVendor(vendorId, patch)
       setSaved({
@@ -194,10 +190,11 @@ export function LivePickupCard({
       setRadius(radiusText(updated.pickupRadiusKm))
       setTurningOn(false)
       setAgreed(false)
-      setSavedNote(true)
+      note.saved()
       onSaved?.()
       return true
     } catch (err) {
+      note.reset()
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         onAuthError()
         return false
@@ -210,7 +207,6 @@ export function LivePickupCard({
   }
 
   const onSwitch = (next: boolean) => {
-    setSavedNote(false)
     if (next) {
       setTurningOn(true)
       return
@@ -249,71 +245,28 @@ export function LivePickupCard({
     void save({ pickupEnabled: true, pickupAgreementSigned: true, pickupRadiusKm: parsed.km })
   }
 
-  const legacyYes = !saved.enabled && (pickup === 'yes' || pickup === 'nearby') && !saved.termsAt
-
-  return (
-    <section aria-label="Pickup & drop" className="rounded-[16px] border border-border bg-surface p-4">
-      <PickupFields
-        on={saved.enabled || turningOn}
-        onSwitch={onSwitch}
-        radius={radius}
-        onRadiusChange={(value) => {
-          setRadius(value)
-          if (radiusError) setRadiusError(null)
-        }}
-        onRadiusBlur={commitRadius}
-        radiusError={radiusError}
-        askAgreement={turningOn}
-        agreed={agreed}
-        onAgreedChange={setAgreed}
-        pinned={pinned}
-        disabled={saving || readOnly}
-      />
-
-      {turningOn && (
-        <div className="mt-3 flex gap-2">
-          <ScButton variant="secondary" className="flex-1" onClick={() => onSwitch(false)} disabled={saving}>
-            Not now
-          </ScButton>
-          <ScButton variant="secondary" className="flex-1" onClick={turnOn} disabled={!agreed || saving}>
-            {saving ? 'Saving…' : 'Turn on pickup & drop'}
-          </ScButton>
-        </div>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 text-[13px] text-error">
-          {error}
-        </p>
-      )}
-
-      <div
-        role="status"
-        className="-mx-4 -mb-4 mt-4 flex flex-col gap-1 rounded-b-[15px] border-t border-border bg-white/[0.025] px-4 py-3.5 text-[13px] leading-snug text-text-muted"
-      >
-        {saved.enabled ? (
-          <>
-            <span className="flex items-center gap-1.5 text-text-primary">
-              {savedNote && <IconCheck size={15} stroke={2} className="text-success" aria-hidden="true" />}
-              <span className="font-numeric">{pickupReachLine(saved.km)}</span>
-            </span>
-            {saved.termsAt && (
-              <span>
-                Agreement recorded {formatWhen(saved.termsAt)}
-                {saved.termsBy ? ` · ${saved.termsBy}` : ''}
-              </span>
-            )}
-            <span>Customers can book it once the customer app’s pickup screens are out.</span>
-          </>
-        ) : legacyYes ? (
-          <span className="flex items-start gap-1.5 text-error">
-            <IconAlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
-            Said yes to pickup at onboarding, but hasn’t agreed to be responsible for the car. Off until it does.
-          </span>
-        ) : (
-          <span>{savedNote ? 'Saved. Pickup & drop is off.' : 'Off. Customers can’t book pickup & drop here.'}</span>
-        )}
-      </div>
-    </section>
-  )
+  return {
+    /** As the server has it. */
+    saved,
+    /** On as shown: saved on, or being turned on here. */
+    on: saved.enabled || turningOn,
+    /** Asking for the agreement tick before it is turned on. */
+    turningOn,
+    agreed,
+    setAgreed,
+    radius,
+    changeRadius: (value: string) => {
+      setRadius(value)
+      if (radiusError) setRadiusError(null)
+    },
+    commitRadius,
+    radiusError,
+    saving,
+    saveState: note.state,
+    error,
+    onSwitch,
+    turnOn,
+    /** Said yes at onboarding without agreeing to be responsible for the car. */
+    legacyYes: !saved.enabled && (pickup === 'yes' || pickup === 'nearby') && !saved.termsAt,
+  }
 }

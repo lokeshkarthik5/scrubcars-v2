@@ -28,9 +28,7 @@ import {
   type AdminService,
   type AdminVendorDetail,
   type AdminWorkingDay,
-  type ReadinessItem,
 } from '@repo/core/api/admin'
-import type { MissingKey } from '@repo/core/onboarding-marks'
 import type { ServiceMedia } from '@repo/core/types'
 import { useSavedNote } from '@/components/save-bar'
 import { useMarkGaragesStale } from '@/hooks/use-admin-today'
@@ -43,6 +41,7 @@ import {
   type EditTab,
   type TabValues,
 } from '@/lib/garage-edit'
+import { mergeChecklist, type EditorChecklist } from '@/lib/garage-status'
 import {
   restoreRow,
   rowBefore,
@@ -256,8 +255,8 @@ export function useGarageDraft(id: string) {
   // As loaded or last saved, and as edited. Null until the first load.
   const [saved, setSaved] = useState<GarageDraft | null>(null)
   const [draft, setDraft] = useState<GarageDraft | null>(null)
-  // How customers book, as loaded: the card above the tabs saves it on its
-  // own (LiveBookingModeCard) and reads these once.
+  // How customers book and Pickup & drop, as loaded: the tiles on Location
+  // save them on their own (HowCustomersBook) and read these once.
   const [bookingMode, setBookingMode] = useState<
     | (Pick<
         AdminVendorDetail,
@@ -286,10 +285,10 @@ export function useGarageDraft(id: string) {
   const [closures, setClosures] = useState<AdminVendorDetail['closures']>([])
   // The server's checklist and what the garage still owes us (0059), for the
   // status panel. Both absent from an older API.
-  const [checklist, setChecklist] = useState<{
-    readiness?: ReadinessItem[]
-    missing?: MissingKey[]
-  }>({})
+  const [checklist, setChecklist] = useState<EditorChecklist>({})
+  // Each read of the checklist, numbered: only the latest one may land, so
+  // an older answer arriving late never puts back a line just fixed.
+  const checklistRead = useRef(0)
   // The small "Saved" each part that saves on its own shows.
   const pauseNote = useSavedNote()
   const pinNote = useSavedNote()
@@ -413,6 +412,7 @@ export function useGarageDraft(id: string) {
   // empty. It runs again after each save, to pick up new service ids (their
   // photos need one) and the server's own ordering. Says whether it worked.
   const load = useCallback(async (): Promise<boolean> => {
+    const read = ++checklistRead.current
     try {
       const [v, hidden] = await Promise.all([
         getAdminVendor(id),
@@ -455,7 +455,9 @@ export function useGarageDraft(id: string) {
       setPausedAt(v.bookingsPausedAt ?? null)
       setPausedReason(v.bookingsPausedReason ?? null)
       setClosures(v.closures ?? [])
-      setChecklist({ readiness: v.readiness, missing: v.missing })
+      if (read === checklistRead.current) {
+        setChecklist((prev) => mergeChecklist(prev, v))
+      }
       setBin(
         v.deletedAt
           ? {
@@ -480,6 +482,31 @@ export function useGarageDraft(id: string) {
       setLoading(false)
     }
   }, [id, router])
+
+  /**
+   * After something saves on its own (a photo or the logo, the pin, Pause,
+   * a service hidden or shown, how customers book, payout, a document), the
+   * server's checklist may have changed: read the garage again and take only
+   * the checklist from it (mergeChecklist). Never load(): that resets the
+   * draft, and the admin may be half-way through other edits.
+   */
+  const refreshChecklist = useCallback(async () => {
+    const read = ++checklistRead.current
+    try {
+      const v = await getAdminVendor(id)
+      if (read !== checklistRead.current) return
+      setChecklist((prev) => mergeChecklist(prev, v))
+    } catch {
+      // The change itself landed; the panel catches up on the next save
+      // or reload.
+    }
+  }, [id])
+
+  /** Every save that does not wait for Save changes ends here. */
+  const afterInstantSave = useCallback(() => {
+    markListStale()
+    void refreshChecklist()
+  }, [markListStale, refreshChecklist])
 
   // load() hydrates the page from the fetched vendor. Every setState in it
   // runs after the await, so the cascading render the rule warns about is
@@ -515,7 +542,7 @@ export function useGarageDraft(id: string) {
     mediaNote.saving()
     try {
       await action()
-      markListStale()
+      afterInstantSave()
       mediaNote.saved()
     } catch (err) {
       mediaNote.reset()
@@ -619,7 +646,7 @@ export function useGarageDraft(id: string) {
       setPausedAt(updated.bookingsPausedAt ?? null)
       setPausedReason(pause ? pauseReasonInput.trim() || null : null)
       setPauseReasonInput('')
-      markListStale()
+      afterInstantSave()
       pauseNote.saved()
     } catch (err) {
       pauseNote.reset()
@@ -652,7 +679,7 @@ export function useGarageDraft(id: string) {
       // Set in the same breath as the busy flag clears (the finally below),
       // so focus never lands on a button that is still disabled.
       setFocusAfterSwitch(await action())
-      markListStale()
+      afterInstantSave()
       switchNote.saved()
     } catch (err) {
       switchNote.reset()
@@ -792,7 +819,7 @@ export function useGarageDraft(id: string) {
       })
       setGeoConfirmedAt(updated.geoConfirmedAt)
       setGeoSource(updated.geoSource)
-      markListStale()
+      afterInstantSave()
       // The pin is saved now, so it is no longer an unsaved change.
       setSaved((prev) => (prev ? { ...prev, pin } : prev))
       pinNote.saved()
@@ -906,6 +933,7 @@ export function useGarageDraft(id: string) {
   return {
     router,
     markListStale,
+    afterInstantSave,
     checklist,
     pauseNote,
     pinNote,
