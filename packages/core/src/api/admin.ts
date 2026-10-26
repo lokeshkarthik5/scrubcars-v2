@@ -681,6 +681,16 @@ export type AdminBookingView = 'needs_action' | 'today' | 'upcoming' | 'complete
 /** How many bookings each view holds, under the same search, garage and Test filters. */
 export type AdminBookingViewCounts = Record<AdminBookingView, number>
 
+/**
+ * The filters the view counts are taken under: every one the list has but
+ * the view itself and paging, so a view's count is the rows it lists. An
+ * older API reads only q, vendorId and test, and ignores the rest.
+ */
+export type AdminBookingViewCountFilters = Omit<
+  AdminBookingFilters,
+  'view' | 'limit' | 'page' | 'cursor'
+>
+
 export interface CreateVendorInput {
   ownerName: string
   ownerPhone: string
@@ -1607,19 +1617,26 @@ export async function listAdminBookings(filters: AdminBookingFilters = {}) {
       page: filters.page,
       cursor: filters.cursor,
       view: filters.view || undefined,
+      bookingType: filters.bookingType || undefined,
+      payment: filters.payment || undefined,
     },
   })
 }
 
 /** GET /admin/bookings/views — 404 from an API older than 0059: show the views without counts. */
 export async function getAdminBookingViewCounts(
-  filters: Pick<AdminBookingFilters, 'q' | 'vendorId' | 'test'> = {}
+  filters: AdminBookingViewCountFilters = {}
 ) {
   return apiClient<AdminBookingViewCounts>('/admin/bookings/views', {
     params: {
       q: filters.q || undefined,
+      status: filters.status || undefined,
       vendorId: filters.vendorId || undefined,
+      from: filters.from || undefined,
+      to: filters.to || undefined,
       test: filters.test || undefined,
+      bookingType: filters.bookingType || undefined,
+      payment: filters.payment || undefined,
     },
   })
 }

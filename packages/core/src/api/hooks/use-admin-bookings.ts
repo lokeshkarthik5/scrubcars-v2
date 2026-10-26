@@ -19,6 +19,7 @@ import {
   type AdminBooking,
   type AdminBookingDetail,
   type AdminBookingFilters,
+  type AdminBookingViewCountFilters,
   type BookingParty,
   type CancelledOnBehalfOf,
 } from '@repo/core/api/admin'
@@ -36,8 +37,8 @@ export const adminBookingKeys = {
     [...adminBookingKeys.lists(), filters] as const,
   details: () => [...adminBookingKeys.all, 'detail'] as const,
   detail: (id: string) => [...adminBookingKeys.details(), id] as const,
-  /** The saved views' counts (0059), per search, garage and Test filter. */
-  viewCounts: (filters: Pick<AdminBookingFilters, 'q' | 'vendorId' | 'test'>) =>
+  /** The saved views' counts (0059), per set of the list's filters. */
+  viewCounts: (filters: AdminBookingViewCountFilters) =>
     [...adminBookingKeys.all, 'view-counts', filters] as const,
 }
 
@@ -121,10 +122,19 @@ export function useAdminBookings(
  * show without counts.
  */
 export function useAdminBookingViewCounts(
-  filters: Pick<AdminBookingFilters, 'q' | 'vendorId' | 'test'>,
+  filters: AdminBookingViewCountFilters,
   enabled = true
 ) {
-  const key = { q: filters.q || undefined, vendorId: filters.vendorId || undefined, test: filters.test || undefined }
+  const key = {
+    q: filters.q || undefined,
+    status: filters.status || undefined,
+    vendorId: filters.vendorId || undefined,
+    from: filters.from || undefined,
+    to: filters.to || undefined,
+    test: filters.test || undefined,
+    bookingType: filters.bookingType || undefined,
+    payment: filters.payment || undefined,
+  }
   return useQuery({
     queryKey: adminBookingKeys.viewCounts(key),
     queryFn: () => getAdminBookingViewCounts(key),
