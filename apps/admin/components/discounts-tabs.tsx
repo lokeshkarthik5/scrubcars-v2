@@ -6,18 +6,24 @@ import { cn } from '@repo/core/utils'
 
 const TABS = [
   { href: '/discounts', label: 'Codes' },
+  // Printed coupons with QR codes (0056).
+  { href: '/discounts/coupons', label: 'Coupons' },
   { href: '/discounts/notices', label: 'Notices' },
 ] as const
 
 /**
- * "Codes · Notices": team notices live under Discounts (owner decision D8)
+ * "Codes · Coupons · Notices": team notices live under Discounts (owner decision D8)
  * rather than as a sixth item in the panel's menu. Two pages, so links
  * (with aria-current), not Radix tabs, which promise panels on one page.
  * Drawn as the header menu is, so it reads as the same kind of control.
  */
 export function DiscountsTabs() {
   const pathname = usePathname()
-  const current = pathname.startsWith('/discounts/notices') ? '/discounts/notices' : '/discounts'
+  const current = pathname.startsWith('/discounts/notices')
+    ? '/discounts/notices'
+    : pathname.startsWith('/discounts/coupons')
+      ? '/discounts/coupons'
+      : '/discounts'
 
   return (
     <nav

@@ -6,6 +6,8 @@ import {
   type DiscountRule,
 } from '../../lib/discounts.js'
 import { bannedPhraseIn } from '../../lib/copy-rules.js'
+import { categoryLabel } from '../../lib/categories.js'
+import { eligibleSubtotal as eligibleSubtotalOf } from '../../lib/coupons.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
 import {
@@ -93,6 +95,12 @@ export async function resolveDiscount(input: {
   userId: string
   vendorId: string
   subtotal: string
+  /**
+   * Each line's service category and price, for a code limited to one
+   * service type (a printed coupon's voucher, 0056). Both callers pass
+   * them; without them such a code applies to nothing.
+   */
+  lines?: ReadonlyArray<{ category: string; amount: string }>
 }): Promise<ResolvedDiscount> {
   const discount = await discountsRepository.findByCode(input.code)
 
@@ -116,12 +124,43 @@ export async function resolveDiscount(input: {
     }
   }
 
+  // A printed coupon's voucher (0056) belongs to the customer who added it,
+  // exactly like a reward voucher, but works whatever REWARDS_ENABLED says.
+  // Not once the team voided its coupon. "New customers only" is checked
+  // again here, so a voucher added before a first booking can't ride on a
+  // later one: any booking whose money landed and was kept (a cancelled one
+  // gives the voucher back and does not count).
+  let eligibleSubtotal: string | undefined
+  if (discount.source === 'coupon') {
+    const voucher = await discountsRepository.findCouponVoucher(discount.id)
+    if (!voucher || voucher.userId !== input.userId || voucher.cancelledAt) {
+      throw new AppError(400, "This code isn't valid.", 'DISCOUNT_NOT_FOUND')
+    }
+    if (voucher.newCustomersOnly && (await discountsRepository.hasKeptBooking(input.userId))) {
+      throw new AppError(400, 'This coupon is for your first booking on Detlio.', 'COUPON_NOT_NEW')
+    }
+  }
+
   // Everything judgeable from the row alone: active, window, vendor scope,
   // minimum order.
   assertRuleApplies(discount as DiscountRule, {
     vendorId: input.vendorId,
     subtotal: input.subtotal,
   })
+
+  // A coupon voucher limited to one service type (0056) needs one in the
+  // booking, and comes off those lines only.
+  if (discount.source === 'coupon' && discount.serviceCategory) {
+    const eligible = eligibleSubtotalOf(input.lines ?? [], discount.serviceCategory)
+    if (eligible === null) {
+      throw new AppError(
+        400,
+        `This coupon is for ${categoryLabel(discount.serviceCategory).toLowerCase()} services. Add one to use it.`,
+        'DISCOUNT_NOT_FOR_SERVICE'
+      )
+    }
+    eligibleSubtotal = eligible
+  }
 
   // Then the two that need a count. Total first: "this code is gone" is more
   // useful to a customer than "you've used it before" when both are true.
@@ -154,7 +193,8 @@ export async function resolveDiscount(input: {
 
   const { discountAmount, finalAmount } = computeDiscount(
     discount,
-    input.subtotal
+    input.subtotal,
+    eligibleSubtotal
   )
 
   return {
@@ -383,6 +423,7 @@ export const discountsService = {
       userId,
       vendorId: input.vendorId,
       subtotal,
+      lines: services.map((service, index) => ({ category: service!.category, amount: lineAmounts[index]! })),
     })
 
     log.info(

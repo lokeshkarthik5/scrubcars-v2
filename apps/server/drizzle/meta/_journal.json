@@ -393,6 +393,13 @@
       "when": 1787834189733,
       "tag": "0055_gift_designs",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1787834189734,
+      "tag": "0056_printed_coupons",
+      "breakpoints": true
     }
   ]
 }

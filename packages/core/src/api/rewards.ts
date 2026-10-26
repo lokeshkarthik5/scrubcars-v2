@@ -18,7 +18,7 @@ export interface RewardsConfig {
 
 export interface RewardStamp {
   id: string
-  source: 'booking' | 'scratch' | 'streak' | 'adjustment' | 'badge' | 'challenge'
+  source: 'booking' | 'scratch' | 'streak' | 'adjustment' | 'badge' | 'challenge' | 'coupon'
   label: string
   earnedAt: string
   expiresAt: string
