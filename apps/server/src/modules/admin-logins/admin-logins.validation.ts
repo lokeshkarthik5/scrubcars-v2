@@ -21,9 +21,21 @@ const name = z.string().max(200).superRefine(ruled(adminNameProblem)).transform(
 // Never trimmed: a space in a password is part of it.
 const password = z.string().max(ADMIN_LOGIN_LIMITS.passwordMax).superRefine(ruled(adminPasswordProblem))
 
+// Optional (0059), only for "Also send on WhatsApp" with a collection list:
+// a 10-digit Indian mobile, spaces and dashes dropped. Blank or null clears it.
+const phone = z
+  .string()
+  .transform((value) => value.replace(/[\s-]/g, ''))
+  .pipe(z.string().regex(/^(?:[6-9]\d{9})?$/, 'Enter a 10-digit Indian mobile number'))
+  .nullable()
+  .transform((value) => (value ? value : null))
+
 export const loginIdParamSchema = z.object({ id: z.string().uuid() })
 
-export const createAdminLoginSchema = z.object({ username, name, password }).strict()
+export const createAdminLoginSchema = z.object({ username, name, password, phone: phone.optional() }).strict()
+
+/** PATCH /admin/logins/:id (0059): only the phone today. */
+export const updateAdminLoginSchema = z.object({ phone: phone.optional() }).strict()
 
 export const resetAdminPasswordSchema = z.object({ password }).strict()
 
@@ -34,6 +46,7 @@ export const changeOwnPasswordSchema = z
   .strict()
 
 export type CreateAdminLoginInput = z.infer<typeof createAdminLoginSchema>
+export type UpdateAdminLoginInput = z.infer<typeof updateAdminLoginSchema>
 export type ResetAdminPasswordInput = z.infer<typeof resetAdminPasswordSchema>
 export type SetAdminLoginStatusInput = z.infer<typeof setAdminLoginStatusSchema>
 export type ChangeOwnPasswordInput = z.infer<typeof changeOwnPasswordSchema>
