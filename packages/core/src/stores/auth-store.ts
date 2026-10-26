@@ -129,6 +129,28 @@ function sessionVendors(session: {
   return session.vendors ?? (session.vendor ? [session.vendor] : [])
 }
 
+/**
+ * Work that must finish under the current garage and session before either
+ * changes: the garage portal's Start/Complete waiting behind Undo is sent at
+ * once when the garage is switched or the session ends. A hook may return a
+ * promise; logout waits for it (the request needs the session), a switch
+ * doesn't (the request names its garage itself). A failing hook never stops
+ * the switch or the sign-out.
+ */
+type SessionChangeHook = () => void | Promise<unknown>
+const sessionChangeHooks = new Set<SessionChangeHook>()
+
+export function onBeforeSessionChange(hook: SessionChangeHook): () => void {
+  sessionChangeHooks.add(hook)
+  return () => {
+    sessionChangeHooks.delete(hook)
+  }
+}
+
+function runSessionChangeHooks(): Promise<unknown> {
+  return Promise.allSettled([...sessionChangeHooks].map(async (hook) => hook()))
+}
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   vendor: null,
@@ -151,6 +173,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   clearSession() {
+    void runSessionChangeHooks()
     setActiveVendorId(null)
     persistVendorId(null)
     // The support-session flag latches for the whole session, so this is the
@@ -171,6 +194,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const { vendors, activeVendorId } = get()
     if (vendorId === activeVendorId) return
     if (!vendors.some((v) => v.id === vendorId)) return
+
+    // Work that belongs to the garage being left goes first (see onBeforeSessionChange).
+    void runSessionChangeHooks()
 
     set(vendorState(vendors, vendorId))
     notifyVendorSwitch()
@@ -260,6 +286,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   async logout() {
     set({ isLoading: true })
     try {
+      // Sent while the session can still say so.
+      await runSessionChangeHooks()
       // This browser stops getting the account's notifications (0044),
       // while the session can still say so to the API. Never holds up or
       // fails the sign-out.

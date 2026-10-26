@@ -8,9 +8,15 @@ import { ScButton } from '@repo/ui/sc/button'
 import { Chip } from '@repo/ui/sc/chip'
 import { ScTextarea } from '@repo/ui/sc/input'
 import { ScSheet } from '@repo/ui/sc/modal'
-import { getProposalSlots, suggestTimes, withdrawTimeProposal } from '@repo/core/api/bookings'
-import { bookingDayLabel, istClock, istDateKey } from '@repo/core/home-display'
+import {
+  getProposalSlots,
+  suggestTimes,
+  withdrawTimeProposal,
+} from '@repo/core/api/bookings'
+import { formatClock, formatWhen } from '@repo/core/format'
+import { bookingDayLabel, istDateKey } from '@repo/core/home-display'
 import type { Booking } from '@repo/core/types'
+import { cn } from '@repo/core/utils'
 
 /** Mirrors the server (lib/time-proposals.ts) so the sheet refuses first. */
 const MAX_TIMES = 3
@@ -19,14 +25,16 @@ const NOTE_MAX = 200
 const DAYS_AHEAD = 14
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** "Sat 17 Oct, 2:00 PM", in IST like the rest of the portal. */
+/** "Tomorrow · 2:00 pm", "Sat 17 Oct · 2:00 pm": the one way times read in the portal. */
 function timeLabel(iso: string): string {
-  return `${bookingDayLabel(iso)}, ${istClock(new Date(iso))}`
+  return formatWhen(iso)
 }
 
 /** The next DAYS_AHEAD IST days as "YYYY-MM-DD", starting with the booking's own day or today. */
 function dayKeys(from: Date): string[] {
-  return Array.from({ length: DAYS_AHEAD }, (_, i) => istDateKey(new Date(from.getTime() + i * DAY_MS)))
+  return Array.from({ length: DAYS_AHEAD }, (_, i) =>
+    istDateKey(new Date(from.getTime() + i * DAY_MS))
+  )
 }
 
 /** "Sat 17 Oct" from an IST day key (noon IST, so the label never slips a day). */
@@ -38,6 +46,8 @@ interface SuggestTimesProps {
   booking: Booking
   /** Re-read the job list once the suggestion changes. */
   onChanged: () => void
+  /** Where the "Other time" button sits in its row. */
+  className?: string
 }
 
 /**
@@ -52,10 +62,16 @@ interface SuggestTimesProps {
  * one in the app (it is accepted at once — the garage offered it), or says
  * none work, which cancels it with a full refund, as does no answer by then.
  */
-export function SuggestTimes({ booking, onChanged }: SuggestTimesProps) {
-  const proposal = booking.timeProposal?.status === 'open' ? booking.timeProposal : null
+export function SuggestTimes({
+  booking,
+  onChanged,
+  className,
+}: SuggestTimesProps) {
+  const proposal =
+    booking.timeProposal?.status === 'open' ? booking.timeProposal : null
   // Ran out unanswered, and not yet cancelled by the next sweep (minutes).
-  const ranOut = booking.status === 'pending' && booking.timeProposal?.status === 'expired'
+  const ranOut =
+    booking.status === 'pending' && booking.timeProposal?.status === 'expired'
   const who = booking.customerName ?? 'the customer'
   const [open, setOpen] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
@@ -65,9 +81,13 @@ export function SuggestTimes({ booking, onChanged }: SuggestTimesProps) {
     setWithdrawing(true)
     try {
       await withdrawTimeProposal(booking.id)
-      toast.success('Suggested times withdrawn. Accept or reject the booking as usual.')
+      toast.success(
+        'Suggested times withdrawn. Accept or reject the booking as usual.'
+      )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not withdraw the times')
+      toast.error(
+        error instanceof Error ? error.message : 'Could not withdraw the times'
+      )
     } finally {
       setWithdrawing(false)
       onChanged()
@@ -76,29 +96,30 @@ export function SuggestTimes({ booking, onChanged }: SuggestTimesProps) {
 
   if (proposal) {
     return (
-      <div className="flex flex-col gap-2 border-t border-border pt-3">
-        <p className="flex items-center gap-1.5 text-[12px] font-medium text-text-primary">
-          <IconCalendarQuestion size={15} stroke={1.5} aria-hidden />
-          Waiting for {who} to pick a time
+      <div className={cn('flex flex-col gap-2', className)}>
+        <p className="flex items-center gap-1.5 text-[15px] font-medium text-text-primary">
+          <IconCalendarQuestion size={18} stroke={1.5} aria-hidden />
+          {`Waiting for ${who} to pick a time`}
         </p>
         <ul className="flex flex-col gap-0.5">
           {proposal.options.map((option) => (
-            <li key={option} className="font-numeric text-[12px] text-text-secondary">
+            <li
+              key={option}
+              className="font-numeric text-[15px] text-text-secondary"
+            >
               {timeLabel(option)}
             </li>
           ))}
         </ul>
-        <p className="text-[11px] text-text-muted">
-          If {who} doesn&apos;t pick one by{' '}
-          <span className="font-numeric">{timeLabel(proposal.expiresAt)}</span>, the booking is cancelled
-          and refunded in full.
+        <p className="text-[13px] text-text-secondary">
+          {`If ${who} doesn't pick one by ${timeLabel(proposal.expiresAt)}, the booking is cancelled and refunded in full.`}
         </p>
         <ScButton
-          variant="secondary"
+          variant="outline"
+          size="md"
           disabled={withdrawing}
           onClick={handleWithdraw}
           aria-label={`Withdraw suggested times for ${who}`}
-          className="min-h-11"
         >
           {withdrawing ? 'Withdrawing…' : 'Withdraw times'}
         </ScButton>
@@ -108,8 +129,8 @@ export function SuggestTimes({ booking, onChanged }: SuggestTimesProps) {
 
   if (ranOut) {
     return (
-      <p className="border-t border-border pt-3 text-[12px] text-text-secondary">
-        {who} didn&apos;t pick one of your times in time, so this booking is being cancelled and refunded.
+      <p className={cn('text-[15px] text-text-secondary', className)}>
+        {`${who} didn't pick one of your times in time, so this booking is being cancelled and refunded.`}
       </p>
     )
   }
@@ -118,13 +139,15 @@ export function SuggestTimes({ booking, onChanged }: SuggestTimesProps) {
 
   return (
     <>
+      {/* The name starts with the words on the button, then says whose job. */}
       <ScButton
-        variant="secondary"
+        variant="outline"
+        size="md"
         onClick={() => setOpen(true)}
-        aria-label={`Suggest another time for ${who}`}
-        className="min-h-11"
+        aria-label={`Other time: suggest another time for ${who}`}
+        className={className}
       >
-        Suggest another time
+        Other time
       </ScButton>
       {open && (
         <SuggestTimesSheet
@@ -202,7 +225,9 @@ function SuggestTimesSheet({
       toast.success(`Times sent. ${who} picks one in the Detlio app.`)
       onSent()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not send the times')
+      toast.error(
+        error instanceof Error ? error.message : 'Could not send the times'
+      )
     } finally {
       setSending(false)
     }
@@ -216,32 +241,50 @@ function SuggestTimesSheet({
       aria-label={`Suggest another time for ${who}`}
       className="px-4"
     >
-      <h2 className="text-base font-semibold text-text-primary">Suggest another time</h2>
-      <p className="mt-1 text-[12px] text-text-secondary">
-        Can&apos;t do <span className="font-numeric">{timeLabel(booking.scheduledAtIso)}</span>? Pick up to{' '}
-        {MAX_TIMES} times you can do. {who} picks one in the app and it&apos;s booked straight away.
+      <h2 className="text-base font-semibold text-text-primary">
+        Suggest another time
+      </h2>
+      {/* Whole sentences from template strings: a name glued into JSX text
+          lost its space after it in the built page ("Arjun Rameshpicks"). */}
+      <p className="mt-1 text-[14px] text-text-secondary">
+        {`Can't do ${timeLabel(booking.scheduledAtIso)}? Pick up to ${MAX_TIMES} times you can do. ${who} picks one in the app and it's booked straight away.`}
       </p>
 
-      <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-text-secondary">Day</p>
+      <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+        Day
+      </p>
       <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
         {days.map((key) => (
-          <Chip key={key} label={dayChipLabel(key)} selected={key === day} onClick={() => setDay(key)} />
+          <Chip
+            key={key}
+            label={dayChipLabel(key)}
+            selected={key === day}
+            onClick={() => setDay(key)}
+          />
         ))}
       </div>
 
-      <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-text-secondary">Time</p>
+      <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+        Time
+      </p>
       <div className="mt-2 flex min-h-11 flex-wrap gap-2">
         {slots === null && !dayNote ? (
-          <IconLoader2 size={18} className="animate-spin text-text-muted" aria-label="Loading times" />
+          <IconLoader2
+            size={18}
+            className="animate-spin text-text-muted"
+            aria-label="Loading times"
+          />
         ) : dayNote ? (
           <p className="text-[12px] text-text-secondary">{dayNote}</p>
         ) : (
           (slots ?? []).map((slot) => (
             <Chip
               key={slot.time}
-              label={slot.label}
+              label={formatClock(slot.time)}
               selected={picked.includes(slot.time)}
-              disabled={!picked.includes(slot.time) && picked.length >= MAX_TIMES}
+              disabled={
+                !picked.includes(slot.time) && picked.length >= MAX_TIMES
+              }
               onClick={() => toggle(slot.time)}
             />
           ))
@@ -251,11 +294,15 @@ function SuggestTimesSheet({
       {picked.length > 0 && (
         <div className="mt-4">
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-            Offering <span className="font-numeric">{picked.length}</span> of {MAX_TIMES}
+            Offering <span className="font-numeric">{picked.length}</span> of{' '}
+            {MAX_TIMES}
           </p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {[...picked].sort().map((time) => (
-              <li key={time} className="font-numeric text-[13px] text-text-primary">
+              <li
+                key={time}
+                className="font-numeric text-[13px] text-text-primary"
+              >
                 {timeLabel(time)}
               </li>
             ))}
@@ -273,16 +320,35 @@ function SuggestTimesSheet({
         />
       </div>
 
-      <p className="mt-3 text-[11px] text-text-muted">
-        If {who} doesn&apos;t answer in time (at most 12 hours), the booking is cancelled and refunded in full.
+      <p className="mt-3 text-[13px] text-text-secondary">
+        {`If ${who} doesn't answer in time (at most 12 hours), the booking is cancelled and refunded in full.`}
       </p>
 
       <div className="mt-5 flex gap-2">
-        <ScButton variant="secondary" disabled={sending} onClick={onClose}>
+        <ScButton
+          variant="outline"
+          size="lg"
+          disabled={sending}
+          onClick={onClose}
+        >
           Cancel
         </ScButton>
-        <ScButton disabled={picked.length === 0 || sending} onClick={handleSend}>
-          {sending ? 'Sending…' : picked.length > 1 ? `Send ${picked.length} times` : 'Send time'}
+        <ScButton
+          variant="main"
+          size="lg"
+          disabled={picked.length === 0 || sending}
+          disabledReason={
+            picked.length === 0 && !sending
+              ? 'Pick at least one time'
+              : undefined
+          }
+          onClick={handleSend}
+        >
+          {sending
+            ? 'Sending…'
+            : picked.length > 1
+              ? `Send ${picked.length} times`
+              : 'Send time'}
         </ScButton>
       </div>
     </ScSheet>

@@ -27,7 +27,8 @@ const STEP_HINTS: Record<PickupNext, string> = {
     "Ask the customer for the 4-digit pickup code in their Detlio app. From now until the car is back, it's in your care.",
   at_garage: 'Press when the car arrives at your garage.',
   start_work: 'Start the work on the car.',
-  out_for_delivery: 'Press when the work is done and the car leaves to go back to the customer.',
+  out_for_delivery:
+    'Press when the work is done and the car leaves to go back to the customer.',
   delivered:
     'Ask the customer for the 4-digit delivery code in their Detlio app. This finishes the job.',
 }
@@ -62,7 +63,9 @@ export function PickupSteps({
 
   const needsCode = step === 'picked_up' || step === 'delivered'
   const triesLeft =
-    step === 'picked_up' ? booking.pickup?.pickupCodeTriesLeft : booking.pickup?.deliveryCodeTriesLeft
+    step === 'picked_up'
+      ? booking.pickup?.pickupCodeTriesLeft
+      : booking.pickup?.deliveryCodeTriesLeft
   const outOfTries = handoverLocked(step, lockedStep, triesLeft)
   const who = booking.customerName ?? 'this customer'
   // The photo standard (0045): starting the work waits for the before
@@ -84,11 +87,15 @@ export function PickupSteps({
       else if (step === 'out_for_delivery') await markOutForDelivery(booking.id)
       else await onStartWork()
       setCode('')
-      if (step !== 'start_work') toast.success(`${PICKUP_STEP_LABELS[step]} marked`)
+      if (step !== 'start_work')
+        toast.success(`${PICKUP_STEP_LABELS[step]} marked`)
       onChanged()
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'HANDOVER_CODE_LOCKED') setLockedStep(step)
-      toast.error(error instanceof Error ? error.message : 'Could not update this booking')
+      if (error instanceof ApiError && error.code === 'HANDOVER_CODE_LOCKED')
+        setLockedStep(step)
+      toast.error(
+        error instanceof Error ? error.message : 'Could not update this booking'
+      )
       onChanged()
     } finally {
       setBusy(false)
@@ -96,22 +103,28 @@ export function PickupSteps({
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border pt-3">
+    <div className="flex flex-col gap-2">
       {needsCode && !outOfTries && (
         <ScInput
           id={`pickup-code-${booking.id}`}
-          label={step === 'picked_up' ? "Customer's pickup code" : "Customer's delivery code"}
+          label={
+            step === 'picked_up'
+              ? "Customer's pickup code"
+              : "Customer's delivery code"
+          }
           inputMode="numeric"
           autoComplete="one-time-code"
           placeholder="4 digits"
           className="font-numeric tracking-[0.3em]"
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          onChange={(e) =>
+            setCode(e.target.value.replace(/\D/g, '').slice(0, 4))
+          }
         />
       )}
 
       {outOfTries ? (
-        <p role="alert" className="text-[12px] text-warning">
+        <p role="alert" className="text-[14px] text-warning">
           Too many wrong codes. Call Detlio support on{' '}
           <a href={SUPPORT_TEL_HREF} className="font-numeric underline">
             {SUPPORT_PHONE_DISPLAY}
@@ -121,31 +134,41 @@ export function PickupSteps({
       ) : (
         <>
           {photoBlock && (
-            <p id={blockedId} className="text-[12px] text-warning">
+            <p id={blockedId} className="text-[15px] text-warning">
               {photoGateMessage(photoBlock)}
             </p>
           )}
           <ScButton
-            aria-label={`Mark ${PICKUP_STEP_LABELS[step]} for ${who}`}
+            variant="main"
+            size="lg"
+            aria-label={
+              step === 'start_work'
+                ? `Start job for ${who}`
+                : `Mark ${PICKUP_STEP_LABELS[step]} for ${who}`
+            }
             aria-describedby={photoBlock ? blockedId : undefined}
-            disabled={busy || (needsCode && code.length !== 4) || photoBlock !== null}
+            disabled={
+              busy || (needsCode && code.length !== 4) || photoBlock !== null
+            }
             onClick={run}
           >
             {busy
               ? 'Saving...'
               : step === 'start_work'
-                ? 'Mark in progress'
+                ? 'Start job'
                 : PICKUP_STEP_LABELS[step]}
           </ScButton>
-          <p className="text-[11px] text-text-secondary">
+          <p className="text-[13px] text-text-secondary">
             {STEP_HINTS[step]}
-            {needsCode && triesLeft !== undefined && triesLeft < MAX_CODE_ATTEMPTS && (
-              <>
-                {' '}
-                <span className="font-numeric">{triesLeft}</span>{' '}
-                {triesLeft === 1 ? 'try' : 'tries'} left.
-              </>
-            )}
+            {needsCode &&
+              triesLeft !== undefined &&
+              triesLeft < MAX_CODE_ATTEMPTS && (
+                <>
+                  {' '}
+                  <span className="font-numeric">{triesLeft}</span>{' '}
+                  {triesLeft === 1 ? 'try' : 'tries'} left.
+                </>
+              )}
           </p>
         </>
       )}

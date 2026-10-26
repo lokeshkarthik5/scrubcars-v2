@@ -34,7 +34,9 @@ export default function VendorOnboardingStep3() {
   const [slotInterval, setSlotInterval] = useState<30 | 45 | 60>(30)
   const [openTime, setOpenTime] = useState('09:00')
   const [closeTime, setCloseTime] = useState('18:00')
-  const [workingDays, setWorkingDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
+  const [workingDays, setWorkingDays] = useState<number[]>([
+    0, 1, 2, 3, 4, 5, 6,
+  ])
   // "How do customers get serviced?" This used to be a Pickup & drop
   // question that switched doorstep on with no distance, which then matched
   // no address. The distance is still asked for here, but it is optional: left
@@ -50,12 +52,15 @@ export default function VendorOnboardingStep3() {
   const radiusGiven = doorstep && radiusKm.trim() !== ''
   const radiusError =
     radiusGiven &&
-    (!Number.isFinite(radius) || radius < MIN_RADIUS_KM || radius > MAX_RADIUS_KM)
+    (!Number.isFinite(radius) ||
+      radius < MIN_RADIUS_KM ||
+      radius > MAX_RADIUS_KM)
       ? `Enter how far you'll go, from ${MIN_RADIUS_KM} to ${MAX_RADIUS_KM} km, or leave it empty.`
       : null
   const bayCount = Number(bays)
   const baysError =
-    bays.trim() !== '' && (!Number.isInteger(bayCount) || bayCount < 1 || bayCount > MAX_BAYS)
+    bays.trim() !== '' &&
+    (!Number.isInteger(bayCount) || bayCount < 1 || bayCount > MAX_BAYS)
       ? `Cars at the same time must be between 1 and ${MAX_BAYS}.`
       : null
   const jobs = Number(jobsPerDay)
@@ -101,7 +106,9 @@ export default function VendorOnboardingStep3() {
       })
       router.push('/onboarding/step-4')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save. Please try again.')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save. Please try again.'
+      )
     } finally {
       setLoading(false)
     }
@@ -153,16 +160,35 @@ export default function VendorOnboardingStep3() {
           subtitle="Applied to every working day. You can set each day in Settings later."
         />
         <div className="grid grid-cols-2 gap-2">
-          <ScInput label="Open time" type="time" className="font-numeric" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
-          <ScInput label="Close time" type="time" className="font-numeric" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
+          <ScInput
+            label="Open time"
+            type="time"
+            className="font-numeric"
+            value={openTime}
+            onChange={(e) => setOpenTime(e.target.value)}
+          />
+          <ScInput
+            label="Close time"
+            type="time"
+            className="font-numeric"
+            value={closeTime}
+            onChange={(e) => setCloseTime(e.target.value)}
+          />
         </div>
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionHeader id="service-mode-heading" title="How do customers get serviced?" />
+        <SectionHeader
+          id="service-mode-heading"
+          title="How do customers get serviced?"
+        />
         {/* Two radios rather than chips: exactly one answer is always true,
             and the doorstep one carries its own distance. */}
-        <div role="radiogroup" aria-labelledby="service-mode-heading" className="flex flex-col gap-2">
+        <div
+          role="radiogroup"
+          aria-labelledby="service-mode-heading"
+          className="flex flex-col gap-2"
+        >
           {(
             [
               { value: 'garage', label: 'They come to my garage' },
@@ -186,10 +212,14 @@ export default function VendorOnboardingStep3() {
                 aria-hidden="true"
                 className={cn(
                   'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
-                  mode === option.value ? 'border-text-primary' : 'border-text-muted'
+                  mode === option.value
+                    ? 'border-text-primary'
+                    : 'border-text-muted'
                 )}
               >
-                {mode === option.value && <span className="h-2 w-2 rounded-full bg-text-primary" />}
+                {mode === option.value && (
+                  <span className="h-2 w-2 rounded-full bg-text-primary" />
+                )}
               </span>
               {option.label}
             </button>
@@ -210,13 +240,15 @@ export default function VendorOnboardingStep3() {
               onChange={(e) => setRadiusKm(e.target.value)}
             />
             {radiusError && (
-              <p role="alert" className="mt-1 text-[12px] text-warning">{radiusError}</p>
+              <p role="alert" className="mt-1 text-[12px] text-warning">
+                {radiusError}
+              </p>
             )}
             <p className="mt-1 text-[11px] text-text-muted">
               Optional. Leave it empty to use{' '}
-              <span className="font-numeric">{DEFAULT_DOORSTEP_RADIUS_KM}</span> km. Customers
-              further away won&apos;t see you for doorstep jobs. You can draw an exact
-              area later in Settings.
+              <span className="font-numeric">{DEFAULT_DOORSTEP_RADIUS_KM}</span>{' '}
+              km. Customers further away won&apos;t see you for doorstep jobs.
+              You can draw an exact area later in Settings.
             </p>
           </div>
         )}
@@ -249,15 +281,20 @@ export default function VendorOnboardingStep3() {
             onChange={(e) => setJobsPerDay(e.target.value)}
           />
           {(baysError || jobsError) && (
-            <p role="alert" className="text-[12px] text-warning">{baysError ?? jobsError}</p>
+            <p role="alert" className="text-[12px] text-warning">
+              {baysError ?? jobsError}
+            </p>
           )}
           <p className="text-[11px] text-text-muted">
-            Customers are only offered times when you have room for one more car.
+            Customers are only offered times when you have room for one more
+            car.
           </p>
         </ScCard>
       </section>
 
       <ScButton
+        variant="main"
+        size="lg"
         className="mt-auto mb-4"
         disabled={loading || !!radiusError || !!baysError || !!jobsError}
         onClick={handleContinue}

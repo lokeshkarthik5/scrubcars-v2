@@ -4,8 +4,12 @@ import { useRouter } from 'next/navigation'
 import { IconBellOff } from '@tabler/icons-react'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { EmptyState } from '@repo/ui/sc/empty-state'
+import { StatusChip } from '@repo/ui/sc/status-chip'
 import { TopBar } from '@repo/ui/sc/top-bar'
-import { PushDeviceCard, usePushDevice } from '@repo/ui/features/push-notifications'
+import {
+  PushDeviceCard,
+  usePushDevice,
+} from '@repo/ui/features/push-notifications'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 
@@ -36,7 +40,11 @@ export default function GarageNotificationsPage() {
 
   return (
     <AppShell showNav navType="vendor" className="gap-5 py-4">
-      <TopBar title="Notifications" showBack backHref={isVendorAdmin ? '/settings' : '/home'} />
+      <TopBar
+        title="Notifications"
+        showBack
+        backHref={isVendorAdmin ? '/settings' : '/home'}
+      />
 
       {device.loaded && device.config && !device.config.enabled ? (
         <EmptyState
@@ -48,6 +56,22 @@ export default function GarageNotificationsPage() {
         />
       ) : (
         <>
+          {/* The switch below has no word of its own: say On or Off in words
+              (UX audit, garage finding 8). */}
+          {device.loaded && device.support !== 'unsupported' && (
+            <p
+              role="status"
+              className="flex items-center gap-2 text-[16px] text-text-primary"
+            >
+              New-booking alerts on this phone:
+              <StatusChip
+                tone={device.subscribed ? 'done' : 'attention'}
+                size="md"
+              >
+                {device.subscribed ? 'On' : 'Off'}
+              </StatusChip>
+            </p>
+          )}
           <PushDeviceCard
             device={device}
             appName="Detlio Partner"
@@ -58,11 +82,17 @@ export default function GarageNotificationsPage() {
             }
           />
 
-          <section aria-labelledby="garage-alerts" className="flex flex-col gap-2">
-            <h2 id="garage-alerts" className="text-sm font-semibold text-text-primary">
+          <section
+            aria-labelledby="garage-alerts"
+            className="flex flex-col gap-2"
+          >
+            <h2
+              id="garage-alerts"
+              className="text-sm font-semibold text-text-primary"
+            >
               What you&apos;ll get
             </h2>
-            <ul className="flex flex-col gap-1.5 text-[12px] text-text-secondary">
+            <ul className="flex flex-col gap-1.5 text-[14px] text-text-secondary">
               {WHAT_YOU_GET.map((line) => (
                 <li key={line} className="flex gap-2">
                   <span aria-hidden="true" className="text-text-muted">
@@ -72,9 +102,10 @@ export default function GarageNotificationsPage() {
                 </li>
               ))}
             </ul>
-            <p className="text-[11px] text-text-muted">
-              Turn it on for each phone or computer at the garage. A notification never shows the customer&apos;s
-              number or address: open the job for those.
+            <p className="text-[13px] text-text-secondary">
+              Turn it on for each phone or computer at the garage. A
+              notification never shows the customer&apos;s number or address:
+              open the job for those.
             </p>
           </section>
         </>

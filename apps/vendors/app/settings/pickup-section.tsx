@@ -68,7 +68,9 @@ export function PickupSection({
       const updated = await updateVendorJobTypes(input)
       onChange(updated)
       // The box shows what is now stored ("08" saved reads "8").
-      setRadius(updated.pickupRadiusKm != null ? String(updated.pickupRadiusKm) : '')
+      setRadius(
+        updated.pickupRadiusKm != null ? String(updated.pickupRadiusKm) : ''
+      )
       setTurningOn(false)
       setAccepted(false)
       toast.success('Saved successfully')
@@ -97,16 +99,23 @@ export function PickupSection({
   const radiusChanged = parsed.ok && radiusKm !== vendor.pickupRadiusKm
 
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="pickup-drop-title">
+    <section
+      className="flex flex-col gap-3"
+      aria-labelledby="pickup-drop-title"
+    >
       <SectionHeader title="Pickup & drop" />
       <ScCard className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p id="pickup-drop-title" className="text-[13px] font-medium text-text-primary">
+            <p
+              id="pickup-drop-title"
+              className="text-[13px] font-medium text-text-primary"
+            >
               Pickup &amp; drop
             </p>
             <p className="text-[11px] text-text-secondary">
-              You collect the car from the customer, do the work here and bring it back
+              You collect the car from the customer, do the work here and bring
+              it back
             </p>
           </div>
           <ScSwitch
@@ -119,8 +128,8 @@ export function PickupSection({
 
         {!pinned && (enabled || turningOn) && (
           <Notice tone="warning" title="Your garage isn't on the map yet">
-            Set its location under Location: the pickup distance is measured from it, so no
-            customer can be matched without it.
+            Set its location under Location: the pickup distance is measured
+            from it, so no customer can be matched without it.
           </Notice>
         )}
 
@@ -133,12 +142,14 @@ export function PickupSection({
               className="font-numeric"
               placeholder={String(DEFAULT_PICKUP_RADIUS_KM)}
               value={radius}
-              onChange={(e) => setRadius(e.target.value.replace(/[^\d.]/g, '').slice(0, 4))}
+              onChange={(e) =>
+                setRadius(e.target.value.replace(/[^\d.]/g, '').slice(0, 4))
+              }
             />
             {parsed.ok ? (
               <p className="text-[11px] text-text-muted">
-                Empty means {DEFAULT_PICKUP_RADIUS_KM} km from your garage&apos;s pin. Pickups need
-                3 hours&apos; notice.
+                Empty means {DEFAULT_PICKUP_RADIUS_KM} km from your
+                garage&apos;s pin. Pickups need 3 hours&apos; notice.
               </p>
             ) : (
               <p role="alert" className="text-[12px] text-warning">
@@ -151,14 +162,20 @@ export function PickupSection({
         {turningOn && (
           <div className="flex flex-col gap-2 border-t border-border pt-3">
             <p className="text-[12px] text-text-secondary">
-              While the car is with you it is your responsibility: from the moment you collect it
-              until it is back with the customer. When you collect it, ask the customer for their
-              4-digit pickup code; when you bring it back, their delivery code.
+              While the car is with you it is your responsibility: from the
+              moment you collect it until it is back with the customer. When you
+              collect it, ask the customer for their 4-digit pickup code; when
+              you bring it back, their delivery code.
             </p>
-            <ScCheckbox label={PICKUP_TERMS_GARAGE} checked={accepted} onChange={setAccepted} />
+            <ScCheckbox
+              label={PICKUP_TERMS_GARAGE}
+              checked={accepted}
+              onChange={setAccepted}
+            />
             <div className="flex gap-2">
               <ScButton
-                variant="secondary"
+                variant="outline"
+                size="md"
                 className="flex-1"
                 onClick={() => {
                   setTurningOn(false)
@@ -168,7 +185,8 @@ export function PickupSection({
                 Not now
               </ScButton>
               <ScButton
-                variant="secondary"
+                variant="outline"
+                size="md"
                 className="flex-1"
                 disabled={!accepted || !parsed.ok || saving !== null}
                 onClick={() =>
@@ -188,12 +206,17 @@ export function PickupSection({
         {enabled && !turningOn && (
           <>
             <p className="text-[12px] text-text-primary">
-              <span className="font-numeric">{pickupReachLine(vendor.pickupRadiusKm)}</span>
+              <span className="font-numeric">
+                {pickupReachLine(vendor.pickupRadiusKm)}
+              </span>
             </p>
             {vendor.pickupTermsAcceptedAt && (
               <p className="text-[11px] text-text-muted">
                 Responsibility for the car accepted on{' '}
-                <span className="font-numeric">{formatDay(vendor.pickupTermsAcceptedAt)}</span>.
+                <span className="font-numeric">
+                  {formatDay(vendor.pickupTermsAcceptedAt)}
+                </span>
+                .
               </p>
             )}
             <p className="text-[11px] text-text-muted">
@@ -201,7 +224,8 @@ export function PickupSection({
             </p>
             {radiusChanged && (
               <ScButton
-                variant="secondary"
+                variant="outline"
+                size="md"
                 disabled={saving !== null}
                 onClick={() => save('radius', { pickupRadiusKm: radiusKm })}
               >
