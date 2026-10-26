@@ -32,7 +32,7 @@ import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { FindAnything } from '@/components/find-anything'
-import { isWidePage } from '@/lib/admin-table'
+import { isGarageEditor, isWidePage } from '@/lib/admin-table'
 import {
   breadcrumb,
   isActive,
@@ -158,7 +158,11 @@ function SidebarLink({
 function SignedInPerson({ me }: { me: AdminMe }) {
   const initial = me.name.trim().charAt(0).toUpperCase() || '?'
   const sub =
-    me.kind === 'shared' ? 'Shared login' : me.username ? `@${me.username}` : null
+    me.kind === 'shared'
+      ? 'Shared login'
+      : me.username
+        ? `@${me.username}`
+        : null
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <span
@@ -472,11 +476,14 @@ function PhoneBar({
   )
 }
 
-/** "Run the day › Issues" above the page, on a laptop. */
+/**
+ * "Run the day › Issues" above the page, on a laptop. Not on the garage
+ * editor, whose header has its own "Garages › <name>".
+ */
 function Breadcrumb() {
   const pathname = usePathname()
   const crumb = breadcrumb(pathname)
-  if (!crumb) return null
+  if (!crumb || isGarageEditor(pathname)) return null
   return (
     <nav
       aria-label="Breadcrumb"

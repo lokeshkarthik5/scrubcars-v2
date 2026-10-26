@@ -23,11 +23,14 @@ import {
 
 /**
  * Where a column goes on a phone, where each row is two lines (pattern 03):
- * `title` and `subtitle` on the left, `aside` and `asideSub` on the right.
- * Anything else is `hidden` there and read in the side panel. One column per
- * place; a column with none set is hidden on a phone.
+ * `title` and `subtitle` on the left, `aside` and `asideSub` on the right,
+ * and an optional third line of `meta` (left) and `action` (right) for what
+ * must be pressed from the row itself. Anything else is `hidden` there and
+ * read in the side panel. One column per place; a column with none set is
+ * hidden on a phone.
  */
-export type PhonePlace = 'title' | 'subtitle' | 'aside' | 'asideSub' | 'hidden'
+export type PhonePlace =
+  'title' | 'subtitle' | 'aside' | 'asideSub' | 'meta' | 'action' | 'hidden'
 
 export interface AdminTableColumn<T> {
   id: string
@@ -43,6 +46,8 @@ export interface AdminTableColumn<T> {
   phone?: PhonePlace
   /** The heading only for screen readers (an actions column). */
   headerHidden?: boolean
+  /** A CSS class for the column's cells on a laptop (a max width). */
+  cellClassName?: string
 }
 
 export interface AdminTableProps<T> {
@@ -73,6 +78,8 @@ export interface AdminTableProps<T> {
   footer?: React.ReactNode
   empty?: React.ReactNode
   className?: string
+  /** Columns turned off with the Columns button: left out entirely. */
+  hiddenColumns?: ReadonlySet<string>
 }
 
 /** Each phone place, written out so Tailwind finds every class. */
@@ -82,6 +89,9 @@ const PHONE_PLACE: Record<PhonePlace, string> = {
   aside: 'max-md:[grid-area:aside] max-md:text-right max-md:justify-self-end',
   asideSub:
     'max-md:[grid-area:asideSub] max-md:text-right max-md:justify-self-end',
+  meta: 'max-md:[grid-area:meta] max-md:min-w-0 max-md:self-center',
+  action:
+    'max-md:[grid-area:action] max-md:text-right max-md:justify-self-end max-md:self-center',
   hidden: 'max-md:hidden',
 }
 
@@ -103,7 +113,7 @@ const OWN_CLICKS =
 export function AdminTable<T>({
   caption,
   rows,
-  columns,
+  columns: allColumns,
   rowKey,
   rowLabelId,
   sort,
@@ -117,7 +127,15 @@ export function AdminTable<T>({
   footer,
   empty,
   className,
+  hiddenColumns,
 }: AdminTableProps<T>) {
+  const columns = useMemo(
+    () =>
+      hiddenColumns && hiddenColumns.size > 0
+        ? allColumns.filter((c) => !hiddenColumns.has(c.id))
+        : allColumns,
+    [allColumns, hiddenColumns]
+  )
   const sorted = useMemo(() => {
     const column = sort ? columns.find((c) => c.id === sort.columnId) : null
     return column?.sortValue
@@ -140,7 +158,9 @@ export function AdminTable<T>({
           {empty ?? 'Nothing here.'}
         </div>
       ) : (
-        <div className="overflow-x-auto max-md:overflow-visible">
+        // Relative, so the cells' screen-reader-only text (absolutely
+        // placed) is held by this scroller instead of widening the page.
+        <div className="relative overflow-x-auto max-md:overflow-visible">
           <table
             role="table"
             className="w-full border-collapse text-left text-[13px] max-md:block"
@@ -152,7 +172,7 @@ export function AdminTable<T>({
                   <th
                     role="columnheader"
                     scope="col"
-                    className="w-10 px-3 py-2.5"
+                    className="w-8 py-2.5 pl-3 pr-1"
                   >
                     <SelectAllBox
                       state={selectAllState(selection.selected, keys)}
@@ -172,7 +192,7 @@ export function AdminTable<T>({
                     }
                     style={column.width ? { width: column.width } : undefined}
                     className={cn(
-                      'whitespace-nowrap px-3 py-2.5 text-[12px] font-medium text-text-secondary',
+                      'whitespace-nowrap px-2 py-2.5 text-[12px] font-medium text-text-secondary',
                       column.align === 'end' && 'text-right'
                     )}
                   >
@@ -255,11 +275,12 @@ export function AdminTable<T>({
                     className={cn(
                       'border-t border-border transition-colors',
                       // Two lines on a phone: the tick, then the title and
-                      // subtitle, then what sits on the right.
+                      // subtitle, then what sits on the right; a third for
+                      // the row's own buttons when it has any.
                       'max-md:grid max-md:gap-x-3 max-md:gap-y-0.5 max-md:px-3 max-md:py-2.5',
                       selection
-                        ? "max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:[grid-template-areas:'check_title_aside'_'check_subtitle_asideSub']"
-                        : "max-md:grid-cols-[minmax(0,1fr)_auto] max-md:[grid-template-areas:'title_aside'_'subtitle_asideSub']",
+                        ? "max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:[grid-template-areas:'check_title_aside'_'check_subtitle_asideSub'_'check_meta_action']"
+                        : "max-md:grid-cols-[minmax(0,1fr)_auto] max-md:[grid-template-areas:'title_aside'_'subtitle_asideSub'_'meta_action']",
                       onOpen && 'cursor-pointer hover:bg-surface',
                       ticked && 'bg-surface',
                       open &&
@@ -273,7 +294,7 @@ export function AdminTable<T>({
                     {selection && (
                       <td
                         role="cell"
-                        className="w-10 px-3 py-2.5 align-middle max-md:row-span-2 max-md:self-center max-md:p-0 max-md:[grid-area:check]"
+                        className="w-8 py-2.5 pl-3 pr-1 align-middle max-md:w-auto max-md:self-start max-md:p-0 max-md:pt-0.5 max-md:[grid-area:check]"
                       >
                         <input
                           type="checkbox"
@@ -293,8 +314,9 @@ export function AdminTable<T>({
                         key={column.id}
                         role="cell"
                         className={cn(
-                          'px-3 py-2.5 align-middle text-text-primary max-md:p-0',
+                          'px-2 py-2 align-middle text-text-primary max-md:p-0',
                           column.align === 'end' && 'text-right',
+                          column.cellClassName,
                           PHONE_PLACE[column.phone ?? 'hidden']
                         )}
                       >

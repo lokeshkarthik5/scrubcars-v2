@@ -6,10 +6,12 @@
  */
 import type {
   AdminBooking,
+  AdminBookingFilters,
   AdminBookingView,
   AdminBookingViewCounts,
 } from '@repo/core/api/admin'
 import { ApiError } from '@repo/core/api/client'
+import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 
 export const BOOKING_VIEWS: ReadonlyArray<{
   value: AdminBookingView
@@ -147,4 +149,62 @@ export function emptyViewText(
     default:
       return 'Bookings will appear here once customers start booking.'
   }
+}
+
+// ─── Type and Payment filters (mockup 03) ────────────────────────────────────
+
+export type BookingTypeFilter = NonNullable<AdminBookingFilters['bookingType']>
+export type PaymentFilter = NonNullable<AdminBookingFilters['payment']>
+
+/** `?type=`: how the car is served, in the panel's words. */
+export const TYPE_FILTERS: ReadonlyArray<{
+  value: BookingTypeFilter
+  label: string
+}> = [
+  { value: 'dropin', label: BOOKING_TYPE_LABELS.dropin },
+  { value: 'doorstep', label: BOOKING_TYPE_LABELS.doorstep },
+  { value: 'pickup', label: BOOKING_TYPE_LABELS.pickup },
+]
+
+/** `?payment=`: paid online, to pay at the garage, or a refund owed. */
+export const PAYMENT_FILTERS: ReadonlyArray<{
+  value: PaymentFilter
+  label: string
+}> = [
+  { value: 'paid', label: 'Paid' },
+  { value: 'pay_later', label: 'Pay at garage' },
+  { value: 'refund_owed', label: 'Money owed' },
+]
+
+/** `?type=` read as an allow-list; anything else is no filter. */
+export function parseTypeFilter(
+  value: string | null | undefined
+): BookingTypeFilter | null {
+  return TYPE_FILTERS.find((f) => f.value === value)?.value ?? null
+}
+
+/** `?payment=` read as an allow-list; anything else is no filter. */
+export function parsePaymentFilter(
+  value: string | null | undefined
+): PaymentFilter | null {
+  return PAYMENT_FILTERS.find((f) => f.value === value)?.value ?? null
+}
+
+// ─── The Today view's groups ─────────────────────────────────────────────────
+
+export const NEEDS_ATTENTION_GROUP = 'Needs attention'
+export const ON_TRACK_GROUP = 'Today · on track'
+/** The order they show in: what needs a call first (mockup 03). */
+export const TODAY_GROUPS = [NEEDS_ATTENTION_GROUP, ON_TRACK_GROUP] as const
+
+/**
+ * A Today booking's group, from its row tone: late or due soon needs
+ * attention, everything else is on track. No groups in the other views.
+ */
+export function todayGroup(
+  view: AdminBookingView,
+  tone: 'urgent' | 'attention' | null
+): string | null {
+  if (view !== 'today') return null
+  return tone ? NEEDS_ATTENTION_GROUP : ON_TRACK_GROUP
 }

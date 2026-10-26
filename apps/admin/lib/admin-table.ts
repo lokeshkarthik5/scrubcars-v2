@@ -165,9 +165,93 @@ export function withGroups<T>(
 export function isWidePage(pathname: string | null | undefined): boolean {
   if (!pathname) return false
   const path = pathname.replace(/\/+$/, '') || '/'
-  return (
-    path === '/bookings' ||
-    path === '/vendors' ||
-    /^\/vendors\/[^/]+\/edit$/.test(path)
+  return path === '/bookings' || path === '/vendors' || isGarageEditor(path)
+}
+
+/**
+ * The garage editor, which draws its own "Garages › <name>" breadcrumb in
+ * its header: the shell's own breadcrumb would say Garages twice there.
+ */
+export function isGarageEditor(pathname: string | null | undefined): boolean {
+  if (!pathname) return false
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return /^\/vendors\/[^/]+\/edit$/.test(path)
+}
+
+/**
+ * The rows with each group's run together, in `order` (a stable sort): the
+ * Bookings Today view puts "Needs attention" before "Today · on track", so
+ * each heading shows once. Rows whose group isn't in `order` go last, as
+ * they came.
+ */
+export function groupRows<T>(
+  rows: readonly T[],
+  groupOf: (row: T) => string | null,
+  order: readonly string[]
+): T[] {
+  const rank = (row: T) => {
+    const group = groupOf(row)
+    const index = group === null ? -1 : order.indexOf(group)
+    return index === -1 ? order.length : index
+  }
+  return rows
+    .map((row, index) => ({ row, index, rank: rank(row) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((k) => k.row)
+}
+
+/**
+ * Ticked rows split by what the filters show: the ones on screen, which the
+ * bulk actions act on, and how many more are ticked but hidden by a filter.
+ * Those stay ticked, and come back when the filter is cleared.
+ */
+export function splitSelection(
+  selected: ReadonlySet<string>,
+  visibleKeys: readonly string[]
+): { visible: string[]; hidden: number } {
+  const visible = visibleKeys.filter((key) => selected.has(key))
+  return { visible, hidden: selected.size - visible.length }
+}
+
+/** An optional column, and whether it shows until someone chooses. */
+export interface OptionalColumn {
+  id: string
+  header: string
+  defaultHidden?: boolean
+}
+
+/**
+ * Which optional columns are hidden: the saved choices (a JSON object of
+ * id → shown, from this browser), else each column's default. Anything
+ * unreadable is ignored, so a bad value never hides a column for good.
+ */
+export function readHiddenColumns(
+  saved: string | null | undefined,
+  optional: readonly OptionalColumn[]
+): ReadonlySet<string> {
+  let choices: Record<string, unknown> = {}
+  try {
+    const parsed: unknown = saved ? JSON.parse(saved) : {}
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+      choices = parsed as Record<string, unknown>
+  } catch {
+    // Unreadable: the defaults.
+  }
+  const hidden = new Set<string>()
+  for (const column of optional) {
+    const shown = choices[column.id]
+    if (typeof shown === 'boolean' ? !shown : column.defaultHidden)
+      hidden.add(column.id)
+  }
+  return hidden
+}
+
+/** The choices to save: every optional column, shown or not. */
+export function hiddenColumnsToSave(
+  hidden: ReadonlySet<string>,
+  optional: readonly OptionalColumn[]
+): string {
+  return JSON.stringify(
+    Object.fromEntries(optional.map((c) => [c.id, !hidden.has(c.id)]))
   )
 }

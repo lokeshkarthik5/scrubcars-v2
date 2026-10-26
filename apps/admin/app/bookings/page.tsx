@@ -10,7 +10,12 @@ import {
 } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-toastify'
-import { IconCalendar, IconDownload, IconX } from '@tabler/icons-react'
+import {
+  IconAdjustmentsHorizontal,
+  IconCalendar,
+  IconDownload,
+  IconX,
+} from '@tabler/icons-react'
 import { bookingStatusBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { FilterChip } from '@repo/ui/sc/chip'
@@ -18,6 +23,7 @@ import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import type { AdminBooking } from '@repo/core/api/admin'
+import { cn } from '@repo/core/utils'
 import { errorMessage, isAuthError } from '@repo/core/api/hooks/use-discounts'
 import {
   flattenAdminBookingPages,
@@ -27,12 +33,25 @@ import {
 import { useAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
 import { useNow } from '@repo/core/hooks/use-now'
-import { AdminTable, FilterBar, SavedViews } from '@/components/table'
+import {
+  AdminTable,
+  ColumnsButton,
+  FilterBar,
+  SavedViews,
+  useHiddenColumns,
+} from '@/components/table'
+import { groupRows } from '@/lib/admin-table'
 import { bookingNextStep, bookingRowTone } from '@/lib/booking-next-step'
 import {
+  PAYMENT_FILTERS,
+  TODAY_GROUPS,
+  TYPE_FILTERS,
   emptyViewText,
   matchesView,
+  parsePaymentFilter,
+  parseTypeFilter,
   parseView,
+  todayGroup,
   viewFilter,
   viewParam,
   viewsUnsupported,
@@ -46,7 +65,7 @@ import {
   todayIst,
 } from '@/lib/bookings'
 import { isInBin } from '@/lib/vendor-list'
-import { bookingColumns } from './booking-columns'
+import { BOOKING_OPTIONAL_COLUMNS, bookingColumns } from './booking-columns'
 import { BookingSidePanel } from './booking-side-panel'
 
 /** The old status chips' values: a link that names one still filters by it. */
@@ -72,6 +91,8 @@ const EXPORT_MAX_PAGES = 50
 
 const FIELD =
   'min-h-11 rounded-md border border-border bg-surface px-2.5 text-[12px] font-medium text-text-secondary md:min-h-9'
+/** A filter that is on: outlined like a pressed chip. */
+const ACTIVE_FIELD = 'border-text-primary text-text-primary'
 
 function BookingsList() {
   const router = useRouter()
@@ -87,6 +108,9 @@ function BookingsList() {
   const to = params.get('to') ?? ''
   // Bookings the team marked Test: on their own, when the chip is on.
   const testOnly = params.get('test') === 'only'
+  // How the car is served, and how it is paid (mockup 03's chips).
+  const bookingType = parseTypeFilter(params.get('type'))
+  const payment = parsePaymentFilter(params.get('payment'))
 
   const [search, setSearch] = useState(params.get('q') ?? '')
   const q = useDebounced(search.trim(), 350)
@@ -143,9 +167,22 @@ function BookingsList() {
       from: rangeReversed ? undefined : from || undefined,
       to: rangeReversed ? undefined : to || undefined,
       test: testOnly ? ('only' as const) : undefined,
+      bookingType: bookingType ?? undefined,
+      payment: payment ?? undefined,
       view: viewFilter(view),
     }),
-    [q, status, vendorId, from, to, rangeReversed, testOnly, view]
+    [
+      q,
+      status,
+      vendorId,
+      from,
+      to,
+      rangeReversed,
+      testOnly,
+      bookingType,
+      payment,
+      view,
+    ]
   )
 
   const {
@@ -160,13 +197,19 @@ function BookingsList() {
   } = useAdminBookings(filters)
   const loaded = useMemo(() => flattenAdminBookingPages(data?.pages), [data])
 
-  // How many each view holds. Never holds up the list; an API older than
-  // the views (404) shows them without counts, and the view is applied to
-  // the loaded rows here, since that API ignores it.
+  // How many each view holds, under every other filter on the list, so a
+  // view's count is the rows it shows. Never holds up the list; an API older
+  // than the views (404) shows them without counts, and the view is applied
+  // to the loaded rows here, since that API ignores it.
   const counts = useAdminBookingViewCounts({
     q: filters.q,
+    status: filters.status,
     vendorId: filters.vendorId,
+    from: filters.from,
+    to: filters.to,
     test: filters.test,
+    bookingType: filters.bookingType,
+    payment: filters.payment,
   })
   const unsupported = viewsUnsupported(counts.error)
   const now = useNow(30_000)
@@ -201,11 +244,30 @@ function BookingsList() {
     if (isAuthError(error)) router.replace('/login')
   }, [error, router])
 
-  const isFiltered = Boolean(q || status || vendorId || from || to || testOnly)
+  const isFiltered = Boolean(
+    q || status || vendorId || from || to || testOnly || bookingType || payment
+  )
   // The phone's Filter button: how many of the folded filters are on.
-  const activeFilters = [status, testOnly, vendorId, from, to].filter(
-    Boolean
-  ).length
+  const activeFilters = [
+    status,
+    testOnly,
+    vendorId,
+    from,
+    to,
+    bookingType,
+    payment,
+  ].filter(Boolean).length
+
+  // Garage and dates sit behind More filters, open while one is set.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreSet = [vendorId, from, to].filter(Boolean).length
+  const moreShown = moreOpen || moreSet > 0
+
+  // The columns this browser turned off.
+  const [hiddenColumns, toggleColumn] = useHiddenColumns(
+    'detlio.admin.bookings.columns',
+    BOOKING_OPTIONAL_COLUMNS
+  )
   const clearFilters = () => {
     setSearch('')
     router.replace(pathname, { scroll: false })
@@ -261,6 +323,19 @@ function BookingsList() {
     [listQuery, now]
   )
 
+  // Today, grouped (mockup 03): what needs a call first, then the rest on
+  // track, each in time order.
+  const groupOf = useCallback(
+    (b: AdminBooking) =>
+      todayGroup(view, bookingRowTone(bookingNextStep(b, now))),
+    [view, now]
+  )
+  const rows = useMemo(
+    () =>
+      view === 'today' ? groupRows(bookings, groupOf, TODAY_GROUPS) : bookings,
+    [view, bookings, groupOf]
+  )
+
   return (
     <>
       <PageHeader
@@ -307,61 +382,121 @@ function BookingsList() {
           }}
           activeCount={activeFilters}
           trailing={
-            isFiltered ? (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="min-h-11 px-1 font-medium text-text-primary underline-offset-2 hover:underline md:min-h-9"
-              >
-                Clear filters
-              </button>
-            ) : undefined
+            <>
+              {isFiltered && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="min-h-11 px-1 font-medium text-text-primary underline-offset-2 hover:underline md:min-h-9"
+                >
+                  Clear filters
+                </button>
+              )}
+              <ColumnsButton
+                columns={BOOKING_OPTIONAL_COLUMNS}
+                hidden={hiddenColumns}
+                onToggle={toggleColumn}
+              />
+            </>
           }
         >
           <select
-            id="booking-garage"
-            aria-label="Garage"
-            value={vendorId}
-            onChange={(e) => setParams({ garage: e.target.value })}
-            className={FIELD}
+            id="booking-type"
+            aria-label="Type"
+            value={bookingType ?? ''}
+            onChange={(e) => setParams({ type: e.target.value || null })}
+            className={cn(FIELD, bookingType && ACTIVE_FIELD)}
           >
-            <option value="">Garage: any</option>
-            {garages.map((garage) => (
-              <option key={garage.id} value={garage.id}>
-                {isInBin(garage)
-                  ? `${garage.businessName} (in the Bin)`
-                  : garage.businessName}
+            <option value="">Type: any</option>
+            {TYPE_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
-          <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-            From
-            <input
-              id="booking-from"
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => setParams({ from: e.target.value })}
-              className={FIELD}
-            />
-          </label>
-          <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-            To
-            <input
-              id="booking-to"
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => setParams({ to: e.target.value })}
-              className={FIELD}
-            />
-          </label>
+          <select
+            id="booking-payment"
+            aria-label="Payment"
+            value={payment ?? ''}
+            onChange={(e) => setParams({ payment: e.target.value || null })}
+            className={cn(FIELD, payment && ACTIVE_FIELD)}
+          >
+            <option value="">Payment: any</option>
+            {PAYMENT_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <FilterChip
             label="Test bookings"
             active={testOnly}
             onClick={() => setParams({ test: testOnly ? '' : 'only' })}
             className="min-h-11 rounded-[8px] md:min-h-9"
           />
+          <button
+            type="button"
+            onClick={() => setMoreOpen((open) => !open)}
+            aria-expanded={moreShown}
+            aria-controls="booking-more-filters"
+            className={cn(
+              'inline-flex min-h-11 items-center gap-1.5 rounded-[8px] border px-3 text-[12px] font-medium transition-colors md:min-h-9',
+              moreSet > 0
+                ? 'border-text-primary text-text-primary'
+                : 'border-border text-text-secondary hover:text-text-primary'
+            )}
+          >
+            <IconAdjustmentsHorizontal size={14} aria-hidden="true" />
+            More filters
+            {moreSet > 0 && <span className="font-numeric">· {moreSet}</span>}
+          </button>
+          {moreShown && (
+            <div
+              id="booking-more-filters"
+              role="group"
+              aria-label="More filters"
+              className="flex flex-wrap items-center gap-2"
+            >
+              <select
+                id="booking-garage"
+                aria-label="Garage"
+                value={vendorId}
+                onChange={(e) => setParams({ garage: e.target.value })}
+                className={FIELD}
+              >
+                <option value="">Garage: any</option>
+                {garages.map((garage) => (
+                  <option key={garage.id} value={garage.id}>
+                    {isInBin(garage)
+                      ? `${garage.businessName} (in the Bin)`
+                      : garage.businessName}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                From
+                <input
+                  id="booking-from"
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setParams({ from: e.target.value })}
+                  className={FIELD}
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                To
+                <input
+                  id="booking-to"
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setParams({ to: e.target.value })}
+                  className={FIELD}
+                />
+              </label>
+            </div>
+          )}
           {/* An old link's status chip, removable. */}
           {status && (
             <button
@@ -412,8 +547,10 @@ function BookingsList() {
             <AdminTable<AdminBooking>
               caption="Bookings"
               className="min-w-0 flex-1"
-              rows={bookings}
+              rows={rows}
               columns={columns}
+              hiddenColumns={hiddenColumns}
+              groupOf={view === 'today' ? groupOf : undefined}
               rowKey={(b) => b.id}
               rowLabelId={(b) => `booking-${b.id}-ref`}
               toneOf={(b) => bookingRowTone(bookingNextStep(b, now))}

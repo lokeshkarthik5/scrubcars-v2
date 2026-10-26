@@ -6,9 +6,9 @@ import { bookingStatusBadge, ScBadge } from '@repo/ui/sc/badge'
 import type { AdminBooking } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
 import { TestBadge } from '@/components/booking-badges'
-import type { AdminTableColumn } from '@/components/table'
+import type { AdminTableColumn, OptionalColumn } from '@/components/table'
 import { bookingNextStep } from '@/lib/booking-next-step'
-import { formatRupees, formatWhen } from '@/lib/bookings'
+import { bookingTypeLabel, formatRupees, formatWhen } from '@/lib/bookings'
 import { URGENCY_TEXT } from '@/lib/format'
 
 /** Where a booking opens, with the list's filters for its back arrow. */
@@ -20,8 +20,19 @@ export function bookingHref(
 }
 
 /**
+ * The Bookings table's columns the Columns button can turn off: Garage and
+ * Status, shown to start with, and Type, off. The ones a phone row is made
+ * of (customer, slot, amount, next step) always show.
+ */
+export const BOOKING_OPTIONAL_COLUMNS: OptionalColumn[] = [
+  { id: 'garage', header: 'Garage' },
+  { id: 'type', header: 'Type', defaultHidden: true },
+  { id: 'status', header: 'Status' },
+]
+
+/**
  * The Bookings table's columns (mockup 03): Ref · When · Customer · Garage ·
- * Amount · Status · Next step. On a phone a row is the customer and the
+ * (Type) · Amount · Status · Next step. On a phone a row is the customer and the
  * slot, with the amount and the next step on the right; a tap opens the
  * side panel, which links to the full page.
  */
@@ -79,6 +90,15 @@ export function bookingColumns({
       cell: (b) => (
         <span className="block max-w-[200px] truncate text-text-secondary">
           {b.garage?.name ?? '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'type',
+      header: 'Type',
+      cell: (b) => (
+        <span className="whitespace-nowrap text-text-secondary">
+          {bookingTypeLabel(b.bookingType)}
         </span>
       ),
     },

@@ -13,6 +13,8 @@ import { formatDay } from '@repo/core/format'
 import {
   isMissingKey,
   MARK_CHASE_AFTER_DAYS,
+  MISSING_LABELS,
+  MISSING_TONES,
   type MissingKey,
 } from '@repo/core/onboarding-marks'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from './garage-edit'
@@ -386,6 +388,56 @@ export function bookingParts(
   // Pickup & drop, when on, comes last: "At the garage · Pickup & drop".
   const parts = bookingModeParts(v)
   return v.pickupEnabled ? [...parts, { text: 'Pickup & drop' }] : parts
+}
+
+/**
+ * How many Missing tags fit on one line of the Garages table (mockup 06):
+ * as many as a budget of characters holds, red ones first as MissingTags
+ * orders them, then "+N". At least one, so a row never shows only "+3".
+ */
+export function missingTagsThatFit(
+  missing: readonly MissingKey[] | undefined,
+  budget = 22
+): number {
+  if (!missing || missing.length === 0) return 0
+  const ordered = [
+    ...missing.filter((key) => MISSING_TONES[key] === 'red'),
+    ...missing.filter((key) => MISSING_TONES[key] !== 'red'),
+  ]
+  let used = 0
+  let fit = 0
+  for (const key of ordered) {
+    // A tag's padding and gap count as about two characters.
+    const next = used + MISSING_LABELS[key].length + 2
+    // "+N" needs room too, unless this is the last tag.
+    const reserve = fit + 1 < ordered.length ? 3 : 0
+    if (fit > 0 && next + reserve > budget) break
+    used = next
+    fit += 1
+  }
+  return fit
+}
+
+/**
+ * How it books in a word or two, for the Garages table's narrow Modes
+ * column (mockup 06): "Both", "At garage", "Doorstep", with "+ pickup" when
+ * pickup & drop is on, and "None on" when nothing is. The radius is in the
+ * side panel and the cell's title (`bookingParts`).
+ */
+export function modesShort(
+  v: Pick<AdminVendor, 'dropinEnabled' | 'doorstepEnabled'> &
+    Partial<Pick<AdminVendor, 'pickupEnabled'>>
+): string {
+  const base =
+    v.dropinEnabled && v.doorstepEnabled
+      ? 'Both'
+      : v.doorstepEnabled
+        ? 'Doorstep'
+        : v.dropinEnabled
+          ? 'At garage'
+          : null
+  if (v.pickupEnabled) return base ? `${base} + pickup` : 'Pickup only'
+  return base ?? 'None on'
 }
 
 function bookingModeParts(

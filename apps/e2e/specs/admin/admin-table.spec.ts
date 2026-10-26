@@ -157,6 +157,59 @@ test.describe('the Garages table @p0', () => {
     await name.click()
     await expect(details).toHaveCount(0)
   })
+  test('Onboarded by is a column the Columns button turns on', async ({
+    page,
+  }) => {
+    await page.goto('/vendors?show=all')
+    await expect(row(page, MARKS_A)).toBeVisible()
+    const header = page.getByRole('columnheader', {
+      name: 'Onboarded by',
+      exact: true,
+    })
+    // Off to start with, so the table fits a laptop.
+    await expect(header).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Columns', exact: true }).click()
+    const choices = page.getByRole('group', { name: 'Columns' })
+    await choices.getByRole('checkbox', { name: 'Onboarded by' }).check()
+    await expect(header).toBeVisible()
+    await expect(row(page, MARKS_B)).toContainText('E2E Admin')
+
+    // Remembered in this browser.
+    await page.reload()
+    await expect(header).toBeVisible()
+  })
+
+  test('ticked garages a filter hides are said apart and left out', async ({
+    page,
+  }) => {
+    await page.goto('/vendors?show=all')
+    for (const name of [MARKS_A, MARKS_B]) {
+      await row(page, name)
+        .getByRole('checkbox', { name: `Select ${name}` })
+        .check()
+    }
+    const bar = page.getByRole('region', { name: 'Selected garages' })
+    await expect(bar.getByText('2 selected', { exact: true })).toBeVisible()
+
+    // Only B misses its bays: A is hidden, still ticked, and not acted on.
+    await page
+      .getByRole('group', { name: 'Missing' })
+      .getByRole('button', { name: /^Bays \d+$/ })
+      .click()
+    await expect(row(page, MARKS_A)).toHaveCount(0)
+    await expect(bar.getByText('1 selected', { exact: true })).toBeVisible()
+    await expect(bar).toContainText('1 hidden by filters')
+    await expect(bar).not.toContainText(MARKS_A)
+
+    // Back again: both, both ticked.
+    await page
+      .getByRole('group', { name: 'Missing' })
+      .getByRole('button', { name: /^Bays \d+$/ })
+      .click()
+    await expect(bar.getByText('2 selected', { exact: true })).toBeVisible()
+    await expect(bar).not.toContainText('hidden by filters')
+  })
 })
 
 test.describe('the Bookings views @p0', () => {
@@ -200,5 +253,60 @@ test.describe('the Bookings views @p0', () => {
     await expect(page).toHaveURL(/[?&]view=completed/)
     await expect(link).toHaveCount(0)
     await expect(page.getByText(/^Nothing matches these filters/)).toBeVisible()
+  })
+})
+
+test.describe('the Bookings filters @p0', () => {
+  test('Type and Payment narrow the list, live in the URL and come back from a booking', async ({
+    page,
+  }) => {
+    // A paid booking at the garage (drop-in), waiting for its garage.
+    const ref = reference(BOOKINGS.adminOpsWaiting)
+    await page.goto(`/bookings?q=%23${ref}`)
+    const link = page.getByRole('link', {
+      name: new RegExp(`^Open booking #${ref}`),
+    })
+    await expect(link).toBeVisible()
+    const views = page.getByRole('group', { name: 'Views' })
+
+    await page.getByLabel('Type', { exact: true }).selectOption('doorstep')
+    await expect(page).toHaveURL(/[?&]type=doorstep/)
+    await expect(link).toHaveCount(0)
+    // The views are counted under the same filters.
+    await expect(
+      views.getByRole('button', { name: 'All 0', exact: true })
+    ).toBeVisible()
+
+    await page.getByLabel('Type', { exact: true }).selectOption('dropin')
+    await expect(link).toBeVisible()
+
+    await page
+      .getByLabel('Payment', { exact: true })
+      .selectOption('refund_owed')
+    await expect(page).toHaveURL(/[?&]payment=refund_owed/)
+    await expect(link).toHaveCount(0)
+    await page.getByLabel('Payment', { exact: true }).selectOption('paid')
+    await expect(link).toBeVisible()
+    await expect(
+      views.getByRole('button', { name: 'All 1', exact: true })
+    ).toBeVisible()
+
+    // The booking's back arrow keeps both.
+    await link.click()
+    await page.getByRole('link', { name: 'Go back' }).click()
+    await expect(page).toHaveURL(/[?&]type=dropin/)
+    await expect(page).toHaveURL(/[?&]payment=paid/)
+    await expect(page.getByLabel('Type', { exact: true })).toHaveValue('dropin')
+  })
+
+  test('Garage and dates sit under More filters', async ({ page }) => {
+    await page.goto('/bookings')
+    const garage = page.getByLabel('Garage', { exact: true })
+    await expect(garage).toHaveCount(0)
+    const more = page.getByRole('button', { name: /^More filters/ })
+    await expect(more).toHaveAttribute('aria-expanded', 'false')
+    await more.click()
+    await expect(more).toHaveAttribute('aria-expanded', 'true')
+    await expect(garage).toBeVisible()
   })
 })

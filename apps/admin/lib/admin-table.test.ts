@@ -1,11 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import {
   ariaSort,
+  groupRows,
+  hiddenColumnsToSave,
+  isGarageEditor,
   isWidePage,
   keepKnown,
   nextSort,
+  readHiddenColumns,
   selectAllState,
   sortRows,
+  splitSelection,
   toggleAll,
   toggleKey,
   withGroups,
@@ -137,5 +142,76 @@ describe('isWidePage', () => {
     expect(isWidePage('/vendors/new')).toBe(false)
     expect(isWidePage('/today')).toBe(false)
     expect(isWidePage(null)).toBe(false)
+  })
+})
+
+describe('groupRows', () => {
+  test("each group's rows together, in the order given, stable", () => {
+    const rows = ['ok1', 'late1', 'ok2', 'none', 'late2']
+    const group = (r: string) =>
+      r.startsWith('late')
+        ? 'Needs attention'
+        : r === 'none'
+          ? null
+          : 'On track'
+    expect(groupRows(rows, group, ['Needs attention', 'On track'])).toEqual([
+      'late1',
+      'late2',
+      'ok1',
+      'ok2',
+      'none',
+    ])
+    // Feeding the result to withGroups gives each heading once.
+    const lines = withGroups(
+      groupRows(rows, group, ['Needs attention', 'On track']),
+      group
+    )
+    expect(lines.filter((l) => l.kind === 'group')).toHaveLength(2)
+  })
+})
+
+describe('splitSelection', () => {
+  test('acts on the ticked rows on screen and counts the hidden ones', () => {
+    expect(splitSelection(new Set(['a', 'b', 'c']), ['b', 'c', 'd'])).toEqual({
+      visible: ['b', 'c'],
+      hidden: 1,
+    })
+    expect(splitSelection(new Set(), ['a'])).toEqual({ visible: [], hidden: 0 })
+  })
+})
+
+describe('optional columns', () => {
+  const optional = [
+    { id: 'area', header: 'Area' },
+    { id: 'onboardedBy', header: 'Onboarded by', defaultHidden: true },
+  ]
+
+  test('defaults until chosen', () => {
+    expect([...readHiddenColumns(null, optional)]).toEqual(['onboardedBy'])
+    expect([...readHiddenColumns('', optional)]).toEqual(['onboardedBy'])
+  })
+
+  test('a saved choice wins, both ways, and round-trips', () => {
+    const saved = hiddenColumnsToSave(new Set(['area']), optional)
+    expect(JSON.parse(saved)).toEqual({ area: false, onboardedBy: true })
+    expect([...readHiddenColumns(saved, optional)]).toEqual(['area'])
+  })
+
+  test('an unreadable or odd value falls back to the defaults', () => {
+    expect([...readHiddenColumns('{nope', optional)]).toEqual(['onboardedBy'])
+    expect([...readHiddenColumns('[1]', optional)]).toEqual(['onboardedBy'])
+    expect([
+      ...readHiddenColumns('{"area":"no","onboardedBy":1}', optional),
+    ]).toEqual(['onboardedBy'])
+  })
+})
+
+describe('isGarageEditor', () => {
+  test('only the editor, which has its own breadcrumb', () => {
+    expect(isGarageEditor('/vendors/3f2a/edit')).toBe(true)
+    expect(isGarageEditor('/vendors/3f2a/edit/')).toBe(true)
+    expect(isGarageEditor('/vendors')).toBe(false)
+    expect(isGarageEditor('/vendors/new')).toBe(false)
+    expect(isGarageEditor(null)).toBe(false)
   })
 })
