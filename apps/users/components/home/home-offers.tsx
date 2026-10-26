@@ -29,8 +29,8 @@ export function offerPath(offer: Pick<HomeOffer, 'vendorId' | 'code'>): string {
 }
 
 /**
- * Up to three offers, first on Home (owner decision). Swipe between them; it
- * never moves on its own.
+ * Up to three offers, below the car as dark tickets (F2: the approved Home
+ * mockup), in Home's one swipe row. It never moves on its own.
  *
  * A tap remembers the code (pending-checkout store) and goes where it can be
  * used: a garage's own offer to that garage's page, carrying the code, and a
@@ -41,7 +41,13 @@ export function offerPath(offer: Pick<HomeOffer, 'vendorId' | 'code'>): string {
  * × hides the offer for good, on every device. The code still works if they
  * type it at checkout.
  */
-export function HomeOffers({ offers, userId, vehicleId, hasCar, muted }: HomeOffersProps) {
+export function HomeOffers({
+  offers,
+  userId,
+  vehicleId,
+  hasCar,
+  muted,
+}: HomeOffersProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const rememberOffer = usePendingCheckoutStore((s) => s.rememberOffer)
@@ -85,6 +91,7 @@ export function HomeOffers({ offers, userId, vehicleId, hasCar, muted }: HomeOff
             figure={offerFigureOf(offer)}
             code={offer.code}
             muted={muted}
+            className="offer-coupon--dark"
             onSelect={() => select(offer)}
             onDismiss={() => dismiss.mutate(offer.id)}
           />

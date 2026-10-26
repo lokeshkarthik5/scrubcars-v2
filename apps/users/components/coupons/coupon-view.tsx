@@ -6,10 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconTicket } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { ApiError } from '@repo/core/api/client'
-import { lookupCoupon, redeemCoupon, type MyCoupon } from '@repo/core/api/coupons'
+import {
+  lookupCoupon,
+  redeemCoupon,
+  type MyCoupon,
+} from '@repo/core/api/coupons'
 import { couponKeys, invalidateCoupons } from '@repo/core/api/hooks/use-coupons'
 import { track } from '@repo/core/analytics'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
@@ -19,7 +23,9 @@ import { CouponTicket } from '@/components/coupons/coupon-ticket'
 import { couponClosedLine, couponUseByLine } from '@/lib/coupons'
 
 /** Where a ready voucher is used: its garage's page, or the list of garages. */
-export function couponBookPath(coupon: Pick<MyCoupon, 'vendorId' | 'code'>): string {
+export function couponBookPath(
+  coupon: Pick<MyCoupon, 'vendorId' | 'code'>
+): string {
   return coupon.vendorId && coupon.code
     ? `/garage/${coupon.vendorId}?code=${encodeURIComponent(coupon.code)}`
     : '/garages'
@@ -80,7 +86,11 @@ export function CouponView({ code }: { code: string }) {
       setAdded(result.coupon)
       void invalidateCoupons(queryClient)
     } catch (error) {
-      setAddError(error instanceof ApiError ? error.message : "Couldn't add the coupon. Check your connection and try again.")
+      setAddError(
+        error instanceof ApiError
+          ? error.message
+          : "Couldn't add the coupon. Check your connection and try again."
+      )
     } finally {
       setAdding(false)
     }
@@ -89,7 +99,13 @@ export function CouponView({ code }: { code: string }) {
   // Back from sign-in with ?add=1: add it once, as the customer asked.
   const autoAdded = useRef(false)
   useEffect(() => {
-    if (autoAdded.current || !user || params.get('add') !== '1' || lookup.data?.state !== 'available') return
+    if (
+      autoAdded.current ||
+      !user ||
+      params.get('add') !== '1' ||
+      lookup.data?.state !== 'available'
+    )
+      return
     autoAdded.current = true
     router.replace(`/c/${code}`, { scroll: false })
     void add()
@@ -98,7 +114,13 @@ export function CouponView({ code }: { code: string }) {
 
   const book = (coupon: MyCoupon) => {
     if (user && coupon.code && coupon.expiresAt) {
-      rememberOffer({ userId: user.id, code: coupon.code, vendorId: coupon.vendorId, vehicleId: null, endsAt: coupon.expiresAt })
+      rememberOffer({
+        userId: user.id,
+        code: coupon.code,
+        vendorId: coupon.vendorId,
+        vehicleId: null,
+        endsAt: coupon.expiresAt,
+      })
     }
     router.push(couponBookPath(coupon))
   }
@@ -126,7 +148,12 @@ export function CouponView({ code }: { code: string }) {
           />
         )
       }
-      return <ErrorState message="Couldn't load this coupon. Check your connection." onRetry={() => void lookup.refetch()} />
+      return (
+        <ErrorState
+          message="Couldn't load this coupon. Check your connection."
+          onRetry={() => void lookup.refetch()}
+        />
+      )
     }
 
     const coupon = lookup.data
@@ -151,13 +178,24 @@ export function CouponView({ code }: { code: string }) {
         {added ? (
           <ScCard className="flex flex-col gap-3">
             <p role="status" className="text-[14px] text-text-primary">
-              {stamps ? 'Added to your Shine Card.' : 'Added to your Detlio account.'}
-              {!stamps && added.expiresAt && <> {couponUseByLine(added.expiresAt)}.</>}
+              {stamps
+                ? 'Added to your Shine Card.'
+                : 'Added to your Detlio account.'}
+              {!stamps && added.expiresAt && (
+                <> {couponUseByLine(added.expiresAt)}.</>
+              )}
             </p>
-            {!stamps && <p className="text-[12px] text-text-secondary">It comes off at checkout, once.</p>}
+            {!stamps && (
+              <p className="text-[12px] text-text-secondary">
+                It comes off at checkout, once.
+              </p>
+            )}
             {/* The page's one red action, now that the coupon is in. */}
             {stamps ? (
-              <ScButton onClick={() => router.push('/profile/rewards')} className="min-h-11">
+              <ScButton
+                onClick={() => router.push('/profile/rewards')}
+                className="min-h-11"
+              >
                 See your Shine Card
               </ScButton>
             ) : (
@@ -176,15 +214,24 @@ export function CouponView({ code }: { code: string }) {
           <ScCard className="flex flex-col gap-2">
             <p className="text-[13px] text-text-secondary">{closed}</p>
             {coupon.state === 'added' && (
-              <Link href="/profile/coupons" className="text-[13px] font-medium text-text-primary underline underline-offset-2">
+              <Link
+                href="/profile/coupons"
+                className="text-[13px] font-medium text-text-primary underline underline-offset-2"
+              >
                 Open my coupons
               </Link>
             )}
           </ScCard>
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="text-[12px] text-text-secondary">{couponUseByLine(coupon.validUntil)}</p>
-            <ScButton onClick={() => void add()} disabled={adding} className="min-h-11">
+            <p className="text-[12px] text-text-secondary">
+              {couponUseByLine(coupon.validUntil)}
+            </p>
+            <ScButton
+              onClick={() => void add()}
+              disabled={adding}
+              className="min-h-11"
+            >
               {adding ? 'Adding…' : 'Add to my Detlio'}
             </ScButton>
             <p className="text-[12px] text-text-muted">

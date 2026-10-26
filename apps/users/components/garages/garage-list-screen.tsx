@@ -37,6 +37,7 @@ import {
   useLocationStore,
 } from '@repo/core/stores/location-store'
 import { LocationPromptSheet } from '@repo/ui/features/location-prompt-sheet'
+import { ScButton } from '@repo/ui/sc/button'
 import { CATEGORY_FILTERS } from '@repo/core/categories'
 import { CERTIFIED_FILTER_LABEL } from '@repo/core/certification'
 import { BOOKING_TYPES, parseBookingType } from '@repo/core/booking-types'
@@ -76,14 +77,14 @@ function GarageListContent() {
   // read during render because this component sits inside the <Suspense>
   // boundary below, so it is never part of the prerendered HTML.
   const [toastDismissed, setToastDismissed] = useState(false)
-  const showToast =
-    !toastDismissed && searchParams.get('welcome') === '1'
+  const showToast = !toastDismissed && searchParams.get('welcome') === '1'
 
   const location = useLocationStore((s) => s.location)
   const permission = useLocationStore((s) => s.permission)
   const locating = useLocationStore((s) => s.locating)
   const promptDismissedAt = useLocationStore((s) => s.promptDismissedAt)
   const refreshPermission = useLocationStore((s) => s.refreshPermission)
+  const selectChennai = useLocationStore((s) => s.selectChennai)
   const [locationSheetOpen, setLocationSheetOpen] = useState(false)
 
   const user = profile ?? authUser
@@ -146,7 +147,10 @@ function GarageListContent() {
 
   // The list as it is browsed: once on arrival and once per mode or chip.
   useEffect(() => {
-    track('garage_list_view', { mode: serviceMode, category: browseCategory(category) })
+    track('garage_list_view', {
+      mode: serviceMode,
+      category: browseCategory(category),
+    })
   }, [serviceMode, category])
 
   // Offered only after results are on screen: the sheet argues "sort these by
@@ -154,13 +158,14 @@ function GarageListContent() {
   // loaded is the cold ask this exists to avoid.
   useEffect(() => {
     if (isLoading || vendors.length === 0) return
-    if (!shouldOfferLocationPrompt({ location, permission, promptDismissedAt })) {
+    if (
+      !shouldOfferLocationPrompt({ location, permission, promptDismissedAt })
+    ) {
       return
     }
     const timer = setTimeout(() => setLocationSheetOpen(true), 1200)
     return () => clearTimeout(timer)
   }, [isLoading, vendors.length, location, permission, promptDismissedAt])
-
 
   return (
     <CustomerShell
@@ -209,7 +214,12 @@ function GarageListContent() {
         onDismiss={() => setToastDismissed(true)}
       />
 
-      <ModeSwitch modes={BOOKING_TYPES} value={serviceMode} onChange={setServiceMode} />
+      <ModeSwitch
+        modes={BOOKING_TYPES}
+        value={serviceMode}
+        onChange={setServiceMode}
+        className="[&_button]:min-h-11"
+      />
 
       <button
         type="button"
@@ -217,7 +227,9 @@ function GarageListContent() {
         className="flex items-center gap-2.5 rounded-[12px] border border-border bg-surface px-3.5 py-3 text-left"
       >
         <IconSearch size={17} className="text-text-secondary" />
-        <span className="text-[13px] text-text-muted">Search garages or services</span>
+        <span className="text-[13px] text-text-muted">
+          Search garages or services
+        </span>
       </button>
 
       {/* The chosen category is a white chip, not a red one: red on this
@@ -234,11 +246,17 @@ function GarageListContent() {
           aria-pressed={certifiedOnly}
           onClick={() => setCertifiedOnly((on) => !on)}
           className={cn(
-            'tap-target flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
-            certifiedOnly ? 'bg-brand-white text-brand-black' : 'bg-surface text-text-primary'
+            'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-colors',
+            certifiedOnly
+              ? 'bg-brand-white text-brand-black'
+              : 'bg-surface text-text-primary'
           )}
         >
-          <IconRosetteDiscountCheckFilled size={15} aria-hidden="true" className="shrink-0" />
+          <IconRosetteDiscountCheckFilled
+            size={15}
+            aria-hidden="true"
+            className="shrink-0"
+          />
           {CERTIFIED_FILTER_LABEL}
         </button>
         <span aria-hidden="true" className="my-1.5 w-px shrink-0 bg-border" />
@@ -249,7 +267,7 @@ function GarageListContent() {
             aria-pressed={category === c.key}
             onClick={() => setCategory(c.key)}
             className={cn(
-              'tap-target shrink-0 rounded-full px-4 py-2 text-[13px] font-medium transition-colors',
+              'min-h-11 shrink-0 rounded-full px-4 text-[13px] font-medium transition-colors',
               category === c.key
                 ? 'bg-brand-white text-brand-black'
                 : 'bg-surface text-text-primary'
@@ -262,7 +280,12 @@ function GarageListContent() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[17px] font-semibold text-text-primary">Nearby Garages</h2>
+          {/* min-w-0, not whitespace-nowrap: at 360px the heading and the
+              Map and Sort pills don't fit on one line, so the heading wraps
+              rather than pushing the page sideways. */}
+          <h2 className="min-w-0 text-[17px] font-medium text-text-primary">
+            Nearby garages
+          </h2>
           <div className="flex shrink-0 items-center gap-2">
             <Link
               href={{
@@ -272,7 +295,7 @@ function GarageListContent() {
                   ...(category === 'all' ? {} : { category }),
                 },
               }}
-              className="tap-target flex items-center gap-1.5 rounded-[9px] bg-surface px-2.5 py-1.5 text-[12px] text-text-secondary"
+              className="flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3.5 text-[13px] text-text-secondary"
             >
               <IconMap size={14} aria-hidden="true" />
               Map
@@ -280,7 +303,7 @@ function GarageListContent() {
             <button
               type="button"
               onClick={() => setSortOpen(true)}
-              className="tap-target flex items-center gap-1.5 rounded-[9px] bg-surface px-2.5 py-1.5 text-[12px] text-text-secondary"
+              className="flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3.5 text-[13px] text-text-secondary"
             >
               <IconArrowsSort size={14} aria-hidden="true" />
               {sortLabel(sort)}
@@ -294,8 +317,8 @@ function GarageListContent() {
             checkout will. */}
         {serviceMode === 'pickup' && !origin && vendors.length > 0 && (
           <p className="text-[11px] text-text-muted">
-            Set your location to see only garages that collect from your area. Checkout checks your
-            address either way.
+            Set your location to see only garages that collect from your area.
+            Checkout checks your address either way.
           </p>
         )}
 
@@ -306,12 +329,14 @@ function GarageListContent() {
           <p className="text-[11px] text-text-muted">
             {hasNearby ? (
               <>
-                Garages within <span className="font-numeric">{radiusKm}</span> km of you
+                Garages within <span className="font-numeric">{radiusKm}</span>{' '}
+                km of you
                 {sort === 'distance' && ', nearest first'}
               </>
             ) : (
               <>
-                No garages within <span className="font-numeric">{radiusKm}</span> km of you yet.
+                No garages within{' '}
+                <span className="font-numeric">{radiusKm}</span> km of you yet.
               </>
             )}
           </p>
@@ -340,22 +365,64 @@ function GarageListContent() {
               onRetry={retry}
             />
           ) : vendors.length === 0 ? (
-            <p className="py-8 text-center text-[13px] text-text-secondary">
-              {certifiedOnly
-                ? 'No Detlio Certified garages here yet. Turn off “Certified only” to see every garage.'
-                : serviceMode === 'pickup'
-                ? 'No garages pick up near you yet — try At garage or Doorstep.'
-                : serviceMode === 'doorstep' && !citywide
-                  ? 'No garages travel to your area yet.'
-                  : origin && radiusKm !== null
-                    ? (
-                      <>
-                        No garages within <span className="font-numeric">{radiusKm}</span> km of
-                        you yet.
-                      </>
-                    )
-                    : 'No garages found.'}
-            </p>
+            // Never a dead end (F14): what was not found, and a way on.
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <p className="text-[15px] text-text-secondary">
+                {certifiedOnly ? (
+                  'No Detlio Certified garages here yet. Turn off “Certified only” to see every garage.'
+                ) : serviceMode === 'pickup' ? (
+                  'No garages pick up near you yet — try At garage or Doorstep.'
+                ) : serviceMode === 'doorstep' && !citywide ? (
+                  'No garages travel to your area yet.'
+                ) : origin && radiusKm !== null ? (
+                  <>
+                    No garages within{' '}
+                    <span className="font-numeric">{radiusKm}</span> km of you
+                    yet.
+                  </>
+                ) : (
+                  'No garages match these filters.'
+                )}
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {certifiedOnly && (
+                  <ScButton
+                    variant="outline"
+                    fullWidth={false}
+                    onClick={() => setCertifiedOnly(false)}
+                  >
+                    Show every garage
+                  </ScButton>
+                )}
+                {!certifiedOnly && category !== 'all' && (
+                  <ScButton
+                    variant="outline"
+                    fullWidth={false}
+                    onClick={() => setCategory('all')}
+                  >
+                    Show all services
+                  </ScButton>
+                )}
+                {!certifiedOnly && origin && (
+                  <ScButton
+                    variant="outline"
+                    fullWidth={false}
+                    onClick={selectChennai}
+                  >
+                    Show all of Chennai
+                  </ScButton>
+                )}
+                {!certifiedOnly && serviceMode !== 'doorstep' && (
+                  <ScButton
+                    variant="outline"
+                    fullWidth={false}
+                    onClick={() => setServiceMode('doorstep')}
+                  >
+                    Try Doorstep
+                  </ScButton>
+                )}
+              </div>
+            </div>
           ) : (
             <>
               {vendors.map((vendor, i) => (

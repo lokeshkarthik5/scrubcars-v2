@@ -156,19 +156,22 @@ test.describe('payment @p0', () => {
     await checkout.goto(VENDORS.main.id, [SERVICES.wash.id])
 
     // A "Pay" button that cannot be pressed explains nothing; the step that is
-    // missing does. This customer owns three cars, so nothing is preselected
-    // and the car step is a real question.
+    // missing does. The day and the car are picked for the customer (F1), so
+    // a time is the one thing left to ask, and the price is there already.
     await expect(checkout.cta()).toHaveText('Pick a time')
-    await checkout.pickTomorrowSlot()
-    await expect(checkout.cta()).toHaveText('Choose your car')
+    await expect(page.getByText(/Total\s*₹499/)).toBeVisible()
+    // This customer owns three cars; the Swift is their default, so it is
+    // chosen without a tap.
+    await expect(checkout.vehicleCard(/Maruti Swift/)).toHaveAttribute('aria-pressed', 'true')
+    await expect(checkout.vehicleCard(/Honda City/)).toHaveAttribute('aria-pressed', 'false')
 
     // Tapping it takes the customer to the step instead of doing nothing —
     // and never towards payment, which is what the label promises.
     await checkout.cta().click()
-    await expect(page.getByRole('heading', { name: 'Car details' })).toBeInViewport()
+    await expect(page.getByRole('heading', { name: 'When?' })).toBeInViewport()
     await expect(page).toHaveURL(/\/book\//)
 
-    await checkout.pickVehicle(/Maruti Swift/)
+    await checkout.pickTomorrowSlot()
     await expect(checkout.cta()).toHaveText('Pay ₹499')
   })
 

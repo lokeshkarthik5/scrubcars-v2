@@ -4,14 +4,22 @@ import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { IconScan } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { ScInput } from '@repo/ui/sc/input'
 import { ApiError } from '@repo/core/api/client'
 import { redeemCoupon, type MyCoupon } from '@repo/core/api/coupons'
 import { invalidateCoupons } from '@repo/core/api/hooks/use-coupons'
 import { track } from '@repo/core/analytics'
-import { couponCodeProblem, formatCouponCode, parseCouponCode, type RedeemChannel } from '@repo/core/coupons'
-import { CouponScanner, canScanCoupons } from '@/components/coupons/coupon-scanner'
+import {
+  couponCodeProblem,
+  formatCouponCode,
+  parseCouponCode,
+  type RedeemChannel,
+} from '@repo/core/coupons'
+import {
+  CouponScanner,
+  canScanCoupons,
+} from '@/components/coupons/coupon-scanner'
 
 /**
  * "Have a coupon?": the code off a printed coupon, typed (dashes, spaces
@@ -20,13 +28,19 @@ import { CouponScanner, canScanCoupons } from '@/components/coupons/coupon-scann
  * (a wrong code, already used, expired, too many tries) is the server's own
  * sentence.
  */
-export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null) => void }) {
+export function CouponCodeBox({
+  onAdded,
+}: {
+  onAdded?: (coupon: MyCoupon | null) => void
+}) {
   const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [canScan, setCanScan] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    null
+  )
 
   // After mount: the server never knows whether this phone can scan.
   useEffect(() => {
@@ -50,13 +64,19 @@ export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null)
       const { coupon } = await redeemCoupon(raw, channel)
       track('coupon_redeem', { source: channel })
       setCode('')
-      setResult({ ok: true, text: coupon ? `Added: ${coupon.title}.` : 'Coupon added.' })
+      setResult({
+        ok: true,
+        text: coupon ? `Added: ${coupon.title}.` : 'Coupon added.',
+      })
       void invalidateCoupons(queryClient)
       onAdded?.(coupon)
     } catch (error) {
       setResult({
         ok: false,
-        text: error instanceof ApiError ? error.message : "Couldn't add that coupon. Check your connection and try again.",
+        text:
+          error instanceof ApiError
+            ? error.message
+            : "Couldn't add that coupon. Check your connection and try again.",
       })
     } finally {
       setBusy(false)
@@ -84,7 +104,12 @@ export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null)
           className="font-numeric tracking-wide"
         />
         <div className="flex gap-2">
-          <ScButton type="submit" variant="secondary" disabled={!code.trim() || busy} className="min-h-11 flex-1">
+          <ScButton
+            type="submit"
+            variant="secondary"
+            disabled={!code.trim() || busy}
+            className="min-h-11 flex-1"
+          >
             {busy ? 'Adding…' : 'Add coupon'}
           </ScButton>
           {canScan && (
@@ -103,7 +128,12 @@ export function CouponCodeBox({ onAdded }: { onAdded?: (coupon: MyCoupon | null)
         </div>
       </form>
       {result && (
-        <p role={result.ok ? 'status' : 'alert'} className={result.ok ? 'text-[12px] text-success' : 'text-[12px] text-error'}>
+        <p
+          role={result.ok ? 'status' : 'alert'}
+          className={
+            result.ok ? 'text-[12px] text-success' : 'text-[12px] text-error'
+          }
+        >
           {result.text}
         </p>
       )}

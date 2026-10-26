@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { ScInput } from '@repo/ui/sc/input'
 import { ApiError } from '@repo/core/api/client'
 import { redeemGift } from '@repo/core/api/gifts'
@@ -21,7 +21,9 @@ export function RedeemCodeBox() {
   const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    null
+  )
 
   const redeem = async () => {
     const typed = code.trim()
@@ -41,7 +43,10 @@ export function RedeemCodeBox() {
     } catch (error) {
       setResult({
         ok: false,
-        text: error instanceof ApiError ? error.message : "Couldn't redeem that code. Check your connection and try again.",
+        text:
+          error instanceof ApiError
+            ? error.message
+            : "Couldn't redeem that code. Check your connection and try again.",
       })
     } finally {
       setBusy(false)
@@ -68,12 +73,22 @@ export function RedeemCodeBox() {
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           className="font-numeric tracking-wide"
         />
-        <ScButton type="submit" variant="secondary" disabled={!code.trim() || busy} className="min-h-11">
+        <ScButton
+          type="submit"
+          variant="secondary"
+          disabled={!code.trim() || busy}
+          className="min-h-11"
+        >
           {busy ? 'Redeeming…' : 'Redeem'}
         </ScButton>
       </form>
       {result && (
-        <p role={result.ok ? 'status' : 'alert'} className={result.ok ? 'text-[12px] text-success' : 'text-[12px] text-error'}>
+        <p
+          role={result.ok ? 'status' : 'alert'}
+          className={
+            result.ok ? 'text-[12px] text-success' : 'text-[12px] text-error'
+          }
+        >
           {result.text}
         </p>
       )}

@@ -1,23 +1,46 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { IconArrowUpRight, IconCircleCheck, IconLoader2, IconTool } from '@tabler/icons-react'
+import {
+  IconArrowUpRight,
+  IconCircleCheck,
+  IconLoader2,
+  IconTool,
+} from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { getBooking } from '@repo/core/api/bookings'
 import { ApiError } from '@repo/core/api/client'
-import { declineExtraWork, payFinalBill, verifyExtraWorkPayment } from '@repo/core/api/job-records'
+import {
+  declineExtraWork,
+  payFinalBill,
+  verifyExtraWorkPayment,
+} from '@repo/core/api/job-records'
 import { formatRupees } from '@repo/core/job-records'
-import { confirmPayment, extraWorkPollResult, realClock } from '@repo/core/payment-confirmation'
-import { openRazorpayCheckout, RazorpayReportedError } from '@repo/core/razorpay'
+import {
+  confirmPayment,
+  extraWorkPollResult,
+  realClock,
+} from '@repo/core/payment-confirmation'
+import {
+  openRazorpayCheckout,
+  RazorpayReportedError,
+} from '@repo/core/razorpay'
 import type { Booking, ExtraWork } from '@repo/core/types'
 import { APP_TIMEZONE } from '@repo/core/utils'
 import { MainAction } from '@/components/main-action'
-import { PaymentReceivedPanel, paymentReceivedText } from '@/components/payment-received-panel'
+import {
+  PaymentReceivedPanel,
+  paymentReceivedText,
+} from '@/components/payment-received-panel'
 
 function paidOn(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: APP_TIMEZONE })
+  return new Date(iso).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: APP_TIMEZONE,
+  })
 }
 
 /** Where paying one request stands once Razorpay has reported it paid. */
@@ -49,13 +72,18 @@ interface ExtraWorkCardProps {
  * connection ends in "we have your payment", never a second charge. Decline
  * tells the garage. Answered ones stay listed, with where they stand.
  */
-export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardProps) {
+export function ExtraWorkCard({
+  booking,
+  onUpdated,
+  customer,
+}: ExtraWorkCardProps) {
   const [payments, setPayments] = useState<Record<string, WorkPayment>>({})
   const [opening, setOpening] = useState<string | null>(null)
   const [declining, setDeclining] = useState<string | null>(null)
   // Ids Razorpay reported paid: never offered again, whatever happens next.
   const paidRef = useRef(new Set<string>())
-  const record = (id: string, payment: WorkPayment) => setPayments((current) => ({ ...current, [id]: payment }))
+  const record = (id: string, payment: WorkPayment) =>
+    setPayments((current) => ({ ...current, [id]: payment }))
 
   const awaiting = booking.extraWork.filter((work) => work.state === 'awaiting')
   // Only the first waiting request carries the red pill; the rest are outlined.
@@ -87,7 +115,12 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
             poll: async () => {
               const fresh = await getBooking(booking.id)
               if (!fresh) return { kind: 'pending' }
-              return extraWorkPollResult(booking.id, work.id, fresh.extraWork, fresh.status)
+              return extraWorkPollResult(
+                booking.id,
+                work.id,
+                fresh.extraWork,
+                fresh.status
+              )
             },
             ...realClock,
           })
@@ -101,13 +134,16 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
             record(work.id, {
               paymentId,
               phase: outcome.kind,
-              refundMessage: outcome.kind === 'failed' ? outcome.message : undefined,
+              refundMessage:
+                outcome.kind === 'failed' ? outcome.message : undefined,
             })
             if (outcome.kind === 'failed') toast.error(outcome.message)
           }
         },
         onDismiss: () => {
-          toast.info('Payment cancelled. You can approve it any time from this page.')
+          toast.info(
+            'Payment cancelled. You can approve it any time from this page.'
+          )
         },
         onFailure: (message) => {
           toast.error(message)
@@ -133,7 +169,11 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
       await declineExtraWork(booking.id, work.id)
       toast.success(`Declined. ${booking.vendorName} can see your answer.`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Something went wrong. Please try again.')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong. Please try again.'
+      )
     } finally {
       const fresh = await getBooking(booking.id)
       if (fresh) onUpdated(fresh)
@@ -145,22 +185,45 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
 
   return (
     // #extra-work: Home's "Review ₹X" lands here (/bookings/:id?then=extra).
-    <ScCard id="extra-work" className="flex scroll-mt-4 flex-col gap-4 px-4 py-4">
+    <ScCard
+      id="extra-work"
+      className="flex scroll-mt-4 flex-col gap-4 px-4 py-4"
+    >
       <div>
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-          <IconTool size={18} stroke={1.5} aria-hidden className="text-text-secondary" />
+        {/* "Needs your answer" with the page's one red dot while any waits. */}
+        {booking.extraWork.some((work) => work.state === 'awaiting') &&
+          extraWorkOpen(booking) && (
+            <p className="mb-1 flex items-center gap-1.5 text-[13px] text-dim">
+              <span
+                aria-hidden
+                className="size-1.5 rounded-full bg-brand-red"
+              />
+              Needs your answer
+            </p>
+          )}
+        <h2 className="flex items-center gap-2 text-[17px] font-medium text-text-primary">
+          <IconTool
+            size={18}
+            stroke={1.5}
+            aria-hidden
+            className="text-text-secondary"
+          />
           Extra work
         </h2>
-        <p className="mt-0.5 text-[12px] text-text-secondary">
-          Asked for by {booking.vendorName}. Nothing is done or charged unless you approve and pay here.
+        <p className="mt-0.5 text-[13px] text-text-secondary">
+          Asked for by {booking.vendorName}. Nothing is done or charged unless
+          you approve and pay here.
         </p>
       </div>
 
       {booking.extraWork.map((work) => {
         const payment = payments[work.id]
         const settled = work.state === 'paid' || payment?.phase === 'paid'
-        const showPanel = !settled && (payment?.phase === 'unconfirmed' || payment?.phase === 'failed')
-        const open = work.state === 'awaiting' && !payment && extraWorkOpen(booking)
+        const showPanel =
+          !settled &&
+          (payment?.phase === 'unconfirmed' || payment?.phase === 'failed')
+        const open =
+          work.state === 'awaiting' && !payment && extraWorkOpen(booking)
         return (
           <article
             key={work.id}
@@ -182,7 +245,7 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
                     <img
                       src={photo.url}
                       alt=""
-                      className="size-24 rounded-[10px] border border-border object-cover"
+                      className="size-24 rounded-[14px] border border-line object-cover"
                       loading="lazy"
                     />
                   </a>
@@ -191,14 +254,19 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
             )}
 
             <div className="flex items-start justify-between gap-3">
-              <p className="min-w-0 text-[14px] font-medium text-text-primary">{work.description}</p>
-              <span className="shrink-0 font-numeric text-[15px] font-bold text-text-primary">
+              <p className="min-w-0 text-[17px] text-text-primary">
+                {work.description}
+              </p>
+              <span className="shrink-0 font-numeric text-[17px] text-text-primary">
                 {formatRupees(work.amount)}
               </span>
             </div>
             {work.note && (
-              <p className="text-[12px] text-text-secondary">
-                <span className="font-medium text-text-primary">Garage&apos;s note:</span> {work.note}
+              <p className="text-[13px] text-text-secondary">
+                <span className="font-medium text-text-primary">
+                  Garage&apos;s note:
+                </span>{' '}
+                {work.note}
               </p>
             )}
 
@@ -208,7 +276,11 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
                 : settled && payment
                   ? 'Extra work approved and paid.'
                   : showPanel && payment
-                    ? paymentReceivedText(payment.paymentId, payment.refundMessage, 'bill_not_marked_paid')
+                    ? paymentReceivedText(
+                        payment.paymentId,
+                        payment.refundMessage,
+                        'bill_not_marked_paid'
+                      )
                     : ''}
             </p>
 
@@ -216,20 +288,28 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
               <p className="flex items-center gap-1.5 text-[13px] font-medium text-success">
                 <IconCircleCheck size={16} aria-hidden />
                 Approved and paid on{' '}
-                <span className="font-numeric">{paidOn(work.paidAt ?? new Date().toISOString())}</span>
+                <span className="font-numeric">
+                  {paidOn(work.paidAt ?? new Date().toISOString())}
+                </span>
               </p>
             ) : payment?.phase === 'confirming' ? (
               <ScButton
                 disabled
                 className="flex items-center justify-center gap-2 rounded-full bg-surface-elevated py-4 text-[15px] text-text-primary ring-1 ring-inset ring-border hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-100"
               >
-                <IconLoader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+                <IconLoader2
+                  size={16}
+                  className="shrink-0 animate-spin"
+                  aria-hidden="true"
+                />
                 Payment received — confirming…
               </ScButton>
             ) : showPanel && payment ? (
               <PaymentReceivedPanel
                 paymentId={payment.paymentId}
-                refundMessage={payment.phase === 'failed' ? payment.refundMessage : undefined}
+                refundMessage={
+                  payment.phase === 'failed' ? payment.refundMessage : undefined
+                }
                 waitingOn="bill_not_marked_paid"
               />
             ) : open ? (
@@ -238,20 +318,27 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
                   <MainAction
                     disabled={opening !== null || declining !== null}
                     onClick={() => handlePay(work)}
-                    className="rounded-full py-4 text-[15px]"
-                    heroIcon={opening !== work.id && <IconArrowUpRight size={17} stroke={1.5} aria-hidden />}
+                    className="h-[52px] rounded-full py-0 text-[15px] font-medium"
+                    heroIcon={
+                      opening !== work.id && (
+                        <IconArrowUpRight size={17} stroke={1.5} aria-hidden />
+                      )
+                    }
                   >
                     {opening === work.id ? (
                       'Opening payment...'
                     ) : (
                       <>
-                        Approve &amp; pay <span className="font-numeric font-bold">{formatRupees(work.amount)}</span>
+                        Approve &amp; pay{' '}
+                        <span className="font-numeric font-bold">
+                          {formatRupees(work.amount)}
+                        </span>
                       </>
                     )}
                   </MainAction>
                 ) : (
                   <ScButton
-                    variant="secondary"
+                    variant="outline"
                     disabled={opening !== null || declining !== null}
                     onClick={() => handlePay(work)}
                   >
@@ -259,22 +346,28 @@ export function ExtraWorkCard({ booking, onUpdated, customer }: ExtraWorkCardPro
                       'Opening payment...'
                     ) : (
                       <>
-                        Approve &amp; pay <span className="font-numeric font-bold">{formatRupees(work.amount)}</span>
+                        Approve &amp; pay{' '}
+                        <span className="font-numeric font-bold">
+                          {formatRupees(work.amount)}
+                        </span>
                       </>
                     )}
                   </ScButton>
                 )}
+                {/* A quiet text action, not a second big box (F8). */}
                 <ScButton
-                  variant="secondary"
+                  variant="text"
                   disabled={opening !== null || declining !== null}
                   onClick={() => handleDecline(work)}
-                  aria-label={`Decline ${work.description}`}
+                  aria-label={`No thanks to ${work.description}`}
                 >
-                  {declining === work.id ? 'Declining...' : 'Decline'}
+                  {declining === work.id ? 'Declining...' : 'No thanks'}
                 </ScButton>
               </div>
             ) : work.state !== 'awaiting' ? (
-              <p className="text-[13px] text-text-secondary">{STATE_LINE[work.state]}</p>
+              <p className="text-[13px] text-text-secondary">
+                {STATE_LINE[work.state]}
+              </p>
             ) : null}
           </article>
         )

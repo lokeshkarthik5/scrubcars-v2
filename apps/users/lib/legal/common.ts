@@ -22,11 +22,7 @@ import {
 import { BANK_DAYS, customerRefundLine } from '@repo/core/refunds'
 import { RECEIPT_NOT_TAX_INVOICE } from '@repo/core/receipts'
 import { SUPPORT_WHATSAPP_HREF } from '@repo/core/support'
-import {
-  BUSINESS,
-  DISPUTE_WINDOW_DAYS,
-  GRIEVANCE_OFFICER,
-} from './details'
+import { BUSINESS, DISPUTE_WINDOW_DAYS, GRIEVANCE_OFFICER } from './details'
 import { LEGAL_PATHS } from './routes'
 
 const hours = (mins: number) => {
@@ -44,7 +40,7 @@ export const RULES = {
   changeCutoff: hours(CONFIRMED_CHANGE_CUTOFF_MINS),
   /** MAX_RESCHEDULES in apps/server/src/modules/bookings/bookings.service.ts. */
   maxReschedules: MAX_RESCHEDULES,
-  /** How far ahead the slot picker offers days (slot-picker.tsx buildDateOptions). */
+  /** How far ahead the slot picker offers days (components/checkout/when-picker.tsx, BOOKING_DAYS_AHEAD). */
   daysAhead: BOOKING_DAYS_AHEAD,
   /** Job photos per stage, and how long after completion they can change (lib/job-records.ts). */
   photosPerStage: MAX_JOB_PHOTOS_PER_STAGE,
@@ -61,7 +57,8 @@ export const RULES = {
    * produced by the function that writes it there, so the policy can quote
    * it and never misquote it.
    */
-  refundOwedLine: customerRefundLine({ status: 'owed', amount: 0, amountRefunded: 0 }) ?? '',
+  refundOwedLine:
+    customerRefundLine({ status: 'owed', amount: 0, amountRefunded: 0 }) ?? '',
   /** The receipt's own footer line. */
   receiptLine: RECEIPT_NOT_TAX_INVOICE,
 }
@@ -93,7 +90,10 @@ export const WHATSAPP_LINK = `[WhatsApp](${SUPPORT_WHATSAPP_HREF})`
 export const EMAIL_LINK = `[${BUSINESS.email}](mailto:${BUSINESS.email})`
 export const CONTACT_LINE = `call ${PHONE_LINK} or message us on ${WHATSAPP_LINK} (${SUPPORT_HOURS}), or email ${EMAIL_LINK}`
 
-export const OFFICER_NAME = orTbc(GRIEVANCE_OFFICER.name, "Grievance Officer's name")
+export const OFFICER_NAME = orTbc(
+  GRIEVANCE_OFFICER.name,
+  "Grievance Officer's name"
+)
 export const OFFICER_DESIGNATION = orTbc(
   GRIEVANCE_OFFICER.designation,
   "Grievance Officer's designation"

@@ -1,9 +1,13 @@
 'use client'
 
 import { IconCheck, IconKey } from '@tabler/icons-react'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { formatStepTime } from '@repo/core/job-records'
-import { pickupCodeCard, pickupTimeline, type PickupTimelineBooking } from '@repo/core/pickup'
+import {
+  pickupCodeCard,
+  pickupTimeline,
+  type PickupTimelineBooking,
+} from '@repo/core/pickup'
 import type { Booking } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
 
@@ -14,7 +18,13 @@ import { cn } from '@repo/core/utils'
  * modes use; the steps and their states are pickupTimeline's
  * (@repo/core/pickup), so this only draws them.
  */
-export function PickupTimeline({ booking, now }: { booking: PickupTimelineBooking; now: number }) {
+export function PickupTimeline({
+  booking,
+  now,
+}: {
+  booking: PickupTimelineBooking
+  now: number
+}) {
   const steps = pickupTimeline(booking)
   if (!steps) return null
 
@@ -41,13 +51,24 @@ export function PickupTimeline({ booking, now }: { booking: PickupTimelineBookin
                       : 'border-text-muted'
                 )}
               >
-                {done && <IconCheck size={13} stroke={3} className="text-brand-black" />}
+                {done && (
+                  <IconCheck
+                    size={13}
+                    stroke={3}
+                    className="text-brand-black"
+                  />
+                )}
                 {step.state === 'current' && (
                   <span className="pulse-dot h-2 w-2 rounded-full bg-brand-white" />
                 )}
               </div>
               {!isLast && (
-                <div className={cn('my-1 min-h-[18px] w-px flex-1', done ? 'bg-brand-white/30' : 'bg-border')} />
+                <div
+                  className={cn(
+                    'my-1 min-h-[18px] w-px flex-1',
+                    done ? 'bg-brand-white/30' : 'bg-border'
+                  )}
+                />
               )}
             </div>
             <div className={cn(isLast ? 'pb-0' : 'pb-3.5')}>
@@ -91,15 +112,25 @@ export function PickupTimeline({ booking, now }: { booking: PickupTimelineBookin
  * read out, not split into four boxes a screen reader would read as four
  * separate things.
  */
-export function PickupCodeCard({ booking }: { booking: Pick<Booking, 'status' | 'pickup'> }) {
+export function PickupCodeCard({
+  booking,
+}: {
+  booking: Pick<Booking, 'status' | 'pickup'>
+}) {
   const card = pickupCodeCard(booking)
   if (!card) return null
 
   return (
     <ScCard className="flex flex-col gap-2 px-4 py-4">
       <div className="flex items-center gap-2">
-        <IconKey size={16} className="shrink-0 text-text-secondary" aria-hidden />
-        <h2 className="text-sm font-semibold text-text-primary">{card.title}</h2>
+        <IconKey
+          size={16}
+          className="shrink-0 text-text-secondary"
+          aria-hidden
+        />
+        <h2 className="text-sm font-semibold text-text-primary">
+          {card.title}
+        </h2>
       </div>
       <p className="text-[13px] text-text-secondary">{card.line}</p>
       <p className="font-numeric text-[36px] font-bold leading-none tracking-[0.3em] text-text-primary">

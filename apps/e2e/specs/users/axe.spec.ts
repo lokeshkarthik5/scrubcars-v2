@@ -129,7 +129,7 @@ test.describe('axe, browsing customer @p0', () => {
     {
       name: 'checkout',
       path: `/book/${VENDORS.main.id}?service=${SERVICES.wash.id}`,
-      ready: (page) => page.getByRole('heading', { name: 'Select Date' }),
+      ready: (page) => page.getByRole('heading', { name: 'When?' }),
     },
     {
       name: 'the help centre',

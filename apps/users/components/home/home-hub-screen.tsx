@@ -7,14 +7,22 @@ import { useQueryClient } from '@tanstack/react-query'
 import { track } from '@repo/core/analytics'
 import { ErrorState } from '@repo/ui/sc/empty-state'
 import { Toast } from '@repo/ui/sc/toast'
-import { invalidateHome, useDismissReviewPrompt, useHome } from '@repo/core/api/hooks/use-home'
+import {
+  invalidateHome,
+  useDismissReviewPrompt,
+  useHome,
+} from '@repo/core/api/hooks/use-home'
 import { useServiceReminderAction } from '@repo/core/api/hooks/use-car-history'
 import type { HomeCar } from '@repo/core/api/home'
 import { bookingTypeParam } from '@repo/core/booking-types'
 import { firstNameOf } from '@repo/core/home-display'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useAuthStore } from '@repo/core/stores/auth-store'
-import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
+import {
+  coarse,
+  isCitywide,
+  useLocationStore,
+} from '@repo/core/stores/location-store'
 import { usePendingCheckoutStore } from '@repo/core/stores/pending-checkout-store'
 import { useUserStore } from '@repo/core/stores/user-store'
 import { CustomerShell } from '@/components/customer-shell'
@@ -31,7 +39,11 @@ import { CarHero } from './car-hero'
 import { RewardsStrip } from '@/components/rewards/rewards-strip'
 import { BadgeCelebration } from '@/components/rewards/badge-celebration'
 import { ChallengeLine } from '@/components/rewards/challenge-line'
-import { rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import {
+  rewardsEnabled,
+  useRewardsConfig,
+  useRewardsSummary,
+} from '@repo/core/api/hooks/use-rewards'
 import { garageLive, useGaragePulls } from '@repo/core/api/hooks/use-garage'
 import { PullRevealSheet } from '@/components/garage/pull-reveal-sheet'
 import { HomeHeader } from './home-header'
@@ -74,7 +86,9 @@ function HomeHubContent() {
   const rewardsOn = rewardsEnabled(rewardsConfig.data) && !!authUser
   const rewards = useRewardsSummary(rewardsOn)
   // 0057: new Garage cards not seen yet, revealed in a sheet (not a card: the two-card rule holds).
-  const garagePulls = useGaragePulls(garageLive(rewardsConfig.data) && !!authUser)
+  const garagePulls = useGaragePulls(
+    garageLive(rewardsConfig.data) && !!authUser
+  )
   const clock = useNow()
 
   const [selectedCar, setSelectedCar] = useState(0)
@@ -116,19 +130,31 @@ function HomeHubContent() {
   // extra work, Pay a bill) while there is one that carries it, Book a wash
   // otherwise.
   const billDue =
-    mustAct?.kind === 'bill_due' || mustAct?.kind === 'time_proposal' || mustAct?.kind === 'extra_work_due'
-  const rateCard = !mustAct && data?.softCard?.kind === 'rate' ? data.softCard : null
+    mustAct?.kind === 'bill_due' ||
+    mustAct?.kind === 'time_proposal' ||
+    mustAct?.kind === 'extra_work_due'
+  const rateCard =
+    !mustAct && data?.softCard?.kind === 'rate' ? data.softCard : null
   // Only ever in a free place: the server sends it only with no must-act
   // card and no Rate your wash.
-  const complaintCard = !mustAct && data?.softCard?.kind === 'complaint_resolved' ? data.softCard : null
+  const complaintCard =
+    !mustAct && data?.softCard?.kind === 'complaint_resolved'
+      ? data.softCard
+      : null
   // A coating or detailing follow-up (0046): only in a free place too.
-  const reminderCard = !mustAct && data?.softCard?.kind === 'service_reminder' ? data.softCard : null
+  const reminderCard =
+    !mustAct && data?.softCard?.kind === 'service_reminder'
+      ? data.softCard
+      : null
 
   const bookWash = (picked: HomeCar) => {
     rememberCar({ userId: authUser.id, vehicleId: picked.id })
     // The list opens on the mode this car was last booked in, so a doorstep
     // or pickup & drop customer is not shown garages to drive to.
-    const lastMode = picked.rightTile.kind === 'book_again' ? bookingTypeParam(picked.rightTile.bookingType) : null
+    const lastMode =
+      picked.rightTile.kind === 'book_again'
+        ? bookingTypeParam(picked.rightTile.bookingType)
+        : null
     router.push(lastMode ? `/garages?mode=${lastMode}` : '/garages')
   }
 
@@ -148,6 +174,7 @@ function HomeHubContent() {
           firstName={firstName}
           avatarUrl={data?.header.avatarUrl ?? user.avatarUrl ?? null}
           hasUnread={data?.header.hasUnread ?? false}
+          now={now}
         />
 
         {home.isPending ? (
@@ -158,26 +185,26 @@ function HomeHubContent() {
         ) : !data ? (
           // Not "nothing here": that is a fact about the account, and saying
           // it when the request failed would be untrue.
-          <ErrorState message="Couldn't load your Home. Check your connection." onRetry={() => void home.refetch()} />
+          <ErrorState
+            message="Couldn't load your Home. Check your connection."
+            onRetry={() => void home.refetch()}
+          />
         ) : (
           <>
-            {/* At most two cards above the car: one must-act card, then the
-                offers; or the offers, then Rate your wash (or, in its place
-                when there is none, a complaint we just resolved, or else a
-                coating or detailing follow-up coming due). */}
-            {mustAct?.kind === 'time_proposal' && <TimeProposalHomeCard card={mustAct} />}
-            {mustAct?.kind === 'extra_work_due' && <ExtraWorkHomeCard card={mustAct} now={now} />}
-            {mustAct?.kind === 'bill_due' && <BillDueCard card={mustAct} now={now} />}
-            {mustAct?.kind === 'garage_closed' && <GarageClosedCard card={mustAct} />}
-
-            {offers.length > 0 && (
-              <HomeOffers
-                offers={offers}
-                userId={authUser.id}
-                vehicleId={car?.id ?? null}
-                hasCar={cars.length > 0}
-                muted={billDue}
-              />
+            {/* At most one card above the car: one must-act card; or, when
+                there is none, Rate your wash (or in its place a complaint we
+                just resolved, or else a coating or detailing follow-up). */}
+            {mustAct?.kind === 'time_proposal' && (
+              <TimeProposalHomeCard card={mustAct} />
+            )}
+            {mustAct?.kind === 'extra_work_due' && (
+              <ExtraWorkHomeCard card={mustAct} now={now} />
+            )}
+            {mustAct?.kind === 'bill_due' && (
+              <BillDueCard card={mustAct} now={now} />
+            )}
+            {mustAct?.kind === 'garage_closed' && (
+              <GarageClosedCard card={mustAct} />
             )}
 
             {rateCard && (
@@ -195,9 +222,24 @@ function HomeHubContent() {
                 card={reminderCard}
                 now={now}
                 busy={reminderAction.isPending}
-                onBook={() => rememberCar({ userId: authUser.id, vehicleId: reminderCard.vehicleId })}
-                onSnooze={() => reminderAction.mutate({ reminderId: reminderCard.reminderId, action: 'snooze' })}
-                onDismiss={() => reminderAction.mutate({ reminderId: reminderCard.reminderId, action: 'dismiss' })}
+                onBook={() =>
+                  rememberCar({
+                    userId: authUser.id,
+                    vehicleId: reminderCard.vehicleId,
+                  })
+                }
+                onSnooze={() =>
+                  reminderAction.mutate({
+                    reminderId: reminderCard.reminderId,
+                    action: 'snooze',
+                  })
+                }
+                onDismiss={() =>
+                  reminderAction.mutate({
+                    reminderId: reminderCard.reminderId,
+                    action: 'dismiss',
+                  })
+                }
               />
             )}
 
@@ -205,30 +247,37 @@ function HomeHubContent() {
               cars={cars}
               selected={carIndex}
               onSelect={setSelectedCar}
-              place={user.area ?? null}
-              short={!!mustAct && offers.length > 0}
+              short={!!mustAct}
               quiet={billDue}
               onBookWash={bookWash}
               onAddCar={() => setAddCarOpen(true)}
               shine={rewards.data && cars.length > 0 ? rewards.data.card : null}
             />
-
-            {rewards.data && <RewardsStrip summary={rewards.data} />}
-            {/* 0054: a live challenge as a line (not a card), and any badge to celebrate. */}
-            {rewards.data?.extras?.challenge && <ChallengeLine challenge={rewards.data.extras.challenge} />}
-            {rewards.data?.extras && rewards.data.extras.unseen.length > 0 && <BadgeCelebration badges={rewards.data.extras.unseen} />}
-            {/* Badges first; new cars on the next visit, so two sheets never open at once. */}
-            {garagePulls.data && garagePulls.data.unseen > 0 && !(rewards.data?.extras && rewards.data.extras.unseen.length > 0) && (
-              <PullRevealSheet pulls={garagePulls.data.pulls} firstName={authUser.name?.trim().split(/\s+/)[0] ?? null} />
+            {/* 0054: any badge to celebrate. */}
+            {rewards.data?.extras && rewards.data.extras.unseen.length > 0 && (
+              <BadgeCelebration badges={rewards.data.extras.unseen} />
             )}
+            {/* Badges first; new cars on the next visit, so two sheets never open at once. */}
+            {garagePulls.data &&
+              garagePulls.data.unseen > 0 &&
+              !(
+                rewards.data?.extras && rewards.data.extras.unseen.length > 0
+              ) && (
+                <PullRevealSheet
+                  pulls={garagePulls.data.pulls}
+                  firstName={authUser.name?.trim().split(/\s+/)[0] ?? null}
+                />
+              )}
 
             {car ? (
               <div className="grid grid-cols-2 gap-3">
-                <WashStatusTile car={car} now={now} />
                 <RightTile
                   tile={car.rightTile}
-                  onBook={() => rememberCar({ userId: authUser.id, vehicleId: car.id })}
+                  onBook={() =>
+                    rememberCar({ userId: authUser.id, vehicleId: car.id })
+                  }
                 />
+                <WashStatusTile car={car} now={now} />
               </div>
             ) : (
               // No car left, but a booking for one since removed: Home
@@ -238,6 +287,23 @@ function HomeHubContent() {
                   <RightTile tile={data.nextBooking} />
                 </div>
               )
+            )}
+
+            {/* Offers below the car, dark, in Home's one swipe row (F2). */}
+            {offers.length > 0 && (
+              <HomeOffers
+                offers={offers}
+                userId={authUser.id}
+                vehicleId={car?.id ?? null}
+                hasCar={cars.length > 0}
+                muted={billDue}
+              />
+            )}
+
+            {rewards.data && <RewardsStrip summary={rewards.data} />}
+            {/* 0054: a live challenge as a line (not a card), under the car's tiles. */}
+            {rewards.data?.extras?.challenge && (
+              <ChallengeLine challenge={rewards.data.extras.challenge} />
             )}
 
             {data.updates && <UpdatesBlock updates={data.updates} now={now} />}
@@ -260,9 +326,9 @@ function HomeHubContent() {
 }
 
 /**
- * The customer's Home hub (behind NEXT_PUBLIC_HOME_HUB): offers first, the
- * car and Book a wash, its wash bar and what is next, Updates, nearby
- * garages and a tip. One read, GET /users/me/home; each part the server
+ * The customer's Home hub (behind NEXT_PUBLIC_HOME_HUB): what needs the
+ * customer first, then the car and Book a wash, what is next and its wash
+ * bar, the offers, Updates, nearby garages and a tip (the approved F2 Home). One read, GET /users/me/home; each part the server
  * could not load comes back empty and the rest still shows.
  *
  * Suspense because the welcome toast reads the URL (?welcome=1), as the

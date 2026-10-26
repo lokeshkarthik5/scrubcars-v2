@@ -16,14 +16,20 @@ import {
 import { toast } from 'react-toastify'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
-import { ScCard } from '@repo/ui/sc/card'
+import { ScCard } from '@/components/ui/card'
 import { Chip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState, SkeletonCard } from '@repo/ui/sc/empty-state'
 import { StatTile } from '@repo/ui/sc/stat-tile'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { ApiError } from '@repo/core/api/client'
-import type { CarHistoryItem, ServiceReminder } from '@repo/core/api/car-history'
-import { useCarHistory, useServiceReminderAction } from '@repo/core/api/hooks/use-car-history'
+import type {
+  CarHistoryItem,
+  ServiceReminder,
+} from '@repo/core/api/car-history'
+import {
+  useCarHistory,
+  useServiceReminderAction,
+} from '@repo/core/api/hooks/use-car-history'
 import {
   canSnoozeReminder,
   historyDateLabel,
@@ -71,7 +77,11 @@ const money = (amount: string) => formatRupees(Number(amount))
  * and My bookings already has them with their refunds. The page says how
  * many and links there.
  */
-export default function CarHistoryPage({ params }: { params: Promise<{ id: string }> }) {
+export default function CarHistoryPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = use(params)
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
@@ -89,12 +99,24 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
   if (ready && !user) {
     return (
       <CustomerShell showNav showBrand className="gap-4 py-4">
-        <TopBar title="Car history" showBack backHref="/profile" large={isHomeHubEnabled()} />
+        <TopBar
+          title="Car history"
+          showBack
+          backHref="/profile"
+          large={isHomeHubEnabled()}
+        />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-text-primary">Sign in to see your car&apos;s history</p>
+          <p className="text-[15px] font-semibold text-text-primary">
+            Sign in to see your car&apos;s history
+          </p>
           <ScButton
+            variant="main"
             className="mt-2 w-auto px-8"
-            onClick={() => router.push(`/login?next=${encodeURIComponent(`/profile/cars/${id}`)}`)}
+            onClick={() =>
+              router.push(
+                `/login?next=${encodeURIComponent(`/profile/cars/${id}`)}`
+              )
+            }
           >
             Sign in
           </ScButton>
@@ -104,12 +126,18 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
   }
 
   const data = history.data
-  const notFound = history.error instanceof ApiError && history.error.status === 404
+  const notFound =
+    history.error instanceof ApiError && history.error.status === 404
   const carName = data ? `${data.car.make} ${data.car.model}` : 'Car history'
 
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
-      <TopBar title={carName} showBack backHref="/profile#vehicles" large={isHomeHubEnabled()} />
+      <TopBar
+        title={carName}
+        showBack
+        backHref="/profile#vehicles"
+        large={isHomeHubEnabled()}
+      />
 
       {!ready || history.isPending ? (
         <div className="flex flex-col gap-3" aria-busy="true">
@@ -133,11 +161,16 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
         <>
           <p className="-mt-2 flex items-center gap-1.5 text-[12px] text-text-secondary">
             <IconHistory size={14} aria-hidden="true" />
-            Service history{data.car.licensePlate ? ` · ${data.car.licensePlate}` : ''}
+            Service history
+            {data.car.licensePlate ? ` · ${data.car.licensePlate}` : ''}
           </p>
 
           {data.reminder && (
-            <ReminderCard reminder={data.reminder} now={now} onBook={chooseThisCar} />
+            <ReminderCard
+              reminder={data.reminder}
+              now={now}
+              onBook={chooseThisCar}
+            />
           )}
 
           {/* The Service History certificate (0053): a printable, shareable
@@ -148,14 +181,24 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
               href={`/profile/cars/${id}/certificate`}
               className="press flex min-h-11 items-center gap-3 rounded-[14px] border border-border bg-surface px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70"
             >
-              <IconCertificate size={20} aria-hidden="true" className="shrink-0 text-text-primary" />
+              <IconCertificate
+                size={20}
+                aria-hidden="true"
+                className="shrink-0 text-text-primary"
+              />
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-semibold text-text-primary">Service history certificate</span>
+                <span className="block text-[13px] font-semibold text-text-primary">
+                  Service history certificate
+                </span>
                 <span className="block text-[11px] text-text-secondary">
                   Print it or share a link a buyer can check
                 </span>
               </span>
-              <IconChevronRight size={16} aria-hidden="true" className="shrink-0 text-text-secondary" />
+              <IconChevronRight
+                size={16}
+                aria-hidden="true"
+                className="shrink-0 text-text-secondary"
+              />
             </Link>
           )}
 
@@ -163,20 +206,37 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
               A car with no history has the empty state instead of zeros. */}
           {(data.items.length > 0 || category) && (
             <div className="grid grid-cols-2 gap-2">
-              <StatTile label="Washes this year" value={data.totals.washesThisYear} />
-              <StatTile label="Spent this year" value={money(data.totals.spentThisYear)} />
+              <StatTile
+                label="Washes this year"
+                value={data.totals.washesThisYear}
+              />
+              <StatTile
+                label="Spent this year"
+                value={money(data.totals.spentThisYear)}
+              />
             </div>
           )}
           {data.totals.since && (
             <p className="-mt-2 text-[11px] text-text-secondary">
-              <span className="font-numeric font-medium text-text-primary">{money(data.totals.spentTotal)}</span>{' '}
-              on {washCount(data.totals.washesTotal)} since {sinceLabel(data.totals.since)}
+              <span className="font-numeric font-medium text-text-primary">
+                {money(data.totals.spentTotal)}
+              </span>{' '}
+              on {washCount(data.totals.washesTotal)} since{' '}
+              {sinceLabel(data.totals.since)}
             </p>
           )}
 
           {data.categories.length > 1 && (
-            <div role="group" aria-label="Filter by service" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-              <Chip label="All" selected={category === null} onClick={() => setCategory(null)} />
+            <div
+              role="group"
+              aria-label="Filter by service"
+              className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+            >
+              <Chip
+                label="All"
+                selected={category === null}
+                onClick={() => setCategory(null)}
+              />
               {data.categories.map((each) => (
                 <Chip
                   key={each}
@@ -192,7 +252,8 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
             category ? (
               <ScCard>
                 <p className="text-[12px] text-text-secondary">
-                  No {categoryLabel(category).toLowerCase()} jobs for this car yet.
+                  No {categoryLabel(category).toLowerCase()} jobs for this car
+                  yet.
                 </p>
               </ScCard>
             ) : (
@@ -208,7 +269,10 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
               />
             )
           ) : (
-            <ul aria-label={`Jobs on your ${carName}, newest first`} className="flex flex-col gap-2">
+            <ul
+              aria-label={`Jobs on your ${carName}, newest first`}
+              className="flex flex-col gap-2"
+            >
               {data.items.map((item) => (
                 <li key={item.bookingId}>
                   <HistoryCard item={item} now={now} />
@@ -222,7 +286,10 @@ export default function CarHistoryPage({ params }: { params: Promise<{ id: strin
               {data.cancelledCount === 1
                 ? '1 cancelled booking for this car isn’t listed here.'
                 : `${data.cancelledCount} cancelled bookings for this car aren’t listed here.`}{' '}
-              <Link href="/bookings?tab=past" className="font-medium text-text-primary underline underline-offset-2">
+              <Link
+                href="/bookings?tab=past"
+                className="font-medium text-text-primary underline underline-offset-2"
+              >
                 See My bookings
               </Link>
             </p>
@@ -250,12 +317,18 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
               {services}
             </Link>
           </p>
-          <p className="truncate text-[11px] text-text-secondary">{item.vendorName}</p>
+          <p className="truncate text-[11px] text-text-secondary">
+            {item.vendorName}
+          </p>
         </div>
-        <span className="shrink-0 font-numeric text-[13px] font-bold text-text-primary">{money(item.amountPaid)}</span>
+        <span className="shrink-0 font-numeric text-[13px] font-bold text-text-primary">
+          {money(item.amountPaid)}
+        </span>
       </div>
       <div className="-mb-2 flex items-center justify-between border-t border-border pt-0.5">
-        <span className="font-numeric text-[11px] font-medium text-text-secondary">{date}</span>
+        <span className="font-numeric text-[11px] font-medium text-text-secondary">
+          {date}
+        </span>
         <span className="-mr-2 flex items-center">
           {item.receiptAvailable && (
             <Link
@@ -288,32 +361,65 @@ function HistoryCard({ item, now }: { item: CarHistoryItem; now: Date }) {
  * that answers it, with this car chosen; booking it marks it done. Remind me
  * in 2 weeks shows once it is close (within a week, or overdue).
  */
-function ReminderCard({ reminder, now, onBook }: { reminder: ServiceReminder; now: Date; onBook: () => void }) {
+function ReminderCard({
+  reminder,
+  now,
+  onBook,
+}: {
+  reminder: ServiceReminder
+  now: Date
+  onBook: () => void
+}) {
   const action = useServiceReminderAction()
   const run = (kind: 'dismiss' | 'snooze') =>
     action.mutate(
       { reminderId: reminder.id, action: kind },
       {
-        onSuccess: () => toast.success(kind === 'dismiss' ? 'Reminder dismissed' : 'Snoozed for 2 weeks'),
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Something went wrong'),
+        onSuccess: () =>
+          toast.success(
+            kind === 'dismiss' ? 'Reminder dismissed' : 'Snoozed for 2 weeks'
+          ),
+        onError: (err) =>
+          toast.error(
+            err instanceof Error ? err.message : 'Something went wrong'
+          ),
       }
     )
   const booked = reminder.state === 'booked' && reminder.booked
   const due = reminder.state === 'due' || reminder.state === 'overdue'
 
   return (
-    <ScCard aria-label={`Reminder: ${reminder.title}`} role="region" className="flex flex-col gap-3">
+    <ScCard
+      aria-label={`Reminder: ${reminder.title}`}
+      role="region"
+      className="flex flex-col gap-3"
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
           {booked ? (
-            <IconCalendarCheck size={18} className="text-text-primary" aria-hidden="true" />
+            <IconCalendarCheck
+              size={18}
+              className="text-text-primary"
+              aria-hidden="true"
+            />
           ) : (
-            <IconSparkles size={18} className="text-text-primary" aria-hidden="true" />
+            <IconSparkles
+              size={18}
+              className="text-text-primary"
+              aria-hidden="true"
+            />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-text-primary">{reminder.title}</p>
-          <p className={cn('text-[12px]', due ? 'text-warning' : 'text-text-secondary')}>
+          <p className="text-[13px] font-semibold text-text-primary">
+            {reminder.title}
+          </p>
+          <p
+            className={cn(
+              'text-[12px]',
+              due ? 'text-warning' : 'text-text-secondary'
+            )}
+          >
             {reminderDueLine(reminder, now)}
           </p>
           <p className="text-[11px] text-text-secondary">{reminder.reason}</p>

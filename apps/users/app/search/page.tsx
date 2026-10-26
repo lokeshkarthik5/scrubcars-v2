@@ -20,7 +20,11 @@ import { browseCategory } from '@repo/core/analytics-events'
 import { track } from '@repo/core/analytics'
 import { InfiniteSentinel } from '@repo/ui/sc/infinite-sentinel'
 import { useDebounced } from '@repo/core/hooks/use-debounced'
-import { coarse, isCitywide, useLocationStore } from '@repo/core/stores/location-store'
+import {
+  coarse,
+  isCitywide,
+  useLocationStore,
+} from '@repo/core/stores/location-store'
 import { cn } from '@repo/core/utils'
 
 // Quick-access shortcuts for the most-used sorts. The Filter button opens the
@@ -49,7 +53,10 @@ function SearchContent() {
   const searchedLength = debouncedQuery.trim().length
   useEffect(() => {
     if (searchedLength > 0) {
-      track('search', { category: browseCategory(category), queryLength: Math.min(200, searchedLength) })
+      track('search', {
+        category: browseCategory(category),
+        queryLength: Math.min(200, searchedLength),
+      })
     }
   }, [debouncedQuery, searchedLength, category])
 
@@ -82,7 +89,8 @@ function SearchContent() {
   const ratingAvailable = canSortByRating(vendors, sort, hasMore)
   // A refresh still in flight over an empty list has no answer yet: "0 found"
   // and "No garages match" would describe the previous query, not this one.
-  const awaitingFirstAnswer = isLoading || (isRefreshing && vendors.length === 0)
+  const awaitingFirstAnswer =
+    isLoading || (isRefreshing && vendors.length === 0)
   const sortChips = SORT_CHIPS.filter(
     (chip) => chip.value !== 'rating' || ratingAvailable
   )
@@ -90,7 +98,11 @@ function SearchContent() {
   return (
     <CustomerShell showNav showBrand className="gap-4 py-4">
       <div className="flex items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2.5">
-        <IconSearch size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
+        <IconSearch
+          size={18}
+          aria-hidden="true"
+          className="shrink-0 text-text-muted"
+        />
         {/* A garage is found by its name, its area or any service it sells,
             so the box says both. The label is its own attribute: a
             placeholder disappears the moment someone types. */}
@@ -113,13 +125,15 @@ function SearchContent() {
             label={chip.label}
             active={sort === chip.value}
             // Tapping the active chip clears back to the default order.
-            onClick={() => setSort(sort === chip.value ? 'relevance' : chip.value)}
+            onClick={() =>
+              setSort(sort === chip.value ? 'relevance' : chip.value)
+            }
           />
         ))}
         <button
           type="button"
           onClick={() => setSortOpen(true)}
-          className="tap-target flex shrink-0 items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+          className="flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-line px-3.5 text-[13px] text-text-secondary transition-colors hover:text-text-primary"
         >
           <IconAdjustments size={14} aria-hidden="true" />
           Filter
@@ -145,7 +159,8 @@ function SearchContent() {
                   far, not the size of the result set, and stating it flatly
                   would be a number the next scroll contradicts. */}
               {vendors.length}
-              {hasMore ? '+' : ''} garage{vendors.length === 1 && !hasMore ? '' : 's'} found
+              {hasMore ? '+' : ''} garage
+              {vendors.length === 1 && !hasMore ? '' : 's'} found
             </p>
           )}
           {sort !== 'relevance' && (
@@ -173,7 +188,10 @@ function SearchContent() {
             <>
               {vendors.map((vendor, i) => (
                 <Reveal key={vendor.id} index={i}>
-                  <VendorCard vendor={vendor} action={<SaveGarageButton vendor={vendor} />} />
+                  <VendorCard
+                    vendor={vendor}
+                    action={<SaveGarageButton vendor={vendor} />}
+                  />
                 </Reveal>
               ))}
               <InfiniteSentinel
