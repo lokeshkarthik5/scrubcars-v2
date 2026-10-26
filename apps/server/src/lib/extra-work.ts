@@ -29,6 +29,7 @@
  *     bill: part of the garage's price, charged at the rate of the booking's
  *     main service (lib/commission.ts), paid out with the booking.
  */
+import type { PhotoLink } from './job-records.js'
 
 /** The most requests waiting for the customer on one booking. */
 export const EXTRA_WORK_MAX_OPEN = 3
@@ -124,15 +125,16 @@ export interface ExtraWorkRecord {
 
 /**
  * A request as the customer and the garage see it: what, how much, the
- * photos and where it stands. No Razorpay ids or storage keys.
+ * photos (at the address `link` gives: lib/job-photo-storage.ts
+ * `jobPhotoLink`) and where it stands. No Razorpay ids or storage keys.
  */
-export function toExtraWorkView(charge: ExtraWorkRecord) {
+export function toExtraWorkView(charge: ExtraWorkRecord, link: PhotoLink) {
   return {
     id: charge.id,
     description: charge.lines[0]?.description ?? 'Extra work',
     amount: Number(charge.amountDue).toFixed(2),
     note: charge.note,
-    photos: (charge.photos ?? []).map((photo) => ({ url: photo.url })),
+    photos: (charge.photos ?? []).map((photo) => ({ url: link(photo.url) })),
     state: extraWorkState(charge),
     paidAt: charge.paidAt?.toISOString() ?? null,
     cancelledAt: charge.cancelledAt?.toISOString() ?? null,
@@ -141,8 +143,8 @@ export function toExtraWorkView(charge: ExtraWorkRecord) {
 }
 
 /** Every request on a booking, newest first, as toExtraWorkView shapes them. */
-export function extraWorkViews(charges: ExtraWorkRecord[] | null | undefined) {
+export function extraWorkViews(charges: ExtraWorkRecord[] | null | undefined, link: PhotoLink) {
   return extraWorkOf(charges)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .map(toExtraWorkView)
+    .map((charge) => toExtraWorkView(charge, link))
 }

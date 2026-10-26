@@ -19,7 +19,7 @@ import {
   type CertificateView,
   type PublicCertificate,
 } from '../../lib/service-history-certificate.js'
-import { readObject } from '../../lib/storage.js'
+import { jobPhotoLink, readJobPhoto } from '../../lib/job-photo-storage.js'
 import { certificationService } from '../certification/certification.service.js'
 import { documentsVerifiedIds } from '../vendors/vendors.service.js'
 import { certificatesRepository, type CertificateLinkRow } from './certificates.repository.js'
@@ -27,8 +27,11 @@ import type { ShareInput, UpdateShareInput } from './certificates.validation.js'
 
 const log = logger.child({ module: 'certificates' })
 
-/** Where a shared photo's bytes come from: the photo bucket. A seam for the route tests. */
-export const photoStore = { read: readObject }
+/**
+ * Where a shared photo's bytes come from: the private bucket, or the public
+ * one for an older row (lib/job-photo-storage.ts). A seam for the route tests.
+ */
+export const photoStore = { read: readJobPhoto }
 
 /** Signs tokens and photo paths. Read once: JWT_SECRET does not change while running. */
 const key = deriveCertificateKey(env.jwtSecret)
@@ -101,14 +104,17 @@ async function readCertificate(userId: string, car: CertificateCar, now: Date) {
 export const certificatesService = {
   /**
    * The owner's certificate for one of their current cars, with its link.
-   * Anyone else's car, or one they removed, is a 404. Photo pairs carry the
-   * stored addresses, which the owner already sees on their bookings; the
+   * Anyone else's car, or one they removed, is a 404. Photo pairs carry
+   * short-lived links (jobPhotoLink), as the owner's own bookings do; the
    * page shows them only when "Include photos" is ticked.
    */
   async getOwn(userId: string, vehicleId: string, now = new Date()): Promise<OwnCertificateResponse> {
     const car = await certificatesRepository.findOwnCar(userId, vehicleId)
     if (!car) throw carNotFound()
-    const certificate = buildCertificate(await readCertificate(userId, car, now), (photo: CertificatePhoto) => photo.url)
+    const certificate = buildCertificate(
+      await readCertificate(userId, car, now),
+      (photo: CertificatePhoto) => jobPhotoLink(photo.url, now.getTime())
+    )
     const link = await certificatesRepository.findLiveLink(vehicleId)
     return { certificate, share: link && link.userId === userId ? toShareView(link, now) : null }
   },
@@ -197,7 +203,7 @@ export const certificatesService = {
     ) {
       throw new AppError(404, 'Not found', 'NOT_FOUND')
     }
-    const object = await photoStore.read(photo.storageKey)
+    const object = await photoStore.read({ storageKey: photo.storageKey, url: photo.url })
     if (!object) throw new AppError(404, 'Not found', 'NOT_FOUND')
     return { body: object.body, contentType: contentTypeOf(photo.storageKey, object.contentType) }
   },

@@ -83,7 +83,7 @@ describe('what waits, and what it blocks', () => {
 
 describe('toExtraWorkView', () => {
   test('what, how much, the photos and where it stands; never the storage key', () => {
-    expect(toExtraWorkView(charge())).toEqual({
+    expect(toExtraWorkView(charge(), (stored) => stored)).toEqual({
       id: 'x1',
       description: 'Replace front wiper blades',
       amount: '450.00',
@@ -110,7 +110,7 @@ describe('toExtraWorkView', () => {
       charge({ id: 'old', createdAt: new Date('2026-10-16T04:00:00.000Z') }),
       { ...charge({ id: 'bill' }), kind: 'final_bill' },
       charge({ id: 'new', createdAt: new Date('2026-10-16T06:00:00.000Z') }),
-    ])
+    ], (stored) => stored)
     expect(views.map((v) => v.id)).toEqual(['new', 'old'])
   })
 })

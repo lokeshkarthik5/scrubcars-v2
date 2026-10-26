@@ -145,22 +145,34 @@ export function isJobPhotoKey(
 }
 
 /**
- * A job photo as every app receives it: whose it is (`by`) and the angle it
- * was taken from, if one was chosen. The storage key and who exactly took it
- * stay server-side (admin reads the name separately).
+ * Turns a photo's stored `url` column into the address a viewer's app shows:
+ * `jobPhotoLink` (lib/job-photo-storage.ts) in the services, which signs a
+ * short-lived link for a private photo and passes an old public one through.
+ * A parameter, so this file stays pure and no caller can forget it.
  */
-export function toJobPhotoView(photo: {
-  id: string
-  stage: JobPhotoStage
-  url: string
-  createdAt: Date
-  angle?: string | null
-  uploadedByRole?: string | null
-}) {
+export type PhotoLink = (stored: string) => string
+
+/**
+ * A job photo as every app receives it: whose it is (`by`) and the angle it
+ * was taken from, if one was chosen, at the address `link` gives. The storage
+ * key and who exactly took it stay server-side (admin reads the name
+ * separately).
+ */
+export function toJobPhotoView(
+  photo: {
+    id: string
+    stage: JobPhotoStage
+    url: string
+    createdAt: Date
+    angle?: string | null
+    uploadedByRole?: string | null
+  },
+  link: PhotoLink
+) {
   return {
     id: photo.id,
     stage: photo.stage,
-    url: photo.url,
+    url: link(photo.url),
     createdAt: photo.createdAt.toISOString(),
     angle: (photo.angle ?? null) as PhotoAngle | null,
     by: (photo.uploadedByRole === 'customer' ? 'customer' : 'garage') as PhotoRole,

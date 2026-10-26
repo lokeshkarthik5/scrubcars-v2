@@ -22,7 +22,7 @@ import { AppError, hasPgCode } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { lookupRazorpayMode, razorpayKeyMode } from '../../lib/razorpay.js'
-import { deleteObject, isStorageConfigured } from '../../lib/storage.js'
+import { removeJobPhotoObjects } from '../../lib/job-photo-storage.js'
 import {
   dataResetRepository,
   type DataResetReads,
@@ -397,11 +397,14 @@ export async function finishRestarts(
   await repo.deleteCounters(restartYears)
 }
 
-/** The job photos' files in storage, once the rows are gone. Best effort. */
+/**
+ * The job photos' files in storage, once the rows are gone: the private
+ * bucket and the public one (older photos). Best effort.
+ */
 function removePhotoFiles(keys: string[]) {
-  if (keys.length === 0 || !isStorageConfigured()) return
+  if (keys.length === 0) return
   runInBackground('data_reset_photos', async () => {
-    for (const key of keys) await deleteObject(key)
+    await removeJobPhotoObjects(keys, 'data_reset')
     log.info({ photos: keys.length }, 'data_reset:photos_removed')
   })
 }

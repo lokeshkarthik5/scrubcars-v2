@@ -505,3 +505,79 @@ describe('admin: super-admin only, decisions with a typed name', () => {
     expect(refundsQueued).toEqual([BOOKING])
   })
 })
+
+// ─── Private claim photos ────────────────────────────────────────────────────
+
+describe('private claim photos (R2_DOCS_BUCKET set): links only for the claim’s customer, garage and admin', () => {
+  const STORAGE = ['r2AccountId', 'r2AccessKeyId', 'r2SecretAccessKey', 'r2DocsBucket', 'r2Endpoint'] as const
+  const saved = Object.fromEntries(STORAGE.map((key) => [key, envValues[key]]))
+  const ourKey = photoKey(BOOKING, 1)
+  const theirKey = photoKey(OTHER_BOOKING, 1, OTHER_GARAGE)
+
+  function expectSignedLink(url: string, key: string) {
+    const link = new URL(url)
+    expect(link.host).toBe('detlio-private-test.test-account.r2.cloudflarestorage.com')
+    expect(decodeURIComponent(link.pathname)).toBe(`/${key}`)
+    expect(link.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/)
+  }
+
+  beforeEach(() => {
+    envValues.r2AccountId = 'test-account'
+    envValues.r2AccessKeyId = 'test-key'
+    envValues.r2SecretAccessKey = 'test-secret'
+    envValues.r2DocsBucket = 'detlio-private-test'
+    envValues.r2Endpoint = undefined
+    // Private rows store the key, never an address.
+    claims = {
+      [CLAIM]: claimRow({ photos: [{ id: id(3160), claimId: CLAIM, storageKey: ourKey, url: ourKey, createdAt: NOW }] }),
+      [OTHER_CLAIM]: claimRow({
+        id: OTHER_CLAIM, bookingId: OTHER_BOOKING, userId: PEOPLE.otherCustomer, vendorId: OTHER_GARAGE,
+        photos: [{ id: id(3161), claimId: OTHER_CLAIM, storageKey: theirKey, url: theirKey, createdAt: NOW }],
+      }),
+    }
+  })
+
+  afterAll(() => Object.assign(envValues, saved))
+
+  test('a new claim records its photos by key, and its customer gets short-lived links', async () => {
+    claims = {}
+    const { status, body } = await call('POST', '/users/me/guarantee/claims', 'customer', CLAIM_BODY)
+    expect(status).toBe(201)
+    const photos = body.data?.photos as Array<{ url: string }>
+    expect(photos).toHaveLength(2)
+    photos.forEach((photo, i) => expectSignedLink(photo.url, CLAIM_BODY.photoKeys[i]!))
+  })
+
+  test('the customer sees their claim’s links; another customer gets a 404 and nothing to open', async () => {
+    const mine = await call('GET', `/users/me/guarantee/bookings/${BOOKING}`, 'customer')
+    expect(mine.status).toBe(200)
+    expectSignedLink((mine.body.data?.claim as { photos: Array<{ url: string }> }).photos[0]!.url, ourKey)
+
+    const theirs = await call('GET', `/users/me/guarantee/bookings/${BOOKING}`, 'otherCustomer')
+    expect(theirs.status).toBe(404)
+    expect(JSON.stringify(theirs.body)).not.toContain('X-Amz-Signature')
+  })
+
+  test('a garage gets links to its own claims only; naming another garage gets a 404 and nothing', async () => {
+    const own = await call('GET', '/vendors/me/guarantee/claims', 'owner')
+    const items = own.body.data?.items as Array<{ id: string; customerPhotos: Array<{ url: string }> }>
+    expect(items.map((item) => item.id)).toEqual([CLAIM])
+    expectSignedLink(items[0]!.customerPhotos[0]!.url, ourKey)
+    expect(JSON.stringify(own.body)).not.toContain(OTHER_BOOKING)
+
+    const other = await call('GET', '/vendors/me/guarantee/claims', 'owner', undefined, { 'X-Vendor-Id': OTHER_GARAGE })
+    expect(other.status).toBe(404)
+    expect(JSON.stringify(other.body)).not.toContain('X-Amz-Signature')
+  })
+
+  test('admin gets the links on the claim; a customer or a garage asking admin gets nothing', async () => {
+    const admin = await call('GET', `/admin/guarantee/claims/${CLAIM}`, 'breakGlass')
+    expect(admin.status).toBe(200)
+    expectSignedLink((admin.body.data?.customerPhotos as Array<{ url: string }>)[0]!.url, ourKey)
+    for (const who of ['customer', 'owner'] as const) {
+      const refused = await call('GET', `/admin/guarantee/claims/${CLAIM}`, who)
+      expect(refused.status).toBe(403)
+      expect(JSON.stringify(refused.body)).not.toContain('X-Amz-Signature')
+    }
+  })
+})

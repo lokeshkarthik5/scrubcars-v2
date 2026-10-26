@@ -31,13 +31,16 @@ These are ID cards and bank details, so they never go in the photo bucket
 2. Open the bucket → **Settings**:
    - **Public access**: leave *R2.dev subdomain* **disabled**, and add **no
      custom domain**. Nothing in this bucket should ever have a public URL.
-   - **CORS policy** → *Add CORS policy*, so the portal and admin can upload
-     straight to it (opening a file is a plain new tab and needs no CORS):
+   - **CORS policy** → *Add CORS policy*, so the portal, admin and the
+     customer app can upload straight to it (opening a file is a plain new
+     tab and needs no CORS). The customer app is there because **job photos**
+     live in this bucket too (customers' car photos and redo-claim photos;
+     see "Job photos" below):
 
      ```json
      [
        {
-         "AllowedOrigins": ["https://vendor.detlio.com", "https://admin.detlio.com"],
+         "AllowedOrigins": ["https://vendor.detlio.com", "https://admin.detlio.com", "https://detlio.com", "https://www.detlio.com"],
          "AllowedMethods": ["PUT"],
          "AllowedHeaders": ["Content-Type"],
          "MaxAgeSeconds": 3600
@@ -92,3 +95,15 @@ These are ID cards and bank details, so they never go in the photo bucket
 Remove `R2_DOCS_BUCKET` and redeploy: the routes go back to 404 and the
 section disappears. Nothing is deleted; setting it again brings everything
 back as it was.
+
+## Job photos
+
+Job photos (the garage's before/after, customers' car photos, extra-work and
+redo-claim photos) use this bucket as well, under
+`vendors/<garage>/job-photos/<booking>/…`, apart from the documents'
+`vendors/<garage>/documents/…`. Setting `R2_DOCS_BUCKET` is what makes them
+private: new uploads go here, rows store the key, and every app is handed a
+link that works for 10–15 minutes (`lib/job-photo-storage.ts`). Photos taken
+before that keep their public address until they are moved (the one-off move
+in the "keep job photos private" PR). With the variable unset, job photos stay
+in the public photo bucket, as before.

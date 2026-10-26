@@ -15,6 +15,7 @@ import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import { deleteDocumentObjects } from '../../lib/document-storage.js'
+import { removeJobPhotoObjects } from '../../lib/job-photo-storage.js'
 import { deleteObject, isStorageConfigured, keyFromPublicUrl } from '../../lib/storage.js'
 import {
   BIN_CANCELLATION,
@@ -176,9 +177,13 @@ function removeGarageFiles(files: {
     const documentKeys = files.documentKeys
     runInBackground('vendor_bin_documents', () => deleteDocumentObjects(documentKeys, 'garage_deleted'))
   }
-  const keys = [files.logoKey, ...files.galleryKeys, ...files.jobPhotoKeys].filter(
-    (key): key is string => Boolean(key)
-  )
+  // Job photos live in the private bucket (older ones in the public one):
+  // lib/job-photo-storage.ts asks both.
+  if (files.jobPhotoKeys.length > 0) {
+    const jobPhotoKeys = files.jobPhotoKeys
+    runInBackground('vendor_bin_job_photos', () => removeJobPhotoObjects(jobPhotoKeys, 'garage_deleted'))
+  }
+  const keys = [files.logoKey, ...files.galleryKeys].filter((key): key is string => Boolean(key))
   if (keys.length === 0 || !isStorageConfigured()) return
   runInBackground('vendor_bin_files', async () => {
     for (const key of keys) await deleteObject(key)

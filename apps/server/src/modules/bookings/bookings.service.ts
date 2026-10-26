@@ -58,6 +58,7 @@ import {
   toJobPhotoView,
   type JobPhotoStage,
 } from '../../lib/job-records.js'
+import { jobPhotoLink } from '../../lib/job-photo-storage.js'
 import {
   GATE_STAGE,
   MIN_GARAGE_PHOTOS,
@@ -709,7 +710,7 @@ export function toBookingResponse(
     ...(booking.photos !== undefined && {
       photos: booking.photos
         .filter((photo) => photo.uploadedByRole === 'customer' || customerSeesPhotos(booking.status))
-        .map(toJobPhotoView),
+        .map((photo) => toJobPhotoView(photo, jobPhotoLink)),
       conditionPhotos: customerPhotoWindowsView(photoStandardJob(booking), Date.now()),
     }),
     // The final bill of an inspection job, if the garage has raised one: the
@@ -722,7 +723,7 @@ export function toBookingResponse(
       paidAtBooking: creditAtBooking(booking),
       // Extra work the garage asked for (0041), newest first, whatever
       // became of each: what, how much, the photos and where it stands.
-      extraWork: extraWorkViews(booking.charges),
+      extraWork: extraWorkViews(booking.charges, jobPhotoLink),
     }),
     // The garage's suggested times (0041): the live suggestion while it can
     // be answered, or how the last one ended. Null when there never was one.
@@ -829,7 +830,7 @@ export function toVendorBookingResponse(booking: BookingWithRelations) {
     ...(booking.photos !== undefined && {
       photos: booking.photos
         .filter((photo) => photo.uploadedByRole !== 'customer' || garageSeesCustomerPhotos(booking))
-        .map(toJobPhotoView),
+        .map((photo) => toJobPhotoView(photo, jobPhotoLink)),
       photoStandard: garagePhotoStandardView(
         photoStandardJob(booking),
         jobPhotosRequiredFor(booking.vendorId ?? booking.vendor?.id ?? ''),
