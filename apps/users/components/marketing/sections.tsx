@@ -151,7 +151,7 @@ function CtaLink({
     'press inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-colors',
     size === 'md' ? 'h-12 px-7 text-[15px]' : 'h-11 px-5 text-[14px]',
     variant === 'primary'
-      ? 'bg-brand-red text-brand-white hover:bg-brand-red-hover'
+      ? 'bg-brand-red-fill text-brand-white hover:bg-brand-red-fill-hover'
       : 'border border-white/20 text-brand-white hover:bg-white/[0.06]',
     FOCUS_RING,
     className

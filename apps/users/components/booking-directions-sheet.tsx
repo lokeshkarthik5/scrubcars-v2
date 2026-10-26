@@ -188,7 +188,7 @@ function DirectionsContent({ booking, onClose }: { booking: Booking; onClose: ()
           href={mapsHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand-red py-4 text-[15px] font-semibold text-brand-white transition-colors hover:bg-brand-red-hover"
+          className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand-red-fill py-4 text-[15px] font-semibold text-brand-white transition-colors hover:bg-brand-red-fill-hover"
         >
           <IconNavigation size={18} aria-hidden />
           Open in Google Maps

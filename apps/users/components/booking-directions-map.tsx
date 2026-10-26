@@ -48,7 +48,7 @@ export default function BookingDirectionsMap({ garage, here }: { garage: Point; 
       <MapController fitBounds={bounds} />
       <MapMarker latitude={garage.lat} longitude={garage.lng}>
         <MarkerContent>
-          <span className="block rounded-full bg-brand-red px-2.5 py-1 text-[12px] font-semibold text-brand-white shadow-md">
+          <span className="block rounded-full bg-brand-red-fill px-2.5 py-1 text-[12px] font-semibold text-brand-white shadow-md">
             Garage
           </span>
         </MarkerContent>

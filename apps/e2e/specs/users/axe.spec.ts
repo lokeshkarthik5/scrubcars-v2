@@ -12,12 +12,11 @@
  *
  * Rules and nodes left out on purpose, and why:
  *
- *   · color-contrast, only where one side of the pair is brand red #EF3240:
- *     white on brand red is 3.9–4.0:1, under AA for text below 18.66px bold,
- *     and cannot reach 4.5:1 without changing the red. It is the primary
- *     button (ScButton) wherever the Home hub's gradient pill has not
- *     replaced it. A brand decision, kept on the report by the "accessibility
- *     debt" test in the platform spec; every other contrast finding fails.
+ *   · color-contrast, only where the text is brand red #EF3240: it clears
+ *     4.5:1 on the canvas (4.9:1) and a card (4.56:1) but not on graphite,
+ *     and is kept off raised surfaces. White on a red fill is not excluded:
+ *     fills behind white text are #E4002B (4.85:1), and the platform spec's
+ *     brand-red test holds them to AA. Every other contrast finding fails.
  *
  * Nothing else is disabled.
  */
@@ -53,12 +52,12 @@ async function settle(page: Page) {
   )
 }
 
-const BRAND_RED = '#ef3240'
+const BRAND_RED_TEXT = '#ef3240'
 
-const isBrandRedPairing = (node: { any?: Array<{ data?: unknown }> }) =>
+const isBrandRedText = (node: { any?: Array<{ data?: unknown }> }) =>
   (node.any ?? []).some((check) => {
-    const data = check.data as { fgColor?: string; bgColor?: string } | undefined
-    return data?.fgColor?.toLowerCase() === BRAND_RED || data?.bgColor?.toLowerCase() === BRAND_RED
+    const data = check.data as { fgColor?: string } | undefined
+    return data?.fgColor?.toLowerCase() === BRAND_RED_TEXT
   })
 
 async function seriousViolations(page: Page) {
@@ -66,7 +65,7 @@ async function seriousViolations(page: Page) {
   return results.violations
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
     .map((v) =>
-      v.id === 'color-contrast' ? { ...v, nodes: v.nodes.filter((n) => !isBrandRedPairing(n)) } : v
+      v.id === 'color-contrast' ? { ...v, nodes: v.nodes.filter((n) => !isBrandRedText(n)) } : v
     )
     .filter((v) => v.nodes.length > 0)
     .flatMap((v) =>

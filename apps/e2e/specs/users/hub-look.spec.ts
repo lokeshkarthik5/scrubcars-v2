@@ -135,7 +135,7 @@ test.describe('one red hero action per screen @p0', () => {
     const add = garage.addButton(SERVICES.wash.name)
     await expect(add).toBeVisible()
     // Graphite outline: Book Now's gradient is the page's one red.
-    await expect(add).not.toHaveCSS('background-color', 'rgb(239, 50, 64)')
+    await expect(add).not.toHaveCSS('background-color', 'rgb(228, 0, 43)')
     await expect(add).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   })
 

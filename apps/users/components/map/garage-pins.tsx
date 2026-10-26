@@ -241,7 +241,7 @@ function GaragePin({
           className={cn(
             'relative mb-[6px] flex min-h-11 min-w-11 flex-col items-center justify-center rounded-[12px] px-2.5 py-1 leading-tight shadow-[0_2px_10px_rgba(0,0,0,0.5)] ring-1 transition-transform duration-150 motion-reduce:transition-none',
             selected
-              ? '-translate-y-1 scale-110 bg-brand-red text-brand-white ring-brand-red'
+              ? '-translate-y-1 scale-110 bg-brand-red-fill text-brand-white ring-brand-red-fill'
               : 'bg-brand-white text-brand-black ring-black/10'
           )}
         >
@@ -253,7 +253,7 @@ function GaragePin({
             aria-hidden
             className={cn(
               'absolute -bottom-[5px] left-1/2 size-2.5 -translate-x-1/2 rotate-45',
-              selected ? 'bg-brand-red' : 'bg-brand-white'
+              selected ? 'bg-brand-red-fill' : 'bg-brand-white'
             )}
           />
         </button>
