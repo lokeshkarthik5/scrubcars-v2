@@ -17,21 +17,8 @@ import { VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('admin') })
 
-type Fixture = { id: string; name: string }
-
-// The marks fixtures arrive with the server's seed (ids 4150–4199); typed
-// loosely so this file compiles on either side of that change.
-const SEEDED = VENDORS as unknown as Partial<
-  Record<'marksA' | 'marksB', Fixture>
->
-const A: Fixture = SEEDED.marksA ?? {
-  id: 'e2e00000-0000-4000-8000-000000004151',
-  name: 'Marks Test Garage A',
-}
-const B: Fixture = SEEDED.marksB ?? {
-  id: 'e2e00000-0000-4000-8000-000000004155',
-  name: 'Marks Test Garage B',
-}
+const A = VENDORS.marksA
+const B = VENDORS.marksB
 
 /** A garage's row in the Garages table, named by the garage. */
 const row = (page: Page, name: string) =>

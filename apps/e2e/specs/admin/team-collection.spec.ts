@@ -15,14 +15,11 @@
  */
 import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
+import { ADMIN_LOGINS, VENDORS } from '../../support/seed-ids'
 
-// The ids as the seed writes them (apps/server/src/db/seeds/e2e-ids.ts):
-// VENDORS.marksA / marksB and ADMIN_LOGINS.collector.
-const fixtureId = (n: number) =>
-  `e2e00000-0000-4000-8000-${String(n).padStart(12, '0')}`
-const MARKS_A = { id: fixtureId(4151), name: 'Marks Test Garage A' }
-const MARKS_B = { id: fixtureId(4155), name: 'Marks Test Garage B' }
-const COLLECTOR = { id: fixtureId(4160), name: 'E2E Collector' }
+const MARKS_A = VENDORS.marksA
+const MARKS_B = VENDORS.marksB
+const COLLECTOR = ADMIN_LOGINS.collector
 
 const LISTS = `${API}/api/v1/admin/collection-lists`
 
