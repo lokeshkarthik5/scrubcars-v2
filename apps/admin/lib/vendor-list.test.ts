@@ -689,17 +689,21 @@ describe('the next step', () => {
         },
       } as Partial<Row>)
     expect(garageNextStep(list('2026-10-26'), NOW)).toEqual({
-      text: 'Due today',
-      detail: 'With Raga · 3 of 11',
+      text: 'Due today · 3 of 11',
+      detail: 'With Raga',
       tone: 'attention',
     })
-    expect(garageNextStep(list('2026-10-25'), NOW)?.tone).toBe('late')
+    expect(garageNextStep(list('2026-10-25'), NOW)).toEqual({
+      text: 'Overdue · 3 of 11',
+      detail: 'With Raga',
+      tone: 'late',
+    })
     expect(garageNextStep(list('2026-10-29'), NOW)).toEqual({
-      text: 'With Raga',
-      detail: 'Due Thu 29 Oct · 3 of 11',
+      text: 'Due Thu 29 Oct · 3 of 11',
+      detail: 'With Raga',
       tone: 'neutral',
     })
-    expect(garageNextStep(list(null), NOW)?.detail).toBe('3 of 11')
+    expect(garageNextStep(list(null), NOW)?.text).toBe('Collecting · 3 of 11')
   })
 
   test('unverified, then a stale ask, then what to collect, then what to fix', () => {
@@ -709,6 +713,18 @@ describe('the next step', () => {
         NOW
       )?.text
     ).toBe('Verify')
+    // With no pin the server refuses: the pin comes first.
+    expect(
+      garageNextStep(
+        garage({ live: false, isVerified: false, lat: null } as Partial<Row>),
+        NOW
+      )
+    ).toEqual({
+      text: 'Pin first',
+      detail: 'Then verify',
+      tone: 'attention',
+      tab: 'location',
+    })
     const asked = garage({
       missing: ['photos'],
       openMarks: [

@@ -27,10 +27,22 @@ import {
  * and an optional third line of `meta` (left) and `action` (right) for what
  * must be pressed from the row itself. Anything else is `hidden` there and
  * read in the side panel. One column per place; a column with none set is
- * hidden on a phone.
+ * hidden on a phone. A table with its own `phoneGrid` may also use `end`
+ * (an icon button at the row's right edge, outside the grid: the grid
+ * leaves it room) and `contents`: the cell's own box goes, and its pieces
+ * place themselves in the grid (a name on the first line, its owner on the
+ * second).
  */
 export type PhonePlace =
-  'title' | 'subtitle' | 'aside' | 'asideSub' | 'meta' | 'action' | 'hidden'
+  | 'title'
+  | 'subtitle'
+  | 'aside'
+  | 'asideSub'
+  | 'meta'
+  | 'action'
+  | 'end'
+  | 'contents'
+  | 'hidden'
 
 export interface AdminTableColumn<T> {
   id: string
@@ -80,6 +92,13 @@ export interface AdminTableProps<T> {
   className?: string
   /** Columns turned off with the Columns button: left out entirely. */
   hiddenColumns?: ReadonlySet<string>
+  /**
+   * The row's grid on a phone, in place of the two lines and a third for
+   * buttons: Tailwind classes (`max-md:grid-cols-[…]` and
+   * `max-md:[grid-template-areas:…]`) written out where the table is used.
+   * The tick is in `check`.
+   */
+  phoneGrid?: string
 }
 
 /** Each phone place, written out so Tailwind finds every class. */
@@ -92,6 +111,8 @@ const PHONE_PLACE: Record<PhonePlace, string> = {
   meta: 'max-md:[grid-area:meta] max-md:min-w-0 max-md:self-center',
   action:
     'max-md:[grid-area:action] max-md:text-right max-md:justify-self-end max-md:self-center',
+  end: 'max-md:absolute max-md:right-2 max-md:top-1/2 max-md:-translate-y-1/2',
+  contents: 'max-md:contents',
   hidden: 'max-md:hidden',
 }
 
@@ -128,6 +149,7 @@ export function AdminTable<T>({
   empty,
   className,
   hiddenColumns,
+  phoneGrid,
 }: AdminTableProps<T>) {
   const columns = useMemo(
     () =>
@@ -277,10 +299,14 @@ export function AdminTable<T>({
                       // Two lines on a phone: the tick, then the title and
                       // subtitle, then what sits on the right; a third for
                       // the row's own buttons when it has any.
-                      'max-md:grid max-md:gap-x-3 max-md:gap-y-0.5 max-md:px-3 max-md:py-2.5',
-                      selection
-                        ? "max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:[grid-template-areas:'check_title_aside'_'check_subtitle_asideSub'_'check_meta_action']"
-                        : "max-md:grid-cols-[minmax(0,1fr)_auto] max-md:[grid-template-areas:'title_aside'_'subtitle_asideSub'_'meta_action']",
+                      'max-md:grid max-md:gap-y-0.5',
+                      phoneGrid ??
+                        cn(
+                          'max-md:gap-x-3 max-md:px-3 max-md:py-2.5',
+                          selection
+                            ? "max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:[grid-template-areas:'check_title_aside'_'check_subtitle_asideSub'_'check_meta_action']"
+                            : "max-md:grid-cols-[minmax(0,1fr)_auto] max-md:[grid-template-areas:'title_aside'_'subtitle_asideSub'_'meta_action']"
+                        ),
                       onOpen && 'cursor-pointer hover:bg-surface',
                       ticked && 'bg-surface',
                       open &&
@@ -294,7 +320,12 @@ export function AdminTable<T>({
                     {selection && (
                       <td
                         role="cell"
-                        className="w-8 py-2.5 pl-3 pr-1 align-middle max-md:w-auto max-md:self-start max-md:p-0 max-md:pt-0.5 max-md:[grid-area:check]"
+                        className={cn(
+                          'w-8 py-2.5 pl-3 pr-1 align-middle max-md:w-auto max-md:p-0 max-md:[grid-area:check]',
+                          phoneGrid
+                            ? 'max-md:flex max-md:self-center max-md:pr-2.5'
+                            : 'max-md:self-start max-md:pt-0.5'
+                        )}
                       >
                         <input
                           type="checkbox"

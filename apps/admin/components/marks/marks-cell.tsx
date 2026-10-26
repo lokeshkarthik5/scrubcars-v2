@@ -39,41 +39,31 @@ export function MarkDot({
 }
 
 /**
- * One open mark as a chip and its status line, a button that edits it.
- * `compact` keeps it to one line ("● Call back  Asked today"), for a table
- * row; otherwise the status sits under the chip.
+ * One open mark as a chip with its status under it, a button that edits it
+ * (the garage's side panel lists every mark this way).
  */
 export function MarkChip({
   mark,
   garage,
   onEdit,
   className,
-  compact = false,
 }: {
   mark: OnboardingMarkBrief
   garage: string
   /** Gets the button that was pressed, for a popover to sit by. */
   onEdit?: (button: HTMLButtonElement) => void
   className?: string
-  /** On one line, the label truncating first. */
-  compact?: boolean
 }) {
   const chase = markNeedsChase(mark)
   const body = (
     <>
-      <span
-        className={cn(
-          'inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-0.5 text-[12px] text-text-primary',
-          compact && 'min-w-0 shrink'
-        )}
-      >
+      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-0.5 text-[12px] text-text-primary">
         <MarkDot status={mark.status} chase={chase} />
         <span className="truncate">{markLabel(mark.kind, mark.label)}</span>
       </span>
       <span
         className={cn(
-          'text-[11px]',
-          compact ? 'shrink-0 whitespace-nowrap' : 'pl-1',
+          'pl-1 text-[11px]',
           chase ? 'text-tone-attention-text' : 'text-text-muted'
         )}
       >
@@ -81,9 +71,7 @@ export function MarkChip({
       </span>
     </>
   )
-  const layout = compact
-    ? 'flex min-w-0 items-center gap-1.5'
-    : 'flex flex-col items-start gap-0.5'
+  const layout = 'flex flex-col items-start gap-0.5'
   if (!onEdit) {
     return <span className={cn(layout, className)}>{body}</span>
   }
@@ -97,8 +85,7 @@ export function MarkChip({
       aria-label={`Edit mark ${markLine(mark)}, ${garage}`}
       className={cn(
         layout,
-        compact ? 'min-h-8' : 'min-h-9',
-        'rounded-md text-left hover:opacity-85',
+        'min-h-9 rounded-md text-left hover:opacity-85',
         className
       )}
     >
@@ -108,11 +95,16 @@ export function MarkChip({
 }
 
 /**
- * The Garages table's Marks column, on one line so a row stays one line:
- * the garage's first open mark ("● Waiting on owner  Asked 24 Oct"), which
- * opens it to edit, "+N" for the rest (the garage's panel lists them all),
- * and "+" to add one; or "+ Add mark" with none. Fits a phone row too.
- * Renders nothing from an API older than the marks.
+ * The Garages table's Marks column (mockup 06): the garage's first open
+ * mark by name ("● Waiting on owner"), a button that edits it, then its
+ * status ("Asked 24 Oct"), "+N" for the rest (the garage's panel lists them
+ * all) and "+" to add one; or "+ Add mark" with none. They wrap as whole
+ * pieces, never on top of each other: the name keeps the first line,
+ * truncated only when it is too long for one, and the status goes on the
+ * same line when it fits or under it. On a phone the row's second line has
+ * room for the dot and the status only; the name stays in the button's
+ * name and the side panel. Renders nothing from an API older than the
+ * marks.
  */
 export function MarksCell({
   vendor,
@@ -129,49 +121,85 @@ export function MarksCell({
   const marks = vendor.openMarks
   const first = marks[0]
   const more = marks.length - 1
+  const chase = first ? markNeedsChase(first) : false
 
   return (
     <div
-      className={cn('flex min-w-0 max-w-full items-center gap-1.5', className)}
+      className={cn(
+        'flex min-w-0 max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 max-md:flex-nowrap max-md:justify-end',
+        className
+      )}
     >
       {first && (
-        <MarkChip
-          compact
-          mark={first}
-          garage={vendor.businessName}
-          onEdit={(anchor) => setOpen({ mark: first, anchor })}
-        />
-      )}
-      {more > 0 && (
-        <span
-          title={marks
-            .slice(1)
-            .map((mark) => markLine(mark))
-            .join('\n')}
-          className="shrink-0 rounded-md bg-surface-elevated px-1.5 py-0.5 font-numeric text-[11px] text-text-secondary"
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            setOpen({ mark: first, anchor: event.currentTarget })
+          }}
+          aria-label={`Edit mark ${markLine(first)}, ${vendor.businessName}`}
+          title={markLine(first)}
+          className="tap-target inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-0.5 text-left text-[12px] text-text-primary transition-colors hover:bg-surface-elevated max-md:shrink-0 max-md:border-0 max-md:bg-transparent max-md:px-0"
         >
-          <span aria-hidden>+{more}</span>
-          <span className="sr-only">
-            and {more} more {more === 1 ? 'mark' : 'marks'}
+          <MarkDot status={first.status} chase={chase} />
+          <span className="truncate max-md:hidden">
+            {markLabel(first.kind, first.label)}
           </span>
-        </span>
+          <span
+            aria-hidden="true"
+            className={cn(
+              'whitespace-nowrap text-[11.5px] md:hidden',
+              chase ? 'text-tone-attention-text' : 'text-text-secondary'
+            )}
+          >
+            {markStatusText(first)}
+          </span>
+        </button>
       )}
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation()
-          setOpen({ mark: 'new', anchor: event.currentTarget })
-        }}
-        aria-label={`Add mark for ${vendor.businessName}`}
-        title={first ? 'Add mark' : undefined}
-        className={cn(
-          'inline-flex min-h-8 shrink-0 items-center gap-1 rounded-md text-[12px] text-text-secondary hover:bg-surface hover:text-text-primary',
-          first ? 'min-w-8 justify-center' : 'px-1'
+      {/* The status, "+N" and "+" keep together: beside the name when
+          they fit, else on the line under it. */}
+      <span className="inline-flex shrink-0 items-center gap-1.5">
+        {first && (
+          <span
+            className={cn(
+              'whitespace-nowrap text-[11px] max-md:hidden',
+              chase ? 'text-tone-attention-text' : 'text-text-muted'
+            )}
+          >
+            {markStatusText(first)}
+          </span>
         )}
-      >
-        <IconPlus size={13} aria-hidden />
-        {!first && 'Add mark'}
-      </button>
+        {more > 0 && (
+          <span
+            title={marks
+              .slice(1)
+              .map((mark) => markLine(mark))
+              .join('\n')}
+            className="rounded-md bg-surface-elevated px-1.5 py-0.5 font-numeric text-[11px] leading-none text-text-secondary"
+          >
+            <span aria-hidden>+{more}</span>
+            <span className="sr-only">
+              and {more} more {more === 1 ? 'mark' : 'marks'}
+            </span>
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            setOpen({ mark: 'new', anchor: event.currentTarget })
+          }}
+          aria-label={`Add mark for ${vendor.businessName}`}
+          title={first ? 'Add mark' : undefined}
+          className={cn(
+            'tap-target inline-flex items-center gap-1 rounded-md text-[12px] text-text-secondary hover:bg-surface hover:text-text-primary max-md:hidden',
+            first ? 'size-5 justify-center' : 'min-h-7 px-1'
+          )}
+        >
+          <IconPlus size={13} aria-hidden />
+          {!first && 'Add mark'}
+        </button>
+      </span>
       {open && (
         <MarkPopover
           vendor={vendor}

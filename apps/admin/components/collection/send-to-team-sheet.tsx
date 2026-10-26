@@ -30,8 +30,9 @@ import {
 import { cn } from '@repo/core/utils'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
-import { ScModal } from '@repo/ui/sc/modal'
+import { ScSheet } from '@repo/ui/sc/modal'
 import { ScSwitch } from '@repo/ui/sc/switch'
+import { MarksOverlay } from '@/components/marks/mark-popover'
 import { garageAreaName } from '@/lib/localities'
 import {
   collectKinds,
@@ -102,6 +103,10 @@ const SMALL_LINK =
  * and note are optional. It goes to the person's Today inbox (logins only),
  * the "Detlio" Telegram group (on by default), and, for a login with a
  * phone, WhatsApp by a link with the list filled in.
+ *
+ * A panel down the right side on a laptop, as Ask on WhatsApp is; a bottom
+ * sheet on a phone. "One person for all" and the Send to switches come
+ * first, so they are in view without scrolling.
  *
  * Mount it fresh for each opening (key it), so it starts from the
  * suggestions.
@@ -278,178 +283,231 @@ export function SendToTeamSheet({
         ? `${plural(toSend.length, 'list')}${telegram ? ', to the “Detlio” group and' : ', to'} each person’s Today inbox`
         : ''
 
-  return (
-    <ScModal
-      open={open}
-      onClose={onClose}
-      dismissible={!create.isPending}
-      aria-label="Send to team"
-      className="flex max-h-[92vh] max-w-[1040px] flex-col overflow-hidden p-0"
-    >
-      <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 md:px-5">
-        <div className="min-w-0">
-          <h2 className="text-[17px] font-semibold text-text-primary">
-            Send to team · {plural(vendors.length, 'garage')}
-          </h2>
-          <p className="text-[13px] text-text-secondary">
-            {sendSubtitle(
-              (toSend.length > 0 ? toSend : drafts).map((d) => ({
-                name: d.collector?.name ?? null,
-              }))
-            )}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={create.isPending}
-          aria-label="Close"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
-        >
-          <IconX size={18} aria-hidden="true" />
-        </button>
-      </header>
+  // Who gets a Today inbox copy: every picked collector with a login.
+  const inboxNames = toSend.flatMap((d) =>
+    d.collector?.login ? [d.collector.name] : []
+  )
 
-      {sent ? (
-        <SentStep sent={sent} onDone={onClose} />
-      ) : (
-        <>
-          <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-[minmax(0,380px)_minmax(0,1fr)] md:overflow-hidden">
-            <div className="flex flex-col gap-4 border-border px-4 py-4 md:overflow-y-auto md:border-r md:px-5">
-              {suggestions.length > 1 && (
-                <div className="flex items-center justify-between gap-3 rounded-[10px] border border-border px-3 py-1">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-text-primary">
-                      One person for all
-                    </p>
-                    <p className="text-[12px] text-text-secondary">
-                      {onePerson
-                        ? 'One list with every garage'
-                        : `${plural(suggestions.length, 'list')}, by who onboarded each garage`}
-                    </p>
-                  </div>
-                  <ScSwitch
-                    label="One person for all"
-                    checked={onePerson}
-                    onChange={setOnePerson}
-                  />
-                </div>
+  return (
+    // Out of the bulk bar (fixed, so its own stack on a phone, under the
+    // tab bar), at the end of <body>.
+    <MarksOverlay>
+      <ScSheet
+        open={open}
+        onClose={onClose}
+        dismissible={!create.isPending}
+        aria-label="Send to team"
+        showHandle={false}
+        className={cn(
+          // A phone: a bottom sheet. A laptop: a panel down the right side,
+          // as Ask on WhatsApp is, the table still in view beside it.
+          'flex max-w-[640px] flex-col overflow-hidden pb-0',
+          'md:ml-auto md:h-dvh md:max-h-none md:w-[min(900px,100vw)] md:max-w-none md:self-stretch md:rounded-bl-[22px] md:rounded-tr-none md:border-l md:border-t-0',
+          'md:[&.sheet-in]:animate-[motion-fade-in_var(--motion-base)_ease-out_both]'
+        )}
+      >
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3 md:px-5">
+          <div className="min-w-0">
+            <h2 className="text-[17px] font-semibold text-text-primary">
+              Send to team · {plural(vendors.length, 'garage')}
+            </h2>
+            <p className="text-[13px] text-text-secondary">
+              {sendSubtitle(
+                (toSend.length > 0 ? toSend : drafts).map((d) => ({
+                  name: d.collector?.name ?? null,
+                }))
               )}
-              {loginsQuery.isError && (
-                <p className="text-[12px] text-warning">
-                  Couldn’t load the team logins. You can still type a name.
-                </p>
-              )}
-              {drafts.map((draft) => (
-                <GroupFields
-                  key={draft.group.key}
-                  draft={draft}
-                  many={drafts.length > 1}
-                  logins={logins}
-                  youId={youId}
-                  busyWith={busyWith}
-                  showProblem={tried}
-                  onChange={(patch) => setChoice(draft.group.key, patch)}
-                />
-              ))}
-              <div className="flex flex-col gap-2">
-                <p className={SECTION_LABEL}>Send to</p>
-                <div className="flex items-center justify-between gap-3 rounded-[10px] border border-border px-3 py-1">
-                  <div className="min-w-0">
-                    <p className="text-[13px] text-text-primary">
-                      Telegram group “Detlio”
-                    </p>
-                    <p className="text-[12px] text-text-secondary">
-                      Posted by the alerts bot
-                    </p>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={create.isPending}
+            aria-label="Close"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
+          >
+            <IconX size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        {sent ? (
+          <SentStep sent={sent} onDone={onClose} />
+        ) : (
+          <>
+            <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain md:grid-cols-[minmax(0,340px)_minmax(0,1fr)] md:overflow-hidden">
+              <div className="flex flex-col gap-4 border-border px-4 py-4 md:overflow-y-auto md:border-r md:px-5">
+                {/* First, so they are in view without scrolling: one person
+                  or a list per onboarder (the default), and where it goes. */}
+                {suggestions.length > 1 && (
+                  <div
+                    className={cn(
+                      'flex items-center justify-between gap-3 rounded-[12px] border px-3.5 py-2.5 transition-colors',
+                      onePerson
+                        ? 'border-text-secondary bg-surface-elevated'
+                        : 'border-border bg-surface'
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-semibold text-text-primary">
+                        One person for all
+                      </p>
+                      <p className="text-[12px] text-text-secondary">
+                        {onePerson
+                          ? 'One list with every garage'
+                          : `Now ${plural(suggestions.length, 'list')}, by who onboarded each garage`}
+                      </p>
+                    </div>
+                    <ScSwitch
+                      label="One person for all"
+                      checked={onePerson}
+                      onChange={setOnePerson}
+                    />
                   </div>
-                  <ScSwitch
-                    label="Telegram group “Detlio”"
-                    checked={telegram}
-                    onChange={setTelegram}
-                  />
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <p className={SECTION_LABEL}>Send to</p>
+                  <div className="divide-y divide-border rounded-[10px] border border-border">
+                    <div className="flex items-center justify-between gap-3 px-3 py-1">
+                      <div className="min-w-0">
+                        <p className="text-[13px] text-text-primary">
+                          Telegram group “Detlio”
+                        </p>
+                        <p className="text-[12px] text-text-secondary">
+                          Posted by the alerts bot
+                        </p>
+                      </div>
+                      <ScSwitch
+                        label="Telegram group “Detlio”"
+                        checked={telegram}
+                        onChange={setTelegram}
+                      />
+                    </div>
+                    {inboxNames.length > 0 && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-1">
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] text-text-primary">
+                            {inboxNames.length === 1
+                              ? `${inboxNames[0]}’s Today inbox`
+                              : 'Each person’s Today inbox'}
+                          </p>
+                          <p className="text-[12px] text-text-secondary">
+                            In admin, with tick boxes. Always on.
+                          </p>
+                        </div>
+                        <ScSwitch
+                          label={
+                            inboxNames.length === 1
+                              ? `${inboxNames[0]}’s Today inbox`
+                              : 'Each person’s Today inbox'
+                          }
+                          checked
+                          disabled
+                          onChange={() => {}}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
+                {loginsQuery.isError && (
+                  <p className="text-[12px] text-warning">
+                    Couldn’t load the team logins. You can still type a name.
+                  </p>
+                )}
+                {drafts.map((draft) => (
+                  <GroupFields
+                    key={draft.group.key}
+                    draft={draft}
+                    many={drafts.length > 1}
+                    logins={logins}
+                    youId={youId}
+                    busyWith={busyWith}
+                    showProblem={tried}
+                    onChange={(patch) => setChoice(draft.group.key, patch)}
+                  />
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-3 px-4 py-4 md:overflow-y-auto md:px-5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-[14px] font-semibold text-text-primary">
+                    Collection list
+                  </h3>
+                  <p className="text-[12px] text-text-secondary">
+                    {summary.line}
+                  </p>
+                </div>
+                {drafts.map((draft) => (
+                  <div key={draft.group.key} className="flex flex-col gap-2">
+                    {drafts.length > 1 && (
+                      <p className={SECTION_LABEL}>
+                        {draft.collector
+                          ? `${draft.collector.name}’s list`
+                          : 'Nobody picked yet'}
+                      </p>
+                    )}
+                    {draft.garages.map(({ vendor, kinds }) => (
+                      <GaragePreview
+                        key={vendor.id}
+                        vendor={vendor}
+                        kinds={kinds}
+                        onToggle={(kind, on) => toggleKind(vendor.id, kind, on)}
+                      />
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 px-4 py-4 md:overflow-y-auto md:px-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-[14px] font-semibold text-text-primary">
-                  Collection list
-                </h3>
-                <p className="text-[12px] text-text-secondary">
+            <footer className="flex shrink-0 flex-col gap-2 border-t border-border bg-brand-black px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:flex-row md:items-center md:justify-between md:px-5">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium text-text-primary">
                   {summary.line}
                 </p>
+                {footerLine && (
+                  <p className="text-[12px] text-text-secondary">
+                    {footerLine}
+                  </p>
+                )}
+                {tried && problem && (
+                  <p role="alert" className="text-[12px] text-error">
+                    {problem}
+                  </p>
+                )}
+                {error && (
+                  <p role="alert" className="text-[12px] text-error">
+                    {error}
+                  </p>
+                )}
               </div>
-              {drafts.map((draft) => (
-                <div key={draft.group.key} className="flex flex-col gap-2">
-                  {drafts.length > 1 && (
-                    <p className={SECTION_LABEL}>
-                      {draft.collector
-                        ? `${draft.collector.name}’s list`
-                        : 'Nobody picked yet'}
-                    </p>
-                  )}
-                  {draft.garages.map(({ vendor, kinds }) => (
-                    <GaragePreview
-                      key={vendor.id}
-                      vendor={vendor}
-                      kinds={kinds}
-                      onToggle={(kind, on) => toggleKind(vendor.id, kind, on)}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <footer className="flex flex-col gap-2 border-t border-border px-4 py-3 md:flex-row md:items-center md:justify-between md:px-5">
-            <div className="min-w-0">
-              <p className="text-[13px] font-medium text-text-primary">
-                {summary.line}
-              </p>
-              {footerLine && (
-                <p className="text-[12px] text-text-secondary">{footerLine}</p>
-              )}
-              {tried && problem && (
-                <p role="alert" className="text-[12px] text-error">
-                  {problem}
-                </p>
-              )}
-              {error && (
-                <p role="alert" className="text-[12px] text-error">
-                  {error}
-                </p>
-              )}
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <ScButton
-                type="button"
-                variant="outline"
-                fullWidth={false}
-                className="h-10 px-4 text-[13px]"
-                onClick={onClose}
-                disabled={create.isPending}
-              >
-                Cancel
-              </ScButton>
-              <ScButton
-                type="button"
-                variant="main"
-                fullWidth={false}
-                className="h-10 px-4 text-[13px]"
-                onClick={submit}
-                disabled={create.isPending || summary.things === 0}
-                aria-busy={create.isPending || undefined}
-              >
-                <IconSend size={15} aria-hidden="true" />
-                {create.isPending ? 'Sending…' : label}
-              </ScButton>
-            </div>
-          </footer>
-        </>
-      )}
-    </ScModal>
+              <div className="flex shrink-0 gap-2">
+                <ScButton
+                  type="button"
+                  variant="outline"
+                  fullWidth={false}
+                  className="h-10 px-4 text-[13px]"
+                  onClick={onClose}
+                  disabled={create.isPending}
+                >
+                  Cancel
+                </ScButton>
+                <ScButton
+                  type="button"
+                  variant="main"
+                  fullWidth={false}
+                  className="h-10 px-4 text-[13px]"
+                  onClick={submit}
+                  disabled={create.isPending || summary.things === 0}
+                  aria-busy={create.isPending || undefined}
+                >
+                  <IconSend size={15} aria-hidden="true" />
+                  {create.isPending ? 'Sending…' : label}
+                </ScButton>
+              </div>
+            </footer>
+          </>
+        )}
+      </ScSheet>
+    </MarksOverlay>
   )
 }
 
@@ -482,7 +540,7 @@ function GroupFields({
         many && 'rounded-[12px] border border-border p-3'
       )}
     >
-      <fieldset className="flex flex-col gap-1.5">
+      <fieldset className="flex min-w-0 flex-col gap-1.5">
         <legend className={cn(SECTION_LABEL, 'mb-1.5')}>
           {many ? (
             <>
@@ -555,22 +613,6 @@ function GroupFields({
 
       {collector?.login ? (
         <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-3 rounded-[10px] border border-border px-3 py-1">
-            <div className="min-w-0">
-              <p className="text-[13px] text-text-primary">
-                {collector.name}’s Today inbox
-              </p>
-              <p className="text-[12px] text-text-secondary">
-                In admin, with tick boxes. Always on.
-              </p>
-            </div>
-            <ScSwitch
-              label={`${collector.name}’s Today inbox`}
-              checked
-              disabled
-              onChange={() => {}}
-            />
-          </div>
           {collector.login.phone && (
             <label className="flex min-h-11 cursor-pointer items-start gap-2 px-1 py-2">
               <input

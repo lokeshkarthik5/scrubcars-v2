@@ -28,6 +28,7 @@ import {
   UNASSIGNED,
   vendorMapsUrl,
   withTeamLine,
+  withTeamShort,
 } from './collection'
 
 // Mon 26 Oct 2026, 10:30 am IST.
@@ -132,6 +133,27 @@ describe('what to collect', () => {
         total: 2,
       })
     ).toBe('With Raga · 0/2')
+  })
+
+  test('the short with-team line, for the table', () => {
+    expect(
+      withTeamShort({
+        listId: 'x',
+        assigneeName: 'Priya',
+        dueOn: '2026-10-31',
+        done: 0,
+        total: 2,
+      })
+    ).toBe('Priya · 31 Oct · 0/2')
+    expect(
+      withTeamShort({
+        listId: 'x',
+        assigneeName: 'Raga',
+        dueOn: null,
+        done: 1,
+        total: 4,
+      })
+    ).toBe('Raga · 1/4')
   })
 })
 
