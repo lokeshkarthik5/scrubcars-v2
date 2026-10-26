@@ -1,19 +1,22 @@
 'use client'
 
-import { IconAlertCircle } from '@tabler/icons-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { IconAlertCircle, IconCheck } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
+import { cn } from '@repo/core/utils'
 
 /**
- * The bar along the bottom of the garage editor while something is unsaved:
- * which tabs have changes, Discard, and the page's one red action.
+ * The garage editor's one save bar, while something is unsaved: how many
+ * changes and which fields, Discard, and the page's one red action.
  *
- * "Save changes" used to sit under whichever tab was open, below the fold on
- * a phone, and nothing said a change was waiting on it. The bar is there on
- * every tab the moment there is something to save and gone when there isn't,
- * so the admin always knows. On a phone it covers the panel's bottom menu,
- * which is the point: leaving now would lose the changes.
+ * On a wide screen it sits at the foot of the form column and stays in view
+ * as the tab scrolls (sticky); on a phone or tablet it is fixed along the
+ * bottom of the screen, over the panel's bottom menu, which is the point:
+ * leaving now would lose the changes. It is not there at all when nothing
+ * is unsaved, so "Save changes" is never a button that does nothing.
  */
 export function SaveBar({
+  count,
   line,
   block,
   saving,
@@ -22,7 +25,9 @@ export function SaveBar({
   onSave,
   onDiscard,
 }: {
-  /** "Unsaved changes in Services". */
+  /** How many fields are unsaved. */
+  count: number
+  /** "2 unsaved changes · address, doorstep radius" (saveBarLine). */
   line: string
   /** Why Save is off, in amber, in place of `line`. */
   block: string | null
@@ -36,47 +41,140 @@ export function SaveBar({
   onSave: () => void
   onDiscard: () => void
 }) {
+  // The count in white, the field names quieter after it. One text run, so
+  // the status reads (and is matched) as the line itself.
+  const at = line.indexOf(' · ')
+  const head = count > 0 && at > 0 ? line.slice(0, at) : line
+  const tail = count > 0 && at > 0 ? line.slice(at) : ''
+
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-[#111113] shadow-[0_-18px_30px_-12px_rgba(0,0,0,0.6)]">
-      <div className="mx-auto w-full max-w-[428px] px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:max-w-[640px]">
-        <div className="mb-2.5 flex min-h-7 items-center justify-between gap-3">
-          {/* One node for both lines, so a screen reader hears it switch
-              from "Unsaved changes" to why Save is off, and back. */}
-          <p
-            id="save-bar-status"
-            role="status"
-            className={
-              block
-                ? 'flex min-w-0 items-center gap-2 text-[13.5px] text-error'
-                : 'flex min-w-0 items-center gap-2.5 text-[13.5px] text-text-primary'
-            }
-          >
-            {block ? (
-              <IconAlertCircle size={17} className="shrink-0" aria-hidden="true" />
-            ) : (
-              <span aria-hidden="true" className="mx-px size-[7px] shrink-0 rounded-full bg-text-primary" />
+    <div
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-50 border-t border-border bg-[#111113] shadow-[0_-18px_30px_-12px_rgba(0,0,0,0.6)]',
+        'lg:sticky lg:inset-x-auto lg:bottom-4 lg:rounded-[14px] lg:border'
+      )}
+    >
+      <div className="mx-auto flex w-full max-w-[640px] flex-wrap items-center gap-x-3 gap-y-2 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 lg:max-w-none lg:flex-nowrap lg:py-3">
+        {/* One node for both lines, so a screen reader hears it switch from
+            the changes to why Save is off, and back. */}
+        <p
+          id="save-bar-status"
+          role="status"
+          className={cn(
+            'flex min-w-0 flex-1 basis-full items-center gap-2 text-[13.5px] sm:basis-0',
+            block ? 'text-error' : 'text-text-primary'
+          )}
+        >
+          {block ? (
+            <IconAlertCircle
+              size={17}
+              className="shrink-0"
+              aria-hidden="true"
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="mx-px size-[7px] shrink-0 rounded-full bg-text-primary"
+            />
+          )}
+          <span className="min-w-0 truncate">
+            {block ?? (
+              <>
+                <span className="font-medium">{head}</span>
+                {tail && <span className="text-text-muted">{tail}</span>}
+              </>
             )}
-            <span className="min-w-0">{block ?? line}</span>
-          </p>
+          </span>
+        </p>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={onDiscard}
             disabled={saving || held}
-            className="-mr-2 min-h-11 shrink-0 rounded-[10px] px-2 text-[14px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+            className="min-h-11 shrink-0 rounded-[10px] border border-border px-3.5 text-[14px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
           >
             Discard
           </button>
+          <ScButton
+            variant="cta"
+            fullWidth={false}
+            disabled={disabled || saving || held}
+            aria-describedby="save-bar-status"
+            onClick={onSave}
+            className="min-h-11 px-4 py-2.5 font-medium"
+          >
+            {saving ? 'Saving…' : 'Save changes'}
+          </ScButton>
         </div>
-        <ScButton
-          variant="cta"
-          disabled={disabled || saving || held}
-          aria-describedby="save-bar-status"
-          onClick={onSave}
-          className="py-3.5 font-medium"
-        >
-          {saving ? 'Saving…' : 'Save changes'}
-        </ScButton>
       </div>
     </div>
+  )
+}
+
+export type SavedState = 'idle' | 'saving' | 'saved'
+
+const SAVED_NOTE_MS = 2500
+
+/**
+ * The small "Saved" for a part of the editor that saves the moment it
+ * changes (team, documents, payout, media, Hide and Show, the pin, Pause),
+ * so each says it the same way. `saved()` shows it for a moment.
+ */
+export function useSavedNote() {
+  const [state, setState] = useState<SavedState>('idle')
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clear = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = null
+  }
+  useEffect(() => clear, [])
+  const saving = useCallback(() => {
+    clear()
+    setState('saving')
+  }, [])
+  const saved = useCallback(() => {
+    clear()
+    setState('saved')
+    timer.current = setTimeout(() => setState('idle'), SAVED_NOTE_MS)
+  }, [])
+  const reset = useCallback(() => {
+    clear()
+    setState('idle')
+  }, [])
+  return { state, saving, saved, reset }
+}
+
+/**
+ * The label itself. Always mounted (a status that appears is not always
+ * read out), and empty while idle unless it has something to say then
+ * ("Saves on tap").
+ */
+export function SavedNote({
+  state,
+  idleText = '',
+  className,
+}: {
+  state: SavedState
+  idleText?: string
+  className?: string
+}) {
+  return (
+    <span
+      role="status"
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 text-[12.5px] text-text-secondary',
+        className
+      )}
+    >
+      {state === 'saved' && (
+        <IconCheck
+          size={15}
+          stroke={2}
+          className="text-success"
+          aria-hidden="true"
+        />
+      )}
+      {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : idleText}
+    </span>
   )
 }

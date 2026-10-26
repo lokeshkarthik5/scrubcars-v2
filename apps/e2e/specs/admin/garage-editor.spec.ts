@@ -1,6 +1,8 @@
 /**
- * The admin garage editor: "How customers book" above the tabs, the save bar,
- * links that open a tab, ready-made services and Write with AI.
+ * The admin garage editor: "How customers book" above the form tabs, the
+ * save bar ("N unsaved changes · fields"), links that open a tab, ready-made
+ * services and Write with AI. The two-column layout and Onboarded by are in
+ * garage-editor-layout.spec.ts.
  *
  * Everything here is on VENDORS.adminEditor, which no other file reads or
  * books. Each test puts the seeded state back first, so a retry starts where
@@ -67,7 +69,7 @@ test.describe('admin garage editor', () => {
     // as though customers could already book it.
     await expect(card).toContainText('When live, customers can book')
     await expect(card).toContainText(
-      'Not live yet: customers can’t see this garage until it’s Active and verified (Details).'
+      'Not live yet: customers can’t see this garage until it’s Active and verified.'
     )
 
     // Saved the moment it is tapped, with a quiet tick: no Save changes.
@@ -130,8 +132,9 @@ test.describe('admin garage editor', () => {
     await expect(save).toHaveCount(0)
 
     await businessName.fill(`${GARAGE.name} Renamed`)
-    await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toHaveText(
-      'Unsaved changes in Details'
+    // How many changes, then which fields.
+    await expect(page.getByRole('status').filter({ hasText: 'unsaved change' })).toHaveText(
+      '1 unsaved change · business name'
     )
     await expect(page.getByRole('tab', { name: 'Details, unsaved changes', exact: true })).toBeVisible()
     await expect(save).toBeEnabled()
@@ -176,10 +179,16 @@ test.describe('admin garage editor', () => {
     await expect(page.getByRole('tab', { name: 'Services' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('heading', { name: /^Services/ })).toBeVisible()
 
-    await page.getByRole('tab', { name: 'Operations' }).click()
+    // "Hours & booking" keeps the `?tab=` it had as Operations.
+    await page.getByRole('tab', { name: 'Hours & booking' }).click()
     await expect(page).toHaveURL(/[?&]tab=operations/)
     await page.reload()
-    await expect(page.getByRole('tab', { name: 'Operations' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Hours & booking' })).toHaveAttribute('aria-selected', 'true')
+
+    // Team & payout is a tab of its own, with its own `?tab=`.
+    await page.goto(`${EDIT}?tab=team`)
+    await expect(page.getByRole('tab', { name: 'Team & payout' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('heading', { name: 'Payout details' })).toBeVisible()
 
     // Anything else opens Details; the back arrow never leaves the panel.
     await page.goto(`${EDIT}?tab=nonsense&back=${encodeURIComponent('https://example.com')}`)
@@ -260,8 +269,8 @@ test.describe('admin garage editor', () => {
 
     // Only a draft until saved, like typed text.
     expect(await description(SERVICES.editorPolish.id)).toBeNull()
-    await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toHaveText(
-      'Unsaved changes in Services'
+    await expect(page.getByRole('status').filter({ hasText: 'unsaved change' })).toHaveText(
+      '1 unsaved change · services'
     )
     await page.getByRole('button', { name: 'Save changes' }).click()
     await expect.poll(() => description(SERVICES.editorPolish.id)).toBe(FAKE_DESCRIPTION)

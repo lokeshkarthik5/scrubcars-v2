@@ -59,6 +59,14 @@ const FIELD =
   'min-h-11 w-full min-w-0 rounded-[10px] border bg-surface px-3 text-text-primary outline-none transition-colors focus:border-text-secondary placeholder:text-text-muted'
 
 /**
+ * A service line: name, duration, prices, ⋯. Narrow: name, duration and ⋯ on
+ * the first line, the prices under them. Wide (the list 576px or more): all
+ * four side by side, like a table.
+ */
+const ROW_GRID =
+  'grid grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-x-2 gap-y-2.5 @xl:grid-cols-[minmax(0,1fr)_112px_minmax(0,264px)_44px]'
+
+/**
  * The edit page's "Photos and video" (ServiceMediaPanel: the privacy tick,
  * photos, the video and "Make a picture with AI"); the add page has none (no
  * ids yet). Saved the moment they change, so the page only takes the new list.
@@ -111,7 +119,10 @@ const isAuthError = (err: unknown) =>
 /**
  * The garage's services as a compact list, shared by Add vendor and the edit
  * page: one row per service — name, duration, and the three car-type prices
- * (or one) — with everything else behind its ⋯.
+ * (or one) — with everything else behind its ⋯. Where the list has the room
+ * (the editor's wide column) each service is one table-like line under
+ * column headings; in a narrow one the prices drop under the name. One DOM
+ * either way, laid out by a container query.
  *
  * Each service used to be a tall card of ten controls, defaulting to Flat
  * pricing, so a garage of eight services was a long scroll of dropdowns.
@@ -396,7 +407,7 @@ export function ServicesEditor({
 
       <section
         aria-labelledby="services-heading"
-        className="overflow-hidden rounded-[16px] border border-border bg-surface"
+        className="@container overflow-hidden rounded-[16px] border border-border bg-surface"
       >
         <div className="flex min-h-[22px] items-center justify-between gap-3 px-4 pb-3.5 pt-4">
           <h2
@@ -419,12 +430,18 @@ export function ServicesEditor({
                   <span className="text-[13.5px] font-medium text-text-primary">{group.label}</span>
                   <span className="font-numeric text-[12.5px] text-text-muted">{group.rows.length}</span>
                 </h3>
-                <div aria-hidden="true" className="mt-2.5 grid grid-cols-3 gap-2">
-                  {['Hatch', 'Sedan', 'SUV'].map((label) => (
-                    <span key={label} className="pl-3 text-[12px] font-medium text-text-muted">
-                      {label}
-                    </span>
-                  ))}
+                {/* Column headings, for the eye only: every input carries its
+                    own name ("Service 2 SUV price in rupees"). */}
+                <div aria-hidden="true" className={cn(ROW_GRID, 'mt-2.5 text-[12px] font-medium text-text-muted')}>
+                  <span className="hidden @xl:block">Service</span>
+                  <span className="hidden @xl:block">Duration</span>
+                  <span className="col-span-3 grid grid-cols-3 gap-2 @xl:col-span-1">
+                    {['Hatch', 'Sedan', 'SUV'].map((label) => (
+                      <span key={label} className="pl-3">
+                        {label}
+                      </span>
+                    ))}
+                  </span>
                 </div>
               </div>
               {group.rows.map(({ row, number }) => (
@@ -600,7 +617,7 @@ function ServiceRowItem({
         problem && 'bg-gradient-to-r from-warning/[0.05] to-transparent to-70%'
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className={ROW_GRID}>
         <input
           value={row.name}
           aria-label={`${label} name`}
@@ -609,17 +626,17 @@ function ServiceRowItem({
           aria-invalid={flag('name')['aria-invalid']}
           aria-describedby={flag('name')['aria-describedby']}
           className={cn(
-            'min-h-11 min-w-0 flex-1 truncate rounded-[10px] border bg-transparent px-2 -ml-2 text-[15px] font-medium tracking-[-0.01em] text-text-primary outline-none transition-colors placeholder:font-normal placeholder:text-text-muted focus:border-text-secondary focus:bg-surface',
+            'min-h-11 w-full min-w-0 truncate rounded-[10px] border bg-transparent px-2 -ml-2 text-[15px] font-medium tracking-[-0.01em] text-text-primary outline-none transition-colors placeholder:font-normal placeholder:text-text-muted focus:border-text-secondary focus:bg-surface',
             missing.includes('name') ? 'border-error' : 'border-transparent'
           )}
         />
         {/* A pill that is a native select, so a phone shows its own picker. */}
-        <div className="relative shrink-0">
+        <div className="relative shrink-0 @xl:w-full">
           <select
             value={durationValue}
             aria-label={`${label} duration`}
             onChange={(e) => onDuration(e.target.value)}
-            className="min-h-11 appearance-none rounded-full border border-border bg-transparent pl-3 pr-7 font-numeric text-[13.5px] font-medium text-text-primary outline-none transition-colors focus:border-text-secondary"
+            className="min-h-11 appearance-none @xl:w-full rounded-full border border-border bg-transparent pl-3 pr-7 font-numeric text-[13.5px] font-medium text-text-primary outline-none transition-colors focus:border-text-secondary"
           >
             <option value="">Duration</option>
             {DURATION_PRESETS.map((preset) => (
@@ -637,13 +654,37 @@ function ServiceRowItem({
             className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted"
           />
         </div>
+        {row.pricingType === 'per_vehicle' ? (
+          <div className="col-span-3 row-start-2 grid grid-cols-3 gap-2 @xl:col-span-1 @xl:col-start-3 @xl:row-start-1">
+            {priceInput('priceHatchback', `${label} hatchback price in rupees`, 'Hatch price')}
+            {priceInput('priceSedan', `${label} sedan price in rupees`, 'Sedan price')}
+            {priceInput('priceSuv', `${label} SUV price in rupees`, 'SUV price')}
+          </div>
+        ) : (
+          <div className="relative col-span-3 row-start-2 @xl:col-span-1 @xl:col-start-3 @xl:row-start-1">
+            {priceInput(
+              'price',
+              `${label} price in rupees`,
+              row.pricingType === 'on_inspection' ? 'Inspection fee' : 'Price',
+              'pr-36'
+            )}
+            {/* Says which single price this is; the pricing select below
+                says the same to a screen reader. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12.5px] text-text-muted"
+            >
+              {row.pricingType === 'on_inspection' ? 'Inspection fee' : 'Same for all cars'}
+            </span>
+          </div>
+        )}
         <button
           type="button"
           aria-expanded={open}
           aria-controls={moreId}
           aria-label={`More for ${name}`}
           onClick={onToggle}
-          className="-mr-1.5 flex size-11 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-text-primary"
+          className="col-start-3 row-start-1 flex size-11 shrink-0 @xl:col-start-4 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-text-primary"
         >
           <span
             className={cn(
@@ -680,31 +721,6 @@ function ServiceRowItem({
               </option>
             ))}
           </ScSelect>
-        </div>
-      )}
-
-      {row.pricingType === 'per_vehicle' ? (
-        <div className="mt-2.5 grid grid-cols-3 gap-2">
-          {priceInput('priceHatchback', `${label} hatchback price in rupees`, 'Hatch price')}
-          {priceInput('priceSedan', `${label} sedan price in rupees`, 'Sedan price')}
-          {priceInput('priceSuv', `${label} SUV price in rupees`, 'SUV price')}
-        </div>
-      ) : (
-        <div className="relative mt-2.5">
-          {priceInput(
-            'price',
-            `${label} price in rupees`,
-            row.pricingType === 'on_inspection' ? 'Inspection fee' : 'Price',
-            'pr-36'
-          )}
-          {/* Says which single price this is; the pricing select below
-              says the same to a screen reader. */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12.5px] text-text-muted"
-          >
-            {row.pricingType === 'on_inspection' ? 'Inspection fee' : 'Same for all cars'}
-          </span>
         </div>
       )}
 

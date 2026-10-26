@@ -28,13 +28,18 @@ import {
   type AdminService,
   type AdminVendorDetail,
   type AdminWorkingDay,
+  type ReadinessItem,
 } from '@repo/core/api/admin'
+import type { MissingKey } from '@repo/core/onboarding-marks'
 import type { ServiceMedia } from '@repo/core/types'
+import { useSavedNote } from '@/components/save-bar'
 import { useMarkGaragesStale } from '@/hooks/use-admin-today'
 import { useWarnBeforeLeaving } from '@/hooks/use-warn-before-leaving'
 import {
+  dirtyFields,
   dirtyTabs,
   garageFieldsProblem,
+  onboardedByInput,
   type EditTab,
   type TabValues,
 } from '@/lib/garage-edit'
@@ -136,6 +141,8 @@ export interface GarageDraft {
     bays: string
     jobsPerDay: string
     notes: string
+    /** Who on the team brought it in (0059); empty is Not set. */
+    onboardedByName: string
   }
   pin: PickedLocation | null
   slotIntervalMins: 30 | 45 | 60
@@ -167,6 +174,7 @@ export function toDraft(v: AdminVendorDetail): GarageDraft {
       bays: v.bays != null ? String(v.bays) : '',
       jobsPerDay: v.jobsPerDay != null ? String(v.jobsPerDay) : '',
       notes: v.notes ?? '',
+      onboardedByName: v.onboardedByName ?? '',
     },
     pin:
       v.lat != null && v.lng != null
@@ -208,9 +216,8 @@ export function tabValues(draft: GarageDraft): TabValues {
       whatsapp: trimmed(form.whatsapp),
       email: trimmed(form.email),
       yearsInOperation: trimmed(form.yearsInOperation),
-      status: draft.status,
-      isVerified: draft.isVerified,
       notes: trimmed(form.notes),
+      onboardedByName: onboardedByInput(form.onboardedByName),
     },
     location: {
       address: trimmed(form.address),
@@ -228,6 +235,9 @@ export function tabValues(draft: GarageDraft): TabValues {
       vehicleTypes: draft.vehicleTypes,
     },
     services: rowsToSave(draft.services).map(toServicePayload),
+    // The stage and Verified: in the status panel beside the tabs, saved
+    // with Save changes like the tabs.
+    golive: { status: draft.status, isVerified: draft.isVerified },
   }
 }
 
@@ -274,6 +284,17 @@ export function useGarageDraft(id: string) {
   const [pauseReasonInput, setPauseReasonInput] = useState('')
   const [pausing, setPausing] = useState(false)
   const [closures, setClosures] = useState<AdminVendorDetail['closures']>([])
+  // The server's checklist and what the garage still owes us (0059), for the
+  // status panel. Both absent from an older API.
+  const [checklist, setChecklist] = useState<{
+    readiness?: ReadinessItem[]
+    missing?: MissingKey[]
+  }>({})
+  // The small "Saved" each part that saves on its own shows.
+  const pauseNote = useSavedNote()
+  const pinNote = useSavedNote()
+  const mediaNote = useSavedNote()
+  const switchNote = useSavedNote()
   // In the Bin: the page opens read-only with a banner and Restore, since the
   // server refuses every other change to it (409 VENDOR_IN_BIN).
   const [bin, setBin] = useState<Pick<
@@ -329,6 +350,9 @@ export function useGarageDraft(id: string) {
 
   const dirty =
     saved && draft ? dirtyTabs(tabValues(saved), tabValues(draft)) : []
+  // The same, field by field, for the save bar's line.
+  const fields =
+    saved && draft ? dirtyFields(tabValues(saved), tabValues(draft)) : []
   useWarnBeforeLeaving(dirty.length > 0)
 
   /** A change to the draft. Before the first load there is nothing to change. */
@@ -431,6 +455,7 @@ export function useGarageDraft(id: string) {
       setPausedAt(v.bookingsPausedAt ?? null)
       setPausedReason(v.bookingsPausedReason ?? null)
       setClosures(v.closures ?? [])
+      setChecklist({ readiness: v.readiness, missing: v.missing })
       setBin(
         v.deletedAt
           ? {
@@ -483,20 +508,17 @@ export function useGarageDraft(id: string) {
     target?.focus({ preventScroll: true })
   }, [focusAfterSwitch])
 
-  /**
-   * The open tab, in the address too, so a reload or a shared link lands on
-   * it. Replaced rather than pushed: switching tabs is not somewhere Back
-   * should step through.
-   */
-
   // Every media action runs through here: one busy key, one error surface.
   const runMedia = async (key: string, action: () => Promise<void>) => {
     setMediaBusy(key)
     setError('')
+    mediaNote.saving()
     try {
       await action()
       markListStale()
+      mediaNote.saved()
     } catch (err) {
+      mediaNote.reset()
       if (
         err instanceof ApiError &&
         (err.status === 401 || err.status === 403)
@@ -589,6 +611,7 @@ export function useGarageDraft(id: string) {
   const setPaused = async (pause: boolean) => {
     setPausing(true)
     setError('')
+    pauseNote.saving()
     try {
       const updated = pause
         ? await pauseAdminVendor(id, pauseReasonInput.trim() || undefined)
@@ -597,7 +620,9 @@ export function useGarageDraft(id: string) {
       setPausedReason(pause ? pauseReasonInput.trim() || null : null)
       setPauseReasonInput('')
       markListStale()
+      pauseNote.saved()
     } catch (err) {
+      pauseNote.reset()
       if (
         err instanceof ApiError &&
         (err.status === 401 || err.status === 403)
@@ -622,12 +647,15 @@ export function useGarageDraft(id: string) {
       delete next[serviceId]
       return next
     })
+    switchNote.saving()
     try {
       // Set in the same breath as the busy flag clears (the finally below),
       // so focus never lands on a button that is still disabled.
       setFocusAfterSwitch(await action())
       markListStale()
+      switchNote.saved()
     } catch (err) {
+      switchNote.reset()
       if (
         err instanceof ApiError &&
         (err.status === 401 || err.status === 403)
@@ -755,6 +783,7 @@ export function useGarageDraft(id: string) {
 
     setConfirming(true)
     setError('')
+    pinNote.saving()
     try {
       const updated = await updateAdminVendor(id, {
         lat: pin.lat,
@@ -766,7 +795,9 @@ export function useGarageDraft(id: string) {
       markListStale()
       // The pin is saved now, so it is no longer an unsaved change.
       setSaved((prev) => (prev ? { ...prev, pin } : prev))
+      pinNote.saved()
     } catch (err) {
+      pinNote.reset()
       setError(
         err instanceof Error ? err.message : 'Could not confirm location'
       )
@@ -819,6 +850,11 @@ export function useGarageDraft(id: string) {
         status: draft.status,
         isVerified: draft.isVerified,
         notes: form.notes.trim() || null,
+        // Only when changed: an older API without the field never sees it,
+        // and a garage nobody touched keeps whatever it has.
+        ...(fields.some((field) => field.label === 'onboarded by') && {
+          onboardedByName: onboardedByInput(form.onboardedByName),
+        }),
         // Only when the list changed. It is the full desired set: rows with
         // an id are edited, rows without are added, and the server hides any
         // live service the list leaves out — which is why only empty,
@@ -870,6 +906,12 @@ export function useGarageDraft(id: string) {
   return {
     router,
     markListStale,
+    checklist,
+    pauseNote,
+    pinNote,
+    mediaNote,
+    switchNote,
+    fields,
     saved,
     draft,
     setSaved,

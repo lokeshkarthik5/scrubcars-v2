@@ -12,6 +12,7 @@ import {
 } from '@repo/ui/features/location-picker'
 import { Chip } from '@repo/ui/sc/chip'
 import { ScField, ScTextarea } from '@repo/ui/sc/input'
+import { ScSelect } from '@repo/ui/sc/select'
 import { Notice } from '@repo/ui/sc/notice'
 import { ScSection } from '@repo/ui/sc/section'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/sc/tabs'
@@ -22,6 +23,7 @@ import {
   type ImportFieldNote,
 } from '@repo/core/api/admin'
 import { useInvalidateAdminVendors } from '@repo/core/api/hooks/use-admin-vendors'
+import { useAdminLogins } from '@repo/core/api/hooks/use-admin-logins'
 import { VENDOR_VEHICLE_TYPE_OPTIONS } from '@repo/core/vehicles'
 import { parsePickupRadius } from '@repo/core/pickup'
 import { cn } from '@repo/core/utils'
@@ -32,7 +34,12 @@ import { ServicesEditor } from '@/components/services-editor'
 import {
   bookingModeFlags,
   garageFieldsProblem,
+  onboardedByInput,
+  onboardedBySelectValue,
   parseRadiusInput,
+  ONBOARDED_BY_MAX,
+  ONBOARDED_BY_NOT_SET,
+  ONBOARDED_BY_OTHER,
   type BookingMode,
 } from '@/lib/garage-edit'
 import {
@@ -127,6 +134,9 @@ export function GarageForm({
     'pending'
   )
   const [isVerified, setIsVerified] = useState(false)
+  // Who on the team brought the garage in: picked by hand, never filled in,
+  // as whoever adds a garage may not be who onboarded it (0059).
+  const [onboardedBy, setOnboardedBy] = useState('')
   const [services, setServices] = useState<ServiceRow[]>(
     initial?.services ?? []
   )
@@ -212,6 +222,10 @@ export function GarageForm({
         status: pendingOnly ? 'pending' : status,
         isVerified: pendingOnly ? false : isVerified,
         notes: form.notes.trim() || undefined,
+        // Left out when not set, so an API from before 0059 never sees it.
+        ...(onboardedByInput(onboardedBy) && {
+          onboardedByName: onboardedByInput(onboardedBy),
+        }),
         services: servicesToSave.length
           ? servicesToSave.map(toServicePayload)
           : undefined,
@@ -371,6 +385,7 @@ export function GarageForm({
           placeholder: 'e.g. 5–10 years',
         })}
       </div>
+      <OnboardedByField value={onboardedBy} onChange={setOnboardedBy} />
     </ScSection>
   )
 
@@ -756,6 +771,79 @@ function OwnerAccountLine({ phone }: { phone: string }) {
   return (
     <div role="status" className="text-[12px] leading-[17px]">
       {line}
+    </div>
+  )
+}
+
+/**
+ * "Onboarded by": who on the team brought the garage in (0059), shared by
+ * Add garage, the import's review and the garage editor. One of the team's
+ * logins, "Someone else…" with a name typed (up to 100 characters), or Not
+ * set. Optional, and set by hand only.
+ *
+ * Logins that are off are not offered, but a garage already credited to one
+ * keeps showing that name. Before the logins load, a stored name is offered
+ * as itself, so it does not flash up as "Someone else…".
+ */
+export function OnboardedByField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const logins = useAdminLogins()
+  const [typingOther, setTypingOther] = useState(false)
+  const current = value.trim()
+  const names = logins.data
+    ? logins.data.logins
+        .filter((login) => login.status === 'active' || login.name === current)
+        .map((login) => login.name)
+    : current
+      ? [current]
+      : []
+  const selected = onboardedBySelectValue(value, names, typingOther)
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <ScSelect
+        label="Onboarded by (optional)"
+        value={selected}
+        disabled={disabled}
+        className="min-h-11"
+        onChange={(e) => {
+          const next = e.target.value
+          if (next === ONBOARDED_BY_OTHER) {
+            setTypingOther(true)
+            // A login's name is not what is being typed: start empty.
+            if (names.includes(current)) onChange('')
+            return
+          }
+          setTypingOther(false)
+          onChange(next)
+        }}
+      >
+        <option value={ONBOARDED_BY_NOT_SET}>Not set</option>
+        {names.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+        <option value={ONBOARDED_BY_OTHER}>Someone else…</option>
+      </ScSelect>
+      {selected === ONBOARDED_BY_OTHER && (
+        <ScField
+          label="Their name"
+          value={value}
+          onChange={onChange}
+          maxLength={ONBOARDED_BY_MAX}
+          disabled={disabled}
+          placeholder="Who brought the garage in"
+          autoComplete="off"
+        />
+      )}
     </div>
   )
 }

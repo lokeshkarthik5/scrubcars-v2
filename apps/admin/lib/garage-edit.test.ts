@@ -3,8 +3,13 @@ import {
   bookingModeFlags,
   bookingModeOf,
   bookingReachLine,
+  dirtyFields,
   dirtyTabs,
   garageFieldsProblem,
+  onboardedByInput,
+  onboardedBySelectValue,
+  ONBOARDED_BY_NOT_SET,
+  ONBOARDED_BY_OTHER,
   parseEditTab,
   parsePageTab,
   PAGE_TABS,
@@ -13,7 +18,7 @@ import {
   EDIT_TABS,
   parseRadiusInput,
   safeBackHref,
-  unsavedChangesLine,
+  saveBarLine,
   type TabValues,
 } from './garage-edit'
 
@@ -25,6 +30,9 @@ describe('parsePageTab', () => {
     expect(parsePageTab('certification')).toBe('certification')
     expect(parsePageTab('certification', false)).toBe('certification')
     expect(parsePageTab('services', false)).toBe('services')
+    // Team & payout, new with the two-column editor.
+    expect(parsePageTab('team')).toBe('team')
+    expect(parsePageTab('team', false)).toBe('team')
     expect(parsePageTab('Documents')).toBe('details')
     expect(parsePageTab(undefined)).toBe('details')
   })
@@ -32,6 +40,20 @@ describe('parsePageTab', () => {
   test('only the four form tabs are Save changes’ own', () => {
     expect(PAGE_TABS.filter(isEditTab)).toEqual([...EDIT_TABS])
     expect(PAGE_TAB_LABELS.documents).toBe('Documents')
+  })
+
+  test('the tabs in order, under their names; old `?tab=` values still open them', () => {
+    expect(PAGE_TABS.map((tab) => PAGE_TAB_LABELS[tab])).toEqual([
+      'Details',
+      'Location',
+      'Hours & booking',
+      'Services',
+      'Team & payout',
+      'Documents',
+      'Certified',
+    ])
+    expect(parsePageTab('operations')).toBe('operations')
+    expect(parsePageTab('certification')).toBe('certification')
   })
 })
 
@@ -106,15 +128,92 @@ describe('dirtyTabs', () => {
   })
 })
 
-describe('unsavedChangesLine', () => {
-  test('says which tabs', () => {
-    expect(unsavedChangesLine(['services'])).toBe('Unsaved changes in Services')
-    expect(unsavedChangesLine(['operations', 'services'])).toBe(
-      'Unsaved changes in Operations and Services'
+describe('dirtyTabs and Go live', () => {
+  test('the stage and Verified are their own section, after the tabs', () => {
+    const saved: TabValues = {
+      details: { businessName: 'Foam Hub' },
+      location: {},
+      operations: {},
+      services: [],
+      golive: { status: 'pending', isVerified: false },
+    }
+    const now = structuredClone(saved)
+    now.golive = { status: 'active', isVerified: false }
+    now.details = { businessName: 'Foam Hub Adyar' }
+    expect(dirtyTabs(saved, now)).toEqual(['details', 'golive'])
+  })
+})
+
+describe('dirtyFields and saveBarLine', () => {
+  const saved: TabValues = {
+    details: { ownerName: 'Ravi', businessName: 'Foam Hub', onboardedByName: null },
+    location: { address: '1, Main Road', lat: 13.05, lng: 80.25 },
+    operations: { hours: [{ dayOfWeek: 6, closeTime: '13:00' }], bays: '2' },
+    services: [{ id: 's1', name: 'Foam wash', price: 450 }],
+    golive: { status: 'pending', isVerified: false },
+  }
+
+  test('nothing changed: no fields, and the bar says so', () => {
+    expect(dirtyFields(saved, structuredClone(saved))).toEqual([])
+    expect(saveBarLine([])).toBe('No unsaved changes')
+  })
+
+  test('one change names its field', () => {
+    const now = structuredClone(saved)
+    now.details = { ...(saved.details as object), businessName: 'Foam Hub Adyar' }
+    const fields = dirtyFields(saved, now)
+    expect(fields).toEqual([{ tab: 'details', label: 'business name' }])
+    expect(saveBarLine(fields)).toBe('1 unsaved change · business name')
+  })
+
+  test('each field once, in tab order; the pin is one field; services one change', () => {
+    const now = structuredClone(saved) as Record<string, unknown>
+    now.location = { address: '2, Main Road', lat: 13.06, lng: 80.26 }
+    now.operations = { hours: [{ dayOfWeek: 6, closeTime: '14:00' }], bays: '3' }
+    now.services = [{ id: 's1', name: 'Foam wash', price: 500 }, { name: 'Body wash' }]
+    now.golive = { status: 'active', isVerified: true }
+    now.details = { ...(saved.details as object), onboardedByName: 'E2E Admin' }
+    const fields = dirtyFields(saved, now as TabValues)
+    expect(fields).toEqual([
+      { tab: 'details', label: 'onboarded by' },
+      { tab: 'location', label: 'address' },
+      { tab: 'location', label: 'map pin' },
+      { tab: 'operations', label: 'hours' },
+      { tab: 'operations', label: 'bays' },
+      { tab: 'services', label: 'services' },
+      { tab: 'golive', label: 'stage' },
+      { tab: 'golive', label: 'verified' },
+    ])
+    expect(saveBarLine(fields)).toBe(
+      '8 unsaved changes · onboarded by, address, map pin, hours, bays, services, stage, verified'
     )
-    expect(unsavedChangesLine(['details', 'location', 'services'])).toBe(
-      'Unsaved changes in Details, Location and Services'
-    )
+  })
+
+  test('a field put back is clean again; key order and undefined do not count', () => {
+    const now = structuredClone(saved)
+    now.location = { lng: 80.25, lat: 13.05, address: '1, Main Road', mapsUrl: undefined }
+    expect(dirtyFields(saved, now)).toEqual([])
+  })
+})
+
+describe('Onboarded by', () => {
+  const logins = ['E2E Admin', 'E2E Collector']
+
+  test('the select shows the login, Someone else, or Not set', () => {
+    expect(onboardedBySelectValue('E2E Admin', logins, false)).toBe('E2E Admin')
+    expect(onboardedBySelectValue(' E2E Admin ', logins, false)).toBe('E2E Admin')
+    expect(onboardedBySelectValue('Priya from the shop', logins, false)).toBe(ONBOARDED_BY_OTHER)
+    expect(onboardedBySelectValue('', logins, false)).toBe(ONBOARDED_BY_NOT_SET)
+    // Someone else picked and nothing typed yet: still Someone else.
+    expect(onboardedBySelectValue('', logins, true)).toBe(ONBOARDED_BY_OTHER)
+    // A login that has gone since reads as free text, not as Not set.
+    expect(onboardedBySelectValue('E2E Admin', [], false)).toBe(ONBOARDED_BY_OTHER)
+  })
+
+  test('saved trimmed, at most 100 characters, and empty is null', () => {
+    expect(onboardedByInput('  Raga ')).toBe('Raga')
+    expect(onboardedByInput('   ')).toBeNull()
+    expect(onboardedByInput('x'.repeat(120))).toHaveLength(100)
   })
 })
 
