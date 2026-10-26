@@ -509,6 +509,8 @@ export const STAFF = {
   marksAOwner: { id: id(4152), phone: '9000004151', name: 'Marks Owner Anbu' },
   /** Owns VENDORS.marksB only (onboarding marks, 0059; the 4150–4199 range). */
   marksBOwner: { id: id(4156), phone: '9000004155', name: 'Marks Owner Bala' },
+  /** Owns VENDORS.marksC only (the garage editor layout spec, 0059). */
+  marksCOwner: { id: id(4166), phone: '9000004165', name: 'Marks Owner Chitra' },
 } as const
 
 export const VENDORS = {
@@ -749,6 +751,12 @@ export const VENDORS = {
    * onboarded by "E2E Admin".
    */
   marksB: { id: id(4155), name: 'Marks Test Garage B', onboardedByName: 'E2E Admin' },
+  /**
+   * marksC: a copy of marksB for specs/admin/garage-editor-layout.spec.ts
+   * only, which changes its Onboarded by and discards a stage change; kept
+   * apart so the marks and team specs can rely on marksB never changing.
+   */
+  marksC: { id: id(4165), name: 'Marks Test Garage C', onboardedByName: 'E2E Admin' },
 } as const
 
 /** VENDORS.contact's own numbers (contact windows), different on purpose. */
@@ -913,6 +921,7 @@ export const SERVICES = {
   /** VENDORS.marksA's and marksB's one wash each (0059). */
   marksAWash: { id: id(4153), name: 'Marks A Foam Wash', price: '500.00', durationMins: 30 },
   marksBWash: { id: id(4157), name: 'Marks B Foam Wash', price: '500.00', durationMins: 30 },
+  marksCWash: { id: id(4167), name: 'Marks C Foam Wash', price: '500.00', durationMins: 30 },
 } as const
 
 export const DISCOUNTS = {

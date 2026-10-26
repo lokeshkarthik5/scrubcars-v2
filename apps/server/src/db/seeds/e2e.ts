@@ -2674,16 +2674,29 @@ async function seedMarksRows() {
       doorstepEnabled: false, dropinEnabled: true,
       onboardedByName: VENDORS.marksB.onboardedByName,
     },
+    {
+      ...garage, ...pin(2), id: VENDORS.marksC.id, ownerId: STAFF.marksCOwner.id,
+      businessName: VENDORS.marksC.name, phone: STAFF.marksCOwner.phone,
+      address: '3, Marks Road, Porur', bays: null,
+      logoUrl: `http://localhost:9000/detlio-e2e/vendors/${VENDORS.marksC.id}/logo/seed.png`,
+      doorstepEnabled: false, dropinEnabled: true,
+      onboardedByName: VENDORS.marksC.onboardedByName,
+    },
   ])
   await db.insert(userMemberMapping).values([
     { vendorId: VENDORS.marksA.id, userId: STAFF.marksAOwner.id, role: 'vendor_admin', status: 'active' },
     { vendorId: VENDORS.marksB.id, userId: STAFF.marksBOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.marksC.id, userId: STAFF.marksCOwner.id, role: 'vendor_admin', status: 'active' },
   ])
   await db.insert(vendorWorkingHours).values([
     ...hoursFor(VENDORS.marksA.id, '06:00:00', '22:00:00'),
     ...hoursFor(VENDORS.marksB.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.marksC.id, '06:00:00', '22:00:00'),
   ])
-  const wash = (service: typeof SERVICES.marksAWash | typeof SERVICES.marksBWash, vendorId: string) => ({
+  const wash = (
+    service: typeof SERVICES.marksAWash | typeof SERVICES.marksBWash | typeof SERVICES.marksCWash,
+    vendorId: string
+  ) => ({
     id: service.id, vendorId, name: service.name,
     description: 'An exterior foam wash and dry.', category: 'car_wash' as const,
     pricingType: 'flat' as const, price: service.price, durationMins: service.durationMins, isActive: true,
@@ -2691,11 +2704,13 @@ async function seedMarksRows() {
   await db.insert(services).values([
     wash(SERVICES.marksAWash, VENDORS.marksA.id),
     wash(SERVICES.marksBWash, VENDORS.marksB.id),
+    wash(SERVICES.marksCWash, VENDORS.marksC.id),
   ])
   // UPI is enough to be paid (lib/vendor-missing.ts payoutUsable).
-  await db.insert(vendorPayoutAccounts).values({
-    vendorId: VENDORS.marksB.id, upiId: 'marksb@upi', updatedBy: 'E2E seed',
-  })
+  await db.insert(vendorPayoutAccounts).values([
+    { vendorId: VENDORS.marksB.id, upiId: 'marksb@upi', updatedBy: 'E2E seed' },
+    { vendorId: VENDORS.marksC.id, upiId: 'marksc@upi', updatedBy: 'E2E seed' },
+  ])
   const approved = (vendorId: string) =>
     (['shop_photo', 'owner_id', 'bank_proof', 'agreement'] as const).map((type) => ({
       vendorId, type, status: 'approved' as const,
@@ -2705,6 +2720,7 @@ async function seedMarksRows() {
   await db.insert(vendorDocuments).values([
     ...approved(VENDORS.marksA.id),
     ...approved(VENDORS.marksB.id),
+    ...approved(VENDORS.marksC.id),
   ])
 }
 

@@ -3,23 +3,20 @@
  * checklist switches tabs, Go live holds the stage and Verified in the
  * draft), the tabs and one save bar on the right, and "Onboarded by".
  *
- * Everything here is on VENDORS.marksB (0059's fixtures: live, verified,
+ * Everything here is on VENDORS.marksC, a copy of marksB kept for this spec
+ * alone (live, verified,
  * missing photos and bays, onboarded by "E2E Admin"). The stage is only
  * changed and discarded, never saved, so the garage stays live; Onboarded
  * by is put back to "E2E Admin" before and after.
  */
 import { test, expect, asRole } from '../../support/fixtures'
 import { sql } from '../../support/db'
-import { ADMIN_LOGINS } from '../../support/seed-ids'
+import { ADMIN_LOGINS, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('admin') })
 
-// VENDORS.marksB, seeded by W1 (ids 4150–4199). Spelled out until e2e-ids.ts
-// has it on this branch; use VENDORS.marksB once it does.
-const GARAGE = {
-  id: 'e2e00000-0000-4000-8000-000000004155',
-  name: 'Marks Test Garage B',
-}
+// Its own garage: the marks and team specs rely on marksB never changing.
+const GARAGE = VENDORS.marksC
 const EDIT = `/vendors/${GARAGE.id}/edit`
 const SEEDED_BY = ADMIN_LOGINS.e2e.name
 
