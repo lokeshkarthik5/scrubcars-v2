@@ -66,7 +66,11 @@ import { vendorInBin } from '../../lib/vendor-bin.js'
 import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
-import { adminRepository, type BookingViewWindow } from './admin.repository.js'
+import {
+  adminRepository,
+  type BookingFilterSet,
+  type BookingViewWindow,
+} from './admin.repository.js'
 import { rewardsService } from '../rewards/rewards.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
@@ -647,6 +651,28 @@ async function bookingViewWindow(
     refundOwedIds: [
       ...new Set(owed.flatMap((refund) => (refund.bookingId ? [refund.bookingId] : []))),
     ],
+  }
+}
+
+/**
+ * The bookings list's filters (0059) as the repository reads them, the same
+ * for the list and its views' counts.
+ */
+function bookingFilterSet(
+  query: BookingViewCountsQuery,
+  refundOwedIds: readonly string[]
+): BookingFilterSet {
+  const { start, end } = istDateRange(query.from, query.to)
+  return {
+    status: query.status,
+    vendorId: query.vendorId,
+    search: parseBookingSearch(query.q),
+    start,
+    end,
+    test: query.test,
+    bookingType: query.bookingType,
+    payment: query.payment,
+    refundOwedIds,
   }
 }
 
@@ -1295,20 +1321,17 @@ export const adminService = {
   },
 
   async listBookings(query: ListBookingsQuery, now = Date.now()) {
-    const { start, end } = istDateRange(query.from, query.to)
+    // The refunds owed are read only when a rule needs them.
+    const window =
+      query.view || query.payment === 'refund_owed'
+        ? await bookingViewWindow(
+            now,
+            query.view === 'needs_action' || query.payment === 'refund_owed'
+          )
+        : null
     const ids = await adminRepository.searchBookingIds({
-      status: query.status,
-      vendorId: query.vendorId,
-      ...(query.view && {
-        view: {
-          kind: query.view,
-          window: await bookingViewWindow(now, query.view === 'needs_action'),
-        },
-      }),
-      search: parseBookingSearch(query.q),
-      start,
-      end,
-      test: query.test,
+      ...bookingFilterSet(query, window?.refundOwedIds ?? []),
+      ...(query.view && window && { view: { kind: query.view, window } }),
       after: query.cursor ?? null,
       limit: query.limit,
       offset: query.cursor ? 0 : (query.page - 1) * query.limit,
@@ -1331,17 +1354,15 @@ export const adminService = {
   },
 
   /**
-   * How many bookings each saved view holds (0059), under the list's search,
-   * garage and Test filters. One count query, after the refunds owed.
+   * How many bookings each saved view holds (0059), under every filter the
+   * list has, so a chip's count is the rows it lists. One count query,
+   * after the refunds owed.
    */
   async bookingViewCounts(query: BookingViewCountsQuery, now = Date.now()) {
+    const window = await bookingViewWindow(now, true)
     return adminRepository.countBookingViews(
-      {
-        vendorId: query.vendorId,
-        search: parseBookingSearch(query.q),
-        test: query.test,
-      },
-      await bookingViewWindow(now, true)
+      bookingFilterSet(query, window.refundOwedIds),
+      window
     )
   },
 

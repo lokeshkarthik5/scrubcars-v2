@@ -304,6 +304,42 @@ const istDateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Dates must be YYYY-MM-DD')
   .refine(isCalendarDate, 'That date does not exist')
 
+/** How the car is served (0059 filters). */
+export const BOOKING_TYPES = ['dropin', 'doorstep', 'pickup'] as const
+
+/**
+ * Payment (0059 filters): `paid` online, `pay_later` (on or done with no
+ * money in yet, to pay in the app or at the garage) and `refund_owed` (the
+ * same refunds owed as needs_action). The rules: paymentCondition in
+ * admin.repository.ts.
+ */
+export const BOOKING_PAYMENTS = ['paid', 'pay_later', 'refund_owed'] as const
+
+/**
+ * The filters the list and its views' counts share, so a chip's count is
+ * the rows that chip lists.
+ */
+const bookingFilterShape = {
+  status: z
+    .enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
+    .optional(),
+  q: z.string().trim().max(100).optional(),
+  vendorId: z.string().uuid().optional(),
+  from: istDateSchema.optional(),
+  to: istDateSchema.optional(),
+  // Bookings ops marked "Test": only those, or all but those.
+  test: z.enum(['only', 'hide']).optional(),
+  bookingType: z.enum(BOOKING_TYPES).optional(),
+  payment: z.enum(BOOKING_PAYMENTS).optional(),
+}
+
+const fromBeforeTo = (data: { from?: string; to?: string }) =>
+  !data.from || !data.to || data.from <= data.to
+const fromBeforeToError = {
+  message: "'from' must be on or before 'to'",
+  path: ['from'],
+}
+
 /**
  * Every param is optional, so the panel built before search existed — which
  * sends `status` alone, or nothing — still gets the list it expects.
@@ -318,15 +354,7 @@ const istDateSchema = z
  */
 export const listBookingsQuerySchema = z
   .object({
-    status: z
-      .enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
-      .optional(),
-    q: z.string().trim().max(100).optional(),
-    vendorId: z.string().uuid().optional(),
-    from: istDateSchema.optional(),
-    to: istDateSchema.optional(),
-    // Bookings ops marked "Test": only those, or all but those.
-    test: z.enum(['only', 'hide']).optional(),
+    ...bookingFilterShape,
     // A saved view (0059, BOOKING_VIEWS); left out is All.
     // Today and Upcoming sort soonest first, so their cursor runs forwards.
     view: z.enum(BOOKING_VIEWS).optional(),
@@ -345,19 +373,17 @@ export const listBookingsQuerySchema = z
       })
       .optional(),
   })
-  .refine((data) => !data.from || !data.to || data.from <= data.to, {
-    message: "'from' must be on or before 'to'",
-    path: ['from'],
-  })
+  .refine(fromBeforeTo, fromBeforeToError)
 
 export const bookingIdParamSchema = z.object({ id: z.string().uuid() })
 
-/** GET /admin/bookings/views: the same search, garage and Test filters as the list. */
-export const bookingViewCountsQuerySchema = z.object({
-  q: z.string().trim().max(100).optional(),
-  vendorId: z.string().uuid().optional(),
-  test: z.enum(['only', 'hide']).optional(),
-})
+/**
+ * GET /admin/bookings/views: every filter the list has (status, search,
+ * garage, dates, Test, type and payment), so the counts agree with the rows.
+ */
+export const bookingViewCountsQuerySchema = z
+  .object(bookingFilterShape)
+  .refine(fromBeforeTo, fromBeforeToError)
 
 /**
  * The reason is required: an admin cancellation is always someone's decision

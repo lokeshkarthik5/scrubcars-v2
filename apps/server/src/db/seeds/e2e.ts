@@ -2649,6 +2649,8 @@ async function seedAdminLoginRows() {
  * missing exactly what VENDORS says, so the Missing keys are exact. Every
  * required document approved (documents are on in E2E) so "documents" is
  * never among them. No marks or lists are seeded: the specs make their own.
+ * marksA is the newest of the three by a minute each, so the Garages list
+ * (newest first) always puts it first: the marks UI spec's "Open next".
  */
 async function seedMarksRows() {
   const pin = (n: number) => ({
@@ -2665,6 +2667,7 @@ async function seedMarksRows() {
       businessName: VENDORS.marksA.name, phone: STAFF.marksAOwner.phone,
       address: '1, Marks Road, Porur', bays: 2, logoUrl: null,
       doorstepEnabled: true, dropinEnabled: true, doorstepRadiusKm: null,
+      createdAt: now,
     },
     {
       ...garage, ...pin(1), id: VENDORS.marksB.id, ownerId: STAFF.marksBOwner.id,
@@ -2673,6 +2676,7 @@ async function seedMarksRows() {
       logoUrl: `http://localhost:9000/detlio-e2e/vendors/${VENDORS.marksB.id}/logo/seed.png`,
       doorstepEnabled: false, dropinEnabled: true,
       onboardedByName: VENDORS.marksB.onboardedByName,
+      createdAt: new Date(now.getTime() - MINUTE),
     },
     {
       ...garage, ...pin(2), id: VENDORS.marksC.id, ownerId: STAFF.marksCOwner.id,
@@ -2681,6 +2685,7 @@ async function seedMarksRows() {
       logoUrl: `http://localhost:9000/detlio-e2e/vendors/${VENDORS.marksC.id}/logo/seed.png`,
       doorstepEnabled: false, dropinEnabled: true,
       onboardedByName: VENDORS.marksC.onboardedByName,
+      createdAt: new Date(now.getTime() - 2 * MINUTE),
     },
   ])
   await db.insert(userMemberMapping).values([

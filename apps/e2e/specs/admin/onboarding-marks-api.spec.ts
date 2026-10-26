@@ -5,9 +5,10 @@
  *
  * VENDORS.marksA and marksB miss exactly what e2e-ids.ts says. The marks UI
  * spec (onboarding-marks.spec.ts) works the same garages at the same time,
- * so this one sticks to kinds those garages do not miss (marksB's logo and
- * hours, which the UI never offers) and custom marks, and deletes what it
- * made. Its collection list is closed at the end.
+ * so this one makes marks only on marksB (the UI spec deletes and counts
+ * marks on marksA alone), sticks to kinds marksB does not miss (its logo
+ * and hours, which the UI never offers) and custom marks, and deletes what
+ * it made. Its collection list is closed at the end, whatever happens.
  */
 import { request, type APIRequestContext } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
@@ -205,30 +206,34 @@ test.describe('onboarding marks API @p0', () => {
     })
     expect(created.status()).toBe(201)
     const [list] = (await created.json()).data.lists
-    expect(list).toMatchObject({
-      assigneeLoginId: ADMIN_LOGINS.collector.id,
-      assigneeName: ADMIN_LOGINS.collector.name,
-      createdByName: ADMIN_LOGINS.e2e.name,
-      telegramSentAt: null,
-      open: true,
-      progress: { done: 1, total: 4 },
-    })
-    expect(list.garages.map((g: { id: string }) => g.id)).toEqual([A, B])
-    const garageA = list.garages[0]
-    expect(garageA).toMatchObject({
-      businessName: VENDORS.marksA.name,
-      ownerPhone: '9000004151',
-    })
-    expect(garageA.mapsUrl).toMatch(/^https:\/\/www\.google\.com\/maps\//)
-    expect(
-      list.items.find((i: { kind: string }) => i.kind === 'logo').cleared
-    ).toBe(true)
-
-    const collector = await signIn(
-      ADMIN_LOGINS.collector.username,
-      ADMIN_LOGINS.collector.password
-    )
+    // Closed whatever happens below, so a failure leaves no open list behind.
+    let collector: APIRequestContext | undefined
     try {
+      expect(list).toMatchObject({
+        assigneeLoginId: ADMIN_LOGINS.collector.id,
+        assigneeName: ADMIN_LOGINS.collector.name,
+        createdByName: ADMIN_LOGINS.e2e.name,
+        telegramSentAt: null,
+        open: true,
+        progress: { done: 1, total: 4 },
+      })
+      expect(list.garages.map((g: { id: string }) => g.id)).toEqual([A, B])
+      const garageA = list.garages[0]
+      expect(garageA).toMatchObject({
+        businessName: VENDORS.marksA.name,
+        ownerPhone: '9000004151',
+        // Pinned outside the service city: its area is its city.
+        area: 'Chennai',
+      })
+      expect(garageA.mapsUrl).toMatch(/^https:\/\/www\.google\.com\/maps\//)
+      expect(
+        list.items.find((i: { kind: string }) => i.kind === 'logo').cleared
+      ).toBe(true)
+
+      collector = await signIn(
+        ADMIN_LOGINS.collector.username,
+        ADMIN_LOGINS.collector.password
+      )
       const all = (
         await (
           await page.request.get(
@@ -277,7 +282,8 @@ test.describe('onboarding marks API @p0', () => {
       ).toEqual({ done: 2, total: 4 })
 
       // The Garages list carries each garage's place on an open list (the
-      // newest, which may be another spec's).
+      // one due first where it still has things left, which may be another
+      // spec's).
       const vendors = (
         await (await page.request.get(`${ADMIN}/vendors`)).json()
       ).data as Array<{ id: string; openCollection: unknown }>
@@ -295,7 +301,7 @@ test.describe('onboarding marks API @p0', () => {
         id: list.id,
         open: false,
       })
-      await collector.dispose()
+      await collector?.dispose()
     }
   })
 })

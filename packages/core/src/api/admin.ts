@@ -133,8 +133,10 @@ export interface AdminVendor {
 }
 
 /**
- * A garage's place on an open collection list (0059): that list's items for
- * this garage only. On two open lists, the one due first.
+ * A garage's place on an open collection list (0059): among the open lists
+ * where this garage still has something to collect, the one due first (no
+ * due date last; the newest on a tie). `done` and `total` are that list's
+ * items for this garage only. Null once nothing is left for it anywhere.
  */
 export interface AdminVendorCollection {
   listId: string
