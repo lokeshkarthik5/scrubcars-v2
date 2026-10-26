@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
 import {
@@ -42,6 +42,15 @@ import {
   type TodayTask,
   type TodayTaskKind,
 } from '@/lib/today'
+import {
+  CollectionLists,
+  listsLine,
+  MyListsBanner,
+  parseTodayView,
+  TodayViewSwitch,
+  useTodayCollection,
+  type TodayView,
+} from './collection-lists'
 
 const KIND_ICON: Record<TodayTaskKind, typeof IconCalendar> = {
   booking_waiting: IconCalendar,
@@ -545,6 +554,82 @@ function TodaySkeleton() {
  * schedule; and the garages' state. Refreshed every minute.
  */
 export default function TodayPage() {
+  // useSearchParams (?list=, ?view=) needs a Suspense boundary, or Next.js
+  // refuses to prerender the page.
+  return (
+    <Suspense fallback={<TodaySkeleton />}>
+      <TodayScreen />
+    </Suspense>
+  )
+}
+
+/**
+ * Today's three views: the inbox (the default), Mine (my collection lists,
+ * mockup 07 panel 5) and All lists (everyone's; the shared login has none of
+ * its own). `?list=<id>` opens the list, in Mine when it is mine.
+ */
+function TodayScreen() {
+  const params = useSearchParams()
+  const listParam = params.get('list')
+  const collection = useTodayCollection(listParam)
+  const [picked, setPicked] = useState<TodayView | null>(null)
+  const view =
+    picked ?? parseTodayView(params.get('view')) ?? collection.defaultView
+
+  const switcher = collection.available ? (
+    <TodayViewSwitch
+      value={view}
+      onChange={setPicked}
+      mineCount={collection.mine.data ? collection.mineLists.length : null}
+      allCount={collection.all.data ? collection.all.data.lists.length : null}
+    />
+  ) : null
+
+  if (view === 'inbox') {
+    return (
+      <TodayInbox
+        switcher={switcher}
+        banner={
+          <MyListsBanner
+            lists={collection.mineLists}
+            onOpen={() => setPicked('mine')}
+          />
+        }
+      />
+    )
+  }
+
+  const query = view === 'mine' ? collection.mine : collection.all
+  return (
+    <>
+      <header className="flex flex-col gap-1">
+        <h1 className="text-[24px] font-semibold tracking-[-0.01em] text-text-primary md:text-[28px]">
+          {view === 'mine' ? 'My collection lists' : 'Collection lists'}
+        </h1>
+        <p className="text-[13px] text-text-secondary">
+          {query.data
+            ? listsLine(query.data.lists)
+            : 'Things to collect from garages, ticked as they come in'}
+        </p>
+      </header>
+      {switcher}
+      <CollectionLists
+        view={view}
+        query={query}
+        highlight={listParam}
+        onShowAll={() => setPicked('all')}
+      />
+    </>
+  )
+}
+
+function TodayInbox({
+  switcher,
+  banner,
+}: {
+  switcher: React.ReactNode
+  banner: React.ReactNode
+}) {
   const router = useRouter()
   const { data, error, isPending, refetch, isRefetching, dataUpdatedAt } =
     useAdminToday()
@@ -557,11 +642,14 @@ export default function TodayPage() {
   if (isPending) return <TodaySkeleton />
   if (!data) {
     return (
-      <LoadError
-        what="today’s tasks"
-        onRetry={() => void refetch()}
-        retrying={isRefetching}
-      />
+      <>
+        {switcher}
+        <LoadError
+          what="today’s tasks"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      </>
     )
   }
 
@@ -596,6 +684,9 @@ export default function TodayPage() {
           {isRefetching ? ' · refreshing…' : ' · refreshes every minute'}
         </p>
       </header>
+
+      {switcher}
+      {banner}
 
       <Headline summary={data} />
 
