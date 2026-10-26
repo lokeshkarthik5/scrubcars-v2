@@ -59,9 +59,21 @@ test.describe('admin bookings @p0', () => {
     await expect(
       page.getByRole('link', { name: /^Open booking #/ })
     ).toHaveCount(1)
-    // Pending and paid 45 minutes ago: past the 30-minute mark.
+    // Pending and paid 45 minutes ago: past the 30-minute mark, said in
+    // the Next step column.
     await expect(page.getByText(/Waiting\s+\d/).first()).toBeVisible()
-    await expect(page.getByText('pay_seed_ops_waiting')).toBeVisible()
+    // The Razorpay payment id is in the side panel the row opens.
+    await page.getByRole('button', { name: `Details for #${ref}` }).click()
+    const details = page.getByRole('complementary', { name: 'Booking details' })
+    await expect(details.getByText('pay_seed_ops_waiting')).toBeVisible()
+    await expect(
+      details.getByRole('link', { name: 'Open full page' })
+    ).toHaveAttribute(
+      'href',
+      new RegExp(`/bookings/${BOOKINGS.adminOpsWaiting}\\?back=`)
+    )
+    await page.keyboard.press('Escape')
+    await expect(details).toHaveCount(0)
     // The search lives in the URL, so coming back from a booking keeps it.
     await expect(page).toHaveURL(new RegExp(`q=%23${ref}`))
 

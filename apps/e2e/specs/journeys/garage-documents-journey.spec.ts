@@ -167,7 +167,7 @@ test.describe.serial('garage documents @p0', () => {
       'aria-pressed',
       'true'
     )
-    const card = page.getByRole('group', { name: GARAGE.name, exact: true })
+    const card = page.getByRole('row', { name: GARAGE.name, exact: true })
     await expect(card.getByText('4 documents to review')).toBeVisible()
     await card.getByRole('link', { name: '4 documents to review' }).click()
 

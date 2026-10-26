@@ -32,6 +32,7 @@ import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { FindAnything } from '@/components/find-anything'
+import { isWidePage } from '@/lib/admin-table'
 import {
   breadcrumb,
   isActive,
@@ -481,7 +482,12 @@ function Breadcrumb() {
       aria-label="Breadcrumb"
       className="hidden border-b border-border px-6 py-3 md:block"
     >
-      <ol className="mx-auto flex w-full max-w-[1100px] items-center gap-1 text-[13px]">
+      <ol
+        className={cn(
+          'mx-auto flex w-full items-center gap-1 text-[13px]',
+          isWidePage(pathname) ? 'max-w-[1600px]' : 'max-w-[1100px]'
+        )}
+      >
         {/* "Garages › Garages" says nothing twice. */}
         {crumb.group && crumb.group !== crumb.page && (
           <li className="flex items-center gap-1 text-text-secondary">
@@ -517,6 +523,9 @@ export function AdminShell({
   onLogout?: () => void
   children: React.ReactNode
 }) {
+  // Bookings, Garages and the garage editor are tables and two-column
+  // forms: the reading column would cut them short.
+  const wide = isWidePage(usePathname())
   return (
     <div className="flex min-h-dvh w-full bg-brand-black text-text-primary">
       <Sidebar
@@ -530,7 +539,8 @@ export function AdminShell({
         <Breadcrumb />
         <main
           className={cn(
-            'mx-auto flex w-full max-w-[1100px] flex-1 flex-col gap-5 px-4 py-4 md:px-6 md:py-6',
+            'mx-auto flex w-full flex-1 flex-col gap-5 px-4 py-4 md:px-6 md:py-6',
+            wide ? 'max-w-[1600px]' : 'max-w-[1100px]',
             // Clear the phone's bar; on a laptop it is gone.
             'pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6'
           )}
