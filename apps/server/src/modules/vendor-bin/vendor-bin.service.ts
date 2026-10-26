@@ -480,6 +480,9 @@ export const vendorBinService = {
           // And its quality checks and certification (a deleted garage's go
           // by cascade).
           await repo.deleteCertification(id)
+          // And its onboarding marks and collection items (0059; a deleted
+          // garage's go by cascade).
+          await repo.deleteOnboardingRecords(id)
           await repo.makeTombstone(id, tombstoneFields(now))
         }
         if (deletingGarage) await syncOwnerFlags(repo, seatHolders)

@@ -15,6 +15,7 @@ import type {
   GrantSuperAdminInput,
   CreateVendorInput,
   ListBookingsQuery,
+  BookingViewCountsQuery,
   MarkNoShowInput,
   LoginInput,
   PickupStepOverrideInput,
@@ -162,6 +163,12 @@ export async function getPilotStats(c: AdminContext, query: PilotStatsQuery) {
 export async function listBookings(c: AdminContext, query: ListBookingsQuery) {
   const bookings = await adminService.listBookings(query)
   return c.json({ success: true, data: bookings })
+}
+
+/** The saved views' counts (0059): { needs_action, today, …, all }. */
+export async function bookingViewCounts(c: AdminContext, query: BookingViewCountsQuery) {
+  const counts = await adminService.bookingViewCounts(query)
+  return c.json({ success: true, data: counts })
 }
 
 export async function getBooking(c: AdminContext, id: string) {

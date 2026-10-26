@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   exists,
+  gt,
   gte,
   ilike,
   inArray,
@@ -25,6 +26,7 @@ import {
 } from '../../lib/booking-ops.js'
 import { containsPattern } from '../../lib/search.js'
 import { NOT_IN_BIN } from '../vendors/vendors.predicates.js'
+import type { BookingView } from './admin.validation.js'
 import {
   bookingCharges,
   bookingTimeProposals,
@@ -55,9 +57,104 @@ export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number]
 export type CancelledOnBehalfOf = (typeof cancelledOnBehalfOfEnum.enumValues)[number]
 export type NoShowParty = (typeof noShowPartyEnum.enumValues)[number]
 
+/**
+ * A saved view's rule (0059; BOOKING_VIEWS in admin.validation.ts), with the
+ * moments and ids it needs worked out by the service.
+ */
+export interface BookingViewWindow {
+  /** Today's IST day, [start, end). */
+  todayStart: Date
+  todayEnd: Date
+  /** Waiting bookings count from here on (Today's rule: a day back). */
+  waitingAfter: Date
+  /** Bookings with a refund owed (lib/refunds.ts, the Refunds page's rule). */
+  refundOwedIds: string[]
+}
+
+/** Views that run soonest first. */
+const ASCENDING_VIEWS: ReadonlySet<BookingView> = new Set(['today', 'upcoming'])
+
+const LIVE_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'in_progress']
+
+/** The rule of one saved view, over `bookings`. */
+function viewCondition(view: BookingView, w: BookingViewWindow): SQL {
+  switch (view) {
+    case 'needs_action': {
+      // Paid, waiting for the garage, not Test: Today's waitingWhere.
+      const waiting = and(
+        eq(bookings.status, 'pending'),
+        isNull(bookings.markedTestAt),
+        gt(bookings.scheduledAt, w.waitingAfter),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(payments)
+            .where(and(eq(payments.bookingId, bookings.id), eq(payments.status, 'paid')))
+        )
+      )!
+      return w.refundOwedIds.length > 0
+        ? or(waiting, inArray(bookings.id, w.refundOwedIds))!
+        : waiting
+    }
+    case 'today':
+      return and(
+        gte(bookings.scheduledAt, w.todayStart),
+        lt(bookings.scheduledAt, w.todayEnd),
+        ne(bookings.status, 'rescheduled')
+      )!
+    case 'upcoming':
+      return and(
+        gte(bookings.scheduledAt, w.todayEnd),
+        inArray(bookings.status, LIVE_STATUSES)
+      )!
+    case 'completed':
+      return eq(bookings.status, 'completed')
+    case 'cancelled':
+      return eq(bookings.status, 'cancelled')
+  }
+}
+
+/** The search's match on a booking, its customer and its garage. */
+function searchCondition(search: BookingSearch): SQL {
+  const { text, idPrefix, phoneDigits, receiptNumber } = search
+  const matches: SQL[] = [
+    ilike(users.name, containsPattern(text)),
+    ilike(vendors.businessName, containsPattern(text)),
+  ]
+  // Ids are stored lowercase, so the prefix is lowercased by the parser and
+  // compared as plain text.
+  if (idPrefix) matches.push(sql`${bookings.id}::text like ${`${idPrefix}%`}`)
+  if (phoneDigits) matches.push(like(users.phone, containsPattern(phoneDigits)))
+  // A receipt number belongs to the first booking of a reschedule chain,
+  // so it finds every booking of the chain: the one the customer holds now
+  // and the ones it was moved from. Compared exactly: the parser has
+  // already rebuilt it in the stored shape, whatever was typed.
+  if (receiptNumber) {
+    matches.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(receiptNumbers)
+          .where(
+            and(
+              eq(receiptNumbers.number, receiptNumber),
+              eq(
+                receiptNumbers.rootBookingId,
+                sql`coalesce(${bookings.originalBookingId}, ${bookings.id})`
+              )
+            )
+          )
+      )
+    )
+  }
+  return or(...matches)!
+}
+
 export interface BookingListFilters {
   status?: BookingStatus
   vendorId?: string
+  /** A saved view (0059) and what its rule needs; left out is All. */
+  view?: { kind: BookingView; window: BookingViewWindow }
   search: BookingSearch | null
   /** Scheduled at or after. */
   start: Date | null
@@ -102,8 +199,17 @@ export const adminRepository = {
         // checklist reads. Packages share this table, so they are excluded:
         // the count is a count of services, and a package's own description
         // is not what "services without a description" asks about.
+        // The pricing columns are for the Missing keys' "prices" (0059).
         services: {
-          columns: { id: true, description: true },
+          columns: {
+            id: true,
+            description: true,
+            pricingType: true,
+            price: true,
+            priceHatchback: true,
+            priceSedan: true,
+            priceSuv: true,
+          },
           where: and(eq(services.isActive, true), ne(services.category, 'package')),
         },
         // Ids only: the checklist asks whether there are any.
@@ -409,48 +515,22 @@ export const adminRepository = {
     if (filters.end) conditions.push(lt(bookings.scheduledAt, filters.end))
     if (filters.test === 'only') conditions.push(isNotNull(bookings.markedTestAt))
     if (filters.test === 'hide') conditions.push(isNull(bookings.markedTestAt))
+    if (filters.view) conditions.push(viewCondition(filters.view.kind, filters.view.window))
+    // Today and Upcoming run soonest first (0059); everything else newest
+    // scheduled first.
+    const ascending = filters.view !== undefined && ASCENDING_VIEWS.has(filters.view.kind)
     // A row comparison in the same order as the ORDER BY below, so "after the
     // cursor" means exactly "further down the list".
     if (filters.after) {
+      const cursor = sql`(${filters.after.scheduledAt.toISOString()}::timestamptz, ${filters.after.id}::uuid)`
       conditions.push(
-        sql`(${bookings.scheduledAt}, ${bookings.id}) < (${filters.after.scheduledAt.toISOString()}::timestamptz, ${filters.after.id}::uuid)`
+        ascending
+          ? sql`(${bookings.scheduledAt}, ${bookings.id}) > ${cursor}`
+          : sql`(${bookings.scheduledAt}, ${bookings.id}) < ${cursor}`
       )
     }
 
-    if (filters.search) {
-      const { text, idPrefix, phoneDigits, receiptNumber } = filters.search
-      const matches: SQL[] = [
-        ilike(users.name, containsPattern(text)),
-        ilike(vendors.businessName, containsPattern(text)),
-      ]
-      // Ids are stored lowercase, so the prefix is lowercased by the parser and
-      // compared as plain text.
-      if (idPrefix) matches.push(sql`${bookings.id}::text like ${`${idPrefix}%`}`)
-      if (phoneDigits) matches.push(like(users.phone, containsPattern(phoneDigits)))
-      // A receipt number belongs to the first booking of a reschedule chain,
-      // so it finds every booking of the chain: the one the customer holds now
-      // and the ones it was moved from. Compared exactly: the parser has
-      // already rebuilt it in the stored shape, whatever was typed.
-      if (receiptNumber) {
-        matches.push(
-          exists(
-            db
-              .select({ one: sql`1` })
-              .from(receiptNumbers)
-              .where(
-                and(
-                  eq(receiptNumbers.number, receiptNumber),
-                  eq(
-                    receiptNumbers.rootBookingId,
-                    sql`coalesce(${bookings.originalBookingId}, ${bookings.id})`
-                  )
-                )
-              )
-          )
-        )
-      }
-      conditions.push(or(...matches)!)
-    }
+    if (filters.search) conditions.push(searchCondition(filters.search))
 
     const rows = await db
       .select({ id: bookings.id })
@@ -458,11 +538,59 @@ export const adminRepository = {
       .innerJoin(users, eq(users.id, bookings.userId))
       .innerJoin(vendors, eq(vendors.id, bookings.vendorId))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(bookings.scheduledAt), desc(bookings.id))
+      .orderBy(
+        ...(ascending
+          ? [asc(bookings.scheduledAt), asc(bookings.id)]
+          : [desc(bookings.scheduledAt), desc(bookings.id)])
+      )
       .limit(filters.limit)
       .offset(filters.offset)
 
     return rows.map((row) => row.id)
+  },
+
+  /**
+   * How many bookings each saved view holds (0059), under the list's
+   * search, garage and Test filters: one COUNT(*) FILTER query. The
+   * customer and garage are joined only when there is a search to match.
+   */
+  async countBookingViews(
+    filters: Pick<BookingListFilters, 'vendorId' | 'search' | 'test'>,
+    window: BookingViewWindow
+  ): Promise<Record<BookingView | 'all', number>> {
+    const conditions: SQL[] = []
+    if (filters.vendorId) conditions.push(eq(bookings.vendorId, filters.vendorId))
+    if (filters.test === 'only') conditions.push(isNotNull(bookings.markedTestAt))
+    if (filters.test === 'hide') conditions.push(isNull(bookings.markedTestAt))
+    if (filters.search) conditions.push(searchCondition(filters.search))
+    const counted = (view: BookingView) =>
+      sql<number>`(count(*) filter (where ${viewCondition(view, window)}))::int`
+
+    let query = db
+      .select({
+        all: sql<number>`count(*)::int`,
+        needs_action: counted('needs_action'),
+        today: counted('today'),
+        upcoming: counted('upcoming'),
+        completed: counted('completed'),
+        cancelled: counted('cancelled'),
+      })
+      .from(bookings)
+      .$dynamic()
+    if (filters.search) {
+      query = query
+        .innerJoin(users, eq(users.id, bookings.userId))
+        .innerJoin(vendors, eq(vendors.id, bookings.vendorId))
+    }
+    const [row] = await query.where(conditions.length > 0 ? and(...conditions) : undefined)
+    return {
+      needs_action: row?.needs_action ?? 0,
+      today: row?.today ?? 0,
+      upcoming: row?.upcoming ?? 0,
+      completed: row?.completed ?? 0,
+      cancelled: row?.cancelled ?? 0,
+      all: row?.all ?? 0,
+    }
   },
 
   /** The rows for a page of ids, in no particular order — the caller re-sorts. */

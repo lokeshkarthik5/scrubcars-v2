@@ -24,6 +24,8 @@ import { adminCouponRoutes } from '../coupons/coupons.routes.js'
 import { adminNoticeRoutes } from '../notices/notices.routes.js'
 import { adminRefundRoutes } from '../refunds/refunds.routes.js'
 import { adminVendorBinRoutes } from '../vendor-bin/vendor-bin.routes.js'
+import { adminOnboardingMarkRoutes } from '../onboarding-marks/onboarding-marks.routes.js'
+import { adminCollectionListRoutes } from '../collection-lists/collection-lists.routes.js'
 import { adminMediaRoutes } from '../service-media/service-media.routes.js'
 import { addPhotoSchema } from '../service-media/service-media.validation.js'
 import { adminStatsRoutes } from '../stats/stats.routes.js'
@@ -41,6 +43,7 @@ import * as adminController from './admin.controller.js'
 import {
   adminCancelBookingSchema,
   bookingIdParamSchema,
+  bookingViewCountsQuerySchema,
   createBookingNoteSchema,
   createVendorSchema,
   grantSuperAdminSchema,
@@ -164,6 +167,13 @@ adminRoutes.patch(
 // forever, only from the Bin). Their own module; mounted at the root for the
 // cookie's sake, like the media routes below.
 adminRoutes.route('/', adminVendorBinRoutes)
+// Onboarding marks (0059): GET/POST /vendors/:id/marks, PATCH/DELETE
+// /vendors/:id/marks/:markId and POST /onboarding-marks/asked. Collection
+// lists ("Send to team"): /collection-lists, /collection-lists/:id/close and
+// PATCH /collection-items/:id. Their own modules; mounted at the root for
+// the cookie's sake, like the Bin.
+adminRoutes.route('/', adminOnboardingMarkRoutes)
+adminRoutes.route('/', adminCollectionListRoutes)
 
 // Pause / resume new bookings on a garage's behalf. POST rather than the
 // PATCH of verify/archive: these are actions with a body (the reason), not a
@@ -469,6 +479,14 @@ adminRoutes.get(
   ...adminMiddleware,
   zValidator('query', listBookingsQuerySchema),
   (c) => adminController.listBookings(c, c.req.valid('query'))
+)
+// The saved views' counts (0059). Before /bookings/:id, which would read
+// "views" as an id.
+adminRoutes.get(
+  '/bookings/views',
+  ...adminMiddleware,
+  zValidator('query', bookingViewCountsQuerySchema),
+  (c) => adminController.bookingViewCounts(c, c.req.valid('query'))
 )
 adminRoutes.get(
   '/bookings/:id',
