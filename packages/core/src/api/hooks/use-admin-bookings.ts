@@ -11,6 +11,7 @@ import {
   addAdminBookingNote,
   cancelAdminBooking,
   getAdminBooking,
+  getAdminBookingViewCounts,
   listAdminBookings,
   markAdminBookingNoShow,
   overrideAdminPickupStep,
@@ -21,6 +22,7 @@ import {
   type BookingParty,
   type CancelledOnBehalfOf,
 } from '@repo/core/api/admin'
+import { ApiError } from '@repo/core/api/client'
 
 /**
  * Hierarchical keys, the same shape as `adminVendorKeys`: the filters live
@@ -34,6 +36,9 @@ export const adminBookingKeys = {
     [...adminBookingKeys.lists(), filters] as const,
   details: () => [...adminBookingKeys.all, 'detail'] as const,
   detail: (id: string) => [...adminBookingKeys.details(), id] as const,
+  /** The saved views' counts (0059), per search, garage and Test filter. */
+  viewCounts: (filters: Pick<AdminBookingFilters, 'q' | 'vendorId' | 'test'>) =>
+    [...adminBookingKeys.all, 'view-counts', filters] as const,
 }
 
 /** Rows per page. The server caps a page at 200. */
@@ -109,6 +114,28 @@ export function useAdminBookings(
   })
 }
 
+/**
+ * How many bookings each saved view holds (0059). Never holds up the list:
+ * read at most every 30 seconds, the old counts kept while new filters load,
+ * and an API older than the views (404) is not asked again, so the views
+ * show without counts.
+ */
+export function useAdminBookingViewCounts(
+  filters: Pick<AdminBookingFilters, 'q' | 'vendorId' | 'test'>,
+  enabled = true
+) {
+  const key = { q: filters.q || undefined, vendorId: filters.vendorId || undefined, test: filters.test || undefined }
+  return useQuery({
+    queryKey: adminBookingKeys.viewCounts(key),
+    queryFn: () => getAdminBookingViewCounts(key),
+    enabled,
+    staleTime: REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+    placeholderData: keepPreviousData,
+    retry: (failureCount, error) => !(error instanceof ApiError && error.status < 500) && failureCount < 2,
+  })
+}
+
 export function useAdminBooking(id: string) {
   return useQuery({
     queryKey: adminBookingKeys.detail(id),
@@ -139,6 +166,7 @@ function useBookingAction<TInput>(
     onSuccess: (booking) => {
       queryClient.setQueryData(adminBookingKeys.detail(booking.id), booking)
       void queryClient.invalidateQueries({ queryKey: adminBookingKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: [...adminBookingKeys.all, 'view-counts'] })
     },
     onError: (_error, { id }) => {
       void queryClient.invalidateQueries({

@@ -594,6 +594,10 @@ export const vendors = pgTable(
     // money on it is kept: only its name and address remain, for receipts.
     // A garage with nothing kept is deleted outright instead.
     purgedAt: timestamp('purged_at', { withTimezone: true }),
+    // Who on the team brought the garage in (0059). Set by hand in admin,
+    // never filled in automatically: whoever adds the garage may not be the
+    // one who onboarded it. Usually a team login's name, or free text.
+    onboardedByName: varchar('onboarded_by_name', { length: 100 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1909,6 +1913,9 @@ export const adminLogins = pgTable(
     // The one login that runs the team (owner decision): only it adds
     // logins, resets other people's passwords and turns logins on or off.
     isOwner: boolean('is_owner').default(false).notNull(),
+    // Optional (0059), set on Settings → Team logins: only for "Also send on
+    // WhatsApp" when a collection list goes to this person.
+    phone: varchar('phone', { length: 15 }),
   },
   (table) => [
     uniqueIndex('admin_logins_username_idx').on(table.username),
@@ -1924,6 +1931,108 @@ export const adminLogins = pgTable(
     ),
     check('admin_logins_status_check', sql`${table.status} IN ('active', 'off')`),
     check('admin_logins_password_hash_check', sql`${table.passwordHash} LIKE 'scrypt$%'`),
+  ]
+)
+
+// A team note on a garage's onboarding (0059): something to ask the owner
+// for and where that stands, To ask → Asked → Received. `kind` is a missing
+// key (lib/vendor-missing.ts, twin packages/core/src/onboarding-marks.ts:
+// 'photos', 'payout'…) or 'custom', which needs its own `label`. A garage
+// has at most one open mark of each missing key (a partial unique index);
+// custom marks are free. The Missing tags themselves are worked out from
+// the garage's data and never stored. A tombstone deletes the marks, as
+// notes can hold personal details.
+export const vendorOnboardingMarks = pgTable(
+  'vendor_onboarding_marks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    label: varchar('label', { length: 60 }),
+    note: text('note'),
+    status: text('status').$type<'to_ask' | 'asked' | 'received'>().default('to_ask').notNull(),
+    askedAt: timestamp('asked_at', { withTimezone: true }),
+    askedByName: varchar('asked_by_name', { length: 100 }),
+    receivedAt: timestamp('received_at', { withTimezone: true }),
+    createdByName: varchar('created_by_name', { length: 100 }).notNull(),
+    updatedByName: varchar('updated_by_name', { length: 100 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('vendor_onboarding_marks_vendor_id_idx').on(table.vendorId),
+    // One open mark per garage and missing key: a second "Ask for photos"
+    // is 409 MARK_EXISTS. Received ones are history and may repeat.
+    uniqueIndex('vendor_onboarding_marks_open_kind_idx')
+      .on(table.vendorId, table.kind)
+      .where(sql`${table.kind} <> 'custom' AND ${table.status} <> 'received'`),
+    check('vendor_onboarding_marks_status_check', sql`${table.status} IN ('to_ask', 'asked', 'received')`),
+    check('vendor_onboarding_marks_asked_check', sql`${table.status} <> 'asked' OR ${table.askedAt} IS NOT NULL`),
+    check(
+      'vendor_onboarding_marks_label_check',
+      sql`${table.kind} <> 'custom' OR (${table.label} IS NOT NULL AND char_length(btrim(${table.label})) > 0)`
+    ),
+    check('vendor_onboarding_marks_note_check', sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`),
+  ]
+)
+
+// A list of things a teammate is to collect from garages (0059, "Send to
+// team"): one per collector, with a due date and a note. `assigneeName` is
+// kept as well as the login, so the list still says who after a login goes.
+// Open until `closedAt`, or until every item is collected or cleared.
+// `telegramSentAt` is set only when the ops-alerts post went out.
+export const collectionLists = pgTable(
+  'collection_lists',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assigneeLoginId: uuid('assignee_login_id').references(() => adminLogins.id, { onDelete: 'set null' }),
+    assigneeName: varchar('assignee_name', { length: 100 }).notNull(),
+    dueOn: date('due_on', { mode: 'string' }),
+    note: text('note'),
+    createdByName: varchar('created_by_name', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    telegramSentAt: timestamp('telegram_sent_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('collection_lists_assignee_login_id_idx').on(table.assigneeLoginId),
+    check('collection_lists_note_check', sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`),
+  ]
+)
+
+// One thing to collect from one garage on a list (0059). `kind` is a missing
+// key or 'custom'. "Cleared" is never stored: an item is cleared once the
+// garage's live missing keys no longer hold its kind.
+export const collectionItems = pgTable(
+  'collection_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    listId: uuid('list_id')
+      .notNull()
+      .references(() => collectionLists.id, { onDelete: 'cascade' }),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    label: varchar('label', { length: 80 }),
+    status: text('status').$type<'to_collect' | 'collected'>().default('to_collect').notNull(),
+    collectedAt: timestamp('collected_at', { withTimezone: true }),
+    collectedByName: varchar('collected_by_name', { length: 100 }),
+    note: text('note'),
+  },
+  (table) => [
+    index('collection_items_list_id_idx').on(table.listId),
+    index('collection_items_vendor_id_idx').on(table.vendorId),
+    // Each thing once per garage on a list.
+    uniqueIndex('collection_items_list_vendor_kind_idx').on(table.listId, table.vendorId, table.kind),
+    check('collection_items_status_check', sql`${table.status} IN ('to_collect', 'collected')`),
+    check(
+      'collection_items_collected_check',
+      sql`${table.status} <> 'collected' OR ${table.collectedAt} IS NOT NULL`
+    ),
+    check('collection_items_note_check', sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`),
   ]
 )
 
