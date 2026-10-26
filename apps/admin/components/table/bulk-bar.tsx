@@ -6,17 +6,22 @@ import { cn } from '@repo/core/utils'
  * What to do with the ticked rows: how many, whose, Clear, and the actions
  * (the secondary outline ones first, the one red gradient last). It stays in
  * view at the bottom of the list; on a phone it floats above the tab bar.
- * Nothing is rendered while nothing is ticked.
+ * `count` is the ticked rows on screen, the ones the actions act on; rows
+ * still ticked but hidden by a filter are said apart ("2 hidden by
+ * filters") and left alone. Nothing is rendered while nothing is ticked.
  */
 export function BulkBar({
   count,
   onClear,
   names,
   label = 'Selected rows',
+  hidden = 0,
   children,
   className,
 }: {
   count: number
+  /** Ticked rows the filters hide: kept, but not acted on. */
+  hidden?: number
   onClear: () => void
   /** The ticked rows' names, in one truncated line. */
   names?: string[]
@@ -24,7 +29,7 @@ export function BulkBar({
   children: React.ReactNode
   className?: string
 }) {
-  if (count === 0) return null
+  if (count === 0 && hidden === 0) return null
   return (
     <div
       role="region"
@@ -40,6 +45,11 @@ export function BulkBar({
         <span className="shrink-0 font-semibold text-text-primary">
           <span className="font-numeric">{count}</span> selected
         </span>
+        {hidden > 0 && (
+          <span className="shrink-0 text-tone-attention-text">
+            (<span className="font-numeric">{hidden}</span> hidden by filters)
+          </span>
+        )}
         {names && names.length > 0 && (
           <span className="min-w-0 truncate text-text-secondary max-md:hidden">
             {names.join(', ')}
@@ -54,7 +64,7 @@ export function BulkBar({
         >
           Clear
         </button>
-        {children}
+        {count > 0 && children}
       </div>
     </div>
   )

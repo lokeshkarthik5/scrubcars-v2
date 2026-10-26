@@ -44,8 +44,10 @@ import {
 import {
   AdminTable,
   BulkBar,
+  ColumnsButton,
   FilterBar,
   SavedViews,
+  useHiddenColumns,
   type SortState,
 } from '@/components/table'
 import { AddMarkButton } from '@/components/marks/add-mark-button'
@@ -53,7 +55,7 @@ import { AskWhatsAppButton } from '@/components/marks/ask-whatsapp-button'
 import { MissingChips } from '@/components/marks/missing-chips'
 import { CollectorProgressCards } from '@/components/collection/collector-progress-cards'
 import { SendToTeamButton } from '@/components/collection/send-to-team-button'
-import { keepKnown } from '@/lib/admin-table'
+import { keepKnown, splitSelection } from '@/lib/admin-table'
 import { binDoneMessage, deleteDoneMessage } from '@/lib/vendor-bin'
 import {
   CERTIFIED_FILTER,
@@ -83,7 +85,7 @@ import {
   type TeamFilter,
 } from '@/lib/vendor-list'
 import { binColumns } from './bin-columns'
-import { garageColumns } from './garage-columns'
+import { GARAGE_OPTIONAL_COLUMNS, garageColumns } from './garage-columns'
 import { GarageSidePanel } from './garage-side-panel'
 
 export default function AdminVendorsPage() {
@@ -239,14 +241,32 @@ function VendorsList() {
   const [sort, setSort] = useState<SortState | null>(null)
 
   // Ticked garages, for the bulk actions. A garage that left the list
-  // (deleted, moved to the Bin) drops out.
+  // (deleted, moved to the Bin) drops out. One a filter hides stays ticked
+  // but is left out of the actions, and the bar says how many are hidden,
+  // so nobody messages a garage they can't see (review finding 11b).
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
   const liveIds = useMemo(
     () => vendors.filter((v) => !isInBin(v)).map((v) => v.id),
     [vendors]
   )
   const selected = keepKnown(ticked, liveIds)
-  const selectedVendors = vendors.filter((v) => selected.has(v.id))
+  const ticks = splitSelection(
+    selected,
+    shown.map((v) => v.id)
+  )
+  const selectedVendors = shown.filter((v) => selected.has(v.id))
+
+  // The columns this browser turned off. Onboarded by shows while it is
+  // filtered on, so the rows say why they match.
+  const optionalColumns = GARAGE_OPTIONAL_COLUMNS.filter(
+    (c) => c.id !== 'onboardedBy' || hasOnboarded
+  )
+  const [hiddenChoice, toggleColumn] = useHiddenColumns(
+    'detlio.admin.garages.columns',
+    GARAGE_OPTIONAL_COLUMNS
+  )
+  const hiddenColumns = new Set(hiddenChoice)
+  if (onboardedFilter) hiddenColumns.delete('onboardedBy')
 
   // The garage open in the side panel, while it is still in the list.
   const [openId, setOpenId] = useState<string | null>(null)
@@ -572,11 +592,20 @@ function VendorsList() {
             }}
             activeCount={filtersOn}
             trailing={
-              q ? (
-                <span>
-                  Matching <span className="text-text-primary">“{q}”</span>
-                </span>
-              ) : undefined
+              <>
+                {q && (
+                  <span>
+                    Matching <span className="text-text-primary">“{q}”</span>
+                  </span>
+                )}
+                {!inBin && (
+                  <ColumnsButton
+                    columns={optionalColumns}
+                    hidden={hiddenChoice}
+                    onToggle={toggleColumn}
+                  />
+                )}
+              </>
             }
           >
             {hasTeam && !inBin && (
@@ -638,12 +667,17 @@ function VendorsList() {
 
           {/* What each garage still owes us (0059), as its own group so the
               Show row keeps its six chips. */}
+          {/* One line on a phone, scrolled sideways; wrapped on a laptop. */}
           {hasMissing && !inBin && (
-            <MissingChips
-              vendors={filtered}
-              value={missing}
-              onChange={(key: MissingKey | null) => setParams({ missing: key })}
-            />
+            <div className="-mx-4 min-w-0 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
+              <MissingChips
+                vendors={filtered}
+                value={missing}
+                onChange={(key: MissingKey | null) =>
+                  setParams({ missing: key })
+                }
+              />
+            </div>
           )}
 
           {team === 'with' && !inBin && <CollectorProgressCards />}
@@ -666,6 +700,7 @@ function VendorsList() {
               className="min-w-0 flex-1"
               rows={shown}
               columns={columns}
+              hiddenColumns={inBin ? undefined : hiddenColumns}
               rowKey={(v) => v.id}
               rowLabelId={(v) => `vendor-${v.id}-name`}
               sort={sort}
@@ -708,7 +743,8 @@ function VendorsList() {
 
           {!inBin && (
             <BulkBar
-              count={selectedVendors.length}
+              count={ticks.visible.length}
+              hidden={ticks.hidden}
               names={selectedVendors.map((v) => v.businessName)}
               label="Selected garages"
               onClear={() => setTicked(new Set())}
@@ -718,7 +754,14 @@ function VendorsList() {
               <AskWhatsAppButton vendors={selectedVendors} />
               <SendToTeamButton
                 vendors={selectedVendors}
-                onSent={() => setTicked(new Set())}
+                // Only the garages sent: ones hidden by a filter stay ticked.
+                onSent={() =>
+                  setTicked((prev) => {
+                    const next = new Set(prev)
+                    for (const id of ticks.visible) next.delete(id)
+                    return next
+                  })
+                }
               />
             </BulkBar>
           )}

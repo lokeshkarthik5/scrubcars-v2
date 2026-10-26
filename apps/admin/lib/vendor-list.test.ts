@@ -27,6 +27,8 @@ import {
   isMissing,
   matchesOnboardedBy,
   matchesTeam,
+  missingTagsThatFit,
+  modesShort,
   nextStepRank,
   onboardedByOptions,
   ONBOARDED_NOT_SET,
@@ -282,6 +284,37 @@ describe('the card', () => {
     expect(
       bookingParts({ ...modes, dropinEnabled: false, doorstepEnabled: false })
     ).toEqual([])
+  })
+
+  test('as many Missing tags as fit one line, red first, at least one', () => {
+    expect(missingTagsThatFit(undefined)).toBe(0)
+    expect(missingTagsThatFit([])).toBe(0)
+    // Map pin and Services are red: they lead, and "+3" follows.
+    expect(
+      missingTagsThatFit(['photos', 'map_pin', 'bays', 'services', 'logo'])
+    ).toBe(2)
+    expect(missingTagsThatFit(['photos', 'logo', 'payout'])).toBe(2)
+    expect(missingTagsThatFit(['radius_default', 'payout'])).toBe(1)
+    expect(missingTagsThatFit(['photos', 'documents'])).toBe(2)
+    expect(missingTagsThatFit(['payout'])).toBe(1)
+  })
+
+  test('how it books, in a word for the narrow Modes column', () => {
+    const v = { dropinEnabled: true, doorstepEnabled: true }
+    expect(modesShort(v)).toBe('Both')
+    expect(modesShort({ ...v, dropinEnabled: false })).toBe('Doorstep')
+    expect(modesShort({ ...v, doorstepEnabled: false })).toBe('At garage')
+    expect(modesShort({ ...v, pickupEnabled: true })).toBe('Both + pickup')
+    expect(modesShort({ dropinEnabled: false, doorstepEnabled: false })).toBe(
+      'None on'
+    )
+    expect(
+      modesShort({
+        dropinEnabled: false,
+        doorstepEnabled: false,
+        pickupEnabled: true,
+      })
+    ).toBe('Pickup only')
   })
 
   test('pickup & drop, when on, comes last', () => {

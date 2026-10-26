@@ -2,17 +2,24 @@ import { describe, expect, test } from 'bun:test'
 import { ApiError } from '@repo/core/api/client'
 import {
   BOOKING_VIEWS,
+  PAYMENT_FILTERS,
+  TODAY_GROUPS,
+  TYPE_FILTERS,
   bookingNeedsAction,
   defaultView,
   emptyViewText,
   isBookingView,
   matchesView,
+  parsePaymentFilter,
+  parseTypeFilter,
   parseView,
+  todayGroup,
   viewFilter,
   viewParam,
   viewsUnsupported,
   viewsWithCounts,
 } from './booking-views'
+import { bookingsListHref, listQueryForDetail } from './bookings'
 
 type Row = Parameters<typeof matchesView>[0]
 const booking = (overrides: Partial<Row> = {}): Row => ({
@@ -146,5 +153,45 @@ describe('the views on the rows, for an older API', () => {
     expect(emptyViewText('today', true)).toMatch(
       /^Nothing matches these filters/
     )
+  })
+})
+
+describe('the Type and Payment filters', () => {
+  test('mockup 03 words, read from the URL as an allow-list', () => {
+    expect(TYPE_FILTERS.map((f) => f.label)).toEqual([
+      'At garage',
+      'Doorstep',
+      'Pickup & drop',
+    ])
+    expect(PAYMENT_FILTERS.map((f) => f.label)).toEqual([
+      'Paid',
+      'Pay at garage',
+      'Money owed',
+    ])
+    expect(parseTypeFilter('doorstep')).toBe('doorstep')
+    expect(parseTypeFilter('DOORSTEP')).toBeNull()
+    expect(parseTypeFilter(null)).toBeNull()
+    expect(parsePaymentFilter('refund_owed')).toBe('refund_owed')
+    expect(parsePaymentFilter('free')).toBeNull()
+  })
+})
+
+describe('the Today groups', () => {
+  test('late or due soon first, the rest on track; none in other views', () => {
+    expect(TODAY_GROUPS).toEqual(['Needs attention', 'Today · on track'])
+    expect(todayGroup('today', 'urgent')).toBe('Needs attention')
+    expect(todayGroup('today', 'attention')).toBe('Needs attention')
+    expect(todayGroup('today', null)).toBe('Today · on track')
+    expect(todayGroup('upcoming', 'urgent')).toBeNull()
+  })
+})
+
+describe("a booking's back arrow keeps the new filters", () => {
+  test('type and payment ride along; anything else is dropped', () => {
+    const query = listQueryForDetail(
+      new URLSearchParams('view=today&type=pickup&payment=paid&evil=1')
+    )
+    expect(query).toBe('view=today&type=pickup&payment=paid')
+    expect(bookingsListHref(query)).toBe(`/bookings?${query}`)
   })
 })

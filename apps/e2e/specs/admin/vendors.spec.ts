@@ -65,7 +65,9 @@ test.describe('admin vendors', () => {
     await sql`delete from vendors where id = ${id}`
   })
 
-  test('archiving takes a garage back out of circulation', async ({ page }) => {
+  test('archiving takes a garage back out of circulation, and Undo brings it back @p0', async ({
+    page,
+  }) => {
     const name = `E2E Archive ${Date.now().toString().slice(-5)}`
     const id = await makeGarage(name)
     await sql`update vendors set is_verified = true where id = ${id}`

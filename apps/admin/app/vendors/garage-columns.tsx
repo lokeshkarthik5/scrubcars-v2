@@ -25,7 +25,7 @@ import { cn } from '@repo/core/utils'
 import { MarksCell } from '@/components/marks/marks-cell'
 import { MissingTags } from '@/components/marks/missing-tags'
 import { WithTeamCell } from '@/components/collection/with-team-cell'
-import type { AdminTableColumn } from '@/components/table'
+import type { AdminTableColumn, OptionalColumn } from '@/components/table'
 import {
   bookingParts,
   bookingsLine,
@@ -33,11 +33,12 @@ import {
   garageArea,
   garageNextStep,
   hasDocumentsToReview,
+  missingTagsThatFit,
+  modesShort,
   nextStepRank,
   onboardedBy,
   stageCell,
   type GarageNextStep,
-  type MetaPart,
 } from '@/lib/vendor-list'
 
 export interface GarageColumnsContext {
@@ -66,10 +67,23 @@ export const STEP_TONE: Record<GarageNextStep['tone'], string> = {
 }
 
 /**
- * The Garages table's columns (mockups 06 and 07): Garage (name, owner) ·
- * Area · Modes · Stage · Missing · Marks · Onboarded by · Bookings · Next
- * step, then the row's own buttons. On a phone a row is the name and what
- * is missing, with its stage and next step on the right.
+ * The Garages table's columns the Columns button can turn off. Onboarded by
+ * starts off (mockup 06 has no room for it); choosing an Onboarded by
+ * filter shows it whatever was chosen here.
+ */
+export const GARAGE_OPTIONAL_COLUMNS: OptionalColumn[] = [
+  { id: 'area', header: 'Area' },
+  { id: 'modes', header: 'Modes' },
+  { id: 'onboardedBy', header: 'Onboarded by', defaultHidden: true },
+]
+
+/**
+ * The Garages table's columns (mockups 06 and 07), compact enough for a
+ * 1440 laptop with no sideways scroll: Garage (name, owner) · Area · Modes
+ * · Stage · Missing · Marks · (Onboarded by) · Bookings · Next step, then
+ * Verify on an unverified row and the row's ⋯ (Edit, Archive, Move to Bin).
+ * On a phone a row is the name and what is missing, its stage and next step
+ * on the right, and a third line with its marks and Verify.
  */
 export function garageColumns(
   ctx: GarageColumnsContext
@@ -79,8 +93,8 @@ export function garageColumns(
       id: 'garage',
       header: 'Garage',
       phone: 'title',
-      width: '220px',
       sortValue: (v) => v.businessName,
+      cellClassName: 'max-w-[160px]',
       cell: (v) => (
         <GarageCell v={v} open={ctx.openId === v.id} onOpen={ctx.onOpen} />
       ),
@@ -88,14 +102,14 @@ export function garageColumns(
     {
       id: 'area',
       header: 'Area',
-      phone: ctx.showMissing ? 'hidden' : 'subtitle',
       sortValue: (v) => garageArea(v),
+      cellClassName: 'max-w-[96px]',
       cell: (v) => <AreaCell v={v} />,
     },
     {
       id: 'modes',
       header: 'Modes',
-      cell: (v) => <ModesCell parts={bookingParts(v)} />,
+      cell: (v) => <ModesCell v={v} />,
     },
     {
       id: 'stage',
@@ -104,7 +118,11 @@ export function garageColumns(
       sortValue: (v) => stageCell(v).label,
       cell: (v) => {
         const stage = stageCell(v)
-        return <StatusChip tone={stage.tone}>{stage.label}</StatusChip>
+        return (
+          <StatusChip tone={stage.tone} className="whitespace-nowrap">
+            {stage.label}
+          </StatusChip>
+        )
       },
     },
     ctx.showMissing && {
@@ -118,8 +136,10 @@ export function garageColumns(
     ctx.showMarks && {
       id: 'marks',
       header: 'Marks',
+      phone: 'meta',
+      cellClassName: 'max-w-[156px]',
       cell: (v) => (
-        <div className="flex min-w-[140px] flex-col gap-1">
+        <div className="flex min-w-0 flex-col items-start gap-1 max-md:flex-row max-md:flex-wrap max-md:items-center">
           {v.openCollection && <WithTeamCell vendor={v} />}
           <MarksCell vendor={v} />
         </div>
@@ -129,8 +149,12 @@ export function garageColumns(
       id: 'onboardedBy',
       header: 'Onboarded by',
       sortValue: (v) => onboardedBy(v),
-      cell: (v) =>
-        onboardedBy(v) ?? <span className="text-text-muted">Not set</span>,
+      cellClassName: 'max-w-[130px]',
+      cell: (v) => (
+        <span className="block truncate">
+          {onboardedBy(v) ?? <span className="text-text-muted">Not set</span>}
+        </span>
+      ),
     },
     {
       id: 'bookings',
@@ -157,6 +181,7 @@ export function garageColumns(
       phone: 'asideSub',
       sortFirst: 'desc',
       sortValue: (v) => nextStepRank(garageNextStep(v, ctx.now)),
+      cellClassName: 'max-w-[132px]',
       cell: (v) => <NextStepCell v={v} back={ctx.back} now={ctx.now} />,
     },
     {
@@ -164,6 +189,7 @@ export function garageColumns(
       header: 'Actions',
       headerHidden: true,
       align: 'end',
+      phone: 'action',
       cell: (v) => (
         <RowActions
           v={v}
@@ -199,6 +225,7 @@ function GarageCell({
       <button
         type="button"
         id={`vendor-${v.id}-name`}
+        title={v.businessName}
         aria-expanded={open}
         onClick={() => onOpen(v)}
         className="block max-w-full truncate text-left text-[13.5px] font-semibold tracking-[-0.01em] text-text-primary underline-offset-2 hover:underline"
@@ -226,7 +253,7 @@ function AreaCell({ v }: { v: AdminVendor }) {
         {garageArea(v)}
       </p>
       {v.outsideServiceCity && (
-        <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] text-text-muted">
+        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[12px] text-text-muted">
           <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
           {v.outsideServiceCity.km !== null && (
             <span className="shrink-0 whitespace-nowrap">
@@ -242,24 +269,25 @@ function AreaCell({ v }: { v: AdminVendor }) {
   )
 }
 
-/** "At the garage", "Doorstep 8 km", each on its own line. */
-function ModesCell({ parts }: { parts: MetaPart[] }) {
-  if (parts.length === 0)
-    return <span className="text-[12px] text-warning">None on</span>
+/**
+ * "Both", "Doorstep", "At garage + pickup": one short line. The radius
+ * ("Doorstep 8 km") is in its title and the side panel.
+ */
+function ModesCell({ v }: { v: AdminVendor }) {
+  const parts = bookingParts(v)
+  const full = parts
+    .map((part) => [part.text, part.quiet].filter(Boolean).join(' '))
+    .join(' · ')
   return (
-    <div className="flex flex-col text-[12px] leading-[17px] text-text-secondary">
-      {parts.map((part, i) => (
-        <span key={i} className="whitespace-nowrap">
-          {part.text && <Figures text={part.text} />}
-          {part.text && part.quiet && ' '}
-          {part.quiet && (
-            <span className="text-text-muted">
-              <Figures text={part.quiet} />
-            </span>
-          )}
-        </span>
-      ))}
-    </div>
+    <span
+      title={full || undefined}
+      className={cn(
+        'whitespace-nowrap text-[12.5px]',
+        parts.length === 0 ? 'text-warning' : 'text-text-secondary'
+      )}
+    >
+      {modesShort(v)}
+    </span>
   )
 }
 
@@ -273,9 +301,10 @@ function MissingCell({ v }: { v: AdminVendor }) {
     return (
       <span className="text-[12px] text-tone-done-text">Nothing missing</span>
     )
+  // One line: as many as fit, red ones first, then "+N".
   return (
-    <div className="min-w-[180px] max-w-[240px] max-md:min-w-0">
-      <MissingTags missing={v.missing} max={3} />
+    <div className="min-w-0 [&_ul]:flex-nowrap [&_li]:whitespace-nowrap">
+      <MissingTags missing={v.missing} max={missingTagsThatFit(v.missing)} />
     </div>
   )
 }
@@ -295,7 +324,7 @@ function NextStepCell({
 }) {
   const step = garageNextStep(v, now)
   return (
-    <div className="flex min-w-[150px] flex-col gap-0.5 text-[12.5px] max-md:min-w-0">
+    <div className="flex min-w-0 flex-col gap-0.5 text-[12.5px]">
       {step ? (
         step.tab ? (
           <Link
@@ -324,12 +353,12 @@ function NextStepCell({
       {hasDocumentsToReview(v) && v.documents && (
         <Link
           href={editHref(v.id, back, 'documents')}
-          className="inline-flex items-center gap-1 self-start whitespace-nowrap font-medium text-text-primary underline-offset-2 hover:underline max-md:hidden"
+          className="inline-flex items-start gap-1 self-start font-medium text-text-primary underline-offset-2 hover:underline max-md:hidden"
         >
           <IconFileCertificate
             size={14}
             aria-hidden="true"
-            className="shrink-0 text-text-secondary"
+            className="mt-0.5 shrink-0 text-text-secondary"
           />
           <Figures
             text={`${v.documents.toReview} ${v.documents.toReview === 1 ? 'document' : 'documents'} to review`}
@@ -337,7 +366,7 @@ function NextStepCell({
           <IconChevronRight
             size={14}
             aria-hidden="true"
-            className="text-text-muted"
+            className="mt-0.5 shrink-0 text-text-muted"
           />
         </Link>
       )}
@@ -346,9 +375,14 @@ function NextStepCell({
 }
 
 const ROW_BUTTON =
-  'inline-flex min-h-9 items-center gap-1 rounded-[9px] border border-border px-2.5 text-[12px] font-medium text-text-primary transition-colors hover:bg-surface-elevated disabled:opacity-50'
+  'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] border border-border px-2 text-[12px] font-medium text-text-primary transition-colors hover:bg-surface-elevated disabled:opacity-50 max-md:min-h-9'
 
-/** Verify (or why it can't be yet), Edit, and ⋯ with Archive and Move to Bin. */
+/**
+ * Verify on an unverified row (or "Pin first", since the server won't
+ * verify a garage with no pin), then ⋯ with Edit, Archive and Move to Bin.
+ * Both stay on the row on a phone, so a garage is verified without opening
+ * it.
+ */
 function RowActions({
   v,
   back,
@@ -370,16 +404,18 @@ function RowActions({
 }) {
   return (
     <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center justify-end gap-1.5">
+      <div className="flex items-center justify-end gap-1">
         {!v.isVerified &&
           (v.lat === null ? (
             // The server refuses to verify a garage with no pin: it opens
             // the map, where the pin is placed.
             <Link
               href={editHref(v.id, back, 'location')}
-              className="whitespace-nowrap text-[12px] font-medium text-warning underline-offset-2 hover:underline"
+              aria-label={`Drop the map pin before verifying ${v.businessName}`}
+              title="Drop the map pin before verifying"
+              className="whitespace-nowrap px-1 text-[12px] font-medium text-warning underline-offset-2 hover:underline"
             >
-              Pin before verifying
+              Pin first
             </Link>
           ) : (
             <button
@@ -392,16 +428,9 @@ function RowActions({
               {verifying ? 'Verifying…' : 'Verify'}
             </button>
           ))}
-        <Link
-          href={editHref(v.id, back)}
-          aria-label={`Edit ${v.businessName}`}
-          className={ROW_BUTTON}
-        >
-          <IconPencil size={14} aria-hidden="true" />
-          <span className="max-lg:sr-only">Edit</span>
-        </Link>
         <RowMenu
           name={v.businessName}
+          editHref={editHref(v.id, back)}
           menuId={`vendor-${v.id}-menu`}
           busy={busy}
           archived={v.status === 'archived'}
@@ -414,7 +443,7 @@ function RowActions({
         <p
           id={`vendor-${v.id}-error`}
           role="alert"
-          className="max-w-[220px] text-right text-[12px] text-error"
+          className="max-w-[200px] text-right text-[12px] text-error"
         >
           {error}
         </p>
@@ -424,14 +453,16 @@ function RowActions({
 }
 
 /**
- * The row's ⋯: Archive (or take it out of the archive) and Move to Bin. A
- * disclosure, not an ARIA menu: two plain buttons, closed by Escape, by a
+ * The row's ⋯: Edit, Archive (or take it out of the archive) and Move to
+ * Bin. A disclosure, not an ARIA menu: a link and two plain buttons, closed
+ * by Escape, by a
  * tap outside or by choosing one. Placed on the screen (fixed) beside its
  * button, so the table's sideways scroll never clips it, while staying in
  * the row's DOM. Move to Bin asks first, in its own sheet.
  */
 function RowMenu({
   name,
+  editHref: edit,
   menuId,
   busy,
   archived,
@@ -439,6 +470,8 @@ function RowMenu({
   onMoveToBin,
 }: {
   name: string
+  /** The editor, with this list as its `back`. */
+  editHref: string
   menuId: string
   busy: boolean
   archived: boolean
@@ -456,7 +489,7 @@ function RowMenu({
     const rect = buttonRef.current.getBoundingClientRect()
     const right = Math.max(8, window.innerWidth - rect.right)
     setPlace(
-      window.innerHeight - rect.bottom < 120
+      window.innerHeight - rect.bottom < 170
         ? {
             position: 'fixed',
             right,
@@ -512,7 +545,7 @@ function RowMenu({
         aria-controls={menuId}
         aria-label={`More for ${name}`}
         onClick={() => setOpen((value) => !value)}
-        className="flex size-9 items-center justify-center rounded-[9px] text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary"
+        className="flex size-8 items-center justify-center rounded-[8px] text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary max-md:size-9"
       >
         <IconDots size={18} stroke={1.5} aria-hidden="true" />
       </button>
@@ -522,6 +555,20 @@ function RowMenu({
           style={place}
           className="z-40 w-48 overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 text-left shadow-lg"
         >
+          <Link
+            href={edit}
+            aria-label={`Edit ${name}`}
+            onClick={() => setOpen(false)}
+            className={cn(item, 'border-b border-border')}
+          >
+            <IconPencil
+              size={17}
+              stroke={1.6}
+              aria-hidden="true"
+              className="text-text-secondary"
+            />
+            Edit
+          </Link>
           <button
             type="button"
             disabled={busy}
