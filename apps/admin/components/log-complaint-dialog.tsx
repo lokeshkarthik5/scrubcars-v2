@@ -8,7 +8,10 @@ import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { ScSelect } from '@repo/ui/sc/select'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
-import { useComplaintLookup, useLogComplaint } from '@repo/core/api/hooks/use-admin-complaints'
+import {
+  useComplaintLookup,
+  useLogComplaint,
+} from '@repo/core/api/hooks/use-admin-complaints'
 import {
   COMPLAINT_CATEGORIES,
   COMPLAINT_CATEGORY_LABELS,
@@ -22,7 +25,11 @@ import {
 import { fromIstInput, toIstInput } from '@repo/core/ist-input'
 import { rememberName, rememberedName } from '@/lib/actor-name'
 import { formatWhen } from '@/lib/bookings'
-import { logComplaintProblems, wholeBookingRef, wholeMobile } from '@/lib/complaints'
+import {
+  logComplaintProblems,
+  wholeBookingRef,
+  wholeMobile,
+} from '@/lib/complaints'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -46,11 +53,16 @@ function bookingHint(
       return { text: 'No booking has this reference.', problem: true }
     case 'not_theirs':
       return {
-        text: hasAccount ? "This booking is another customer's." : 'No booking has this reference.',
+        text: hasAccount
+          ? "This booking is another customer's."
+          : 'No booking has this reference.',
         problem: true,
       }
     case 'ambiguous':
-      return { text: 'More than one booking starts with this. Leave it out and say which in your note.', problem: true }
+      return {
+        text: 'More than one booking starts with this. Leave it out and say which in your note.',
+        problem: true,
+      }
   }
 }
 
@@ -66,7 +78,13 @@ function bookingHint(
  *
  * Mounted fresh each time it opens (keyed by the caller).
  */
-export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function LogComplaintDialog({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
   const router = useRouter()
   const logComplaint = useLogComplaint()
   const [phone, setPhone] = useState('')
@@ -75,14 +93,19 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
   const [category, setCategory] = useState<ComplaintCategory>('service_quality')
   const [message, setMessage] = useState('')
   const [bookingRef, setBookingRef] = useState('')
-  const [receivedAt, setReceivedAt] = useState(() => toIstInput(new Date().toISOString()))
+  const [receivedAt, setReceivedAt] = useState(() =>
+    toIstInput(new Date().toISOString())
+  )
   const [loggedBy, setLoggedBy] = useState(rememberedName)
   const [error, setError] = useState('')
   const [tried, setTried] = useState(false)
 
   const mobile = wholeMobile(phone)
   const ref = wholeBookingRef(bookingRef)
-  const lookup = useComplaintLookup({ phone: mobile ?? undefined, bookingRef: ref ?? undefined })
+  const lookup = useComplaintLookup({
+    phone: mobile ?? undefined,
+    bookingRef: ref ?? undefined,
+  })
   // Only once the look-up for this very number has answered.
   const accountName =
     mobile && !lookup.isPlaceholderData && lookup.data?.customer !== undefined
@@ -91,15 +114,26 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
   const hasAccount = accountName === undefined ? null : accountName !== null
   // A look-up that failed says nothing; the name is asked for in case.
   const lookupFailed = Boolean(mobile) && lookup.isError && hasAccount === null
-  const booking = lookup.isPlaceholderData ? null : bookingHint(lookup.data, ref, hasAccount === true)
+  const booking = lookup.isPlaceholderData
+    ? null
+    : bookingHint(lookup.data, ref, hasAccount === true)
 
   const now = new Date()
   const receivedIso = fromIstInput(receivedAt)
   const problems = logComplaintProblems(
-    { phone, hasAccount, customerName, message, bookingRef, receivedAt: receivedIso, loggedBy },
+    {
+      phone,
+      hasAccount,
+      customerName,
+      message,
+      bookingRef,
+      receivedAt: receivedIso,
+      loggedBy,
+    },
     now
   )
-  const canSubmit = problems.length === 0 && !booking?.problem && !logComplaint.isPending
+  const canSubmit =
+    problems.length === 0 && !booking?.problem && !logComplaint.isPending
 
   const submit = () => {
     setTried(true)
@@ -123,7 +157,8 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
           onClose()
           router.push(`/complaints/${created.id}`)
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't log this complaint")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't log this complaint")),
       }
     )
   }
@@ -137,10 +172,12 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
       className="flex max-w-[480px] flex-col gap-4"
     >
       <div>
-        <h2 className="text-[15px] font-semibold text-text-primary">Log a complaint</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">
+          Log a complaint
+        </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
-          For one that came by phone, WhatsApp, email or in person. It gets a C-number, and the clock runs from
-          when we received it.
+          For one that came by phone, WhatsApp, email or in person. It gets a
+          C-number, and the clock runs from when we received it.
         </p>
       </div>
 
@@ -155,16 +192,16 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
           onChange={(e) => setPhone(e.target.value)}
           className="min-h-11 font-numeric"
         />
-        <p className="text-[11px] text-text-muted" aria-live="polite">
+        <p className="text-[12px] text-text-muted" aria-live="polite">
           {!mobile
             ? 'Ten digits. +91 and spaces are fine.'
             : lookupFailed
               ? "Couldn't check for an account. Type their name in case there is none."
               : hasAccount === null
-              ? 'Looking for an account…'
-              : hasAccount
-                ? `${accountName}'s account: they'll see it, and your answer, in the app.`
-                : "No account with this number: it's kept with the name you type."}
+                ? 'Looking for an account…'
+                : hasAccount
+                  ? `${accountName}'s account: they'll see it, and your answer, in the app.`
+                  : "No account with this number: it's kept with the name you type."}
         </p>
       </div>
 
@@ -231,7 +268,14 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
           className="min-h-11 font-numeric uppercase"
         />
         {booking && (
-          <p className={booking.problem ? 'text-[11px] text-error' : 'text-[11px] text-text-muted'} aria-live="polite">
+          <p
+            className={
+              booking.problem
+                ? 'text-[12px] text-error'
+                : 'text-[12px] text-text-muted'
+            }
+            aria-live="polite"
+          >
             {booking.text}
           </p>
         )}
@@ -242,14 +286,19 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
           id="log-complaint-received"
           type="datetime-local"
           label="Received at (India time)"
-          min={toIstInput(new Date(now.getTime() - MAX_RECEIVED_DAYS_BACK * DAY_MS).toISOString())}
+          min={toIstInput(
+            new Date(
+              now.getTime() - MAX_RECEIVED_DAYS_BACK * DAY_MS
+            ).toISOString()
+          )}
           max={toIstInput(now.toISOString())}
           value={receivedAt}
           onChange={(e) => setReceivedAt(e.target.value)}
           className="min-h-11 font-numeric"
         />
-        <p className="text-[11px] text-text-muted">
-          When the call, message or visit came, up to {MAX_RECEIVED_DAYS_BACK} days back.
+        <p className="text-[12px] text-text-muted">
+          When the call, message or visit came, up to {MAX_RECEIVED_DAYS_BACK}{' '}
+          days back.
         </p>
       </div>
 
@@ -264,7 +313,10 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
       />
 
       {tried && problems.length > 0 && (
-        <ul role="alert" className="flex flex-col gap-0.5 text-[12px] text-error">
+        <ul
+          role="alert"
+          className="flex flex-col gap-0.5 text-[12px] text-error"
+        >
           {problems.map((problem) => (
             <li key={problem}>{problem}</li>
           ))}
@@ -277,11 +329,20 @@ export function LogComplaintDialog({ open, onClose }: { open: boolean; onClose: 
       )}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
-        <ScButton variant="secondary" onClick={onClose} disabled={logComplaint.isPending} className="min-h-11">
+        <ScButton
+          variant="secondary"
+          onClick={onClose}
+          disabled={logComplaint.isPending}
+          className="min-h-11"
+        >
           Go back
         </ScButton>
         {/* The dialog's one red button. */}
-        <ScButton onClick={submit} disabled={logComplaint.isPending || (tried && !canSubmit)} className="min-h-11">
+        <ScButton
+          onClick={submit}
+          disabled={logComplaint.isPending || (tried && !canSubmit)}
+          className="min-h-11"
+        >
           {logComplaint.isPending ? 'Logging…' : 'Log complaint'}
         </ScButton>
       </div>

@@ -5,9 +5,18 @@ import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { ApiError } from '@repo/core/api/client'
-import { extractGarageImport, getAdminAiConfig, type ImportedGarage } from '@repo/core/api/admin'
+import {
+  extractGarageImport,
+  getAdminAiConfig,
+  type ImportedGarage,
+} from '@repo/core/api/admin'
 import { GarageForm } from '@/components/garage-form'
-import { FillByHandLink, ImportSourceCard, ImportStartCard, TallyPickList } from '@/components/garage-import'
+import {
+  FillByHandLink,
+  ImportSourceCard,
+  ImportStartCard,
+  TallyPickList,
+} from '@/components/garage-import'
 import {
   MAX_TALLY_CSV_CHARS,
   formFromImport,
@@ -73,10 +82,14 @@ export default function NewVendorPage({
   const photosOn = aiConfig?.import === true
 
   const review = step.kind === 'review' ? step : null
-  const imported = useMemo(() => (review ? formFromImport(review.garage) : null), [review])
+  const imported = useMemo(
+    () => (review ? formFromImport(review.garage) : null),
+    [review]
+  )
 
   // The photo's thumbnail is held in memory only while its review is open.
-  const previewUrl = review?.source.kind === 'files' ? review.source.previewUrl : null
+  const previewUrl =
+    review?.source.kind === 'files' ? review.source.previewUrl : null
   useEffect(() => {
     if (!previewUrl) return
     return () => URL.revokeObjectURL(previewUrl)
@@ -85,7 +98,11 @@ export default function NewVendorPage({
   if (query.by === 'hand') {
     return (
       <div className="mx-auto w-full max-w-[640px] space-y-5">
-        <PageHeader title="Add garage" subtitle="Fill in by hand" backHref="/vendors/new" />
+        <PageHeader
+          title="Add garage"
+          subtitle="Fill in by hand"
+          backHref="/vendors/new"
+        />
         {/* To every garage, not the Live default: a new garage is usually
             not live yet, and it is the first card there, newest first. */}
         <GarageForm layout="tabs" afterCreate={listHref('all')} />
@@ -98,7 +115,11 @@ export default function NewVendorPage({
       router.replace('/login')
       return
     }
-    setError(err instanceof Error ? err.message : 'Couldn’t read the file. Try again, or fill in by hand.')
+    setError(
+      err instanceof Error
+        ? err.message
+        : 'Couldn’t read the file. Try again, or fill in by hand.'
+    )
   }
 
   const readFiles = async (files: File[]) => {
@@ -108,9 +129,20 @@ export default function NewVendorPage({
     setReading(files.length === 1 ? files[0].name : `${files.length} files`)
     try {
       const prepared = await prepareImportFiles(files)
-      const { garages } = await extractGarageImport({ source: 'files', files: prepared })
-      const previewUrl = importFileKind(files[0]) === 'image' ? URL.createObjectURL(files[0]) : null
-      setStep({ kind: 'review', source: { kind: 'files', files, previewUrl }, garage: garages[0], key: ++reviews })
+      const { garages } = await extractGarageImport({
+        source: 'files',
+        files: prepared,
+      })
+      const previewUrl =
+        importFileKind(files[0]) === 'image'
+          ? URL.createObjectURL(files[0])
+          : null
+      setStep({
+        kind: 'review',
+        source: { kind: 'files', files, previewUrl },
+        garage: garages[0],
+        key: ++reviews,
+      })
     } catch (err) {
       fail(err)
     } finally {
@@ -121,15 +153,22 @@ export default function NewVendorPage({
   const readCsv = async (file: File) => {
     setError(null)
     if (!/\.csv$/i.test(file.name) && file.type !== 'text/csv') {
-      return setError(`“${file.name}” isn't a CSV file. In Tally, open the form's Responses and download them as CSV.`)
+      return setError(
+        `“${file.name}” isn't a CSV file. In Tally, open the form's Responses and download them as CSV.`
+      )
     }
     setReading(file.name)
     try {
       const csv = await file.text()
       if (csv.length > MAX_TALLY_CSV_CHARS) {
-        throw new Error('This file is too big to read. Download only the newest responses from Tally.')
+        throw new Error(
+          'This file is too big to read. Download only the newest responses from Tally.'
+        )
       }
-      const { garages } = await extractGarageImport({ source: 'tally_csv', csv })
+      const { garages } = await extractGarageImport({
+        source: 'tally_csv',
+        csv,
+      })
       if (garages.length === 1) {
         setStep({
           kind: 'review',
@@ -155,14 +194,23 @@ export default function NewVendorPage({
   if (step.kind === 'pick') {
     return (
       <div className="mx-auto w-full max-w-[640px] space-y-5">
-        <PageHeader title="Add garage" subtitle="From Tally" onBack={backToStart} />
+        <PageHeader
+          title="Add garage"
+          subtitle="From Tally"
+          onBack={backToStart}
+        />
         <TallyPickList
           fileName={step.fileName}
           garages={step.garages}
           onPick={(index) =>
             setStep({
               kind: 'review',
-              source: { kind: 'tally', fileName: step.fileName, row: index + 1, rows: step.garages.length },
+              source: {
+                kind: 'tally',
+                fileName: step.fileName,
+                row: index + 1,
+                rows: step.garages.length,
+              },
               garage: step.garages[index],
               key: ++reviews,
               from: { fileName: step.fileName, garages: step.garages },
@@ -182,11 +230,17 @@ export default function NewVendorPage({
         <PageHeader
           title="Check the details"
           subtitle={importSourceLine(
-            review.source.kind === 'tally' ? { kind: 'tally' } : { kind: 'files', files: review.source.files }
+            review.source.kind === 'tally'
+              ? { kind: 'tally' }
+              : { kind: 'files', files: review.source.files }
           )}
           onBack={back}
         />
-        <ImportSourceCard source={review.source} summary={importSummary(review.garage)} onChangeFile={backToStart} />
+        <ImportSourceCard
+          source={review.source}
+          summary={importSummary(review.garage)}
+          onChangeFile={backToStart}
+        />
         {/* Keyed by the import, so a second one starts the form afresh. */}
         <GarageForm
           key={review.key}
@@ -194,9 +248,12 @@ export default function NewVendorPage({
           initial={imported.initial}
           marks={imported.marks}
           rowNotes={imported.rowNotes}
-          servicesHelp={untimedLine(imported.untimedServices, review.garage.draft.services.length)}
+          servicesHelp={untimedLine(
+            imported.untimedServices,
+            review.garage.draft.services.length
+          )}
           pendingOnly
-          afterCreate={listHref('pending')}
+          afterCreate={listHref('notlive')}
         />
       </div>
     )

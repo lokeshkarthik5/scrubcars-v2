@@ -27,24 +27,27 @@ export function DiscountsTabs() {
 
   return (
     <nav
-      aria-label="Discounts sections"
-      className="flex w-full gap-0.5 rounded-[12px] bg-surface p-1 sm:w-fit"
+      aria-label="Offers sections"
+      // Scrolls inside itself on a phone, never the page (quick win 2).
+      className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
     >
-      {TABS.map((tab) => (
-        <Link
-          key={tab.href}
-          href={tab.href}
-          aria-current={current === tab.href ? 'page' : undefined}
-          className={cn(
-            'flex min-h-11 flex-1 items-center justify-center rounded-[9px] px-5 text-[13px] font-medium transition-colors sm:flex-none',
-            current === tab.href
-              ? 'bg-surface-elevated text-text-primary shadow-sm'
-              : 'text-text-secondary hover:text-text-primary'
-          )}
-        >
-          {tab.label}
-        </Link>
-      ))}
+      <div className="flex w-max min-w-full gap-0.5 rounded-[12px] bg-surface p-1 sm:min-w-0">
+        {TABS.map((tab) => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            aria-current={current === tab.href ? 'page' : undefined}
+            className={cn(
+              'flex min-h-11 flex-1 shrink-0 items-center justify-center whitespace-nowrap rounded-[8px] px-4 text-[13px] font-medium transition-colors sm:flex-none sm:px-5',
+              current === tab.href
+                ? 'bg-surface-elevated text-text-primary shadow-sm'
+                : 'text-text-secondary hover:text-text-primary'
+            )}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </div>
     </nav>
   )
 }

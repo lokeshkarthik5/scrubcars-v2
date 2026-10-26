@@ -3,7 +3,9 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'react-toastify'
 import {
+  IconAdjustmentsHorizontal,
   IconAlertCircle,
   IconAlertTriangle,
   IconArchive,
@@ -29,6 +31,8 @@ import {
 import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { ScCard } from '@repo/ui/sc/card'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
+import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { Figures } from '@repo/ui/sc/figures'
@@ -53,6 +57,9 @@ import {
   REVIEW_LABEL,
   SHOW_FILTERS,
   SHOW_LABELS,
+  isMoreFilter,
+  isStageFilter,
+  matchesSearch,
   binDeleteLine,
   bookingParts,
   bookingsLine,
@@ -88,9 +95,30 @@ const ROW_ACTION = 'flex min-h-11 items-center gap-1 px-3 py-1.5 text-[12px]'
 
 // Each checklist group's mark: amber for what needs doing, grey for optional.
 const GROUP_ICON: Record<ReadinessItem['severity'], React.ReactNode> = {
-  blocking: <IconAlertCircle size={14} stroke={1.8} className="text-warning" aria-hidden="true" />,
-  fix: <IconCircle size={14} stroke={1.7} className="text-warning" aria-hidden="true" />,
-  optional: <IconCircleDashed size={14} stroke={1.7} className="text-text-muted" aria-hidden="true" />,
+  blocking: (
+    <IconAlertCircle
+      size={14}
+      stroke={1.8}
+      className="text-warning"
+      aria-hidden="true"
+    />
+  ),
+  fix: (
+    <IconCircle
+      size={14}
+      stroke={1.7}
+      className="text-warning"
+      aria-hidden="true"
+    />
+  ),
+  optional: (
+    <IconCircleDashed
+      size={14}
+      stroke={1.7}
+      className="text-text-muted"
+      aria-hidden="true"
+    />
+  ),
 }
 
 export default function AdminVendorsPage() {
@@ -109,6 +137,8 @@ function VendorsList() {
 
   // The chosen chip lives in the URL, so Back from a garage returns to it.
   const show = parseShow(params.get('show'))
+  // "Garages matching …" from Find anything: a name, phone or area.
+  const q = params.get('q') ?? ''
   // What a card's links carry as `back`: this list, as it is now.
   const back = listHref(show)
 
@@ -127,17 +157,26 @@ function VendorsList() {
   // What the last Bin action did, read out politely above the list.
   const [notice, setNotice] = useState('')
 
-  const error = loadError ? errorMessage(loadError, 'Failed to load vendors') : ''
+  const error = loadError
+    ? errorMessage(loadError, 'Failed to load vendors')
+    : ''
 
   // Counted over the full list the page already has: the API returns every
   // garage, and other screens' garage pickers need it that way.
   const counts = showCounts(vendors)
   const toReview = documentsToReviewCount(vendors)
   const certification = certificationCounts(vendors)
-  const shown = vendors.filter((v) => matchesShow(v, show))
+  const shown = vendors.filter(
+    (v) => matchesShow(v, show) && matchesSearch(v, q)
+  )
+  // More filters is open while one of its filters is chosen, or on request.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreShown = moreOpen || isMoreFilter(show)
 
   // Checklists open, by garage. A tap on the readiness line toggles one.
-  const [openChecklists, setOpenChecklists] = useState<ReadonlySet<string>>(new Set())
+  const [openChecklists, setOpenChecklists] = useState<ReadonlySet<string>>(
+    new Set()
+  )
   const toggleChecklist = (id: string) =>
     setOpenChecklists((prev) => {
       const next = new Set(prev)
@@ -196,16 +235,64 @@ function VendorsList() {
     })
   }
 
+  // Archive is easy to take back for an Active garage, so it happens at
+  // once with an Undo (safe actions, level 1): Unarchive puts it back to
+  // Active, exactly as it was. Any other stage would come back as Active,
+  // not as it was, so those are confirmed first and offer no Undo.
+  const [confirmArchive, setConfirmArchive] = useState<AdminVendor | null>(null)
+  // Apart from the garage, so the sheet keeps its words while it slides away.
+  const [archiveOpen, setArchiveOpen] = useState(false)
+
+  // Why the confirmed archive failed, said inside its sheet.
+  const [archiveError, setArchiveError] = useState('')
+
+  /**
+   * Archives or unarchives, from this call's own promise rather than the
+   * shared mutation's callbacks (which a second press would replace), so each
+   * garage gets its own toast or its own error. True when it worked.
+   */
+  const runArchive = async (
+    v: AdminVendor,
+    archiving: boolean
+  ): Promise<boolean> => {
+    try {
+      await archive.mutateAsync({ id: v.id, archiving })
+      return true
+    } catch {
+      showRowError(
+        v.id,
+        `Failed to ${archiving ? 'archive' : 'restore'} vendor`
+      )
+      return false
+    }
+  }
+
+  const archiveWithUndo = async (v: AdminVendor) => {
+    if (!(await runArchive(v, true))) return
+    let undone = false
+    showUndoToast(`${v.businessName} archived. Customers can't find it.`, {
+      onUndo: () => {
+        // Once, however many times the toast's button is pressed.
+        if (undone) return
+        undone = true
+        void runArchive(v, false).then((ok) => {
+          if (!ok)
+            toast.error(`Couldn't undo: ${v.businessName} is still archived.`)
+        })
+      },
+    })
+  }
+
   const handleArchiveToggle = (v: AdminVendor) => {
     const archiving = v.status !== 'archived'
     clearRowError(v.id)
-    archive.mutate(
-      { id: v.id, archiving },
-      {
-        onError: () =>
-          showRowError(v.id, `Failed to ${archiving ? 'archive' : 'restore'} vendor`),
-      }
-    )
+    if (archiving && v.status !== 'active') {
+      setConfirmArchive(v)
+      setArchiveError('')
+      setArchiveOpen(true)
+      return
+    }
+    void (archiving ? archiveWithUndo(v) : runArchive(v, false))
   }
 
   const openDialog = (kind: 'bin' | 'restore' | 'delete', v: AdminVendor) => {
@@ -219,10 +306,18 @@ function VendorsList() {
       <PageHeader
         title="Garages"
         subtitle={
+          // The same number as the All chip: the Bin is not counted.
           !loading && !error && vendors.length > 0 ? (
             <>
-              <span className="font-numeric">{vendors.length}</span> garage
-              {vendors.length === 1 ? '' : 's'}
+              <span className="font-numeric">{counts.all}</span> garage
+              {counts.all === 1 ? '' : 's'}
+              {counts.bin > 0 && (
+                <>
+                  {' '}
+                  · <span className="font-numeric">{counts.bin}</span> in the
+                  Bin
+                </>
+              )}
             </>
           ) : undefined
         }
@@ -232,6 +327,44 @@ function VendorsList() {
             <IconPlus size={16} aria-hidden="true" /> Add garage
           </ScButtonLink>
         }
+      />
+
+      <ConfirmSheet
+        open={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        onConfirm={async () => {
+          if (!confirmArchive) return
+          setArchiveError('')
+          try {
+            await archive.mutateAsync({
+              id: confirmArchive.id,
+              archiving: true,
+            })
+            setArchiveOpen(false)
+          } catch (err) {
+            // Kept open, with the reason where the button was pressed.
+            setArchiveError(
+              errorMessage(err, 'Failed to archive the garage. Try again.')
+            )
+          }
+        }}
+        error={archiveError || undefined}
+        level="light"
+        title={`Archive ${confirmArchive?.businessName ?? 'this garage'}?`}
+        body={
+          <>
+            It is put away and customers can&apos;t find it; its bookings are
+            kept. Unarchiving it later makes it{' '}
+            <span className="font-medium text-text-primary">Active</span>, not{' '}
+            {confirmArchive
+              ? confirmArchive.status.charAt(0).toUpperCase() +
+                confirmArchive.status.slice(1)
+              : ''}{' '}
+            as it is now.
+          </>
+        }
+        confirmLabel="Archive"
+        busy={archive.isPending}
       />
 
       {loading ? (
@@ -250,7 +383,9 @@ function VendorsList() {
         <div className="flex flex-col gap-3">
           <div>
             {/* One row that scrolls sideways on a phone, to the screen's
-                edge, rather than wrapping into a block of buttons. */}
+                edge, rather than wrapping into a block of buttons. Five
+                states and All (quick win 3); the filters that cut across
+                them are under More filters. */}
             <div
               role="group"
               aria-label="Show"
@@ -263,58 +398,104 @@ function VendorsList() {
                   count={counts[s]}
                   active={show === s}
                   onClick={() => chooseShow(s)}
-                  className="min-h-11 rounded-[10px] text-[13px]"
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
                 />
               ))}
-              {/* Garage documents waiting for Detlio (0043). Apart from the
-                  stages, after a rule, and only while any wait (or it is the
-                  one chosen). */}
-              {(toReview > 0 || show === REVIEW_FILTER) && (
-                <>
-                  <span aria-hidden="true" className="my-2 w-px shrink-0 bg-border" />
-                  <FilterChip
-                    label={REVIEW_LABEL}
-                    count={toReview}
-                    active={show === REVIEW_FILTER}
-                    onClick={() => chooseShow(REVIEW_FILTER)}
-                    className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
-                  />
-                </>
+              {/* An old link's stage (Pending, Active, Suspended) still
+                  opens, as one more chip while it is chosen. */}
+              {isStageFilter(show) && (
+                <FilterChip
+                  label={SHOW_LABELS[show]}
+                  count={counts[show]}
+                  active
+                  onClick={() => chooseShow(show)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
               )}
-              {/* Detlio Certified (0048): who has the seal, and who met
-                  every standard last night and waits for a quality check.
-                  Apart from the stages, after a rule; Eligible only while
-                  any are (or it is the one chosen). */}
-              <span aria-hidden="true" className="my-2 w-px shrink-0 bg-border" />
-              <FilterChip
-                label={CERTIFIED_LABEL}
-                count={certification.certified}
-                active={show === CERTIFIED_FILTER}
-                onClick={() => chooseShow(CERTIFIED_FILTER)}
-                className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
-              />
-              {(certification.eligible > 0 || show === ELIGIBLE_FILTER) && (
+              <button
+                type="button"
+                onClick={() => setMoreOpen((open) => !open)}
+                aria-expanded={moreShown}
+                aria-controls="garage-more-filters"
+                className={cn(
+                  'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] font-medium transition-colors',
+                  isMoreFilter(show)
+                    ? 'border-text-primary text-text-primary'
+                    : 'border-border text-text-secondary hover:text-text-primary'
+                )}
+              >
+                <IconAdjustmentsHorizontal size={15} aria-hidden="true" />
+                More filters
+                {toReview > 0 && !isMoreFilter(show) && (
+                  <span className="font-numeric text-tone-attention-text">
+                    · {toReview} to review
+                  </span>
+                )}
+              </button>
+            </div>
+            {moreShown && (
+              <div
+                id="garage-more-filters"
+                role="group"
+                aria-label="More filters"
+                className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
+              >
+                {/* Garage documents waiting for Detlio (0043), and Detlio
+                    Certified (0048): who has the seal, and who met every
+                    standard last night and waits for a quality check. */}
+                <FilterChip
+                  label={REVIEW_LABEL}
+                  count={toReview}
+                  active={show === REVIEW_FILTER}
+                  onClick={() => chooseShow(REVIEW_FILTER)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
+                <FilterChip
+                  label={CERTIFIED_LABEL}
+                  count={certification.certified}
+                  active={show === CERTIFIED_FILTER}
+                  onClick={() => chooseShow(CERTIFIED_FILTER)}
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                />
                 <FilterChip
                   label={ELIGIBLE_LABEL}
                   count={certification.eligible}
                   active={show === ELIGIBLE_FILTER}
                   onClick={() => chooseShow(ELIGIBLE_FILTER)}
-                  className="min-h-11 shrink-0 rounded-[10px] text-[13px]"
+                  className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
                 />
-              )}
-            </div>
+              </div>
+            )}
+            {q && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 text-[13px] text-text-secondary">
+                Garages matching{' '}
+                <span className="font-medium text-text-primary">“{q}”</span>
+                <Link
+                  href={listHref(show)}
+                  className="inline-flex min-h-11 items-center font-medium text-text-primary underline underline-offset-2"
+                >
+                  Clear
+                </Link>
+              </p>
+            )}
             <div className="mt-2.5 text-[12px] leading-[1.45] text-text-muted">
               {showHints(show).map((hint) => (
                 <p key={hint.term}>
-                  <span className="font-medium text-text-secondary">{hint.term}</span> ={' '}
-                  {hint.meaning}
+                  <span className="font-medium text-text-secondary">
+                    {hint.term}
+                  </span>{' '}
+                  = {hint.meaning}
                 </p>
               ))}
             </div>
           </div>
 
           {/* A failed refetch, with the last list still on screen. */}
-          {error && <p role="alert" className="text-[12px] text-error">{error}</p>}
+          {error && (
+            <p role="alert" className="text-[12px] text-error">
+              {error}
+            </p>
+          )}
           {notice && (
             <p role="status" className="text-[13px] text-text-primary">
               <Figures text={notice} />
@@ -331,7 +512,9 @@ function VendorsList() {
                     ? 'No Detlio Certified garages yet.'
                     : show === ELIGIBLE_FILTER
                       ? 'No garage is waiting to be certified.'
-                      : `No ${SHOW_LABELS[show].toLowerCase()} garages.`}
+                      : q
+                        ? `No garages match “${q}” here.`
+                        : `No garages are ${SHOW_LABELS[show].toLowerCase()}.`}
             </p>
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -385,7 +568,9 @@ function VendorsList() {
           onClose={() => setDialog(null)}
           onDone={() => {
             setDialog(null)
-            setNotice(`${dialog.vendor.businessName} is back, as it was before the Bin.`)
+            setNotice(
+              `${dialog.vendor.businessName} is back, as it was before the Bin.`
+            )
           }}
         />
       )}
@@ -418,12 +603,18 @@ function BinCard({
   onDelete: () => void
 }) {
   const preview = useAdminVendorDeletePreview(v.id)
-  const deleteLine = preview.data ? binDeleteLine(preview.data.bookings.deleted) : null
+  const deleteLine = preview.data
+    ? binDeleteLine(preview.data.bookings.deleted)
+    : null
   const meta = [{ text: v.city }, ...bookingParts(v)]
   const rows: Array<[string, string]> = [
     ['Binned', v.deletedAt ? formatWhen(v.deletedAt) : ''],
-    ...(v.deletedByName ? ([['By', v.deletedByName]] as Array<[string, string]>) : []),
-    ...(v.deletedReason ? ([['Reason', v.deletedReason]] as Array<[string, string]>) : []),
+    ...(v.deletedByName
+      ? ([['By', v.deletedByName]] as Array<[string, string]>)
+      : []),
+    ...(v.deletedReason
+      ? ([['Reason', v.deletedReason]] as Array<[string, string]>)
+      : []),
   ]
 
   return (
@@ -448,7 +639,9 @@ function BinCard({
             )}
             {part.text && <Figures text={part.text} />}
             {part.text && part.quiet && ' '}
-            {part.quiet && <span className="text-text-muted">{part.quiet}</span>}
+            {part.quiet && (
+              <span className="text-text-muted">{part.quiet}</span>
+            )}
           </span>
         ))}
       </p>
@@ -466,7 +659,12 @@ function BinCard({
 
       {deleteLine && (
         <p className="mt-3 flex items-center gap-2 text-[13px] text-warning">
-          <IconAlertTriangle size={16} stroke={1.7} aria-hidden="true" className="shrink-0" />
+          <IconAlertTriangle
+            size={16}
+            stroke={1.7}
+            aria-hidden="true"
+            className="shrink-0"
+          />
           <Figures text={deleteLine} />
         </p>
       )}
@@ -556,7 +754,10 @@ function GarageCard({
         ) : (
           // Absent from an older server, which doesn't send the count.
           v.bookingCount !== undefined && (
-            <span id={bookingsId} className="shrink-0 whitespace-nowrap text-[12px] text-text-muted">
+            <span
+              id={bookingsId}
+              className="shrink-0 whitespace-nowrap text-[12px] text-text-muted"
+            >
               <Figures text={bookingsLine(bookingCount)} />
             </span>
           )
@@ -587,11 +788,14 @@ function GarageCard({
           the wrong place. No km on an unpinned garage, signed from its city
           field alone. */}
       {v.outsideServiceCity && (
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-muted">
           <OutsideCityChip outside={v.outsideServiceCity} className="min-w-0" />
           {v.outsideServiceCity.km !== null && (
             <span className="shrink-0">
-              <span className="font-numeric">{v.outsideServiceCity.km.toLocaleString('en-IN')}</span> km out
+              <span className="font-numeric">
+                {v.outsideServiceCity.km.toLocaleString('en-IN')}
+              </span>{' '}
+              km out
             </span>
           )}
         </p>
@@ -604,55 +808,92 @@ function GarageCard({
           href={editHref(v.id, back, 'documents')}
           className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
         >
-          <IconFileCertificate size={15} aria-hidden="true" className="shrink-0 text-text-secondary" />
+          <IconFileCertificate
+            size={15}
+            aria-hidden="true"
+            className="shrink-0 text-text-secondary"
+          />
           <Figures
             text={`${v.documents.toReview} ${v.documents.toReview === 1 ? 'document' : 'documents'} to review`}
           />
-          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+          <IconChevronRight
+            size={15}
+            aria-hidden="true"
+            className="text-text-muted"
+          />
         </Link>
       )}
 
       {/* Detlio Certified (0048): the seal, the days a certified garage has
           left to put a shortfall right, or that it met every standard and
           waits for a quality check. Straight to the Certification tab. */}
-      {v.certification && (v.certification.certified || v.certification.eligible) && (
-        <Link
-          href={editHref(v.id, back, 'certification')}
-          className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
-        >
-          {v.certification.certified ? (
-            <IconRosetteDiscountCheckFilled size={15} aria-hidden="true" className="shrink-0" />
-          ) : (
-            <IconRosetteDiscountCheck size={15} aria-hidden="true" className="shrink-0 text-text-secondary" />
-          )}
-          {v.certification.certified ? (
-            v.certification.keepsUntil ? (
-              <span className="text-warning">
-                Certified, falling short · keeps it until <span className="font-numeric">{v.certification.keepsUntil}</span>
-              </span>
+      {v.certification &&
+        (v.certification.certified || v.certification.eligible) && (
+          <Link
+            href={editHref(v.id, back, 'certification')}
+            className="mt-1.5 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium text-text-primary underline-offset-2 hover:underline"
+          >
+            {v.certification.certified ? (
+              <IconRosetteDiscountCheckFilled
+                size={15}
+                aria-hidden="true"
+                className="shrink-0"
+              />
             ) : (
-              'Detlio Certified'
-            )
-          ) : (
-            'Eligible for Detlio Certified · record a check'
-          )}
-          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
-        </Link>
-      )}
+              <IconRosetteDiscountCheck
+                size={15}
+                aria-hidden="true"
+                className="shrink-0 text-text-secondary"
+              />
+            )}
+            {v.certification.certified ? (
+              v.certification.keepsUntil ? (
+                <span className="text-warning">
+                  Certified, falling short · keeps it until{' '}
+                  <span className="font-numeric">
+                    {v.certification.keepsUntil}
+                  </span>
+                </span>
+              ) : (
+                'Detlio Certified'
+              )
+            ) : (
+              'Eligible for Detlio Certified · record a check'
+            )}
+            <IconChevronRight
+              size={15}
+              aria-hidden="true"
+              className="text-text-muted"
+            />
+          </Link>
+        )}
 
       {/* Photo compliance (0045): how many of its jobs completed in the last
           90 days had 2 before and 2 after photos. Only once it has some. */}
       {v.photoCompliance && v.photoCompliance.percent !== null && (
         <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
-          <IconCamera size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <IconCamera
+            size={14}
+            aria-hidden="true"
+            className="shrink-0 text-text-muted"
+          />
           <span className="truncate">
             Photos on{' '}
-            <span className={cn('font-numeric', v.photoCompliance.percent < 80 && 'text-warning')}>
+            <span
+              className={cn(
+                'font-numeric',
+                v.photoCompliance.percent < 80 && 'text-warning'
+              )}
+            >
               {v.photoCompliance.percent}%
             </span>{' '}
             of jobs{' '}
             <span className="text-text-muted">
-              (<Figures text={`${v.photoCompliance.compliant} of ${v.photoCompliance.jobs}, last 90 days`} />)
+              (
+              <Figures
+                text={`${v.photoCompliance.compliant} of ${v.photoCompliance.jobs}, last 90 days`}
+              />
+              )
             </span>
           </span>
         </p>
@@ -666,13 +907,23 @@ function GarageCard({
           href="/bypass-reports?show=confirmed"
           className={cn(
             'mt-1 flex min-h-11 items-center gap-1.5 self-start text-[12px] font-medium underline-offset-2 hover:underline',
-            strikesHighlighted(v.bypassStrikes ?? 0) ? 'text-error' : 'text-text-primary'
+            strikesHighlighted(v.bypassStrikes ?? 0)
+              ? 'text-error'
+              : 'text-text-primary'
           )}
         >
           <IconFlag size={15} aria-hidden="true" className="shrink-0" />
-          <span className="font-numeric">{strikesLabel(v.bypassStrikes ?? 0)}</span>
-          <span className="text-text-muted">· bypass reports, last 180 days</span>
-          <IconChevronRight size={15} aria-hidden="true" className="text-text-muted" />
+          <span className="font-numeric">
+            {strikesLabel(v.bypassStrikes ?? 0)}
+          </span>
+          <span className="text-text-muted">
+            · bypass reports, last 180 days
+          </span>
+          <IconChevronRight
+            size={15}
+            aria-hidden="true"
+            className="text-text-muted"
+          />
         </Link>
       )}
 
@@ -681,9 +932,20 @@ function GarageCard({
           there are some. */}
       {typeof v.redoClaims90d === 'number' && v.redoClaims90d > 0 && (
         <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-text-secondary">
-          <IconRefresh size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
+          <IconRefresh
+            size={14}
+            aria-hidden="true"
+            className="shrink-0 text-text-muted"
+          />
           <span className="truncate">
-            <span className={cn('font-numeric', v.redoClaims90d >= 3 && 'text-warning')}>{v.redoClaims90d}</span>{' '}
+            <span
+              className={cn(
+                'font-numeric',
+                v.redoClaims90d >= 3 && 'text-warning'
+              )}
+            >
+              {v.redoClaims90d}
+            </span>{' '}
             redo claim{v.redoClaims90d === 1 ? '' : 's'} in 90 days
           </span>
         </p>
@@ -759,7 +1021,11 @@ function GarageCard({
 
       {/* Amber, as errors are; announced, and on the card that was pressed. */}
       {rowError && (
-        <p id={`vendor-${v.id}-error`} role="alert" className="pb-3 text-[12px] text-error">
+        <p
+          id={`vendor-${v.id}-error`}
+          role="alert"
+          className="pb-3 text-[12px] text-error"
+        >
           {rowError}
         </p>
       )}
@@ -840,14 +1106,26 @@ function CardMenu({
           <button
             type="button"
             disabled={busy}
-            aria-label={archived ? `Restore ${name} from the archive` : `Archive ${name}`}
+            aria-label={
+              archived ? `Restore ${name} from the archive` : `Archive ${name}`
+            }
             onClick={() => choose(onArchiveToggle)}
             className={item}
           >
             {archived ? (
-              <IconArchiveOff size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+              <IconArchiveOff
+                size={17}
+                stroke={1.6}
+                aria-hidden="true"
+                className="text-text-secondary"
+              />
             ) : (
-              <IconArchive size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+              <IconArchive
+                size={17}
+                stroke={1.6}
+                aria-hidden="true"
+                className="text-text-secondary"
+              />
             )}
             {archived ? 'Unarchive' : 'Archive'}
           </button>
@@ -857,7 +1135,12 @@ function CardMenu({
             onClick={() => choose(onMoveToBin)}
             className={cn(item, 'border-t border-border')}
           >
-            <IconTrash size={17} stroke={1.6} aria-hidden="true" className="text-text-secondary" />
+            <IconTrash
+              size={17}
+              stroke={1.6}
+              aria-hidden="true"
+              className="text-text-secondary"
+            />
             Move to Bin
           </button>
         </div>
@@ -891,9 +1174,19 @@ function Readiness({
   const line = (
     <>
       {summary.needsFixing ? (
-        <IconAlertCircle size={15} stroke={1.6} className="shrink-0 text-warning" aria-hidden="true" />
+        <IconAlertCircle
+          size={15}
+          stroke={1.6}
+          className="shrink-0 text-warning"
+          aria-hidden="true"
+        />
       ) : (
-        <IconCheck size={15} stroke={1.8} className="shrink-0 text-text-muted" aria-hidden="true" />
+        <IconCheck
+          size={15}
+          stroke={1.8}
+          className="shrink-0 text-text-muted"
+          aria-hidden="true"
+        />
       )}
       <span className="min-w-0 truncate">
         <Figures text={summary.main} />
@@ -911,7 +1204,16 @@ function Readiness({
 
   // Nothing at all to show: a quiet tick, nothing to open.
   if (items.length === 0) {
-    return <p className={cn('mt-2.5 flex min-h-5 items-center gap-2 text-[12.5px]', tone)}>{line}</p>
+    return (
+      <p
+        className={cn(
+          'mt-2.5 flex min-h-5 items-center gap-2 text-[12.5px]',
+          tone
+        )}
+      >
+        {line}
+      </p>
+    )
   }
 
   return (
@@ -921,7 +1223,10 @@ function Readiness({
         aria-expanded={open}
         aria-controls={checklistId}
         onClick={onToggle}
-        className={cn('mt-2 flex min-h-11 w-full items-center gap-2 text-left text-[12.5px]', tone)}
+        className={cn(
+          'mt-2 flex min-h-11 w-full items-center gap-2 text-left text-[12.5px]',
+          tone
+        )}
       >
         {line}
         <IconChevronDown
@@ -944,16 +1249,21 @@ function Readiness({
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p
                     id={titleId}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-text-secondary"
                   >
                     {GROUP_ICON[group.severity]}
                     {group.title}
                   </p>
-                  <span className="text-[12px] text-text-muted">{group.note}</span>
+                  <span className="text-[12px] text-text-muted">
+                    {group.note}
+                  </span>
                 </div>
                 <ul className="overflow-hidden rounded-xl border border-border bg-brand-black">
                   {group.items.map((item) => (
-                    <li key={item.key} className="border-t border-border first:border-t-0">
+                    <li
+                      key={item.key}
+                      className="border-t border-border first:border-t-0"
+                    >
                       <Link
                         href={editHref(vendorId, back, item.tab)}
                         className="flex min-h-12 items-center gap-2.5 py-2 pl-3.5 pr-2 transition-colors hover:bg-surface"

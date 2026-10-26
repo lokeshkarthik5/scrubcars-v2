@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconArrowDown, IconChevronDown, IconDownload, IconStar } from '@tabler/icons-react'
+import {
+  IconArrowDown,
+  IconChevronDown,
+  IconDownload,
+  IconStar,
+} from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { ErrorState } from '@repo/ui/sc/empty-state'
@@ -36,19 +41,36 @@ const HOW_WE_COUNT = [
   'Bookings marked Test, and their checkouts, are left out.',
 ]
 
-export function CardHeading({ title, subtitle }: { title: string; subtitle: string }) {
+export function CardHeading({
+  title,
+  subtitle,
+}: {
+  title: string
+  subtitle: string
+}) {
   return (
     <>
-      <h2 className="text-[15px] font-medium tracking-tight text-text-primary">{title}</h2>
+      <h2 className="text-[15px] font-medium tracking-tight text-text-primary">
+        {title}
+      </h2>
       <p className="mt-0.5 text-[12px] text-text-secondary">{subtitle}</p>
     </>
   )
 }
 
 /** A bar as a share of its whole, on a faint track. */
-export function ShareBar({ share, className }: { share: number; className?: string }) {
+export function ShareBar({
+  share,
+  className,
+}: {
+  share: number
+  className?: string
+}) {
   return (
-    <div aria-hidden="true" className={cn('overflow-hidden rounded-full bg-white/[0.06]', className)}>
+    <div
+      aria-hidden="true"
+      className={cn('overflow-hidden rounded-full bg-white/[0.06]', className)}
+    >
       <i
         className="block h-full rounded-full bg-[#E4E4E7]"
         style={{ width: `${Math.max(0, Math.min(1, share)) * 100}%` }}
@@ -82,7 +104,9 @@ function Step({
       <div className="flex items-baseline justify-between gap-3 text-[13px]">
         <span className="text-text-primary">{label}</span>
         <span className="flex items-baseline gap-2.5">
-          {note && <em className="not-italic text-[11px] text-text-muted">{note}</em>}
+          {note && (
+            <em className="not-italic text-[12px] text-text-muted">{note}</em>
+          )}
           <b className="font-numeric text-[17px] font-medium tabular-nums text-text-primary">
             {count.toLocaleString('en-IN')}
           </b>
@@ -99,19 +123,25 @@ function Funnel({ funnel }: { funnel: StatsBreakdown['funnel'] }) {
   const after = [
     funnel.cancelled > 0 && plural(funnel.cancelled, 'cancelled', 'cancelled'),
     funnel.noShows > 0 && plural(funnel.noShows, 'no-show', 'no-shows'),
-    funnel.notDone > 0 && `${funnel.notDone.toLocaleString('en-IN')} not marked done yet`,
+    funnel.notDone > 0 &&
+      `${funnel.notDone.toLocaleString('en-IN')} not marked done yet`,
   ].filter(Boolean)
 
   return (
     <ScCard className="px-4 py-4">
       <CardHeading title="Funnel" subtitle="From checkout to a finished job" />
       <div className="mt-4">
-        <Step label="Checkout started" count={started} share={started > 0 ? 1 : 0} />
+        <Step
+          label="Checkout started"
+          count={started}
+          share={started > 0 ? 1 : 0}
+        />
         <Drop>
           <span className="font-numeric font-medium text-text-secondary">
             {funnel.leftWithoutPaying.toLocaleString('en-IN')}
           </span>{' '}
-          left without paying · {percent(started > 0 ? funnel.leftWithoutPaying / started : null)}
+          left without paying ·{' '}
+          {percent(started > 0 ? funnel.leftWithoutPaying / started : null)}
           {funnel.paidNoBooking > 0 && (
             <>
               {' '}
@@ -129,7 +159,11 @@ function Funnel({ funnel }: { funnel: StatsBreakdown['funnel'] }) {
           note={`${percent(funnel.paidOfStarted)} of started`}
           share={of(funnel.paid)}
         />
-        <Drop>{after.length > 0 ? after.join(' · ') : 'None cancelled or still to come'}</Drop>
+        <Drop>
+          {after.length > 0
+            ? after.join(' · ')
+            : 'None cancelled or still to come'}
+        </Drop>
         <Step
           label="Completed"
           count={funnel.completed}
@@ -152,7 +186,9 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
     <ScCard className="px-4 pb-1.5 pt-4">
       <CardHeading title="By garage" subtitle="Most collected first" />
       {garages.length === 0 ? (
-        <p className="py-4 text-[13px] text-text-secondary">No paid bookings in this period.</p>
+        <p className="py-4 text-[13px] text-text-secondary">
+          No paid bookings in this period.
+        </p>
       ) : (
         <table className="mt-3.5 w-full table-fixed border-collapse text-[13px]">
           <colgroup>
@@ -161,7 +197,7 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
             <col className="w-[96px]" />
           </colgroup>
           <thead>
-            <tr className="border-b border-border text-[11px] text-text-muted">
+            <tr className="border-b border-border text-[12px] text-text-muted">
               <th scope="col" className="pb-2 text-left font-medium">
                 Garage
               </th>
@@ -175,19 +211,31 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
           </thead>
           <tbody>
             {shown.map((garage) => (
-              <tr key={garage.vendorId} className="border-b border-border last:border-b-0">
+              <tr
+                key={garage.vendorId}
+                className="border-b border-border last:border-b-0"
+              >
                 <th scope="row" className="py-2.5 pr-2 text-left font-normal">
-                  <span className="block leading-[18px] text-text-primary">{garage.name}</span>
-                  <span className="mt-0.5 flex items-center gap-1 text-[11px] text-text-muted">
+                  <span className="block leading-[18px] text-text-primary">
+                    {garage.name}
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-1 text-[12px] text-text-muted">
                     {garage.rating === null ? (
                       'No ratings yet'
                     ) : (
                       <>
-                        <IconStar size={11} aria-hidden="true" className="text-text-secondary" />
-                        <span className="font-numeric">{garage.rating.toFixed(1)}</span>
+                        <IconStar
+                          size={11}
+                          aria-hidden="true"
+                          className="text-text-secondary"
+                        />
+                        <span className="font-numeric">
+                          {garage.rating.toFixed(1)}
+                        </span>
                         <span className="sr-only">
                           {' '}
-                          stars from {plural(garage.reviews, 'review', 'reviews')}
+                          stars from{' '}
+                          {plural(garage.reviews, 'review', 'reviews')}
                         </span>
                       </>
                     )}
@@ -195,12 +243,17 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
                   {/* Paid bookings it let run out (0042): cancelled and
                       refunded by the cron, already among the cancellations. */}
                   {(garage.notAcceptedInTime ?? 0) > 0 && (
-                    <span className="mt-0.5 block text-[11px] text-text-secondary">
-                      <span className="font-numeric">{garage.notAcceptedInTime}</span> not accepted in time
+                    <span className="mt-0.5 block text-[12px] text-text-secondary">
+                      <span className="font-numeric">
+                        {garage.notAcceptedInTime}
+                      </span>{' '}
+                      not accepted in time
                     </span>
                   )}
                 </th>
-                <td className={figure}>{garage.bookings.toLocaleString('en-IN')}</td>
+                <td className={figure}>
+                  {garage.bookings.toLocaleString('en-IN')}
+                </td>
                 <td className={figure}>{rupees(garage.collected)}</td>
               </tr>
             ))}
@@ -216,22 +269,34 @@ function Garages({ garages }: { garages: StatsBreakdown['garages'] }) {
                       onClick={() => setShowAll((all) => !all)}
                       className="flex min-h-11 items-center gap-1.5 text-[13px] text-text-secondary hover:text-text-primary"
                     >
-                      {showAll ? `Show the top ${TOP_GARAGES}` : `Show all ${garages.length} garages`}
+                      {showAll
+                        ? `Show the top ${TOP_GARAGES}`
+                        : `Show all ${garages.length} garages`}
                       <IconChevronDown
                         size={15}
                         aria-hidden="true"
-                        className={cn('text-text-muted transition-transform', showAll && 'rotate-180')}
+                        className={cn(
+                          'text-text-muted transition-transform',
+                          showAll && 'rotate-180'
+                        )}
                       />
                     </button>
                   </td>
                 </tr>
               )}
               <tr className="border-t border-border">
-                <th scope="row" className="py-2.5 text-left font-medium text-text-primary">
+                <th
+                  scope="row"
+                  className="py-2.5 text-left font-medium text-text-primary"
+                >
                   All {garages.length} garages
                 </th>
-                <td className={cn(figure, 'font-medium')}>{totalBookings.toLocaleString('en-IN')}</td>
-                <td className={cn(figure, 'font-medium')}>{rupees(totalCollected)}</td>
+                <td className={cn(figure, 'font-medium')}>
+                  {totalBookings.toLocaleString('en-IN')}
+                </td>
+                <td className={cn(figure, 'font-medium')}>
+                  {rupees(totalCollected)}
+                </td>
               </tr>
             </tfoot>
           )}
@@ -252,7 +317,7 @@ function ServiceTypes({ services }: { services: StatsBreakdown['services'] }) {
             <div className="flex items-baseline justify-between gap-2.5 text-[13px]">
               <span className="text-text-primary">
                 {SERVICE_TYPE_LABELS[service.category]}{' '}
-                <em className="ml-1 not-italic text-[11px] text-text-muted">
+                <em className="ml-1 not-italic text-[12px] text-text-muted">
                   {plural(service.bookings, 'booking', 'bookings')}
                 </em>
               </span>
@@ -260,7 +325,10 @@ function ServiceTypes({ services }: { services: StatsBreakdown['services'] }) {
                 {rupees(service.collected)}
               </b>
             </div>
-            <ShareBar share={most > 0 ? service.collected / most : 0} className="mt-1.5 h-1.5" />
+            <ShareBar
+              share={most > 0 ? service.collected / most : 0}
+              className="mt-1.5 h-1.5"
+            />
           </li>
         ))}
       </ul>
@@ -277,12 +345,16 @@ const HEAT_SHADES = [
 ] as const
 
 function BusyHours({ busy }: { busy: StatsBreakdown['busyHours'] }) {
-  const hours = Array.from({ length: busy.lastHour - busy.firstHour + 1 }, (_, i) => busy.firstHour + i)
+  const hours = Array.from(
+    { length: busy.lastHour - busy.firstHour + 1 },
+    (_, i) => busy.firstHour + i
+  )
   const busiest = Math.max(0, ...busy.cells.map((cell) => cell.bookings))
   const top = busiestSlots(busy.cells)
   const peak = [...busy.cells].sort((a, b) => b.bookings - a.bookings)[0]
   const count = (weekday: number, hour: number) =>
-    busy.cells.find((cell) => cell.weekday === weekday && cell.hour === hour)?.bookings ?? 0
+    busy.cells.find((cell) => cell.weekday === weekday && cell.hour === hour)
+      ?.bookings ?? 0
 
   return (
     <ScCard className="px-4 py-4">
@@ -296,24 +368,31 @@ function BusyHours({ busy }: { busy: StatsBreakdown['busyHours'] }) {
           }
         />
         {busy.total === 0 ? (
-          <p className="pt-4 text-[13px] text-text-secondary">No paid bookings with a slot in this period.</p>
+          <p className="pt-4 text-[13px] text-text-secondary">
+            No paid bookings with a slot in this period.
+          </p>
         ) : (
           <>
             <div
               aria-hidden="true"
               className="mt-4 grid items-center gap-[3px]"
-              style={{ gridTemplateColumns: `30px repeat(${hours.length}, minmax(0, 1fr))` }}
+              style={{
+                gridTemplateColumns: `30px repeat(${hours.length}, minmax(0, 1fr))`,
+              }}
             >
               {WEEKDAY_LABELS.map((day, i) => (
                 <div key={day} className="contents">
-                  <span className="text-[11px] text-text-muted">{day}</span>
+                  <span className="text-[12px] text-text-muted">{day}</span>
                   {hours.map((hour) => {
                     const bookings = count(i + 1, hour)
                     return (
                       <i
                         key={hour}
                         title={`${day} ${hourLabel(hour)}: ${bookings}`}
-                        className={cn('block h-[17px] rounded-[3px]', HEAT_SHADES[heatLevel(bookings, busiest)])}
+                        className={cn(
+                          'block h-[17px] rounded-[3px]',
+                          HEAT_SHADES[heatLevel(bookings, busiest)]
+                        )}
                       />
                     )
                   })}
@@ -321,20 +400,30 @@ function BusyHours({ busy }: { busy: StatsBreakdown['busyHours'] }) {
               ))}
               <span />
               {hours.map((hour) => (
-                <span key={hour} className="mt-1 justify-self-center whitespace-nowrap text-[10.5px] text-text-muted">
+                <span
+                  key={hour}
+                  className="mt-1 justify-self-center whitespace-nowrap text-[10.5px] text-text-muted"
+                >
                   {hour % 4 === 0 ? hourLabel(hour) : ''}
                 </span>
               ))}
             </div>
-            <div aria-hidden="true" className="mt-3 flex items-center justify-end gap-[3px] text-[11px] text-text-muted">
+            <div
+              aria-hidden="true"
+              className="mt-3 flex items-center justify-end gap-[3px] text-[12px] text-text-muted"
+            >
               <span className="mr-1.5">Fewer</span>
               {HEAT_SHADES.map((shade) => (
-                <i key={shade} className={cn('block h-2.5 w-3.5 rounded-[2px]', shade)} />
+                <i
+                  key={shade}
+                  className={cn('block h-2.5 w-3.5 rounded-[2px]', shade)}
+                />
               ))}
               <span className="ml-1.5">More</span>
             </div>
             <figcaption className="sr-only">
-              {plural(busy.total, 'paid booking', 'paid bookings')} by slot. Busiest: {top.join(', ')}.
+              {plural(busy.total, 'paid booking', 'paid bookings')} by slot.
+              Busiest: {top.join(', ')}.
             </figcaption>
           </>
         )}
@@ -347,7 +436,13 @@ function BusyHours({ busy }: { busy: StatsBreakdown['busyHours'] }) {
  * The Breakdown tab: the funnel from checkout to a finished job, garages,
  * service types and the busiest hours, and the lot as a CSV.
  */
-export function BreakdownTab({ range, vendorId }: { range: DateRange; vendorId: string }) {
+export function BreakdownTab({
+  range,
+  vendorId,
+}: {
+  range: DateRange
+  vendorId: string
+}) {
   const router = useRouter()
   const stats = useStatsBreakdown({ ...range, vendorId: vendorId || undefined })
 
@@ -376,10 +471,16 @@ export function BreakdownTab({ range, vendorId }: { range: DateRange; vendorId: 
     <>
       <div
         aria-busy={stats.isFetching || undefined}
-        className={cn('flex flex-col gap-5 transition-opacity', stats.isPlaceholderData && 'opacity-60')}
+        className={cn(
+          'flex flex-col gap-5 transition-opacity',
+          stats.isPlaceholderData && 'opacity-60'
+        )}
       >
         <Funnel funnel={breakdown.funnel} />
-        <Garages key={`${range.from}:${range.to}:${vendorId}`} garages={breakdown.garages} />
+        <Garages
+          key={`${range.from}:${range.to}:${vendorId}`}
+          garages={breakdown.garages}
+        />
         <ServiceTypes services={breakdown.services} />
         <BusyHours busy={breakdown.busyHours} />
       </div>
@@ -394,7 +495,11 @@ export function BreakdownTab({ range, vendorId }: { range: DateRange; vendorId: 
           )
         }
       >
-        <IconDownload size={16} aria-hidden="true" className="text-text-secondary" />
+        <IconDownload
+          size={16}
+          aria-hidden="true"
+          className="text-text-secondary"
+        />
         Download CSV
       </ScButton>
       <HowWeCount lines={HOW_WE_COUNT} />

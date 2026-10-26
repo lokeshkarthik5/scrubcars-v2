@@ -59,7 +59,9 @@ function Steps({ step }: { step: Step }) {
             aria-current={here ? 'step' : undefined}
             className={cn(
               'flex min-h-8 items-center gap-1.5 rounded-[9px] px-2.5',
-              here ? 'bg-surface-elevated text-text-primary' : 'text-text-secondary'
+              here
+                ? 'bg-surface-elevated text-text-primary'
+                : 'text-text-secondary'
             )}
           >
             <span className="font-numeric">{i + 1}</span> {s.label}
@@ -103,7 +105,11 @@ function StartPilotClean({
   // rather than this device's, so a phone running fast can't send a cutoff
   // the API refuses as in the future.
   const [cutoffInput, setCutoffInput] = useState(() =>
-    toIstInput(new Date(Date.parse(config.now) + Math.max(0, Date.now() - fetchedAt)).toISOString())
+    toIstInput(
+      new Date(
+        Date.parse(config.now) + Math.max(0, Date.now() - fetchedAt)
+      ).toISOString()
+    )
   )
   const [progress, setProgress] = useState<DataResetPreview | null>(null)
 
@@ -114,7 +120,9 @@ function StartPilotClean({
   const [tickedChains, setTickedChains] = useState<Set<string>>(new Set())
   const [tickedCheckouts, setTickedCheckouts] = useState<Set<string>>(new Set())
   const [untickedChains, setUntickedChains] = useState<Set<string>>(new Set())
-  const [untickedCheckouts, setUntickedCheckouts] = useState<Set<string>>(new Set())
+  const [untickedCheckouts, setUntickedCheckouts] = useState<Set<string>>(
+    new Set()
+  )
   // A cutoff run's complaints are one row with one tick; `untickedComplaints`
   // remembers the owner took it off, across "Load again", like the rows.
   const [tickedComplaints, setTickedComplaints] = useState(false)
@@ -191,7 +199,9 @@ function StartPilotClean({
             )
           )
           setTickedComplaints(data.complaints.selected && !untickedComplaints)
-          setTickedAnalytics((data.analyticsEvents?.selected ?? false) && !untickedAnalytics)
+          setTickedAnalytics(
+            (data.analyticsEvents?.selected ?? false) && !untickedAnalytics
+          )
         },
         onError: (err) => {
           if (version === scopeVersion.current) {
@@ -212,10 +222,14 @@ function StartPilotClean({
     preview.mutate(
       // Ids Razorpay could not answer for while listing stay unknown, rather
       // than being asked about again.
-      { input: { scope, only, unknownIds: listing?.lookups.unknownIds }, onProgress: setProgress },
+      {
+        input: { scope, only, unknownIds: listing?.lookups.unknownIds },
+        onProgress: setProgress,
+      },
       {
         onSuccess: setDryRun,
-        onError: (err) => setError(errorMessage(err, "Couldn't run the dry run")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't run the dry run")),
         onSettled: () => setProgress(null),
       }
     )
@@ -258,10 +272,15 @@ function StartPilotClean({
     Math.max(0, tickedCheckouts.size - maxCheckoutsPerRun)
   // Left out by the cap rather than by the owner: the next run's.
   const waiting =
-    deletable.chains.filter((id) => !tickedChains.has(id) && !untickedChains.has(id)).length +
-    deletable.checkouts.filter((id) => !tickedCheckouts.has(id) && !untickedCheckouts.has(id))
-      .length
-  const atCap = tickedChains.size >= maxChainsPerRun || tickedCheckouts.size >= maxCheckoutsPerRun
+    deletable.chains.filter(
+      (id) => !tickedChains.has(id) && !untickedChains.has(id)
+    ).length +
+    deletable.checkouts.filter(
+      (id) => !tickedCheckouts.has(id) && !untickedCheckouts.has(id)
+    ).length
+  const atCap =
+    tickedChains.size >= maxChainsPerRun ||
+    tickedCheckouts.size >= maxCheckoutsPerRun
 
   return (
     <>
@@ -273,7 +292,11 @@ function StartPilotClean({
 
       {step === 'scope' && (
         <ScSection title="Scope">
-          <h2 ref={headingRef} tabIndex={-1} className="sr-only focus:outline-none">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="sr-only focus:outline-none"
+          >
             Step 1: scope
           </h2>
           <ScSegmented
@@ -306,25 +329,29 @@ function StartPilotClean({
                 value={cutoffInput}
                 max={toIstInput(new Date().toISOString())}
                 disabled={preview.isPending}
-                onChange={(e) => changeScope(() => setCutoffInput(e.target.value))}
+                onChange={(e) =>
+                  changeScope(() => setCutoffInput(e.target.value))
+                }
                 className="min-h-11 font-numeric"
               />
-              <p className="text-[11px] text-text-muted">
-                Bookings made before this, and checkouts opened before it that never became a
-                booking. Pick the moment the pilot starts, or the moment the live Razorpay keys went
-                in.
+              <p className="text-[12px] text-text-muted">
+                Bookings made before this, and checkouts opened before it that
+                never became a booking. Pick the moment the pilot starts, or the
+                moment the live Razorpay keys went in.
               </p>
             </div>
           ) : (
             <p className="text-[12px] text-text-secondary">
-              Every booking the team marked as Test on its page, whenever it was made.
+              Every booking the team marked as Test on its page, whenever it was
+              made.
             </p>
           )}
 
           {keyMode === 'test' && (
             <p className="text-[12px] text-text-primary">
-              The API has Razorpay test keys. Payments made with them are confirmed as test
-              payments; any it can&apos;t find are kept as real.
+              The API has Razorpay test keys. Payments made with them are
+              confirmed as test payments; any it can&apos;t find are kept as
+              real.
             </p>
           )}
 
@@ -334,7 +361,11 @@ function StartPilotClean({
             disabled={!scope || preview.isPending}
             className="min-h-11"
           >
-            {preview.isPending ? 'Loading…' : listing ? 'Load again' : 'Show what’s in scope'}
+            {preview.isPending
+              ? 'Loading…'
+              : listing
+                ? 'Load again'
+                : 'Show what’s in scope'}
           </ScButton>
           <CheckingLine preview={progress} />
           {error && (
@@ -347,8 +378,11 @@ function StartPilotClean({
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-text-secondary">
                 <p>
-                  <span className="font-numeric text-text-primary">{tickedChains.size}</span> of{' '}
-                  {plural(listing.chains.length, 'booking', 'bookings')} ticked
+                  <span className="font-numeric text-text-primary">
+                    {tickedChains.size}
+                  </span>{' '}
+                  of {plural(listing.chains.length, 'booking', 'bookings')}{' '}
+                  ticked
                   {keptCount > 0 && (
                     <>
                       {' '}
@@ -360,8 +394,12 @@ function StartPilotClean({
                   <button
                     type="button"
                     onClick={() => {
-                      setTickedChains(tickAll(deletable.chains, maxChainsPerRun).ticked)
-                      setTickedCheckouts(tickAll(deletable.checkouts, maxCheckoutsPerRun).ticked)
+                      setTickedChains(
+                        tickAll(deletable.chains, maxChainsPerRun).ticked
+                      )
+                      setTickedCheckouts(
+                        tickAll(deletable.checkouts, maxCheckoutsPerRun).ticked
+                      )
                       setUntickedChains(new Set())
                       setUntickedCheckouts(new Set())
                       setTickedComplaints(hasComplaints)
@@ -393,9 +431,14 @@ function StartPilotClean({
               </div>
 
               {listing.chains.length === 0 ? (
-                <p className="text-[13px] text-text-secondary">No bookings in scope.</p>
+                <p className="text-[13px] text-text-secondary">
+                  No bookings in scope.
+                </p>
               ) : (
-                <ul aria-label="Bookings in scope" className="flex flex-col gap-1.5">
+                <ul
+                  aria-label="Bookings in scope"
+                  className="flex flex-col gap-1.5"
+                >
                   {listing.chains.map((chain) => (
                     <ChainRow
                       key={chain.rootId}
@@ -409,10 +452,13 @@ function StartPilotClean({
 
               {listing.checkouts.length > 0 && (
                 <>
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                  <p className="text-[12px] font-semibold text-text-secondary">
                     Checkouts that never became a booking
                   </p>
-                  <ul aria-label="Checkouts in scope" className="flex flex-col gap-1.5">
+                  <ul
+                    aria-label="Checkouts in scope"
+                    className="flex flex-col gap-1.5"
+                  >
                     {listing.checkouts.map((checkout) => (
                       <CheckoutRow
                         key={checkout.id}
@@ -427,10 +473,13 @@ function StartPilotClean({
 
               {hasComplaints && (
                 <>
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                  <p className="text-[12px] font-semibold text-text-secondary">
                     Customer complaints
                   </p>
-                  <ul aria-label="Complaints in scope" className="flex flex-col gap-1.5">
+                  <ul
+                    aria-label="Complaints in scope"
+                    className="flex flex-col gap-1.5"
+                  >
                     <ComplaintsRow
                       complaints={listing.complaints}
                       checked={tickedComplaints}
@@ -445,10 +494,13 @@ function StartPilotClean({
 
               {hasAnalytics && listing.analyticsEvents && (
                 <>
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">
+                  <p className="text-[12px] font-semibold text-text-secondary">
                     Usage events
                   </p>
-                  <ul aria-label="Usage events in scope" className="flex flex-col gap-1.5">
+                  <ul
+                    aria-label="Usage events in scope"
+                    className="flex flex-col gap-1.5"
+                  >
                     <AnalyticsEventsRow
                       events={listing.analyticsEvents}
                       checked={tickedAnalytics}
@@ -470,23 +522,30 @@ function StartPilotClean({
                 Dry run
               </ScButton>
               {nothingTicked && (
-                <p className="text-[11px] text-text-muted">Tick at least one row for a dry run.</p>
+                <p className="text-[12px] text-text-muted">
+                  Tick at least one row for a dry run.
+                </p>
               )}
               {overCap > 0 && (
                 <p className="text-[12px] text-text-primary">
                   One run deletes up to{' '}
-                  <span className="font-numeric">{maxChainsPerRun}</span> bookings and{' '}
-                  <span className="font-numeric">{maxCheckoutsPerRun}</span> checkouts, oldest
-                  first. The other <span className="font-numeric">{overCap}</span> ticked wait for
-                  the next run.
+                  <span className="font-numeric">{maxChainsPerRun}</span>{' '}
+                  bookings and{' '}
+                  <span className="font-numeric">{maxCheckoutsPerRun}</span>{' '}
+                  checkouts, oldest first. The other{' '}
+                  <span className="font-numeric">{overCap}</span> ticked wait
+                  for the next run.
                 </p>
               )}
               {overCap === 0 && atCap && waiting > 0 && (
                 <p className="text-[12px] text-text-secondary">
-                  One run deletes up to <span className="font-numeric">{maxChainsPerRun}</span>{' '}
-                  bookings and <span className="font-numeric">{maxCheckoutsPerRun}</span>{' '}
-                  checkouts, oldest first. <span className="font-numeric">{waiting}</span> more can
-                  go in the next run.
+                  One run deletes up to{' '}
+                  <span className="font-numeric">{maxChainsPerRun}</span>{' '}
+                  bookings and{' '}
+                  <span className="font-numeric">{maxCheckoutsPerRun}</span>{' '}
+                  checkouts, oldest first.{' '}
+                  <span className="font-numeric">{waiting}</span> more can go in
+                  the next run.
                 </p>
               )}
             </div>
@@ -496,10 +555,16 @@ function StartPilotClean({
 
       {step === 'dryrun' && (
         <ScSection title="Dry run">
-          <h2 ref={headingRef} tabIndex={-1} className="sr-only focus:outline-none">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="sr-only focus:outline-none"
+          >
             Step 2: dry run
           </h2>
-          <p className="text-[12px] text-text-secondary">Nothing has been deleted yet.</p>
+          <p className="text-[12px] text-text-secondary">
+            Nothing has been deleted yet.
+          </p>
           {dryRun ? (
             <DryRunSummary
               preview={dryRun}
@@ -515,7 +580,10 @@ function StartPilotClean({
             )
           )}
           {error && (
-            <div role="alert" className="flex flex-col gap-2 text-[12px] text-error">
+            <div
+              role="alert"
+              className="flex flex-col gap-2 text-[12px] text-error"
+            >
               <p>{error}</p>
               {!dryRun && (
                 <ScButton
@@ -545,21 +613,29 @@ function StartPilotClean({
             <ScButton
               variant="secondary"
               onClick={() => setStep('confirm')}
-              disabled={!dryRun || !downloaded || dryRun.countLines.length === 0}
+              disabled={
+                !dryRun || !downloaded || dryRun.countLines.length === 0
+              }
               className="min-h-11"
             >
               Continue
             </ScButton>
           </div>
           {dryRun && !downloaded && (
-            <p className="text-[11px] text-text-muted">Download the list to continue.</p>
+            <p className="text-[12px] text-text-muted">
+              Download the list to continue.
+            </p>
           )}
         </ScSection>
       )}
 
       {step === 'confirm' && dryRun && scope && (
         <ScSection title="Confirm">
-          <h2 ref={headingRef} tabIndex={-1} className="sr-only focus:outline-none">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="sr-only focus:outline-none"
+          >
             Step 3: confirm
           </h2>
           <p className="text-[13px] text-text-primary">
@@ -591,12 +667,17 @@ function StartPilotClean({
 
       {step === 'done' && result && (
         <ScSection title="Done">
-          <h2 ref={headingRef} tabIndex={-1} className="sr-only focus:outline-none">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="sr-only focus:outline-none"
+          >
             Done
           </h2>
           <ResultSummary result={result} />
           <p className="text-[12px] text-text-secondary">
-            Ask Lokesh to switch this tool off again (remove ADMIN_DATA_RESET) now it has run.
+            Ask Lokesh to switch this tool off again (remove ADMIN_DATA_RESET)
+            now it has run.
           </p>
           <Link
             href="/bookings"
@@ -612,7 +693,13 @@ function StartPilotClean({
 
 export default function DataResetPage() {
   const router = useRouter()
-  const { data: config, isPending, error, refetch, dataUpdatedAt } = useDataResetConfig()
+  const {
+    data: config,
+    isPending,
+    error,
+    refetch,
+    dataUpdatedAt,
+  } = useDataResetConfig()
 
   // A dead admin session is a redirect, not an error message.
   useEffect(() => {
@@ -631,7 +718,10 @@ export default function DataResetPage() {
     return (
       <>
         <PageHeader title="Start pilot clean" />
-        <ErrorState message={errorMessage(error, 'Failed to load')} onRetry={() => void refetch()} />
+        <ErrorState
+          message={errorMessage(error, 'Failed to load')}
+          onRetry={() => void refetch()}
+        />
       </>
     )
   }

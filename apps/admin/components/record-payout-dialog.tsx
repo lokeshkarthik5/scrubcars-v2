@@ -9,7 +9,11 @@ import { ScSelect } from '@repo/ui/sc/select'
 import type { AdminGaragePayouts, PayoutMethod } from '@repo/core/api/admin'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useRecordPayout } from '@repo/core/api/hooks/use-admin-payouts'
-import { fromIstInput, istDateTimeLabel, toIstInput } from '@repo/core/ist-input'
+import {
+  fromIstInput,
+  istDateTimeLabel,
+  toIstInput,
+} from '@repo/core/ist-input'
 import { PAYOUT_METHOD_LABEL, rupeesLabel } from '@repo/core/payouts'
 
 /** Same shape as the API: letters, numbers and - / _ . */
@@ -40,14 +44,19 @@ export function RecordPayoutDialog({
     data.account?.accountNumber ? 'bank' : data.account?.upiId ? 'upi' : 'bank'
   )
   const [reference, setReference] = useState('')
-  const [paidAt, setPaidAt] = useState(() => toIstInput(new Date().toISOString()))
+  const [paidAt, setPaidAt] = useState(() =>
+    toIstInput(new Date().toISOString())
+  )
   const [note, setNote] = useState('')
   const [actorName, setActorName] = useState('')
   const [error, setError] = useState('')
 
   const ref = reference.trim()
   const paidAtIso = fromIstInput(paidAt)
-  const refProblem = ref && !REFERENCE.test(ref) ? 'Letters and numbers only, as the bank shows it.' : null
+  const refProblem =
+    ref && !REFERENCE.test(ref)
+      ? 'Letters and numbers only, as the bank shows it.'
+      : null
   const canSubmit =
     data.payable.refusal === null &&
     REFERENCE.test(ref) &&
@@ -73,7 +82,8 @@ export function RecordPayoutDialog({
           toast.success(`Payout of ${rupeesLabel(payout.amount)} recorded`)
           onClose()
         },
-        onError: (err) => setError(errorMessage(err, "Couldn't record this payout")),
+        onError: (err) =>
+          setError(errorMessage(err, "Couldn't record this payout")),
       }
     )
   }
@@ -87,18 +97,23 @@ export function RecordPayoutDialog({
       className="flex max-w-[440px] flex-col gap-4"
     >
       <div>
-        <h2 className="text-[15px] font-semibold text-text-primary">Record payout</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">
+          Record payout
+        </h2>
         <p className="mt-1 text-[12px] text-text-secondary">
           {data.garage.name} ·{' '}
-          <span className="font-numeric text-text-primary">{rupeesLabel(data.payable.amount)}</span> for{' '}
-          {data.payable.bookings} {data.payable.bookings === 1 ? 'booking' : 'bookings'} due up to{' '}
+          <span className="font-numeric text-text-primary">
+            {rupeesLabel(data.payable.amount)}
+          </span>{' '}
+          for {data.payable.bookings}{' '}
+          {data.payable.bookings === 1 ? 'booking' : 'bookings'} due up to{' '}
           <span className="font-numeric">{istDateTimeLabel(data.upTo)}</span>
         </p>
       </div>
 
       <p className="text-[12px] text-text-secondary">
-        Send the money first, in the bank or UPI app, then record it here with its reference. The garage sees the
-        reference on its Earnings.
+        Send the money first, in the bank or UPI app, then record it here with
+        its reference. The garage sees the reference on its Earnings.
       </p>
 
       <ScSelect
@@ -117,7 +132,13 @@ export function RecordPayoutDialog({
       <div className="flex flex-col gap-1">
         <ScInput
           id="payout-reference"
-          label={method === 'upi' ? 'UPI transaction id' : method === 'bank' ? 'UTR (bank reference)' : 'Reference'}
+          label={
+            method === 'upi'
+              ? 'UPI transaction id'
+              : method === 'bank'
+                ? 'UTR (bank reference)'
+                : 'Reference'
+          }
           autoComplete="off"
           spellCheck={false}
           value={reference}
@@ -125,7 +146,13 @@ export function RecordPayoutDialog({
           aria-invalid={Boolean(refProblem)}
           className="min-h-11 font-numeric"
         />
-        <p className={refProblem ? 'text-[11px] text-error' : 'text-[11px] text-text-muted'}>
+        <p
+          className={
+            refProblem
+              ? 'text-[12px] text-error'
+              : 'text-[12px] text-text-muted'
+          }
+        >
           {refProblem ?? 'Required. Copy it from the bank or UPI app.'}
         </p>
       </div>
@@ -164,12 +191,19 @@ export function RecordPayoutDialog({
       )}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
-        <ScButton variant="secondary" onClick={onClose} disabled={record.isPending} className="min-h-11">
+        <ScButton
+          variant="secondary"
+          onClick={onClose}
+          disabled={record.isPending}
+          className="min-h-11"
+        >
           Go back
         </ScButton>
         {/* The one red button: a payout is final and settles these bookings. */}
         <ScButton onClick={submit} disabled={!canSubmit} className="min-h-11">
-          {record.isPending ? 'Recording…' : `Record ${rupeesLabel(data.payable.amount)}`}
+          {record.isPending
+            ? 'Recording…'
+            : `Record ${rupeesLabel(data.payable.amount)}`}
         </ScButton>
       </div>
     </ScModal>

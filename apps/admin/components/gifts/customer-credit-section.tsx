@@ -67,13 +67,20 @@ export function CustomerCreditSection() {
             className="min-h-11 font-numeric"
           />
         </div>
-        <ScButton type="submit" variant="secondary" fullWidth={false} disabled={find.isPending} className="min-h-11 px-4">
+        <ScButton
+          type="submit"
+          variant="secondary"
+          fullWidth={false}
+          disabled={find.isPending}
+          className="min-h-11 px-4"
+        >
           {find.isPending ? 'Finding…' : 'Find'}
         </ScButton>
       </form>
       {(phoneProblem || find.isError) && (
         <p role="alert" className="text-[12px] text-error">
-          {phoneProblem ?? errorMessage(find.error, "Couldn't find that customer")}
+          {phoneProblem ??
+            errorMessage(find.error, "Couldn't find that customer")}
         </p>
       )}
 
@@ -82,17 +89,29 @@ export function CustomerCreditSection() {
           <Skeleton className="h-40 rounded-[14px]" />
         ) : customer.isError || !data ? (
           <ErrorState
-            message={errorMessage(customer.error, "Couldn't load this customer's credit.")}
+            message={errorMessage(
+              customer.error,
+              "Couldn't load this customer's credit."
+            )}
             onRetry={() => void customer.refetch()}
           />
         ) : (
           <ScCard className="flex flex-col gap-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-text-primary">{data.customer.name}</p>
-                <p className="font-numeric text-[12px] text-text-secondary">+91 {data.customer.phone}</p>
+                <p className="text-[13px] font-semibold text-text-primary">
+                  {data.customer.name}
+                </p>
+                <p className="font-numeric text-[12px] text-text-secondary">
+                  +91 {data.customer.phone}
+                </p>
               </div>
-              <ScButton variant="secondary" fullWidth={false} className="min-h-11 px-4 text-[13px]" onClick={() => setAdjusting(true)}>
+              <ScButton
+                variant="secondary"
+                fullWidth={false}
+                className="min-h-11 px-4 text-[13px]"
+                onClick={() => setAdjusting(true)}
+              >
                 Adjust credit
               </ScButton>
             </div>
@@ -105,34 +124,58 @@ export function CustomerCreditSection() {
               </p>
               {data.credit.nextExpiry && (
                 <p className="text-[12px] text-text-secondary">
-                  <span className="font-numeric">{formatRupees(data.credit.nextExpiry.amount)}</span> expires{' '}
-                  <span className="font-numeric">{formatDay(data.credit.nextExpiry.at)}</span>
+                  <span className="font-numeric">
+                    {formatRupees(data.credit.nextExpiry.amount)}
+                  </span>{' '}
+                  expires{' '}
+                  <span className="font-numeric">
+                    {formatDay(data.credit.nextExpiry.at)}
+                  </span>
                 </p>
               )}
               {Number(data.credit.expiringSoon) > 0 && (
                 <p className="text-[12px] text-warning">
-                  <span className="font-numeric">{formatRupees(data.credit.expiringSoon)}</span> in the next 30 days
+                  <span className="font-numeric">
+                    {formatRupees(data.credit.expiringSoon)}
+                  </span>{' '}
+                  in the next 30 days
                 </p>
               )}
             </div>
             {data.credit.entries.length === 0 ? (
               <p className="text-[12px] text-text-muted">No credit history.</p>
             ) : (
-              <ul className="divide-y divide-border border-t border-border" aria-label="Credit history, newest first">
+              <ul
+                className="divide-y divide-border border-t border-border"
+                aria-label="Credit history, newest first"
+              >
                 {data.credit.entries.map((entry) => (
-                  <li key={entry.id} className="flex items-start justify-between gap-3 py-2">
+                  <li
+                    key={entry.id}
+                    className="flex items-start justify-between gap-3 py-2"
+                  >
                     <div className="min-w-0">
-                      <p className="text-[12px] text-text-primary">{entry.label}</p>
-                      {entry.reason && <p className="text-[12px] text-text-secondary">{entry.reason}</p>}
-                      <p className="font-numeric text-[11px] text-text-muted">
+                      <p className="text-[12px] text-text-primary">
+                        {entry.label}
+                      </p>
+                      {entry.reason && (
+                        <p className="text-[12px] text-text-secondary">
+                          {entry.reason}
+                        </p>
+                      )}
+                      <p className="font-numeric text-[12px] text-text-muted">
                         {formatDay(entry.at)}
-                        {entry.expiresAt && Number(entry.amount) > 0 ? ` · expires ${formatDay(entry.expiresAt)}` : ''}
+                        {entry.expiresAt && Number(entry.amount) > 0
+                          ? ` · expires ${formatDay(entry.expiresAt)}`
+                          : ''}
                       </p>
                     </div>
                     <span
                       className={cn(
                         'shrink-0 font-numeric text-[12px] font-medium',
-                        Number(entry.amount) > 0 ? 'text-success' : 'text-text-primary'
+                        Number(entry.amount) > 0
+                          ? 'text-success'
+                          : 'text-text-primary'
                       )}
                     >
                       {signedRupees(entry.amount)}
@@ -145,17 +188,24 @@ export function CustomerCreditSection() {
         ))}
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-[13px] font-semibold text-text-primary">Top balances</h3>
+        <h3 className="text-[13px] font-semibold text-text-primary">
+          Top balances
+        </h3>
         {balances.isPending ? (
           <Skeleton className="h-24 rounded-[14px]" />
         ) : balances.isError ? (
-          <ErrorState message={errorMessage(balances.error, "Couldn't load balances.")} onRetry={() => void balances.refetch()} />
+          <ErrorState
+            message={errorMessage(balances.error, "Couldn't load balances.")}
+            onRetry={() => void balances.refetch()}
+          />
         ) : top.length === 0 ? (
-          <p className="text-[12px] text-text-muted">No customer holds credit yet.</p>
+          <p className="text-[12px] text-text-muted">
+            No customer holds credit yet.
+          </p>
         ) : (
           <div className="overflow-x-auto rounded-[14px] border border-border">
             <table className="w-full text-left text-[12px]">
-              <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+              <thead className="text-[12px] text-text-secondary">
                 <tr>
                   <th className="px-3 py-2 font-medium">Customer</th>
                   <th className="px-3 py-2 font-medium">Phone</th>
@@ -165,7 +215,10 @@ export function CustomerCreditSection() {
               </thead>
               <tbody className="divide-y divide-border">
                 {top.map((row) => (
-                  <tr key={row.userId} className={cn(row.userId === userId && 'bg-surface')}>
+                  <tr
+                    key={row.userId}
+                    className={cn(row.userId === userId && 'bg-surface')}
+                  >
                     <td className="px-3 py-1">
                       <button
                         type="button"
@@ -175,9 +228,15 @@ export function CustomerCreditSection() {
                         {row.name}
                       </button>
                     </td>
-                    <td className="px-3 py-1 font-numeric text-text-secondary">{row.phone}</td>
-                    <td className="px-3 py-1 text-right font-numeric text-text-primary">{formatRupees(row.balance)}</td>
-                    <td className="px-3 py-1 font-numeric text-text-secondary">{formatDay(row.nextExpiry)}</td>
+                    <td className="px-3 py-1 font-numeric text-text-secondary">
+                      {row.phone}
+                    </td>
+                    <td className="px-3 py-1 text-right font-numeric text-text-primary">
+                      {formatRupees(row.balance)}
+                    </td>
+                    <td className="px-3 py-1 font-numeric text-text-secondary">
+                      {formatDay(row.nextExpiry)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -186,7 +245,9 @@ export function CustomerCreditSection() {
         )}
       </div>
 
-      {adjusting && data && <AdjustCreditDialog data={data} onClose={() => setAdjusting(false)} />}
+      {adjusting && data && (
+        <AdjustCreditDialog data={data} onClose={() => setAdjusting(false)} />
+      )}
     </ScSection>
   )
 }

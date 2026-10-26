@@ -1,4 +1,8 @@
-import { offerConditions, offerTitle, type CouponOffer } from '@repo/core/coupons'
+import {
+  offerConditions,
+  offerTitle,
+  type CouponOffer,
+} from '@repo/core/coupons'
 import { ScCard } from '@repo/ui/sc/card'
 
 /**
@@ -7,11 +11,21 @@ import { ScCard } from '@repo/ui/sc/card'
  * coupons.ts is the server's twin). The campaign's name and location never
  * show to customers.
  */
-export function CouponPreview({ offer, validTo }: { offer: CouponOffer; validTo: string }) {
+export function CouponPreview({
+  offer,
+  validTo,
+}: {
+  offer: CouponOffer
+  validTo: string
+}) {
   return (
     <ScCard className="flex flex-col gap-1.5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Customers read</p>
-      <p className="text-[15px] font-semibold text-text-primary">{offerTitle(offer)}</p>
+      <p className="text-[12px] font-medium text-text-secondary">
+        Customers read
+      </p>
+      <p className="text-[15px] font-semibold text-text-primary">
+        {offerTitle(offer)}
+      </p>
       <ul className="flex flex-col gap-0.5 text-[12px] text-text-secondary">
         {offerConditions(offer).map((line) => (
           <li key={line}>{line}</li>

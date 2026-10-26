@@ -1,16 +1,24 @@
 'use client'
 
 import { Suspense, useCallback } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { PageHeader } from '@repo/ui/sc/page-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { BreakdownTab } from '@/components/statistics/breakdown-tab'
 import { CommissionTab } from '@/components/statistics/commission-tab'
-import { CompareToggle, GarageSelect, ModeSelect, PeriodSelect } from '@/components/statistics/filters'
+import {
+  CompareToggle,
+  GarageSelect,
+  ModeSelect,
+  PeriodSelect,
+} from '@/components/statistics/filters'
 import { FunnelTab } from '@/components/statistics/funnel-tab'
 import { OverviewTab } from '@/components/statistics/overview-tab'
-import { isStatsTab, StatsTabs, type StatsTab } from '@/components/statistics/stats-tabs'
+import {
+  isStatsTab,
+  StatsTabs,
+  type StatsTab,
+} from '@/components/statistics/stats-tabs'
 import { todayIst } from '@/lib/bookings'
 import {
   comparedWith,
@@ -57,7 +65,9 @@ function Statistics() {
   const today = todayIst()
   const months = monthOptions(today)
   const monthParam = params.get('month')
-  const month = months.some((m) => m.value === monthParam) ? (monthParam as string) : months[0].value
+  const month = months.some((m) => m.value === monthParam)
+    ? (monthParam as string)
+    : months[0].value
 
   const hrefWith = useCallback(
     (updates: Record<string, string>) => {
@@ -77,24 +87,15 @@ function Statistics() {
   const range = periodRange(period, today)
   const periodName = PERIODS.find((p) => p.value === period)?.label ?? ''
   const previous = comparedWith(range)
-  const monthName = months.find((m) => m.value === month)?.label.split(' ')[0] ?? ''
+  const monthName =
+    months.find((m) => m.value === month)?.label.split(' ')[0] ?? ''
   const modeParam = params.get('mode')
   const mode = isFunnelMode(modeParam) ? modeParam : 'all'
   const funnelRange = periodRange(funnelPeriod(period), today)
 
   return (
     <>
-      <PageHeader
-        title="Statistics"
-        subtitle="Bookings, money and garages"
-        // On a phone the bottom bar has no room for Alerts; the header has it
-        // on a wider screen.
-        actions={
-          <Link href="/alerts" className="tap-target text-[12px] text-text-secondary hover:text-text-primary md:hidden">
-            Telegram alerts
-          </Link>
-        }
-      />
+      <PageHeader title="Statistics" subtitle="Bookings, money and garages" />
       <StatsTabs
         current={tab}
         hrefFor={(next) => hrefWith({ tab: next === 'overview' ? '' : next })}
@@ -106,29 +107,40 @@ function Statistics() {
             <PeriodSelect
               value={month}
               options={months}
-              onChange={(next) => setParams({ month: next === months[0].value ? '' : next })}
+              onChange={(next) =>
+                setParams({ month: next === months[0].value ? '' : next })
+              }
             />
           ) : tab === 'funnel' ? (
             <PeriodSelect
               value={funnelPeriod(period)}
               options={FUNNEL_PERIODS}
-              onChange={(next) => setParams({ period: next === DEFAULT_PERIOD ? '' : next })}
+              onChange={(next) =>
+                setParams({ period: next === DEFAULT_PERIOD ? '' : next })
+              }
             />
           ) : (
             <PeriodSelect
               value={period}
               options={PERIODS}
-              onChange={(next) => setParams({ period: next === DEFAULT_PERIOD ? '' : next })}
+              onChange={(next) =>
+                setParams({ period: next === DEFAULT_PERIOD ? '' : next })
+              }
             />
           )}
           {tab === 'funnel' ? (
             <ModeSelect
               value={mode}
               options={FUNNEL_MODES}
-              onChange={(next) => setParams({ mode: next === 'all' ? '' : next })}
+              onChange={(next) =>
+                setParams({ mode: next === 'all' ? '' : next })
+              }
             />
           ) : (
-            <GarageSelect value={vendorId} onChange={(next) => setParams({ garage: next })} />
+            <GarageSelect
+              value={vendorId}
+              onChange={(next) => setParams({ garage: next })}
+            />
           )}
         </div>
         {tab === 'overview' && (
@@ -151,7 +163,9 @@ function Statistics() {
           previousName={previous.charAt(0).toUpperCase() + previous.slice(1)}
         />
       )}
-      {tab === 'breakdown' && <BreakdownTab range={range} vendorId={vendorId} />}
+      {tab === 'breakdown' && (
+        <BreakdownTab range={range} vendorId={vendorId} />
+      )}
       {tab === 'funnel' && <FunnelTab range={funnelRange} mode={mode} />}
       {tab === 'commission' && (
         <CommissionTab

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'react-toastify'
 import {
   IconDiscount2,
   IconPencil,
@@ -16,7 +17,9 @@ import { ScCard } from '@repo/ui/sc/card'
 import { FilterChip } from '@repo/ui/sc/chip'
 import { ScInput } from '@repo/ui/sc/input'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
+import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { PageHeader } from '@repo/ui/sc/page-header'
+import { showUndoToast } from '@repo/ui/sc/undo-toast'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
@@ -78,18 +81,34 @@ type Stage = (typeof STAGES)[number]
  */
 function stageBadge(discount: AdminDiscount) {
   if (!discount.isActive) {
-    return { stage: 'inactive' as const, label: 'Inactive', variant: 'muted' as const }
+    return {
+      stage: 'inactive' as const,
+      label: 'Inactive',
+      variant: 'muted' as const,
+    }
   }
 
   const now = Date.now()
 
   if (discount.startsAt && now < Date.parse(discount.startsAt)) {
-    return { stage: 'scheduled' as const, label: 'Scheduled', variant: 'pending' as const }
+    return {
+      stage: 'scheduled' as const,
+      label: 'Scheduled',
+      variant: 'pending' as const,
+    }
   }
   if (discount.endsAt && now > Date.parse(discount.endsAt)) {
-    return { stage: 'expired' as const, label: 'Expired', variant: 'muted' as const }
+    return {
+      stage: 'expired' as const,
+      label: 'Expired',
+      variant: 'muted' as const,
+    }
   }
-  return { stage: 'active' as const, label: 'Active', variant: 'success' as const }
+  return {
+    stage: 'active' as const,
+    label: 'Active',
+    variant: 'success' as const,
+  }
 }
 
 // The small actions on a code's card: outline, 44px tall, never red.
@@ -99,7 +118,12 @@ export default function AdminDiscountsPage() {
   const router = useRouter()
   const { data: rewardsConfig } = useAdminRewardsConfig()
 
-  const { data: discounts = [], isPending, error, refetch } = useAdminDiscounts()
+  const {
+    data: discounts = [],
+    isPending,
+    error,
+    refetch,
+  } = useAdminDiscounts()
 
   const [search, setSearch] = useState('')
   const [stage, setStage] = useState<Stage>('all')
@@ -125,9 +149,9 @@ export default function AdminDiscountsPage() {
   // data is still good, only the action failed.
   const [actionError, setActionError] = useState('')
 
-  const toggleActive = useToggleDiscountActive({
-    onError: (err) => setActionError(errorMessage(err, 'Failed to update the code')),
-  })
+  // Each press reads its own promise (below), not the shared mutation's
+  // callbacks, which a second press would replace.
+  const toggleActive = useToggleDiscountActive()
   const deleteDiscount = useDeleteDiscount()
 
   // A dead admin session is a redirect, not an error message.
@@ -141,26 +165,73 @@ export default function AdminDiscountsPage() {
       ? deleteDiscount.variables
       : null
 
+  // Deleting a code can't be taken back, so it is confirmed on a sheet that
+  // says so (safe actions; never the browser's pop-up). Deactivating is easy
+  // to take back, so it happens at once with an Undo that activates it again.
+  const [deleting, setDeleting] = useState<AdminDiscount | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  // Why the delete was refused, said inside its sheet.
+  const [deleteError, setDeleteError] = useState('')
   const handleDelete = (discount: AdminDiscount) => {
-    if (
-      !window.confirm(
-        `Permanently delete "${discount.code}"?\n\nOnly codes that have never been used can be deleted. Deactivate instead if you just want to stop it.`
-      )
-    ) {
-      return
-    }
     setActionError('')
-    deleteDiscount.mutate(discount.id, {
-      // The API refuses to delete a redeemed code; show its reason verbatim.
-      onError: (err) =>
-        setActionError(errorMessage(err, 'Failed to delete the code')),
+    setDeleteError('')
+    setDeleting(discount)
+    setDeleteOpen(true)
+  }
+
+  const setActive = async (discount: AdminDiscount, isActive: boolean) => {
+    try {
+      await toggleActive.mutateAsync({ id: discount.id, isActive })
+      return true
+    } catch (err) {
+      setActionError(errorMessage(err, `Failed to update ${discount.code}`))
+      return false
+    }
+  }
+
+  const handleToggle = async (discount: AdminDiscount) => {
+    setActionError('')
+    const isActive = !discount.isActive
+    if (!(await setActive(discount, isActive)) || isActive) return
+    let undone = false
+    showUndoToast(`${discount.code} deactivated. Customers can't use it.`, {
+      onUndo: () => {
+        // Once, however many times the toast's button is pressed.
+        if (undone) return
+        undone = true
+        void setActive(discount, true).then((ok) => {
+          if (!ok) toast.error(`Couldn't undo: ${discount.code} is still off.`)
+        })
+      },
     })
   }
 
   return (
     <>
+      <ConfirmSheet
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          if (!deleting) return
+          setDeleteError('')
+          try {
+            await deleteDiscount.mutateAsync(deleting.id)
+            setDeleteOpen(false)
+          } catch (err) {
+            // The API refuses to delete a redeemed code: its reason, verbatim,
+            // in the sheet, which stays open.
+            setDeleteError(errorMessage(err, 'Failed to delete the code'))
+          }
+        }}
+        error={deleteError || undefined}
+        level="firm"
+        title={`Delete ${deleting?.code ?? 'this code'} for good?`}
+        body="It has never been used, so nothing else changes. This can't be undone: to stop it for now, Deactivate it instead."
+        confirmLabel="Delete code"
+        busy={deleteDiscount.isPending}
+      />
       <PageHeader
-        title="Discounts"
+        title="Offers"
         subtitle={
           !isPending && !error && discounts.length > 0 ? (
             isFiltered ? (
@@ -210,11 +281,19 @@ export default function AdminDiscountsPage() {
             className="min-h-11"
           />
 
-          <div role="group" aria-label="Status" className="flex flex-wrap gap-1.5">
+          <div
+            role="group"
+            aria-label="Status"
+            className="flex flex-wrap gap-1.5"
+          >
             {STAGES.map((option) => (
               <FilterChip
                 key={option}
-                label={option === 'all' ? 'All' : option[0].toUpperCase() + option.slice(1)}
+                label={
+                  option === 'all'
+                    ? 'All'
+                    : option[0].toUpperCase() + option.slice(1)
+                }
                 active={stage === option}
                 onClick={() => setStage(option)}
               />
@@ -253,7 +332,9 @@ export default function AdminDiscountsPage() {
         <div className="flex flex-col gap-2">
           {/* Amber, as errors are: red is the Add discount button's. */}
           {actionError && (
-            <p role="alert" className="text-[12px] text-error">{actionError}</p>
+            <p role="alert" className="text-[12px] text-error">
+              {actionError}
+            </p>
           )}
 
           {visible.map((discount, i) => {
@@ -269,7 +350,7 @@ export default function AdminDiscountsPage() {
                       <p className="truncate font-numeric text-[14px] font-bold tracking-wide text-text-primary">
                         {discount.code}
                       </p>
-                      <p className="truncate text-[11px] text-text-secondary">
+                      <p className="truncate text-[12px] text-text-secondary">
                         {discount.description || effectLabel(discount)}
                       </p>
                     </div>
@@ -287,14 +368,20 @@ export default function AdminDiscountsPage() {
                           discount.fundedBy === 'platform' ? 'pending' : 'muted'
                         }
                       >
-                        {discount.fundedBy === 'platform' ? 'Detlio pays' : 'Garage pays'}
+                        {discount.fundedBy === 'platform'
+                          ? 'Detlio pays'
+                          : 'Garage pays'}
                       </ScBadge>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-                    <Meta label="Effect" truncate>{effectLabel(discount)}</Meta>
-                    <Meta label="Conditions" truncate>{conditionLabel(discount)}</Meta>
+                    <Meta label="Effect" truncate>
+                      {effectLabel(discount)}
+                    </Meta>
+                    <Meta label="Conditions" truncate>
+                      {conditionLabel(discount)}
+                    </Meta>
                     <Meta label="Used" truncate>
                       {discount.heldCount > 0 ? (
                         <>
@@ -309,7 +396,11 @@ export default function AdminDiscountsPage() {
                           </span>
                           <span className="text-text-muted">
                             {' '}
-                            · <span className="font-numeric">{rupees(discount.totalSaved)}</span> saved
+                            ·{' '}
+                            <span className="font-numeric">
+                              {rupees(discount.totalSaved)}
+                            </span>{' '}
+                            saved
                           </span>
                         </>
                       ) : (
@@ -323,13 +414,7 @@ export default function AdminDiscountsPage() {
                       fullWidth={false}
                       variant="secondary"
                       disabled={busyId === discount.id}
-                      onClick={() => {
-                        setActionError('')
-                        toggleActive.mutate({
-                          id: discount.id,
-                          isActive: !discount.isActive,
-                        })
-                      }}
+                      onClick={() => void handleToggle(discount)}
                       className={ROW_ACTION}
                     >
                       {discount.isActive ? 'Deactivate' : 'Activate'}
