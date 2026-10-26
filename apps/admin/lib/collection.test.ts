@@ -5,17 +5,22 @@ import {
   collectKinds,
   collectorCards,
   collectorLogins,
+  collectorSentLines,
   displayPhone,
   dueChip,
   dueDate,
+  garageBriefArea,
   groupByOnboarder,
   istToday,
   itemState,
   listText,
+  openGaragesByLogin,
   progressPercent,
   saveToGarageHref,
   sendButtonLabel,
+  sendSubtitle,
   sendSummary,
+  sentLine,
   shortDate,
   suggestedLogin,
   teammatePhone,
@@ -353,5 +358,80 @@ describe('lists', () => {
         lists: 2,
       },
     ])
+  })
+})
+
+describe('Send to team words', () => {
+  test('the subtitle says what the sheet shows', () => {
+    expect(
+      sendSubtitle([{ name: 'Raga' }, { name: 'Priya' }, { name: null }])
+    ).toBe('3 lists, split by who onboarded each garage')
+    expect(sendSubtitle([{ name: ' Raga ' }])).toBe('One list for Raga')
+    expect(sendSubtitle([{ name: null }])).toBe(
+      'One list of everything these garages are missing'
+    )
+    expect(sendSubtitle([])).toBe(
+      'One list of everything these garages are missing'
+    )
+  })
+
+  test('the area, else the city', () => {
+    expect(garageBriefArea({ city: 'Chennai', area: 'Adyar' })).toBe('Adyar')
+    expect(garageBriefArea({ city: 'Chennai' })).toBe('Chennai')
+    expect(garageBriefArea({ city: '', area: ' ' })).toBe('')
+  })
+
+  test('how many garages each login already has, typed names left out', () => {
+    const typed: CollectionList = {
+      ...LIST,
+      id: 'list-5',
+      assigneeLoginId: null,
+      assigneeName: 'Someone',
+    }
+    const more: CollectionList = {
+      ...LIST,
+      id: 'list-6',
+      garages: [{ ...LIST.garages[0]!, id: 'g9' }],
+    }
+    expect([...openGaragesByLogin([LIST, more, typed])]).toEqual([
+      ['l-raga', 3],
+    ])
+  })
+
+  test('where a list went', () => {
+    expect(sentLine(LIST)).toBe('Sent 26 Oct to Raga’s Today')
+    expect(sentLine({ ...LIST, telegramSentAt: '2026-10-26T04:00:05Z' })).toBe(
+      'Sent 26 Oct to Telegram and Raga’s Today'
+    )
+    expect(
+      sentLine({
+        ...LIST,
+        assigneeLoginId: null,
+        telegramSentAt: '2026-10-26T04:00:05Z',
+      })
+    ).toBe('Sent 26 Oct to Telegram')
+    expect(sentLine({ ...LIST, assigneeLoginId: null })).toBe('Sent 26 Oct')
+    // 11:30 pm IST on the 25th is still the 25th in India.
+    expect(sentLine({ ...LIST, createdAt: '2026-10-25T18:00:00Z' })).toBe(
+      'Sent 25 Oct to Raga’s Today'
+    )
+  })
+
+  test('each card’s line comes from that person’s newest open list', () => {
+    const newer: CollectionList = {
+      ...LIST,
+      id: 'list-7',
+      createdAt: '2026-10-27T04:00:00Z',
+      telegramSentAt: '2026-10-27T04:00:05Z',
+    }
+    const closed: CollectionList = {
+      ...LIST,
+      id: 'list-8',
+      open: false,
+      createdAt: '2026-10-28T04:00:00Z',
+    }
+    expect(collectorSentLines([LIST, newer, closed]).get('l-raga')).toBe(
+      'Sent 27 Oct to Telegram and Raga’s Today'
+    )
   })
 })

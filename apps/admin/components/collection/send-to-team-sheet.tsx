@@ -14,7 +14,10 @@ import type {
   CollectionList,
   CreateCollectionListsInput,
 } from '@repo/core/api/admin-collection'
-import { useCreateCollectionLists } from '@repo/core/api/hooks/use-admin-collection'
+import {
+  useCollectionLists,
+  useCreateCollectionLists,
+} from '@repo/core/api/hooks/use-admin-collection'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useAdminLogins } from '@repo/core/api/hooks/use-admin-logins'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
@@ -29,6 +32,7 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScModal } from '@repo/ui/sc/modal'
 import { ScSwitch } from '@repo/ui/sc/switch'
+import { garageAreaName } from '@/lib/localities'
 import {
   collectKinds,
   collectorLogins,
@@ -37,8 +41,10 @@ import {
   groupByOnboarder,
   istToday,
   listText,
+  openGaragesByLogin,
   plural,
   sendButtonLabel,
+  sendSubtitle,
   sendSummary,
   vendorMapsUrl,
   type CollectorGroup,
@@ -113,6 +119,12 @@ export function SendToTeamSheet({
     [loginsQuery.data]
   )
   const youId = loginsQuery.data?.youId ?? null
+  // "has 2 garages" by each person: what their open lists already hold.
+  const openLists = useCollectionLists('all')
+  const busyWith = useMemo(
+    () => openGaragesByLogin(openLists.data?.lists ?? []),
+    [openLists.data]
+  )
   const suggestions = useMemo(
     () => groupByOnboarder(vendors, logins),
     [vendors, logins]
@@ -280,8 +292,11 @@ export function SendToTeamSheet({
             Send to team · {plural(vendors.length, 'garage')}
           </h2>
           <p className="text-[13px] text-text-secondary">
-            One list of everything these garages are missing, for one person to
-            collect.
+            {sendSubtitle(
+              (toSend.length > 0 ? toSend : drafts).map((d) => ({
+                name: d.collector?.name ?? null,
+              }))
+            )}
           </p>
         </div>
         <button
@@ -332,6 +347,7 @@ export function SendToTeamSheet({
                   many={drafts.length > 1}
                   logins={logins}
                   youId={youId}
+                  busyWith={busyWith}
                   showProblem={tried}
                   onChange={(patch) => setChoice(draft.group.key, patch)}
                 />
@@ -442,6 +458,7 @@ function GroupFields({
   many,
   logins,
   youId,
+  busyWith,
   showProblem,
   onChange,
 }: {
@@ -449,6 +466,8 @@ function GroupFields({
   many: boolean
   logins: AdminLogin[]
   youId: string | null
+  /** Garages each login already has on open lists. */
+  busyWith: ReadonlyMap<string, number>
   showProblem: boolean
   onChange: (patch: Partial<GroupChoice>) => void
 }) {
@@ -486,6 +505,9 @@ function GroupFields({
               `@${login.username}`,
               login.isOwner ? 'owner' : null,
               login.id === youId ? 'you' : null,
+              busyWith.get(login.id)
+                ? `has ${plural(busyWith.get(login.id)!, 'garage')}`
+                : null,
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -593,6 +615,7 @@ function CollectorOption({
   title: string
   sub: string
 }) {
+  const subId = useId()
   return (
     <label
       className={cn(
@@ -613,6 +636,7 @@ function CollectorOption({
           {title}
         </span>
         <span
+          id={subId}
           aria-hidden="true"
           className="truncate text-[12px] text-text-secondary"
         >
@@ -625,6 +649,7 @@ function CollectorOption({
         value={value}
         checked={checked}
         onChange={onPick}
+        aria-describedby={subId}
         className="size-4 shrink-0 accent-brand-white"
       />
     </label>
@@ -645,6 +670,8 @@ function GaragePreview({
   const phone = vendor.owner?.phone || vendor.phone
   const tel = telHref(phone)
   const map = vendorMapsUrl(vendor)
+  // "Adyar", not "Chennai": the neighbourhood its pin is in.
+  const area = garageAreaName(vendor)
   return (
     <article
       aria-label={vendor.businessName}
@@ -653,11 +680,8 @@ function GaragePreview({
       <div className="flex items-baseline justify-between gap-2">
         <p className="min-w-0 truncate text-[13px] font-semibold text-text-primary">
           {vendor.businessName}
-          {vendor.city && (
-            <span className="font-normal text-text-secondary">
-              {' '}
-              · {vendor.city}
-            </span>
+          {area && (
+            <span className="font-normal text-text-secondary"> · {area}</span>
           )}
         </p>
         <span className="shrink-0 font-numeric text-[12px] text-text-secondary">

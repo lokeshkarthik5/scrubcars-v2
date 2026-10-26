@@ -7,7 +7,8 @@ import type { AdminVendor } from '@repo/core/api/admin'
 import { useCreateMark } from '@repo/core/api/hooks/use-admin-marks'
 import { markLabel } from '@repo/core/onboarding-marks'
 import { cn } from '@repo/core/utils'
-import { ScModal } from '@repo/ui/sc/modal'
+import { openPresetLabelsForAll } from '@/lib/onboarding-marks'
+import { AnchoredPopover } from './anchored-popover'
 import {
   MarkForm,
   MarksOverlay,
@@ -27,8 +28,10 @@ function namesLine(vendors: AdminVendor[]): string {
 
 /**
  * The bulk bar's "Add mark": one form, and the same mark made on each ticked
- * garage. A garage that already has an open mark of that missing key keeps
- * its own (409 MARK_EXISTS), and the toast says how many did.
+ * garage. On a laptop it opens above the button, as a popover; on a phone,
+ * a dialog. A preset every ticked garage already has open is not offered; a
+ * garage that already has an open mark of that missing key keeps its own
+ * (409 MARK_EXISTS), and the toast says how many did.
  */
 export function AddMarkButton({ vendors }: { vendors: AdminVendor[] }) {
   const [open, setOpen] = useState(false)
@@ -38,6 +41,8 @@ export function AddMarkButton({ vendors }: { vendors: AdminVendor[] }) {
   // partial failure sends it to the rest only, never a second copy.
   const [doneIds, setDoneIds] = useState<ReadonlySet<string>>(new Set())
   const create = useCreateMark()
+  // The button pressed, for the popover to sit by.
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
 
   const submit = async (draft: MarkDraft) => {
     setBusy(true)
@@ -96,7 +101,8 @@ export function AddMarkButton({ vendors }: { vendors: AdminVendor[] }) {
       <button
         type="button"
         disabled={vendors.length === 0}
-        onClick={() => {
+        onClick={(event) => {
+          setAnchor(event.currentTarget)
           setError(null)
           setDoneIds(new Set())
           setOpen(true)
@@ -111,12 +117,12 @@ export function AddMarkButton({ vendors }: { vendors: AdminVendor[] }) {
       </button>
       {open && (
         <MarksOverlay>
-          <ScModal
-            open
+          <AnchoredPopover
+            anchor={anchor}
+            side="top"
             onClose={() => !busy && setOpen(false)}
             dismissible={!busy}
             aria-label="Add a mark"
-            className="max-w-[420px]"
           >
             <MarkForm
               title={`Add a mark · ${plural(vendors.length)}`}
@@ -131,8 +137,14 @@ export function AddMarkButton({ vendors }: { vendors: AdminVendor[] }) {
               }
               onSubmit={(draft) => void submit(draft)}
               onCancel={() => !busy && setOpen(false)}
+              openPresets={openPresetLabelsForAll(vendors)}
+              openPresetsHint={
+                vendors.length === 1
+                  ? 'Already open on this garage'
+                  : 'Already open on every ticked garage'
+              }
             />
-          </ScModal>
+          </AnchoredPopover>
         </MarksOverlay>
       )}
     </>

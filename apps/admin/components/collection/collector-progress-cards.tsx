@@ -5,6 +5,7 @@ import { useCollectionLists } from '@repo/core/api/hooks/use-admin-collection'
 import { cn } from '@repo/core/utils'
 import {
   collectorCards,
+  collectorSentLines,
   dueDate,
   listHref,
   plural,
@@ -14,12 +15,15 @@ import {
 /**
  * The Garages page's "With team" view, on top: one card per teammate with
  * open collection lists ("Raga · 4 garages · Due Thu 29 Oct · 3 of 11"),
- * and Open list. Nothing while loading, with no open lists, or from an API
+ * where their newest list went ("Sent 26 Oct to Telegram and Raga’s
+ * Today"), and Open list. Nothing while loading, with no open lists, or from an API
  * older than collection lists.
  */
 export function CollectorProgressCards({ className }: { className?: string }) {
   const { data } = useCollectionLists('all')
-  const cards = collectorCards(data?.lists ?? [])
+  const lists = data?.lists ?? []
+  const cards = collectorCards(lists)
+  const sent = collectorSentLines(lists)
   if (cards.length === 0) return null
   return (
     <section
@@ -53,6 +57,11 @@ export function CollectorProgressCards({ className }: { className?: string }) {
                   {card.lists > 1 ? `${card.lists} lists · ` : ''}
                   {card.dueOn ? `Due ${dueDate(card.dueOn)}` : 'No due date'}
                 </p>
+                {sent.get(card.key) && (
+                  <p className="truncate text-[12px] text-text-muted">
+                    {sent.get(card.key)}
+                  </p>
+                )}
               </div>
               <Link
                 href={listHref(card.listId)}

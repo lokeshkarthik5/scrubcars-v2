@@ -17,6 +17,8 @@ import {
   markStatusText,
   missingChipKeys,
   missingCounts,
+  openPresetLabels,
+  openPresetLabelsForAll,
   thingsCount,
 } from './onboarding-marks'
 
@@ -232,5 +234,46 @@ describe('undo after marking Asked', () => {
     expect(askedUndoSteps(undefined, [{ id: 'c' }])).toEqual([
       { action: 'delete', markId: 'c' },
     ])
+  })
+})
+
+describe('Add mark presets already open', () => {
+  const radius = {
+    kind: 'radius_default',
+    label: 'Doorstep radius',
+    status: 'to_ask',
+  } as const
+  const callBack = {
+    kind: 'custom',
+    label: ' call  BACK',
+    status: 'asked',
+  } as const
+  const gotPayout = {
+    kind: 'payout',
+    label: 'Payout details',
+    status: 'received',
+  } as const
+
+  test('a missing key by kind, a team mark by its label, received ones not', () => {
+    expect([...openPresetLabels([radius, callBack, gotPayout])].sort()).toEqual(
+      ['Ask for radius', 'Call back']
+    )
+    expect(openPresetLabels(undefined).size).toBe(0)
+    expect(
+      openPresetLabels([
+        { kind: 'custom', label: 'Call back later', status: 'to_ask' },
+      ]).size
+    ).toBe(0)
+  })
+
+  test('for several garages, only what every one has open', () => {
+    expect([
+      ...openPresetLabelsForAll([
+        { openMarks: [radius, callBack] },
+        { openMarks: [radius] },
+      ]),
+    ]).toEqual(['Ask for radius'])
+    expect(openPresetLabelsForAll([{ openMarks: [radius] }, {}]).size).toBe(0)
+    expect(openPresetLabelsForAll([]).size).toBe(0)
   })
 })

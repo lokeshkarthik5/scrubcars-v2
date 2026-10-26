@@ -8,7 +8,9 @@
  *
  * The garages are VENDORS.marksA (missing photos, logo, doorstep radius and
  * payout) and VENDORS.marksB (missing photos and bays), which only the marks
- * specs touch. The rules are unit-tested in apps/admin/lib/onboarding-marks.test.ts.
+ * specs touch. Only marksA's marks are made, read and cleared here: the API
+ * spec works on marksB's at the same time. The rules are unit-tested in
+ * apps/admin/lib/onboarding-marks.test.ts.
  */
 import type { Page } from '@playwright/test'
 import { test, expect, asRole } from '../../support/fixtures'
@@ -24,8 +26,12 @@ const B = VENDORS.marksB
 const row = (page: Page, name: string) =>
   page.getByRole('row', { name, exact: true })
 
+/** marksA's marks only: the API spec owns marksB's and runs alongside. */
 const forgetMarks = () =>
-  sql`delete from vendor_onboarding_marks where vendor_id in (${A.id}, ${B.id})`
+  sql`delete from vendor_onboarding_marks where vendor_id = ${A.id}`
+
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /** The text a wa.me link types in for the owner. */
 const textOf = (href: string | null) => {
@@ -112,18 +118,25 @@ test.describe.serial('onboarding marks on the Garages page @p0', () => {
   test('a second open mark of a missing key offers the first to edit', async ({
     page,
   }) => {
-    await sql`
-      insert into vendor_onboarding_marks (vendor_id, kind, label, status, created_by_name)
-      values (${A.id}, 'radius_default', 'Ask for radius', 'to_ask', 'E2E Admin')
-    `
     await page.goto('/vendors?show=all')
     const a = row(page, A.name)
 
     await a.getByRole('button', { name: `Add mark for ${A.name}` }).click()
     const add = page.getByRole('dialog', { name: 'Add a mark' })
-    await add
-      .getByRole('button', { name: 'Ask for radius', exact: true })
-      .click()
+    const radius = add.getByRole('button', {
+      name: 'Ask for radius',
+      exact: true,
+    })
+    // The garage has no radius mark yet, so the preset is offered.
+    await expect(radius).toBeEnabled()
+
+    // Someone else adds one while this form is open: the server refuses a
+    // second (409 MARK_EXISTS), and the form offers theirs to edit.
+    await sql`
+      insert into vendor_onboarding_marks (vendor_id, kind, label, status, created_by_name)
+      values (${A.id}, 'radius_default', 'Ask for radius', 'to_ask', 'E2E Admin')
+    `
+    await radius.click()
     await add.getByRole('button', { name: 'Add mark', exact: true }).click()
 
     await expect(add.getByRole('alert')).toContainText(
@@ -140,6 +153,24 @@ test.describe.serial('onboarding marks on the Garages page @p0', () => {
        where vendor_id = ${A.id} and kind = 'radius_default'
     `
     expect(count).toBe(1)
+
+    // Once the list knows of it, the preset isn't offered at all.
+    await page.reload()
+    await row(page, A.name)
+      .getByRole('button', { name: `Add mark for ${A.name}` })
+      .click()
+    const again = page.getByRole('dialog', { name: 'Add a mark' })
+    await expect(
+      again.getByRole('button', { name: 'Ask for radius', exact: true })
+    ).toBeDisabled()
+    await expect(
+      again.getByRole('button', { name: 'Call back', exact: true })
+    ).toBeDisabled()
+    await expect(
+      again.getByRole('button', { name: 'Visit the shop', exact: true })
+    ).toBeEnabled()
+    await again.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(again).toBeHidden()
   })
 
   test('Ask on WhatsApp writes one wa.me link per garage, and marks nothing by itself', async ({
@@ -186,16 +217,29 @@ test.describe.serial('onboarding marks on the Garages page @p0', () => {
     expect(untickedA).not.toContain('your logo')
     expect(untickedA).toContain('3 shop photos')
 
-    // The footer opens the first garage's message, the same link.
-    await expect(
-      sheet.getByRole('link', { name: `Open next: ${A.name}` })
-    ).toHaveAttribute('href', (await linkA.getAttribute('href'))!)
+    // The footer opens the next garage's message: the same link as that
+    // garage's own card, whichever of the two comes first.
+    const next = sheet.getByRole('link', { name: /^Open next: / })
+    await expect(next).toHaveText(
+      new RegExp(
+        `Open next: (${escapeRegExp(A.name)}|${escapeRegExp(B.name)})$`
+      )
+    )
+    const nextName = (await next.textContent())!
+      .replace(/^.*Open next: /, '')
+      .trim()
+    await expect(next).toHaveAttribute(
+      'href',
+      (await sheet
+        .getByRole('link', { name: `Open in WhatsApp, ${nextName}` })
+        .getAttribute('href'))!
+    )
 
     // Nothing is marked Asked while the links are only looked at.
     await sheet.getByRole('button', { name: 'Close' }).click()
     const [{ count }] = await sql<{ count: number }[]>`
       select count(*)::int as count from vendor_onboarding_marks
-       where vendor_id in (${A.id}, ${B.id}) and kind <> 'custom' and status = 'asked'
+       where vendor_id = ${A.id} and kind <> 'custom' and status = 'asked'
     `
     expect(count).toBe(0)
   })

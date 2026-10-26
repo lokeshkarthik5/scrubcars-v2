@@ -176,7 +176,11 @@ test.describe('Send to team @p0', () => {
       await expect(card).toContainText(`${done} of ${total} collected`)
 
       const garageA = card.getByRole('article', { name: MARKS_A.name })
-      await garageA.getByRole('checkbox', { name: 'Photos' }).check()
+      // A click, then wait: the tick is optimistic and re-renders the row,
+      // which .check() can read too early and call a failure.
+      const photosBox = garageA.getByRole('checkbox', { name: 'Photos' })
+      await photosBox.click()
+      await expect(photosBox).toBeChecked()
       await expect(card).toContainText(`${done + 1} of ${total} collected`)
       await expect(
         garageA.getByRole('link', { name: `Save Photos to ${MARKS_A.name}` })

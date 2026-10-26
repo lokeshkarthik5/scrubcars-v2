@@ -84,7 +84,13 @@ export function WhatsAppAskSheet({
         open={open}
         onClose={onClose}
         aria-label={`Ask on WhatsApp · ${vendors.length} garage${vendors.length === 1 ? '' : 's'}`}
-        className="max-w-[640px]"
+        className={cn(
+          // A phone: a bottom sheet. A laptop: a panel down the right side
+          // (mockup 06, panel 3), the table still in view beside it.
+          'flex max-w-[640px] flex-col overflow-hidden pb-0',
+          'md:ml-auto md:h-dvh md:max-h-none md:w-[560px] md:max-w-[560px] md:self-stretch md:rounded-bl-[22px] md:rounded-tr-none md:border-l md:border-t-0',
+          'md:[&.sheet-in]:animate-[motion-fade-in_var(--motion-base)_ease-out_both]'
+        )}
         showHandle={false}
       >
         <AskCards vendors={vendors} onClose={onClose} />
@@ -190,8 +196,10 @@ function AskCards({
   )
 
   return (
-    <div className="flex flex-col">
-      <header className="flex items-start gap-3 border-b border-border px-5 pb-3 pt-4">
+    // Header and footer stay put; only the cards scroll, and they end above
+    // the footer rather than showing through under it.
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 items-start gap-3 border-b border-border px-5 pb-3 pt-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-[16px] font-semibold text-text-primary">
             Ask on WhatsApp · {vendors.length} garage
@@ -212,7 +220,7 @@ function AskCards({
         </button>
       </header>
 
-      <ul className="flex flex-col gap-3 px-5 py-4">
+      <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-5 py-4">
         {vendors.map((vendor) => (
           <li key={vendor.id}>
             <AskCard
@@ -229,7 +237,7 @@ function AskCards({
         ))}
       </ul>
 
-      <footer className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-border bg-brand-black px-5 pb-1 pt-3">
+      <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t border-border bg-brand-black px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
         <p className="min-w-0 flex-1 text-[12px] text-text-muted">
           Opens WhatsApp on this phone or computer with the text filled in. You
           press Send. No paid account, no cost.

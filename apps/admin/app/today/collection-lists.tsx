@@ -34,6 +34,7 @@ import {
   displayPhone,
   dueChip,
   dueDate,
+  garageBriefArea,
   garageProgress,
   itemsOf,
   itemState,
@@ -443,10 +444,11 @@ function GarageBlock({
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="min-w-0 truncate text-[14px] font-semibold text-text-primary">
           {garage.businessName}
-          {garage.city && (
+          {/* "Adyar", not "Chennai"; the city from an older API. */}
+          {garageBriefArea(garage) && (
             <span className="font-normal text-text-secondary">
               {' '}
-              · {garage.city}
+              · {garageBriefArea(garage)}
             </span>
           )}
         </h3>
