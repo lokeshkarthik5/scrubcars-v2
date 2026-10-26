@@ -6,6 +6,7 @@
  */
 
 import { bookingTypeLabel } from './booking-types.js'
+import { MONTHS, WEEKDAYS } from './ist.js'
 
 const APP_TIMEZONE = 'Asia/Kolkata'
 const ADMIN_BOOKINGS_URL = 'https://admin.detlio.com/bookings'
@@ -17,6 +18,7 @@ const ADMIN_COMPLAINTS_URL = 'https://admin.detlio.com/complaints'
 const ADMIN_VENDORS_URL = 'https://admin.detlio.com/vendors'
 const ADMIN_BYPASS_REPORTS_URL = 'https://admin.detlio.com/bypass-reports'
 const ADMIN_GUARANTEE_URL = 'https://admin.detlio.com/guarantee'
+const ADMIN_TODAY_URL = 'https://admin.detlio.com/today'
 
 /** A free redo claim's page in admin (Detlio Guarantee, 0051). */
 export function adminClaimUrl(id: string): string {
@@ -485,6 +487,121 @@ export type OpsAlert =
       cap: string
       issued: string
     }
+  | {
+      /**
+       * A collection list sent to a teammate from the Garages list (0059,
+       * "Send to team"): what to collect from which garages. Long lists are
+       * split into several messages (splitTelegramText).
+       */
+      kind: 'collection_list'
+      list: CollectionListAlert
+    }
+
+/** A collection list as its Telegram post reads it (0059). */
+export interface CollectionListAlert {
+  id: string
+  assigneeName: string
+  createdByName: string
+  /** YYYY-MM-DD, IST. */
+  dueOn: string | null
+  note: string | null
+  garages: Array<{
+    businessName: string
+    /** Where it is: "Adyar, Chennai". */
+    area: string
+    ownerName: string | null
+    ownerPhone: string | null
+    mapsUrl: string | null
+    /** What to collect, as checklist words ("Payout details"). */
+    items: string[]
+  }>
+}
+
+/** A collection list in admin: the Today page's Mine tab opens it. */
+export function adminCollectionListUrl(id: string): string {
+  return `${ADMIN_TODAY_URL}?list=${id}`
+}
+
+/** "Thu 29 Oct", for a YYYY-MM-DD date key. */
+function dueLabel(dateKey: string): string {
+  const date = new Date(`${dateKey}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return dateKey
+  return `${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`
+}
+
+/**
+ * The words of a collection list's post. Plain text: a header, the note,
+ * one numbered block per garage (owner · phone · Map, then a ☐ line per
+ * thing), and the admin link. Blocks are separated by a blank line, which
+ * is where splitTelegramText cuts a long list.
+ */
+export function collectionListText(list: CollectionListAlert): string {
+  const flat = (text: string) => text.replace(/\s+/g, ' ').trim()
+  const header = lines(
+    `📋 Collection list for ${flat(list.assigneeName)}`,
+    `From ${flat(list.createdByName)}${list.dueOn ? ` · by ${dueLabel(list.dueOn)}` : ''}`,
+    list.note?.trim() ? `Note: ${flat(list.note)}` : null
+  )
+  const blocks = list.garages.map((garage, index) => {
+    const contact = [
+      garage.ownerName ? flat(garage.ownerName) : null,
+      garage.ownerPhone,
+      garage.mapsUrl ? `Map: ${garage.mapsUrl}` : null,
+    ].filter(Boolean)
+    return lines(
+      `${index + 1}. ${flat(garage.businessName)}${garage.area ? `, ${flat(garage.area)}` : ''}`,
+      contact.length > 0 ? contact.join(' · ') : null,
+      ...garage.items.map((item) => `☐ ${flat(item)}`)
+    )
+  })
+  return [
+    header,
+    ...blocks,
+    `Open the list in admin: ${adminCollectionListUrl(list.id)}`,
+  ].join('\n\n')
+}
+
+/** Telegram's limit on one message, in characters. */
+export const TELEGRAM_MAX_CHARS = 4096
+
+/**
+ * A message cut into Telegram-sized parts: at blank lines (between a
+ * collection list's garages) where it can, else at line ends, else hard.
+ * Text that fits is one part, unchanged. Counted in UTF-16 units, which is
+ * at least what Telegram counts, so a part never runs over.
+ */
+export function splitTelegramText(text: string, max = TELEGRAM_MAX_CHARS): string[] {
+  if (text.length <= max) return [text]
+  const parts: string[] = []
+  let current = ''
+  const push = (piece: string, joiner: string) => {
+    if (!current) current = piece
+    else if (current.length + joiner.length + piece.length <= max) current += joiner + piece
+    else {
+      parts.push(current)
+      current = piece
+    }
+  }
+  for (const block of text.split('\n\n')) {
+    if (block.length <= max) {
+      push(block, '\n\n')
+      continue
+    }
+    // A block too long on its own starts a part and goes line by line, and
+    // a line too long on its own in hard cuts.
+    if (current) parts.push(current)
+    current = ''
+    for (const line of block.split('\n')) {
+      if (line.length <= max) {
+        push(line, '\n')
+        continue
+      }
+      for (let at = 0; at < line.length; at += max) push(line.slice(at, at + max), '\n')
+    }
+  }
+  if (current) parts.push(current)
+  return parts
+}
 
 /** A paid booking still waiting for its garage, as the digest lists it. */
 export interface DigestBooking {
@@ -1058,6 +1175,9 @@ export function formatOpsAlert(alert: OpsAlert): string {
         'Raise REWARDS_MONTHLY_CAP_INR to change it.',
         ADMIN_REWARDS_URL
       )
+
+    case 'collection_list':
+      return collectionListText(alert.list)
   }
 }
 

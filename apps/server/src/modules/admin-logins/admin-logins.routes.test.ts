@@ -45,6 +45,7 @@ type Row = {
   createdByName: string
   createdAt: Date
   updatedAt: Date
+  phone?: string | null
 }
 const rows = new Map<string, Row>()
 const audits: Array<{ action: string; actorSub: string; actorName: string }> = []
@@ -117,6 +118,13 @@ beforeAll(() => {
     row.status = status
     if (status === 'off') row.sessionsFrom = now
     audits.push({ action: status === 'off' ? 'admin_login_turned_off' : 'admin_login_turned_on', ...actor })
+    return publicRow(row)
+  })
+  patch(repo, 'setPhone', async (id: string, phone: string | null, actor: { actorSub: string; actorName: string }) => {
+    const row = rows.get(id)
+    if (!row) return undefined
+    row.phone = phone
+    audits.push({ action: 'admin_login_phone_changed', ...actor })
     return publicRow(row)
   })
 })
@@ -332,5 +340,41 @@ describe('Team logins: only the owner changes them', () => {
 
     const shared = (await signIn(env.adminUsername, env.adminPassword)).token
     expect((await call('POST', '/admin/me/password', shared, { currentPassword: 'x', newPassword: 'fresh-password-3' })).body.code).toBe('ADMIN_LOGIN_SHARED')
+  })
+})
+
+describe('a login’s phone (0059)', () => {
+  test('the owner sets anyone’s, everyone their own; nobody else’s', async () => {
+    await seed()
+    const owner = (await signIn('owner', PASSWORD)).token
+    const raga = (await signIn('raga', PASSWORD)).token
+    const shared = (await signIn(env.adminUsername, env.adminPassword)).token
+
+    const set = await call('PATCH', `/admin/logins/${RAGA}`, owner, { phone: '98400 12345' })
+    expect(set.status).toBe(200)
+    expect(set.body.data).toMatchObject({ username: 'raga', phone: '9840012345' })
+    expect((await call('GET', '/admin/logins', raga)).body.data!.logins!.find((l) => l.id === RAGA)).toMatchObject({ phone: '9840012345' })
+
+    const own = await call('PATCH', `/admin/logins/${RAGA}`, raga, { phone: null })
+    expect(own.body.data).toMatchObject({ phone: null })
+    expect((await call('PATCH', `/admin/logins/${OWNER}`, raga, { phone: '9840012345' })).body.code).toBe('ADMIN_OWNER_ONLY')
+    expect((await call('PATCH', `/admin/logins/${RAGA}`, shared, { phone: '9840012345' })).body.code).toBe('ADMIN_OWNER_ONLY')
+    expect(audits.map((a) => [a.action, a.actorName])).toEqual([
+      ['admin_login_phone_changed', 'Mathew'],
+      ['admin_login_phone_changed', 'Raga'],
+    ])
+  })
+
+  test('a 10-digit Indian mobile, or blank to clear; nothing else rides along', async () => {
+    await seed()
+    const owner = (await signIn('owner', PASSWORD)).token
+    for (const phone of ['12345', '5840012345', '98400123456', 'phone']) {
+      expect((await call('PATCH', `/admin/logins/${RAGA}`, owner, { phone })).status).toBe(400)
+    }
+    expect((await call('PATCH', `/admin/logins/${RAGA}`, owner, { phone: '9840012345', status: 'off' })).status).toBe(400)
+    expect((await call('PATCH', `/admin/logins/${RAGA}`, owner, { phone: '' })).body.data).toMatchObject({ phone: null })
+    expect((await call('PATCH', `/admin/logins/e2e00000-0000-4000-8000-000000004148`, owner, { phone: null })).status).toBe(404)
+    const made = await call('POST', '/admin/logins', owner, { username: 'kavya', name: 'Kavya', password: 'kavya-password', phone: '9840099999' })
+    expect(made.body.data).toMatchObject({ phone: '9840099999' })
   })
 })

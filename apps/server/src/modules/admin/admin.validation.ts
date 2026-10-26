@@ -11,6 +11,15 @@ const phoneSchema = z
   .trim()
   .regex(/^\d{10}$/, 'Phone must be a 10-digit number')
 
+// Who on the team brought the garage in (0059): a login's name or free
+// text, set by hand. Trimmed; blank or null means not set.
+const onboardedByNameSchema = z
+  .string()
+  .trim()
+  .max(100)
+  .nullable()
+  .transform((value) => (value ? value : null))
+
 const timeSchema = z
   .string()
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Time must be HH:MM')
@@ -138,6 +147,7 @@ export const createVendorSchema = z.object({
   status: z.enum(['pending', 'active', 'suspended', 'archived']).optional(),
   isVerified: z.boolean().optional(),
   notes: z.string().trim().max(5000).optional(),
+  onboardedByName: onboardedByNameSchema.optional(),
   // Services offered (structured: bookable line items)
   services: z.array(serviceInputSchema).max(50).optional(),
 })
@@ -226,6 +236,7 @@ export const updateVendorSchema = z.object({
   status: z.enum(['pending', 'active', 'suspended', 'archived']).optional(),
   isVerified: z.boolean().optional(),
   notes: z.string().trim().max(5000).nullable().optional(),
+  onboardedByName: onboardedByNameSchema.optional(),
   // Full desired set of services. Rows with an `id` are updated, rows without
   // are inserted, and existing services missing from the array are deactivated.
   // Omit the key entirely to leave services untouched.
@@ -269,6 +280,22 @@ export const mediaUrlSchema = z.object({
 
 // ─── Bookings ────────────────────────────────────────────────────────────────
 
+/**
+ * The bookings list's saved views (0059), All aside. `needs_action`: paid
+ * and waiting for the garage, not Test (Today's rule), or a refund owed;
+ * `today`: scheduled today (IST); `upcoming`: still to happen, from
+ * tomorrow on; `completed` and `cancelled` by status. Today and Upcoming
+ * sort soonest first; the rest newest scheduled first.
+ */
+export const BOOKING_VIEWS = [
+  'needs_action',
+  'today',
+  'upcoming',
+  'completed',
+  'cancelled',
+] as const
+export type BookingView = (typeof BOOKING_VIEWS)[number]
+
 // The filters live in the panel's URL, so a hand-edited or mistyped date
 // arrives here. One that doesn't exist is a 400, not an Invalid Date for the
 // query to choke on.
@@ -300,6 +327,9 @@ export const listBookingsQuerySchema = z
     to: istDateSchema.optional(),
     // Bookings ops marked "Test": only those, or all but those.
     test: z.enum(['only', 'hide']).optional(),
+    // A saved view (0059, BOOKING_VIEWS); left out is All.
+    // Today and Upcoming sort soonest first, so their cursor runs forwards.
+    view: z.enum(BOOKING_VIEWS).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(100),
     page: z.coerce.number().int().min(1).max(1000).default(1),
     cursor: z
@@ -321,6 +351,13 @@ export const listBookingsQuerySchema = z
   })
 
 export const bookingIdParamSchema = z.object({ id: z.string().uuid() })
+
+/** GET /admin/bookings/views: the same search, garage and Test filters as the list. */
+export const bookingViewCountsQuerySchema = z.object({
+  q: z.string().trim().max(100).optional(),
+  vendorId: z.string().uuid().optional(),
+  test: z.enum(['only', 'hide']).optional(),
+})
 
 /**
  * The reason is required: an admin cancellation is always someone's decision
@@ -379,6 +416,7 @@ export type LoginInput = z.infer<typeof loginSchema>
 export type CreateVendorInput = z.infer<typeof createVendorSchema>
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>
+export type BookingViewCountsQuery = z.infer<typeof bookingViewCountsQuerySchema>
 export type AdminCancelBookingInput = z.infer<typeof adminCancelBookingSchema>
 export type MarkNoShowInput = z.infer<typeof markNoShowSchema>
 export type CreateBookingNoteInput = z.infer<typeof createBookingNoteSchema>

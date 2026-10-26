@@ -44,6 +44,7 @@ import {
   userVehicles,
   users,
   vendorClosures,
+  vendorDocuments,
   vendorPayoutAccounts,
   vendorPhotos,
   vendorServiceAreas,
@@ -2633,12 +2634,78 @@ async function seedAdminLoginRows() {
       status: login === ADMIN_LOGINS.off ? 'off' : 'active',
       // E2E Admin is the owner; nobody else is.
       isOwner: 'isOwner' in login && login.isOwner,
+      phone: 'phone' in login ? login.phone : null,
       sessionsFrom: longAgo,
       createdByName: 'E2E seed',
       createdAt: longAgo,
       updatedAt: longAgo,
     })
   }
+}
+
+/**
+ * Onboarding marks and collection lists (0059; VENDORS.marksA / marksB, ids
+ * 4150–4199 and phones 90000041xx from 51 only): two live garages, each
+ * missing exactly what VENDORS says, so the Missing keys are exact. Every
+ * required document approved (documents are on in E2E) so "documents" is
+ * never among them. No marks or lists are seeded: the specs make their own.
+ */
+async function seedMarksRows() {
+  const pin = (n: number) => ({
+    lat: ORIGIN.lat - 0.9 - n * 0.01, lng: ORIGIN.lng - 0.2,
+    geoSource: 'map_pin' as const, geoConfirmedAt: now,
+  })
+  const garage = {
+    city: 'Chennai', pincode: '600116', vehicleTypes: ['hatchback', 'sedan', 'suv'],
+    slotIntervalMins: 30, status: 'active' as const, isVerified: true, whatsapp: null,
+  }
+  await db.insert(vendors).values([
+    {
+      ...garage, ...pin(0), id: VENDORS.marksA.id, ownerId: STAFF.marksAOwner.id,
+      businessName: VENDORS.marksA.name, phone: STAFF.marksAOwner.phone,
+      address: '1, Marks Road, Porur', bays: 2, logoUrl: null,
+      doorstepEnabled: true, dropinEnabled: true, doorstepRadiusKm: null,
+    },
+    {
+      ...garage, ...pin(1), id: VENDORS.marksB.id, ownerId: STAFF.marksBOwner.id,
+      businessName: VENDORS.marksB.name, phone: STAFF.marksBOwner.phone,
+      address: '2, Marks Road, Porur', bays: null,
+      logoUrl: `http://localhost:9000/detlio-e2e/vendors/${VENDORS.marksB.id}/logo/seed.png`,
+      doorstepEnabled: false, dropinEnabled: true,
+      onboardedByName: VENDORS.marksB.onboardedByName,
+    },
+  ])
+  await db.insert(userMemberMapping).values([
+    { vendorId: VENDORS.marksA.id, userId: STAFF.marksAOwner.id, role: 'vendor_admin', status: 'active' },
+    { vendorId: VENDORS.marksB.id, userId: STAFF.marksBOwner.id, role: 'vendor_admin', status: 'active' },
+  ])
+  await db.insert(vendorWorkingHours).values([
+    ...hoursFor(VENDORS.marksA.id, '06:00:00', '22:00:00'),
+    ...hoursFor(VENDORS.marksB.id, '06:00:00', '22:00:00'),
+  ])
+  const wash = (service: typeof SERVICES.marksAWash | typeof SERVICES.marksBWash, vendorId: string) => ({
+    id: service.id, vendorId, name: service.name,
+    description: 'An exterior foam wash and dry.', category: 'car_wash' as const,
+    pricingType: 'flat' as const, price: service.price, durationMins: service.durationMins, isActive: true,
+  })
+  await db.insert(services).values([
+    wash(SERVICES.marksAWash, VENDORS.marksA.id),
+    wash(SERVICES.marksBWash, VENDORS.marksB.id),
+  ])
+  // UPI is enough to be paid (lib/vendor-missing.ts payoutUsable).
+  await db.insert(vendorPayoutAccounts).values({
+    vendorId: VENDORS.marksB.id, upiId: 'marksb@upi', updatedBy: 'E2E seed',
+  })
+  const approved = (vendorId: string) =>
+    (['shop_photo', 'owner_id', 'bank_proof', 'agreement'] as const).map((type) => ({
+      vendorId, type, status: 'approved' as const,
+      uploadedBy: 'E2E seed', uploadedBySub: 'admin',
+      reviewedBy: 'E2E seed', reviewedBySub: 'admin', reviewedAt: daysAgo(1),
+    }))
+  await db.insert(vendorDocuments).values([
+    ...approved(VENDORS.marksA.id),
+    ...approved(VENDORS.marksB.id),
+  ])
 }
 
 async function main() {
@@ -2699,6 +2766,8 @@ async function main() {
   console.log('[e2e-seed] six-tap checkout…')
   await seedSixTapRows()
   await seedTodayRows()
+  console.log('[e2e-seed] onboarding marks…')
+  await seedMarksRows()
   console.log('[e2e-seed] admin logins…')
   await seedAdminLoginRows()
   console.log('[e2e-seed] done')
