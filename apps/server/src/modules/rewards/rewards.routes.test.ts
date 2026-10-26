@@ -200,7 +200,7 @@ describe('while REWARDS_ENABLED is off (the default)', () => {
       const { status, body: json } = await call(method, path, who, body)
       expect({ path, status, code: json.code }).toEqual({ path, status: 404, code: 'NOT_FOUND' })
     }
-    expect((await call('GET', '/rewards/config', null)).body.data).toEqual({ enabled: false, settings: null })
+    expect((await call('GET', '/rewards/config', null)).body.data).toEqual({ enabled: false, settings: null, garage: { live: false } })
     expect((await call('GET', '/admin/rewards/config', 'breakGlass')).body.data).toEqual({ masterSwitch: false })
     expect(scratchCalls).toEqual([])
     expect(saveCalls).toEqual([])
@@ -217,7 +217,7 @@ describe("the admin's switch", () => {
   test('off: customers get 404s, /config says off, admin still works', async () => {
     adminSwitch(false)
     expect((await call('GET', '/users/me/rewards', 'me')).status).toBe(404)
-    expect((await call('GET', '/rewards/config', null)).body.data).toEqual({ enabled: false, settings: null })
+    expect((await call('GET', '/rewards/config', null)).body.data).toEqual({ enabled: false, settings: null, garage: { live: false } })
     const settings = await call('GET', '/admin/rewards/settings', 'breakGlass')
     expect(settings.status).toBe(200)
     expect(settings.body.data).toMatchObject({ masterSwitch: true, live: false, version: 1 })

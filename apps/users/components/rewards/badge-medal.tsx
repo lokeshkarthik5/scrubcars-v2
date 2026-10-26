@@ -1,5 +1,6 @@
 import {
   IconBrush,
+  IconCar,
   IconCloudRain,
   IconCompass,
   IconDroplet,
@@ -44,6 +45,7 @@ const MARKS: Record<BadgeKey | 'challenge', { icon: Icon; tint: string; figure?:
   ambassador: { icon: IconUsers, tint: '#5EEAD4' },
   detailing_devotee: { icon: IconBrush, tint: '#DDD6FE' },
   coating_club: { icon: IconShieldCheck, tint: '#BAE6FD' },
+  garage_legend: { icon: IconCar, tint: '#F5D27A' },
   challenge: { icon: IconTrophy, tint: '#FDE68A' },
 }
 

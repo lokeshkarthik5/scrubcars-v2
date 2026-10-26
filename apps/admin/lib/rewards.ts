@@ -4,7 +4,7 @@ import type { AdminChallenge, ChallengeFormValues, ChallengeResultRow, Challenge
 import { SCRATCH_OUTCOMES, type RewardsSettings, type ScratchWeights } from '@repo/core/rewards'
 
 /** The tabs of Admin → Rewards, in the URL as ?tab=. */
-export const REWARDS_TABS = ['overview', 'customers', 'achievements', 'challenges', 'wrapped', 'settings'] as const
+export const REWARDS_TABS = ['overview', 'customers', 'achievements', 'challenges', 'garage', 'wrapped', 'settings'] as const
 export type RewardsTab = (typeof REWARDS_TABS)[number]
 
 export function parseRewardsTab(value: string | null): RewardsTab {
@@ -105,6 +105,7 @@ export function emptyChallenge(now = new Date()): ChallengeFormValues {
     rewardStamps: null,
     rewardAmount: null,
     rewardMultiplier: 2,
+    rewardCards: null,
     audienceMinLevel: null,
     maxWinners: 500,
   }
@@ -124,6 +125,7 @@ export function challengeFormValues(c: AdminChallenge): ChallengeFormValues {
     rewardStamps: c.rewardStamps,
     rewardAmount: c.rewardAmount === null ? null : Math.round(Number(c.rewardAmount)),
     rewardMultiplier: c.rewardMultiplier,
+    rewardCards: c.rewardCards ?? null,
     audienceMinLevel: c.audienceMinLevel,
     maxWinners: c.maxWinners,
   }
@@ -138,6 +140,7 @@ export function challengePayload(values: ChallengeFormValues): ChallengeFormValu
     rewardStamps: values.rewardKind === 'stamps' ? values.rewardStamps : null,
     rewardAmount: values.rewardKind === 'voucher' ? values.rewardAmount : null,
     rewardMultiplier: values.rewardKind === 'multiplier' ? values.rewardMultiplier : null,
+    rewardCards: values.rewardKind === 'garage_cards' ? values.rewardCards : null,
   }
 }
 

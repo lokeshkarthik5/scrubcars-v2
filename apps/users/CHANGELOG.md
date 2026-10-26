@@ -20,6 +20,18 @@ reconstructing every change in them.
 
 ### Added
 
+- **The Detlio Garage** (API 0057): the album at Profile → Detlio Rewards
+  → Garage (40 supercar cards in 8 rows of 5: collected cards as their
+  licensed photo with the number and name, missing ones blurred and
+  darkened, progress, rarity filter, the odds in plain words, a card's sheet
+  with Share to Instagram as a Story or Post), the pull reveal (a 3D flip
+  with a burst in the rarity's colour, a gold one for a Legendary, a fade
+  under reduced motion) on the booking page and as a sheet on Home and the
+  album, a Garage card under a scratch card, and Admin → Rewards → Garage
+  (settings, series, cards from the photo pool, uploads for a future series,
+  figures, CSV) plus "Detlio Garage cards" as a challenge reward. Every card
+  says "Cars shown for illustration only. Not affiliated with any car maker."
+
 - **Printed coupons with QR codes** (API 0056). Customer: `/c/<code>`, the
   page a coupon's QR opens (the offer and every condition, "Add to my
   Detlio"; signed out it signs in or up and adds it on return; then "Book a

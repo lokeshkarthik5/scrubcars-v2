@@ -60,6 +60,8 @@ import { invalidateHome } from '@repo/core/api/hooks/use-home'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useQueryClient } from '@tanstack/react-query'
 import { invalidateRewards, rewardsEnabled, useRewardsConfig, useRewardsSummary } from '@repo/core/api/hooks/use-rewards'
+import { garageLive, useGaragePulls, useMarkGaragePullsSeen } from '@repo/core/api/hooks/use-garage'
+import { PullReveal } from '@/components/garage/pull-reveal'
 import { ScratchCardPanel } from '@/components/rewards/scratch-card'
 import { useTravelTime } from '@repo/core/api/hooks/use-travel-time'
 import { coarse, isStale, useLocationStore } from '@repo/core/stores/location-store'
@@ -252,6 +254,13 @@ export default function BookingDetailPage({
   // without it (it is no longer waiting): remembered during render.
   const [scratchCard, setScratchCard] = useState<typeof waitingCard>(null)
   if (waitingCard && waitingCard.id !== scratchCard?.id) setScratchCard(waitingCard)
+  // 0057: this booking's Detlio Garage card, revealed here (face down until tapped).
+  const garagePulls = useGaragePulls(garageLive(rewardsConfig.data) && booking?.status === 'completed')
+  const markPullSeen = useMarkGaragePullsSeen()
+  const bookingPull =
+    booking && garagePulls.data
+      ? garagePulls.data.pulls.find((p) => p.source === 'booking' && (p.bookingId === booking.id || p.rootBookingId === booking.id)) ?? null
+      : null
   // Where Home sent the customer, read once like ?celebrate below: ?then=pay
   // (a final bill), times (the garage suggested other times), extra (extra
   // work to approve), reschedule (the garage is shut that day) or help, and
@@ -905,6 +914,16 @@ export default function BookingDetailPage({
             You earned a stamp and a scratch card
           </h2>
           <ScratchCardPanel card={scratchCard} compact />
+        </section>
+      )}
+
+      {/* The Detlio Garage (0057): the card this job earned. */}
+      {booking.status === 'completed' && bookingPull && (
+        <section aria-labelledby="garage-card" className="flex flex-col gap-2">
+          <h2 id="garage-card" className="text-sm font-semibold text-text-primary">
+            A new car for your Garage
+          </h2>
+          <PullReveal pull={bookingPull} onRevealed={() => !bookingPull.seen && markPullSeen.mutate([bookingPull.id])} />
         </section>
       )}
 

@@ -17,6 +17,7 @@ import { pushService } from '../push/push.service.js'
 import { refundsService } from '../refunds/refunds.service.js'
 import { rewardsService } from '../rewards/rewards.service.js'
 import { rewardExtrasService } from '../reward-extras/reward-extras.service.js'
+import { garageService } from '../garage/garage.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { timeProposalsService } from '../time-proposals/time-proposals.service.js'
 import { opsRepository } from './ops.repository.js'
@@ -187,6 +188,15 @@ export const opsService = {
         log.error({ err }, 'ops:reward_extras_sweep_failed')
         return { error: true as const }
       })
+    // 0057: the Detlio Garage's cards for stamp-earning bookings the hook
+    // missed, then (08:00–20:59 IST) cars, rows and series not yet told.
+    // Only while the Garage is live; bounded, never fails the digest.
+    const garage = await garageService
+      .sweep({ dryRun: options.dryRun })
+      .catch((err: unknown) => {
+        log.error({ err }, 'ops:garage_sweep_failed')
+        return { error: true as const }
+      })
     const giftCodeAttemptsPurged = options.dryRun
       ? 0
       : await giftsService.purgeAttempts().catch((err: unknown) => {
@@ -262,6 +272,7 @@ export const opsService = {
       couponCodeAttemptsPurged,
       rewards,
       rewardExtras,
+      garage,
       missedResponsesYesterday: missedResponses.reduce((sum, row) => sum + row.count, 0),
     }
 

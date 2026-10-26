@@ -22,6 +22,8 @@ const OUTCOME_LABELS: Record<ScratchOutcome, string> = {
   big_off: 'Big (₹ off)',
   bonus_stamp: 'Bonus stamp',
   free_wash: 'Free wash (up to ₹)',
+  // 0057: drawn with the Garage's own chance (Rewards → Garage), not in this table.
+  garage_card: 'Garage card',
 }
 
 function NumberField({

@@ -42,6 +42,8 @@ export interface BadgeFacts {
   reviews: number
   /** Invites of theirs that were rewarded. */
   rewardedInvites: number
+  /** Detlio Garage series they collected in full (0057); absent reads as none. */
+  garageSeries?: number
 }
 
 /** The IST hour a slot starts in, 0–23. */
@@ -225,6 +227,13 @@ export const BADGES: readonly BadgeDefinition[] = [
     howTo: 'Complete a coating job.',
     goal: 1,
     measure: (f) => countWhere(f.bookings, (b) => b.categories.includes('coating')),
+  },
+  {
+    key: 'garage_legend',
+    label: 'Garage Legend',
+    howTo: 'Collect every car in a Detlio Garage series.',
+    goal: 1,
+    measure: (f) => f.garageSeries ?? 0,
   },
 ]
 
