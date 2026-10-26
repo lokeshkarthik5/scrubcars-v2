@@ -16,7 +16,7 @@ import {
   type MissingKey,
 } from '@repo/core/onboarding-marks'
 import { DEFAULT_DOORSTEP_RADIUS_KM } from './garage-edit'
-import { nearestLocality } from './localities'
+import { garageAreaName } from './localities'
 
 // ─── Chips ───────────────────────────────────────────────────────────────────
 
@@ -659,11 +659,7 @@ export function garageArea(
   v: Pick<AdminVendor, 'city' | 'lat' | 'lng'> &
     Partial<Pick<AdminVendor, 'outsideServiceCity'>>
 ): string {
-  if (v.lat !== null && v.lng !== null && !v.outsideServiceCity) {
-    const near = nearestLocality(v.lat, v.lng)
-    if (near?.startsWith('Near ')) return near.slice('Near '.length)
-  }
-  return v.city
+  return garageAreaName(v)
 }
 
 export type StageTone = 'done' | 'new' | 'attention' | 'late' | 'closed'

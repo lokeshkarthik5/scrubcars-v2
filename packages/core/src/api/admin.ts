@@ -662,6 +662,13 @@ export interface AdminBookingFilters {
   cursor?: string
   /** A saved view (0059); left out is All. Absent from an older API, which ignores it. */
   view?: Exclude<AdminBookingView, 'all'>
+  /** How the car is served (0059 filters); an older API ignores it. */
+  bookingType?: 'dropin' | 'doorstep' | 'pickup'
+  /**
+   * Payment (0059 filters): paid online, to pay at the garage, or a refund
+   * owed ("Money owed" in the panel); an older API ignores it.
+   */
+  payment?: 'paid' | 'pay_later' | 'refund_owed'
 }
 
 /**

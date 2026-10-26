@@ -18,6 +18,8 @@ export interface CollectionGarageBrief {
   ownerPhone: string | null
   /** The garage's saved Google Maps link, or one built from its pin; null with neither. */
   mapsUrl: string | null
+  /** The neighbourhood ("Adyar"), else the city (garageAreaName). Absent from an older API. */
+  area?: string
 }
 
 export interface CollectionItem {
