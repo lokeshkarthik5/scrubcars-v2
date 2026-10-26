@@ -7,8 +7,11 @@ import { ScButton } from '@repo/ui/sc/button'
 import { ScCard } from '@repo/ui/sc/card'
 import { Notice } from '@repo/ui/sc/notice'
 import type { GiftLink, SentGift } from '@repo/core/api/gifts'
-import { GiftCardArt } from '@/components/gifts/gift-card-art'
-import { formatGiftCode, formatGiftDate, giftArtFor, giftRupees, giftShareText, whatsAppShareUrl } from '@/lib/gifts'
+import { useGiftsConfig } from '@repo/core/api/hooks/use-gifts'
+import { PremiumCard } from '@/components/premium-card/premium-card'
+import { ShareCardImage } from '@/components/premium-card/share-card-image'
+import { formatGiftCode, formatGiftDate, giftRupees, giftShareText, whatsAppShareUrl } from '@/lib/gifts'
+import { CARS_ILLUSTRATION_LINE, firstName, giftCardSpec } from '@/lib/premium-card'
 
 /**
  * While printing, only the printable card: the rest of the screen (the
@@ -31,11 +34,15 @@ type ShareGift = Pick<SentGift, 'number' | 'amount' | 'recipientName' | 'message
  * "Get a new link". The code is in the link and nowhere else the buyer can
  * see again, so this says so. Sharing is the buyer's own: the share sheet,
  * a copied link, WhatsApp, or a printed card with the code. Detlio sends no
- * SMS or email of its own. The card is the gift's stored design (0055).
+ * SMS or email of its own. The card is the gift's stored design (0055),
+ * as a premium card; "Share to Instagram" shares it as a picture (never
+ * the code or the link).
  */
 export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
   const [showPrint, setShowPrint] = useState(false)
-  const look = giftArtFor(gift.design)
+  const validMonths = useGiftsConfig().data?.validMonths ?? null
+  const cardSpec = (showName: boolean) =>
+    giftCardSpec({ design: gift.design, amount: gift.amount, recipientName: gift.recipientName, expiresAt: gift.expiresAt, validMonths, showName })
   const path = link.path
   const url = typeof window === 'undefined' ? path : `${window.location.origin}${path}`
   const text = giftShareText({ amount: gift.amount, recipientName: gift.recipientName, url })
@@ -66,7 +73,10 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
     <div className="flex flex-col gap-4">
       <style>{PRINT_CSS}</style>
 
-      <GiftCardArt design={look} amount={gift.amount} recipientName={gift.recipientName} />
+      <div className="flex flex-col gap-1.5">
+        <PremiumCard spec={cardSpec(true)} />
+        <p className="text-center text-[11px] text-text-muted">{CARS_ILLUSTRATION_LINE}</p>
+      </div>
 
       <div>
         <h2 className="text-[17px] font-semibold text-text-primary">
@@ -114,6 +124,8 @@ export function GiftShare({ gift, link }: { gift: ShareGift; link: GiftLink }) {
           <IconPrinter size={16} aria-hidden="true" />
           {showPrint ? 'Hide the printable card' : 'Print a card instead'}
         </ScButton>
+        {/* The card as a picture for Instagram: never the code or the link. */}
+        <ShareCardImage spec={cardSpec} firstName={firstName(gift.recipientName) || null} fileName="detlio-gift" />
       </div>
 
       {showPrint && (
