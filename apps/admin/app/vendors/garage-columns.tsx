@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -13,7 +14,6 @@ import {
   IconArchiveOff,
   IconChevronRight,
   IconDots,
-  IconFileCertificate,
   IconPencil,
   IconTrash,
 } from '@tabler/icons-react'
@@ -49,6 +49,11 @@ export interface GarageColumnsContext {
   showMissing: boolean
   showMarks: boolean
   showOnboardedBy: boolean
+  /**
+   * Onboarded by is on screen: Garage, Area and Modes take less room, so the table
+   * still fits a 1440 laptop.
+   */
+  narrow?: boolean
   openId: string | null
   onOpen: (v: AdminVendor) => void
   verifyingId: string | null
@@ -79,11 +84,13 @@ export const GARAGE_OPTIONAL_COLUMNS: OptionalColumn[] = [
 
 /**
  * The Garages table's columns (mockups 06 and 07), compact enough for a
- * 1440 laptop with no sideways scroll: Garage (name, owner) · Area · Modes
- * · Stage · Missing · Marks · (Onboarded by) · Bookings · Next step, then
- * Verify on an unverified row and the row's ⋯ (Edit, Archive, Move to Bin).
- * On a phone a row is the name and what is missing, its stage and next step
- * on the right, and a third line with its marks and Verify.
+ * 1440 laptop with no sideways scroll, with Onboarded by on too: Garage
+ * (name, owner) · Area · Modes · Stage · Missing · Marks · (Onboarded by) ·
+ * Bookings · Next step, where Verify sits when the garage needs it, then
+ * the row's ⋯ (Edit, Archive, Move to Bin).
+ *
+ * On a phone a row is two lines (GARAGE_PHONE_GRID): the tick, the name,
+ * its stage, Verify and ⋯; then its owner, what is missing and its mark.
  */
 export function garageColumns(
   ctx: GarageColumnsContext
@@ -92,24 +99,27 @@ export function garageColumns(
     {
       id: 'garage',
       header: 'Garage',
-      phone: 'title',
+      phone: 'contents',
       sortValue: (v) => v.businessName,
-      cellClassName: 'max-w-[160px]',
       cell: (v) => (
-        <GarageCell v={v} open={ctx.openId === v.id} onOpen={ctx.onOpen} />
+        <GarageCell
+          v={v}
+          open={ctx.openId === v.id}
+          narrow={ctx.narrow}
+          onOpen={ctx.onOpen}
+        />
       ),
     },
     {
       id: 'area',
       header: 'Area',
       sortValue: (v) => garageArea(v),
-      cellClassName: 'max-w-[96px]',
-      cell: (v) => <AreaCell v={v} />,
+      cell: (v) => <AreaCell v={v} narrow={ctx.narrow} />,
     },
     {
       id: 'modes',
       header: 'Modes',
-      cell: (v) => <ModesCell v={v} />,
+      cell: (v) => <ModesCell v={v} narrow={ctx.narrow} />,
     },
     {
       id: 'stage',
@@ -119,7 +129,10 @@ export function garageColumns(
       cell: (v) => {
         const stage = stageCell(v)
         return (
-          <StatusChip tone={stage.tone} className="whitespace-nowrap">
+          <StatusChip
+            tone={stage.tone}
+            className="whitespace-nowrap max-md:ml-2"
+          >
             {stage.label}
           </StatusChip>
         )
@@ -136,12 +149,15 @@ export function garageColumns(
     ctx.showMarks && {
       id: 'marks',
       header: 'Marks',
-      phone: 'meta',
-      cellClassName: 'max-w-[156px]',
+      phone: 'asideSub',
       cell: (v) => (
-        <div className="flex min-w-0 flex-col items-start gap-1 max-md:flex-row max-md:flex-wrap max-md:items-center">
-          {v.openCollection && <WithTeamCell vendor={v} />}
-          <MarksCell vendor={v} />
+        <div className="flex min-w-0 max-w-[156px] flex-col items-start gap-1 max-md:ml-2 max-md:max-w-[30vw] max-md:items-end">
+          {v.openCollection && <WithTeamCell vendor={v} compact />}
+          {/* On a phone the teammate says enough. */}
+          <MarksCell
+            vendor={v}
+            className={cn(v.openCollection && 'max-md:hidden')}
+          />
         </div>
       ),
     },
@@ -149,9 +165,11 @@ export function garageColumns(
       id: 'onboardedBy',
       header: 'Onboarded by',
       sortValue: (v) => onboardedBy(v),
-      cellClassName: 'max-w-[130px]',
       cell: (v) => (
-        <span className="block truncate">
+        <span
+          className="block max-w-[88px] truncate"
+          title={onboardedBy(v) ?? undefined}
+        >
           {onboardedBy(v) ?? <span className="text-text-muted">Not set</span>}
         </span>
       ),
@@ -178,26 +196,34 @@ export function garageColumns(
     {
       id: 'next',
       header: 'Next step',
-      phone: 'asideSub',
+      phone: 'action',
       sortFirst: 'desc',
       sortValue: (v) => nextStepRank(garageNextStep(v, ctx.now)),
-      cellClassName: 'max-w-[132px]',
-      cell: (v) => <NextStepCell v={v} back={ctx.back} now={ctx.now} />,
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      headerHidden: true,
-      align: 'end',
-      phone: 'action',
       cell: (v) => (
-        <RowActions
+        <NextStepCell
           v={v}
           back={ctx.back}
+          now={ctx.now}
           verifying={ctx.verifyingId === v.id}
-          busy={ctx.busyId === v.id}
           error={ctx.rowErrors[v.id]}
           onVerify={() => ctx.onVerify(v)}
+        />
+      ),
+    },
+    {
+      id: 'more',
+      header: 'More',
+      headerHidden: true,
+      align: 'end',
+      phone: 'end',
+      cellClassName: 'w-9 pl-0',
+      cell: (v) => (
+        <RowMenu
+          name={v.businessName}
+          editHref={editHref(v.id, ctx.back)}
+          menuId={`vendor-${v.id}-menu`}
+          busy={ctx.busyId === v.id}
+          archived={v.status === 'archived'}
           onArchiveToggle={() => ctx.onArchiveToggle(v)}
           onMoveToBin={() => ctx.onMoveToBin(v)}
         />
@@ -208,32 +234,51 @@ export function garageColumns(
 }
 
 /**
+ * A garage row on a phone (AdminTable's `phoneGrid`), about half the height
+ * of the old card: the tick; the name and its stage; then its owner, what
+ * it is missing and its mark (or teammate) on the right, under the stage.
+ * Verify sits beside both lines on an unverified row, and ⋯ at the row's
+ * edge, in the room the right padding leaves it.
+ */
+export const GARAGE_PHONE_GRID =
+  "max-md:relative max-md:items-center max-md:gap-x-0 max-md:py-2 max-md:pl-3 max-md:pr-11 max-md:grid-cols-[auto_minmax(0,max-content)_minmax(0,1fr)_auto_auto] max-md:[grid-template-areas:'check_title_title_aside_action'_'._lead_subtitle_asideSub_action']"
+
+/**
  * The garage's name, which names the row (`vendor-<id>-name`) and opens it
- * in the side panel, and its owner under it.
+ * in the side panel, and its owner under it. On a phone the two are placed
+ * in the row's grid themselves: the name first, the owner leading the
+ * second line.
  */
 function GarageCell({
   v,
   open,
+  narrow,
   onOpen,
 }: {
   v: AdminVendor
   open: boolean
+  narrow?: boolean
   onOpen: (v: AdminVendor) => void
 }) {
   return (
-    <div className="min-w-0">
+    <div
+      className={cn(
+        'min-w-0 max-md:contents',
+        narrow ? 'max-w-[136px]' : 'max-w-[148px]'
+      )}
+    >
       <button
         type="button"
         id={`vendor-${v.id}-name`}
         title={v.businessName}
         aria-expanded={open}
         onClick={() => onOpen(v)}
-        className="block max-w-full truncate text-left text-[13.5px] font-semibold tracking-[-0.01em] text-text-primary underline-offset-2 hover:underline"
+        className="block max-w-full truncate text-left text-[13.5px] font-semibold tracking-[-0.01em] text-text-primary underline-offset-2 hover:underline max-md:mr-2 max-md:min-w-0 max-md:text-[14px] max-md:[grid-area:title]"
       >
         {v.businessName}
       </button>
       {v.owner?.name && (
-        <p className="truncate text-[12px] text-text-secondary">
+        <p className="truncate text-[12px] text-text-secondary max-md:mr-2 max-md:min-w-0 max-md:max-w-[24vw] max-md:[grid-area:lead]">
           {v.owner.name}
         </p>
       )}
@@ -246,10 +291,10 @@ function GarageCell({
  * far out it is: a garage whose city says Chennai but shows this is usually
  * pinned in the wrong place.
  */
-function AreaCell({ v }: { v: AdminVendor }) {
+function AreaCell({ v, narrow }: { v: AdminVendor; narrow?: boolean }) {
   return (
-    <div className="min-w-0">
-      <p className="truncate text-text-primary max-md:text-[12px] max-md:text-text-secondary">
+    <div className={cn('min-w-0', narrow ? 'max-w-[72px]' : 'max-w-[92px]')}>
+      <p className="truncate text-text-primary" title={garageArea(v)}>
         {garageArea(v)}
       </p>
       {v.outsideServiceCity && (
@@ -273,7 +318,7 @@ function AreaCell({ v }: { v: AdminVendor }) {
  * "Both", "Doorstep", "At garage + pickup": one short line. The radius
  * ("Doorstep 8 km") is in its title and the side panel.
  */
-function ModesCell({ v }: { v: AdminVendor }) {
+function ModesCell({ v, narrow }: { v: AdminVendor; narrow?: boolean }) {
   const parts = bookingParts(v)
   const full = parts
     .map((part) => [part.text, part.quiet].filter(Boolean).join(' '))
@@ -282,7 +327,8 @@ function ModesCell({ v }: { v: AdminVendor }) {
     <span
       title={full || undefined}
       className={cn(
-        'whitespace-nowrap text-[12.5px]',
+        'block truncate whitespace-nowrap text-[12.5px]',
+        narrow ? 'max-w-[60px]' : 'max-w-[84px]',
         parts.length === 0 ? 'text-warning' : 'text-text-secondary'
       )}
     >
@@ -293,157 +339,149 @@ function ModesCell({ v }: { v: AdminVendor }) {
 
 /**
  * What the garage still owes us (W4's tags: red can't go live without it,
- * amber can), or that nothing is missing.
+ * amber can), or that nothing is missing. One line: as many as fit, red
+ * ones first, then "+N"; two at most on a phone, fewer when they are long.
  */
 function MissingCell({ v }: { v: AdminVendor }) {
   if (!v.missing) return <span className="text-text-muted">—</span>
   if (v.missing.length === 0)
     return (
-      <span className="text-[12px] text-tone-done-text">Nothing missing</span>
+      <span className="whitespace-nowrap text-[12px] text-tone-done-text">
+        Nothing missing
+      </span>
     )
-  // One line: as many as fit, red ones first, then "+N".
   return (
-    <div className="min-w-0 [&_ul]:flex-nowrap [&_li]:whitespace-nowrap">
-      <MissingTags missing={v.missing} max={missingTagsThatFit(v.missing)} />
+    // On a phone a tag that still doesn't fit goes whole, never cut.
+    <div className="min-w-0 max-md:h-[18px] max-md:overflow-hidden md:[&_ul]:flex-nowrap [&_li]:whitespace-nowrap">
+      <MissingTags
+        missing={v.missing}
+        max={missingTagsThatFit(v.missing)}
+        phoneMax={Math.min(2, missingTagsThatFit(v.missing, 18))}
+      />
     </div>
   )
 }
 
+const VERIFY_BUTTON =
+  'tap-target inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-md border border-white/25 px-2 text-[12px] font-medium text-text-primary transition-colors hover:bg-surface-elevated disabled:opacity-50 max-md:ml-2 max-md:h-8'
+
 /**
- * The one thing to do now, and, when the garage sent documents, a link
- * straight to its Documents tab to review them.
+ * The one thing to do now (mockup 06): the action on the first line
+ * ("Due Thu 29 Oct · 0 of 2", "Chase · 3 days ago", "Pin first"), and at
+ * most one quieter line under it: why, or a link to the documents the
+ * garage sent ("2 docs to review ›"). Verify is a button here, on the
+ * first line when verifying is the next step and on the second when
+ * something else comes first, and is all a phone row shows of this cell.
  */
 function NextStepCell({
   v,
   back,
   now,
+  verifying,
+  error,
+  onVerify,
 }: {
   v: AdminVendor
   back: string
   now: number
-}) {
-  const step = garageNextStep(v, now)
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5 text-[12.5px]">
-      {step ? (
-        step.tab ? (
-          <Link
-            href={editHref(v.id, back, step.tab)}
-            className={cn(
-              'font-medium underline-offset-2 hover:underline',
-              STEP_TONE[step.tone]
-            )}
-          >
-            {step.text}
-          </Link>
-        ) : (
-          <span className={cn('font-medium', STEP_TONE[step.tone])}>
-            <Figures text={step.text} />
-          </span>
-        )
-      ) : (
-        !hasDocumentsToReview(v) && <span className="text-text-muted">—</span>
-      )}
-      {step?.detail && (
-        <span className="text-[12px] text-text-muted max-md:hidden">
-          <Figures text={step.detail} />
-        </span>
-      )}
-      {/* Garage documents waiting for Detlio (0043). */}
-      {hasDocumentsToReview(v) && v.documents && (
-        <Link
-          href={editHref(v.id, back, 'documents')}
-          className="inline-flex items-start gap-1 self-start font-medium text-text-primary underline-offset-2 hover:underline max-md:hidden"
-        >
-          <IconFileCertificate
-            size={14}
-            aria-hidden="true"
-            className="mt-0.5 shrink-0 text-text-secondary"
-          />
-          <Figures
-            text={`${v.documents.toReview} ${v.documents.toReview === 1 ? 'document' : 'documents'} to review`}
-          />
-          <IconChevronRight
-            size={14}
-            aria-hidden="true"
-            className="mt-0.5 shrink-0 text-text-muted"
-          />
-        </Link>
-      )}
-    </div>
-  )
-}
-
-const ROW_BUTTON =
-  'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-[8px] border border-border px-2 text-[12px] font-medium text-text-primary transition-colors hover:bg-surface-elevated disabled:opacity-50 max-md:min-h-9'
-
-/**
- * Verify on an unverified row (or "Pin first", since the server won't
- * verify a garage with no pin), then ⋯ with Edit, Archive and Move to Bin.
- * Both stay on the row on a phone, so a garage is verified without opening
- * it.
- */
-function RowActions({
-  v,
-  back,
-  verifying,
-  busy,
-  error,
-  onVerify,
-  onArchiveToggle,
-  onMoveToBin,
-}: {
-  v: AdminVendor
-  back: string
   verifying: boolean
-  busy: boolean
   error?: string
   onVerify: () => void
-  onArchiveToggle: () => void
-  onMoveToBin: () => void
 }) {
+  const step = garageNextStep(v, now)
+  // The server refuses a garage with no pin: that says "Pin first".
+  const canVerify = !v.isVerified && v.lat !== null
+  const verifyIsStep = canVerify && step?.text === 'Verify'
+  const docs = hasDocumentsToReview(v) && v.documents ? v.documents : null
+  const verify = canVerify && (
+    <button
+      type="button"
+      disabled={verifying}
+      aria-label={`Verify ${v.businessName}`}
+      onClick={onVerify}
+      className={VERIFY_BUTTON}
+    >
+      {verifying ? 'Verifying…' : 'Verify'}
+    </button>
+  )
+  const docsLink = docs && (
+    <Link
+      href={editHref(v.id, back, 'documents')}
+      aria-label={`${docs.toReview} ${docs.toReview === 1 ? 'document' : 'documents'} to review`}
+      className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[12px] font-medium text-text-primary underline-offset-2 hover:underline max-md:hidden"
+    >
+      <span className="font-numeric">{docs.toReview}</span>
+      {docs.toReview === 1 ? ' doc' : ' docs'} to review
+      <IconChevronRight
+        size={13}
+        aria-hidden="true"
+        className="shrink-0 text-text-muted"
+      />
+    </Link>
+  )
+
+  let first: React.ReactNode
+  if (verifyIsStep) {
+    first = verify
+  } else if (step) {
+    first = step.tab ? (
+      <Link
+        href={editHref(v.id, back, step.tab)}
+        title={step.text}
+        className={cn(
+          'block truncate font-medium underline-offset-2 hover:underline max-md:hidden',
+          STEP_TONE[step.tone]
+        )}
+      >
+        {step.text}
+      </Link>
+    ) : (
+      <span
+        title={step.text}
+        className={cn(
+          'block truncate font-medium max-md:hidden',
+          STEP_TONE[step.tone]
+        )}
+      >
+        <Figures text={step.text} />
+      </span>
+    )
+  } else if (!docs && !canVerify) {
+    first = <span className="text-text-muted max-md:hidden">—</span>
+  }
+
+  // The second line: Verify when something else came first, the documents
+  // to review, or why.
+  const second: React.ReactNode[] = []
+  if (canVerify && !verifyIsStep) second.push(verify)
+  if (docs) second.push(docsLink)
+  if (second.length === 0 && step?.detail) {
+    second.push(
+      <span
+        title={step.detail}
+        className="block truncate text-[12px] text-text-muted max-md:hidden"
+      >
+        <Figures text={step.detail} />
+      </span>
+    )
+  }
+
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center justify-end gap-1">
-        {!v.isVerified &&
-          (v.lat === null ? (
-            // The server refuses to verify a garage with no pin: it opens
-            // the map, where the pin is placed.
-            <Link
-              href={editHref(v.id, back, 'location')}
-              aria-label={`Drop the map pin before verifying ${v.businessName}`}
-              title="Drop the map pin before verifying"
-              className="whitespace-nowrap px-1 text-[12px] font-medium text-warning underline-offset-2 hover:underline"
-            >
-              Pin first
-            </Link>
-          ) : (
-            <button
-              type="button"
-              disabled={verifying}
-              aria-label={`Verify ${v.businessName}`}
-              onClick={onVerify}
-              className={ROW_BUTTON}
-            >
-              {verifying ? 'Verifying…' : 'Verify'}
-            </button>
+    <div className="flex min-w-0 max-w-[152px] flex-col items-start gap-0.5 text-[12.5px] max-md:max-w-none max-md:items-end">
+      {first}
+      {second.length > 0 && (
+        <div className="flex min-w-0 max-w-full items-center gap-2">
+          {second.map((node, index) => (
+            <Fragment key={index}>{node}</Fragment>
           ))}
-        <RowMenu
-          name={v.businessName}
-          editHref={editHref(v.id, back)}
-          menuId={`vendor-${v.id}-menu`}
-          busy={busy}
-          archived={v.status === 'archived'}
-          onArchiveToggle={onArchiveToggle}
-          onMoveToBin={onMoveToBin}
-        />
-      </div>
+        </div>
+      )}
       {/* Said on the row that was pressed, and announced. */}
       {error && (
         <p
           id={`vendor-${v.id}-error`}
           role="alert"
-          className="max-w-[200px] text-right text-[12px] text-error"
+          className="max-w-[200px] text-[12px] text-error max-md:text-right"
         >
           {error}
         </p>
@@ -545,7 +583,7 @@ function RowMenu({
         aria-controls={menuId}
         aria-label={`More for ${name}`}
         onClick={() => setOpen((value) => !value)}
-        className="flex size-8 items-center justify-center rounded-[8px] text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary max-md:size-9"
+        className="tap-target flex size-8 items-center justify-center rounded-[8px] text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary max-md:size-7"
       >
         <IconDots size={18} stroke={1.5} aria-hidden="true" />
       </button>

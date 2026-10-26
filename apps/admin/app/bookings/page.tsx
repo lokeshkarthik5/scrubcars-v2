@@ -137,11 +137,18 @@ function BookingsList() {
         else next.delete(key)
       }
       const query = next.toString()
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      })
+      // Replaced, not pushed: a filter is a view of this page, not
+      // somewhere Back should step through. The browser's own history,
+      // which useSearchParams follows: router.replace() asks the server for
+      // the page again, and once the sidebar's links have been prefetched
+      // Next dropped that navigation, so a filter pressed then did nothing.
+      window.history.replaceState(
+        null,
+        '',
+        query ? `${pathname}?${query}` : pathname
+      )
     },
-    [params, pathname, router]
+    [params, pathname]
   )
 
   // The search box is typed into freely; only the settled text reaches the
@@ -270,7 +277,7 @@ function BookingsList() {
   )
   const clearFilters = () => {
     setSearch('')
-    router.replace(pathname, { scroll: false })
+    window.history.replaceState(null, '', pathname)
   }
 
   // The booking open in the side panel, while it is still in the list.

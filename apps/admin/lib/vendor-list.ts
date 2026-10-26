@@ -802,41 +802,41 @@ export function garageNextStep(
     }
   }
 
+  // A teammate collecting: the action is the due date and how far along
+  // ("Due Thu 29 Oct · 0 of 2"), with whom under it.
   const list = v.openCollection
   if (list) {
     const progress = `${list.done} of ${list.total}`
+    const detail = `With ${list.assigneeName}`
     if (list.dueOn) {
       const days = daysUntil(list.dueOn, now)
       if (days < 0)
-        return {
-          text: 'Overdue',
-          detail: `With ${list.assigneeName} · ${progress}`,
-          tone: 'late',
-        }
+        return { text: `Overdue · ${progress}`, detail, tone: 'late' }
       if (days === 0)
-        return {
-          text: 'Due today',
-          detail: `With ${list.assigneeName} · ${progress}`,
-          tone: 'attention',
-        }
+        return { text: `Due today · ${progress}`, detail, tone: 'attention' }
+      return {
+        text: `Due ${dueDay(list.dueOn, now)} · ${progress}`,
+        detail,
+        tone: 'neutral',
+      }
     }
-    return {
-      text: `With ${list.assigneeName}`,
-      detail: list.dueOn
-        ? `Due ${dueDay(list.dueOn, now)} · ${progress}`
-        : progress,
-      tone: 'neutral',
-    }
+    return { text: `Collecting · ${progress}`, detail, tone: 'neutral' }
   }
 
+  // The server won't verify a garage with no pin: the pin comes first.
   if (!v.isVerified && v.status !== 'suspended') {
-    return {
-      text: 'Verify',
-      detail:
-        v.lat == null ? 'Needs a map pin first' : 'Then customers can find it',
-      tone: 'attention',
-      tab: v.lat == null ? 'location' : undefined,
-    }
+    return v.lat == null
+      ? {
+          text: 'Pin first',
+          detail: 'Then verify',
+          tone: 'attention',
+          tab: 'location',
+        }
+      : {
+          text: 'Verify',
+          detail: 'Then customers can find it',
+          tone: 'attention',
+        }
   }
 
   const asked = (v.openMarks ?? [])

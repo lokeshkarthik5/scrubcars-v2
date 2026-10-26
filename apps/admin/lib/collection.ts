@@ -201,6 +201,16 @@ export function withTeamLine(c: AdminVendorCollection): string {
   return `With ${c.assigneeName}${due} · ${c.done}/${c.total}`
 }
 
+/**
+ * The same, short enough for the Garages table's Marks column: "Raga · 29
+ * Oct · 3/11" (the "With" is read out, not shown; the full line is its
+ * tooltip).
+ */
+export function withTeamShort(c: AdminVendorCollection): string {
+  const due = c.dueOn ? ` · ${shortDate(c.dueOn)}` : ''
+  return `${c.assigneeName}${due} · ${c.done}/${c.total}`
+}
+
 // ─── Phones and maps ─────────────────────────────────────────────────────────
 
 /** A teammate's phone, as saved: the 10 digits of an Indian mobile. */

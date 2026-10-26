@@ -85,7 +85,11 @@ import {
   type TeamFilter,
 } from '@/lib/vendor-list'
 import { binColumns } from './bin-columns'
-import { GARAGE_OPTIONAL_COLUMNS, garageColumns } from './garage-columns'
+import {
+  GARAGE_OPTIONAL_COLUMNS,
+  GARAGE_PHONE_GRID,
+  garageColumns,
+} from './garage-columns'
 import { GarageSidePanel } from './garage-side-panel'
 
 export default function AdminVendorsPage() {
@@ -122,12 +126,17 @@ function VendorsList() {
       }
       const query = next.toString()
       // Replaced, not pushed: a filter is a view of this page, not
-      // somewhere Back should step through.
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      })
+      // somewhere Back should step through. The browser's own history,
+      // which useSearchParams follows: router.replace() asks the server for
+      // the page again, and once the sidebar's links have been prefetched
+      // Next dropped that navigation, so a filter pressed then did nothing.
+      window.history.replaceState(
+        null,
+        '',
+        query ? `${pathname}?${query}` : pathname
+      )
     },
-    [params, pathname, router]
+    [params, pathname]
   )
 
   const { data, isPending, error: loadError, refetch } = useAdminVendors()
@@ -396,6 +405,7 @@ function VendorsList() {
         showMissing: hasMissing,
         showMarks: hasMarks,
         showOnboardedBy: hasOnboarded,
+        narrow: hasOnboarded && !hiddenColumns.has('onboardedBy'),
         openId,
         onOpen: (v) => setOpenId((id) => (id === v.id ? null : v.id)),
         verifyingId,
@@ -701,6 +711,7 @@ function VendorsList() {
               rows={shown}
               columns={columns}
               hiddenColumns={inBin ? undefined : hiddenColumns}
+              phoneGrid={inBin ? undefined : GARAGE_PHONE_GRID}
               rowKey={(v) => v.id}
               rowLabelId={(v) => `vendor-${v.id}-name`}
               sort={sort}
