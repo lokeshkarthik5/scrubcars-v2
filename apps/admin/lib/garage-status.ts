@@ -7,8 +7,8 @@
  * An API from before 0059 sends no readiness: then there are no lines and no
  * dots, and the panel says "Status unavailable" instead of "Nothing missing".
  */
-import type { ReadinessItem } from '@repo/core/api/admin'
-import type { GarageTab } from '@repo/core/onboarding-marks'
+import type { AdminVendorDetail, ReadinessItem } from '@repo/core/api/admin'
+import type { GarageTab, MissingKey } from '@repo/core/onboarding-marks'
 
 export type StatusTone = 'blocking' | 'fix' | 'optional' | 'done'
 
@@ -146,4 +146,45 @@ export function statusHeadline(
     summary:
       parts.length > 0 ? parts.join(' · ') : 'Customers can find and book it',
   }
+}
+
+/**
+ * What the status panel, the marks panel and the tab dots read: the
+ * server's checklist and what the garage still owes us. Both absent from an
+ * older API.
+ */
+export interface EditorChecklist {
+  readiness?: ReadinessItem[]
+  missing?: MissingKey[]
+}
+
+/**
+ * The checklist from a fresh read of the garage, after something saved on
+ * its own (a photo, the pin, Pause, a service hidden). Only these two are
+ * taken from it: the draft, and the saved copy it is compared with, are
+ * never touched, so unsaved edits survive. The same object comes back when
+ * nothing changed, so nothing re-renders for it.
+ */
+export function mergeChecklist(
+  prev: EditorChecklist,
+  fresh: Pick<AdminVendorDetail, 'readiness' | 'missing'>
+): EditorChecklist {
+  const next: EditorChecklist = {
+    readiness: fresh.readiness,
+    missing: fresh.missing,
+  }
+  return JSON.stringify(next) === JSON.stringify(prev) ? prev : next
+}
+
+/**
+ * An Indian mobile number as people say it: "9840002102" → "98400 02102".
+ * A +91 is dropped; anything that is not a mobile number after that (a
+ * landline, a typo) is shown as stored.
+ */
+export function displayPhone(phone: string | null | undefined): string {
+  const raw = (phone ?? '').trim()
+  let digits = raw.replace(/\D/g, '')
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2)
+  if (!/^[6-9]\d{9}$/.test(digits)) return raw
+  return `${digits.slice(0, 5)} ${digits.slice(5)}`
 }

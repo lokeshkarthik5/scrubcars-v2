@@ -1,9 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import {
   IconAlertTriangle,
-  IconArrowLeft,
   IconChevronRight,
   IconCircleCheck,
 } from '@tabler/icons-react'
@@ -37,19 +35,8 @@ const TONE_DOT: Record<StatusLine['tone'], string> = {
   done: 'bg-tone-done-dot',
 }
 
-/** "Velachery Car Care" → "VC". */
-function initials(name: string): string {
-  const letters = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? '')
-  return letters.join('') || 'G'
-}
-
 /**
- * The editor's left column: the garage, whether customers can book it and
+ * The editor's left column: whether customers can book the garage and
  * what stands in the way (each line opens the tab that fixes it, never
  * another page), the team's marks (W4), and Go live: the stage and Verified
  * (saved with Save changes, like the tabs) and Pause (saved at once).
@@ -58,7 +45,6 @@ function initials(name: string): string {
  */
 export function StatusPanel({
   vendorId,
-  backHref,
   g,
   saved,
   draft,
@@ -66,7 +52,6 @@ export function StatusPanel({
   onOpenTab,
 }: {
   vendorId: string
-  backHref: string
   g: GarageDraftState
   saved: GarageDraft
   draft: GarageDraft
@@ -85,48 +70,9 @@ export function StatusPanel({
     checklist.readiness
   )
   const lines = statusLines(checklist.readiness)
-  const subtitle = [
-    saved.form.ownerName && `Owner ${saved.form.ownerName}`,
-    saved.form.ownerPhone,
-    saved.form.city,
-    STAGE_LABELS[saved.status] ?? saved.status,
-  ].filter(Boolean)
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-start gap-2">
-        {/* A 44px target, flush: the column scrolls, so it is not pulled
-            into the gutter as the panel's other back arrows are. */}
-        <Link
-          href={backHref}
-          aria-label="Go back"
-          className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-text-primary transition-colors hover:bg-surface"
-        >
-          <IconArrowLeft size={22} stroke={1.5} />
-        </Link>
-        <span
-          aria-hidden="true"
-          className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[10px] border border-border bg-surface-elevated text-[14px] font-semibold text-text-primary"
-        >
-          {initials(saved.form.businessName)}
-        </span>
-        <div className="min-w-0 pt-0.5">
-          <h1 className="text-[19px] font-semibold leading-6 tracking-tight text-text-primary">
-            {saved.form.businessName || 'Edit garage'}
-          </h1>
-          <p className="mt-0.5 text-[12.5px] text-text-secondary">
-            {subtitle.map((part, i) => (
-              <span key={i}>
-                {i > 0 && ' · '}
-                <span className={i === 1 ? 'font-numeric' : undefined}>
-                  {part}
-                </span>
-              </span>
-            ))}
-          </p>
-        </div>
-      </header>
-
       <section
         aria-labelledby="garage-status-title"
         className="overflow-hidden rounded-[16px] border border-border bg-surface"

@@ -8,11 +8,18 @@ import { VendorTeamSection } from '../team-section'
  * where Detlio pays it. Both save on their own, never with Save changes.
  * MISSING_TABS sends "Payout details" here.
  */
-export function TeamPayoutTab({ vendorId }: { vendorId: string }) {
+export function TeamPayoutTab({
+  vendorId,
+  onSaved,
+}: {
+  vendorId: string
+  /** A payout save landed: the checklist may have changed. */
+  onSaved?: () => void
+}) {
   return (
-    <div className="grid items-start gap-4 @4xl:grid-cols-2">
+    <div className="grid items-start gap-4 @3xl:grid-cols-2">
       <VendorTeamSection vendorId={vendorId} />
-      <PayoutAccountSection vendorId={vendorId} />
+      <PayoutAccountSection vendorId={vendorId} onSaved={onSaved} />
     </div>
   )
 }

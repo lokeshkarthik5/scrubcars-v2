@@ -61,10 +61,12 @@ const FIELD =
 /**
  * A service line: name, duration, prices, ⋯. Narrow: name, duration and ⋯ on
  * the first line, the prices under them. Wide (the list 576px or more): all
- * four side by side, like a table.
+ * four side by side, like a table. From 768px (the editor's column on a 1440
+ * laptop) the prices get room for five figures each, so the name column no
+ * longer leaves a wide gap before them.
  */
 const ROW_GRID =
-  'grid grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-x-2 gap-y-2.5 @xl:grid-cols-[minmax(0,1fr)_112px_minmax(0,264px)_44px]'
+  'grid grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-x-2 gap-y-2.5 @xl:grid-cols-[minmax(0,1fr)_112px_minmax(0,264px)_44px] @3xl:gap-x-3 @3xl:grid-cols-[minmax(0,1fr)_120px_minmax(0,312px)_44px]'
 
 /**
  * The edit page's "Photos and video" (ServiceMediaPanel: the privacy tick,
