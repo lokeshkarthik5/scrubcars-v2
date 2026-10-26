@@ -106,6 +106,10 @@ let stateRow: Record<string, unknown> = {}
 
 beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) => (userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined))
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
   patch(rewardsRepository, 'latestSettings', async () => settingsRow)
   patch(rewardsRepository, 'levelFacts', async () => ({ completedAt: [], drops: 0 }))
   patch(rewardsRepository, 'findCustomerById', async (userId: string) =>
@@ -352,7 +356,7 @@ describe('admin', () => {
     expect(badges[0]).toMatchObject({ key: 'first_shine', enabled: true, bonusStamps: 1, earned: 12, earnedThisMonth: 3 })
   })
 
-  test('a challenge is checked whole (400) and created as a draft with the typed name', async () => {
+  test('a challenge is checked whole (400) and created as a draft signed by the session', async () => {
     const bad = { ...CHALLENGE(), rewardKind: 'voucher', rewardAmount: 100, rewardMultiplier: null, maxWinners: null }
     const refused = await call('POST', '/admin/rewards/challenges', 'breakGlass', bad)
     expect(refused).toMatchObject({ status: 400, body: { code: 'CHALLENGE_INVALID' } })
@@ -361,7 +365,7 @@ describe('admin', () => {
     expect(createCalls).toEqual([])
     const created = await call('POST', '/admin/rewards/challenges', 'breakGlass', CHALLENGE())
     expect(created.status).toBe(201)
-    expect(createCalls[0]).toMatchObject({ title: 'Diwali Shine', actorName: 'Asha', rewardMultiplier: 2 })
+    expect(createCalls[0]).toMatchObject({ title: 'Diwali Shine', actorName: 'admin', rewardMultiplier: 2 })
   })
 
   test('publishing never starts a challenge in the past; ending a draft is refused', async () => {
@@ -373,7 +377,7 @@ describe('admin', () => {
     stateRow = {}
     const ended = await call('POST', `/admin/rewards/challenges/${CHALLENGE_ID}/end`, 'breakGlass', { actorName: 'Asha' })
     expect(ended).toMatchObject({ status: 409, body: { code: 'CHALLENGE_NOT_RUNNING' } })
-    expect(stateCalls.map((c) => c.actorName)).toEqual(['Asha', 'Asha', 'Asha'])
+    expect(stateCalls.map((c) => c.actorName)).toEqual(['admin', 'admin', 'admin'])
   })
 
   test('results come with masked phones', async () => {

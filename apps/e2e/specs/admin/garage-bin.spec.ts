@@ -14,7 +14,7 @@ import { request as playwrightRequest, type APIRequestContext } from '@playwrigh
 import { test, expect, asRole } from '../../support/fixtures'
 import { API, loginViaApi } from '../../support/auth'
 import { forgetOtps, sql } from '../../support/db'
-import { BOOKING_INTENTS, BOOKINGS, CUSTOMERS, SERVICES, STAFF, VENDORS } from '../../support/seed-ids'
+import { ADMIN_LOGINS, BOOKING_INTENTS, BOOKINGS, CUSTOMERS, SERVICES, STAFF, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('admin') })
 
@@ -108,10 +108,10 @@ test.describe.serial('the Bin takes a garage off the app, and Restore brings it 
     await expect(sheet.getByText("Its team can't sign in to it.")).toBeVisible()
     await expect(sheet.getByText('No upcoming bookings to cancel.')).toBeVisible()
     const move = sheet.getByRole('button', { name: 'Move to bin' })
-    await sheet.getByLabel('Your name').fill('')
-    await expect(move).toBeDisabled()
+    // No name to type (0058): the sheet says who signs it.
+    await expect(sheet.getByLabel('Your name')).toHaveCount(0)
+    await expect(sheet.getByText('Signed as E2E Admin')).toBeVisible()
     await sheet.getByLabel('Reason (optional)').fill('E2E bin test')
-    await sheet.getByLabel('Your name').fill('E2E Admin')
     await move.click()
     await expect(page.getByRole('status').filter({ hasText: 'Moved to the Bin.' })).toBeVisible()
 
@@ -125,7 +125,7 @@ test.describe.serial('the Bin takes a garage off the app, and Restore brings it 
        where action = 'garage_binned' and summary->>'vendorId' = ${TEAM.id}
        order by created_at desc limit 1
     `
-    expect(audit).toEqual({ actor_name: 'E2E Admin', actor_sub: 'admin' })
+    expect(audit).toEqual({ actor_name: 'E2E Admin', actor_sub: `admin:${ADMIN_LOGINS.e2e.id}` })
 
     // Under Bin, and in no other chip.
     await page.goto('/vendors?show=all')
@@ -217,7 +217,6 @@ test.describe.serial('the Bin takes a garage off the app, and Restore brings it 
     const binCard = page.getByRole('group', { name: TEAM.name, exact: true })
     await binCard.getByRole('button', { name: `Restore ${TEAM.name}` }).click()
     const dialog = page.getByRole('dialog', { name: `Restore ${TEAM.name}` })
-    await dialog.getByLabel('Your name').fill('E2E Admin')
     await dialog.getByRole('button', { name: 'Restore' }).click()
     await expect(page.getByRole('status').filter({ hasText: `${TEAM.name} is back` })).toBeVisible()
 
@@ -280,7 +279,6 @@ test.describe('moving a garage with bookings to come @p0', () => {
     const sheet = page.getByRole('dialog', { name: `Move ${garage.name} to the Bin` })
     await expect(sheet.getByText('2 upcoming bookings will be cancelled, 1 of them paid.')).toBeVisible()
     await expect(sheet.getByText(`#${reference(BOOKINGS.binPaidUpcoming)}`)).toBeVisible()
-    await sheet.getByLabel('Your name').fill('E2E Admin')
     await sheet.getByRole('button', { name: 'Move to bin' }).click()
     await expect(
       page.getByRole('status').filter({ hasText: 'Moved to the Bin. 2 bookings cancelled. 1 refund is owed on Refunds.' })
@@ -340,7 +338,6 @@ test.describe('delete forever @p0', () => {
     await expect(sheet.getByText('Real money only')).toBeVisible()
 
     const button = sheet.getByRole('button', { name: 'Delete forever' })
-    await sheet.getByLabel('Your name').fill('E2E Admin')
     await sheet.getByLabel('Type the garage name to confirm').fill(garage.name.toLowerCase())
     await expect(button).toBeDisabled()
     await sheet.getByLabel('Type the garage name to confirm').fill(garage.name)
@@ -383,7 +380,7 @@ test.describe('delete forever @p0', () => {
 
     const remove = (data: Record<string, string>) =>
       page.request.delete(`${ADMIN_VENDORS}/${garage.id}`, {
-        data: { actorName: 'E2E Admin', confirmName: garage.name, selectionHash: plan.selectionHash, ...data },
+        data: { confirmName: garage.name, selectionHash: plan.selectionHash, ...data },
       })
 
     // Refusals delete nothing: the wrong name, and a preview that is not this one.
@@ -436,7 +433,7 @@ test.describe('delete forever @p0', () => {
   test('only a super-admin reaches the Bin', async () => {
     const customer = await loginViaApi(CUSTOMERS.binBrowse.phone)
     const response = await customer.post(`${ADMIN_VENDORS}/${VENDORS.binPaid.id}/restore`, {
-      data: { actorName: 'Not Admin' },
+      data: {},
     })
     expect(response.status()).toBe(403)
     await customer.dispose()

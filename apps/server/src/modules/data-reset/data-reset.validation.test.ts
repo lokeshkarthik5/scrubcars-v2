@@ -52,13 +52,14 @@ describe('executeSchema', () => {
     backupConfirmed: true,
   }
 
-  test('a name, the backup and the fingerprint', () => {
-    expect(executeSchema.parse(base)).toMatchObject({ actorName: 'Mathew', backupConfirmed: true })
+  test('the backup and the fingerprint; the name is the session, never typed (0058)', () => {
+    expect(executeSchema.parse(base)).toMatchObject({ actorName: '', backupConfirmed: true })
+    const { actorName: _actorName, ...unsigned } = base
+    expect(executeSchema.parse(unsigned).actorName).toBe('')
   })
 
-  test('refused without the backup box, a name or a dry run', () => {
+  test('refused without the backup box or a dry run', () => {
     expect(executeSchema.safeParse({ ...base, backupConfirmed: false }).success).toBe(false)
-    expect(executeSchema.safeParse({ ...base, actorName: ' ' }).success).toBe(false)
     expect(executeSchema.safeParse({ ...base, selectionHash: 'abc' }).success).toBe(false)
   })
 })

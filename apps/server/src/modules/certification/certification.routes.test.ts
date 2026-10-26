@@ -130,6 +130,10 @@ beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) =>
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
   patch(membersRepository, 'findVendorForSupport', async (vendorId: string) =>
     GARAGES[vendorId] ? { id: vendorId } : undefined
   )
@@ -359,12 +363,13 @@ describe('admin: checks, Certify and Revoke', () => {
     const recorded = await call(`${ADMIN()}/checks`, 'superAdmin', { body: passingCheck() })
     expect(recorded.status).toBe(200)
     expect(recorded.body.data).toMatchObject({ certifyBlockedBy: null, qualityCheck: { valid: true } })
-    expect(checks[0]).toMatchObject({ checkerName: 'Kavya', recordedBy: 'Lokesh', recordedBySub: PEOPLE.superAdmin })
+    // Signed by the session (0058): the typed name is ignored.
+    expect(checks[0]).toMatchObject({ checkerName: 'Kavya', recordedBy: 'Signed-in Sam', recordedBySub: PEOPLE.superAdmin })
 
     const certified = await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })
     expect(certified.status).toBe(200)
-    expect(certified.body.data).toMatchObject({ certified: true, certifiedBy: 'Lokesh' })
-    expect(audits).toEqual([expect.objectContaining({ action: 'garage_certified', actorName: 'Lokesh' })])
+    expect(certified.body.data).toMatchObject({ certified: true, certifiedBy: 'Signed-in Sam' })
+    expect(audits).toEqual([expect.objectContaining({ action: 'garage_certified', actorName: 'Signed-in Sam' })])
 
     const again = await call(`${ADMIN()}/certify`, 'superAdmin', { body: { actorName: 'Lokesh' } })
     expect(again.status).toBe(409)
@@ -393,7 +398,7 @@ describe('admin: checks, Certify and Revoke', () => {
     expect(revoked.status).toBe(200)
     expect(revoked.body.data).toMatchObject({
       certified: false,
-      revoked: { by: 'Lokesh', reason: 'Scratched a car and hid it', kind: 'revoked' },
+      revoked: { by: 'Signed-in Sam', reason: 'Scratched a car and hid it', kind: 'revoked' },
     })
     expect(audits.map((entry) => entry.action)).toEqual(['garage_certification_revoked'])
   })

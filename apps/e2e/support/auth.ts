@@ -16,7 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { forgetOtps, latestOtp } from './db'
-import { ADMIN } from './seed-ids'
+import { ADMIN_LOGINS } from './seed-ids'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 export const AUTH_DIR = path.resolve(dir, '../.auth')
@@ -82,7 +82,15 @@ export async function saveState(role: string, phone: string, audience: Audience 
 
 /** The admin panel uses username/password, not OTP — a separate token shape
  *  (`sub: 'admin'`) with its own 12-hour lifetime. */
-export async function saveAdminState(role = 'admin') {
+/**
+ * An admin session. By default the panel's personal E2E login (0058), so
+ * every action in an admin spec is signed "E2E Admin"; pass ADMIN for the
+ * shared env login, which signs as 'admin'.
+ */
+export async function saveAdminState(
+  role = 'admin',
+  credentials: { username: string; password: string } = ADMIN_LOGINS.e2e
+) {
   // An explicitly empty jar: inside a test, a new request context inherits
   // the project's storageState, and in the admin project that is the admin's
   // cookie — scoped to /api/v1/admin, so it wins on exactly the admin routes
@@ -92,7 +100,7 @@ export async function saveAdminState(role = 'admin') {
     storageState: { cookies: [], origins: [] },
   })
   const res = await ctx.post('/api/v1/admin/login', {
-    data: { username: ADMIN.username, password: ADMIN.password },
+    data: { username: credentials.username, password: credentials.password },
   })
   if (!res.ok()) {
     throw new Error(`admin/login failed: ${res.status()} ${await res.text()}`)

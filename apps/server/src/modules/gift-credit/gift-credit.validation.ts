@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { MAX_ADJUSTMENT } from '../../lib/gift-credit.js'
 
 export const customerIdParamSchema = z.object({ userId: z.uuid() })
@@ -20,7 +21,7 @@ export const adjustCreditSchema = z
       .max(MAX_ADJUSTMENT)
       .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, 'At most two decimals'),
     reason: z.string().trim().min(3, 'Say why').max(300),
-    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    actorName: signedActorName,
   })
   .strict()
 

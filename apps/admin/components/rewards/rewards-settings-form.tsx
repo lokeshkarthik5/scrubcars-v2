@@ -21,7 +21,7 @@ import {
   type ScratchOutcome,
   type ScratchWeights,
 } from '@repo/core/rewards'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import { settingsFormProblems, weightTotal } from '@/lib/rewards'
 
 const OUTCOME_LABELS: Record<ScratchOutcome, string> = {
@@ -124,7 +124,7 @@ function Group({
 
 /**
  * Admin → Rewards → Settings: every number of the programme, saved as a new
- * version with the typed name (audit log: before → after). Applies going
+ * version with the signed-in admin's name (audit log: before → after). Applies going
  * forward only: vouchers, cards and stamps already issued keep their values.
  * The API checks it all again and refuses a save on top of a newer version.
  */
@@ -148,7 +148,6 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
   const [draft, setDraft] = useState<RewardsSettings>(() =>
     structuredClone(current.settings)
   )
-  const [name, setName] = useState(rememberedName)
 
   const s = draft
   const set = (patch: Partial<RewardsSettings>) => setDraft({ ...s, ...patch })
@@ -165,10 +164,9 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
   const dirty = JSON.stringify(s) !== JSON.stringify(current.settings)
 
   const submit = () => {
-    if (!dirty || problems.length > 0 || name.trim().length < 2) return
-    rememberName(name.trim())
+    if (!dirty || problems.length > 0) return
     save.mutate(
-      { version: current.version, settings: s, actorName: name.trim() },
+      { version: current.version, settings: s },
       {
         onSuccess: (saved) => {
           toast.success(`Saved as version ${saved.version}`)
@@ -422,13 +420,7 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
             ))}
           </ul>
         )}
-        <ScInput
-          label="Your name"
-          autoComplete="name"
-          maxLength={100}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <SignedAs />
         <p className="text-[12px] text-text-muted">
           Saved as a new version with your name; every change is in the audit
           log. It applies from now on: vouchers, scratch cards and stamps
@@ -452,12 +444,7 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
           </ScButton>
           <ScButton
             className="min-h-11"
-            disabled={
-              !dirty ||
-              problems.length > 0 ||
-              name.trim().length < 2 ||
-              save.isPending
-            }
+            disabled={!dirty || problems.length > 0 || save.isPending}
             disabledReason={
               save.isPending
                 ? undefined
@@ -465,9 +452,7 @@ function SettingsEditor({ current }: { current: AdminRewardsSettings }) {
                   ? 'Nothing changed yet'
                   : problems.length > 0
                     ? 'Fix the settings marked above first'
-                    : name.trim().length < 2
-                      ? 'Type your name first'
-                      : undefined
+                    : undefined
             }
             onClick={submit}
           >

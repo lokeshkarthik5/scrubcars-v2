@@ -23,7 +23,7 @@ import {
   type LoggedComplaintSource,
 } from '@repo/core/complaints'
 import { fromIstInput, toIstInput } from '@repo/core/ist-input'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import { formatWhen } from '@/lib/bookings'
 import {
   logComplaintProblems,
@@ -96,7 +96,6 @@ export function LogComplaintDialog({
   const [receivedAt, setReceivedAt] = useState(() =>
     toIstInput(new Date().toISOString())
   )
-  const [loggedBy, setLoggedBy] = useState(rememberedName)
   const [error, setError] = useState('')
   const [tried, setTried] = useState(false)
 
@@ -128,7 +127,6 @@ export function LogComplaintDialog({
       message,
       bookingRef,
       receivedAt: receivedIso,
-      loggedBy,
     },
     now
   )
@@ -139,7 +137,6 @@ export function LogComplaintDialog({
     setTried(true)
     if (!canSubmit || !mobile || !receivedIso) return
     setError('')
-    rememberName(loggedBy.trim())
     logComplaint.mutate(
       {
         phone: mobile,
@@ -149,7 +146,6 @@ export function LogComplaintDialog({
         message: message.trim(),
         bookingRef: ref ?? undefined,
         receivedAt: receivedIso,
-        loggedBy: loggedBy.trim(),
       },
       {
         onSuccess: (created) => {
@@ -302,15 +298,7 @@ export function LogComplaintDialog({
         </p>
       </div>
 
-      <ScInput
-        id="log-complaint-actor"
-        label="Your name"
-        autoComplete="name"
-        maxLength={100}
-        value={loggedBy}
-        onChange={(e) => setLoggedBy(e.target.value)}
-        className="min-h-11"
-      />
+      <SignedAs />
 
       {tried && problems.length > 0 && (
         <ul

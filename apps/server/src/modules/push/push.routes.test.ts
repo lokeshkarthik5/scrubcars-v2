@@ -83,6 +83,10 @@ beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) =>
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
   patch(membersRepository, 'findVendorForSupport', async (vendorId: string) =>
     [GARAGE, OTHER_GARAGE].includes(vendorId) ? { id: vendorId } : undefined
   )
@@ -313,7 +317,7 @@ describe('Admin → Alerts: super-admin only', () => {
     expect(body.code).toBe('TELEGRAM_NOT_CONFIGURED')
   })
 
-  test('set up: it posts to the ops chat even outside Production, with the typed name', async () => {
+  test('set up: it posts to the ops chat even outside Production, signed by the session (a typed name is ignored)', async () => {
     envValues.telegramBotToken = 'test-token'
     envValues.telegramOpsChatId = '-100123'
     envValues.vercelEnv = 'preview'
@@ -327,7 +331,7 @@ describe('Admin → Alerts: super-admin only', () => {
       const { status, body } = await call('POST', '/admin/alerts/telegram/test', 'superAdmin', { actorName: '  Asha   K ' })
       expect(status).toBe(200)
       expect(body.data?.sent).toBe(true)
-      expect(sent).toEqual([{ chat_id: '-100123', text: '✅ Detlio test alert from Asha K', link_preview_options: { is_disabled: true } } as never])
+      expect(sent).toEqual([{ chat_id: '-100123', text: '✅ Detlio test alert from Signed-in Sam', link_preview_options: { is_disabled: true } } as never])
       const status2 = await call('GET', '/admin/alerts/telegram', 'superAdmin')
       expect(status2.body.data).toEqual({ configured: true, liveHere: false })
     } finally {

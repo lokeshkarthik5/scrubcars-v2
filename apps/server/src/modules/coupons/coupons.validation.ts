@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { COUPON_KINDS, COUPON_REWARDS, REDEEM_CHANNELS } from '../../lib/coupons.js'
 import { serviceCategoryEnum } from '../../db/schema.js'
 
@@ -22,7 +23,7 @@ export const redeemCouponSchema = z
   .object({ code, channel: z.enum(REDEEM_CHANNELS).default('typed') })
   .strict()
 
-const actorName = z.string().trim().min(2, 'Type your name').max(100)
+const actorName = signedActorName
 const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date')
 const wholeOrNull = z.number().int().nullable().default(null)
 

@@ -27,6 +27,7 @@ import {
   SUPPORT_TEL_HREF,
   SUPPORT_WHATSAPP_HREF,
 } from '@repo/core/support'
+import type { AdminMe } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
 import { BrandMark } from '@repo/ui/sc/brand-mark'
 import { ScSheet } from '@repo/ui/sc/modal'
@@ -149,16 +150,48 @@ function SidebarLink({
   )
 }
 
+/**
+ * Who is signed in (personal logins, 0058): an initial, the name every
+ * action is signed with, and the login under it.
+ */
+function SignedInPerson({ me }: { me: AdminMe }) {
+  const initial = me.name.trim().charAt(0).toUpperCase() || '?'
+  const sub =
+    me.kind === 'shared' ? 'Shared login' : me.username ? `@${me.username}` : null
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span
+        aria-hidden="true"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-[13px] font-semibold text-text-primary"
+      >
+        {initial}
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-[13px] font-medium text-text-primary">
+          {me.name}
+        </span>
+        {sub && (
+          <span className="truncate text-[12px] text-text-secondary">
+            {sub}
+          </span>
+        )}
+      </span>
+    </div>
+  )
+}
+
 const FOOT_LINK =
   'flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[8px] px-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary'
 
 function Sidebar({
   features,
   counts,
+  me,
   onLogout,
 }: {
   features: NavFeatures
   counts: NavCounts | undefined
+  me?: AdminMe
   onLogout?: () => void
 }) {
   const pathname = usePathname()
@@ -201,7 +234,12 @@ function Sidebar({
           />
         </div>
       </nav>
-      {/* Help and the way out, on one row under the menu. */}
+      {/* Who is signed in, then help and the way out, under the menu. */}
+      {me && (
+        <div className="mx-3 mt-1 border-t border-border px-2 pb-1 pt-3">
+          <SignedInPerson me={me} />
+        </div>
+      )}
       <div className="flex items-center gap-0.5 px-3 pb-3 pt-0.5">
         <a
           href={SUPPORT_TEL_HREF}
@@ -266,9 +304,11 @@ function PhoneHeader({ onLogout }: { onLogout?: () => void }) {
 function PhoneBar({
   features,
   counts,
+  me,
 }: {
   features: NavFeatures
   counts: NavCounts | undefined
+  me?: AdminMe
 }) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -377,6 +417,11 @@ function PhoneBar({
         aria-label="More pages"
       >
         <nav aria-label="More pages" className="flex flex-col gap-4 px-4 pb-2">
+          {me && (
+            <div className="border-b border-border px-1 pb-3">
+              <SignedInPerson me={me} />
+            </div>
+          )}
           {more.map((group) => (
             <div key={group.label ?? 'top'} className="flex flex-col">
               {group.label && (
@@ -461,17 +506,25 @@ function Breadcrumb() {
 export function AdminShell({
   features,
   counts,
+  me,
   onLogout,
   children,
 }: {
   features: NavFeatures
   counts?: NavCounts
+  /** Who is signed in; drawn once the session check has answered. */
+  me?: AdminMe
   onLogout?: () => void
   children: React.ReactNode
 }) {
   return (
     <div className="flex min-h-dvh w-full bg-brand-black text-text-primary">
-      <Sidebar features={features} counts={counts} onLogout={onLogout} />
+      <Sidebar
+        features={features}
+        counts={counts}
+        me={me}
+        onLogout={onLogout}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <PhoneHeader onLogout={onLogout} />
         <Breadcrumb />
@@ -485,7 +538,7 @@ export function AdminShell({
           {children}
         </main>
       </div>
-      <PhoneBar features={features} counts={counts} />
+      <PhoneBar features={features} counts={counts} me={me} />
     </div>
   )
 }

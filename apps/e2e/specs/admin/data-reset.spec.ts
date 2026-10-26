@@ -57,7 +57,7 @@ test.describe('start pilot clean, screens @p0', () => {
     await expect(sheet).toBeHidden()
     await expect(mark).toHaveAttribute('aria-checked', 'true')
     await expect(
-      page.getByText('Left out of the pilot numbers. Marked by admin.')
+      page.getByText('Left out of the pilot numbers. Marked by E2E Admin.')
     ).toBeVisible()
     // Its note, like every action ops takes on a booking.
     await expect(
@@ -73,10 +73,10 @@ test.describe('start pilot clean, screens @p0', () => {
     await expect(dialog.getByText('This deletes, for good:')).toBeVisible()
     await expect(dialog.getByText('1 booking', { exact: true })).toBeVisible()
 
-    // The red button waits for all three.
+    // The red button waits for both. No name to type: the session signs it.
     const confirm = dialog.getByRole('button', { name: 'Delete 1 booking' })
     await expect(confirm).toBeDisabled()
-    await dialog.getByLabel('Your name').fill('E2E Admin')
+    await expect(dialog.getByLabel('Your name')).toHaveCount(0)
     await dialog.getByLabel('I have a database backup from today').check()
     await dialog
       .getByLabel('Type DELETE 1 BOOKING to confirm')
@@ -163,15 +163,14 @@ test.describe('start pilot clean, screens @p0', () => {
     expect(csv).toContain(`#${reference(keep)},Unticked — kept`)
     await next.click()
 
-    // 3. Confirm: a name, the backup, the phrase. The one red button.
-    await page.getByLabel('Your name').fill('E2E Owner')
+    // 3. Confirm: the backup and the phrase (the session signs it). The one red button.
     await page.getByLabel('I have a database backup from today').check()
     await page
       .getByLabel('Type DELETE 1 BOOKING to confirm')
       .fill('DELETE 1 BOOKING')
     await page.getByRole('button', { name: 'Delete 1 booking' }).click()
 
-    await expect(page.getByText('Done. Deleted by E2E Owner.')).toBeVisible()
+    await expect(page.getByText('Done. Deleted by E2E Admin.')).toBeVisible()
     await expect(page.getByText(/Audit record [0-9a-f-]{36}/)).toBeVisible()
     expect(await bookingExists(id)).toBe(false)
     expect(await bookingExists(keep)).toBe(true)

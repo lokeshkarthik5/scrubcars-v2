@@ -1,13 +1,13 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 
 export const vendorIdParamSchema = z.object({ id: z.string().uuid() })
 
 /**
- * The name the person typed. The admin panel signs in with one shared login,
- * so the session alone would make every Bin action 'admin'; the audit row
- * keeps both. Same rule as the test-data reset's.
+ * Who did it: the signed-in admin's name, filled in by adminSignedJson
+ * (0058); a typed name is ignored. The audit row keeps it and the session.
  */
-const actorName = z.string().trim().min(2, 'Type your name').max(100)
+const actorName = signedActorName
 
 /** Moving a garage to the Bin: who, and why if they say (optional, like the pause reason). */
 export const binVendorSchema = z

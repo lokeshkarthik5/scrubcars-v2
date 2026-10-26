@@ -2,6 +2,7 @@ import type { GaragePull } from '@repo/core/api/garage'
 import { apiClient } from '@repo/core/api/client'
 import type { RewardLevel, RewardsSettings, ScratchOutcome } from '@repo/core/rewards'
 import type { RewardExtrasSummary } from '@repo/core/api/reward-extras'
+import { signedBody } from './admin-signer'
 
 /**
  * Detlio Rewards (0050): the Shine Card, scratch cards, streaks, levels and
@@ -274,9 +275,9 @@ export interface AdminCustomerRewards {
 }
 
 export type AdjustRewardsPayload =
-  | { action: 'add_stamps' | 'remove_stamps'; stamps: number; reason: string; actorName: string }
-  | { action: 'issue_voucher'; amount: number; reason: string; actorName: string }
-  | { action: 'cancel_voucher'; voucherId: string; reason: string; actorName: string }
+  | { action: 'add_stamps' | 'remove_stamps'; stamps: number; reason: string }
+  | { action: 'issue_voucher'; amount: number; reason: string }
+  | { action: 'cancel_voucher'; voucherId: string; reason: string }
 
 export function getAdminRewardsConfig() {
   return apiClient<{ masterSwitch: boolean }>('/admin/rewards/config')
@@ -286,8 +287,8 @@ export function getAdminRewardsSettings() {
   return apiClient<AdminRewardsSettings>('/admin/rewards/settings')
 }
 
-export function saveAdminRewardsSettings(payload: { version: number; settings: RewardsSettings; actorName: string }) {
-  return apiClient<AdminRewardsSettings>('/admin/rewards/settings', { method: 'PUT', body: JSON.stringify(payload) })
+export function saveAdminRewardsSettings(payload: { version: number; settings: RewardsSettings }) {
+  return apiClient<AdminRewardsSettings>('/admin/rewards/settings', { method: 'PUT', body: signedBody(payload) })
 }
 
 export function getAdminRewardsSummary(month?: string) {
@@ -309,6 +310,6 @@ export function getCustomerRewards(userId: string) {
 export function adjustCustomerRewards(userId: string, payload: AdjustRewardsPayload) {
   return apiClient<AdminCustomerRewards>(`/admin/rewards/customers/${userId}/adjust`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: signedBody(payload),
   })
 }

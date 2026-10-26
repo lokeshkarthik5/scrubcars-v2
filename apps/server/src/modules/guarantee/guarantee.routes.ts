@@ -5,6 +5,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { notFoundUnless } from '../../middleware/feature-switch.middleware.js'
 import {
@@ -135,6 +136,6 @@ adminGuaranteeRoutes.post(
   guaranteeOn,
   ...adminMiddleware,
   zValidator('param', claimIdParamSchema),
-  zValidator('json', decideClaimSchema),
+  adminSignedJson(decideClaimSchema),
   (c) => guaranteeController.decide(c, c.req.valid('param').id, c.req.valid('json'))
 )

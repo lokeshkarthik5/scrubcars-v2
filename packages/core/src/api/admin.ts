@@ -10,6 +10,7 @@ import type {
   LoggedComplaintSource,
 } from '@repo/core/complaints'
 import type { OutsideServiceCity } from '@repo/core/service-city'
+import { setAdminSigner, signedBody } from './admin-signer'
 
 export interface AdminVendor {
   id: string
@@ -679,12 +680,117 @@ export async function adminLogin(username: string, password: string) {
 
 /** POST /admin/logout */
 export async function adminLogout() {
+  setAdminSigner(null)
   return apiClient<void>('/admin/logout', { method: 'POST', auth: false })
 }
 
-/** GET /admin/me — session check */
-export async function getAdminMe() {
-  return apiClient<{ isSuperAdmin: boolean }>('/admin/me')
+/**
+ * Who is signed in to the panel (0058). 'shared' is the one env login (the
+ * bootstrap, signs as "admin"); 'personal' a login of one's own
+ * (admin_logins); 'member' a super-admin customer account.
+ */
+export type AdminMeKind = 'shared' | 'personal' | 'member'
+
+export interface AdminMe {
+  isSuperAdmin: true
+  kind: AdminMeKind
+  /** What every action is signed with. */
+  name: string
+  /** A personal login's username; null for the other two kinds. */
+  username: string | null
+  /** The owner's login: the only one that changes team logins. */
+  isOwner: boolean
+}
+
+/**
+ * GET /admin/me — the session check, and who every action is signed as. An
+ * API from before 0058 answers only `{ isSuperAdmin }`, so the rest is filled
+ * in as the shared login, which is what that API signs as. It also sets the
+ * name the panel's writes carry for such an API (admin-signer.ts).
+ */
+export async function getAdminMe(): Promise<AdminMe> {
+  // Any answer but 200 throws: a 200 is a super-admin session.
+  const me = await apiClient<Partial<AdminMe>>('/admin/me')
+  const full: AdminMe = {
+    isSuperAdmin: true,
+    kind: me.kind ?? 'shared',
+    name: me.name?.trim() || 'admin',
+    username: me.username ?? null,
+    isOwner: me.isOwner ?? false,
+  }
+  setAdminSigner(full.name)
+  return full
+}
+
+// ─── Team logins (0058) ──────────────────────────────────────────────────────
+
+export type AdminLoginStatus = 'active' | 'off'
+
+/** A personal admin login, as Settings → Team logins lists it. */
+export interface AdminLogin {
+  id: string
+  username: string
+  name: string
+  status: AdminLoginStatus
+  /** The owner's login (one at most). */
+  isOwner: boolean
+  lastLoginAt: string | null
+  createdByName: string
+  createdAt: string
+}
+
+export interface AdminLoginList {
+  logins: AdminLogin[]
+  /** The signed-in person's own login; null on the shared login or a member. */
+  youId: string | null
+  /** Whether the team has an owner yet. */
+  ownerExists: boolean
+  /**
+   * Whether you may add logins, reset passwords and turn logins on or off:
+   * the owner, or the shared login while there is no owner (the first login
+   * it adds becomes the owner). The server enforces it either way.
+   */
+  canManage: boolean
+}
+
+/** GET /admin/logins */
+export async function listAdminLogins() {
+  return apiClient<AdminLoginList>('/admin/logins')
+}
+
+/** POST /admin/logins — 409 ADMIN_USERNAME_TAKEN; 400 for a rule failure. */
+export async function createAdminLogin(input: { username: string; name: string; password: string }) {
+  return apiClient<AdminLogin>('/admin/logins', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** POST /admin/logins/:id/password — someone else's; ends their sessions. */
+export async function resetAdminLoginPassword(id: string, password: string) {
+  return apiClient<AdminLogin>(`/admin/logins/${id}/password`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  })
+}
+
+/** POST /admin/logins/:id/status — 'off' ends their sessions. */
+export async function setAdminLoginStatus(id: string, status: AdminLoginStatus) {
+  return apiClient<AdminLogin>(`/admin/logins/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  })
+}
+
+/**
+ * POST /admin/me/password — your own. 400 ADMIN_PASSWORD_WRONG; 409
+ * ADMIN_LOGIN_SHARED on the shared login. This session stays signed in.
+ */
+export async function changeOwnAdminPassword(input: { currentPassword: string; newPassword: string }) {
+  return apiClient<void>('/admin/me/password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
 }
 
 /** GET /admin/vendors */
@@ -1112,18 +1218,18 @@ export async function getAdminVendorBinPreview(id: string) {
 }
 
 /** POST /admin/vendors/:id/bin */
-export async function binAdminVendor(id: string, input: { actorName: string; reason?: string }) {
+export async function binAdminVendor(id: string, input: { reason?: string }) {
   return apiClient<AdminVendorBinResult>(`/admin/vendors/${id}/bin`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
 /** POST /admin/vendors/:id/restore — back as it was, team access included. */
-export async function restoreAdminVendor(id: string, input: { actorName: string }) {
+export async function restoreAdminVendor(id: string) {
   return apiClient<{ garage: AdminBinGarage; auditId: string }>(`/admin/vendors/${id}/restore`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody({}),
   })
 }
 
@@ -1138,11 +1244,11 @@ export async function getAdminVendorDeletePreview(id: string) {
  */
 export async function deleteAdminVendorForever(
   id: string,
-  input: { actorName: string; confirmName: string; selectionHash: string }
+  input: { confirmName: string; selectionHash: string }
 ) {
   return apiClient<AdminVendorDeleteResult>(`/admin/vendors/${id}`, {
     method: 'DELETE',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -1463,12 +1569,12 @@ export async function overrideAdminPickupStep(
 
 /**
  * POST /admin/bookings/:id/photos-waiver — Detlio waives the photo standard
- * on one booking (0045), with the typed name and why. Once only.
+ * on one booking (0045), with why; signed with the admin's name. Once only.
  */
-export async function waiveAdminJobPhotos(id: string, input: { actorName: string; reason: string }) {
+export async function waiveAdminJobPhotos(id: string, input: { reason: string }) {
   return apiClient<AdminBookingDetail>(`/admin/bookings/${id}/photos-waiver`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -1680,7 +1786,6 @@ export interface DataResetPreviewInput {
 export interface DataResetExecuteInput extends DataResetPreviewInput {
   selectionHash: string
   confirmText: string
-  actorName: string
   backupConfirmed: true
 }
 
@@ -1715,7 +1820,7 @@ export async function previewDataReset(input: DataResetPreviewInput) {
 export async function executeDataReset(input: DataResetExecuteInput) {
   return apiClient<DataResetResult>('/admin/data-reset/execute', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -1967,7 +2072,7 @@ export interface AdminComplaint {
   closedBy: string | null
   /** 'app' when the customer raised it; otherwise how the team heard it. */
   source: ComplaintSource
-  /** Who in the team logged it (the name typed); null for 'app'. */
+  /** Who in the team logged it (the signed-in admin's name); null for 'app'. */
   loggedBy: string | null
   /** When Detlio received it: the clock runs from here. */
   receivedAt: string
@@ -2005,15 +2110,13 @@ export interface LogComplaintInput {
   bookingRef?: string
   /** When Detlio received it (ISO); up to 7 days back. Left out, now. */
   receivedAt?: string
-  /** The name of whoever is logging it. */
-  loggedBy: string
 }
 
 /** POST /admin/complaints — answers with the complaint as admin sees it. */
 export async function logAdminComplaint(input: LogComplaintInput): Promise<AdminComplaint> {
   return apiClient<AdminComplaint>('/admin/complaints', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input, 'loggedBy'),
   })
 }
 
@@ -2364,7 +2467,6 @@ export interface RecordPayoutInput {
   reference: string
   paidAt: string
   note?: string
-  actorName: string
 }
 
 export interface PayoutAccountInput {
@@ -2372,7 +2474,6 @@ export interface PayoutAccountInput {
   accountNumber: string | null
   ifsc: string | null
   upiId: string | null
-  actorName: string
 }
 
 /** GET /admin/payouts */
@@ -2389,7 +2490,7 @@ export async function getAdminGaragePayouts(vendorId: string): Promise<AdminGara
 export async function recordAdminPayout(vendorId: string, input: RecordPayoutInput): Promise<AdminPayout> {
   return apiClient<AdminPayout>(`/admin/payouts/vendors/${vendorId}`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -2402,7 +2503,7 @@ export async function getAdminPayoutAccount(vendorId: string): Promise<PayoutAcc
 export async function saveAdminPayoutAccount(vendorId: string, input: PayoutAccountInput): Promise<PayoutAccount> {
   return apiClient<PayoutAccount>(`/admin/payouts/vendors/${vendorId}/account`, {
     method: 'PUT',
-    body: JSON.stringify(input),
+    body: signedBody(input),
   })
 }
 
@@ -2430,9 +2531,9 @@ export async function getTelegramAlertStatus() {
  * POST /admin/alerts/telegram/test: posts "✅ Detlio test alert from <name>"
  * to the team's chat, whatever the Production-only rule says. Rate limited.
  */
-export async function sendTelegramTestAlert(actorName: string) {
+export async function sendTelegramTestAlert() {
   return apiClient<{ sent: boolean; sentAt: string }>('/admin/alerts/telegram/test', {
     method: 'POST',
-    body: JSON.stringify({ actorName }),
+    body: signedBody({}),
   })
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import {
   COMPLAINT_ADMIN_NOTE_MAX,
   COMPLAINT_CATEGORIES,
@@ -61,7 +62,8 @@ const bookingRefSchema = z
  * along. The account is found by the phone, and the garage by the booking,
  * on the server; `customerName` is only used when no account has this phone.
  * `receivedAt` is when Detlio got it (the clock starts there), up to 7 days
- * back; left out, it is now. `loggedBy` is the name typed, like the Bin's.
+ * back; left out, it is now. `loggedBy` is the signed-in admin's
+ * name (adminSignedJson, 0058).
  */
 export const logComplaintSchema = z
   .object({
@@ -76,7 +78,7 @@ export const logComplaintSchema = z
       .max(COMPLAINT_MESSAGE_MAX),
     bookingRef: bookingRefSchema.optional(),
     receivedAt: z.string().datetime({ offset: true }).optional(),
-    loggedBy: z.string().trim().min(2, 'Type your name').max(100),
+    loggedBy: signedActorName,
   })
   .strict()
 

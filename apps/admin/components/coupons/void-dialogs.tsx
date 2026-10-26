@@ -9,28 +9,27 @@ import { ScModal } from '@repo/ui/sc/modal'
 import type { AdminCouponBatch } from '@repo/core/api/coupons'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useVoidCouponBatch, useVoidCouponCode } from '@repo/core/api/hooks/use-admin-coupons'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 
 /**
  * Void a batch: no code of it can be added any more. By default the
  * vouchers customers added but have not used are cancelled too (a leaked
  * batch); untick to let them keep those. A voucher already on a booking is
- * never taken back. The name and reason go to the audit log.
+ * never taken back. The reason goes to the audit log, signed with the
+ * admin's name.
  */
 export function VoidBatchDialog({ batch, onClose }: { batch: AdminCouponBatch; onClose: () => void }) {
   const voidBatch = useVoidCouponBatch(batch.id)
-  const [name, setName] = useState(rememberedName)
   const [reason, setReason] = useState('')
   const [cancelUnspent, setCancelUnspent] = useState(true)
   const [error, setError] = useState('')
-  const canSubmit = name.trim().length >= 2 && reason.trim().length >= 3 && !voidBatch.isPending
+  const canSubmit = reason.trim().length >= 3 && !voidBatch.isPending
 
   const submit = () => {
     if (!canSubmit) return
     setError('')
-    rememberName(name.trim())
     voidBatch.mutate(
-      { actorName: name.trim(), reason: reason.trim(), cancelUnspent },
+      { reason: reason.trim(), cancelUnspent },
       {
         onSuccess: (result) => {
           toast.success(
@@ -59,8 +58,8 @@ export function VoidBatchDialog({ batch, onClose }: { batch: AdminCouponBatch; o
         checked={cancelUnspent}
         onChange={setCancelUnspent}
       />
-      <ScInput id="void-batch-name" label="Your name" autoComplete="name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
       <ScTextarea id="void-batch-reason" label="Why" rows={2} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} />
+      <SignedAs />
       {error && (
         <p role="alert" className="text-[12px] text-error">
           {error}
@@ -86,17 +85,15 @@ export function VoidBatchDialog({ batch, onClose }: { batch: AdminCouponBatch; o
 export function VoidCodeDialog({ batch, onClose }: { batch: AdminCouponBatch; onClose: () => void }) {
   const voidCode = useVoidCouponCode(batch.id)
   const [code, setCode] = useState('')
-  const [name, setName] = useState(rememberedName)
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
-  const canSubmit = code.trim().length >= 10 && name.trim().length >= 2 && reason.trim().length >= 3 && !voidCode.isPending
+  const canSubmit = code.trim().length >= 10 && reason.trim().length >= 3 && !voidCode.isPending
 
   const submit = () => {
     if (!canSubmit) return
     setError('')
-    rememberName(name.trim())
     voidCode.mutate(
-      { code: code.trim(), actorName: name.trim(), reason: reason.trim() },
+      { code: code.trim(), reason: reason.trim() },
       {
         onSuccess: (result) => {
           toast.success(`Code ending ${result.suffix} void.`)
@@ -121,8 +118,8 @@ export function VoidCodeDialog({ batch, onClose }: { batch: AdminCouponBatch; on
         onChange={(e) => setCode(e.target.value.toUpperCase())}
         className="font-numeric tracking-wide"
       />
-      <ScInput id="void-code-name" label="Your name" autoComplete="name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
       <ScTextarea id="void-code-reason" label="Why" rows={2} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} />
+      <SignedAs />
       {error && (
         <p role="alert" className="text-[12px] text-error">
           {error}

@@ -11,7 +11,7 @@ import {
 import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScCheckbox } from '@repo/ui/sc/checkbox'
-import { ScField, ScInput, ScTextarea } from '@repo/ui/sc/input'
+import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { ScSection } from '@repo/ui/sc/section'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
@@ -34,7 +34,7 @@ import {
   fileLine,
   pickedFilesProblem,
 } from '@repo/core/vendor-documents'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 
 const STATUS_VARIANT = {
   missing: 'muted',
@@ -59,14 +59,6 @@ export function GarageDocumentsSection({
   readOnly: boolean
 }) {
   const { data, isLoading, error } = useAdminGarageDocuments(vendorId)
-  const [actorName, setActorName] = useState(() =>
-    typeof window === 'undefined' ? '' : rememberedName()
-  )
-  const nameOk = actorName.trim().length >= 2
-  const setName = (value: string) => {
-    setActorName(value)
-    rememberName(value)
-  }
 
   if (isLoading) {
     return (
@@ -120,15 +112,7 @@ export function GarageDocumentsSection({
         don’t download or forward them. Saved immediately — not part of “Save
         changes”.
       </p>
-      {!readOnly && (
-        <ScField
-          label="Your name"
-          value={actorName}
-          onChange={setName}
-          autoComplete="name"
-          placeholder="Recorded with each approval, rejection or upload"
-        />
-      )}
+      {!readOnly && <SignedAs />}
       <div className="flex flex-col gap-2.5">
         {data.documents.map((doc) => (
           <DocumentRow
@@ -136,7 +120,6 @@ export function GarageDocumentsSection({
             vendorId={vendorId}
             doc={doc}
             readOnly={readOnly}
-            actorName={nameOk ? actorName.trim() : null}
           />
         ))}
       </div>
@@ -148,13 +131,10 @@ function DocumentRow({
   vendorId,
   doc,
   readOnly,
-  actorName,
 }: {
   vendorId: string
   doc: AdminGarageDocument
   readOnly: boolean
-  /** Null until a name of two letters or more is typed. */
-  actorName: string | null
 }) {
   const review = useReviewDocument(vendorId)
   const upload = useUploadAdminDocument(vendorId)
@@ -181,20 +161,15 @@ function DocumentRow({
   }
 
   const decide = (action: 'approve' | 'reject') => {
-    if (!doc.id || doc.version === null || !actorName) return
+    if (!doc.id || doc.version === null) return
     setError('')
     review.mutate(
       {
         documentId: doc.id,
         review:
           action === 'approve'
-            ? { action, version: doc.version, actorName }
-            : {
-                action,
-                version: doc.version,
-                actorName,
-                reason: reason.trim(),
-              },
+            ? { action, version: doc.version }
+            : { action, version: doc.version, reason: reason.trim() },
       },
       {
         onSuccess: () => {
@@ -211,14 +186,13 @@ function DocumentRow({
   }
 
   const send = () => {
-    if (!actorName || picked.length === 0 || pickProblem) return
+    if (picked.length === 0 || pickProblem) return
     setError('')
     upload.mutate(
       {
         type: doc.type,
         files: picked,
         expiresOn: expiresOn || null,
-        actorName,
         approve: approveUpload,
       },
       {
@@ -316,7 +290,7 @@ function DocumentRow({
             <ScButton
               variant="secondary"
               fullWidth={false}
-              disabled={busy || !actorName}
+              disabled={busy}
               onClick={() => decide('approve')}
               className="min-h-11 px-3.5 text-[12px]"
             >
@@ -327,17 +301,12 @@ function DocumentRow({
             <ScButton
               variant="secondary"
               fullWidth={false}
-              disabled={busy || !actorName}
+              disabled={busy}
               onClick={() => setRejecting(true)}
               className="min-h-11 px-3.5 text-[12px]"
             >
               Reject
             </ScButton>
-          )}
-          {!actorName && (
-            <p className="self-center text-[12px] text-text-muted">
-              Type your name above first.
-            </p>
           )}
         </div>
       )}
@@ -356,7 +325,7 @@ function DocumentRow({
             <ScButton
               variant="secondary"
               fullWidth={false}
-              disabled={busy || !actorName || reason.trim().length < 5}
+              disabled={busy || reason.trim().length < 5}
               onClick={() => decide('reject')}
               className="min-h-11 px-3.5 text-[12px]"
             >
@@ -439,7 +408,7 @@ function DocumentRow({
                 <ScButton
                   variant="secondary"
                   fullWidth={false}
-                  disabled={busy || !actorName || Boolean(pickProblem)}
+                  disabled={busy || Boolean(pickProblem)}
                   onClick={send}
                   className="min-h-11 px-3.5 text-[12px]"
                 >
@@ -457,11 +426,6 @@ function DocumentRow({
                   Cancel
                 </ScButton>
               </div>
-              {!actorName && (
-                <p className="text-[12px] text-text-muted">
-                  Type your name above first.
-                </p>
-              )}
             </div>
           )}
         </>

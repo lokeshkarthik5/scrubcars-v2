@@ -101,8 +101,8 @@ export function useCancelAdminGift() {
   const queryClient = useQueryClient()
   const refresh = () => void queryClient.invalidateQueries({ queryKey: adminGiftKeys.all })
   return useMutation({
-    mutationFn: ({ giftId, actorName, reason }: { giftId: string; actorName: string; reason: string }) =>
-      cancelAdminGift(giftId, { actorName, reason }),
+    mutationFn: ({ giftId, reason }: { giftId: string; reason: string }) =>
+      cancelAdminGift(giftId, { reason }),
     onSuccess: refresh,
     onError: refresh,
   })
@@ -119,7 +119,6 @@ export function useAdjustCustomerCredit() {
       userId: string
       amount: number
       reason: string
-      actorName: string
     }) => adjustCustomerCredit(userId, payload),
     onSuccess: (updated) => {
       queryClient.setQueryData<AdminCustomerCredit>(adminGiftKeys.customer(updated.customer.id), updated)

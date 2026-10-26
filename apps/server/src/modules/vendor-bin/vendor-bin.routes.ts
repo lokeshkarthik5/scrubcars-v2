@@ -4,6 +4,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import * as vendorBinController from './vendor-bin.controller.js'
 import {
@@ -35,7 +36,7 @@ adminVendorBinRoutes.post(
   '/vendors/:id/bin',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', binVendorSchema),
+  adminSignedJson(binVendorSchema),
   (c) => vendorBinController.bin(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
@@ -43,7 +44,7 @@ adminVendorBinRoutes.post(
   '/vendors/:id/restore',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', restoreVendorSchema),
+  adminSignedJson(restoreVendorSchema),
   (c) => vendorBinController.restore(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
@@ -62,6 +63,6 @@ adminVendorBinRoutes.delete(
   '/vendors/:id',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', deleteVendorForeverSchema),
+  adminSignedJson(deleteVendorForeverSchema),
   (c) => vendorBinController.deleteForever(c, c.req.valid('param').id, c.req.valid('json'))
 )

@@ -99,6 +99,10 @@ beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) =>
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
 
   patch(giftsRepository, 'createPending', async (input: { amount: number; buyerId: string; design: string }) => {
     storedDesigns.push(input.design)
@@ -376,13 +380,12 @@ describe('admin', () => {
     expect(summary.body.data).toMatchObject({ liability: '1250.00' })
   })
 
-  test('an adjustment needs a reason and a name, and records the session', async () => {
+  test('an adjustment needs a reason, and is signed by the session (a typed name is ignored)', async () => {
     const path = `/admin/gifts/credit/customers/${PEOPLE.friend}/adjust`
     expect((await call('POST', path, 'breakGlass', { amount: 100, reason: '', actorName: 'Asha' })).status).toBe(400)
-    expect((await call('POST', path, 'breakGlass', { amount: 100, reason: 'Goodwill' })).status).toBe(400)
     expect((await call('POST', path, 'breakGlass', { amount: 10.555, reason: 'Goodwill', actorName: 'Asha' })).status).toBe(400)
     const { status } = await call('POST', path, 'breakGlass', { amount: -150.5, reason: 'Entered twice', actorName: 'Asha K' })
     expect(status).toBe(200)
-    expect(adjustCalls[0]).toMatchObject({ userId: PEOPLE.friend, amountPaise: -15050, reason: 'Entered twice', actorName: 'Asha K', actorSub: 'admin' })
+    expect(adjustCalls[0]).toMatchObject({ userId: PEOPLE.friend, amountPaise: -15050, reason: 'Entered twice', actorName: 'admin', actorSub: 'admin' })
   })
 })

@@ -32,8 +32,9 @@ describe('earningsStatementQuerySchema', () => {
 })
 
 describe('recordPayoutSchema', () => {
-  test('a payout with its reference, time and who recorded it', () => {
-    expect(recordPayoutSchema.parse(payout)).toEqual({ ...payout, method: 'bank', note: undefined })
+  test('a payout with its reference and time; who recorded it is the session', () => {
+    // A typed name is ignored: adminSignedJson signs it with the session (0058).
+    expect(recordPayoutSchema.parse(payout)).toEqual({ ...payout, method: 'bank', note: undefined, actorName: '' })
   })
 
   test('the reference is required, and looks like one', () => {
@@ -55,8 +56,9 @@ describe('recordPayoutSchema', () => {
     expect(recordPayoutSchema.safeParse({ ...payout, bookingIds: [] }).success).toBe(false)
   })
 
-  test('who recorded it is typed', () => {
-    expect(recordPayoutSchema.safeParse({ ...payout, actorName: ' ' }).success).toBe(false)
+  test('who recorded it is never typed', () => {
+    const { actorName: _actorName, ...unsigned } = payout
+    expect(recordPayoutSchema.parse(unsigned).actorName).toBe('')
   })
 })
 
@@ -74,13 +76,14 @@ describe('payoutAccountSchema', () => {
       ...account,
       accountNumber: '5010012345678',
       ifsc: 'HDFC0001234',
+      actorName: '',
     })
   })
 
   test('a UPI id alone is enough', () => {
     expect(
       payoutAccountSchema.parse({ accountNumber: '', ifsc: '', upiId: 'marina@okaxis', actorName: 'Lokesh' })
-    ).toEqual({ accountName: null, accountNumber: null, ifsc: null, upiId: 'marina@okaxis', actorName: 'Lokesh' })
+    ).toEqual({ accountName: null, accountNumber: null, ifsc: null, upiId: 'marina@okaxis', actorName: '' })
   })
 
   test('a number needs its IFSC, and something to pay to is needed', () => {

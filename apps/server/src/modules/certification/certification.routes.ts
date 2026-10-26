@@ -4,6 +4,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import {
   requireVendorRole,
@@ -59,7 +60,7 @@ adminCertificationRoutes.post(
   '/vendors/:vendorId/checks',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', recordCheckSchema),
+  adminSignedJson(recordCheckSchema),
   (c) => certificationController.recordCheck(c, c.req.valid('param').vendorId, c.req.valid('json'))
 )
 
@@ -67,7 +68,7 @@ adminCertificationRoutes.post(
   '/vendors/:vendorId/certify',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', certifySchema),
+  adminSignedJson(certifySchema),
   (c) => certificationController.certify(c, c.req.valid('param').vendorId, c.req.valid('json'))
 )
 
@@ -75,6 +76,6 @@ adminCertificationRoutes.post(
   '/vendors/:vendorId/revoke',
   ...adminMiddleware,
   zValidator('param', vendorIdParamSchema),
-  zValidator('json', revokeSchema),
+  adminSignedJson(revokeSchema),
   (c) => certificationController.revoke(c, c.req.valid('param').vendorId, c.req.valid('json'))
 )

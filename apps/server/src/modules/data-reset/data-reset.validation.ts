@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { MAX_TICKED_IDS } from '../../lib/data-reset.js'
 
 /**
@@ -55,11 +56,7 @@ export const previewSchema = z.object({
 export const executeSchema = previewSchema.extend({
   selectionHash: z.string().regex(/^[0-9a-f]{64}$/, 'Run the dry run first'),
   confirmText: z.string().max(100),
-  actorName: z
-    .string()
-    .trim()
-    .min(2, 'Type your name')
-    .max(100),
+  actorName: signedActorName,
   // Said out loud, not inferred: nothing here can check a backup exists.
   backupConfirmed: z.literal(true, {
     error: 'Confirm you have a database backup from today',

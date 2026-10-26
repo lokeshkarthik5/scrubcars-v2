@@ -92,6 +92,10 @@ let pullResults: unknown[] = []
 
 beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) => (userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined))
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
   patch(rewardsRepository, 'latestSettings', async () => settingsRow)
   patch(rewardsRepository, 'claimNudge', async (input: Record<string, unknown>) => {
     nudgeClaims.push(input)
@@ -301,14 +305,14 @@ describe('the customer', () => {
 })
 
 describe('admin', () => {
-  test('a car edit is checked whole: a real car name is refused, a good one saved with the typed name', async () => {
+  test('a car edit is checked whole: a real car name is refused, a good one signed by the session', async () => {
     const bad = await call('PATCH', `/admin/rewards/garage/cars/${CAR_ID}`, 'superAdmin', { ...CAR(), name: 'Porsche Teal' })
     expect(bad.status).toBe(400)
     expect(bad.body.code).toBe('GARAGE_CAR_INVALID')
     expect(carUpdates.length).toBe(0)
     const good = await call('PATCH', `/admin/rewards/garage/cars/${CAR_ID}`, 'superAdmin', CAR())
     expect(good.status).toBe(200)
-    expect(carUpdates[0]).toMatchObject({ id: CAR_ID, actorName: 'Asha', actorSub: PEOPLE.superAdmin })
+    expect(carUpdates[0]).toMatchObject({ id: CAR_ID, actorName: 'Signed-in Sam', actorSub: PEOPLE.superAdmin })
   })
 
   test('no AI art for Garage cards: the old routes are gone, and a missing card never carries its name', async () => {

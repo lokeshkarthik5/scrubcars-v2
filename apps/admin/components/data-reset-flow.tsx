@@ -19,6 +19,7 @@ import { useExecuteDataReset } from '@repo/core/api/hooks/use-admin-data-reset'
 import { cn } from '@repo/core/utils'
 import { downloadCsv, formatRupees, formatWhen, todayIst } from '@/lib/bookings'
 import { dataResetCsv, phraseTyped, plural } from '@/lib/data-reset'
+import { SignedAs } from '@/components/signed-as'
 
 /**
  * The pieces of "Start pilot clean" that the page and a booking's "Delete
@@ -437,7 +438,6 @@ export function ConfirmDelete({
     onPendingChange?.(true)
     return () => onPendingChange?.(false)
   }, [pending, onPendingChange])
-  const [name, setName] = useState('')
   const [backup, setBackup] = useState(false)
   const [phrase, setPhrase] = useState('')
   const [error, setError] = useState<{
@@ -445,10 +445,7 @@ export function ConfirmDelete({
     stale: boolean
   } | null>(null)
 
-  const ready =
-    name.trim().length >= 2 &&
-    backup &&
-    phraseTyped(phrase, preview.confirmPhrase)
+  const ready = backup && phraseTyped(phrase, preview.confirmPhrase)
 
   const submit = () => {
     if (!ready || execute.isPending) return
@@ -460,7 +457,6 @@ export function ConfirmDelete({
         unknownIds: preview.lookups.unknownIds,
         selectionHash: preview.selectionHash,
         confirmText: phrase,
-        actorName: name.trim(),
         backupConfirmed: true,
       },
       {
@@ -476,15 +472,7 @@ export function ConfirmDelete({
 
   return (
     <div className="flex flex-col gap-3">
-      <ScInput
-        id="reset-name"
-        label="Your name"
-        autoComplete="name"
-        maxLength={100}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="min-h-11"
-      />
+      <SignedAs />
       <ScCheckbox
         label="I have a database backup from today"
         checked={backup}
@@ -534,7 +522,6 @@ export function ConfirmDelete({
           ready
             ? undefined
             : `Still to do: ${[
-                name.trim().length < 2 && 'your name',
                 !backup && 'the backup tick',
                 !phraseTyped(phrase, preview.confirmPhrase) &&
                   'the typed words',

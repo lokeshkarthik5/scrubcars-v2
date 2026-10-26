@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { CHALLENGE_BOOKING_TYPES, CHALLENGE_CATEGORIES, CHALLENGE_LIMITS, CHALLENGE_REWARD_KINDS } from '../../lib/challenges.js'
 import { LEVELS } from '../../lib/rewards.js'
 
@@ -41,11 +42,11 @@ export const challengeSchema = z
     rewardCards: whole.nullable().default(null),
     audienceMinLevel: z.enum(LEVELS).nullable(),
     maxWinners: whole.nullable(),
-    actorName: z.string().trim().min(2, 'Type your name').max(100),
+    actorName: signedActorName,
   })
   .strict()
 
 /** Publish or end: the typed name. */
-export const challengeActionSchema = z.object({ actorName: z.string().trim().min(2, 'Type your name').max(100) }).strict()
+export const challengeActionSchema = z.object({ actorName: signedActorName }).strict()
 
 export type ChallengeBody = z.infer<typeof challengeSchema>

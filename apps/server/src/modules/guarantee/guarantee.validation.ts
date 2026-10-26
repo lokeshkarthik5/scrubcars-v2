@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { GUARANTEE_ISSUES, GUARANTEE_RULES } from '../../lib/guarantee.js'
 
 const uuid = z.string().uuid()
@@ -59,7 +60,7 @@ export const adminClaimsQuerySchema = z.object({
   tab: z.enum(['needs_decision', 'open', 'closed']).default('needs_decision'),
 })
 
-const actorName = z.string().trim().min(2, 'Type your name').max(100)
+const actorName = signedActorName
 
 /**
  * Detlio's decision, with the name typed. A claim not approved always says

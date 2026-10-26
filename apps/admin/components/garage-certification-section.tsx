@@ -33,7 +33,7 @@ import {
 import { istDateKey } from '@repo/core/payouts'
 import { istDateTimeLabel } from '@repo/core/ist-input'
 import { cn } from '@repo/core/utils'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 
 /** Why Certify is off, in the words the tab shows under it. */
 const BLOCKED: Record<CertifyBlockedBy, string> = {
@@ -70,14 +70,6 @@ export function GarageCertificationSection({
   readOnly: boolean
 }) {
   const { data, isLoading, error } = useAdminCertification(vendorId)
-  const [actorName, setActorName] = useState(() =>
-    typeof window === 'undefined' ? '' : rememberedName()
-  )
-  const name = actorName.trim().length >= 2 ? actorName.trim() : null
-  const setName = (value: string) => {
-    setActorName(value)
-    rememberName(value)
-  }
 
   if (isLoading) {
     return (
@@ -128,15 +120,7 @@ export function GarageCertificationSection({
           Customers see only the seal. Saved immediately — not part of “Save
           changes”.
         </p>
-        {!readOnly && (
-          <ScField
-            label="Your name"
-            value={actorName}
-            onChange={setName}
-            autoComplete="name"
-            placeholder="Recorded with each check, Certify or Revoke"
-          />
-        )}
+        {!readOnly && <SignedAs />}
       </ScSection>
 
       <ScSection title="Standards">
@@ -202,11 +186,10 @@ export function GarageCertificationSection({
         vendorId={vendorId}
         data={data}
         readOnly={readOnly}
-        actorName={name}
       />
 
       {!readOnly && (
-        <Decision vendorId={vendorId} data={data} actorName={name} />
+        <Decision vendorId={vendorId} data={data} />
       )}
     </div>
   )
@@ -259,12 +242,10 @@ function QualityChecks({
   vendorId,
   data,
   readOnly,
-  actorName,
 }: {
   vendorId: string
   data: AdminCertification
   readOnly: boolean
-  actorName: string | null
 }) {
   const record = useRecordQualityCheck(vendorId)
   const today = istDateKey(new Date())
@@ -276,14 +257,10 @@ function QualityChecks({
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
   const notesOk = result === 'pass' || notes.trim().length >= 5
-  const ready =
-    Boolean(actorName) &&
-    checkerName.trim().length >= 2 &&
-    notesOk &&
-    checkedOn !== ''
+  const ready = checkerName.trim().length >= 2 && notesOk && checkedOn !== ''
 
   const save = () => {
-    if (!actorName || !ready) return
+    if (!ready) return
     setError('')
     record.mutate(
       {
@@ -292,7 +269,6 @@ function QualityChecks({
         checkerName: checkerName.trim(),
         result,
         notes: notes.trim() || null,
-        actorName,
       },
       {
         onSuccess: () => {
@@ -458,11 +434,6 @@ function QualityChecks({
                 Cancel
               </ScButton>
             </div>
-            {!actorName && (
-              <p className="text-[12px] text-text-muted">
-                Type your name above first.
-              </p>
-            )}
             {error && (
               <p role="alert" className="text-[12px] text-error">
                 {error}
@@ -486,11 +457,9 @@ function QualityChecks({
 function Decision({
   vendorId,
   data,
-  actorName,
 }: {
   vendorId: string
   data: AdminCertification
-  actorName: string | null
 }) {
   const certify = useCertifyGarage(vendorId)
   const revoke = useRevokeCertification(vendorId)
@@ -500,9 +469,8 @@ function Decision({
   const busy = certify.isPending || revoke.isPending
 
   const doCertify = () => {
-    if (!actorName) return
     setError('')
-    certify.mutate(actorName, {
+    certify.mutate(undefined, {
       onSuccess: () =>
         toast.success(`${data.garage.businessName} is Detlio Certified`),
       onError: (err) =>
@@ -511,10 +479,10 @@ function Decision({
   }
 
   const doRevoke = () => {
-    if (!actorName || reason.trim().length < 5) return
+    if (reason.trim().length < 5) return
     setError('')
     revoke.mutate(
-      { actorName, reason: reason.trim() },
+      { reason: reason.trim() },
       {
         onSuccess: () => {
           setRevoking(false)
@@ -544,7 +512,7 @@ function Decision({
               <ScButton
                 variant="secondary"
                 fullWidth={false}
-                disabled={busy || !actorName || reason.trim().length < 5}
+                disabled={busy || reason.trim().length < 5}
                 onClick={doRevoke}
                 className="min-h-11 px-3.5 text-[12px]"
               >
@@ -573,7 +541,7 @@ function Decision({
             <ScButton
               variant="secondary"
               fullWidth={false}
-              disabled={busy || !actorName}
+              disabled={busy}
               onClick={() => setRevoking(true)}
               className="min-h-11 self-start px-3.5 text-[12px]"
             >
@@ -590,7 +558,7 @@ function Decision({
           <ScButton
             variant="secondary"
             fullWidth={false}
-            disabled={busy || !actorName || data.certifyBlockedBy !== null}
+            disabled={busy || data.certifyBlockedBy !== null}
             onClick={doCertify}
             className="min-h-11 self-start px-3.5 text-[12px]"
           >
@@ -607,11 +575,6 @@ function Decision({
             </p>
           )}
         </>
-      )}
-      {!actorName && (
-        <p className="text-[12px] text-text-muted">
-          Type your name above first.
-        </p>
       )}
       {error && (
         <p role="alert" className="text-[12px] text-error">

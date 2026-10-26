@@ -1,9 +1,10 @@
 import { z } from 'zod'
+import { signedActorName } from '../../lib/admin-actor.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
 import { QUALITY_CHECK_KINDS, QUALITY_CHECK_RESULTS } from '../../lib/certification.js'
 
 /** The name the person typed, as the Bin and Payouts ask for it. */
-const actorName = z.string().trim().min(2, 'Type your name').max(100)
+const actorName = signedActorName
 
 export const vendorIdParamSchema = z.object({ vendorId: z.uuid() })
 

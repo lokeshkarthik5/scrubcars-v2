@@ -3,6 +3,7 @@ import { env } from '../../lib/env.js'
 import { AppError } from '../../lib/errors.js'
 import { signAdminToken } from '../../lib/jwt.js'
 import { logger } from '../../lib/logger.js'
+import { adminLoginsService, adminSubjectName } from '../admin-logins/admin-logins.service.js'
 import {
   adminCancellationNote,
   bookingReference,
@@ -220,8 +221,6 @@ async function pickupPatchFor(
 
 // ─── Bookings ────────────────────────────────────────────────────────────────
 
-/** The subject of the env-credential break-glass login; see auth.middleware. */
-const BREAK_GLASS_SUBJECT = 'admin'
 
 type AdminBookingRecord = NonNullable<
   Awaited<ReturnType<typeof adminRepository.findBookingById>>
@@ -584,11 +583,12 @@ async function loadBookingDetail(id: string, now: number) {
 
 /**
  * Who wrote a note, as a name. The break-glass login is the shared admin
- * account and has no users row, so it signs as 'admin'; a named super-admin
- * signs as themselves.
+ * account and has no users row, so it signs as 'admin'; a personal admin
+ * login (0058) signs with its name, and a named super-admin as themselves.
  */
 async function resolveNoteAuthor(sub: string): Promise<string> {
-  if (sub === BREAK_GLASS_SUBJECT) return 'admin'
+  const adminName = await adminSubjectName(sub)
+  if (adminName) return adminName
   const user = await adminRepository.findUserById(sub)
   return (user?.name.trim() || user?.phone || sub).slice(0, 100)
 }
@@ -632,13 +632,20 @@ export const adminService = {
     const validUser = safeEqual(input.username, env.adminUsername)
     const validPass = safeEqual(input.password, env.adminPassword)
 
-    if (!validUser || !validPass) {
-      throw new AppError(401, 'Invalid username or password', 'INVALID_CREDENTIALS')
+    // The shared env login: the bootstrap and break-glass door, as before.
+    if (validUser && validPass) {
+      const accessToken = await signAdminToken()
+      log.info('admin:login')
+      return { accessToken }
     }
 
-    const accessToken = await signAdminToken()
-    log.info('admin:login')
-    return { accessToken }
+    // Otherwise a personal login (0058). One refusal for every way of being
+    // wrong, so it never says which usernames exist.
+    const sub = await adminLoginsService.signIn(input.username, input.password)
+    if (!sub) {
+      throw new AppError(401, 'Invalid username or password', 'INVALID_CREDENTIALS')
+    }
+    return { accessToken: await signAdminToken(sub) }
   },
 
   async listVendors() {

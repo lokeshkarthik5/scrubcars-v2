@@ -8,14 +8,14 @@ import { ScModal } from '@repo/ui/sc/modal'
 import type { AdminCustomerCredit } from '@repo/core/api/gifts'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
 import { useAdjustCustomerCredit } from '@repo/core/api/hooks/use-admin-gifts'
-import { rememberName, rememberedName } from '@/lib/actor-name'
+import { SignedAs } from '@/components/signed-as'
 import { formatRupees } from '@/lib/bookings'
 import { parseAdjustment, signedRupees } from '@/lib/gifts'
 
 /**
  * Adjust credit: adds to or takes from one customer's Detlio credit by
- * hand, with a reason and the name of who did it, both recorded in the
- * audit log. A deduction can't go below what the customer has (the server
+ * hand, with a reason, recorded in the audit log with the signed-in
+ * admin's name. A deduction can't go below what the customer has (the server
  * refuses with CREDIT_ADJUSTMENT_OVER_BALANCE). Mounted fresh each time.
  */
 export function AdjustCreditDialog({
@@ -28,7 +28,6 @@ export function AdjustCreditDialog({
   const adjust = useAdjustCustomerCredit()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
-  const [name, setName] = useState(rememberedName)
   const [error, setError] = useState('')
 
   const parsed = amount.trim() ? parseAdjustment(amount) : null
@@ -37,19 +36,16 @@ export function AdjustCreditDialog({
   const canSubmit =
     value !== null &&
     reason.trim().length >= 3 &&
-    name.trim().length >= 2 &&
     !adjust.isPending
 
   const submit = () => {
     if (!canSubmit || value === null) return
     setError('')
-    rememberName(name.trim())
     adjust.mutate(
       {
         userId: data.customer.id,
         amount: value,
         reason: reason.trim(),
-        actorName: name.trim(),
       },
       {
         onSuccess: (updated) => {
@@ -118,14 +114,7 @@ export function AdjustCreditDialog({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
-      <ScInput
-        id="adjust-credit-name"
-        label="Your name"
-        autoComplete="name"
-        maxLength={100}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
+      <SignedAs />
       <p className="text-[12px] text-text-muted">
         Recorded in the audit log with your name and reason. The customer sees
         it as &ldquo;Adjusted by Detlio&rdquo;, without the reason.

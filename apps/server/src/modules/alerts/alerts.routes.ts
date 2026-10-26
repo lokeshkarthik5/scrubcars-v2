@@ -4,6 +4,7 @@ import {
   authMiddleware,
   requireSuperAdmin,
   type AuthVariables,
+  adminSignedJson,
 } from '../../middleware/auth.middleware.js'
 import { telegramTestRateLimiter } from '../../middleware/rate-limit.middleware.js'
 import * as alertsController from './alerts.controller.js'
@@ -25,6 +26,6 @@ adminAlertRoutes.post(
   '/telegram/test',
   ...adminMiddleware,
   telegramTestRateLimiter,
-  zValidator('json', telegramTestSchema),
+  adminSignedJson(telegramTestSchema),
   (c) => alertsController.sendTelegramTest(c, c.req.valid('json'))
 )

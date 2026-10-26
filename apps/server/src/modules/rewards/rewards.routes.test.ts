@@ -68,6 +68,10 @@ beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) =>
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
   patch(rewardsRepository, 'latestSettings', async () => settingsRow)
   patch(rewardsRepository, 'listSettingsVersions', async () => [{ version: settingsRow.version, actorName: settingsRow.actorName, createdAt: NOW }])
   patch(rewardsRepository, 'saveSettings', async (input: { expectedVersion: number }) => {
@@ -347,7 +351,7 @@ describe('admin', () => {
     expect(adjustCalls).toEqual([])
   })
 
-  test('settings: checked whole (400), only on top of the version opened (409), saved with the typed name', async () => {
+  test('settings: checked whole (400), only on top of the version opened (409), saved with the session name (the shared login signs as admin)', async () => {
     const bad = SAVE()
     bad.settings.scratchWeights.small_off = 50
     const refused = await call('PUT', '/admin/rewards/settings', 'breakGlass', bad)
@@ -361,7 +365,7 @@ describe('admin', () => {
     const good = SAVE()
     good.settings.minPaidAmount = 249
     expect((await call('PUT', '/admin/rewards/settings', 'breakGlass', good)).status).toBe(200)
-    expect(saveCalls.at(-1)).toMatchObject({ expectedVersion: 1, actorName: 'Asha', settings: { minPaidAmount: 249 } })
+    expect(saveCalls.at(-1)).toMatchObject({ expectedVersion: 1, actorName: 'admin', settings: { minPaidAmount: 249 } })
 
     // Unknown keys are refused, not stored.
     const extra = SAVE() as Record<string, unknown>
@@ -369,12 +373,12 @@ describe('admin', () => {
     expect((await call('PUT', '/admin/rewards/settings', 'breakGlass', extra)).status).toBe(400)
   })
 
-  test('adjustments need a reason and the typed name, and name the customer from the path', async () => {
+  test('adjustments need a reason, are signed by the session (a typed name is ignored), and name the customer from the path', async () => {
     expect((await call('POST', `/admin/rewards/customers/${PEOPLE.me}/adjust`, 'breakGlass', { action: 'add_stamps', stamps: 1, actorName: 'Asha' })).status).toBe(400)
     expect((await call('POST', `/admin/rewards/customers/${PEOPLE.me}/adjust`, 'breakGlass', { action: 'issue_voucher', amount: 5000, reason: 'Goodwill', actorName: 'Asha' })).status).toBe(400)
     const ok = await call('POST', `/admin/rewards/customers/${PEOPLE.me}/adjust`, 'breakGlass', { action: 'add_stamps', stamps: 2, reason: 'Missed stamp', actorName: 'Asha' })
     expect(ok.status).toBe(200)
-    expect(adjustCalls[0]).toMatchObject({ userId: PEOPLE.me, action: { kind: 'add_stamps', stamps: 2 }, reason: 'Missed stamp', actorName: 'Asha' })
+    expect(adjustCalls[0]).toMatchObject({ userId: PEOPLE.me, action: { kind: 'add_stamps', stamps: 2 }, reason: 'Missed stamp', actorName: 'admin' })
   })
 })
 

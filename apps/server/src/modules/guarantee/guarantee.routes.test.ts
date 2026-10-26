@@ -153,6 +153,10 @@ beforeAll(() => {
   patch(membersRepository, 'findActivePlatformRow', async (userId: string) =>
     userId === PEOPLE.superAdmin ? { role: 'super_admin' } : undefined
   )
+  // requireSuperAdmin signs every admin write with the session's name (0058).
+  patch(membersRepository, 'findUserById', async (userId: string) =>
+    userId === PEOPLE.superAdmin ? { id: userId, name: 'Signed-in Sam', phone: '9000009999' } : undefined
+  )
   patch(membersRepository, 'findVendorForSupport', async (vendorId: string) =>
     [GARAGE, OTHER_GARAGE].includes(vendorId) ? { id: vendorId } : undefined
   )
@@ -481,9 +485,8 @@ describe('admin: super-admin only, decisions with a typed name', () => {
     expect(row!.customerFigures.claimsLeft).toBe(2)
   })
 
-  test('not approved needs a reason the customer reads, and a typed name', async () => {
+  test('not approved needs a reason the customer reads; no typed name is needed', async () => {
     expect((await call('POST', `/admin/guarantee/claims/${CLAIM}/decide`, 'superAdmin', { decision: 'reject', actorName: 'Ravi' })).status).toBe(400)
-    expect((await call('POST', `/admin/guarantee/claims/${CLAIM}/decide`, 'superAdmin', { decision: 'redo' })).status).toBe(400)
     const ok = await call('POST', `/admin/guarantee/claims/${CLAIM}/decide`, 'superAdmin', {
       decision: 'reject',
       actorName: 'Ravi',
