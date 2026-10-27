@@ -47,6 +47,8 @@ export const ADMIN_BOOKINGS_PAGE_SIZE = 100
 
 /** How often an open list or booking refetches, so a new booking shows up on its own. */
 const REFRESH_MS = 30_000
+/** The bookings list's own refresh: once a minute (see useAdminBookings). */
+const LIST_REFRESH_MS = 60_000
 
 /**
  * Where the page after `row` starts, in the form the server reads: the row's
@@ -111,13 +113,16 @@ export function useAdminBookings(
         : undefined
     },
     placeholderData: keepPreviousData,
-    refetchInterval: REFRESH_MS,
+    // A minute, not 30 s: the Needs action view (the default) also reads the
+    // refunds owed, a heavy read on the API's one connection per instance.
+    refetchInterval: LIST_REFRESH_MS,
   })
 }
 
 /**
  * How many bookings each saved view holds (0059). Never holds up the list:
- * read at most every 30 seconds, the old counts kept while new filters load,
+ * read when the filters change and after booking actions, never on a timer
+ * (it reads the refunds owed too; 27 Oct), the old counts kept while new filters load,
  * and an API older than the views (404) is not asked again, so the views
  * show without counts.
  */
@@ -140,7 +145,8 @@ export function useAdminBookingViewCounts(
     queryFn: () => getAdminBookingViewCounts(key),
     enabled,
     staleTime: REFRESH_MS,
-    refetchInterval: REFRESH_MS,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
     retry: (failureCount, error) => !(error instanceof ApiError && error.status < 500) && failureCount < 2,
   })
