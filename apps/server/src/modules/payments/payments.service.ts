@@ -1,6 +1,7 @@
 import { AppError } from '../../lib/errors.js'
 import { env } from '../../lib/env.js'
 import { logger } from '../../lib/logger.js'
+import { metaCapi } from '../../lib/meta-capi.js'
 import { alertOps } from '../../lib/ops-alerts.js'
 import {
   createRazorpayOrder,
@@ -259,6 +260,134 @@ async function markBookingPaid(
   }
 }
 
+/** The app's confirmation of a Razorpay payment: an intent or a legacy booking. */
+async function confirmPayment(userId: string, input: VerifyPaymentInput) {
+  // The intent flow: no booking exists yet, and confirming is what creates
+  // it. Signature first — an unverified caller must not be able to conjure a
+  // booking out of an intent id.
+  if ('intentId' in input) {
+    const isValid = verifyPaymentSignature({
+      orderId: input.razorpayOrderId,
+      paymentId: input.razorpayPaymentId,
+      signature: input.razorpaySignature,
+    })
+
+    if (!isValid) {
+      log.warn(
+        { intentId: input.intentId, orderId: input.razorpayOrderId },
+        'payment:invalid_signature'
+      )
+      throw new AppError(400, 'Invalid payment signature', 'INVALID_SIGNATURE')
+    }
+
+    const { bookingId } = await bookingIntentsService.confirmIntent({
+      intentId: input.intentId,
+      razorpayPaymentId: input.razorpayPaymentId,
+      razorpayOrderId: input.razorpayOrderId,
+      userId,
+    })
+
+    log.info(
+      { intentId: input.intentId, bookingId, paymentId: input.razorpayPaymentId },
+      'payment:verified'
+    )
+
+    const payment = await paymentsRepository.findPaymentByBookingId(bookingId)
+
+    return {
+      bookingId,
+      payment: payment ? toPaymentResponse(payment) : null,
+    }
+  }
+
+  const { booking, payment } = await getOnlinePaymentForCustomer(
+    userId,
+    input.bookingId
+  )
+
+  if (payment.status === 'paid' || payment.status === 'refunded') {
+    return {
+      bookingId: booking.id,
+      payment: toPaymentResponse(payment),
+    }
+  }
+
+  if (
+    payment.gatewayTxnId &&
+    payment.gatewayTxnId !== input.razorpayOrderId
+  ) {
+    throw new AppError(400, 'Order mismatch', 'PAYMENT_ORDER_MISMATCH')
+  }
+
+  const isValid = verifyPaymentSignature({
+    orderId: input.razorpayOrderId,
+    paymentId: input.razorpayPaymentId,
+    signature: input.razorpaySignature,
+  })
+
+  if (!isValid) {
+    log.warn({ bookingId: booking.id, orderId: input.razorpayOrderId }, 'payment:invalid_signature')
+    await paymentsRepository.markFailed(booking.id)
+    throw new AppError(400, 'Invalid payment signature', 'INVALID_SIGNATURE')
+  }
+
+  const updated = await markBookingPaid(
+    booking.id,
+    input.razorpayPaymentId,
+    input.razorpayOrderId
+  )
+
+  log.info({ bookingId: booking.id, paymentId: input.razorpayPaymentId }, 'payment:verified')
+
+  return {
+    bookingId: booking.id,
+    payment: toPaymentResponse(updated),
+  }
+}
+
+/** What the verify request says about the browser, read by the controller. */
+export interface PurchaseRequest {
+  clientIp?: string
+  userAgent?: string
+}
+
+/**
+ * Hands a consented, paid booking to the Conversions API (fire and forget,
+ * once per booking). The value is what came through Razorpay for it, after
+ * discounts and Detlio credit. Test-key and fake payments, a payment not
+ * paid and a cancelled booking are never reported.
+ */
+function reportPurchaseToMeta(
+  bookingId: string,
+  marketing: NonNullable<VerifyPaymentInput['marketing']>,
+  request: PurchaseRequest
+) {
+  metaCapi.reportPurchase(
+    bookingId,
+    {
+      clientIp: request.clientIp,
+      userAgent: request.userAgent,
+      fbp: marketing.fbp,
+      fbc: marketing.fbc,
+      eventSourceUrl: marketing.eventSourceUrl,
+    },
+    async () => {
+      const facts = await paymentsRepository.findPurchaseFacts(bookingId)
+      if (!facts || facts.paymentStatus !== 'paid') return null
+      if (facts.gatewayMode === 'test' || facts.gatewayMode === 'fake') return null
+      if (facts.bookingStatus === 'cancelled') return null
+      const value = Number.parseFloat(facts.amount)
+      if (!Number.isFinite(value) || value < 0) return null
+      return {
+        bookingId,
+        valueRupees: value,
+        serviceCount: facts.serviceCount,
+        paidAt: facts.paidAt ?? new Date(),
+      }
+    }
+  )
+}
+
 export const paymentsService = {
   async createOrder(userId: string, bookingId: string) {
     const { booking, payment } = await getOnlinePaymentForCustomer(
@@ -308,88 +437,21 @@ export const paymentsService = {
     }
   },
 
-  async verifyPayment(userId: string, input: VerifyPaymentInput) {
-    // The intent flow: no booking exists yet, and confirming is what creates
-    // it. Signature first — an unverified caller must not be able to conjure a
-    // booking out of an intent id.
-    if ('intentId' in input) {
-      const isValid = verifyPaymentSignature({
-        orderId: input.razorpayOrderId,
-        paymentId: input.razorpayPaymentId,
-        signature: input.razorpaySignature,
-      })
+  async verifyPayment(
+    userId: string,
+    input: VerifyPaymentInput,
+    request: PurchaseRequest = {}
+  ) {
+    const result = await confirmPayment(userId, input)
 
-      if (!isValid) {
-        log.warn(
-          { intentId: input.intentId, orderId: input.razorpayOrderId },
-          'payment:invalid_signature'
-        )
-        throw new AppError(400, 'Invalid payment signature', 'INVALID_SIGNATURE')
-      }
-
-      const { bookingId } = await bookingIntentsService.confirmIntent({
-        intentId: input.intentId,
-        razorpayPaymentId: input.razorpayPaymentId,
-        razorpayOrderId: input.razorpayOrderId,
-        userId,
-      })
-
-      log.info(
-        { intentId: input.intentId, bookingId, paymentId: input.razorpayPaymentId },
-        'payment:verified'
-      )
-
-      const payment = await paymentsRepository.findPaymentByBookingId(bookingId)
-
-      return {
-        bookingId,
-        payment: payment ? toPaymentResponse(payment) : null,
-      }
+    // Reported to Meta only for a customer who accepted marketing cookies,
+    // and only once the booking is paid for (lib/meta-capi.ts). Never from
+    // the webhook, which has no consent to go on.
+    if (input.marketing?.consent === true && result.payment?.status === 'paid') {
+      reportPurchaseToMeta(result.bookingId, input.marketing, request)
     }
 
-    const { booking, payment } = await getOnlinePaymentForCustomer(
-      userId,
-      input.bookingId
-    )
-
-    if (payment.status === 'paid' || payment.status === 'refunded') {
-      return {
-        bookingId: booking.id,
-        payment: toPaymentResponse(payment),
-      }
-    }
-
-    if (
-      payment.gatewayTxnId &&
-      payment.gatewayTxnId !== input.razorpayOrderId
-    ) {
-      throw new AppError(400, 'Order mismatch', 'PAYMENT_ORDER_MISMATCH')
-    }
-
-    const isValid = verifyPaymentSignature({
-      orderId: input.razorpayOrderId,
-      paymentId: input.razorpayPaymentId,
-      signature: input.razorpaySignature,
-    })
-
-    if (!isValid) {
-      log.warn({ bookingId: booking.id, orderId: input.razorpayOrderId }, 'payment:invalid_signature')
-      await paymentsRepository.markFailed(booking.id)
-      throw new AppError(400, 'Invalid payment signature', 'INVALID_SIGNATURE')
-    }
-
-    const updated = await markBookingPaid(
-      booking.id,
-      input.razorpayPaymentId,
-      input.razorpayOrderId
-    )
-
-    log.info({ bookingId: booking.id, paymentId: input.razorpayPaymentId }, 'payment:verified')
-
-    return {
-      bookingId: booking.id,
-      payment: toPaymentResponse(updated),
-    }
+    return result
   },
 
   async handleWebhook(rawBody: string, signature: string | undefined) {

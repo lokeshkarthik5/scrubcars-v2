@@ -20,6 +20,15 @@ reconstructing every change in them.
 
 ### Added
 
+- **Meta Conversions API, consent only** (no migration): `POST /payments/verify`
+  takes an optional strict `marketing` block (`consent: true`, `fbp`, `fbc`,
+  `eventSourceUrl`). With it, a verify that wrote or confirmed a paid booking
+  sends Meta one Purchase event (`event_id` `purchase-<bookingId>`, INR value
+  paid through Razorpay, service count, IP, user agent, `fbp`/`fbc`), after
+  the response, once per booking; never a name, phone, email or address.
+  Production only, off unless `META_CAPI_TOKEN` is set (`META_PIXEL_ID`,
+  `META_CAPI_TEST_CODE`). `lib/meta-capi.ts`; see AGENTS.md.
+
 - **The Detlio Garage: collectible supercar photo cards earned by
   booking** (migration `0057_detlio_garage`, additive: new tables
   `garage_series`, `garage_cars` (Series 1's 40 cards seeded, each a
