@@ -1,6 +1,6 @@
-import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { bookingNotes, bookings, payments, type GatewayMode } from '../../db/schema.js'
+import { bookingItems, bookingNotes, bookings, payments, type GatewayMode } from '../../db/schema.js'
 import {
   allocateReceiptNumber,
   checkGarageCanTake,
@@ -214,5 +214,28 @@ export const paymentsRepository = {
     return db.query.bookings.findFirst({
       where: eq(bookings.id, bookingId),
     })
+  },
+
+  /**
+   * What a Meta Purchase event says about a booking (lib/meta-capi.ts):
+   * what came through Razorpay, its payment's status, mode and time, the
+   * booking's status and how many services it has. Nothing about the
+   * customer.
+   */
+  async findPurchaseFacts(bookingId: string) {
+    const [row] = await db
+      .select({
+        bookingStatus: bookings.status,
+        amount: payments.amount,
+        paymentStatus: payments.status,
+        gatewayMode: payments.gatewayMode,
+        paidAt: payments.paidAt,
+        serviceCount: sql<number>`(select count(*)::int from ${bookingItems} where ${bookingItems.bookingId} = ${bookings.id})`,
+      })
+      .from(payments)
+      .innerJoin(bookings, eq(bookings.id, payments.bookingId))
+      .where(eq(payments.bookingId, bookingId))
+      .limit(1)
+    return row ?? null
   },
 }
