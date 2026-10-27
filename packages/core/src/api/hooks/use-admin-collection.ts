@@ -44,8 +44,11 @@ export function useCollectionLists(scope: CollectionScope, open = true, enabled 
     queryKey: adminCollectionKeys.list(scope, open),
     queryFn: () => listCollectionLists(scope, open),
     enabled,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
+    // No timer: every create, tick and close refreshes the lists already,
+    // and a poll per open tab added load the API's one connection per
+    // instance couldn't spare (27 Oct).
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
     retry: retryServerErrors,
   })
 }
