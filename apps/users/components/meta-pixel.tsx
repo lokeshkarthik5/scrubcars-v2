@@ -1,89 +1,98 @@
 'use client'
 
 import { usePathname, useSearchParams } from 'next/navigation'
-import Script from 'next/script'
-import { useEffect, useRef } from 'react'
-import { isVerifyPath } from '@repo/core/service-history-certificate'
-import { carriesGiftCode } from '@/lib/gifts'
-import { carriesCouponCode } from '@/lib/coupons'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
+import {
+  effectiveConsent,
+  getConsentSnapshot,
+  getServerConsentSnapshot,
+  subscribeConsent,
+} from '@/lib/consent'
+import {
+  installPixel,
+  loadPixelScript,
+  pixelExcluded,
+  sendToMeta,
+} from '@/lib/meta-pixel'
 
-/** Detlio's Meta Pixel. Public by design — it ships in the page. */
-const PIXEL_ID = '891710590692874'
-
-/**
- * Meta's base snippet, verbatim. The loader installs `fbq` (and queues calls
- * made before fbevents.js arrives), then records the landing PageView.
- */
-const PIXEL_BOOT = `!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '${PIXEL_ID}');
-fbq('track', 'PageView');`
-
-function trackPageView() {
-  const fbq = (window as Window & { fbq?: (...args: unknown[]) => void }).fbq
-  fbq?.('track', 'PageView')
+/** Runs `run` once the page has loaded and the browser is idle; returns a cancel. */
+function whenIdle(run: () => void): () => void {
+  let cancelled = false
+  let idle: number | undefined
+  let timer: number | undefined
+  const go = () => {
+    if (cancelled) return
+    if (typeof window.requestIdleCallback === 'function') {
+      idle = window.requestIdleCallback(() => {
+        if (!cancelled) run()
+      })
+    } else {
+      timer = window.setTimeout(() => {
+        if (!cancelled) run()
+      }, 1)
+    }
+  }
+  if (document.readyState === 'complete') go()
+  else window.addEventListener('load', go, { once: true })
+  return () => {
+    cancelled = true
+    window.removeEventListener('load', go)
+    if (idle !== undefined) window.cancelIdleCallback?.(idle)
+    if (timer !== undefined) window.clearTimeout(timer)
+  }
 }
 
 /**
- * Meta Pixel on every customer page but those whose address holds a gift
- * code (0049): the gift page (/gift/<code>) and sign-in on the way to
- * redeem one (?next=/gift/<code>). The code is the gift, and Meta is sent
- * the page's full address. Likewise a shared Service History certificate's
- * page (/verify/<token>, 0053): the token opens the car's record. And a
- * printed coupon's page (/c/<code>, 0056) and sign-in on the way back to it. Mounted inside a Suspense boundary (the layout's)
- * for useSearchParams.
+ * Meta Pixel, only for a customer who allowed marketing cookies (the consent
+ * banner, lib/consent.ts): until then, and for a browser with Do-Not-Track or
+ * Global Privacy Control on, Meta's code is never put on the page. Allowing
+ * mid-visit starts it there and then.
  *
- * The boot snippet records the first view. App Router navigations do not
- * reload the document, so later views are sent when the path changes — the
- * first effect is skipped because the snippet already counted that load.
+ * Kept off every page whose address holds a code (lib/meta-pixel.ts
+ * `pixelExcluded`): the gift page and sign-in on the way to it, a printed
+ * coupon's page likewise, and a shared Service History certificate.
+ * Mounted inside a Suspense boundary (the layout's) for useSearchParams.
+ *
+ * `fbq` goes on the page at once (Meta's snippet, so early calls queue), and
+ * fbevents.js loads after the page has loaded and the browser is idle, so it
+ * never competes with the page's own JavaScript for the first paint and the
+ * first tap. A page view is sent for the first page and again whenever the
+ * path changes (App Router navigations do not reload the document); none on
+ * a page it is kept off. No noscript beacon: without JavaScript there is
+ * no way to have said yes.
  */
 export function MetaPixel() {
   const pathname = usePathname()
   const params = useSearchParams()
-  const hidden =
-    carriesGiftCode(pathname, params.get('next')) ||
-    carriesCouponCode(pathname, params.get('next')) ||
-    isVerifyPath(pathname)
-  const booted = useRef(false)
+  const hidden = pixelExcluded(pathname, params.get('next'))
+  const consent = useSyncExternalStore(
+    subscribeConsent,
+    getConsentSnapshot,
+    getServerConsentSnapshot
+  )
+  const allowed =
+    consent.ready &&
+    effectiveConsent(consent.stored, consent.privacySignal) === 'marketing'
+  // The path the last page view was sent for; reset on a page the Pixel
+  // stays off, so coming back to a page counts it again.
+  const viewed = useRef<string | null>(null)
 
   useEffect(() => {
-    if (hidden) return
-    if (!booted.current) {
-      // This render is the one that puts the snippet on the page.
-      booted.current = true
+    if (hidden || !allowed) {
+      viewed.current = null
       return
     }
-    trackPageView()
-  }, [pathname, hidden])
+    installPixel()
+    if (viewed.current !== pathname) {
+      viewed.current = pathname
+      sendToMeta('track', 'PageView')
+    }
+  }, [pathname, hidden, allowed])
 
-  if (hidden) return null
+  useEffect(() => {
+    if (hidden || !allowed) return
+    return whenIdle(() => loadPixelScript())
+  }, [hidden, allowed])
 
-  return (
-    <>
-      {/* lazyOnload: after the page has loaded and the browser is idle, so
-          Meta's script (fbevents.js) never competes with the page's
-          own JavaScript for the first paint and the first tap. The landing
-          PageView is still sent, by this snippet, once it runs. */}
-      <Script id="meta-pixel" strategy="lazyOnload">
-        {PIXEL_BOOT}
-      </Script>
-      <noscript>
-        {/* Meta's no-JS beacon. A plain img: next/image never runs without JS. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          alt=""
-          height="1"
-          width="1"
-          style={{ display: 'none' }}
-          src={`https://www.facebook.com/tr?id=${PIXEL_ID}&ev=PageView&noscript=1`}
-        />
-      </noscript>
-    </>
-  )
+  return null
 }

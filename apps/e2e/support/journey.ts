@@ -6,6 +6,7 @@
  * context would let one app's cookies stand in for the other's.
  */
 import type { Browser, BrowserContext, Page } from '@playwright/test'
+import { answerCookieQuestion } from './consent'
 import { blockThirdParties, dismissLocationPrompt, stubRazorpay } from './network'
 import { statePath } from './auth'
 
@@ -32,10 +33,12 @@ export async function openActors(
     storageState: statePath(customerRole),
     baseURL: USERS_ORIGIN,
   })
+  await answerCookieQuestion(customerCtx)
   const vendorCtx = await browser.newContext({
     storageState: statePath(vendorRole),
     baseURL: VENDORS_ORIGIN,
   })
+  await answerCookieQuestion(vendorCtx)
 
   for (const ctx of [customerCtx, vendorCtx]) {
     await stubRazorpay(ctx)

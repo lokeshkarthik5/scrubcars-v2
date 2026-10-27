@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect } from 'react'
-import { initAnalytics } from '@repo/core/analytics'
+import { initAnalytics, onTrack } from '@repo/core/analytics'
 import { API_BASE_URL } from '@repo/core/api/client'
 import { APP_VERSION } from '@repo/core/version'
+import { mirrorToMeta } from '@/lib/meta-pixel'
 
 /**
  * Detlio's own usage events (packages/core/src/analytics.ts), started once
@@ -13,6 +14,11 @@ import { APP_VERSION } from '@repo/core/version'
  * NEXT_PUBLIC_ANALYTICS=on (next.config.ts turns it on for Production).
  *
  * Renders nothing. Pages record their own steps with `track`.
+ *
+ * The same events are also offered to the Meta Pixel (lib/meta-pixel.ts
+ * `mirrorToMeta`), the one place they are mapped to Meta's: it sends
+ * nothing unless the customer allowed marketing cookies, and then only the
+ * mapped events, with fixed props and nothing personal.
  */
 export function Analytics() {
   useEffect(() => {
@@ -22,5 +28,6 @@ export function Analytics() {
       appVersion: APP_VERSION,
     })
   }, [])
+  useEffect(() => onTrack(mirrorToMeta), [])
   return null
 }

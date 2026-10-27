@@ -15,6 +15,7 @@ import { request, type APIRequestContext, type BrowserContext } from '@playwrigh
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { addConsentToStorageState } from './consent'
 import { forgetOtps, latestOtp } from './db'
 import { ADMIN_LOGINS } from './seed-ids'
 
@@ -78,6 +79,8 @@ export async function saveState(role: string, phone: string, audience: Audience 
   fs.mkdirSync(AUTH_DIR, { recursive: true })
   await ctx.storageState({ path: statePath(role) })
   await ctx.dispose()
+  // The cookie question comes answered (support/consent.ts).
+  addConsentToStorageState(statePath(role))
 }
 
 /** The admin panel uses username/password, not OTP — a separate token shape
@@ -108,6 +111,7 @@ export async function saveAdminState(
   fs.mkdirSync(AUTH_DIR, { recursive: true })
   await ctx.storageState({ path: statePath(role) })
   await ctx.dispose()
+  addConsentToStorageState(statePath(role))
 }
 
 /**

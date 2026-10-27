@@ -7,7 +7,9 @@
  * about what is collected and where it goes was checked against the code; if
  * the code changes what it collects or who receives it, change this page.
  * That includes the Meta Pixel (components/meta-pixel.tsx, mounted on every
- * page by app/layout.tsx) and the server switch HOME_OFFER_TARGETING, which
+ * page by app/layout.tsx, loaded only after the cookie bar's Allow; the
+ * events it sends are lib/meta-pixel.ts, and the API's Conversions API
+ * report of a paid booking) and the server switch HOME_OFFER_TARGETING, which
  * stays off until this text is in force (section 2, "Offers on Home").
  */
 import { type LegalDoc, orTbc, tbc } from './doc-format'
@@ -53,7 +55,7 @@ export const PRIVACY: LegalDoc = {
     },
     {
       kind: 'callout',
-      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, car and (for doorstep) address, and your number only around the booking itself. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data or show ads in Detlio. Our website does load Meta\'s pixel, which tells Meta (Facebook and Instagram) which of our pages you open, so we can measure our ads there (section 4).',
+      text: '**In short:** we collect what we need to book your car care — your mobile number, name, car, and for doorstep visits your address. The garage you book sees your name, car and (for doorstep) address, and your number only around the booking itself. Payments are handled by Razorpay; we never see your card or UPI PIN. We do not sell your data or show ads in Detlio. If you allow marketing cookies, our website loads Meta\'s pixel, which tells Meta (Facebook and Instagram) which of our pages you open and what you do there, such as starting checkout or paying, so we can measure our ads there (section 4).',
     },
   ],
   sections: [
@@ -163,9 +165,9 @@ export const PRIVACY: LegalDoc = {
               'Helping you and dealing with complaints. Our internal notes are not shown to garages.',
             ],
             [
-              'The pages you open on detlio.com, with your IP address and details of your browser and device',
-              'Your browser sends them to Meta, through Meta\'s pixel (section 4)',
-              'Measuring and improving our ads on Facebook and Instagram. Sent straight to Meta; we do not receive or keep it.',
+              'Only if you allow marketing cookies: the pages you open on detlio.com and some of what you do there (section 4), with your IP address and details of your browser and device',
+              'Your browser sends them to Meta, through Meta\'s pixel; for a paid booking our server tells Meta too (section 4)',
+              'Measuring and improving our ads on Facebook and Instagram. The pixel sends straight to Meta; we do not receive or keep it.',
             ],
             [
               'Technical data: sign-in cookies, server logs (including the web addresses requested, which can contain address searches, map coordinates and, when our team looks up your booking, your name or mobile number, and your IP address), and error reports',
@@ -180,7 +182,7 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Lawful basis.** DPDP Act s.7(a) lets data the customer volunteers for a booking be used for it without separate consent; other uses need consent (s.6). Please mark which basis covers each row (the table could gain a fourth column). Two uses are marketing and are not needed for a booking: matched offers on Home ("Offers on Home" below; off until this text is in force) and Meta\'s pixel (section 4; live on every page today). Neither has a consent step yet; see the notes on each.',
+          text: '**Lawful basis.** DPDP Act s.7(a) lets data the customer volunteers for a booking be used for it without separate consent; other uses need consent (s.6). Please mark which basis covers each row (the table could gain a fourth column). Two uses are marketing and are not needed for a booking: matched offers on Home ("Offers on Home" below; off until this text is in force) and Meta\'s pixel (section 4), which now loads only after the customer allows marketing cookies. Offers on Home has no consent step yet; see the notes on each.',
         },
         {
           kind: 'note',
@@ -248,7 +250,7 @@ export const PRIVACY: LegalDoc = {
             'We never see or store your card number, CVV, UPI PIN or net-banking password. You enter them on Razorpay\'s checkout, and Razorpay tells us only whether the payment went through and its reference IDs.',
             'There are no passwords: you sign in with a one-time code.',
             'We do not collect Aadhaar, PAN or other government ID numbers, health information or biometrics.',
-            'We use one advertising tool, Meta\'s pixel (section 4), and no other advertising or analytics trackers. We do not show ads in Detlio.',
+            'We use one advertising tool, Meta\'s pixel, only if you allow it (section 4), and no other advertising or analytics trackers. We do not show ads in Detlio.',
             'We do not sell your personal data, and we do not send you marketing messages by SMS, WhatsApp or email. Offers appear only inside the app, on Home (section 2).',
           ],
         },
@@ -399,11 +401,37 @@ export const PRIVACY: LegalDoc = {
           blocks: [
             {
               kind: 'p',
-              text: 'Every page of detlio.com loads the **Meta Pixel**, a small piece of code from Meta Platforms, the company behind Facebook and Instagram. We use it to measure and improve our ads on Facebook and Instagram: for example, to count how many people open Detlio after seeing one of our ads.',
+              text: 'detlio.com can use the **Meta Pixel**, a small piece of code from Meta Platforms, the company behind Facebook and Instagram, to measure and improve our ads on Facebook and Instagram: for example, to count how many people book with Detlio after seeing one of our ads.',
             },
             {
               kind: 'p',
-              text: 'It runs on every page of the customer website, whether or not you are signed in: the homepage, sign-in, garage pages, checkout, your bookings and receipts, your profile, Home and these policies. It is not on the partner portal garages use. Each time you open a page, including moving from screen to screen inside the app, your browser sends Meta a "page view" with:',
+              text: '**The pixel runs only if you allow marketing cookies.** The first time you open detlio.com we ask, in a bar at the top of the page: "Allow" or "Only essential". Until you choose Allow, Meta\'s code is not loaded and nothing is sent to Meta. If your browser has Do-Not-Track or Global Privacy Control turned on, we treat that as "Only essential" and do not ask. The pixel never runs on a gift\'s page, a printed coupon\'s page or a shared Service History page, or on sign-in on the way to one of them, because their web addresses hold a code.',
+            },
+            {
+              kind: 'p',
+              text: 'If you allow it, it runs on the rest of the customer website, whether or not you are signed in. It is not on the partner portal garages use. Your browser then tells Meta when you do one of these things:',
+            },
+            {
+              kind: 'list',
+              items: [
+                '**PageView**: you open a page, including moving from screen to screen inside the app.',
+                '**Search**: you search for a garage. Only the category you picked, such as Detailing; never the words you typed.',
+                '**ViewContent**: you open a garage\'s page, with the garage\'s reference number.',
+                '**AddToWishlist**: you save a garage, with the garage\'s reference number.',
+                '**AddToCart**: you add a service, with the garage\'s reference number and the kind of service.',
+                '**InitiateCheckout**: you start checkout, with how many services you picked.',
+                '**AddPaymentInfo**: you tap Pay.',
+                '**Purchase**: you pay for a booking, with the amount paid in rupees, how many services, and an event ID made from the booking\'s ID, so that Meta counts it once.',
+                '**CompleteRegistration**: you finish creating your Detlio account. Not your name or number.',
+                '**SlotSelected**: you pick a time at checkout.',
+                '**AddressSelected**: you pick an address at checkout (that you picked one, not which).',
+                '**CouponRedeemed**: you add a coupon, with how you added it (its link, typed, or the camera); never the code.',
+                '**MapView**: you open the map.',
+              ],
+            },
+            {
+              kind: 'p',
+              text: 'With each of these, your browser also sends Meta:',
             },
             {
               kind: 'list',
@@ -416,23 +444,31 @@ export const PRIVACY: LegalDoc = {
             },
             {
               kind: 'p',
-              text: 'Apart from what the page address shows, we have not set it up to send your name, mobile number or car. Meta receives this directly from your browser, on its servers outside India, and also uses it for its own purposes under [Meta\'s Privacy Policy](https://www.facebook.com/privacy/policy/), for example to choose which ads to show you. Your browser can limit it (blocking third-party cookies, or its tracking protection), and your Facebook and Instagram settings let you see and disconnect activity that websites share with Meta.',
+              text: '**A paid booking is also sent from our server.** When you pay for a booking with marketing cookies allowed, our server tells Meta about it too, through Meta\'s Conversions API, in case your browser\'s message does not arrive: the amount, how many services, the same event ID, the page address without anything after "?", your IP address, details of your browser, and the _fbp and _fbc cookies. Never your name, mobile number or address.',
+            },
+            {
+              kind: 'p',
+              text: 'Apart from what the page address shows, we have not set it up to send your name, mobile number, address or car, a booking\'s receipt, a gift or coupon code, or what you type in a search. Meta receives this on its servers outside India, and also uses it for its own purposes under [Meta\'s Privacy Policy](https://www.facebook.com/privacy/policy/), for example to choose which ads to show you.',
+            },
+            {
+              kind: 'p',
+              text: '**Changing your choice.** Tap **Cookie settings** (in Profile, under Legal, and at the foot of our website\'s pages) and choose again. Choosing "Only essential" stops the pixel from the next page you open; the _fbp and _fbc cookies it set stay until they expire or you clear them in your browser. Your Facebook and Instagram settings also let you see and disconnect activity that websites share with Meta.',
             },
             {
               kind: 'note',
-              text: '**Consent before the pixel loads (DPDP).** The pixel loads on every page as soon as it opens, before any choice is offered (components/meta-pixel.tsx, mounted in app/layout.tsx), and nothing in the app turns it off. Measuring ads is not needed for a booking and is not a s.7 "legitimate use", so it likely needs s.6 consent: a banner or opt-in, with the pixel not loading until the customer agrees, and a way to withdraw that is as easy. Please advise. Also: is Meta a Data Processor for Detlio, or a separate Data Fiduciary for what it does with the data for itself? Meta\'s Business Tools Terms treat it partly as each. That decides whether Meta belongs in the provider table above (processors only) or, as drafted, here on its own.',
+              text: '**Consent (DPDP).** Done in this release: the pixel loads only after the customer taps Allow (components/consent/consent-banner.tsx, components/meta-pixel.tsx); Do-Not-Track and Global Privacy Control count as "Only essential"; the choice is kept for a year in a detlio_consent cookie and can be changed at any time from Cookie settings. Please advise: (1) whether the banner\'s words ("We use cookies to measure our ads on Facebook and Instagram. Allow marketing cookies?") are enough for s.6 consent, or need to name Meta and link this section more prominently; (2) whether a year is the right time before asking again; (3) whether withdrawing should also try to remove Meta\'s _fbp/_fbc cookies (the app does not today; they expire on their own). Also: is Meta a Data Processor for Detlio, or a separate Data Fiduciary for what it does with the data for itself? Meta\'s Business Tools Terms treat it partly as each. That decides whether Meta belongs in the provider table above (processors only) or, as drafted, here on its own.',
             },
             {
               kind: 'note',
-              text: '**Which pages the pixel runs on.** Recommendation, not done in this release: load the pixel only on the public marketing pages (the homepage, garage pages, these policies), not on signed-in pages, whose web addresses carry booking ids (/bookings/<id>, /bookings/<id>/receipt) and checkout choices (/book/<garage>?service=…&mode=doorstep&code=…, also inside /login?next=… on the way there). Every page view sends that address to Meta, as soon as the page opens: the booking page removes ?celebrate=1 (just paid), ?then=pay (a final bill to pay) and ?rate=N (the star tapped on Home\'s "Rate your wash") with replaceState, but only after the first page view has gone. If the pixel stays on these pages, at least strip those parameters before it loads, or send Meta only the path without the query. The list above describes what is sent today. The code is unchanged here; if the pages change, the second paragraph above changes with them.',
+              text: '**Which pages the pixel runs on.** Recommendation, not done in this release: with consent, load the pixel only on the public marketing pages (the homepage, garage pages, these policies), not on signed-in pages, whose web addresses carry booking ids (/bookings/<id>, /bookings/<id>/receipt) and checkout choices (/book/<garage>?service=…&mode=doorstep&code=…, also inside /login?next=… on the way there). Every page view sends that address to Meta, as soon as the page opens: the booking page removes ?celebrate=1 (just paid), ?then=pay (a final bill to pay) and ?rate=N (the star tapped on Home\'s "Rate your wash") with replaceState, but only after the first page view has gone. If the pixel stays on these pages, at least strip those parameters before it loads, or send Meta only the path without the query. The Purchase event\'s ID ("purchase-" and the booking\'s ID, shared with the Conversions API so Meta counts the booking once) contains the booking\'s reference number (its first eight characters); a hashed ID would avoid that. The list above describes what is sent today.',
             },
             {
               kind: 'note',
-              text: '**Meta requires this notice.** Meta\'s Business Tools Terms require a site using the pixel to tell visitors, clearly and prominently, that Meta and others collect information through cookies and similar tools, how they can opt out, and to obtain consent where the law requires it. This section and the cookie rows in section 5 are that notice, now added. The opt-out offered is only the browser\'s and Meta\'s own settings until there is a consent choice.',
+              text: '**Meta requires this notice.** Meta\'s Business Tools Terms require a site using the pixel to tell visitors, clearly and prominently, that Meta and others collect information through cookies and similar tools, how they can opt out, and to obtain consent where the law requires it. This section, the cookie rows in section 5 and the cookie bar are that notice and that choice.',
             },
             {
               kind: 'note',
-              text: '**Settings in Meta\'s Events Manager.** "Apart from what the page address shows, we have not set it up to send your name, mobile number or car" holds only while "Automatic advanced matching" and automatic event tracking (button clicks and page metadata) are off for pixel 891710590692874. With automatic advanced matching on, the pixel itself reads form fields, such as the mobile number on the sign-in screen, and sends them hashed. Please have the team confirm both are off, or change the sentence. The code sends only page views.',
+              text: '**Settings in Meta\'s Events Manager.** The code turns off the pixel\'s automatic events (button clicks and page metadata: autoConfig off) and its automatic page views on in-app navigation, and sends only the events listed above. "We have not set it up to send your name, mobile number…" also needs "Automatic advanced matching" to be off for pixel 891710590692874 in Events Manager: with it on, the pixel itself reads form fields, such as the mobile number on the sign-in screen, and sends them hashed. Please have the team confirm it is off, or change the sentence.',
             },
           ],
         },
@@ -474,7 +510,7 @@ export const PRIVACY: LegalDoc = {
       blocks: [
         {
           kind: 'p',
-          text: 'Most of what we store is needed to make Detlio work. The exception is Meta\'s pixel (section 4), which sets advertising cookies on detlio.com.',
+          text: 'Most of what we store is needed to make Detlio work. The exception is Meta\'s pixel (section 4), which sets advertising cookies on detlio.com, and only if you allow marketing cookies.',
         },
         {
           kind: 'table',
@@ -488,6 +524,7 @@ export const PRIVACY: LegalDoc = {
             ['detlio-location (local storage)', 'Your last location and place name, if you shared it, so the app can show nearby garages', 'Until you clear it in your browser'],
             ['detlio-pending-checkout (local storage)', 'The offer code and car you picked on Home, so checkout can apply the code', 'Cleared when you book, remove the code or log out; ignored after a day, or once the offer ends'],
             ['detlio:tip-hidden-on (local storage)', 'The day you hid the car care tip on Home', 'Until you clear it in your browser; the tip comes back the next day'],
+            ['detlio_consent (cookie)', 'Your answer to the cookie question: marketing cookies allowed, or only essential ones. Change it in Cookie settings.', '1 year'],
             ['_fbp (cookie, set by Meta\'s pixel)', 'Advertising: a random ID that lets Meta recognise this browser on each visit to detlio.com, to measure our ads', '90 days, renewed on each visit'],
             ['_fbc (cookie, set by Meta\'s pixel)', 'Advertising: set when you arrive from a link on Facebook or Instagram (including our ads) that carries Meta\'s click ID, to record which click brought you', '90 days'],
           ],
@@ -527,7 +564,7 @@ export const PRIVACY: LegalDoc = {
             ['Reviews', 'Shown while the garage is listed, unless removed under our Terms or at your request; kept with the booking record after that'],
             ['Sign-in codes and session records', `Codes stop working after 3 minutes. Records of codes sent and of sign-in sessions are kept for ${LOGS}`],
             ['Server logs and error reports', LOGS],
-            ['What Meta\'s pixel sends (section 4)', 'We do not receive or keep it. Meta keeps it under its own policy; the _fbp cookie on your device lasts 90 days from your last visit.'],
+            ['What Meta\'s pixel sends, if you allow it (section 4)', 'We do not receive or keep it. Meta keeps it under its own policy; the _fbp cookie on your device lasts 90 days from your last visit.'],
             ['After you close your account', `${AFTER_CLOSURE}, except records we must keep by law, as above`],
           ],
         },
@@ -587,7 +624,7 @@ export const PRIVACY: LegalDoc = {
             '**Access.** Ask for a summary of the personal data we hold about you, what we do with it, and who we have shared it with.',
             '**Correction and updating.** You can change your cars, saved addresses and profile photo in the app (Profile). For your name or anything else, ask us.',
             '**Erasure and closing your account.** Ask us to delete your data or close your account. We will delete what we no longer need, except records the law requires us to keep (section 7), and tell you what we kept and why.',
-            '**Withdrawing consent.** You can stop sharing your location at any time in your browser\'s settings, limit Meta\'s pixel with your browser\'s cookie settings (section 4), ask us to show you only the offers shown to everyone (section 2), and withdraw consent for anything else by asking us. Withdrawing does not affect what was done before, but we may not be able to provide a booking without the data it needs.',
+            '**Withdrawing consent.** You can stop sharing your location at any time in your browser\'s settings, turn Meta\'s pixel off in Cookie settings (section 4), ask us to show you only the offers shown to everyone (section 2), and withdraw consent for anything else by asking us. Withdrawing does not affect what was done before, but we may not be able to provide a booking without the data it needs.',
             '**Grievance.** Complain to our Grievance Officer about how we handle your data (section 14).',
             '**Nominating someone.** You can name a person to use these rights for you if you die or are unable to.',
           ],

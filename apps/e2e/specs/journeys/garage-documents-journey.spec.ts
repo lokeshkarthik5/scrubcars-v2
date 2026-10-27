@@ -17,6 +17,7 @@
  * by no other spec.
  */
 import path from 'node:path'
+import { answerCookieQuestion } from '../../support/consent'
 import { fileURLToPath } from 'node:url'
 import type { Browser } from '@playwright/test'
 import { test, expect } from '../../support/fixtures'
@@ -53,6 +54,7 @@ async function openGarage(browser: Browser) {
     viewport: { width: 412, height: 915 },
     isMobile: true,
   })
+  await answerCookieQuestion(ctx)
   await api.dispose()
   await setActiveVendor(ctx, GARAGE.id)
   await blockThirdParties(ctx)
@@ -66,6 +68,7 @@ async function openAdmin(browser: Browser) {
     baseURL: ADMIN_ORIGIN,
     viewport: { width: 1280, height: 900 },
   })
+  await answerCookieQuestion(ctx)
   await blockThirdParties(ctx)
   return { ctx, page: await ctx.newPage() }
 }
@@ -209,6 +212,7 @@ test.describe.serial('garage documents @p0', () => {
       viewport: { width: 412, height: 915 },
       isMobile: true,
     })
+    await answerCookieQuestion(ctx)
     await dismissLocationPrompt(ctx)
     await blockThirdParties(ctx)
     const page = await ctx.newPage()

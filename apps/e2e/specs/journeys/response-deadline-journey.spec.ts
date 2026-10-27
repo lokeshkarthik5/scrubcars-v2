@@ -12,6 +12,7 @@
  * garage's neighbour as another garage to book.
  */
 import { test, expect } from '../../support/fixtures'
+import { answerCookieQuestion } from '../../support/consent'
 import { API, loginViaApi, statePath } from '../../support/auth'
 import { getBooking, getPayment, sql } from '../../support/db'
 import { USERS_ORIGIN } from '../../support/journey'
@@ -92,6 +93,7 @@ test.describe('garage response deadline @p0', () => {
     await stranger.dispose()
 
     const ctx = await browser.newContext({ storageState: statePath('customer-notAccepted'), baseURL: USERS_ORIGIN })
+    await answerCookieQuestion(ctx)
     await dismissLocationPrompt(ctx)
     await blockThirdParties(ctx)
     const page = await ctx.newPage()
