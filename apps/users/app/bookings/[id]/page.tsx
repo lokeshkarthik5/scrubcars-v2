@@ -21,6 +21,7 @@ import { WhenPicker } from '@/components/checkout/when-picker'
 import { STATUS_STEPS, bookingHeadline } from '@/lib/booking-status'
 import { formatWhen } from '@repo/core/format'
 import { money } from '@/lib/money'
+import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
 import { contactWindowState } from '@repo/core/contact-window'
 import { telHref, whatsAppHref } from '@repo/core/contact-links'
 import { ScInput } from '@repo/ui/sc/input'
@@ -517,11 +518,14 @@ export default function BookingDetailPage({
           // reads paid — which the webhook also does on its own.
           const outcome = await confirmPayment({
             verify: async () => {
+              // Only with marketing consent; left out otherwise.
+              const marketing = currentMarketingContext()
               await verifyPayment({
                 bookingId: booking.id,
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: paymentId,
                 razorpaySignature: response.razorpay_signature,
+                ...(marketing ? { marketing } : {}),
               })
               return { bookingId: booking.id }
             },
@@ -543,6 +547,12 @@ export default function BookingDetailPage({
           })
 
           if (outcome.kind === 'booked') {
+            // Meta's Purchase (marketing consent only), as at checkout.
+            trackPurchase({
+              bookingId: booking.id,
+              rupeesPaid: order.amount / 100,
+              numItems: booking.items.length,
+            })
             const updated = await getBooking(booking.id)
             if (updated) setBooking(updated)
             setPaid({ paymentId, phase: 'booked' })

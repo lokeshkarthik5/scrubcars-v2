@@ -190,6 +190,81 @@ export function browserAsksNotToTrack(
   return dnt === '1' || dnt === 'yes' || nav?.globalPrivacyControl === true
 }
 
+// ─── Listeners: one more place an event goes ─────────────────────────────────
+
+/** One recorded event, as a listener sees it: only the props the event may carry. */
+export interface TrackedEvent {
+  name: ClientEventName
+  props?: Record<string, string | number>
+}
+
+export type TrackListener = (event: TrackedEvent) => void
+
+export interface TrackHub {
+  emit(name: ClientEventName, props?: object): void
+  /** Adds a listener; returns the way to remove it. */
+  subscribe(listener: TrackListener): () => void
+}
+
+/**
+ * Hands every `track` call to whoever listens: the customer app's Meta Pixel
+ * mapping (apps/users/lib/meta-events.ts), which decides for itself whether
+ * to send anything. Independent of the first-party tracker: it runs whether
+ * or not NEXT_PUBLIC_ANALYTICS is on, and a listener checks its own consent.
+ *
+ * Events recorded before anyone listens (a page's first effects run before
+ * the layout's) wait, at most MAX_EARLY of them, and go to the first
+ * listener. A listener that throws never stops the others, or the page.
+ */
+export function createTrackHub(): TrackHub {
+  const listeners = new Set<TrackListener>()
+  let waiting: TrackedEvent[] | null = []
+
+  function deliver(listener: TrackListener, event: TrackedEvent) {
+    try {
+      listener(event)
+    } catch {
+      // A listener's failure is its own.
+    }
+  }
+
+  return {
+    emit(name, props) {
+      try {
+        const event: TrackedEvent = { name }
+        const kept = allowedProps(name, props)
+        if (kept) event.props = kept
+        if (listeners.size === 0) {
+          if (waiting && waiting.length < MAX_EARLY) waiting.push(event)
+          return
+        }
+        for (const listener of [...listeners]) deliver(listener, event)
+      } catch {
+        // Never let a measurement break the page.
+      }
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      const held = waiting
+      waiting = null
+      if (held) for (const event of held) deliver(listener, event)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
+}
+
+const hub = createTrackHub()
+
+/**
+ * Calls `listener` with every event the app records from now on (and those
+ * recorded before the first listener arrived). Returns the way to stop.
+ */
+export function onTrack(listener: TrackListener): () => void {
+  return hub.subscribe(listener)
+}
+
 let tracker: Tracker | null = null
 let early: Array<() => void> = []
 let started = false
@@ -254,6 +329,7 @@ export function initAnalytics(config: { endpoint: string; enabled: boolean; appV
 export function track<N extends ClientEventName>(name: N, props?: EventProps[N]): void {
   try {
     if (typeof window === 'undefined') return
+    hub.emit(name, props)
     if (tracker) {
       tracker.track(name, props)
       return

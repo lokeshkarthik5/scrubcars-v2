@@ -12,6 +12,7 @@
  * viewer) are this spec's alone; nobody else signs in as them.
  */
 import { request, type APIRequestContext } from '@playwright/test'
+import { answerCookieQuestion } from '../../support/consent'
 import { test, expect, asRole } from '../../support/fixtures'
 import { API } from '../../support/auth'
 import { sql } from '../../support/db'
@@ -43,6 +44,7 @@ async function signIn(username: string, password: string): Promise<{ status: num
 test.describe('your own login @p0', () => {
   test('signs in through the form, shows who you are, and signs what you do', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+    await answerCookieQuestion(ctx)
     const page = await ctx.newPage()
     await page.goto('/login')
     await page.getByLabel('Username').fill(` ${ADMIN_LOGINS.e2e.username.toUpperCase()} `)
@@ -167,6 +169,7 @@ test.describe('Team logins: anyone but the owner @p0', () => {
   test('sees the list with no controls, and the API refuses them', async ({ browser }) => {
     const login = ADMIN_LOGINS.viewer
     const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+    await answerCookieQuestion(ctx)
     const page = await ctx.newPage()
     await page.goto('/login')
     await page.getByLabel('Username').fill(login.username)
@@ -204,6 +207,7 @@ test.describe('your password', () => {
     const login = ADMIN_LOGINS.changer
     await restore(login)
     const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+    await answerCookieQuestion(ctx)
     const page = await ctx.newPage()
     await page.goto('/login')
     await page.getByLabel('Username').fill(login.username)

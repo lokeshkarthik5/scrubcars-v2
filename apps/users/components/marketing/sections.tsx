@@ -44,6 +44,7 @@ import { OutsideCityChip } from '@repo/ui/features/outside-city'
 import { OPERATED_BY } from '@/lib/legal/common'
 import { BUSINESS } from '@/lib/legal/details'
 import { LEGAL_LINKS } from '@/lib/legal/routes'
+import { CookieSettingsButton } from '@/components/consent/cookie-settings-button'
 import { BeforeAfter } from './before-after'
 import { Reel } from './reel'
 import {
@@ -246,7 +247,8 @@ export function SiteHeader({ links }: { links: Cta[] }) {
   return (
     // mk-header: clear over the hero, settling to a solid bar as the page
     // scrolls (app/globals.css). Without scroll timelines it stays solid.
-    <header className="mk-header fixed inset-x-0 top-0 z-40 border-b border-white/[0.06] bg-brand-black/75 backdrop-blur-md">
+    // Below the cookie bar while it is up (--consent-bar, app/globals.css).
+    <header className="mk-header fixed inset-x-0 top-(--consent-bar) z-40 border-b border-white/[0.06] bg-brand-black/75 backdrop-blur-md">
       <div
         className={cn(
           CONTAINER,
@@ -1246,6 +1248,12 @@ export function SiteFooter() {
               {link.label}
             </Link>
           ))}
+          <CookieSettingsButton
+            className={cn(
+              'self-start rounded-sm text-left text-[14px] text-text-secondary transition-colors hover:text-brand-white',
+              FOCUS_RING
+            )}
+          />
         </nav>
         {contact.length > 0 && (
           <ul className="flex flex-col gap-3">

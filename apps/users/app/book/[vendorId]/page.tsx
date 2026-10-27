@@ -25,6 +25,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { MainAction } from '@/components/main-action'
 import { isHomeHubEnabled } from '@/lib/home-hub'
 import { LEGAL_PATHS } from '@/lib/legal/routes'
+import { currentMarketingContext, trackPurchase } from '@/lib/meta-pixel'
 import {
   PaymentReceivedPanel,
   paymentReceivedText,
@@ -966,13 +967,18 @@ function BookContent({ vendorId }: { vendorId: string }) {
           // Retries a dropped confirm, then watches for the booking the
           // webhook writes on its own. Never throws, and never ends in Pay.
           const outcome = await confirmPayment({
-            verify: () =>
-              verifyPayment({
+            verify: () => {
+              // Only with marketing consent: the API then reports the paid
+              // booking to Meta itself (Conversions API). Left out otherwise.
+              const marketing = currentMarketingContext()
+              return verifyPayment({
                 intentId: order.intentId,
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: paymentId,
                 razorpaySignature: response.razorpay_signature,
-              }),
+                ...(marketing ? { marketing } : {}),
+              })
+            },
             poll: async () =>
               intentPollResult(await getBookingIntentStatus(order.intentId)),
             ...realClock,
@@ -986,6 +992,13 @@ function BookContent({ vendorId }: { vendorId: string }) {
           void invalidateRewards(queryClient)
           void invalidateCoupons(queryClient)
           if (outcome.kind === 'booked') {
+            // Meta's Purchase (marketing consent only): what Razorpay took,
+            // in rupees, under the event id the API's report shares.
+            trackPurchase({
+              bookingId: outcome.bookingId,
+              rupeesPaid: order.amount / 100,
+              numItems: selectedServices.length,
+            })
             // The offer and car Home handed over have done their job.
             clearPending()
             // ?celebrate=1 triggers the success burst on arrival; the booking
@@ -1167,10 +1180,11 @@ function BookContent({ vendorId }: { vendorId: string }) {
   return (
     <AppShell className="gap-6 pt-0 pb-0">
       {/* Sticky, not fixed: it keeps its place in the flow. Full-bleed via
-          -mx-4 against AppShell's px-4, and opaque so rows scroll under it. */}
+          -mx-4 against AppShell's px-4, and opaque so rows scroll under it.
+          Below the cookie bar while that is up (--consent-bar). */}
       <PageHeader
         title="Book your wash"
-        className="sticky top-0 z-30 -mx-4 bg-brand-black px-4"
+        className="sticky top-(--consent-bar) z-30 -mx-4 bg-brand-black px-4"
       />
 
       {/* The garage page says this where Book Now would be; a customer can

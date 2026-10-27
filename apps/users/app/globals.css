@@ -288,12 +288,28 @@
 
 /* ─── Marketing homepage ───────────────────────────────────────────────────── */
 
+/* ─── Cookie choice ───────────────────────────────────────────────────────
+ *
+ * While the consent bar (components/consent/consent-banner.tsx) is up it sits
+ * at the top of the page, sticky, and sets --consent-bar to its height. What
+ * is fixed or sticky to the top (the homepage's header, the map, checkout's
+ * bar) sits below it by that much, and anything scrolled into view stops
+ * below it. 0 the rest of the time, so nothing moves.
+ */
+:root {
+  --consent-bar: 0px;
+}
+
+html {
+  scroll-padding-top: var(--consent-bar);
+}
+
 /* The homepage's header is fixed, so anything scrolled into view — an anchor
    jump, or keyboard focus moving down the page — must stop below it rather
    than underneath it (WCAG 2.4.11). Scoped to the homepage; the app's own
    screens have no fixed header. */
 html:has(main[data-marketing-home]) {
-  scroll-padding-top: 5rem;
+  scroll-padding-top: calc(5rem + var(--consent-bar));
 }
 
 /* ─── Homepage motion ──────────────────────────────────────────────────────

@@ -65,6 +65,7 @@ import {
   type PinText,
 } from '@/components/pin-autofill'
 import { LEGAL_LINKS } from '@/lib/legal/routes'
+import { CookieSettingsButton } from '@/components/consent/cookie-settings-button'
 
 type VehicleType = 'sedan' | 'suv' | 'hatchback'
 
@@ -890,6 +891,17 @@ export default function ProfilePage() {
                 </Link>
               </li>
             ))}
+            <li>
+              {/* Changes the choice the cookie bar asked for. */}
+              <CookieSettingsButton className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-[13px] text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white">
+                Cookie settings
+                <IconChevronRight
+                  size={16}
+                  className="text-text-muted"
+                  aria-hidden="true"
+                />
+              </CookieSettingsButton>
+            </li>
           </ul>
         </ScCard>
       </section>

@@ -9,6 +9,7 @@
  * same link says so. Fixture ids 3300–3399 only (seedCertificateRows).
  */
 import { test, expect, asRole } from '../../support/fixtures'
+import { answerCookieQuestion } from '../../support/consent'
 import { CUSTOMERS, VENDORS } from '../../support/seed-ids'
 
 test.use({ storageState: asRole('customer-certificate') })
@@ -35,6 +36,7 @@ test.describe('service history certificate', () => {
 
     // A stranger, signed out.
     const stranger = await browser.newContext({ baseURL: new URL(page.url()).origin })
+    await answerCookieQuestion(stranger)
     const publicPage = await stranger.newPage()
     await publicPage.goto(`/verify/${token}`)
     await expect(publicPage.getByText('Genuine Detlio record')).toBeVisible()
