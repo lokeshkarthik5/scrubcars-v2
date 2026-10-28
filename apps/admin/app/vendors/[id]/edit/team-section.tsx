@@ -16,6 +16,7 @@ import {
 } from '@repo/core/api/admin'
 import type { ApiMember } from '@repo/core/api/members'
 import type { VendorRole } from '@repo/core/api/types'
+import { SavedNote, useSavedNote } from '@/components/save-bar'
 
 const ROLE_OPTIONS: { value: VendorRole; label: string }[] = [
   { value: 'vendor_operator', label: 'Operator' },
@@ -43,6 +44,7 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<VendorRole>('vendor_operator')
+  const note = useSavedNote()
 
   useEffect(() => {
     let cancelled = false
@@ -68,10 +70,13 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
   const run = async (id: string, action: () => Promise<void>) => {
     setBusyId(id)
     setError('')
+    note.saving()
     try {
       await action()
       setMembers(await listAdminVendorMembers(vendorId))
+      note.saved()
     } catch (err) {
+      note.reset()
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setBusyId(null)
@@ -92,10 +97,10 @@ export function VendorTeamSection({ vendorId }: { vendorId: string }) {
     })
 
   return (
-    <ScSection title="Team">
+    <ScSection title="Team" action={<SavedNote state={note.state} />}>
       <p className="text-[12px] text-text-muted">
-        Saved immediately — these do not wait for “Save changes”. A phone with
-        no account yet gets access the next time it logs in.
+        Saves at once, not with “Save changes”. A phone with no account yet gets
+        access the next time it logs in.
       </p>
 
       {/* Amber, as errors are: red on this page is Save changes. */}

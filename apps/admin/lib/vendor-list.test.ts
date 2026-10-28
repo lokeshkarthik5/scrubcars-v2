@@ -20,6 +20,24 @@ import {
   stateWord,
   SHOW_FILTERS,
 } from './vendor-list'
+import {
+  garageArea,
+  garageListHref,
+  garageNextStep,
+  isMissing,
+  matchesOnboardedBy,
+  matchesTeam,
+  missingTagsThatFit,
+  modesShort,
+  nextStepRank,
+  onboardedByOptions,
+  ONBOARDED_NOT_SET,
+  parseGarageList,
+  parseMissing,
+  parseOnboardedBy,
+  parseTeam,
+  stageCell,
+} from './vendor-list'
 import { safeBackHref } from './garage-edit'
 
 type Row = Parameters<typeof showCounts>[0][number]
@@ -268,6 +286,37 @@ describe('the card', () => {
     ).toEqual([])
   })
 
+  test('as many Missing tags as fit one line, red first, at least one', () => {
+    expect(missingTagsThatFit(undefined)).toBe(0)
+    expect(missingTagsThatFit([])).toBe(0)
+    // Map pin and Services are red: they lead, and "+3" follows.
+    expect(
+      missingTagsThatFit(['photos', 'map_pin', 'bays', 'services', 'logo'])
+    ).toBe(2)
+    expect(missingTagsThatFit(['photos', 'logo', 'payout'])).toBe(2)
+    expect(missingTagsThatFit(['radius_default', 'payout'])).toBe(1)
+    expect(missingTagsThatFit(['photos', 'documents'])).toBe(2)
+    expect(missingTagsThatFit(['payout'])).toBe(1)
+  })
+
+  test('how it books, in a word for the narrow Modes column', () => {
+    const v = { dropinEnabled: true, doorstepEnabled: true }
+    expect(modesShort(v)).toBe('Both')
+    expect(modesShort({ ...v, dropinEnabled: false })).toBe('Doorstep')
+    expect(modesShort({ ...v, doorstepEnabled: false })).toBe('At garage')
+    expect(modesShort({ ...v, pickupEnabled: true })).toBe('Both + pickup')
+    expect(modesShort({ dropinEnabled: false, doorstepEnabled: false })).toBe(
+      'None on'
+    )
+    expect(
+      modesShort({
+        dropinEnabled: false,
+        doorstepEnabled: false,
+        pickupEnabled: true,
+      })
+    ).toBe('Pickup only')
+  })
+
   test('pickup & drop, when on, comes last', () => {
     const garage = {
       dropinEnabled: true,
@@ -452,5 +501,285 @@ describe('find a garage', () => {
     expect(matchesSearch(v, '98765 43210')).toBe(true)
     expect(matchesSearch(v, 'Adyar')).toBe(false)
     expect(matchesSearch(v, '12')).toBe(false)
+  })
+})
+
+describe('search reaches the owner too', () => {
+  const v = {
+    businessName: 'Shine Auto Spa',
+    city: 'Chennai',
+    phone: '+914400000000',
+    owner: { id: 'o', name: 'Deepak Menon', phone: '+919876543210' },
+  }
+  test("the owner's name and phone", () => {
+    expect(matchesSearch(v, 'deepak')).toBe(true)
+    expect(matchesSearch(v, '98765 43210')).toBe(true)
+    expect(matchesSearch(v, '4400 0000')).toBe(true)
+    expect(matchesSearch({ ...v, owner: null }, 'deepak')).toBe(false)
+  })
+})
+
+describe('the table filters in the URL', () => {
+  test('each param is an allow-list, or trimmed text', () => {
+    expect(parseMissing('photos')).toBe('photos')
+    expect(parseMissing('PHOTOS')).toBeNull()
+    expect(parseMissing(null)).toBeNull()
+    expect(parseOnboardedBy('  Raga ')).toBe('Raga')
+    expect(parseOnboardedBy('   ')).toBeNull()
+    expect(parseOnboardedBy('x'.repeat(150))).toHaveLength(100)
+    expect(parseTeam('with')).toBe('with')
+    expect(parseTeam('mine')).toBe('mine')
+    expect(parseTeam('all')).toBeNull()
+  })
+
+  test('the list round-trips through its link, and the default is the bare list', () => {
+    expect(garageListHref({ show: 'live' })).toBe('/vendors')
+    const href = garageListHref({
+      show: 'all',
+      q: ' foam ',
+      missing: 'payout',
+      onboardedBy: ONBOARDED_NOT_SET,
+      team: 'with',
+    })
+    expect(href).toBe(
+      '/vendors?show=all&q=foam&missing=payout&onboardedBy=-&team=with'
+    )
+    expect(parseGarageList(new URLSearchParams(href.split('?')[1]))).toEqual({
+      show: 'all',
+      q: 'foam',
+      missing: 'payout',
+      onboardedBy: '-',
+      team: 'with',
+    })
+    // The editor's back arrow takes it as it is.
+    expect(safeBackHref(href)).toBe(href)
+    expect(garageListHref({ show: 'pending' })).toBe(listHref('pending'))
+  })
+})
+
+describe('Missing, Onboarded by and the team chips', () => {
+  test('missing matches only a garage the API says misses it', () => {
+    expect(isMissing({ missing: ['photos', 'logo'] }, 'logo')).toBe(true)
+    expect(isMissing({ missing: ['photos'] }, 'logo')).toBe(false)
+    expect(isMissing({}, 'logo')).toBe(false)
+    expect(isMissing({}, null)).toBe(true)
+  })
+
+  test('Onboarded by: a name exactly, or Not set', () => {
+    expect(matchesOnboardedBy({ onboardedByName: 'Raga' }, 'Raga')).toBe(true)
+    expect(matchesOnboardedBy({ onboardedByName: 'Raga' }, 'raga')).toBe(false)
+    expect(
+      matchesOnboardedBy({ onboardedByName: '  ' }, ONBOARDED_NOT_SET)
+    ).toBe(true)
+    expect(
+      matchesOnboardedBy({ onboardedByName: null }, ONBOARDED_NOT_SET)
+    ).toBe(true)
+    expect(matchesOnboardedBy({}, ONBOARDED_NOT_SET)).toBe(true)
+    expect(
+      matchesOnboardedBy({ onboardedByName: 'Raga' }, ONBOARDED_NOT_SET)
+    ).toBe(false)
+    expect(matchesOnboardedBy({ onboardedByName: 'Raga' }, null)).toBe(true)
+  })
+
+  test('the choices: logins A to Z, then other typed names, then Not set, with counts', () => {
+    const options = onboardedByOptions(
+      [
+        { onboardedByName: 'Raga' },
+        { onboardedByName: 'Raga' },
+        { onboardedByName: 'Uncle Mani' },
+        { onboardedByName: null },
+        {},
+      ],
+      ['Raga', 'E2E Admin', 'Raga']
+    )
+    expect(options).toEqual([
+      { value: 'E2E Admin', label: 'E2E Admin', count: 0 },
+      { value: 'Raga', label: 'Raga', count: 2 },
+      { value: 'Uncle Mani', label: 'Uncle Mani', count: 1 },
+      { value: ONBOARDED_NOT_SET, label: 'Not set', count: 2 },
+    ])
+  })
+
+  test('With team is any open list; Assigned to me is my lists only', () => {
+    const onList = {
+      id: 'a',
+      openCollection: {
+        listId: 'l',
+        assigneeName: 'Raga',
+        dueOn: null,
+        done: 0,
+        total: 3,
+      },
+    }
+    const free = { id: 'b', openCollection: null }
+    expect(matchesTeam(onList, 'with', null)).toBe(true)
+    expect(matchesTeam(free, 'with', null)).toBe(false)
+    expect(matchesTeam(onList, 'mine', new Set(['a']))).toBe(true)
+    expect(matchesTeam(onList, 'mine', new Set(['b']))).toBe(false)
+    expect(matchesTeam(onList, 'mine', null)).toBe(false)
+    expect(matchesTeam(free, null, null)).toBe(true)
+  })
+})
+
+describe('the table cells', () => {
+  test('area: the nearby locality when pinned in Chennai, else the city', () => {
+    expect(garageArea({ city: 'Chennai', lat: null, lng: null })).toBe(
+      'Chennai'
+    )
+    const outside = {
+      city: 'Vellore',
+      lat: 12.92,
+      lng: 79.13,
+      outsideServiceCity: { town: 'Vellore', km: 125 },
+    } as unknown as Parameters<typeof garageArea>[0]
+    expect(garageArea(outside)).toBe('Vellore')
+  })
+
+  test('stage: Live, or the word that keeps it from customers', () => {
+    expect(stageCell(garage())).toEqual({ label: 'Live', tone: 'done' })
+    expect(
+      stageCell(garage({ live: false, status: 'pending', isVerified: false }))
+    ).toEqual({
+      label: 'Pending',
+      tone: 'new',
+    })
+    expect(stageCell(garage({ live: false, isVerified: false }))).toEqual({
+      label: 'Not verified',
+      tone: 'attention',
+    })
+    expect(stageCell(garage({ live: false, status: 'archived' })).tone).toBe(
+      'closed'
+    )
+    expect(stageCell(garage({ deletedAt: '2026-10-01T00:00:00Z' })).label).toBe(
+      'Bin'
+    )
+  })
+})
+
+describe('the next step', () => {
+  const NOW = Date.parse('2026-10-26T06:30:00Z') // 12:00 in Chennai
+  const blockingItem = item('blocking', 'services', 'no_services')
+
+  test('something blocking comes first, as the action', () => {
+    const step = garageNextStep(
+      garage({
+        live: false,
+        readiness: [{ ...blockingItem, tab: 'services' }],
+        missing: ['photos'],
+      } as Partial<Row>),
+      NOW
+    )
+    expect(step).toEqual({
+      text: 'Add services',
+      detail: 'Blocks going live',
+      tone: 'late',
+      tab: 'services',
+    })
+  })
+
+  test('a teammate collecting: due today in amber, late in red, else with whom', () => {
+    const list = (dueOn: string | null) =>
+      garage({
+        openCollection: {
+          listId: 'l',
+          assigneeName: 'Raga',
+          dueOn,
+          done: 3,
+          total: 11,
+        },
+      } as Partial<Row>)
+    expect(garageNextStep(list('2026-10-26'), NOW)).toEqual({
+      text: 'Due today · 3 of 11',
+      detail: 'With Raga',
+      tone: 'attention',
+    })
+    expect(garageNextStep(list('2026-10-25'), NOW)).toEqual({
+      text: 'Overdue · 3 of 11',
+      detail: 'With Raga',
+      tone: 'late',
+    })
+    expect(garageNextStep(list('2026-10-29'), NOW)).toEqual({
+      text: 'Due Thu 29 Oct · 3 of 11',
+      detail: 'With Raga',
+      tone: 'neutral',
+    })
+    expect(garageNextStep(list(null), NOW)?.text).toBe('Collecting · 3 of 11')
+  })
+
+  test('unverified, then a stale ask, then what to collect, then what to fix', () => {
+    expect(
+      garageNextStep(
+        garage({ live: false, isVerified: false, lat: 13 } as Partial<Row>),
+        NOW
+      )?.text
+    ).toBe('Verify')
+    // With no pin the server refuses: the pin comes first.
+    expect(
+      garageNextStep(
+        garage({ live: false, isVerified: false, lat: null } as Partial<Row>),
+        NOW
+      )
+    ).toEqual({
+      text: 'Pin first',
+      detail: 'Then verify',
+      tone: 'attention',
+      tab: 'location',
+    })
+    const asked = garage({
+      missing: ['photos'],
+      openMarks: [
+        {
+          id: 'm',
+          kind: 'photos',
+          label: '',
+          status: 'asked',
+          askedAt: '2026-10-23T06:00:00Z',
+        },
+      ],
+    } as Partial<Row>)
+    expect(garageNextStep(asked, NOW)).toEqual({
+      text: 'Chase · 3 days ago',
+      detail: 'Asked, no answer yet',
+      tone: 'attention',
+    })
+    const fresh = garage({
+      missing: ['photos', 'logo'],
+      openMarks: [
+        {
+          id: 'm',
+          kind: 'photos',
+          label: '',
+          status: 'asked',
+          askedAt: '2026-10-25T06:00:00Z',
+        },
+      ],
+    } as Partial<Row>)
+    expect(garageNextStep(fresh, NOW)).toEqual({
+      text: 'Collect 2 things',
+      tone: 'neutral',
+    })
+    const fix = garage({
+      readiness: [item('fix', 'bays', 'no_bays')],
+    } as Partial<Row>)
+    expect(garageNextStep(fix, NOW)?.text).toBe('Set the bays')
+    expect(garageNextStep(garage(), NOW)).toBeNull()
+  })
+
+  test('nothing for a garage in the Bin or archived; ranks put red first', () => {
+    expect(
+      garageNextStep(garage({ deletedAt: '2026-10-01T00:00:00Z' }), NOW)
+    ).toBeNull()
+    expect(
+      garageNextStep(
+        garage({ live: false, status: 'archived', isVerified: false }),
+        NOW
+      )
+    ).toBeNull()
+    expect(nextStepRank({ text: 'x', tone: 'late' })).toBeGreaterThan(
+      nextStepRank({ text: 'x', tone: 'attention' })
+    )
+    expect(nextStepRank({ text: 'x', tone: 'neutral' })).toBeGreaterThan(
+      nextStepRank(null)
+    )
   })
 })

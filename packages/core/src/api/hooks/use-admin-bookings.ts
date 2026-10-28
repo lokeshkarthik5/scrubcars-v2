@@ -11,6 +11,7 @@ import {
   addAdminBookingNote,
   cancelAdminBooking,
   getAdminBooking,
+  getAdminBookingViewCounts,
   listAdminBookings,
   markAdminBookingNoShow,
   overrideAdminPickupStep,
@@ -18,9 +19,11 @@ import {
   type AdminBooking,
   type AdminBookingDetail,
   type AdminBookingFilters,
+  type AdminBookingViewCountFilters,
   type BookingParty,
   type CancelledOnBehalfOf,
 } from '@repo/core/api/admin'
+import { ApiError } from '@repo/core/api/client'
 
 /**
  * Hierarchical keys, the same shape as `adminVendorKeys`: the filters live
@@ -34,6 +37,9 @@ export const adminBookingKeys = {
     [...adminBookingKeys.lists(), filters] as const,
   details: () => [...adminBookingKeys.all, 'detail'] as const,
   detail: (id: string) => [...adminBookingKeys.details(), id] as const,
+  /** The saved views' counts (0059), per set of the list's filters. */
+  viewCounts: (filters: AdminBookingViewCountFilters) =>
+    [...adminBookingKeys.all, 'view-counts', filters] as const,
 }
 
 /** Rows per page. The server caps a page at 200. */
@@ -41,6 +47,8 @@ export const ADMIN_BOOKINGS_PAGE_SIZE = 100
 
 /** How often an open list or booking refetches, so a new booking shows up on its own. */
 const REFRESH_MS = 30_000
+/** The bookings list's own refresh: once a minute (see useAdminBookings). */
+const LIST_REFRESH_MS = 60_000
 
 /**
  * Where the page after `row` starts, in the form the server reads: the row's
@@ -105,7 +113,42 @@ export function useAdminBookings(
         : undefined
     },
     placeholderData: keepPreviousData,
-    refetchInterval: REFRESH_MS,
+    // A minute, not 30 s: the Needs action view (the default) also reads the
+    // refunds owed, a heavy read on the API's one connection per instance.
+    refetchInterval: LIST_REFRESH_MS,
+  })
+}
+
+/**
+ * How many bookings each saved view holds (0059). Never holds up the list:
+ * read when the filters change and after booking actions, never on a timer
+ * (it reads the refunds owed too; 27 Oct), the old counts kept while new filters load,
+ * and an API older than the views (404) is not asked again, so the views
+ * show without counts.
+ */
+export function useAdminBookingViewCounts(
+  filters: AdminBookingViewCountFilters,
+  enabled = true
+) {
+  const key = {
+    q: filters.q || undefined,
+    status: filters.status || undefined,
+    vendorId: filters.vendorId || undefined,
+    from: filters.from || undefined,
+    to: filters.to || undefined,
+    test: filters.test || undefined,
+    bookingType: filters.bookingType || undefined,
+    payment: filters.payment || undefined,
+  }
+  return useQuery({
+    queryKey: adminBookingKeys.viewCounts(key),
+    queryFn: () => getAdminBookingViewCounts(key),
+    enabled,
+    staleTime: REFRESH_MS,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
+    retry: (failureCount, error) => !(error instanceof ApiError && error.status < 500) && failureCount < 2,
   })
 }
 
@@ -139,6 +182,7 @@ function useBookingAction<TInput>(
     onSuccess: (booking) => {
       queryClient.setQueryData(adminBookingKeys.detail(booking.id), booking)
       void queryClient.invalidateQueries({ queryKey: adminBookingKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: [...adminBookingKeys.all, 'view-counts'] })
     },
     onError: (_error, { id }) => {
       void queryClient.invalidateQueries({

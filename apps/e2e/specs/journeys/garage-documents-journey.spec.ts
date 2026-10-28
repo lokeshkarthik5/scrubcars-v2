@@ -170,9 +170,11 @@ test.describe.serial('garage documents @p0', () => {
       'aria-pressed',
       'true'
     )
-    const card = page.getByRole('group', { name: GARAGE.name, exact: true })
-    await expect(card.getByText('4 documents to review')).toBeVisible()
-    await card.getByRole('link', { name: '4 documents to review' }).click()
+    const card = page.getByRole('row', { name: GARAGE.name, exact: true })
+    // The row's link reads "4 docs to review"; it is named in full.
+    const review = card.getByRole('link', { name: '4 documents to review' })
+    await expect(review).toBeVisible()
+    await review.click()
 
     await expect(page).toHaveURL(new RegExp(`/vendors/${GARAGE.id}/edit\\?tab=documents`))
     const panel = page.getByRole('tabpanel', { name: 'Documents' })

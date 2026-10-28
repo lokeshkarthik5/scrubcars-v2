@@ -26,8 +26,11 @@ import { alertOps } from '../../lib/ops-alerts.js'
 import { summariseAcceptTime, summarisePilot } from '../../lib/pilot-stats.js'
 import { resolveServicePricing } from '../../lib/pricing.js'
 import { outsideServiceCity } from '../../lib/service-city.js'
-import { todayDateKey } from '../../lib/slots.js'
+import { istDayBounds, todayDateKey } from '../../lib/slots.js'
+import { vendorMissing, type MissingKey } from '../../lib/vendor-missing.js'
 import { vendorReadiness } from '../../lib/vendor-readiness.js'
+import { collectionListsService } from '../collection-lists/collection-lists.service.js'
+import { onboardingMarksService } from '../onboarding-marks/onboarding-marks.service.js'
 import { isDocumentStorageConfigured } from '../../lib/document-storage.js'
 import {
   summariesByVendor,
@@ -63,12 +66,17 @@ import { vendorInBin } from '../../lib/vendor-bin.js'
 import { isInBin, isListedToCustomers } from '../vendors/vendors.predicates.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { vendorsService } from '../vendors/vendors.service.js'
-import { adminRepository } from './admin.repository.js'
+import {
+  adminRepository,
+  type BookingFilterSet,
+  type BookingViewWindow,
+} from './admin.repository.js'
 import { rewardsService } from '../rewards/rewards.service.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { guaranteeService } from '../guarantee/guarantee.service.js'
 import type {
   AdminCancelBookingInput,
+  BookingViewCountsQuery,
   CreateBookingNoteInput,
   WaiveJobPhotosInput,
   CreateVendorInput,
@@ -624,6 +632,50 @@ function certificationSummary(
   }
 }
 
+/**
+ * What the bookings list's saved views need (0059): today's IST day,
+ * waiting bookings from a day back (Today's rule) and, for Needs action,
+ * the bookings with a refund owed (the Refunds page's own rule, so the two
+ * never disagree).
+ */
+async function bookingViewWindow(
+  now: number,
+  withRefunds: boolean
+): Promise<BookingViewWindow> {
+  const { start, end } = istDayBounds(todayDateKey(now))
+  const owed = withRefunds ? await refundsService.listRefunds({ status: 'owed' }) : []
+  return {
+    todayStart: start,
+    todayEnd: end,
+    waitingAfter: new Date(now - 24 * 60 * 60 * 1000),
+    refundOwedIds: [
+      ...new Set(owed.flatMap((refund) => (refund.bookingId ? [refund.bookingId] : []))),
+    ],
+  }
+}
+
+/**
+ * The bookings list's filters (0059) as the repository reads them, the same
+ * for the list and its views' counts.
+ */
+function bookingFilterSet(
+  query: BookingViewCountsQuery,
+  refundOwedIds: readonly string[]
+): BookingFilterSet {
+  const { start, end } = istDateRange(query.from, query.to)
+  return {
+    status: query.status,
+    vendorId: query.vendorId,
+    search: parseBookingSearch(query.q),
+    start,
+    end,
+    test: query.test,
+    bookingType: query.bookingType,
+    payment: query.payment,
+    refundOwedIds,
+  }
+}
+
 /** A garage with no completed jobs in the window: nothing to grade. */
 const NO_COMPLETED_JOBS: PhotoCompliance = { jobs: 0, compliant: 0, waived: 0, percent: null }
 
@@ -687,15 +739,35 @@ export const adminService = {
     // Detlio Guarantee (0051): approved free redo claims per garage in the
     // last 90 days, for the card's "N redo claims in 90 days". Null while off.
     const redoClaims = await guaranteeService.approvedByGarage(now)
+    // Onboarding marks (0059): what each garage still owes us (worked out
+    // here, lib/vendor-missing.ts), its open marks and its open collection
+    // list. One grouped read each: payout accounts, open marks, open items.
+    const [payoutIds, openMarks] = await Promise.all([
+      onboardingMarksService.payoutVendorIds(),
+      onboardingMarksService.openBriefsByVendor(),
+    ])
+    const documentSummaryOf = (vendorId: string) =>
+      documentsOn ? (documents.get(vendorId) ?? summariseDocuments([])) : null
+    const missing = new Map<string, MissingKey[]>(
+      vendors.map((vendor) => [
+        vendor.id,
+        vendorMissing({
+          ...vendor,
+          photoCount: vendor.photos.length,
+          hasDoorstepArea: drawnAreas.has(vendor.id),
+          documents: documentSummaryOf(vendor.id),
+          hasPayout: payoutIds.has(vendor.id),
+        }),
+      ])
+    )
+    const openCollection = await collectionListsService.openCollectionByVendor(missing)
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
     // forever and kept as a tombstone is not in it at all.
     return vendors.map(({ services, photos, workingHours, ...vendor }) => {
       const hasDoorstepArea = drawnAreas.has(vendor.id)
-      const documentSummary = documentsOn
-        ? (documents.get(vendor.id) ?? summariseDocuments([]))
-        : null
+      const documentSummary = documentSummaryOf(vendor.id)
       return {
         ...vendor,
         serviceCount: services.length,
@@ -722,6 +794,10 @@ export const adminService = {
           workingHours,
           documents: documentSummary,
         }),
+        missing: missing.get(vendor.id) ?? [],
+        openMarks: openMarks.get(vendor.id) ?? [],
+        onboardedByName: vendor.onboardedByName ?? null,
+        openCollection: openCollection.get(vendor.id) ?? null,
       }
     })
   },
@@ -736,12 +812,31 @@ export const adminService = {
     }
     // So the editor's "How customers book" can say a drawn area, not the
     // radius, is what covers doorstep customers.
-    const hasDoorstepArea = await adminRepository.hasDoorstepArea(id)
+    const documentsOn = isDocumentStorageConfigured()
+    const [hasDoorstepArea, payoutIds, documentRows] = await Promise.all([
+      adminRepository.hasDoorstepArea(id),
+      onboardingMarksService.payoutVendorIds([id]),
+      documentsOn ? vendorDocumentsRepository.listDocuments(id) : Promise.resolve([]),
+    ])
+    const documents = documentsOn ? summariseDocuments(documentRows) : null
+    // The Garages list's checklist and missing keys (0059), for the
+    // editor's status panel: the same rules on the same facts.
+    const facts = {
+      ...vendor,
+      hasDoorstepArea,
+      photoCount: vendor.photos.length,
+      services: vendor.services,
+      workingHours: vendor.workingHours,
+      documents,
+    }
     // `images` stays the photo rows the editor always read; `media` is the
     // photo-and-video block's view of the same rows.
     return {
       ...vendor,
       hasDoorstepArea,
+      readiness: vendorReadiness(facts),
+      missing: vendorMissing({ ...facts, hasPayout: payoutIds.has(id) }),
+      onboardedByName: vendor.onboardedByName ?? null,
       pickupEnabled: isPickupOffered(vendor),
       services: vendor.services.map(({ images, ...service }) => ({
         ...service,
@@ -864,6 +959,9 @@ export const adminService = {
       ...(input.jobsPerDay !== undefined && { jobsPerDay: input.jobsPerDay }),
       ...(input.vehicleTypes !== undefined && { vehicleTypes: input.vehicleTypes }),
       ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.onboardedByName !== undefined && {
+        onboardedByName: input.onboardedByName,
+      }),
       ...(input.status !== undefined && { status: input.status }),
       ...(input.isVerified !== undefined && { isVerified: input.isVerified }),
     }
@@ -1177,6 +1275,7 @@ export const adminService = {
       jobsPerDay: input.jobsPerDay ?? null,
       ...(input.vehicleTypes !== undefined && { vehicleTypes: input.vehicleTypes }),
       notes: input.notes ?? null,
+      onboardedByName: input.onboardedByName ?? null,
       ...(input.status !== undefined && { status: input.status }),
       ...(input.isVerified !== undefined && { isVerified: input.isVerified }),
     })
@@ -1222,14 +1321,17 @@ export const adminService = {
   },
 
   async listBookings(query: ListBookingsQuery, now = Date.now()) {
-    const { start, end } = istDateRange(query.from, query.to)
+    // The refunds owed are read only when a rule needs them.
+    const window =
+      query.view || query.payment === 'refund_owed'
+        ? await bookingViewWindow(
+            now,
+            query.view === 'needs_action' || query.payment === 'refund_owed'
+          )
+        : null
     const ids = await adminRepository.searchBookingIds({
-      status: query.status,
-      vendorId: query.vendorId,
-      search: parseBookingSearch(query.q),
-      start,
-      end,
-      test: query.test,
+      ...bookingFilterSet(query, window?.refundOwedIds ?? []),
+      ...(query.view && window && { view: { kind: query.view, window } }),
       after: query.cursor ?? null,
       limit: query.limit,
       offset: query.cursor ? 0 : (query.page - 1) * query.limit,
@@ -1249,6 +1351,19 @@ export const adminService = {
         ? [toAdminBookingRow(booking, notesCounts.get(id) ?? 0, now, movedIds.has(id))]
         : []
     })
+  },
+
+  /**
+   * How many bookings each saved view holds (0059), under every filter the
+   * list has, so a chip's count is the rows it lists. One count query,
+   * after the refunds owed.
+   */
+  async bookingViewCounts(query: BookingViewCountsQuery, now = Date.now()) {
+    const window = await bookingViewWindow(now, true)
+    return adminRepository.countBookingViews(
+      bookingFilterSet(query, window.refundOwedIds),
+      window
+    )
   },
 
   async getBooking(id: string, now = Date.now()) {

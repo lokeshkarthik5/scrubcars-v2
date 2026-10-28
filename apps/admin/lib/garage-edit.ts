@@ -11,10 +11,14 @@
 export const EDIT_TABS = ['details', 'location', 'operations', 'services'] as const
 export type EditTab = (typeof EDIT_TABS)[number]
 
+/**
+ * What each tab is called. `operations` keeps its `?tab=` value from when the
+ * tab was called Operations, so old links still open it.
+ */
 export const EDIT_TAB_LABELS: Record<EditTab, string> = {
   details: 'Details',
   location: 'Location',
-  operations: 'Operations',
+  operations: 'Hours & booking',
   services: 'Services',
 }
 
@@ -29,20 +33,22 @@ export function parseEditTab(value: string | string[] | null | undefined): EditT
 }
 
 /**
- * Every tab the page has: the four "Save changes" covers, then Documents
- * (garage documents, 0043), which saves each action on its own and is shown
- * only while documents are on, and Certification (Detlio Certified, 0048),
- * which also saves each action on its own and is always shown. The
- * checklist's "Documents not verified" links to Documents; Telegram's
- * certification alerts and the list's Certified line to Certification.
+ * Every tab the page has: the four "Save changes" covers, then Team & payout
+ * (the garage's people and where Detlio pays it; payout is MISSING_TABS'
+ * `team`), then Documents (garage documents, 0043), shown only while
+ * documents are on, and Certified (Detlio Certified, 0048), always shown.
+ * The last three save each action on their own. The checklist's "Documents
+ * not verified" links to Documents; Telegram's certification alerts and the
+ * list's Certified line to Certified.
  */
-export const PAGE_TABS = [...EDIT_TABS, 'documents', 'certification'] as const
+export const PAGE_TABS = [...EDIT_TABS, 'team', 'documents', 'certification'] as const
 export type PageTab = (typeof PAGE_TABS)[number]
 
 export const PAGE_TAB_LABELS: Record<PageTab, string> = {
   ...EDIT_TAB_LABELS,
+  team: 'Team & payout',
   documents: 'Documents',
-  certification: 'Certification',
+  certification: 'Certified',
 }
 
 /**
@@ -52,6 +58,7 @@ export const PAGE_TAB_LABELS: Record<PageTab, string> = {
 export function parsePageTab(value: string | string[] | null | undefined, documentsOn = true): PageTab {
   if (value === 'documents') return documentsOn ? 'documents' : 'details'
   if (value === 'certification') return 'certification'
+  if (value === 'team') return 'team'
   return parseEditTab(value)
 }
 
@@ -75,10 +82,33 @@ export function safeBackHref(value: string | string[] | null | undefined): strin
   return value
 }
 
+/**
+ * The garage's page on the customer site, for the editor's "View as
+ * customer". NEXT_PUBLIC_CARD_PHOTOS_URL is the customer site's address
+ * (https://detlio.com; the users app in development).
+ */
+export function customerGarageUrl(
+  vendorId: string,
+  site: string = process.env.NEXT_PUBLIC_CARD_PHOTOS_URL ?? 'https://detlio.com'
+): string {
+  return `${site.replace(/\/$/, '')}/garage/${encodeURIComponent(vendorId)}`
+}
+
 // ─── Unsaved changes ─────────────────────────────────────────────────────────
 
-/** Each tab's values in a form that compares: what the page loaded, or holds now. */
-export type TabValues = Record<EditTab, unknown>
+/**
+ * What "Save changes" covers: the four form tabs, and Go live (the stage and
+ * the Verified switch), which sits in the status panel beside the tabs rather
+ * than on one of them.
+ */
+export const DRAFT_SECTIONS = [...EDIT_TABS, 'golive'] as const
+export type DraftSection = (typeof DRAFT_SECTIONS)[number]
+
+/**
+ * Each section's values in a form that compares: what the page loaded, or
+ * holds now. Go live is optional, so a page without it compares the same.
+ */
+export type TabValues = Record<EditTab, unknown> & { golive?: unknown }
 
 /** JSON with object keys sorted, so two equal values always print the same. */
 function stableJson(value: unknown): string {
@@ -92,23 +122,100 @@ function stableJson(value: unknown): string {
 }
 
 /**
- * The tabs whose values differ from what was loaded (or last saved), in tab
- * order. Undefined and a missing key read the same, as JSON drops both.
+ * The sections whose values differ from what was loaded (or last saved), in
+ * tab order, Go live last. Undefined and a missing key read the same, as
+ * JSON drops both.
  */
-export function dirtyTabs(saved: TabValues, current: TabValues): EditTab[] {
-  return EDIT_TABS.filter((tab) => stableJson(saved[tab]) !== stableJson(current[tab]))
+export function dirtyTabs(saved: TabValues, current: TabValues): DraftSection[] {
+  return DRAFT_SECTIONS.filter((tab) => stableJson(saved[tab]) !== stableJson(current[tab]))
 }
 
-/** "a", "a and b", "a, b and c". */
-function joinAnd(parts: string[]): string {
-  if (parts.length <= 1) return parts.join('')
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+/**
+ * The save bar's words for each field, by section and by the key tabValues
+ * gives it. Lower case: they follow "2 unsaved changes ·". The pin is two
+ * keys and one field.
+ */
+export const FIELD_LABELS: Record<DraftSection, Record<string, string>> = {
+  details: {
+    ownerName: 'owner name',
+    ownerPhone: 'owner phone',
+    businessName: 'business name',
+    phone: 'business phone',
+    whatsapp: 'WhatsApp',
+    email: 'email',
+    yearsInOperation: 'years in operation',
+    onboardedByName: 'onboarded by',
+    notes: 'notes',
+  },
+  location: {
+    address: 'address',
+    city: 'city',
+    pincode: 'pincode',
+    mapsUrl: 'Maps link',
+    lat: 'map pin',
+    lng: 'map pin',
+  },
+  operations: {
+    hours: 'hours',
+    slotIntervalMins: 'slot interval',
+    bays: 'bays',
+    jobsPerDay: 'jobs per day',
+    vehicleTypes: 'car types',
+  },
+  services: {},
+  golive: { status: 'stage', isVerified: 'verified' },
 }
 
-/** The save bar's line: "Unsaved changes in Operations and Services". */
-export function unsavedChangesLine(tabs: readonly EditTab[]): string {
-  if (tabs.length === 0) return 'No unsaved changes'
-  return `Unsaved changes in ${joinAnd(tabs.map((tab) => EDIT_TAB_LABELS[tab]))}`
+/** A section that is one value, not fields (the services list). */
+const SECTION_AS_ONE: Record<DraftSection, string> = {
+  details: 'details',
+  location: 'location',
+  operations: 'hours & booking',
+  services: 'services',
+  golive: 'go live',
+}
+
+export interface DirtyField {
+  tab: DraftSection
+  label: string
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+/**
+ * Each changed field, in tab order and in the order the section lists its
+ * fields, each label once: what the save bar names. The services list is
+ * one change however many rows moved, as the page saves it as one list.
+ */
+export function dirtyFields(saved: TabValues, current: TabValues): DirtyField[] {
+  const fields: DirtyField[] = []
+  for (const tab of DRAFT_SECTIONS) {
+    const before = saved[tab]
+    const after = current[tab]
+    if (stableJson(before) === stableJson(after)) continue
+    if (!isRecord(before) || !isRecord(after)) {
+      fields.push({ tab, label: SECTION_AS_ONE[tab] })
+      continue
+    }
+    const keys = [...new Set([...Object.keys(after), ...Object.keys(before)])]
+    const labels = new Set<string>()
+    for (const key of keys) {
+      if (stableJson(before[key]) === stableJson(after[key])) continue
+      const label = FIELD_LABELS[tab][key] ?? key
+      if (labels.has(label)) continue
+      labels.add(label)
+      fields.push({ tab, label })
+    }
+  }
+  return fields
+}
+
+/** The save bar's line: "2 unsaved changes · address, map pin". */
+export function saveBarLine(fields: readonly DirtyField[]): string {
+  if (fields.length === 0) return 'No unsaved changes'
+  const count = `${fields.length} unsaved change${fields.length === 1 ? '' : 's'}`
+  return `${count} · ${fields.map((field) => field.label).join(', ')}`
 }
 
 /** The garage fields Save needs, as the form holds them (strings). */
@@ -224,3 +331,34 @@ export function parseRadiusInput(value: string): RadiusInput {
 
 /** The radius as the box shows it: "8", "7.5", or empty for the default. */
 export const radiusText = (km: number | null): string => (km != null ? String(km) : '')
+
+// ─── Onboarded by ────────────────────────────────────────────────────────────
+
+/** `vendors.onboarded_by_name` is varchar(100). */
+export const ONBOARDED_BY_MAX = 100
+
+/** The select's two values that are not a login's name. */
+export const ONBOARDED_BY_NOT_SET = ''
+export const ONBOARDED_BY_OTHER = '__other__'
+
+/**
+ * Which option the "Onboarded by" select shows for a stored name: the login
+ * of that name, "Someone else…" for any other text (or while the admin is
+ * typing one), or "Not set".
+ */
+export function onboardedBySelectValue(
+  value: string,
+  loginNames: readonly string[],
+  typingOther: boolean
+): string {
+  if (typingOther) return ONBOARDED_BY_OTHER
+  const name = value.trim()
+  if (!name) return ONBOARDED_BY_NOT_SET
+  return loginNames.includes(name) ? name : ONBOARDED_BY_OTHER
+}
+
+/** The name as saved: trimmed, and null when there is none. */
+export function onboardedByInput(value: string): string | null {
+  const name = value.trim().slice(0, ONBOARDED_BY_MAX)
+  return name ? name : null
+}

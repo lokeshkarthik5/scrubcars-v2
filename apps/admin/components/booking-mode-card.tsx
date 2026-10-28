@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { IconAlertCircle, IconCheck, IconUsers } from '@tabler/icons-react'
+import { IconAlertCircle, IconUsers } from '@tabler/icons-react'
 import { ScSegmented } from '@repo/ui/sc/segmented'
 import { ApiError } from '@repo/core/api/client'
 import { updateAdminVendor } from '@repo/core/api/admin'
 import { cn } from '@repo/core/utils'
+import { SavedNote } from '@/components/save-bar'
 import {
   BOOKING_MODE_OPTIONS,
   DEFAULT_DOORSTEP_RADIUS_KM,
@@ -98,15 +99,9 @@ export function BookingModeCard({
         <h2 id={`${radiusId}-title`} className="text-[15px] font-medium tracking-[-0.01em] text-text-primary">
           How customers book
         </h2>
-        {saveState && (
-          // Always mounted, so the change is announced when it lands.
-          <span role="status" className="flex items-center gap-1.5 text-[12.5px] text-text-secondary">
-            {saveState === 'saved' && (
-              <IconCheck size={15} stroke={2} className="text-success" aria-hidden="true" />
-            )}
-            {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Saves on tap'}
-          </span>
-        )}
+        {/* Always mounted, so the change is announced when it lands. The
+            same small label as every part of the editor that saves at once. */}
+        {saveState && <SavedNote state={saveState} idleText="Saves on tap" />}
       </div>
 
       {/* A radiogroup, not tabs: the choice changes the garage, not what is
@@ -203,13 +198,13 @@ export function BookingModeCard({
           {!live && (
             <span className="mt-1.5 flex items-start gap-1.5 text-error">
               <IconAlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
-              Not live yet: customers can’t see this garage until it’s Active and verified (Details).
+              Not live yet: customers can’t see this garage until it’s Active and verified.
             </span>
           )}
           {paused && (
             <span className="mt-1.5 flex items-start gap-1.5 text-error">
               <IconAlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
-              Bookings are paused, so no one can book right now. Resume them in Operations.
+              Bookings are paused, so no one can book right now. Resume them under Taking bookings.
             </span>
           )}
         </div>
@@ -227,30 +222,28 @@ const MODE_SAVE_DELAY_MS = 400
 type BookingPatch = { dropinEnabled?: boolean; doorstepEnabled?: boolean; doorstepRadiusKm?: number | null }
 
 /**
- * The card on the edit page, where it saves the moment it changes — like
- * Pause, and like the garage app — through the same admin vendor update the
- * form uses. "Save changes" never sends these fields, so nothing is saved
- * twice and the form can't put back a value this card just changed.
+ * How customers book on the edit page, where it saves the moment it changes
+ * — like Pause, and like the garage app — through the same admin vendor
+ * update the form uses. "Save changes" never sends these fields, so nothing
+ * is saved twice and the form can't put back a value this just changed.
+ *
+ * The state and the saves only; the editor draws them as tick tiles
+ * (HowCustomersBook in the edit page's folder). Add garage keeps the
+ * presentational BookingModeCard above.
  */
-export function LiveBookingModeCard({
+export function useLiveBookingMode({
   vendorId,
   dropinEnabled,
   doorstepEnabled,
   doorstepRadiusKm,
-  drawnArea,
-  paused,
-  live,
   onAuthError,
   onSaved,
 }: {
   vendorId: string
-  /** As loaded. Read once: from then on the card holds the garage's state. */
+  /** As loaded. Read once: from then on the hook holds the garage's state. */
   dropinEnabled: boolean
   doorstepEnabled: boolean
   doorstepRadiusKm: number | null
-  drawnArea: boolean
-  paused: boolean
-  live: boolean
   onAuthError: () => void
   /** Each change the server accepted, so the page can mark the garage list stale. */
   onSaved?: () => void
@@ -410,23 +403,21 @@ export function LiveBookingModeCard({
     )
   }
 
-  return (
-    <BookingModeCard
-      mode={mode}
-      onModeChange={changeMode}
-      radius={radius}
-      onRadiusChange={(value) => {
-        setRadius(value)
-        if (radiusError) setRadiusError(null)
-      }}
-      onRadiusBlur={commitRadius}
-      reachKm={savedKm}
-      radiusError={radiusError}
-      saveState={saveState}
-      error={error}
-      paused={paused}
-      live={live}
-      drawnArea={drawnArea}
-    />
-  )
+  return {
+    /** As on screen: may be waiting out its delay before it is sent. */
+    mode,
+    changeMode,
+    /** The "Travels up to" box as typed. */
+    radius,
+    changeRadius: (value: string) => {
+      setRadius(value)
+      if (radiusError) setRadiusError(null)
+    },
+    commitRadius,
+    /** The radius the server has: what the status line reports. */
+    savedKm,
+    radiusError,
+    saveState,
+    error,
+  }
 }

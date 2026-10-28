@@ -16,6 +16,7 @@ import type {
   CreateAdminLoginInput,
   ResetAdminPasswordInput,
   SetAdminLoginStatusInput,
+  UpdateAdminLoginInput,
 } from './admin-logins.validation.js'
 
 const log = logger.child({ module: 'admin-logins' })
@@ -30,6 +31,7 @@ function toResponse(row: AdminLoginRow) {
     lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
     createdByName: row.createdByName,
     createdAt: row.createdAt.toISOString(),
+    phone: row.phone ?? null,
   }
 }
 
@@ -114,7 +116,13 @@ export const adminLoginsService = {
       throw new AppError(409, 'That username is the shared login’s. Pick another.', 'ADMIN_USERNAME_TAKEN')
     }
     const row = await adminLoginsRepository.create(
-      { username: input.username, name: input.name, passwordHash: await hashPassword(input.password), isOwner: bootstrap },
+      {
+        username: input.username,
+        name: input.name,
+        passwordHash: await hashPassword(input.password),
+        isOwner: bootstrap,
+        phone: input.phone ?? null,
+      },
       actorOf(actor)
     )
     if (!row && bootstrap && (await adminLoginsRepository.ownerExists())) throw ownerOnly()
@@ -152,6 +160,26 @@ export const adminLoginsService = {
     const row = await adminLoginsRepository.setStatus(id, input.status, actorOf(actor), now)
     if (!row) throw notFound()
     log.info({ loginId: id, status: input.status, by: actor.sub }, 'admin-logins:status')
+    return toResponse(row)
+  },
+
+  /**
+   * A login's phone (0059): only for "Also send on WhatsApp" when a
+   * collection list goes to that person. The owner sets anyone's, as with
+   * the rest of Team logins, and everyone sets their own; the shared login
+   * and member admins have no row of their own, so only the owner's rule
+   * lets them. Passwords and on/off stay the owner's alone (0058).
+   */
+  async update(actor: AdminActor, id: string, input: UpdateAdminLoginInput, now = new Date()) {
+    if (!actor.isOwner && actor.loginId !== id) throw ownerOnly()
+    if (input.phone === undefined) {
+      const row = await adminLoginsRepository.findById(id)
+      if (!row) throw notFound()
+      return toResponse(row)
+    }
+    const row = await adminLoginsRepository.setPhone(id, input.phone, actorOf(actor), now)
+    if (!row) throw notFound()
+    log.info({ loginId: id, by: actor.sub }, 'admin-logins:phone')
     return toResponse(row)
   },
 

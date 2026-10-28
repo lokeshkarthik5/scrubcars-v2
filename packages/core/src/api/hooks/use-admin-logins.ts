@@ -8,9 +8,12 @@ import {
   listAdminLogins,
   resetAdminLoginPassword,
   setAdminLoginStatus,
+  updateAdminLogin,
   type AdminLogin,
   type AdminLoginList,
   type AdminLoginStatus,
+  type CreateAdminLoginInput,
+  type UpdateAdminLoginInput,
 } from '@repo/core/api/admin'
 
 /** Who is signed in, and the team's logins (0058). */
@@ -62,7 +65,7 @@ function usePutLogin() {
 export function useCreateAdminLogin() {
   const put = usePutLogin()
   return useMutation({
-    mutationFn: (input: { username: string; name: string; password: string }) => createAdminLogin(input),
+    mutationFn: (input: CreateAdminLoginInput) => createAdminLogin(input),
     onSuccess: put,
   })
 }
@@ -71,6 +74,18 @@ export function useResetAdminLoginPassword() {
   const put = usePutLogin()
   return useMutation({
     mutationFn: (input: { id: string; password: string }) => resetAdminLoginPassword(input.id, input.password),
+    onSuccess: put,
+  })
+}
+
+/** A login's phone (0059), for "Also send on WhatsApp" with a collection list. */
+export function useUpdateAdminLogin() {
+  const put = usePutLogin()
+  return useMutation({
+    mutationFn: (input: { id: string } & UpdateAdminLoginInput) => {
+      const { id, ...patch } = input
+      return updateAdminLogin(id, patch)
+    },
     onSuccess: put,
   })
 }

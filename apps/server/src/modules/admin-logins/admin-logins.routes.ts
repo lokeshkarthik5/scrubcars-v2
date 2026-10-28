@@ -13,6 +13,7 @@ import {
   loginIdParamSchema,
   resetAdminPasswordSchema,
   setAdminLoginStatusSchema,
+  updateAdminLoginSchema,
 } from './admin-logins.validation.js'
 
 /**
@@ -30,6 +31,15 @@ adminLoginRoutes.get('/', ...adminMiddleware, controller.list)
 
 adminLoginRoutes.post('/', ...adminMiddleware, zValidator('json', createAdminLoginSchema), (c) =>
   controller.create(c, c.req.valid('json'))
+)
+
+// The login's phone (0059): the owner sets anyone's, everyone their own.
+adminLoginRoutes.patch(
+  '/:id',
+  ...adminMiddleware,
+  zValidator('param', loginIdParamSchema),
+  zValidator('json', updateAdminLoginSchema),
+  (c) => controller.update(c, c.req.valid('param').id, c.req.valid('json'))
 )
 
 adminLoginRoutes.post(

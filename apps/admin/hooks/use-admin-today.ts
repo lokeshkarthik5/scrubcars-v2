@@ -25,11 +25,14 @@ export function useAdminToday(enabled = true) {
     queryKey: adminTodayKeys.all,
     queryFn: getAdminToday,
     enabled,
-    refetchInterval: 60_000,
-    // Every page carries the menu, so it is read only while someone can see
-    // it: a tab in the background waits until it is shown again.
+    // Every page carries the menu, so every open admin tab reads this. It is
+    // some 30 queries on the API's one connection per instance, so it is read
+    // every 5 minutes, not every minute, and not again on each return to the
+    // window: once a minute per tab queued ahead of everyone's requests and
+    // starved the database (27 Oct). Actions still refresh it (AdminScope).
+    refetchInterval: 5 * 60_000,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   })
 }
 

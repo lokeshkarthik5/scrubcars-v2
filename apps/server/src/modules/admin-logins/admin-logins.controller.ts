@@ -8,6 +8,7 @@ import type {
   CreateAdminLoginInput,
   ResetAdminPasswordInput,
   SetAdminLoginStatusInput,
+  UpdateAdminLoginInput,
 } from './admin-logins.validation.js'
 
 type AdminContext = Context<{ Variables: AuthVariables }>
@@ -22,6 +23,10 @@ export async function create(c: AdminContext, input: CreateAdminLoginInput) {
 
 export async function resetPassword(c: AdminContext, id: string, input: ResetAdminPasswordInput) {
   return c.json({ success: true, data: await adminLoginsService.resetPassword(signedInAdmin(c), id, input) })
+}
+
+export async function update(c: AdminContext, id: string, input: UpdateAdminLoginInput) {
+  return c.json({ success: true, data: await adminLoginsService.update(signedInAdmin(c), id, input) })
 }
 
 export async function setStatus(c: AdminContext, id: string, input: SetAdminLoginStatusInput) {

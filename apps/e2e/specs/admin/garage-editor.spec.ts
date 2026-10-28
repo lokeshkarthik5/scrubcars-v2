@@ -1,6 +1,8 @@
 /**
- * The admin garage editor: "How customers book" above the tabs, the save bar,
- * links that open a tab, ready-made services and Write with AI.
+ * The admin garage editor: "How customers book" (tick tiles on Location), the
+ * save bar ("N unsaved changes · fields"), links that open a tab, ready-made
+ * services and Write with AI. The two-column layout and Onboarded by are in
+ * garage-editor-layout.spec.ts.
  *
  * Everything here is on VENDORS.adminEditor, which no other file reads or
  * books. Each test puts the seeded state back first, so a retry starts where
@@ -58,26 +60,34 @@ async function description(id: string) {
 test.describe('admin garage editor', () => {
   test('how customers book saves on tap and is still there after a reload @p0', async ({ page }) => {
     await resetGarage()
+    // Tick tiles at the top of Location, and only there.
     await page.goto(EDIT)
+    await expect(page.getByRole('region', { name: 'How customers book' })).toHaveCount(0)
+    await page.goto(`${EDIT}?tab=location`)
 
     const card = page.getByRole('region', { name: 'How customers book' })
-    await expect(card.getByRole('radio', { name: 'At the garage' })).toHaveAttribute('aria-checked', 'true')
+    const garage = card.getByRole('checkbox', { name: 'At the garage' })
+    const doorstep = card.getByRole('checkbox', { name: 'Doorstep' })
+    await expect(garage).toBeChecked()
+    await expect(doorstep).not.toBeChecked()
+    await expect(card.getByRole('checkbox', { name: 'Pickup & drop' })).toHaveAccessibleDescription(
+      'Needs the signed agreement'
+    )
     await expect(card).not.toContainText('Doorstep within')
     // The fixture garage is Pending and unverified: the card must not read
     // as though customers could already book it.
     await expect(card).toContainText('When live, customers can book')
-    await expect(card).toContainText(
-      'Not live yet: customers can’t see this garage until it’s Active and verified (Details).'
-    )
+    await expect(card).toContainText('Not live yet: Active and verified first (Go live).')
 
     // Saved the moment it is tapped, with a quiet tick: no Save changes.
-    await card.getByRole('radio', { name: 'Both' }).click()
+    await doorstep.check()
     await expect(card.getByRole('status')).toHaveText('Saved')
     await expect
       .poll(bookingColumns)
       .toEqual({ dropin_enabled: true, doorstep_enabled: true, doorstep_radius_km: null })
     await expect(card).toContainText('At the garage · Doorstep within 10 km (default)')
     await expect(card).toContainText('Optional. Empty means 10 km.')
+    await expect(doorstep).toHaveAccessibleDescription('Team travels up to 10 km')
 
     // The radius saves when the box is left.
     const km = card.getByLabel('Travels up to')
@@ -85,6 +95,7 @@ test.describe('admin garage editor', () => {
     await km.press('Tab')
     await expect.poll(async () => (await bookingColumns()).doorstep_radius_km).toBe(8)
     await expect(card).toContainText('At the garage · Doorstep within 8 km')
+    await expect(doorstep).toHaveAccessibleDescription('Team travels up to 8 km')
 
     // Out of range is said, and not sent.
     await km.fill('45')
@@ -92,14 +103,14 @@ test.describe('admin garage editor', () => {
     await expect(card).toContainText('Enter a distance from 1 to 30 km, or leave it empty.')
     expect((await bookingColumns()).doorstep_radius_km).toBe(8)
 
-    // Switching to "At the garage" takes the box and what was said about it
-    // away together; back on Both, the box shows what is saved.
-    await card.getByRole('radio', { name: 'At the garage' }).click()
+    // Unticking Doorstep takes the box and what was said about it away
+    // together; ticked again, the box shows what is saved.
+    await doorstep.uncheck()
     await expect(card).not.toContainText('Enter a distance')
     await expect
       .poll(bookingColumns)
       .toEqual({ dropin_enabled: true, doorstep_enabled: false, doorstep_radius_km: 8 })
-    await card.getByRole('radio', { name: 'Both' }).click()
+    await doorstep.check()
     await expect(card.getByLabel('Travels up to')).toHaveValue('8')
     await expect.poll(async () => (await bookingColumns()).doorstep_enabled).toBe(true)
 
@@ -107,15 +118,22 @@ test.describe('admin garage editor', () => {
     await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
 
     await page.reload()
-    await expect(card.getByRole('radio', { name: 'Both' })).toHaveAttribute('aria-checked', 'true')
+    await expect(garage).toBeChecked()
+    await expect(doorstep).toBeChecked()
     await expect(card.getByLabel('Travels up to')).toHaveValue('8')
 
-    await card.getByRole('radio', { name: 'Doorstep' }).click()
+    await garage.uncheck()
     await expect
       .poll(bookingColumns)
       .toEqual({ dropin_enabled: false, doorstep_enabled: true, doorstep_radius_km: 8 })
     await expect(card).toContainText('Doorstep within 8 km')
     await expect(card).not.toContainText('At the garage ·')
+
+    // One of the two stays on: the last one can't be unticked.
+    await doorstep.click()
+    await expect(card.getByRole('alert')).toHaveText('Keep at least one of At the garage or Doorstep.')
+    await expect(doorstep).toBeChecked()
+    expect((await bookingColumns()).doorstep_enabled).toBe(true)
 
     await resetGarage()
   })
@@ -130,8 +148,9 @@ test.describe('admin garage editor', () => {
     await expect(save).toHaveCount(0)
 
     await businessName.fill(`${GARAGE.name} Renamed`)
-    await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toHaveText(
-      'Unsaved changes in Details'
+    // How many changes, then which fields.
+    await expect(page.getByRole('status').filter({ hasText: 'unsaved change' })).toHaveText(
+      '1 unsaved change · business name'
     )
     await expect(page.getByRole('tab', { name: 'Details, unsaved changes', exact: true })).toBeVisible()
     await expect(save).toBeEnabled()
@@ -176,10 +195,16 @@ test.describe('admin garage editor', () => {
     await expect(page.getByRole('tab', { name: 'Services' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('heading', { name: /^Services/ })).toBeVisible()
 
-    await page.getByRole('tab', { name: 'Operations' }).click()
+    // "Hours & booking" keeps the `?tab=` it had as Operations.
+    await page.getByRole('tab', { name: 'Hours & booking' }).click()
     await expect(page).toHaveURL(/[?&]tab=operations/)
     await page.reload()
-    await expect(page.getByRole('tab', { name: 'Operations' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Hours & booking' })).toHaveAttribute('aria-selected', 'true')
+
+    // Team & payout is a tab of its own, with its own `?tab=`.
+    await page.goto(`${EDIT}?tab=team`)
+    await expect(page.getByRole('tab', { name: 'Team & payout' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('heading', { name: 'Payout details' })).toBeVisible()
 
     // Anything else opens Details; the back arrow never leaves the panel.
     await page.goto(`${EDIT}?tab=nonsense&back=${encodeURIComponent('https://example.com')}`)
@@ -260,8 +285,8 @@ test.describe('admin garage editor', () => {
 
     // Only a draft until saved, like typed text.
     expect(await description(SERVICES.editorPolish.id)).toBeNull()
-    await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toHaveText(
-      'Unsaved changes in Services'
+    await expect(page.getByRole('status').filter({ hasText: 'unsaved change' })).toHaveText(
+      '1 unsaved change · services'
     )
     await page.getByRole('button', { name: 'Save changes' }).click()
     await expect.poll(() => description(SERVICES.editorPolish.id)).toBe(FAKE_DESCRIPTION)

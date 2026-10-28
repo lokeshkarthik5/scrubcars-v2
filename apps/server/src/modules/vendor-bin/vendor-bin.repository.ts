@@ -2,6 +2,7 @@ import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookingIntentItems,
+  collectionItems,
   bookingIntents,
   bookingItems,
   bookings,
@@ -18,6 +19,7 @@ import {
   vendorDocumentFiles,
   vendorCertifications,
   vendorDocuments,
+  vendorOnboardingMarks,
   vendorQualityChecks,
   vendorPayoutAccounts,
   vendorPhotos,
@@ -332,6 +334,16 @@ function writes(tx: Tx) {
      */
     async deleteFavourites(vendorId: string) {
       await tx.delete(userFavouriteVendors).where(eq(userFavouriteVendors.vendorId, vendorId))
+    },
+
+    /**
+     * A tombstone's onboarding marks and collection items (0059): their
+     * notes can hold personal details, and the garage is in no list to
+     * collect anything for. A deleted garage's go by cascade.
+     */
+    async deleteOnboardingRecords(vendorId: string) {
+      await tx.delete(vendorOnboardingMarks).where(eq(vendorOnboardingMarks.vendorId, vendorId))
+      await tx.delete(collectionItems).where(eq(collectionItems.vendorId, vendorId))
     },
 
     async deleteSeats(vendorId: string) {
