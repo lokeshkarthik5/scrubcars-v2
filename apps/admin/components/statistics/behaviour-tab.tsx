@@ -223,7 +223,7 @@ export function BehaviourTab({
         onRetry={() => void stats.refetch()}
       />
     ) : (
-      <div role="status" aria-busy="true" className="flex flex-col gap-5">
+      <div role="status" aria-busy="true" className="mt-3 flex flex-col gap-5">
         <span className="sr-only">Loading</span>
         <Skeleton className="h-[420px]" />
         <Skeleton className="h-[260px]" />
@@ -234,7 +234,9 @@ export function BehaviourTab({
   const report = stats.data
   const startNote = behaviourStartNote(report.stepsSince, report.range)
   return (
-    <>
+    // Its own spacing: the page's children sit in the route template's
+    // plain div, so the shell's gap does not reach them.
+    <div className="mt-3 flex flex-col gap-5">
       <div
         aria-busy={stats.isFetching || undefined}
         className={cn(
@@ -256,6 +258,6 @@ export function BehaviourTab({
         </div>
       </div>
       <HowWeCount lines={HOW_WE_COUNT} />
-    </>
+    </div>
   )
 }
